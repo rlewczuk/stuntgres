@@ -14,7 +14,7 @@ func TestObjectAddressAuthority(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	roles := e.roles.root.Read(authorization.PrincipalRef{})
-	for address, descriptor := range view.state.descriptors {
+	for address, descriptor := range view.Descriptors() {
 		identity, err := identifyAddress(view, roles, nil, address)
 		if err != nil || !identity.found || identity.identity == "" || identity.kind == "" {
 			t.Fatal("descriptor authority", address, descriptor.Name(), identity, err)

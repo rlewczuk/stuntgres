@@ -128,7 +128,7 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 		return fmt.Errorf("stuntgres: invalid type identity")
 	}
 	if t.extension != (ids.ObjectAddress{}) {
-		parent, ok := view.state.descriptors[t.extension].(*extensionDescriptor)
+		parent, ok := view.Extension(t.extension)
 		if !ok || parent.name != "intarray" || parent.targetNamespace != t.Namespace() || !t.typ.IsQueryInt() {
 			return fmt.Errorf("stuntgres: invalid installed type membership")
 		}
@@ -139,7 +139,7 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 		return fmt.Errorf("stuntgres: query_int type has no installation")
 	}
 	if t.owningRelation != (ids.ObjectAddress{}) {
-		relation, ok := view.state.descriptors[t.owningRelation].(*relationDescriptor)
+		relation, ok := view.Relation(t.owningRelation)
 		if !ok || relation.namespace != t.Namespace() || relation.owner != t.owner {
 			return fmt.Errorf("stuntgres: invalid row type ownership")
 		}
@@ -156,7 +156,7 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 		}
 	}
 	if t.typ.IsComposite() {
-		relation, ok := view.state.descriptors[t.owningRelation].(*relationDescriptor)
+		relation, ok := view.Relation(t.owningRelation)
 		if !ok || len(relation.columns) != t.typ.CompositeLen() {
 			return fmt.Errorf("stuntgres: missing composite backing definition")
 		}
@@ -496,7 +496,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 // Existing row-bearing relations reserve their reciprocal type identity.
 func relationTypeNameOccupied(view CatalogRead, namespace ids.ObjectAddress, name string) bool {
 	for _, address := range view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name}) {
-		if relation, ok := view.state.descriptors[address].(*relationDescriptor); ok && (relation.relationKind == tableRelation || relation.relationKind == partitionedRelation || relation.relationKind == viewRelation || relation.relationKind == compositeRelation) {
+		if relation, ok := view.Relation(address); ok && (relation.relationKind == tableRelation || relation.relationKind == partitionedRelation || relation.relationKind == viewRelation || relation.relationKind == compositeRelation) {
 			return true
 		}
 	}

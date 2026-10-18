@@ -18,7 +18,7 @@ func objectRevokeUnitFixture(t *testing.T) (*Engine, *Operation, authorization.P
 	e, op, reader, address := objectGrantUnitFixture(t)
 	target := roleAttributeCreate(t, e, op, "revoke_target", true, parser.RoleOptions{}).Ref
 	leaf := roleAttributeCreate(t, e, op, "revoke_leaf", true, parser.RoleOptions{}).Ref
-	old := e.catalog.state.descriptors[address].(*relationDescriptor)
+	old := e.catalog.state.MustRelation(address)
 	next := *old
 	next.acl = authorization.MaterializeRelationACL(authorization.ACLValue{}, old.owner)
 	next.acl.Entries = append(next.acl.Entries, objectACLUnitEntry(old.owner, reader, authorization.SelectPrivilege, authorization.SelectPrivilege))
@@ -47,7 +47,7 @@ func TestObjectRevokeAtomicity(t *testing.T) {
 		t.Run(failure, func(t *testing.T) {
 			e, op, _, _, _, address := objectRevokeUnitFixture(t)
 			before, roles := e.catalog.state, e.roles
-			old := before.descriptors[address].(*relationDescriptor)
+			old := before.MustRelation(address)
 			tableBefore := slices.Clone(old.acl.Entries)
 			columnBefore := slices.Clone(old.columnACL[3].Entries)
 			request := objectRevokeUnitRequest()
@@ -81,7 +81,7 @@ func TestObjectRevokeAtomicity(t *testing.T) {
 func TestObjectRevokeColumnSelection(t *testing.T) {
 	e, op, reader, target, _, address := objectRevokeUnitFixture(t)
 	before, roles := e.catalog.state, e.roles
-	old := before.descriptors[address].(*relationDescriptor)
+	old := before.MustRelation(address)
 	request := objectRevokeUnitRequest()
 	request.Relations = append(request.Relations, request.Relations[0])
 	request.Grantees = append(request.Grantees, request.Grantees[0])
@@ -89,7 +89,7 @@ func TestObjectRevokeColumnSelection(t *testing.T) {
 	if err := applyObjectGrantUnit(e, op, request); err != nil {
 		t.Fatal(err)
 	}
-	next := e.catalog.state.descriptors[address].(*relationDescriptor)
+	next := e.catalog.state.MustRelation(address)
 	wantTable := []authorization.ACLEntry{old.acl.Entries[0], objectACLUnitEntry(old.owner, reader, authorization.SelectPrivilege, 0)}
 	wantColumn := []authorization.ACLEntry{objectACLUnitEntry(old.owner, reader, authorization.SelectPrivilege, 0)}
 	if e.catalog.state == before || next == old || e.roles.revision != roles.revision+1 || !slices.Equal(next.acl.Entries, wantTable) || !slices.Equal(next.columnACL[3].Entries, wantColumn) || !reflect.DeepEqual(next.columnACL[1], old.columnACL[1]) {
@@ -109,7 +109,7 @@ func TestObjectRevokeColumnSelection(t *testing.T) {
 	if err := applyObjectGrantUnit(e, op, column); err != nil {
 		t.Fatal(err)
 	}
-	next = e.catalog.state.descriptors[address].(*relationDescriptor)
+	next = e.catalog.state.MustRelation(address)
 	if len(next.columnACL[3].Entries) != 0 || !slices.Equal(next.acl.Entries, wantTable) {
 		t.Fatal("column revoke changed table or retained grant", next)
 	}
@@ -124,7 +124,7 @@ func TestObjectRevokeNoopPublication(t *testing.T) {
 		if err := applyObjectGrantUnit(e, op, request); err != nil {
 			t.Fatal(err)
 		}
-		next := e.catalog.state.descriptors[address].(*relationDescriptor)
+		next := e.catalog.state.MustRelation(address)
 		if e.catalog.state == before || e.roles.revision != roles.revision+1 || !reflect.DeepEqual(next.acl, authorization.MaterializeRelationACL(authorization.ACLValue{}, next.owner)) || len(next.columnACL) != 0 {
 			t.Fatal("absent table defaults not explicitly materialized", next)
 		}

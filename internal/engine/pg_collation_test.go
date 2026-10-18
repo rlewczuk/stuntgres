@@ -14,7 +14,7 @@ import (
 func pgCollationUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 3456}
-	d, ok := catalog.state.descriptors[address].(*relationDescriptor)
+	d, ok := catalog.Relation(address)
 	if !ok {
 		t.Fatal("missing pg_collation")
 	}
@@ -44,11 +44,11 @@ func TestPGCollationShapeAndOwnership(t *testing.T) {
 	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Grantor != owner || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.acl)
 	}
-	row, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.rowType)}].(*typeDescriptor)
+	row, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.rowType)})
 	if !ok {
 		t.Fatal("owned row type", d.rowType)
 	}
-	array, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}].(*typeDescriptor)
+	array, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)})
 	if !ok {
 		t.Fatal("owned row array", row.array)
 	}
@@ -72,7 +72,7 @@ func pgCollationUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *query
 		t.Fatal("capture", rows, err)
 	}
 	count := 0
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		if _, ok := descriptor.(*collationDescriptor); ok {
 			count++
 		}
@@ -90,7 +90,7 @@ func pgCollationUnitCapture(t *testing.T, e *Engine, catalog CatalogRead) *query
 			t.Fatal("private ordered identity", id, previous, err)
 		}
 		previous = id
-		definition, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)}].(*collationDescriptor)
+		definition, ok := catalog.Collation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)})
 		if !ok {
 			t.Fatal("invented row", id)
 		}

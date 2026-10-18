@@ -33,7 +33,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 					old = ref
 				}
 			}
-			if old.Epoch == current.Epoch || e.CatalogRead().state.descriptors[provider.address] != provider {
+			if old.Epoch == current.Epoch || e.CatalogRead().Get(provider.address) != provider {
 				t.Fatal("fixture is not an actual retained old-epoch provider", old, current)
 			}
 			holderOp, holderDone, err := testOperation(e, context.Background())
@@ -126,7 +126,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 					t.Fatal(err)
 				}
 				queryCreatePublish(t, e, change)
-				if e.CatalogRead().state.descriptors[current.Address] != &replacement || replacement.address != provider.address || replacement.relationKind != provider.relationKind {
+				if e.CatalogRead().Get(current.Address) != &replacement || replacement.address != provider.address || replacement.relationKind != provider.relationKind {
 					t.Fatal("same-address provider replacement fixture failed")
 				}
 			}
@@ -193,13 +193,13 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 					if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
 						t.Fatal(err)
 					}
-					if e.CatalogRead().state.descriptors[destination.address] != destination {
+					if e.CatalogRead().Get(destination.address) != destination {
 						t.Fatal("candidate not published")
 					}
 					assertHold()
 				} else {
 					err = context.Canceled
-					if e.CatalogRead().state.descriptors[destination.address] != nil || e.storage[destination.address] != nil {
+					if e.CatalogRead().Get(destination.address) != nil || e.storage[destination.address] != nil {
 						t.Fatal("rolled back candidate published")
 					}
 				}
@@ -213,7 +213,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 				if outcome == "pointer" && err.Error() != "stuntgres: definition provider disappeared before publication" {
 					t.Fatal("retained pointer fence not exercised", err)
 				}
-				if e.CatalogRead().state.descriptors[destination.address] != nil || e.storage[destination.address] != nil || e.indexRoots[destination.address] != nil {
+				if e.CatalogRead().Get(destination.address) != nil || e.storage[destination.address] != nil || e.indexRoots[destination.address] != nil {
 					t.Fatal("failed admission published candidate fragments")
 				}
 			}

@@ -71,7 +71,7 @@ func TestAlterAddConstraintBackingRetirement(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(context.Background(), stage); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.state != before || e.storage[old.address] != store || e.indexRoots[backing] != root || before.names[key] != backing || len(old.uniqueConstraints) != 1 {
+	if e.catalog.state != before || e.storage[old.address] != store || e.indexRoots[backing] != root || before.NameAddress(key) != backing || len(old.uniqueConstraints) != 1 {
 		t.Fatal("private retirement/replacement changed live catalog or physical root")
 	}
 }

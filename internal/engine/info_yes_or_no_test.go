@@ -13,7 +13,7 @@ import (
 func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view CatalogRead) *typeDescriptor {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13256}
-	d, ok := view.state.descriptors[address].(*typeDescriptor)
+	d, ok := view.Type(address)
 	if !ok || d.Name() != "yes_or_no" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}) || d.revision == 0 || !d.typ.IsBuiltin() || !d.typ.Concrete() || !d.typ.HasDomainChecks() {
 		t.Fatal("selected domain wrapper", d)
 	}
@@ -126,7 +126,7 @@ func TestInfoYesOrNoBuiltinBaseRebind(t *testing.T) {
 	original := infoYesOrNoUnitCatalog(t, source, originalView)
 	next := cloneCatalog(originalView.state)
 	baseAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.VarChar)}
-	base := *next.descriptors[baseAddress].(*typeDescriptor)
+	base := *next.MustType(baseAddress)
 	base.typ, _ = fresh.CatalogRead().LookupType(sqltype.VarChar)
 	next.descriptors[baseAddress] = &base
 	changed, err := reownDomainTypes(next, nil, false)

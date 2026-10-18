@@ -55,7 +55,7 @@ func capturePGDescription(ctx context.Context, catalog CatalogRead, ref ids.Obje
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	rows := make([][]sqltype.Value, 0, len(catalog.state.descriptors))
+	rows := make([][]sqltype.Value, 0, catalog.DescriptorCount())
 	appendDescription := func(address ids.ObjectAddress, sub int32, text string) error {
 		if text == "" {
 			return nil
@@ -75,7 +75,7 @@ func capturePGDescription(ctx context.Context, catalog CatalogRead, ref ids.Obje
 		rows = append(rows, []sqltype.Value{object, class, attribute, sqltype.String(source.columns[3].Usage.Type, text)})
 		return nil
 	}
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}

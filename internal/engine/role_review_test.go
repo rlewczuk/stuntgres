@@ -159,12 +159,12 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 	ref := roleTableRef(t, e, "sentinel")
 	beforeCatalog, beforeRoles := e.catalog.state, e.roles
 	beforeOID, beforeRevision := e.catalog.nextOID, e.catalog.nextRevision
-	original := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	original := e.catalog.state.MustRelation(ref.Address)
 	dependencies := descriptorReferences(original)
 	invalid := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege, GrantOptions: authorization.SelectPrivilege}}}
 	unchanged := func() {
 		t.Helper()
-		if e.catalog.state != beforeCatalog || e.roles != beforeRoles || e.catalog.nextOID != beforeOID || e.catalog.nextRevision != beforeRevision || !reflect.DeepEqual(descriptorReferences(e.catalog.state.descriptors[ref.Address]), dependencies) {
+		if e.catalog.state != beforeCatalog || e.roles != beforeRoles || e.catalog.nextOID != beforeOID || e.catalog.nextRevision != beforeRevision || !reflect.DeepEqual(descriptorReferences(e.catalog.state.Get(ref.Address)), dependencies) {
 			t.Fatal("invalid PUBLIC authority changed catalog/revisions/dependencies")
 		}
 		if got := tuples(roleExecute(t, e, op, "SELECT id FROM sentinel")); !reflect.DeepEqual(got, [][]driver.Value{{int64(7)}}) {
@@ -180,7 +180,7 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 		t.Fatal("namespace mutation accepted PUBLIC grant options", err)
 	}
 	unchanged()
-	namespaceDescriptor := *e.catalog.state.descriptors[namespace.Address].(*namespaceDescriptor)
+	namespaceDescriptor := *e.catalog.state.MustNamespace(namespace.Address)
 	namespaceDescriptor.acl = namespaceACL
 	namespaceView := cloneCatalog(e.catalog.state)
 	namespaceView.descriptors[namespace.Address] = &namespaceDescriptor
@@ -225,7 +225,7 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 		sourceOp, sourceDone := roleOperation(t, source, "postgres")
 		roleExecute(t, source, sourceOp, "CREATE TABLE imported(id INT)")
 		foreignRef := roleTableRef(t, source, "imported")
-		foreign := *source.catalog.state.descriptors[foreignRef.Address].(*relationDescriptor)
+		foreign := *source.catalog.state.MustRelation(foreignRef.Address)
 		foreignACL := invalid
 		foreignACL.Entries = append([]authorization.ACLEntry(nil), invalid.Entries...)
 		foreignACL.Entries[0].Grantor = source.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")

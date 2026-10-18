@@ -23,7 +23,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 	}
 	reads := b.returning != nil || len(logical.usedColumns) != 0 || logical.conflict != nil && len(logical.conflict.reads) != 0
 	for _, layer := range w.layers {
-		current, ok := v.catalog.state.descriptors[layer.ref.Address].(*relationDescriptor)
+		current, ok := v.catalog.Relation(layer.ref.Address)
 		if !ok || current.view != layer.relation.view {
 			return ErrCatalogReplaced
 		}
@@ -32,7 +32,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 		if current.view.invoker {
 			authority.state.CurrentUser = invoker
 		}
-		source, ok := v.catalog.state.descriptors[layer.sourceRef.Address].(*relationDescriptor)
+		source, ok := v.catalog.Relation(layer.sourceRef.Address)
 		if !ok || !sameRelationRowShape(source, layer.source) {
 			return ErrCatalogReplaced
 		}
@@ -51,7 +51,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 			if occurrence == layer.mainOccurrence && !reads {
 				continue
 			}
-			relation, ok := v.catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
+			relation, ok := v.catalog.Relation(leaf.ref.Address)
 			if !ok {
 				return ErrCatalogReplaced
 			}
@@ -125,12 +125,12 @@ func (s *StatementScope) acquireViewWriteTarget(w *viewWrite) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	catalog := e.privateCatalogLocked(s.owner.catalog)
-	current, ok := catalog.state.descriptors[w.ref.Address].(*relationDescriptor)
+	current, ok := catalog.Relation(w.ref.Address)
 	if !ok || w.ref.Domain() != e.catalog.domain || w.ref.Epoch != e.catalog.state.epoch || !sameRelationRowShape(current, w.base) {
 		return ErrCatalogReplaced
 	}
 	for _, layer := range w.layers {
-		d, ok := catalog.state.descriptors[layer.ref.Address].(*relationDescriptor)
+		d, ok := catalog.Relation(layer.ref.Address)
 		if !ok || d.view != layer.relation.view || !sameRelationRowShape(d, layer.relation) {
 			return ErrCatalogReplaced
 		}

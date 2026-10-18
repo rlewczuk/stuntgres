@@ -28,7 +28,7 @@ func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *cata
 		if !ok {
 			continue
 		}
-		previous, ok := stage.base.state.descriptors[a].(*relationDescriptor)
+		previous, ok := stage.base.Relation(a)
 		if !ok {
 			continue
 		}
@@ -50,7 +50,7 @@ func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *cata
 		if shape.fills != nil {
 			shape.fills = maps.Clone(shape.fills)
 			for attribute, value := range shape.fills {
-				target, _ := next.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(value.Type().ID())}].(*typeDescriptor)
+				target, _ := next.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(value.Type().ID())})
 				if target != nil && target.typ != value.Type() {
 					v, err := reownDomainDatum(value, target.typ, nil, nil, nil)
 					if err != nil {

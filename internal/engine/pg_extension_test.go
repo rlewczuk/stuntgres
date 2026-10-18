@@ -14,7 +14,7 @@ import (
 func pgExtensionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 3079}
-	d, ok := e.catalog.state.descriptors[a].(*relationDescriptor)
+	d, ok := e.catalog.state.Relation(a)
 	if !ok {
 		t.Fatal("missing pg_extension")
 	}
@@ -46,8 +46,8 @@ func pgExtensionUnitShape(t *testing.T, e *Engine) *relationDescriptor {
 	if d.rowType != 10074 {
 		t.Fatal("existing native rowtype", d.rowType)
 	}
-	row := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10074}].(*typeDescriptor)
-	array := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10073}].(*typeDescriptor)
+	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10074})
+	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10073})
 	ownedRow, ok := e.CatalogRead().LookupType(10074)
 	ownedArray, arrayOK := e.CatalogRead().LookupArray(ownedRow)
 	if !ok || !arrayOK || ownedRow != row.typ || ownedArray != array.typ || row.array != 10073 || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != owner || array.owner != owner {
@@ -66,7 +66,7 @@ func TestPGExtensionShapeAndOwnership(t *testing.T) {
 	if err := (relationProvider{}).Validate(e.CatalogRead(), &invalid); err == nil {
 		t.Fatal("foreign generation accepted")
 	}
-	class := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}].(*relationDescriptor)
+	class := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
 	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(e.catalog.read(e.catalog.state), e.roles), ids.ObjectRef{}, class)
 	if err != nil {
 		t.Fatal(err)
@@ -142,7 +142,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	}
 	state := *e.catalog.state
 	state.descriptors = maps.Clone(e.catalog.state.descriptors)
-	for a := range state.descriptors {
+	for a := range state.Descriptors() {
 		if a.ClassID == ids.RelationClassID {
 			delete(state.descriptors, a)
 		}
@@ -205,8 +205,8 @@ func TestPGExtensionCaptureInstalled(t *testing.T) {
 	defer done()
 	stage := extensionUnitStage(t, e, op)
 	extensionUnitPublish(t, e, op, stage)
-	address := e.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]
-	ext := e.catalog.state.descriptors[address].(*extensionDescriptor)
+	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
+	ext := e.catalog.state.MustExtension(address)
 	d = pgExtensionUnitShape(t, e)
 	captured, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(e.catalog.read(e.catalog.state), e.roles), ref, d)
 	if err != nil || captured == nil || captured.count() != 1 {

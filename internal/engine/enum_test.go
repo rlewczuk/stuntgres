@@ -67,7 +67,7 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 	auth := catalogAuthorization(e, e.CatalogRead())
 	auth.state.CurrentUser = reader
 	// Grant schema access through the authority fixture, without adding SQL GRANT.
-	ns := *auth.catalog.state.descriptors[mood.Namespace()].(*namespaceDescriptor)
+	ns := *auth.catalog.MustNamespace(mood.Namespace())
 	ns.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
 	namespaceStage := e.BeginCatalogStage(auth.catalog)
 	ns.revision++
@@ -123,8 +123,8 @@ func TestEnumExplicitCatalogRemapping(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(err)
 	}
-	newMood := next.descriptors[mood.Address()].(*typeDescriptor).typ
-	newWrapped := next.descriptors[wrapped.Address()].(*typeDescriptor).typ
+	newMood := next.MustType(mood.Address()).typ
+	newWrapped := next.MustType(wrapped.Address()).typ
 	if newMood.ID() != sqltype.ID(target.ObjectID) || newWrapped.BaseType() != newMood || mood.typ.ID() == newMood.ID() {
 		t.Fatal("identity mapping lost")
 	}

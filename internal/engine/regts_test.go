@@ -21,7 +21,7 @@ func regTSUnitSnapshot(t *testing.T) (*Engine, *Operation, CatalogRead, Authoriz
 	view.state = cloneCatalog(view.state)
 	var installed *tsDictionaryDescriptor
 	for _, address := range ext.members {
-		if d, ok := view.state.descriptors[address].(*tsDictionaryDescriptor); ok {
+		if d, ok := view.TSDictionary(address); ok {
 			installed = d
 		}
 	}
@@ -30,7 +30,7 @@ func regTSUnitSnapshot(t *testing.T) (*Engine, *Operation, CatalogRead, Authoriz
 	}
 	namespaces := make([]ids.ObjectAddress, 4)
 	for i, name := range []string{"Reg.TS", "reg_ts_left", "reg_ts_right", `Reg"TS`} {
-		ns := *view.state.descriptors[ext.targetNamespace].(*namespaceDescriptor)
+		ns := *view.MustNamespace(ext.targetNamespace)
 		ns.address = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(90000 + i)}
 		ns.name = name
 		if i == 3 {
@@ -114,7 +114,7 @@ func TestRegTSProviderResolution(t *testing.T) {
 	// Mutating the private successor snapshot cannot change returned output.
 	next := view
 	next.state = cloneCatalog(view.state)
-	ns := *next.state.descriptors[namespaces[0]].(*namespaceDescriptor)
+	ns := *next.MustNamespace(namespaces[0])
 	ns.name = "renamed"
 	next.state.descriptors[ns.address] = &ns
 	if got := regTSSpelling(next, input.path, 91000, sqltype.Regdictionary, false); got != "renamed.unaccent" {
@@ -126,7 +126,7 @@ func TestRegTSProviderResolution(t *testing.T) {
 	quoted := view
 	quoted.state = cloneCatalog(view.state)
 	for i, name := range []string{`Odd".TS`, strings.Repeat("x", 63), "select"} {
-		d := *view.state.descriptors[ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 91000}].(*tsDictionaryDescriptor)
+		d := *view.MustTSDictionary(ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 91000})
 		d.address.ObjectID = ids.OID(92001 + i)
 		d.name = name
 		quoted.state.descriptors[d.address] = &d
@@ -230,7 +230,7 @@ func TestRegTSPersistenceRemap(t *testing.T) {
 	if id != 92000 || original != 91000 {
 		t.Fatal("immutable literal remap", id, original)
 	}
-	d := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 91000}].(*tsDictionaryDescriptor)
+	d := view.MustTSDictionary(ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: 91000})
 	predecessor, err := dumpPredecessor(view, d.address, ids.ObjectAddress{})
 	if err != nil || predecessor != d.extension.ObjectID {
 		t.Fatal("extension predecessor", predecessor, err)
@@ -329,7 +329,7 @@ func TestRegTSStoredDependencyProviders(t *testing.T) {
 	view := e.CatalogRead()
 	var dictionary *tsDictionaryDescriptor
 	for _, address := range extension.members {
-		if d, ok := view.state.descriptors[address].(*tsDictionaryDescriptor); ok {
+		if d, ok := view.TSDictionary(address); ok {
 			dictionary = d
 		}
 	}

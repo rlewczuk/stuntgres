@@ -98,7 +98,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if declaration.kind != functionRoutine || declaration.result != tc.result || declaration.strict != tc.strict || declaration.volatility != Stable || declaration.parallel != 's' || declaration.returnsSet != tc.set || declaration.variadic != 0 || int(declaration.defaults) != tc.defaults || declaration.providers&jsonRoutineProvider == 0 {
 				t.Fatal("independent released full-IN/default/strict/set metadata", declaration)
 			}
-			if evaluation.catalog.state.descriptors[address] != captured {
+			if evaluation.catalog.Get(address) != captured {
 				t.Fatal("call did not borrow the original owned descriptor")
 			}
 			original := append([]expressionDependency(nil), binder.dependencies...)
@@ -236,7 +236,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 	t.Run("stored_recipe", func(t *testing.T) {
 		view := e.CatalogRead()
 		ref := roleTableRef(t, e, "json_authority_recipe")
-		recipe := view.state.descriptors[ref.Address].(*relationDescriptor)
+		recipe := view.MustRelation(ref.Address)
 		node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "json_to_record('{}'::json)")
 		original := append([]expressionDependency(nil), binder.dependencies...)
 		call := node.(functions.JSONRecord)

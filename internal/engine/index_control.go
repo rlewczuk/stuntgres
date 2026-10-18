@@ -26,7 +26,7 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 	if err := validateIndexDefinition(catalog, index); err != nil {
 		return "", err
 	}
-	parent := catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+	parent := catalog.MustRelation(index.sqlIndex.parent)
 	if presentation.column != 0 {
 		if presentation.column < 1 || presentation.column > int64(len(index.columns)) {
 			return "", nil
@@ -54,7 +54,7 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 	if presentation.dump {
 		identifier = quoteIdentifier
 	}
-	schema := catalog.state.descriptors[parent.namespace].Name()
+	schema := catalog.Get(parent.namespace).Name()
 	if !presentation.dump && parent.namespace == presentation.temporary {
 		schema = "pg_temp"
 	}

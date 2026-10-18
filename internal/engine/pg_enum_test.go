@@ -100,7 +100,7 @@ func TestPGEnumSortInsertion(t *testing.T) {
 func pgEnumUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 3501}
-	d, ok := e.catalog.state.descriptors[a].(*relationDescriptor)
+	d, ok := e.catalog.state.Relation(a)
 	if !ok {
 		t.Fatal("missing pg_enum")
 	}
@@ -124,8 +124,8 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 			t.Fatal("source column", i, c)
 		}
 	}
-	row := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10045}].(*typeDescriptor)
-	array := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10044}].(*typeDescriptor)
+	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10045})
+	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10044})
 	if row.owningRelation != d.address || array.owningRelation != d.address || row.array != 10044 || row.owner != d.owner || array.owner != d.owner {
 		t.Fatal("row/array ownership", row, array)
 	}
@@ -228,8 +228,8 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 		t.Fatal("invalid shape", rows, err)
 	}
 	invalidOwner := *e.catalog.state
-	invalidOwner.descriptors = make(map[ids.ObjectAddress]Descriptor, len(e.catalog.state.descriptors))
-	for address, descriptor := range e.catalog.state.descriptors {
+	invalidOwner.descriptors = make(map[ids.ObjectAddress]Descriptor, e.catalog.state.DescriptorCount())
+	for address, descriptor := range e.catalog.state.Descriptors() {
 		invalidOwner.descriptors[address] = descriptor
 	}
 	delete(invalidOwner.descriptors, mood.Address())
@@ -244,7 +244,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if rows, err := capturePGEnum(canceled, e.CatalogRead(), ref, d); !errors.Is(err, context.Canceled) || rows != nil {
 		t.Fatal("canceled capture", rows, err)
 	}
-	during := &pgEnumCancelDuringCapture{Context: context.Background(), after: len(e.catalog.state.descriptors) + 2}
+	during := &pgEnumCancelDuringCapture{Context: context.Background(), after: e.catalog.state.DescriptorCount() + 2}
 	if rows, err := capturePGEnum(during, e.CatalogRead(), ref, d); !errors.Is(err, context.Canceled) || rows != nil {
 		t.Fatal("traversal cancellation", rows, err)
 	}

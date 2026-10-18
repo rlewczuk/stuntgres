@@ -17,7 +17,7 @@ func collectOperatorGroups(view CatalogRead) operatorGroups {
 	groups := make(operatorGroups)
 	for key, addresses := range view.state.operatorNames.buckets {
 		for _, address := range addresses {
-			d := view.state.descriptors[address].(*operatorDescriptor)
+			d := view.MustOperator(address)
 			groups[key.name] = append(groups[key.name], d)
 		}
 	}
@@ -105,7 +105,7 @@ func (r capturedOperatorInput) candidates(text string) ([]*operatorDescriptor, e
 	}
 	path := r.path
 	if len(parts) == 2 {
-		ns := r.types.auth.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text}]
+		ns := r.types.auth.catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text})
 		if parts[0].Text == "pg_temp" {
 			ns = r.types.temporary
 		}

@@ -136,8 +136,8 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 	n.defaultACLs = overlayDefaultACLs(e.catalog.state.defaultACLs, c.defaultACLs)
 	operators := operatorIndexEdit{index: e.catalog.state.operatorNames}
 	for a, d := range c.descriptors {
-		operators.replace(e.catalog.state.descriptors[a], d)
-		if old := n.descriptors[a]; old != nil {
+		operators.replace(e.catalog.state.Get(a), d)
+		if old := n.Get(a); old != nil {
 			delete(n.names, descriptorNameKey(old))
 		}
 		if d == nil {
@@ -158,18 +158,18 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) CatalogRead {
 }
 func (e *Engine) catalogChangeLocked(c *catalogChanges, a ids.ObjectAddress, d Descriptor) {
 	if _, ok := c.originals[a]; !ok {
-		c.originals[a] = e.catalog.state.descriptors[a]
+		c.originals[a] = e.catalog.state.Get(a)
 	}
 	if original := c.originals[a]; original != nil {
 		k := descriptorNameKey(original)
 		if _, ok := c.names[k]; !ok {
-			c.names[k] = e.catalog.state.names[k]
+			c.names[k] = e.catalog.state.NameAddress(k)
 		}
 	}
 	if d != nil {
 		k := descriptorNameKey(d)
 		if _, ok := c.names[k]; !ok {
-			c.names[k] = e.catalog.state.names[k]
+			c.names[k] = e.catalog.state.NameAddress(k)
 		}
 	}
 	c.descriptors[a] = d
@@ -256,15 +256,15 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	// the central publication-conflict contract.
 	if len(c.extensionAuthority) != 0 {
 		for key, original := range c.names {
-			if key.ClassID == ids.ExtensionClassID && original == (ids.ObjectAddress{}) && e.catalog.state.names[key] != original {
+			if key.ClassID == ids.ExtensionClassID && original == (ids.ObjectAddress{}) && e.catalog.state.NameAddress(key) != original {
 				return extensionNameConflict(key.Name)
 			}
 		}
 	}
 	for _, observation := range c.extensionAuthority {
 		if e.roles.revision != observation.roles || observation.namespace == nil || observation.database == nil ||
-			e.catalog.state.descriptors[observation.namespace.Address()] != observation.namespace ||
-			e.catalog.state.descriptors[observation.database.Address()] != observation.database {
+			e.catalog.state.Get(observation.namespace.Address()) != observation.namespace ||
+			e.catalog.state.Get(observation.database.Address()) != observation.database {
 			return CatalogConflict{}
 		}
 	}
@@ -286,12 +286,12 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 		}
 	}
 	for a, original := range c.originals {
-		if e.catalog.state.descriptors[a] != original {
+		if e.catalog.state.Get(a) != original {
 			return CatalogConflict{}
 		}
 	}
 	for k, a := range c.names {
-		if e.catalog.state.names[k] != a {
+		if e.catalog.state.NameAddress(k) != a {
 			return CatalogConflict{}
 		}
 	}
@@ -313,12 +313,12 @@ func catalogDependencyPreflight(current, candidate *catalogState, observations [
 		if current == observation.base {
 			continue
 		}
-		for address, descriptor := range current.descriptors {
-			if descriptor == observation.base.descriptors[address] {
+		for address, descriptor := range current.Descriptors() {
+			if descriptor == observation.base.Get(address) {
 				continue
 			}
 			relation, _ := descriptor.(*relationDescriptor)
-			owner := candidate.descriptors[address]
+			owner := candidate.Get(address)
 			for _, target := range observation.targets {
 				if relation != nil {
 					if viewDepends(relation, target) || materializedExtensionDepends(relation, target) || checkDepends(relation, target) || defaultDepends(relation, target) || generationDepends(relation, target) || indexExpressionDepends(relation, target) {
@@ -332,7 +332,7 @@ func catalogDependencyPreflight(current, candidate *catalogState, observations [
 						}
 					}
 				}
-				if candidate.descriptors[target] != nil {
+				if candidate.Get(target) != nil {
 					continue
 				}
 				switch owner := owner.(type) {

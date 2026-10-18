@@ -134,18 +134,18 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if auth.catalog.state.descriptors[parent.address] != parent {
+	if auth.catalog.Get(parent.address) != parent {
 		e.mu.Unlock()
 		return Result{}, ErrCatalogReplaced
 	}
-	child = auth.catalog.state.descriptors[candidate.Address].(*relationDescriptor)
+	child = auth.catalog.MustRelation(candidate.Address)
 	e.DiscardCatalogStage(pending.stage)
 	stage = e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
 	stage.indexOutput = scope.output
 	pending.stage, pending.auth, pending.child = stage, auth, child
 	for address := range scope.partitionRelations {
-		stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[address])
+		stage.domainBases = append(stage.domainBases, auth.catalog.Get(address))
 	}
 	stage.domainBases = append(stage.domainBases, parent, child)
 	e.mu.Unlock()
@@ -161,7 +161,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 		return Result{}, err
 	}
 	if bound.defaultBound && parent.partition.defaultChild != (ids.ObjectAddress{}) {
-		old := auth.catalog.state.descriptors[parent.partition.defaultChild].(*relationDescriptor)
+		old := auth.catalog.MustRelation(parent.partition.defaultChild)
 		return Result{}, expressionError("42P17", fmt.Sprintf(`partition "%s" conflicts with existing default partition "%s"`, child.name, old.name), raw.Bound.Pos)
 	}
 	if !bound.defaultBound {
@@ -200,7 +200,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	}
 	e.mu.Lock()
 	for _, index := range partitionIndexDeclarationOrder(auth.catalog, parent) {
-		current := e.stageRead(stage).state.descriptors[child.address].(*relationDescriptor)
+		current := e.stageRead(stage).MustRelation(child.address)
 		if _, err = e.stagePartitionIndexChild(op, stage, parent, index, current, false); err != nil {
 			break
 		}
@@ -233,7 +233,7 @@ func (e *Engine) partitionAttachRelation(scope *StatementScope, ref ids.ObjectRe
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	catalog := e.privateCatalogLocked(scope.owner.catalog)
-	d, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	d, ok := catalog.Relation(ref.Address)
 	if !ok || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() {
 		return CatalogRead{}, nil, ErrCatalogReplaced
 	}

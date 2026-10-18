@@ -13,7 +13,7 @@ func TestQueryLimitInsertDefaultDemand(t *testing.T) {
 			e, query, source := queryCoreFixture(t, "SELECT id FROM t")
 			run(t, e, "CREATE TABLE d(id INT,n INT DEFAULT 7)")
 			ref := roleTableRef(t, e, "d")
-			relation := e.CatalogRead().state.descriptors[ref.Address].(*relationDescriptor)
+			relation := e.CatalogRead().MustRelation(ref.Address)
 			project := query.Root.(*projectNode)
 			project.child = &limitNode{querySchema: project.child.Schema(), child: project.child, offset: queryLimitBound(t, e, 1), count: queryLimitBound(t, e, count)}
 			typ := relation.columns[1].Usage.Type
@@ -43,7 +43,7 @@ func TestQueryLimitInsertDefaultFailure(t *testing.T) {
 	e, query, source := queryCoreFixture(t, "SELECT id FROM t")
 	run(t, e, "CREATE TABLE d(id INT,n INT DEFAULT 7)")
 	ref := roleTableRef(t, e, "d")
-	relation := e.CatalogRead().state.descriptors[ref.Address].(*relationDescriptor)
+	relation := e.CatalogRead().MustRelation(ref.Address)
 	project := query.Root.(*projectNode)
 	project.child = &limitNode{querySchema: project.child.Schema(), child: project.child, count: queryLimitBound(t, e, 2)}
 	value, _ := sqltype.Integer(relation.columns[1].Usage.Type, 7)

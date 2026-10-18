@@ -14,7 +14,7 @@ import (
 func pgShDescriptionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2396}
-	d, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
+	d, ok := e.catalog.state.Relation(address)
 	if !ok {
 		t.Fatal("missing shared catalog descriptor")
 	}
@@ -172,7 +172,7 @@ func TestPGShDescriptionDescriptor(t *testing.T) {
 	if err != nil || len(pgShDescriptionUnitBag(t, captured)) != 0 {
 		t.Fatal("no invented bootstrap comment", err)
 	}
-	class := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}].(*relationDescriptor)
+	class := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
 	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(e.catalog.read(e.catalog.state), e.roles), ids.ObjectRef{}, class)
 	if err != nil {
 		t.Fatal(err)

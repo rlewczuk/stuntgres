@@ -15,7 +15,7 @@ import (
 func pgUserUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12014}
-	d, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
+	d, ok := e.catalog.state.Relation(address)
 	if !ok {
 		t.Fatal("missing pg_user")
 	}
@@ -86,8 +86,8 @@ func TestPGUserDescriptor(t *testing.T) {
 	if d.rowType != 12016 {
 		t.Fatal("existing row identity not reused")
 	}
-	row := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12016}].(*typeDescriptor)
-	array := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12015}].(*typeDescriptor)
+	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12016})
+	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12015})
 	if row.owningRelation != d.address || array.owningRelation != d.address || row.array != 12015 || row.typ.Concrete() {
 		t.Fatal("row/array ownership links")
 	}

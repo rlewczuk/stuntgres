@@ -18,7 +18,7 @@ func parameterSetAllowed(op *Operation, name string) (bool, error) {
 	if exists && role.Superuser {
 		return true, nil
 	}
-	address := view.catalog.state.names[ids.NameKey{ClassID: ids.ParameterClassID, Name: settingFold(name)}]
+	address := view.catalog.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: settingFold(name)})
 	if address == (ids.ObjectAddress{}) {
 		return false, nil
 	}

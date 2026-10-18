@@ -38,8 +38,8 @@ func (c jsonbRecordDomainChecks) CheckDomain(ctx context.Context, target *sqltyp
 	if errors.As(err, &diagnostic) && (diagnostic.Code == "23514" || diagnostic.Code == "23502") {
 		view := c.evaluation.domainCatalog()
 		if view.state != nil {
-			d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.ID())}].(*typeDescriptor)
-			if ok && d.typ == target && diagnostic.DataType == d.Name() && diagnostic.Schema == view.state.descriptors[d.namespace].Name() {
+			d, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.ID())})
+			if ok && d.typ == target && diagnostic.DataType == d.Name() && diagnostic.Schema == view.Get(d.namespace).Name() {
 				if diagnostic.Code == "23502" && diagnostic.Constraint == "" {
 					return err
 				}
@@ -55,7 +55,7 @@ func (c jsonbRecordDomainChecks) CheckDomain(ctx context.Context, target *sqltyp
 					if !base.IsDomain() {
 						break
 					}
-					parent, found := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.ID())}].(*typeDescriptor)
+					parent, found := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.ID())})
 					if !found || parent.typ != base {
 						break
 					}
@@ -215,11 +215,11 @@ func (b *expressionBinder) jsonbRecordCastAnnotation(raw parser.CastExpr) (parse
 	if _, valid, err := b.retainedComposite(key, usage); err != nil || !valid {
 		return annotation, err
 	}
-	descriptor, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(current.ID())}].(*typeDescriptor)
+	descriptor, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(current.ID())})
 	if !ok || descriptor.typ != current {
 		return annotation, fmt.Errorf("stuntgres: incompatible retained composite argument")
 	}
-	namespace := view.state.descriptors[descriptor.namespace]
+	namespace := view.Get(descriptor.namespace)
 	if namespace == nil {
 		return annotation, fmt.Errorf("stuntgres: missing retained composite namespace")
 	}

@@ -36,7 +36,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 		types[i] = owned
 	}
 	count := 0
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -51,7 +51,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 	values := make([]sqltype.Value, count*28)
 	builder := pgConstraintBuilder{types: types}
 	at := 0
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -180,7 +180,7 @@ func capturePGConstraint(ctx context.Context, catalog CatalogRead, ref ids.Objec
 				builder.integer(row, 17, 1)
 			}
 			builder.boolean(row, 18, c.Parent == 0)
-			index, ok := catalog.state.descriptors[c.Index].(*relationDescriptor)
+			index, ok := catalog.Relation(c.Index)
 			if !ok || index.sqlIndex == nil || len(index.sqlIndex.keys) != len(c.Operators) {
 				return nil, fmt.Errorf("stuntgres: missing exclusion metadata provider")
 			}
@@ -356,11 +356,11 @@ func constraintOperator(catalog CatalogRead, name string, left, right sqltype.ID
 	}
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	signature := strconv.FormatUint(uint64(left), 10) + "," + strconv.FormatUint(uint64(right), 10)
-	address, ok := catalog.state.names[ids.NameKey{ClassID: ids.OperatorClassID, Namespace: namespace, Name: name, Signature: signature}]
+	address, ok := catalog.LookupName(ids.NameKey{ClassID: ids.OperatorClassID, Namespace: namespace, Name: name, Signature: signature})
 	if !ok || address.ObjectID == 0 {
 		return 0, fmt.Errorf("stuntgres: missing constraint operator identity")
 	}
-	op, ok := catalog.state.descriptors[address].(*operatorDescriptor)
+	op, ok := catalog.Operator(address)
 	if !ok || op.left != ids.OID(left) || op.right != ids.OID(right) {
 		return 0, fmt.Errorf("stuntgres: invalid constraint operator identity")
 	}
@@ -371,11 +371,11 @@ func (b *pgConstraintBuilder) foreignOperators(ctx context.Context, catalog Cata
 	if len(f.Attributes) == 0 || len(f.Attributes) != len(f.Referenced) {
 		return fmt.Errorf("stuntgres: invalid foreign-key metadata keys")
 	}
-	parent, ok := catalog.state.descriptors[f.Target].(*relationDescriptor)
+	parent, ok := catalog.Relation(f.Target)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing foreign-key parent metadata")
 	}
-	index, ok := catalog.state.descriptors[f.Index].(*relationDescriptor)
+	index, ok := catalog.Relation(f.Index)
 	if !ok || index.sqlIndex == nil {
 		return fmt.Errorf("stuntgres: missing foreign-key index metadata")
 	}

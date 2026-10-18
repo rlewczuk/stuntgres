@@ -96,7 +96,7 @@ func TestDeparseConstraintsPersistedFamilies(t *testing.T) {
 				t.Fatal(err)
 			}
 			view := scope.commentCatalog
-			d := view.state.descriptors[roleTableRef(t, e, "t").Address].(*relationDescriptor)
+			d := view.MustRelation(roleTableRef(t, e, "t").Address)
 			node := d.checkConstraints[0].expression
 			for _, pretty := range []bool{false, true} {
 				want := tc.compact
@@ -194,7 +194,7 @@ func TestDeparseConstraintsNoEvalAndCarrierLifetime(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t(a INT DEFAULT (1/0),CONSTRAINT c CHECK(a>0))")
 	view := e.CatalogRead()
-	d := view.state.descriptors[roleTableRef(t, e, "t").Address].(*relationDescriptor)
+	d := view.MustRelation(roleTableRef(t, e, "t").Address)
 	treeType, _ := view.LookupType(sqltype.PgNodeTree)
 	saved, err := catalogTree(treeType, d.defaults[1].expression)
 	if err != nil {
@@ -234,7 +234,7 @@ func TestDeparseConstraintsDefinitionIdentityAndNullProducer(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t(a INT DEFAULT NULL,b INT DEFAULT (NULL::integer),c INT DEFAULT COALESCE(NULL,1),d INT NOT NULL,CHECK(c>0))")
 	view := e.CatalogRead()
-	d := view.state.descriptors[roleTableRef(t, e, "t").Address].(*relationDescriptor)
+	d := view.MustRelation(roleTableRef(t, e, "t").Address)
 	if len(d.defaults) != 1 || d.defaults[3].OID == 0 || d.checkConstraints[0].OID == 0 || d.notNullConstraints[0].OID == 0 {
 		t.Fatal(d.defaults, d.checkConstraints, d.notNullConstraints)
 	}
@@ -243,12 +243,12 @@ func TestDeparseConstraintsDefinitionIdentityAndNullProducer(t *testing.T) {
 	}
 	old := d.defaults[3].OID
 	run(t, e, "ALTER TABLE t ALTER c SET DEFAULT 3")
-	next := e.CatalogRead().state.descriptors[d.address].(*relationDescriptor)
+	next := e.CatalogRead().MustRelation(d.address)
 	if next.defaults[3].OID == old || next.checkConstraints[0].OID != d.checkConstraints[0].OID {
 		t.Fatal("definition identity replacement/preservation")
 	}
 	run(t, e, "ALTER TABLE t ALTER c SET DEFAULT NULL")
-	if len(e.CatalogRead().state.descriptors[d.address].(*relationDescriptor).defaults) != 0 {
+	if len(e.CatalogRead().MustRelation(d.address).defaults) != 0 {
 		t.Fatal("NULL definition persisted")
 	}
 }
@@ -288,12 +288,12 @@ func TestDeparseConstraintsStrictnessAndSuppliedAttributes(t *testing.T) {
 		}
 	}
 	run(t, e, "CREATE TABLE t(prefix TEXT,a INT,b INT,CONSTRAINT c CHECK(b>0))")
-	original := e.CatalogRead().state.descriptors[roleTableRef(t, e, "t").Address].(*relationDescriptor)
+	original := e.CatalogRead().MustRelation(roleTableRef(t, e, "t").Address)
 	node := original.checkConstraints[0].expression
 	run(t, e, "ALTER TABLE t DROP prefix")
 	run(t, e, `CREATE TABLE supplied(x TEXT,y TEXT,"Renamed value" TEXT)`)
 	current := e.CatalogRead()
-	supplied := current.state.descriptors[roleTableRef(t, e, "supplied").Address].(*relationDescriptor)
+	supplied := current.MustRelation(roleTableRef(t, e, "supplied").Address)
 	got, err := (pgRenderer{view: current, relation: supplied, pretty: true}).sql(context.Background(), node, pgRenderParent{})
 	if err != nil || got != `"Renamed value" > 0` {
 		t.Fatal(got, err)
@@ -368,7 +368,7 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t(a INT DEFAULT 1 NOT NULL,CHECK(a>0))")
 	view := e.CatalogRead()
-	d := view.state.descriptors[roleTableRef(t, e, "t").Address].(*relationDescriptor)
+	d := view.MustRelation(roleTableRef(t, e, "t").Address)
 	for _, id := range []ids.OID{d.defaults[1].OID, d.notNullConstraints[0].OID, d.checkConstraints[0].OID} {
 		e.mu.Lock()
 		e.catalog.nextOID = id
@@ -405,7 +405,7 @@ func TestDeparseConstraintsVolatileTreesDoNotExecute(t *testing.T) {
 	run(t, e, "CREATE SEQUENCE s START 41")
 	run(t, e, "CREATE TABLE t(a INT,CHECK(nextval('s')>0 AND random()>0))")
 	view := e.CatalogRead()
-	d := view.state.descriptors[roleTableRef(t, e, "t").Address].(*relationDescriptor)
+	d := view.MustRelation(roleTableRef(t, e, "t").Address)
 	typ, _ := view.LookupType(sqltype.PgNodeTree)
 	tree, err := catalogTree(typ, d.checkConstraints[0].expression)
 	if err != nil {

@@ -52,9 +52,9 @@ func validateColumnDefaultProviders(view CatalogRead, d *relationDescriptor, def
 			if ref.Address.SubID != 0 {
 				return fmt.Errorf("stuntgres: invalid default relation provider")
 			}
-			namespace := view.state.descriptors[relation.namespace].(*namespaceDescriptor)
+			namespace := view.MustNamespace(relation.namespace)
 			if namespace.temporary != (ids.SessionToken{}) {
-				owner := view.state.descriptors[d.namespace].(*namespaceDescriptor)
+				owner := view.MustNamespace(d.namespace)
 				if owner.temporary != namespace.temporary {
 					return fmt.Errorf("stuntgres: foreign temporary default provider")
 				}

@@ -12,14 +12,14 @@ func TestPGLanguageCaptureOwnership(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgLanguageOID}
-	source := catalog.state.descriptors[address].(*relationDescriptor)
+	source := catalog.MustRelation(address)
 	checkTypeLinks := func(catalog CatalogRead, relation *relationDescriptor) {
 		t.Helper()
 		if relation.rowType != 10021 {
 			t.Fatal("native row type identity", relation.rowType)
 		}
-		row := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10021}].(*typeDescriptor)
-		array := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10020}].(*typeDescriptor)
+		row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10021})
+		array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10020})
 		ownedRow, rowOK := catalog.LookupType(10021)
 		ownedArray, arrayOK := catalog.LookupArray(ownedRow)
 		if !rowOK || !arrayOK || ownedRow != row.typ || ownedArray != array.typ || row.array != 10020 || array.typ.Element() != row.typ || row.owningRelation != relation.address || array.owningRelation != relation.address || row.owner != relation.owner || array.owner != relation.owner {
@@ -72,7 +72,7 @@ func TestPGLanguageCaptureOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	fresh := e.CatalogRead()
-	freshSource := fresh.state.descriptors[address].(*relationDescriptor)
+	freshSource := fresh.MustRelation(address)
 	checkTypeLinks(fresh, freshSource)
 	if freshSource.columns[8].Usage.Type == source.columns[8].Usage.Type {
 		t.Fatal("replacement reused ACL type owner")

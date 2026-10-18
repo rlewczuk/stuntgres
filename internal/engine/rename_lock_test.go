@@ -15,7 +15,7 @@ func TestAlterRenameLock(t *testing.T) {
 			b := sessionStart(t, e, nil)
 			sessionSQL(t, a, "CREATE TABLE t(a INT)")
 			ref := roleTableRef(t, e, "t")
-			old := e.catalog.state.descriptors[ref.Address]
+			old := e.catalog.state.Get(ref.Address)
 			tx := transactionBegin(t, a)
 			if err := e.locks.Acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, mode); err != nil {
 				t.Fatal(err)
@@ -28,7 +28,7 @@ func TestAlterRenameLock(t *testing.T) {
 			lockPending(t, e, 1)
 			cancel()
 			lockAwait(t, done, context.Canceled)
-			if e.catalog.state.descriptors[ref.Address] != old {
+			if e.catalog.state.Get(ref.Address) != old {
 				t.Fatal("canceled rename changed descriptor")
 			}
 			done = lockAsync(e, b, context.Background(), q, false)
@@ -88,7 +88,7 @@ func TestAlterRenameLockGrantTime(t *testing.T) {
 				transactionEnd(t, a, tx, false)
 				if kind == "revision" {
 					lockAwait(t, done, nil)
-					d := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+					d := e.catalog.state.MustRelation(ref.Address)
 					if d.columns[0].Name != "renamed" || len(d.notNullConstraints) != 1 {
 						t.Fatal(d)
 					}
@@ -109,7 +109,7 @@ func TestAlterRenameLockTimeout(t *testing.T) {
 			sessionSQL(t, a, "CREATE TABLE t(a INT)")
 			sessionSQL(t, b, "SET lock_timeout='80ms'")
 			ref := roleTableRef(t, e, "t")
-			old := e.catalog.state.descriptors[ref.Address]
+			old := e.catalog.state.Get(ref.Address)
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 			done := waitsCommandAsync(e, b, context.Background(), q, false)
@@ -120,7 +120,7 @@ func TestAlterRenameLockTimeout(t *testing.T) {
 			case <-time.After(5 * time.Second):
 				t.Fatal("rename timeout stuck")
 			}
-			if e.catalog.state.descriptors[ref.Address] != old {
+			if e.catalog.state.Get(ref.Address) != old {
 				t.Fatal("timeout mutated descriptor")
 			}
 			transactionEnd(t, a, tx, false)

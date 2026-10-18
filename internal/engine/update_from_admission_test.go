@@ -58,7 +58,7 @@ func TestUpdateFromEarlierSourceMetadataAndAuthorityRefresh(t *testing.T) {
 				lockAwait(t, done, nil)
 				transactionRows(t, peer, "SELECT v FROM t", 100)
 			}
-			if e.CatalogRead().state.descriptors[sref.Address].(*relationDescriptor).comment != "UPDATE FROM earlier source revision" {
+			if e.CatalogRead().MustRelation(sref.Address).comment != "UPDATE FROM earlier source revision" {
 				t.Fatal("compatible source comment revision lost")
 			}
 			lockEmpty(t, e)

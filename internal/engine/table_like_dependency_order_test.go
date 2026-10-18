@@ -16,7 +16,7 @@ func TestTableLikeDefinitionDependencyOrder(t *testing.T) {
 	// special-case LIKE copies. CHECK declaration order is not alphabetical.
 	run(t, e, "CREATE TABLE ordinary(a INT,r BOOL GENERATED ALWAYS AS(a>0 AND ('anchor'::regclass IS NOT NULL)) STORED,CONSTRAINT c2 CHECK(a>0 AND ('anchor'::regclass IS NOT NULL)),CONSTRAINT c1 CHECK(a>0 AND ('anchor'::regclass IS NOT NULL)))")
 	run(t, e, "CREATE INDEX later_index ON ordinary(a) WHERE ('anchor'::regclass IS NOT NULL) AND a>0")
-	table := e.CatalogRead().state.descriptors[roleTableRef(t, e, "ordinary").Address].(*relationDescriptor)
+	table := e.CatalogRead().MustRelation(roleTableRef(t, e, "ordinary").Address)
 	var first, second checkConstraint
 	for _, check := range table.checkConstraints {
 		if check.Name == "c2" {

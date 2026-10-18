@@ -438,7 +438,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
+		schema := auth.catalog.Get(b.relation.namespace).Name()
 		e.mu.Unlock()
 		return e.executeMerge(ctx, scope, b, target, inputs, canonical, schema)
 	case *parser.Update:
@@ -487,7 +487,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 				return Result{}, err
 			}
 		}
-		schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
+		schema := auth.catalog.Get(b.relation.namespace).Name()
 		e.mu.Unlock()
 		return e.executeUpdate(ctx, scope, b, source, from, canonical, schema)
 	case *parser.Insert:
@@ -514,7 +514,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 				e.mu.Unlock()
 				return Result{}, sourceErr
 			}
-			schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
+			schema := auth.catalog.Get(b.relation.namespace).Name()
 			e.mu.Unlock()
 			if err := selectQuerySources(ctx, source); err != nil {
 				return Result{}, err
@@ -578,7 +578,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 				if err = evaluateIdentityValuesRow(auth.catalog, &b, expressions[i], source, row, len(b.insertRows) > 1, &evaluation); err != nil {
 					return Result{}, err
 				}
-				schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
+				schema := auth.catalog.Get(b.relation.namespace).Name()
 				if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 					return Result{}, err
 				}
@@ -630,7 +630,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 					return Result{}, insertValueError(auth.catalog, err, c, v, nil)
 				}
 			}
-			schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
+			schema := auth.catalog.Get(b.relation.namespace).Name()
 			if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 				return Result{}, err
 			}

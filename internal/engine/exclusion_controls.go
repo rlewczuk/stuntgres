@@ -20,8 +20,8 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]boo
 	for _, event := range s.exclusionModes.events {
 		e.mu.Lock()
 		view := e.privateCatalogLocked(s.owner.catalog)
-		parent, live := view.state.descriptors[event.parent.Address].(*relationDescriptor)
-		index, exists := view.state.descriptors[event.index.Address].(*relationDescriptor)
+		parent, live := view.Relation(event.parent.Address)
+		index, exists := view.Relation(event.index.Address)
 		e.mu.Unlock()
 		if event.parent.Epoch != view.Epoch() {
 			return ErrCatalogReplaced
@@ -109,7 +109,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 			for i := range path.count() {
 				namespace := path.at(i)
 				matched := false
-				for _, descriptor := range auth.catalog.state.descriptors {
+				for _, descriptor := range auth.catalog.Descriptors() {
 					parent, ok := descriptor.(*relationDescriptor)
 					if !ok || parent.namespace != namespace || parent.relationKind != tableRelation && parent.relationKind != partitionedRelation {
 						continue
@@ -162,7 +162,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 		// independent local declarations. Catalog iteration has no tree order.
 		for changed := true; changed; {
 			changed = false
-			for _, descriptor := range auth.catalog.state.descriptors {
+			for _, descriptor := range auth.catalog.Descriptors() {
 				parent, ok := descriptor.(*relationDescriptor)
 				if !ok {
 					continue

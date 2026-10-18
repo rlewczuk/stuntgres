@@ -36,7 +36,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	}
 	auth := capture(reader)
 	var owner *relationDescriptor
-	for _, descriptor := range auth.catalog.state.descriptors {
+	for _, descriptor := range auth.catalog.Descriptors() {
 		if relation, ok := descriptor.(*relationDescriptor); ok && relation.name == "partition_original" {
 			owner = relation
 		}
@@ -67,7 +67,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 		scope := &StatementScope{routineAuth: auth}
 		return EvalContext{Context: context.Background(), Row: sentinel, Scope: 7, Frame: 9, statementScope: scope, catalog: auth.catalog, routineAuthority: &auth}
 	}
-	for _, descriptor := range auth.catalog.state.descriptors {
+	for _, descriptor := range auth.catalog.Descriptors() {
 		if plain, ok := descriptor.(*relationDescriptor); ok && plain.name == "partition_plain" {
 			local := newEvaluation(auth)
 			var buffer [32]partitionDatum
@@ -161,7 +161,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	state := *auth.catalog.state
 	state.descriptors = maps.Clone(state.descriptors)
 	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 1811}
-	declaration := *state.descriptors[address].(*procedureDescriptor)
+	declaration := *state.MustProcedure(address)
 	declaration.revision++
 	state.descriptors[address] = &declaration
 	staleAuth.catalog.state = &state

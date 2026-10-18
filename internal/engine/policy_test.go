@@ -198,7 +198,7 @@ func TestRLSPolicyRemap(t *testing.T) {
 	}
 	view := imported.CatalogRead()
 	var copied *relationDescriptor
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		if table, ok := descriptor.(*relationDescriptor); ok && table.name == "t" {
 			copied = table
 			break
@@ -258,7 +258,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			state.descriptors[owner.address] = &attached
 			base.state = state
 			var target ids.ObjectAddress
-			for address, descriptor := range state.descriptors {
+			for address, descriptor := range state.Descriptors() {
 				if address.ClassID == tc.class && descriptor.Name() == tc.name {
 					target = address
 					break

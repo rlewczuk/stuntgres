@@ -17,20 +17,20 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 	}
 	address := ref.Address
 	address.SubID = 0
-	target := view.state.descriptors[address]
+	target := view.Get(address)
 	if target == nil {
 		return false
 	}
 	if consumer == nil {
 		return false
 	}
-	namespace, ok := view.state.descriptors[consumer.namespace].(*namespaceDescriptor)
+	namespace, ok := view.Namespace(consumer.namespace)
 	if !ok || namespace.temporary == (ids.SessionToken{}) {
 		return false
 	}
 	switch target := target.(type) {
 	case *relationDescriptor:
-		ns, ok := view.state.descriptors[target.namespace].(*namespaceDescriptor)
+		ns, ok := view.Namespace(target.namespace)
 		if !ok || ns.temporary != namespace.temporary {
 			return false
 		}
@@ -41,7 +41,7 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 		// user-defined/domain generations under this exception.
 		return ref.Address.SubID == 0 && !target.typ.IsUserDefined() && !target.typ.IsDomain() && !(target.typ.IsArray() && target.typ.Element().IsDomain())
 	case *collationDescriptor:
-		if ref.Address.ClassID != ids.CollationClassID || ref.Address.SubID != 0 || namespace.temporary.Domain() != view.Domain() || view.state.descriptors[consumer.Address()] != consumer {
+		if ref.Address.ClassID != ids.CollationClassID || ref.Address.SubID != 0 || namespace.temporary.Domain() != view.Domain() || view.Get(consumer.Address()) != consumer {
 			return false
 		}
 		if capability, err := target.usage(); err != nil || !capability.Valid() {
@@ -50,10 +50,10 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 		if target.seeded() {
 			return pgDependPinned(view, ref.Address) && (collationProvider{}).Validate(view, target) == nil
 		}
-		ns, ok := view.state.descriptors[target.Namespace()].(*namespaceDescriptor)
+		ns, ok := view.Namespace(target.Namespace())
 		return ok && ns.temporary == namespace.temporary && (collationProvider{}).Validate(view, target) == nil
 	case *procedureDescriptor:
-		if ref.Address.ClassID != ids.ProcedureClassID || ref.Address.SubID != 0 || namespace.temporary.Domain() != view.Domain() || view.state.descriptors[consumer.Address()] != consumer {
+		if ref.Address.ClassID != ids.ProcedureClassID || ref.Address.SubID != 0 || namespace.temporary.Domain() != view.Domain() || view.Get(consumer.Address()) != consumer {
 			return false
 		}
 		if target.builtin != nil {
@@ -61,7 +61,7 @@ func storedReferenceEpochValid(view CatalogRead, consumer *relationDescriptor, r
 			// retained TEMP recipe; ACL authority is recaptured separately.
 			return pgDependPinned(view, ref.Address) && (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, target) == nil
 		}
-		ns, ok := view.state.descriptors[target.namespace].(*namespaceDescriptor)
+		ns, ok := view.Namespace(target.namespace)
 		return ok && ns.temporary == namespace.temporary && (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, target) == nil
 	}
 	return false
@@ -75,17 +75,17 @@ func storedViewReferenceValid(catalog CatalogRead, consumer *relationDescriptor,
 	}
 	address := ref.Address
 	address.SubID = 0
-	target := catalog.state.descriptors[address]
+	target := catalog.Get(address)
 	if target == nil {
 		return false
 	}
 	if ref.Epoch == catalog.Epoch() {
 		return true
 	}
-	if consumer == nil || consumer.view == nil || consumer.view.consumer != consumer.address || catalog.state.descriptors[consumer.address] != consumer {
+	if consumer == nil || consumer.view == nil || consumer.view.consumer != consumer.address || catalog.Get(consumer.address) != consumer {
 		return false
 	}
-	namespace, ok := catalog.state.descriptors[consumer.namespace].(*namespaceDescriptor)
+	namespace, ok := catalog.Namespace(consumer.namespace)
 	if !ok || namespace.temporary == (ids.SessionToken{}) || namespace.temporary != consumer.view.temporary || namespace.temporary.Domain() != catalog.Domain() {
 		return false
 	}
@@ -151,11 +151,11 @@ func temporarySequenceEpochValid(view CatalogRead, ref ids.ObjectRef, token ids.
 	if token == (ids.SessionToken{}) || ref.Domain() != view.owner.domain || ref.Epoch == 0 || ref.Epoch > view.Epoch() || ref.Address.SubID != 0 {
 		return false
 	}
-	sequence, ok := view.state.descriptors[ref.Address].(*relationDescriptor)
+	sequence, ok := view.Relation(ref.Address)
 	if !ok || sequence.relationKind != sequenceRelation {
 		return false
 	}
-	ns, ok := view.state.descriptors[sequence.namespace].(*namespaceDescriptor)
+	ns, ok := view.Namespace(sequence.namespace)
 	return ok && ns.temporary == token
 }
 

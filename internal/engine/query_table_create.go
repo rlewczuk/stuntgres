@@ -26,7 +26,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}
-	if _, exists := auth.catalog.state.names[key]; exists {
+	if _, exists := auth.catalog.LookupName(key); exists {
 		if s.IfNotExists {
 			op.existingRelationNotice(name)
 			return nil, nil, true, nil
@@ -105,7 +105,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 			if err = auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), address)); err != nil {
 				return nil, nil, false, err
 			}
-			descriptor := auth.catalog.state.descriptors[address]
+			descriptor := auth.catalog.Get(address)
 			if descriptor == nil {
 				return nil, nil, false, errors.New("stuntgres: query table type definition is missing")
 			}
@@ -117,7 +117,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 	// publication, including for NO DATA. Stored data has no dependency on them.
 	for _, leaf := range b.querySources {
 		stage.querySources = append(stage.querySources, leaf.relation)
-		if descriptor := auth.catalog.state.descriptors[leaf.relation.namespace]; descriptor != nil {
+		if descriptor := auth.catalog.Get(leaf.relation.namespace); descriptor != nil {
 			stage.querySources = append(stage.querySources, descriptor)
 		}
 	}
@@ -164,7 +164,7 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if stage == nil || d == nil || stage.owner != e || stage.invalid != nil || stage.lifecycle != catalogOpen || stage.descriptors[d.address] != d || stage.base.state.descriptors[d.address] != nil || stage.initialTables != nil {
+	if stage == nil || d == nil || stage.owner != e || stage.invalid != nil || stage.lifecycle != catalogOpen || stage.descriptors[d.address] != d || stage.base.Get(d.address) != nil || stage.initialTables != nil {
 		return errors.New("stuntgres: invalid initial table stage")
 	}
 	if stage.base.Epoch() != e.catalog.state.epoch {
@@ -199,7 +199,7 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 func (s *CatalogStage) validateInitialTables() error {
 	for address, storage := range s.initialTables {
 		d, ok := s.descriptors[address].(*relationDescriptor)
-		if !ok || !d.relationKind.stored() || d.relationKind == materializedViewRelation && !d.populated || s.base.state.descriptors[address] != nil || storage == nil || len(storage.versions) == 0 || storage.ends != nil || storage.generation != 0 {
+		if !ok || !d.relationKind.stored() || d.relationKind == materializedViewRelation && !d.populated || s.base.Get(address) != nil || storage == nil || len(storage.versions) == 0 || storage.ends != nil || storage.generation != 0 {
 			return errors.New("stuntgres: invalid initial table storage")
 		}
 		for _, row := range storage.versions {

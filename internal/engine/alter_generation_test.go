@@ -47,7 +47,7 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(errors.New("candidate-only unit"))
-	old := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	old := e.catalog.state.MustRelation(ref.Address)
 	original := old.generations[2]
 	retained := auth.catalog
 	unaffected := old.generations[3]
@@ -61,7 +61,7 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next.generations[2].OID == 0 || next.generations[2].OID == original.OID || !reflect.DeepEqual(old.generations[2], original) || retained.state.descriptors[ref.Address] != old || !slices.Equal(old.attributes, next.attributes) || &old.columns[0] != &next.columns[0] {
+	if next.generations[2].OID == 0 || next.generations[2].OID == original.OID || !reflect.DeepEqual(old.generations[2], original) || retained.Get(ref.Address) != old || !slices.Equal(old.attributes, next.attributes) || &old.columns[0] != &next.columns[0] {
 		t.Fatal("source/shape identity changed")
 	}
 	if next.generations[3].OID != unaffected.OID || !reflect.DeepEqual(next.generations[3], unaffected) || !reflect.DeepEqual(old.generations[3], unaffected) {
@@ -83,7 +83,7 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 	if err != nil || same != dropped || same.revision != dropped.revision {
 		t.Fatal("no-op changed descriptor", err)
 	}
-	if e.catalog.state.descriptors[ref.Address] != old {
+	if e.catalog.state.Get(ref.Address) != old {
 		t.Fatal("candidate published early")
 	}
 }

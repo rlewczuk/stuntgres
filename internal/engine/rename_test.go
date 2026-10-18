@@ -13,14 +13,14 @@ func TestAlterRenameIdentity(t *testing.T) {
 	run(t, e, "COMMENT ON COLUMN t.c IS 'survivor'")
 	run(t, e, "ALTER TABLE t DROP b")
 	ref := roleTableRef(t, e, "t")
-	old := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	old := e.catalog.state.MustRelation(ref.Address)
 	storage := e.storage[ref.Address]
 	backing := &storage.versions[0].values[0]
 	held := run(t, e, "SELECT * FROM t")
 	run(t, e, "ALTER TABLE t RENAME COLUMN c TO renamed")
-	middle := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	middle := e.catalog.state.MustRelation(ref.Address)
 	run(t, e, "ALTER TABLE t RENAME TO newtable")
-	next := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	next := e.catalog.state.MustRelation(ref.Address)
 	if roleTableRef(t, e, "newtable") != ref || next.address != old.address || next.namespace != old.namespace || next.owner != old.owner || next.revision != old.revision+2 || middle.revision != old.revision+1 {
 		t.Fatal("rename changed identity", old, middle, next)
 	}

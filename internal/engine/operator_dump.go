@@ -12,7 +12,7 @@ import (
 )
 
 func operatorSQLName(view CatalogRead, d *operatorDescriptor) string {
-	return quoteIdentifier(view.state.descriptors[d.namespace].Name()) + "." + d.name
+	return quoteIdentifier(view.Get(d.namespace).Name()) + "." + d.name
 }
 func operatorSQLSignature(view CatalogRead, d *operatorDescriptor) (string, error) {
 	arguments := [2]string{"NONE", "NONE"}
@@ -37,7 +37,7 @@ func operatorRoutineSQLName(view CatalogRead, id ids.OID) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing operator routine identity")
 	}
-	namespace := view.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: identity.namespace}]
+	namespace := view.Get(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: identity.namespace})
 	if namespace == nil {
 		return "", fmt.Errorf("stuntgres: missing operator routine namespace")
 	}
@@ -59,7 +59,7 @@ func operatorDumpDeclaration(ctx context.Context, view CatalogRead, roles author
 // Reciprocal links between defined custom operators are established only after
 // both declarations. Shell targets must instead be created by a forward link.
 func operatorDumpDeferredLink(view CatalogRead, source *operatorDescriptor, kind int, id ids.OID) bool {
-	peer, _ := view.state.descriptors[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}].(*operatorDescriptor)
+	peer, _ := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
 	if peer == nil || peer.function == 0 || peer.seeded() {
 		return false
 	}
@@ -96,7 +96,7 @@ func operatorDumpDefined(ctx context.Context, view CatalogRead, roles authorizat
 		if id == 0 {
 			continue
 		}
-		peer, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}].(*operatorDescriptor)
+		peer, ok := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
 		if !ok {
 			return dumpDomain{}, fmt.Errorf("stuntgres: missing operator link")
 		}
@@ -132,7 +132,7 @@ func operatorDumpDefined(ctx context.Context, view CatalogRead, roles authorizat
 	text := "CREATE OPERATOR " + operatorSQLName(view, d) + " (" + strings.Join(options, ", ") + ");\n"
 	owners := []*operatorDescriptor{d}
 	for _, id := range [...]ids.OID{d.commutator, d.negator} {
-		peer, _ := view.state.descriptors[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}].(*operatorDescriptor)
+		peer, _ := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
 		if peer != nil && peer.function == 0 {
 			owners = append(owners, peer)
 		}
@@ -156,7 +156,7 @@ func operatorDumpDefined(ctx context.Context, view CatalogRead, roles authorizat
 // Select a deterministic extant forward reference for an unfilled shell.
 func operatorShellGenerator(view CatalogRead, shell *operatorDescriptor) *operatorDescriptor {
 	var selected *operatorDescriptor
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		d, ok := descriptor.(*operatorDescriptor)
 		if ok && d.function != 0 && (d.commutator == shell.address.ObjectID || d.negator == shell.address.ObjectID) && (selected == nil || d.address.ObjectID < selected.address.ObjectID) {
 			selected = d
@@ -173,7 +173,7 @@ func orphanOperatorShellDump(ctx context.Context, view CatalogRead, roles author
 		if !comm && !neg {
 			continue
 		}
-		candidate, _ := view.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.identity.id}].(*procedureDescriptor)
+		candidate, _ := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.identity.id})
 		if candidate != nil && (routine == nil || candidate.address.ObjectID < routine.address.ObjectID) {
 			routine = candidate
 			negator = !comm
@@ -200,7 +200,7 @@ func orphanOperatorShellDump(ctx context.Context, view CatalogRead, roles author
 			left, right = shell.left, shell.right
 		}
 		key := operatorDescriptor{address: ids.ObjectAddress{ClassID: ids.OperatorClassID}, namespace: shell.namespace, name: symbol, left: left, right: right}
-		if _, exists := view.state.names[descriptorNameKey(&key)]; !exists {
+		if _, exists := view.LookupName(descriptorNameKey(&key)); !exists {
 			name = symbol
 			break
 		}
@@ -243,7 +243,7 @@ func operatorDumpEvents(view CatalogRead, operators []*operatorDescriptor, graph
 		}
 		declaration := dumpEventKey{oid: source.address.ObjectID}
 		for kind, id := range [...]ids.OID{source.commutator, source.negator} {
-			peer, _ := view.state.descriptors[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}].(*operatorDescriptor)
+			peer, _ := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
 			if peer == nil || peer.function == 0 || peer.seeded() {
 				continue
 			}
@@ -262,7 +262,7 @@ func operatorDumpEvents(view CatalogRead, operators []*operatorDescriptor, graph
 
 func normalizeOperatorDumpPredecessors(view CatalogRead, graph map[dumpEventKey][]dumpEventKey) {
 	for event, predecessors := range graph {
-		_, operator := view.state.descriptors[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: event.oid}].(*operatorDescriptor)
+		_, operator := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: event.oid})
 		structural := event.phase == dumpOperatorLinks || operator && event.phase == dumpDeclaration
 		unique := predecessors[:0]
 		for _, predecessor := range predecessors {
@@ -286,7 +286,7 @@ func operatorDumpLinks(view CatalogRead, source *operatorDescriptor) (string, er
 		if id == 0 || !operatorDumpDeferredLink(view, source, kind, id) {
 			continue
 		}
-		peer := view.state.descriptors[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}].(*operatorDescriptor)
+		peer := view.MustOperator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
 		key := "COMMUTATOR"
 		if kind == 1 {
 			key = "NEGATOR"

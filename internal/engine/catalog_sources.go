@@ -378,12 +378,12 @@ func (e *Engine) catalogSourceDescriptor(oid ids.OID, namespace ids.ObjectAddres
 
 func (e *Engine) registerCatalogSource(d *relationDescriptor) {
 	initializeCatalogAttributes(d)
-	if address, ok := e.catalog.state.names[ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.namespace, Name: d.name}]; ok {
-		row := e.catalog.state.descriptors[address].(*typeDescriptor)
+	if address, ok := e.catalog.state.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.namespace, Name: d.name}); ok {
+		row := e.catalog.state.MustType(address)
 		row.owningRelation, row.owner = d.address, d.owner
 		d.rowType = row.typ.ID()
 		if row.array != 0 {
-			array := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}].(*typeDescriptor)
+			array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)})
 			array.owningRelation, array.owner = d.address, d.owner
 		}
 	}
@@ -470,7 +470,7 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 		return e.captureTableViewSummary(ctx, catalog, roles, ref, source, viewPresentation{})
 	}
 	var relations []*relationDescriptor
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		if relation, ok := descriptor.(*relationDescriptor); ok {
 			relations = append(relations, relation)
 		}
@@ -552,7 +552,7 @@ func nonuniqueConstraintProvenance(catalog CatalogRead, table *relationDescripto
 		}
 	}
 	if table.membership != nil {
-		parent := catalog.state.descriptors[table.membership.parent].(*relationDescriptor)
+		parent := catalog.MustRelation(table.membership.parent)
 		if check {
 			for _, constraint := range parent.checkConstraints {
 				if constraint.Name == name {

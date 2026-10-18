@@ -54,7 +54,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 			if got.hasSubclasses != want || got.name != next.name || got.revision != next.revision || parent.hasSubclasses || next.hasSubclasses {
 				t.Fatal("candidate/source immutability", got, parent, &next)
 			}
-			if base.state.descriptors[parent.address] != parent {
+			if base.Get(parent.address) != parent {
 				t.Fatal("private candidate leaked")
 			}
 			// Discarding or failing candidate admission cannot publish history.
@@ -103,7 +103,7 @@ func TestPgClassSubclassReplacement(t *testing.T) {
 	if err := normalizeReplacementSubclassHistory(context.Background(), catalog); err != nil {
 		t.Fatal(err)
 	}
-	got := catalog.state.descriptors[parent.address].(*relationDescriptor)
+	got := catalog.MustRelation(parent.address)
 	if !got.hasSubclasses || got == parent || parent.hasSubclasses || !history.hasSubclasses {
 		t.Fatal("normalization mutated retained roots", got, parent)
 	}

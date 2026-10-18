@@ -19,7 +19,7 @@ func (e *Engine) markStageIndexHistoryLocked(stage *CatalogStage) error {
 		address := index.sqlIndex.parent
 		descriptor, staged := stage.descriptors[address]
 		if !staged {
-			descriptor = stage.base.state.descriptors[address]
+			descriptor = stage.base.Get(address)
 		}
 		parent, ok := descriptor.(*relationDescriptor)
 		if !ok || (parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation && parent.relationKind != partitionedRelation) {
@@ -53,7 +53,7 @@ func (e *Engine) markStageIndexHistoryLocked(stage *CatalogStage) error {
 // candidate without mutating source roots or clearing history-only true flags.
 // Structural index validation remains independent of this publication metadata.
 func normalizeReplacementIndexHistory(ctx context.Context, catalog CatalogRead) error {
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -61,7 +61,7 @@ func normalizeReplacementIndexHistory(ctx context.Context, catalog CatalogRead) 
 		if !ok || index.sqlIndex == nil {
 			continue
 		}
-		parent, ok := catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		parent, ok := catalog.Relation(index.sqlIndex.parent)
 		if !ok || (parent.relationKind != tableRelation && parent.relationKind != materializedViewRelation && parent.relationKind != partitionedRelation) {
 			return fmt.Errorf("stuntgres: invalid index parent")
 		}
@@ -88,7 +88,7 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRea
 	var rows [][]sqltype.Value
 	text := func(i int, value string) sqltype.Value { return sqltype.String(source.columns[i].Usage.Type, value) }
 	boolean := func(i int, value bool) sqltype.Value { return sqltype.Boolean(source.columns[i].Usage.Type, value) }
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -116,7 +116,7 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, catalog CatalogRea
 		if err != nil {
 			return nil, err
 		}
-		schema := catalog.state.descriptors[relation.namespace].Name()
+		schema := catalog.Get(relation.namespace).Name()
 		if source.address.ObjectID == 12003 {
 			tablespace := sqltype.Null(source.columns[3].Usage.Type)
 			// Released catalog metadata, not fictitious native backing indexes/storage.

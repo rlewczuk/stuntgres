@@ -139,7 +139,7 @@ func TestQueryTableCreateRegclassArrayReownership(t *testing.T) {
 	if err != nil || old != before {
 		t.Fatal("retained original array mutated", old, err)
 	}
-	if candidate.descriptors[d.address].(*relationDescriptor).columns[0].Usage.Type != targetArray {
+	if candidate.MustRelation(d.address).columns[0].Usage.Type != targetArray {
 		t.Fatal("stored Usage was not reowned")
 	}
 }
@@ -230,7 +230,7 @@ func identifierScalarReownership(t *testing.T, id sqltype.ID) {
 	if err := reownCatalogScalarTypes(candidate, stores, nil); err != nil {
 		t.Fatal(err)
 	}
-	if candidate.descriptors[d.address].(*relationDescriptor).columns[0].Usage.Type != targetType {
+	if candidate.MustRelation(d.address).columns[0].Usage.Type != targetType {
 		t.Fatal("XID column Usage retained foreign generation")
 	}
 	for i, row := range stores[d.address].versions {

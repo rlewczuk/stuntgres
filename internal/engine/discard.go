@@ -202,7 +202,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 	}
 	base := auth.catalog
 	owned := make(map[ids.ObjectAddress]bool)
-	for address, d := range base.state.descriptors {
+	for address, d := range base.Descriptors() {
 		if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == session.token {
 			owned[address] = true
 		}
@@ -220,7 +220,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 	stage := e.BeginCatalogStage(base)
 	stage.authorizeLocked(auth, session)
 	for address := range owned {
-		stage.domainBases = append(stage.domainBases, base.state.descriptors[address].(*namespaceDescriptor))
+		stage.domainBases = append(stage.domainBases, base.MustNamespace(address))
 	}
 	// Exclude every owned target before projecting surviving dependents, exactly
 	// as physical collation cleanup does, but retain the namespace descriptor.
@@ -299,7 +299,7 @@ func (s *StatementScope) relationCursorPreflight(catalog CatalogRead, address id
 			if leaf.ref.Domain() != catalog.owner.domain || leaf.ref.Epoch != catalog.Epoch() || leaf.ref.Address != address {
 				continue
 			}
-			relation, ok := catalog.state.descriptors[address].(*relationDescriptor)
+			relation, ok := catalog.Relation(address)
 			if !ok || leaf.relation == nil {
 				continue
 			}

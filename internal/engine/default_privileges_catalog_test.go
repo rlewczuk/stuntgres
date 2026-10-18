@@ -72,14 +72,14 @@ func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	combined := f.e.privateCatalogLocked(changes)
 	err := f.e.catalogPreflightLocked(changes)
 	f.e.mu.Unlock()
-	if err != nil || combined.state.descriptors[table.address] != table || authorization.ACLRights(table.acl, f.owner, []authorization.PrincipalRef{f.reader}, authorization.SelectPrivilege, false)&authorization.SelectPrivilege != authorization.SelectPrivilege {
+	if err != nil || combined.Get(table.address) != table || authorization.ACLRights(table.acl, f.owner, []authorization.PrincipalRef{f.reader}, authorization.SelectPrivilege, false)&authorization.SelectPrivilege != authorization.SelectPrivilege {
 		t.Fatal("later retained creation missed default", err)
 	}
 	if _, observed := changes.defaultReads[key]; observed {
 		t.Fatal("private default output was fenced as committed input")
 	}
 	prepared, err := f.e.preparePrivateCatalog(context.Background(), changes, committedCatalog.epoch)
-	if err != nil || prepared.defaultACLs[key] == nil || prepared.descriptors[table.address] != table {
+	if err != nil || prepared.defaultACLs[key] == nil || prepared.Get(table.address) != table {
 		t.Fatal("combined preparation lost default or object", err)
 	}
 	late := defaultUnitStatement("sequences", "usage", []string{"default_owner", "missing"}, nil, []string{"default_reader"})
@@ -89,7 +89,7 @@ func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	// retain the earlier private result after the owning overlay is discarded.
 	f.op.session.transactions.catalog = nil
 	f.op.session.transactions.retainedMessage = false
-	if f.e.catalog.state != committedCatalog || f.e.roles != committedRoles || combined.state.descriptors[table.address] != table || private.state.defaultACLs[key] == nil {
+	if f.e.catalog.state != committedCatalog || f.e.roles != committedRoles || combined.Get(table.address) != table || private.state.defaultACLs[key] == nil {
 		t.Fatal("retained failure changed committed or retained snapshots")
 	}
 }
@@ -174,7 +174,7 @@ func TestDefaultPrivilegesSchemaLifecycle(t *testing.T) {
 	old := f.e.CatalogRead()
 	record := old.state.defaultACLs[scoped]
 	stage := f.e.BeginCatalogStage(old)
-	namespace := *old.state.descriptors[f.schema].(*namespaceDescriptor)
+	namespace := *old.MustNamespace(f.schema)
 	namespace.name = "renamed"
 	namespace.revision++
 	if err := stage.Replace(&namespace); err != nil {

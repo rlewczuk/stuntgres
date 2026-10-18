@@ -19,12 +19,12 @@ func reownDomainIndexOutputs(ctx context.Context, base, next *catalogState, orig
 		}
 		var outputs map[ids.ObjectAddress]indexRowOutput
 		for address, output := range row.indexOutputs {
-			old, ok := base.descriptors[address].(*relationDescriptor)
-			index, present := next.descriptors[address].(*relationDescriptor)
+			old, ok := base.Relation(address)
+			index, present := next.Relation(address)
 			if !ok || !present || !output.matches(old) {
 				continue
 			}
-			parent := next.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+			parent := next.MustRelation(index.sqlIndex.parent)
 			mapped := output
 			mapped.index = index
 			keysChanged := false

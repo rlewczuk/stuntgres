@@ -105,7 +105,7 @@ func (provider *dropProvider) policyDependents(targets []ids.ObjectAddress, mode
 }
 func policyTypeChangeError(catalog CatalogRead, target ids.ObjectAddress) error {
 	var owners []*relationDescriptor
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		if d, ok := descriptor.(*relationDescriptor); ok {
 			owners = append(owners, d)
 		}
@@ -124,7 +124,7 @@ func policyTypeChangeError(catalog CatalogRead, target ids.ObjectAddress) error 
 			if !policyDepends(p, target) {
 				continue
 			}
-			provider := catalog.state.descriptors[ids.ObjectAddress{ClassID: target.ClassID, ObjectID: target.ObjectID}].(*relationDescriptor)
+			provider := catalog.MustRelation(ids.ObjectAddress{ClassID: target.ClassID, ObjectID: target.ObjectID})
 			column := ""
 			for i, a := range provider.attributes {
 				if a == target.SubID {

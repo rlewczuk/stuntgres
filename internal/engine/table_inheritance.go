@@ -39,7 +39,7 @@ type createInheritanceInput struct {
 }
 
 func inheritanceHasChildren(v CatalogRead, parent ids.ObjectAddress) bool {
-	for _, descriptor := range v.state.descriptors {
+	for _, descriptor := range v.Descriptors() {
 		if d, ok := descriptor.(*relationDescriptor); ok && d.inheritance != nil && slices.Contains(d.inheritance.parents, parent) {
 			return true
 		}
@@ -49,11 +49,11 @@ func inheritanceHasChildren(v CatalogRead, parent ids.ObjectAddress) bool {
 
 func inheritanceChildren(v CatalogRead, parent ids.ObjectAddress) []*relationDescriptor {
 	var children []*relationDescriptor
-	for address := range v.state.descriptors {
+	for address := range v.Descriptors() {
 		if address.ClassID != ids.RelationClassID {
 			continue
 		}
-		d, ok := v.state.descriptors[address].(*relationDescriptor)
+		d, ok := v.Relation(address)
 		if ok && d.inheritance != nil && slices.Contains(d.inheritance.parents, parent) {
 			children = append(children, d)
 		}
@@ -127,7 +127,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 			}
 			return nil, nil, nil, err
 		}
-		source := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		source := auth.catalog.MustRelation(ref.Address)
 		if source.relationKind == compositeRelation {
 			d := sqlError("42809", fmt.Sprintf(`cannot open relation "%s"`, source.name)).(*sqlstate.Error)
 			d.Detail = "This operation is not supported for composite types."
@@ -148,7 +148,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 		if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 			return nil, nil, nil, err
 		}
-		parentNS := auth.catalog.state.descriptors[source.namespace].(*namespaceDescriptor)
+		parentNS := auth.catalog.MustNamespace(source.namespace)
 		if parentNS.temporary != (ids.SessionToken{}) && syntax.Persistence != "temporary" && auth.stagedTemporary == (ids.ObjectAddress{}) {
 			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`cannot inherit from temporary relation "%s"`, source.name))
 		}

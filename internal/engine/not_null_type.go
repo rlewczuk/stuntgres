@@ -5,7 +5,7 @@ import "slices"
 // TYPE recreates affected NN identities without changing names or validity.
 // New attachments already describe the completed shape and are not recreated.
 func (e *Engine) rebuildAlterNotNullsLocked(stage *CatalogStage, parent *relationDescriptor, changes []columnTransformation) (*relationDescriptor, error) {
-	original, ok := stage.base.state.descriptors[parent.address].(*relationDescriptor)
+	original, ok := stage.base.Relation(parent.address)
 	if !ok {
 		return nil, ErrCatalogReplaced
 	}

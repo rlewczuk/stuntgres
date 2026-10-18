@@ -15,7 +15,7 @@ func (e *Engine) capturePGParameterACL(ctx context.Context, catalog CatalogRead,
 		return nil, err
 	}
 	rows := make([][]sqltype.Value, 0)
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}

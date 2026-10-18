@@ -14,20 +14,20 @@ func (e *Engine) capturePhysicalImportIndex(before CatalogRead, raw *parser.Crea
 		return nil
 	}
 	after := e.CatalogRead()
-	namespace := after.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: raw.Table.Parts[0].Text}]
+	namespace := after.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: raw.Table.Parts[0].Text})
 	if namespace == (ids.ObjectAddress{}) {
 		return nil
 	}
 	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: raw.Name.Text}
-	address := after.state.names[key]
-	if before.state.names[key] != (ids.ObjectAddress{}) || before.state.descriptors[address] != nil {
+	address := after.NameAddress(key)
+	if before.NameAddress(key) != (ids.ObjectAddress{}) || before.Get(address) != nil {
 		return nil
 	}
-	index, ok := after.state.descriptors[address].(*relationDescriptor)
+	index, ok := after.Relation(address)
 	if !ok || index.sqlIndex == nil || index.sqlIndex.constraint != nil {
 		return nil
 	}
-	parent := after.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: raw.Table.Parts[1].Text}]
+	parent := after.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: raw.Table.Parts[1].Text})
 	ref := created[parent]
 	if index.sqlIndex.parent != parent || ref.Address != parent || ref.Domain() != e.catalog.domain || ref.Epoch != after.Epoch() {
 		return nil
@@ -69,7 +69,7 @@ func (e *Engine) prepareDeferredPhysicalPrimary(op *Operation, raw *parser.Alter
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if !partitionConstraintReplayImport(e, op, auth) || auth.roleRecord != pair.authority.roleRecord || auth.catalog.state.descriptors[pair.ref.Address] != pair.current || created[pair.ref.Address] != pair.ref || pair.ref.Epoch != auth.catalog.Epoch() {
+	if !partitionConstraintReplayImport(e, op, auth) || auth.roleRecord != pair.authority.roleRecord || auth.catalog.Get(pair.ref.Address) != pair.current || created[pair.ref.Address] != pair.ref || pair.ref.Epoch != auth.catalog.Epoch() {
 		return reject()
 	}
 	ref, err := e.resolveRelationReference(auth, raw.Name, false)

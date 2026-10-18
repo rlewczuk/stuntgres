@@ -290,7 +290,7 @@ func (expression *preparedBoundaryExpression) Eval(ctx ExprContext) (sqltype.Val
 func preparedBoundaryBarrier(t *testing.T, e *Engine, origin, finisher *Session, entry *preparedTransaction) (<-chan struct{}, chan<- struct{}) {
 	t.Helper()
 	arrived, release := make(chan struct{}), make(chan struct{})
-	for _, descriptor := range entry.catalog.cached.state.descriptors {
+	for _, descriptor := range entry.catalog.cached.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil || index.name != "prepared_boundary_index" {
 			continue
@@ -404,7 +404,7 @@ func preparedBoundaryPublished(t *testing.T, e *Engine, entry *preparedTransacti
 	if e.prepared[entry.gid] != nil || e.commitSeq != entry.frontier+1 {
 		t.Fatal("completion did not publish exactly once")
 	}
-	relation := e.catalog.state.descriptors[parent].(*relationDescriptor)
+	relation := e.catalog.state.MustRelation(parent)
 	if len(relation.columns) != 1 || relation.columns[0].Name != "v" {
 		t.Fatal("catalogue shape did not publish")
 	}
@@ -431,7 +431,7 @@ func preparedBoundaryPublished(t *testing.T, e *Engine, entry *preparedTransacti
 		}
 	}
 	found := false
-	for address, descriptor := range e.catalog.state.descriptors {
+	for address, descriptor := range e.catalog.state.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if ok && index.sqlIndex != nil && index.sqlIndex.parent == parent {
 			root := e.indexRoots[address]
@@ -592,7 +592,7 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 		}
 	}
 	losingName := []string{"gid_first", "gid_second"}[loser.owner]
-	for _, descriptor := range e.catalog.state.descriptors {
+	for _, descriptor := range e.catalog.state.Descriptors() {
 		if relation, ok := descriptor.(*relationDescriptor); ok && relation.name == losingName {
 			t.Fatal("losing GID catalogue/generator survived")
 		}
@@ -682,8 +682,8 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	store := e.privateStorageLocked(entry.catalog, parent)
 	publication := rowPublication{
 		address: parent, store: store, original: original,
-		originalRelation: e.catalog.state.descriptors[parent].(*relationDescriptor),
-		relation:         entry.catalog.cached.state.descriptors[parent].(*relationDescriptor),
+		originalRelation: e.catalog.state.MustRelation(parent),
+		relation:         entry.catalog.cached.MustRelation(parent),
 		root:             store.versions, writes: entry.writes[parent], ends: store.ends,
 		deletion: entry.deletes[parent], generation: store.generation, singleSlot: -1,
 	}

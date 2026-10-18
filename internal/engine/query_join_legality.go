@@ -305,7 +305,7 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 		return nil
 	case *sourceNode:
 		mark := queryOccurrenceMark(marks, n.occurrence, inherited)
-		if d, ok := catalog.state.descriptors[n.ref.Address].(*relationDescriptor); ok && d.relationKind == viewRelation {
+		if d, ok := catalog.Relation(n.ref.Address); ok && d.relationKind == viewRelation {
 			if err := viewRowLockLegality(d.view, queryRowDiagnostic(mark)); err != nil {
 				return err
 			}

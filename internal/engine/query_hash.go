@@ -29,7 +29,7 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf,
 		return nil
 	}
 	for address, carrier := range e.indexRoots {
-		index, ok := data.catalog.state.descriptors[address].(*relationDescriptor)
+		index, ok := data.catalog.Relation(address)
 		if !ok || index.sqlIndex == nil || index.sqlIndex.method != hashMethod || index.sqlIndex.parent != a || carrier == nil || carrier.hash == nil {
 			continue
 		}
@@ -38,7 +38,7 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf,
 		if !index.sqlIndex.ready || !index.sqlIndex.valid || !index.sqlIndex.live {
 			continue
 		}
-		live, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
+		live, ok := e.catalog.state.Relation(address)
 		if !ok || !sameIndexKeySemantics(index, live) {
 			continue
 		}

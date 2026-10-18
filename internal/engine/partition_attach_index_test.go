@@ -82,7 +82,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 				if roots != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "23505" || diagnostic.Message != `could not create unique index "attach_built_unique"` || diagnostic.Constraint != backing.name {
 					t.Fatal("duplicate build returned partial roots or wrong failure", roots, err)
 				}
-				if f.e.catalog.state.descriptors[backing.address] != nil {
+				if f.e.catalog.state.Get(backing.address) != nil {
 					t.Fatal("failed backing escaped into live catalog")
 				}
 				return

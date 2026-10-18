@@ -26,7 +26,7 @@ func pgDependPinned(catalog CatalogRead, address ids.ObjectAddress) bool {
 	switch d := d.(type) {
 	case *typeDescriptor:
 		if d.owningRelation != (ids.ObjectAddress{}) {
-			relation, ok := catalog.state.descriptors[d.owningRelation].(*relationDescriptor)
+			relation, ok := catalog.Relation(d.owningRelation)
 			return !ok || relation.relationKind == catalogRelation
 		}
 		// Lookup-only array codecs do not imply bootstrap lifetime. Automatic
@@ -74,7 +74,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 		}
 		return nil
 	}
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -100,7 +100,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 				if d.name == "bqarr_in" {
 					add(d.address, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.result}, 'n')
 				} else {
-					ext := catalog.state.descriptors[d.extension].(*extensionDescriptor)
+					ext := catalog.MustExtension(d.extension)
 					add(d.address, ext.members[0], 'n')
 				}
 			}
@@ -131,7 +131,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 				add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.typ.Element().ID())}, 'i')
 			} else if d.owningRelation != (ids.ObjectAddress{}) && !d.typ.IsComposite() {
 				add(d.Address(), d.owningRelation, 'i')
-			} else if d.typ.IsComposite() && catalog.state.descriptors[d.owningRelation].(*relationDescriptor).relationKind != compositeRelation {
+			} else if d.typ.IsComposite() && catalog.MustRelation(d.owningRelation).relationKind != compositeRelation {
 				add(d.Address(), d.owningRelation, 'i')
 			} else {
 				add(d.Address(), d.Namespace(), 'n')
@@ -298,7 +298,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 					}
 					add(ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, attribute(d.address, sub), 'a')
 				}
-				index, ok := catalog.state.descriptors[c.Index].(*relationDescriptor)
+				index, ok := catalog.Relation(c.Index)
 				if !ok || index.sqlIndex == nil {
 					return nil, fmt.Errorf("stuntgres: missing unique dependency index")
 				}
@@ -320,7 +320,7 @@ func collectPGDepend(ctx context.Context, catalog CatalogRead) ([]pgDependEdge, 
 				add(owner, f.Index, 'n')
 			}
 			for _, c := range d.exclusionConstraints {
-				index, ok := catalog.state.descriptors[c.Index].(*relationDescriptor)
+				index, ok := catalog.Relation(c.Index)
 				if !ok || index.sqlIndex == nil {
 					return nil, fmt.Errorf("stuntgres: missing exclusion dependency index")
 				}

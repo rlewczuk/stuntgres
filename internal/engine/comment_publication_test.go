@@ -16,7 +16,7 @@ func TestCommentPublicationFailures(t *testing.T) {
 	roleExecute(t, e, op, "COMMENT ON TABLE t IS 'old'")
 	ref := roleTableRef(t, e, "t")
 	before := e.CatalogRead()
-	d := *before.state.descriptors[ref.Address].(*relationDescriptor)
+	d := *before.MustRelation(ref.Address)
 	d.revision++
 	d.columnComments = map[int32]string{2: "invalid"}
 	stage := e.BeginCatalogStage(before)

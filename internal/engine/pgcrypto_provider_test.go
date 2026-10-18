@@ -25,8 +25,8 @@ func pgcryptoUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 		t.Fatal(err)
 	}
 	extensionUnitPublish(t, e, op, stage)
-	address := e.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pgcrypto"}]
-	return e, e.catalog.state.descriptors[address].(*extensionDescriptor)
+	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pgcrypto"})
+	return e, e.catalog.state.MustExtension(address)
 }
 
 func TestPgcryptoProviderIdentity(t *testing.T) {
@@ -51,7 +51,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 		{"gen_random_bytes", "23", 17, Volatile, true}, {"gen_random_uuid", "", 2950, Volatile, false}, {"fips_mode", "", 16, Volatile, true},
 	}
 	for i, address := range ext.members {
-		proc := view.state.descriptors[address].(*procedureDescriptor)
+		proc := view.MustProcedure(address)
 		want := expected[i]
 		if seen[address] || proc.name != want.name || proc.signature != want.signature || proc.owner != ext.owner || proc.namespace != ext.targetNamespace || proc.result != want.result || proc.strict != want.strict || proc.volatility != want.volatility {
 			t.Fatal(proc)
@@ -91,7 +91,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 		func(p *procedureDescriptor) { p.strict = false },
 		func(p *procedureDescriptor) { p.volatility = Stable },
 	} {
-		original := view.state.descriptors[ext.members[0]]
+		original := view.Get(ext.members[0])
 		bad := *original.(*procedureDescriptor)
 		mutate(&bad)
 		view.state.descriptors[ext.members[0]] = &bad
@@ -106,7 +106,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 		}
 	}
 	for _, address := range ext.members[11:] {
-		original := view.state.descriptors[address].(*procedureDescriptor)
+		original := view.MustProcedure(address)
 		for _, mutate := range []func(*procedureDescriptor){
 			func(p *procedureDescriptor) { p.strict = !p.strict },
 			func(p *procedureDescriptor) { p.result = 25 },

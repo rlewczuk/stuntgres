@@ -27,7 +27,7 @@ func TestNotNullAXWaitCancellationAndEnd(t *testing.T) {
 				}
 				sessionSQL(t, a, "INSERT INTO t VALUES(7,8)")
 				ref := roleTableRef(t, e, "t")
-				old, storage := e.catalog.state.descriptors[ref.Address], e.storage[ref.Address]
+				old, storage := e.catalog.state.Get(ref.Address), e.storage[ref.Address]
 				ends, generation := storage.ends, storage.generation
 				tx := transactionBegin(t, a)
 				sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
@@ -42,7 +42,7 @@ func TestNotNullAXWaitCancellationAndEnd(t *testing.T) {
 				}
 				lockAwait(t, done, context.Canceled)
 				lockPending(t, e, 0)
-				if e.catalog.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage || storage.ends != ends || storage.generation != generation || len(storage.versions) != 1 {
+				if e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != storage || storage.ends != ends || storage.generation != generation || len(storage.versions) != 1 {
 					t.Fatal("canceled waiter changed schema/storage")
 				}
 				transactionEnd(t, a, tx, false)
@@ -146,7 +146,7 @@ func TestNotNullAXGrantTimeDescriptorAndRetargetFence(t *testing.T) {
 				transactionEnd(t, a, tx, false)
 				if kind == "revision" {
 					lockAwait(t, done, nil)
-					d := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+					d := e.catalog.state.MustRelation(ref.Address)
 					if len(d.notNullConstraints) != 1 || d.notNullConstraints[0].Name != "t_a_not_null" {
 						t.Fatal(d)
 					}
@@ -165,7 +165,7 @@ func TestNotNullCancellationDuringScanAndRevisionExhaustion(t *testing.T) {
 	values := strings.Repeat("(7),", 128)
 	run(t, e, "INSERT INTO t VALUES"+strings.TrimSuffix(values, ","))
 	ref := roleTableRef(t, e, "t")
-	old := e.catalog.state.descriptors[ref.Address]
+	old := e.catalog.state.Get(ref.Address)
 	storage := e.storage[ref.Address]
 	ctx, cancel := context.WithCancel(context.Background())
 	op, done, err := testOperation(e, ctx)
@@ -176,7 +176,7 @@ func TestNotNullCancellationDuringScanAndRevisionExhaustion(t *testing.T) {
 	defer cancel()
 	op.ctx = &cancelAtErrCheck{Context: op.Context(), cancel: cancel, at: 25}
 	_, err = e.Execute(op, statement(t, "ALTER TABLE t ALTER a SET NOT NULL"), 0, nil)
-	if !errors.Is(err, context.Canceled) || e.catalog.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage {
+	if !errors.Is(err, context.Canceled) || e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != storage {
 		t.Fatal(err)
 	}
 	maximum := *old.(*relationDescriptor)
@@ -193,7 +193,7 @@ func TestNotNullCancellationDuringScanAndRevisionExhaustion(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = testExecute(e, context.Background(), statement(t, "ALTER TABLE t ALTER a SET NOT NULL"), nil)
-	if err == nil || err.Error() != "stuntgres: definition revision exhausted" || e.catalog.state.descriptors[ref.Address] != &maximum || e.storage[ref.Address] != storage {
+	if err == nil || err.Error() != "stuntgres: definition revision exhausted" || e.catalog.state.Get(ref.Address) != &maximum || e.storage[ref.Address] != storage {
 		t.Fatal(err)
 	}
 }
@@ -207,18 +207,18 @@ func TestNotNullOwnerOnlyACLAndNamespace(t *testing.T) {
 	roleExecute(t, e, op, "CREATE SCHEMA s AUTHORIZATION schema_owner")
 	roleExecute(t, e, op, "CREATE TABLE s.t(a INT)")
 	ref := roleTableRef(t, e, "s.t")
-	old := e.catalog.state.descriptors[ref.Address]
+	old := e.catalog.state.Get(ref.Address)
 	owner := op.RoleState().CurrentUser
 	reader, _ := e.Roles().Lookup("reader")
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege | authorization.InsertPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
-	old = e.catalog.state.descriptors[ref.Address]
+	old = e.catalog.state.Get(ref.Address)
 	for _, role := range []string{"schema_owner", "reader"} {
 		roleExecute(t, e, op, "SET SESSION AUTHORIZATION "+role)
 		_, err := e.Execute(op, statement(t, "ALTER TABLE s.t ALTER a SET NOT NULL"), 0, nil)
 		var got *sqlstate.Error
-		if !errors.As(err, &got) || got.Code != "42501" || e.catalog.state.descriptors[ref.Address] != old {
+		if !errors.As(err, &got) || got.Code != "42501" || e.catalog.state.Get(ref.Address) != old {
 			t.Fatal(got, err)
 		}
 		if role == "schema_owner" && got.Message != "must be owner of table t" {
@@ -265,7 +265,7 @@ func TestNotNullIntegratedAXLockTimeout(t *testing.T) {
 			sessionSQL(t, a, "INSERT INTO t VALUES(7,8)")
 			sessionSQL(t, b, "SET lock_timeout='80ms'")
 			ref := roleTableRef(t, e, "t")
-			old := e.catalog.state.descriptors[ref.Address]
+			old := e.catalog.state.Get(ref.Address)
 			storage := e.storage[ref.Address]
 			ends, generation := storage.ends, storage.generation
 			tx := transactionBegin(t, a)
@@ -279,7 +279,7 @@ func TestNotNullIntegratedAXLockTimeout(t *testing.T) {
 				t.Fatal("NOT NULL AX waiter did not time out")
 			}
 			lockPending(t, e, 0)
-			if e.catalog.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage || storage.ends != ends || storage.generation != generation || len(storage.versions) != 1 {
+			if e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != storage || storage.ends != ends || storage.generation != generation || len(storage.versions) != 1 {
 				t.Fatal("timed-out utility mutated descriptor/storage")
 			}
 			transactionEnd(t, a, tx, false)

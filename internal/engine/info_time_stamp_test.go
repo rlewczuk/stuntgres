@@ -14,7 +14,7 @@ func infoTimeStampCatalogType(t *testing.T, view CatalogRead) *typeDescriptor {
 	if len(addresses) != 1 {
 		t.Fatal("selected domain identity", addresses)
 	}
-	return view.state.descriptors[addresses[0]].(*typeDescriptor)
+	return view.MustType(addresses[0])
 }
 
 func TestInfoTimeStampCatalogIdentity(t *testing.T) {
@@ -32,7 +32,7 @@ func TestInfoTimeStampCatalogIdentity(t *testing.T) {
 	if err := (typeProvider{}).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
-	if err := (typeProvider{}).Validate(view, view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())}]); err != nil {
+	if err := (typeProvider{}).Validate(view, view.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())})); err != nil {
 		t.Fatal(err)
 	}
 	if err := validateACL(e.Roles(), d); err != nil {
@@ -69,11 +69,11 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	d := infoTimeStampCatalogType(t, original)
 	next := cloneCatalog(original.state)
 	baseAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Timestamptz)}
-	reboundBase := *next.descriptors[baseAddress].(*typeDescriptor)
-	reboundBase.typ = target.CatalogRead().state.descriptors[baseAddress].(*typeDescriptor).typ
+	reboundBase := *next.MustType(baseAddress)
+	reboundBase.typ = target.CatalogRead().MustType(baseAddress).typ
 	next.descriptors[baseAddress] = &reboundBase
 	// Rendering must use the current captured namespace, not inventory spelling.
-	namespace := *next.descriptors[d.Namespace()].(*namespaceDescriptor)
+	namespace := *next.MustNamespace(d.Namespace())
 	delete(next.names, ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.name})
 	namespace.name = "renamed_info"
 	next.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.name}] = namespace.address
@@ -92,21 +92,21 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	if err != nil || declaration != `"renamed_info"."time_stamp"` || rebound.typ.SQLName() != "renamed_info.time_stamp" {
 		t.Fatal(declaration, err)
 	}
-	for _, descriptor := range next.descriptors {
+	for _, descriptor := range next.Descriptors() {
 		if typ, ok := descriptor.(*typeDescriptor); ok {
 			if err := (typeProvider{}).Validate(view, typ); err != nil {
 				t.Fatal(typ.Name(), err)
 			}
 		}
 	}
-	if d.typ.SQLName() != "information_schema.time_stamp" || original.state.descriptors[d.Namespace()].Name() != "information_schema" {
+	if d.typ.SQLName() != "information_schema.time_stamp" || original.Get(d.Namespace()).Name() != "information_schema" {
 		t.Fatal("source generation mutated")
 	}
 	remapped, err := target.remapPreparedCatalog(cloneCatalog(source.catalog.state), source.Roles(), target.Roles(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	retained := remapped.descriptors[d.Address()].(*typeDescriptor)
+	retained := remapped.MustType(d.Address())
 	if !retained.typ.IsBuiltin() || retained.typ.IsUserDefined() {
 		t.Fatal("principal remap lost builtin type provenance")
 	}

@@ -34,7 +34,7 @@ func validateViewReadGraph(catalog CatalogRead, leaves []queryLeaf) (bool, error
 		active[d.address] = true
 		visibilityDemand = visibilityDemand || d.view.query.visibilitySnapshot
 		for _, leaf := range d.view.sources {
-			child, ok := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
+			child, ok := catalog.Relation(leaf.ref.Address)
 			if !ok || !storedViewReferenceValid(catalog, d, leaf.ref) {
 				return ErrCatalogReplaced
 			}
@@ -50,7 +50,7 @@ func validateViewReadGraph(catalog CatalogRead, leaves []queryLeaf) (bool, error
 		if leaf.relation.relationKind != viewRelation {
 			continue
 		}
-		current, ok := catalog.state.descriptors[leaf.relation.address].(*relationDescriptor)
+		current, ok := catalog.Relation(leaf.relation.address)
 		if !ok {
 			return false, ErrCatalogReplaced
 		}

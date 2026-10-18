@@ -27,7 +27,7 @@ func domainUnitTable(t *testing.T, e *Engine, op *Operation, q string) *relation
 	if len(addresses) != 1 {
 		t.Fatal(addresses)
 	}
-	return view.state.descriptors[addresses[0]].(*relationDescriptor)
+	return view.MustRelation(addresses[0])
 }
 
 func TestDomainCascadeStableAttributesAndRowGenerations(t *testing.T) {
@@ -83,7 +83,7 @@ func TestDomainCascadeStableAttributesAndRowGenerations(t *testing.T) {
 	}
 	domainUnitPublish(t, e, cascade)
 	current := e.CatalogRead()
-	next := current.state.descriptors[table.address].(*relationDescriptor)
+	next := current.MustRelation(table.address)
 	store := e.storage[table.address]
 	if _, ok := current.Descriptor(a.Address()); ok {
 		t.Fatal("root domain retained")
@@ -98,7 +98,7 @@ func TestDomainCascadeStableAttributesAndRowGenerations(t *testing.T) {
 	if row.row != 42 || row.version != 99 || row.born != 3 || len(row.values) != 2 || !sqltype.SameDatum(row.values[0], keep) || !sqltype.SameDatum(row.values[1], tail) {
 		t.Fatal(row)
 	}
-	if retained.state.descriptors[table.address] != table || len(table.columns) != 4 || len(source.versions[0].values) != 4 || source.versions[0].values[1].Type() != a.typ {
+	if retained.Get(table.address) != table || len(table.columns) != 4 || len(source.versions[0].values) != 4 || source.versions[0].values[1].Type() != a.typ {
 		t.Fatal("immutable old descriptor/storage altered")
 	}
 	if err = validateTypeProviders(current, next); err != nil {
@@ -138,12 +138,12 @@ func TestDomainExplicitCatalogRemapDetachesPayloadAndBase(t *testing.T) {
 	if err = reownCatalogScalarTypes(next, storage, mapping); err != nil {
 		t.Fatal(err)
 	}
-	imported := next.descriptors[chain.Address()].(*typeDescriptor)
+	imported := next.MustType(chain.Address())
 	if imported.typ.ID() != 60002 || imported.typ.DomainBase().Type.ID() != 60001 || imported.typ.BaseType() != physical || imported.typ.Usage().BaseUsage().Typmod != 327686 {
 		t.Fatal(imported)
 	}
 	rebound := storage[table.address]
-	if rebound == original || rebound.versions[0].values[0].Type() != imported.typ || next.descriptors[table.address].(*relationDescriptor).columns[0].Usage.Type != imported.typ {
+	if rebound == original || rebound.versions[0].values[0].Type() != imported.typ || next.MustRelation(table.address).columns[0].Usage.Type != imported.typ {
 		t.Fatal("remap did not detach/retag", rebound)
 	}
 	text, err := imported.typ.Output(context.Background(), rebound.versions[0].values[0])

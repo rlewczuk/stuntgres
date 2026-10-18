@@ -46,7 +46,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 		e.mu.Unlock()
 		return ProtocolField{}, err
 	}
-	d, ok := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(oid)}].(*procedureDescriptor)
+	d, ok := auth.catalog.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(oid)})
 	if !ok {
 		identity, found := routineIdentityByOID(auth.catalog, ids.OID(oid))
 		e.mu.Unlock()
@@ -59,7 +59,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 		e.mu.Unlock()
 		return ProtocolField{}, sqlError("0A000", fmt.Sprintf("cannot call function \"%s\" via fastpath interface", d.name))
 	}
-	ns := auth.catalog.state.descriptors[d.namespace]
+	ns := auth.catalog.Get(d.namespace)
 	nsRef := auth.catalog.owner.domain.Ref(auth.catalog.Epoch(), d.namespace)
 	ref := auth.catalog.owner.domain.Ref(auth.catalog.Epoch(), d.address)
 	if err = auth.Check(AccessRequirement{Object: nsRef, Privileges: authorization.UsagePrivilege}); err == nil {

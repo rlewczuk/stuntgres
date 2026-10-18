@@ -14,7 +14,7 @@ import (
 func pgCastUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2605}
-	d, ok := e.catalog.state.descriptors[a].(*relationDescriptor)
+	d, ok := e.catalog.state.Relation(a)
 	if !ok {
 		t.Fatal("missing pg_cast")
 	}
@@ -54,7 +54,7 @@ func TestPGCastShapeAndOwnership(t *testing.T) {
 	if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.acl)
 	}
-	class := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}].(*relationDescriptor)
+	class := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
 	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(e.catalog.read(e.catalog.state), e.roles), ids.ObjectRef{}, class)
 	if err != nil {
 		t.Fatal(err)
@@ -149,7 +149,7 @@ func TestPGCastProjection(t *testing.T) {
 	// Dedicated capture needs type owners only, not generic relation inventory.
 	state := *e.catalog.state
 	state.descriptors = maps.Clone(e.catalog.state.descriptors)
-	for a := range state.descriptors {
+	for a := range state.Descriptors() {
 		if a.ClassID == ids.RelationClassID {
 			delete(state.descriptors, a)
 		}

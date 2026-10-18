@@ -160,8 +160,8 @@ func TestRegOperatorPreparedPathPublication(t *testing.T) {
 		sessionSQL(t, s, q)
 	}
 	view := e.CatalogRead()
-	a := view.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "regop_a"}]
-	b := view.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "regop_b"}]
+	a := view.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "regop_a"})
+	b := view.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "regop_b"})
 	regoperatorPreparedInstall(t, e, a, 91000, 23, 23)
 	regoperatorPreparedInstall(t, e, b, 91001, 23, 23)
 	ast, d := sequencePreparedDescription(t, e, s, "SELECT '#=#'::regoper AS r,'#=#(int4,int4)'::regoperator AS s")
@@ -198,7 +198,7 @@ func TestRegOperatorPreparedPathPublication(t *testing.T) {
 	// The first literal can resolve while the later signature fails. Neither
 	// capture may be published from that unsuccessful binder attempt.
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	old := e.CatalogRead().state.descriptors[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 91000}].(*operatorDescriptor)
+	old := e.CatalogRead().MustOperator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 91000})
 	changed := *old
 	changed.right = 20
 	changed.revision++
@@ -235,9 +235,9 @@ func TestRegOperatorPreparedOperandManifest(t *testing.T) {
 			for _, q := range []string{"CREATE ROLE regop_operand_a", "CREATE ROLE regop_operand_b", "CREATE SCHEMA regop_types AUTHORIZATION regop_operand_a", "CREATE DOMAIN regop_types.secret AS integer", "SET search_path TO public"} {
 				sessionSQL(t, s, q)
 			}
-			ns := e.CatalogRead().state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "regop_types"}]
-			address := e.CatalogRead().state.names[ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: "secret"}]
-			typ := e.CatalogRead().state.descriptors[address].(*typeDescriptor)
+			ns := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "regop_types"})
+			address := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: "secret"})
+			typ := e.CatalogRead().MustType(address)
 			regoperatorPreparedInstall(t, e, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, 92000, ids.OID(typ.typ.ID()), 23)
 			sessionSQL(t, s, "SET ROLE regop_operand_a")
 			query := "SELECT '||/'::regoper AS first,'public.#=#(regop_types.secret,integer)'::regoperator AS second"

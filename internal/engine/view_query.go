@@ -24,7 +24,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, statementScope: scope, catalog: catalog, Input: scope.input, Output: scope.output}
 	evaluation.quoteCaptures = scope.quoteCaptures
 	evaluation.quoteOrigin = quoteOrigin{owner: ref, definition: definition.rule, revision: definition.quoteRevision}
-	consumer, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	consumer, ok := catalog.Relation(ref.Address)
 	if !ok || consumer.view != definition {
 		return nil, nil, ErrCatalogReplaced
 	}
@@ -44,14 +44,14 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 		return nil, nil, err
 	}
 	catalog = e.privateCatalogLocked(scope.owner.catalog)
-	consumer = catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	consumer = catalog.MustRelation(ref.Address)
 	relationPrincipal := consumer.owner
 	if definition.invoker {
 		relationPrincipal = invoker
 	}
 	leaves := make([]queryLeaf, len(definition.sources))
 	for i, leaf := range definition.sources {
-		relation := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
+		relation := catalog.MustRelation(leaf.ref.Address)
 		use, err := storedViewUseReference(catalog, consumer, leaf.ref)
 		if err != nil {
 			e.mu.Unlock()

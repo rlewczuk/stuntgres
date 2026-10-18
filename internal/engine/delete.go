@@ -167,7 +167,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 		rows = storage.versions
 	}
 	original, slot, found := rowByID(rows, candidate.row, candidate.ordinal)
-	relation, ok := e.privateCatalogLocked(s.owner.catalog).state.descriptors[candidate.ref.Address].(*relationDescriptor)
+	relation, ok := e.privateCatalogLocked(s.owner.catalog).Relation(candidate.ref.Address)
 	if !found || !ok || len(original.values) != len(relation.columns) {
 		return false, errors.New("stuntgres: invalid deletion predecessor")
 	}

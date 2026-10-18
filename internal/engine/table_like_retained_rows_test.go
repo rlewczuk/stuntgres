@@ -55,7 +55,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 			if err := e.Reset(context.Background()); err != nil {
 				t.Fatal(err)
 			}
-			if e.CatalogRead().Epoch() == oldEpoch || e.CatalogRead().state.descriptors[source.address] != source {
+			if e.CatalogRead().Epoch() == oldEpoch || e.CatalogRead().Get(source.address) != source {
 				t.Fatal("source not retained unchanged after actual replacement")
 			}
 			op, err := owner.Acquire(context.Background())
@@ -151,7 +151,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 				t.Fatal("duplicate copied column accepted")
 			}
 			for address := range candidate.descriptors {
-				if e.CatalogRead().state.descriptors[address] != nil || e.storage[address] != nil || e.indexRoots[address] != nil || e.sequences[address] != nil {
+				if e.CatalogRead().Get(address) != nil || e.storage[address] != nil || e.indexRoots[address] != nil || e.sequences[address] != nil {
 					t.Fatal("failed copied candidate published a fragment", address)
 				}
 			}

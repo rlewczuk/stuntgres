@@ -33,7 +33,7 @@ func (p *pendingPartitionDefinition) checkHashOverlap(scope *StatementScope) err
 		if err := scope.op.Context().Err(); err != nil {
 			return err
 		}
-		child := p.stage.base.state.descriptors[address].(*relationDescriptor)
+		child := p.stage.base.MustRelation(address)
 		b := child.membership
 		if b.modulus > greatest {
 			greatest = b.modulus
@@ -63,7 +63,7 @@ func (p *pendingPartitionDefinition) checkHashOverlap(scope *StatementScope) err
 		if err := scope.op.Context().Err(); err != nil {
 			return err
 		}
-		child := p.stage.base.state.descriptors[address].(*relationDescriptor)
+		child := p.stage.base.MustRelation(address)
 		if !hashPartitionOverlap(p.bound, child.membership) {
 			continue
 		}

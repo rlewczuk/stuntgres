@@ -48,7 +48,7 @@ func TestDomainCheckIndexSnapshotTransport(t *testing.T) {
 					if len(newStore.versions) != 1 || newRoot == oldRoot || newStore == oldStore {
 						t.Fatal("snapshot retained old physical authority")
 					}
-					parent := target.catalog.state.descriptors[roleTableRef(t, target, "subject").Address].(*relationDescriptor)
+					parent := target.catalog.state.MustRelation(roleTableRef(t, target, "subject").Address)
 					if newRoot.hash != nil {
 						count := 0
 						for _, bucket := range newRoot.hash.buckets {

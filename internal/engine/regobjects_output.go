@@ -12,7 +12,7 @@ func regObjectSpelling(view CatalogRead, path []ids.ObjectAddress, class, id ids
 	if id == 0 {
 		return "-"
 	}
-	d := view.state.descriptors[ids.ObjectAddress{ClassID: class, ObjectID: id}]
+	d := view.Get(ids.ObjectAddress{ClassID: class, ObjectID: id})
 	if d == nil {
 		return strconv.FormatUint(uint64(id), 10)
 	}
@@ -20,7 +20,7 @@ func regObjectSpelling(view CatalogRead, path []ids.ObjectAddress, class, id ids
 	if class == ids.NamespaceClassID || visibleCollation(view, path, d) {
 		return name
 	}
-	return regclassIdentifier(view.state.descriptors[d.Namespace()].Name()) + "." + name
+	return regclassIdentifier(view.Get(d.Namespace()).Name()) + "." + name
 }
 
 func (s *StatementScope) FormatRegcollation(id uint32) (string, error) {

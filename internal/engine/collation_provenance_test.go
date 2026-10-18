@@ -15,16 +15,16 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	sessionSQL(t, peer, `CREATE COLLATION pg_temp.foreign_provider FROM pg_catalog.pg_c_utf8`)
 	sessionSQL(t, owner, `CREATE COLLATION pg_temp.expired_provider FROM pg_catalog.pg_unicode_fast`)
 	before := e.CatalogRead()
-	consumer := before.state.descriptors[before.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: "retained_provider_local"}]].(*relationDescriptor)
-	address := before.state.names[ids.NameKey{ClassID: ids.CollationClassID, Namespace: owner.temporaryNamespace, Name: "retained_provider"}]
-	provider := before.state.descriptors[address].(*collationDescriptor)
+	consumer := before.MustRelation(before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: "retained_provider_local"}))
+	address := before.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: owner.temporaryNamespace, Name: "retained_provider"})
+	provider := before.MustCollation(address)
 	capability, err := provider.usage()
 	if err != nil {
 		t.Fatal(err)
 	}
 	ref := e.catalog.domain.Ref(before.Epoch(), address)
-	expiredAddress := before.state.names[ids.NameKey{ClassID: ids.CollationClassID, Namespace: owner.temporaryNamespace, Name: "expired_provider"}]
-	expiredCapability, err := before.state.descriptors[expiredAddress].(*collationDescriptor).usage()
+	expiredAddress := before.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: owner.temporaryNamespace, Name: "expired_provider"})
+	expiredCapability, err := before.MustCollation(expiredAddress).usage()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,14 +34,14 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	view := e.CatalogRead()
-	if view.Epoch() == before.Epoch() || view.state.descriptors[consumer.Address()] != consumer {
+	if view.Epoch() == before.Epoch() || view.Get(consumer.Address()) != consumer {
 		t.Fatal("fixture did not retain exact TEMP descriptor across replacement")
 	}
 	if !storedCollationReferenceValid(view, consumer, ref, capability) {
 		t.Fatal("lawful physical-owner retained provider rejected")
 	}
 	seedAddress := ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: 100}
-	seedCapability, err := view.state.descriptors[seedAddress].(*collationDescriptor).usage()
+	seedCapability, err := view.MustCollation(seedAddress).usage()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,8 +49,8 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	if !storedCollationReferenceValid(view, consumer, seedRef, seedCapability) {
 		t.Fatal("lawful retained actual pinned seed rejected")
 	}
-	foreignAddress := before.state.names[ids.NameKey{ClassID: ids.CollationClassID, Namespace: peer.temporaryNamespace, Name: "foreign_provider"}]
-	foreignCapability, err := before.state.descriptors[foreignAddress].(*collationDescriptor).usage()
+	foreignAddress := before.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: peer.temporaryNamespace, Name: "foreign_provider"})
+	foreignCapability, err := before.MustCollation(foreignAddress).usage()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,9 +61,9 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	sessionSQL(t, owner, `CREATE COLLATION permanent_provider FROM pg_catalog.pg_unicode_fast`)
 	sessionSQL(t, owner, `CREATE TABLE permanent_consumer(v INT)`)
 	view = e.CatalogRead()
-	permanent := view.state.descriptors[view.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "permanent_consumer"}]].(*relationDescriptor)
-	permanentAddress := view.state.names[ids.NameKey{ClassID: ids.CollationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "permanent_provider"}]
-	permanentCapability, err := view.state.descriptors[permanentAddress].(*collationDescriptor).usage()
+	permanent := view.MustRelation(view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "permanent_consumer"}))
+	permanentAddress := view.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "permanent_provider"})
+	permanentCapability, err := view.MustCollation(permanentAddress).usage()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(view)
 	defer e.DiscardCatalogStage(stage)
-	invalidSeed := *view.state.descriptors[seedAddress].(*collationDescriptor)
+	invalidSeed := *view.MustCollation(seedAddress)
 	invalidSeed.semantics = 811
 	if err := stage.Replace(&invalidSeed); err != nil {
 		t.Fatal(err)

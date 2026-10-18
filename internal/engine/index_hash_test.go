@@ -105,7 +105,7 @@ func TestHashIndexEmptyBindingCancellationAndPrivateFallback(t *testing.T) {
 	if len(root.buckets) != 0 {
 		t.Fatal(root)
 	}
-	parent := e.catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+	parent := e.catalog.state.MustRelation(index.sqlIndex.parent)
 	bad := *index.sqlIndex
 	bad.keys = append([]indexKey(nil), bad.keys...)
 	bad.keys[0].class, _ = sqltype.LookupHashIndexClass("int8_ops")
@@ -241,7 +241,7 @@ func TestHashIndexValidationOnlyPublication(t *testing.T) {
 		run(t, e, q)
 	}
 	index, old := hashRoot(t, e, "hn")
-	parent := e.catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+	parent := e.catalog.state.MustRelation(index.sqlIndex.parent)
 	store := e.storage[parent.address]
 	value, err := parent.columns[0].Usage.Type.Input(context.Background(), "3", -1)
 	if err != nil {

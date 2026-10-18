@@ -32,7 +32,7 @@ func dumpColumnPredecessors(view CatalogRead, relation *relationDescriptor, pred
 }
 
 func compositeDumpStatement(ctx context.Context, view CatalogRead, roles authorization.Read, relation *relationDescriptor) (dumpDomain, error) {
-	row := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)}].(*typeDescriptor)
+	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)})
 	if !defaultDomainACL(row) {
 		return dumpDomain{}, fmt.Errorf("stuntgres: dump cannot serialize changed composite ACL")
 	}
@@ -40,7 +40,7 @@ func compositeDumpStatement(ctx context.Context, view CatalogRead, roles authori
 	if err != nil {
 		return dumpDomain{}, err
 	}
-	namespace := view.state.descriptors[relation.namespace].Name()
+	namespace := view.Get(relation.namespace).Name()
 	var sql strings.Builder
 	sql.WriteString("CREATE TYPE " + quoteIdentifier(namespace) + "." + quoteIdentifier(relation.name) + " AS (")
 	for i, c := range relation.columns {
@@ -78,8 +78,8 @@ func mixedDumpStatements(ctx context.Context, view CatalogRead, roles authorizat
 		}
 		d := domains[id]
 		if d == nil {
-			if relation, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}].(*relationDescriptor); ok && relation.rowType != 0 {
-				d = view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)}].(*typeDescriptor)
+			if relation, ok := view.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}); ok && relation.rowType != 0 {
+				d = view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)})
 			}
 		}
 		if d == nil {

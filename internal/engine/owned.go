@@ -44,7 +44,7 @@ func ownedSources(auth AuthorizationView, specs []parser.RoleSpec, reassign bool
 }
 func ownedRoots(catalog CatalogRead, sources map[authorization.PrincipalRef]bool) []ids.ObjectAddress {
 	var roots []ids.ObjectAddress
-	for a, d := range catalog.state.descriptors {
+	for a, d := range catalog.Descriptors() {
 		owner, _, _ := descriptorACL(d)
 		if sources[owner] && ownershipRoot(catalog, d) {
 			roots = append(roots, a)
@@ -64,7 +64,7 @@ func ownedRoots(catalog CatalogRead, sources map[authorization.PrincipalRef]bool
 func ownershipRelationLocks(catalog CatalogRead, roots []ids.ObjectAddress) []ids.ObjectAddress {
 	group := make(map[ids.ObjectAddress]bool, len(roots))
 	for _, a := range roots {
-		switch d := catalog.state.descriptors[a].(type) {
+		switch d := catalog.Get(a).(type) {
 		case *relationDescriptor:
 			group[a] = true
 		case *typeDescriptor:
@@ -73,7 +73,7 @@ func ownershipRelationLocks(catalog CatalogRead, roots []ids.ObjectAddress) []id
 			}
 		}
 	}
-	for a, d := range catalog.state.descriptors {
+	for a, d := range catalog.Descriptors() {
 		r, ok := d.(*relationDescriptor)
 		if !ok {
 			continue
@@ -179,20 +179,20 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		}
 		for _, a := range roots {
 			var extension ids.ObjectAddress
-			switch d := auth.catalog.state.descriptors[a].(type) {
+			switch d := auth.catalog.Get(a).(type) {
 			case *procedureDescriptor:
 				extension = d.extension
 			case *tsDictionaryDescriptor:
 				extension = d.extension
 			}
 			if extension != (ids.ObjectAddress{}) && !pending[extension] {
-				d := auth.catalog.state.descriptors[extension].(*extensionDescriptor)
+				d := auth.catalog.MustExtension(extension)
 				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(auth.catalog, a, path) + " because extension " + dependencyIdentifier(d.name) + " requires it", Hint: "You can drop extension " + dependencyIdentifier(d.name) + " instead."})
 			}
 		}
 		end := len(roots)
 		for _, a := range roots[:end] {
-			if extension, ok := auth.catalog.state.descriptors[a].(*extensionDescriptor); ok {
+			if extension, ok := auth.catalog.Extension(a); ok {
 				for _, member := range extension.members {
 					if !pending[member] {
 						roots = append(roots, member)
@@ -220,7 +220,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 	providersChanged := false
 	if reassign {
 		for _, a := range roots {
-			d := stage.base.state.descriptors[a]
+			d := stage.base.Get(a)
 			owner, _, _ := descriptorACL(d)
 			if owner == target {
 				continue
@@ -232,7 +232,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 				foreign := d.(*foreignDescriptor)
 				err = foreignOwnershipEligibility(auth, foreign, target)
 				if err == nil && foreign.address.ClassID == ids.ForeignServerClassID {
-					stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[foreign.wrapper])
+					stage.domainBases = append(stage.domainBases, auth.catalog.Get(foreign.wrapper))
 				}
 			case *namespaceDescriptor:
 				err = auth.Check(AccessRequirement{Object: e.catalog.domain.Ref(stage.base.Epoch(), a), OwnerOnly: true})
@@ -263,12 +263,12 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			candidate := e.stageRead(stage).state
 			err = e.reownCatalogExpressions(candidate, nil, false)
 			if err == nil {
-				for a, d := range candidate.descriptors {
+				for a, d := range candidate.Descriptors() {
 					if old := stage.descriptors[a]; old != nil {
 						if old == d {
 							continue
 						}
-					} else if stage.base.state.descriptors[a] == d {
+					} else if stage.base.Get(a) == d {
 						continue
 					}
 					if err = stage.Replace(d); err != nil {

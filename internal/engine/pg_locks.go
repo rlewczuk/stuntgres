@@ -61,7 +61,7 @@ func (e *Engine) capturePGPredicateLocksLocked() ([]pgLockRecord, error) {
 // Consumes Engine.mu. Only scalar SSI/database facts are captured before the
 // manager is entered. Captured sources own values; prepared handles own recipes.
 func (e *Engine) capturePGLocksLocked(ctx context.Context, ref ids.ObjectRef, d *relationDescriptor) (*querySource, error) {
-	database, ok := e.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	database, ok := e.catalog.state.Database(currentDatabaseAddress)
 	if !ok {
 		e.mu.Unlock()
 		return nil, fmt.Errorf("stuntgres: missing current database descriptor")

@@ -46,7 +46,7 @@ func (e *Engine) restoreAttributeRank(op *Operation, raw *parser.Update) error {
 		e.mu.Unlock()
 		return err
 	}
-	old, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	old, ok := auth.catalog.Relation(ref.Address)
 	if !ok || old.relationKind != tableRelation {
 		e.mu.Unlock()
 		return sqlError("0A000", restoreAttributeRankBoundary)

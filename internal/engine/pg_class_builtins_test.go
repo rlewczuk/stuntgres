@@ -43,7 +43,7 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 			}
 		}
 		for _, fact := range tables {
-			d, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: fact.oid}].(*relationDescriptor)
+			d, ok := catalog.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: fact.oid})
 			if !ok || d.name != fact.name || d.relationKind != catalogRelation {
 				t.Fatal("represented table identity", fact, d)
 			}
@@ -51,7 +51,7 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 		}
 		for _, name := range views {
 			found := 0
-			for _, descriptor := range catalog.state.descriptors {
+			for _, descriptor := range catalog.Descriptors() {
 				d, ok := descriptor.(*relationDescriptor)
 				if ok && d.name == name && d.relationKind == catalogRelation {
 					found++

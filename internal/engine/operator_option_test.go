@@ -254,8 +254,8 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 		t.Fatal(err)
 	}
 	staged := e.stageRead(stage)
-	next := staged.state.descriptors[source.address].(*operatorDescriptor)
-	reciprocal := staged.state.descriptors[peer.address].(*operatorDescriptor)
+	next := staged.MustOperator(source.address)
+	reciprocal := staged.MustOperator(peer.address)
 	if next.commutator != peer.address.ObjectID || next.negator != peer.address.ObjectID || !next.hash || !next.merge ||
 		reciprocal.commutator != source.address.ObjectID || reciprocal.negator != source.address.ObjectID {
 		t.Fatal("staged roots lost one link kind", next, reciprocal)
@@ -420,14 +420,14 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 	before := e.CatalogRead().state
 	stage := operatorUnitStage(t, e, op, auth, definition)
 	staged := e.stageRead(stage)
-	source := staged.state.descriptors[staged.state.names[key("#=#")]].(*operatorDescriptor)
-	shell := staged.state.descriptors[staged.state.names[key("#!#")]].(*operatorDescriptor)
+	source := staged.MustOperator(staged.NameAddress(key("#=#")))
+	shell := staged.MustOperator(staged.NameAddress(key("#!#")))
 	if source.commutator != shell.address.ObjectID || source.negator != shell.address.ObjectID ||
 		shell.commutator != source.address.ObjectID || shell.negator != source.address.ObjectID ||
 		shell.function != 0 || shell.result != 0 || shell.owner != auth.state.CurrentUser {
 		t.Fatal("same forward shell lost identity, owner or one reciprocal kind", source, shell)
 	}
-	if e.CatalogRead().state != before || before.names[key("#=#")] != (ids.ObjectAddress{}) || before.names[key("#!#")] != (ids.ObjectAddress{}) {
+	if e.CatalogRead().state != before || before.NameAddress(key("#=#")) != (ids.ObjectAddress{}) || before.NameAddress(key("#!#")) != (ids.ObjectAddress{}) {
 		t.Fatal("forward peer setup mutated the published root")
 	}
 	collationUnitPublish(t, e, stage)
@@ -436,7 +436,7 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 	completion := operatorUnitDefinition("#!#", "int4ne")
 	completion.Options = append(completion.Options, operatorParsedOptions(t, "commutator=OPERATOR(public.#!#),negator=OPERATOR(public.#=#)")...)
 	stage = operatorUnitStage(t, e, op, auth, completion)
-	completed := e.stageRead(stage).state.descriptors[shell.address].(*operatorDescriptor)
+	completed := e.stageRead(stage).MustOperator(shell.address)
 	if completed.address != shell.address || completed.function != 144 || completed.result != 16 ||
 		completed.owner != auth.state.CurrentUser || completed.commutator != completed.address.ObjectID ||
 		completed.negator != source.address.ObjectID {
@@ -451,8 +451,8 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 	// Commutator setup creates and links a private forward shell before the
 	// negator's reciprocal conflict. Ordinary stage discard must suffice.
 	before = auth.catalog.state
-	source = before.descriptors[source.address].(*operatorDescriptor)
-	completed = before.descriptors[completed.address].(*operatorDescriptor)
+	source = before.MustOperator(source.address)
+	completed = before.MustOperator(completed.address)
 	sourceBefore, shellBefore = *source, *completed
 	failed := operatorUnitDefinition("#?#", "int4eq")
 	failed.Options = append(failed.Options, operatorParsedOptions(t, "commutator=OPERATOR(public.#@#),negator=OPERATOR(public.#=#)")...)
@@ -462,15 +462,15 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 	e.mu.Unlock()
 	operatorOptionDiagnostic(t, err, "42P13", "negator operator #=# is already the negator of operator #!#", "")
 	staged = e.stageRead(stage)
-	privateSource := staged.state.descriptors[staged.state.names[key("#?#")]].(*operatorDescriptor)
-	privateShell := staged.state.descriptors[staged.state.names[key("#@#")]].(*operatorDescriptor)
+	privateSource := staged.MustOperator(staged.NameAddress(key("#?#")))
+	privateShell := staged.MustOperator(staged.NameAddress(key("#@#")))
 	if privateSource.commutator != privateShell.address.ObjectID || privateShell.commutator != privateSource.address.ObjectID ||
 		privateShell.function != 0 || privateShell.result != 0 {
 		t.Fatal("failure did not retain the expected private reciprocal stage", privateSource, privateShell)
 	}
 	e.DiscardCatalogStage(stage)
 	if e.CatalogRead().state != before || *source != sourceBefore || *completed != shellBefore ||
-		before.names[key("#?#")] != (ids.ObjectAddress{}) || before.names[key("#@#")] != (ids.ObjectAddress{}) {
+		before.NameAddress(key("#?#")) != (ids.ObjectAddress{}) || before.NameAddress(key("#@#")) != (ids.ObjectAddress{}) {
 		t.Fatal("failed private peer setup changed published descriptors or names")
 	}
 }

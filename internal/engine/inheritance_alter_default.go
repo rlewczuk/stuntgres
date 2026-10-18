@@ -25,7 +25,7 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 		e.mu.Lock()
 		current := e.privateCatalogLocked(scope.owner.catalog)
 		fresh, err := e.statementAuthorizationLocked(op, raw)
-		if err == nil && current.state.descriptors[old.address] != old {
+		if err == nil && current.Get(old.address) != old {
 			err = ErrCatalogReplaced
 		}
 		if err == nil {

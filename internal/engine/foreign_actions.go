@@ -28,7 +28,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 	auth.catalog = e.privateCatalogLocked(changes)
 	auth.recaptureCatalog(auth.catalog)
 	relevant := false
-	for _, descriptor := range auth.catalog.state.descriptors {
+	for _, descriptor := range auth.catalog.Descriptors() {
 		child, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue
@@ -66,7 +66,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 	again := true
 	for again {
 		again = false
-		for _, descriptor := range auth.catalog.state.descriptors {
+		for _, descriptor := range auth.catalog.Descriptors() {
 			child, ok := descriptor.(*relationDescriptor)
 			if !ok {
 				continue
@@ -94,7 +94,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 	}
 	var jobs []foreignKeyJob
 	modes := make(map[ids.ObjectRef]relationLockMode)
-	for _, descriptor := range auth.catalog.state.descriptors {
+	for _, descriptor := range auth.catalog.Descriptors() {
 		child, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue
@@ -103,8 +103,8 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 			if !changed[child.address] && !changed[f.Target] {
 				continue
 			}
-			parent, pok := auth.catalog.state.descriptors[f.Target].(*relationDescriptor)
-			index, iok := auth.catalog.state.descriptors[f.Index].(*relationDescriptor)
+			parent, pok := auth.catalog.Relation(f.Target)
+			index, iok := auth.catalog.Relation(f.Index)
 			if !pok || !iok {
 				e.mu.Unlock()
 				return nil, auth, ErrCatalogReplaced
@@ -153,9 +153,9 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 }
 
 func refreshForeignActionJob(view CatalogRead, job *foreignKeyJob) error {
-	child, cok := view.state.descriptors[job.child.address].(*relationDescriptor)
-	parent, pok := view.state.descriptors[job.parent.address].(*relationDescriptor)
-	index, iok := view.state.descriptors[job.index.address].(*relationDescriptor)
+	child, cok := view.Relation(job.child.address)
+	parent, pok := view.Relation(job.parent.address)
+	index, iok := view.Relation(job.index.address)
 	if !cok || !pok || !iok || index.sqlIndex == nil || !sameRelationRowShape(child, job.child) || !sameRelationRowShape(parent, job.parent) || !sameIndexKeySemantics(index, job.index) {
 		return ErrCatalogReplaced
 	}

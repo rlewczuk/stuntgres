@@ -149,7 +149,7 @@ func TestQueryLockPendingTargetsRemainOccurrenceOwned(t *testing.T) {
 
 func TestPGSequencesEffectiveRowMarks(t *testing.T) {
 	e := New()
-	view := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048}].(*relationDescriptor)
+	view := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
 	table := &relationDescriptor{relationKind: tableRelation}
 	requested := queryRowMark{mode: rowUpdate, wait: parser.RowLockNowait, diagnosticMode: rowUpdate, order: 1}
 	locks := &queryLockContext{leaves: []queryLockLeaf{

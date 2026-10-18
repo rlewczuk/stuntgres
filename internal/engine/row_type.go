@@ -43,7 +43,7 @@ func (e *Engine) displaceAssociatedArrayLocked(stage *CatalogStage, namespace id
 	}
 	descriptor := stage.descriptors[address]
 	if descriptor == nil {
-		descriptor = stage.base.state.descriptors[address]
+		descriptor = stage.base.Get(address)
 	}
 	array, ok := descriptor.(*typeDescriptor)
 	if !ok || !array.typ.IsArray() {
@@ -52,7 +52,7 @@ func (e *Engine) displaceAssociatedArrayLocked(stage *CatalogStage, namespace id
 	elementAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.typ.Element().ID())}
 	elementDescriptor := stage.descriptors[elementAddress]
 	if elementDescriptor == nil {
-		elementDescriptor = stage.base.state.descriptors[elementAddress]
+		elementDescriptor = stage.base.Get(elementAddress)
 	}
 	element, ok := elementDescriptor.(*typeDescriptor)
 	if !ok || element.array != array.typ.ID() || element.typ != array.typ.Element() || element.Namespace() != namespace {
@@ -75,13 +75,13 @@ func (e *Engine) displaceAssociatedArrayLocked(stage *CatalogStage, namespace id
 	} else {
 		next.typ = sqltype.LookupArray(array.typ.ID(), arrayName, array.typ.Element())
 	}
-	if stage.base.state.descriptors[address] == nil {
+	if stage.base.Get(address) == nil {
 		delete(stage.names, key)
 		stage.descriptors[address] = &next
 		nextKey := descriptorNameKey(&next)
 		nextKey.Namespace = namespace
 		stage.names[nextKey] = address
-		stage.touched[nextKey] = stage.base.state.names[nextKey]
+		stage.touched[nextKey] = stage.base.NameAddress(nextKey)
 		return true, e.reownStagedTypeGenerationsLocked(stage)
 	}
 	if err := stage.Replace(&next); err != nil {
@@ -114,7 +114,7 @@ func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *relationDescr
 	}
 	ns := stage.descriptors[relation.namespace]
 	if ns == nil {
-		ns = stage.base.state.descriptors[relation.namespace]
+		ns = stage.base.Get(relation.namespace)
 	}
 	declaration := dependencyIdentifier(ns.Name()) + "." + dependencyIdentifier(relation.name)
 	typ, err := sqltype.Composite(sqltype.ID(id), relation.name, declaration, sqltype.ID(arrayID), compositeMembers(relation))

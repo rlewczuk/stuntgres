@@ -22,7 +22,7 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 		return nil, nil
 	}
 	var queue []alterTypeIndex
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != original.address {
 			continue
@@ -131,7 +131,7 @@ func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth Authorizatio
 			}
 			definition.keys[slot].derived = derived
 		}
-		oldParent := stage.base.state.descriptors[parent.address].(*relationDescriptor)
+		oldParent := stage.base.MustRelation(parent.address)
 		for i, key := range definition.keys {
 			oldUsage, err := indexKeyBaseUsage(oldParent, pending.index.sqlIndex.keys[i])
 			if err != nil {

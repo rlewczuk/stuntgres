@@ -14,7 +14,7 @@ func TestPGNamespaceTemporarySuperuserAuthority(t *testing.T) {
 	roleExecute(t, e, creator, "CREATE TEMP TABLE namespace_usage_object(i INT)")
 	namespace, token := creator.session.temporaryNamespace, creator.session.token
 	toast := assertTemporaryNamespacePair(t, e, token, namespace)
-	name := e.catalog.state.descriptors[namespace].Name()
+	name := e.catalog.state.Get(namespace).Name()
 	qualified := parser.ObjectName{Parts: []parser.Identifier{{Text: name}, {Text: "namespace_usage_object"}}}
 	peer, closePeer := roleOperation(t, e, "postgres")
 	defer closePeer()
@@ -34,7 +34,7 @@ func TestPGNamespaceTemporarySuperuserAuthority(t *testing.T) {
 				defaultUnitDiagnostic(t, err, "42501", "permission denied for schema "+name)
 			}
 		}
-		if temporaryNamespace(auth) != (ids.ObjectAddress{}) || ownTemporaryNamespace(auth, auth.catalog.state.descriptors[namespace].(*namespaceDescriptor)) {
+		if temporaryNamespace(auth) != (ids.ObjectAddress{}) || ownTemporaryNamespace(auth, auth.catalog.MustNamespace(namespace)) {
 			t.Fatal("qualified usage granted physical namespace adoption")
 		}
 	}
@@ -59,7 +59,7 @@ func TestPGNamespaceTemporarySuperuserAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	check(retired, true)
-	if retired.catalog.state.descriptors[toast] != superuser.catalog.state.descriptors[toast] {
+	if retired.catalog.Get(toast) != superuser.catalog.Get(toast) {
 		t.Fatal("retirement changed captured toast identity")
 	}
 	roleErrorPosition(t, e, peer, "SELECT i FROM "+name+".namespace_usage_object", "42P01", `relation "`+name+`.namespace_usage_object" does not exist`, "", "15")

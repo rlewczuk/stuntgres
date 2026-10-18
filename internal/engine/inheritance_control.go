@@ -12,21 +12,21 @@ const temporaryInheritanceReplacementError = "stuntgres: catalog replacement wit
 // Called under Engine.mu at preallocation and final replacement admission.
 // Retained TEMP relations cannot substitute persistent inheritance or OF sources.
 func (e *Engine) checkTemporaryRelationSourcesReplacementLocked() error {
-	for _, descriptor := range e.catalog.state.descriptors {
+	for _, descriptor := range e.catalog.state.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
 		if !ok || table.inheritance == nil {
 			continue
 		}
-		namespace := e.catalog.state.descriptors[table.namespace].(*namespaceDescriptor)
+		namespace := e.catalog.state.MustNamespace(table.namespace)
 		if namespace.temporary == (ids.SessionToken{}) {
 			continue
 		}
 		for _, parent := range table.inheritance.parents {
-			source, ok := e.catalog.state.descriptors[parent].(*relationDescriptor)
+			source, ok := e.catalog.state.Relation(parent)
 			if !ok {
 				return fmt.Errorf("stuntgres: missing inheritance parent")
 			}
-			if e.catalog.state.descriptors[source.namespace].(*namespaceDescriptor).temporary == (ids.SessionToken{}) {
+			if e.catalog.state.MustNamespace(source.namespace).temporary == (ids.SessionToken{}) {
 				return fmt.Errorf("%s", temporaryInheritanceReplacementError)
 			}
 		}
@@ -81,12 +81,12 @@ func remapInheritance(graph *tableInheritance, address func(ids.ObjectAddress) i
 // each parent's captured identity, never a global old-OID map (TEMP and imported
 // constraints can have the same old number).
 func remapInheritanceConstraintOrigins(next *catalogState, previous map[ids.ObjectAddress]Descriptor) error {
-	for address, descriptor := range next.descriptors {
+	for address, descriptor := range next.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
 		if !ok || table.inheritance == nil {
 			continue
 		}
-		if namespace, ok := next.descriptors[table.namespace].(*namespaceDescriptor); ok && namespace.temporary != (ids.SessionToken{}) {
+		if namespace, ok := next.Namespace(table.namespace); ok && namespace.temporary != (ids.SessionToken{}) {
 			continue
 		}
 		var remapErr error
@@ -95,7 +95,7 @@ func remapInheritanceConstraintOrigins(next *catalogState, previous map[ids.Obje
 				return 0
 			}
 			old, ok := previous[origin.parent].(*relationDescriptor)
-			parent, exists := next.descriptors[origin.parent].(*relationDescriptor)
+			parent, exists := next.Relation(origin.parent)
 			if !ok || !exists {
 				remapErr = fmt.Errorf("stuntgres: missing inheritance constraint parent")
 				return origin.constraint

@@ -32,7 +32,7 @@ func (r inheritanceDefinitionReader) observe(address ids.ObjectAddress) {
 		r.observations.descriptors = make(map[ids.ObjectAddress]Descriptor)
 	}
 	if _, seen := r.observations.descriptors[address]; !seen {
-		r.observations.descriptors[address] = r.base.state.descriptors[address]
+		r.observations.descriptors[address] = r.base.Get(address)
 	}
 }
 func (r inheritanceDefinitionReader) descriptor(address ids.ObjectAddress) (Descriptor, bool) {
@@ -62,7 +62,7 @@ func (r inheritanceDefinitionReader) descriptor(address ids.ObjectAddress) (Desc
 	return r.base.Descriptor(address)
 }
 func (r inheritanceDefinitionReader) lookup(key ids.NameKey) ids.ObjectAddress {
-	address := r.base.state.names[key]
+	address := r.base.NameAddress(key)
 	if r.observations != nil {
 		if r.observations.names == nil {
 			r.observations.names = make(map[ids.NameKey]ids.ObjectAddress)
@@ -90,7 +90,7 @@ func (r inheritanceDefinitionReader) descriptors() iter.Seq2[ids.ObjectAddress, 
 	// selected provider's ordinary binding records its exact dependency identity.
 	r.observations = nil
 	return func(yield func(ids.ObjectAddress, Descriptor) bool) {
-		for address := range r.base.state.descriptors {
+		for address := range r.base.Descriptors() {
 			if descriptor, present := r.descriptor(address); present && !yield(address, descriptor) {
 				return
 			}
@@ -129,12 +129,12 @@ func (r inheritanceDefinitionReader) validate(view CatalogRead) error {
 		return nil
 	}
 	for address, descriptor := range r.observations.descriptors {
-		if view.state.descriptors[address] != descriptor {
+		if view.Get(address) != descriptor {
 			return ErrCatalogReplaced
 		}
 	}
 	for key, address := range r.observations.names {
-		if view.state.names[key] != address {
+		if view.NameAddress(key) != address {
 			return ErrCatalogReplaced
 		}
 	}
@@ -146,7 +146,7 @@ func (state *inheritanceAlterState) definitionRelation(view CatalogRead, address
 		relation, _ := descriptor.(*relationDescriptor)
 		return relation
 	}
-	relation, _ := view.state.descriptors[address].(*relationDescriptor)
+	relation, _ := view.Relation(address)
 	return relation
 }
 func inheritanceMarkerPublication(old, current *relationDescriptor) bool {

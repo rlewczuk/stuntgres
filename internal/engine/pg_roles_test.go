@@ -12,7 +12,7 @@ import (
 func pgRolesUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12007}
-	d, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
+	d, ok := e.catalog.state.Relation(address)
 	if !ok {
 		t.Fatal("missing pg_roles")
 	}
@@ -83,12 +83,12 @@ func TestPGRolesDescriptor(t *testing.T) {
 	if d.rowType != 12002 {
 		t.Fatal("existing row identity not reused")
 	}
-	row := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12002}].(*typeDescriptor)
-	array := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12001}].(*typeDescriptor)
+	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12002})
+	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12001})
 	if row.owningRelation != d.address || array.owningRelation != d.address || row.array != 12001 || row.typ.Concrete() {
 		t.Fatal("row/array ownership links")
 	}
-	views := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12000}].(*relationDescriptor)
+	views := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12000})
 	if views.name != "pg_views" || views.rowType != 12030 || d.owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") || row.owner != d.owner || array.owner != d.owner {
 		t.Fatal("adjacent identity or role ownership changed")
 	}

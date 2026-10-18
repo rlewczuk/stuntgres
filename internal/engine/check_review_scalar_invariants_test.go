@@ -15,7 +15,7 @@ func TestCheckReviewScalarInquiryStoredInvariants(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(a OID CONSTRAINT c CHECK(col_description(a,1) IS NULL))")
 	view := e.CatalogRead()
 	ref := catalogRef(t, e, view, "t")
-	relation := view.state.descriptors[ref.Address].(*relationDescriptor)
+	relation := view.MustRelation(ref.Address)
 	if !relation.checkConstraints[0].commentSnapshot {
 		t.Fatal("bound inquiry lost snapshot demand")
 	}
@@ -91,11 +91,11 @@ func TestCheckReviewScalarInquiryRowArgumentReplacement(t *testing.T) {
 				sequenceScalar(t, peer, "SELECT nextval('kept')", 30)
 				_, description := sequencePreparedDescription(t, target, peer, "SELECT nextval('kept')")
 				tempRef := description.sequences.constants[0].ref
-				temp := target.catalog.state.descriptors[tempRef.Address]
+				temp := target.catalog.state.Get(tempRef.Address)
 				if _, err := target.ReplaceCatalog(ctx, source, before); err != nil {
 					t.Fatal(err)
 				}
-				if target.catalog.state.descriptors[tempRef.Address] != temp {
+				if target.catalog.state.Get(tempRef.Address) != temp {
 					t.Fatal("replacement changed retained TEMP descriptor")
 				}
 				sessionSQL(t, peer, "UPDATE t SET a=0")
@@ -123,7 +123,7 @@ func TestCheckReviewScalarInquiryStatementSnapshot(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(a TEXT CONSTRAINT c CHECK(obj_description('anchor'::regclass,'pg_class') IS NOT DISTINCT FROM a))")
 	view := e.CatalogRead()
 	ref := catalogRef(t, e, view, "t")
-	relation := view.state.descriptors[ref.Address].(*relationDescriptor)
+	relation := view.MustRelation(ref.Address)
 	inquiry := relation.checkConstraints[0].expression.(distinctExpression).left
 	op, err := s.Acquire(ctx)
 	if err != nil {
@@ -181,7 +181,7 @@ func TestCheckReviewScalarNoInquirySnapshotDemand(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(a INT CONSTRAINT c CHECK(a=1))")
 	view := e.CatalogRead()
 	ref := catalogRef(t, e, view, "t")
-	relation := view.state.descriptors[ref.Address].(*relationDescriptor)
+	relation := view.MustRelation(ref.Address)
 	scope := &StatementScope{}
 	e.mu.Lock()
 	e.captureCheckCommentSnapshotLocked(scope, relation)

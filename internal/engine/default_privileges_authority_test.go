@@ -32,8 +32,8 @@ func TestDefaultPrivilegesArrayAuthority(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		base := auth.catalog.state.descriptors[auth.catalog.state.names[ids.NameKey{ClassID: ids.TypeClassID, Namespace: f.schema, Name: name}]].(*typeDescriptor)
-		array := auth.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.array)}].(*typeDescriptor)
+		base := auth.catalog.MustType(auth.catalog.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: f.schema, Name: name}))
+		array := auth.catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.array)})
 		if !authorization.MatchesDefaultBaseline(array.acl, f.owner, authorization.DefaultTypes, false) || descriptorRoleDependencies(array, f.reader, nil) {
 			t.Fatal("associated enum array consumed selected TYPES ACL", array.acl)
 		}
@@ -88,7 +88,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	roleExecute(t, f.e, f.op, "CREATE TEMP TABLE default_authority_seed(v INT)")
 	f.schema = f.op.session.temporaryNamespace
 	state := cloneCatalog(f.e.catalog.state)
-	namespace := *state.descriptors[f.schema].(*namespaceDescriptor)
+	namespace := *state.MustNamespace(f.schema)
 	assertTemporaryNamespacePair(t, f.e, f.op.session.token, f.schema)
 	namespace.acl = authorization.ACLValue{Explicit: true}
 	state.descriptors[f.schema] = &namespace

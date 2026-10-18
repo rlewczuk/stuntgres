@@ -54,7 +54,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 	for i, c := range d.columns {
 		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
 	}
-	qualifier := queryQualifier{name: d.name, original: d.name, schema: auth.catalog.state.descriptors[d.namespace].Name(), ref: ref, columns: columns}
+	qualifier := queryQualifier{name: d.name, original: d.name, schema: auth.catalog.Get(d.namespace).Name(), ref: ref, columns: columns}
 	ns := queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: d.columns}
 	used := constraintNames(auth.catalog, d.namespace, d)
 	installed := make(map[string]bool, len(d.notNullConstraints)+len(d.checkConstraints))
@@ -245,7 +245,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		if address.ClassID != ids.RelationClassID || d != nil && address == d.address {
 			return nil
 		}
-		if _, incumbent := stage.base.state.descriptors[address]; !incumbent {
+		if _, incumbent := stage.base.Find(address); !incumbent {
 			// Newly created providers belong to the private atomic candidate.
 			provider, staged := stage.descriptors[address].(*relationDescriptor)
 			if !staged || provider.address != address || ref.Domain() != stage.owner.catalog.domain || ref.Epoch != stage.base.Epoch() {
@@ -257,7 +257,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		if d != nil && d.view != nil {
 			// The stage's evolved consumer retains the incumbent definition's
 			// immutable provenance; old epochs never become generic stage refs.
-			incumbent, _ := stage.base.state.descriptors[d.address].(*relationDescriptor)
+			incumbent, _ := stage.base.Relation(d.address)
 			valid = incumbent != nil && incumbent.view == d.view && storedViewReferenceValid(stage.base, incumbent, ref)
 			if ref.Epoch == stage.base.Epoch() {
 				valid = storedViewReferenceValid(stage.base, d, ref)
@@ -272,7 +272,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 			if retained == nil {
 				retained = make(map[ids.ObjectAddress]Descriptor)
 			}
-			retained[ref.Address] = stage.base.state.descriptors[ref.Address]
+			retained[ref.Address] = stage.base.Get(ref.Address)
 		}
 		ref.Epoch = stage.base.Epoch()
 		if !slices.Contains(refs, ref) {
@@ -368,8 +368,8 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		e.mu.Lock()
 		auth, err := e.authorizationLocked(s.op)
 		if err == nil {
-			provider, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
-			original, existed := stage.base.state.descriptors[ref.Address].(*relationDescriptor)
+			provider, ok := auth.catalog.Relation(ref.Address)
+			original, existed := stage.base.Relation(ref.Address)
 			if !ok || !existed || ref.Domain() != e.catalog.domain || ref.Epoch != auth.catalog.Epoch() || provider.relationKind != original.relationKind || retained[ref.Address] != nil && provider != retained[ref.Address] {
 				err = fmt.Errorf("stuntgres: definition provider disappeared before publication")
 			}

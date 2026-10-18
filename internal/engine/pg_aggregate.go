@@ -37,7 +37,7 @@ func capturePGAggregate(ctx context.Context, catalog CatalogRead, ref ids.Object
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner == nil || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAggregateOID}) || ref.Domain() != catalog.owner.domain || ref.Epoch != catalog.Epoch() || ref.Address != source.address || catalog.state.descriptors[source.address] != source || len(source.columns) != len(aggregateColumnTypes) {
+	if catalog.owner == nil || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAggregateOID}) || ref.Domain() != catalog.owner.domain || ref.Epoch != catalog.Epoch() || ref.Address != source.address || catalog.Get(source.address) != source || len(source.columns) != len(aggregateColumnTypes) {
 		return nil, fmt.Errorf("stuntgres: foreign aggregate source authority")
 	}
 	for i, id := range aggregateColumnTypes {
@@ -47,7 +47,7 @@ func capturePGAggregate(ctx context.Context, catalog CatalogRead, ref ids.Object
 		}
 	}
 	count := len(builtinAggregateDefinitions)
-	for _, d := range catalog.state.descriptors {
+	for _, d := range catalog.Descriptors() {
 		if p, ok := d.(*procedureDescriptor); ok && p.aggregate != nil {
 			count++
 		}
@@ -114,7 +114,7 @@ func capturePGAggregate(ctx context.Context, catalog CatalogRead, ref ids.Object
 			return nil, err
 		}
 	}
-	for _, d := range catalog.state.descriptors {
+	for _, d := range catalog.Descriptors() {
 		if p, ok := d.(*procedureDescriptor); ok && p.aggregate != nil {
 			if err := put(&p.aggregate.definition); err != nil {
 				return nil, err

@@ -15,7 +15,7 @@ func inheritedForeignKeyDeferred(view CatalogRead, source *relationDescriptor, f
 	if foreign.NotValid || source.relationKind != tableRelation || source.partition != nil || source.membership != nil || foreign.Target == source.address {
 		return false
 	}
-	target, ok := view.state.descriptors[foreign.Target].(*relationDescriptor)
+	target, ok := view.Relation(foreign.Target)
 	return ok && target.relationKind == tableRelation && target.partition == nil && target.membership == nil && inheritedForeignKeyDescendant(view, target, source.address)
 }
 
@@ -39,7 +39,7 @@ func inheritedForeignKeyDescendant(view CatalogRead, target *relationDescriptor,
 			if address == ancestor {
 				return true
 			}
-			if parent, ok := view.state.descriptors[address].(*relationDescriptor); ok && walk(parent) {
+			if parent, ok := view.Relation(address); ok && walk(parent) {
 				return true
 			}
 		}
@@ -90,7 +90,7 @@ func (table *dumpRelation) emitInheritedForeignKeys(view CatalogRead, emit func(
 		if !inheritedForeignKeyDeferred(view, table.descriptor, foreign) {
 			continue
 		}
-		target := view.state.descriptors[foreign.Target].(*relationDescriptor)
+		target := view.MustRelation(foreign.Target)
 		text, err := (pgRenderer{view: view}).foreignKeyConstraintSQLWithPrimary(table.descriptor, *foreign, inheritedForeignKeyPrimary(target, foreign))
 		if err != nil {
 			return err
@@ -177,12 +177,12 @@ func (e *Engine) captureInheritedForeignKey(op *Operation, raw *parser.AlterTabl
 	if err != nil {
 		return restoredForeignKeys{}, false, err
 	}
-	source, sourceOK := auth.catalog.state.descriptors[sourceRef.Address].(*relationDescriptor)
-	target, targetOK := auth.catalog.state.descriptors[targetRef.Address].(*relationDescriptor)
+	source, sourceOK := auth.catalog.Relation(sourceRef.Address)
+	target, targetOK := auth.catalog.Relation(targetRef.Address)
 	if !sourceOK || !targetOK || created[sourceRef.Address] != sourceRef || created[targetRef.Address] != targetRef || source.relationKind != tableRelation || target.relationKind != tableRelation || source.partition != nil || source.membership != nil || target.partition != nil || target.membership != nil || sourceRef == targetRef || !inheritedForeignKeyDescendant(auth.catalog, target, source.address) {
 		return reject()
 	}
-	if auth.catalog.state.descriptors[source.namespace].(*namespaceDescriptor).temporary != (ids.SessionToken{}) || auth.catalog.state.descriptors[target.namespace].(*namespaceDescriptor).temporary != (ids.SessionToken{}) {
+	if auth.catalog.MustNamespace(source.namespace).temporary != (ids.SessionToken{}) || auth.catalog.MustNamespace(target.namespace).temporary != (ids.SessionToken{}) {
 		return reject()
 	}
 	if err := auth.Check(AccessRequirement{Object: sourceRef, OwnerOnly: true}); err != nil {
@@ -223,7 +223,7 @@ func (e *Engine) captureInheritedForeignKey(op *Operation, raw *parser.AlterTabl
 	for i, column := range receipt.referenced {
 		attributes[i] = column.attribute
 	}
-	for address, descriptor := range auth.catalog.state.descriptors {
+	for address, descriptor := range auth.catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != target.address {
 			continue
@@ -264,13 +264,13 @@ func (receipt *restoredInheritedForeignKey) validate(e *Engine, op *Operation, d
 	if receipt.source != declaration.child || receipt.source.Domain() != e.catalog.domain || receipt.target.Domain() != e.catalog.domain || receipt.source.Epoch != view.Epoch() || receipt.target.Epoch != view.Epoch() || declaration.auth.roleRecord != e.roles || !partitionConstraintReplayImport(e, op, auth) {
 		return ErrCatalogReplaced
 	}
-	source, _ := view.state.descriptors[receipt.source.Address].(*relationDescriptor)
-	target, _ := view.state.descriptors[receipt.target.Address].(*relationDescriptor)
+	source, _ := view.Relation(receipt.source.Address)
+	target, _ := view.Relation(receipt.target.Address)
 	if !inheritedForeignRelationUnchanged(source, receipt.beforeSource) || !inheritedForeignRelationUnchanged(target, receipt.beforeTarget) || !inheritedForeignKeyDescendant(view, target, source.address) || !inheritedForeignColumnsUnchanged(source, receipt.columns) || !inheritedForeignColumnsUnchanged(source, receipt.deleted) || !inheritedForeignColumnsUnchanged(target, receipt.referenced) {
 		return ErrCatalogReplaced
 	}
 	seen := 0
-	for address, descriptor := range view.state.descriptors {
+	for address, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != target.address {
 			continue

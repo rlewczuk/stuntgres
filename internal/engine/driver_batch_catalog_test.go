@@ -40,15 +40,15 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 			e.mu.Lock()
 			private := e.privateCatalogLocked(changes)
 			e.mu.Unlock()
-			ns, ok := private.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "batch_schema"}]
+			ns, ok := private.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "batch_schema"})
 			if !ok {
 				t.Fatal("pending namespace")
 			}
-			table, ok := private.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "t"}]
+			table, ok := private.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "t"})
 			if !ok {
 				t.Fatal("pending table")
 			}
-			index, ok := private.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ix"}]
+			index, ok := private.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ix"})
 			if !ok {
 				t.Fatal("pending index")
 			}
@@ -154,7 +154,7 @@ func TestDriverBatchOverlayCaptureEntryAuthority(t *testing.T) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	before := e.catalog.state
-	old := before.descriptors[ref.Address].(*relationDescriptor)
+	old := before.MustRelation(ref.Address)
 	stage := e.BeginCatalogStage(e.catalog.read(before))
 	defer e.DiscardCatalogStage(stage)
 	next := *old
@@ -169,7 +169,7 @@ func TestDriverBatchOverlayCaptureEntryAuthority(t *testing.T) {
 	if err := e.captureCatalogStageLocked(stage, candidate, before, nil); err != nil {
 		t.Fatal("proposed replacement mistaken for entry predecessor", err)
 	}
-	if candidate.originals[ref.Address] != old || e.catalog.state != before || e.catalog.state.descriptors[ref.Address] != old {
+	if candidate.originals[ref.Address] != old || e.catalog.state != before || e.catalog.state.Get(ref.Address) != old {
 		t.Fatal("capture rewrote committed predecessor or published candidate")
 	}
 	peer := cloneCatalog(before)
@@ -218,7 +218,7 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 	if original, exists := candidate.names[key]; !exists || original != (ids.ObjectAddress{}) {
 		t.Fatal("namespace creation lost its name absence fence")
 	}
-	if e.catalog.state != before || before.descriptors[ns.Address] != nil {
+	if e.catalog.state != before || before.Get(ns.Address) != nil {
 		t.Fatal("namespace intent published during capture")
 	}
 	if err := e.catalogPreflightLocked(candidate); err != nil {
@@ -310,10 +310,10 @@ func TestDriverBatchUtilityComposition(t *testing.T) {
 			defer retained.Rows.Close()
 			e.mu.Lock()
 			catalog := e.privateCatalogLocked(s.transactions.catalog)
-			ns := catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "bs"}]
-			table := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "u"}]
-			copyTable := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "c"}]
-			index := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "bi"}]
+			ns := catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "bs"})
+			table := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "u"})
+			copyTable := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "c"})
+			index := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "bi"})
 			unpublished := e.catalog.state == before && e.storage[table] == nil && e.storage[copyTable] == nil && e.indexRoots[index] == nil
 			e.mu.Unlock()
 			if !unpublished {
@@ -339,7 +339,7 @@ func TestDriverBatchUtilityComposition(t *testing.T) {
 				if end := m.end(err); end != err {
 					t.Fatal("composition rollback replaced primary error", end)
 				}
-				if e.catalog.state != before || e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "bs"}] != (ids.ObjectAddress{}) {
+				if e.catalog.state != before || e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "bs"}) != (ids.ObjectAddress{}) {
 					t.Fatal("failed composition published catalog prefix")
 				}
 			}

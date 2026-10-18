@@ -193,7 +193,7 @@ func (scope *StatementScope) acquireInheritanceDefinitions(root *relationDescrip
 			return fail(ErrCatalogReplaced)
 		}
 		for address, old := range captured {
-			current, _ := catalog.state.descriptors[address].(*relationDescriptor)
+			current, _ := catalog.Relation(address)
 			if !inheritanceMarkerPublication(old, current) {
 				return fail(ErrCatalogReplaced)
 			}

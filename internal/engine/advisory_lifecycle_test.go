@@ -89,7 +89,7 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 	next, err := e.remapPreparedCatalog(cloneCatalog(replacement.state), sourceRoles, targetRoles, nil)
 	if err == nil {
 		nextRevision := e.catalog.nextRevision
-		for _, descriptor := range next.descriptors {
+		for _, descriptor := range next.Descriptors() {
 			if err = validateACL(e.roleRead(e.catalog.read(next), e.roles), descriptor); err != nil {
 				break
 			}

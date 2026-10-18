@@ -14,7 +14,7 @@ import (
 func pgOpclassUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2616}
-	d, ok := e.catalog.state.descriptors[a].(*relationDescriptor)
+	d, ok := e.catalog.state.Relation(a)
 	if !ok {
 		t.Fatal("missing pg_opclass")
 	}

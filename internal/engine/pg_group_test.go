@@ -15,7 +15,7 @@ import (
 func pgGroupUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12008}
-	d, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
+	d, ok := e.catalog.state.Relation(address)
 	if !ok {
 		t.Fatal("missing pg_group")
 	}
@@ -109,8 +109,8 @@ func TestPGGroupDescriptor(t *testing.T) {
 	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal(err)
 	}
-	row := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12012}].(*typeDescriptor)
-	array := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12011}].(*typeDescriptor)
+	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12012})
+	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12011})
 	if d.rowType != 12012 || row.owningRelation != d.address || array.owningRelation != d.address || row.array != 12011 || row.owner != d.owner || array.owner != d.owner || row.typ.Concrete() {
 		t.Fatal("existing row/array ownership links")
 	}

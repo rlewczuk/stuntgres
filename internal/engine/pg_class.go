@@ -39,7 +39,7 @@ func pgClassKind(catalog CatalogRead, relation *relationDescriptor) string {
 	case partitionedRelation:
 		return "p"
 	case indexRelation:
-		if parent, ok := catalog.state.descriptors[relation.sqlIndex.parent].(*relationDescriptor); ok && parent.partition != nil {
+		if parent, ok := catalog.Relation(relation.sqlIndex.parent); ok && parent.partition != nil {
 			return "I"
 		}
 		return "i"
@@ -53,7 +53,7 @@ func pgClassKind(catalog CatalogRead, relation *relationDescriptor) string {
 
 func pgClassPersistence(catalog CatalogRead, relation *relationDescriptor) string {
 	if relation.sqlIndex != nil {
-		if parent, ok := catalog.state.descriptors[relation.sqlIndex.parent].(*relationDescriptor); ok {
+		if parent, ok := catalog.Relation(relation.sqlIndex.parent); ok {
 			relation = parent
 		}
 	}
@@ -65,7 +65,7 @@ func pgClassPersistence(catalog CatalogRead, relation *relationDescriptor) strin
 			return "u"
 		}
 	}
-	if namespace, ok := catalog.state.descriptors[relation.namespace].(*namespaceDescriptor); ok && namespace.temporary != (ids.SessionToken{}) {
+	if namespace, ok := catalog.Namespace(relation.namespace); ok && namespace.temporary != (ids.SessionToken{}) {
 		return "t"
 	}
 	return "p"
@@ -124,7 +124,7 @@ func (e *Engine) pgClassRow(ctx context.Context, catalog CatalogRead, roles auth
 	}
 	bound := sqltype.Null(source.columns[33].Usage.Type)
 	if relation.membership != nil {
-		parent, ok := catalog.state.descriptors[relation.membership.parent].(*relationDescriptor)
+		parent, ok := catalog.Relation(relation.membership.parent)
 		if !ok || parent.partition == nil {
 			return nil, fmt.Errorf("stuntgres: missing partition bound parent")
 		}

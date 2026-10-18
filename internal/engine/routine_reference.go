@@ -50,7 +50,7 @@ func validateStoredRoutineDescriptor(view CatalogRead, captured *procedureDescri
 }
 
 func currentRoutineDeclaration(view CatalogRead, captured *procedureDescriptor) (*procedureDescriptor, error) {
-	current, ok := view.state.descriptors[captured.address].(*procedureDescriptor)
+	current, ok := view.Procedure(captured.address)
 	if !ok || !sameRoutineDeclaration(current, captured) {
 		return nil, fmt.Errorf("stuntgres: stale routine declaration carrier")
 	}
@@ -103,7 +103,7 @@ func (c *EvalContext) selectExpressionRecipe(recipe *relationDescriptor) error {
 		return err
 	}
 	if auth.engine != nil {
-		current, ok := auth.catalog.state.descriptors[recipe.address].(*relationDescriptor)
+		current, ok := auth.catalog.Relation(recipe.address)
 		if !ok || current.view != recipe.view || recipe.owner.ID() == 0 || recipe.owner != auth.engine.authorizationDomain.Principal(recipe.owner.ID()) {
 			return ErrCatalogReplaced
 		}

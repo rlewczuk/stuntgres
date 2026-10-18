@@ -106,7 +106,7 @@ func objectAddressClassKind(class ids.OID) (string, bool) {
 	return "", false
 }
 func objectNamespace(view CatalogRead, namespace ids.ObjectAddress) (actual, canonical string) {
-	if ns, ok := view.state.descriptors[namespace].(*namespaceDescriptor); ok {
+	if ns, ok := view.Namespace(namespace); ok {
 		actual, canonical = ns.name, ns.name
 		if ns.temporary != (ids.SessionToken{}) {
 			canonical = "pg_temp"
@@ -156,7 +156,7 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ids.Obje
 	r := objectIdentity{kind: kind}
 	key := a
 	key.SubID = 0
-	d := view.state.descriptors[key]
+	d := view.Get(key)
 	if a.ClassID == ids.ProcedureClassID {
 		p, ok := routineIdentityByOID(view, a.ObjectID)
 		if !ok {
@@ -330,7 +330,7 @@ func identifyAddress(view CatalogRead, roles authorization.Read, path []ids.Obje
 // Owned definitions retain their actual owning relation/type OIDs. They are not
 // descriptors and never get an invented namespace or simple-name field.
 func identifyOwnedAddress(view CatalogRead, path []ids.ObjectAddress, a ids.ObjectAddress, r objectIdentity) objectIdentity {
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		if domain, ok := descriptor.(*typeDescriptor); ok && a.ClassID == 2606 {
 			for _, check := range domain.domainChecks {
 				if check.OID != a.ObjectID {

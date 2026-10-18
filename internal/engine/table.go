@@ -29,7 +29,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		}
 		kind, missing := "table", name.Parts[len(name.Parts)-1].Text
 		if len(name.Parts) == 2 {
-			_, exists := auth.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Parts[0].Text}]
+			_, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Parts[0].Text})
 			if name.Parts[0].Text == "pg_temp" {
 				exists = temporaryNamespace(auth) != (ids.ObjectAddress{})
 			}
@@ -59,7 +59,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 			})
 			continue
 		}
-		relation := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		relation := auth.catalog.MustRelation(ref.Address)
 		if relation.relationKind != tableRelation && relation.relationKind != partitionedRelation {
 			if relation.relationKind == indexRelation {
 				e.mu.Unlock()
@@ -83,7 +83,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		}
 		tableErr := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 		if tableErr != nil {
-			descriptor := auth.catalog.state.descriptors[ref.Address]
+			descriptor := auth.catalog.Get(ref.Address)
 			nsref := e.catalog.domain.Ref(ref.Epoch, descriptor.Namespace())
 			if err := auth.Check(AccessRequirement{Object: nsref, OwnerOnly: true}); err != nil {
 				e.mu.Unlock()
@@ -95,8 +95,8 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 	}
 	temporary := true
 	for _, ref := range refs {
-		relation := auth.catalog.state.descriptors[ref.Address]
-		namespace := auth.catalog.state.descriptors[relation.Namespace()].(*namespaceDescriptor)
+		relation := auth.catalog.Get(ref.Address)
+		namespace := auth.catalog.MustNamespace(relation.Namespace())
 		if namespace.temporary != op.session.token {
 			temporary = false
 			break

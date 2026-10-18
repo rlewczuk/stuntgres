@@ -50,7 +50,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 		if err != nil {
 			return nil, err
 		}
-		parent = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		parent = auth.catalog.MustRelation(ref.Address)
 		if ref != scope.lockedRef || parent != scope.lockedDescriptor {
 			return nil, ErrCatalogReplaced
 		}
@@ -99,11 +99,11 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 		child.membership = pending.bound
 		stage.domainBases = append(stage.domainBases, parent)
 		if pending.bound.defaultBound && parent.partition.defaultChild != (ids.ObjectAddress{}) {
-			existing := auth.catalog.state.descriptors[parent.partition.defaultChild].(*relationDescriptor)
+			existing := auth.catalog.MustRelation(parent.partition.defaultChild)
 			return nil, expressionError("42P17", fmt.Sprintf(`partition "%s" conflicts with existing default partition "%s"`, name, existing.name), syntax.PartitionOf.Bound.Pos)
 		}
 		if !pending.bound.defaultBound && parent.partition.defaultChild != (ids.ObjectAddress{}) {
-			defaultRelation := auth.catalog.state.descriptors[parent.partition.defaultChild].(*relationDescriptor)
+			defaultRelation := auth.catalog.MustRelation(parent.partition.defaultChild)
 			err = partitionPhysicalDescendants(auth.catalog, defaultRelation, func(leaf *relationDescriptor) error {
 				ref := e.catalog.domain.Ref(auth.catalog.Epoch(), leaf.address)
 				pending.defaultLeaves = append(pending.defaultLeaves, ref)
@@ -175,7 +175,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 		}
 		evaluation.catalog, evaluation.routineAuthority = p.auth.catalog, &p.auth
 		for _, ref := range p.defaultLeaves {
-			leaf, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			leaf, ok := catalog.Relation(ref.Address)
 			if !ok {
 				return ErrCatalogReplaced
 			}
@@ -205,9 +205,9 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 				}
 				if contains {
 					source.close()
-					defaultRelation := catalog.state.descriptors[p.parent.partition.defaultChild].(*relationDescriptor)
+					defaultRelation := catalog.MustRelation(p.parent.partition.defaultChild)
 					diagnostic := sqlError("23514", fmt.Sprintf(`updated partition constraint for default partition "%s" would be violated by some row`, defaultRelation.name)).(*sqlstate.Error)
-					diagnostic.Schema, diagnostic.Table = catalog.state.descriptors[defaultRelation.namespace].Name(), defaultRelation.name
+					diagnostic.Schema, diagnostic.Table = catalog.Get(defaultRelation.namespace).Name(), defaultRelation.name
 					return diagnostic
 				}
 			}
@@ -235,7 +235,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for _, index := range partitionIndexDeclarationOrder(p.stage.base, p.parent) {
-		child := e.stageRead(p.stage).state.descriptors[p.child.address].(*relationDescriptor)
+		child := e.stageRead(p.stage).MustRelation(p.child.address)
 		if _, err := e.stagePartitionIndexChild(scope.op, p.stage, p.parent, index, child, true); err != nil {
 			return err
 		}
@@ -341,7 +341,7 @@ func (p *pendingPartitionDefinition) checkOverlap(scope *StatementScope) error {
 		bounds = make([]partitionBoundary, 0, 2*count)
 	}
 	for _, address := range p.parent.partition.children {
-		sibling := p.stage.base.state.descriptors[address].(*relationDescriptor)
+		sibling := p.stage.base.MustRelation(address)
 		if sibling.membership.defaultBound {
 			continue
 		}

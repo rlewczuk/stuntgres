@@ -17,9 +17,9 @@ import (
 // Keep the supplied published view immutable and use this private candidate for
 // provider validation and generator/storage capture as well as installation.
 func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		if extension, ok := descriptor.(*extensionDescriptor); ok {
-			namespace, ok := view.state.descriptors[extension.targetNamespace].(*namespaceDescriptor)
+			namespace, ok := view.Namespace(extension.targetNamespace)
 			if !ok {
 				return CatalogRead{}, fmt.Errorf("stuntgres: extension namespace is missing")
 			}
@@ -30,17 +30,17 @@ func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
 	}
 	next := cloneCatalog(view.state)
 	operators := operatorIndexEdit{index: view.state.operatorNames}
-	for a, d := range view.state.descriptors {
+	for a, d := range view.Descriptors() {
 		ns, isNamespace := d.(*namespaceDescriptor)
-		parent, hasParent := view.state.descriptors[d.Namespace()].(*namespaceDescriptor)
+		parent, hasParent := view.Namespace(d.Namespace())
 		if isNamespace && ns.temporary != (ids.SessionToken{}) || hasParent && parent.temporary != (ids.SessionToken{}) {
 			operators.replace(d, nil)
 			delete(next.descriptors, a)
 		}
 	}
-	for key, a := range view.state.names {
-		parent, hasParent := view.state.descriptors[key.Namespace].(*namespaceDescriptor)
-		if view.state.descriptors[a] != nil && next.descriptors[a] == nil || hasParent && parent.temporary != (ids.SessionToken{}) {
+	for key, a := range view.Names() {
+		parent, hasParent := view.Namespace(key.Namespace)
+		if view.Get(a) != nil && next.Get(a) == nil || hasParent && parent.temporary != (ids.SessionToken{}) {
 			delete(next.names, key)
 		}
 	}
@@ -53,7 +53,7 @@ func persistentReplacementCatalog(view CatalogRead) (CatalogRead, error) {
 // source, unlike immutable relation descriptors.
 func copySequenceState(source *Engine, view CatalogRead) (map[ids.ObjectAddress]*sequenceGenerator, error) {
 	result := make(map[ids.ObjectAddress]*sequenceGenerator)
-	for a, d := range view.state.descriptors {
+	for a, d := range view.Descriptors() {
 		r, ok := d.(*relationDescriptor)
 		if !ok || r.relationKind != sequenceRelation {
 			continue
@@ -79,7 +79,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		return err
 	}
 	temporary := make(map[ids.ObjectAddress]Descriptor)
-	for a, d := range e.catalog.state.descriptors {
+	for a, d := range e.catalog.state.Descriptors() {
 		if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary != (ids.SessionToken{}) {
 			temporary[a] = d
 		}
@@ -93,9 +93,9 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		return err
 	}
 	for _, address := range children {
-		descriptor := e.catalog.state.descriptors[address]
+		descriptor := e.catalog.state.Get(address)
 		if extension, ok := descriptor.(*extensionDescriptor); ok {
-			if imported, exists := next.names[descriptorNameKey(extension)]; exists && next.descriptors[imported] != extension {
+			if imported, exists := next.LookupName(descriptorNameKey(extension)); exists && next.Get(imported) != extension {
 				return fmt.Errorf("stuntgres: catalog replacement conflicts with live temporary extension %q", extension.name)
 			}
 		}
@@ -117,7 +117,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					if _, retained := temporary[leaf.ref.Address]; retained {
 						continue
 					}
-					if next.descriptors[leaf.ref.Address] != e.catalog.state.descriptors[leaf.ref.Address] {
+					if next.Get(leaf.ref.Address) != e.catalog.state.Get(leaf.ref.Address) {
 						return fmt.Errorf("stuntgres: catalog replacement with incompatible live temporary policy dependencies is unsupported")
 					}
 				}
@@ -127,7 +127,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					if _, retained := temporary[address]; retained {
 						continue
 					}
-					if next.descriptors[address] != e.catalog.state.descriptors[address] {
+					if next.Get(address) != e.catalog.state.Get(address) {
 						return fmt.Errorf("stuntgres: catalog replacement with incompatible live temporary policy dependencies is unsupported")
 					}
 				}
@@ -154,11 +154,11 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		}
 		retained[typ.ID()] = true
 		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}
-		source, ok := e.catalog.state.descriptors[address].(*typeDescriptor)
+		source, ok := e.catalog.state.Type(address)
 		if !ok || source.typ != typ {
 			return
 		}
-		if imported, ok := next.descriptors[address].(*typeDescriptor); ok && imported.typ != typ {
+		if imported, ok := next.Type(address); ok && imported.typ != typ {
 			copy := *imported
 			copy.typ = typ
 			next.descriptors[address] = &copy
@@ -168,7 +168,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			retainBuiltin(typ.Element())
 		}
 		if source.array != 0 {
-			if array, ok := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.array)}].(*typeDescriptor); ok {
+			if array, ok := e.catalog.state.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.array)}); ok {
 				retainBuiltin(array.typ)
 			}
 		}
@@ -241,7 +241,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 				for ref, captured := range definition.references {
 					address := ref.Address
 					address.SubID = 0
-					switch provider := e.catalog.state.descriptors[address].(type) {
+					switch provider := e.catalog.state.Get(address).(type) {
 					case *typeDescriptor:
 						retainBuiltin(provider.typ)
 					case *relationDescriptor:
@@ -269,11 +269,11 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		retainedIDs[address.ObjectID] = true
 		reserveDefinitionOIDs(retainedIDs, descriptor)
 	}
-	reservedIDs := make(map[ids.OID]bool, len(next.descriptors)+len(retainedIDs))
+	reservedIDs := make(map[ids.OID]bool, next.DescriptorCount()+len(retainedIDs))
 	for id := range retainedIDs {
 		reservedIDs[id] = true
 	}
-	for address, descriptor := range next.descriptors {
+	for address, descriptor := range next.Descriptors() {
 		reservedIDs[address.ObjectID] = true
 		reserveDefinitionOIDs(reservedIDs, descriptor)
 	}
@@ -297,7 +297,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			return nil
 		}
 	}
-	for address, descriptor := range next.descriptors {
+	for address, descriptor := range next.Descriptors() {
 		if err := remapCollision(address); err != nil {
 			return err
 		}
@@ -347,7 +347,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			}
 			switch r := d.(type) {
 			case *namespaceDescriptor:
-				if target == a && d == e.catalog.state.descriptors[a] && pgDependPinned(e.catalog.read(e.catalog.state), a) {
+				if target == a && d == e.catalog.state.Get(a) && pgDependPinned(e.catalog.read(e.catalog.state), a) {
 					// Preflight retained this exact immutable namespace authority.
 					break
 				}
@@ -397,7 +397,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					d = &n
 				}
 			case *relationDescriptor:
-				if target == a && r.relationKind == catalogRelation && d == e.catalog.state.descriptors[a] && pgDependPinned(e.catalog.read(e.catalog.state), a) {
+				if target == a && r.relationKind == catalogRelation && d == e.catalog.state.Get(a) && pgDependPinned(e.catalog.read(e.catalog.state), a) {
 					if _, moved := mapping[r.namespace]; !moved {
 						// Remapping unrelated imported identities must not copy
 						// the exact provider certified for retained TEMP consumers.
@@ -534,7 +534,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	}
 	operators := operatorIndexEdit{index: next.operatorNames}
 	for a, d := range temporary {
-		operators.replace(next.descriptors[a], d)
+		operators.replace(next.Get(a), d)
 		next.descriptors[a] = d
 		next.names[descriptorNameKey(d)] = a
 		if rows := e.storage[a]; rows != nil {
@@ -572,8 +572,8 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 		}
 		next.descriptors[address] = relation
 	}
-	previous := make(map[ids.ObjectAddress]Descriptor, len(next.descriptors))
-	for address, descriptor := range next.descriptors {
+	previous := make(map[ids.ObjectAddress]Descriptor, next.DescriptorCount())
+	for address, descriptor := range next.Descriptors() {
 		previous[address] = descriptor
 	}
 	if err := e.remapViewRuleOIDs(next); err != nil {
@@ -588,7 +588,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	if err := e.remapPhysicalNotNull(next, previous); err != nil {
 		return err
 	}
-	for _, descriptor := range next.descriptors {
+	for _, descriptor := range next.Descriptors() {
 		if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.policies) != 0 {
 			if err := validatePolicies(e.catalog.read(next), relation); err != nil {
 				return err
@@ -617,10 +617,10 @@ func (e *Engine) clearPersistentSequenceMemoryLocked() {
 	defer e.sessionMu.Unlock()
 	for _, s := range e.sessions {
 		for a := range s.sequences {
-			r, ok := e.catalog.state.descriptors[a].(*relationDescriptor)
+			r, ok := e.catalog.state.Relation(a)
 			keep := false
 			if ok {
-				ns, ok := e.catalog.state.descriptors[r.namespace].(*namespaceDescriptor)
+				ns, ok := e.catalog.state.Namespace(r.namespace)
 				keep = ok && ns.temporary == s.token
 			}
 			if !keep {
@@ -728,11 +728,11 @@ func arrayDomainDependency(typ *sqltype.Descriptor) bool {
 }
 func retainedArrayDependencies(source, target *catalogState, typ *sqltype.Descriptor) bool {
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}
-	old, ok := source.descriptors[address].(*typeDescriptor)
+	old, ok := source.Type(address)
 	if !ok {
 		return false
 	}
-	next, ok := target.descriptors[address].(*typeDescriptor)
+	next, ok := target.Type(address)
 	if !ok || old.typ != typ || next.typ != typ || old.array != next.array || old.Namespace() != next.Namespace() || old.owner != next.owner || old.Revision() != next.Revision() {
 		return false
 	}
@@ -758,7 +758,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporar
 		for ref, captured := range consumer.view.references {
 			address := ref.Address
 			address.SubID = 0
-			old, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
+			old, ok := e.catalog.state.Relation(address)
 			if !ok {
 				continue
 			}
@@ -774,7 +774,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporar
 			if old != captured || old.relationKind != catalogRelation || !pgDependPinned(catalog, address) {
 				return fail()
 			}
-			candidate, ok := next.descriptors[address].(*relationDescriptor)
+			candidate, ok := next.Relation(address)
 			if !ok || candidate.relationKind != old.relationKind || candidate.namespace != old.namespace || candidate.name != old.name || candidate.owner != old.owner || candidate.virtualView != old.virtualView || candidate.hasIndexes != old.hasIndexes || candidate.hasSubclasses != old.hasSubclasses || candidate.attributeHighWater != old.attributeHighWater || !slices.Equal(candidate.attributes, old.attributes) || len(candidate.columns) != len(old.columns) || candidate.acl.Explicit != old.acl.Explicit || !slices.Equal(candidate.acl.Entries, old.acl.Entries) || len(candidate.columnACL) != len(old.columnACL) {
 				return fail()
 			}
@@ -790,8 +790,8 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalogState, temporar
 					return fail()
 				}
 			}
-			namespace, ok := e.catalog.state.descriptors[old.namespace].(*namespaceDescriptor)
-			other, candidateOK := next.descriptors[old.namespace].(*namespaceDescriptor)
+			namespace, ok := e.catalog.state.Namespace(old.namespace)
+			other, candidateOK := next.Namespace(old.namespace)
 			if !ok || !candidateOK || !pgDependPinned(catalog, old.namespace) || namespace.name != other.name || namespace.owner != other.owner || namespace.temporary != other.temporary || namespace.temporaryToast != other.temporaryToast || namespace.acl.Explicit != other.acl.Explicit || !slices.Equal(namespace.acl.Entries, other.acl.Entries) {
 				return fail()
 			}

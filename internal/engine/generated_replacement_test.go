@@ -194,7 +194,7 @@ func TestGeneratedReplacementStaleAuthority(t *testing.T) {
 				f.target.roles = &roles
 			case "Temporary":
 				next := cloneCatalog(f.target.catalog.state)
-				copy := *next.descriptors[f.temp].(*relationDescriptor)
+				copy := *next.MustRelation(f.temp)
 				copy.address.ObjectID++
 				copy.name = "concurrent_temp"
 				next.descriptors[copy.address] = &copy
@@ -220,7 +220,7 @@ func TestGeneratedReplacementStaleAuthority(t *testing.T) {
 			if f.target.catalog.state != expectedState || f.target.roles != expectedRoles || f.target.commitSeq != expectedFrontier || !reflect.DeepEqual(f.target.storage, expectedStorage) || !reflect.DeepEqual(f.target.sequences, expectedSequences) || !reflect.DeepEqual(f.target.indexRoots, expectedIndexes) || f.target.nextRow != nextRow || f.target.nextVersion != nextVersion || f.target.catalog.nextRevision != nextRevision {
 				t.Fatal("repair installed candidate or erased concurrent target change")
 			}
-			if _, exists := f.target.catalog.state.descriptors[f.imported]; exists {
+			if _, exists := f.target.catalog.state.Find(f.imported); exists {
 				t.Fatal("imported catalog descriptor published")
 			}
 			if got, _ := f.source[1].OID(); got != 25000 {

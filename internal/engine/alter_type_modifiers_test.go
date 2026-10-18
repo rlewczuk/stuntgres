@@ -14,9 +14,9 @@ func TestAlterTypeModifiers(t *testing.T) {
 	run(t, e, "CREATE TABLE t(c VARCHAR(5),n NUMERIC(8,3),stamp TIMESTAMP(6))")
 	run(t, e, "INSERT INTO t VALUES('é🙂x',1.235,'2024-01-01 00:00:00.123456')")
 	ref := roleTableRef(t, e, "t")
-	old := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	old := e.catalog.state.MustRelation(ref.Address)
 	run(t, e, `ALTER TABLE t ALTER c TYPE VARCHAR(2) COLLATE pg_catalog."POSIX" USING c::varchar(2), ALTER n TYPE NUMERIC(5,2), ALTER stamp TYPE TIMESTAMP(2)`)
-	next := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	next := e.catalog.state.MustRelation(ref.Address)
 	schema := run(t, e, "SELECT * FROM t").Rows.Schema()
 	if schema[0].Usage.Type.ID() != 1043 || schema[0].Usage.Typmod != 6 || schema[0].Usage.Collation.ID != 951 || schema[1].Usage.Type.ID() != 1700 || schema[1].Usage.Typmod != (5<<16|2)+4 || schema[2].Usage.Type.ID() != 1114 || schema[2].Usage.Typmod != 2 {
 		t.Fatal(schema)
@@ -47,13 +47,13 @@ func TestAlterTypeIdentityRetainsStorageAndRevision(t *testing.T) {
 	run(t, e, "CREATE TABLE t(c INT DEFAULT 7)")
 	run(t, e, "INSERT INTO t DEFAULT VALUES")
 	ref := roleTableRef(t, e, "t")
-	old, storage := e.catalog.state.descriptors[ref.Address], e.storage[ref.Address]
+	old, storage := e.catalog.state.Get(ref.Address), e.storage[ref.Address]
 	run(t, e, "ALTER TABLE t ALTER c TYPE INT")
-	if e.catalog.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage {
+	if e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != storage {
 		t.Fatal("identity TYPE copied definition/data")
 	}
 	run(t, e, "ALTER TABLE t ALTER c TYPE INT USING c+1")
-	if e.catalog.state.descriptors[ref.Address] != old || e.storage[ref.Address] == storage {
+	if e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] == storage {
 		t.Fatal("same definition USING failed to rewrite only data")
 	}
 	if rows := tuples(run(t, e, "SELECT c FROM t")); !reflect.DeepEqual(rows, [][]driver.Value{{int64(8)}}) {
@@ -68,12 +68,12 @@ func TestAlterTypeStableDefaultDeferredAndReplay(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE d(id INT,c TIMESTAMPTZ(6) DEFAULT (TIMESTAMP '2004-07-01 12:00' AT LOCAL))")
 	sessionSQL(t, s, "INSERT INTO d(id) VALUES(1)")
 	ref := roleTableRef(t, e, "d")
-	before := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	before := e.catalog.state.MustRelation(ref.Address)
 	if before.defaults[before.attributes[1]].expression.Properties().Volatility != Stable {
 		t.Fatal("fixture default is not Stable")
 	}
 	sessionSQL(t, s, "ALTER TABLE d ALTER c TYPE TIMESTAMPTZ(2)")
-	after := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	after := e.catalog.state.MustRelation(ref.Address)
 	if after.columns[1].Usage.Typmod != 2 || after.defaults[after.attributes[1]].expression.Properties().Volatility != Stable {
 		t.Fatal("TYPE froze stable default", after)
 	}
@@ -90,7 +90,7 @@ func TestAlterTypeStableDefaultDeferredAndReplay(t *testing.T) {
 	if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
-	restored := e.catalog.state.descriptors[roleTableRef(t, e, "d").Address].(*relationDescriptor)
+	restored := e.catalog.state.MustRelation(roleTableRef(t, e, "d").Address)
 	if restored.columns[1].Usage.Typmod != 2 || restored.defaults[restored.attributes[1]].expression.Properties().Volatility != Stable {
 		t.Fatal("Restore lost stable default or precision", restored)
 	}

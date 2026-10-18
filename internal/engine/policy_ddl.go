@@ -56,7 +56,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 	if ref != scope.lockedRef {
 		return fail(ErrCatalogReplaced)
 	}
-	old := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	old := auth.catalog.MustRelation(ref.Address)
 	index := policyIndex(old, name)
 	if drop && index < 0 {
 		if stmt.(*parser.DropPolicy).IfExists {

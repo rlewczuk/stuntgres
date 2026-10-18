@@ -14,7 +14,7 @@ func TestDefaultDescriptorProviderClosedArithmetic(t *testing.T) {
 	run(t, e, "CREATE TABLE d(i INT DEFAULT 1/0,u BIGINT DEFAULT -(CAST(7 AS BIGINT)))")
 	view := e.CatalogRead()
 	ref := roleTableRef(t, e, "d")
-	old := view.state.descriptors[ref.Address].(*relationDescriptor)
+	old := view.MustRelation(ref.Address)
 	if err := (relationProvider{}).Validate(view, old); err != nil {
 		t.Fatal("validation must not evaluate division", err)
 	}
@@ -69,7 +69,7 @@ func TestDefaultArithmeticPlanningScopedPolicy(t *testing.T) {
 	run(t, e, "CREATE TABLE d(i INT DEFAULT 1/0)")
 	view := e.CatalogRead()
 	ref := roleTableRef(t, e, "d")
-	node := view.state.descriptors[ref.Address].(*relationDescriptor).defaults[1].expression
+	node := view.MustRelation(ref.Address).defaults[1].expression
 	ctx := &EvalContext{Context: context.Background()}
 	ordinary, changed, err := preflightCoercions(ctx, node)
 	if err != nil || changed {
@@ -83,7 +83,7 @@ func TestDefaultArithmeticPlanningScopedPolicy(t *testing.T) {
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" || diagnostic.Message != "division by zero" {
 		t.Fatal(err)
 	}
-	if _, ok := view.state.descriptors[ref.Address].(*relationDescriptor).defaults[1].expression.(arithmeticExpression); !ok {
+	if _, ok := view.MustRelation(ref.Address).defaults[1].expression.(arithmeticExpression); !ok {
 		t.Fatal("catalog expression changed during execution planning")
 	}
 }
@@ -93,7 +93,7 @@ func TestDefaultSmallintArithmeticWidths(t *testing.T) {
 	run(t, e, "CREATE TABLE d(s SMALLINT DEFAULT (7::smallint/2::smallint),b BIGINT DEFAULT (7::smallint+2147483648::bigint),u SMALLINT DEFAULT (32767::smallint+1::smallint))")
 	view := e.CatalogRead()
 	ref := roleTableRef(t, e, "d")
-	desc := view.state.descriptors[ref.Address].(*relationDescriptor)
+	desc := view.MustRelation(ref.Address)
 	if err := (relationProvider{}).Validate(view, desc); err != nil {
 		t.Fatal(err)
 	}

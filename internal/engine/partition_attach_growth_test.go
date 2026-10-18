@@ -99,9 +99,9 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			candidate := inheritanceUnitRelation(e, "attach_growth_candidate", 46102, "k")
 			candidate.relationKind = tableRelation
 			partitionAttachUnitInstall(t, e, parent, old, candidate)
-			parent = e.catalog.state.descriptors[parent.address].(*relationDescriptor)
-			old = e.catalog.state.descriptors[old.address].(*relationDescriptor)
-			candidate = e.catalog.state.descriptors[candidate.address].(*relationDescriptor)
+			parent = e.catalog.state.MustRelation(parent.address)
+			old = e.catalog.state.MustRelation(old.address)
+			candidate = e.catalog.state.MustRelation(candidate.address)
 			reader, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
 			holder, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
 			ref := e.catalog.domain.Ref(e.catalog.state.epoch, old.address)
@@ -135,7 +135,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
-			current := e.catalog.state.descriptors[parent.address].(*relationDescriptor)
+			current := e.catalog.state.MustRelation(parent.address)
 			if !partitionAppendCompatible(parent, current) {
 				t.Fatal("same-authority append rejected")
 			}
@@ -166,7 +166,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			}
 			captured := reader.partitionCaptureCatalog(e.CatalogRead())
 			var admitted, fresh []ids.ObjectAddress
-			if err := partitionPhysicalDescendants(captured, captured.state.descriptors[parent.address].(*relationDescriptor), func(d *relationDescriptor) error { admitted = append(admitted, d.address); return nil }); err != nil {
+			if err := partitionPhysicalDescendants(captured, captured.MustRelation(parent.address), func(d *relationDescriptor) error { admitted = append(admitted, d.address); return nil }); err != nil {
 				t.Fatal(err)
 			}
 			if err := partitionPhysicalDescendants(e.CatalogRead(), current, func(d *relationDescriptor) error { fresh = append(fresh, d.address); return nil }); err != nil {
@@ -239,8 +239,8 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 				target.checkConstraints = []checkConstraint{check}
 			}
 			partitionAttachUnitInstall(t, e, parent, target, leaf)
-			parent = e.catalog.state.descriptors[parent.address].(*relationDescriptor)
-			target = e.catalog.state.descriptors[target.address].(*relationDescriptor)
+			parent = e.catalog.state.MustRelation(parent.address)
+			target = e.catalog.state.MustRelation(target.address)
 			scope, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
 			holder, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
 			leafRef := e.catalog.domain.Ref(e.catalog.state.epoch, leaf.address)

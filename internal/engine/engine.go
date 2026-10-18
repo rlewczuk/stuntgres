@@ -303,7 +303,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 		return nil, err
 	}
 	view := e.catalog.read(e.catalog.state)
-	for _, d := range e.catalog.state.descriptors {
+	for _, d := range e.catalog.state.Descriptors() {
 		p := e.catalog.provider(d.Address().ClassID)
 		if p == nil {
 			return nil, fmt.Errorf("stuntgres: missing catalog provider for built-in %q (class %d)", d.Name(), d.Address().ClassID)
@@ -635,7 +635,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 					}
 					return b, err
 				}
-				source := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+				source := auth.catalog.MustRelation(ref.Address)
 				if source.relationKind != tableRelation && source.relationKind != foreignRelation && source.relationKind != viewRelation && source.relationKind != compositeRelation {
 					kind := "relations of this kind"
 					if source.relationKind == sequenceRelation {
@@ -655,7 +655,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 				if source.relationKind == compositeRelation {
 					typeRef := e.catalog.domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.rowType)})
 					var ok bool
-					sourceType, ok = auth.catalog.state.descriptors[typeRef.Address].(*typeDescriptor)
+					sourceType, ok = auth.catalog.Type(typeRef.Address)
 					if !ok || sourceType.owningRelation != source.address || sourceType.typ.ID() != source.rowType {
 						return b, fmt.Errorf("stuntgres: invalid LIKE composite type provider")
 					}
@@ -780,7 +780,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 			return b, sqlError("0A000", "materialized views may not be defined using bound parameters")
 		}
 		for _, source := range binder.querySources {
-			if ns := auth.catalog.state.descriptors[source.relation.namespace].(*namespaceDescriptor); ns.temporary != (ids.SessionToken{}) {
+			if ns := auth.catalog.MustNamespace(source.relation.namespace); ns.temporary != (ids.SessionToken{}) {
 				return b, sqlError("0A000", "materialized views must not use temporary tables or views")
 			}
 		}

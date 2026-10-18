@@ -17,7 +17,7 @@ func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*typ
 	for i := range path.count() {
 		found := auth.catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
 		if len(found) == 1 {
-			return auth.catalog.state.descriptors[found[0]].(*typeDescriptor), nil
+			return auth.catalog.MustType(found[0]), nil
 		}
 	}
 	return nil, expressionError("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)), name.Parts[0].Pos)
@@ -31,7 +31,7 @@ func standaloneComposite(catalog CatalogRead, typ *typeDescriptor, path []ids.Ob
 	if !typ.typ.IsComposite() {
 		return nil, sqlError("42809", "type "+name+" is not a composite type")
 	}
-	source, ok := catalog.state.descriptors[typ.owningRelation].(*relationDescriptor)
+	source, ok := catalog.Relation(typ.owningRelation)
 	if !ok || source.rowType != typ.typ.ID() {
 		return nil, fmt.Errorf("stuntgres: missing composite type authority")
 	}
@@ -122,7 +122,7 @@ func validateTypedAttachment(catalog CatalogRead, table *relationDescriptor) err
 	if table.ofType.ClassID != ids.TypeClassID || table.ofType.SubID != 0 || table.relationKind != tableRelation {
 		return fmt.Errorf("stuntgres: invalid typed attachment")
 	}
-	typ, ok := catalog.state.descriptors[table.ofType].(*typeDescriptor)
+	typ, ok := catalog.Type(table.ofType)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing typed source")
 	}
@@ -184,7 +184,7 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
 	if next.ofType != (ids.ObjectAddress{}) {
-		stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[next.ofType])
+		stage.domainBases = append(stage.domainBases, auth.catalog.Get(next.ofType))
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
@@ -275,7 +275,7 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 		mode = accessExclusive
 	}
 	for _, source := range addresses {
-		typ, ok := stage.base.state.descriptors[source].(*typeDescriptor)
+		typ, ok := stage.base.Type(source)
 		if !ok {
 			continue
 		}
@@ -287,7 +287,7 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 		// neither a new generation nor a same-name source can be adopted.
 		e := stage.owner
 		e.mu.Lock()
-		valid := e.catalog.state.descriptors[source] == typ && e.catalog.state.descriptors[typ.owningRelation] == stage.base.state.descriptors[typ.owningRelation]
+		valid := e.catalog.state.Get(source) == typ && e.catalog.state.Get(typ.owningRelation) == stage.base.Get(typ.owningRelation)
 		e.mu.Unlock()
 		if !valid {
 			return CatalogConflict{}

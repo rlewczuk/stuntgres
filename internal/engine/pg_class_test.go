@@ -11,7 +11,7 @@ import (
 
 func pgClassUnitSource(t *testing.T, e *Engine) *relationDescriptor {
 	t.Helper()
-	return e.CatalogRead().state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}].(*relationDescriptor)
+	return e.CatalogRead().MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
 }
 
 func TestPgClassProjection(t *testing.T) {
@@ -74,7 +74,7 @@ func TestPgClassProjection(t *testing.T) {
 		}
 	}
 	for _, oid := range []ids.OID{1213, 1262, 2396} {
-		d := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}].(*relationDescriptor)
+		d := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
 		row, err := e.pgClassRow(context.Background(), catalog, e.Roles(), source, d)
 		if err != nil {
 			t.Fatal(err)
@@ -99,7 +99,7 @@ func TestPgClassKinds(t *testing.T) {
 		}
 	}
 	for _, oid := range []ids.OID{12000, 12001, 12002, 12003, 12006, 12007, 12008, 12014, 12081} {
-		d := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}].(*relationDescriptor)
+		d := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
 		before := d.virtualView
 		if got := pgClassKind(catalog, d); got != "v" || d.virtualView != before {
 			t.Fatal("classification changed dispatch", oid, got)

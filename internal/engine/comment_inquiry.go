@@ -153,7 +153,7 @@ func (e commentInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	switch e.kind {
 	case legacyDescription:
 		var class ids.OID
-		for a, d := range scope.commentCatalog.state.descriptors {
+		for a, d := range scope.commentCatalog.Descriptors() {
 			if a.ObjectID == ids.OID(oid) && a.SubID == 0 && (text == "" || a.ClassID < class) {
 				if candidate := descriptorComment(d, 0); candidate != "" {
 					// Immutable address ordering keeps equal calls STABLE; it
@@ -167,7 +167,7 @@ func (e commentInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		text = descriptorComment(scope.commentCatalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}], int32(sub))
+		text = descriptorComment(scope.commentCatalog.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}), int32(sub))
 	case objectDescription, sharedDescription:
 		name, err := values[1].Text()
 		if err != nil {
@@ -190,7 +190,7 @@ func (e commentInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 				class = ids.TypeClassID
 			}
 			if class != 0 {
-				text = descriptorComment(scope.commentCatalog.state.descriptors[ids.ObjectAddress{ClassID: class, ObjectID: ids.OID(oid)}], 0)
+				text = descriptorComment(scope.commentCatalog.Get(ids.ObjectAddress{ClassID: class, ObjectID: ids.OID(oid)}), 0)
 			}
 		}
 	}

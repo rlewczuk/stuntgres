@@ -327,14 +327,14 @@ func (e *Engine) creationNamespaceDestination(auth AuthorizationView, name parse
 	if len(name.Parts) == 2 {
 		n := name.Parts[0].Text
 		if n == "pg_temp" {
-			ns, ok := auth.catalog.state.descriptors[auth.stagedTemporary].(*namespaceDescriptor)
+			ns, ok := auth.catalog.Namespace(auth.stagedTemporary)
 			if !ok || !ownTemporaryNamespace(auth, ns) {
 				return ids.ObjectRef{}, true, nil
 			}
 			a = ns.address
 		} else {
 			var ok bool
-			a, ok = auth.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: n}]
+			a, ok = auth.catalog.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: n})
 			if !ok {
 				return ids.ObjectRef{}, false, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, n))
 			}

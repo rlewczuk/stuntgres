@@ -18,8 +18,8 @@ func TestCollationProviderConcurrentRolePublication(t *testing.T) {
 	sessionSQL(t, owner, `CREATE COLLATION concurrent_provider FROM pg_catalog.pg_unicode_fast`)
 	sessionSQL(t, owner, `CREATE ROLE concurrent_provider_role`)
 	view := e.CatalogRead()
-	address := view.state.names[ids.NameKey{ClassID: ids.CollationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "concurrent_provider"}]
-	descriptor := view.state.descriptors[address].(*collationDescriptor)
+	address := view.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "concurrent_provider"})
+	descriptor := view.MustCollation(address)
 	e.mu.Lock()
 	beforeRoles := e.roles
 	e.mu.Unlock()
@@ -72,7 +72,7 @@ func TestCollationProviderConcurrentRolePublication(t *testing.T) {
 	if !published {
 		t.Fatal("regression did not publish a genuine successor role catalog")
 	}
-	if e.CatalogRead().state != view.state || view.state.descriptors[address] != descriptor {
+	if e.CatalogRead().state != view.state || view.Get(address) != descriptor {
 		t.Fatal("role publication unexpectedly changed captured collation snapshot")
 	}
 }

@@ -41,7 +41,7 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 				inputRef := catalogRef(t, e, view, "input")
 				matchingRef := catalogRef(t, e, view, "matching")
 				ordinaryRef := catalogRef(t, e, view, "ordinary")
-				stored := view.state.descriptors[srcRef.Address].(*relationDescriptor).rules[0]
+				stored := view.MustRelation(srcRef.Address).rules[0]
 				assertSourceOwnership := func(r ruleDefinition) {
 					t.Helper()
 					if !cte {
@@ -100,12 +100,12 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 					} else if k.attribute != 1 || k.expression != nil {
 						t.Fatal("stable attribute inference changed")
 					}
-					parent := catalog.state.descriptors[sinkRef.Address].(*relationDescriptor)
+					parent := catalog.MustRelation(sinkRef.Address)
 					for _, test := range []struct {
 						ref  ids.ObjectRef
 						want bool
 					}{{matchingRef, !expression}, {ordinaryRef, false}} {
-						index := catalog.state.descriptors[test.ref.Address].(*relationDescriptor).sqlIndex
+						index := catalog.MustRelation(test.ref.Address).sqlIndex
 						got, err := c.matches(parent, index)
 						if err != nil || got != test.want {
 							t.Fatalf("canonical inference match=%v want=%v error=%v", got, test.want, err)
@@ -142,7 +142,7 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 					t.Fatalf("exported rule reanalysis: %v\n%s", err, groups[0].sql)
 				}
 				reboundView := e.CatalogRead()
-				rebound := reboundView.state.descriptors[srcRef.Address].(*relationDescriptor).rules[0]
+				rebound := reboundView.MustRelation(srcRef.Address).rules[0]
 				assertSourceOwnership(rebound)
 				assertKey(conflict(rebound), reboundView)
 				assertKey(original, view)

@@ -81,7 +81,7 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 		if err := auth.CanUse(ref); err != nil {
 			return err
 		}
-		stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[ref.Address])
+		stage.domainBases = append(stage.domainBases, auth.catalog.Get(ref.Address))
 		columns[i] = ColumnDescriptor{Name: member.Name, Usage: usage, DeclaredDimensions: int16(len(raw.ArrayBounds)), Nullable: true, NullabilityKnown: true}
 	}
 	relation, err := e.newTableDescriptorLocked(ns.Address, name, auth.state.CurrentUser, columns, index)
@@ -129,7 +129,7 @@ func rowRewriteError(catalog CatalogRead, source *relationDescriptor) error {
 	}
 	var consumer *relationDescriptor
 	var column string
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
 		if !ok || !table.relationKind.stored() {
 			continue

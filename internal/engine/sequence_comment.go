@@ -17,7 +17,7 @@ func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment
 		ref, err = e.resolveRelationReference(auth, s.Name, true)
 	}
 	if err == nil {
-		err = sequenceKind(auth.catalog.state.descriptors[ref.Address].(*relationDescriptor))
+		err = sequenceKind(auth.catalog.MustRelation(ref.Address))
 	}
 	if err == nil {
 		err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
@@ -38,7 +38,7 @@ func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment
 	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 		return Result{}, err
 	}
-	old, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	old, ok := auth.catalog.Relation(ref.Address)
 	if !ok {
 		return Result{}, ErrCatalogReplaced
 	}
@@ -53,7 +53,7 @@ func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment
 	}
 	changes := cloneCatalogChanges(scope.owner.catalog)
 	e.catalogChangeLocked(changes, ref.Address, &next)
-	scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.descriptors[ref.Address])
+	scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
 	scope.catalog = changes
 	return Result{}, nil
 }

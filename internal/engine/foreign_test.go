@@ -216,8 +216,8 @@ func TestFDWRegistry(t *testing.T) {
 	if err = e.InstallForeignDefinitions([]ForeignDataWrapperDefinition{def}, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	address := e.catalog.state.names[ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(foreignHandlerSignature)}]
-	procedure := e.catalog.state.descriptors[address].(*procedureDescriptor)
+	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(foreignHandlerSignature)})
+	procedure := e.catalog.state.MustProcedure(address)
 	if procedure.foreign.wrapper != w || procedure.result != 3115 || procedure.signature != foreignHandlerSignature {
 		t.Fatal("installed declaration lost executable identity", procedure)
 	}
@@ -234,13 +234,13 @@ func TestFDWProcedureIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(foreignHandlerSignature)}
-	oldAddress := e.catalog.state.names[key]
+	oldAddress := e.catalog.state.NameAddress(key)
 	wrapper := &foreignDescriptor{name: "wrapper", handler: oldAddress}
 	if token, err := foreignHandlerFor(e.CatalogRead(), wrapper); err != nil || token.wrapper != w {
 		t.Fatal(token, err)
 	}
 	replacement := cloneCatalog(e.catalog.state)
-	copy := *replacement.descriptors[oldAddress].(*procedureDescriptor)
+	copy := *replacement.MustProcedure(oldAddress)
 	delete(replacement.descriptors, oldAddress)
 	copy.address.ObjectID = 40010
 	replacement.descriptors[copy.address] = &copy
@@ -252,7 +252,7 @@ func TestFDWProcedureIdentity(t *testing.T) {
 		t.Fatal("retired address retargeted by same SQL name or lost defensive diagnostic", err)
 	}
 	uncallable := cloneCatalog(e.catalog.state)
-	procedure := *uncallable.descriptors[oldAddress].(*procedureDescriptor)
+	procedure := *uncallable.MustProcedure(oldAddress)
 	procedure.foreign = nil
 	uncallable.descriptors[oldAddress] = &procedure
 	_, err = foreignHandlerFor(e.catalog.read(uncallable), wrapper)
@@ -285,7 +285,7 @@ func TestFDWProcedureACLCOW(t *testing.T) {
 				t.Fatal("registered procedure identity not unique", count)
 			}
 			ref := e.catalog.domain.Ref(base.Epoch(), ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: selected.id})
-			original := base.state.descriptors[ref.Address].(*procedureDescriptor)
+			original := base.MustProcedure(ref.Address)
 			retained := catalogAuthorization(e, base)
 			retained.state.CurrentUser = retained.roles.LookupRef("pg_read_all_data")
 			if rights, err := retained.Effective(ref, false); err != nil || rights != authorization.ExecutePrivilege {
@@ -301,7 +301,7 @@ func TestFDWProcedureACLCOW(t *testing.T) {
 				t.Fatal(err)
 			}
 			materializedCatalog := e.CatalogRead()
-			materialized := materializedCatalog.state.descriptors[ref.Address].(*procedureDescriptor)
+			materialized := materializedCatalog.MustProcedure(ref.Address)
 			if materialized == original || !materialized.acl.Explicit || original.acl.Explicit {
 				t.Fatal("default-equivalent edit did not privately materialize ACL")
 			}
@@ -311,7 +311,7 @@ func TestFDWProcedureACLCOW(t *testing.T) {
 				t.Fatal(err)
 			}
 			current := e.CatalogRead()
-			next := current.state.descriptors[ref.Address].(*procedureDescriptor)
+			next := current.MustProcedure(ref.Address)
 			if next == materialized || next.foreign != original.foreign || next.revision != original.revision || next.owner != original.owner || next.namespace != original.namespace || next.signature != original.signature {
 				t.Fatal("ACL publication replaced foreign capability or definition identity")
 			}

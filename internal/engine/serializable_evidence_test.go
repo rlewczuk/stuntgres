@@ -151,7 +151,7 @@ func TestSerializableEvidenceExemptSourcesAndUnrelatedFrontier(t *testing.T) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	catalog := cloneCatalog(e.catalog.state)
-	original := catalog.descriptors[ref.Address].(*relationDescriptor)
+	original := catalog.MustRelation(ref.Address)
 	copy := *original
 	copy.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	catalog.descriptors[ref.Address] = &copy
@@ -250,7 +250,7 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 	}
 	e.mu.Lock()
 	node := e.serializable.nodes[session.transactions.ref]
-	namespace := e.catalog.state.descriptors[session.temporaryNamespace].(*namespaceDescriptor)
+	namespace := e.catalog.state.MustNamespace(session.temporaryNamespace)
 	if namespace.temporary != session.token {
 		t.Fatal("fixture did not create actual session-owned temporary namespace")
 	}
@@ -269,7 +269,7 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 		t.Fatal("temporary stored relation registered evidence")
 	}
 	var persistentGenerator, temporaryGenerator *sequenceGenerator
-	for address, descriptor := range e.catalog.state.descriptors {
+	for address, descriptor := range e.catalog.state.Descriptors() {
 		if d, ok := descriptor.(*relationDescriptor); ok && d.relationKind == sequenceRelation {
 			if d.name == "persistent_s" {
 				persistentGenerator = e.sequences[address]

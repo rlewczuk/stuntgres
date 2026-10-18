@@ -49,7 +49,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, catalog Catalo
 		return e.indexRoots[address]
 	}
 	snapshot := &indexSnapshot{sources: make(map[ids.ObjectAddress]indexSnapshotSource)}
-	for address, descriptor := range catalog.state.descriptors {
+	for address, descriptor := range catalog.Descriptors() {
 		if parents != nil {
 			index, ok := descriptor.(*relationDescriptor)
 			if !ok || index.sqlIndex == nil || parents[index.sqlIndex.parent] == nil {
@@ -73,12 +73,12 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, catalog Catalo
 		if !ok || index.sqlIndex == nil || !index.sqlIndex.ready || !index.sqlIndex.live {
 			continue
 		}
-		parent, ok := catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		parent, ok := catalog.Relation(index.sqlIndex.parent)
 		if !ok {
 			return nil, ErrCatalogReplaced
 		}
-		actual, exists := authority.descriptors[address].(*relationDescriptor)
-		actualParent, parentExists := authority.descriptors[parent.address].(*relationDescriptor)
+		actual, exists := authority.Relation(address)
+		actualParent, parentExists := authority.Relation(parent.address)
 		if !exists || !parentExists || !sameIndexKeySemantics(actual, index) || !indexLayoutInputsUnchanged(index, actualParent, parent) {
 			return nil, ErrCatalogReplaced
 		}
@@ -213,11 +213,11 @@ func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalogS
 			return nil, err
 		}
 		address := snapshot.destination(sourceAddress)
-		index, ok := next.descriptors[address].(*relationDescriptor)
+		index, ok := next.Relation(address)
 		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != snapshot.destination(source.parent.address) || len(index.sqlIndex.keys) != len(source.index.sqlIndex.keys) || index.sqlIndex.method != source.index.sqlIndex.method {
 			return nil, ErrCatalogReplaced
 		}
-		parent, ok := next.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		parent, ok := next.Relation(index.sqlIndex.parent)
 		if !ok {
 			return nil, ErrCatalogReplaced
 		}

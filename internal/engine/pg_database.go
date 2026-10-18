@@ -39,7 +39,7 @@ func (e *Engine) capturePGDatabase(ctx context.Context, catalog CatalogRead, rol
 			return nil, fmt.Errorf("stuntgres: foreign database source type")
 		}
 	}
-	database, ok := catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	database, ok := catalog.Database(currentDatabaseAddress)
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: missing current database descriptor")
 	}

@@ -14,7 +14,7 @@ import (
 
 func availableUnitSource(e *Engine, oid ids.OID) (*relationDescriptor, ids.ObjectRef) {
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
-	return e.catalog.state.descriptors[a].(*relationDescriptor), e.catalog.domain.Ref(e.catalog.state.epoch, a)
+	return e.catalog.state.MustRelation(a), e.catalog.domain.Ref(e.catalog.state.epoch, a)
 }
 
 func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
@@ -51,8 +51,8 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 		if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
 			t.Fatal(err)
 		}
-		row := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: spec.row}].(*typeDescriptor)
-		array := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: spec.array}].(*typeDescriptor)
+		row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: spec.row})
+		array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: spec.array})
 		ownedArray, ok := e.CatalogRead().LookupArray(row.typ)
 		if !ok || ownedArray != array.typ || row.array != sqltype.ID(spec.array) || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != owner || array.owner != owner {
 			t.Fatal("reciprocal ownership", row, array)
@@ -138,8 +138,8 @@ func TestAvailableExtensionsProjection(t *testing.T) {
 	state := *e.catalog.state
 	state.descriptors = maps.Clone(e.catalog.state.descriptors)
 	state.names = maps.Clone(e.catalog.state.names)
-	address := state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}]
-	ext := *state.descriptors[address].(*extensionDescriptor)
+	address := state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
+	ext := *state.MustExtension(address)
 	ext.version = "available-unknown"
 	state.descriptors[address] = &ext
 	availableUnitExpected(t, e, e.catalog.read(&state), "available-unknown", false)

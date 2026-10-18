@@ -55,7 +55,7 @@ func (s *StatementScope) acquirePartitionDropLocks(ref ids.ObjectRef) error {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	catalog := e.privateCatalogLocked(s.owner.catalog)
-	relation, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	relation, ok := catalog.Relation(ref.Address)
 	if !ok || ref.Epoch != catalog.Epoch() {
 		e.mu.Unlock()
 		return ErrCatalogReplaced
@@ -66,7 +66,7 @@ func (s *StatementScope) acquirePartitionDropLocks(ref ids.ObjectRef) error {
 	}
 	var ancestors []ids.ObjectRef
 	for relation.membership != nil {
-		relation, ok = catalog.state.descriptors[relation.membership.parent].(*relationDescriptor)
+		relation, ok = catalog.Relation(relation.membership.parent)
 		if !ok {
 			e.mu.Unlock()
 			return ErrCatalogReplaced

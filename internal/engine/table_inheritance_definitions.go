@@ -63,7 +63,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 				}
 				copied := old
 				copied.OID = 0
-				if err := validateCookedDefaultTemporary(copied.expression, auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor).temporary); err != nil {
+				if err := validateCookedDefaultTemporary(copied.expression, auth.catalog.MustNamespace(d.namespace).temporary); err != nil {
 					return err
 				}
 				if d.defaults == nil {

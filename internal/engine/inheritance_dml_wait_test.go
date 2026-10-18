@@ -27,7 +27,7 @@ func inheritanceDMLPublishedGraph(t *testing.T) (*Engine, *relationDescriptor, *
 	// Child publication may issue the parent's real subclass-marker revision.
 	// Return the actual published identities, not pre-publication candidates.
 	published := e.CatalogRead()
-	return e, published.state.descriptors[p.address].(*relationDescriptor), published.state.descriptors[c.address].(*relationDescriptor)
+	return e, published.MustRelation(p.address), published.MustRelation(c.address)
 }
 
 func TestInheritanceDMLContention(t *testing.T)  { inheritanceDMLQueued(t, false) }

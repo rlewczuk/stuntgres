@@ -133,7 +133,7 @@ func TestInsertConflictUpdateTargetFence(t *testing.T) {
 			}
 			replacement := func(shapeChange bool) {
 				catalog := cloneCatalog(e.catalog.state)
-				relation := *catalog.descriptors[ref.Address].(*relationDescriptor)
+				relation := *catalog.MustRelation(ref.Address)
 				if shapeChange {
 					relation.columns = relation.columns[:1]
 					relation.attributes = relation.attributes[:1]

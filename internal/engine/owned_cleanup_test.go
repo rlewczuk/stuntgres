@@ -88,7 +88,7 @@ func TestDropOwnedUnionRestrictAndCascade(t *testing.T) {
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	setup := e.BeginCatalogStage(base)
 	for _, name := range []string{"ownership_parent", "ownership_child"} {
-		old := base.state.descriptors[base.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: name}]].(*relationDescriptor)
+		old := base.MustRelation(base.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: name}))
 		next := *old
 		next.owner = source
 		next.revision++
@@ -98,7 +98,7 @@ func TestDropOwnedUnionRestrictAndCascade(t *testing.T) {
 	}
 	ownershipUnitPublish(t, e, setup)
 	oldState, oldRoles := e.catalog.state, e.roles
-	parent := oldState.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ownership_parent"}]
+	parent := oldState.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ownership_parent"})
 	store := e.storage[parent]
 	rows := store.versions
 	stmt := &parser.DropOwned{Sources: []parser.RoleSpec{{Name: "ownership_source"}}, Mode: parser.DropRestrict}
@@ -115,11 +115,11 @@ func TestDropOwnedUnionRestrictAndCascade(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"ownership_parent", "ownership_child", "ownership_external"} {
-		if _, exists := e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: name}]; exists {
+		if _, exists := e.catalog.state.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: name}); exists {
 			t.Fatal("actual cascade retained object", name)
 		}
 	}
-	if _, exists := e.Roles().Find(source); !exists || oldState.descriptors[parent] == nil || len(rows) != 1 {
+	if _, exists := e.Roles().Find(source); !exists || oldState.Get(parent) == nil || len(rows) != 1 {
 		t.Fatal("role/retained snapshot lost")
 	}
 }
@@ -131,14 +131,14 @@ func TestReassignOwnedSourceSetAndUnrelatedGrant(t *testing.T) {
 	base := e.CatalogRead()
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	setup := e.BeginCatalogStage(base)
-	move := base.state.descriptors[base.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ownership_move"}]].(*relationDescriptor)
+	move := base.MustRelation(base.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ownership_move"}))
 	next := *move
 	next.owner = source
 	next.revision++
 	if err := setup.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
-	other := base.state.descriptors[base.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ownership_other"}]].(*relationDescriptor)
+	other := base.MustRelation(base.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ownership_other"}))
 	grant := *other
 	grant.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.SelectPrivilege, authorization.SelectPrivilege), objectACLUnitEntry(source, reader, authorization.SelectPrivilege, 0)}}
 	grant.revision++
@@ -157,7 +157,7 @@ func TestReassignOwnedSourceSetAndUnrelatedGrant(t *testing.T) {
 	if _, err := testExecute(e, context.Background(), late, nil); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.state.descriptors[move.address].(*relationDescriptor).owner != target || e.catalog.state.descriptors[other.address] != before.descriptors[other.address] || e.roles != roles || e.storage[move.address] != store {
+	if e.catalog.state.MustRelation(move.address).owner != target || e.catalog.state.Get(other.address) != before.Get(other.address) || e.roles != roles || e.storage[move.address] != store {
 		t.Fatal("reassign changed unrelated grant, roles or data")
 	}
 }
@@ -166,11 +166,11 @@ func TestDropOwnedTypeACLAndCancellation(t *testing.T) {
 	e, owner, source, _, reader := ownershipUnitRoles()
 	ownershipUnitExec(t, e, "CREATE TYPE ownership_cleanup_e AS ENUM('a')")
 	base := e.CatalogRead()
-	address := base.state.names[ids.NameKey{ClassID: ids.TypeClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ownership_cleanup_e"}]
-	typ := base.state.descriptors[address].(*typeDescriptor)
+	address := base.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ownership_cleanup_e"})
+	typ := base.MustType(address)
 	setup := e.BeginCatalogStage(base)
 	for _, a := range []ids.ObjectAddress{address, {ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.array)}} {
-		old := base.state.descriptors[a].(*typeDescriptor)
+		old := base.MustType(a)
 		next := *old
 		next.revision++
 		next.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.UsagePrivilege, authorization.UsagePrivilege), objectACLUnitEntry(source, reader, authorization.UsagePrivilege, 0)}}
@@ -199,8 +199,8 @@ func TestDropOwnedTypeACLAndCancellation(t *testing.T) {
 	}
 	ownershipUnitPublish(t, e, stage)
 	for _, a := range []ids.ObjectAddress{address, {ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.array)}} {
-		old := base.state.descriptors[a].(*typeDescriptor)
-		next := e.catalog.state.descriptors[a].(*typeDescriptor)
+		old := base.MustType(a)
+		next := e.catalog.state.MustType(a)
 		if next.owner != owner || next.typ != old.typ || next.array != old.array || next.owningRelation != old.owningRelation || len(next.acl.Entries) != 0 || len(old.acl.Entries) != 2 {
 			t.Fatal("type ACL cleanup broke owner/reciprocity/retained signature", a)
 		}
@@ -250,7 +250,7 @@ func TestDropOwnedCollectedCleanupPrimary(t *testing.T) {
 				e.roles = graph
 			}
 			before, roles := e.catalog.state, e.roles
-			address := before.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ownership_primary"}]
+			address := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ownership_primary"})
 			store := e.storage[address]
 			versions := store.versions
 			_, err := testExecute(e, context.Background(), &parser.DropOwned{Sources: []parser.RoleSpec{{Name: "ownership_source"}}, Mode: parser.DropRestrict}, nil)
@@ -282,16 +282,16 @@ func TestDropOwnedCleanupPolicyDeletionUnion(t *testing.T) {
 	}
 	before := e.catalog.state
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	root := before.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "ownership_policy_root"}]
-	survivor := before.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "ownership_policy_survivor"}]
-	original := before.descriptors[survivor].(*relationDescriptor)
+	root := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "ownership_policy_root"})
+	survivor := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "ownership_policy_survivor"})
+	original := before.MustRelation(survivor)
 	store := e.storage[survivor]
 	versions := store.versions
 	ownershipUnitExec(t, e, "DROP OWNED BY ownership_source RESTRICT")
-	if e.catalog.state.descriptors[root] != nil || len(e.catalog.state.descriptors[survivor].(*relationDescriptor).policies) != 0 {
+	if e.catalog.state.Get(root) != nil || len(e.catalog.state.MustRelation(survivor).policies) != 0 {
 		t.Fatal("pending sole-target policy falsely restricted its owner-root dependency")
 	}
-	if len(original.policies) != 1 || before.descriptors[root] == nil || e.storage[survivor] != store || &store.versions[0] != &versions[0] {
+	if len(original.policies) != 1 || before.Get(root) == nil || e.storage[survivor] != store || &store.versions[0] != &versions[0] {
 		t.Fatal("cleanup changed retained policy/catalog or surviving rows")
 	}
 }
@@ -399,8 +399,8 @@ func TestDropOwnedSQLGrantorProvenance(t *testing.T) {
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_sql_owner")
 	source := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_sql_source")
 	downstream := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_sql_downstream")
-	address := e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ownership_sql_support"}]
-	original := e.catalog.state.descriptors[address].(*relationDescriptor)
+	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ownership_sql_support"})
+	original := e.catalog.state.MustRelation(address)
 	received := objectACLUnitEntry(owner, source, authorization.SelectPrivilege, authorization.SelectPrivilege)
 	delegated := objectACLUnitEntry(source, downstream, authorization.SelectPrivilege, 0)
 	if original.owner != owner || !slices.Contains(original.acl.Entries, received) || !slices.Contains(original.acl.Entries, delegated) {
@@ -409,7 +409,7 @@ func TestDropOwnedSQLGrantorProvenance(t *testing.T) {
 	retained := append([]authorization.ACLEntry(nil), original.acl.Entries...)
 	store := e.storage[address]
 	roleExecute(t, e, op, "DROP OWNED BY ownership_sql_source RESTRICT")
-	current := e.catalog.state.descriptors[address].(*relationDescriptor)
+	current := e.catalog.state.MustRelation(address)
 	if current.owner != owner || slices.Contains(current.acl.Entries, received) || !slices.Contains(current.acl.Entries, delegated) {
 		t.Fatal("cleanup did not retain supported SQL-origin delegation", current.acl)
 	}

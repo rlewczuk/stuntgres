@@ -25,7 +25,7 @@ func captureExtensionCatalog(ctx context.Context, catalog CatalogRead, ref ids.O
 		}
 	}
 	descriptors := make([]Descriptor, 0)
-	for _, d := range catalog.state.descriptors {
+	for _, d := range catalog.Descriptors() {
 		if d.Address().ClassID == source.address.ObjectID {
 			descriptors = append(descriptors, d)
 		}

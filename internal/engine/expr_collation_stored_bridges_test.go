@@ -52,7 +52,7 @@ func TestExprCollationStoredPreflightDemand(t *testing.T) {
 	}
 	view := e.CatalogRead()
 	ref := catalogRef(t, e, view, "expr_preflight_v")
-	definition := view.state.descriptors[ref.Address].(*relationDescriptor).view
+	definition := view.MustRelation(ref.Address).view
 	frozen := definition.query.Root
 	for _, tc := range []struct {
 		name, q string
@@ -100,7 +100,7 @@ func TestExprCollationNestedPayloadDemand(t *testing.T) {
 	}
 	view := e.CatalogRead()
 	innerRef := catalogRef(t, e, view, "expr_nested_inner")
-	inner := view.state.descriptors[innerRef.Address].(*relationDescriptor)
+	inner := view.MustRelation(innerRef.Address)
 	innerRoot := inner.view.query.Root
 	for _, tc := range []struct {
 		name, q string
@@ -114,7 +114,7 @@ func TestExprCollationNestedPayloadDemand(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			outerRef := catalogRef(t, e, view, tc.outer)
-			outer := view.state.descriptors[outerRef.Address].(*relationDescriptor)
+			outer := view.MustRelation(outerRef.Address)
 			frozenRoot := outer.view.query.Root
 			reads := make([][]int32, len(outer.view.sources))
 			for i, leaf := range outer.view.sources {
@@ -236,7 +236,7 @@ func TestExprCollationDomainDerivation(t *testing.T) {
 		sessionSQL(t, owner, `CREATE TABLE expr_domain_storage(a TEXT COLLATE "C",b TEXT COLLATE "POSIX",v TEXT COLLATE "POSIX" DEFAULT (('A' COLLATE "POSIX")||'')::expr_domain_c,g TEXT COLLATE "POSIX" GENERATED ALWAYS AS ((a||b)::expr_domain_c) STORED)`)
 		view := e.CatalogRead()
 		ref := catalogRef(t, e, view, "expr_domain_storage")
-		table := view.state.descriptors[ref.Address].(*relationDescriptor)
+		table := view.MustRelation(ref.Address)
 		definition := table.defaults[table.attributes[2]].expression
 		generation := table.generations[table.attributes[3]]
 		if definition.ResultUsage() != table.columns[2].Usage || generation.expression.ResultUsage() != table.columns[3].Usage || generation.planned.ResultUsage() != table.columns[3].Usage {

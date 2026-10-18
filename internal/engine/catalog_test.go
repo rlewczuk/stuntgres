@@ -49,7 +49,7 @@ func TestCatalogIdentityAndReplacement(t *testing.T) {
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: "t"}}}
 	e.mu.Lock()
 	ref, err := e.resolveReference(catalogAuthorization(e, view), name)
-	d, _ := view.state.descriptors[ref.Address].(*relationDescriptor)
+	d, _ := view.Relation(ref.Address)
 	storage := e.storage[ref.Address]
 	e.mu.Unlock()
 	if err != nil {

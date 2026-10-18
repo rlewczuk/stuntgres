@@ -71,7 +71,7 @@ func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefiniti
 	e.foreignValidators = append([]ForeignValidatorDefinition(nil), validators...)
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	install := func(name ForeignFunctionName, p *foreignProcedure, result ids.OID, signature procedureSignature) error {
-		namespace := e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Schema}]
+		namespace := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Schema})
 		if namespace == (ids.ObjectAddress{}) {
 			oid, err := e.catalog.allocateOIDLocked()
 			if err != nil {
@@ -87,7 +87,7 @@ func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefiniti
 			e.foreignNamespaces[namespace] = name.Schema
 		}
 		key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: namespace, Name: name.Name, Signature: string(signature)}
-		if e.catalog.state.names[key] != (ids.ObjectAddress{}) {
+		if e.catalog.state.NameAddress(key) != (ids.ObjectAddress{}) {
 			return RegistrationError("foreign procedure signature already installed")
 		}
 		oid, err := e.catalog.allocateOIDLocked()

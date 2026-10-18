@@ -61,11 +61,11 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 			e.mu.Lock()
 			private := e.privateCatalogLocked(c)
 			e.mu.Unlock()
-			ns := private.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"}]
-			ct := private.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ct"}]
-			mv := private.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "mv"}]
-			seq := private.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "batch_s"}]
-			index := private.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ci"}]
+			ns := private.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
+			ct := private.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ct"})
+			mv := private.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "mv"})
+			seq := private.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "batch_s"})
+			index := private.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ci"})
 			if c == nil || ct == (ids.ObjectAddress{}) || mv == (ids.ObjectAddress{}) || seq == (ids.ObjectAddress{}) || index == (ids.ObjectAddress{}) || c.generators[seq] == nil || c.storage[ct].original != nil || c.storage[mv].original != nil || len(c.storage[ct].replacement.versions) != 0 || len(c.storage[mv].replacement.versions) != 0 || len(writes[ct]) != 1 || len(writes[mv]) != 1 || len(c.uniqueRoots[index].entries) != 0 || calls == 0 {
 				t.Fatalf("catalog stage fields or initial rows omitted: ct=%v mv=%v sequence=%v index=%v generator=%v ctShape=%+v mvShape=%+v ctWrites=%d mvWrites=%d indexRoot=%v calls=%d", ct, mv, seq, index, c.generators[seq], c.storage[ct], c.storage[mv], len(writes[ct]), len(writes[mv]), c.uniqueRoots[index], calls)
 			}

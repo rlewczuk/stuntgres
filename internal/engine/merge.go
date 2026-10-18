@@ -74,7 +74,7 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 		return ErrCatalogReplaced
 	}
 	out.ref = ref
-	out.relation = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	out.relation = auth.catalog.MustRelation(ref.Address)
 	if !guardedCatalogRelation(out.relation) {
 		if err := mergeRelationKind(out.relation); err != nil {
 			return err

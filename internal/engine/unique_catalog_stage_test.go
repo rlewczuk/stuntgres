@@ -19,7 +19,7 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 			run(t, e, "CREATE INDEX other ON t(k)")
 			base := e.CatalogRead()
 			oldRef := roleTableRef(t, e, "idx")
-			old := base.state.descriptors[oldRef.Address].(*relationDescriptor)
+			old := base.MustRelation(oldRef.Address)
 			next := *old
 			mint := func(d *relationDescriptor) {
 				e.mu.Lock()
@@ -77,7 +77,7 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 				t.Fatal(err)
 			}
 			private := e.stageRead(stage)
-			if _, ok := private.state.descriptors[oldRef.Address]; ok || private.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: old.namespace, Name: old.name}] != next.address {
+			if _, ok := private.Find(oldRef.Address); ok || private.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: old.namespace, Name: old.name}) != next.address {
 				t.Fatal("private overlay retained incumbent")
 			}
 			if mode == "duplicate" || mode == "duplicate_address" {
@@ -141,7 +141,7 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, ok := e.catalog.state.descriptors[oldRef.Address]; ok {
+				if _, ok := e.catalog.state.Find(oldRef.Address); ok {
 					t.Fatal("old identity survived")
 				}
 				index, _ := btreeRoot(t, e, "idx")
@@ -157,7 +157,7 @@ func TestUniqueCoCreatedParentStorageFence(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t(k INT CONSTRAINT u UNIQUE)")
 	ref := roleTableRef(t, e, "t")
-	parent := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	parent := e.catalog.state.MustRelation(ref.Address)
 	index := parent.uniqueConstraints[0].Index
 	if e.storage[ref.Address] == nil || e.indexRoots[index] == nil || len(e.indexRoots[index].entries) != 0 {
 		t.Fatal("co-created parent and empty backing root did not publish together")

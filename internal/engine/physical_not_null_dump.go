@@ -21,7 +21,7 @@ func emitPhysicalPrimaryCleanup(view CatalogRead, table *relationDescriptor, pri
 	if !hasPhysicalKey {
 		return nil
 	}
-	qualified := quoteIdentifier(view.state.descriptors[table.namespace].Name()) + "." + quoteIdentifier(table.name)
+	qualified := quoteIdentifier(view.Get(table.namespace).Name()) + "." + quoteIdentifier(table.name)
 	keys := make([]string, len(primary.Attributes))
 	for i, attribute := range primary.Attributes {
 		keys[i] = table.columns[table.indexForAttribute(attribute)].Name
@@ -71,7 +71,7 @@ func (t *dumpRelation) emitPhysicalNotNull(view CatalogRead, emit func(string) e
 		if !primary.Primary {
 			continue
 		}
-		index, ok := view.state.descriptors[primary.Index].(*relationDescriptor)
+		index, ok := view.Relation(primary.Index)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing physical primary dump index")
 		}
@@ -99,7 +99,7 @@ func (t *dumpRelation) emitPhysicalNotNull(view CatalogRead, emit func(string) e
 // not wait for unrelated keys, omitted TEMP objects, or synthetic catalog nodes.
 func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]dumpEventKey) error {
 	var deferred map[ids.ObjectAddress]*relationDescriptor
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
 		if !ok || len(table.physicalNotNull) == 0 {
 			continue
@@ -112,7 +112,7 @@ func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]
 			if !primary.Primary {
 				continue
 			}
-			index, ok := view.state.descriptors[primary.Index].(*relationDescriptor)
+			index, ok := view.Relation(primary.Index)
 			if !ok {
 				return fmt.Errorf("stuntgres: missing physical primary event")
 			}
@@ -125,7 +125,7 @@ func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]
 	if len(deferred) == 0 {
 		return nil
 	}
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		relation, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue
@@ -154,7 +154,7 @@ func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]
 				if index == nil || !partitionReplaySeparateConstraint(view, index) {
 					continue
 				}
-				table := view.state.descriptors[parent].(*relationDescriptor)
+				table := view.MustRelation(parent)
 				var primary *uniqueConstraint
 				for i := range table.uniqueConstraints {
 					if table.uniqueConstraints[i].Primary && table.uniqueConstraints[i].Index == index.address {
@@ -183,7 +183,7 @@ func physicalNotNullDumpDependencies(view CatalogRead, graph map[dumpEventKey][]
 				continue
 			}
 			if foreign.Index != primary.address {
-				index, ok := view.state.descriptors[foreign.Index].(*relationDescriptor)
+				index, ok := view.Relation(foreign.Index)
 				if !ok {
 					return fmt.Errorf("stuntgres: missing physical foreign-key provider")
 				}

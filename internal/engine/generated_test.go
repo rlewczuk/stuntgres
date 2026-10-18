@@ -20,7 +20,7 @@ func generatedUnitDescriptor(t *testing.T) (*Engine, CatalogRead, *relationDescr
 		t.Fatal("missing int4")
 	}
 	var namespace ids.ObjectAddress
-	for address, descriptor := range view.state.descriptors {
+	for address, descriptor := range view.Descriptors() {
 		if descriptor.Kind() == ids.NamespaceObject && descriptor.Name() == "public" {
 			namespace = address
 			break

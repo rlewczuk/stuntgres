@@ -165,9 +165,9 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 		view := e.CatalogRead()
 		key := relation.partition.keys[0]
 		address := ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.usage.Collation.ID)}
-		provider := view.state.descriptors[address].(*collationDescriptor)
+		provider := view.MustCollation(address)
 		var other *collationDescriptor
-		for _, descriptor := range view.state.descriptors {
+		for _, descriptor := range view.Descriptors() {
 			if d, ok := descriptor.(*collationDescriptor); ok && d.name == "rp_admission_other" {
 				other = d
 			}

@@ -86,7 +86,7 @@ func bindCreateUniques(s *parser.CreateTable, index map[string]int, likes []crea
 			if primary >= 0 {
 				return nil, sqlError("42P16", fmt.Sprintf(`multiple primary keys for table "%s" are not allowed`, table))
 			}
-			source, ok := catalog.state.descriptors[old.Index].(*relationDescriptor)
+			source, ok := catalog.Relation(old.Index)
 			if !ok || source.sqlIndex == nil {
 				return nil, fmt.Errorf("stuntgres: missing LIKE primary backing")
 			}

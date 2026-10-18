@@ -201,7 +201,7 @@ func requestedViewPersistence(catalog CatalogRead, view *parser.CreateView, sour
 		return "temporary"
 	}
 	for _, source := range sources {
-		if namespace, ok := catalog.state.descriptors[source.relation.namespace].(*namespaceDescriptor); ok && namespace.temporary != (ids.SessionToken{}) {
+		if namespace, ok := catalog.Namespace(source.relation.namespace); ok && namespace.temporary != (ids.SessionToken{}) {
 			return "temporary"
 		}
 	}
@@ -307,12 +307,12 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	}
 	name := view.Name.Parts[len(view.Name.Parts)-1].Text
 	var old *relationDescriptor
-	if address, exists := auth.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}]; exists {
+	if address, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}); exists {
 		if !view.Replace {
 			e.mu.Unlock()
 			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 		}
-		old = auth.catalog.state.descriptors[address].(*relationDescriptor)
+		old = auth.catalog.MustRelation(address)
 		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), address)
 		if ref != scope.lockedRef {
 			e.mu.Unlock()

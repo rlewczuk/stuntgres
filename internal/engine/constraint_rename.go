@@ -78,12 +78,12 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
 	if backing != (ids.ObjectAddress{}) {
-		index, ok := auth.catalog.state.descriptors[backing].(*relationDescriptor)
+		index, ok := auth.catalog.Relation(backing)
 		if !ok {
 			e.DiscardCatalogStage(stage)
 			return fail(ErrCatalogReplaced)
 		}
-		if _, exists := auth.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: raw.NewName.Text}]; exists {
+		if _, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: raw.NewName.Text}); exists {
 			e.DiscardCatalogStage(stage)
 			return fail(sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, raw.NewName.Text)))
 		}
@@ -111,7 +111,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 	}
 	changes := cloneCatalogChanges(scope.owner.catalog)
 	grantCatalog := e.catalog.state
-	scope.catalogAuthority = auth.catalogAuthorityLocked(ref, grantCatalog.descriptors[ref.Address])
+	scope.catalogAuthority = auth.catalogAuthorityLocked(ref, grantCatalog.Get(ref.Address))
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if _, err := e.ValidateCatalogStage(op.Context(), stage); err != nil {
@@ -125,12 +125,12 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 	// Check all originals before transferring any member. Earlier overlay originals
 	// remain intact across repeated renames and savepoint rollback.
 	for a := range stage.descriptors {
-		if e.catalog.state.descriptors[a] != grantCatalog.descriptors[a] {
+		if e.catalog.state.Get(a) != grantCatalog.Get(a) {
 			return Result{}, CatalogConflict{}
 		}
 	}
 	for k := range stage.touched {
-		if e.catalog.state.names[k] != grantCatalog.names[k] {
+		if e.catalog.state.NameAddress(k) != grantCatalog.NameAddress(k) {
 			return Result{}, CatalogConflict{}
 		}
 	}

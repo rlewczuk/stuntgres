@@ -78,7 +78,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 			var schema ids.ObjectAddress
 			if schemas != nil {
 				name := schemas[i].Text
-				schema = v.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: name}]
+				schema = v.catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name})
 				if schema == (ids.ObjectAddress{}) {
 					return Result{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, name))
 				}

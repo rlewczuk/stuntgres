@@ -15,7 +15,7 @@ func TestBtreeIndexUnchangedParentEvolution(t *testing.T) {
 	index, root := btreeRoot(t, e, "idx")
 	base := e.CatalogRead()
 	ref := roleTableRef(t, e, "unrelated")
-	original := base.state.descriptors[ref.Address].(*relationDescriptor)
+	original := base.MustRelation(ref.Address)
 	replacement := *original
 	replacement.revision++
 	stage := e.BeginCatalogStage(base)

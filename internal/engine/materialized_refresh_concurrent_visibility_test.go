@@ -13,7 +13,7 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	e := New()
 	d := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-	d = e.catalog.state.descriptors[d.address].(*relationDescriptor)
+	d = e.catalog.state.MustRelation(d.address)
 	original := e.storage[d.address]
 	scope := refreshUnitScope(t, e, context.Background())
 	ref := e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
@@ -82,7 +82,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			e := New()
 			d := refreshUnitRelation(t, e)
 			materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-			d = e.catalog.state.descriptors[d.address].(*relationDescriptor)
+			d = e.catalog.state.MustRelation(d.address)
 			stage, unrelated := queryCreateStage(t, e, "unrelated_snapshot", 1)
 			queryCreatePublish(t, e, stage)
 			original := e.storage[d.address]
@@ -125,7 +125,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			e := New()
 			d := refreshUnitRelation(t, e)
 			materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-			d = e.catalog.state.descriptors[d.address].(*relationDescriptor)
+			d = e.catalog.state.MustRelation(d.address)
 			scope := refreshUnitScope(t, e, context.Background())
 			scope.owner.isolation = RepeatableRead
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
@@ -181,7 +181,7 @@ func TestMaterializedRefreshConcurrentLateCancellation(t *testing.T) {
 	e := New()
 	d := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-	d = e.catalog.state.descriptors[d.address].(*relationDescriptor)
+	d = e.catalog.state.MustRelation(d.address)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	scope := refreshUnitScope(t, e, ctx)

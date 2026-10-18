@@ -18,7 +18,7 @@ func daitchUnitInstalled(t *testing.T) (*Engine, *extensionDescriptor) {
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "fuzzystrmatch", ""))
-	return e, e.catalog.state.descriptors[e.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}]].(*extensionDescriptor)
+	return e, e.catalog.state.MustExtension(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
 }
 
 func daitchUnitExpression(t *testing.T, e *Engine, input string) installedFunctionExpression {
@@ -38,14 +38,14 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 	if len(ext.members) != 10 {
 		t.Fatal("member count", ext.members)
 	}
-	proc := view.state.descriptors[ext.members[0]].(*procedureDescriptor)
+	proc := view.MustProcedure(ext.members[0])
 	if proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.owner != ext.owner || proc.result != 1009 || proc.signature != "25" || proc.volatility != Immutable || !proc.strict || proc.fuzzy != stockFuzzystrmatch {
 		t.Fatal("installed identity", proc)
 	}
 	expected := map[string]ids.OID{"daitch_mokotoff:25": 1009, "levenshtein:25,25": 23, "levenshtein:25,25,23,23,23": 23, "levenshtein_less_equal:25,25,23": 23, "levenshtein_less_equal:25,25,23,23,23,23": 23, "metaphone:25,23": 25, "dmetaphone:25": 25, "dmetaphone_alt:25": 25, "soundex:25": 25, "difference:25,25": 23}
 	addresses := map[ids.ObjectAddress]bool{}
 	for _, address := range ext.members {
-		member := view.state.descriptors[address].(*procedureDescriptor)
+		member := view.MustProcedure(address)
 		key := member.name + ":" + string(member.signature)
 		if expected[key] == 0 || member.result != expected[key] || addresses[address] || member.owner != proc.owner || member.namespace != ext.targetNamespace || member.extension != ext.address || member.volatility != Immutable || !member.strict || member.fuzzy != stockFuzzystrmatch {
 			t.Fatal("selected member identity", member)
@@ -165,17 +165,17 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		defer closeOwner()
 		ns := intarrayUnitTemporaryNamespace(t, e, op)
 		extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "fuzzystrmatch", ns.name))
-		ext := e.catalog.state.descriptors[e.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}]].(*extensionDescriptor)
+		ext := e.catalog.state.MustExtension(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
 		if err := stockFuzzystrmatch.validate(e.CatalogRead(), ext); err != nil {
 			t.Fatal("own TEMP provider", err)
 		}
 		member := ext.members[0]
 		closeOwner()
-		if e.catalog.state.descriptors[ext.address] != nil || e.catalog.state.descriptors[member] != nil {
+		if e.catalog.state.Get(ext.address) != nil || e.catalog.state.Get(member) != nil {
 			t.Fatal("TEMP provider survived owner retirement")
 		}
 		for _, address := range ext.members {
-			if e.catalog.state.descriptors[address] != nil {
+			if e.catalog.state.Get(address) != nil {
 				t.Fatal("TEMP selected member survived owner retirement", address)
 			}
 		}
@@ -304,7 +304,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	imported := target.catalog.state.descriptors[target.catalog.state.names[ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}]].(*extensionDescriptor)
+	imported := target.catalog.state.MustExtension(target.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
 	mapped, err := remapBoundExpression(old, func(ref ids.ObjectRef) ids.ObjectRef {
 		if ref.Address == ext.members[0] {
 			ref.Address = imported.members[0]
@@ -330,7 +330,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	v, err := n.Eval(&EvalContext{Context: context.Background()})
 	ownedArray, _ := target.CatalogRead().LookupType(1009)
 	ownedText, _ := target.CatalogRead().LookupType(sqltype.Text)
-	if err != nil || v.Type() != ownedArray || v.ArrayElement(0).Type() != ownedText || n.procedure != target.catalog.state.descriptors[imported.members[0]] || n.dictionary != nil || n.template != nil {
+	if err != nil || v.Type() != ownedArray || v.ArrayElement(0).Type() != ownedText || n.procedure != target.catalog.state.Get(imported.members[0]) || n.dictionary != nil || n.template != nil {
 		t.Fatal("remapped provider/generations", v, err)
 	}
 	// Foreign import can share immutable builtin TEXT/text[] descriptors.
@@ -338,7 +338,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	// between the two catalogs' immutable builtin descriptors.
 	currentSourceArray, _ := source.CatalogRead().LookupType(1009)
 	currentSourceText, _ := source.CatalogRead().LookupType(sqltype.Text)
-	if source.CatalogRead().state != sourceView.state || currentSourceArray != sourceArray || currentSourceText != sourceText || sourceArray.Element() != sourceText || oldValue.Type() != sourceArray || oldValue.ArrayElement(0).Type() != sourceText || old.procedure != sourceProcedure || source.catalog.state.descriptors[sourceRef.Address] != sourceProcedure || old.ref != sourceRef || old.ResultUsage() != sourceUsage || !reflect.DeepEqual(*sourceProcedure, procedureBefore) || !reflect.DeepEqual(oldValue.ArrayDimensions(), sourceDimensions) {
+	if source.CatalogRead().state != sourceView.state || currentSourceArray != sourceArray || currentSourceText != sourceText || sourceArray.Element() != sourceText || oldValue.Type() != sourceArray || oldValue.ArrayElement(0).Type() != sourceText || old.procedure != sourceProcedure || source.catalog.state.Get(sourceRef.Address) != sourceProcedure || old.ref != sourceRef || old.ResultUsage() != sourceUsage || !reflect.DeepEqual(*sourceProcedure, procedureBefore) || !reflect.DeepEqual(oldValue.ArrayDimensions(), sourceDimensions) {
 		t.Fatal("retained source changed")
 	}
 	if n.procedure == sourceProcedure || n.ref.Address != n.procedure.address || n.ref.Domain() != target.catalog.domain || n.ref.Epoch != target.CatalogRead().Epoch() || ownedArray.Element() != ownedText {

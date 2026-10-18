@@ -43,14 +43,14 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, a := range []ids.ObjectAddress{table.address, sequence.address, index.address} {
-		if e.catalog.state.descriptors[a] != nil || e.storage[a] != nil || e.sequences[a] != nil || e.indexRoots[a] != nil {
+		if e.catalog.state.Get(a) != nil || e.storage[a] != nil || e.sequences[a] != nil || e.indexRoots[a] != nil {
 			t.Fatal("orphan owner dependency", a)
 		}
 	}
-	if ns, ok := e.catalog.state.descriptors[table.namespace].(*namespaceDescriptor); !ok || ns.temporary != op.session.token {
+	if ns, ok := e.catalog.state.Namespace(table.namespace); !ok || ns.temporary != op.session.token {
 		t.Fatal("cleanup lost retained namespace identity")
 	}
-	if e.catalog.state.descriptors[peerTable.address] != &peerTable || e.storage[peerTable.address] != peerStore || e.catalog.state.epoch != epoch {
+	if e.catalog.state.Get(peerTable.address) != &peerTable || e.storage[peerTable.address] != peerStore || e.catalog.state.epoch != epoch {
 		t.Fatal("peer or epoch changed")
 	}
 	if len(store.versions) != 1 || &store.versions[0] != &rows[0] {
@@ -75,11 +75,11 @@ func temporaryCleanupConsumer(t *testing.T) (*Engine, *Operation, *relationDescr
 	roleExecute(t, e, op, "CREATE TEMP SEQUENCE cleanup_owned OWNED BY cleanup_owner.v")
 	namespace := op.session.temporaryNamespace
 	assertTemporaryNamespacePair(t, e, op.session.token, namespace)
-	owner := e.catalog.state.descriptors[e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "cleanup_owner"}]].(*relationDescriptor)
-	sequence := e.catalog.state.descriptors[e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "cleanup_owned"}]].(*relationDescriptor)
+	owner := e.catalog.state.MustRelation(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "cleanup_owner"}))
+	sequence := e.catalog.state.MustRelation(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "cleanup_owned"}))
 	roleExecute(t, e, op, "CREATE TABLE public.cleanup_survivor(v INT CHECK(nextval('cleanup_owned')>0))")
-	address := e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "cleanup_survivor"}]
-	survivor := e.catalog.state.descriptors[address].(*relationDescriptor)
+	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "cleanup_survivor"})
+	survivor := e.catalog.state.MustRelation(address)
 	if len(survivor.checkConstraints) != 1 || len(survivor.checkConstraints[0].dependencies) == 0 {
 		t.Fatal("missing real CHECK manifest")
 	}
@@ -111,22 +111,22 @@ func TestTemporaryTableCleanupPublication(t *testing.T) {
 		e.mu.Lock()
 		installed, err := e.installTemporarySessionStageLocked(op.session, stage, []ids.ObjectAddress{owner.namespace}, nil)
 		e.mu.Unlock()
-		if err != nil || installed || e.catalog.state != current || e.catalog.state.descriptors[survivor.address] != survivor || e.sequences[sequence.address] == nil || op.session.temporaryNamespace != owner.namespace {
+		if err != nil || installed || e.catalog.state != current || e.catalog.state.Get(survivor.address) != survivor || e.sequences[sequence.address] == nil || op.session.temporaryNamespace != owner.namespace {
 			t.Fatal("stale preparation installed", installed, err)
 		}
 		e.DiscardCatalogStage(stage)
-		lateAddress := current.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.namespace, Name: "cleanup_late"}]
-		late := current.descriptors[lateAddress].(*relationDescriptor)
+		lateAddress := current.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.namespace, Name: "cleanup_late"})
+		late := current.MustRelation(lateAddress)
 		if err := e.endTemporarySession(op.session); err != nil {
 			t.Fatal(err)
 		}
 		for _, original := range []*relationDescriptor{survivor, late} {
-			replacement := e.catalog.state.descriptors[original.address].(*relationDescriptor)
-			if replacement == original || len(replacement.checkConstraints) != 0 || len(original.checkConstraints) != 1 || replacement.revision != original.revision+1 || e.catalog.state.names[descriptorNameKey(original)] != original.address {
+			replacement := e.catalog.state.MustRelation(original.address)
+			if replacement == original || len(replacement.checkConstraints) != 0 || len(original.checkConstraints) != 1 || replacement.revision != original.revision+1 || e.catalog.state.NameAddress(descriptorNameKey(original)) != original.address {
 				t.Fatal("reprepare missed consumer or changed captured definition")
 			}
 		}
-		if e.catalog.nextRevision <= e.catalog.state.descriptors[lateAddress].Revision() {
+		if e.catalog.nextRevision <= e.catalog.state.Get(lateAddress).Revision() {
 			t.Fatal("replacement frontier not published")
 		}
 	})
@@ -134,8 +134,8 @@ func TestTemporaryTableCleanupPublication(t *testing.T) {
 		e, op, owner, sequence, survivor := temporaryCleanupConsumer(t)
 		roleExecute(t, e, op, "CREATE SEQUENCE public.cleanup_unrelated")
 		roleExecute(t, e, op, "CREATE INDEX cleanup_survivor_v_idx ON public.cleanup_survivor(v)")
-		unrelated := e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.namespace, Name: "cleanup_unrelated"}]
-		index := e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.namespace, Name: "cleanup_survivor_v_idx"}]
+		unrelated := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.namespace, Name: "cleanup_unrelated"})
+		index := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.namespace, Name: "cleanup_survivor_v_idx"})
 		stage := temporaryCleanupPreparedStage(t, e, owner, sequence)
 		captured := e.catalog.state
 		// A real row publication replaces storage/index heads, not the catalog.
@@ -152,7 +152,7 @@ func TestTemporaryTableCleanupPublication(t *testing.T) {
 			t.Fatal("current DML or unrelated roots lost", installed, err)
 		}
 		assertTemporaryNamespacePair(t, e, op.session.token, owner.namespace)
-		if len(survivor.checkConstraints) != 1 || len(e.catalog.state.descriptors[survivor.address].(*relationDescriptor).checkConstraints) != 0 || e.storage[owner.address] != nil || e.sequences[sequence.address] != nil {
+		if len(survivor.checkConstraints) != 1 || len(e.catalog.state.MustRelation(survivor.address).checkConstraints) != 0 || e.storage[owner.address] != nil || e.sequences[sequence.address] != nil {
 			t.Fatal("incomplete terminal stage")
 		}
 		e.DiscardCatalogStage(stage)
@@ -185,7 +185,7 @@ func TestTemporaryTableTerminalMaximumPublication(t *testing.T) {
 	e, op, owner, sequence, survivor := temporaryCleanupConsumer(t)
 	roleExecute(t, e, op, "CREATE INDEX cleanup_survivor_v_idx ON public.cleanup_survivor(v)")
 	roleExecute(t, e, op, "INSERT INTO public.cleanup_survivor VALUES(7)")
-	index := e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.namespace, Name: "cleanup_survivor_v_idx"}]
+	index := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.namespace, Name: "cleanup_survivor_v_idx"})
 	store, root := e.storage[survivor.address], e.indexRoots[index]
 	// The storage object owns mutable publication heads; views retain the
 	// immutable vector/header and end root, not that object's later slice header.
@@ -196,7 +196,7 @@ func TestTemporaryTableTerminalMaximumPublication(t *testing.T) {
 	e.catalog.state = cloneCatalog(original)
 	e.catalog.state.descriptors[survivor.address] = &maximum
 	t.Cleanup(func() {
-		if e.catalog.state.descriptors[sequence.address] != nil {
+		if e.catalog.state.Get(sequence.address) != nil {
 			e.catalog.state = original
 		}
 	})
@@ -214,7 +214,7 @@ func TestTemporaryTableTerminalMaximumPublication(t *testing.T) {
 	if err := e.endTemporarySession(op.session); err != nil {
 		t.Fatal(err)
 	}
-	replacement := e.catalog.state.descriptors[survivor.address].(*relationDescriptor)
+	replacement := e.catalog.state.MustRelation(survivor.address)
 	if replacement == &maximum || replacement.revision != maximum.revision || len(replacement.checkConstraints) != 0 || len(maximum.checkConstraints) != 1 || e.catalog.nextRevision != maximum.revision {
 		t.Fatal("saturated replacement identity/frontier")
 	}
@@ -246,8 +246,8 @@ func TestTemporaryTableCascadeRevisionBounds(t *testing.T) {
 			if kind == "DEFAULT" {
 				roleExecute(t, e, op, "CREATE SEQUENCE public.cleanup_default_source")
 				roleExecute(t, e, op, "CREATE TABLE public.cleanup_defaults(v BIGINT DEFAULT nextval('public.cleanup_default_source'))")
-				sequence = e.catalog.state.descriptors[e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: consumer.namespace, Name: "cleanup_default_source"}]].(*relationDescriptor)
-				consumer = e.catalog.state.descriptors[e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: consumer.namespace, Name: "cleanup_defaults"}]].(*relationDescriptor)
+				sequence = e.catalog.state.MustRelation(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: consumer.namespace, Name: "cleanup_default_source"}))
+				consumer = e.catalog.state.MustRelation(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: consumer.namespace, Name: "cleanup_defaults"}))
 				if len(consumer.defaults) != 1 {
 					t.Fatal("missing actual DEFAULT")
 				}
@@ -268,7 +268,7 @@ func TestTemporaryTableCascadeRevisionBounds(t *testing.T) {
 					_, err = stageDefaultDependents(stage, []ids.ObjectAddress{sequence.address}, parser.DropCascade)
 				}
 				if !terminal {
-					if err == nil || err.Error() != "stuntgres: definition revision exhausted" || len(stage.descriptors) != 0 || e.catalog.state.descriptors[consumer.address] != &maximum {
+					if err == nil || err.Error() != "stuntgres: definition revision exhausted" || len(stage.descriptors) != 0 || e.catalog.state.Get(consumer.address) != &maximum {
 						t.Fatal("ordinary maximum cascade accepted or mutated", err)
 					}
 				} else {

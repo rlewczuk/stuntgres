@@ -56,7 +56,7 @@ func validateDefaultACLs(roles authorization.Read, view CatalogRead) error {
 			return err
 		}
 		if key.schema != (ids.ObjectAddress{}) {
-			if _, ok := view.state.descriptors[key.schema].(*namespaceDescriptor); !ok {
+			if _, ok := view.Namespace(key.schema); !ok {
 				return CatalogConflict{}
 			}
 		}

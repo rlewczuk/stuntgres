@@ -14,7 +14,7 @@ import (
 func pgTablespaceUnitCapture(t *testing.T, e *Engine) (*relationDescriptor, *querySource) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1213}
-	d, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
+	d, ok := e.catalog.state.Relation(address)
 	if !ok {
 		t.Fatal("missing pg_tablespace")
 	}
@@ -86,11 +86,11 @@ func TestPGTablespaceDescriptorCapture(t *testing.T) {
 	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege || d.acl.Entries[0].Grantor != d.owner {
 		t.Fatal("public readonly ACL", d.acl)
 	}
-	row := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.rowType)}].(*typeDescriptor)
+	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.rowType)})
 	if row.owningRelation != d.address || row.owner != d.owner {
 		t.Fatal("row identity link", row)
 	}
-	array := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)}].(*typeDescriptor)
+	array := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.array)})
 	if array.owningRelation != d.address || array.owner != d.owner {
 		t.Fatal("array identity link", array)
 	}

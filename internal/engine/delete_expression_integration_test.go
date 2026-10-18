@@ -42,7 +42,7 @@ func TestDeleteCoreExpressionPreflightAuthority(t *testing.T) {
 					op.session.mu.Unlock()
 				case "metadata":
 					address := scope.lockedRef.Address
-					original := e.catalog.state.descriptors[address]
+					original := e.catalog.state.Get(address)
 					replacement := *original.(*relationDescriptor)
 					e.catalog.state.descriptors[address] = &replacement
 					restore = func() { e.catalog.state.descriptors[address] = original }

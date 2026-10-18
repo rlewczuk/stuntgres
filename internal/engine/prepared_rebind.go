@@ -73,7 +73,7 @@ func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *p
 		return false
 	}
 	for _, dep := range analysis.dependencies {
-		d := auth.catalog.state.descriptors[dep.ref.Address]
+		d := auth.catalog.Get(dep.ref.Address)
 		if d == nil || dep.ref.Domain() != e.catalog.domain || dep.ref.Epoch != auth.catalog.Epoch() || preparedDefinitionStamp(d, auth.session) != dep.revision {
 			return false
 		}
@@ -117,7 +117,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 			return nil
 		}
 		seen[ref] = true
-		d := auth.catalog.state.descriptors[ref.Address]
+		d := auth.catalog.Get(ref.Address)
 		if d == nil || ref.Domain() != e.catalog.domain || ref.Epoch != auth.catalog.Epoch() {
 			return ErrCatalogReplaced
 		}
@@ -192,7 +192,7 @@ func (e *Engine) admittedReference(auth AuthorizationView, name parser.ObjectNam
 	if ref.Domain() == nil {
 		return e.resolveReference(auth, name)
 	}
-	d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	d, ok := auth.catalog.Relation(ref.Address)
 	if !ok || ref.Domain() != e.catalog.domain || ref.Epoch != auth.catalog.Epoch() {
 		return ids.ObjectRef{}, ErrCatalogReplaced
 	}
@@ -206,7 +206,7 @@ func (e *Engine) admittedReference(auth AuthorizationView, name parser.ObjectNam
 		return ids.ObjectRef{}, err
 	}
 	if auth.session != nil {
-		if namespace, ok := auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor); ok && namespace.temporary == auth.session.token {
+		if namespace, ok := auth.catalog.Namespace(d.namespace); ok && namespace.temporary == auth.session.token {
 			auth.session.transactions.accessedTemporary = true
 		}
 	}

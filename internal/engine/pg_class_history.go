@@ -39,7 +39,7 @@ func (e *Engine) markStageSubclassHistoryLocked(stage *CatalogStage) error {
 		if err := visitSubclassParents(child, func(address ids.ObjectAddress) error {
 			descriptor, staged := stage.descriptors[address]
 			if !staged {
-				descriptor = stage.base.state.descriptors[address]
+				descriptor = stage.base.Get(address)
 			}
 			parent, ok := descriptor.(*relationDescriptor)
 			if !ok {
@@ -71,7 +71,7 @@ func (e *Engine) markStageSubclassHistoryLocked(stage *CatalogStage) error {
 // Replacement's private map may still point at retained immutable descriptors.
 // Reconstruct active facts without losing already-retained TEMP history.
 func normalizeReplacementSubclassHistory(ctx context.Context, catalog CatalogRead) error {
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -80,7 +80,7 @@ func normalizeReplacementSubclassHistory(ctx context.Context, catalog CatalogRea
 			continue
 		}
 		if err := visitSubclassParents(child, func(address ids.ObjectAddress) error {
-			parent, ok := catalog.state.descriptors[address].(*relationDescriptor)
+			parent, ok := catalog.Relation(address)
 			if !ok {
 				return fmt.Errorf("stuntgres: invalid subclass parent")
 			}

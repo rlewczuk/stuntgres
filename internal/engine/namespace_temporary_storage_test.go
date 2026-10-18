@@ -32,8 +32,8 @@ func namespaceTemporaryStorageFixture(t *testing.T) (*Engine, *Session, *Session
 	namespace := owner.temporaryNamespace
 	assertTemporaryNamespacePair(t, e, owner.token, namespace)
 	lookup := func(namespace ids.ObjectAddress, name string) *relationDescriptor {
-		address := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name}]
-		return catalog.state.descriptors[address].(*relationDescriptor)
+		address := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
+		return catalog.MustRelation(address)
 	}
 	return e, owner, peer, lookup(namespace, "storage_foreign"), lookup(namespace, "storage_chain"), lookup(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "storage_parent")
 }
@@ -113,7 +113,7 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 
 func TestPGNamespaceForeignTemporaryStorageExecution(t *testing.T) {
 	e, owner, peer, foreign, chain, _ := namespaceTemporaryStorageFixture(t)
-	name := e.CatalogRead().state.descriptors[foreign.namespace].Name()
+	name := e.CatalogRead().Get(foreign.namespace).Name()
 	sequenceScalar(t, owner, "SELECT v FROM storage_foreign", 99)
 	sequenceScalar(t, owner, "SELECT v FROM storage_chain", 99)
 	sequenceScalar(t, peer, "SELECT v FROM public.storage_parent", 7)
@@ -146,7 +146,7 @@ func TestPGNamespaceForeignTemporaryStorageExecution(t *testing.T) {
 
 func TestPGNamespaceForeignTemporaryStorageTargets(t *testing.T) {
 	e, owner, peer, foreign, _, _ := namespaceTemporaryStorageFixture(t)
-	name := e.CatalogRead().state.descriptors[foreign.namespace].Name()
+	name := e.CatalogRead().Get(foreign.namespace).Name()
 	store := e.storage[foreign.address]
 	root, ends := store.versions, store.ends
 	queries := []string{

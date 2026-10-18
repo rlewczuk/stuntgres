@@ -46,7 +46,7 @@ func TestPGDependShape(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
 	address := pgDependUnitAddress(1259, 2608, 0)
-	source, ok := catalog.state.descriptors[address].(*relationDescriptor)
+	source, ok := catalog.Relation(address)
 	if !ok {
 		t.Fatal("missing pg_depend descriptor")
 	}
@@ -117,7 +117,7 @@ func TestPGDependConstructionBags(t *testing.T) {
 		pgDependUnitEdge(1259, 45002, 0, 2615, 2200, 0, 'n'), pgDependUnitEdge(1259, 45002, 0, 1259, 41001, 2, 'i'),
 	}
 	pgDependUnitBag(t, got, want)
-	source := catalog.state.descriptors[pgDependUnitAddress(1259, 2608, 0)].(*relationDescriptor)
+	source := catalog.MustRelation(pgDependUnitAddress(1259, 2608, 0))
 	captured, err := capturePGDepend(context.Background(), catalog, ids.ObjectRef{}, source)
 	if err != nil {
 		t.Fatal(err)
@@ -196,7 +196,7 @@ func TestPGDependDomainTopologyAndPinning(t *testing.T) {
 func TestPGDependCanceledCapture(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
-	source := catalog.state.descriptors[pgDependUnitAddress(1259, 2608, 0)].(*relationDescriptor)
+	source := catalog.MustRelation(pgDependUnitAddress(1259, 2608, 0))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if edges, err := collectPGDepend(ctx, catalog); !errors.Is(err, context.Canceled) || edges != nil {
@@ -223,7 +223,7 @@ func (c *pgDependUnitWalkContext) Err() error {
 func TestPGDependCancellationDuringWalk(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
-	source := catalog.state.descriptors[pgDependUnitAddress(1259, 2608, 0)].(*relationDescriptor)
+	source := catalog.MustRelation(pgDependUnitAddress(1259, 2608, 0))
 	ctx := &pgDependUnitWalkContext{Context: context.Background(), remaining: 4}
 	if edges, err := collectPGDepend(ctx, catalog); !errors.Is(err, context.Canceled) || edges != nil {
 		t.Fatal("partial collection published", edges, err)

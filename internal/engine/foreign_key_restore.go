@@ -54,7 +54,7 @@ func (e *Engine) resolveRestoredForeignKeyTargets(pending *restoredForeignKeys) 
 			namespace := path.at(at)
 			definition.path[at] = namespace
 			if definition.target == (ids.ObjectAddress{}) {
-				definition.target = pending.auth.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: definition.raw.Target.Parts[len(definition.raw.Target.Parts)-1].Text}]
+				definition.target = pending.auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: definition.raw.Target.Parts[len(definition.raw.Target.Parts)-1].Text})
 			}
 		}
 	}
@@ -95,7 +95,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 		}
 		child, ok := stage.descriptors[declaration.child.Address].(*relationDescriptor)
 		if !ok {
-			old, ok := base.state.descriptors[declaration.child.Address].(*relationDescriptor)
+			old, ok := base.Relation(declaration.child.Address)
 			if !ok {
 				e.mu.Unlock()
 				return ErrCatalogReplaced
@@ -116,7 +116,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 			target := definition.target
 			if target == (ids.ObjectAddress{}) {
 				for _, namespace := range definition.path {
-					target = base.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: definition.raw.Target.Parts[len(definition.raw.Target.Parts)-1].Text}]
+					target = base.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: definition.raw.Target.Parts[len(definition.raw.Target.Parts)-1].Text})
 					if target != (ids.ObjectAddress{}) {
 						break
 					}
@@ -126,7 +126,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 				e.mu.Unlock()
 				return sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, objectNameText(definition.raw.Target)))
 			}
-			if _, ok := base.state.descriptors[target]; !ok {
+			if _, ok := base.Find(target); !ok {
 				e.mu.Unlock()
 				return ErrCatalogReplaced
 			}
@@ -146,7 +146,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 	e.mu.Unlock()
 	view := e.stageRead(stage)
 	for _, declaration := range pending {
-		child := view.state.descriptors[declaration.child.Address].(*relationDescriptor)
+		child := view.MustRelation(declaration.child.Address)
 		auth := declaration.auth
 		auth.catalog = view
 		auth.recaptureCatalog(auth.catalog)
@@ -158,8 +158,8 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 			if f.NotValid {
 				continue
 			}
-			parent := view.state.descriptors[f.Target].(*relationDescriptor)
-			index := view.state.descriptors[f.Index].(*relationDescriptor)
+			parent := view.MustRelation(f.Target)
+			index := view.MustRelation(f.Index)
 			comparisons, err := bindForeignKeyComparison(view, child, parent, index, f)
 			if err != nil {
 				return err
@@ -184,7 +184,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 }
 
 func validateForeignKeyData(ctx context.Context, auth AuthorizationView, child, parent *relationDescriptor, f foreignKeyConstraint, comparisons []foreignKeyComparison, children, parents foreignKeyRows, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
-	index, ok := auth.catalog.state.descriptors[f.Index].(*relationDescriptor)
+	index, ok := auth.catalog.Relation(f.Index)
 	if !ok {
 		return ErrCatalogReplaced
 	}

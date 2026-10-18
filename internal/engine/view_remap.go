@@ -792,7 +792,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			if call.procedure != nil && ref != nil {
 				copy.calls[i].ref = ref(call.ref)
 				if !m.referencesOnly {
-					proc, ok := m.catalog.state.descriptors[copy.calls[i].ref.Address].(*procedureDescriptor)
+					proc, ok := m.catalog.Procedure(copy.calls[i].ref.Address)
 					if !ok {
 						return nil, fmt.Errorf("stuntgres: missing remapped intagg aggregate")
 					}
@@ -1052,9 +1052,9 @@ func (e *Engine) remapCatalogExpressions(next *catalogState, mapping map[ids.Obj
 // objects and relation identities remapped earlier in the private candidate.
 func (e *Engine) remapViewRuleOIDs(next *catalogState) error {
 	const descriptorOID, ruleOID, claimedOID = uint8(1), uint8(2), uint8(4)
-	reserved := make(map[ids.OID]uint8, len(next.descriptors))
+	reserved := make(map[ids.OID]uint8, next.DescriptorCount())
 	var views []*relationDescriptor
-	for address, descriptor := range next.descriptors {
+	for address, descriptor := range next.Descriptors() {
 		reserved[address.ObjectID] |= descriptorOID
 		if view, ok := descriptor.(*relationDescriptor); ok && view.view != nil {
 			if view.view.rule == 0 {

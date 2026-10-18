@@ -15,7 +15,7 @@ import (
 func pgSequenceUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2224}
-	d, ok := e.catalog.state.descriptors[a].(*relationDescriptor)
+	d, ok := e.catalog.state.Relation(a)
 	if !ok {
 		t.Fatal("missing pg_sequence")
 	}
@@ -109,7 +109,7 @@ func TestPGSequenceShape(t *testing.T) {
 	if len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.acl)
 	}
-	class := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}].(*relationDescriptor)
+	class := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
 	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(e.catalog.read(e.catalog.state), e.roles), ids.ObjectRef{}, class)
 	if err != nil {
 		t.Fatal(err)

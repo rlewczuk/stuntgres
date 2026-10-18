@@ -317,7 +317,7 @@ func TestRoleDumpRestorePreservesLiveIdentities(t *testing.T) {
 	owners := make(map[string]authorization.PrincipalRef, 2)
 	for _, name := range []string{"first", "second"} {
 		ref := roleTableRef(t, e, name)
-		d := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		d := e.catalog.state.MustRelation(ref.Address)
 		if e.Roles().ValidatePrincipal(d.owner) != nil {
 			t.Fatal("foreign owner after restore")
 		}
@@ -333,12 +333,12 @@ func TestRoleDumpRestorePreservesLiveIdentities(t *testing.T) {
 			t.Fatal("isolated reset changed live role authority", query)
 		}
 		marker := roleTableRef(t, e, "reset_owner_marker")
-		if e.catalog.state.descriptors[marker.Address].(*relationDescriptor).owner != e.authorizationDomain.Principal(10) {
+		if e.catalog.state.MustRelation(marker.Address).owner != e.authorizationDomain.Principal(10) {
 			t.Fatal("reset did not restore isolated authenticated owner", query)
 		}
 		for name, owner := range owners {
 			ref := roleTableRef(t, e, name)
-			d := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			d := e.catalog.state.MustRelation(ref.Address)
 			if d.owner != owner || d.acl.Explicit || len(d.columnACL) != 0 {
 				t.Fatal("reset changed restored table authority", name, query)
 			}

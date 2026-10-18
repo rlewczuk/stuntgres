@@ -35,15 +35,15 @@ func (e *Engine) beginPartitionUsingIndexReplay(op *Operation, raw *parser.Alter
 	if err != nil {
 		return err
 	}
-	table, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	table, ok := auth.catalog.Relation(ref.Address)
 	if !ok {
 		return ErrCatalogReplaced
 	}
 	if table.relationKind != tableRelation || table.partition != nil || table.membership == nil || table.inheritance != nil {
 		return nil
 	}
-	address := auth.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: table.namespace, Name: raw.Actions[0].UsingIndex.Index.Text}]
-	index, ok := auth.catalog.state.descriptors[address].(*relationDescriptor)
+	address := auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: table.namespace, Name: raw.Actions[0].UsingIndex.Index.Text})
+	index, ok := auth.catalog.Relation(address)
 	if ok && index.sqlIndex != nil && index.sqlIndex.parent == table.address && index.sqlIndex.partitionParent == (ids.ObjectAddress{}) && index.sqlIndex.constraint == nil {
 		op.restorePartitionUsingIndex = &partitionUsingIndexReplay{target: table, index: index, syntax: raw}
 	}
@@ -58,5 +58,5 @@ func partitionUsingIndexReplayAllowed(op *Operation, auth AuthorizationView, raw
 	if origin.index == nil {
 		return false
 	}
-	return origin.syntax == raw && origin.target == table && table != nil && table.relationKind == tableRelation && table.partition == nil && table.membership != nil && table.inheritance == nil && auth.catalog.state.descriptors[table.address] == table && auth.catalog.state.descriptors[origin.index.address] == origin.index && len(raw.Actions) == 1 && raw.Actions[0].Action == parser.AddUsingIndex && raw.Actions[0].UsingIndex != nil && raw.Actions[0].UsingIndex.Index.Text == origin.index.name && partitionConstraintReplayImport(auth.engine, op, auth)
+	return origin.syntax == raw && origin.target == table && table != nil && table.relationKind == tableRelation && table.partition == nil && table.membership != nil && table.inheritance == nil && auth.catalog.Get(table.address) == table && auth.catalog.Get(origin.index.address) == origin.index && len(raw.Actions) == 1 && raw.Actions[0].Action == parser.AddUsingIndex && raw.Actions[0].UsingIndex != nil && raw.Actions[0].UsingIndex.Index.Text == origin.index.name && partitionConstraintReplayImport(auth.engine, op, auth)
 }

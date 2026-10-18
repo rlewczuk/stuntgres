@@ -118,21 +118,21 @@ func (r pgRenderer) typeSQL(u sqltype.Usage) (string, error) {
 		}
 		return text, err
 	}
-	d, ok := r.view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())}].(*typeDescriptor)
+	d, ok := r.view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())})
 	if !ok || d.typ != u.Type {
 		return "", fmt.Errorf("stuntgres: invalid deparse domain authority")
 	}
 	if r.output.QuoteAllIdentifiers {
 		name := r.identifier(d.Name())
 		for _, ns := range r.path {
-			if a, ok := r.view.state.names[ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: d.Name()}]; ok {
+			if a, ok := r.view.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: d.Name()}); ok {
 				if a == d.Address() {
 					return name, nil
 				}
 				break
 			}
 		}
-		return r.identifier(r.view.state.descriptors[d.Namespace()].Name()) + "." + name, nil
+		return r.identifier(r.view.Get(d.Namespace()).Name()) + "." + name, nil
 	}
 	return typeDiagnosticNameAt(r.view, d, r.path), nil
 }
@@ -627,11 +627,11 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		}
 		return r.cast(text, n.ResultUsage(), simpleColumn || simpleLiteral || simpleFunctionCall || r.pretty && parent.functionArgument && castChild)
 	case selectedOperatorExpression:
-		d, ok := r.view.state.descriptors[n.ref.Address].(*operatorDescriptor)
+		d, ok := r.view.Operator(n.ref.Address)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing selected operator during deparse")
 		}
-		namespace, ok := r.view.state.descriptors[d.namespace].(*namespaceDescriptor)
+		namespace, ok := r.view.Namespace(d.namespace)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing selected operator namespace")
 		}
@@ -800,7 +800,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			if err := validateIntaggIdentity(r.view, n.procedure, n.ref, "int_array_enum"); err != nil {
 				return "", err
 			}
-			namespace, ok := r.view.state.descriptors[n.procedure.namespace].(*namespaceDescriptor)
+			namespace, ok := r.view.Namespace(n.procedure.namespace)
 			if !ok {
 				return "", fmt.Errorf("stuntgres: missing intagg namespace")
 			}
@@ -1200,19 +1200,19 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		}
 		return function(name, n.Args, true)
 	case installedSoundexFunctionExpression:
-		namespace, ok := r.view.state.descriptors[n.procedure.namespace].(*namespaceDescriptor)
+		namespace, ok := r.view.Namespace(n.procedure.namespace)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing Soundex function namespace")
 		}
 		return function(r.identifier(namespace.name)+"."+r.identifier(n.procedure.name), n.Args, true)
 	case installedMetaphoneFunctionExpression:
-		namespace, ok := r.view.state.descriptors[n.procedure.namespace].(*namespaceDescriptor)
+		namespace, ok := r.view.Namespace(n.procedure.namespace)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing Metaphone function namespace")
 		}
 		return function(r.identifier(namespace.name)+"."+r.identifier(n.procedure.name), n.Args, true)
 	case installedLevenshteinFunctionExpression:
-		namespace, ok := r.view.state.descriptors[n.procedure.namespace].(*namespaceDescriptor)
+		namespace, ok := r.view.Namespace(n.procedure.namespace)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing Levenshtein function namespace")
 		}
@@ -1221,19 +1221,19 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		if err := n.validate(r.view); err != nil {
 			return "", err
 		}
-		namespace, ok := r.view.state.descriptors[n.procedure.namespace].(*namespaceDescriptor)
+		namespace, ok := r.view.Namespace(n.procedure.namespace)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing uuid-ossp function namespace")
 		}
 		return function(r.identifier(namespace.name)+"."+r.identifier(n.procedure.name), nil, true)
 	case installedCryptoFunctionExpression:
-		namespace, ok := r.view.state.descriptors[n.procedure.namespace].(*namespaceDescriptor)
+		namespace, ok := r.view.Namespace(n.procedure.namespace)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing crypto function namespace")
 		}
 		return function(r.identifier(namespace.name)+"."+r.identifier(n.procedure.name), n.Args, true)
 	case installedFunctionExpression:
-		namespace, ok := r.view.state.descriptors[n.procedure.namespace].(*namespaceDescriptor)
+		namespace, ok := r.view.Namespace(n.procedure.namespace)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing installed function namespace")
 		}

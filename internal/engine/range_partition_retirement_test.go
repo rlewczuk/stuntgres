@@ -42,7 +42,7 @@ func rangePartitionRetirementFixture(t *testing.T, s *Session, commitFixture boo
 func rangePartitionRetirementDescriptors(t *testing.T, catalog CatalogRead) (*relationDescriptor, *relationDescriptor) {
 	t.Helper()
 	var provider, root *relationDescriptor
-	for _, d := range catalog.state.descriptors {
+	for _, d := range catalog.Descriptors() {
 		if r, ok := d.(*relationDescriptor); ok {
 			switch r.name {
 			case "rp_retire_provider":
@@ -95,7 +95,7 @@ func TestRangePartitionRetirementNilScopeStage(t *testing.T) {
 	}
 	for _, name := range []string{"rp_retire_provider", "rp_retire_root", "rp_retire_mid", "rp_retire_leaf", "rp_retire_other", "rp_retire_leaf_v_key", "rp_retire_other_v_key", "rp_retire_index", "rp_retire_other_index", "rp_retire_seq", "rp_retire_leaf_seq", "rp_retire_other_seq", "rp_retire_view"} {
 		found := false
-		for a, d := range base.state.descriptors {
+		for a, d := range base.Descriptors() {
 			if d.Name() == name {
 				found = true
 				if _, removed := stage.removals[a]; !removed {
@@ -111,7 +111,7 @@ func TestRangePartitionRetirementNilScopeStage(t *testing.T) {
 		t.Fatal("preparation partially published catalog")
 	}
 	for a := range stage.removals {
-		if e.CatalogRead().state.descriptors[a] != base.state.descriptors[a] {
+		if e.CatalogRead().Get(a) != base.Get(a) {
 			t.Fatal("staging changed live closure descriptor", a)
 		}
 	}
@@ -136,7 +136,7 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 		t.Fatal(err)
 	}
 	domainUnitPublish(t, e, stage)
-	if committed.state.descriptors[provider.address] != provider || provider.onCommit != originalAction {
+	if committed.Get(provider.address) != provider || provider.onCommit != originalAction {
 		t.Fatal("provider lifetime replacement mutated the published predecessor")
 	}
 	ref := transactionBegin(t, s)
@@ -163,7 +163,7 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 	beforeDeletes := maps.Clone(deletes)
 	leafWrites := 0
 	for a, rows := range writes {
-		if r, ok := base.state.descriptors[a].(*relationDescriptor); ok && r.membership != nil && len(rows) != 0 {
+		if r, ok := base.Relation(a); ok && r.membership != nil && len(rows) != 0 {
 			leafWrites++
 		}
 	}
@@ -201,7 +201,7 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 	op.Done()
 	transactionEnd(t, s, ref, true)
 	for a := range removed {
-		if e.catalog.state.descriptors[a] != nil || e.storage[a] != nil || e.indexRoots[a] != nil || e.sequences[a] != nil {
+		if e.catalog.state.Get(a) != nil || e.storage[a] != nil || e.indexRoots[a] != nil || e.sequences[a] != nil {
 			t.Fatal("outer commit retained closure state", a)
 		}
 	}
@@ -230,8 +230,8 @@ func TestRangePartitionRetirementPhysicalState(t *testing.T) {
 	peerDescriptors := make(map[ids.ObjectAddress]Descriptor)
 	peerStorage := make(map[ids.ObjectAddress]*relationStorage)
 	peerIndexes := make(map[ids.ObjectAddress]*logicalIndexRoot)
-	for a, d := range base.state.descriptors {
-		if ns, ok := base.state.descriptors[d.Namespace()].(*namespaceDescriptor); ok && ns.temporary == peer.token {
+	for a, d := range base.Descriptors() {
+		if ns, ok := base.Namespace(d.Namespace()); ok && ns.temporary == peer.token {
 			peerDescriptors[a], peerStorage[a], peerIndexes[a] = d, e.storage[a], e.indexRoots[a]
 		}
 	}
@@ -240,15 +240,15 @@ func TestRangePartitionRetirementPhysicalState(t *testing.T) {
 		t.Fatal(err)
 	}
 	for a := range stage.removals {
-		if e.catalog.state.descriptors[a] != nil || e.storage[a] != nil || e.indexRoots[a] != nil || e.sequences[a] != nil {
+		if e.catalog.state.Get(a) != nil || e.storage[a] != nil || e.indexRoots[a] != nil || e.sequences[a] != nil {
 			t.Fatal("physical retirement retained closure state", a)
 		}
 	}
-	if e.catalog.state.descriptors[provider.address] != nil || e.storage[provider.address] != nil {
+	if e.catalog.state.Get(provider.address) != nil || e.storage[provider.address] != nil {
 		t.Fatal("physical retirement retained provider")
 	}
 	for a, d := range peerDescriptors {
-		if e.catalog.state.descriptors[a] != d || e.storage[a] != peerStorage[a] || e.indexRoots[a] != peerIndexes[a] {
+		if e.catalog.state.Get(a) != d || e.storage[a] != peerStorage[a] || e.indexRoots[a] != peerIndexes[a] {
 			t.Fatal("physical retirement changed peer authority/storage/index", a)
 		}
 	}

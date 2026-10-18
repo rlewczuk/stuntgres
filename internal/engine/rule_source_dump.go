@@ -23,7 +23,7 @@ func ruleSourceColumnSQL(view CatalogRead, root LogicalNode, slot int, action ru
 		}
 		return ruleSourceColumnSQL(view, node.right, slot-len(node.left.Schema()), action, expression)
 	case *sourceNode:
-		d, ok := view.state.descriptors[node.ref.Address].(*relationDescriptor)
+		d, ok := view.Relation(node.ref.Address)
 		if !ok {
 			return "", ErrCatalogReplaced
 		}

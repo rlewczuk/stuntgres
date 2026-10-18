@@ -33,14 +33,14 @@ func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalogSt
 // after comparison, root construction and cancellation have all succeeded.
 func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState, storage map[ids.ObjectAddress]*relationStorage, snapshot *indexSnapshot) (map[ids.ObjectAddress]*logicalIndexRoot, uint64, uint64, error) {
 	retained := &catalogState{descriptors: make(map[ids.ObjectAddress]Descriptor)}
-	for address, descriptor := range next.descriptors {
-		namespace, temporary := next.descriptors[descriptor.Namespace()].(*namespaceDescriptor)
-		if temporary && namespace.temporary != (ids.SessionToken{}) && descriptor == e.catalog.state.descriptors[address] {
+	for address, descriptor := range next.Descriptors() {
+		namespace, temporary := next.Namespace(descriptor.Namespace())
+		if temporary && namespace.temporary != (ids.SessionToken{}) && descriptor == e.catalog.state.Get(address) {
 			retained.descriptors[address] = descriptor
 			continue
 		}
 		if index, ok := descriptor.(*relationDescriptor); ok && index.sqlIndex != nil && (!index.sqlIndex.ready || !index.sqlIndex.valid || !index.sqlIndex.live) {
-			parent, exists := next.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+			parent, exists := next.Relation(index.sqlIndex.parent)
 			if exists && parent.partition != nil && index.sqlIndex.ready && index.sqlIndex.live {
 				continue
 			}
@@ -53,8 +53,8 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 	}
 	positions := make(map[ids.ObjectAddress]map[indexRowIdentity]int, len(storage))
 	for address, relation := range storage {
-		if descriptor := next.descriptors[address]; descriptor != nil && e.storage[address] == relation {
-			if namespace, ok := next.descriptors[descriptor.Namespace()].(*namespaceDescriptor); ok && namespace.temporary != (ids.SessionToken{}) {
+		if descriptor := next.Get(address); descriptor != nil && e.storage[address] == relation {
+			if namespace, ok := next.Namespace(descriptor.Namespace()); ok && namespace.temporary != (ids.SessionToken{}) {
 				continue
 			}
 		}
@@ -83,19 +83,19 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	for address, descriptor := range next.descriptors {
+	for address, descriptor := range next.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil || !index.sqlIndex.ready || !index.sqlIndex.live {
 			continue
 		}
-		parent, ok := next.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		parent, ok := next.Relation(index.sqlIndex.parent)
 		if !ok {
 			return nil, 0, 0, ErrCatalogReplaced
 		}
 		if parent.partition != nil {
 			continue
 		}
-		if retained.descriptors[address] != nil {
+		if retained.Get(address) != nil {
 			root := e.indexRoots[address]
 			if root == nil {
 				return nil, 0, 0, ErrCatalogReplaced
@@ -109,7 +109,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 		}
 		schema := ""
 		if index.sqlIndex.unique || index.sqlIndex.isExclusion() {
-			namespace := next.descriptors[parent.namespace]
+			namespace := next.Get(parent.namespace)
 			if namespace == nil {
 				return nil, 0, 0, ErrCatalogReplaced
 			}

@@ -48,7 +48,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 			return nil, sqlError("0A000", temporaryMessage)
 		}
 		definition.sequenceRefs[constant.offset] = constant.ref
-		if _, exists := auth.catalog.state.descriptors[constant.ref.Address]; exists {
+		if _, exists := auth.catalog.Find(constant.ref.Address); exists {
 			definition.dependencies = append(definition.dependencies, expressionDependency{ref: constant.ref, revision: constant.stamp})
 		}
 	}
@@ -62,14 +62,14 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 				return nil, err
 			}
 			for _, ref := range references {
-				definition.dependencies = append(definition.dependencies, expressionDependency{ref: ref, revision: auth.catalog.state.descriptors[ref.Address].Revision()})
+				definition.dependencies = append(definition.dependencies, expressionDependency{ref: ref, revision: auth.catalog.Get(ref.Address).Revision()})
 			}
 		}
 		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(constant.id)}
 		if constant.operator != 0 {
 			address.ClassID = ids.OperatorClassID
 		}
-		if d, exists := auth.catalog.state.descriptors[address]; exists {
+		if d, exists := auth.catalog.Find(address); exists {
 			definition.dependencies = append(definition.dependencies, expressionDependency{ref: e.catalog.domain.Ref(auth.catalog.Epoch(), address), revision: d.Revision()})
 		}
 	}
@@ -82,7 +82,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 		for _, slot := range source.uses {
 			leaf.reads = append(leaf.reads, source.relation.attributes[slot])
 		}
-		if ns := auth.catalog.state.descriptors[source.relation.namespace].(*namespaceDescriptor); ns.temporary != (ids.SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || auth.session == nil || ns.temporary != auth.session.token) {
+		if ns := auth.catalog.MustNamespace(source.relation.namespace); ns.temporary != (ids.SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || auth.session == nil || ns.temporary != auth.session.token) {
 			return nil, sqlError("0A000", temporaryMessage)
 		}
 	}
@@ -92,7 +92,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 		capture := func(ref ids.ObjectRef) {
 			address := ref.Address
 			address.SubID = 0
-			definition.references[ref] = auth.catalog.state.descriptors[address]
+			definition.references[ref] = auth.catalog.Get(address)
 		}
 		for _, leaf := range definition.sources {
 			capture(leaf.ref)

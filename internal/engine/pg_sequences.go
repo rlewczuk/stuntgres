@@ -31,7 +31,7 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 		if !ok || relation.relationKind != sequenceRelation {
 			return nil
 		}
-		namespace := base.descriptors[relation.namespace]
+		namespace := base.Get(relation.namespace)
 		if own != nil {
 			if current, overridden := own.descriptors[relation.namespace]; overridden {
 				namespace = current
@@ -72,7 +72,7 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 		provider.refs = append(provider.refs, e.catalog.domain.Ref(base.epoch, relation.address))
 		return nil
 	}
-	for address, descriptor := range base.descriptors {
+	for address, descriptor := range base.Descriptors() {
 		if own != nil {
 			if _, overridden := own.descriptors[address]; overridden {
 				continue
@@ -114,7 +114,7 @@ func (p *pgSequencesSource) complete(ctx context.Context, ref ids.ObjectRef, row
 	}
 	auth.catalog = e.privateCatalogLocked(p.scope.owner.catalog)
 	auth.recaptureCatalog(auth.catalog)
-	relation, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	relation, ok := auth.catalog.Relation(ref.Address)
 	if !ok || relation.relationKind != sequenceRelation {
 		return sqlError("XX000", fmt.Sprintf("could not open relation with OID %d", ref.Address.ObjectID))
 	}

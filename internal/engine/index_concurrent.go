@@ -73,11 +73,11 @@ func (e *Engine) concurrentIndexAuthorityLocked(scope *StatementScope, syntax *p
 	if err = scope.captureIdentityLocked(auth); err != nil {
 		return nil, nil, auth, err
 	}
-	index, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
+	index, ok := e.catalog.state.Relation(address)
 	if !ok || index.sqlIndex == nil || index.sqlIndex.parent != scope.lockedRef.Address {
 		return nil, nil, auth, ErrCatalogReplaced
 	}
-	parent, ok := e.catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+	parent, ok := e.catalog.state.Relation(index.sqlIndex.parent)
 	if !ok {
 		return nil, nil, auth, ErrCatalogReplaced
 	}
@@ -134,7 +134,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 		stage := e.BeginCatalogStage(auth.catalog)
 		stage.authorizeLocked(auth, scope.op.session)
 		stage.indexParents = map[ids.ObjectAddress]*relationDescriptor{parent.address: parent}
-		namespace := auth.catalog.state.descriptors[parent.namespace].Name()
+		namespace := auth.catalog.Get(parent.namespace).Name()
 		e.mu.Unlock()
 		evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: auth.catalog}
 		evaluation.routineAuthority = &auth

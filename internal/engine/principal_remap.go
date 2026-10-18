@@ -50,7 +50,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 		}
 		return target, nil
 	}
-	for addr, d := range state.descriptors {
+	for addr, d := range state.Descriptors() {
 		switch d := d.(type) {
 		case *databaseDescriptor, *tsTemplateDescriptor:
 			// Attachment authority is local; text search templates have no owner.
@@ -275,7 +275,7 @@ func (e *Engine) restoreStage() *Engine {
 	// is blocked cannot silently adopt the replacement role with the same name.
 	e.mu.Lock()
 	sourceRoles, nextPrincipal := e.roles, e.nextPrincipal
-	database := e.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	database := e.catalog.state.MustDatabase(currentDatabaseAddress)
 	e.mu.Unlock()
 	stage := NewWithSettings(nil, e.databaseName, false)
 	if err := stage.InstallForeignDefinitions(e.foreignWrappers, e.foreignValidators, e.foreignValueImporter, e.foreignValueExporter); err != nil {

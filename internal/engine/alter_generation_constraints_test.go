@@ -88,7 +88,7 @@ func TestAlterGeneratedExpressionConstraintRoots(t *testing.T) {
 				execute(&parser.CreateIndex{Name: parser.Identifier{Text: "g_predicate"}, Table: alterGenerationName("g"), Method: "btree", Unique: true, Keys: []parser.IndexKey{{Column: parser.Identifier{Text: "k"}}}, Predicate: alterGenerationOperator("<", alterGenerationColumn("b"), alterGenerationLiteral(3))})
 			}
 			ref := catalogRef(t, e, e.CatalogRead(), "g")
-			old := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			old := e.catalog.state.MustRelation(ref.Address)
 			store := e.storage[ref.Address]
 			catalog := e.catalog.state
 			roots := maps.Clone(e.indexRoots)
@@ -133,7 +133,7 @@ func TestAlterGeneratedExpressionConstraintRoots(t *testing.T) {
 			if !errors.As(err, &diagnostic) || diagnostic.Code != code {
 				t.Fatal("constraint rewrite accepted/incorrect failure", kind, err)
 			}
-			if e.catalog.state != catalog || e.catalog.state.descriptors[ref.Address] != old || e.storage[ref.Address] != store || store.generation != generation || store.ends != ends || e.nextRow != rowID || e.nextVersion != versionID || e.commitSeq != commit || scope.owner.catalog != nil || !reflect.DeepEqual(scope.owner.writes, writes) || !reflect.DeepEqual(scope.owner.deletes, deletes) {
+			if e.catalog.state != catalog || e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != store || store.generation != generation || store.ends != ends || e.nextRow != rowID || e.nextVersion != versionID || e.commitSeq != commit || scope.owner.catalog != nil || !reflect.DeepEqual(scope.owner.writes, writes) || !reflect.DeepEqual(scope.owner.deletes, deletes) {
 				t.Fatal("constraint failure leaked private/installed roots/counters")
 			}
 			if len(e.indexRoots) != len(roots) {

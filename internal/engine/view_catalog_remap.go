@@ -32,14 +32,14 @@ func (e *Engine) reownCatalogExpressions(next *catalogState, mapping map[ids.Obj
 		if target, ok := mapping[address]; ok {
 			address = target
 		}
-		if d, ok := next.descriptors[address].(*typeDescriptor); ok {
+		if d, ok := next.Type(address); ok {
 			return d.typ
 		}
 		return old
 	}
 	// Retagging resolves captured provider descriptors in the destination.
 	// Remap source references first, exactly once, before that lookup.
-	for address, descriptor := range next.descriptors {
+	for address, descriptor := range next.Descriptors() {
 		if domain, ok := descriptor.(*typeDescriptor); ok && len(domain.domainChecks) != 0 {
 			if typesOnly {
 				changed := false

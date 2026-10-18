@@ -31,7 +31,7 @@ func (e *Engine) executePartitionExclusionAddLocked(scope *StatementScope, op *O
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if auth.catalog.state.descriptors[table.address] != table {
+	if auth.catalog.Get(table.address) != table {
 		e.mu.Unlock()
 		return Result{}, ErrCatalogReplaced
 	}

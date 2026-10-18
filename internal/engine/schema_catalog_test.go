@@ -35,7 +35,7 @@ func TestSchemaCatalogPublicationPreconditions(t *testing.T) {
 		t.Fatal("drop lost concurrent dependent", err)
 	}
 	stage = e.BeginCatalogStage(before)
-	next := *before.state.descriptors[ns.Address].(*namespaceDescriptor)
+	next := *before.MustNamespace(ns.Address)
 	next.name = "next"
 	next.revision++
 	if err = stage.Replace(&next); err != nil {
@@ -51,7 +51,7 @@ func TestSchemaCatalogPublicationPreconditions(t *testing.T) {
 		t.Fatal("stale rename published", err)
 	}
 	stage = e.BeginCatalogStage(before)
-	next = *before.state.descriptors[ns.Address].(*namespaceDescriptor)
+	next = *before.MustNamespace(ns.Address)
 	next.name = "cancelled"
 	next.revision++
 	if err = stage.Replace(&next); err != nil {

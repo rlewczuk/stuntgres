@@ -151,7 +151,7 @@ func (e columnExpression) capturedGeneration(source *querySource, index int, cur
 	if data == nil {
 		return nil, nil, fmt.Errorf("stuntgres: virtual source snapshot is released")
 	}
-	logical, ok := data.catalog.state.descriptors[source.ref.Address].(*relationDescriptor)
+	logical, ok := data.catalog.Relation(source.ref.Address)
 	if !ok {
 		return nil, nil, fmt.Errorf("stuntgres: missing virtual source descriptor")
 	}

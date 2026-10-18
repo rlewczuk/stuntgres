@@ -20,7 +20,7 @@ func TestExclusionReplacement(t *testing.T) {
 			sessionSQL(t, a, "CREATE TABLE portable.domain_t(k portable.d,CONSTRAINT domain_ex EXCLUDE USING hash(k WITH =))")
 			sessionSQL(t, a, "INSERT INTO portable.domain_t VALUES(7)")
 			before := source.CatalogRead()
-			original := before.state.descriptors[roleTableRef(t, source, "portable.t").Address].(*relationDescriptor)
+			original := before.MustRelation(roleTableRef(t, source, "portable.t").Address)
 			constraint := original.exclusionConstraints[0]
 			sourceRoot := source.indexRoots[constraint.Index]
 			target := New()
@@ -32,17 +32,17 @@ func TestExclusionReplacement(t *testing.T) {
 			sequenceScalar(t, b, "SELECT nextval('kept')", 1)
 			_, description := sequencePreparedDescription(t, target, b, "SELECT nextval('kept')")
 			tempRef := description.sequences.constants[0].ref
-			temp, generator, memory := target.catalog.state.descriptors[tempRef.Address], target.sequences[tempRef.Address], b.sequences[tempRef.Address]
+			temp, generator, memory := target.catalog.state.Get(tempRef.Address), target.sequences[tempRef.Address], b.sequences[tempRef.Address]
 			if !self && tempRef.Address.ObjectID != original.address.ObjectID {
 				t.Fatal("fixture must collide with a real retained TEMP address")
 			}
 			if _, err := target.ReplaceCatalog(ctx, source, before); err != nil {
 				t.Fatal(err)
 			}
-			if target.catalog.state.descriptors[tempRef.Address] != temp || target.sequences[tempRef.Address] != generator || b.sequences[tempRef.Address] != memory {
+			if target.catalog.state.Get(tempRef.Address) != temp || target.sequences[tempRef.Address] != generator || b.sequences[tempRef.Address] != memory {
 				t.Fatal("replacement changed retained TEMP identity")
 			}
-			parent := target.catalog.state.descriptors[roleTableRef(t, target, "portable.t").Address].(*relationDescriptor)
+			parent := target.catalog.state.MustRelation(roleTableRef(t, target, "portable.t").Address)
 			index, root := btreeRoot(t, target, "portable.ex")
 			current := parent.exclusionConstraints[0]
 			if current.Index != index.address || !backingConstraintPresent(parent, index) || !current.Deferrable || !current.InitiallyDeferred || len(root.entries) != 1 {

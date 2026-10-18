@@ -42,7 +42,7 @@ func domainUsesAt(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectA
 		if active[id] {
 			return 0, fmt.Errorf("stuntgres: cyclic domain use graph")
 		}
-		d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}].(*typeDescriptor)
+		d, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
 		if !ok {
 			return 0, fmt.Errorf("stuntgres: missing domain use type")
 		}
@@ -60,7 +60,7 @@ func domainUsesAt(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectA
 		case d.typ.IsArray():
 			found, err = contains(d.typ.Element().ID())
 		case d.owningRelation != (ids.ObjectAddress{}):
-			relation, ok := view.state.descriptors[d.owningRelation].(*relationDescriptor)
+			relation, ok := view.Relation(d.owningRelation)
 			if !ok {
 				return 0, fmt.Errorf("stuntgres: missing domain use rowtype owner")
 			}
@@ -83,7 +83,7 @@ func domainUsesAt(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectA
 	}
 	// Include unstored derived/container declarations as graph edges too. Their
 	// later storage cannot evade the final observation by retaining an old OID.
-	for address, d := range view.state.descriptors {
+	for address, d := range view.Descriptors() {
 		if _, ok := d.(*typeDescriptor); ok {
 			if _, err := contains(sqltype.ID(address.ObjectID)); err != nil {
 				return nil, err
@@ -91,7 +91,7 @@ func domainUsesAt(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectA
 		}
 	}
 	var relations []*relationDescriptor
-	for _, d := range view.state.descriptors {
+	for _, d := range view.Descriptors() {
 		if relation, ok := d.(*relationDescriptor); ok {
 			relations = append(relations, relation)
 		}
@@ -126,7 +126,7 @@ func domainUsesAt(view CatalogRead, target ids.ObjectAddress, path []ids.ObjectA
 					columns = append(columns, i)
 				}
 			} else if stored {
-				d := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(found)}].(*typeDescriptor)
+				d := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(found)})
 				name := typeDiagnosticNameAt(view, d, path)
 				if blocker == nil {
 					blocker = sqlError("0A000", fmt.Sprintf("cannot alter type %q because column %q uses it", name, relation.name+"."+column.Name))
@@ -169,7 +169,7 @@ func (f *domainValidationFence) current(view CatalogRead, storage map[ids.Object
 
 func domainHistoricalViolation(view CatalogRead, relation *relationDescriptor, column int) error {
 	diagnostic := sqlError("23514", fmt.Sprintf("column %q of table %q contains values that violate the new constraint", relation.columns[column].Name, relation.name)).(*sqlstate.Error)
-	diagnostic.Schema = view.state.descriptors[relation.namespace].Name()
+	diagnostic.Schema = view.Get(relation.namespace).Name()
 	diagnostic.Table, diagnostic.Column = relation.name, relation.columns[column].Name
 	return diagnostic
 }

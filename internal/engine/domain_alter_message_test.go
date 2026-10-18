@@ -205,7 +205,7 @@ func domainAlterMessageIndexOutputs(t *testing.T) {
 			parent := catalogRef(t, e, e.CatalogRead(), "stored").Address
 			index := catalogRef(t, e, e.CatalogRead(), "checked_idx").Address
 			sequence := catalogRef(t, e, e.CatalogRead(), "calls").Address
-			oldIndex := e.catalog.state.descriptors[index].(*relationDescriptor)
+			oldIndex := e.catalog.state.MustRelation(index)
 			original := s.transactions.writes[parent][0]
 			output, ok := original.indexOutputs[index]
 			// Only actual executable conversions need frozen producer outputs;
@@ -219,7 +219,7 @@ func domainAlterMessageIndexOutputs(t *testing.T) {
 			}
 			step("ALTER DOMAIN public.d ADD CONSTRAINT never_replay CHECK(FALSE) NOT VALID")
 			view := e.privateCatalogLocked(s.transactions.catalog)
-			currentIndex := view.state.descriptors[index].(*relationDescriptor)
+			currentIndex := view.MustRelation(index)
 			pending := s.transactions.writes[parent]
 			if len(pending) != 1 || pending[0].row != original.row || pending[0].version != original.version {
 				t.Fatal("pending version identity changed")

@@ -17,8 +17,8 @@ func (e *Engine) findUtilityConversion(auth AuthorizationView, name parser.Objec
 	}
 	object := name.Parts[len(name.Parts)-1].Text
 	for i := range path.count() {
-		address := auth.catalog.state.names[ids.NameKey{ClassID: ids.ConversionClassID, Namespace: path.at(i), Name: object}]
-		if d, ok := auth.catalog.state.descriptors[address].(*conversionDescriptor); ok {
+		address := auth.catalog.NameAddress(ids.NameKey{ClassID: ids.ConversionClassID, Namespace: path.at(i), Name: object})
+		if d, ok := auth.catalog.Conversion(address); ok {
 			return d, nil
 		}
 	}
@@ -97,7 +97,7 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 		return sqlError("42710", fmt.Sprintf(`conversion "%s" already exists`, object))
 	}
 	if s.Default {
-		for _, descriptor := range e.stageRead(stage).state.descriptors {
+		for _, descriptor := range e.stageRead(stage).Descriptors() {
 			if d, ok := descriptor.(*conversionDescriptor); ok && d.Namespace() == namespace.Address && d.source == source && d.destination == destination && d.defaultConversion {
 				return sqlError("42710", "default conversion for "+sqltype.EncodingName(source)+" to "+sqltype.EncodingName(destination)+" already exists")
 			}
@@ -145,8 +145,8 @@ func (e *Engine) stageAlterConversionLocked(op *Operation, auth AuthorizationVie
 		if destination.Address == d.Namespace() {
 			return nil
 		}
-		sourceNamespace := auth.catalog.state.descriptors[d.Namespace()].(*namespaceDescriptor)
-		targetNamespace := auth.catalog.state.descriptors[destination.Address].(*namespaceDescriptor)
+		sourceNamespace := auth.catalog.MustNamespace(d.Namespace())
+		targetNamespace := auth.catalog.MustNamespace(destination.Address)
 		if sourceNamespace.temporary != (ids.SessionToken{}) || targetNamespace.temporary != (ids.SessionToken{}) {
 			return sqlError("0A000", "cannot move objects into or out of temporary schemas")
 		}
@@ -176,7 +176,7 @@ func (e *Engine) stageAlterConversionLocked(op *Operation, auth AuthorizationVie
 		return fmt.Errorf("stuntgres: invalid conversion alteration")
 	}
 	if address := stage.lookupName(descriptorNameKey(&next)); address != (ids.ObjectAddress{}) && (address != d.Address() || s.Action == "rename") {
-		return sqlError("42710", fmt.Sprintf(`conversion "%s" already exists in schema "%s"`, next.name, auth.catalog.state.descriptors[next.Namespace()].Name()))
+		return sqlError("42710", fmt.Sprintf(`conversion "%s" already exists in schema "%s"`, next.name, auth.catalog.Get(next.Namespace()).Name()))
 	}
 	// CREATE alone checks default-pair uniqueness; legal schema moves may leave
 	// multiple defaults and must never be rejected by a universal invariant.

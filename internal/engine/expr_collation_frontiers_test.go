@@ -93,7 +93,7 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 		sessionSQL(t, owner, `CREATE VIEW `+tc.name+` AS SELECT id,a=b AS unused,a COLLATE "C"=b AS selected FROM expr_scheduled_t `+tc.tail)
 		view := e.CatalogRead()
 		ref := catalogRef(t, e, view, tc.name)
-		project := view.state.descriptors[ref.Address].(*relationDescriptor).view.query.Root.(*projectNode)
+		project := view.MustRelation(ref.Address).view.query.Root.(*projectNode)
 		unused, ok := project.expressions[1].(cachedOrderExpression)
 		if !ok {
 			t.Fatal("fixture has no real scheduled producer", tc.name, project.expressions[1])
@@ -206,7 +206,7 @@ func TestExprCollationGeneratedTableOIDReachability(t *testing.T) {
 	sessionSQL(t, owner, `CREATE TABLE expr_row_generated(a INT,marker BIGINT,first_pair BOOL GENERATED ALWAYS AS ((tableoid::BIGINT,a)=(marker,a)) STORED,later_pair BOOL GENERATED ALWAYS AS ((a,tableoid::BIGINT)=(a,marker)) STORED,no_owner BOOL GENERATED ALWAYS AS ((a,a)=(a,a)) STORED)`)
 	view := e.CatalogRead()
 	ref := catalogRef(t, e, view, "expr_row_generated")
-	table := view.state.descriptors[ref.Address].(*relationDescriptor)
+	table := view.MustRelation(ref.Address)
 	for _, tc := range []struct {
 		slot int
 		want bool

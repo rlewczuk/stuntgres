@@ -15,7 +15,7 @@ func TestCollationStoredExpressionMetadataRetention(t *testing.T) {
 	sessionSQL(t, owner, `CREATE VIEW retained_metadata_v AS SELECT upper('a' COLLATE retained_metadata) AS v`)
 	snapshot := e.CatalogRead()
 	tableRef := catalogRef(t, e, snapshot, "retained_metadata_t")
-	oldTable := snapshot.state.descriptors[tableRef.Address].(*relationDescriptor)
+	oldTable := snapshot.MustRelation(tableRef.Address)
 	oldDefault := oldTable.defaults[oldTable.attributes[0]].expression
 	original, err := defaultSQL(context.Background(), snapshot, oldDefault)
 	if err != nil {
@@ -70,9 +70,9 @@ func TestCollationStoredExpressionMetadataRetention(t *testing.T) {
 		sessionSQL(t, owner, `ALTER TABLE retained_metadata_t ALTER v SET DEFAULT upper(`+literal+` COLLATE retained_metadata)`)
 		sessionSQL(t, owner, `CREATE OR REPLACE VIEW retained_metadata_v AS SELECT upper(`+literal+` COLLATE retained_metadata) AS v`)
 		current := e.CatalogRead()
-		table := current.state.descriptors[tableRef.Address].(*relationDescriptor)
+		table := current.MustRelation(tableRef.Address)
 		viewRef := catalogRef(t, e, current, "retained_metadata_v")
-		view := current.state.descriptors[viewRef.Address].(*relationDescriptor)
+		view := current.MustRelation(viewRef.Address)
 		if current.state == snapshot.state || table == oldTable {
 			t.Fatal("replacement did not produce a genuine successor catalog")
 		}

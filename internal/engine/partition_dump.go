@@ -25,9 +25,9 @@ func partitionDumpPredecessors(catalog CatalogRead, d *relationDescriptor, prede
 			return nil, err
 		}
 		if d.membership.defaultBound {
-			parent := catalog.state.descriptors[d.membership.parent].(*relationDescriptor)
+			parent := catalog.MustRelation(d.membership.parent)
 			for _, address := range parent.partition.children {
-				if address != d.address && !partitionExclusionDefaultBefore(catalog, d, catalog.state.descriptors[address].(*relationDescriptor)) {
+				if address != d.address && !partitionExclusionDefaultBefore(catalog, d, catalog.MustRelation(address)) {
 					if err := add(address); err != nil {
 						return nil, err
 					}
@@ -125,7 +125,7 @@ func partitionDumpNeedsAttach(catalog CatalogRead, d *relationDescriptor) bool {
 	if d.membership == nil {
 		return false
 	}
-	parent := catalog.state.descriptors[d.membership.parent].(*relationDescriptor)
+	parent := catalog.MustRelation(d.membership.parent)
 	for i, column := range d.columns {
 		if column.DeclaredDimensions != 0 || column.Name != parent.columns[i].Name {
 			return true
@@ -159,9 +159,9 @@ func partitionDumpNeedsAttach(catalog CatalogRead, d *relationDescriptor) bool {
 }
 
 func partitionAttachDumpSQL(ctx context.Context, catalog CatalogRead, d *relationDescriptor) (string, error) {
-	parent := catalog.state.descriptors[d.membership.parent].(*relationDescriptor)
+	parent := catalog.MustRelation(d.membership.parent)
 	qualified := func(table *relationDescriptor) string {
-		return quoteIdentifier(catalog.state.descriptors[table.namespace].Name()) + "." + quoteIdentifier(table.name)
+		return quoteIdentifier(catalog.Get(table.namespace).Name()) + "." + quoteIdentifier(table.name)
 	}
 	text := "ALTER TABLE " + qualified(parent) + " ATTACH PARTITION " + qualified(d)
 	if d.membership.defaultBound {
@@ -184,12 +184,12 @@ func partitionAttachDumpSQL(ctx context.Context, catalog CatalogRead, d *relatio
 // PARTITION OF names no new column types. Inherited definitions are supplied
 // by the parent; only local default/nullability/check differences are emitted.
 func partitionChildSQL(ctx context.Context, catalog CatalogRead, d *relationDescriptor, qualified string, deferred map[int32]bool) (string, error) {
-	parent, ok := catalog.state.descriptors[d.membership.parent].(*relationDescriptor)
+	parent, ok := catalog.Relation(d.membership.parent)
 	if !ok || parent.partition == nil {
 		return "", fmt.Errorf("stuntgres: missing partition dump parent")
 	}
 	var text strings.Builder
-	text.WriteString("CREATE TABLE " + qualified + " PARTITION OF " + quoteIdentifier(catalog.state.descriptors[parent.namespace].Name()) + "." + quoteIdentifier(parent.name))
+	text.WriteString("CREATE TABLE " + qualified + " PARTITION OF " + quoteIdentifier(catalog.Get(parent.namespace).Name()) + "." + quoteIdentifier(parent.name))
 	var options strings.Builder
 	appendOption := func(option string) {
 		if options.Len() != 0 {
@@ -263,7 +263,7 @@ func partitionChildSQL(ctx context.Context, catalog CatalogRead, d *relationDesc
 		if constraint.Parent != 0 {
 			continue
 		}
-		index := catalog.state.descriptors[constraint.Index].(*relationDescriptor)
+		index := catalog.MustRelation(constraint.Index)
 		if partitionReplaySeparateConstraint(catalog, index) {
 			continue
 		}
@@ -277,7 +277,7 @@ func partitionChildSQL(ctx context.Context, catalog CatalogRead, d *relationDesc
 		if constraint.Parent != 0 {
 			continue
 		}
-		index, ok := catalog.state.descriptors[constraint.Index].(*relationDescriptor)
+		index, ok := catalog.Relation(constraint.Index)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing exclusion dump index")
 		}
@@ -345,7 +345,7 @@ func hashPartitionBoundSQL(bound *partitionMembership) string {
 func partitionHashReplayTarget(catalog CatalogRead, d *relationDescriptor) *relationDescriptor {
 	target := d
 	for child := d; child.membership != nil; {
-		parent := catalog.state.descriptors[child.membership.parent].(*relationDescriptor)
+		parent := catalog.MustRelation(child.membership.parent)
 		if parent.partition.strategy == parser.PartitionHash {
 			target = parent
 		}

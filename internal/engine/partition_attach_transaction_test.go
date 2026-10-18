@@ -42,7 +42,7 @@ func partitionAttachUnitWrite(t *testing.T, e *Engine, session *Session, ref ids
 	t.Helper()
 	scope, op := partitionAttachUnitScope(t, e, session)
 	rows := make([][]sqltype.Value, len(values))
-	d := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	d := e.catalog.state.MustRelation(ref.Address)
 	for i, n := range values {
 		value, err := sqltype.Integer(d.columns[0].Usage.Type, n)
 		if err != nil {
@@ -164,8 +164,8 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			child := inheritanceUnitRelation(e, "attach_tx_child", 46211, "k")
 			child.relationKind = tableRelation
 			partitionAttachUnitInstall(t, e, parent, child)
-			parent = e.catalog.state.descriptors[parent.address].(*relationDescriptor)
-			child = e.catalog.state.descriptors[child.address].(*relationDescriptor)
+			parent = e.catalog.state.MustRelation(parent.address)
+			child = e.catalog.state.MustRelation(child.address)
 			owner := sessionStart(t, e, nil)
 			tx := partitionAttachUnitBegin(t, e, owner, ReadCommitted)
 			parentRef := e.catalog.domain.Ref(e.catalog.state.epoch, parent.address)
@@ -199,7 +199,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			}
 			attachOp.Done()
 			private := e.privateCatalogLocked(owner.transactions.catalog)
-			if private.state.descriptors[child.address].(*relationDescriptor).membership == nil || e.catalog.state.descriptors[child.address] != child || len(parent.partition.children) != 0 {
+			if private.MustRelation(child.address).membership == nil || e.catalog.state.Get(child.address) != child || len(parent.partition.children) != 0 {
 				t.Fatal("overlay was not private and reciprocal")
 			}
 			if end == "savepoint" {
@@ -212,7 +212,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 					t.Fatal(err)
 				}
 				rollbackOp.Done()
-				if e.privateCatalogLocked(owner.transactions.catalog).state.descriptors[child.address] != child {
+				if e.privateCatalogLocked(owner.transactions.catalog).Get(child.address) != child {
 					t.Fatal("savepoint retained attachment overlay")
 				}
 				lockState := e.locks.Inspect()
@@ -236,7 +236,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			attached := e.catalog.state.descriptors[child.address].(*relationDescriptor).membership != nil
+			attached := e.catalog.state.MustRelation(child.address).membership != nil
 			if attached != (end == "commit") {
 				t.Fatal("transaction end published wrong topology", attached)
 			}

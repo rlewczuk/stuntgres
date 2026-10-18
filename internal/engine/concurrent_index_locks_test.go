@@ -42,8 +42,8 @@ func TestConcurrentIndexU2OrdinaryShareThenWriterQueue(t *testing.T) {
 		t.Fatal("ordinary Share build did not precede and block later RX request")
 	}
 	e.mu.Lock()
-	namespace := e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"}]
-	_, exists := e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "ix"}]
+	namespace := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
+	_, exists := e.catalog.state.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "ix"})
 	e.mu.Unlock()
 	if exists {
 		t.Fatal("ordinary blocked build published a descriptor")

@@ -41,10 +41,10 @@ type operatorProvider struct{}
 func (operatorProvider) ClassID() ids.OID { return ids.OperatorClassID }
 func (operatorProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	d, ok := descriptor.(*operatorDescriptor)
-	if !ok || d.address.ClassID != ids.OperatorClassID || d.address.ObjectID == 0 || d.address.SubID != 0 || d.revision == 0 || d.name == "" || v.state.names[descriptorNameKey(d)] != d.address {
+	if !ok || d.address.ClassID != ids.OperatorClassID || d.address.ObjectID == 0 || d.address.SubID != 0 || d.revision == 0 || d.name == "" || v.NameAddress(descriptorNameKey(d)) != d.address {
 		return fmt.Errorf("stuntgres: invalid operator descriptor")
 	}
-	if _, ok := v.state.descriptors[d.namespace].(*namespaceDescriptor); !ok {
+	if _, ok := v.Namespace(d.namespace); !ok {
 		return fmt.Errorf("stuntgres: invalid operator namespace")
 	}
 	for _, id := range []ids.OID{d.left, d.right} {
@@ -75,7 +75,7 @@ func (operatorProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	}
 	if d.function != 0 {
 		if !seeded {
-			procedure, ok := v.state.descriptors[ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: d.function}].(*procedureDescriptor)
+			procedure, ok := v.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: d.function})
 			if !ok {
 				return fmt.Errorf("stuntgres: invalid operator implementation")
 			}
@@ -96,7 +96,7 @@ func (operatorProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 			if id == 0 {
 				continue
 			}
-			peer, ok := v.state.descriptors[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}].(*operatorDescriptor)
+			peer, ok := v.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
 			left, right := d.right, d.left
 			if i == 1 {
 				left, right = d.left, d.right
@@ -120,7 +120,7 @@ func (e *Engine) initializeOperators() {
 		e.catalog.state.names[descriptorNameKey(d)] = d.address
 	}
 	for _, row := range supportedOperatorMetadata {
-		d := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid}].(*operatorDescriptor)
+		d := e.catalog.state.MustOperator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid})
 		d.result, d.function = ids.OID(row.result), ids.OID(row.procedure)
 		d.commutator, d.negator = ids.OID(row.commutator), ids.OID(row.negator)
 		d.restriction, d.join = ids.OID(row.restriction), ids.OID(row.join)

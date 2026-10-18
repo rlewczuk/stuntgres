@@ -46,7 +46,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			if carrier.ResultUsage().Type.ID() != sqltype.Numeric || carrier.ResultUsage() != carrier.ResultUsage().Type.Usage() || carrier.Properties().Volatility != Immutable {
 				t.Fatal("unconstrained immutable NUMERIC result", carrier)
 			}
-			owned, ok := evaluation.catalog.state.descriptors[address].(*procedureDescriptor)
+			owned, ok := evaluation.catalog.Procedure(address)
 			if !ok || owned != captured {
 				t.Fatal("call did not capture original owned descriptor")
 			}

@@ -19,7 +19,7 @@ func TestRoleOwnershipDatabaseRestoreRoleGraph(t *testing.T) {
 	setFixtureEdges(graph, append(fixtureEdges(graph)[1:], authorization.Membership{Role: source.Ref, Member: member.Ref, Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Admin: true, Inherit: false, Set: true}))
 	e.roles = graph
 	current := cloneCatalog(e.catalog.state)
-	database := *current.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	database := *current.MustDatabase(currentDatabaseAddress)
 	database.owner = source.Ref
 	database.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: source.Ref, Grantee: authorization.ACLGrantee{Role: member.Ref}, Privileges: authorization.CreatePrivilege, GrantOptions: authorization.CreatePrivilege}, {Grantor: member.Ref, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.CreatePrivilege}}}
 	current.descriptors[currentDatabaseAddress] = &database
@@ -38,7 +38,7 @@ func TestRoleOwnershipDatabaseRestoreRoleGraph(t *testing.T) {
 			t.Fatal("restore membership provenance/options", fixtureEdges(stage.roles)[i], expected)
 		}
 	}
-	imported := stage.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	imported := stage.catalog.state.MustDatabase(currentDatabaseAddress)
 	if imported.owner != (stage.authorizationDomain.Principal(source.Ref.ID())) || imported.acl.Explicit != database.acl.Explicit || len(imported.acl.Entries) != len(entries) {
 		t.Fatal("restore isolated database authority")
 	}

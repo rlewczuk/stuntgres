@@ -288,7 +288,7 @@ func TestQueryTableCreateStructuralDescriptorAdmission(t *testing.T) {
 			stage, _, skipped, err = e.prepareQueryTableLocked(op, auth, syntax, binding{query: &BoundQuery{Root: project}})
 		}
 		e.mu.Unlock()
-		if err != nil || stage != nil || !skipped || calls != 0 || e.CatalogRead().state.descriptors[d.address] != d {
+		if err != nil || stage != nil || !skipped || calls != 0 || e.CatalogRead().Get(d.address) != d {
 			done()
 			t.Fatal("existing-target skip reached structural validator/runtime", noData, stage, skipped, err, calls)
 		}

@@ -20,11 +20,11 @@ func pgTypeAdmitted(catalog CatalogRead, d *typeDescriptor) bool {
 		return false
 	}
 	if d.typ.IsArray() {
-		element, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.typ.Element().ID())}].(*typeDescriptor)
+		element, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.typ.Element().ID())})
 		return ok && element.typ == d.typ.Element() && element.array == d.typ.ID() && pgTypeAdmitted(catalog, element)
 	}
 	if d.owningRelation != (ids.ObjectAddress{}) {
-		r, ok := catalog.state.descriptors[d.owningRelation].(*relationDescriptor)
+		r, ok := catalog.Relation(d.owningRelation)
 		return ok && r.rowType == d.typ.ID()
 	}
 	_, ok := d.typ.PGTypeMetadata()
@@ -33,7 +33,7 @@ func pgTypeAdmitted(catalog CatalogRead, d *typeDescriptor) bool {
 
 func pgTypeFacts(catalog CatalogRead, d *typeDescriptor) (sqltype.PGTypeMetadata, error) {
 	if d.typ.IsArray() {
-		element, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.typ.Element().ID())}].(*typeDescriptor)
+		element, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.typ.Element().ID())})
 		if !ok || element.typ != d.typ.Element() || element.array != d.typ.ID() {
 			return sqltype.PGTypeMetadata{}, fmt.Errorf("stuntgres: foreign type array authority")
 		}
@@ -45,7 +45,7 @@ func pgTypeFacts(catalog CatalogRead, d *typeDescriptor) (sqltype.PGTypeMetadata
 	}
 	if d.typ.IsDomain() && d.typ.Concrete() {
 		usage := d.typ.DomainBase()
-		base, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())}].(*typeDescriptor)
+		base, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
 		if !ok || base.typ != usage.Type {
 			return sqltype.PGTypeMetadata{}, fmt.Errorf("stuntgres: foreign domain base authority")
 		}
@@ -56,7 +56,7 @@ func pgTypeFacts(catalog CatalogRead, d *typeDescriptor) (sqltype.PGTypeMetadata
 		return d.typ.PGTypeDomainMetadata(fact), nil
 	}
 	if d.owningRelation != (ids.ObjectAddress{}) {
-		relation, ok := catalog.state.descriptors[d.owningRelation].(*relationDescriptor)
+		relation, ok := catalog.Relation(d.owningRelation)
 		if !ok || relation.rowType != d.typ.ID() {
 			return sqltype.PGTypeMetadata{}, fmt.Errorf("stuntgres: foreign row type authority")
 		}
@@ -67,7 +67,7 @@ func pgTypeFacts(catalog CatalogRead, d *typeDescriptor) (sqltype.PGTypeMetadata
 		return f, fmt.Errorf("stuntgres: missing admitted type metadata")
 	}
 	if d.typ.IsQueryInt() {
-		ext, ok := catalog.state.descriptors[d.extension].(*extensionDescriptor)
+		ext, ok := catalog.Extension(d.extension)
 		if !ok || len(ext.members) != 3 {
 			return f, fmt.Errorf("stuntgres: missing installed type routines")
 		}
@@ -92,7 +92,7 @@ func (e *Engine) capturePGType(ctx context.Context, catalog CatalogRead, roles a
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner != e.catalog.owner() || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgTypeOID}) || source.relationKind != catalogRelation || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() || ref.Address != source.address || catalog.state.descriptors[source.address] != source {
+	if catalog.owner != e.catalog.owner() || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgTypeOID}) || source.relationKind != catalogRelation || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() || ref.Address != source.address || catalog.Get(source.address) != source {
 		return nil, fmt.Errorf("stuntgres: foreign type source authority")
 	}
 	if len(source.columns) != len(pgTypeColumnIDs) {
@@ -104,12 +104,12 @@ func (e *Engine) capturePGType(ctx context.Context, catalog CatalogRead, roles a
 			return nil, fmt.Errorf("stuntgres: foreign type source type")
 		}
 	}
-	database, ok := catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	database, ok := catalog.Database(currentDatabaseAddress)
 	if !ok || database == nil || !roles.BelongsTo(&e.authorizationDomain) || roles.DatabaseOwner() != database.owner {
 		return nil, fmt.Errorf("stuntgres: foreign type owner authority")
 	}
 	count := 0
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -120,7 +120,7 @@ func (e *Engine) capturePGType(ctx context.Context, catalog CatalogRead, roles a
 	rows := make([][]sqltype.Value, count)
 	values := make([]sqltype.Value, count*len(pgTypeColumnIDs))
 	next := 0
-	for address, descriptor := range catalog.state.descriptors {
+	for address, descriptor := range catalog.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}

@@ -140,7 +140,7 @@ func TestRuleNamedConstraintRetirement(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						current := e.stageRead(stage).state.descriptors[event.address].(*relationDescriptor)
+						current := e.stageRead(stage).MustRelation(event.address)
 						rules := len(current.rules)
 						want := 1
 						if inferred {
@@ -231,7 +231,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			e.mu.Lock()
 			err := e.remapDefinitionOIDsLocked(unchanged)
 			e.mu.Unlock()
-			if err != nil || unchanged.descriptors[event.address] != event || unchanged.descriptors[parent.address] != parent {
+			if err != nil || unchanged.Get(event.address) != event || unchanged.Get(parent.address) != parent {
 				t.Fatal("no-collision import copied unchanged rule/provider owners", err)
 			}
 			if allocations := testing.AllocsPerRun(10, func() {
@@ -257,12 +257,12 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 				t.Fatal(err)
 			}
 			view := e.catalog.read(next)
-			mappedParent := next.descriptors[parent.address].(*relationDescriptor)
+			mappedParent := next.MustRelation(parent.address)
 			provider := ids.ObjectAddress{ClassID: 2606, ObjectID: mappedParent.uniqueConstraints[0].OID}
 			if provider == oldConstraint {
 				t.Fatal("actual import collision did not remint constraint")
 			}
-			mappedEvent := next.descriptors[event.address].(*relationDescriptor)
+			mappedEvent := next.MustRelation(event.address)
 			mappedRule, mappedConflict := ruleNamedDependencyAction(t, mappedEvent, modifier)
 			if mappedConflict.constraint != provider || mappedConflict.namedIndex != mappedParent.uniqueConstraints[0].Index || !slices.Contains(mappedRule.references, provider) || slices.Contains(mappedRule.references, oldConstraint) {
 				t.Fatal("canonical import failed constraint/binding/normal-edge cutover", mappedConflict.constraint, mappedRule.references)

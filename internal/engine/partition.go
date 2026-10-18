@@ -96,7 +96,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 		}
 		seen := make(map[ids.ObjectAddress]bool, len(p.children))
 		for i, a := range p.children {
-			child, ok := catalog.state.descriptors[a].(*relationDescriptor)
+			child, ok := catalog.Relation(a)
 			if !ok || seen[a] || child.membership == nil || child.membership.parent != d.address {
 				return invalid()
 			}
@@ -109,7 +109,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 					return invalid()
 				}
 				for _, earlier := range p.children[:i] {
-					previous := catalog.state.descriptors[earlier].(*relationDescriptor).membership
+					previous := catalog.MustRelation(earlier).membership
 					small, large := previous, child.membership
 					if small.modulus > large.modulus {
 						small, large = large, small
@@ -128,7 +128,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 					return invalid()
 				}
 				for _, earlier := range p.children[:i] {
-					previous := catalog.state.descriptors[earlier].(*relationDescriptor).membership
+					previous := catalog.MustRelation(earlier).membership
 					if previous.defaultBound {
 						continue
 					}
@@ -154,12 +154,12 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 		}
 	}
 	if membership := d.membership; membership != nil {
-		parent, ok := catalog.state.descriptors[membership.parent].(*relationDescriptor)
+		parent, ok := catalog.Relation(membership.parent)
 		if !ok || parent.partition == nil || !slices.Contains(parent.partition.children, d.address) || len(parent.columns) != len(d.columns) {
 			return invalid()
 		}
-		parentNamespace, parentExists := catalog.state.descriptors[parent.namespace].(*namespaceDescriptor)
-		childNamespace, childExists := catalog.state.descriptors[d.namespace].(*namespaceDescriptor)
+		parentNamespace, parentExists := catalog.Namespace(parent.namespace)
+		childNamespace, childExists := catalog.Namespace(d.namespace)
 		if !parentExists || !childExists || parentNamespace.temporary != childNamespace.temporary {
 			return invalid()
 		}
@@ -211,7 +211,7 @@ func validatePartitionDescriptor(catalog CatalogRead, d *relationDescriptor) err
 			if ancestor.membership == nil {
 				break
 			}
-			ancestor, ok = catalog.state.descriptors[ancestor.membership.parent].(*relationDescriptor)
+			ancestor, ok = catalog.Relation(ancestor.membership.parent)
 			if !ok {
 				return invalid()
 			}
@@ -313,7 +313,7 @@ func partitionAccepts(catalog CatalogRead, parent *relationDescriptor, child *re
 		return partitionContains(evaluation.Context, parent.partition.keys, child.membership, key, evaluation.Input)
 	}
 	for _, a := range parent.partition.children {
-		sibling := catalog.state.descriptors[a].(*relationDescriptor)
+		sibling := catalog.MustRelation(a)
 		if sibling.membership.defaultBound {
 			continue
 		}
@@ -330,7 +330,7 @@ func partitionPhysicalDescendants(catalog CatalogRead, d *relationDescriptor, vi
 		return visit(d)
 	}
 	for _, a := range d.partition.children {
-		child, ok := catalog.state.descriptors[a].(*relationDescriptor)
+		child, ok := catalog.Relation(a)
 		if !ok {
 			return ErrCatalogReplaced
 		}

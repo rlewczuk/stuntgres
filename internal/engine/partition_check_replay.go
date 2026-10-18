@@ -32,7 +32,7 @@ func (e *Engine) beginPartitionCheckReplay(op *Operation, raw *parser.AlterTable
 	if err != nil {
 		return err
 	}
-	d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	d, ok := auth.catalog.Relation(ref.Address)
 	if !ok {
 		return ErrCatalogReplaced
 	}
@@ -67,5 +67,5 @@ func partitionConstraintReplayImport(e *Engine, op *Operation, auth Authorizatio
 }
 
 func partitionCheckReplayAllowed(op *Operation, auth AuthorizationView, raw *parser.AlterTable, d *relationDescriptor) bool {
-	return op != nil && op.restorePartitionCheck == d && d != nil && d.relationKind == tableRelation && d.partition == nil && d.membership != nil && d.inheritance == nil && auth.catalog.state.descriptors[d.address] == d && partitionCheckReplayActions(raw) && partitionConstraintReplayImport(auth.engine, op, auth)
+	return op != nil && op.restorePartitionCheck == d && d != nil && d.relationKind == tableRelation && d.partition == nil && d.membership != nil && d.inheritance == nil && auth.catalog.Get(d.address) == d && partitionCheckReplayActions(raw) && partitionConstraintReplayImport(auth.engine, op, auth)
 }

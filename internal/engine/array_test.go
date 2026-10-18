@@ -18,7 +18,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	view := e.CatalogRead()
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		if typ, ok := descriptor.(*typeDescriptor); ok {
 			if err := (typeProvider{}).Validate(view, typ); err != nil {
 				t.Fatal(err)
@@ -38,7 +38,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	if !ok || array.Name() != "_collision_1" || array.DatabaseName() != "_COLLISION_1" || array.Element() != domain.typ || array.ID() == domain.typ.ID() {
 		t.Fatal("collision association", array)
 	}
-	associated := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())}].(*typeDescriptor)
+	associated := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())})
 	if associated.owner != domain.owner || associated.Namespace() != domain.Namespace() || associated.Revision() != domain.Revision() {
 		t.Fatal("association ownership", associated, domain)
 	}
@@ -147,7 +147,7 @@ func TestArrayDomainDependencyClosureAndLifetime(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := e.CatalogRead()
-	survivor := next.state.descriptors[table.address].(*relationDescriptor)
+	survivor := next.MustRelation(table.address)
 	if len(survivor.columns) != 2 || survivor.columns[0].Name != "keep" || survivor.columns[1].Name != "tail" || survivor.attributes[0] != table.attributes[0] || survivor.attributes[1] != table.attributes[2] {
 		t.Fatal("containing table/stable attributes lost", survivor)
 	}
@@ -215,8 +215,8 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	regclassAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}
 	// Replace only the builtin scalar generation, retaining this catalog's
 	// principal authority; a foreign descriptor would invalidate its array owner.
-	reboundRegclass := *next.descriptors[regclassAddress].(*typeDescriptor)
-	reboundRegclass.typ = fresh.catalog.state.descriptors[regclassAddress].(*typeDescriptor).typ
+	reboundRegclass := *next.MustType(regclassAddress)
+	reboundRegclass.typ = fresh.catalog.state.MustType(regclassAddress).typ
 	next.descriptors[regclassAddress] = &reboundRegclass
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{referent.address: {ClassID: ids.RelationClassID, ObjectID: 60021}}
 	for i, typ := range []*sqltype.Descriptor{rc.typ, rcArray, whole.typ, wholeArray, nested.typ, nestedArray} {
@@ -230,7 +230,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	imported := storage[table.address].versions[0].values[0]
-	expected := next.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(nestedArray.ID())}].(*typeDescriptor).typ
+	expected := next.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(nestedArray.ID())}).typ
 	if imported.Type() != expected || imported.ArrayElement(0).Type().ID() != 60005 || imported.ArrayElement(1).Type().ID() != 60005 || imported.ArrayElement(0).ArrayElement(0).Type().ID() != 60003 || imported.ArrayElement(0).ArrayElement(0).ArrayElement(0).Type().ID() != 60001 {
 		t.Fatal("nested element generations", imported)
 	}
@@ -245,9 +245,9 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	if storage[table.address] == original || original.versions[0].values[0].Type() != nestedArray || table.columns[0].Usage.Type != nestedArray || value.ArrayElement(0).ArrayElement(0).ArrayElement(0).Type() != rc.typ {
 		t.Fatal("source payload/provider mutated")
 	}
-	descriptors := make(map[ids.ObjectAddress]Descriptor, len(next.descriptors))
-	names := make(map[ids.NameKey]ids.ObjectAddress, len(next.names))
-	for address, descriptor := range next.descriptors {
+	descriptors := make(map[ids.ObjectAddress]Descriptor, next.DescriptorCount())
+	names := make(map[ids.NameKey]ids.ObjectAddress, next.NameCount())
+	for address, descriptor := range next.Descriptors() {
 		target := address
 		if mapped, ok := mapping[address]; ok {
 			target = mapped
@@ -266,7 +266,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	}
 	next.descriptors, next.names = descriptors, names
 	view := e.catalog.read(next)
-	for _, descriptor := range next.descriptors {
+	for _, descriptor := range next.Descriptors() {
 		if typ, ok := descriptor.(*typeDescriptor); ok {
 			if err := (typeProvider{}).Validate(view, typ); err != nil {
 				t.Fatal(err)
@@ -280,7 +280,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 			t.Fatal("reminted reverse association", id, array)
 		}
 	}
-	rows := newFinalRows(next.descriptors[table.address].(*relationDescriptor).columns, 1)
+	rows := newFinalRows(next.MustRelation(table.address).columns, 1)
 	defer rows.Close()
 	if err := captureRegclassOutputValue(rows, view, nil, imported); err != nil {
 		t.Fatal(err)
@@ -391,7 +391,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	replacement.commitSeq = 1
 	replacement.mu.Unlock()
 	importedTypes := make(map[ids.ObjectAddress]*typeDescriptor)
-	for address, descriptor := range replacement.CatalogRead().state.descriptors {
+	for address, descriptor := range replacement.CatalogRead().Descriptors() {
 		if typ, ok := descriptor.(*typeDescriptor); ok && typ.typ.NamespaceName() != "" && typ.owningRelation == (ids.ObjectAddress{}) {
 			importedTypes[address] = typ
 		}
@@ -400,7 +400,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 		t.Fatal(err)
 	}
 	current := e.CatalogRead()
-	if current.state.descriptors[table.address] != table || e.storage[table.address] != store || held.Schema()[0].Usage.Type != integer {
+	if current.Get(table.address) != table || e.storage[table.address] != store || held.Schema()[0].Usage.Type != integer {
 		t.Fatal("retained TEMP identity changed")
 	}
 	if row := store.versions[0]; row.row != 42 || row.version != 99 || row.born != 1 || store.generation != 3 {
@@ -414,13 +414,13 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 			t.Fatal("retained builtin closure", typ)
 		}
 	}
-	for _, descriptor := range current.state.descriptors {
+	for _, descriptor := range current.Descriptors() {
 		if err := e.catalog.providers[descriptor.Address().ClassID].Validate(current, descriptor); err != nil {
 			t.Fatal("invalid retained provider", descriptor.Address(), descriptor.Name(), err)
 		}
 	}
 	for address, source := range importedTypes {
-		actual := current.state.descriptors[address].(*typeDescriptor)
+		actual := current.MustType(address)
 		if actual.Namespace() != source.Namespace() || actual.comment != source.comment || !reflect.DeepEqual(actual.acl, source.acl) {
 			t.Fatal("imported type catalog ownership changed", address)
 		}
@@ -438,7 +438,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 				t.Fatal("seeded domain closure/admission changed", address)
 			}
 		}
-		if replacement.CatalogRead().state.descriptors[address] != source {
+		if replacement.CatalogRead().Get(address) != source {
 			t.Fatal("source type catalog mutated", address)
 		}
 	}
@@ -446,7 +446,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	if len(importedAddresses) != 1 {
 		t.Fatal("missing imported persistent table", importedAddresses)
 	}
-	imported := current.state.descriptors[importedAddresses[0]].(*relationDescriptor)
+	imported := current.MustRelation(importedAddresses[0])
 	importedStore := e.storage[imported.address]
 	if importedStore == nil || len(importedStore.versions) != 1 {
 		t.Fatal("missing imported persistent storage", importedStore)
@@ -509,7 +509,7 @@ func TestArrayRetainedTemporaryDomainBoundaryComponent(t *testing.T) {
 		if err == nil || errors.As(err, &diagnostic) || err.Error() != "stuntgres: catalog replacement with incompatible live temporary user-domain array dependencies is unsupported" {
 			t.Fatal("ordinary boundary", err)
 		}
-		if e.CatalogRead().state != before.state || e.storage[table.address] != oldStore || e.catalog.nextOID != frontier || e.catalog.nextRevision != revision || before.state.descriptors[table.address] != table || held.Schema()[0].Usage.Type != typ {
+		if e.CatalogRead().state != before.state || e.storage[table.address] != oldStore || e.catalog.nextOID != frontier || e.catalog.nextRevision != revision || before.Get(table.address) != table || held.Schema()[0].Usage.Type != typ {
 			t.Fatal("rejected replacement changed target state")
 		}
 		domain, _ := before.LookupType(typ.Element().ID())

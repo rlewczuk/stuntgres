@@ -9,7 +9,7 @@ import (
 
 func collationName(view CatalogRead, id uint32) string {
 	if view.state != nil {
-		if d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)}].(*collationDescriptor); ok {
+		if d, ok := view.Collation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)}); ok {
 			return d.name
 		}
 	}
@@ -23,8 +23,8 @@ func collationName(view CatalogRead, id uint32) string {
 
 func collationSQLName(view CatalogRead, id uint32) string {
 	if view.state != nil {
-		if d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)}].(*collationDescriptor); ok {
-			return quoteIdentifier(view.state.descriptors[d.Namespace()].Name()) + "." + quoteIdentifier(d.name)
+		if d, ok := view.Collation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)}); ok {
+			return quoteIdentifier(view.Get(d.Namespace()).Name()) + "." + quoteIdentifier(d.name)
 		}
 	}
 	if name := collationName(view, id); name != "" {

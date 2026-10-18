@@ -539,7 +539,7 @@ func TestPartialIndexPredicateReplacement(t *testing.T) {
 	if err := target.remapCatalogExpressions(next, nil); err != nil {
 		t.Fatal(err)
 	}
-	remapped := next.descriptors[f.index.address].(*relationDescriptor).sqlIndex.predicate
+	remapped := next.MustRelation(f.index.address).sqlIndex.predicate
 	if remapped == f.index.sqlIndex.predicate {
 		t.Fatal("replacement reused source predicate")
 	}

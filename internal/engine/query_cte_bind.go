@@ -235,7 +235,7 @@ func cteStoredViewVolatile(catalog CatalogRead, root LogicalNode) (bool, error) 
 	var sourceErr error
 	visitCTEQuery(root, func(node LogicalNode) {
 		if source, ok := node.(*sourceNode); ok {
-			relation, _ := catalog.state.descriptors[source.ref.Address].(*relationDescriptor)
+			relation, _ := catalog.Relation(source.ref.Address)
 			if relation == nil {
 				sourceErr = ErrCatalogReplaced
 			} else if relation.relationKind == viewRelation {
@@ -268,7 +268,7 @@ func cteStoredViewVolatile(catalog CatalogRead, root LogicalNode) (bool, error) 
 			if volatile {
 				break
 			}
-			child := catalog.state.descriptors[source.ref.Address].(*relationDescriptor)
+			child := catalog.MustRelation(source.ref.Address)
 			volatile = visit(child) || volatile
 		}
 		memo[relation.address] = volatile

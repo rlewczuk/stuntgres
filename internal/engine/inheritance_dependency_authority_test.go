@@ -143,7 +143,7 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 							t.Fatal("dependent definition was not consumed")
 						}
 					}
-					if e.catalog.state != base.state || e.catalog.state.descriptors[p.address] != p || len(p.columns) != 2 || c.inheritance.parents[0] != p.address {
+					if e.catalog.state != base.state || e.catalog.state.Get(p.address) != p || len(p.columns) != 2 || c.inheritance.parents[0] != p.address {
 						t.Fatal("source authority changed")
 					}
 				})
@@ -208,7 +208,7 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 			if len(next.defaults) != 0 || len(next.checkConstraints) != 0 || inheritanceStageAlterGuard(stage, next) != nil {
 				t.Fatal("retained parent did not become standalone with consumed definition")
 			}
-			if e.catalog.state != base.state || e.catalog.state.descriptors[q.address] != q || e.catalog.state.descriptors[p.address] != p || e.catalog.state.descriptors[c.address] != c || len(c.inheritance.parents) != 2 || c.inheritance.parents[0] != q.address || c.inheritance.parents[1] != p.address {
+			if e.catalog.state != base.state || e.catalog.state.Get(q.address) != q || e.catalog.state.Get(p.address) != p || e.catalog.state.Get(c.address) != c || len(c.inheritance.parents) != 2 || c.inheritance.parents[0] != q.address || c.inheritance.parents[1] != p.address {
 				t.Fatal("source or captured inheritance authority changed")
 			}
 			if definition == "default" {

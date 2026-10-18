@@ -51,7 +51,7 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 	e := New()
 	old := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, old, "unit_u", "i", "")
-	old = e.catalog.state.descriptors[old.address].(*relationDescriptor)
+	old = e.catalog.state.MustRelation(old.address)
 	old = concurrentUnitReplace(t, e, old, refreshUnitRows(t, old, 1), false, true)
 	catalog := e.CatalogRead()
 	storage := e.storage[old.address]

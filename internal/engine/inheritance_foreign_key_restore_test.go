@@ -77,8 +77,8 @@ func TestInheritanceForeignKeyForwardReplay(t *testing.T) {
 					t.Fatal(got)
 				}
 				view := e.CatalogRead()
-				parent := view.state.descriptors[roleTableRef(t, e, "p").Address].(*relationDescriptor)
-				child := view.state.descriptors[roleTableRef(t, e, "c").Address].(*relationDescriptor)
+				parent := view.MustRelation(roleTableRef(t, e, "p").Address)
+				child := view.MustRelation(roleTableRef(t, e, "c").Address)
 				var forward *foreignKeyConstraint
 				for i := range parent.foreignKeys {
 					if parent.foreignKeys[i].Name == "forward_fk" {

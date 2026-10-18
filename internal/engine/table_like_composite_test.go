@@ -17,9 +17,9 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 	run(t, e, "CREATE SCHEMA private_composite")
 	run(t, e, "CREATE TYPE private_composite.source_type AS (a INT)")
 	sourceRef := roleTableRef(t, e, "source_type")
-	source := e.CatalogRead().state.descriptors[sourceRef.Address].(*relationDescriptor)
+	source := e.CatalogRead().MustRelation(sourceRef.Address)
 	typeRef := e.catalog.domain.Ref(e.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.rowType)})
-	sourceType := e.CatalogRead().state.descriptors[typeRef.Address].(*typeDescriptor)
+	sourceType := e.CatalogRead().MustType(typeRef.Address)
 	if sourceType.owningRelation != source.address {
 		t.Fatal("composite fixture lacks reciprocal type authority")
 	}
@@ -34,7 +34,7 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 		// Type ACL fixtures use the existing immutable descriptor publication
 		// seam, as domain/enum authorization tests do; no public setter expands.
 		current := e.CatalogRead()
-		replacement := *current.state.descriptors[typeRef.Address].(*typeDescriptor)
+		replacement := *current.MustType(typeRef.Address)
 		replacement.acl = acl
 		replacement.aclSyntheticDefault = false
 		replacement.revision++
@@ -75,8 +75,8 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 		t.Fatal(err)
 	}
 	setTypeACL(grant(authorization.UsagePrivilege))
-	source = e.CatalogRead().state.descriptors[sourceRef.Address].(*relationDescriptor)
-	sourceType = e.CatalogRead().state.descriptors[typeRef.Address].(*typeDescriptor)
+	source = e.CatalogRead().MustRelation(sourceRef.Address)
+	sourceType = e.CatalogRead().MustType(typeRef.Address)
 	stage, destination, err := tableLikeBuild(t, e, op, "CREATE TABLE clone(LIKE source_type INCLUDING ALL)")
 	if err != nil {
 		e.DiscardCatalogStage(stage)
@@ -109,7 +109,7 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 		t.Fatal(err)
 	}
 	setTypeACL(denied)
-	if e.CatalogRead().state.descriptors[source.address] != source {
+	if e.CatalogRead().Get(source.address) != source {
 		t.Fatal("type-only replacement changed backing source fixture")
 	}
 	_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.base.Epoch()})
@@ -117,7 +117,7 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 	if !errors.As(err, &conflict) {
 		t.Fatal("changed reciprocal type authority was not fenced", err)
 	}
-	if e.CatalogRead().state.descriptors[destination.address] != nil || e.storage[destination.address] != nil {
+	if e.CatalogRead().Get(destination.address) != nil || e.storage[destination.address] != nil {
 		t.Fatal("type-incarnation conflict published destination fragments")
 	}
 }

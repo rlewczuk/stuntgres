@@ -194,10 +194,10 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		capture := func(a ids.ObjectAddress, rows []rowVersion, deletion *privateDeletionRoot) error {
 			original := e.storage[a]
 			store := e.privateStorageLocked(c, a)
-			originalRelation, live := e.catalog.state.descriptors[a].(*relationDescriptor)
+			originalRelation, live := e.catalog.state.Relation(a)
 			relation := originalRelation
 			if c != nil {
-				relation, live = nextCatalog.descriptors[a].(*relationDescriptor)
+				relation, live = nextCatalog.Relation(a)
 			}
 			if store == nil || !live || a.SubID != 0 {
 				return ErrCatalogReplaced
@@ -255,20 +255,20 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 					delete(nextSequences, a)
 					delete(nextStorage, a)
 				}
-				if a.ClassID == ids.NamespaceClassID && current.descriptors[a] != d {
+				if a.ClassID == ids.NamespaceClassID && current.Get(a) != d {
 					detached := *nextCatalog
 					nextCatalog = &detached
 				}
 			}
 			if materialize {
 				for a, g := range c.generators {
-					if nextCatalog.descriptors[a] != nil {
+					if nextCatalog.Get(a) != nil {
 						nextSequences[a] = g
 					}
 				}
 			}
 			for a, d := range c.descriptors {
-				if a.ClassID == ids.NamespaceClassID && current.descriptors[a] != d {
+				if a.ClassID == ids.NamespaceClassID && current.Get(a) != d {
 					if err := nextCatalog.advanceNamespaceGeneration(); err != nil {
 						return err
 					}
@@ -340,9 +340,9 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 					changed = true
 					break
 				}
-				current, ok := e.catalog.state.descriptors[p.address].(*relationDescriptor)
+				current, ok := e.catalog.state.Relation(p.address)
 				if p.originalRelation == nil {
-					if e.catalog.state.descriptors[p.address] != nil {
+					if e.catalog.state.Get(p.address) != nil {
 						err = ErrCatalogReplaced
 						break
 					}

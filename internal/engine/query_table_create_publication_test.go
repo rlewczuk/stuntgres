@@ -32,7 +32,7 @@ func queryCreateStage(t *testing.T, e *Engine, name string, width int) (*Catalog
 
 func queryCreateTypes(e *Engine) map[ids.ObjectAddress]Descriptor {
 	types := make(map[ids.ObjectAddress]Descriptor)
-	for address, descriptor := range e.CatalogRead().state.descriptors {
+	for address, descriptor := range e.CatalogRead().Descriptors() {
 		if address.ClassID == ids.TypeClassID {
 			types[address] = descriptor
 		}
@@ -238,7 +238,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 					stage.roleRevision++
 				}
 			case "source_definition":
-				original := e.CatalogRead().state.descriptors[d.namespace]
+				original := e.CatalogRead().Get(d.namespace)
 				stage.querySources = []Descriptor{original}
 				next := *original.(*namespaceDescriptor)
 				next.revision++

@@ -63,8 +63,8 @@ func TestCommentMixedOwnerRoundtrip(t *testing.T) {
 				schemaRole, _ := e.Roles().Lookup("schema_owner")
 				ns := schemaRef(t, e, "s")
 				ref := roleTableRef(t, e, "s.t")
-				nsDesc := e.CatalogRead().state.descriptors[ns.Address].(*namespaceDescriptor)
-				tableDesc := e.CatalogRead().state.descriptors[ref.Address].(*relationDescriptor)
+				nsDesc := e.CatalogRead().MustNamespace(ns.Address)
+				tableDesc := e.CatalogRead().MustRelation(ref.Address)
 				if nsDesc.owner != schemaRole.Ref || tableDesc.owner != tableRole.Ref || nsDesc.acl.Explicit || tableDesc.acl.Explicit {
 					t.Fatal("restore changed independent owners or synthesized grants")
 				}
@@ -162,7 +162,7 @@ func TestCommentPublishingWaiters(t *testing.T) {
 			second := sessionStart(t, e, nil)
 			sessionSQL(t, holder, "CREATE TABLE t(a INT,b INT)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			original := e.CatalogRead().state.descriptors[ref.Address].(*relationDescriptor)
+			original := e.CatalogRead().MustRelation(ref.Address)
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 			firstDone := lockAsync(e, first, context.Background(), tc.first, false)
@@ -177,7 +177,7 @@ func TestCommentPublishingWaiters(t *testing.T) {
 			commentWant(t, e, e.CatalogRead(), ref, tc.a)
 			ref.Address.SubID = 2
 			commentWant(t, e, e.CatalogRead(), ref, tc.b)
-			current := e.CatalogRead().state.descriptors[original.address].(*relationDescriptor)
+			current := e.CatalogRead().MustRelation(original.address)
 			if current.owner != original.owner || !reflect.DeepEqual(current.attributes, original.attributes) || current.address != original.address {
 				t.Fatal("serialized comments changed object authority/column identities")
 			}

@@ -359,7 +359,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			err = auth.CheckCreate(ns)
 			if err == nil {
 				s.viewCreationNamespace = ns
-				address := auth.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}]
+				address := auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text})
 				if address != (ids.ObjectAddress{}) {
 					ref = e.catalog.domain.Ref(auth.catalog.Epoch(), address)
 				}
@@ -385,7 +385,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			if ref.Domain() != nil {
 				err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 				if err == nil {
-					d := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+					d := auth.catalog.MustRelation(ref.Address)
 					if d.relationKind != viewRelation {
 						err = sqlError("42809", fmt.Sprintf(`"%s" is not a view`, d.name))
 					}
@@ -400,23 +400,23 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			if ref.Domain() != nil {
 				err = parentAuth.Check(AccessRequirement{Object: ref, OwnerOnly: true, OwnerNoun: policyOwnerNoun(stmt)})
 				if _, altering := stmt.(*parser.AlterTable); altering && err == nil {
-					err = alterTableLookupKind(parentAuth.catalog.state.descriptors[ref.Address].(*relationDescriptor))
+					err = alterTableLookupKind(parentAuth.catalog.MustRelation(ref.Address))
 				}
 			}
 			if tableRename && ref.Domain() != nil && err == nil {
-				err = auth.CheckCreate(e.catalog.domain.Ref(ref.Epoch, auth.catalog.state.descriptors[ref.Address].Namespace()))
+				err = auth.CheckCreate(e.catalog.domain.Ref(ref.Epoch, auth.catalog.Get(ref.Address).Namespace()))
 			}
 		}
 		if err == nil && ref.Domain() != nil {
-			err = partitionConsumerBoundary(s.op, auth, stmt, auth.catalog.state.descriptors[ref.Address].(*relationDescriptor))
+			err = partitionConsumerBoundary(s.op, auth, stmt, auth.catalog.MustRelation(ref.Address))
 		}
 	}
 	var definitionStamp ids.DefinitionRevision
 	var materializedAlterAuthority *relationDescriptor
 	if err == nil && ref.Domain() != nil {
-		definitionStamp = preparedDefinitionStamp(auth.catalog.state.descriptors[ref.Address], s.op.session)
+		definitionStamp = preparedDefinitionStamp(auth.catalog.Get(ref.Address), s.op.session)
 		if utility, ok := stmt.(*parser.AlterView); ok && utility.Materialized {
-			materializedAlterAuthority = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			materializedAlterAuthority = auth.catalog.MustRelation(ref.Address)
 		}
 		_, attaching := stmt.(*parser.AlterTableAttachPartition)
 		_, detaching := stmt.(*parser.AlterTableDetachPartition)
@@ -510,7 +510,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	if ref.Domain() != nil {
 		err = s.observePartitionRelationLocked(e, ref)
 		if action, ok := stmt.(*parser.AlterTable); ok && err == nil {
-			d, exists := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
+			d, exists := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
 			partitionDrop = exists && hierarchyRelation(d) && partitionConstraintDropActions(d, action.Actions)
 		}
 	}
@@ -556,7 +556,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	descriptor, live := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
+	descriptor, live := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
 	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || txref.Epoch() != e.catalog.state.epoch || !live {
 		return ErrCatalogReplaced
 	}
@@ -612,7 +612,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			auth.catalog = e.privateCatalogLocked(s.viewChanges)
 			auth.recaptureCatalog(auth.catalog)
 		}
-		if auth.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}] != ref.Address {
+		if auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}) != ref.Address {
 			return ErrCatalogReplaced
 		}
 		if err := auth.CheckCreate(ns); err != nil {
@@ -716,7 +716,7 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 	if s.lockedRef.Domain() != e.catalog.domain || s.lockedRef.Epoch != e.catalog.state.epoch {
 		return ErrCatalogReplaced
 	}
-	current := catalog.state.descriptors[s.lockedRef.Address]
+	current := catalog.Get(s.lockedRef.Address)
 	if s.lockedIdentityOnly {
 		if _, ok := current.(*relationDescriptor); !ok {
 			return ErrCatalogReplaced
@@ -736,14 +736,14 @@ func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
 		}
 	}
 	for address, captured := range s.partitionRelations {
-		current, _ := catalog.state.descriptors[address].(*relationDescriptor)
+		current, _ := catalog.Relation(address)
 		if current != captured && !partitionAppendCompatible(captured, current) {
 			return ErrCatalogReplaced
 		}
 	}
 	if s.viewWrite != nil {
 		for _, layer := range s.viewWrite.layers {
-			current, ok := catalog.state.descriptors[layer.ref.Address].(*relationDescriptor)
+			current, ok := catalog.Relation(layer.ref.Address)
 			if !ok || current.view != layer.relation.view || !sameRelationRowShape(current, layer.relation) {
 				return ErrCatalogReplaced
 			}

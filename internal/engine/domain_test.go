@@ -50,7 +50,7 @@ func domainUnitType(t *testing.T, view CatalogRead, name string) *typeDescriptor
 	if len(addresses) != 1 {
 		t.Fatal(name, addresses)
 	}
-	return view.state.descriptors[addresses[0]].(*typeDescriptor)
+	return view.MustType(addresses[0])
 }
 func domainUnitDiagnostic(t *testing.T, err error, code, message string) {
 	t.Helper()
@@ -80,7 +80,7 @@ func TestDomainCatalogIdentityBaseAndImmutableReads(t *testing.T) {
 	if a.typ.Usage().Typmod != -1 || chain.typ.Usage().Typmod != -1 || !defaultDomainACL(a) {
 		t.Fatal("logical usage/ACL", a)
 	}
-	if len(original.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: a.Namespace(), Name: "amount"})) != 0 || len(first.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: a.Namespace(), Name: "chain"})) != 0 || first.state.descriptors[a.Address()] != a {
+	if len(original.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: a.Namespace(), Name: "amount"})) != 0 || len(first.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: a.Namespace(), Name: "chain"})) != 0 || first.Get(a.Address()) != a {
 		t.Fatal("retained catalog mutated")
 	}
 	before := e.CatalogRead().state

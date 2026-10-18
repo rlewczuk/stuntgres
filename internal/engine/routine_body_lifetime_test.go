@@ -106,8 +106,8 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 	}
 	capture := func(e *Engine) []recipe {
 		view := e.CatalogRead()
-		table := view.state.descriptors[roleTableRef(t, e, "body_defaults").Address].(*relationDescriptor)
-		stored := view.state.descriptors[roleTableRef(t, e, "body_view").Address].(*relationDescriptor)
+		table := view.MustRelation(roleTableRef(t, e, "body_defaults").Address)
+		stored := view.MustRelation(roleTableRef(t, e, "body_view").Address)
 		def := table.defaults[table.attributes[0]]
 		return []recipe{
 			{consumer: table, node: def.expression, refs: def.dependencies},
@@ -305,7 +305,7 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 			}
 			binder := newExpressionBinder(context.Background(), e, input, reader, nil)
 			binder.queryAuth, binder.ref = &auth, ref
-			binder.relation = auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			binder.relation = auth.catalog.MustRelation(ref.Address)
 			node, err := binder.bind(raw, expressionPolicy{context: projectionContext})
 			e.mu.Unlock()
 			if err != nil {

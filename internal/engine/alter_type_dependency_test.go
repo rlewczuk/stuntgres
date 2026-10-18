@@ -29,8 +29,8 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 			run(t, e, "CREATE VIEW template AS SELECT c FROM t")
 			table := roleTableRef(t, e, "t")
 			view := roleTableRef(t, e, "template")
-			old, store := e.catalog.state.descriptors[table.Address], e.storage[table.Address]
-			originalView := e.catalog.state.descriptors[view.Address].(*relationDescriptor)
+			old, store := e.catalog.state.Get(table.Address), e.storage[table.Address]
+			originalView := e.catalog.state.MustRelation(view.Address)
 			removeView := func(ref ids.ObjectRef) {
 				t.Helper()
 				stage := e.BeginCatalogStage(e.CatalogRead())
@@ -102,7 +102,7 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 			if !errors.As(err, &conflict) {
 				t.Fatal("expected dependency publication conflict", err)
 			}
-			if added == (ids.ObjectAddress{}) || e.catalog.state.descriptors[added] == nil || e.catalog.state.descriptors[table.Address] != old || e.storage[table.Address] != store {
+			if added == (ids.ObjectAddress{}) || e.catalog.state.Get(added) == nil || e.catalog.state.Get(table.Address) != old || e.storage[table.Address] != store {
 				t.Fatal("failed TYPE published a prefix", err)
 			}
 			if got := tuples(run(t, e, "SELECT * FROM late_view")); !reflect.DeepEqual(got, [][]driver.Value{{tc.value}}) {

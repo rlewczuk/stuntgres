@@ -14,7 +14,7 @@ import (
 func TestDatabaseACLBaselineTransitions(t *testing.T) {
 	e, owner, _, _, reader := ownershipUnitRoles()
 	base := e.CatalogRead()
-	db := base.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	db := base.MustDatabase(currentDatabaseAddress)
 	if db.acl.Explicit || len(db.acl.Entries) != 0 {
 		t.Fatal("initial descriptor must retain NULL ACL", db.acl)
 	}
@@ -70,7 +70,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 
 func TestDatabaseACLDelegationCancellation(t *testing.T) {
 	e, owner, source, target, _ := ownershipUnitRoles()
-	db := e.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	db := e.catalog.state.MustDatabase(currentDatabaseAddress)
 	baseline := authorization.MaterializeDatabaseACL(db.acl, db.owner)
 	roles := e.roleRead(e.CatalogRead(), e.roles)
 	delegated, _, err := authorization.ChangeObjectACL(context.Background(), roles, baseline, owner, owner, []authorization.ACLGrantee{{Role: source}}, authorization.DatabasePrivileges, true, false, false, false)
@@ -114,7 +114,7 @@ func TestDatabaseTemporaryCapturedRights(t *testing.T) {
 		t.Fatal("PUBLIC TEMP baseline", rights, err)
 	}
 	candidate := cloneCatalog(base.state)
-	next := *candidate.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	next := *candidate.MustDatabase(currentDatabaseAddress)
 	next.acl = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.DatabasePrivileges}}}
 	candidate.descriptors[currentDatabaseAddress] = &next
 	fresh := catalogAuthorization(e, e.catalog.read(candidate))

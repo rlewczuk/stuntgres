@@ -146,7 +146,7 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 		}
 	}
 	view := e.stageRead(stage)
-	current := view.state.descriptors[child.address].(*relationDescriptor)
+	current := view.MustRelation(child.address)
 	if len(current.checkConstraints) != 1 || current.checkConstraints[0].Name != "keep_check" || len(child.checkConstraints) != 2 {
 		t.Fatal("pruning authority lost")
 	}

@@ -200,7 +200,7 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 	if err := e.importMaterializedSnapshots(context.Background(), op, []materializedSnapshot{record}); err != nil {
 		t.Fatal(err)
 	}
-	current := e.catalog.state.descriptors[d.address].(*relationDescriptor)
+	current := e.catalog.state.MustRelation(d.address)
 	stored := e.storage[d.address].versions
 	if current == d || !current.populated || d.populated || len(stored) != 3 || !sqltype.SameDatum(stored[0].values[0], stored[1].values[0]) || !stored[2].values[0].IsNull() {
 		t.Fatal("import lost immutable descriptor, duplicate or NULL")

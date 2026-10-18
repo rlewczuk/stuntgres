@@ -166,7 +166,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 			return err
 		}
 	}
-	schema := auth.catalog.state.descriptors[old.namespace].Name()
+	schema := auth.catalog.Get(old.namespace).Name()
 	validator := newAlterRowValidator(next, schema)
 	if len(mutation.checks) != 0 {
 		checks := *next

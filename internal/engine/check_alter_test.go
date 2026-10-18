@@ -10,19 +10,19 @@ func TestCheckAlterCommittedCatalogAndRetainedPins(t *testing.T) {
 	sessionSQL(t, owner, "INSERT INTO t VALUES(9,1)")
 	before := e.CatalogRead()
 	ref := catalogRef(t, e, before, "t")
-	original := before.state.descriptors[ref.Address].(*relationDescriptor)
+	original := before.MustRelation(ref.Address)
 	pin := transactionRows(t, peer, "SELECT a FROM t", 1)
 	sessionSQL(t, owner, "BEGIN")
 	sessionSQL(t, owner, "SAVEPOINT shape")
 	sessionSQL(t, owner, "ALTER TABLE t DROP CONSTRAINT c,DROP p")
 	sessionSQL(t, owner, "INSERT INTO t VALUES(2)")
 	// Observe the committed catalog without issuing a peer query behind AX.
-	if e.CatalogRead().state.descriptors[ref.Address] != original {
+	if e.CatalogRead().Get(ref.Address) != original {
 		t.Fatal("private ALTER leaked to committed catalog")
 	}
 	sessionSQL(t, owner, "ROLLBACK TO shape")
 	sessionSQL(t, owner, "COMMIT")
-	if e.CatalogRead().state.descriptors[ref.Address] != original {
+	if e.CatalogRead().Get(ref.Address) != original {
 		t.Fatal("savepoint failed to restore original descriptor")
 	}
 	transactionRows(t, peer, "SELECT a FROM t", 1)
@@ -30,7 +30,7 @@ func TestCheckAlterCommittedCatalogAndRetainedPins(t *testing.T) {
 	sessionSQL(t, owner, "ALTER TABLE t DROP CONSTRAINT c,DROP p")
 	sessionSQL(t, owner, "INSERT INTO t VALUES(2)")
 	sessionSQL(t, owner, "COMMIT")
-	after := e.CatalogRead().state.descriptors[ref.Address].(*relationDescriptor)
+	after := e.CatalogRead().MustRelation(ref.Address)
 	if len(after.checkConstraints) != 0 || len(after.columns) != 1 {
 		t.Fatal("Commit failed to publish CHECK removal and row shape")
 	}

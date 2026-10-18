@@ -15,7 +15,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	}
 	ns := queryNamespace{
 		columns:    columns,
-		qualifiers: []queryQualifier{{name: d.name, original: d.name, schema: auth.catalog.state.descriptors[d.namespace].Name(), ref: ref, columns: columns}},
+		qualifiers: []queryQualifier{{name: d.name, original: d.name, schema: auth.catalog.Get(d.namespace).Name(), ref: ref, columns: columns}},
 		frame:      d.columns,
 	}
 	b := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
@@ -61,7 +61,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 		whole.SubID = 0
 		frozen.dependencies = append(frozen.dependencies, expressionDependency{
 			ref:      e.catalog.domain.Ref(auth.catalog.Epoch(), address),
-			revision: auth.catalog.state.descriptors[whole].Revision(),
+			revision: auth.catalog.Get(whole).Revision(),
 		})
 	}
 	return &policyExpression{syntax: raw, expression: node, presentation: frozen}, nil

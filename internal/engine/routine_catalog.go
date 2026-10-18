@@ -111,7 +111,7 @@ func (b *expressionBinder) selectedBuiltinRoutineInfo(info expressionInfo, decla
 func (b *expressionBinder) captureBuiltinRoutineDeclaration(declaration *builtinRoutineDeclaration) (*procedureDescriptor, ids.ObjectRef, error) {
 	view := b.bindingCatalog()
 	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.identity.id}
-	d, ok := view.state.descriptors[address].(*procedureDescriptor)
+	d, ok := view.Procedure(address)
 	if !ok || d.builtin != declaration {
 		return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: missing owned builtin routine declaration for %s", declaration.identity.name)
 	}

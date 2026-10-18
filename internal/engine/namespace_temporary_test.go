@@ -11,7 +11,7 @@ import (
 
 func assertTemporaryNamespacePair(t *testing.T, e *Engine, token ids.SessionToken, table ids.ObjectAddress) ids.ObjectAddress {
 	t.Helper()
-	ns, ok := e.catalog.state.descriptors[table].(*namespaceDescriptor)
+	ns, ok := e.catalog.state.Namespace(table)
 	if !ok || ns.temporary != token || ns.temporaryToast || ns.owner.ID() != 10 || ns.acl.Explicit || len(ns.acl.Entries) != 0 {
 		t.Fatal("real table TEMP authority", ns)
 	}
@@ -21,7 +21,7 @@ func assertTemporaryNamespacePair(t *testing.T, e *Engine, token ids.SessionToke
 	}
 	var toast ids.ObjectAddress
 	count := 0
-	for a, d := range e.catalog.state.descriptors {
+	for a, d := range e.catalog.state.Descriptors() {
 		other, ok := d.(*namespaceDescriptor)
 		if !ok || other.temporary != token {
 			continue
@@ -33,7 +33,7 @@ func assertTemporaryNamespacePair(t *testing.T, e *Engine, token ids.SessionToke
 			}
 			toast = a
 		}
-		if e.catalog.state.names[descriptorNameKey(other)] != a {
+		if e.catalog.state.NameAddress(descriptorNameKey(other)) != a {
 			t.Fatal("TEMP name identity", other)
 		}
 	}
@@ -52,7 +52,7 @@ func TestSequenceTemporaryNamespacePairAuthority(t *testing.T) {
 	sessionSQL(t, s, "CREATE TEMP TABLE namespace_table(i INT)")
 	table := s.temporaryNamespace
 	toast := assertTemporaryNamespacePair(t, e, s.token, table)
-	object := e.catalog.state.descriptors[e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: table, Name: "namespace_table"}]].(*relationDescriptor)
+	object := e.catalog.state.MustRelation(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: table, Name: "namespace_table"}))
 	actor := e.Roles().LookupRef("namespace_actor")
 	if object.owner != actor || object.owner.ID() == 10 {
 		t.Fatal("namespace owner replaced object actor", object.owner)
@@ -67,7 +67,7 @@ func TestSequenceTemporaryNamespacePairAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, a := range []ids.ObjectAddress{table, toast} {
-		ns := auth.catalog.state.descriptors[a].(*namespaceDescriptor)
+		ns := auth.catalog.MustNamespace(a)
 		rights, err := auth.Effective(e.catalog.domain.Ref(auth.catalog.Epoch(), a), false)
 		want := authorization.Privileges(0)
 		if a == table {
@@ -95,7 +95,7 @@ func TestSequenceTemporaryNamespacePairAuthority(t *testing.T) {
 	if err := s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if s.temporaryNamespace != (ids.ObjectAddress{}) || e.catalog.state.descriptors[object.address] != nil {
+	if s.temporaryNamespace != (ids.ObjectAddress{}) || e.catalog.state.Get(object.address) != nil {
 		t.Fatal("physical cleanup left active object authority")
 	}
 	assertTemporaryNamespacePair(t, e, s.token, table)
@@ -124,11 +124,11 @@ func TestSequenceTemporaryNamespacePairPrivate(t *testing.T) {
 		private := namespaceUnitCapture(t, e, auth.catalog)
 		committed := namespaceUnitCapture(t, e, e.CatalogRead())
 		count := 0
-		for _, d := range auth.catalog.state.descriptors {
+		for _, d := range auth.catalog.Descriptors() {
 			if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == creator.token {
 				count++
 				namespaceUnitRow(t, private, uint32(ns.address.ObjectID))
-				if e.catalog.state.descriptors[ns.address] != nil {
+				if e.catalog.state.Get(ns.address) != nil {
 					op.Done()
 					t.Fatal("uncommitted pair leaked")
 				}
@@ -161,7 +161,7 @@ func TestTemporaryNamespaceCollationRetirement(t *testing.T) {
 	table := s.temporaryNamespace
 	toast := assertTemporaryNamespacePair(t, e, s.token, table)
 	sessionSQL(t, s, "CREATE COLLATION pg_temp.namespace_collation FROM \"C\"")
-	address := e.catalog.state.names[ids.NameKey{ClassID: ids.CollationClassID, Namespace: table, Name: "namespace_collation"}]
+	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: table, Name: "namespace_collation"})
 	s.RequestEnd(CleanClose)
 	if err := s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
@@ -170,10 +170,10 @@ func TestTemporaryNamespaceCollationRetirement(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertTemporaryNamespacePair(t, e, s.token, table)
-	if e.catalog.state.descriptors[address] != nil {
+	if e.catalog.state.Get(address) != nil {
 		t.Fatal("alternate cleanup retained collation child")
 	}
-	for _, d := range e.catalog.state.descriptors {
+	for _, d := range e.catalog.state.Descriptors() {
 		if d.Namespace() == table || d.Namespace() == toast {
 			t.Fatal("alternate cleanup retained TEMP dependent", d)
 		}
@@ -223,8 +223,8 @@ func TestPGNamespaceTemporaryViewCreationAuthority(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TEMP VIEW owned_temp AS SELECT 1 AS v")
 	namespace := op.session.temporaryNamespace
 	assertTemporaryNamespacePair(t, e, op.session.token, namespace)
-	address := e.catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "owned_temp"}]
-	view, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
+	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "owned_temp"})
+	view, ok := e.catalog.state.Relation(address)
 	if !ok || view.owner != e.Roles().LookupRef("namespace_view_creator") || view.namespace != namespace || view.relationKind != viewRelation || view.view == nil {
 		t.Fatal("physical creator did not own staged TEMP view", view)
 	}

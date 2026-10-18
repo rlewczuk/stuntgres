@@ -108,7 +108,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 			return nil, err
 		}
 		auth.state.CurrentUser = actor
-		d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		d, ok := auth.catalog.Relation(ref.Address)
 		if !ok {
 			return nil, ErrCatalogReplaced
 		}
@@ -156,7 +156,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 	for _, source := range d.view.sources {
 		e.mu.Lock()
 		catalog := e.privateCatalogLocked(s.owner.catalog)
-		child, ok := catalog.state.descriptors[source.ref.Address].(*relationDescriptor)
+		child, ok := catalog.Relation(source.ref.Address)
 		use, useErr := storedViewUseReference(catalog, d, source.ref)
 		valid := ok && useErr == nil
 		e.mu.Unlock()

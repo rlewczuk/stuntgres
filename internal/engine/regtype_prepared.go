@@ -84,18 +84,18 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 	// Collation/namespace aliases additionally reanalyze changed captured names.
 	for _, constant := range cell.constants {
 		for _, operand := range constant.operands {
-			d := auth.catalog.state.descriptors[operand.ref.Address]
+			d := auth.catalog.Get(operand.ref.Address)
 			if d == nil || operand.ref.Domain() != e.catalog.domain || operand.ref.Epoch != auth.catalog.Epoch() || d.Revision() != operand.revision {
 				return false, nil
 			}
 		}
 		for _, reference := range constant.references {
-			d := auth.catalog.state.descriptors[reference.address]
+			d := auth.catalog.Get(reference.address)
 			if d == nil || d.Name() != reference.name || d.Namespace() != reference.namespace {
 				return false, nil
 			}
 			if reference.address.ClassID == ids.CollationClassID {
-				ns := auth.catalog.state.descriptors[reference.namespace]
+				ns := auth.catalog.Get(reference.namespace)
 				if ns == nil || ns.Name() != reference.namespaceName {
 					return false, nil
 				}
@@ -108,7 +108,7 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 			}
 		}
 		for _, namespace := range constant.qualified {
-			if auth.catalog.state.descriptors[namespace] == nil {
+			if auth.catalog.Get(namespace) == nil {
 				return false, nil
 			}
 			if err := auth.CanUse(e.catalog.domain.Ref(auth.catalog.Epoch(), namespace)); err != nil {
@@ -249,10 +249,10 @@ func (b *expressionBinder) captureRegObjectReferences(constant *regtypeConstant)
 		if address.ClassID == ids.TypeClassID {
 			return nil
 		}
-		d := view.state.descriptors[address]
+		d := view.Get(address)
 		reference := regObjectReference{address: address, name: d.Name(), namespace: d.Namespace()}
 		if address.ClassID == ids.CollationClassID {
-			reference.namespaceName = view.state.descriptors[d.Namespace()].Name()
+			reference.namespaceName = view.Get(d.Namespace()).Name()
 		}
 		constant.references = append(constant.references, reference)
 		return nil

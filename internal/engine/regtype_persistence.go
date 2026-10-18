@@ -17,8 +17,8 @@ func regtypeReference(view CatalogRead, id uint32) string {
 			return regtypeReference(view, uint32(typ.Element().ID())) + "[]"
 		}
 	}
-	if d, ok := view.state.descriptors[address]; ok {
-		return quoteIdentifier(view.state.descriptors[d.Namespace()].Name()) + "." + quoteIdentifier(d.Name())
+	if d, ok := view.Find(address); ok {
+		return quoteIdentifier(view.Get(d.Namespace()).Name()) + "." + quoteIdentifier(d.Name())
 	}
 	return regtypeSpelling(view, nil, ids.OID(id))
 }

@@ -129,8 +129,8 @@ func TestAlterAddColumnNativeImportPreservesCeilingAndSource(t *testing.T) {
 	if _, err := destination.ReplaceCatalog(context.Background(), source, before); err != nil {
 		t.Fatal(err)
 	}
-	imported := destination.CatalogRead().state.descriptors[next.address].(*relationDescriptor)
-	if imported.attributeHighWater != 4 || !reflect.DeepEqual(imported.attributes, []int32{1, 4}) || imported.columns[1].OriginAttribute != 4 || source.CatalogRead().state != before.state || before.state.descriptors[next.address] != next || old.attributeHighWater != 3 {
+	imported := destination.CatalogRead().MustRelation(next.address)
+	if imported.attributeHighWater != 4 || !reflect.DeepEqual(imported.attributes, []int32{1, 4}) || imported.columns[1].OriginAttribute != 4 || source.CatalogRead().state != before.state || before.Get(next.address) != next || old.attributeHighWater != 3 {
 		t.Fatal("import changed source or stable identity", imported, next, old)
 	}
 	// Foreign replacement adopts an immutable catalog generation. Provider

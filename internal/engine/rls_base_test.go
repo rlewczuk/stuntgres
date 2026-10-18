@@ -194,7 +194,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 	if _, err := imported.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	for _, descriptor := range imported.CatalogRead().state.descriptors {
+	for _, descriptor := range imported.CatalogRead().Descriptors() {
 		copy, ok := descriptor.(*relationDescriptor)
 		if ok && copy.name == "t" {
 			if copy.rlsEnabled || !copy.rlsForced || len(copy.policies) != 1 || copy.policies[0].using == expression {

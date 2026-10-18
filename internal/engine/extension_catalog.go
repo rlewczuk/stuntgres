@@ -111,12 +111,12 @@ func (p extensionCatalogProvider) ClassID() ids.OID { return p.class }
 func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid extension provider descriptor") }
 	a := d.Address()
-	if a.ClassID != p.class || a.ObjectID == 0 || a.SubID != 0 || d.Revision() == 0 || v.state.names[descriptorNameKey(d)] != a {
+	if a.ClassID != p.class || a.ObjectID == 0 || a.SubID != 0 || d.Revision() == 0 || v.NameAddress(descriptorNameKey(d)) != a {
 		return invalid()
 	}
 	namespace := d.Namespace()
 	if namespace != (ids.ObjectAddress{}) {
-		if _, ok := v.state.descriptors[namespace].(*namespaceDescriptor); !ok {
+		if _, ok := v.Namespace(namespace); !ok {
 			return invalid()
 		}
 	}
@@ -127,7 +127,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 		if !registered || d.version != registration.version || d.Namespace() != (ids.ObjectAddress{}) {
 			return invalid()
 		}
-		if _, ok := v.state.descriptors[d.targetNamespace].(*namespaceDescriptor); !ok {
+		if _, ok := v.Namespace(d.targetNamespace); !ok {
 			return invalid()
 		}
 		seen := map[ids.ObjectAddress]bool{}
@@ -136,7 +136,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 				return invalid()
 			}
 			seen[a] = true
-			member := v.state.descriptors[a]
+			member := v.Get(a)
 			if member == nil || member.Namespace() != d.targetNamespace || extensionMembership(member) != d.address {
 				return invalid()
 			}
@@ -233,7 +233,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 				return invalid()
 			}
 			if ext != (ids.ObjectAddress{}) {
-				dict, ok := v.state.descriptors[d.dictionary].(*tsDictionaryDescriptor)
+				dict, ok := v.TSDictionary(d.dictionary)
 				if !ok || dict.namespace != d.namespace || dict.extension != ext {
 					return invalid()
 				}
@@ -255,7 +255,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 		ext = d.extension
 		for i, a := range [2]ids.ObjectAddress{d.init, d.lexize} {
-			proc, ok := v.state.descriptors[a].(*procedureDescriptor)
+			proc, ok := v.Procedure(a)
 			if !ok || ext != (ids.ObjectAddress{}) && proc.namespace != d.namespace || proc.extension != ext || proc.signature != [2]procedureSignature{unaccentInitSignature, unaccentLexizeSignature}[i] {
 				return invalid()
 			}
@@ -265,7 +265,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 			return invalid()
 		}
 		ext = d.extension
-		tmpl, ok := v.state.descriptors[d.template].(*tsTemplateDescriptor)
+		tmpl, ok := v.TSTemplate(d.template)
 		if !ok || ext != (ids.ObjectAddress{}) && tmpl.namespace != d.namespace || tmpl.extension != ext {
 			return invalid()
 		}
@@ -273,7 +273,7 @@ func (p extensionCatalogProvider) Validate(v CatalogRead, d Descriptor) error {
 		return invalid()
 	}
 	if ext != (ids.ObjectAddress{}) {
-		parent, ok := v.state.descriptors[ext].(*extensionDescriptor)
+		parent, ok := v.Extension(ext)
 		if !ok || parent.targetNamespace != namespace {
 			return invalid()
 		}
@@ -311,14 +311,14 @@ func procedureArity(p *procedureDescriptor) int64 {
 // by the extension's database-wide name or generic Namespace field.
 func namespaceChildren(base CatalogRead, namespaces map[ids.ObjectAddress]bool) ([]ids.ObjectAddress, error) {
 	selected := make(map[ids.ObjectAddress]bool)
-	for address, descriptor := range base.state.descriptors {
+	for address, descriptor := range base.Descriptors() {
 		if namespaces[descriptor.Namespace()] {
 			selected[address] = true
 		}
 		if extension, ok := descriptor.(*extensionDescriptor); ok && namespaces[extension.targetNamespace] {
 			selected[address] = true
 			for _, member := range extension.members {
-				d := base.state.descriptors[member]
+				d := base.Get(member)
 				if d == nil || d.Namespace() != extension.targetNamespace || extensionMembership(d) != address {
 					return nil, fmt.Errorf("stuntgres: invalid namespace extension membership")
 				}
@@ -341,9 +341,9 @@ func namespaceChildren(base CatalogRead, namespaces map[ids.ObjectAddress]bool) 
 
 func procedureInNamespaces(catalog CatalogRead, path namespaceSelection, name string, signature procedureSignature) *procedureDescriptor {
 	for i := range path.count() {
-		address := catalog.state.names[ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: path.at(i), Name: name, Signature: string(signature)}]
+		address := catalog.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: path.at(i), Name: name, Signature: string(signature)})
 		if address != (ids.ObjectAddress{}) {
-			procedure, _ := catalog.state.descriptors[address].(*procedureDescriptor)
+			procedure, _ := catalog.Procedure(address)
 			return procedure
 		}
 	}
@@ -363,16 +363,16 @@ func (p *unaccentProvider) validate(v CatalogRead, d *extensionDescriptor) error
 	}
 	signatures := [4]procedureSignature{unaccentDictionarySignature, unaccentTextSignature, unaccentInitSignature, unaccentLexizeSignature}
 	for i, signature := range signatures {
-		proc, ok := v.state.descriptors[d.members[i]].(*procedureDescriptor)
+		proc, ok := v.Procedure(d.members[i])
 		if !ok || proc.signature != signature || proc.provider != p || proc.queryCodec != nil || proc.intagg != nil || proc.uuidOssp != nil {
 			return invalid()
 		}
 	}
-	tmpl, ok := v.state.descriptors[d.members[4]].(*tsTemplateDescriptor)
+	tmpl, ok := v.TSTemplate(d.members[4])
 	if !ok || tmpl.init != d.members[2] || tmpl.lexize != d.members[3] || tmpl.provider != p {
 		return invalid()
 	}
-	dict, ok := v.state.descriptors[d.members[5]].(*tsDictionaryDescriptor)
+	dict, ok := v.TSDictionary(d.members[5])
 	if !ok || dict.template != d.members[4] || dict.provider != p {
 		return invalid()
 	}

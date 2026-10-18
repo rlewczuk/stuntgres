@@ -240,7 +240,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 		}
 		roots = make(map[ids.ObjectAddress]transactionRoot, len(e.storage))
 		for address, storage := range e.storage {
-			if relation, ok := e.catalog.state.descriptors[address].(*relationDescriptor); ok {
+			if relation, ok := e.catalog.state.Relation(address); ok {
 				roots[address] = transactionRoot{storage.versions, storage.ends, storage, relation}
 			}
 		}

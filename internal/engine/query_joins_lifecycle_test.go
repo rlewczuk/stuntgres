@@ -377,7 +377,7 @@ func TestQueryJoinsEarlierLeafMetadataDuringWait(t *testing.T) {
 				}
 				tx := transactionBegin(t, holder)
 				sessionSQL(t, holder, "LOCK TABLE b IN ACCESS EXCLUSIVE MODE")
-				old := e.catalog.state.descriptors[left.Address]
+				old := e.catalog.state.Get(left.Address)
 				done := make(chan error, 1)
 				var result Result
 				var capturedScope *StatementScope

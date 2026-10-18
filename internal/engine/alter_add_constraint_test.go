@@ -44,7 +44,7 @@ func alterConstraintExecuteScope(t *testing.T, e *Engine, s *Session, q string) 
 func alterConstraintDescriptor(t *testing.T, e *Engine, name string) *relationDescriptor {
 	t.Helper()
 	view := e.CatalogRead()
-	return view.state.descriptors[catalogRef(t, e, view, name).Address].(*relationDescriptor)
+	return view.MustRelation(catalogRef(t, e, view, name).Address)
 }
 
 func TestAlterAddConstraintStableKeys(t *testing.T) {
@@ -166,7 +166,7 @@ func TestAlterAddConstraintForeignKeySuccessors(t *testing.T) {
 	sessionSQL(t, s, "ALTER TABLE t ADD CONSTRAINT fk FOREIGN KEY(a) REFERENCES p NOT VALID")
 	child, parent := alterConstraintDescriptor(t, e, "t"), alterConstraintDescriptor(t, e, "p")
 	f := child.foreignKeys[0]
-	index := e.catalog.state.descriptors[f.Index].(*relationDescriptor)
+	index := e.catalog.state.MustRelation(f.Index)
 	comparisons, err := bindForeignKeyComparison(e.CatalogRead(), child, parent, index, f)
 	if err != nil {
 		t.Fatal(err)

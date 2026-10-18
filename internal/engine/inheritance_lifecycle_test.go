@@ -180,7 +180,7 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(writes[parent.address]) != 1 || len(writes[child.address]) != 1 || changes.descriptors[parent.address] != parent || changes.descriptors[child.address] != &child || e.catalog.state.descriptors[child.address] != nil {
+			if len(writes[parent.address]) != 1 || len(writes[child.address]) != 1 || changes.descriptors[parent.address] != parent || changes.descriptors[child.address] != &child || e.catalog.state.Get(child.address) != nil {
 				t.Fatal("commit preparation changed prior private/global roots")
 			}
 			if len(nextWrites[parent.address]) != 0 {

@@ -64,7 +64,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *Operation, aut
 			}
 			e.mu.Lock()
 			actualCatalog := e.privateCatalogLocked(scope.owner.catalog)
-			actual, _ := actualCatalog.state.descriptors[observed.address].(*relationDescriptor)
+			actual, _ := actualCatalog.Relation(observed.address)
 			if actualCatalog.Epoch() != auth.catalog.Epoch() || !inheritanceMarkerPublication(observed, actual) {
 				e.mu.Unlock()
 				return ErrCatalogReplaced

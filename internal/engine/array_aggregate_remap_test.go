@@ -84,8 +84,8 @@ func TestArrayAggregateCollationViewRemap(t *testing.T) {
 	sourceView, destinationView := source.CatalogRead(), destination.CatalogRead()
 	capability := func(view CatalogRead, name string) sqltype.CollationRef {
 		t.Helper()
-		address := view.state.names[ids.NameKey{ClassID: ids.CollationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name}]
-		provider, ok := view.state.descriptors[address].(*collationDescriptor)
+		address := view.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name})
+		provider, ok := view.Collation(address)
 		if !ok {
 			t.Fatal("missing genuine registered collation", name)
 		}

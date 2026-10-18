@@ -22,14 +22,14 @@ func operatorDependencyAddresses(view CatalogRead, d *operatorDescriptor) []ids.
 	}
 	for _, id := range [...]ids.OID{d.function, d.restriction, d.join} {
 		a := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}
-		if _, ok := view.state.descriptors[a]; ok {
+		if _, ok := view.Find(a); ok {
 			add(a)
 		}
 	}
 	return refs
 }
 func (p *dropProvider) clearOperatorLinks(d *operatorDescriptor) error {
-	for address, descriptor := range p.base.state.descriptors {
+	for address, descriptor := range p.base.Descriptors() {
 		peer, ok := descriptor.(*operatorDescriptor)
 		if !ok || address == d.address || p.removed(address) {
 			continue

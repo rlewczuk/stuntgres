@@ -16,7 +16,7 @@ const checkReview2SchemaCreate = "CREATE SCHEMA checked CREATE TABLE earlier(a I
 func checkReview2SchemaAbsent(t *testing.T, e *Engine) {
 	t.Helper()
 	read := e.CatalogRead()
-	for _, d := range read.state.descriptors {
+	for _, d := range read.Descriptors() {
 		if d.Address().ClassID == ids.NamespaceClassID && d.Name() == "checked" {
 			t.Fatal("failed inline CREATE published its schema")
 		}

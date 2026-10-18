@@ -44,7 +44,7 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 	if err != nil {
 		return err
 	}
-	table, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	table, ok := auth.catalog.Relation(ref.Address)
 	if !ok {
 		return ErrCatalogReplaced
 	}
@@ -55,13 +55,13 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 	if err != nil {
 		return err
 	}
-	parent := auth.catalog.state.descriptors[table.membership.parent].(*relationDescriptor)
+	parent := auth.catalog.MustRelation(table.membership.parent)
 	chosen := partitionPreservedReplayChild(auth.catalog, parent)
 	if chosen == nil || chosen.address != table.address {
 		return nil
 	}
 	var selected *relationDescriptor
-	for _, descriptor := range auth.catalog.state.descriptors {
+	for _, descriptor := range auth.catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil || index.sqlIndex.parent != parent.address || !partitionIndexPreservedInvalid(auth.catalog, index) {
 			continue
@@ -102,7 +102,7 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 		captured.descriptors = append(captured.descriptors, node)
 		if node.partition != nil {
 			for _, address := range node.partition.children {
-				if !capture(auth.catalog.state.descriptors[address].(*relationDescriptor)) {
+				if !capture(auth.catalog.MustRelation(address)) {
 					return false
 				}
 			}
@@ -112,7 +112,7 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 	if !capture(table) {
 		return nil
 	}
-	for _, descriptor := range auth.catalog.state.descriptors {
+	for _, descriptor := range auth.catalog.Descriptors() {
 		index, ok := descriptor.(*relationDescriptor)
 		if ok && index.sqlIndex != nil && tables[index.sqlIndex.parent] {
 			captured.descriptors = append(captured.descriptors, index)
@@ -136,7 +136,7 @@ func partitionUniqueReplayAllowed(op *Operation, auth AuthorizationView, raw *pa
 		return false
 	}
 	for _, descriptor := range origin.descriptors {
-		if auth.catalog.state.descriptors[descriptor.address] != descriptor {
+		if auth.catalog.Get(descriptor.address) != descriptor {
 			return false
 		}
 	}
@@ -173,7 +173,7 @@ func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *O
 	if err != nil {
 		return Result{}, err
 	}
-	index := e.stageRead(stage).state.descriptors[next.uniqueConstraints[len(next.uniqueConstraints)-1].Index].(*relationDescriptor)
+	index := e.stageRead(stage).MustRelation(next.uniqueConstraints[len(next.uniqueConstraints)-1].Index)
 	if err = partitionUniqueCoverage(next, index.sqlIndex); err != nil {
 		return Result{}, err
 	}

@@ -14,7 +14,7 @@ import (
 func pgDescriptionUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2609}
-	d, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
+	d, ok := e.catalog.state.Relation(address)
 	if !ok {
 		t.Fatal("missing catalog descriptor")
 	}
@@ -101,7 +101,7 @@ func TestPGDescriptionShape(t *testing.T) {
 			}
 		})
 	}
-	class := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}].(*relationDescriptor)
+	class := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
 	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(e.catalog.read(e.catalog.state), e.roles), ids.ObjectRef{}, class)
 	if err != nil {
 		t.Fatal(err)
@@ -167,7 +167,7 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 		t.Fatal(err)
 	}
 	delete(newState.descriptors, relation)
-	if pgDescriptionUnitBag(t, captured)[relation] != "whole" || descriptorComment(oldState.descriptors[relation], 3) != "third" {
+	if pgDescriptionUnitBag(t, captured)[relation] != "whole" || descriptorComment(oldState.Get(relation), 3) != "third" {
 		t.Fatal("retained snapshot changed")
 	}
 	// Simulate a nested provider relocking after publication: opening the virtual
@@ -229,7 +229,7 @@ func TestPGDescriptionBuiltinSeeds(t *testing.T) {
 			t.Fatal("conversion hole or boundary", oid)
 		}
 	}
-	for _, descriptor := range e.catalog.state.descriptors {
+	for _, descriptor := range e.catalog.state.Descriptors() {
 		switch descriptor.(type) {
 		case *collationDescriptor, *conversionDescriptor:
 			if descriptorComment(descriptor, 0) != "" || catalogDescription(descriptor, 1) != "" {

@@ -26,7 +26,7 @@ func (e *Engine) resolveAlterDomainLocked(auth AuthorizationView, name parser.Ob
 		if len(found) == 0 {
 			continue
 		}
-		d := auth.catalog.state.descriptors[found[0]].(*typeDescriptor)
+		d := auth.catalog.MustType(found[0])
 		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), d.Address())
 		diagnosticPath, err := e.referencePath(auth)
 		if err != nil {
@@ -170,7 +170,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 				current := e.stageCatalogBaseLocked(stage)
 				stable := current.epoch == ref.Epoch
 				for address, descriptor := range fence.objects {
-					stable = stable && current.descriptors[address] == descriptor
+					stable = stable && current.Get(address) == descriptor
 				}
 				e.mu.Unlock()
 				if !stable {

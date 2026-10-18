@@ -46,13 +46,13 @@ func TestObjectGrantParameterPublication(t *testing.T) {
 			if err := applyObjectGrantUnit(e, op, request); err != nil {
 				t.Fatal(err)
 			}
-			address := e.catalog.state.names[ids.NameKey{ClassID: ids.ParameterClassID, Name: name}]
-			d, ok := e.catalog.state.descriptors[address].(*parameterDescriptor)
+			address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: name})
+			d, ok := e.catalog.state.Parameter(address)
 			mask := authorization.SetPrivilege | authorization.AlterSystemPrivilege
 			if !ok || d == nil || address.ClassID != ids.ParameterClassID || d.revision == 0 || d.owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) {
 				t.Fatal("parameter did not acquire real catalog authority")
 			}
-			if before.names[descriptorNameKey(d)] != (ids.ObjectAddress{}) || e.roles.revision != roles.revision+1 || !d.acl.Explicit || len(d.acl.Entries) != 2 {
+			if before.NameAddress(descriptorNameKey(d)) != (ids.ObjectAddress{}) || e.roles.revision != roles.revision+1 || !d.acl.Explicit || len(d.acl.Entries) != 2 {
 				t.Fatal("wrong sparse immutable parameter publication", d.acl)
 			}
 			if authorization.ACLRights(d.acl, d.owner, []authorization.PrincipalRef{reader}, mask, true) != mask || !slices.Contains(descriptorReferences(d), reader) {
@@ -81,7 +81,7 @@ func TestObjectGrantParameterPublication(t *testing.T) {
 			if err := applyObjectGrantUnit(e, op, request); err != nil {
 				t.Fatal(err)
 			}
-			if _, exists := e.catalog.state.descriptors[address]; exists || e.catalog.state.names[descriptorNameKey(d)] != (ids.ObjectAddress{}) || len(d.acl.Entries) != 2 {
+			if _, exists := e.catalog.state.Find(address); exists || e.catalog.state.NameAddress(descriptorNameKey(d)) != (ids.ObjectAddress{}) || len(d.acl.Entries) != 2 {
 				t.Fatal("baseline-equivalent parameter row/name not deleted or old ACL mutated")
 			}
 			stable, stableRoles = e.catalog.state, e.roles
@@ -98,13 +98,13 @@ func TestObjectGrantParameterExplicitEmpty(t *testing.T) {
 	d := &parameterDescriptor{address: ids.ObjectAddress{ClassID: ids.ParameterClassID, ObjectID: 900003}, revision: 2, name: "lc_messages", owner: owner, acl: authorization.ACLValue{Explicit: true}}
 	candidate := cloneCatalog(e.catalog.state)
 	installParameterGrant(candidate, d)
-	if candidate.descriptors[d.address] != d || candidate.names[descriptorNameKey(d)] != d.address {
+	if candidate.Get(d.address) != d || candidate.NameAddress(descriptorNameKey(d)) != d.address {
 		t.Fatal("explicit empty parameter ACL collapsed to absent")
 	}
 	n := *d
 	n.acl = authorization.DefaultBaseline(owner, authorization.DefaultParameters, false)
 	installParameterGrant(candidate, &n)
-	if _, exists := candidate.descriptors[d.address]; exists || candidate.names[descriptorNameKey(d)] != (ids.ObjectAddress{}) || !d.acl.Explicit || len(d.acl.Entries) != 0 {
+	if _, exists := candidate.Find(d.address); exists || candidate.NameAddress(descriptorNameKey(d)) != (ids.ObjectAddress{}) || !d.acl.Explicit || len(d.acl.Entries) != 0 {
 		t.Fatal("baseline deletion mutated empty ACL or retained row")
 	}
 }
@@ -114,7 +114,7 @@ func TestObjectGrantTablespacePublication(t *testing.T) {
 		t.Run(builtin.name, func(t *testing.T) {
 			e, op, reader, _ := objectGrantUnitFixture(t)
 			address := ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: builtin.oid}
-			original, ok := e.catalog.state.descriptors[address].(*tablespaceDescriptor)
+			original, ok := e.catalog.state.Tablespace(address)
 			if !ok || original == nil || original.acl.Explicit || original.name != builtin.name || original.owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) {
 				t.Fatal("missing real builtin tablespace baseline")
 			}
@@ -122,7 +122,7 @@ func TestObjectGrantTablespacePublication(t *testing.T) {
 			if err := applyObjectGrantUnit(e, op, request); err != nil {
 				t.Fatal(err)
 			}
-			d := e.catalog.state.descriptors[address].(*tablespaceDescriptor)
+			d := e.catalog.state.MustTablespace(address)
 			if d == original || original.acl.Explicit || !d.acl.Explicit || len(d.acl.Entries) != 2 || authorization.ACLRights(d.acl, d.owner, []authorization.PrincipalRef{reader}, authorization.CreatePrivilege, true) != authorization.CreatePrivilege || !slices.Contains(descriptorReferences(d), reader) {
 				t.Fatal("wrong immutable tablespace ALL/options/dependencies", d.acl)
 			}
@@ -145,7 +145,7 @@ func TestObjectGrantTablespacePublication(t *testing.T) {
 			if err := applyObjectGrantUnit(e, op, request); err != nil {
 				t.Fatal(err)
 			}
-			next := e.catalog.state.descriptors[address].(*tablespaceDescriptor)
+			next := e.catalog.state.MustTablespace(address)
 			if !next.acl.Explicit || !authorization.MatchesDefaultBaseline(next.acl, next.owner, authorization.DefaultTablespaces, false) || len(d.acl.Entries) != 2 {
 				t.Fatal("tablespace baseline/revoke snapshot mismatch", next.acl)
 			}
@@ -157,8 +157,8 @@ func TestObjectGrantTablespaceCapturedACL(t *testing.T) {
 	e, op, _, _ := objectGrantUnitFixture(t)
 	capture := func(catalog CatalogRead) *querySource {
 		t.Helper()
-		address := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, Name: "pg_tablespace"}]
-		source := catalog.state.descriptors[address].(*relationDescriptor)
+		address := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, Name: "pg_tablespace"})
+		source := catalog.MustRelation(address)
 		if len(source.columns) != 5 {
 			t.Fatal("wrong pg_tablespace column count", len(source.columns))
 		}

@@ -22,7 +22,7 @@ func identityInsertError(column string) error {
 func identitySequenceDropError(read CatalogRead, sequence *relationDescriptor) error {
 	address := sequence.sequence.owned
 	address.SubID = 0
-	table := read.state.descriptors[address].(*relationDescriptor)
+	table := read.MustRelation(address)
 	column := ""
 	for slot, attribute := range table.attributes {
 		if attribute == sequence.sequence.owned.SubID {
@@ -108,7 +108,7 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 			}
 			options.persistence = persistence
 			read := e.stageRead(stage)
-			tableNamespace := read.state.descriptors[table.namespace].(*namespaceDescriptor)
+			tableNamespace := read.MustNamespace(table.namespace)
 			if tableNamespace.temporary != (ids.SessionToken{}) {
 				if !tableNamespace.temporaryToast && auth.session != nil && tableNamespace.temporary == auth.session.token {
 					auth.stagedTemporary = table.namespace
@@ -151,7 +151,7 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 }
 
 func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *relationDescriptor, slot int, name string, mode parser.IdentityMode, options sequenceOptions, restart *int64) error {
-	namespace := stage.base.state.descriptors[table.namespace]
+	namespace := stage.base.Get(table.namespace)
 	if staged, ok := stage.descriptors[table.namespace]; ok {
 		namespace = staged
 	}

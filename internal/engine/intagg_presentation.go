@@ -40,11 +40,11 @@ func intaggRecipeFunction(raw parser.Expr) string {
 
 func (v *viewDefinition) intaggRecipeProcedure(catalog CatalogRead, path viewLiteralPath, name string) (*procedureDescriptor, error) {
 	ref, exists := v.intaggRefs[path]
-	consumer, _ := catalog.state.descriptors[v.consumer].(*relationDescriptor)
+	consumer, _ := catalog.Relation(v.consumer)
 	if !exists || ref.Address.ClassID != ids.ProcedureClassID || ref.Address.SubID != 0 || !storedViewReferenceValid(catalog, consumer, ref) || ref.Epoch != catalog.Epoch() && (consumer == nil || consumer.view != v) {
 		return nil, fmt.Errorf("stuntgres: missing or stale frozen intagg reference")
 	}
-	proc, ok := catalog.state.descriptors[ref.Address].(*procedureDescriptor)
+	proc, ok := catalog.Procedure(ref.Address)
 	if !ok || proc.name != name || proc.intagg != stockIntagg {
 		return nil, fmt.Errorf("stuntgres: mismatched frozen intagg procedure")
 	}
@@ -59,7 +59,7 @@ func (v *viewRenderer) intaggRecipeName(catalog CatalogRead, path viewLiteralPat
 	if err != nil {
 		return "", err
 	}
-	namespace, ok := catalog.state.descriptors[proc.namespace].(*namespaceDescriptor)
+	namespace, ok := catalog.Namespace(proc.namespace)
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing frozen intagg namespace")
 	}

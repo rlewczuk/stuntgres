@@ -230,7 +230,7 @@ type restoredGenerationKey struct {
 
 func (e *Engine) captureRestoredPlaceholders(created ids.ObjectRef, raw *parser.CreateTable, origins map[restoredGenerationKey]restoredGenerationRecipe) {
 	view := e.CatalogRead()
-	table, ok := view.state.descriptors[created.Address].(*relationDescriptor)
+	table, ok := view.Relation(created.Address)
 	if !ok {
 		return
 	}
@@ -251,7 +251,7 @@ func (e *Engine) captureRestoredPlaceholders(created ids.ObjectRef, raw *parser.
 			inherited := false
 			compatible := true
 			for _, origin := range table.inheritance.columns[attribute].origins {
-				parent, ok := view.state.descriptors[origin.parent].(*relationDescriptor)
+				parent, ok := view.Relation(origin.parent)
 				if !ok {
 					compatible = false
 					break
@@ -299,11 +299,11 @@ func (e *Engine) pairRestoredGeneration(op *Operation, raw *parser.AlterTable, o
 	if err != nil {
 		return err
 	}
-	table, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	table, ok := auth.catalog.Relation(ref.Address)
 	if !ok {
 		return reject()
 	}
-	namespace, namespaceOK := auth.catalog.state.descriptors[table.namespace].(*namespaceDescriptor)
+	namespace, namespaceOK := auth.catalog.Namespace(table.namespace)
 	if !namespaceOK || namespace.temporary != (ids.SessionToken{}) {
 		return reject()
 	}
@@ -332,7 +332,7 @@ func (e *Engine) captureRestoredGeneration(op *Operation, raw *parser.AlterTable
 	if err != nil {
 		return restoredGenerationRecipe{}, err
 	}
-	table, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	table, ok := auth.catalog.Relation(ref.Address)
 	if !ok {
 		return restoredGenerationRecipe{}, ErrCatalogReplaced
 	}
@@ -382,11 +382,11 @@ func (e *Engine) restoreInheritedCheck(op *Operation, raw *parser.AlterTable, re
 	if err != nil {
 		return err
 	}
-	target, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	target, ok := auth.catalog.Relation(ref.Address)
 	if !ok || target.relationKind != tableRelation || target.partition != nil || target.membership != nil {
 		return reject()
 	}
-	namespace, namespaceOK := auth.catalog.state.descriptors[target.namespace].(*namespaceDescriptor)
+	namespace, namespaceOK := auth.catalog.Namespace(target.namespace)
 	if !namespaceOK || namespace.temporary != (ids.SessionToken{}) {
 		return reject()
 	}
@@ -397,7 +397,7 @@ func (e *Engine) restoreInheritedCheck(op *Operation, raw *parser.AlterTable, re
 		if repair.ref.Domain() != ref.Domain() || repair.ref.Epoch != ref.Epoch {
 			continue
 		}
-		table, ok := auth.catalog.state.descriptors[repair.ref.Address].(*relationDescriptor)
+		table, ok := auth.catalog.Relation(repair.ref.Address)
 		if !ok {
 			continue
 		}
@@ -425,7 +425,7 @@ func inheritedRecipeConnected(view CatalogRead, target, start ids.ObjectAddress)
 	for len(pending) != 0 {
 		address := pending[len(pending)-1]
 		pending = pending[:len(pending)-1]
-		table, ok := view.state.descriptors[address].(*relationDescriptor)
+		table, ok := view.Relation(address)
 		if !ok {
 			continue
 		}
@@ -457,9 +457,9 @@ func inheritedRecipeConnected(view CatalogRead, target, start ids.ObjectAddress)
 
 func capturedGenerationReplayPlan(view CatalogRead) (map[ids.ObjectAddress]*dumpRelation, error) {
 	hasGeneratedInheritance := false
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		if table, ok := descriptor.(*relationDescriptor); ok && table.inheritance != nil && len(table.generations) != 0 {
-			if namespace, ok := view.state.descriptors[table.namespace].(*namespaceDescriptor); ok && namespace.temporary == (ids.SessionToken{}) {
+			if namespace, ok := view.Namespace(table.namespace); ok && namespace.temporary == (ids.SessionToken{}) {
 				hasGeneratedInheritance = true
 				break
 			}
@@ -469,12 +469,12 @@ func capturedGenerationReplayPlan(view CatalogRead) (map[ids.ObjectAddress]*dump
 		return nil, nil
 	}
 	var tables []dumpRelation
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
 		if !ok || table.relationKind != tableRelation || table.partition != nil || table.membership != nil {
 			continue
 		}
-		if namespace, ok := view.state.descriptors[table.namespace].(*namespaceDescriptor); !ok || namespace.temporary != (ids.SessionToken{}) {
+		if namespace, ok := view.Namespace(table.namespace); !ok || namespace.temporary != (ids.SessionToken{}) {
 			continue
 		}
 		if !inheritanceParticipant(view, table) {

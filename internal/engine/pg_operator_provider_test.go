@@ -21,7 +21,7 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 	run(t, e, "CREATE TYPE operator_provider_record AS (n INT)")
 	catalog := e.CatalogRead()
 	userType := func(name string) *sqltype.Descriptor {
-		for _, d := range catalog.state.descriptors {
+		for _, d := range catalog.Descriptors() {
 			if typ, ok := d.(*typeDescriptor); ok && typ.Name() == name {
 				return typ.typ
 			}

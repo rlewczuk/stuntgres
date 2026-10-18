@@ -225,7 +225,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	}
 	schema := ""
 	if err == nil {
-		schema = auth.catalog.state.descriptors[b.relation.namespace].Name()
+		schema = auth.catalog.Get(b.relation.namespace).Name()
 		s.routineAuth = auth
 		e.markTemporaryAccessLocked(s, b.ref)
 	}
@@ -296,7 +296,7 @@ func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b bindi
 	}
 	s.routineAuth = auth
 	b.ref = s.lockedRef
-	b.relation, _ = auth.catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
+	b.relation, _ = auth.catalog.Relation(b.ref.Address)
 	if b.relation == nil {
 		err = ErrCatalogReplaced
 		return

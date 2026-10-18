@@ -71,11 +71,11 @@ func intaggUnitRecipes(t *testing.T) {
 			}
 			state := cloneCatalog(e.catalog.state)
 			for address := range mapping {
-				delete(state.names, descriptorNameKey(e.catalog.state.descriptors[address]))
+				delete(state.names, descriptorNameKey(e.catalog.state.Get(address)))
 				delete(state.descriptors, address)
 			}
 			for address, destination := range mapping {
-				d := remapExtensionDescriptor(e.catalog.state.descriptors[address], mapping)
+				d := remapExtensionDescriptor(e.catalog.state.Get(address), mapping)
 				state.descriptors[destination], state.names[descriptorNameKey(d)] = d, destination
 			}
 			state.epoch++
@@ -98,7 +98,7 @@ func intaggUnitRecipes(t *testing.T) {
 				t.Fatal(err)
 			}
 			proc, err := mapped.intaggRecipeProcedure(view, path, name)
-			if err != nil || proc != state.descriptors[mapRef(ref).Address] {
+			if err != nil || proc != state.Get(mapRef(ref).Address) {
 				t.Fatal("capture retargeted by name", proc, err)
 			}
 		})

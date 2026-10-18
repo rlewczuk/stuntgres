@@ -94,7 +94,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	}
 	descriptor := stage.descriptors[address]
 	if descriptor == nil {
-		descriptor = stage.base.state.descriptors[address]
+		descriptor = stage.base.Get(address)
 	}
 	sequence, ok := descriptor.(*relationDescriptor)
 	if !ok {
@@ -119,7 +119,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	changed.sequence = &options
 	changed.revision = revision
 	changed.sequencePlanStamp = revision
-	if stage.base.state.descriptors[changed.address] == nil {
+	if stage.base.Get(changed.address) == nil {
 		stage.descriptors[changed.address] = &changed
 	} else if err := stage.Replace(&changed); err != nil {
 		return err
@@ -169,7 +169,7 @@ func (e *Engine) refreshIdentitySequenceLocked(scope *StatementScope, stage *Cat
 	if fresh.catalog.Epoch() != stage.base.Epoch() {
 		return ErrCatalogReplaced
 	}
-	descriptor := fresh.catalog.state.descriptors[address]
+	descriptor := fresh.catalog.Get(address)
 	if staged, exists := stage.descriptors[address]; exists {
 		descriptor = staged
 	}
@@ -180,7 +180,7 @@ func (e *Engine) refreshIdentitySequenceLocked(scope *StatementScope, stage *Cat
 		stage.identityOriginals = make(map[ids.ObjectAddress]Descriptor)
 	}
 	if _, captured := stage.identityOriginals[address]; !captured {
-		stage.identityOriginals[address] = e.catalog.state.descriptors[address]
+		stage.identityOriginals[address] = e.catalog.state.Get(address)
 	}
 	stage.base = fresh.catalog
 	return nil

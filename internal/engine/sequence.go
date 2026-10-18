@@ -156,7 +156,7 @@ func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationV
 	fresh.recaptureCatalog(fresh.catalog)
 	*auth = fresh
 	// Keep the captured incarnation, not a replacement now found by name.
-	r, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	r, ok := auth.catalog.Relation(ref.Address)
 	if !ok {
 		return ids.ObjectAddress{}, ErrCatalogReplaced
 	}
@@ -229,12 +229,12 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		if nsd, ok := auth.catalog.state.descriptors[ns.Address].(*namespaceDescriptor); ok && nsd.temporary == op.session.token {
+		if nsd, ok := auth.catalog.Namespace(ns.Address); ok && nsd.temporary == op.session.token {
 			scope.owner.accessedTemporary = true
 		}
 		name := s.Name.Parts[len(s.Name.Parts)-1].Text
 		key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}
-		if _, ok := auth.catalog.state.names[key]; ok {
+		if _, ok := auth.catalog.LookupName(key); ok {
 			e.mu.Unlock()
 			if s.IfNotExists {
 				op.existingRelationNotice(name)
@@ -303,7 +303,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			}
 			return Result{}, err
 		}
-		old := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		old := auth.catalog.MustRelation(ref.Address)
 		err = sequenceKind(old)
 		if err == nil {
 			err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
@@ -325,7 +325,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if err != nil {
 			return Result{}, err
 		}
-		current, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		current, ok := auth.catalog.Relation(ref.Address)
 		if !ok {
 			return Result{}, ErrCatalogReplaced
 		}
@@ -364,7 +364,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 				if old.sequence.identity {
 					a := old.sequence.owned
 					a.SubID = 0
-					table := auth.catalog.state.descriptors[a].(*relationDescriptor)
+					table := auth.catalog.MustRelation(a)
 					return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot change ownership of identity sequence", Detail: fmt.Sprintf(`Sequence "%s" is linked to table "%s".`, old.name, table.name)}
 				}
 				options.owned, err = e.ownedSequenceLocked(scope, &auth, changes, &d, option.Owned)
@@ -381,7 +381,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			d.name = s.Target.Text
 		case "logged", "unlogged":
 			if old.sequence.persistence == "temporary" {
-				ns := auth.catalog.state.descriptors[old.namespace].(*namespaceDescriptor)
+				ns := auth.catalog.MustNamespace(old.namespace)
 				diagnostic := sqlError("42P16", fmt.Sprintf(`cannot change logged status of table "%s" because it is temporary`, old.name)).(*sqlstate.Error)
 				diagnostic.Schema, diagnostic.Table = ns.name, old.name
 				return Result{}, diagnostic
@@ -392,7 +392,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			if options.owned != (ids.ObjectAddress{}) {
 				a := options.owned
 				a.SubID = 0
-				return Result{}, sequenceLinkedError(&d, auth.catalog.state.descriptors[a].(*relationDescriptor), false)
+				return Result{}, sequenceLinkedError(&d, auth.catalog.MustRelation(a), false)
 			}
 			actor, _ := auth.roles.Descriptor(auth.state.CurrentUser)
 			if !actor.Superuser {
@@ -416,7 +416,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			if options.owned != (ids.ObjectAddress{}) {
 				a := options.owned
 				a.SubID = 0
-				return Result{}, sequenceLinkedError(&d, auth.catalog.state.descriptors[a].(*relationDescriptor), true)
+				return Result{}, sequenceLinkedError(&d, auth.catalog.MustRelation(a), true)
 			}
 			destination := &parser.CreateSequence{Name: parser.ObjectName{Parts: []parser.Identifier{s.Target, {Text: d.name}}}, Persistence: "logged"}
 			ns, err := e.relationCreationNamespaceLocked(auth, destination.Name, destination.Persistence, changes)
@@ -436,8 +436,8 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			if _, err = adjustRelationCreationPersistence(auth, ns, destination.Persistence); err != nil {
 				return Result{}, err
 			}
-			oldNamespace := auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor)
-			newNamespace := auth.catalog.state.descriptors[ns.Address].(*namespaceDescriptor)
+			oldNamespace := auth.catalog.MustNamespace(d.namespace)
+			newNamespace := auth.catalog.MustNamespace(ns.Address)
 			if oldNamespace.temporary != (ids.SessionToken{}) || newNamespace.temporary != (ids.SessionToken{}) {
 				return Result{}, sqlError("0A000", "cannot move objects into or out of temporary schemas")
 			}
@@ -452,7 +452,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			d.sequencePlanStamp = rev
 		}
 		key := descriptorNameKey(&d)
-		if a, exists := auth.catalog.state.names[key]; exists && a != d.address {
+		if a, exists := auth.catalog.LookupName(key); exists && a != d.address {
 			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, d.name))
 		}
 		e.catalogChangeLocked(changes, d.address, &d)
@@ -469,7 +469,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 				m.remaining = 0
 			}
 		}
-		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.descriptors[ref.Address])
+		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
 		scope.catalog = changes
 		return Result{}, nil
 	case *parser.DropSequence:
@@ -498,7 +498,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			}
 			return Result{}, er
 		}
-		d := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		d := auth.catalog.MustRelation(ref.Address)
 		if d.relationKind != sequenceRelation {
 			if d.relationKind == indexRelation {
 				e.mu.Unlock()
@@ -556,20 +556,20 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		return Result{}, ErrCatalogReplaced
 	}
 	for address := range checkStage.descriptors {
-		expected := auth.catalog.state.descriptors[address]
+		expected := auth.catalog.Get(address)
 		if original, private := changes.originals[address]; private {
 			expected = original
 		}
-		if e.catalog.state.descriptors[address] != expected {
+		if e.catalog.state.Get(address) != expected {
 			return Result{}, CatalogConflict{}
 		}
 	}
 	for address := range checkStage.removals {
-		expected := auth.catalog.state.descriptors[address]
+		expected := auth.catalog.Get(address)
 		if original, private := changes.originals[address]; private {
 			expected = original
 		}
-		if e.catalog.state.descriptors[address] != expected {
+		if e.catalog.state.Get(address) != expected {
 			return Result{}, CatalogConflict{}
 		}
 	}
@@ -581,7 +581,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	}
 	cascade := checkStage.viewCascadeNames
 	for _, ref := range refs {
-		d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		d, ok := auth.catalog.Relation(ref.Address)
 		if !ok {
 			return Result{}, ErrCatalogReplaced
 		}
@@ -596,7 +596,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	}
 	for address, descriptor := range checkStage.descriptors {
 		next, ok := descriptor.(*relationDescriptor)
-		old, oldOK := auth.catalog.state.descriptors[address].(*relationDescriptor)
+		old, oldOK := auth.catalog.Relation(address)
 		if !ok || !oldOK {
 			continue
 		}
@@ -625,7 +625,7 @@ func relationDropOwner(auth AuthorizationView, ref ids.ObjectRef, d *relationDes
 	if _, validationErr := auth.object(ref); validationErr != nil {
 		return validationErr
 	}
-	ns, ok := auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor)
+	ns, ok := auth.catalog.Namespace(d.namespace)
 	if !ok {
 		return fmt.Errorf("stuntgres: invalid sequence namespace")
 	}

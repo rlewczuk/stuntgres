@@ -51,7 +51,7 @@ func (e *Engine) roleRetirementPreflightLocked(c *catalogChanges, catalog *catal
 		if defaultRoleDependencies(e.catalog.read(catalog), e.roleRead(e.catalog.read(catalog), c.roles), ref, nil) {
 			return ErrCatalogReplaced
 		}
-		for _, descriptor := range catalog.descriptors {
+		for _, descriptor := range catalog.Descriptors() {
 			if descriptorRoleDependencies(descriptor, ref, nil) {
 				return ErrCatalogReplaced
 			}

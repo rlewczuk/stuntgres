@@ -20,7 +20,7 @@ func objectGrantUnitFixture(t *testing.T) (*Engine, *Operation, authorization.Pr
 	t.Cleanup(done)
 	reader := roleAttributeCreate(t, e, op, "grant_reader", true, parser.RoleOptions{}).Ref
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900001}
-	namespace := e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"}]
+	namespace := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
 	relation := &relationDescriptor{address: address, namespace: namespace, name: "grant_unit", owner: op.RoleState().CurrentUser, columns: []ColumnDescriptor{{Name: "a"}, {Name: "b"}}, index: map[string]int{"a": 0, "b": 1}, attributes: []int32{1, 3}, attributeHighWater: 3}
 	e.catalog.state = cloneCatalog(e.catalog.state)
 	e.catalog.state.descriptors[address] = relation
@@ -43,7 +43,7 @@ func objectGrantUnitRequest() *parser.ObjectGrant {
 
 func TestObjectGrantSequencePublication(t *testing.T) {
 	e, op, reader, address := objectGrantUnitFixture(t)
-	original := e.catalog.state.descriptors[address].(*relationDescriptor)
+	original := e.catalog.state.MustRelation(address)
 	original.relationKind = sequenceRelation
 	original.sequencePlanStamp = 1
 	generator := &sequenceGenerator{last: 11}
@@ -54,7 +54,7 @@ func TestObjectGrantSequencePublication(t *testing.T) {
 	if err := applyObjectGrantUnit(e, op, request); err != nil {
 		t.Fatal(err)
 	}
-	next := e.catalog.state.descriptors[address].(*relationDescriptor)
+	next := e.catalog.state.MustRelation(address)
 	mask := authorization.DefaultMask(authorization.DefaultSequences)
 	if next == original || !next.acl.Explicit || len(next.acl.Entries) != 2 || next.acl.Entries[0].Privileges != mask || next.acl.Entries[0].GrantOptions != 0 {
 		t.Fatal("wrong sequence baseline", next.acl)
@@ -88,11 +88,11 @@ func TestObjectGrantAtomicPublicationAndStableSubID(t *testing.T) {
 	if err := applyObjectGrantUnit(e, op, request); err != nil {
 		t.Fatal(err)
 	}
-	next := e.catalog.state.descriptors[address].(*relationDescriptor)
-	if next == before.descriptors[address] || next.columnACL[3].Entries[0].Grantee.Role != reader || len(next.columnACL[1].Entries) != 0 || e.roles.revision != roles.revision+1 {
+	next := e.catalog.state.MustRelation(address)
+	if next == before.Get(address) || next.columnACL[3].Entries[0].Grantee.Role != reader || len(next.columnACL[1].Entries) != 0 || e.roles.revision != roles.revision+1 {
 		t.Fatal("wrong immutable/stable publication", next)
 	}
-	if len(before.descriptors[address].(*relationDescriptor).columnACL) != 0 {
+	if len(before.MustRelation(address).columnACL) != 0 {
 		t.Fatal("retained descriptor mutated")
 	}
 	stableState, stableRoles := e.catalog.state, e.roles
@@ -106,7 +106,7 @@ func TestObjectGrantAtomicPublicationAndStableSubID(t *testing.T) {
 	if err := applyObjectGrantUnit(e, op, request); err != nil {
 		t.Fatal(err)
 	}
-	if len(e.catalog.state.descriptors[address].(*relationDescriptor).columnACL[3].Entries) != 0 || len(next.columnACL[3].Entries) != 1 {
+	if len(e.catalog.state.MustRelation(address).columnACL[3].Entries) != 0 || len(next.columnACL[3].Entries) != 1 {
 		t.Fatal("revoke mutated old snapshot")
 	}
 }
@@ -126,7 +126,7 @@ func TestObjectGrantColumnTableIndependence(t *testing.T) {
 	if err := applyObjectGrantUnit(e, op, column); err != nil {
 		t.Fatal(err)
 	}
-	relation := e.catalog.state.descriptors[address].(*relationDescriptor)
+	relation := e.catalog.state.MustRelation(address)
 	if authorization.ACLRights(relation.acl, relation.owner, []authorization.PrincipalRef{reader}, authorization.TableGrantPrivileges, false)&authorization.SelectPrivilege == 0 {
 		t.Fatal("column revoke negated table grant")
 	}
@@ -137,7 +137,7 @@ func TestObjectGrantColumnTableIndependence(t *testing.T) {
 	if err := applyObjectGrantUnit(e, op, table); err != nil {
 		t.Fatal(err)
 	}
-	relation = e.catalog.state.descriptors[address].(*relationDescriptor)
+	relation = e.catalog.state.MustRelation(address)
 	if authorization.ACLRights(relation.acl, relation.owner, []authorization.PrincipalRef{reader}, authorization.TableGrantPrivileges, false) != 0 {
 		t.Fatal("table revoke retained source rights")
 	}
@@ -197,7 +197,7 @@ func TestObjectGrantGrantorPrecedence(t *testing.T) {
 
 func TestObjectGrantIndexOwnershipUsesParentDependency(t *testing.T) {
 	e, op, _, address := objectGrantUnitFixture(t)
-	parent := e.catalog.state.descriptors[address].(*relationDescriptor)
+	parent := e.catalog.state.MustRelation(address)
 	index := &relationDescriptor{
 		address:      ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900002},
 		namespace:    parent.namespace,
@@ -336,8 +336,8 @@ func TestObjectGrantMergedColumnMaskWarnings(t *testing.T) {
 					if got := actor.DetachNotices(); !reflect.DeepEqual(got, want) {
 						t.Fatalf("revoke=%v notices %#v want %#v", revoke, got, want)
 					}
-					relation := e.catalog.state.descriptors[address].(*relationDescriptor)
-					if !reflect.DeepEqual(relation.acl, before.descriptors[address].(*relationDescriptor).acl) || len(relation.columnACL[1].Entries) != 0 {
+					relation := e.catalog.state.MustRelation(address)
+					if !reflect.DeepEqual(relation.acl, before.MustRelation(address).acl) || len(relation.columnACL[1].Entries) != 0 {
 						t.Fatal("column request changed table or another stable attribute")
 					}
 					if !options {

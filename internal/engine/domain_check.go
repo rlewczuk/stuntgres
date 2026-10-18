@@ -46,7 +46,7 @@ func (e *Engine) bindDomainChecks(op *Operation, auth AuthorizationView, stage *
 // domains, without a session, SQL execution or a separately allocated type.
 func (e *Engine) initializeBuiltinDomainChecks() error {
 	view := e.catalog.read(e.catalog.state)
-	d := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13256}].(*typeDescriptor)
+	d := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13256})
 	raw, err := parser.Parse(`CREATE DOMAIN information_schema.yes_or_no AS character varying(3) COLLATE "C" CONSTRAINT yes_or_no_check CHECK (VALUE IN ('YES','NO'))`)
 	if err != nil {
 		return err
@@ -129,7 +129,7 @@ func (c *EvalContext) CheckDomain(ctx context.Context, target *sqltype.Descripto
 	if view.state == nil {
 		return fmt.Errorf("stuntgres: missing domain CHECK catalog")
 	}
-	d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.ID())}].(*typeDescriptor)
+	d, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.ID())})
 	if !ok || d.typ != target {
 		return fmt.Errorf("stuntgres: foreign domain CHECK generation")
 	}
@@ -158,7 +158,7 @@ func (c *EvalContext) prepareDomainConversion(source, target *sqltype.Descriptor
 		if view.state == nil {
 			return fmt.Errorf("stuntgres: missing domain CHECK catalog")
 		}
-		d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.ID())}].(*typeDescriptor)
+		d, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.ID())})
 		if !ok || d.typ != target {
 			return fmt.Errorf("stuntgres: foreign domain CHECK generation")
 		}
@@ -177,7 +177,7 @@ func (c *EvalContext) prepareDomainConversion(source, target *sqltype.Descriptor
 
 func (c *EvalContext) prepareDomainChecks(d *typeDescriptor) error {
 	if base := d.typ.DomainBase().Type; base.IsDomain() && base.HasDomainChecks() {
-		parent, ok := c.domainCatalog().state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.ID())}].(*typeDescriptor)
+		parent, ok := c.domainCatalog().Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.ID())})
 		if !ok || parent.typ != base {
 			return fmt.Errorf("stuntgres: missing parent domain CHECK generation")
 		}
@@ -276,7 +276,7 @@ func (c *EvalContext) domainCatalog() CatalogRead {
 func (c *EvalContext) evaluateDomainChecks(view CatalogRead, target, d *typeDescriptor, candidate sqltype.Value) error {
 	base := d.typ.DomainBase()
 	if base.Type.IsDomain() && base.Type.HasDomainChecks() {
-		parent := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())}].(*typeDescriptor)
+		parent := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())})
 		if err := c.evaluateDomainChecks(view, target, parent, candidate); err != nil {
 			return err
 		}
@@ -329,7 +329,7 @@ func (c *EvalContext) evaluateOwnDomainChecks(view CatalogRead, target, d *typeD
 				}
 			}
 			diagnostic := sqlError("23514", fmt.Sprintf("value for domain %s violates check constraint %q", name, check.Name)).(*sqlstate.Error)
-			diagnostic.Schema = view.state.descriptors[target.namespace].Name()
+			diagnostic.Schema = view.Get(target.namespace).Name()
 			diagnostic.DataType, diagnostic.Constraint = target.Name(), check.Name
 			return diagnostic
 		}

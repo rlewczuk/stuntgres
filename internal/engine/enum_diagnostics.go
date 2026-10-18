@@ -44,7 +44,7 @@ func (e *Engine) captureTypeDiagnosticName(auth AuthorizationView) (func(sqltype
 	}
 	catalog := auth.catalog
 	return func(id sqltype.ID) string {
-		descriptor, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}].(*typeDescriptor)
+		descriptor, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
 		if !ok {
 			return ""
 		}
@@ -240,7 +240,7 @@ func captureRetainedDefinitionInput(catalog CatalogRead, definition *viewDefinit
 			return failure
 		}
 		for _, source := range definition.sources {
-			relation, ok := catalog.state.descriptors[source.ref.Address].(*relationDescriptor)
+			relation, ok := catalog.Relation(source.ref.Address)
 			if ok && relation.relationKind == viewRelation {
 				if err := capture(relation.view); err != nil {
 					return err

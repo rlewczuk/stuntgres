@@ -14,7 +14,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		e.mu.Unlock()
 		return nil, err
 	}
-	d, exists := e.privateCatalogLocked(scope.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
+	d, exists := e.privateCatalogLocked(scope.owner.catalog).Relation(ref.Address)
 	if ref.Domain() != e.catalog.domain || ref.Epoch != e.catalog.state.epoch || !exists {
 		e.mu.Unlock()
 		return nil, ErrCatalogReplaced
@@ -190,7 +190,7 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ids.Object
 // The source collector and execution fences use the same captured owner/invoker
 // checks; neither substitutes a live role/catalog sample during recursion.
 func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark queryRowMark) error {
-	d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	d, ok := auth.catalog.Relation(ref.Address)
 	if !ok || ref.Domain() != auth.engine.catalog.domain || ref.Epoch != auth.catalog.Epoch() || d.view != definition {
 		return ErrCatalogReplaced
 	}
@@ -200,7 +200,7 @@ func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, defi
 	}
 	auth.state.CurrentUser = principal
 	for _, leaf := range definition.sources {
-		source, ok := auth.catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
+		source, ok := auth.catalog.Relation(leaf.ref.Address)
 		if !ok || !storedViewReferenceValid(auth.catalog, d, leaf.ref) {
 			return ErrCatalogReplaced
 		}

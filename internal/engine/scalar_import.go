@@ -10,7 +10,7 @@ import (
 // authority for the existing nested datum/expression remapping pass. Engine.mu
 // is held.
 func (e *Engine) importScalarTypesLocked(next *catalogState, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
-	for address, descriptor := range next.descriptors {
+	for address, descriptor := range next.Descriptors() {
 		d, ok := descriptor.(*typeDescriptor)
 		if !ok || !d.typ.IsEnum() && !d.typ.IsQueryInt() {
 			continue
@@ -53,7 +53,7 @@ func (e *Engine) importScalarTypesLocked(next *catalogState, mapping map[ids.Obj
 // Translation remains keyed by the source pointer and points at that final codec.
 func refreshScalarImportDestinations(next *catalogState) {
 	for source := range next.scalarImports {
-		if d, ok := next.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.ID())}].(*typeDescriptor); ok {
+		if d, ok := next.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.ID())}); ok {
 			next.scalarImports[source] = d.typ
 		}
 	}

@@ -32,14 +32,14 @@ type tablespaceProvider struct{}
 func (tablespaceProvider) ClassID() ids.OID { return ids.TablespaceClassID }
 func (tablespaceProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	d, ok := descriptor.(*tablespaceDescriptor)
-	if !ok || d == nil || v.state == nil || v.state.descriptors[d.address] != d {
+	if !ok || d == nil || v.state == nil || v.Get(d.address) != d {
 		return fmt.Errorf("stuntgres: invalid tablespace descriptor authority")
 	}
 	valid := false
 	for _, builtin := range builtinTablespaces {
 		valid = valid || d.address.ObjectID == builtin.oid && d.name == builtin.name
 	}
-	if !valid || d.address.ClassID != ids.TablespaceClassID || d.address.SubID != 0 || d.revision == 0 || v.state.names[descriptorNameKey(d)] != d.address {
+	if !valid || d.address.ClassID != ids.TablespaceClassID || d.address.SubID != 0 || d.revision == 0 || v.NameAddress(descriptorNameKey(d)) != d.address {
 		return fmt.Errorf("stuntgres: invalid tablespace descriptor")
 	}
 	return nil
@@ -55,7 +55,7 @@ func (e *Engine) initializeTablespaces() {
 }
 
 func resolveGrantTablespace(v AuthorizationView, name string) (ids.ObjectRef, error) {
-	address := v.catalog.state.names[ids.NameKey{ClassID: ids.TablespaceClassID, Name: name}]
+	address := v.catalog.NameAddress(ids.NameKey{ClassID: ids.TablespaceClassID, Name: name})
 	if address == (ids.ObjectAddress{}) {
 		return ids.ObjectRef{}, sqlError("42704", fmt.Sprintf(`tablespace "%s" does not exist`, name))
 	}

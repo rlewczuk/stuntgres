@@ -25,7 +25,7 @@ func (s *StatementScope) partitionAttachFrontier(catalog CatalogRead, parent, ta
 		}
 		if proven && !exclude {
 			for child := parent; child.membership != nil; {
-				ancestor := view.state.descriptors[child.membership.parent].(*relationDescriptor)
+				ancestor := view.MustRelation(child.membership.parent)
 				proven, err = partitionConstraintProven(s, view, ancestor, d, child.membership, false)
 				if err != nil || !proven {
 					break
@@ -44,7 +44,7 @@ func (s *StatementScope) partitionAttachFrontier(catalog CatalogRead, parent, ta
 			return nil
 		}
 		for _, address := range d.partition.children {
-			child, ok := view.state.descriptors[address].(*relationDescriptor)
+			child, ok := view.Relation(address)
 			if !ok {
 				return ErrCatalogReplaced
 			}
@@ -80,7 +80,7 @@ func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogSta
 		return ErrCatalogReplaced
 	}
 	capture := func(d *relationDescriptor) error {
-		if current := e.privateCatalogLocked(scope.owner.catalog).state.descriptors[d.address]; current != d {
+		if current := e.privateCatalogLocked(scope.owner.catalog).Get(d.address); current != d {
 			return ErrCatalogReplaced
 		}
 		stage.domainBases = append(stage.domainBases, d)
@@ -139,7 +139,7 @@ func partitionAttachValidateRows(scope *StatementScope, catalog CatalogRead, par
 		}
 		if !job.exclude {
 			for child := parent; child.membership != nil; {
-				ancestor := catalog.state.descriptors[child.membership.parent].(*relationDescriptor)
+				ancestor := catalog.MustRelation(child.membership.parent)
 				if err := add(ancestor, child.membership); err != nil {
 					return err
 				}
@@ -175,7 +175,7 @@ func partitionAttachValidateRows(scope *StatementScope, catalog CatalogRead, par
 				if job.exclude {
 					message = fmt.Sprintf(`updated partition constraint for default partition "%s" would be violated by some row`, job.leaf.name)
 				}
-				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23514", Message: message, Schema: catalog.state.descriptors[job.leaf.namespace].Name(), Table: job.leaf.name}
+				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23514", Message: message, Schema: catalog.Get(job.leaf.namespace).Name(), Table: job.leaf.name}
 			}
 		}
 		source.close()

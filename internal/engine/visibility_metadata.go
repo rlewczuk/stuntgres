@@ -133,7 +133,7 @@ func (conversionProvider) Validate(view CatalogRead, descriptor Descriptor) erro
 			return fmt.Errorf("stuntgres: unsupported seeded conversion capability")
 		}
 	}
-	procedure, ok := view.state.descriptors[d.handler].(*procedureDescriptor)
+	procedure, ok := view.Procedure(d.handler)
 	if !ok || procedure.signature != conversionSignature || procedure.result != 23 || procedure.conversion.Name() == "" {
 		return fmt.Errorf("stuntgres: unavailable conversion routine")
 	}
@@ -147,9 +147,9 @@ func (conversionProvider) Validate(view CatalogRead, descriptor Descriptor) erro
 	if err := validateInquiryIdentity(view, d); err != nil {
 		return err
 	}
-	namespace := view.state.descriptors[d.Namespace()].(*namespaceDescriptor)
+	namespace := view.MustNamespace(d.Namespace())
 	if namespace.temporary == (ids.SessionToken{}) {
-		handlerNamespace := view.state.descriptors[procedure.Namespace()].(*namespaceDescriptor)
+		handlerNamespace := view.MustNamespace(procedure.Namespace())
 		if handlerNamespace.temporary != (ids.SessionToken{}) {
 			return fmt.Errorf("stuntgres: durable conversion has temporary routine")
 		}
@@ -161,7 +161,7 @@ func validateInquiryIdentity(view CatalogRead, d Descriptor) error {
 	if !ok || namespace.Kind() != ids.NamespaceObject {
 		return fmt.Errorf("stuntgres: inquiry namespace is missing")
 	}
-	if view.state.names[descriptorNameKey(d)] != d.Address() {
+	if view.NameAddress(descriptorNameKey(d)) != d.Address() {
 		return fmt.Errorf("stuntgres: invalid inquiry identity")
 	}
 	return nil
@@ -192,8 +192,8 @@ type collationCandidate struct {
 // avoiding an index copy, catalog scan or allocation during row evaluation.
 func visibleCollation(view CatalogRead, path []ids.ObjectAddress, d Descriptor) bool {
 	for _, namespace := range path {
-		a := view.state.names[ids.NameKey{ClassID: ids.CollationClassID, Namespace: namespace, Name: d.Name()}]
-		candidate, ok := view.state.descriptors[a].(*collationDescriptor)
+		a := view.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: namespace, Name: d.Name()})
+		candidate, ok := view.Collation(a)
 		if !ok {
 			continue
 		}

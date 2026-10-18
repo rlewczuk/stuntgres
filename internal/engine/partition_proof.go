@@ -115,7 +115,7 @@ func partitionConstraintProven(scope *StatementScope, catalog CatalogRead, paren
 	nullAllowed := exclude || bound.defaultBound
 	if bound.defaultBound {
 		for _, address := range parent.partition.children {
-			child := catalog.state.descriptors[address].(*relationDescriptor)
+			child := catalog.MustRelation(address)
 			if child.membership.defaultBound {
 				continue
 			}

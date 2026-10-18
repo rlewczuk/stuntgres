@@ -15,11 +15,11 @@ func indexMaintenanceStage(t *testing.T, e *Engine, table string, indexes ...str
 	stage := e.BeginCatalogStage(base)
 	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	parent := roleTableRef(t, e, table)
-	stage.indexParents = map[ids.ObjectAddress]*relationDescriptor{parent.Address: base.state.descriptors[parent.Address].(*relationDescriptor)}
+	stage.indexParents = map[ids.ObjectAddress]*relationDescriptor{parent.Address: base.MustRelation(parent.Address)}
 	stage.indexRebuilds = make(map[ids.ObjectAddress]*relationDescriptor, len(indexes))
 	for _, name := range indexes {
 		ref := roleTableRef(t, e, name)
-		stage.indexRebuilds[ref.Address] = base.state.descriptors[ref.Address].(*relationDescriptor)
+		stage.indexRebuilds[ref.Address] = base.MustRelation(ref.Address)
 	}
 	return stage
 }
@@ -31,7 +31,7 @@ func TestIndexMaintenanceDescriptorUnchangedIntent(t *testing.T) {
 	}
 	a, old := btreeRoot(t, e, "a")
 	b, sibling := btreeRoot(t, e, "b")
-	parent := e.catalog.state.descriptors[a.sqlIndex.parent]
+	parent := e.catalog.state.Get(a.sqlIndex.parent)
 	store := e.storage[a.sqlIndex.parent]
 	stage := indexMaintenanceStage(t, e, "t", "a")
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
@@ -45,7 +45,7 @@ func TestIndexMaintenanceDescriptorUnchangedIntent(t *testing.T) {
 	if err != nil || len(changes.Definitions) != 0 {
 		t.Fatal("descriptor-unchanged rebuild forged a definition change", changes, err)
 	}
-	if e.catalog.state.descriptors[a.address] != a || e.catalog.state.descriptors[a.sqlIndex.parent] != parent || e.storage[a.sqlIndex.parent] != store || e.indexRoots[a.address] == old || e.indexRoots[b.address] != sibling || !reflect.DeepEqual(e.indexRoots[a.address].entries, old.entries) {
+	if e.catalog.state.Get(a.address) != a || e.catalog.state.Get(a.sqlIndex.parent) != parent || e.storage[a.sqlIndex.parent] != store || e.indexRoots[a.address] == old || e.indexRoots[b.address] != sibling || !reflect.DeepEqual(e.indexRoots[a.address].entries, old.entries) {
 		t.Fatal("selected intent did not publish exactly one real root")
 	}
 }
@@ -74,7 +74,7 @@ func TestIndexMaintenanceStageIncarnationAndIndexSetFences(t *testing.T) {
 			case "parent_revision":
 				base := e.CatalogRead()
 				ref := roleTableRef(t, e, "t")
-				d := *base.state.descriptors[ref.Address].(*relationDescriptor)
+				d := *base.MustRelation(ref.Address)
 				d.revision++
 				replacement := e.BeginCatalogStage(base)
 				defer e.DiscardCatalogStage(replacement)

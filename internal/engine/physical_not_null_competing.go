@@ -43,7 +43,7 @@ func physicalCompetingIndexSource(view CatalogRead, index *relationDescriptor) (
 	if index == nil || index.sqlIndex == nil {
 		return nil, false, nil
 	}
-	parent, ok := view.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+	parent, ok := view.Relation(index.sqlIndex.parent)
 	if !ok {
 		return nil, false, nil
 	}
@@ -55,7 +55,7 @@ func physicalCompetingIndexSource(view CatalogRead, index *relationDescriptor) (
 	if err != nil || !eligible {
 		return nil, false, err
 	}
-	source, ok := view.state.descriptors[primary.Index].(*relationDescriptor)
+	source, ok := view.Relation(primary.Index)
 	if !ok {
 		return nil, false, fmt.Errorf("stuntgres: missing physical self-FK primary provider")
 	}
@@ -67,14 +67,14 @@ func emitPhysicalCompetingUniques(view CatalogRead, table *relationDescriptor, o
 	if primary == nil {
 		return nil
 	}
-	primaryIndex := view.state.descriptors[primary.Index].(*relationDescriptor)
+	primaryIndex := view.MustRelation(primary.Index)
 	if partitionReplaySeparateConstraint(view, primaryIndex) != separate {
 		return nil
 	}
-	qualified := quoteIdentifier(view.state.descriptors[table.namespace].Name()) + "." + quoteIdentifier(table.name)
+	qualified := quoteIdentifier(view.Get(table.namespace).Name()) + "." + quoteIdentifier(table.name)
 	for i := range table.uniqueConstraints {
 		constraint := &table.uniqueConstraints[i]
-		index := view.state.descriptors[constraint.Index].(*relationDescriptor)
+		index := view.MustRelation(constraint.Index)
 		if partitionReplaySeparateConstraint(view, index) {
 			continue
 		}
@@ -116,11 +116,11 @@ func (e *Engine) preparePhysicalCompetingUnique(op *Operation, raw *parser.Alter
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if !partitionConstraintReplayImport(e, op, auth) || auth.roleRecord != provider.authority.roleRecord || created[provider.ref.Address] != provider.ref || auth.catalog.state.descriptors[provider.ref.Address] != provider.current {
+	if !partitionConstraintReplayImport(e, op, auth) || auth.roleRecord != provider.authority.roleRecord || created[provider.ref.Address] != provider.ref || auth.catalog.Get(provider.ref.Address) != provider.current {
 		return reject()
 	}
 	old := provider.current
-	namespace := auth.catalog.state.descriptors[old.namespace]
+	namespace := auth.catalog.Get(old.namespace)
 	if namespace == nil || namespace.Name() != raw.Name.Parts[0].Text || old.name != raw.Name.Parts[1].Text {
 		return reject()
 	}

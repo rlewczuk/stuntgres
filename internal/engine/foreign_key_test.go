@@ -225,7 +225,7 @@ func TestForeignKeyDefinitionAuthority(t *testing.T) {
 	e, _, _, c, ref, _ := foreignKeyLockFixture(t)
 	sessionSQL(t, c, "CREATE UNIQUE INDEX wrong_key ON p(note)")
 	view := e.CatalogRead()
-	child := view.state.descriptors[catalogRef(t, e, view, "c").Address].(*relationDescriptor)
+	child := view.MustRelation(catalogRef(t, e, view, "c").Address)
 	original := child.foreignKeys[0]
 	for _, change := range []func(*foreignKeyConstraint){func(f *foreignKeyConstraint) { f.OID = 0 }, func(f *foreignKeyConstraint) { f.Target.ObjectID = 0 }, func(f *foreignKeyConstraint) { f.Referenced = []int32{99} }, func(f *foreignKeyConstraint) { f.Index = catalogRef(t, e, view, "wrong_key").Address }, func(f *foreignKeyConstraint) { f.Attributes = []int32{99} }} {
 		copy := *child
@@ -235,7 +235,7 @@ func TestForeignKeyDefinitionAuthority(t *testing.T) {
 			t.Fatal("invalid attachment admitted", copy.foreignKeys[0])
 		}
 	}
-	index := view.state.descriptors[original.Index].(*relationDescriptor)
+	index := view.MustRelation(original.Index)
 	for _, phase := range []string{"nonunique", "nonready", "invalid", "notlive"} {
 		state := cloneCatalog(view.state)
 		copy := *index
@@ -265,16 +265,16 @@ func TestForeignKeyTypeIdentityIsolation(t *testing.T) {
 	e, _, _, c, ref, _ := foreignKeyLockFixture(t)
 	view := e.CatalogRead()
 	childAddress := catalogRef(t, e, view, "c").Address
-	old := view.state.descriptors[childAddress].(*relationDescriptor)
+	old := view.MustRelation(childAddress)
 	definition := old.foreignKeys[0]
-	parent := view.state.descriptors[ref.Address].(*relationDescriptor)
-	index := view.state.descriptors[definition.Index].(*relationDescriptor)
+	parent := view.MustRelation(ref.Address)
+	index := view.MustRelation(definition.Index)
 	sessionSQL(t, c, "ALTER TABLE p ALTER id TYPE BIGINT")
-	next := e.CatalogRead().state.descriptors[childAddress].(*relationDescriptor)
+	next := e.CatalogRead().MustRelation(childAddress)
 	if next.address != old.address || next.foreignKeys[0].OID == definition.OID || next.foreignKeys[0].Index == definition.Index || next.foreignKeys[0].Target != definition.Target || !slices.Equal(next.foreignKeys[0].Attributes, definition.Attributes) || !slices.Equal(next.foreignKeys[0].Referenced, definition.Referenced) {
 		t.Fatal("TYPE did not rebuild exact attachment", definition, next.foreignKeys[0])
 	}
-	if !reflect.DeepEqual(old.foreignKeys[0], definition) || view.state.descriptors[ref.Address] != parent || view.state.descriptors[index.address] != index {
+	if !reflect.DeepEqual(old.foreignKeys[0], definition) || view.Get(ref.Address) != parent || view.Get(index.address) != index {
 		t.Fatal("TYPE changed retained catalog")
 	}
 	sessionSQL(t, c, "INSERT INTO c VALUES(1)")

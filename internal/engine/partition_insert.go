@@ -63,7 +63,7 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 		}
 		if d.partition != nil {
 			for _, address := range d.partition.children {
-				if err := captureLayouts(auth.catalog.state.descriptors[address].(*relationDescriptor)); err != nil {
+				if err := captureLayouts(auth.catalog.MustRelation(address)); err != nil {
 					return err
 				}
 			}
@@ -74,7 +74,7 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 		return err
 	}
 	for child := target; child.membership != nil; {
-		parent := auth.catalog.state.descriptors[child.membership.parent].(*relationDescriptor)
+		parent := auth.catalog.MustRelation(child.membership.parent)
 		if err := captureLayout(parent); err != nil {
 			return err
 		}
@@ -109,7 +109,7 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 		}
 		var selected *relationDescriptor
 		for _, address := range destination.partition.children {
-			child := state.catalog.state.descriptors[address].(*relationDescriptor)
+			child := state.catalog.MustRelation(address)
 			if child.membership.defaultBound {
 				continue
 			}
@@ -123,7 +123,7 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 			}
 		}
 		if selected == nil && destination.partition.defaultChild != (ids.ObjectAddress{}) {
-			selected = state.catalog.state.descriptors[destination.partition.defaultChild].(*relationDescriptor)
+			selected = state.catalog.MustRelation(destination.partition.defaultChild)
 		}
 		if selected == nil {
 			return state.missingPartition(evaluation.Context, destination, key.values, s.output)
@@ -138,7 +138,7 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 	}
 	leafBinding := b
 	leafBinding.relation, leafBinding.ref = destination, ref
-	schema := state.catalog.state.descriptors[destination.namespace].Name()
+	schema := state.catalog.Get(destination.namespace).Name()
 	physicalRow := state.rowFor(destination, row)
 	if err := s.op.session.Engine().validatePhysicalInsertRow(s, leafBinding, &b, schema, physicalRow, evaluation); err != nil {
 		return err
@@ -156,14 +156,14 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 func (s *StatementScope) validateTargetPartitionConstraint(b binding, row []sqltype.Value, evaluation *EvalContext) error {
 	state := s.partitionInsert
 	for child := state.target; child.membership != nil; {
-		parent := state.catalog.state.descriptors[child.membership.parent].(*relationDescriptor)
+		parent := state.catalog.MustRelation(child.membership.parent)
 		accepts, err := partitionAccepts(state.catalog, parent, child, state.rowFor(parent, row), evaluation)
 		if err != nil {
 			return err
 		}
 		if !accepts {
 			err := sqlError("23514", fmt.Sprintf(`new row for relation "%s" violates partition constraint`, state.target.name)).(*sqlstate.Error)
-			err.Schema, err.Table = state.catalog.state.descriptors[state.target.namespace].Name(), state.target.name
+			err.Schema, err.Table = state.catalog.Get(state.target.namespace).Name(), state.target.name
 			detail, detailErr := s.op.session.Engine().rowConstraintDetail(s, &b, row)
 			if detailErr != nil {
 				return detailErr
@@ -179,7 +179,7 @@ func (s *StatementScope) validateTargetPartitionConstraint(b binding, row []sqlt
 func (state *partitionInsertState) missingPartition(ctx context.Context, parent *relationDescriptor, key []partitionDatum, output sqltype.OutputEnvironment) error {
 	ref := state.catalog.owner.domain.Ref(state.catalog.Epoch(), parent.address)
 	err := sqlError("23514", fmt.Sprintf(`no partition of relation "%s" found for row`, parent.name)).(*sqlstate.Error)
-	err.Schema, err.Table = state.catalog.state.descriptors[parent.namespace].Name(), parent.name
+	err.Schema, err.Table = state.catalog.Get(parent.namespace).Name(), parent.name
 	// Routing/integrity errors remain real, but an actor subject to RLS must
 	// not receive key values even when ordinary SELECT ACLs are present.
 	decision, securityErr := rowSecurityDecision(state.auth, state.target, state.auth.state.CurrentUser, policyInsert, true)

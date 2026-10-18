@@ -85,17 +85,17 @@ func (s *catalogStore) allocateOIDLocked() (ids.OID, error) {
 		if n == ids.NamespaceClassID || n == ids.RelationClassID || n == ids.PGCatalogNamespaceOID || n == ids.PublicNamespaceOID {
 			continue
 		}
-		if _, ok := s.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: n}]; ok {
+		if _, ok := s.state.Find(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: n}); ok {
 			continue
 		}
-		if _, ok := s.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: n}]; ok {
+		if _, ok := s.state.Find(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: n}); ok {
 			continue
 		}
-		if _, ok := s.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n}]; ok {
+		if _, ok := s.state.Find(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n}); ok {
 			continue
 		}
 		usedRule := false
-		for _, descriptor := range s.state.descriptors {
+		for _, descriptor := range s.state.Descriptors() {
 			if definitionOIDUsed(descriptor, n) {
 				usedRule = true
 				break
@@ -147,7 +147,7 @@ func (s *catalogStore) validateObjectRefLocked(view CatalogRead, ref ids.ObjectR
 	if view.state.epoch != s.state.epoch || ref.Epoch != s.state.epoch {
 		return ErrCatalogReplaced
 	}
-	d, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID}]
+	d, ok := view.Find(ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID})
 	if !ok {
 		return fmt.Errorf("stuntgres: catalog object is missing")
 	}

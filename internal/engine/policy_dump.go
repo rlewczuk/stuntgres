@@ -16,7 +16,7 @@ func policyExpressionSQL(ctx context.Context, view CatalogRead, expression *poli
 	r.frame = 1
 	source := viewFromRoot(r.frames[1])
 	leaf := r.sources[0]
-	d, ok := view.state.descriptors[leaf.ref.Address].(*relationDescriptor)
+	d, ok := view.Relation(leaf.ref.Address)
 	if !ok {
 		return "", fmt.Errorf("stuntgres: policy owner is missing")
 	}
@@ -36,12 +36,12 @@ func policyExpressionSQL(ctx context.Context, view CatalogRead, expression *poli
 
 func policyDumpGroups(ctx context.Context, view CatalogRead, roles authorization.Read) ([]dumpPolicyGroup, error) {
 	var groups []dumpPolicyGroup
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		d, ok := descriptor.(*relationDescriptor)
 		if !ok || len(d.policies) == 0 {
 			continue
 		}
-		ns := view.state.descriptors[d.namespace].(*namespaceDescriptor)
+		ns := view.MustNamespace(d.namespace)
 		if ns.temporary != (ids.SessionToken{}) {
 			continue
 		}
@@ -82,22 +82,22 @@ func policyDumpGroups(ctx context.Context, view CatalogRead, roles authorization
 					continue
 				}
 				for _, leaf := range clause.expr.presentation.sources {
-					relation, ok := view.state.descriptors[leaf.ref.Address].(*relationDescriptor)
+					relation, ok := view.Relation(leaf.ref.Address)
 					if !ok {
 						return nil, fmt.Errorf("stuntgres: policy provider is missing")
 					}
-					if view.state.descriptors[relation.namespace].(*namespaceDescriptor).temporary != (ids.SessionToken{}) {
+					if view.MustNamespace(relation.namespace).temporary != (ids.SessionToken{}) {
 						return nil, fmt.Errorf("stuntgres: dump cannot serialize a policy referencing a temporary relation")
 					}
 				}
 				for _, dependency := range clause.expr.presentation.dependencies {
 					address := dependency.ref.Address
 					address.SubID = 0
-					provider := view.state.descriptors[address]
+					provider := view.Get(address)
 					if provider == nil {
 						return nil, fmt.Errorf("stuntgres: policy provider is missing")
 					}
-					if namespace, ok := view.state.descriptors[provider.Namespace()].(*namespaceDescriptor); ok && namespace.temporary != (ids.SessionToken{}) {
+					if namespace, ok := view.Namespace(provider.Namespace()); ok && namespace.temporary != (ids.SessionToken{}) {
 						return nil, fmt.Errorf("stuntgres: dump cannot serialize a policy referencing a temporary relation")
 					}
 				}

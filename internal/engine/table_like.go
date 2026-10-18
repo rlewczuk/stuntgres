@@ -124,8 +124,8 @@ func (s *CatalogStage) validateLikeSources(current CatalogRead) error {
 	}
 	for _, source := range s.likeSources {
 		address := source.Address()
-		if original, incumbent := s.base.state.descriptors[address]; incumbent {
-			if original != source || current.state.descriptors[address] != source {
+		if original, incumbent := s.base.Find(address); incumbent {
+			if original != source || current.Get(address) != source {
 				return ErrCatalogReplaced
 			}
 		} else {
@@ -152,7 +152,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 			target := destination.attributes[in.targetSlot(slot)]
 			if in.options&likeIdentity != 0 {
 				if identity, ok := in.source.identities[attribute]; ok {
-					sequence, ok := auth.catalog.state.descriptors[identity.sequence].(*relationDescriptor)
+					sequence, ok := auth.catalog.Relation(identity.sequence)
 					if !ok || sequence.sequence == nil {
 						return fmt.Errorf("stuntgres: missing LIKE identity provider")
 					}
@@ -173,7 +173,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 					// DEFAULT providers cannot reference the owner row; the cooked immutable
 					// tree, including frozen literals and external identities, is reusable.
 					node := old.expression
-					temporary := auth.catalog.state.descriptors[destination.namespace].(*namespaceDescriptor).temporary
+					temporary := auth.catalog.MustNamespace(destination.namespace).temporary
 					if err := validateCookedDefaultTemporary(node, temporary); err != nil {
 						return err
 					}
@@ -188,7 +188,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 						if dependency.Address.ClassID != ids.ProcedureClassID || dependency.Epoch == auth.catalog.Epoch() {
 							continue
 						}
-						sourceNamespace := auth.catalog.state.descriptors[in.source.namespace].(*namespaceDescriptor)
+						sourceNamespace := auth.catalog.MustNamespace(in.source.namespace)
 						if temporary == (ids.SessionToken{}) || temporary != sourceNamespace.temporary || temporary.Domain() != domainOf(e) {
 							return fmt.Errorf("stuntgres: stale stored routine reference")
 						}

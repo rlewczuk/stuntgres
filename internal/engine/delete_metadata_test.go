@@ -99,7 +99,7 @@ func TestDeleteCoreMetadataACLPublication(t *testing.T) {
 			sessionSQL(t, a, "INSERT INTO t VALUES(7)")
 			deleteCount(t, a, "DELETE FROM t WHERE v=1", 1)
 			e.mu.Lock()
-			beforeDescriptor := e.catalog.state.descriptors[ref.Address]
+			beforeDescriptor := e.catalog.state.Get(ref.Address)
 			beforeStorage := e.storage[ref.Address]
 			beforeEpoch := e.catalog.state.epoch
 			e.mu.Unlock()
@@ -112,7 +112,7 @@ func TestDeleteCoreMetadataACLPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			e.mu.Lock()
-			metadataOnly := e.catalog.state.descriptors[ref.Address] != beforeDescriptor && e.storage[ref.Address] == beforeStorage && e.catalog.state.epoch == beforeEpoch
+			metadataOnly := e.catalog.state.Get(ref.Address) != beforeDescriptor && e.storage[ref.Address] == beforeStorage && e.catalog.state.epoch == beforeEpoch
 			e.mu.Unlock()
 			if !metadataOnly {
 				t.Fatal("fixture did not publish metadata-only ACL descriptor replacement")

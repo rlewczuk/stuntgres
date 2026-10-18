@@ -57,7 +57,7 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 	ref := catalogRef(t, e, e.CatalogRead(), "affected")
 	other := catalogRef(t, e, e.CatalogRead(), "untouched")
 	oldCatalog := e.catalog.state
-	oldRelation := oldCatalog.descriptors[ref.Address].(*relationDescriptor)
+	oldRelation := oldCatalog.MustRelation(ref.Address)
 	value, _ := mood.typ.Input(context.Background(), "q", -1)
 	oldStore := &relationStorage{versions: []rowVersion{{row: 7, version: 11, born: 3, keyChangedAt: 2, values: []sqltype.Value{value}}}, generation: 4}
 	e.storage[ref.Address] = oldStore

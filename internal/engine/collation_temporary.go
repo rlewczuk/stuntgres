@@ -23,11 +23,11 @@ func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage
 	if len(changes.descriptors) != 0 {
 		auth.catalog = e.stageRead(stage)
 		auth.recaptureCatalog(auth.catalog)
-		if ns, ok := auth.catalog.state.descriptors[ref.Address].(*namespaceDescriptor); ok && !ns.temporaryToast && auth.session != nil && ns.temporary == auth.session.token {
+		if ns, ok := auth.catalog.Namespace(ref.Address); ok && !ns.temporaryToast && auth.session != nil && ns.temporary == auth.session.token {
 			auth.stagedTemporary = ns.address
 		}
 	}
-	ns := auth.catalog.state.descriptors[ref.Address].(*namespaceDescriptor)
+	ns := auth.catalog.MustNamespace(ref.Address)
 	if ns.temporary != (ids.SessionToken{}) && !ownTemporaryNamespace(*auth, ns) {
 		actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
 		if err != nil {
@@ -53,7 +53,7 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 		e.mu.Lock()
 		base := e.catalog.read(e.catalog.state)
 		var namespaces []*namespaceDescriptor
-		for _, d := range base.state.descriptors {
+		for _, d := range base.Descriptors() {
 			if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == source.token {
 				namespaces = append(namespaces, ns)
 			}

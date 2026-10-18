@@ -16,11 +16,11 @@ func capturePGIndexes(ctx context.Context, catalog CatalogRead, auth Authorizati
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner == nil || catalog.state == nil || auth.engine.catalog.owner() != catalog.owner || auth.catalog.state != catalog.state || auth.catalog.owner != catalog.owner || ref.Domain() != catalog.owner.domain || ref.Epoch != catalog.Epoch() || ref.Address.SubID != 0 || source == nil || source.address != ref.Address || source.address.ObjectID != 12002 || catalog.state.descriptors[ref.Address] != source {
+	if catalog.owner == nil || catalog.state == nil || auth.engine.catalog.owner() != catalog.owner || auth.catalog.state != catalog.state || auth.catalog.owner != catalog.owner || ref.Domain() != catalog.owner.domain || ref.Epoch != catalog.Epoch() || ref.Address.SubID != 0 || source == nil || source.address != ref.Address || source.address.ObjectID != 12002 || catalog.Get(ref.Address) != source {
 		return nil, fmt.Errorf("stuntgres: invalid pg_indexes capture")
 	}
 	rows := make([][]sqltype.Value, 0)
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -28,11 +28,11 @@ func capturePGIndexes(ctx context.Context, catalog CatalogRead, auth Authorizati
 		if !ok || index.sqlIndex == nil {
 			continue
 		}
-		parent, ok := catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		parent, ok := catalog.Relation(index.sqlIndex.parent)
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing index parent")
 		}
-		schema, ok := catalog.state.descriptors[parent.namespace]
+		schema, ok := catalog.Find(parent.namespace)
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing index namespace")
 		}

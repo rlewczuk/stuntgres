@@ -38,7 +38,7 @@ func TestPartitionDetachConstraintReplayComponentOrder(t *testing.T) {
 			for i, index := range indexes {
 				want := fmt.Sprintf("__stuntgres_partition_key_%d", i+1)
 				if got := replay.temporary[index.address]; got != want {
-					t.Errorf("allocation %s/%s = %q, want %q", view.state.descriptors[index.namespace].Name(), tables[i].name, got, want)
+					t.Errorf("allocation %s/%s = %q, want %q", view.Get(index.namespace).Name(), tables[i].name, got, want)
 				}
 			}
 			got := replay.finalRenameOrder()
@@ -46,7 +46,7 @@ func TestPartitionDetachConstraintReplayComponentOrder(t *testing.T) {
 			if !slices.Equal(got, want) {
 				var actual []string
 				for _, index := range got {
-					actual = append(actual, view.state.descriptors[index.namespace].Name()+"/"+index.name)
+					actual = append(actual, view.Get(index.namespace).Name()+"/"+index.name)
 				}
 				t.Fatalf("terminal rename order = %v, want [a/b.c a/z a.b/c]", actual)
 			}

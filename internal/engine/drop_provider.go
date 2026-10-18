@@ -100,7 +100,7 @@ func (p *dropProvider) replacement(address ids.ObjectAddress) Descriptor {
 	}
 	if p.prepared != nil && p.prepared.input != nil {
 		descriptor, present := p.prepared.input.descriptor(address)
-		if present && descriptor != p.prepared.base.state.descriptors[address] {
+		if present && descriptor != p.prepared.base.Get(address) {
 			return descriptor
 		}
 	}
@@ -122,7 +122,7 @@ func (p *dropProvider) removed(address ids.ObjectAddress) bool {
 			return true
 		}
 	}
-	if p.prepared != nil && p.prepared.input != nil && p.prepared.base.state.descriptors[address] != nil {
+	if p.prepared != nil && p.prepared.input != nil && p.prepared.base.Get(address) != nil {
 		_, present := p.prepared.input.descriptor(address)
 		return !present
 	}
@@ -131,7 +131,7 @@ func (p *dropProvider) removed(address ids.ObjectAddress) bool {
 
 func (p *dropProvider) descriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
 	return func(yield func(ids.ObjectAddress, Descriptor) bool) {
-		for address, descriptor := range p.base.state.descriptors {
+		for address, descriptor := range p.base.Descriptors() {
 			if p.prepared != nil && p.prepared.input != nil {
 				if projected, present := p.prepared.input.descriptor(address); present {
 					descriptor = projected
@@ -143,14 +143,14 @@ func (p *dropProvider) descriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
 		}
 		if p.stage != nil {
 			for address, descriptor := range p.stage.descriptors {
-				if p.base.state.descriptors[address] == nil && !yield(address, descriptor) {
+				if p.base.Get(address) == nil && !yield(address, descriptor) {
 					return
 				}
 			}
 		}
 		if p.prepared != nil && p.prepared.input != nil {
 			for address, descriptor := range p.prepared.input.descriptors() {
-				if p.base.state.descriptors[address] == nil && !yield(address, descriptor) {
+				if p.base.Get(address) == nil && !yield(address, descriptor) {
 					return
 				}
 			}
@@ -196,25 +196,25 @@ func (p *dropProvider) observe(address ids.ObjectAddress) {
 	if _, captured := p.prepared.observed[address]; captured {
 		return
 	}
-	descriptor, original := p.prepared.base.state.descriptors[address]
+	descriptor, original := p.prepared.base.Find(address)
 	if !original {
-		descriptor = p.base.state.descriptors[address]
+		descriptor = p.base.Get(address)
 	}
 	p.prepared.observed[address] = descriptor
 }
 
 func (p *dropProvider) descriptorCount() int {
-	count := len(p.base.state.descriptors)
+	count := p.base.DescriptorCount()
 	if p.stage != nil {
 		for address := range p.stage.descriptors {
-			if p.base.state.descriptors[address] == nil {
+			if p.base.Get(address) == nil {
 				count++
 			}
 		}
 	}
 	if p.prepared != nil && p.prepared.input != nil {
 		for address := range p.prepared.input.descriptors() {
-			if p.base.state.descriptors[address] == nil {
+			if p.base.Get(address) == nil {
 				count++
 			}
 		}
@@ -232,7 +232,7 @@ func (p *dropProvider) removalDescriptors() iter.Seq2[ids.ObjectAddress, Descrip
 			}
 			return
 		}
-		for address, descriptor := range p.base.state.descriptors {
+		for address, descriptor := range p.base.Descriptors() {
 			if p.removed(address) && !yield(address, descriptor) {
 				return
 			}
@@ -353,9 +353,9 @@ func (p *dropProvider) remove(ref ids.ObjectRef) error {
 }
 
 func (p *dropProvider) recordRemoval(ref ids.ObjectRef, namespace bool) error {
-	d := p.base.state.descriptors[ref.Address]
+	d := p.base.Get(ref.Address)
 	key := descriptorNameKey(d)
-	if p.base.state.names[key] != ref.Address {
+	if p.base.NameAddress(key) != ref.Address {
 		return CatalogConflict{}
 	}
 	p.observe(ref.Address)
@@ -419,8 +419,8 @@ func (p *dropProvider) projectColumn(old, next *relationDescriptor) error {
 	}
 	e.mu.Lock()
 	storage := e.stageStorageLocked(stage, old.address)
-	storageOwner := stage.base.state.descriptors[old.address].(*relationDescriptor)
-	if e.stageCatalogBaseLocked(stage).descriptors[old.address] != storageOwner || storage == nil {
+	storageOwner := stage.base.MustRelation(old.address)
+	if e.stageCatalogBaseLocked(stage).Get(old.address) != storageOwner || storage == nil {
 		e.mu.Unlock()
 		return CatalogConflict{}
 	}
@@ -506,7 +506,7 @@ func (scope *StatementScope) prepareDropDefinitionProvider(auth AuthorizationVie
 	if scope.finished || auth.engine != e || auth.session != scope.op.session || auth.catalog.owner != e.catalog.owner() || ref.Domain() != e.catalog.domain || ref.Epoch != auth.catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() || old == nil || old.address != ref.Address || ref.Address.SubID != 0 || !scope.holdsColumnDropGrant(ref) {
 		return nil, ErrCatalogReplaced
 	}
-	if _, present := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor); !present {
+	if _, present := auth.catalog.Relation(ref.Address); !present {
 		return nil, ErrCatalogReplaced
 	}
 	if prior != nil && (prior.scope != scope || prior.txRef != scope.txRef || prior.ref != ref || prior.next == nil) {
@@ -547,7 +547,7 @@ func (scope *StatementScope) validateColumnDropObservationsLocked(prepared *prep
 		return ErrCatalogReplaced
 	}
 	for address, descriptor := range prepared.observed {
-		if catalog.state.descriptors[address] != descriptor {
+		if catalog.Get(address) != descriptor {
 			return ErrCatalogReplaced
 		}
 	}
@@ -650,12 +650,12 @@ func (prepared *preparedDrop) descriptor(address ids.ObjectAddress) (Descriptor,
 }
 
 func (prepared *preparedDrop) lookup(key ids.NameKey) ids.ObjectAddress {
-	address := prepared.base.state.names[key]
+	address := prepared.base.NameAddress(key)
 	if prepared.input != nil {
 		address = prepared.input.lookup(key)
 	}
-	if address == (ids.ObjectAddress{}) && prepared.base.state.names[key] == (ids.ObjectAddress{}) {
-		address = prepared.discovery.state.names[key]
+	if address == (ids.ObjectAddress{}) && prepared.base.NameAddress(key) == (ids.ObjectAddress{}) {
+		address = prepared.discovery.NameAddress(key)
 	}
 	if descriptor, present := prepared.descriptor(address); present && descriptorNameKey(descriptor) == key {
 		return address
@@ -783,11 +783,11 @@ func (p *dropProvider) readInputDescriptor(address ids.ObjectAddress) Descriptor
 	}
 	if p.prepared != nil && p.prepared.input != nil {
 		descriptor, present := p.prepared.input.descriptor(address)
-		if present || p.prepared.base.state.descriptors[address] != nil {
+		if present || p.prepared.base.Get(address) != nil {
 			return descriptor
 		}
 	}
-	return p.base.state.descriptors[address]
+	return p.base.Get(address)
 }
 
 // Retirement discovery retains the original identity of an already removed
@@ -796,7 +796,7 @@ func (p *dropProvider) retirementDescriptor(address ids.ObjectAddress) Descripto
 	if descriptor := p.inputDescriptor(address); descriptor != nil {
 		return descriptor
 	}
-	return p.base.state.descriptors[address]
+	return p.base.Get(address)
 }
 
 func (p *dropProvider) inputDescriptors() iter.Seq2[ids.ObjectAddress, Descriptor] {
@@ -804,7 +804,7 @@ func (p *dropProvider) inputDescriptors() iter.Seq2[ids.ObjectAddress, Descripto
 		return p.descriptors()
 	}
 	return func(yield func(ids.ObjectAddress, Descriptor) bool) {
-		for address, descriptor := range p.base.state.descriptors {
+		for address, descriptor := range p.base.Descriptors() {
 			if !yield(address, descriptor) {
 				return
 			}

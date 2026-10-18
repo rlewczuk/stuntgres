@@ -455,7 +455,7 @@ func TestQuerySubqueryDMLFrameRestoration(t *testing.T) {
 			run(t, e, "INSERT INTO target VALUES(77)")
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			b.ref = roleTableRef(t, e, "target")
-			b.relation = e.CatalogRead().state.descriptors[b.ref.Address].(*relationDescriptor)
+			b.relation = e.CatalogRead().MustRelation(b.ref.Address)
 			b.targetName = "target"
 			e.mu.Lock()
 			auth, authErr := e.authorizationLocked(b.op)

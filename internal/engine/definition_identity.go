@@ -207,7 +207,7 @@ func reserveDefinitionOIDs(reserved map[ids.OID]bool, descriptor Descriptor) {
 
 func validateDefinitionOIDs(view CatalogRead) error {
 	used := make(map[ids.OID]bool)
-	for address := range view.state.descriptors {
+	for address := range view.Descriptors() {
 		used[address.ObjectID] = true
 	}
 	claim := func(id ids.OID) error {
@@ -217,7 +217,7 @@ func validateDefinitionOIDs(view CatalogRead) error {
 		used[id] = true
 		return nil
 	}
-	for _, descriptor := range view.state.descriptors {
+	for _, descriptor := range view.Descriptors() {
 		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.aggregate != nil {
 			for _, helper := range proc.aggregate.helpers {
 				if err := claim(helper.id); err != nil {
@@ -296,7 +296,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 	reserved := make(map[ids.OID]bool)
 	var relations []*relationDescriptor
 	var domains []*typeDescriptor
-	for address, descriptor := range next.descriptors {
+	for address, descriptor := range next.Descriptors() {
 		reserved[address.ObjectID] = true
 		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.aggregate != nil {
 			reserveDefinitionOIDs(reserved, proc)
@@ -312,7 +312,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 	}
 	sort.Slice(relations, func(i, j int) bool { return relations[i].address.ObjectID < relations[j].address.ObjectID })
 	claimed := make(map[ids.OID]bool)
-	for address, descriptor := range next.descriptors {
+	for address, descriptor := range next.Descriptors() {
 		claimed[address.ObjectID] = true
 		if proc, ok := descriptor.(*procedureDescriptor); ok && proc.aggregate != nil {
 			for _, helper := range proc.aggregate.helpers {
@@ -324,7 +324,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		if d.view != nil {
 			claimed[d.view.rule] = true
 		}
-		if ns, ok := next.descriptors[d.namespace].(*namespaceDescriptor); ok && ns.temporary != (ids.SessionToken{}) {
+		if ns, ok := next.Namespace(d.namespace); ok && ns.temporary != (ids.SessionToken{}) {
 			for _, r := range d.rules {
 				claimed[r.OID] = true
 			}
@@ -406,7 +406,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		constraintMapping[ids.ObjectAddress{ClassID: 2606, ObjectID: old}] = ids.ObjectAddress{ClassID: 2606, ObjectID: next}
 	}
 	for _, old := range relations {
-		if ns, ok := next.descriptors[old.namespace].(*namespaceDescriptor); ok && ns.temporary != (ids.SessionToken{}) {
+		if ns, ok := next.Namespace(old.namespace); ok && ns.temporary != (ids.SessionToken{}) {
 			continue
 		}
 		if len(old.notNullConstraints)+len(old.checkConstraints)+len(old.uniqueConstraints)+len(old.exclusionConstraints)+len(old.foreignKeys)+len(old.defaults)+len(old.generations)+len(old.policies)+len(old.rules) == 0 {
@@ -488,7 +488,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			}
 			d.uniqueConstraints[i].OID = id
 			recordConstraint(def.OID, id)
-			index, ok := next.descriptors[def.Index].(*relationDescriptor)
+			index, ok := next.Relation(def.Index)
 			if !ok || index.sqlIndex == nil {
 				return fmt.Errorf("stuntgres: invalid imported unique index")
 			}
@@ -513,7 +513,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			}
 			d.exclusionConstraints[i].OID = id
 			recordConstraint(def.OID, id)
-			index, ok := next.descriptors[def.Index].(*relationDescriptor)
+			index, ok := next.Relation(def.Index)
 			if !ok || index.sqlIndex == nil {
 				return fmt.Errorf("stuntgres: invalid imported exclusion index")
 			}
@@ -583,7 +583,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			next.descriptors[d.address] = &replacement
 		}
 	}
-	for _, descriptor := range next.descriptors {
+	for _, descriptor := range next.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
 		if !ok || len(table.uniqueConstraints) == 0 && len(table.exclusionConstraints) == 0 {
 			continue
@@ -621,12 +621,12 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 	}
 	if len(constraintMapping) != 0 {
 		view := e.catalog.read(next)
-		for address, descriptor := range next.descriptors {
+		for address, descriptor := range next.Descriptors() {
 			parent, ok := descriptor.(*relationDescriptor)
 			if !ok || len(parent.rules) == 0 {
 				continue
 			}
-			if namespace, ok := next.descriptors[parent.namespace].(*namespaceDescriptor); ok && namespace.temporary != (ids.SessionToken{}) {
+			if namespace, ok := next.Namespace(parent.namespace); ok && namespace.temporary != (ids.SessionToken{}) {
 				continue
 			}
 			remapped, err := remapRuleConstraintIdentities(view, parent, constraintMapping)

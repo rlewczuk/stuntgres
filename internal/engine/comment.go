@@ -21,12 +21,12 @@ func (e *Engine) Comment(r CatalogRead, ref ids.ObjectRef) (string, bool, error)
 	a := ref.Address
 	sub := a.SubID
 	a.SubID = 0
-	switch r.state.descriptors[a].(type) {
+	switch r.Get(a).(type) {
 	case *namespaceDescriptor, *typeDescriptor, *relationDescriptor:
 	default:
 		return "", false, fmt.Errorf("stuntgres: object class has no comment metadata")
 	}
-	text := descriptorComment(r.state.descriptors[a], sub)
+	text := descriptorComment(r.Get(a), sub)
 	return text, text != "", nil
 }
 
@@ -101,7 +101,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 	var ref ids.ObjectRef
 	switch s.Kind {
 	case parser.CommentSchema:
-		a, ok := auth.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: s.Name.Parts[0].Text}]
+		a, ok := auth.catalog.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: s.Name.Parts[0].Text})
 		if !ok {
 			return nil, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, s.Name.Parts[0].Text))
 		}
@@ -111,7 +111,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		if ref.Domain() == nil {
 			return nil, fmt.Errorf("stuntgres: COMMENT relation lock is missing")
 		}
-		relation := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		relation := auth.catalog.MustRelation(ref.Address)
 		operation := "comment table"
 		if s.Kind == parser.CommentColumn {
 			operation = "comment column"
@@ -148,7 +148,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		return nil, err
 	}
 	var updated Descriptor
-	switch d := auth.catalog.state.descriptors[a].(type) {
+	switch d := auth.catalog.Get(a).(type) {
 	case *namespaceDescriptor:
 		n := *d
 		n.comment = text

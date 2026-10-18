@@ -64,7 +64,7 @@ func foreignOptionsValue(typ *sqltype.Descriptor, options []ForeignOption) (sqlt
 
 func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationView, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {
 	var descriptors []Descriptor
-	for _, d := range auth.catalog.state.descriptors {
+	for _, d := range auth.catalog.Descriptors() {
 		if foreign, ok := d.(*foreignDescriptor); ok {
 			if foreign.address.ClassID == source.address.ObjectID || source.address.ObjectID == pgUserMappingsOID && foreign.address.ClassID == ids.ForeignMappingClassID {
 				descriptors = append(descriptors, d)
@@ -144,7 +144,7 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 				}
 				row[3], err = foreignOptionsValue(source.columns[3].Usage.Type, d.options)
 			case pgUserMappingsOID:
-				server, ok := auth.catalog.state.descriptors[d.server].(*foreignDescriptor)
+				server, ok := auth.catalog.Foreign(d.server)
 				if !ok {
 					return nil, ErrCatalogReplaced
 				}

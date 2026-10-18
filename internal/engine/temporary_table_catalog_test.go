@@ -84,7 +84,7 @@ func TestTemporaryTableCommitCandidate(t *testing.T) {
 		if err != nil {
 			t.Fatal(action, err)
 		}
-		if e.catalog.state.descriptors[table.address] != nil || e.storage[table.address] != nil || len(writes[table.address]) != 1 || c.descriptors[table.address] != table || mark.descriptors[table.address] != table {
+		if e.catalog.state.Get(table.address) != nil || e.storage[table.address] != nil || len(writes[table.address]) != 1 || c.descriptors[table.address] != table || mark.descriptors[table.address] != table {
 			t.Fatal("commit preparation mutated reachable predecessor")
 		}
 		switch action {
@@ -129,7 +129,7 @@ func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 	if storedReferenceEpochValid(retained, table, bad) {
 		t.Fatal("future incarnation accepted")
 	}
-	foreign := *advanced.descriptors[table.namespace].(*namespaceDescriptor)
+	foreign := *advanced.MustNamespace(table.namespace)
 	foreign.temporary = e.catalog.domain.Session(op.session.token.ID() + 1)
 	consumer := *table
 	consumer.namespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20002}
@@ -138,7 +138,7 @@ func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 	if storedReferenceEpochValid(retained, &consumer, old) {
 		t.Fatal("peer provenance accepted")
 	}
-	advanced.descriptors[table.namespace] = view.state.descriptors[table.namespace]
+	advanced.descriptors[table.namespace] = view.Get(table.namespace)
 	delete(advanced.descriptors, table.address)
 	if storedReferenceEpochValid(retained, table, old) {
 		t.Fatal("retired target resurrected")
@@ -265,12 +265,12 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	sessionSQL(t, peer, "CREATE TEMP TABLE live_provider(v INT)")
 	lookup := func(view CatalogRead, name string, namespace ids.SessionToken) *relationDescriptor {
 		t.Helper()
-		for _, descriptor := range view.state.descriptors {
+		for _, descriptor := range view.Descriptors() {
 			d, ok := descriptor.(*relationDescriptor)
 			if !ok || d.name != name {
 				continue
 			}
-			ns := view.state.descriptors[d.namespace].(*namespaceDescriptor)
+			ns := view.MustNamespace(d.namespace)
 			if ns.temporary == namespace {
 				return d
 			}
@@ -298,7 +298,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		t.Fatal(err)
 	}
 	retained := e.CatalogRead()
-	if retained.Epoch() <= before.Epoch() || retained.state.descriptors[provider.address] != provider || retained.state.descriptors[providerIndex.address] != providerIndex || retained.state.descriptors[consumer.address] != consumer || e.storage[consumer.address] != store || e.indexRoots[providerIndex.address] != indexRoot {
+	if retained.Epoch() <= before.Epoch() || retained.Get(provider.address) != provider || retained.Get(providerIndex.address) != providerIndex || retained.Get(consumer.address) != consumer || e.storage[consumer.address] != store || e.indexRoots[providerIndex.address] != indexRoot {
 		t.Fatal("replacement did not retain actual descriptors/store/root")
 	}
 	if !sameVersionRoot(store.versions, rows) || store.ends != ends || store.generation != generation {
@@ -361,7 +361,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		t.Fatal(err)
 	}
 	retained = e.CatalogRead()
-	if _, live := retained.state.descriptors[domainRef.Address]; !live {
+	if _, live := retained.Find(domainRef.Address); !live {
 		t.Fatal("actual replacement did not retain domain address")
 	}
 	if storedReferenceEpochValid(retained, consumer, domainRef) || storedReferenceEpochValid(retained, consumer, arrayRef) {

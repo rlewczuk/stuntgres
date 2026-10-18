@@ -675,11 +675,11 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return "(" + left + " " + operator + " " + right + ")", nil
 	case selectedOperatorExpression:
 		r.record(n.ref)
-		d, ok := view.state.descriptors[n.ref.Address].(*operatorDescriptor)
+		d, ok := view.Operator(n.ref.Address)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing default operator")
 		}
-		namespace := view.state.descriptors[d.namespace].Name()
+		namespace := view.Get(d.namespace).Name()
 		op := "OPERATOR(" + quoteIdentifier(namespace) + "." + d.name + ")"
 		var operands []BoundExpr
 		boundExpressionChildren(n.provider, func(arg BoundExpr) {

@@ -46,12 +46,12 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	e := New()
 	inner := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, inner, "inner_u", "i", "")
-	inner = e.catalog.state.descriptors[inner.address].(*relationDescriptor)
+	inner = e.catalog.state.MustRelation(inner.address)
 	gateStage, gate := queryCreateStage(t, e, "source_gate", 1)
 	queryCreatePublish(t, e, gateStage)
 	outer := concurrentSourceOuter(t, e)
 	index := materializedConcurrentUnitIndex(t, e, outer, "outer_u", "i", "")
-	outer = e.catalog.state.descriptors[outer.address].(*relationDescriptor)
+	outer = e.catalog.state.MustRelation(outer.address)
 	innerStorage, gateStorage := e.storage[inner.address], e.storage[gate.address]
 	// A real end marker must affect visibility, rather than merely exercising
 	// preservation of a non-nil but empty root.
@@ -164,7 +164,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	stage.querySources = scope.materializedSources
 	stage.materializedSourceView = snapshot
-	provider := stage.base.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(outer.rowType)}]
+	provider := stage.base.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(outer.rowType)})
 	if provider == nil {
 		t.Fatal("missing target rowtype provider")
 	}
@@ -183,7 +183,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 		t.Fatal("dedicated source fence not generated", changes.materializedSources)
 	}
 	fence := changes.materializedSources[0]
-	if fence.ref.Address != inner.address || fence.relation != snapshot.catalog.state.descriptors[inner.address] || fence.storage != innerStorage {
+	if fence.ref.Address != inner.address || fence.relation != snapshot.catalog.Get(inner.address) || fence.storage != innerStorage {
 		t.Fatal("generated source fence retargeted", fence)
 	}
 	if _, strict := changes.originals[inner.address]; strict {
@@ -208,7 +208,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 		t.Fatal("provider/source overlap lost strict original")
 	}
 	for _, d := range []Descriptor{outer, index, provider, inner} {
-		original := e.catalog.state.descriptors[d.Address()]
+		original := e.catalog.state.Get(d.Address())
 		delete(e.catalog.state.descriptors, d.Address())
 		err := e.catalogPreflightLocked(changes)
 		e.catalog.state.descriptors[d.Address()] = original

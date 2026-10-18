@@ -9,7 +9,7 @@ import (
 )
 
 func hasHashPartition(catalog *catalogState) bool {
-	for _, d := range catalog.descriptors {
+	for _, d := range catalog.Descriptors() {
 		if relation, ok := d.(*relationDescriptor); ok && relation.partition != nil && relation.partition.strategy == parser.PartitionHash {
 			return true
 		}
@@ -45,7 +45,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 	var incoming map[ids.ObjectAddress][]rowVersion
 	var dirty map[ids.ObjectAddress]bool
 	for address, store := range storage {
-		source, ok := catalog.state.descriptors[address].(*relationDescriptor)
+		source, ok := catalog.Relation(address)
 		if !ok || source.membership == nil || source.partition != nil {
 			continue
 		}
@@ -86,7 +86,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 				}
 				var selected *relationDescriptor
 				for _, childAddress := range destination.partition.children {
-					child := catalog.state.descriptors[childAddress].(*relationDescriptor)
+					child := catalog.MustRelation(childAddress)
 					if child.membership.defaultBound {
 						continue
 					}
@@ -100,7 +100,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 					}
 				}
 				if selected == nil && destination.partition.defaultChild != (ids.ObjectAddress{}) {
-					selected = catalog.state.descriptors[destination.partition.defaultChild].(*relationDescriptor)
+					selected = catalog.MustRelation(destination.partition.defaultChild)
 				}
 				if selected == nil {
 					state := partitionInsertState{catalog: catalog, auth: auth, target: root}
@@ -118,7 +118,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 				}
 			}
 			detail := func() (string, error) { return failingRowDetail(values, evaluation.Output, nil, nil, destination) }
-			schema := catalog.state.descriptors[destination.namespace].Name()
+			schema := catalog.Get(destination.namespace).Name()
 			if err := validatePhysicalRowConstraints(validation, schema, values, evaluation, detail); err != nil {
 				return nil, err
 			}
@@ -126,7 +126,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 			// insertion would enforce their constraints as well.
 			child := destination
 			for child.membership != nil {
-				parent := catalog.state.descriptors[child.membership.parent].(*relationDescriptor)
+				parent := catalog.MustRelation(child.membership.parent)
 				allowed, err := partitionAccepts(catalog, parent, child, partitionReplacementRow(source, parent, version.values), evaluation)
 				if err != nil {
 					return nil, err

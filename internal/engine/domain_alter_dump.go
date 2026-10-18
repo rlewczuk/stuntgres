@@ -114,11 +114,11 @@ func (e *Engine) captureRestoredDomainOwner(op *Operation, created ids.ObjectRef
 	if _, captured := e.importTargets[owner]; !captured {
 		return reject()
 	}
-	domain, ok := auth.catalog.state.descriptors[created.Address].(*typeDescriptor)
+	domain, ok := auth.catalog.Type(created.Address)
 	if !ok || !domain.typ.IsDomain() {
 		return reject()
 	}
-	namespace, ok := auth.catalog.state.descriptors[domain.namespace].(*namespaceDescriptor)
+	namespace, ok := auth.catalog.Namespace(domain.namespace)
 	if !ok || namespace.temporary != (ids.SessionToken{}) {
 		return reject()
 	}

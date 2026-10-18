@@ -126,7 +126,7 @@ func stagePrivateColumnShapeMetadata(evaluation *EvalContext, stage *CatalogStag
 		return nil, nil, false, fmt.Errorf("stuntgres: relation storage is missing")
 	}
 	if !exists {
-		storageOwner, ok := stage.base.state.descriptors[old.address].(*relationDescriptor)
+		storageOwner, ok := stage.base.Relation(old.address)
 		if !ok {
 			e.mu.Unlock()
 			return nil, nil, false, fmt.Errorf("stuntgres: relation storage descriptor is missing")
@@ -178,7 +178,7 @@ func stagePrivateColumnShapeMetadata(evaluation *EvalContext, stage *CatalogStag
 // snapshots without projecting that physical baseline a second time.
 func (scope *StatementScope) projectCatalogOverlayShapes(stage *CatalogStage, changes *catalogChanges) error {
 	for address, rowShape := range stage.rowShapes {
-		old, oldOK := stage.base.state.descriptors[address].(*relationDescriptor)
+		old, oldOK := stage.base.Relation(address)
 		next, nextOK := stage.descriptors[address].(*relationDescriptor)
 		if !oldOK || !nextOK || slices.Equal(old.attributes, next.attributes) {
 			continue

@@ -150,7 +150,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 					return err
 				}
 				nextRevision := target.catalog.nextRevision
-				for _, descriptor := range next.descriptors {
+				for _, descriptor := range next.Descriptors() {
 					if err := validateACL(target.roleRead(target.catalog.read(next), target.roles), descriptor); err != nil {
 						return err
 					}

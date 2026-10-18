@@ -18,7 +18,7 @@ import (
 func schemaRef(t *testing.T, e *Engine, name string) ids.ObjectRef {
 	t.Helper()
 	v := e.CatalogRead()
-	a := v.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: name}]
+	a := v.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name})
 	if a == (ids.ObjectAddress{}) {
 		t.Fatal("missing namespace", name)
 	}
@@ -53,7 +53,7 @@ func TestSchemaLifecycleIdentityAndAtomicBatch(t *testing.T) {
 	if got := roleTableRef(t, e, "renamed.t"); got != table || e.storage[got.Address] != store {
 		t.Fatal("rename changed table/storage")
 	}
-	if old.state.descriptors[ns.Address].Name() != "s1" {
+	if old.Get(ns.Address).Name() != "s1" {
 		t.Fatal("mutated retained descriptor")
 	}
 	if got := tuples(roleExecute(t, e, op, "SHOW search_path")); !reflect.DeepEqual(got, [][]driver.Value{{"s1, s2"}}) {
@@ -99,11 +99,11 @@ func TestSchemaNamesNestedAtomicity(t *testing.T) {
 	}
 	ns := schemaRef(t, e, "dot.schema")
 	owner, _ := e.Roles().Lookup("owner")
-	if e.catalog.state.descriptors[ns.Address].(*namespaceDescriptor).owner != owner.Ref {
+	if e.catalog.state.MustNamespace(ns.Address).owner != owner.Ref {
 		t.Fatal("wrong schema owner")
 	}
 	for _, q := range []string{`"dot.schema"."t,quote"`, `"dot.schema".u`} {
-		if e.catalog.state.descriptors[roleTableRef(t, e, q).Address].(*relationDescriptor).owner != owner.Ref {
+		if e.catalog.state.MustRelation(roleTableRef(t, e, q).Address).owner != owner.Ref {
 			t.Fatal("wrong nested owner")
 		}
 	}
@@ -138,7 +138,7 @@ func TestSchemaIdentifierNormalization(t *testing.T) {
 	normalized := strings.Repeat("é", 31)
 	roleExecute(t, e, op, `CREATE SCHEMA "`+long+`" CREATE TABLE t(id INT)`)
 	ref := schemaRef(t, e, normalized)
-	if len(e.catalog.state.descriptors[ref.Address].Name()) != 62 {
+	if len(e.catalog.state.Get(ref.Address).Name()) != 62 {
 		t.Fatal("split UTF8 or wrong identifier bound")
 	}
 	roleExecute(t, e, op, `INSERT INTO "`+normalized+`".t VALUES(17)`)
@@ -257,7 +257,7 @@ func TestSchemaAuthorizationAndIndependentOwners(t *testing.T) {
 	roleExecute(t, e, admin, "RESET SESSION AUTHORIZATION")
 	table := roleTableRef(t, e, "owned.t")
 	roleExecute(t, e, admin, "ALTER SCHEMA owned OWNER TO reader")
-	if e.catalog.state.descriptors[table.Address].(*relationDescriptor).owner != owner.Ref {
+	if e.catalog.state.MustRelation(table.Address).owner != owner.Ref {
 		t.Fatal("schema transfer changed table owner")
 	}
 	schemaFail(t, e, admin, "ALTER SCHEMA owned OWNER TO absent", "42704")
@@ -287,17 +287,17 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 	rolesBefore := e.roles
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "SET search_path TO mixed")
-	if d := e.catalog.state.descriptors[ns.Address].(*namespaceDescriptor); d.owner != owner.Ref || d.acl.Explicit {
+	if d := e.catalog.state.MustNamespace(ns.Address); d.owner != owner.Ref || d.acl.Explicit {
 		t.Fatal("schema authority/ACL", d)
 	}
-	if d := e.catalog.state.descriptors[table.Address].(*relationDescriptor); d.owner != tableOwner.Ref || d.acl.Explicit {
+	if d := e.catalog.state.MustRelation(table.Address); d.owner != tableOwner.Ref || d.acl.Explicit {
 		t.Fatal("table authority/ACL", d)
 	}
 	for _, tc := range []struct {
 		name  string
 		owner authorization.PrincipalRef
 	}{{"mixed.u", tableOwner.Ref}, {"mixed.v", laterOwner.Ref}, {"mixed.owned", owner.Ref}, {"mixed.more", tableOwner.Ref}} {
-		d := e.catalog.state.descriptors[roleTableRef(t, e, tc.name).Address].(*relationDescriptor)
+		d := e.catalog.state.MustRelation(roleTableRef(t, e, tc.name).Address)
 		if d.owner != tc.owner || d.acl.Explicit || len(d.acl.Entries) != 0 || len(d.columnACL) != 0 {
 			t.Fatal("owner grouping leaked insertion authority/ACL", d)
 		}
@@ -307,12 +307,12 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 		ns := schemaRef(t, e, "mixed")
 		empty := schemaRef(t, e, "empty")
 		for _, a := range []ids.ObjectAddress{ns.Address, empty.Address} {
-			d := e.catalog.state.descriptors[a].(*namespaceDescriptor)
+			d := e.catalog.state.MustNamespace(a)
 			if d.owner != owner.Ref || d.acl.Explicit || len(d.acl.Entries) != 0 {
 				t.Fatal("namespace owner/ACL", d)
 			}
 		}
-		d := e.catalog.state.descriptors[roleTableRef(t, e, "mixed.t").Address].(*relationDescriptor)
+		d := e.catalog.state.MustRelation(roleTableRef(t, e, "mixed.t").Address)
 		if d.owner != tableOwner.Ref || d.acl.Explicit || len(d.acl.Entries) != 0 || len(d.columnACL) != 0 {
 			t.Fatal("table owner/ACL", d)
 		}
@@ -356,7 +356,7 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 	if fresh.Epoch == table.Epoch {
 		t.Fatal("replacement reused epoch")
 	}
-	if d := e.catalog.state.descriptors[schemaRef(t, e, "mixed").Address].(*namespaceDescriptor); d.owner != owner.Ref || d.acl.Explicit || len(d.acl.Entries) != 0 {
+	if d := e.catalog.state.MustNamespace(schemaRef(t, e, "mixed").Address); d.owner != owner.Ref || d.acl.Explicit || len(d.acl.Entries) != 0 {
 		t.Fatal("roundtrip schema owner/ACL", d)
 	}
 	for _, tc := range []struct {
@@ -364,7 +364,7 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 		owner authorization.PrincipalRef
 		value int64
 	}{{"mixed.u", tableOwner.Ref, 8}, {"mixed.v", laterOwner.Ref, 9}, {"mixed.owned", owner.Ref, 9}, {"mixed.more", tableOwner.Ref, 11}} {
-		d := e.catalog.state.descriptors[roleTableRef(t, e, tc.name).Address].(*relationDescriptor)
+		d := e.catalog.state.MustRelation(roleTableRef(t, e, tc.name).Address)
 		if d.owner != tc.owner || d.acl.Explicit || len(d.acl.Entries) != 0 || len(d.columnACL) != 0 {
 			t.Fatal("roundtrip owner/ACL", d)
 		}

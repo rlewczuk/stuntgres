@@ -103,14 +103,14 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			child := inheritanceUnitRelation(e, "attach_fence_child", 46001, "k")
 			child.relationKind = tableRelation
 			partitionAttachUnitInstall(t, e, parent, child)
-			parent = e.catalog.state.descriptors[parent.address].(*relationDescriptor)
-			child = e.catalog.state.descriptors[child.address].(*relationDescriptor)
+			parent = e.catalog.state.MustRelation(parent.address)
+			child = e.catalog.state.MustRelation(child.address)
 			stage := partitionAttachUnitStage(t, e, e.CatalogRead(), parent, child)
 			store := e.storage[child.address]
 			stage.partitionReads = []partitionReadFence{{address: child.address, storage: store, length: len(store.versions), ends: store.ends, generation: store.generation}}
 			// A real captured type provider is an exact publication predecessor.
 			providerAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)}
-			stage.domainBases = append(stage.domainBases, e.catalog.state.descriptors[providerAddress])
+			stage.domainBases = append(stage.domainBases, e.catalog.state.Get(providerAddress))
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			prepared, err := e.ValidateCatalogStage(ctx, stage)
@@ -128,7 +128,7 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			case "generation":
 				store.generation++
 			case "provider":
-				typ := *e.catalog.state.descriptors[providerAddress].(*typeDescriptor)
+				typ := *e.catalog.state.MustType(providerAddress)
 				typ.revision++
 				next := cloneCatalog(e.catalog.state)
 				next.descriptors[providerAddress] = &typ
@@ -148,7 +148,7 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			if e.catalog.state != before || !maps.Equal(e.storage, stores) || !maps.Equal(e.indexRoots, roots) || len(changes.Definitions) != 0 {
 				t.Fatal("failed final veto installed partial catalog/storage/index roots")
 			}
-			if e.catalog.state.descriptors[parent.address] != parent || e.catalog.state.descriptors[child.address] != child || child.membership != nil || len(parent.partition.children) != 0 {
+			if e.catalog.state.Get(parent.address) != parent || e.catalog.state.Get(child.address) != child || child.membership != nil || len(parent.partition.children) != 0 {
 				t.Fatal("failed attachment changed original edges")
 			}
 		})

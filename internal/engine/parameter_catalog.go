@@ -30,11 +30,11 @@ type parameterProvider struct{ definitions map[string]SettingDefinition }
 func (parameterProvider) ClassID() ids.OID { return ids.ParameterClassID }
 func (p parameterProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	d, ok := descriptor.(*parameterDescriptor)
-	if !ok || d == nil || v.owner == nil || v.state == nil || v.state.descriptors[d.address] != d {
+	if !ok || d == nil || v.owner == nil || v.state == nil || v.Get(d.address) != d {
 		return fmt.Errorf("stuntgres: invalid parameter descriptor authority")
 	}
 	name, err := canonicalGrantParameter(p.definitions, d.name)
-	if err != nil || name != d.name || d.address.ClassID != ids.ParameterClassID || d.address.ObjectID == 0 || d.address.SubID != 0 || d.revision == 0 || v.state.names[descriptorNameKey(d)] != d.address {
+	if err != nil || name != d.name || d.address.ClassID != ids.ParameterClassID || d.address.ObjectID == 0 || d.address.SubID != 0 || d.revision == 0 || v.NameAddress(descriptorNameKey(d)) != d.address {
 		return fmt.Errorf("stuntgres: invalid parameter descriptor")
 	}
 	return nil
@@ -66,8 +66,8 @@ func (e *Engine) grantParameterDescriptorLocked(v AuthorizationView, name string
 	if err != nil {
 		return nil, err
 	}
-	if address := v.catalog.state.names[ids.NameKey{ClassID: ids.ParameterClassID, Name: key}]; address != (ids.ObjectAddress{}) {
-		d, ok := v.catalog.state.descriptors[address].(*parameterDescriptor)
+	if address := v.catalog.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: key}); address != (ids.ObjectAddress{}) {
+		d, ok := v.catalog.Parameter(address)
 		if !ok || d == nil {
 			return nil, fmt.Errorf("stuntgres: invalid parameter catalog identity")
 		}

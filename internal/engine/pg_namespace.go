@@ -15,7 +15,7 @@ func (e *Engine) capturePGNamespace(ctx context.Context, catalog CatalogRead, ro
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if catalog.owner != e.catalog.owner() || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.NamespaceClassID}) || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() || ref.Address != source.address || catalog.state.descriptors[source.address] != source {
+	if catalog.owner != e.catalog.owner() || catalog.state == nil || source == nil || source.address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.NamespaceClassID}) || ref.Domain() != e.catalog.domain || ref.Epoch != catalog.Epoch() || ref.Address != source.address || catalog.Get(source.address) != source {
 		return nil, fmt.Errorf("stuntgres: foreign namespace source authority")
 	}
 	ids := [...]sqltype.ID{26, 19, 26, 1034}
@@ -28,18 +28,18 @@ func (e *Engine) capturePGNamespace(ctx context.Context, catalog CatalogRead, ro
 			return nil, fmt.Errorf("stuntgres: foreign namespace source type")
 		}
 	}
-	database, ok := catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
+	database, ok := catalog.Database(currentDatabaseAddress)
 	if !ok || database == nil || !roles.BelongsTo(&e.authorizationDomain) || roles.DatabaseOwner() != database.owner {
 		return nil, fmt.Errorf("stuntgres: foreign namespace owner authority")
 	}
 	count := 0
-	for _, d := range catalog.state.descriptors {
+	for _, d := range catalog.Descriptors() {
 		if _, ok := d.(*namespaceDescriptor); ok {
 			count++
 		}
 	}
 	rows := make([][]sqltype.Value, 0, count)
-	for address, d := range catalog.state.descriptors {
+	for address, d := range catalog.Descriptors() {
 		ns, ok := d.(*namespaceDescriptor)
 		if !ok {
 			continue

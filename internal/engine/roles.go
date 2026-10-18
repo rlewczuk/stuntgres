@@ -280,7 +280,7 @@ func relationDiagnosticName(auth AuthorizationView, relation *relationDescriptor
 
 func relationVisibleAt(catalog CatalogRead, relation *relationDescriptor, path []ids.ObjectAddress) bool {
 	for _, ns := range path {
-		if a, ok := catalog.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: relation.name}]; ok {
+		if a, ok := catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: relation.name}); ok {
 			return a == relation.address
 		}
 	}
@@ -292,13 +292,13 @@ func relationDiagnosticNameAt(catalog CatalogRead, relation *relationDescriptor,
 	if relationVisibleAt(catalog, relation, path) {
 		return name
 	}
-	return dependencyIdentifier(catalog.state.descriptors[relation.namespace].Name()) + "." + name
+	return dependencyIdentifier(catalog.Get(relation.namespace).Name()) + "." + name
 }
 
 func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 	view := auth.catalog
 	if dep.kind == 'r' {
-		relation := view.state.descriptors[dep.policyTable].(*relationDescriptor)
+		relation := view.MustRelation(dep.policyTable)
 		return "target of policy " + dependencyIdentifier(dep.policyName) + " on table " + relationDiagnosticName(auth, relation)
 	}
 	if dep.description != "" {
@@ -306,7 +306,7 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 	}
 	address := dep.address
 	address.SubID = 0
-	d := view.state.descriptors[address]
+	d := view.Get(address)
 	name := dependencyIdentifier(d.Name())
 	if _, ok := d.(*namespaceDescriptor); ok {
 		name = d.Name()
@@ -332,7 +332,7 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 		if foreign.address.ClassID == ids.ForeignMappingClassID {
 			kind = "user mapping for "
 			mapped, _ := auth.roles.Descriptor(foreign.mappedRole)
-			name = dependencyIdentifier(mapped.Name) + " on server " + dependencyIdentifier(view.state.descriptors[foreign.server].Name())
+			name = dependencyIdentifier(mapped.Name) + " on server " + dependencyIdentifier(view.Get(foreign.server).Name())
 		}
 	}
 	if d.Kind() == ids.ProcedureObject || d.Kind() == ids.TSDictionaryObject {
@@ -354,7 +354,7 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 		}
 		if relation.relationKind == compositeRelation {
 			path, _ := auth.engine.referencePath(auth)
-			typ := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)}].(*typeDescriptor)
+			typ := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)})
 			kind, name = "type ", typeDiagnosticNameAt(view, typ, path)
 		}
 	}
@@ -407,7 +407,7 @@ func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.D
 			return Result{}, roleDiagnostic("2BP01", "cannot drop role "+d.Name+" because it is required by the database system", "")
 		}
 		var dependencies []roleDependency
-		for _, object := range v.catalog.state.descriptors {
+		for _, object := range v.catalog.Descriptors() {
 			descriptorRoleDependencies(object, ref, &dependencies)
 		}
 		defaultRoleDependencies(v.catalog, v.roles, ref, &dependencies)

@@ -1243,7 +1243,7 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 				return fmt.Errorf("stuntgres: foreign view literal type")
 			}
 			if ref := literal.RegclassRef; ref != (ids.ObjectRef{}) {
-				consumer, _ := catalog.state.descriptors[v.consumer].(*relationDescriptor)
+				consumer, _ := catalog.Relation(v.consumer)
 				if !storedViewReferenceValid(catalog, consumer, ref) || ref.Address.ClassID != ids.RelationClassID || ref.Address.SubID != 0 || usage.Type.ID() != sqltype.Regclass || literal.value.IsNull() {
 					return fmt.Errorf("stuntgres: invalid view regclass literal authority")
 				}
@@ -1364,7 +1364,7 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 		if !ok {
 			return fmt.Errorf("stuntgres: missing frozen view collation")
 		}
-		d, ok := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)}].(*collationDescriptor)
+		d, ok := catalog.Collation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)})
 		if !ok {
 			return fmt.Errorf("stuntgres: missing view collation identity")
 		}

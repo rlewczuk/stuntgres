@@ -37,7 +37,7 @@ func partitionAttachEligibility(catalog CatalogRead, parent, child *relationDesc
 		if ancestor.membership == nil {
 			break
 		}
-		ancestor, _ = catalog.state.descriptors[ancestor.membership.parent].(*relationDescriptor)
+		ancestor, _ = catalog.Relation(ancestor.membership.parent)
 	}
 	if child.membership != nil {
 		return sqlError("42809", fmt.Sprintf(`"%s" is already a partition`, child.name))
@@ -51,8 +51,8 @@ func partitionAttachEligibility(catalog CatalogRead, parent, child *relationDesc
 	if inheritanceHasChildren(catalog, child.address) {
 		return sqlError("42809", "cannot attach inheritance parent as partition")
 	}
-	parentNamespace := catalog.state.descriptors[parent.namespace].(*namespaceDescriptor)
-	childNamespace := catalog.state.descriptors[child.namespace].(*namespaceDescriptor)
+	parentNamespace := catalog.MustNamespace(parent.namespace)
+	childNamespace := catalog.MustNamespace(child.namespace)
 	if parentNamespace.temporary == (ids.SessionToken{}) && childNamespace.temporary != (ids.SessionToken{}) {
 		return sqlError("42809", fmt.Sprintf(`cannot attach a temporary relation as partition of permanent relation "%s"`, parent.name))
 	}
@@ -62,7 +62,7 @@ func partitionAttachEligibility(catalog CatalogRead, parent, child *relationDesc
 		}
 	}
 	// Existing FK execution boundaries precede publication.
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		table, ok := descriptor.(*relationDescriptor)
 		if !ok {
 			continue

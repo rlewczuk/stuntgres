@@ -26,7 +26,7 @@ func pgParameterACLUnitFixture(t *testing.T) (*Engine, *Operation, authorization
 func pgParameterACLUnitSource(t *testing.T, e *Engine, catalog CatalogRead) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.ParameterClassID}
-	d, ok := catalog.state.descriptors[address].(*relationDescriptor)
+	d, ok := catalog.Relation(address)
 	if !ok {
 		t.Fatal("missing pg_parameter_acl")
 	}
@@ -98,8 +98,8 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 	if !d.acl.Explicit || len(d.acl.Entries) != 1 || !d.acl.Entries[0].Grantee.Public || d.acl.Entries[0].Grantor != owner || d.acl.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.acl)
 	}
-	row := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10097}].(*typeDescriptor)
-	array := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10096}].(*typeDescriptor)
+	row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10097})
+	array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10096})
 	ownedArray, ok := catalog.LookupArray(row.typ)
 	if !ok || d.rowType != 10097 || row.array != 10096 || ownedArray != array.typ || array.typ.Element() != row.typ || row.owningRelation != d.address || array.owningRelation != d.address || row.owner != owner || array.owner != owner {
 		t.Fatal("row/array ownership", row, array)
@@ -107,7 +107,7 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 	if !representedSummaryTable(6243) || !representedCatalogHasIndexes(6243) || pgClassKind(catalog, d) != "r" || pgClassPersistence(catalog, d) != "p" {
 		t.Fatal("discovery")
 	}
-	class := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}].(*relationDescriptor)
+	class := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
 	facts, err := e.pgClassRow(context.Background(), catalog, e.Roles(), class, d)
 	if err != nil {
 		t.Fatal(err)
@@ -121,7 +121,7 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 		t.Fatal("pg_global", space, err)
 	}
 	for _, oid := range []ids.OID{6244, 6245, 6246, 6247} {
-		if _, exists := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}]; exists {
+		if _, exists := catalog.Find(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}); exists {
 			t.Fatal("fabricated backing relation", oid)
 		}
 	}
@@ -157,7 +157,7 @@ func TestPGParameterACLCapture(t *testing.T) {
 			t.Fatal("canonical membership", name, err)
 		}
 		seen[name] = true
-		address := catalog.state.names[ids.NameKey{ClassID: ids.ParameterClassID, Name: name}]
+		address := catalog.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: name})
 		id, err := row[0].OID()
 		if err != nil || id == 0 || ids.OID(id) != address.ObjectID || address.ClassID == ids.RelationClassID {
 			t.Fatal("actual entry identity", address, id, err)
@@ -175,8 +175,8 @@ func TestPGParameterACLCapture(t *testing.T) {
 	if rows, err := e.capturePGParameterACL(context.Background(), catalog, New().Roles(), ref, d); err == nil || rows != nil {
 		t.Fatal("foreign roles accepted", err)
 	}
-	address := catalog.state.names[ids.NameKey{ClassID: ids.ParameterClassID, Name: "lc_messages"}]
-	corrupt := *catalog.state.descriptors[address].(*parameterDescriptor)
+	address := catalog.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: "lc_messages"})
+	corrupt := *catalog.MustParameter(address)
 	corrupt.owner = authorization.PrincipalRef{}
 	broken := cloneCatalog(catalog.state)
 	broken.descriptors[address] = &corrupt
@@ -197,7 +197,7 @@ func TestPGParameterACLCapture(t *testing.T) {
 	if err := applyObjectGrantUnit(e, op, seed); err != nil {
 		t.Fatal(err)
 	}
-	emptyAddress := e.catalog.state.names[ids.NameKey{ClassID: ids.ParameterClassID, Name: "pacl_unit.empty"}]
+	emptyAddress := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: "pacl_unit.empty"})
 	seed.Revoke = true
 	seed.Privileges = []parser.GrantPrivilege{{All: true}}
 	seed.Grantees = []parser.GrantGrantee{{Role: parser.RoleSpec{Name: "postgres"}}}
@@ -228,7 +228,7 @@ func TestPGParameterACLCapture(t *testing.T) {
 	if err := applyObjectGrantUnit(e, op, seed); err != nil {
 		t.Fatal(err)
 	}
-	if _, exists := e.catalog.state.descriptors[emptyAddress]; exists {
+	if _, exists := e.catalog.state.Find(emptyAddress); exists {
 		t.Fatal("baseline not removed")
 	}
 	implicit, err := e.pgClassACL(roles, d.columns[2].Usage.Type, authorization.ACLValue{})
@@ -264,8 +264,8 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 	}
 	before, roles := scope.commentCatalog, scope.commentRoles
 	_, ref := pgParameterACLUnitSource(t, e, before)
-	address := before.state.names[ids.NameKey{ClassID: ids.ParameterClassID, Name: "pacl_unit.snapshot"}]
-	old := before.state.descriptors[address].(*parameterDescriptor)
+	address := before.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: "pacl_unit.snapshot"})
+	old := before.MustParameter(address)
 	request.Privileges = []parser.GrantPrivilege{{All: true}}
 	request.GrantOption = true
 	if err := applyObjectGrantUnit(e, op, request); err != nil {
@@ -287,7 +287,7 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 	pgParameterACLUnitEntries(t, e, current.anonymous[0][2], map[uint32][3]uint32{10: {10, 12288, 0}, uint32(reader.ID()): {10, 12288, 12288}})
 	oldID, _ := captured.anonymous[0][0].OID()
 	newID, _ := current.anonymous[0][0].OID()
-	if oldID != newID || before.state.descriptors[address] != old || old.name != "pacl_unit.snapshot" || len(old.acl.Entries) != 2 {
+	if oldID != newID || before.Get(address) != old || old.name != "pacl_unit.snapshot" || len(old.acl.Entries) != 2 {
 		t.Fatal("immutable identity/root")
 	}
 	retained := &finalRows{}
@@ -325,7 +325,7 @@ func TestPGParameterACLCancellation(t *testing.T) {
 	catalog, roles := e.CatalogRead(), e.Roles()
 	d, ref := pgParameterACLUnitSource(t, e, catalog)
 	state, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
-	for _, after := range []int{0, 3, len(catalog.state.descriptors)} {
+	for _, after := range []int{0, 3, catalog.DescriptorCount()} {
 		ctx, cancel := context.WithCancel(context.Background())
 		if after == 0 {
 			cancel()

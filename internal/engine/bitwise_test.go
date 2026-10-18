@@ -14,7 +14,7 @@ func TestBitwiseDefaultValidationAndRetag(t *testing.T) {
 	run(t, e, "CREATE TABLE d(i INTEGER DEFAULT (1 & 3),s SMALLINT DEFAULT (1::smallint << 15),n SMALLINT DEFAULT (~NULL::smallint))")
 	view := e.CatalogRead()
 	ref := roleTableRef(t, e, "d")
-	old := view.state.descriptors[ref.Address].(*relationDescriptor)
+	old := view.MustRelation(ref.Address)
 	if err := (relationProvider{}).Validate(view, old); err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestBitwiseScopedCastDefaultSerializationAndRetag(t *testing.T) {
 	run(t, e, "CREATE TABLE d(w BIGINT DEFAULT CAST(32767::smallint << 1::smallint AS bigint),n INTEGER DEFAULT CAST(~NULL::smallint AS integer))")
 	view := e.CatalogRead()
 	ref := roleTableRef(t, e, "d")
-	table := view.state.descriptors[ref.Address].(*relationDescriptor)
+	table := view.MustRelation(ref.Address)
 	replacement := New()
 	retag := func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		typ, _ := replacement.CatalogRead().LookupType(d.ID())
@@ -142,7 +142,7 @@ func TestBitwiseScopedCastDefaultSerializationAndRetag(t *testing.T) {
 		run(t, replacement, "CREATE TABLE "+name+"(v "+target+" DEFAULT "+sql+")")
 		run(t, replacement, "INSERT INTO "+name+" DEFAULT VALUES")
 		restoredRef := roleTableRef(t, replacement, name)
-		restored := replacement.CatalogRead().state.descriptors[restoredRef.Address].(*relationDescriptor)
+		restored := replacement.CatalogRead().MustRelation(restoredRef.Address)
 		value, err := restored.defaults[1].expression.Eval(ctx)
 		if err != nil {
 			t.Fatal(err)
@@ -268,7 +268,7 @@ func TestBitwiseConstantNullDefaultRemainsAnalyzed(t *testing.T) {
 	run(t, e, "CREATE TABLE null_default(v INTEGER DEFAULT (NULL::integer & 1))")
 	view := e.CatalogRead()
 	ref := roleTableRef(t, e, "null_default")
-	table := view.state.descriptors[ref.Address].(*relationDescriptor)
+	table := view.MustRelation(ref.Address)
 	original := table.defaults[1].expression
 	before, err := defaultSQL(context.Background(), view, original)
 	if err != nil {

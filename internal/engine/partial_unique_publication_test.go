@@ -68,7 +68,7 @@ func newPartialUniquePublication(t *testing.T, composite, nnd bool, disclosure s
 	if err != nil {
 		t.Fatal(err)
 	}
-	parent := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	parent := e.catalog.state.MustRelation(ref.Address)
 	index, root := btreeRoot(t, e, "public.ui_index")
 	if index.sqlIndex.constraint != nil || len(parent.uniqueConstraints) != 0 || index.sqlIndex.predicate == nil {
 		t.Fatal("not real standalone partial")

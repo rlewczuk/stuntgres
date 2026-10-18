@@ -22,8 +22,8 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 					e, reader, done, source, observed := typedCreateACLFixture(t, member)
 					defer done()
 					before := e.CatalogRead()
-					oldType := before.state.descriptors[observed].(*typeDescriptor)
-					oldBacking := before.state.descriptors[source.owningRelation]
+					oldType := before.MustType(observed)
+					oldBacking := before.Get(source.owningRelation)
 					roles, sessionRevision := e.roles.revision, reader.session.authorization.revision
 					explicit := mode == "explicit_temporary"
 					if explicit {
@@ -74,11 +74,11 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 						}
 					}
 					current := e.CatalogRead()
-					changed := current.state.descriptors[observed].(*typeDescriptor)
-					if current.state != winner || current.Epoch() != before.Epoch() || changed.typ != oldType.typ || current.state.descriptors[source.owningRelation] != oldBacking || e.roles.revision != roles || reader.session.authorization.revision != sessionRevision || reflect.DeepEqual(changed.acl, oldType.acl) {
+					changed := current.MustType(observed)
+					if current.state != winner || current.Epoch() != before.Epoch() || changed.typ != oldType.typ || current.Get(source.owningRelation) != oldBacking || e.roles.revision != roles || reader.session.authorization.revision != sessionRevision || reflect.DeepEqual(changed.acl, oldType.acl) {
 						t.Error("rejected CREATE did not retain descriptor-only ACL winner atomically")
 					}
-					for _, d := range current.state.descriptors {
+					for _, d := range current.Descriptors() {
 						if d.Name() == "late" {
 							t.Error("failed CREATE published candidate relation or own-row type", d.Address())
 						}
@@ -120,15 +120,15 @@ func typedCreateACLFixture(t *testing.T, member bool) (*Engine, *Operation, func
 		roleExecute(t, e, owner, "CREATE TYPE pair AS (id member)")
 	}
 	backing := roleTableRef(t, e, "pair")
-	sourceRelation := e.CatalogRead().state.descriptors[backing.Address].(*relationDescriptor)
-	source := e.CatalogRead().state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sourceRelation.rowType)}].(*typeDescriptor)
+	sourceRelation := e.CatalogRead().MustRelation(backing.Address)
+	source := e.CatalogRead().MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sourceRelation.rowType)})
 	reader, done := roleOperation(t, e, "typed_reader")
 	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: source.owner, Grantee: authorization.ACLGrantee{Role: reader.RoleState().CurrentUser}, Privileges: authorization.UsagePrivilege}}}
 	typedReviewTypeACL(t, e, source.Address(), grant)
-	source = e.CatalogRead().state.descriptors[source.Address()].(*typeDescriptor)
+	source = e.CatalogRead().MustType(source.Address())
 	observed := source.Address()
 	if member {
-		memberType := e.CatalogRead().state.descriptors[memberAddress].(*typeDescriptor)
+		memberType := e.CatalogRead().MustType(memberAddress)
 		grant.Entries[0].Grantor = memberType.owner
 		typedReviewTypeACL(t, e, memberAddress, grant)
 		observed = memberAddress
@@ -154,10 +154,10 @@ func TestTypedPublicationTemporaryAuthorityExpiresAtFinish(t *testing.T) {
 		t.Fatal("successful statement did not install actual private TEMP attachment/store")
 	}
 	typedReviewTypeACL(t, e, observed, authorization.ACLValue{Explicit: true})
-	winner := e.CatalogRead().state.descriptors[observed]
+	winner := e.CatalogRead().Get(observed)
 	roleExecute(t, e, reader, "COMMIT")
 	view := e.CatalogRead()
-	if view.state.descriptors[relation.address] != relation || view.state.descriptors[observed] != winner || e.storage[relation.address] == nil || relation.ofType != source.Address() {
+	if view.Get(relation.address) != relation || view.Get(observed) != winner || e.storage[relation.address] == nil || relation.ofType != source.Address() {
 		t.Fatal("outer COMMIT reauthorized successful statement or lost attachment/store/ACL winner")
 	}
 	roleError(t, e, reader, "CREATE TEMP TABLE fresh OF pair", "42501", "permission denied for type pair", "")

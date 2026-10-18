@@ -19,11 +19,11 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 	run(t, e, "INSERT INTO src VALUES(1,10,TRUE,2),(2,20,FALSE,0),(3,30,NULL,0),(4,NULL,TRUE,2),(5,10,TRUE,2)")
 	run(t, e, "CREATE INDEX source_partial ON src(k) INCLUDE(id) WHERE active AND ('anchor'::regclass IS NOT NULL) AND ('predicate_type'::regtype IS NOT NULL)")
 	run(t, e, "CREATE INDEX source_expression ON src((10/n)) WHERE active")
-	source := e.CatalogRead().state.descriptors[roleTableRef(t, e, "src").Address].(*relationDescriptor)
+	source := e.CatalogRead().MustRelation(roleTableRef(t, e, "src").Address)
 	external := roleTableRef(t, e, "anchor")
 	externalType := e.catalog.domain.Ref(e.CatalogRead().Epoch(), domainUnitType(t, e.CatalogRead(), "predicate_type").Address())
-	ordinary := e.CatalogRead().state.descriptors[roleTableRef(t, e, "source_partial").Address].(*relationDescriptor)
-	expression := e.CatalogRead().state.descriptors[roleTableRef(t, e, "source_expression").Address].(*relationDescriptor)
+	ordinary := e.CatalogRead().MustRelation(roleTableRef(t, e, "source_partial").Address)
+	expression := e.CatalogRead().MustRelation(roleTableRef(t, e, "source_expression").Address)
 	sourcePredicate := ordinary.sqlIndex.predicate
 	sourceAttributes := slices.Clone(sourcePredicate.attributes)
 	sourceDependencies := slices.Clone(sourcePredicate.dependencies)
@@ -178,7 +178,7 @@ func TestTableLikePartialUniqueClone(t *testing.T) {
 	run(t, e, "CREATE TABLE src(id INT,k INT,active BOOL,gap INT,n INT)")
 	run(t, e, "ALTER TABLE src DROP COLUMN gap")
 	run(t, e, "CREATE UNIQUE INDEX source_unique ON src(k) NULLS NOT DISTINCT WHERE active")
-	source := e.CatalogRead().state.descriptors[roleTableRef(t, e, "source_unique").Address].(*relationDescriptor)
+	source := e.CatalogRead().MustRelation(roleTableRef(t, e, "source_unique").Address)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	stage, destination, err := tableLikeBuild(t, e, op, "CREATE TABLE clone(lead TEXT,LIKE src INCLUDING INDEXES)")
@@ -218,7 +218,7 @@ func TestTableLikePartialConstants(t *testing.T) {
 				key = "id"
 			}
 			run(t, e, "CREATE INDEX source_constant ON src("+key+") WHERE "+truth)
-			source := e.CatalogRead().state.descriptors[roleTableRef(t, e, "source_constant").Address].(*relationDescriptor)
+			source := e.CatalogRead().MustRelation(roleTableRef(t, e, "source_constant").Address)
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			stage, destination, err := tableLikeBuild(t, e, op, "CREATE TABLE clone(lead TEXT,LIKE src INCLUDING INDEXES)")
@@ -333,7 +333,7 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 		t.Fatal("private providers received incumbent holds", held)
 	}
 	queryCreatePublish(t, e, stage)
-	current := e.CatalogRead().state.descriptors[source.address].(*relationDescriptor)
+	current := e.CatalogRead().MustRelation(source.address)
 	if !current.hasIndexes || current.Revision() != source.Revision() || current == source {
 		t.Fatal("private normalization invariant", current)
 	}

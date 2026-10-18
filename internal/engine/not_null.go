@@ -119,7 +119,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		if err := validateAlterTablespaceMove(destination); err != nil {
 			return fail(err)
 		}
-		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.descriptors[ref.Address])
+		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
 		e.mu.Unlock()
 		return Result{}, nil
 	}
@@ -165,10 +165,10 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	versions, ends, frontier := store.versions, store.ends, e.commitSeq
 	snapshot, snapshotExists := scope.owner.roots[ref.Address]
 	grantCatalog := e.catalog.state
-	schema := auth.catalog.state.descriptors[old.namespace].Name()
+	schema := auth.catalog.Get(old.namespace).Name()
 	var stage *CatalogStage
 	if scope.inheritanceAlter == nil || !scope.inheritanceAlter.descendant {
-		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.descriptors[ref.Address])
+		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
 	}
 	e.mu.Unlock()
 	defer func() {
@@ -476,11 +476,11 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			if !ok || sequence.relationKind != sequenceRelation {
 				continue
 			}
-			original := grantCatalog.descriptors[address]
+			original := grantCatalog.Get(address)
 			if captured, identity := stage.identityOriginals[address]; identity {
 				original = captured
 			}
-			if e.catalog.state.descriptors[address] != original {
+			if e.catalog.state.Get(address) != original {
 				e.mu.Unlock()
 				return Result{}, CatalogConflict{}
 			}
@@ -492,11 +492,11 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			if !ok || sequence.relationKind != sequenceRelation {
 				continue
 			}
-			original := grantCatalog.descriptors[address]
+			original := grantCatalog.Get(address)
 			if captured, identity := stage.identityOriginals[address]; identity {
 				original = captured
 			}
-			if e.catalog.state.descriptors[address] != original {
+			if e.catalog.state.Get(address) != original {
 				e.mu.Unlock()
 				return Result{}, CatalogConflict{}
 			}
@@ -820,29 +820,29 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	if hasAttachments || len(addedIndexes) != 0 {
 		for name := range stage.touched {
-			if e.catalog.state.names[name] != grantCatalog.names[name] {
+			if e.catalog.state.NameAddress(name) != grantCatalog.NameAddress(name) {
 				e.mu.Unlock()
 				return Result{}, CatalogConflict{}
 			}
 		}
 	}
 	for a, d := range stage.descriptors {
-		original := grantCatalog.descriptors[a]
+		original := grantCatalog.Get(a)
 		if captured, identity := stage.identityOriginals[a]; identity {
 			original = captured
 		}
-		if e.catalog.state.descriptors[a] != original {
+		if e.catalog.state.Get(a) != original {
 			e.mu.Unlock()
 			return Result{}, CatalogConflict{}
 		}
 		e.catalogChangeLocked(changes, a, d)
 	}
 	for a := range stage.removals {
-		original := grantCatalog.descriptors[a]
+		original := grantCatalog.Get(a)
 		if captured, identity := stage.identityOriginals[a]; identity {
 			original = captured
 		}
-		if e.catalog.state.descriptors[a] != original {
+		if e.catalog.state.Get(a) != original {
 			e.mu.Unlock()
 			return Result{}, CatalogConflict{}
 		}

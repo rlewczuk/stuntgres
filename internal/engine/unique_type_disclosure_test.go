@@ -50,7 +50,7 @@ func TestUniqueTypeBuildOwnerDisclosure(t *testing.T) {
 					grant(2, authorization.SelectPrivilege)
 				}
 				before := e.catalog.state
-				parent := before.descriptors[ref.Address].(*relationDescriptor)
+				parent := before.MustRelation(ref.Address)
 				constraint := parent.uniqueConstraints[0]
 				root := e.indexRoots[constraint.Index]
 				store := e.storage[ref.Address]
@@ -85,7 +85,7 @@ func TestUniqueTypeBuildOwnerDisclosure(t *testing.T) {
 				if e.catalog.state != before || e.storage[ref.Address] != store || e.indexRoots[constraint.Index] != root {
 					t.Fatal("failed TYPE changed catalog/storage/root identity")
 				}
-				current := e.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+				current := e.catalog.state.MustRelation(ref.Address)
 				if current.uniqueConstraints[0].OID != constraint.OID || current.uniqueConstraints[0].Index != constraint.Index {
 					t.Fatal("failed TYPE reminted identities")
 				}

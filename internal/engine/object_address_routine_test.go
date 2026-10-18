@@ -45,7 +45,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			if carrier.Properties().Volatility != Stable || generationImmutable(carrier) {
 				t.Fatal("address inquiry lost STABLE boundary")
 			}
-			owned, ok := evaluation.catalog.state.descriptors[address].(*procedureDescriptor)
+			owned, ok := evaluation.catalog.Procedure(address)
 			if !ok || owned != captured {
 				t.Fatal("reference is not the original owned descriptor")
 			}

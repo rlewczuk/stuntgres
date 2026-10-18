@@ -69,7 +69,7 @@ func TestTableCoreLikeOwnershipDescriptors(t *testing.T) {
 	withPublicSchemaUnitOwner(t, e, "reader", func() {
 		roleExecute(t, e, op, "CREATE TABLE clone(LIKE source)")
 	})
-	clone := e.CatalogRead().state.descriptors[roleTableRef(t, e, "clone").Address].(*relationDescriptor)
+	clone := e.CatalogRead().MustRelation(roleTableRef(t, e, "clone").Address)
 	if clone.owner != reader.Ref || clone.acl.Explicit || len(clone.columnACL) != 0 {
 		t.Fatal("LIKE copied ACL/owner")
 	}
@@ -99,7 +99,7 @@ func TestTableCoreSchemaOwnerAndACLBlockerCleanup(t *testing.T) {
 	owner, _ := e.Roles().Lookup("schema_owner")
 	replacement := cloneCatalog(e.CatalogRead().state)
 	nsaddr := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	ns := *replacement.descriptors[nsaddr].(*namespaceDescriptor)
+	ns := *replacement.MustNamespace(nsaddr)
 	ns.owner = owner.Ref
 	replacement.descriptors[nsaddr] = &ns
 	if _, err = e.ReplaceCatalog(context.Background(), e, e.catalog.read(replacement)); err != nil {

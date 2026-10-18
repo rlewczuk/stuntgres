@@ -41,7 +41,7 @@ func defaultProbe(t *testing.T, e *Engine, probe *defaultOrdinal) {
 	t.Helper()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	for address, descriptor := range e.catalog.state.descriptors {
+	for address, descriptor := range e.catalog.state.Descriptors() {
 		if old, ok := descriptor.(*relationDescriptor); ok && old.name == "d" {
 			next := *old
 			probe.expressionInfo = expressionInfo{Usage: old.columns[1].Usage}
@@ -181,7 +181,7 @@ func TestDefaultQuerySourcePreflightKeepsStoredStructure(t *testing.T) {
 	run(t, e, `CREATE TABLE d(id INT,v INT DEFAULT int4('7'::text))`)
 	run(t, e, `CREATE TABLE src(id INT)`)
 	ref := roleTableRef(t, e, "d")
-	old := e.CatalogRead().state.descriptors[ref.Address].(*relationDescriptor)
+	old := e.CatalogRead().MustRelation(ref.Address)
 	definition := old.defaults[old.attributes[1]]
 	if n := run(t, e, `INSERT INTO d(id) SELECT id FROM src`).Count; n != 0 {
 		t.Fatal(n)
@@ -191,7 +191,7 @@ func TestDefaultQuerySourcePreflightKeepsStoredStructure(t *testing.T) {
 		if n := run(t, e, `INSERT INTO d(id) SELECT id FROM src ORDER BY id`).Count; n != 2 {
 			t.Fatal(n)
 		}
-		current := e.CatalogRead().state.descriptors[ref.Address].(*relationDescriptor)
+		current := e.CatalogRead().MustRelation(ref.Address)
 		stored := current.defaults[current.attributes[1]]
 		cast, ok := stored.expression.(coercionExpression)
 		if !ok || cast.mode != sqltype.Explicit || !reflect.DeepEqual(stored, definition) {
@@ -223,7 +223,7 @@ func TestDefaultQueryPlanningScopedPolicy(t *testing.T) {
 			run(t, e, "CREATE TABLE d(b BOOL DEFAULT ("+tc.expression+"))")
 			view := e.CatalogRead()
 			ref := roleTableRef(t, e, "d")
-			d := view.state.descriptors[ref.Address].(*relationDescriptor)
+			d := view.MustRelation(ref.Address)
 			original := d.defaults[d.attributes[0]]
 			c := &EvalContext{Context: context.Background()}
 			planned, changed, err := preflightCoercionsWithPolicy(c, original.expression, true)

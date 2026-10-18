@@ -10,10 +10,10 @@ func TestSerialDefaultMergedRootProviderValidation(t *testing.T) {
 	run(t,e,`CREATE SEQUENCE q`)
 	run(t,e,`CREATE TABLE consumer(id INT DEFAULT nextval('q'))`)
 	ref := roleTableRef(t,e,"consumer")
-	definition := e.catalog.state.descriptors[ref.Address].(*relationDescriptor).defaults[1]
+	definition := e.catalog.state.MustRelation(ref.Address).defaults[1]
 	run(t,e,`ALTER TABLE consumer ALTER id DROP DEFAULT`)
 	read := e.CatalogRead()
-	original := read.state.descriptors[ref.Address].(*relationDescriptor)
+	original := read.MustRelation(ref.Address)
 	candidate := *original
 	candidate.revision++
 	candidate.defaults = map[int32]columnDefault{1:definition}
@@ -26,6 +26,6 @@ func TestSerialDefaultMergedRootProviderValidation(t *testing.T) {
 	run(t,e,`CREATE SEQUENCE q START 99`)
 	before := e.catalog.state
 	if _,err := e.PublishCatalog(prepared,PublicationToken{Epoch:read.Epoch()}); err == nil { t.Fatal("merged root published a default referencing a removed provider") }
-	if e.catalog.state != before || e.catalog.state.descriptors[ref.Address] != original { t.Fatal("rejected default publication changed catalog") }
+	if e.catalog.state != before || e.catalog.state.Get(ref.Address) != original { t.Fatal("rejected default publication changed catalog") }
 	checkReviewDependencyValid(t,e)
 }

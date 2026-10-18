@@ -160,11 +160,11 @@ func TestLevenshteinRemap(t *testing.T) {
 	}
 	next := cloneCatalog(before.state)
 	for address := range mapping {
-		delete(next.names, descriptorNameKey(before.state.descriptors[address]))
+		delete(next.names, descriptorNameKey(before.Get(address)))
 		delete(next.descriptors, address)
 	}
 	for address, destination := range mapping {
-		descriptor := remapExtensionDescriptor(before.state.descriptors[address], mapping)
+		descriptor := remapExtensionDescriptor(before.Get(address), mapping)
 		next.descriptors[destination] = descriptor
 		next.names[descriptorNameKey(descriptor)] = destination
 	}
@@ -176,10 +176,10 @@ func TestLevenshteinRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	view := e.catalog.read(next)
-	relocated := next.descriptors[address].(*relationDescriptor)
+	relocated := next.MustRelation(address)
 	for _, node := range []BoundExpr{relocated.defaults[1].expression, relocated.generations[2].expression, relocated.generations[2].planned} {
 		n := node.(installedLevenshteinFunctionExpression)
-		if n.ref.Address != mapping[call.ref.Address] || n.ref.Epoch != next.epoch || n.procedure != next.descriptors[n.ref.Address] {
+		if n.ref.Address != mapping[call.ref.Address] || n.ref.Epoch != next.epoch || n.procedure != next.Get(n.ref.Address) {
 			t.Fatal("stale remapped authority", n.ref)
 		}
 		if err := n.validate(view); err != nil {
@@ -191,7 +191,7 @@ func TestLevenshteinRemap(t *testing.T) {
 			t.Fatal(value, err, readErr)
 		}
 	}
-	if call.ref.Epoch != before.Epoch() || call.procedure != before.state.descriptors[call.ref.Address] || !reflect.DeepEqual(call.Args, levenshteinUnitExpression(t, e).Args) {
+	if call.ref.Epoch != before.Epoch() || call.procedure != before.Get(call.ref.Address) || !reflect.DeepEqual(call.Args, levenshteinUnitExpression(t, e).Args) {
 		t.Fatal("source expression mutated")
 	}
 }

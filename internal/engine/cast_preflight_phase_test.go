@@ -95,7 +95,7 @@ func TestCastCoercionSelectPreflightAuthorityIdentityCancellation(t *testing.T) 
 				case "descriptor":
 					leaf := scope.querySources[0]
 					address := leaf.ref.Address
-					original := e.catalog.state.descriptors[address]
+					original := e.catalog.state.Get(address)
 					replacement := *leaf.relation
 					// Compatible descriptor copies are admissible; invalidate the
 					// captured physical attribute identity instead.

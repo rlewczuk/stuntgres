@@ -38,7 +38,7 @@ func validateUniques(view CatalogRead, parent *relationDescriptor, names map[str
 			}
 			primary = true
 		}
-		index, ok := view.state.descriptors[c.Index].(*relationDescriptor)
+		index, ok := view.Relation(c.Index)
 		if !ok || index.sqlIndex == nil || index.name != c.Name || index.sqlIndex.parent != parent.address || !index.sqlIndex.unique || index.sqlIndex.constraint == nil || index.sqlIndex.constraint.kind != uniqueBackingKind || index.sqlIndex.constraint.OID != c.OID || index.sqlIndex.constraint.Index != c.Index || index.sqlIndex.constraint.Name != c.Name || index.sqlIndex.nullsNotDistinct != c.NullsNotDistinct || len(index.sqlIndex.keys) != len(c.Attributes) {
 			return fmt.Errorf("stuntgres: inconsistent unique backing index")
 		}
@@ -132,7 +132,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *r
 	for name := range local {
 		used[name] = true
 	}
-	for key := range view.state.names {
+	for key := range view.Names() {
 		if key.ClassID == ids.RelationClassID && key.Namespace == d.namespace {
 			used[key.Name] = true
 		}
@@ -455,7 +455,7 @@ func validateUniquePair(ctx context.Context, parent, index *relationDescriptor, 
 }
 
 func (r pgRenderer) uniqueConstraintSQL(parent *relationDescriptor, c *uniqueConstraint) (string, error) {
-	index, ok := r.view.state.descriptors[c.Index].(*relationDescriptor)
+	index, ok := r.view.Relation(c.Index)
 	if !ok || index.sqlIndex == nil {
 		return "", fmt.Errorf("stuntgres: missing unique deparse index")
 	}

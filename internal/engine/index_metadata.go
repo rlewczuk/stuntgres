@@ -42,7 +42,7 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ids.Obje
 	if catalog.owner == nil || catalog.state == nil || ref.Domain() != catalog.owner.domain || ref.Epoch != catalog.Epoch() || ref.Address.SubID != 0 {
 		return m, names, fmt.Errorf("stuntgres: invalid index metadata capture")
 	}
-	index, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	index, ok := catalog.Relation(ref.Address)
 	if !ok || index.sqlIndex == nil {
 		return m, names, fmt.Errorf("stuntgres: index metadata target is missing")
 	}
@@ -51,7 +51,7 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ids.Obje
 		return m, names, err
 	}
 	definition := index.sqlIndex
-	parent := catalog.state.descriptors[definition.parent].(*relationDescriptor)
+	parent := catalog.MustRelation(definition.parent)
 	n := len(definition.keys)
 	ready, valid, live := definition.publicationState()
 	m = indexMetadata{IndexRelID: index.address.ObjectID, IndRelID: parent.address.ObjectID, IndNatts: int16(n + len(definition.include)), IndNKeyAtts: int16(n), IndImmediate: true, IndIsValid: valid, IndIsReady: ready, IndIsLive: live, IndKey: make([]int16, n+len(definition.include)), IndClass: make([]ids.OID, n), IndCollation: make([]ids.OID, n), IndOption: make([]int16, n)}
@@ -114,7 +114,7 @@ func projectIndexMetadata(ctx context.Context, catalog CatalogRead, ref ids.Obje
 		}
 		m.IndKey[n+i] = int16(attribute)
 	}
-	names = indexesMetadata{SchemaName: catalog.state.descriptors[parent.namespace].Name(), TableName: parent.name, IndexName: index.name, IndexDef: sql}
+	names = indexesMetadata{SchemaName: catalog.Get(parent.namespace).Name(), TableName: parent.name, IndexName: index.name, IndexDef: sql}
 	return m, names, nil
 }
 
@@ -128,7 +128,7 @@ func indexCatalogMetadata(ctx context.Context, catalog CatalogRead) ([]indexMeta
 		return nil, nil, fmt.Errorf("stuntgres: invalid index metadata capture")
 	}
 	var indexes []*relationDescriptor
-	for _, descriptor := range catalog.state.descriptors {
+	for _, descriptor := range catalog.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, nil, err
 		}

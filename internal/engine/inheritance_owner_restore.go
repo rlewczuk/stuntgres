@@ -35,11 +35,11 @@ func (e *Engine) captureInheritedOwner(op *Operation, created ids.ObjectRef, own
 	if !trusted || !capturedRole {
 		return restoredInheritedOwner{}, sqlError("0A000", restoreInheritedOwnerBoundary)
 	}
-	table, ok := auth.catalog.state.descriptors[created.Address].(*relationDescriptor)
+	table, ok := auth.catalog.Relation(created.Address)
 	if !ok || table.inheritance == nil || table.relationKind != tableRelation {
 		return restoredInheritedOwner{}, sqlError("0A000", restoreInheritedOwnerBoundary)
 	}
-	namespace, ok := auth.catalog.state.descriptors[table.namespace].(*namespaceDescriptor)
+	namespace, ok := auth.catalog.Namespace(table.namespace)
 	if !ok || namespace.temporary != (ids.SessionToken{}) || validateInheritance(auth.catalog, table) != nil {
 		return restoredInheritedOwner{}, sqlError("0A000", restoreInheritedOwnerBoundary)
 	}
@@ -94,11 +94,11 @@ func (e *Engine) restoreInheritedOwner(op *Operation, raw *parser.AlterOwner, pa
 	if ref != pair.ref {
 		return reject()
 	}
-	table, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	table, ok := auth.catalog.Relation(ref.Address)
 	if !ok || table.inheritance == nil || table.owner != pair.creator {
 		return reject()
 	}
-	namespace, ok := auth.catalog.state.descriptors[table.namespace].(*namespaceDescriptor)
+	namespace, ok := auth.catalog.Namespace(table.namespace)
 	if !ok || namespace.temporary != (ids.SessionToken{}) || validateInheritance(auth.catalog, table) != nil {
 		return reject()
 	}

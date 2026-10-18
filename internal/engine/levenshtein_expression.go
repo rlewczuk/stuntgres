@@ -29,7 +29,7 @@ func (n installedLevenshteinFunctionExpression) validate(v CatalogRead) error {
 			return fmt.Errorf("stuntgres: missing stored Levenshtein argument")
 		}
 	}
-	proc, ok := v.state.descriptors[n.ref.Address].(*procedureDescriptor)
+	proc, ok := v.Procedure(n.ref.Address)
 	if !ok || proc != n.procedure || proc.fuzzy != stockFuzzystrmatch || proc.name != n.Function || proc.signature != procedureSignature(functions.LevenshteinSignature(n.Function, len(n.Args))) || proc.result != 23 {
 		return fmt.Errorf("stuntgres: invalid stored Levenshtein identity")
 	}

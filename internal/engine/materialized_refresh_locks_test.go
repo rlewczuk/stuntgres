@@ -153,7 +153,7 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 			}
 			execute(a, first)
 			afterA := e.storage[d.address]
-			descriptorA := e.catalog.state.descriptors[d.address].(*relationDescriptor)
+			descriptorA := e.catalog.state.MustRelation(d.address)
 			firstCount := 1
 			if noData {
 				firstCount = 0
@@ -173,7 +173,7 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 			if err := b.Finish(nil); err != nil {
 				t.Fatal(err)
 			}
-			final := e.catalog.state.descriptors[d.address].(*relationDescriptor)
+			final := e.catalog.state.MustRelation(d.address)
 			if e.commitSeq != before+2 || e.storage[d.address] == afterA || len(e.storage[d.address].versions) != 1 || len(afterA.versions) != firstCount || !final.populated || final.address != d.address || final.view != d.view || final.rowType != d.rowType {
 				t.Fatal("serialized refresh failed complete immutable replacement")
 			}

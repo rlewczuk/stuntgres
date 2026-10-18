@@ -103,7 +103,7 @@ func (s *StatementScope) authorizeSQLCursor(c *sqlCursor) error {
 			case ids.ProcedureClassID, ids.TypeClassID:
 				// These are the original callable and typed binding lifetimes.
 			case ids.RelationClassID:
-				original, _ := c.routineAuth.catalog.state.descriptors[dependency.ref.Address].(*relationDescriptor)
+				original, _ := c.routineAuth.catalog.Relation(dependency.ref.Address)
 				if original == nil || original.view == nil {
 					// Base source shape/storage is fenced by the existing query
 					// source guards, not unrelated metadata revision equality.

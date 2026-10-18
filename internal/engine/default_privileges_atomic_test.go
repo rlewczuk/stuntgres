@@ -52,7 +52,7 @@ func TestDefaultPrivilegesAtomicity(t *testing.T) {
 func TestDefaultPrivilegesRevision(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	state := cloneCatalog(f.e.catalog.state)
-	namespace := *state.descriptors[f.schema].(*namespaceDescriptor)
+	namespace := *state.MustNamespace(f.schema)
 	namespace.address.ObjectID = 20012
 	namespace.name = "default_other_schema"
 	state.descriptors[namespace.address] = &namespace
@@ -161,7 +161,7 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 				t.Fatal(r.err)
 			}
 			_, err := f.e.PublishCatalog(r.p, PublicationToken{Epoch: stage.base.Epoch()})
-			if err != (CatalogConflict{}) || f.e.catalog.state.descriptors[table.address] != nil {
+			if err != (CatalogConflict{}) || f.e.catalog.state.Get(table.address) != nil {
 				t.Fatal("stale creation default published", err)
 			}
 			for key, record := range stage.defaultReads {
@@ -172,7 +172,7 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 			independent := f.e.BeginCatalogStage(f.e.CatalogRead())
 			other := defaultUnitTable(t, f, independent, "unrelated", f.owner)
 			f.grant(t, "sequences", "usage", nil)
-			if err = defaultUnitPublish(t, f.e, independent); err != nil || f.e.catalog.state.descriptors[other.address] != other {
+			if err = defaultUnitPublish(t, f.e, independent); err != nil || f.e.catalog.state.Get(other.address) != other {
 				t.Fatal("unrelated class spuriously fenced", err)
 			}
 		})
@@ -186,7 +186,7 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 	roles := cloneRoleFixture(f.e.roles)
 	retireFixtureRole(roles, f.reader)
 	f.e.roles = roles
-	if err := defaultUnitPublish(t, f.e, stage); err == nil || f.e.catalog.state.descriptors[table.address] != nil {
+	if err := defaultUnitPublish(t, f.e, stage); err == nil || f.e.catalog.state.Get(table.address) != nil {
 		t.Fatal("retired ACL principal published", err)
 	}
 }

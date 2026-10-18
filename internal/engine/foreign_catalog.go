@@ -53,25 +53,25 @@ type foreignCatalogProvider struct{ class ids.OID }
 func (p foreignCatalogProvider) ClassID() ids.OID { return p.class }
 func (p foreignCatalogProvider) Validate(v CatalogRead, descriptor Descriptor) error {
 	d, ok := descriptor.(*foreignDescriptor)
-	if !ok || d.address.ClassID != p.class || d.address.ObjectID == 0 || d.address.SubID != 0 || d.revision == 0 || v.state.names[descriptorNameKey(d)] != d.address {
+	if !ok || d.address.ClassID != p.class || d.address.ObjectID == 0 || d.address.SubID != 0 || d.revision == 0 || v.NameAddress(descriptorNameKey(d)) != d.address {
 		return fmt.Errorf("stuntgres: invalid SQL/MED descriptor")
 	}
 	switch p.class {
 	case ids.ForeignWrapperClassID:
 		for _, a := range []ids.ObjectAddress{d.handler, d.validator} {
 			if a != (ids.ObjectAddress{}) {
-				if _, ok := v.state.descriptors[a].(*procedureDescriptor); !ok {
+				if _, ok := v.Procedure(a); !ok {
 					return fmt.Errorf("stuntgres: missing SQL/MED procedure identity")
 				}
 			}
 		}
 	case ids.ForeignServerClassID:
-		w, ok := v.state.descriptors[d.wrapper].(*foreignDescriptor)
+		w, ok := v.Foreign(d.wrapper)
 		if !ok || w.address.ClassID != ids.ForeignWrapperClassID {
 			return fmt.Errorf("stuntgres: missing foreign-data wrapper")
 		}
 	case ids.ForeignMappingClassID:
-		s, ok := v.state.descriptors[d.server].(*foreignDescriptor)
+		s, ok := v.Foreign(d.server)
 		if !ok || s.address.ClassID != ids.ForeignServerClassID || d.name != foreignMappingName(d.server, d.mappedRole) {
 			return fmt.Errorf("stuntgres: invalid user mapping identity")
 		}

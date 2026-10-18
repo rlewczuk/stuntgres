@@ -68,7 +68,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 				}
 				return nil, nil, err
 			}
-			d := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			d := auth.catalog.MustRelation(ref.Address)
 			if d.relationKind != foreignRelation {
 				return nil, nil, sqlError("42809", fmt.Sprintf(`"%s" is not a foreign table`, d.name))
 			}
@@ -120,7 +120,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 	if err != nil {
 		return nil, nil, err
 	}
-	wrapper, ok := auth.catalog.state.descriptors[server.wrapper].(*foreignDescriptor)
+	wrapper, ok := auth.catalog.Foreign(server.wrapper)
 	if !ok {
 		return nil, nil, fmt.Errorf("stuntgres: missing foreign-data wrapper")
 	}
@@ -170,7 +170,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 		}
 		return Result{}, err
 	}
-	old := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	old := auth.catalog.MustRelation(ref.Address)
 	if old.relationKind != foreignRelation {
 		e.mu.Unlock()
 		return Result{}, sqlError("42809", fmt.Sprintf(`"%s" is not a foreign table`, old.name))
@@ -198,12 +198,12 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 			return e.alterSchemaLocked(scope, scope.op, auth, inner, 0)
 		}
 	}
-	server, ok := auth.catalog.state.descriptors[old.foreign.server].(*foreignDescriptor)
+	server, ok := auth.catalog.Foreign(old.foreign.server)
 	if !ok {
 		e.mu.Unlock()
 		return Result{}, ErrCatalogReplaced
 	}
-	wrapper, ok := auth.catalog.state.descriptors[server.wrapper].(*foreignDescriptor)
+	wrapper, ok := auth.catalog.Foreign(server.wrapper)
 	if !ok {
 		e.mu.Unlock()
 		return Result{}, ErrCatalogReplaced

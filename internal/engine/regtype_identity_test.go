@@ -11,7 +11,7 @@ func TestRegtypeInitializedCatalogAuthority(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	count := 0
-	for address, descriptor := range view.state.descriptors {
+	for address, descriptor := range view.Descriptors() {
 		typ, ok := descriptor.(*typeDescriptor)
 		if !ok {
 			continue
@@ -35,8 +35,8 @@ func TestRegtypeInitializedCatalogAuthority(t *testing.T) {
 		t.Fatal("initialized namespace", d, ok)
 	}
 	for _, name := range []string{"pg_type", "pg_class", "pg_index", "pg_sequence", "pg_attribute"} {
-		address := view.state.names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, Name: name}]
-		relation, exists := view.state.descriptors[address].(*relationDescriptor)
+		address := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, Name: name})
+		relation, exists := view.Relation(address)
 		if name == "pg_index" && !exists {
 			t.Fatal("missing represented pg_index projection")
 		}
@@ -46,13 +46,13 @@ func TestRegtypeInitializedCatalogAuthority(t *testing.T) {
 			if len(types) != 1 {
 				t.Fatal("lookup-only row identity", name)
 			}
-			row := view.state.descriptors[types[0]].(*typeDescriptor)
+			row := view.MustType(types[0])
 			if row.typ.Concrete() || row.owningRelation != (ids.ObjectAddress{}) {
 				t.Fatal("lookup-only identity implies relation execution", name)
 			}
 			continue
 		}
-		row := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)}].(*typeDescriptor)
+		row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.rowType)})
 		if row.owningRelation != address || row.Name() != relation.Name() || row.typ.Concrete() {
 			t.Fatal("projection row authority", name)
 		}
@@ -122,7 +122,7 @@ func TestRegtypeOIDAllocationSkipsTypeIdentities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for address := range e.catalog.state.descriptors {
+	for address := range e.catalog.state.Descriptors() {
 		if address.ObjectID == id {
 			t.Fatal("allocated published identity", address)
 		}

@@ -70,12 +70,12 @@ func TestConversionDescriptorAuthority(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(context.Background(), stage); err == nil {
 		t.Fatal("foreign principal admitted")
 	}
-	seed := *view.state.descriptors[ids.ObjectAddress{ClassID: ids.ConversionClassID, ObjectID: 4519}].(*conversionDescriptor)
+	seed := *view.MustConversion(ids.ObjectAddress{ClassID: ids.ConversionClassID, ObjectID: 4519})
 	seed.defaultConversion = false
 	if err := (conversionProvider{}).Validate(view, &seed); err == nil {
 		t.Fatal("pinned capability/default invariant changed")
 	}
-	seed = *view.state.descriptors[seed.Address()].(*conversionDescriptor)
+	seed = *view.MustConversion(seed.Address())
 	seed.name, seed.namespace, seed.revision = "legal_seed", d.Namespace(), 2
 	stage = e.BeginCatalogStage(view)
 	if err := stage.Replace(&seed); err != nil {
@@ -85,7 +85,7 @@ func TestConversionDescriptorAuthority(t *testing.T) {
 	if !seed.seeded() || !pgDependPinned(e.CatalogRead(), seed.Address()) || seed.handler != d.handler {
 		t.Fatal("legal metadata mutation lost pin/provider")
 	}
-	if original := view.state.descriptors[seed.Address()].(*conversionDescriptor); original.name != "utf8_to_iso_8859_1" || original.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
+	if original := view.MustConversion(seed.Address()); original.name != "utf8_to_iso_8859_1" || original.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
 		t.Fatal("seed mutation changed old snapshot")
 	}
 }
@@ -121,7 +121,7 @@ func TestConversionDescriptorCreateAndMoveUniqueness(t *testing.T) {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
-	if e.CatalogRead().state.descriptors[second.Address()] != second {
+	if e.CatalogRead().Get(second.Address()) != second {
 		t.Fatal("legal moved-default shape rejected")
 	}
 	if e.CatalogRead().state == before.state {
@@ -150,7 +150,7 @@ func TestConversionDescriptorCancellationAndBatchAtomicity(t *testing.T) {
 		t.Fatal("late missing batch target succeeded")
 	}
 	e.DiscardCatalogStage(stage)
-	if e.CatalogRead().state != before.state || before.state.descriptors[d.Address()] != d {
+	if e.CatalogRead().state != before.state || before.Get(d.Address()) != d {
 		t.Fatal("batch published prefix")
 	}
 	stage = e.BeginCatalogStage(before)
@@ -223,10 +223,10 @@ func TestConversionDescriptorNoopAndPinBoundaries(t *testing.T) {
 	if result, err := e.Execute(op, &parser.DropConversion{Names: []parser.ObjectName{conversionUnitName("public", "unchanged")}}, 0, nil); err != nil || result.Count != 0 || result.Rows != nil {
 		t.Fatal("actual conversion root retirement", result, err)
 	}
-	if _, exists := e.CatalogRead().state.descriptors[d.Address()]; exists {
+	if _, exists := e.CatalogRead().Find(d.Address()); exists {
 		t.Fatal("DROP retired dependents but retained conversion root")
 	}
-	if retained := before.state.descriptors[d.Address()]; retained != d {
+	if retained := before.Get(d.Address()); retained != d {
 		t.Fatal("DROP mutated prior conversion snapshot")
 	}
 }

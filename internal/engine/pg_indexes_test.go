@@ -13,7 +13,7 @@ import (
 func pgIndexesUnitSource(t *testing.T, c CatalogRead) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12002}
-	d, ok := c.state.descriptors[a].(*relationDescriptor)
+	d, ok := c.Relation(a)
 	if !ok {
 		t.Fatal("missing pg_indexes")
 	}
@@ -73,7 +73,7 @@ func TestPGIndexesDescriptors(t *testing.T) {
 	if err := (relationProvider{}).Validate(c, d); err != nil {
 		t.Fatal(err)
 	}
-	row := c.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.rowType)}].(*typeDescriptor)
+	row := c.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.rowType)})
 	if row.owningRelation != d.address {
 		t.Fatal("row type linkage", row)
 	}
@@ -133,7 +133,7 @@ func TestPGIndexesVisibilityPolicy(t *testing.T) {
 				}
 			}
 			schema := parent
-			schema.Address = e.CatalogRead().state.descriptors[parent.Address].(*relationDescriptor).namespace
+			schema.Address = e.CatalogRead().MustRelation(parent.Address).namespace
 			schemaACL := authorization.ACLValue{Explicit: true}
 			if !tc.schemaDenied {
 				schemaACL.Entries = []authorization.ACLEntry{

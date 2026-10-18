@@ -68,7 +68,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *relationDescriptor, *
 	}
 	domainUnitPublish(t, e, stage)
 	view := e.CatalogRead()
-	return e, view.state.descriptors[source.address].(*relationDescriptor), view.state.descriptors[table.address].(*relationDescriptor)
+	return e, view.MustRelation(source.address), view.MustRelation(table.address)
 }
 
 func TestTypedProviderShapeAndIndependentAttributes(t *testing.T) {
@@ -181,8 +181,8 @@ func TestTypedAdmissionLateAttachChildAndDescriptorFence(t *testing.T) {
 	stage := typedRenameStage(t, e, source, table)
 	defer e.DiscardCatalogStage(stage)
 	for _, kind := range []string{"attach", "child", "descriptor", "unrelated"} {
-		next := &catalogState{epoch: stage.base.Epoch(), descriptors: make(map[ids.ObjectAddress]Descriptor, len(stage.base.state.descriptors)+1)}
-		for address, descriptor := range stage.base.state.descriptors {
+		next := &catalogState{epoch: stage.base.Epoch(), descriptors: make(map[ids.ObjectAddress]Descriptor, stage.base.DescriptorCount()+1)}
+		for address, descriptor := range stage.base.Descriptors() {
 			next.descriptors[address] = descriptor
 		}
 		late := *table

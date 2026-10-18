@@ -23,7 +23,7 @@ func inheritanceQueryClosure(catalog CatalogRead, root *relationDescriptor, toke
 				continue
 			}
 			seen[child.address] = true
-			ns, ok := catalog.state.descriptors[child.namespace].(*namespaceDescriptor)
+			ns, ok := catalog.Namespace(child.namespace)
 			if !ok {
 				return ErrCatalogReplaced
 			}
@@ -48,7 +48,7 @@ func inheritanceQueryLeaves(catalog CatalogRead, roots []queryLeaf, token ids.Se
 	var active []ids.ObjectAddress
 	var walk func(queryLeaf) error
 	walk = func(leaf queryLeaf) error {
-		d, ok := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
+		d, ok := catalog.Relation(leaf.ref.Address)
 		if !ok || leaf.ref.Epoch != catalog.Epoch() {
 			return ErrCatalogReplaced
 		}
@@ -104,7 +104,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]rela
 	if s.materializedRefresh {
 		e.mu.Lock()
 		catalog := e.privateCatalogLocked(s.owner.catalog)
-		d, ok := catalog.state.descriptors[s.lockedRef.Address].(*relationDescriptor)
+		d, ok := catalog.Relation(s.lockedRef.Address)
 		if !ok || d.view == nil {
 			e.mu.Unlock()
 			return ErrCatalogReplaced

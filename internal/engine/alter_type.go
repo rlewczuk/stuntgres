@@ -68,7 +68,7 @@ func alterTypeNamespace(auth AuthorizationView, original *relationDescriptor, re
 	for i, column := range original.columns {
 		columns[i] = queryColumn{descriptor: column, slot: i, leaf: queryTargetLeaf, physical: i}
 	}
-	qualifier := queryQualifier{name: original.name, original: original.name, schema: auth.catalog.state.descriptors[original.namespace].Name(), ref: ref, columns: columns}
+	qualifier := queryQualifier{name: original.name, original: original.name, schema: auth.catalog.Get(original.namespace).Name(), ref: ref, columns: columns}
 	return &queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: original.columns}
 }
 
@@ -262,7 +262,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		if parser.IdentifierNeedsQuotes(name) {
 			name = quoteIdentifier(name)
 		}
-		namespace := auth.catalog.state.descriptors[view.namespace].Name()
+		namespace := auth.catalog.Get(view.namespace).Name()
 		path, err := e.lookupPath(auth, relationLookup)
 		if err != nil {
 			return fail(err)

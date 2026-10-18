@@ -12,13 +12,13 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600}
-	source := catalog.state.descriptors[address].(*relationDescriptor)
+	source := catalog.MustRelation(address)
 	ref := e.catalog.domain.Ref(catalog.Epoch(), address)
 	if source.rowType != 10027 || source.virtualView || !source.hasIndexes || len(source.columns) != 22 {
 		t.Fatal("aggregate source descriptor", source)
 	}
-	row := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10027}].(*typeDescriptor)
-	array := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10026}].(*typeDescriptor)
+	row := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10027})
+	array := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10026})
 	if row.owningRelation != address || array.owningRelation != address || row.array != 10026 || array.typ.Element() != row.typ || row.owner != source.owner || array.owner != source.owner {
 		t.Fatal("aggregate row/array ownership")
 	}
@@ -94,7 +94,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	fresh := e.CatalogRead()
-	newSource := fresh.state.descriptors[address].(*relationDescriptor)
+	newSource := fresh.MustRelation(address)
 	if got, err := capturePGAggregate(context.Background(), fresh, ref, source); got != nil || err == nil {
 		t.Fatal("retired source admitted", err)
 	}
@@ -136,7 +136,7 @@ func TestPGAggregateReleasedOwnership(t *testing.T) {
 	// NULL/empty/text-zero seeds are distinct states, including typed NULL capture.
 	e := New()
 	catalog := e.CatalogRead()
-	source := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600}].(*relationDescriptor)
+	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600})
 	ref := e.catalog.domain.Ref(catalog.Epoch(), source.address)
 	got, err := capturePGAggregate(context.Background(), catalog, ref, source)
 	if err != nil {

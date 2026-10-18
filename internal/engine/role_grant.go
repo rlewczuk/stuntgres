@@ -66,7 +66,7 @@ func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parse
 		if err != nil {
 			return nil, err
 		}
-		targets = append(targets, v.catalog.state.descriptors[ref.Address])
+		targets = append(targets, v.catalog.Get(ref.Address))
 	}
 	for _, target := range s.Routines {
 		if err := op.Context().Err(); err != nil {
@@ -76,13 +76,13 @@ func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parse
 		if err != nil {
 			return nil, err
 		}
-		targets = append(targets, v.catalog.state.descriptors[ref.Address])
+		targets = append(targets, v.catalog.Get(ref.Address))
 	}
 	for _, name := range s.Schemas {
 		if err := op.Context().Err(); err != nil {
 			return nil, err
 		}
-		addr := v.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Text}]
+		addr := v.catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Text})
 		if name.Text == "pg_temp" {
 			addr = temporaryNamespace(v)
 		}
@@ -94,7 +94,7 @@ func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parse
 			return nil, err
 		}
 		start := len(targets)
-		for _, descriptor := range v.catalog.state.descriptors {
+		for _, descriptor := range v.catalog.Descriptors() {
 			if err := op.Context().Err(); err != nil {
 				return nil, err
 			}
@@ -233,7 +233,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 				}
 				if parameter, ok := next.(*parameterDescriptor); ok {
 					installParameterGrant(candidate, parameter)
-					if candidate.descriptors[address] == nil {
+					if candidate.Get(address) == nil {
 						changed[address] = objectGrantChange{}
 					}
 				} else {

@@ -68,7 +68,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 		return Result{}, sqlError("0A000", "statement is unsupported in an explicit transaction")
 	}
 	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
-	if _, exists := auth.catalog.state.names[key]; exists {
+	if _, exists := auth.catalog.LookupName(key); exists {
 		e.mu.Unlock()
 		if s.IfNotExists {
 			op.existingRelationNotice(key.Name)
@@ -147,7 +147,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 				return Result{}, authErr
 			}
 			resolved, resolveErr := e.creationNamespace(currentAuth, s.Name)
-			_, exists := e.catalog.state.names[key]
+			_, exists := e.catalog.state.LookupName(key)
 			same := resolveErr == nil && resolved.Address == ns.Address && e.catalog.state.epoch == base.Epoch()
 			var accessErr error
 			if same && exists {
@@ -267,7 +267,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 		if shape.relation == nil {
 			// An index-expression-only domain generation changes executable
 			// index authority without changing its parent's column descriptor.
-			shape.relation = stage.base.state.descriptors[a].(*relationDescriptor)
+			shape.relation = stage.base.MustRelation(a)
 		}
 		changes.storage[a] = shape
 	}
@@ -333,7 +333,7 @@ func temporaryDataTarget(auth AuthorizationView, b *binding, stmt parser.Stateme
 		return true
 	case *parser.Copy, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 		if b.relation != nil {
-			ns, ok := auth.catalog.state.descriptors[b.relation.namespace].(*namespaceDescriptor)
+			ns, ok := auth.catalog.Namespace(b.relation.namespace)
 			return ok && ownTemporaryNamespace(auth, ns)
 		}
 	}

@@ -14,7 +14,7 @@ import (
 func pgTypeUnitSource(t *testing.T, e *Engine) (*relationDescriptor, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1247}
-	d, ok := e.catalog.state.descriptors[address].(*relationDescriptor)
+	d, ok := e.catalog.state.Relation(address)
 	if !ok {
 		t.Fatal("missing type source")
 	}
@@ -188,7 +188,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	}
 	// A genuine explicit empty ACL is distinct from an absent/default ACL.
 	root := cloneCatalog(catalog.state)
-	original := catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23}].(*typeDescriptor)
+	original := catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23})
 	changed := *original
 	changed.acl = authorization.ACLValue{Explicit: true}
 	changed.aclSyntheticDefault = false
@@ -209,7 +209,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	if !found {
 		t.Fatal("modified ACL type absent")
 	}
-	for _, at := range []int32{1, 10, 100, int32(len(catalog.state.descriptors) + 25)} {
+	for _, at := range []int32{1, 10, 100, int32(catalog.DescriptorCount() + 25)} {
 		during, cancel := context.WithCancel(context.Background())
 		ctx := &cancelAtErrCheck{Context: during, cancel: cancel, at: at}
 		got, err := e.capturePGType(ctx, catalog, roles, ref, d)
@@ -267,7 +267,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 	oldRows := pgTypeUnitBag(t, captured, source)
 	array := func(t *testing.T, view CatalogRead, d *typeDescriptor) *typeDescriptor {
 		t.Helper()
-		a, ok := view.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.array)}].(*typeDescriptor)
+		a, ok := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.array)})
 		if !ok || a.typ.Element() != d.typ {
 			t.Fatal("missing canonical domain array", d)
 		}
@@ -278,7 +278,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 		base := domainUnitType(t, view, "query_int")
 		domain := domainUnitType(t, view, "pt18_query_domain")
 		nested := domainUnitType(t, view, "pt18_query_nested")
-		ext, ok := view.state.descriptors[base.extension].(*extensionDescriptor)
+		ext, ok := view.Extension(base.extension)
 		if !ok || len(ext.members) != 3 {
 			t.Fatal("missing actual intarray installation")
 		}

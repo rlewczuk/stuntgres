@@ -103,7 +103,7 @@ func TestCheckReviewDependencyActualCreatePublicationHold(t *testing.T) {
 	sessionSQL(t, a, "INSERT INTO newly_dependent VALUES(1)")
 	checkReviewDependencyValid(t, e)
 	read := e.CatalogRead()
-	d := read.state.descriptors[catalogRef(t, e, read, "newly_dependent").Address].(*relationDescriptor)
+	d := read.MustRelation(catalogRef(t, e, read, "newly_dependent").Address)
 	if len(d.checkConstraints) != 0 {
 		t.Fatal("grant-time CASCADE missed published CHECK")
 	}
@@ -122,7 +122,7 @@ func TestCheckReviewDependencyOrderRoundtrip(t *testing.T) {
 	if err := e.Restore(context.Background(), strings.NewReader(dump.String())); err != nil {
 		t.Fatal(err)
 	}
-	d := e.CatalogRead().state.descriptors[catalogRef(t, e, e.CatalogRead(), "t").Address].(*relationDescriptor)
+	d := e.CatalogRead().MustRelation(catalogRef(t, e, e.CatalogRead(), "t").Address)
 	if d.checkConstraints[0].Name != "c1" || orderedChecks(d)[0].Name != "c2" {
 		t.Fatal("enforcement/declaration order conflated")
 	}
