@@ -43,7 +43,7 @@ func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment
 		return Result{}, ErrCatalogReplaced
 	}
 	next := *old
-	next.revision, err = e.revisionLocked()
+	next.revision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return Result{}, err
 	}

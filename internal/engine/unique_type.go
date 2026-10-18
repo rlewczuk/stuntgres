@@ -58,18 +58,18 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 			return nil, err
 		}
 		var err error
-		c.OID, err = e.allocateOIDLocked()
+		c.OID, err = e.catalog.allocateOIDLocked()
 		if err != nil {
 			return nil, err
 		}
-		id, err := e.allocateOIDLocked()
+		id, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return nil, err
 		}
 		c.Index = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 		clone := *index
 		clone.address = c.Index
-		clone.revision, err = e.revisionLocked()
+		clone.revision, err = e.catalog.revisionLocked()
 		if err != nil {
 			return nil, err
 		}

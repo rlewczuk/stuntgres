@@ -297,17 +297,17 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 func arrayComponentTemporary(t *testing.T, e *Engine, op *Operation, prototype *relationDescriptor) *relationDescriptor {
 	t.Helper()
 	e.mu.Lock()
-	nsOID, err := e.allocateOIDLocked()
+	nsOID, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	tableOID, err := e.allocateOIDLocked()
+	tableOID, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	revision, err := e.revisionLocked()
+	revision, err := e.catalog.revisionLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

@@ -1,6 +1,11 @@
 package engine
 
-import "stuntgres/internal/engine/ids"
+import (
+	"fmt"
+	"math"
+
+	"stuntgres/internal/engine/ids"
+)
 
 // catalogStore owns the engine's catalog state: the provenance domain, the
 // published catalog snapshot, the provider registry and the identity
@@ -18,4 +23,87 @@ type catalogStore struct {
 	nextOID        ids.OID
 	nextRevision   ids.DefinitionRevision
 	nextEnumMember int64
+}
+
+// registerProviderLocked adds a provider before the builtin catalog is
+// installed. Registration closes once state exists.
+func (s *catalogStore) registerProviderLocked(id ids.OID, p CatalogProvider) error {
+	if s.state != nil {
+		return fmt.Errorf("stuntgres: catalog providers are already initialized")
+	}
+	if s.providers == nil {
+		return fmt.Errorf("stuntgres: engine is not initialized")
+	}
+	if _, ok := s.providers[id]; ok {
+		return fmt.Errorf("stuntgres: duplicate catalog class")
+	}
+	s.providers[id] = p
+	return nil
+}
+
+// provider returns the registered provider of a catalog class, or nil. The
+// registry is immutable after construction.
+func (s *catalogStore) provider(class ids.OID) CatalogProvider {
+	return s.providers[class]
+}
+
+// allocateOIDLocked returns the next unused object identifier, skipping
+// reserved OIDs and those that current descriptors already use.
+func (s *catalogStore) allocateOIDLocked() (ids.OID, error) {
+	for s.nextOID != 0 {
+		n := s.nextOID
+		if n == ^ids.OID(0) {
+			s.nextOID = 0
+		} else {
+			s.nextOID++
+		}
+		if n == ids.NamespaceClassID || n == ids.RelationClassID || n == ids.PGCatalogNamespaceOID || n == ids.PublicNamespaceOID {
+			continue
+		}
+		if _, ok := s.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: n}]; ok {
+			continue
+		}
+		if _, ok := s.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: n}]; ok {
+			continue
+		}
+		if _, ok := s.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n}]; ok {
+			continue
+		}
+		usedRule := false
+		for _, descriptor := range s.state.descriptors {
+			if definitionOIDUsed(descriptor, n) {
+				usedRule = true
+				break
+			}
+		}
+		if usedRule {
+			continue
+		}
+		return n, nil
+	}
+	return 0, fmt.Errorf("stuntgres: catalog object identity exhausted")
+}
+
+// revisionLocked reserves the next definition revision.
+func (s *catalogStore) revisionLocked() (ids.DefinitionRevision, error) {
+	if s.nextRevision == ids.DefinitionRevision(^uint64(0)) {
+		return 0, fmt.Errorf("stuntgres: catalog definition revision exhausted")
+	}
+	r := s.nextRevision
+	s.nextRevision++
+	return r, nil
+}
+
+// allocateEnumMemberLocked reserves the next enum member identity. Aborted
+// reservations are never recycled.
+func (s *catalogStore) allocateEnumMemberLocked() (int64, error) {
+	if s.nextEnumMember > math.MaxUint32-2 {
+		return 0, fmt.Errorf("stuntgres: enum member identity exhausted")
+	}
+	if s.nextEnumMember == 0 {
+		s.nextEnumMember = 1
+	} else {
+		s.nextEnumMember += 2
+	}
+	return s.nextEnumMember, nil
 }

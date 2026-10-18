@@ -59,18 +59,18 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *relat
 		if err := stage.removeObjectLocked(e.catalog.domain.Ref(stage.base.Epoch(), old.Index), false); err != nil {
 			return nil, err
 		}
-		c.OID, err = e.allocateOIDLocked()
+		c.OID, err = e.catalog.allocateOIDLocked()
 		if err != nil {
 			return nil, err
 		}
-		indexOID, err := e.allocateOIDLocked()
+		indexOID, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return nil, err
 		}
 		c.Index = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: indexOID}
 		copy := *evolved
 		copy.address = c.Index
-		copy.revision, err = e.revisionLocked()
+		copy.revision, err = e.catalog.revisionLocked()
 		if err != nil {
 			return nil, err
 		}

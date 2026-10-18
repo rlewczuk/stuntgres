@@ -268,14 +268,14 @@ func (e *Engine) rebuildAlterForeignKeysLocked(stage *CatalogStage, parent *rela
 			if _, err := bindForeignKeyComparison(view, next, target, index, *c); err != nil {
 				return nil, err
 			}
-			c.OID, err = e.allocateOIDLocked()
+			c.OID, err = e.catalog.allocateOIDLocked()
 			if err != nil {
 				return nil, err
 			}
 		}
 		if next != nil {
 			var err error
-			next.revision, err = e.revisionLocked()
+			next.revision, err = e.catalog.revisionLocked()
 			if err != nil {
 				return nil, err
 			}

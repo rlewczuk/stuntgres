@@ -294,7 +294,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	if _, err := bindForeignKeyComparison(view, child, parent, index, f); err != nil {
 		return err
 	}
-	f.OID, err = e.allocateOIDLocked()
+	f.OID, err = e.catalog.allocateOIDLocked()
 	if err != nil {
 		return err
 	}

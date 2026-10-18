@@ -158,7 +158,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

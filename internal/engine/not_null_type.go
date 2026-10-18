@@ -36,7 +36,7 @@ func (e *Engine) rebuildAlterNotNullsLocked(stage *CatalogStage, parent *relatio
 			copy.notNullConstraints = slices.Clone(parent.notNullConstraints)
 			next = &copy
 		}
-		oid, err := e.allocateOIDLocked()
+		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return nil, err
 		}

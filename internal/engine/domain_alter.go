@@ -130,7 +130,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		err = fmt.Errorf("stuntgres: invalid domain constraint action")
 	}
 	if err == nil && raw.Action != parser.DomainDropCheck {
-		next.revision, err = e.revisionLocked()
+		next.revision, err = e.catalog.revisionLocked()
 		if err == nil {
 			err = stage.replaceDescriptor(&next, false)
 		}

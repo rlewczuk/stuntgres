@@ -34,10 +34,10 @@ func (e *Engine) captureUsingIndexes(stage *CatalogStage, parent *relationDescri
 		// identity. A previous capture of the same index may already have reminted it.
 		if stage.base.state.descriptors[index.address] != nil && uniqueIndexTypeAffected(index.sqlIndex, transformations) {
 			e.mu.Lock()
-			id, allocateErr := e.allocateOIDLocked()
+			id, allocateErr := e.catalog.allocateOIDLocked()
 			var revision ids.DefinitionRevision
 			if allocateErr == nil {
-				revision, allocateErr = e.revisionLocked()
+				revision, allocateErr = e.catalog.revisionLocked()
 			}
 			e.mu.Unlock()
 			if allocateErr != nil {

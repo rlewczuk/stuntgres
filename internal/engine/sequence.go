@@ -250,12 +250,12 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			}
 		}
 		options.persistence = persistence
-		oid, err := e.allocateOIDLocked()
+		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		rev, err := e.revisionLocked()
+		rev, err := e.catalog.revisionLocked()
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -352,7 +352,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if err != nil {
 			return Result{}, err
 		}
-		rev, err := e.revisionLocked()
+		rev, err := e.catalog.revisionLocked()
 		if err != nil {
 			return Result{}, err
 		}

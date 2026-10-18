@@ -73,7 +73,7 @@ func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefiniti
 	install := func(name ForeignFunctionName, p *foreignProcedure, result ids.OID, signature procedureSignature) error {
 		namespace := e.catalog.state.names[ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Schema}]
 		if namespace == (ids.ObjectAddress{}) {
-			oid, err := e.allocateOIDLocked()
+			oid, err := e.catalog.allocateOIDLocked()
 			if err != nil {
 				return err
 			}
@@ -90,7 +90,7 @@ func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefiniti
 		if e.catalog.state.names[key] != (ids.ObjectAddress{}) {
 			return RegistrationError("foreign procedure signature already installed")
 		}
-		oid, err := e.allocateOIDLocked()
+		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return err
 		}

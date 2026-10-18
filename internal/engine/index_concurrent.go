@@ -126,7 +126,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 		next, definition := *index, *index.sqlIndex
 		definition.ready = true
 		next.sqlIndex = &definition
-		next.revision, err = e.revisionLocked()
+		next.revision, err = e.catalog.revisionLocked()
 		if err != nil {
 			e.mu.Unlock()
 			return 0, err
@@ -193,7 +193,7 @@ func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *pars
 		next, definition := *index, *index.sqlIndex
 		definition.valid = true
 		next.sqlIndex = &definition
-		next.revision, err = e.revisionLocked()
+		next.revision, err = e.catalog.revisionLocked()
 		if err != nil {
 			e.mu.Unlock()
 			return err

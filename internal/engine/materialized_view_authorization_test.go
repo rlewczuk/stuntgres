@@ -24,7 +24,7 @@ func TestMaterializedViewAuthorization(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	baseOID, err := e.allocateOIDLocked()
+	baseOID, err := e.catalog.allocateOIDLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

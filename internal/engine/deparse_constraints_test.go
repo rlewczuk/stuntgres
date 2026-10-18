@@ -372,7 +372,7 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 	for _, id := range []ids.OID{d.defaults[1].OID, d.notNullConstraints[0].OID, d.checkConstraints[0].OID} {
 		e.mu.Lock()
 		e.catalog.nextOID = id
-		next, err := e.allocateOIDLocked()
+		next, err := e.catalog.allocateOIDLocked()
 		e.mu.Unlock()
 		if err != nil || next == id || definitionOIDUsed(d, next) {
 			t.Fatal(id, next, err)

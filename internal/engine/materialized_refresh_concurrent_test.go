@@ -108,12 +108,12 @@ func materializedConcurrentUnitIndex(t *testing.T, e *Engine, parent *relationDe
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	revision, err := e.revisionLocked()
+	revision, err := e.catalog.revisionLocked()
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)

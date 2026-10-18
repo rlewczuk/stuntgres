@@ -22,17 +22,17 @@ func TestAlterNullabilityGrowingDependencyClosure(t *testing.T) {
 	e.catalog.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
 		e.catalog.providers[ids.RelationClassID] = provider
 		e.mu.Lock()
-		oid, err := e.allocateOIDLocked()
+		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			e.mu.Unlock()
 			t.Fatal(err)
 		}
-		rule, err := e.allocateOIDLocked()
+		rule, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			e.mu.Unlock()
 			t.Fatal(err)
 		}
-		revision, err := e.revisionLocked()
+		revision, err := e.catalog.revisionLocked()
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

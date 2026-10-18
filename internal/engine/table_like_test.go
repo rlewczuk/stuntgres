@@ -198,7 +198,7 @@ func TestTableLikePublicationFence(t *testing.T) {
 	source := e.CatalogRead().state.descriptors[roleTableRef(t, e, "src").Address].(*relationDescriptor)
 	next := *source
 	e.mu.Lock()
-	next.revision, err = e.revisionLocked()
+	next.revision, err = e.catalog.revisionLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

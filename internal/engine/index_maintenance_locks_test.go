@@ -200,10 +200,10 @@ func indexMaintenancePublishIndexClone(t *testing.T, e *Engine, name, newName st
 		}
 	}
 	e.mu.Lock()
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	var revision ids.DefinitionRevision
 	if err == nil {
-		revision, err = e.revisionLocked()
+		revision, err = e.catalog.revisionLocked()
 	}
 	e.mu.Unlock()
 	if err != nil {

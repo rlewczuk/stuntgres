@@ -202,7 +202,7 @@ func TestPGAggregateIntaggRemap(t *testing.T) {
 	// The global allocator must skip metadata-only owned IDs just like actual
 	// definitions, even when their identities have been remapped out of order.
 	e.catalog.nextOID = original.helpers[0].id
-	allocated, err := e.allocateOIDLocked()
+	allocated, err := e.catalog.allocateOIDLocked()
 	if err != nil || allocated == original.helpers[0].id || allocated == original.helpers[1].id {
 		t.Fatal("allocator reused owned helper", allocated, err)
 	}

@@ -283,7 +283,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			return nil
 		}
 		for {
-			oid, err := e.allocateOIDLocked()
+			oid, err := e.catalog.allocateOIDLocked()
 			if err != nil {
 				return err
 			}

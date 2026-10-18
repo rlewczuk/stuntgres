@@ -295,10 +295,10 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 			err = bindErr
 			if err == nil {
 				definition.predicate = predicate
-				oid, allocationErr := e.allocateOIDLocked()
+				oid, allocationErr := e.catalog.allocateOIDLocked()
 				err = allocationErr
 				if err == nil {
-					revision, revisionErr := e.revisionLocked()
+					revision, revisionErr := e.catalog.revisionLocked()
 					err = revisionErr
 					if err == nil {
 						for i := range columns {

@@ -523,11 +523,11 @@ func (e *Engine) resolveOperatorLink(auth AuthorizationView, stage *CatalogStage
 		if err = auth.CheckCreate(ns); err != nil {
 			return nil, err
 		}
-		id, err := e.allocateOIDLocked()
+		id, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return nil, err
 		}
-		rev, err := e.revisionLocked()
+		rev, err := e.catalog.revisionLocked()
 		if err != nil {
 			return nil, err
 		}
@@ -603,7 +603,7 @@ func (e *Engine) stageResolvedOperatorLink(stage *CatalogStage, d, peer *operato
 		return nil
 	}
 	var err error
-	next.revision, err = e.revisionLocked()
+	next.revision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}
@@ -702,13 +702,13 @@ func (e *Engine) stageCreateOperatorLocked(op *Operation, auth AuthorizationView
 		}
 		next.address = old.address
 	} else {
-		id, err := e.allocateOIDLocked()
+		id, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return err
 		}
 		next.address = ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}
 	}
-	next.revision, err = e.revisionLocked()
+	next.revision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}
@@ -830,7 +830,7 @@ func (e *Engine) stageAlterOperatorLocked(op *Operation, auth AuthorizationView,
 			return err
 		}
 	}
-	next.revision, err = e.revisionLocked()
+	next.revision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}

@@ -98,7 +98,7 @@ func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth
 		if _, err := (scalarRenderer{domainValue: &base, dependencies: &refs}).sql(ctx, auth.catalog, node); err != nil {
 			return err
 		}
-		oid, err := e.allocateOIDLocked()
+		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return err
 		}

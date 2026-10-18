@@ -135,22 +135,22 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 		op, done := roleOperation(t, e, "postgres")
 		defer done()
 		e.mu.Lock()
-		oid, err := e.allocateOIDLocked()
+		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			e.mu.Unlock()
 			t.Fatal(err)
 		}
-		arrayOID, err := e.allocateOIDLocked()
+		arrayOID, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			e.mu.Unlock()
 			t.Fatal(err)
 		}
-		memberID, err := e.allocateEnumMemberLocked()
+		memberID, err := e.catalog.allocateEnumMemberLocked()
 		if err != nil {
 			e.mu.Unlock()
 			t.Fatal(err)
 		}
-		revision, err := e.revisionLocked()
+		revision, err := e.catalog.revisionLocked()
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

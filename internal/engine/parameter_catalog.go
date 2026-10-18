@@ -67,11 +67,11 @@ func (e *Engine) grantParameterDescriptorLocked(v AuthorizationView, name string
 		}
 		return d, nil
 	}
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return nil, err
 	}
-	revision, err := e.revisionLocked()
+	revision, err := e.catalog.revisionLocked()
 	if err != nil {
 		return nil, err
 	}

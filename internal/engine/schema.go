@@ -210,11 +210,11 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 // The table identity owner is shared by declared and query-derived schemas.
 // The caller transfers a private column slice; source definitions are not mutated.
 func (e *Engine) newTableDescriptorLocked(ns ids.ObjectAddress, name string, owner authorization.PrincipalRef, columns []ColumnDescriptor, index map[string]int) (*relationDescriptor, error) {
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return nil, err
 	}
-	revision, err := e.revisionLocked()
+	revision, err := e.catalog.revisionLocked()
 	if err != nil {
 		return nil, err
 	}
@@ -478,11 +478,11 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			}
 			return nil, sqlError("42P06", fmt.Sprintf(`schema "%s" already exists`, name))
 		}
-		oid, err := e.allocateOIDLocked()
+		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return nil, err
 		}
-		rev, err := e.revisionLocked()
+		rev, err := e.catalog.revisionLocked()
 		if err != nil {
 			return nil, err
 		}
@@ -549,7 +549,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			next.owner = target
 			next.acl = authorization.SchemaACLOwner(old.acl, old.owner, target)
 		}
-		next.revision, err = e.revisionLocked()
+		next.revision, err = e.catalog.revisionLocked()
 		if err != nil {
 			return nil, err
 		}

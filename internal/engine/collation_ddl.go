@@ -231,11 +231,11 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 	if err = collationVersionWarning(op, &d, auth.catalog, actual); err != nil {
 		return err
 	}
-	d.oid, err = e.allocateOIDLocked()
+	d.oid, err = e.catalog.allocateOIDLocked()
 	if err != nil {
 		return err
 	}
-	d.revision, err = e.revisionLocked()
+	d.revision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}
@@ -312,7 +312,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 	if a := stage.lookupName(key); a != (ids.ObjectAddress{}) && a != d.Address() {
 		return sqlError("42710", fmt.Sprintf(`collation "%s" already exists in schema "%s"`, next.name, auth.catalog.state.descriptors[next.Namespace()].Name()))
 	}
-	next.revision, err = e.revisionLocked()
+	next.revision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}

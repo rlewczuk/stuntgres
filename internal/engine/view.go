@@ -408,16 +408,16 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	if old != nil {
 		oid, rule = old.address.ObjectID, old.view.rule
 	} else {
-		oid, err = e.allocateOIDLocked()
+		oid, err = e.catalog.allocateOIDLocked()
 		if err == nil {
-			rule, err = e.allocateOIDLocked()
+			rule, err = e.catalog.allocateOIDLocked()
 		}
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
 	}
-	revision, err := e.revisionLocked()
+	revision, err := e.catalog.revisionLocked()
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err

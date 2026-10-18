@@ -23,7 +23,7 @@ func physicalNotNullFixture(t *testing.T) (*Engine, *CatalogStage, *relationDesc
 	mint := func() ids.OID {
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		oid, err := e.allocateOIDLocked()
+		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -169,8 +169,8 @@ func TestPhysicalNotNullRebuiltCompositeUsage(t *testing.T) {
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	e.mu.Lock()
-	indexOID, indexErr := e.allocateOIDLocked()
-	constraintOID, constraintErr := e.allocateOIDLocked()
+	indexOID, indexErr := e.catalog.allocateOIDLocked()
+	constraintOID, constraintErr := e.catalog.allocateOIDLocked()
 	e.mu.Unlock()
 	if indexErr != nil || constraintErr != nil {
 		t.Fatal(indexErr, constraintErr)

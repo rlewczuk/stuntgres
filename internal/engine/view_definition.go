@@ -16,7 +16,7 @@ func (e *Engine) freezeViewDefinitionLocked(auth AuthorizationView, syntax *pars
 	temporaryConsumer := kind == viewRelation && temporary
 	if rule == 0 {
 		var err error
-		rule, err = e.allocateOIDLocked()
+		rule, err = e.catalog.allocateOIDLocked()
 		if err != nil {
 			return nil, err
 		}

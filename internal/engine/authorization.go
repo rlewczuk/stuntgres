@@ -883,7 +883,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 		return err
 	}
 	if n, ok := next.(*relationDescriptor); ok && n.relationKind == sequenceRelation && ref.Address.SubID == 0 {
-		stamp, err := e.revisionLocked()
+		stamp, err := e.catalog.revisionLocked()
 		if err != nil {
 			return err
 		}

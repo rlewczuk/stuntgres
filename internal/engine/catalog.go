@@ -818,14 +818,14 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
 	case *foreignDescriptor:
-		if err := provider.owner.catalog.providers[ref.Address.ClassID].Validate(provider.base, d); err != nil {
+		if err := provider.owner.catalog.provider(ref.Address.ClassID).Validate(provider.base, d); err != nil {
 			return err
 		}
 	case *extensionDescriptor, *procedureDescriptor, *tsTemplateDescriptor, *tsDictionaryDescriptor:
 		if procedure, ok := d.(*procedureDescriptor); ok && procedure.seeded() {
 			return sqlError("2BP01", "cannot drop "+dependencyObject(provider.base, d.Address(), provider.path)+" because it is required by the database system")
 		}
-		objectProvider := provider.owner.catalog.providers[ref.Address.ClassID]
+		objectProvider := provider.owner.catalog.provider(ref.Address.ClassID)
 		if objectProvider == nil {
 			return fmt.Errorf("stuntgres: missing installed object provider")
 		}
@@ -997,7 +997,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		}
 	}
 	for _, d := range s.descriptors {
-		p := e.catalog.providers[d.Address().ClassID]
+		p := e.catalog.provider(d.Address().ClassID)
 		if p == nil {
 			return nil, fmt.Errorf("stuntgres: unregistered catalog class %d", d.Address().ClassID)
 		}
@@ -1656,7 +1656,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		return ChangeSet{}, err
 	}
 	for _, d := range replacement.state.descriptors {
-		p := e.catalog.providers[d.Address().ClassID]
+		p := e.catalog.provider(d.Address().ClassID)
 		if p == nil {
 			return ChangeSet{}, fmt.Errorf("stuntgres: unregistered catalog class %d", d.Address().ClassID)
 		}
@@ -1940,17 +1940,7 @@ func (e *Engine) RegisterCatalogProvider(p CatalogProvider) error {
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.catalog.state != nil {
-		return fmt.Errorf("stuntgres: catalog providers are already initialized")
-	}
-	if e.catalog.providers == nil {
-		return fmt.Errorf("stuntgres: engine is not initialized")
-	}
-	if _, ok := e.catalog.providers[id]; ok {
-		return fmt.Errorf("stuntgres: duplicate catalog class")
-	}
-	e.catalog.providers[id] = p
-	return nil
+	return e.catalog.registerProviderLocked(id, p)
 }
 
 func descriptorRevisionFrontier(d Descriptor) ids.DefinitionRevision {

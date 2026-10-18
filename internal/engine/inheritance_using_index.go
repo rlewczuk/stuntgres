@@ -126,7 +126,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view CatalogRead, read
 		return prepared, nil
 	}
 	e.mu.Lock()
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	e.mu.Unlock()
 	if err != nil {
 		prepared.err = err

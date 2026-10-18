@@ -50,7 +50,7 @@ func domainAlterGenerationIndexes(t *testing.T) {
 				next.typ, err = sqltype.Domain(d.typ.ID(), d.Name(), d.typ.SQLName(), d.typ.DomainBase(), true)
 			}
 			if err == nil {
-				next.revision, err = e.revisionLocked()
+				next.revision, err = e.catalog.revisionLocked()
 			}
 			if err == nil {
 				err = stage.Replace(&next)

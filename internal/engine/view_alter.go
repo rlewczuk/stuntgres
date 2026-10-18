@@ -157,7 +157,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 		return fail(sqlError("0A000", "ALTER VIEW action is unsupported"))
 	}
 	if changed {
-		next.revision, err = e.revisionLocked()
+		next.revision, err = e.catalog.revisionLocked()
 		if err != nil {
 			return fail(err)
 		}

@@ -103,7 +103,7 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 		}
 		next := *d
 		next.acl = acl
-		next.revision, er = e.revisionLocked()
+		next.revision, er = e.catalog.revisionLocked()
 		if er != nil {
 			return Result{}, er
 		}

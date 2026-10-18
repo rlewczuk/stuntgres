@@ -30,7 +30,7 @@ func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	}
 	ext.members = make([]ids.ObjectAddress, 3)
 	for i, class := range [3]ids.OID{ids.TypeClassID, ids.ProcedureClassID, ids.ProcedureClassID} {
-		oid, err := e.allocateOIDLocked()
+		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return err
 		}
@@ -41,12 +41,12 @@ func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	if err != nil {
 		return err
 	}
-	arrayOID, err := e.allocateOIDLocked()
+	arrayOID, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return err
 	}
 	array := sqltype.LookupArray(sqltype.ID(arrayOID), associatedArrayName(stage, ext.targetNamespace, typ.Name()), typ)
-	revision, err := e.revisionLocked()
+	revision, err := e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		return err
 	}
 	for i := range 2 {
-		revision, err := e.revisionLocked()
+		revision, err := e.catalog.revisionLocked()
 		if err != nil {
 			return err
 		}

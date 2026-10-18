@@ -23,8 +23,8 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 			next := *old
 			mint := func(d *relationDescriptor) {
 				e.mu.Lock()
-				id, err := e.allocateOIDLocked()
-				revision, revisionErr := e.revisionLocked()
+				id, err := e.catalog.allocateOIDLocked()
+				revision, revisionErr := e.catalog.revisionLocked()
 				e.mu.Unlock()
 				if err != nil || revisionErr != nil {
 					t.Fatal(err, revisionErr)

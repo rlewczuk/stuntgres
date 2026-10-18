@@ -288,7 +288,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 			versions[i].born = e.commitSeq
 		}
 		d := *item.descriptor
-		d.revision, err = e.revisionLocked()
+		d.revision, err = e.catalog.revisionLocked()
 		if err != nil {
 			return err
 		}

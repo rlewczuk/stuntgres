@@ -142,7 +142,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 				if outcome == "recreate" {
 					replacement := *provider
 					e.mu.Lock()
-					oid, allocationErr := e.allocateOIDLocked()
+					oid, allocationErr := e.catalog.allocateOIDLocked()
 					e.mu.Unlock()
 					if allocationErr != nil {
 						t.Fatal(allocationErr)

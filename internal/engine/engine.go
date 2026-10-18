@@ -304,7 +304,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition, dat
 	}
 	view := CatalogRead{owner: e, state: e.catalog.state}
 	for _, d := range e.catalog.state.descriptors {
-		p := e.catalog.providers[d.Address().ClassID]
+		p := e.catalog.provider(d.Address().ClassID)
 		if p == nil {
 			return nil, fmt.Errorf("stuntgres: missing catalog provider for built-in %q (class %d)", d.Name(), d.Address().ClassID)
 		}
@@ -318,48 +318,6 @@ func (e *Engine) CatalogRead() CatalogRead {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return CatalogRead{owner: e, state: e.catalog.state}
-}
-func (e *Engine) allocateOIDLocked() (ids.OID, error) {
-	for e.catalog.nextOID != 0 {
-		n := e.catalog.nextOID
-		if n == ^ids.OID(0) {
-			e.catalog.nextOID = 0
-		} else {
-			e.catalog.nextOID++
-		}
-		if n == ids.NamespaceClassID || n == ids.RelationClassID || n == ids.PGCatalogNamespaceOID || n == ids.PublicNamespaceOID {
-			continue
-		}
-		if _, ok := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: n}]; ok {
-			continue
-		}
-		if _, ok := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: n}]; ok {
-			continue
-		}
-		if _, ok := e.catalog.state.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: n}]; ok {
-			continue
-		}
-		usedRule := false
-		for _, descriptor := range e.catalog.state.descriptors {
-			if definitionOIDUsed(descriptor, n) {
-				usedRule = true
-				break
-			}
-		}
-		if usedRule {
-			continue
-		}
-		return n, nil
-	}
-	return 0, fmt.Errorf("stuntgres: catalog object identity exhausted")
-}
-func (e *Engine) revisionLocked() (ids.DefinitionRevision, error) {
-	if e.catalog.nextRevision == ids.DefinitionRevision(^uint64(0)) {
-		return 0, fmt.Errorf("stuntgres: catalog definition revision exhausted")
-	}
-	r := e.catalog.nextRevision
-	e.catalog.nextRevision++
-	return r, nil
 }
 
 func sqlError(code, message string) error {

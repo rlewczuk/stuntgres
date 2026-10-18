@@ -170,11 +170,11 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	if registration.superuser && !actor.Superuser {
 		memberOwner = e.authorizationDomain.Principal(10)
 	}
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return nil, err
 	}
-	rev, err := e.revisionLocked()
+	rev, err := e.catalog.revisionLocked()
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +194,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	ext.members = make([]ids.ObjectAddress, 6)
 	for i, class := range [6]ids.OID{ids.ProcedureClassID, ids.ProcedureClassID, ids.ProcedureClassID, ids.ProcedureClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID} {
-		oid, err := e.allocateOIDLocked()
+		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return err
 		}
@@ -202,7 +202,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	}
 	signatures := [4]procedureSignature{unaccentDictionarySignature, unaccentTextSignature, unaccentInitSignature, unaccentLexizeSignature}
 	for i, signature := range signatures {
-		rev, err := e.revisionLocked()
+		rev, err := e.catalog.revisionLocked()
 		if err != nil {
 			return err
 		}
@@ -258,7 +258,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		}
 		helpers[i] = procedure.address
 	}
-	rev, err := e.revisionLocked()
+	rev, err := e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}
@@ -269,7 +269,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 	if err := stage.Create(tmpl); err != nil {
 		return err
 	}
-	rev, err = e.revisionLocked()
+	rev, err = e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}

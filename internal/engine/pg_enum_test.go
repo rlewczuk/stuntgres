@@ -16,17 +16,17 @@ import (
 func TestPGEnumAllocatorBounds(t *testing.T) {
 	e := New()
 	for _, want := range []int64{1, 3} {
-		got, err := e.allocateEnumMemberLocked()
+		got, err := e.catalog.allocateEnumMemberLocked()
 		if err != nil || got != want {
 			t.Fatal("initial allocation", got, want, err)
 		}
 	}
 	e.catalog.nextEnumMember = math.MaxUint32 - 2
-	if got, err := e.allocateEnumMemberLocked(); err != nil || got != math.MaxUint32 {
+	if got, err := e.catalog.allocateEnumMemberLocked(); err != nil || got != math.MaxUint32 {
 		t.Fatal("last OID", got, err)
 	}
 	for range 2 {
-		got, err := e.allocateEnumMemberLocked()
+		got, err := e.catalog.allocateEnumMemberLocked()
 		if got != 0 || err == nil || err.Error() != "stuntgres: enum member identity exhausted" || e.catalog.nextEnumMember != math.MaxUint32 {
 			t.Fatal("exhaustion wrapped/aliased", got, err, e.catalog.nextEnumMember)
 		}
@@ -37,13 +37,13 @@ func TestPGEnumAllocatorBounds(t *testing.T) {
 	stage := domainUnitStage(t, e, op, "CREATE TYPE abandoned AS ENUM ('a','b')")
 	e.DiscardCatalogStage(stage)
 	done()
-	if got, err := e.allocateEnumMemberLocked(); err != nil || got != 5 {
+	if got, err := e.catalog.allocateEnumMemberLocked(); err != nil || got != 5 {
 		t.Fatal("discard recycled reservation", got, err)
 	}
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := e.allocateEnumMemberLocked(); err != nil || got != 7 {
+	if got, err := e.catalog.allocateEnumMemberLocked(); err != nil || got != 7 {
 		t.Fatal("Reset recycled reservation", got, err)
 	}
 	op, done = roleOperation(t, e, "postgres")
@@ -61,7 +61,7 @@ func TestPGEnumAllocatorBounds(t *testing.T) {
 		t.Fatal("Restore reused reservations", frontier, e.catalog.nextEnumMember)
 	}
 	last := e.catalog.nextEnumMember
-	if got, err := e.allocateEnumMemberLocked(); err != nil || got != last+2 {
+	if got, err := e.catalog.allocateEnumMemberLocked(); err != nil || got != last+2 {
 		t.Fatal("post-Restore frontier", got, last, err)
 	}
 }

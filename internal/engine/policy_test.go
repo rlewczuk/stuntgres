@@ -135,7 +135,7 @@ func TestRLSPolicyPublicationCanceled(t *testing.T) {
 	next := *d
 	next.revision++
 	e.mu.Lock()
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -173,7 +173,7 @@ func TestRLSPolicyRemap(t *testing.T) {
 	next := *d
 	next.revision++
 	e.mu.Lock()
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -246,7 +246,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 				t.Fatal(err)
 			}
 			e.mu.Lock()
-			oid, err := e.allocateOIDLocked()
+			oid, err := e.catalog.allocateOIDLocked()
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)

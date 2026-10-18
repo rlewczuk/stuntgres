@@ -148,15 +148,15 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 			return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 		}
 	}
-	constraintOID, err := e.allocateOIDLocked()
+	constraintOID, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return err
 	}
-	indexOID, err := e.allocateOIDLocked()
+	indexOID, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return err
 	}
-	revision, err := e.revisionLocked()
+	revision, err := e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}

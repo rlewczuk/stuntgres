@@ -142,7 +142,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 	}
 	a := ref.Address
 	a.SubID = 0
-	revision, err := e.revisionLocked()
+	revision, err := e.catalog.revisionLocked()
 	if err != nil {
 		return nil, err
 	}

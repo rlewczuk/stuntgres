@@ -92,7 +92,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 		if old.relationKind == sequenceRelation {
 			// Relation rename invalidates analyzed sequence source without
 			// making every descriptor revision a sequence-plan event.
-			next.sequencePlanStamp, err = e.revisionLocked()
+			next.sequencePlanStamp, err = e.catalog.revisionLocked()
 			if err != nil {
 				return fail(err)
 			}

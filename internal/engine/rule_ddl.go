@@ -123,7 +123,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 				definition.OID = old.rules[index].OID
 				next.rules[index] = definition
 			} else {
-				definition.OID, err = e.allocateOIDLocked()
+				definition.OID, err = e.catalog.allocateOIDLocked()
 				if err != nil {
 					return fail(err)
 				}
@@ -157,7 +157,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 		next.rules = append(next.rules[:index], next.rules[index+1:]...)
 	}
 	slices.SortFunc(next.rules, func(a, b ruleDefinition) int { return strings.Compare(a.Name, b.Name) })
-	next.revision, err = e.revisionLocked()
+	next.revision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return fail(err)
 	}

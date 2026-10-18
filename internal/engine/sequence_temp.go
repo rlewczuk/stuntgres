@@ -75,19 +75,19 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 		db := auth.catalog.state.descriptors[currentDatabaseAddress].(*databaseDescriptor)
 		return ids.ObjectRef{}, sqlError("42501", fmt.Sprintf(`permission denied to create temporary tables in database "%s"`, db.name))
 	}
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}
-	rev, err := e.revisionLocked()
+	rev, err := e.catalog.revisionLocked()
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}
-	toastOID, err := e.allocateOIDLocked()
+	toastOID, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}
-	toastRevision, err := e.revisionLocked()
+	toastRevision, err := e.catalog.revisionLocked()
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}

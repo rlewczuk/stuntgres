@@ -100,7 +100,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 		stage.generators = make(map[ids.ObjectAddress]*sequenceGenerator, len(s.truncateSequences))
 	}
 	for _, sequence := range s.truncateSequences {
-		rev, err := e.revisionLocked()
+		rev, err := e.catalog.revisionLocked()
 		if err != nil {
 			return nil, err
 		}

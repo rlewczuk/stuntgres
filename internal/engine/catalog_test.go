@@ -17,7 +17,7 @@ import (
 func catalogUnitOID(t *testing.T, e *Engine) ids.OID {
 	t.Helper()
 	e.mu.Lock()
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -161,7 +161,7 @@ func (testProvider) Validate(CatalogRead, Descriptor) error { return nil }
 func TestCatalogAllocatorAndProviderBoundaries(t *testing.T) {
 	e := New()
 	e.catalog.nextOID = ids.PGCatalogNamespaceOID
-	if n, err := e.allocateOIDLocked(); err != nil || n != ids.PGCatalogNamespaceOID+1 {
+	if n, err := e.catalog.allocateOIDLocked(); err != nil || n != ids.PGCatalogNamespaceOID+1 {
 		t.Fatalf("reserved OID skip: %d %v", n, err)
 	}
 	for _, class := range []ids.OID{ids.NamespaceClassID, ids.RelationClassID} {
@@ -179,20 +179,20 @@ func TestCatalogAllocatorAndProviderBoundaries(t *testing.T) {
 			}
 			before := e.catalog.state
 			e.catalog.nextOID = last
-			if _, err := e.allocateOIDLocked(); err == nil || err.Error() != "stuntgres: catalog object identity exhausted" || e.catalog.nextOID != 0 || e.catalog.state != before {
+			if _, err := e.catalog.allocateOIDLocked(); err == nil || err.Error() != "stuntgres: catalog object identity exhausted" || e.catalog.nextOID != 0 || e.catalog.state != before {
 				t.Fatal("occupied terminal OID did not exhaust without publication", err)
 			}
-			if _, err := e.allocateOIDLocked(); err == nil || e.catalog.nextOID != 0 || e.catalog.state != before {
+			if _, err := e.catalog.allocateOIDLocked(); err == nil || e.catalog.nextOID != 0 || e.catalog.state != before {
 				t.Fatal("exhausted allocator reused identity", err)
 			}
 		})
 	}
 	e.catalog.nextOID = 0
-	if _, err := e.allocateOIDLocked(); err == nil || err.Error() != "stuntgres: catalog object identity exhausted" {
+	if _, err := e.catalog.allocateOIDLocked(); err == nil || err.Error() != "stuntgres: catalog object identity exhausted" {
 		t.Fatalf("OID exhaustion: %v", err)
 	}
 	e.catalog.nextRevision = ids.DefinitionRevision(^uint64(0))
-	if _, err := e.revisionLocked(); err == nil || err.Error() != "stuntgres: catalog definition revision exhausted" {
+	if _, err := e.catalog.revisionLocked(); err == nil || err.Error() != "stuntgres: catalog definition revision exhausted" {
 		t.Fatalf("revision exhaustion: %v", err)
 	}
 	if err := e.RegisterCatalogProvider(nil); err == nil {

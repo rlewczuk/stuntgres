@@ -262,7 +262,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 			next := *old
 			next.wrapper = target
 			var err error
-			next.revision, err = e.revisionLocked()
+			next.revision, err = e.catalog.revisionLocked()
 			if err != nil {
 				return err
 			}
@@ -389,7 +389,7 @@ func TestFDWLateDependencyOwnRewire(t *testing.T) {
 		next := *old
 		next.wrapper = survivor
 		var err error
-		next.revision, err = e.revisionLocked()
+		next.revision, err = e.catalog.revisionLocked()
 		if err != nil {
 			return err
 		}

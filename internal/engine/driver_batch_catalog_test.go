@@ -248,7 +248,7 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 	}
 	claimed := cloneCatalog(before)
 	claim := *namespace
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -25,7 +25,7 @@ func (e *Engine) importScalarTypesLocked(next *catalogState, mapping map[ids.Obj
 		if source.IsEnum() {
 			members := source.EnumMembers()
 			for i := range members {
-				id, er := e.allocateEnumMemberLocked()
+				id, er := e.catalog.allocateEnumMemberLocked()
 				if er != nil {
 					return er
 				}

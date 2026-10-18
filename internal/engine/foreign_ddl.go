@@ -295,13 +295,13 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		}
 		next = *old
 	} else {
-		oid, er := e.allocateOIDLocked()
+		oid, er := e.catalog.allocateOIDLocked()
 		if er != nil {
 			return nil, nil, er
 		}
 		next = foreignDescriptor{address: ids.ObjectAddress{ClassID: class, ObjectID: oid}, name: name, owner: auth.state.CurrentUser}
 	}
-	next.revision, err = e.revisionLocked()
+	next.revision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return nil, nil, err
 	}

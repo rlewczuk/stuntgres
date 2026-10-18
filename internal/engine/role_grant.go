@@ -411,7 +411,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 				return Result{}, err
 			}
 			if next.relationKind == sequenceRelation {
-				stamp, err := e.revisionLocked()
+				stamp, err := e.catalog.revisionLocked()
 				if err != nil {
 					return Result{}, err
 				}

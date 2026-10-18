@@ -41,11 +41,11 @@ func fuzzystrmatchResult(name string, signature procedureSignature) ids.OID {
 func (p *fuzzystrmatchProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDescriptor, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	ext.members = make([]ids.ObjectAddress, len(fuzzystrmatchMembers))
 	for i, member := range fuzzystrmatchMembers {
-		oid, err := e.allocateOIDLocked()
+		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return err
 		}
-		revision, err := e.revisionLocked()
+		revision, err := e.catalog.revisionLocked()
 		if err != nil {
 			return err
 		}

@@ -221,7 +221,7 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, e
 		if d == nil {
 			continue
 		}
-		p := e.catalog.providers[a.ClassID]
+		p := e.catalog.provider(a.ClassID)
 		if p == nil {
 			return nil, fmt.Errorf("stuntgres: unregistered catalog class")
 		}

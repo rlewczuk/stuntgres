@@ -643,11 +643,11 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		if len(s.Options) != 0 {
 			return fail(indexCapability("index storage parameters are unsupported", s.WithPos))
 		}
-		oid, err := e.allocateOIDLocked()
+		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return fail(err)
 		}
-		revision, err := e.revisionLocked()
+		revision, err := e.catalog.revisionLocked()
 		if err != nil {
 			return fail(err)
 		}

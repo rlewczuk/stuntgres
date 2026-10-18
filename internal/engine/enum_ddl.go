@@ -2,26 +2,12 @@ package engine
 
 import (
 	"fmt"
-	"math"
 	"slices"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
-
-// Engine.mu owns allocation. Aborted reservations are never recycled.
-func (e *Engine) allocateEnumMemberLocked() (int64, error) {
-	if e.catalog.nextEnumMember > math.MaxUint32-2 {
-		return 0, fmt.Errorf("stuntgres: enum member identity exhausted")
-	}
-	if e.catalog.nextEnumMember == 0 {
-		e.catalog.nextEnumMember = 1
-	} else {
-		e.catalog.nextEnumMember += 2
-	}
-	return e.catalog.nextEnumMember, nil
-}
 
 // Members are an owned mutation copy. Renumber only when an interior midpoint
 // collapses in binary32; existing datum identities are never rewritten.
@@ -191,7 +177,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 					at++
 				}
 			}
-			member, err := e.allocateEnumMemberLocked()
+			member, err := e.catalog.allocateEnumMemberLocked()
 			if err != nil {
 				return Result{}, err
 			}
@@ -208,7 +194,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		if err != nil {
 			return Result{}, err
 		}
-		revision, err := e.revisionLocked()
+		revision, err := e.catalog.revisionLocked()
 		if err != nil {
 			return Result{}, err
 		}

@@ -118,7 +118,7 @@ func TestRegtypeOIDAllocationSkipsTypeIdentities(t *testing.T) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.catalog.nextOID = ids.OID(sqltype.Regtype)
-	id, err := e.allocateOIDLocked()
+	id, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -52,17 +52,17 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 			e.catalog.providers[ids.RelationClassID] = alterDropProvider{provider, func() {
 				e.catalog.providers[ids.RelationClassID] = provider
 				e.mu.Lock()
-				oid, allocationErr := e.allocateOIDLocked()
+				oid, allocationErr := e.catalog.allocateOIDLocked()
 				if allocationErr != nil {
 					e.mu.Unlock()
 					t.Fatal(allocationErr)
 				}
-				rule, allocationErr := e.allocateOIDLocked()
+				rule, allocationErr := e.catalog.allocateOIDLocked()
 				if allocationErr != nil {
 					e.mu.Unlock()
 					t.Fatal(allocationErr)
 				}
-				revision, allocationErr := e.revisionLocked()
+				revision, allocationErr := e.catalog.revisionLocked()
 				e.mu.Unlock()
 				if allocationErr != nil {
 					t.Fatal(allocationErr)

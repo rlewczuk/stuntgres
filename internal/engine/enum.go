@@ -37,7 +37,7 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 	if !available || relationTypeNameOccupied(auth.catalog, ns.Address, name) {
 		return sqlError("42710", fmt.Sprintf(`type "%s" already exists`, name))
 	}
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return err
 	}
@@ -58,13 +58,13 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 			return diagnostic
 		}
 		seen[label.Text] = true
-		member, err := e.allocateEnumMemberLocked()
+		member, err := e.catalog.allocateEnumMemberLocked()
 		if err != nil {
 			return err
 		}
 		members[i] = sqltype.EnumMember{ID: member, Label: label.Text, SortOrder: float32(i + 1)}
 	}
-	revision, err := e.revisionLocked()
+	revision, err := e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 		return err
 	}
 	acl, synthetic := stage.creationTypeACL(auth.state.CurrentUser, ns.Address)
-	arrayOID, err := e.allocateOIDLocked()
+	arrayOID, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return err
 	}

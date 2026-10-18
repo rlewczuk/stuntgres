@@ -66,11 +66,11 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	if err = auth.CanUse(ref); err != nil {
 		return err
 	}
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return err
 	}
-	revision, err := e.revisionLocked()
+	revision, err := e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}
@@ -85,7 +85,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 		return err
 	}
 	acl, synthetic := stage.creationTypeACL(auth.state.CurrentUser, ns.Address)
-	arrayOID, err := e.allocateOIDLocked()
+	arrayOID, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return err
 	}

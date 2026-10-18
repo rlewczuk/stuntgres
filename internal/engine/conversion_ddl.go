@@ -103,11 +103,11 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 			}
 		}
 	}
-	oid, err := e.allocateOIDLocked()
+	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return err
 	}
-	revision, err := e.revisionLocked()
+	revision, err := e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}
@@ -180,7 +180,7 @@ func (e *Engine) stageAlterConversionLocked(op *Operation, auth AuthorizationVie
 	}
 	// CREATE alone checks default-pair uniqueness; legal schema moves may leave
 	// multiple defaults and must never be rejected by a universal invariant.
-	next.revision, err = e.revisionLocked()
+	next.revision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return err
 	}

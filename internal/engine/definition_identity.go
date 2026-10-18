@@ -27,7 +27,7 @@ func structuralNull(node BoundExpr) bool {
 func (e *Engine) assignDefinitionOIDsLocked(d *relationDescriptor) error {
 	for i := range d.notNullConstraints {
 		if d.notNullConstraints[i].OID == 0 {
-			id, err := e.allocateOIDLocked()
+			id, err := e.catalog.allocateOIDLocked()
 			if err != nil {
 				return err
 			}
@@ -37,7 +37,7 @@ func (e *Engine) assignDefinitionOIDsLocked(d *relationDescriptor) error {
 	for _, attr := range d.attributes {
 		def, ok := d.defaults[attr]
 		if ok && def.OID == 0 {
-			id, err := e.allocateOIDLocked()
+			id, err := e.catalog.allocateOIDLocked()
 			if err != nil {
 				return err
 			}
@@ -48,7 +48,7 @@ func (e *Engine) assignDefinitionOIDsLocked(d *relationDescriptor) error {
 	for _, attr := range d.attributes {
 		definition, exists := d.generations[attr]
 		if exists && definition.OID == 0 {
-			id, err := e.allocateOIDLocked()
+			id, err := e.catalog.allocateOIDLocked()
 			if err != nil {
 				return err
 			}
@@ -58,7 +58,7 @@ func (e *Engine) assignDefinitionOIDsLocked(d *relationDescriptor) error {
 	}
 	for i := range d.checkConstraints {
 		if d.checkConstraints[i].OID == 0 {
-			id, err := e.allocateOIDLocked()
+			id, err := e.catalog.allocateOIDLocked()
 			if err != nil {
 				return err
 			}
@@ -67,7 +67,7 @@ func (e *Engine) assignDefinitionOIDsLocked(d *relationDescriptor) error {
 	}
 	for i := range d.uniqueConstraints {
 		if d.uniqueConstraints[i].OID == 0 {
-			id, err := e.allocateOIDLocked()
+			id, err := e.catalog.allocateOIDLocked()
 			if err != nil {
 				return err
 			}
@@ -76,7 +76,7 @@ func (e *Engine) assignDefinitionOIDsLocked(d *relationDescriptor) error {
 	}
 	for i := range d.foreignKeys {
 		if d.foreignKeys[i].OID == 0 {
-			id, err := e.allocateOIDLocked()
+			id, err := e.catalog.allocateOIDLocked()
 			if err != nil {
 				return err
 			}
@@ -363,7 +363,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			return id, nil
 		}
 		for {
-			candidate, err := e.allocateOIDLocked()
+			candidate, err := e.catalog.allocateOIDLocked()
 			if err != nil {
 				return 0, err
 			}

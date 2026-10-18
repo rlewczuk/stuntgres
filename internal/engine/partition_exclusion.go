@@ -42,7 +42,7 @@ func (e *Engine) executePartitionExclusionAddLocked(scope *StatementScope, op *O
 		stage.domainBases = append(stage.domainBases, descriptor)
 	}
 	next := *table
-	next.revision, err = e.revisionLocked()
+	next.revision, err = e.catalog.revisionLocked()
 	if err != nil {
 		e.mu.Unlock()
 		e.DiscardCatalogStage(stage)
