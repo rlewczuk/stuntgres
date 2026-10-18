@@ -87,7 +87,7 @@ func TestGeneratedVirtualUnsimplifiedTypeSecurity(t *testing.T) {
 		typ    *sqltype.Descriptor
 		domain bool
 	}{{domain, true}, {array, true}, {enum, false}, {enumArray, false}} {
-		err := virtualDestination(ColumnDescriptor{Name: "b", Usage: tc.typ.Usage()})
+		err := virtualDestination(catalog.Column{Name: "b", Usage: tc.typ.Usage()})
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
 			t.Fatal(tc, err)
@@ -104,7 +104,7 @@ func TestGeneratedVirtualUnsimplifiedTypeSecurity(t *testing.T) {
 	if !ok {
 		t.Fatal("int[] missing")
 	}
-	if err := virtualDestination(ColumnDescriptor{Name: "b", Usage: builtinArray.Usage()}); err != nil {
+	if err := virtualDestination(catalog.Column{Name: "b", Usage: builtinArray.Usage()}); err != nil {
 		t.Fatal(err)
 	}
 	hidden := literalExpression{Info: expr.Info{Usage: domain.Usage(), Pos: parser.Position{Character: 17}}, value: sqltype.Null(domain)}

@@ -38,7 +38,7 @@ type sqlCursor struct {
 	count                                       int
 	storeOffset                                 int64
 	root                                        *projectNode
-	schema                                      []ColumnDescriptor
+	schema                                      []catalog.Column
 	source                                      *querySource
 	state                                       queryState
 	stage                                       *indexedStage

@@ -106,7 +106,7 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	}
 	foreign, _ := New().CatalogRead().LookupType(sqltype.Oid)
 	invalid := *d
-	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type = foreign
 	for _, source := range []*catalog.Relation{&invalid, {Columns: d.Columns[:8]}} {
 		if rows, err := capturePGOpclass(context.Background(), view, ref, source); rows != nil || err == nil {
@@ -178,7 +178,7 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 		if !ok || class.OID() != uint32(tc.oid) {
 			t.Fatal("class identity", tc, class)
 		}
-		parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ids.RelationClassID, ids.OID(48100 + i*2), 0}, ObjectNamespace: ids.ObjectAddress{ids.NamespaceClassID, ids.PublicNamespaceOID, 0}, ObjectName: "identity_parent", RelationKind: catalog.TableRelation, Attributes: []int32{1}, Columns: []ColumnDescriptor{{Name: "k", Usage: typ.Usage()}}, Index: map[string]int{"k": 0}}
+		parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ids.RelationClassID, ids.OID(48100 + i*2), 0}, ObjectNamespace: ids.ObjectAddress{ids.NamespaceClassID, ids.PublicNamespaceOID, 0}, ObjectName: "identity_parent", RelationKind: catalog.TableRelation, Attributes: []int32{1}, Columns: []catalog.Column{{Name: "k", Usage: typ.Usage()}}, Index: map[string]int{"k": 0}}
 		index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ids.RelationClassID, ids.OID(48101 + i*2), 0}, ObjectNamespace: parent.Namespace(), ObjectName: "identity_index", RelationKind: catalog.IndexRelation, Columns: parent.Columns, Attributes: []int32{1}, SQLIndex: &catalog.IndexDefinition{Parent: parent.Address(), Method: tc.method, Keys: []catalog.IndexKey{{Attribute: 1, Class: class, ExplicitClass: true}}, Ready: true, Valid: true, Live: true}}
 		e.catalog.state.SetDescriptor(parent.Address(), parent)
 		e.catalog.state.SetDescriptor(index.Address(), index)

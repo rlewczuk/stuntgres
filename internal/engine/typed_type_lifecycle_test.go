@@ -21,7 +21,7 @@ func TestTypedPublicationLateAttachmentConflict(t *testing.T) {
 	late := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(late)
 	e.mu.Lock()
-	attached, err := e.newTableDescriptorLocked(table.Namespace(), "late", table.Owner, append([]ColumnDescriptor(nil), table.Columns...), table.Index)
+	attached, err := e.newTableDescriptorLocked(table.Namespace(), "late", table.Owner, append([]catalog.Column(nil), table.Columns...), table.Index)
 	if err == nil {
 		attached.OfType = table.OfType
 		err = e.stageRowTypeLocked(late, attached)

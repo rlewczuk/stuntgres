@@ -363,7 +363,7 @@ func TestPGShDescriptionCanceledCapture(t *testing.T) {
 		t.Fatal("in-loop cancellation published partial source", captured, err, inLoop.calls)
 	}
 	invalid := *d
-	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type = testUsage(e, sqltype.Int4).Type
 	captured, err = capturePGShDescription(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), state), ref, &invalid)
 	if captured != nil || err == nil {

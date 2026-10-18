@@ -28,7 +28,7 @@ type protocolPortal struct {
 	born              uint64 // Shared canonical cursor/portal birth frontier.
 	entry             sqlPreparedStatement
 	context           ProtocolContext
-	columns           []ColumnDescriptor
+	columns           []catalog.Column
 	formats           []int16
 	values            []sqltype.Value
 	producer          *sqlCursor

@@ -406,7 +406,7 @@ func TestArrayRelationalUsage(t *testing.T) {
 			for _, name := range []string{"array_sample", "array_shuffle", "unnest"} {
 				b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 				b.aggregateClause = "SELECT"
-				b.relation = &catalog.Relation{Columns: []ColumnDescriptor{{Name: "a", Usage: tc.input}}, Attributes: []int32{1}, Index: map[string]int{"a": 0}}
+				b.relation = &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: tc.input}}, Attributes: []int32{1}, Index: map[string]int{"a": 0}}
 				var input parser.Expr = parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "a"}}}}
 				position := parser.Position{Character: 20}
 				if tc.collated {

@@ -16,7 +16,7 @@ type viewPresentation struct {
 	deparse, pretty    bool
 	wrap               int64
 	path               []ids.ObjectAddress
-	columns            []ColumnDescriptor
+	columns            []catalog.Column
 	output             sqltype.OutputEnvironment
 	nonstandardStrings bool
 }
@@ -35,14 +35,14 @@ func (v *viewDefinition) selectSQL(ctx context.Context, catalog catalog.Read, pr
 }
 
 func (renderer *viewRenderer) selectQuerySQL(ctx context.Context, view catalog.Read, s *parser.Select, project *projectNode) (string, error) {
-	var columns []ColumnDescriptor
+	var columns []catalog.Column
 	if s == renderer.viewDefinition.syntax {
 		columns = renderer.presentation.columns
 	}
 	return renderer.selectQueryColumnsSQL(ctx, view, s, project, columns, false)
 }
 
-func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, catalog catalog.Read, s *parser.Select, project *projectNode, columns []ColumnDescriptor, setOperand bool) (string, error) {
+func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, catalog catalog.Read, s *parser.Select, project *projectNode, columns []catalog.Column, setOperand bool) (string, error) {
 	if project == nil {
 		return "", fmt.Errorf("stuntgres: missing frozen query frame")
 	}

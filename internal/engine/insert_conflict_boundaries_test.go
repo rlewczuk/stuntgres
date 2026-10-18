@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -12,13 +13,13 @@ import (
 )
 
 type insertConflictInputCursor struct {
-	schema                      []ColumnDescriptor
+	schema                      []catalog.Column
 	rows                        [][]sqltype.Value
 	position, nextCalls, closes int
 	nextError, closeError       error
 }
 
-func (c *insertConflictInputCursor) Schema() []ColumnDescriptor { return c.schema }
+func (c *insertConflictInputCursor) Schema() []catalog.Column { return c.schema }
 func (c *insertConflictInputCursor) Next(ctx context.Context, out []sqltype.Value) (bool, error) {
 	c.nextCalls++
 	if err := ctx.Err(); err != nil {

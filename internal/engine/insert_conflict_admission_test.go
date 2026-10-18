@@ -241,7 +241,7 @@ func TestInsertConflictInferenceMixedExpressionsAndAllProviders(t *testing.T) {
 		definition.Keys = []catalog.IndexKey{{Derived: &catalog.DerivedIndexKey{Definition: expression, Execution: expression, Attributes: f.parent.Attributes}, Class: class}, {Attribute: 10, Class: f.index.SQLIndex.Keys[0].Class, Desc: i == 1}}
 		definition.Include = []int32{20}
 		index.SQLIndex = &definition
-		index.Columns = []ColumnDescriptor{f.parent.Columns[1], f.parent.Columns[0]}
+		index.Columns = []catalog.Column{f.parent.Columns[1], f.parent.Columns[0]}
 		index.Attributes = []int32{1, 2}
 		index.AttributeHighWater = 2
 		f.e.catalog.state.SetDescriptor(index.Address(), &index)

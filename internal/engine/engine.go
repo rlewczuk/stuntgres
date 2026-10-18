@@ -115,7 +115,7 @@ type binding struct {
 	parameters            ParameterInfo
 	expressions           [][]expr.Expr
 	insertRows            [][]parser.Expr
-	createColumns         []ColumnDescriptor
+	createColumns         []catalog.Column
 	createNotNull         []catalog.NotNullConstraint
 	createColumnIndex     map[string]int
 	createUniques         []createUniqueConstraint
@@ -437,7 +437,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 			b.regtypeConstants = append(b.regtypeConstants, command.binding.regtypeConstants...)
 		}
 	}
-	var results []ColumnDescriptor
+	var results []catalog.Column
 	if b.query != nil && !b.commandQuery {
 		results = b.query.Root.Schema()
 	}
@@ -539,7 +539,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 	}
 	switch s := stmt.(type) {
 	case *parser.CreateTable:
-		var columns []ColumnDescriptor
+		var columns []catalog.Column
 		declarations := make([]createColumnDeclaration, 0, len(s.Elements))
 		table := s.Name.Parts[len(s.Name.Parts)-1].Text
 		var inherited []createLikeConstraint
@@ -603,7 +603,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 					return b, sequenceOptionError("sequence type must be smallint, integer, or bigint")
 				}
 				declarations = append(declarations, declaration)
-				columns = append(columns, ColumnDescriptor{Name: c.Name, Usage: u, DeclaredDimensions: int16(len(typeName.ArrayBounds)), Nullable: true, NullabilityKnown: true})
+				columns = append(columns, catalog.Column{Name: c.Name, Usage: u, DeclaredDimensions: int16(len(typeName.ArrayBounds)), Nullable: true, NullabilityKnown: true})
 			} else {
 				like := element.Like
 				ref, err := e.resolveReference(auth, like.Name)
@@ -667,7 +667,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 					return strings.Compare(a.Name, b.Name)
 				})
 				for _, c := range source.Columns {
-					columns = append(columns, ColumnDescriptor{Name: c.Name, Usage: c.Usage, Nullable: c.Nullable, NullabilityKnown: c.NullabilityKnown})
+					columns = append(columns, catalog.Column{Name: c.Name, Usage: c.Usage, Nullable: c.Nullable, NullabilityKnown: c.NullabilityKnown})
 					declarations = append(declarations, createColumnDeclaration{})
 				}
 			}
@@ -935,7 +935,7 @@ func creationError(err error, name parser.ObjectName) error {
 	return err
 }
 
-func insertValueError(view catalog.Read, err error, column ColumnDescriptor, raw parser.Expr, sourceType *sqltype.Descriptor) error {
+func insertValueError(view catalog.Read, err error, column catalog.Column, raw parser.Expr, sourceType *sqltype.Descriptor) error {
 	sqlErr, ok := err.(*sqlstate.Error)
 	if !ok {
 		return err

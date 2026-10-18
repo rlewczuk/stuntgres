@@ -168,7 +168,7 @@ func typedInheritedActions(view catalog.Read, old *catalog.Relation, forced map[
 	for i, attribute := range old.Attributes {
 		provenance := graph.Columns[attribute]
 		var origins []catalog.InheritanceOrigin
-		var desired *ColumnDescriptor
+		var desired *catalog.Column
 		forceType := false
 		requestedDimensions := int16(0)
 		for _, origin := range provenance.Origins {

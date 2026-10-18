@@ -228,7 +228,7 @@ func bindCreateColumnDeclaration(column *parser.Column, table string) (createCol
 	return declaration, nil
 }
 
-func bindCreateColumnIndex(columns []ColumnDescriptor) (map[string]int, error) {
+func bindCreateColumnIndex(columns []catalog.Column) (map[string]int, error) {
 	index := make(map[string]int, len(columns))
 	for i, c := range columns {
 		if _, exists := index[c.Name]; exists {
@@ -242,7 +242,7 @@ func bindCreateColumnIndex(columns []ColumnDescriptor) (map[string]int, error) {
 	return index, nil
 }
 
-func bindCreateNotNull(s *parser.CreateTable, columns []ColumnDescriptor, declarations []createColumnDeclaration, inherited []createLikeConstraint, uniques []createUniqueConstraint, index map[string]int) ([]catalog.NotNullConstraint, error) {
+func bindCreateNotNull(s *parser.CreateTable, columns []catalog.Column, declarations []createColumnDeclaration, inherited []createLikeConstraint, uniques []createUniqueConstraint, index map[string]int) ([]catalog.NotNullConstraint, error) {
 	table := s.Name.Parts[len(s.Name.Parts)-1].Text
 	// Retain first occurrence order while merging later declarations' names.
 	var constraints []catalog.NotNullConstraint

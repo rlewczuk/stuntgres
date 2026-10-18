@@ -17,7 +17,7 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
 	regclass := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}).SQLType
 	for _, table := range []*catalog.Relation{f.root, f.leaf} {
-		table.Columns = append(slices.Clone(table.Columns), ColumnDescriptor{Name: "ref", Usage: regclass.Usage(), Nullable: true})
+		table.Columns = append(slices.Clone(table.Columns), catalog.Column{Name: "ref", Usage: regclass.Usage(), Nullable: true})
 		table.Attributes = append(slices.Clone(table.Attributes), 99)
 		table.AttributeHighWater = 99
 	}

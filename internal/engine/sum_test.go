@@ -175,7 +175,7 @@ func TestSumAnalysisStructure(t *testing.T) {
 func TestSumAnalysisNamespaceRestoration(t *testing.T) {
 	e := New()
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
-	target := &catalog.Relation{ObjectName: "sum_unit_target", Columns: []ColumnDescriptor{{Name: "i", Usage: integer.Usage()}}}
+	target := &catalog.Relation{ObjectName: "sum_unit_target", Columns: []catalog.Column{{Name: "i", Usage: integer.Usage()}}}
 	one := parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1, Pos: parser.Position{Character: 20}}}
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: "sum", Pos: parser.Position{Character: 10}}}}
 	for _, existingNamespace := range []bool{false, true} {
@@ -183,14 +183,14 @@ func TestSumAnalysisNamespaceRestoration(t *testing.T) {
 			t.Run(map[bool]string{false: "nil_namespace", true: "existing_namespace"}[existingNamespace]+"/"+outcome, func(t *testing.T) {
 				b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 				b.aggregateClause, b.insertTarget = "INSERT VALUES", target
-				hidden := []queryQualifier{{name: "earlier_hidden", columns: []queryColumn{{descriptor: ColumnDescriptor{Name: "prior", Usage: integer.Usage()}}}}}
+				hidden := []queryQualifier{{name: "earlier_hidden", columns: []queryColumn{{descriptor: catalog.Column{Name: "prior", Usage: integer.Usage()}}}}}
 				beforeHidden := append([]queryQualifier(nil), hidden...)
 				beforeHidden[0].columns = append([]queryColumn(nil), hidden[0].columns...)
 				b.queryHidden = hidden
 				var namespace *queryNamespace
 				var beforeColumns []queryColumn
 				if existingNamespace {
-					namespace = &queryNamespace{columns: []queryColumn{{descriptor: ColumnDescriptor{Name: "visible", Usage: integer.Usage()}}}}
+					namespace = &queryNamespace{columns: []queryColumn{{descriptor: catalog.Column{Name: "visible", Usage: integer.Usage()}}}}
 					beforeColumns = append([]queryColumn(nil), namespace.columns...)
 					b.queryNamespace = namespace
 				}
@@ -238,7 +238,7 @@ func TestSumAnalysisNamespaceRestoration(t *testing.T) {
 func TestSumAnalysisAssignmentBoundary(t *testing.T) {
 	e := New()
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
-	column := ColumnDescriptor{Name: "i", Usage: integer.Usage()}
+	column := catalog.Column{Name: "i", Usage: integer.Usage()}
 	one := parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1, Pos: parser.Position{Character: 30}}}
 	boolean := parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true, Pos: parser.Position{Character: 20}}}
 	sum := parser.AggregateExpr{Name: "sum", Pos: parser.Position{Character: 10}, Args: []parser.Expr{boolean}, Filter: one}

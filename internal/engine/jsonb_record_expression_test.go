@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -252,7 +253,7 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 		return next
 	}
 	column := func(name string, slot int, usage sqltype.Usage) queryColumn {
-		return queryColumn{descriptor: ColumnDescriptor{Name: name, Usage: usage}, slot: slot, leaf: -1, physical: -1}
+		return queryColumn{descriptor: catalog.Column{Name: name, Usage: usage}, slot: slot, leaf: -1, physical: -1}
 	}
 	first := original.CompositeMember(0)
 	second := original.CompositeMember(1)

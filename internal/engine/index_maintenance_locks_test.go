@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
@@ -214,7 +215,7 @@ func indexMaintenancePublishIndexClone(t *testing.T, e *Engine, name, newName st
 	next.ObjectAddress.ObjectID = oid
 	next.ObjectName = newName
 	next.ObjectRevision = revision
-	next.Columns = append([]ColumnDescriptor(nil), old.Columns...)
+	next.Columns = append([]catalog.Column(nil), old.Columns...)
 	for i := range next.Columns {
 		next.Columns[i].OriginTable = uint32(oid)
 	}

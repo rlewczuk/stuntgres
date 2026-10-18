@@ -30,7 +30,7 @@ func TestIdentityAddCandidatePrivateBeforeGuards(t *testing.T) {
 			ref := catalogRef(t, e, base, "i")
 			old := base.MustRelation(ref.Address)
 			identities := maps.Clone(old.Identities)
-			columns := append([]ColumnDescriptor(nil), old.Columns...)
+			columns := append([]catalog.Column(nil), old.Columns...)
 			state, storage := e.catalog.state, e.storage[ref.Address]
 			stage := e.BeginCatalogStage(base)
 			defer e.DiscardCatalogStage(stage)

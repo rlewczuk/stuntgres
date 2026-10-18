@@ -7,7 +7,7 @@ import (
 
 // Force flags are COPY-field ordinals. Relation targets retain physical indexes
 // for input/default assembly; query targets are its returned schema and aliases.
-func bindCopyForce(force copyForce, name string, relation *catalog.Relation, targets []int, schema []ColumnDescriptor) ([]bool, error) {
+func bindCopyForce(force copyForce, name string, relation *catalog.Relation, targets []int, schema []catalog.Column) ([]bool, error) {
 	if !force.specified {
 		return nil, nil
 	}
@@ -62,7 +62,7 @@ func bindCopyForce(force copyForce, name string, relation *catalog.Relation, tar
 	}
 	return flags, nil
 }
-func (o *copyOptions) bindForces(relation *catalog.Relation, targets []int, schema []ColumnDescriptor) (err error) {
+func (o *copyOptions) bindForces(relation *catalog.Relation, targets []int, schema []catalog.Column) (err error) {
 	if o.quoteFields, err = bindCopyForce(o.forceQuote, "FORCE_QUOTE", relation, targets, schema); err != nil {
 		return err
 	}

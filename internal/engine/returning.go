@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -27,7 +28,7 @@ type returningAliases struct {
 
 type boundReturning struct {
 	expressions        []expr.Expr
-	schema             []ColumnDescriptor
+	schema             []catalog.Column
 	regclassOutput     bool
 	reads              []int
 	readRequired       bool // Whole-row references retain SELECT demand with zero members.
@@ -140,7 +141,7 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 	defer func() { b.returningAliases, b.aggregateClause = previous, clause }()
 	output := &boundReturning{}
 	appendOutput := func(expr expr.Expr, name string) {
-		descriptor := ColumnDescriptor{Name: name, Usage: expr.ResultUsage()}
+		descriptor := catalog.Column{Name: name, Usage: expr.ResultUsage()}
 		switch column := expr.(type) {
 		case columnExpression:
 			if b.queryNamespace != nil {

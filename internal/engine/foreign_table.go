@@ -116,7 +116,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 		return nil, nil, fmt.Errorf("stuntgres: missing staged foreign relation")
 	}
 	d.RelationKind = catalog.ForeignRelation
-	d.Foreign = &catalog.ForeignTableDefinition{Server: server.Address(), Columns: make(map[int32][]ForeignOption)}
+	d.Foreign = &catalog.ForeignTableDefinition{Server: server.Address(), Columns: make(map[int32][]catalog.ForeignOption)}
 	d.Foreign.Options, err = transformForeignOptions(nil, s.Options)
 	if err != nil {
 		return nil, nil, err
@@ -126,7 +126,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 		return nil, nil, fmt.Errorf("stuntgres: missing foreign-data wrapper")
 	}
 	stage.domainBases = append(stage.domainBases, server, wrapper)
-	job, err := foreignValidatorJob(stage, wrapper, ForeignTable, d.Foreign.Options)
+	job, err := foreignValidatorJob(stage, wrapper, catalog.ForeignTable, d.Foreign.Options)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -138,7 +138,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 			return nil, nil, er
 		}
 		d.Foreign.Columns[attribute] = options
-		job, er := foreignValidatorJob(stage, wrapper, ForeignAttribute, options)
+		job, er := foreignValidatorJob(stage, wrapper, catalog.ForeignAttribute, options)
 		if er != nil {
 			return nil, nil, er
 		}
@@ -243,7 +243,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 				return Result{}, err
 			}
 			if action.Options != nil {
-				kind := ForeignTable
+				kind := catalog.ForeignTable
 				options := next.Foreign.Options
 				var attribute int32
 				if action.Column.Text != "" {
@@ -253,7 +253,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 					}
 					attribute = next.Attributes[slot]
 					options = next.Foreign.Columns[attribute]
-					kind = ForeignAttribute
+					kind = catalog.ForeignAttribute
 				}
 				options, err = transformForeignOptions(options, action.Options)
 				if err != nil {
@@ -339,7 +339,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 						}
 						attribute := candidate.Attributes[candidate.Index[a.Column.Text]]
 						candidate.Foreign.Columns[attribute] = options
-						job, er := foreignValidatorJob(stage, wrapper, ForeignAttribute, options)
+						job, er := foreignValidatorJob(stage, wrapper, catalog.ForeignAttribute, options)
 						if er != nil {
 							return Result{}, er
 						}

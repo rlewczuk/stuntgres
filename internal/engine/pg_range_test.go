@@ -124,15 +124,15 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 	// Keep the unmodified capture for the retained-generation proof.
 	rows = second
 	foreign := New().CatalogRead()
-	badSources := []*catalog.Relation{nil, {Columns: d.Columns[:6]}, {Columns: append(append([]ColumnDescriptor(nil), d.Columns...), d.Columns[0])}}
+	badSources := []*catalog.Relation{nil, {Columns: d.Columns[:6]}, {Columns: append(append([]catalog.Column(nil), d.Columns...), d.Columns[0])}}
 	for _, slot := range []int{0, 5} {
 		invalid := *d
-		invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+		invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 		invalid.Columns[slot].Usage.Type, _ = foreign.LookupType(d.Columns[slot].Usage.Type.ID())
 		badSources = append(badSources, &invalid)
 	}
 	wrong := *d
-	wrong.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	wrong.Columns = append([]catalog.Column(nil), d.Columns...)
 	wrong.Columns[5].Usage.Type = d.Columns[0].Usage.Type
 	badSources = append(badSources, &wrong)
 	for _, bad := range badSources {

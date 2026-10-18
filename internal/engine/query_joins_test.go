@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -177,7 +178,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 				})
 			case "merge_error":
 				usage := project.expressions[0].ResultUsage()
-				join.querySchema = append(join.querySchema, ColumnDescriptor{Usage: usage})
+				join.querySchema = append(join.querySchema, catalog.Column{Usage: usage})
 				join.merges = []expr.Expr{queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
 					calls++
 					if calls == 3 {
@@ -299,7 +300,7 @@ func TestQueryJoinsZeroWidthAndHeldRoots(t *testing.T) {
 			}
 			// Final rows are detached; no live stage still needs the admission.
 			release()
-			schema := append([]ColumnDescriptor(nil), rows.Schema()...)
+			schema := append([]catalog.Column(nil), rows.Schema()...)
 			switch replacement {
 			case "append":
 				run(t, e, "INSERT INTO b VALUES('new',9,1)")

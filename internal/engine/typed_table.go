@@ -46,7 +46,7 @@ func standaloneComposite(view catalog.Read, typ *catalog.Type, path []ids.Object
 	return source, nil
 }
 
-func (e *Engine) bindTypedColumns(auth AuthorizationView, s *parser.CreateTable) ([]ColumnDescriptor, []createColumnDeclaration, *catalog.Type, error) {
+func (e *Engine) bindTypedColumns(auth AuthorizationView, s *parser.CreateTable) ([]catalog.Column, []createColumnDeclaration, *catalog.Type, error) {
 	typ, err := e.namedType(auth, *s.OfType)
 	if err != nil {
 		return nil, nil, nil, err
@@ -62,13 +62,13 @@ func (e *Engine) bindTypedColumns(auth AuthorizationView, s *parser.CreateTable)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	columns := make([]ColumnDescriptor, len(source.Columns))
+	columns := make([]catalog.Column, len(source.Columns))
 	declarations := make([]createColumnDeclaration, len(columns))
 	for i, member := range source.Columns {
 		if isSystemColumn(member.Name) {
 			return nil, nil, nil, sqlError("42701", fmt.Sprintf(`column name "%s" conflicts with a system column name`, member.Name))
 		}
-		columns[i] = ColumnDescriptor{Name: member.Name, Usage: member.Usage, Nullable: true, NullabilityKnown: true}
+		columns[i] = catalog.Column{Name: member.Name, Usage: member.Usage, Nullable: true, NullabilityKnown: true}
 	}
 	seen := make(map[string]bool, len(s.Elements))
 	for _, element := range s.Elements {

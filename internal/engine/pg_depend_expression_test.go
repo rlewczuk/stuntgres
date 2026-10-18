@@ -30,7 +30,7 @@ func TestPGDependExpressionReferences(t *testing.T) {
 	parent := pgDependUnitAddress(1259, 48001, 0)
 	column := parent
 	column.SubID = 3
-	view.State().SetDescriptor(parent, &catalog.Relation{ObjectAddress: parent, RelationKind: catalog.TableRelation, Attributes: []int32{3}, Columns: []ColumnDescriptor{{Usage: integer.Usage()}}})
+	view.State().SetDescriptor(parent, &catalog.Relation{ObjectAddress: parent, RelationKind: catalog.TableRelation, Attributes: []int32{3}, Columns: []catalog.Column{{Usage: integer.Usage()}}})
 	provider := pgDependUnitAddress(1259, 48002, 0)
 	view.State().SetDescriptor(provider, &catalog.Relation{ObjectAddress: provider, RelationKind: catalog.TableRelation})
 	domain, err := sqltype.Domain(48003, "d", "public.d", integer.Usage())
@@ -105,7 +105,7 @@ func TestPGDependQuerySourceSuppression(t *testing.T) {
 	table := pgDependUnitAddress(1259, 49001, 0)
 	column := table
 	column.SubID = 4
-	view.State().SetDescriptor(table, &catalog.Relation{ObjectAddress: table, RelationKind: catalog.TableRelation, Attributes: []int32{4}, Columns: []ColumnDescriptor{{Usage: integer.Usage()}}})
+	view.State().SetDescriptor(table, &catalog.Relation{ObjectAddress: table, RelationKind: catalog.TableRelation, Attributes: []int32{4}, Columns: []catalog.Column{{Usage: integer.Usage()}}})
 	ref := e.catalog.Domain.Ref(view.State().Epoch(), table)
 	source := &sourceNode{ref: ref}
 	relationOnly := &BoundQuery{Root: source}

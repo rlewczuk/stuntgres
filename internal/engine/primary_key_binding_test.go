@@ -35,7 +35,7 @@ func TestPrimaryKeyExplicitRetention(t *testing.T) {
 
 func TestPrimaryKeyNotNullBinding(t *testing.T) {
 	types := indexClausesTypes()
-	columns := []ColumnDescriptor{{Name: "z", Usage: types[sqltype.Int4].Usage(), Nullable: true, NullabilityKnown: true}, {Name: "b", Usage: types[sqltype.Int4].Usage(), Nullable: true, NullabilityKnown: true}, {Name: "a", Usage: types[sqltype.Int4].Usage(), Nullable: true, NullabilityKnown: true}}
+	columns := []catalog.Column{{Name: "z", Usage: types[sqltype.Int4].Usage(), Nullable: true, NullabilityKnown: true}, {Name: "b", Usage: types[sqltype.Int4].Usage(), Nullable: true, NullabilityKnown: true}, {Name: "a", Usage: types[sqltype.Int4].Usage(), Nullable: true, NullabilityKnown: true}}
 	s := &parser.CreateTable{Name: primaryKeyUnitName("t"), Elements: []parser.TableElement{
 		{Column: &parser.Column{Name: "z", Constraints: []parser.ColumnConstraint{{NotNull: true, Name: parser.Identifier{Text: "explicit"}}}}},
 		{Column: &parser.Column{Name: "b"}},

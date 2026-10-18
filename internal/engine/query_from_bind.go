@@ -14,7 +14,7 @@ import (
 const queryTargetLeaf = -2
 
 type queryColumn struct {
-	descriptor     ColumnDescriptor
+	descriptor     catalog.Column
 	slot           int
 	leaf, physical int // -1 identifies a computed merged value.
 	cteScan        *derivedNode
@@ -33,7 +33,7 @@ type queryQualifier struct {
 type queryNamespace struct {
 	columns                   []queryColumn
 	qualifiers                []queryQualifier
-	frame                     []ColumnDescriptor
+	frame                     []catalog.Column
 	values                    bool // Synthetic VALUES names retain PostgreSQL spelling hints.
 	identityValuesOrderDemand []bool
 }
@@ -64,7 +64,7 @@ func combineQueryNamespace(left, right queryNamespace) (queryNamespace, error) {
 	return queryNamespace{
 		columns:    append(append([]queryColumn(nil), left.columns...), right.columns...),
 		qualifiers: append(append([]queryQualifier(nil), left.qualifiers...), right.qualifiers...),
-		frame:      append(append([]ColumnDescriptor(nil), left.frame...), right.frame...),
+		frame:      append(append([]catalog.Column(nil), left.frame...), right.frame...),
 	}, nil
 }
 
@@ -670,7 +670,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 						info.Property = coercionProperties(input, plan)
 						value = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Implicit, false})
 					}
-					column = queryColumn{descriptor: ColumnDescriptor{Name: key.Text, Usage: usage}, slot: len(ns.frame), leaf: -1, physical: -1, hideStar: column.hideStar}
+					column = queryColumn{descriptor: catalog.Column{Name: key.Text, Usage: usage}, slot: len(ns.frame), leaf: -1, physical: -1, hideStar: column.hideStar}
 					join.merges = append(join.merges, value)
 					ns.frame = append(ns.frame, column.descriptor)
 				}
@@ -946,7 +946,7 @@ func functionColumnDefinitionMessage(call expr.Expr) string {
 
 func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr, ordinality bool, ordinal int, definitions []parser.FunctionColumnDefinition, multiUnnest bool) (LogicalNode, queryNamespace, error) {
 	calls := make([]expr.Expr, len(rawCalls))
-	schema := make([]ColumnDescriptor, 0, len(calls))
+	schema := make([]catalog.Column, 0, len(calls))
 	oldClause := b.aggregateClause
 	b.aggregateClause = "FROM"
 	defer func() { b.aggregateClause = oldClause }()
@@ -1005,18 +1005,18 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 		if node.ResultUsage().Type.BaseType().IsComposite() {
 			for j := range functionFromCallWidth(node) {
 				member := node.ResultUsage().Type.BaseType().CompositeMember(j)
-				schema = append(schema, ColumnDescriptor{Name: member.Name, Usage: member.Usage})
+				schema = append(schema, catalog.Column{Name: member.Name, Usage: member.Usage})
 			}
 		} else {
 			if out := functionScalarOutName(node); out != "" {
 				name = out
 			}
-			schema = append(schema, ColumnDescriptor{Name: name, Usage: node.ResultUsage()})
+			schema = append(schema, catalog.Column{Name: name, Usage: node.ResultUsage()})
 		}
 
 	}
 	if ordinality {
-		schema = append(schema, ColumnDescriptor{Name: "ordinality", Usage: b.typ(sqltype.Int8).Usage()})
+		schema = append(schema, catalog.Column{Name: "ordinality", Usage: b.typ(sqltype.Int8).Usage()})
 	}
 	columns := make([]queryColumn, len(schema))
 	for i, column := range schema {

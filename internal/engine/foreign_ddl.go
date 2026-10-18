@@ -14,8 +14,8 @@ import (
 
 type foreignValidation struct {
 	procedure   *catalog.ForeignProcedure
-	kind        ForeignObjectKind
-	options     []ForeignOption
+	kind        catalog.ForeignObjectKind
+	options     []catalog.ForeignOption
 	importTable string
 }
 
@@ -98,7 +98,7 @@ func foreignMappingAuthority(auth AuthorizationView, server *catalog.ForeignObje
 	}
 	return sqlError("42501", "must be owner of foreign server "+server.Name())
 }
-func foreignValidatorJob(stage *CatalogStage, wrapper *catalog.ForeignObject, kind ForeignObjectKind, options []ForeignOption) (foreignValidation, error) {
+func foreignValidatorJob(stage *CatalogStage, wrapper *catalog.ForeignObject, kind catalog.ForeignObjectKind, options []catalog.ForeignOption) (foreignValidation, error) {
 	if wrapper.Validator == (ids.ObjectAddress{}) {
 		return foreignValidation{}, nil
 	}
@@ -107,7 +107,7 @@ func foreignValidatorJob(stage *CatalogStage, wrapper *catalog.ForeignObject, ki
 		return foreignValidation{}, sqlError("55000", fmt.Sprintf(`foreign-data wrapper "%s" has no registered validator`, wrapper.Name()))
 	}
 	stage.domainBases = append(stage.domainBases, p)
-	return foreignValidation{procedure: p.Foreign, kind: kind, options: append([]ForeignOption{}, options...)}, nil
+	return foreignValidation{procedure: p.Foreign, kind: kind, options: append([]catalog.ForeignOption{}, options...)}, nil
 }
 func runForeignValidations(ctx context.Context, jobs []foreignValidation) error {
 	for _, job := range jobs {
@@ -390,7 +390,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 	stage.domainBases = append(stage.domainBases, wrapper)
 	var jobs []foreignValidation
 	if old == nil || s.Options != nil {
-		job, er := foreignValidatorJob(stage, wrapper, ForeignObjectKind(class), next.Options)
+		job, er := foreignValidatorJob(stage, wrapper, catalog.ForeignObjectKind(class), next.Options)
 		if er != nil {
 			return nil, nil, er
 		}

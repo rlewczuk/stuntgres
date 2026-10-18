@@ -188,7 +188,7 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 						replacement.Attributes = append([]int32(nil), replacement.Attributes...)
 						replacement.Attributes[0]++
 					case "type":
-						replacement.Columns = append([]ColumnDescriptor(nil), replacement.Columns...)
+						replacement.Columns = append([]catalog.Column(nil), replacement.Columns...)
 						replacement.Columns[0].Usage = int8Usage
 					case "width":
 						replacement.Columns = nil

@@ -38,7 +38,7 @@ func validateCookedDefaultTemporary(node expr.Expr, consumer ids.SessionToken) e
 	return err
 }
 
-func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor) (expr.Expr, error) {
+func (b *expressionBinder) bindDefault(raw parser.Expr, column catalog.Column) (expr.Expr, error) {
 	// Recursive binding carries this consumer policy through Boolean and
 	// comparison children, preserving their ordinary diagnostic order.
 	previous := b.defaultConsumer
@@ -76,7 +76,7 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor)
 	return storageDestination(node, column.Usage, parser.Position{})
 }
 
-func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declarations []createColumnDeclaration) (map[int32]catalog.ColumnDefault, error) {
+func bindCreateDefaults(b *expressionBinder, columns []catalog.Column, declarations []createColumnDeclaration) (map[int32]catalog.ColumnDefault, error) {
 	var defaults map[int32]catalog.ColumnDefault
 	auth, err := b.bindingAuthorization()
 	if err != nil {

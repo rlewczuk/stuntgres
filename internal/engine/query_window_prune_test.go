@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
@@ -103,7 +104,7 @@ func TestQueryWindowGraftedDemand(t *testing.T) {
 			frame := project.frame + 7
 			// Exercise the same physical-layout graft as writable rules while
 			// leaving original window call metadata untouched.
-			schema := append([]ColumnDescriptor(nil), original.child.Schema()...)
+			schema := append([]catalog.Column(nil), original.child.Schema()...)
 			schema = append(schema, schema[0])
 			input := &evaluationNode{querySchema: querySchema(schema), child: original.child}
 			slots := make(map[int]int)

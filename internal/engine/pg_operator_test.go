@@ -155,7 +155,7 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 	rows.anonymous[0] = rows.anonymous[0][:15:15]
 	foreign, _ := New().CatalogRead().LookupType(sqltype.Oid)
 	invalid := *d
-	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type = foreign
 	for _, source := range []*catalog.Relation{&invalid, {Columns: d.Columns[:14]}} {
 		if got, err := capturePGOperator(context.Background(), view, ref, source); got != nil || err == nil {

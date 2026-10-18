@@ -160,7 +160,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 					definition := *viewOf(&copy)
 					copy.View = &definition
 				case "columns":
-					copy.Columns = append([]ColumnDescriptor(nil), copy.Columns...)
+					copy.Columns = append([]catalog.Column(nil), copy.Columns...)
 				case "attributes":
 					copy.Attributes = append([]int32(nil), copy.Attributes...)
 				case "rowtype":

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -122,7 +123,7 @@ func TestStringNumericBaseStoredWidthReplay(t *testing.T) {
 			for _, input := range []string{"-1", "NULL"} {
 				t.Run(tc.name+"/"+width+"/"+input, func(t *testing.T) {
 					b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-					column := ColumnDescriptor{Name: "v", Usage: b.typ(sqltype.Text).Usage()}
+					column := catalog.Column{Name: "v", Usage: b.typ(sqltype.Text).Usage()}
 					parseDefault := func(expression string) parser.Expr {
 						t.Helper()
 						statements, err := parser.Parse("CREATE TABLE d(v TEXT DEFAULT (" + expression + "))")

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -33,7 +34,7 @@ func TestInsertSelectValuesOccurrenceEvaluation(t *testing.T) {
 				return sqltype.Integer(typ, value)
 			})}
 		}
-		schema := []ColumnDescriptor{{Name: "column1", Usage: usage}}
+		schema := []catalog.Column{{Name: "column1", Usage: usage}}
 		values := &valuesNode{querySchema: schema, rows: expressions}
 		comparison, err := sqltype.BindComparison(typ, typ, typ.Usage().Collation, false)
 		if err != nil {

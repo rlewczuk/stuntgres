@@ -42,7 +42,7 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 				t.Fatal("column", i, c)
 			}
 			invalid := *d
-			invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+			invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 			invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(spec.ids[i])
 			if source, err := captureAvailableExtensions(context.Background(), e.catalog.Extensions, e.CatalogRead(), ref, &invalid); err == nil || source != nil {
 				t.Fatal("foreign generation accepted", i, source, err)
@@ -59,7 +59,7 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 		}
 		for _, width := range []int{0, len(d.Columns) - 1, len(d.Columns) + 1} {
 			invalid := *d
-			invalid.Columns = make([]ColumnDescriptor, width)
+			invalid.Columns = make([]catalog.Column, width)
 			if source, err := captureAvailableExtensions(context.Background(), e.catalog.Extensions, e.CatalogRead(), ref, &invalid); err == nil || source != nil {
 				t.Fatal("malformed width accepted", width, source, err)
 			}
@@ -249,7 +249,7 @@ func TestAvailableExtensionsCapture(t *testing.T) {
 		t.Fatal("missing installed unaccent registry row")
 	}
 	values := append([]sqltype.Value(nil), installedRow...)
-	columns := append([]ColumnDescriptor(nil), d.Columns...)
+	columns := append([]catalog.Column(nil), d.Columns...)
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}

@@ -63,7 +63,7 @@ func TestPGLanguageCaptureOwnership(t *testing.T) {
 	foreign := New().CatalogRead()
 	for i, column := range source.Columns {
 		invalid := *source
-		invalid.Columns = append([]ColumnDescriptor(nil), source.Columns...)
+		invalid.Columns = append([]catalog.Column(nil), source.Columns...)
 		invalid.Columns[i].Usage.Type, _ = foreign.LookupType(column.Usage.Type.ID())
 		if got, err := capturePGLanguage(context.Background(), view, ref, &invalid); got != nil || err == nil {
 			t.Fatal("foreign source type admitted", i, got, err)

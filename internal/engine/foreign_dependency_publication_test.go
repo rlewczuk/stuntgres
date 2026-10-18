@@ -16,13 +16,13 @@ func fdwLateUnitSetup(t *testing.T, edge string) (*Engine, *Session, *Session, s
 	t.Helper()
 	e := New()
 	if edge == "procedure_wrapper" || edge == "validator_wrapper" || edge == "transitive_procedure_mapping" {
-		definition, err := ValidateForeignDataWrapper(ForeignDataWrapperDefinition{HandlerName: ForeignFunctionName{Schema: "fdw_cap", Name: "handler"}, Wrapper: &fdwUnitWrapper{}})
+		definition, err := ValidateForeignDataWrapper(ForeignDataWrapperDefinition{HandlerName: catalog.ForeignFunctionName{Schema: "fdw_cap", Name: "handler"}, Wrapper: &fdwUnitWrapper{}})
 		if err != nil {
 			t.Fatal(err)
 		}
 		validator, err := ValidateForeignValidator(ForeignValidatorDefinition{
-			Name: ForeignFunctionName{Schema: "fdw_cap", Name: "validator"},
-			Validate: func(_ context.Context, _ ForeignObjectKind, options []ForeignOption) error {
+			Name: catalog.ForeignFunctionName{Schema: "fdw_cap", Name: "validator"},
+			Validate: func(_ context.Context, _ catalog.ForeignObjectKind, options []catalog.ForeignOption) error {
 				for _, option := range options {
 					if option.Name != "tag" {
 						return fmt.Errorf("unknown test provider option %q", option.Name)
@@ -368,7 +368,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 				t.Fatal("unrelated metadata change blocked or lost independent retirement", err)
 			}
 			server := e.catalog.state.MustForeign(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_unrelated_server"}))
-			if len(server.Options) != 1 || server.Options[0] != (ForeignOption{Name: "tag", Value: "changed"}) {
+			if len(server.Options) != 1 || server.Options[0] != (catalog.ForeignOption{Name: "tag", Value: "changed"}) {
 				t.Fatal("unrelated committed server revision was lost", server)
 			}
 		})

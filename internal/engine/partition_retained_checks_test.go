@@ -14,7 +14,7 @@ import (
 func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	e, view, root, leaf := hashPartitionUnitEngine(t)
 	typ := leaf.Columns[0].Usage.Type
-	root.Columns = append(root.Columns, ColumnDescriptor{Name: "payload", Usage: typ.Usage(), Nullable: true})
+	root.Columns = append(root.Columns, catalog.Column{Name: "payload", Usage: typ.Usage(), Nullable: true})
 	root.Attributes = append(root.Attributes, 2)
 	root.Index["payload"] = 1
 	root.AttributeHighWater = 2

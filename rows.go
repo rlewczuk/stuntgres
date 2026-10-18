@@ -8,12 +8,13 @@ import (
 	"io"
 	"reflect"
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
 )
 
 type rows struct {
 	ctx                context.Context
-	columns            []engine.ColumnDescriptor
+	columns            []catalog.Column
 	cursor             engine.RowResult
 	closed, exhausted  bool
 	terminal, closeErr error
@@ -23,7 +24,7 @@ type rows struct {
 }
 
 func newRows(ctx context.Context, r engine.Result) *rows {
-	var schema []engine.ColumnDescriptor
+	var schema []catalog.Column
 	if r.Rows != nil {
 		schema = r.Rows.Schema()
 	}

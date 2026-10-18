@@ -225,7 +225,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *c
 			}
 		} else {
 			definition.Keys = make([]catalog.IndexKey, len(c.Attributes))
-			index.Columns = make([]ColumnDescriptor, len(c.Attributes))
+			index.Columns = make([]catalog.Column, len(c.Attributes))
 			index.Attributes = make([]int32, len(c.Attributes))
 			index.AttributeHighWater = int32(len(c.Attributes))
 			for j, a := range c.Attributes {

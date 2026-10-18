@@ -15,7 +15,7 @@ import (
 
 type StatementDescription struct {
 	Parameters ParameterInfo
-	Results    []ColumnDescriptor
+	Results    []catalog.Column
 	// Logical user identities belong to an owner/epoch, not merely a reused OID.
 	catalogOwner *catalog.Owner
 	catalogEpoch ids.CatalogEpoch

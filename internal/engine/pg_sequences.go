@@ -135,7 +135,7 @@ func (p *pgSequencesSource) complete(ctx context.Context, ref ids.ObjectRef, row
 	return err
 }
 
-func openPGSequencesStage(state *queryState, source *querySource, schema []ColumnDescriptor) indexedStage {
+func openPGSequencesStage(state *queryState, source *querySource, schema []catalog.Column) indexedStage {
 	p := source.pgSequences
 	out := indexedStage{source: source, schema: schema, selection: []int{}}
 	position := 0

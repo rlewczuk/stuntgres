@@ -44,7 +44,7 @@ func TestPGCastShapeAndOwnership(t *testing.T) {
 	}
 	foreign, _ := New().CatalogRead().LookupType(sqltype.Oid)
 	invalid := *d
-	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type = foreign
 	if err := (relationProvider{}).Validate(e.CatalogRead(), &invalid); err == nil {
 		t.Fatal("foreign generation accepted")

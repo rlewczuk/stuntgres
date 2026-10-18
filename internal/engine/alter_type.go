@@ -293,7 +293,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 			return next, columnTransformation{}, nil
 		}
 		replacement := *next
-		replacement.Columns = append([]ColumnDescriptor(nil), next.Columns...)
+		replacement.Columns = append([]catalog.Column(nil), next.Columns...)
 		replacement.Columns[slot].Usage = usage
 		replacement.Columns[slot].DeclaredDimensions = prepared.declaredDimensions
 		return &replacement, columnTransformation{}, nil
@@ -305,7 +305,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		return next, transformation, nil
 	}
 	replacement := *next
-	replacement.Columns = append([]ColumnDescriptor(nil), next.Columns...)
+	replacement.Columns = append([]catalog.Column(nil), next.Columns...)
 	replacement.Columns[slot].Usage = usage
 	replacement.Columns[slot].DeclaredDimensions = dimensions
 	if usage == current {

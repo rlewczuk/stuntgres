@@ -258,7 +258,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if _, err = defaultSQL(ctx, view, node); err == nil {
 			t.Fatal("volatile default rendering widened")
 		}
-		if _, err = b.bindDefault(raw, ColumnDescriptor{Name: "v", Usage: node.ResultUsage()}); err == nil {
+		if _, err = b.bindDefault(raw, catalog.Column{Name: "v", Usage: node.ResultUsage()}); err == nil {
 			t.Fatal("DEFAULT binding widened")
 		}
 		damaged := node

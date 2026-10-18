@@ -356,7 +356,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return Result{}, err
 	}
 	if scope.Expected != nil {
-		var results []ColumnDescriptor
+		var results []catalog.Column
 		if b.query != nil && !b.commandQuery {
 			results = b.query.Root.Schema()
 		}

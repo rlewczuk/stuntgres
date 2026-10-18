@@ -14,9 +14,9 @@ import (
 
 func queryCreateStage(t *testing.T, e *Engine, name string, width int) (*CatalogStage, *catalog.Relation) {
 	t.Helper()
-	columns := make([]ColumnDescriptor, width)
+	columns := make([]catalog.Column, width)
 	for i := range columns {
-		columns[i] = ColumnDescriptor{Name: "i", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}
+		columns[i] = catalog.Column{Name: "i", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}
 	}
 	e.mu.Lock()
 	d, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), columns, nil)

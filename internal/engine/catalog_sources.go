@@ -264,7 +264,7 @@ func (e *Engine) initializeCatalogSources() error {
 			if !ok {
 				return fmt.Errorf("stuntgres: missing catalog source type")
 			}
-			d.Columns[i] = ColumnDescriptor{Name: column.name, Usage: typ.Usage(), Nullable: true, NullabilityKnown: true, OriginTable: uint32(spec.oid), OriginAttribute: int16(i + 1)}
+			d.Columns[i] = catalog.Column{Name: column.name, Usage: typ.Usage(), Nullable: true, NullabilityKnown: true, OriginTable: uint32(spec.oid), OriginAttribute: int16(i + 1)}
 			if spec.oid == pgTypeOID {
 				d.Columns[i].Nullable = i >= 29
 				if i == 29 || i == 30 {
@@ -374,7 +374,7 @@ func (e *Engine) initializeCatalogSources() error {
 
 func (e *Engine) catalogSourceDescriptor(oid ids.OID, namespace ids.ObjectAddress, name string, count int) *catalog.Relation {
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, RelationKind: catalog.CatalogRelation, Owner: owner, Index: make(map[string]int, count), Attributes: make([]int32, count), Columns: make([]ColumnDescriptor, count), AttributeHighWater: int32(count), ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}}
+	return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, RelationKind: catalog.CatalogRelation, Owner: owner, Index: make(map[string]int, count), Attributes: make([]int32, count), Columns: make([]catalog.Column, count), AttributeHighWater: int32(count), ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}}
 }
 
 func (e *Engine) registerCatalogSource(d *catalog.Relation) {

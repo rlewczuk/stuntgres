@@ -62,7 +62,7 @@ func hashPartitionUnitEngine(t *testing.T) (*Engine, catalog.Read, *catalog.Rela
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 25000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "hash_root", RelationKind: catalog.PartitionedRelation, Columns: []ColumnDescriptor{{Name: "k", Usage: typ.Usage(), Nullable: true}}, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"k": 0}}
+	root := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 25000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "hash_root", RelationKind: catalog.PartitionedRelation, Columns: []catalog.Column{{Name: "k", Usage: typ.Usage(), Nullable: true}}, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"k": 0}}
 	leaf := *root
 	leaf.ObjectAddress.ObjectID++
 	leaf.ObjectName = "hash_leaf"

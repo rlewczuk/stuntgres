@@ -121,14 +121,14 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 	}
 	rows = second
 	foreign := New().CatalogRead()
-	badSources := []*catalog.Relation{nil, {Columns: d.Columns[:3]}, {Columns: append(append([]ColumnDescriptor(nil), d.Columns...), d.Columns[0])}}
+	badSources := []*catalog.Relation{nil, {Columns: d.Columns[:3]}, {Columns: append(append([]catalog.Column(nil), d.Columns...), d.Columns[0])}}
 	for slot := range d.Columns {
 		invalid := *d
-		invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+		invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 		invalid.Columns[slot].Usage.Type, _ = foreign.LookupType(d.Columns[slot].Usage.Type.ID())
 		badSources = append(badSources, &invalid)
 		wrong := *d
-		wrong.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+		wrong.Columns = append([]catalog.Column(nil), d.Columns...)
 		wrong.Columns[slot].Usage.Type = d.Columns[(slot+1)%4].Usage.Type
 		badSources = append(badSources, &wrong)
 	}

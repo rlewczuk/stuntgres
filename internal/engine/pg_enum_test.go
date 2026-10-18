@@ -219,7 +219,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 		t.Fatal("capture generation lifetime", err)
 	}
 	invalid := *d
-	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type, _ = New().CatalogRead().LookupType(sqltype.Oid)
 	if rows, err := capturePGEnum(context.Background(), e.CatalogRead(), ref, &invalid); err == nil || rows != nil {
 		t.Fatal("foreign source type", rows, err)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -27,7 +28,7 @@ func TestBetweenGroupedDefaultSerialization(t *testing.T) {
 		t.Run(tc.expression, func(t *testing.T) {
 			e := New()
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-			column := ColumnDescriptor{Name: "b", Usage: b.typ(sqltype.Bool).Usage()}
+			column := catalog.Column{Name: "b", Usage: b.typ(sqltype.Bool).Usage()}
 			parseDefault := func(expression string) parser.Expr {
 				t.Helper()
 				statements, err := parser.Parse("CREATE TABLE d(b BOOL DEFAULT (" + expression + "))")

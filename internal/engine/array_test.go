@@ -256,7 +256,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 		if relation, ok := descriptor.(*catalog.Relation); ok && target != address {
 			copy := *relation
 			copy.ObjectAddress = target
-			copy.Columns = append([]ColumnDescriptor(nil), relation.Columns...)
+			copy.Columns = append([]catalog.Column(nil), relation.Columns...)
 			for i := range copy.Columns {
 				copy.Columns[i].OriginTable = uint32(target.ObjectID)
 			}
@@ -326,7 +326,7 @@ func arrayComponentTemporary(t *testing.T, e *Engine, op *Operation, prototype *
 	table.ObjectName = "array_component_temp"
 	table.ObjectRevision = revision
 	table.RowType = 0
-	table.Columns = append([]ColumnDescriptor(nil), prototype.Columns...)
+	table.Columns = append([]catalog.Column(nil), prototype.Columns...)
 	for i := range table.Columns {
 		table.Columns[i].OriginTable = uint32(tableOID)
 	}

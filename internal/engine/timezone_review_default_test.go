@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
@@ -64,7 +65,7 @@ func TestTimezoneReviewDefaultDependencyRejection(t *testing.T) {
 		if !ok {
 			t.Fatal("missing int4")
 		}
-		column := ColumnDescriptor{Name: "v", Usage: typ.Usage()}
+		column := catalog.Column{Name: "v", Usage: typ.Usage()}
 		if _, err := binder.bindDefault(castTarget(t, "SELECT "+expression+" FROM t"), column); err == nil {
 			t.Fatalf("accepted unsupported default %s", expression)
 		}

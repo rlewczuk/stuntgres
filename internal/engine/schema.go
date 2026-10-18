@@ -212,7 +212,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 
 // The table identity owner is shared by declared and query-derived schemas.
 // The caller transfers a private column slice; source definitions are not mutated.
-func (e *Engine) newTableDescriptorLocked(ns ids.ObjectAddress, name string, owner authorization.PrincipalRef, columns []ColumnDescriptor, index map[string]int) (*catalog.Relation, error) {
+func (e *Engine) newTableDescriptorLocked(ns ids.ObjectAddress, name string, owner authorization.PrincipalRef, columns []catalog.Column, index map[string]int) (*catalog.Relation, error) {
 	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return nil, err

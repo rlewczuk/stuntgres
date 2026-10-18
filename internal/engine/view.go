@@ -110,7 +110,7 @@ func bindViewOutput(query *BoundQuery, view *parser.CreateView) error {
 	return nil
 }
 
-func checkViewOutputTypes(columns []ColumnDescriptor) error {
+func checkViewOutputTypes(columns []catalog.Column) error {
 	for _, column := range columns {
 		if column.Usage.Type.ID() == sqltype.Void {
 			return sqlError("42P16", fmt.Sprintf(`column "%s" has pseudo-type void`, column.Name))
@@ -122,7 +122,7 @@ func checkViewOutputTypes(columns []ColumnDescriptor) error {
 // Output names are downstream definition checks, not SELECT/alias analysis.
 // Existing replacements check their descriptor before options; fresh CREATE
 // checks options first. The caller has already resolved the real destination.
-func checkViewOutputNames(columns []ColumnDescriptor, old *catalog.Relation) error {
+func checkViewOutputNames(columns []catalog.Column, old *catalog.Relation) error {
 	if len(columns) < 2 {
 		return nil
 	}
@@ -431,11 +431,11 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	definition.checkOption = mode
 	definition.options = transformViewOptions(nil, view.Options, false)
 	definition.quoteRevision = revision
-	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: revision, Owner: auth.state.CurrentUser, RelationKind: catalog.ViewRelation, View: viewPayloadOf(definition), Columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), Index: make(map[string]int), Attributes: make([]int32, len(b.query.Root.Schema()))}
+	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: revision, Owner: auth.state.CurrentUser, RelationKind: catalog.ViewRelation, View: viewPayloadOf(definition), Columns: append([]catalog.Column(nil), b.query.Root.Schema()...), Index: make(map[string]int), Attributes: make([]int32, len(b.query.Root.Schema()))}
 	if old != nil {
 		*d = *old
 		d.ObjectRevision, d.View = revision, viewPayloadOf(definition)
-		d.Columns = append([]ColumnDescriptor(nil), b.query.Root.Schema()...)
+		d.Columns = append([]catalog.Column(nil), b.query.Root.Schema()...)
 		d.Attributes = make([]int32, len(d.Columns))
 		copy(d.Attributes, old.Attributes)
 		d.Index = make(map[string]int, len(d.Columns))
@@ -505,7 +505,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	return Result{}, err
 }
 
-func checkViewPrefix(catalog catalog.Read, old, next []ColumnDescriptor) error {
+func checkViewPrefix(catalog catalog.Read, old, next []catalog.Column) error {
 	if len(next) < len(old) {
 		return sqlError("42P16", "cannot drop columns from view")
 	}

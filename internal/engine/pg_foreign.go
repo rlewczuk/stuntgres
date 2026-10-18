@@ -40,7 +40,7 @@ func (e *Engine) initializeForeignCatalogSources() error {
 			if !ok {
 				return fmt.Errorf("stuntgres: missing SQL/MED catalog type %d", column.typ)
 			}
-			d.Columns[i] = ColumnDescriptor{Name: column.name, Usage: typ.Usage(), Nullable: column.nullable, NullabilityKnown: true, OriginTable: uint32(spec.oid), OriginAttribute: int16(i + 1)}
+			d.Columns[i] = catalog.Column{Name: column.name, Usage: typ.Usage(), Nullable: column.nullable, NullabilityKnown: true, OriginTable: uint32(spec.oid), OriginAttribute: int16(i + 1)}
 			if column.typ == sqltype.Text || column.typ == 1009 {
 				d.Columns[i].Usage.Collation.ID = 950
 			}
@@ -52,7 +52,7 @@ func (e *Engine) initializeForeignCatalogSources() error {
 	return nil
 }
 
-func foreignOptionsValue(typ *sqltype.Descriptor, options []ForeignOption) (sqltype.Value, error) {
+func foreignOptionsValue(typ *sqltype.Descriptor, options []catalog.ForeignOption) (sqltype.Value, error) {
 	if len(options) == 0 {
 		return sqltype.Null(typ), nil
 	}

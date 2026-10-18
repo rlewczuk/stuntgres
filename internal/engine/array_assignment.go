@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -45,7 +46,7 @@ func arrayTargetUsage(container sqltype.Usage, subs []parser.ArraySubscript) sql
 	return usage
 }
 
-func (b *expressionBinder) bindArrayTarget(column ColumnDescriptor, raw []parser.ArraySubscript, pos parser.Position) (*arrayAssignmentTarget, error) {
+func (b *expressionBinder) bindArrayTarget(column catalog.Column, raw []parser.ArraySubscript, pos parser.Position) (*arrayAssignmentTarget, error) {
 	usage := column.Usage.BaseUsage()
 	if !usage.Type.IsArray() {
 		return nil, expr.ErrorAt("42804", fmt.Sprintf("cannot subscript type %s because it does not support subscripting", b.diagnosticTypeName(usage.Type)), pos)
@@ -64,7 +65,7 @@ func (b *expressionBinder) bindArrayTarget(column ColumnDescriptor, raw []parser
 	return &arrayAssignmentTarget{node: subscriptExpression{subscripts: subs, slice: slice}, container: column.Usage, destination: arrayTargetUsage(column.Usage, raw), reapply: plan, name: column.Name, pos: pos}, nil
 }
 
-func (t *arrayAssignmentTarget) column(original ColumnDescriptor) ColumnDescriptor {
+func (t *arrayAssignmentTarget) column(original catalog.Column) catalog.Column {
 	original.Usage = t.destination
 	return original
 }
@@ -262,13 +263,13 @@ func targetUsage(container sqltype.Usage, steps []parser.TargetStep) sqltype.Usa
 	return usage
 }
 
-func (b *expressionBinder) bindAssignmentTarget(column ColumnDescriptor, steps []parser.TargetStep, pos parser.Position) (*arrayAssignmentTarget, error) {
+func (b *expressionBinder) bindAssignmentTarget(column catalog.Column, steps []parser.TargetStep, pos parser.Position) (*arrayAssignmentTarget, error) {
 	return b.bindAssignmentTargetPath(column, steps, pos, pos)
 }
 
 // FieldSelect has no expression location in PostgreSQL. Keep that container
 // location separate from the assignment head used by coercion diagnostics.
-func (b *expressionBinder) bindAssignmentTargetPath(column ColumnDescriptor, steps []parser.TargetStep, pos, containerPos parser.Position) (*arrayAssignmentTarget, error) {
+func (b *expressionBinder) bindAssignmentTargetPath(column catalog.Column, steps []parser.TargetStep, pos, containerPos parser.Position) (*arrayAssignmentTarget, error) {
 	if field := steps[0].Field; field != nil {
 		shape := column.Usage.Type.BaseType()
 		if !shape.IsComposite() {
@@ -285,7 +286,7 @@ func (b *expressionBinder) bindAssignmentTargetPath(column ColumnDescriptor, ste
 			}
 			target := &arrayAssignmentTarget{container: column.Usage, destination: member.Usage, reapply: reapply, name: member.Name, pos: pos, attribute: member.Attribute}
 			if len(steps) > 1 {
-				target.next, err = b.bindAssignmentTargetPath(ColumnDescriptor{Name: member.Name, Usage: member.Usage}, steps[1:], pos, parser.Position{})
+				target.next, err = b.bindAssignmentTargetPath(catalog.Column{Name: member.Name, Usage: member.Usage}, steps[1:], pos, parser.Position{})
 				if err != nil {
 					return nil, err
 				}
@@ -313,7 +314,7 @@ func (b *expressionBinder) bindAssignmentTargetPath(column ColumnDescriptor, ste
 	}
 	target.pos = pos
 	if count < len(steps) {
-		target.next, err = b.bindAssignmentTargetPath(ColumnDescriptor{Name: column.Name, Usage: target.destination}, steps[count:], pos, containerPos)
+		target.next, err = b.bindAssignmentTargetPath(catalog.Column{Name: column.Name, Usage: target.destination}, steps[count:], pos, containerPos)
 		if err != nil {
 			return nil, err
 		}

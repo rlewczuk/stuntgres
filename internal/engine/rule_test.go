@@ -24,7 +24,7 @@ func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *catalog.Relatio
 		t.Fatal("INT4 unavailable")
 	}
 	makeRelation := func(id ids.OID, name string) *catalog.Relation {
-		return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Columns: []ColumnDescriptor{{Name: "id", Usage: typ.Usage()}, {Name: "v", Usage: typ.Usage()}}, Index: map[string]int{"id": 0, "v": 1}, Attributes: []int32{1, 2}, AttributeHighWater: 2, RelationKind: catalog.TableRelation}
+		return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: typ.Usage()}, {Name: "v", Usage: typ.Usage()}}, Index: map[string]int{"id": 0, "v": 1}, Attributes: []int32{1, 2}, AttributeHighWater: 2, RelationKind: catalog.TableRelation}
 	}
 	src, sink := makeRelation(900001, "src"), makeRelation(900002, "sink")
 	next := catalog.CloneState(e.catalog.state)

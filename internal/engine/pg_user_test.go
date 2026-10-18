@@ -273,7 +273,7 @@ func TestPGUserCancellationAndUnknownProvider(t *testing.T) {
 		}
 	}
 	invalid := *d
-	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[1].Usage.Type = testUsage(e, sqltype.Int4).Type
 	if source, err := capturePGUser(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), state), ref, &invalid); err == nil || source != nil {
 		t.Fatal("invalid OID construction published rows")
@@ -319,7 +319,7 @@ func TestPGUserResolvedWriteTargets(t *testing.T) {
 	}
 	// Resolved attribute identity, not coincidental name spelling, chooses mask rejection.
 	renamed := *d
-	renamed.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	renamed.Columns = append([]catalog.Column(nil), d.Columns...)
 	renamed.Columns[6].Name = "alias"
 	if !reflect.DeepEqual(virtualViewWriteError(d, "update", []int{6}), virtualViewWriteError(&renamed, "update", []int{6})) {
 		t.Fatal("write diagnostic depends on text spelling")

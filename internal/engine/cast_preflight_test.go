@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -280,7 +281,7 @@ func TestCastCoercionQueryPreflightFrameMetadataAndFinalization(t *testing.T) {
 	e, query, source := queryCoreFixture(t, "SELECT int4($1::text) FROM t")
 	project := query.Root.(*projectNode)
 	original := project.expressions[0].(coercionExpression)
-	schema := []ColumnDescriptor{{Name: "int4", Usage: sqltype.Usage{Type: testUsage(e, sqltype.Int4).Type, Typmod: -1}, Nullable: false, NullabilityKnown: false, OriginTable: 0, OriginAttribute: 0}}
+	schema := []catalog.Column{{Name: "int4", Usage: sqltype.Usage{Type: testUsage(e, sqltype.Int4).Type, Typmod: -1}, Nullable: false, NullabilityKnown: false, OriginTable: 0, OriginAttribute: 0}}
 	if !reflect.DeepEqual(project.Schema(), schema) || uint32(schema[0].Usage.Type.ID()) != 23 {
 		t.Fatalf("analyzed schema %#v want %#v", project.Schema(), schema)
 	}

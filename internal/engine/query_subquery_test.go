@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -197,7 +198,7 @@ func TestQuerySubqueryCleanup(t *testing.T) {
 				stage.selection = []int{}
 				stage.produce = func(context.Context, *indexedStage) (bool, error) { return false, primary }
 			case "projection":
-				stage.schema = []ColumnDescriptor{{}}
+				stage.schema = []catalog.Column{{}}
 				stage.expressions = []expr.Expr{queryProbe(sqltype.Usage{}, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, primary })}
 				stage.evaluation = EvalContext{Context: context.Background()}
 			case "close":

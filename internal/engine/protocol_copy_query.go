@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -46,11 +47,11 @@ func (s *StatementScope) prepareCopyQueryRows(query *parser.Select) (RowResult, 
 type protocolCopyQueryRows struct {
 	scope    *StatementScope
 	producer *sqlCursor
-	schema   []ColumnDescriptor
+	schema   []catalog.Column
 	output   *finalRows
 }
 
-func (r *protocolCopyQueryRows) Schema() []ColumnDescriptor                   { return r.schema }
+func (r *protocolCopyQueryRows) Schema() []catalog.Column                     { return r.schema }
 func (r *protocolCopyQueryRows) OutputEnvironment() sqltype.OutputEnvironment { return r.output.output }
 func (r *protocolCopyQueryRows) RegclassText(v sqltype.Value) (string, error) {
 	return r.output.RegclassText(v)

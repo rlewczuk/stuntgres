@@ -13,7 +13,7 @@ import (
 // Immutable table metadata and row frontier captured by Dump under Engine.mu.
 type dumpRelation struct {
 	owner, schema, name string
-	columns             []ColumnDescriptor
+	columns             []catalog.Column
 	attributes          []int32
 	versions            []rowVersion
 	ends                *deletionRoot

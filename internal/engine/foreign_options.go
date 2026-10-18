@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 )
 
-func transformForeignOptions(old []ForeignOption, changes []parser.ForeignOption) ([]ForeignOption, error) {
-	options := append([]ForeignOption{}, old...)
+func transformForeignOptions(old []catalog.ForeignOption, changes []parser.ForeignOption) ([]catalog.ForeignOption, error) {
+	options := append([]catalog.ForeignOption{}, old...)
 	for _, change := range changes {
 		name := change.Name.Text
 		if strings.Contains(name, "=") {
@@ -26,7 +27,7 @@ func transformForeignOptions(old []ForeignOption, changes []parser.ForeignOption
 			if index >= 0 {
 				return nil, sqlError("42710", fmt.Sprintf(`option "%s" provided more than once`, name))
 			}
-			options = append(options, ForeignOption{Name: name, Value: change.Value})
+			options = append(options, catalog.ForeignOption{Name: name, Value: change.Value})
 		case "set":
 			if index < 0 {
 				return nil, sqlError("42704", fmt.Sprintf(`option "%s" not found`, name))

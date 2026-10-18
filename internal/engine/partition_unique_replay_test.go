@@ -212,7 +212,7 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	graph[dumpEventKey{oid: local.Address().ObjectID}] = []dumpEventKey{{oid: mid.Address().ObjectID}}
 	indices[local.Address().ObjectID] = len(indices)
 	regclass := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}).SQLType
-	consumer := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47206}, ObjectNamespace: mid.Namespace(), Owner: mid.Owner, ObjectName: "unique_replay_consumer", ObjectRevision: 1, RelationKind: catalog.TableRelation, Columns: []ColumnDescriptor{{Name: "ref", Usage: regclass.Usage()}, {Name: "leaf_ref", Usage: regclass.Usage()}}, Attributes: []int32{1, 2}, AttributeHighWater: 2, Index: map[string]int{"ref": 0, "leaf_ref": 1}}
+	consumer := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47206}, ObjectNamespace: mid.Namespace(), Owner: mid.Owner, ObjectName: "unique_replay_consumer", ObjectRevision: 1, RelationKind: catalog.TableRelation, Columns: []catalog.Column{{Name: "ref", Usage: regclass.Usage()}, {Name: "leaf_ref", Usage: regclass.Usage()}}, Attributes: []int32{1, 2}, AttributeHighWater: 2, Index: map[string]int{"ref": 0, "leaf_ref": 1}}
 	value := sqltype.String(regclass, strconv.FormatUint(uint64(local.Address().ObjectID), 10))
 	leafValue := sqltype.String(regclass, strconv.FormatUint(uint64(child.Address().ObjectID), 10))
 	state := *view.State()

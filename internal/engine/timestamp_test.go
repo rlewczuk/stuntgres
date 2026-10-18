@@ -252,7 +252,7 @@ func TestTimestampCatalogModifierValidation(t *testing.T) {
 		{Type: foreign, Typmod: 3},
 	} {
 		copy := *original
-		copy.Columns = append([]ColumnDescriptor(nil), original.Columns...)
+		copy.Columns = append([]catalog.Column(nil), original.Columns...)
 		copy.Columns[0].Usage = usage
 		if err := provider.Validate(view, &copy); err == nil {
 			t.Fatal("invalid/foreign usage admitted", usage)

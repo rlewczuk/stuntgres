@@ -110,7 +110,7 @@ func defaultUnitTable(t *testing.T, f defaultUnitFixture, stage *CatalogStage, n
 		t.Fatal("stage has no int4 carrier")
 	}
 	f.e.mu.Lock()
-	d, err := f.e.newTableDescriptorLocked(f.schema, name, owner, []ColumnDescriptor{{Name: "x", Usage: typ.Usage()}}, nil)
+	d, err := f.e.newTableDescriptorLocked(f.schema, name, owner, []catalog.Column{{Name: "x", Usage: typ.Usage()}}, nil)
 	if err == nil {
 		d.ACL = stage.creationACL(owner, f.schema, authorization.DefaultTables)
 		err = f.e.stageRowTypeLocked(stage, d)

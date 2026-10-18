@@ -126,7 +126,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 	}
 	for i, column := range d.Columns {
 		invalid := *d
-		invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+		invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 		invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(column.Usage.Type.ID())
 		if got, err := e.capturePGDatabase(context.Background(), view, e.Roles(), ref, &invalid); got != nil || err == nil {
 			t.Fatal("foreign concrete type", i, got, err)
@@ -134,7 +134,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 	}
 	for _, width := range []int{0, 17, 19} {
 		invalid := *d
-		invalid.Columns = make([]ColumnDescriptor, width)
+		invalid.Columns = make([]catalog.Column, width)
 		if got, err := e.capturePGDatabase(context.Background(), view, e.Roles(), ref, &invalid); got != nil || err == nil {
 			t.Fatal("invalid source width", width, got, err)
 		}
@@ -219,7 +219,7 @@ func TestPGDatabasePublication(t *testing.T) {
 	check(old, 10, false)
 	check(peer, 10, false)
 	retained := &indexedStage{source: old, schema: d.Columns}
-	schema := append([]ColumnDescriptor(nil), retained.Schema()...)
+	schema := append([]catalog.Column(nil), retained.Schema()...)
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}

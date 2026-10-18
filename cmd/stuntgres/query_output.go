@@ -5,11 +5,12 @@ import (
 	"errors"
 	"math"
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func (c *client) writeDescription(schema []engine.ColumnDescriptor, formats []int16) error {
+func (c *client) writeDescription(schema []catalog.Column, formats []int16) error {
 	if len(schema) > math.MaxInt16 {
 		return &sqlstate.Error{Code: "54000", Message: "too many result columns"}
 	}

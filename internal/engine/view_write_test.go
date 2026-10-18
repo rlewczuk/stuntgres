@@ -29,14 +29,14 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	base := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ns, ObjectName: "base", ObjectRevision: 1, Owner: owner, RelationKind: catalog.TableRelation, Attributes: []int32{7, 11, 19}, Columns: []ColumnDescriptor{{Name: "id", Usage: integer.Usage(), Nullable: true}, {Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "hidden", Usage: integer.Usage(), Nullable: true}}, Index: map[string]int{"id": 0, "a": 1, "hidden": 2}, AttributeHighWater: 19}
+	base := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ns, ObjectName: "base", ObjectRevision: 1, Owner: owner, RelationKind: catalog.TableRelation, Attributes: []int32{7, 11, 19}, Columns: []catalog.Column{{Name: "id", Usage: integer.Usage(), Nullable: true}, {Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "hidden", Usage: integer.Usage(), Nullable: true}}, Index: map[string]int{"id": 0, "a": 1, "hidden": 2}, AttributeHighWater: 19}
 	baseRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), base.Address())
 	column := func(slot int) expr.Expr {
 		ref := baseRef
 		ref.Address.SubID = base.Attributes[slot]
 		return columnExpression{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
 	}
-	view := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: ns, ObjectName: "logical", ObjectRevision: 1, Owner: owner, RelationKind: catalog.ViewRelation, Attributes: []int32{1, 2}, AttributeHighWater: 2, Columns: []ColumnDescriptor{{Name: "x", Usage: integer.Usage(), Nullable: true}, {Name: "key", Usage: integer.Usage(), Nullable: true}}, Index: map[string]int{"x": 0, "key": 1}}
+	view := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: ns, ObjectName: "logical", ObjectRevision: 1, Owner: owner, RelationKind: catalog.ViewRelation, Attributes: []int32{1, 2}, AttributeHighWater: 2, Columns: []catalog.Column{{Name: "x", Usage: integer.Usage(), Nullable: true}, {Name: "key", Usage: integer.Usage(), Nullable: true}}, Index: map[string]int{"x": 0, "key": 1}}
 	syntax := &parser.Select{From: &parser.TableReference{}}
 	project := &projectNode{querySchema: querySchema(view.Columns), frame: 1, syntax: syntax, child: &sourceNode{querySchema: querySchema(base.Columns), ref: baseRef, occurrence: 0}, expressions: []expr.Expr{column(1), column(0)}}
 	view.View = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: project}, sources: []viewLeaf{{ref: baseRef, attributes: []int32{7, 11, 19}, reads: []int32{7, 11}}}}
@@ -110,7 +110,7 @@ func TestViewWriteMapping(t *testing.T) {
 	// Creation slots survive current dense compaction and column renames.
 	compact := *f.base
 	compact.Attributes = []int32{11, 19}
-	compact.Columns = []ColumnDescriptor{f.base.Columns[1], f.base.Columns[2]}
+	compact.Columns = []catalog.Column{f.base.Columns[1], f.base.Columns[2]}
 	compact.Columns[0].Name = "renamed"
 	slot, err := stableViewSlot(&compact, viewOf(f.view).sources[0], 1)
 	if err != nil || slot != 0 {

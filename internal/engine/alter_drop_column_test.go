@@ -68,7 +68,7 @@ func alterDropTestStage(t *testing.T, e *Engine) (*CatalogStage, ids.ObjectRef, 
 	old := e.catalog.state.MustRelation(ref.Address)
 	next := *old
 	next.ObjectRevision++
-	next.Columns = append([]ColumnDescriptor(nil), old.Columns[0])
+	next.Columns = append([]catalog.Column(nil), old.Columns[0])
 	next.Attributes = []int32{1}
 	next.Index = map[string]int{"a": 0}
 	next.ColumnACL = nil

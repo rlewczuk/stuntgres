@@ -113,7 +113,7 @@ func TestInheritanceControlsConstraintOriginRemap(t *testing.T) {
 func TestInheritanceControlsRetainedDefinitionCollision(t *testing.T) {
 	e := New()
 	temp := inheritanceControlsTemporary(e, 20000, "tp")
-	temp.Columns = []ColumnDescriptor{{Name: "a", Usage: testUsage(e, sqltype.Int4), Nullable: false, NullabilityKnown: true}}
+	temp.Columns = []catalog.Column{{Name: "a", Usage: testUsage(e, sqltype.Int4), Nullable: false, NullabilityKnown: true}}
 	temp.Attributes = []int32{1}
 	temp.AttributeHighWater = 1
 	temp.Index = map[string]int{"a": 0}
@@ -152,7 +152,7 @@ func TestInheritanceControlsRetainedChecksAndConstraintCollisions(t *testing.T) 
 	installDefinitions := func(owner *Engine, p, c *catalog.Relation) {
 		usage := testUsage(owner, sqltype.Bool)
 		for _, table := range []*catalog.Relation{p, c} {
-			table.Columns = []ColumnDescriptor{{Name: "b", Usage: usage, Nullable: false, NullabilityKnown: true, OriginTable: uint32(table.Address().ObjectID), OriginAttribute: 1}}
+			table.Columns = []catalog.Column{{Name: "b", Usage: usage, Nullable: false, NullabilityKnown: true, OriginTable: uint32(table.Address().ObjectID), OriginAttribute: 1}}
 			table.Attributes = []int32{1}
 			table.AttributeHighWater = 1
 			table.Index = map[string]int{"b": 0}
@@ -214,7 +214,7 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 	install := func(owner *Engine, p, c *catalog.Relation) {
 		usage := testUsage(owner, sqltype.Int4)
 		for _, table := range []*catalog.Relation{p, c} {
-			table.Columns = []ColumnDescriptor{{Name: "a", Usage: usage, Nullable: false, NullabilityKnown: true, OriginTable: uint32(table.Address().ObjectID), OriginAttribute: 1}, {Name: "b", Usage: testUsage(owner, sqltype.Bool), Nullable: true, NullabilityKnown: true, OriginTable: uint32(table.Address().ObjectID), OriginAttribute: 2}}
+			table.Columns = []catalog.Column{{Name: "a", Usage: usage, Nullable: false, NullabilityKnown: true, OriginTable: uint32(table.Address().ObjectID), OriginAttribute: 1}, {Name: "b", Usage: testUsage(owner, sqltype.Bool), Nullable: true, NullabilityKnown: true, OriginTable: uint32(table.Address().ObjectID), OriginAttribute: 2}}
 			table.Attributes = []int32{1, 2}
 			table.AttributeHighWater = 2
 			table.Index = map[string]int{"a": 0, "b": 1}

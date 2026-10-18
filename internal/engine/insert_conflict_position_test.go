@@ -129,7 +129,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			parent.ObjectRevision++
 			parent.Attributes = append(slices.Clone(parent.Attributes), 30)
 			parent.AttributeHighWater = 30
-			parent.Columns = append(slices.Clone(parent.Columns), ColumnDescriptor{Name: "payload", Usage: parent.Columns[0].Usage})
+			parent.Columns = append(slices.Clone(parent.Columns), catalog.Column{Name: "payload", Usage: parent.Columns[0].Usage})
 			parent.Index = maps.Clone(parent.Index)
 			parent.Index["payload"] = 2
 			shaped := *f.store

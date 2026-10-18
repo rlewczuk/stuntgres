@@ -421,7 +421,7 @@ func (s *StatementScope) copyTableRows(b binding, auth AuthorizationView) (*fina
 	if err = selectQuerySources(s.op.Context(), source); err != nil {
 		return nil, err
 	}
-	schema := make([]ColumnDescriptor, len(b.targets))
+	schema := make([]catalog.Column, len(b.targets))
 	for i, target := range b.targets {
 		schema[i] = b.relation.Columns[target]
 	}

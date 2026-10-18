@@ -63,7 +63,7 @@ func objectAddressUnitRelation(t *testing.T) (*Engine, catalog.Read, *catalog.Re
 	view := e.CatalogRead()
 	view = view.WithState(catalog.CloneState(view.State()))
 	integer, _ := view.LookupType(sqltype.Int4)
-	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{1259, 48001, 0}, ObjectNamespace: ids.ObjectAddress{2615, 2200, 0}, ObjectName: "address_unit", ObjectRevision: 1, RelationKind: catalog.TableRelation, Columns: []ColumnDescriptor{{Name: "a", Usage: integer.Usage()}, {Name: "c", Usage: integer.Usage()}}, Attributes: []int32{1, 3}, AttributeHighWater: 3, DroppedAttributes: map[int32]catalog.AttributeMetadata{2: {Name: "........pg.dropped.2........", Number: 2, Dropped: true}}}
+	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{1259, 48001, 0}, ObjectNamespace: ids.ObjectAddress{2615, 2200, 0}, ObjectName: "address_unit", ObjectRevision: 1, RelationKind: catalog.TableRelation, Columns: []catalog.Column{{Name: "a", Usage: integer.Usage()}, {Name: "c", Usage: integer.Usage()}}, Attributes: []int32{1, 3}, AttributeHighWater: 3, DroppedAttributes: map[int32]catalog.AttributeMetadata{2: {Name: "........pg.dropped.2........", Number: 2, Dropped: true}}}
 	view.State().SetDescriptor(d.Address(), d)
 	view.State().BindName(catalog.DescriptorNameKey(d), d.Address())
 	return e, view, d

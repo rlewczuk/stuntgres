@@ -99,7 +99,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 		sentinel := errors.New("producer failed")
 		routine, _ := e.CatalogRead().LookupType(sqltype.Regprocedure)
 		text, _ := e.CatalogRead().LookupType(sqltype.Text)
-		columns := append([]ColumnDescriptor(nil), d.Columns...)
+		columns := append([]catalog.Column(nil), d.Columns...)
 		columns[0].Usage = routine.Usage()
 		d.Columns = columns
 		probe := queryProbe(text.Usage(), func(c *EvalContext) (sqltype.Value, error) {

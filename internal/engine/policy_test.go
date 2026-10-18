@@ -92,7 +92,7 @@ func TestRLSPolicyFrozenExpression(t *testing.T) {
 			next := catalog.CloneState(e.CatalogRead().State())
 			owner := *d
 			owner.ObjectName = "renamed"
-			owner.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+			owner.Columns = append([]catalog.Column(nil), d.Columns...)
 			owner.Columns[0].Name = "key"
 			next.SetDescriptor(d.Address(), &owner)
 			text, err := policyExpressionSQL(context.Background(), e.catalog.read(next), expression)

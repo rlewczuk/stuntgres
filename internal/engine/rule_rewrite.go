@@ -46,7 +46,7 @@ type ruleAncestry struct {
 	event string
 }
 
-func ruleColumnInfo(column ColumnDescriptor) expr.Info {
+func ruleColumnInfo(column catalog.Column) expr.Info {
 	return expr.Info{Usage: column.Usage, Pos: parser.Position{Offset: -1}, Property: expr.Properties{RowDependent: true}}
 }
 

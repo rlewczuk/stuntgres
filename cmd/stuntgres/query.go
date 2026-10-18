@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -68,7 +69,7 @@ func (c *client) executeSimple(ctx context.Context, source string) (transportErr
 		}
 		var result engine.Result
 		described := false
-		describe := func(columns []engine.ColumnDescriptor) error {
+		describe := func(columns []catalog.Column) error {
 			if e := op.Context().Err(); e != nil {
 				return e
 			}

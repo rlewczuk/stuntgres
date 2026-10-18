@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -124,7 +125,7 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 				n.rightExpressions[i] = expression
 			}
 		}
-		n.querySchema[i] = ColumnDescriptor{Name: left.Schema()[i].Name, Usage: common}
+		n.querySchema[i] = catalog.Column{Name: left.Schema()[i].Name, Usage: common}
 		names[i] = n.Schema()[i].Name
 		namespace.columns[i] = queryColumn{descriptor: n.Schema()[i], slot: i, leaf: -1, physical: -1}
 		projection[i] = columnExpression{Info: info, scope: 1, frame: b.frameID(), slot: i}
@@ -165,7 +166,7 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 	return &BoundQuery{Root: &projectNode{querySchema: n.querySchema, child: root, expressions: projection, frame: b.frameID(), syntax: s}, regclassOutput: regclass, visibilitySnapshot: leftQuery.visibilitySnapshot || rightQuery.visibilitySnapshot}, nil
 }
 
-func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []expr.Expr, names []string, right []ColumnDescriptor) ([]sortKey, error) {
+func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []expr.Expr, names []string, right []catalog.Column) ([]sortKey, error) {
 	if order == nil {
 		return nil, nil
 	}

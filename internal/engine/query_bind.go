@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -352,7 +353,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	if err != nil {
 		return nil, err
 	}
-	results := make([]ColumnDescriptor, width)
+	results := make([]catalog.Column, width)
 	regclassOutput := false
 	for i, expr := range projection {
 		if !contextual || plainDistinct {
@@ -369,7 +370,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				return nil, err
 			}
 		}
-		result := ColumnDescriptor{Name: "?column?", Usage: expr.ResultUsage()}
+		result := catalog.Column{Name: "?column?", Usage: expr.ResultUsage()}
 		regclassOutput = regclassOutput || result.Usage.Type.ContainsCatalogIdentifier()
 		result.Name = targetNames[i]
 		if c, ok := expr.(columnExpression); ok && c.scope == 1 && c.frame == b.frameID() {
@@ -505,14 +506,14 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				b.aggregates[i].direct[j] = direct
 			}
 		}
-		schema := make([]ColumnDescriptor, len(keys)+len(b.aggregates)+1)
+		schema := make([]catalog.Column, len(keys)+len(b.aggregates)+1)
 		for i, key := range keys {
-			schema[i] = ColumnDescriptor{Usage: key.ResultUsage()}
+			schema[i] = catalog.Column{Usage: key.ResultUsage()}
 		}
 		for i, call := range b.aggregates {
-			schema[len(keys)+i] = ColumnDescriptor{Usage: call.provider.ResultUsage()}
+			schema[len(keys)+i] = catalog.Column{Usage: call.provider.ResultUsage()}
 		}
-		schema[len(schema)-1] = ColumnDescriptor{Usage: b.typ(sqltype.Int4).Usage()}
+		schema[len(schema)-1] = catalog.Column{Usage: b.typ(sqltype.Int4).Usage()}
 		root = &aggregateNode{querySchema: schema, child: root, keys: runtimeKeys, grouping: comparisons, sets: sets, groupingActive: b.groupingActive, calls: append([]aggregateCall(nil), b.aggregates...)}
 		for i, expr := range projection {
 			var err error
@@ -624,7 +625,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	if contextual && plainDistinct {
 		// INSERT assignment mutates only the final output descriptors, never the
 		// source-typed descriptors retained by DISTINCT and its ordering/bounds.
-		results = append([]ColumnDescriptor(nil), results...)
+		results = append([]catalog.Column(nil), results...)
 	}
 	analysis := stringAnalysis
 	for _, call := range b.windowCalls {
@@ -677,7 +678,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection, analysisExpressions: analysis, frame: b.frameID(), syntax: s, hasTargetSet: b.queryHasTargetSet}, regclassOutput: regclassOutput, visibilitySnapshot: b.visibilitySnapshot}, nil
 }
 
-func (b *expressionBinder) assignOutput(bound expr.Expr, target ColumnDescriptor) (expr.Expr, error) {
+func (b *expressionBinder) assignOutput(bound expr.Expr, target catalog.Column) (expr.Expr, error) {
 	if raw, ok := bound.(unknownOutput); ok {
 		return b.bind(raw.raw, expressionPolicy{context: assignmentContext, expected: target.Usage, mode: sqltype.Assignment})
 	}

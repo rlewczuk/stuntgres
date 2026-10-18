@@ -1,34 +1,37 @@
 package stuntgres
 
-import "stuntgres/internal/engine"
+import (
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/catalog"
+)
 
 // Foreign callback types use only standard Go values. Registration installs
 // executable capabilities, not PostgreSQL C functions or remote transports.
-type ForeignOption = engine.ForeignOption
-type ForeignObjectKind = engine.ForeignObjectKind
-type ForeignFunctionName = engine.ForeignFunctionName
+type ForeignOption = catalog.ForeignOption
+type ForeignObjectKind = catalog.ForeignObjectKind
+type ForeignFunctionName = catalog.ForeignFunctionName
 type ForeignDataWrapperDefinition = engine.ForeignDataWrapperDefinition
 type ForeignValidatorDefinition = engine.ForeignValidatorDefinition
-type ForeignColumn = engine.ForeignColumn
-type ForeignScanParameters = engine.ForeignScanParameters
-type ForeignRequest = engine.ForeignRequest
-type ForeignRelSize = engine.ForeignRelSize
-type ForeignPath = engine.ForeignPath
-type ForeignPlan = engine.ForeignPlan
-type ForeignRow = engine.ForeignRow
-type ForeignDataWrapper = engine.ForeignDataWrapper
-type ForeignScan = engine.ForeignScan
+type ForeignColumn = catalog.ForeignColumn
+type ForeignScanParameters = catalog.ForeignScanParameters
+type ForeignRequest = catalog.ForeignRequest
+type ForeignRelSize = catalog.ForeignRelSize
+type ForeignPath = catalog.ForeignPath
+type ForeignPlan = catalog.ForeignPlan
+type ForeignRow = catalog.ForeignRow
+type ForeignDataWrapper = catalog.ForeignDataWrapper
+type ForeignScan = catalog.ForeignScan
 type ForeignImportRequest = engine.ForeignImportRequest
 type ForeignColumnDefinition = engine.ForeignColumnDefinition
 type ForeignTableDefinition = engine.ForeignTableDefinition
 type ForeignSchemaImporter = engine.ForeignSchemaImporter
 
 const (
-	ForeignAttribute   = engine.ForeignAttribute
-	ForeignWrapper     = engine.ForeignWrapper
-	ForeignServer      = engine.ForeignServer
-	ForeignUserMapping = engine.ForeignUserMapping
-	ForeignTable       = engine.ForeignTable
+	ForeignAttribute   = catalog.ForeignAttribute
+	ForeignWrapper     = catalog.ForeignWrapper
+	ForeignServer      = catalog.ForeignServer
+	ForeignUserMapping = catalog.ForeignUserMapping
+	ForeignTable       = catalog.ForeignTable
 )
 
 // RegisterForeignDataWrapper binds an actual implementation to a decoded SQL

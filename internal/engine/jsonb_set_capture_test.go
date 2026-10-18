@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -25,8 +26,8 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 	ctx := context.Background()
 	engine := New()
 	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
-	column := ColumnDescriptor{Name: "k", Usage: b.typ(sqltype.Text).Usage()}
-	b.queryNamespace = &queryNamespace{columns: []queryColumn{{descriptor: column, slot: 0, leaf: -1, physical: -1}}, frame: []ColumnDescriptor{column}}
+	column := catalog.Column{Name: "k", Usage: b.typ(sqltype.Text).Usage()}
+	b.queryNamespace = &queryNamespace{columns: []queryColumn{{descriptor: column, slot: 0, leaf: -1, physical: -1}}, frame: []catalog.Column{column}}
 	raw := statement(t, query).(*parser.Select).Targets[0]
 	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
 	if err != nil {

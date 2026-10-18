@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 )
@@ -34,7 +35,7 @@ func (e *Engine) bindInsertConflictUpdate(b *binding, binder *expressionBinder, 
 	namespace := queryNamespace{
 		columns:    append(target.columns, excluded.columns...),
 		qualifiers: append(target.qualifiers, excluded.qualifiers...),
-		frame:      append(append([]ColumnDescriptor(nil), target.frame...), target.frame...),
+		frame:      append(append([]catalog.Column(nil), target.frame...), target.frame...),
 	}
 	binder.queryNamespace = &namespace
 	binder.aggregateClause = "UPDATE"

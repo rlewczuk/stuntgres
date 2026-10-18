@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
 )
 
@@ -38,7 +39,7 @@ func TestCastPublishedDescriptors(t *testing.T) {
 		{"bool", sqltype.Bool, 16, "i"},
 	}
 	targets := make([]string, 0, 32)
-	want := make([]ColumnDescriptor, 0, 32)
+	want := make([]catalog.Column, 0, 32)
 	for index, typ := range types {
 		descriptor, ok := e.CatalogRead().LookupType(typ.id)
 		if !ok {
@@ -57,7 +58,7 @@ func TestCastPublishedDescriptors(t *testing.T) {
 					name = typ.name
 				}
 				targets = append(targets, expression)
-				want = append(want, ColumnDescriptor{Name: name, Usage: usage, Nullable: slot >= 4, NullabilityKnown: true, OriginTable: origin, OriginAttribute: int16(slot + 1)})
+				want = append(want, catalog.Column{Name: name, Usage: usage, Nullable: slot >= 4, NullabilityKnown: true, OriginTable: origin, OriginAttribute: int16(slot + 1)})
 			}
 		}
 		for _, column := range []string{typ.converted, "n" + typ.converted} {
@@ -69,7 +70,7 @@ func TestCastPublishedDescriptors(t *testing.T) {
 				targets = append(targets, expression)
 				// Genuine conversions, including nullable sources, have unknown
 				// expression nullability and no physical origin.
-				want = append(want, ColumnDescriptor{Name: name, Usage: usage})
+				want = append(want, catalog.Column{Name: name, Usage: usage})
 			}
 		}
 		sourceType, constant := "int4", "2"
@@ -77,15 +78,15 @@ func TestCastPublishedDescriptors(t *testing.T) {
 			sourceType, constant = "int8", "2::int8"
 		}
 		targets = append(targets, "(NULL::"+sourceType+")::"+typ.name, "("+constant+")::"+typ.name)
-		want = append(want, ColumnDescriptor{Name: typ.name, Usage: usage}, ColumnDescriptor{Name: typ.name, Usage: usage})
+		want = append(want, catalog.Column{Name: typ.name, Usage: usage}, catalog.Column{Name: typ.name, Usage: usage})
 		targets = append(targets, "NULL::"+typ.name)
-		want = append(want, ColumnDescriptor{Name: typ.name, Usage: usage})
+		want = append(want, catalog.Column{Name: typ.name, Usage: usage})
 		if usage.Type.ID() != typ.id || uint32(usage.Type.ID()) != typ.oid {
 			t.Fatal("fixed baseline type identity", typ, usage)
 		}
 	}
 	ast := statement(t, "SELECT "+strings.Join(targets, ",")+" FROM cd")
-	assertSchema := func(t *testing.T, got []ColumnDescriptor) {
+	assertSchema := func(t *testing.T, got []catalog.Column) {
 		t.Helper()
 		if len(got) != len(want) {
 			t.Fatalf("descriptor count %d want %d", len(got), len(want))
@@ -172,8 +173,8 @@ func TestCastPublishedDescriptorsPreflightReuse(t *testing.T) {
 			if tc.id == sqltype.Text {
 				usage.Collation = sqltype.CollationRef{ID: 100, Derivation: sqltype.Default}
 			}
-			want := []ColumnDescriptor{{Name: tc.target, Usage: usage, Nullable: false, NullabilityKnown: false, OriginTable: 0, OriginAttribute: 0}}
-			assertSchema := func(got []ColumnDescriptor) {
+			want := []catalog.Column{{Name: tc.target, Usage: usage, Nullable: false, NullabilityKnown: false, OriginTable: 0, OriginAttribute: 0}}
+			assertSchema := func(got []catalog.Column) {
 				t.Helper()
 				if !reflect.DeepEqual(got, want) {
 					t.Fatalf("published schema %#v want %#v", got, want)
@@ -191,7 +192,7 @@ func TestCastPublishedDescriptorsPreflightReuse(t *testing.T) {
 				t.Fatalf("parameter source %#v want TEXT", held.Parameters)
 			}
 			snapshot := held
-			snapshot.Results = append([]ColumnDescriptor(nil), held.Results...)
+			snapshot.Results = append([]catalog.Column(nil), held.Results...)
 			snapshot.Parameters.Types = append([]sqltype.Usage(nil), held.Parameters.Types...)
 			for _, populated := range []bool{false, true} {
 				if populated {

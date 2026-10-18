@@ -228,7 +228,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 			return nil, expr.ErrorAt("42601", "VALUES lists must all be the same length", pos)
 		}
 	}
-	schema := make([]ColumnDescriptor, width)
+	schema := make([]catalog.Column, width)
 	projection := make([]expr.Expr, width)
 	for j := range width {
 		common, err := commonValuesUsage(nodes, rawRows, j, b.typ(sqltype.Text).Usage())
@@ -248,7 +248,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 			}
 		}
 		common = info.Usage
-		schema[j] = ColumnDescriptor{Name: fmt.Sprintf("column%d", j+1), Usage: common}
+		schema[j] = catalog.Column{Name: fmt.Sprintf("column%d", j+1), Usage: common}
 		projection[j] = columnExpression{Info: info, scope: 1, frame: b.frameID(), slot: j}
 	}
 	if lists != nil {
@@ -321,14 +321,14 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 	}
 	// The output schema is owned separately: destination assignment modifies it,
 	// never the common-typed VALUES input or its sort descriptor.
-	results := append([]ColumnDescriptor(nil), schema...)
+	results := append([]catalog.Column(nil), schema...)
 	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection, frozenValues: true, frame: b.frameID()}}, nil
 }
 
 // VALUES exposes generated ASCII column names in one synthetic namespace.
 // Match PostgreSQL's bounded, case-sensitive character-distance suggestions
 // without changing ordinary relation/projection name resolution.
-func valuesOrderColumnError(schema []ColumnDescriptor, name string, pos parser.Position) error {
+func valuesOrderColumnError(schema []catalog.Column, name string, pos parser.Position) error {
 	d := expr.ErrorAt("42703", fmt.Sprintf(`column "%s" does not exist`, name), pos).(*sqlstate.Error)
 	if len(schema) == 0 {
 		return d

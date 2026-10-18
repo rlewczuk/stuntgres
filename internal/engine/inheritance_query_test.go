@@ -46,7 +46,7 @@ func TestInheritanceQueryClosure(t *testing.T) {
 func inheritanceQueryUnitColumns(e *Engine, id ids.OID, names ...string) *catalog.Relation {
 	d := inheritanceLifecycleTable(e, id, "layout")
 	for i, name := range names {
-		d.Columns = append(d.Columns, ColumnDescriptor{Name: name, Usage: testUsage(e, sqltype.Int4)})
+		d.Columns = append(d.Columns, catalog.Column{Name: name, Usage: testUsage(e, sqltype.Int4)})
 		d.Attributes = append(d.Attributes, int32(i+1))
 		d.Index[name] = i
 	}

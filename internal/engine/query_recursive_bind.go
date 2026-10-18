@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -19,7 +20,7 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *cteDefinition) 
 	}
 	d.schema = make(querySchema, len(left.Schema()))
 	for i, column := range left.Schema() {
-		d.schema[i] = ColumnDescriptor{Name: column.Name, Usage: column.Usage}
+		d.schema[i] = catalog.Column{Name: column.Name, Usage: column.Usage}
 		if i < len(d.columns) {
 			d.schema[i].Name = d.columns[i].Text
 		}

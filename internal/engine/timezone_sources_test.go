@@ -44,7 +44,7 @@ func TestTimezoneSourceDescriptors(t *testing.T) {
 			t.Fatal("virtual table accepted")
 		}
 		invalid = *d
-		invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+		invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 		foreign, ok := New().CatalogRead().LookupType(tc.types[0])
 		if !ok {
 			t.Fatal("foreign type missing")

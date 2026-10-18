@@ -199,7 +199,7 @@ func TestPGRolesCancellation(t *testing.T) {
 		}
 	}
 	invalid := *d
-	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[12].Usage.Type = testUsage(e, sqltype.Int4).Type
 	if source, err := capturePGRoles(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), state), ref, &invalid); err == nil || source != nil {
 		t.Fatal("invalid OID construction published rows")

@@ -11,10 +11,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func settingColumns(typ *sqltype.Descriptor, names ...string) []ColumnDescriptor {
-	columns := make([]ColumnDescriptor, len(names))
+func settingColumns(typ *sqltype.Descriptor, names ...string) []catalog.Column {
+	columns := make([]catalog.Column, len(names))
 	for i, name := range names {
-		columns[i] = ColumnDescriptor{Name: name, Usage: typ.Usage(), NullabilityKnown: true}
+		columns[i] = catalog.Column{Name: name, Usage: typ.Usage(), NullabilityKnown: true}
 	}
 	return columns
 }

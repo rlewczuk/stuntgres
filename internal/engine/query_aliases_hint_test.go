@@ -5,6 +5,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -56,10 +57,10 @@ func TestQueryAliasesHintOccurrences(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			entry := queryQualifier{name: "x", ref: ref}
 			for _, name := range tc.columns {
-				entry.columns = append(entry.columns, queryColumn{descriptor: ColumnDescriptor{Name: name}})
+				entry.columns = append(entry.columns, queryColumn{descriptor: catalog.Column{Name: name}})
 			}
 			// Synthetic whole-join entries must not add a third tie or win.
-			join := queryQualifier{name: "j", columns: []queryColumn{{descriptor: ColumnDescriptor{Name: "id"}}}, excludeColumnDiagnostics: true}
+			join := queryQualifier{name: "j", columns: []queryColumn{{descriptor: catalog.Column{Name: "id"}}}, excludeColumnDiagnostics: true}
 			if detail, hint, err := queryColumnDiagnostic([]queryQualifier{entry, join}, tc.qualifier, "id", parser.Position{Offset: -1}, false); err != nil || detail != "" || hint != tc.want {
 				t.Fatal(detail, hint, err, tc.want)
 			}
@@ -76,7 +77,7 @@ func TestQueryAliasesSharedValuesDistance(t *testing.T) {
 		{"colümn1", `Perhaps you meant to reference the column "*VALUES*.column1".`},
 		{"no_such_column", ""},
 	} {
-		err := valuesOrderColumnError([]ColumnDescriptor{{Name: "column1"}}, tc.name, parser.Position{Offset: -1})
+		err := valuesOrderColumnError([]catalog.Column{{Name: "column1"}}, tc.name, parser.Position{Offset: -1})
 		var got *sqlstate.Error
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42703", Message: `column "` + tc.name + `" does not exist`, Hint: tc.hint}
 		if !errors.As(err, &got) || *got != want {
@@ -89,7 +90,7 @@ func TestQueryAliasesUnicodeHintCutoff(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t(id INT)")
 	ref := roleTableRef(t, e, "t")
-	entry := queryQualifier{name: "x", ref: ref, columns: []queryColumn{{descriptor: ColumnDescriptor{Name: "aa"}}}}
+	entry := queryQualifier{name: "x", ref: ref, columns: []queryColumn{{descriptor: catalog.Column{Name: "aa"}}}}
 	// Two character substitutions are allowed because PostgreSQL's cutoff
 	// uses the four UTF8 bytes of the request, not its two characters.
 	if detail, hint, err := queryColumnDiagnostic([]queryQualifier{entry}, "x", "éé", parser.Position{Offset: -1}, false); err != nil || detail != "" || hint != `Perhaps you meant to reference the column "x.aa".` {
@@ -100,13 +101,13 @@ func TestQueryAliasesUnicodeHintCutoff(t *testing.T) {
 func TestQueryAliasesExactDiagnosticPrecedence(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t(id INT)")
-	base := queryQualifier{name: "t", ref: roleTableRef(t, e, "t"), columns: []queryColumn{{descriptor: ColumnDescriptor{Name: "id"}}}}
+	base := queryQualifier{name: "t", ref: roleTableRef(t, e, "t"), columns: []queryColumn{{descriptor: catalog.Column{Name: "id"}}}}
 	// Separate self-reference entries count even when physical refs coincide.
 	other := base
 	other.name = "u"
 	fuzzy := base
 	fuzzy.name = "x"
-	fuzzy.columns = []queryColumn{{descriptor: ColumnDescriptor{Name: "iid"}}}
+	fuzzy.columns = []queryColumn{{descriptor: catalog.Column{Name: "iid"}}}
 	join := queryQualifier{name: "j", columns: base.columns, excludeColumnDiagnostics: true}
 	for _, tc := range []struct {
 		name, qualifier string
@@ -132,12 +133,12 @@ func TestQueryAliasesExactDiagnosticPrecedence(t *testing.T) {
 func TestQueryAliasesHiddenDuplicateDiagnostic(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t(id INT)")
-	base := queryQualifier{name: "t", ref: roleTableRef(t, e, "t"), columns: []queryColumn{{descriptor: ColumnDescriptor{Name: "id"}}}}
+	base := queryQualifier{name: "t", ref: roleTableRef(t, e, "t"), columns: []queryColumn{{descriptor: catalog.Column{Name: "id"}}}}
 	other := base
 	other.name = "u"
 	duplicate := base
 	duplicate.name = "x"
-	duplicate.columns = []queryColumn{{descriptor: ColumnDescriptor{Name: "id"}}, {descriptor: ColumnDescriptor{Name: "id"}}}
+	duplicate.columns = []queryColumn{{descriptor: catalog.Column{Name: "id"}}, {descriptor: catalog.Column{Name: "id"}}}
 	for _, tc := range []struct {
 		name, qualifier string
 		entries         []queryQualifier
@@ -169,18 +170,26 @@ func TestQueryAliasesHiddenDuplicateDiagnostic(t *testing.T) {
 }
 
 func TestQueryValuesMissingColumnDiagnostics(t *testing.T) {
-	entry := queryQualifier{name: "v", columns: []queryColumn{{descriptor: ColumnDescriptor{Name: "n"}}}}
+	entry := queryQualifier{name: "v", columns: []queryColumn{{descriptor: catalog.Column{Name: "n"}}}}
 	detail, hint, err := queryColumnDiagnostic([]queryQualifier{entry}, "v", "nn", parser.Position{Character: 8}, false)
-	if err != nil || detail != "" || hint != `Perhaps you meant to reference the column "v.n".` { t.Fatal(detail, hint, err) }
+	if err != nil || detail != "" || hint != `Perhaps you meant to reference the column "v.n".` {
+		t.Fatal(detail, hint, err)
+	}
 	for _, nonLateral := range []bool{false, true} {
 		detail, hint, err = queryColumnDiagnostic([]queryQualifier{entry}, "", "n", parser.Position{Character: 8}, nonLateral)
 		wantHint := ""
-		if nonLateral { wantHint = "To reference that column, you must mark this subquery with LATERAL." }
-		if err != nil || detail != `There is a column named "n" in table "v", but it cannot be referenced from this part of the query.` || hint != wantHint { t.Fatal(detail, hint, err) }
+		if nonLateral {
+			wantHint = "To reference that column, you must mark this subquery with LATERAL."
+		}
+		if err != nil || detail != `There is a column named "n" in table "v", but it cannot be referenced from this part of the query.` || hint != wantHint {
+			t.Fatal(detail, hint, err)
+		}
 	}
 	entry.excludeColumnDiagnostics = true
 	for _, name := range []string{"n", "nn"} {
 		detail, hint, err = queryColumnDiagnostic([]queryQualifier{entry}, "", name, parser.Position{Character: 8}, true)
-		if err != nil || detail != "" || hint != "" { t.Fatal("excluded join diagnostic", detail, hint, err) }
+		if err != nil || detail != "" || hint != "" {
+			t.Fatal("excluded join diagnostic", detail, hint, err)
+		}
 	}
 }

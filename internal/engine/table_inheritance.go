@@ -59,7 +59,7 @@ func inheritanceTypeName(u sqltype.Usage) string {
 	}
 	return name
 }
-func inheritanceColumnConflict(view catalog.Read, old, next ColumnDescriptor, local bool) error {
+func inheritanceColumnConflict(view catalog.Read, old, next catalog.Column, local bool) error {
 	prefix := "inherited column"
 	if local {
 		prefix = "column"
@@ -78,7 +78,7 @@ func inheritanceColumnConflict(view catalog.Read, old, next ColumnDescriptor, lo
 }
 
 // Local duplicate detection precedes merging; LIKE remains a local copy, not an edge.
-func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, syntax *parser.CreateTable, b *binding, columns []ColumnDescriptor, declarations []createColumnDeclaration, likeConstraints []createLikeConstraint) ([]ColumnDescriptor, []createColumnDeclaration, []createLikeConstraint, error) {
+func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, syntax *parser.CreateTable, b *binding, columns []catalog.Column, declarations []createColumnDeclaration, likeConstraints []createLikeConstraint) ([]catalog.Column, []createColumnDeclaration, []createLikeConstraint, error) {
 	if len(syntax.Parents) == 0 {
 		return columns, declarations, likeConstraints, nil
 	}
@@ -89,7 +89,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 		}
 		localNames[c.Name] = true
 	}
-	var merged []ColumnDescriptor
+	var merged []catalog.Column
 	b.createLocalColumns = localNames
 	index := make(map[string]int)
 	seen := make(map[ids.ObjectAddress]bool)

@@ -1257,7 +1257,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		qualified := quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name)
 		// CREATE TABLE OF cannot declare identity/generation or preserve a
 		// post-creation array rank. Reconstruct ordinary columns, then attach.
-		attachAfterCreate := t.descriptor.OfType != (ids.ObjectAddress{}) && (len(t.identities) != 0 || len(t.descriptor.Generations) != 0 || slices.ContainsFunc(t.columns, func(column ColumnDescriptor) bool { return column.DeclaredDimensions != 0 }))
+		attachAfterCreate := t.descriptor.OfType != (ids.ObjectAddress{}) && (len(t.identities) != 0 || len(t.descriptor.Generations) != 0 || slices.ContainsFunc(t.columns, func(column catalog.Column) bool { return column.DeclaredDimensions != 0 }))
 		var line strings.Builder
 		if t.descriptor.Membership == nil || partitionDumpNeedsAttach(catalogView, t.descriptor) {
 			typed := t.descriptor.OfType != (ids.ObjectAddress{}) && !attachAfterCreate

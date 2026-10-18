@@ -22,9 +22,9 @@ type ForeignValueImporter func(context.Context, driver.Value, sqltype.Usage, sql
 type ForeignValueExporter func(context.Context, sqltype.Value, sqltype.OutputEnvironment) (driver.Value, error)
 
 type foreignQuerySource struct {
-	wrapper        ForeignDataWrapper
-	request        ForeignRequest
-	columns        []ColumnDescriptor
+	wrapper        catalog.ForeignDataWrapper
+	request        catalog.ForeignRequest
+	columns        []catalog.Column
 	importValue    ForeignValueImporter
 	exportValue    ForeignValueExporter
 	executions     []*foreignExecution
@@ -35,14 +35,14 @@ type foreignQuerySource struct {
 type foreignExecution struct {
 	owner         any
 	active, ended bool
-	scan          ForeignScan
-	plan          ForeignPlan
+	scan          catalog.ForeignScan
+	plan          catalog.ForeignPlan
 	slots         []int
 	planned       bool
 	closeError    error
 }
 
-func copyForeignRequest(request ForeignRequest) ForeignRequest {
+func copyForeignRequest(request catalog.ForeignRequest) catalog.ForeignRequest {
 	request.Columns = slices.Clone(request.Columns)
 	for i := range request.Columns {
 		request.Columns[i].Options = slices.Clone(request.Columns[i].Options)
@@ -99,9 +99,9 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 	if err != nil {
 		return nil, err
 	}
-	request := ForeignRequest{Schema: auth.catalog.Get(relation.Namespace()).Name(), Table: relation.Name(), Role: role.Name, TableOID: uint32(relation.Address().ObjectID), RoleOID: uint32(role.Ref.ID()), WrapperOptions: slices.Clone(wrapper.Options), ServerOptions: slices.Clone(server.Options), TableOptions: slices.Clone(relation.Foreign.Options), MappingOptions: slices.Clone(mapping.Options)}
+	request := catalog.ForeignRequest{Schema: auth.catalog.Get(relation.Namespace()).Name(), Table: relation.Name(), Role: role.Name, TableOID: uint32(relation.Address().ObjectID), RoleOID: uint32(role.Ref.ID()), WrapperOptions: slices.Clone(wrapper.Options), ServerOptions: slices.Clone(server.Options), TableOptions: slices.Clone(relation.Foreign.Options), MappingOptions: slices.Clone(mapping.Options)}
 	for i, column := range relation.Columns {
-		request.Columns = append(request.Columns, ForeignColumn{Attribute: relation.Attributes[i], Name: column.Name, TypeName: column.Usage.Type.Name(), TypeOID: uint32(column.Usage.Type.ID()), TypeModifier: column.Usage.Typmod, CollationOID: column.Usage.Collation.ID, Nullable: column.Nullable, Options: slices.Clone(relation.Foreign.Columns[relation.Attributes[i]])})
+		request.Columns = append(request.Columns, catalog.ForeignColumn{Attribute: relation.Attributes[i], Name: column.Name, TypeName: column.Usage.Type.Name(), TypeOID: uint32(column.Usage.Type.ID()), TypeModifier: column.Usage.Typmod, CollationOID: column.Usage.Collation.ID, Nullable: column.Nullable, Options: slices.Clone(relation.Foreign.Columns[relation.Attributes[i]])})
 	}
 	request.RequiredAttributes, err = foreignRequiredAttributes(relation, uses)
 	if err != nil {
@@ -151,7 +151,7 @@ func foreignRequiredAttributes(relation *catalog.Relation, uses []int) ([]int32,
 }
 
 func finiteForeignNumber(n float64) bool { return n >= 0 && !math.IsNaN(n) && !math.IsInf(n, 0) }
-func foreignLayout(request ForeignRequest, attributes []int32) error {
+func foreignLayout(request catalog.ForeignRequest, attributes []int32) error {
 	for i, attribute := range attributes {
 		valid := false
 		for _, column := range request.Columns {
@@ -176,7 +176,7 @@ func foreignLayout(request ForeignRequest, attributes []int32) error {
 	}
 	return nil
 }
-func (f *foreignQuerySource) plan(ctx context.Context, request ForeignRequest, execution *foreignExecution) error {
+func (f *foreignQuerySource) plan(ctx context.Context, request catalog.ForeignRequest, execution *foreignExecution) error {
 	size, err := f.wrapper.GetForeignRelSize(ctx, copyForeignRequest(request))
 	if err != nil {
 		return err
@@ -224,8 +224,8 @@ func (f *foreignQuerySource) plan(ctx context.Context, request ForeignRequest, e
 	}
 	return nil
 }
-func foreignParameters(ctx context.Context, state *queryState, f *foreignQuerySource) (ForeignScanParameters, error) {
-	var parameters ForeignScanParameters
+func foreignParameters(ctx context.Context, state *queryState, f *foreignQuerySource) (catalog.ForeignScanParameters, error) {
+	var parameters catalog.ForeignScanParameters
 	export := func(values []sqltype.Value) ([]driver.Value, error) {
 		out := make([]driver.Value, len(values))
 		for i, value := range values {
@@ -264,7 +264,7 @@ func (execution *foreignExecution) end(ctx context.Context) error {
 		execution.closeError = execution.scan.EndForeignScan(context.WithoutCancel(ctx))
 		execution.scan = nil
 	}
-	execution.plan = ForeignPlan{}
+	execution.plan = catalog.ForeignPlan{}
 	execution.slots = nil
 	execution.owner = nil
 	return execution.closeError

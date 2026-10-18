@@ -16,7 +16,7 @@ func inheritanceUnitRelation(e *Engine, name string, id ids.OID, names ...string
 	for i, name := range names {
 		d.Index[name] = i
 		d.Attributes = append(d.Attributes, int32(i+1))
-		d.Columns = append(d.Columns, ColumnDescriptor{Name: name, Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true, OriginTable: uint32(id), OriginAttribute: int16(i + 1)})
+		d.Columns = append(d.Columns, catalog.Column{Name: name, Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true, OriginTable: uint32(id), OriginAttribute: int16(i + 1)})
 	}
 	d.AttributeHighWater = int32(len(names))
 	return d
@@ -126,7 +126,7 @@ func TestInheritanceGraphValidation(t *testing.T) {
 			case "locality":
 				graph.Columns[1] = catalog.InheritedColumn{}
 			case "type":
-				parent.Columns = append([]ColumnDescriptor(nil), p.Columns...)
+				parent.Columns = append([]catalog.Column(nil), p.Columns...)
 				parent.Columns[0].Usage = testUsage(e, sqltype.Int8)
 			}
 			if err := validateInheritance(inheritanceUnitView(e, &parent, &child), &child); err == nil {

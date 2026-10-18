@@ -136,7 +136,7 @@ func catalogTypeDeclarationAt(view catalog.Read, reader definitionReader, u sqlt
 
 // Column declarations retain syntactic rank separately from array type identity.
 // A copied rank-zero array uses its catalog name, without adding bracket syntax.
-func catalogColumnDeclaration(view catalog.Read, column ColumnDescriptor) (string, error) {
+func catalogColumnDeclaration(view catalog.Read, column catalog.Column) (string, error) {
 	declaration, err := catalogTypeDeclaration(view, column.Usage)
 	if err != nil || !column.Usage.Type.IsArray() {
 		return declaration, err

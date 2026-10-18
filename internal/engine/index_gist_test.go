@@ -18,7 +18,7 @@ func logicalGiSTFixture(t *testing.T) (*catalog.Relation, *catalog.Relation, fun
 		types[typ.ID()] = typ
 	}
 	inet, r := types[sqltype.Inet], types[sqltype.Int4Range]
-	parent := &catalog.Relation{ObjectName: "bookings", Attributes: []int32{1, 2}, Columns: []ColumnDescriptor{{Name: "tenant", Usage: inet.Usage()}, {Name: "during", Usage: r.Usage()}}}
+	parent := &catalog.Relation{ObjectName: "bookings", Attributes: []int32{1, 2}, Columns: []catalog.Column{{Name: "tenant", Usage: inet.Usage()}, {Name: "during", Usage: r.Usage()}}}
 	ic, _ := sqltype.LookupGiSTIndexClass("inet_ops")
 	rc, _ := sqltype.LookupGiSTIndexClass("range_ops")
 	eq, err := sqltype.BindExclusionOperator(inet.Usage(), ic, "=")
@@ -113,7 +113,7 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 			index.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}
 			index.ObjectNamespace = parent.Namespace()
 			index.RelationKind = catalog.IndexRelation
-			index.Columns = append([]ColumnDescriptor(nil), parent.Columns...)
+			index.Columns = append([]catalog.Column(nil), parent.Columns...)
 			index.SQLIndex.Parent = parent.Address()
 			parent.ExclusionConstraints = []catalog.ExclusionConstraint{{
 				OID: index.SQLIndex.Constraint.OID, Name: index.Name(), Index: index.Address(),

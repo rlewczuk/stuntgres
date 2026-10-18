@@ -36,7 +36,7 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	columns := []ColumnDescriptor{{Name: "v", Usage: typ}}
+	columns := []catalog.Column{{Name: "v", Usage: typ}}
 	rows := newFinalRows(columns, 1)
 	rows.values = []sqltype.Value{value}
 	disposals := 0

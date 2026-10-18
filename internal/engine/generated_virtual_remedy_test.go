@@ -86,7 +86,7 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 	}
 	// The source map contains two attributes, but destination inputs start at 2.
 	wide := *source
-	wide.Columns = append(append([]ColumnDescriptor(nil), source.Columns...), source.Columns...)
+	wide.Columns = append(append([]catalog.Column(nil), source.Columns...), source.Columns...)
 	wide.Attributes = []int32{3, 4, 1, 2}
 	base := columnExpression{Info: expr.Info{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 2}
 	wide.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: base, Planned: base}}

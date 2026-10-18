@@ -11,13 +11,13 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func foreignFunctionName(name ForeignFunctionName) (ForeignFunctionName, error) {
+func foreignFunctionName(name catalog.ForeignFunctionName) (catalog.ForeignFunctionName, error) {
 	if name.Schema == "" {
 		name.Schema = "public"
 	}
 	for _, part := range []string{name.Schema, name.Name} {
 		if part == "" || len(part) > 63 || !utf8.ValidString(part) || strings.IndexByte(part, 0) >= 0 {
-			return ForeignFunctionName{}, RegistrationError("invalid foreign procedure identifier")
+			return catalog.ForeignFunctionName{}, RegistrationError("invalid foreign procedure identifier")
 		}
 	}
 	return name, nil
@@ -62,7 +62,7 @@ func (e *Engine) InstallForeignDefinitions(wrappers []ForeignDataWrapperDefiniti
 	e.foreignWrappers = append([]ForeignDataWrapperDefinition(nil), wrappers...)
 	e.foreignValidators = append([]ForeignValidatorDefinition(nil), validators...)
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	install := func(name ForeignFunctionName, p *catalog.ForeignProcedure, result ids.OID, signature catalog.ProcedureSignature) error {
+	install := func(name catalog.ForeignFunctionName, p *catalog.ForeignProcedure, result ids.OID, signature catalog.ProcedureSignature) error {
 		namespace := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Schema})
 		if namespace == (ids.ObjectAddress{}) {
 			oid, err := e.catalog.allocateOIDLocked()

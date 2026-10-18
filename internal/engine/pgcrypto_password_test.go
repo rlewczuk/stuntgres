@@ -40,7 +40,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 		if !closedPgcryptoDefault(n) {
 			t.Fatal("closed installed crypto default rejected", v.name)
 		}
-		stored, err := binder.bindDefault(raw, ColumnDescriptor{Name: "salt", Usage: binder.typ(sqltype.Text).Usage()})
+		stored, err := binder.bindDefault(raw, catalog.Column{Name: "salt", Usage: binder.typ(sqltype.Text).Usage()})
 		if err != nil {
 			t.Fatal("installed crypto DEFAULT admission", v.name, err)
 		}

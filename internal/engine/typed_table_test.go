@@ -24,16 +24,16 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *catalog.Relation, *ca
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	defer e.DiscardCatalogStage(stage)
-	var columns []ColumnDescriptor
+	var columns []catalog.Column
 	if !empty {
-		columns = []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}, {Name: "note", Usage: testUsage(e, sqltype.Text), Nullable: true, NullabilityKnown: true}}
+		columns = []catalog.Column{{Name: "id", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}, {Name: "note", Usage: testUsage(e, sqltype.Text), Nullable: true, NullabilityKnown: true}}
 	}
 	index := make(map[string]int, len(columns))
 	for i, column := range columns {
 		index[column.Name] = i
 	}
 	e.mu.Lock()
-	source, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "pair", auth.state.CurrentUser, append([]ColumnDescriptor(nil), columns...), index)
+	source, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "pair", auth.state.CurrentUser, append([]catalog.Column(nil), columns...), index)
 	if err == nil {
 		source.RelationKind = catalog.CompositeRelation
 		if !empty {
@@ -46,7 +46,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *catalog.Relation, *ca
 	}
 	var table *catalog.Relation
 	if err == nil {
-		table, err = e.newTableDescriptorLocked(source.Namespace(), "typed", source.Owner, append([]ColumnDescriptor(nil), columns...), index)
+		table, err = e.newTableDescriptorLocked(source.Namespace(), "typed", source.Owner, append([]catalog.Column(nil), columns...), index)
 	}
 	if err == nil {
 		table.OfType = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}
@@ -108,7 +108,7 @@ func TestTypedProviderShapeAndIndependentAttributes(t *testing.T) {
 		t.Fatal("physical own-row source admitted")
 	}
 	invalid = *table
-	invalid.Columns = append([]ColumnDescriptor(nil), table.Columns...)
+	invalid.Columns = append([]catalog.Column(nil), table.Columns...)
 	invalid.Columns[0].Usage = testUsage(e, sqltype.Int8)
 	if err := validateTypedAttachment(view, &invalid); err == nil {
 		t.Fatal("different member usage admitted")

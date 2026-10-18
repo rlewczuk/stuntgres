@@ -84,7 +84,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	for i := range source.Columns {
 		state := catalog.CloneState(view.State())
 		bad := *source
-		bad.Columns = append([]ColumnDescriptor(nil), source.Columns...)
+		bad.Columns = append([]catalog.Column(nil), source.Columns...)
 		bad.Columns[i].Usage.Type, _ = foreign.LookupType(source.Columns[i].Usage.Type.ID())
 		state.SetDescriptor(address, &bad)
 		if got, err := capturePGAggregate(context.Background(), e.catalog.read(state), ref, &bad); got != nil || err == nil {

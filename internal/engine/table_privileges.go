@@ -32,7 +32,7 @@ func (e *Engine) initializeTablePrivileges() error {
 		if i >= 6 {
 			usage.Typmod = 7
 		}
-		d.Columns[i] = ColumnDescriptor{Name: name, Usage: usage, Nullable: true, NullabilityKnown: true, OriginTable: uint32(d.Address().ObjectID), OriginAttribute: int16(i + 1)}
+		d.Columns[i] = catalog.Column{Name: name, Usage: usage, Nullable: true, NullabilityKnown: true, OriginTable: uint32(d.Address().ObjectID), OriginAttribute: int16(i + 1)}
 		d.Index[name] = i
 		d.Attributes[i] = int32(i + 1)
 	}

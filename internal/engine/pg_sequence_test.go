@@ -98,7 +98,7 @@ func TestPGSequenceShape(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			invalid := *d
-			invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+			invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 			invalid.Attributes = append([]int32(nil), d.Attributes...)
 			tc.invalidate(&invalid)
 			if err := (relationProvider{}).Validate(e.CatalogRead(), &invalid); err == nil {

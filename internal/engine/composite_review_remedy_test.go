@@ -53,7 +53,7 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 		consumer := *table
 		consumer.OfType = ids.ObjectAddress{}
 		consumer.RelationKind = catalog.MaterializedViewRelation
-		consumer.Columns = []ColumnDescriptor{{Name: "v", Usage: typ.Usage()}}
+		consumer.Columns = []catalog.Column{{Name: "v", Usage: typ.Usage()}}
 		state := *before.State()
 		state.CloneDescriptors()
 		state.SetDescriptor(table.Address(), &consumer)

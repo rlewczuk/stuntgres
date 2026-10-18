@@ -27,7 +27,7 @@ func literalTypeName(raw parser.Value) string {
 	return "unknown"
 }
 
-func failingRowDetail(row []sqltype.Value, output sqltype.OutputEnvironment, columns []ColumnDescriptor, visible []int, relation *catalog.Relation) (string, error) {
+func failingRowDetail(row []sqltype.Value, output sqltype.OutputEnvironment, columns []catalog.Column, visible []int, relation *catalog.Relation) (string, error) {
 	var b strings.Builder
 	b.WriteString("Failing row contains (")
 	if columns != nil {

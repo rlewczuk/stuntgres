@@ -129,7 +129,7 @@ func dropColumnMetadata(ctx context.Context, view catalog.Read, descriptor func(
 		next.DroppedAttributes = make(map[int32]catalog.AttributeMetadata)
 	}
 	next.DroppedAttributes[history.Number] = history
-	next.Columns = make([]ColumnDescriptor, 0, len(old.Columns)-1)
+	next.Columns = make([]catalog.Column, 0, len(old.Columns)-1)
 	next.Attributes = make([]int32, 0, len(old.Attributes)-1)
 	next.Index = make(map[string]int, len(old.Index)-1)
 	for i, column := range old.Columns {

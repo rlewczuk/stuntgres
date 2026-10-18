@@ -47,7 +47,7 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 	if len(s.Members) > 1600 {
 		return sqlError("54011", "tables can have at most 1600 columns")
 	}
-	columns := make([]ColumnDescriptor, len(s.Members))
+	columns := make([]catalog.Column, len(s.Members))
 	index := make(map[string]int, len(columns))
 	for i, member := range s.Members {
 		if err := op.Context().Err(); err != nil {
@@ -84,7 +84,7 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 			return err
 		}
 		stage.domainBases = append(stage.domainBases, auth.catalog.Get(ref.Address))
-		columns[i] = ColumnDescriptor{Name: member.Name, Usage: usage, DeclaredDimensions: int16(len(raw.ArrayBounds)), Nullable: true, NullabilityKnown: true}
+		columns[i] = catalog.Column{Name: member.Name, Usage: usage, DeclaredDimensions: int16(len(raw.ArrayBounds)), Nullable: true, NullabilityKnown: true}
 	}
 	relation, err := e.newTableDescriptorLocked(ns.Address, name, auth.state.CurrentUser, columns, index)
 	if err != nil {

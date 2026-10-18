@@ -145,7 +145,7 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 	for _, kind := range []string{"invalid", "nullable", "inherited", "primary"} {
 		before := e.catalog.state
 		altered := *old
-		altered.Columns = append([]ColumnDescriptor(nil), old.Columns...)
+		altered.Columns = append([]catalog.Column(nil), old.Columns...)
 		altered.NotNullConstraints = append([]catalog.NotNullConstraint(nil), old.NotNullConstraints...)
 		switch kind {
 		case "invalid":

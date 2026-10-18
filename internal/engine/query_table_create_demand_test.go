@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -20,7 +21,7 @@ func queryCreateBoundSource(t *testing.T, e *Engine, width int) (*projectNode, *
 	}
 	for i := range schema {
 		usage := testUsage(e, sqltype.Int4)
-		schema[i] = ColumnDescriptor{Name: "i", Usage: usage}
+		schema[i] = catalog.Column{Name: "i", Usage: usage}
 		expressions[i] = columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: i}
 		for j := range rows {
 			rows[j][i], _ = sqltype.Integer(usage.Type, int64(j+1))

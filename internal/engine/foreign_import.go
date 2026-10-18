@@ -176,7 +176,7 @@ func foreignImportExpression(text string) (parser.Expr, error) {
 	}
 	return selectStmt.Targets[0], nil
 }
-func importedOptions(options []ForeignOption) []parser.ForeignOption {
+func importedOptions(options []catalog.ForeignOption) []parser.ForeignOption {
 	out := make([]parser.ForeignOption, len(options))
 	for i, o := range options {
 		out[i] = parser.ForeignOption{Name: parser.Identifier{Text: o.Name}, Value: o.Value}
@@ -184,7 +184,7 @@ func importedOptions(options []ForeignOption) []parser.ForeignOption {
 	return out
 }
 func foreignImportedTable(scope *StatementScope, definition ForeignTableDefinition, s *parser.ForeignDDL) (*parser.ForeignDDL, error) {
-	name, err := foreignFunctionName(ForeignFunctionName{Schema: s.LocalSchema.Text, Name: definition.Name})
+	name, err := foreignFunctionName(catalog.ForeignFunctionName{Schema: s.LocalSchema.Text, Name: definition.Name})
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +192,7 @@ func foreignImportedTable(scope *StatementScope, definition ForeignTableDefiniti
 	table := &parser.CreateTable{Name: qualified, Persistence: "logged"}
 	result := &parser.ForeignDDL{Action: "create", Kind: "table", Name: qualified, Table: table, Server: s.Server, Options: importedOptions(definition.Options), ColumnOptions: make(map[string][]parser.ForeignOption)}
 	for _, column := range definition.Columns {
-		if _, err := foreignFunctionName(ForeignFunctionName{Name: column.Name}); err != nil {
+		if _, err := foreignFunctionName(catalog.ForeignFunctionName{Name: column.Name}); err != nil {
 			return nil, err
 		}
 		typ, err := parser.ParseTypeName(scope.op.Context(), column.Type, nil)

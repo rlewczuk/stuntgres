@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -49,7 +50,7 @@ func TestExpressionFloatingArithmeticCanceledRestoreInstallationFence(t *testing
 	run(t, target, "INSERT INTO t VALUES(99,99)")
 	held := run(t, target, "SELECT i+1,b*2 FROM t").Rows
 	defer held.Close()
-	metadata := append([]ColumnDescriptor(nil), held.Schema()...)
+	metadata := append([]catalog.Column(nil), held.Schema()...)
 	before := target.CatalogRead()
 	staged := run(t, source, "SELECT i,b FROM t ORDER BY i")
 	assertFloatingArithmeticRows(t, staged.Rows, [][]any{{float64(16), float64(-8)}, {nil, nil}})

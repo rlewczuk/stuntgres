@@ -55,7 +55,7 @@ func sequenceCreateRestartRow(t *testing.T, e *Engine, s *Session, name string, 
 	t.Helper()
 	r := sessionSQL(t, s, "SELECT * FROM "+name)
 	defer r.Rows.Close()
-	wantSchema := []ColumnDescriptor{
+	wantSchema := []catalog.Column{
 		{Name: "last_value", Usage: testUsage(e, sqltype.Int8), NullabilityKnown: true},
 		{Name: "log_cnt", Usage: testUsage(e, sqltype.Int8), NullabilityKnown: true},
 		{Name: "is_called", Usage: testUsage(e, sqltype.Bool), NullabilityKnown: true},

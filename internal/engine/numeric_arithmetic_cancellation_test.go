@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -77,7 +78,7 @@ func TestExpressionNumericArithmeticCanceledRestoreInstallationFence(t *testing.
 	run(t, target, "INSERT INTO t VALUES(99,99)")
 	held := run(t, target, "SELECT n+0.1,b*2 FROM t").Rows
 	defer held.Close()
-	metadata := append([]ColumnDescriptor(nil), held.Schema()...)
+	metadata := append([]catalog.Column(nil), held.Schema()...)
 	before := target.CatalogRead()
 	staged := run(t, source, "SELECT n,b FROM t ORDER BY n")
 	assertNumericArithmeticRows(t, staged.Rows, [][]any{{"0.3", "9223372036854775809"}, {nil, nil}})

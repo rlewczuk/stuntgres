@@ -119,7 +119,7 @@ func TestQueryTableCreateRegclassArrayReownership(t *testing.T) {
 	queryCreatePublish(t, target, stage)
 	candidate := catalog.CloneState(target.CatalogRead().State())
 	imported := *d
-	imported.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	imported.Columns = append([]catalog.Column(nil), d.Columns...)
 	imported.Columns[0].Usage = array.Usage()
 	candidate.SetDescriptor(d.Address(), &imported)
 	stores := map[ids.ObjectAddress]*relationStorage{d.Address(): source.storage[sourceCopy.Address()]}
@@ -224,7 +224,7 @@ func identifierScalarReownership(t *testing.T, id sqltype.ID) {
 	queryCreatePublish(t, target, stage)
 	candidate := catalog.CloneState(target.CatalogRead().State())
 	imported := *d
-	imported.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	imported.Columns = append([]catalog.Column(nil), d.Columns...)
 	imported.Columns[0].Usage = sourceType.Usage()
 	candidate.SetDescriptor(d.Address(), &imported)
 	stores := map[ids.ObjectAddress]*relationStorage{d.Address(): source.storage[sourceCopy.Address()]}

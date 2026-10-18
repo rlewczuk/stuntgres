@@ -219,7 +219,7 @@ func validateIndexMethod(s *parser.CreateIndex) error {
 	}
 }
 
-func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, s *parser.CreateIndex) (*catalog.IndexDefinition, []ColumnDescriptor, []int32, map[string]int, error) {
+func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, s *parser.CreateIndex) (*catalog.IndexDefinition, []catalog.Column, []int32, map[string]int, error) {
 	total := len(s.Keys) + len(s.Include)
 	d := &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: parent.Address(), Keys: make([]catalog.IndexKey, len(s.Keys)), Include: make([]int32, len(s.Include)), Ready: true, Valid: true, Live: true}
 	if s.Method == "hash" {
@@ -228,7 +228,7 @@ func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironme
 	if s.Method == "gist" {
 		d.Method = catalog.GistMethod
 	}
-	columns := make([]ColumnDescriptor, total)
+	columns := make([]catalog.Column, total)
 	attributes := make([]int32, total)
 	lookup := make(map[string]int, total)
 	system := false
@@ -240,7 +240,7 @@ func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironme
 		} else {
 			raw = s.Keys[i]
 		}
-		fail := func(err error) (*catalog.IndexDefinition, []ColumnDescriptor, []int32, map[string]int, error) {
+		fail := func(err error) (*catalog.IndexDefinition, []catalog.Column, []int32, map[string]int, error) {
 			return nil, nil, nil, nil, err
 		}
 		label := raw.Column.Text

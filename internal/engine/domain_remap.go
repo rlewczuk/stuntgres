@@ -385,7 +385,7 @@ func reownCatalogScalarTypes(next *catalog.State, storage map[ids.ObjectAddress]
 			next.SetDescriptor(address, &copy)
 			d = &copy
 		}
-		var columns []ColumnDescriptor
+		var columns []catalog.Column
 		for i, c := range d.Columns {
 			target := typ(c.Usage.Type)
 			if target == nil {
@@ -401,7 +401,7 @@ func reownCatalogScalarTypes(next *catalog.State, storage map[ids.ObjectAddress]
 			}
 			if target != c.Usage.Type || capability != c.Usage.Collation {
 				if columns == nil {
-					columns = append([]ColumnDescriptor(nil), d.Columns...)
+					columns = append([]catalog.Column(nil), d.Columns...)
 				}
 				columns[i].Usage.Type = target
 				columns[i].Usage.Collation = capability

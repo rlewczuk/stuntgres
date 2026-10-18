@@ -254,14 +254,14 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	for _, width := range []int{0, 3, 5} {
 		next := catalog.CloneState(c.State())
 		invalid := *d
-		invalid.Columns = make([]ColumnDescriptor, width)
+		invalid.Columns = make([]catalog.Column, width)
 		next.SetDescriptor(d.Address(), &invalid)
 		reject(e.catalog.read(next), e.Roles(), ref, &invalid)
 	}
 	for i := range d.Columns {
 		next := catalog.CloneState(c.State())
 		invalid := *d
-		invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+		invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 		invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(d.Columns[i].Usage.Type.ID())
 		next.SetDescriptor(d.Address(), &invalid)
 		reject(e.catalog.read(next), e.Roles(), ref, &invalid)

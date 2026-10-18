@@ -122,7 +122,7 @@ func (b *expressionBinder) ruleColumn(raw parser.ColumnExpr) (expr.Expr, bool, e
 	return columnExpression{Info: b.info(ns.relation.Columns[slot].Usage, raw.Pos, expr.Properties{RowDependent: true}), origin: ref, scope: rulePseudoScope, frame: frame, slot: slot}, true, nil
 }
 
-func ruleResultCheck(d *catalog.Relation, schema []ColumnDescriptor, selectRule bool) error {
+func ruleResultCheck(d *catalog.Relation, schema []catalog.Column, selectRule bool) error {
 	prefix := "RETURNING list"
 	if selectRule {
 		prefix = "SELECT rule's target list"

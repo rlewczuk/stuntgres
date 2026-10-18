@@ -16,7 +16,7 @@ import (
 // LogicalNode is a closed, immutable bound tree. Execution never resolves names.
 type LogicalNode interface {
 	logicalNode()
-	Schema() []ColumnDescriptor
+	Schema() []catalog.Column
 }
 type BoundQuery struct {
 	Root           LogicalNode
@@ -25,7 +25,7 @@ type BoundQuery struct {
 	visibilitySnapshot bool
 }
 type RowCursor interface {
-	Schema() []ColumnDescriptor
+	Schema() []catalog.Column
 	Next(context.Context, []sqltype.Value) (bool, error)
 	Close() error
 }
@@ -35,10 +35,10 @@ type RowResult interface {
 	OutputEnvironment() sqltype.OutputEnvironment
 }
 
-type querySchema []ColumnDescriptor
+type querySchema []catalog.Column
 
-func (querySchema) logicalNode()                 {}
-func (s querySchema) Schema() []ColumnDescriptor { return s }
+func (querySchema) logicalNode()               {}
+func (s querySchema) Schema() []catalog.Column { return s }
 
 type sourceNode struct {
 	querySchema
@@ -794,7 +794,7 @@ type indexedStage struct {
 	cacheOccurrences   []int
 	cacheWidth         int
 	pending            []queryPendingMark
-	schema             []ColumnDescriptor
+	schema             []catalog.Column
 	expressions        []expr.Expr
 	evaluation         EvalContext
 	position           int
@@ -831,7 +831,7 @@ func (s indexedStage) index(i int) int {
 	}
 	return i
 }
-func (s *indexedStage) Schema() []ColumnDescriptor { return s.schema }
+func (s *indexedStage) Schema() []catalog.Column { return s.schema }
 func (s *indexedStage) Next(ctx context.Context, dst []sqltype.Value) (bool, error) {
 	if s.terminal != nil {
 		return false, s.terminal
@@ -1367,7 +1367,7 @@ func mergeQueryIndices(ctx context.Context, indices []int, compare func(int, int
 // self prevents forged or copied handles from releasing another cursor's pins.
 type finalRows struct {
 	self               *finalRows
-	schema             []ColumnDescriptor
+	schema             []catalog.Column
 	source             *querySource
 	owner              *querySource // Capture tree when projection retains a non-root occurrence.
 	selection, slots   []int
@@ -1390,12 +1390,12 @@ type finalRows struct {
 	output             sqltype.OutputEnvironment
 }
 
-func newFinalRows(schema []ColumnDescriptor, count int) *finalRows {
+func newFinalRows(schema []catalog.Column, count int) *finalRows {
 	r := &finalRows{schema: schema, count: count}
 	r.self = r
 	return r
 }
-func (r *finalRows) Schema() []ColumnDescriptor                   { return r.schema }
+func (r *finalRows) Schema() []catalog.Column                     { return r.schema }
 func (r *finalRows) OutputEnvironment() sqltype.OutputEnvironment { return r.output }
 func (r *finalRows) RegclassText(v sqltype.Value) (string, error) {
 	key, err := v.Text()
@@ -1677,7 +1677,7 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 
 // Anonymous producers transfer their already-owned typed rows into the same
 // final cursor contract; empty relations still carry an explicit schema.
-func anonymousResult(schema []ColumnDescriptor, rows [][]sqltype.Value, count int64) (Result, error) {
+func anonymousResult(schema []catalog.Column, rows [][]sqltype.Value, count int64) (Result, error) {
 	r := newFinalRows(schema, len(rows))
 	r.anonymous = rows
 	for _, row := range rows {

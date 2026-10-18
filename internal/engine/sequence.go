@@ -123,11 +123,11 @@ func (s *StatementScope) acquireSequence(ref ids.ObjectRef, mode lock.Mode, rese
 	e.markTemporaryAccessLocked(s, ref)
 	return nil
 }
-func (e *Engine) sequenceColumnsLocked() []ColumnDescriptor {
+func (e *Engine) sequenceColumnsLocked() []catalog.Column {
 	view := e.catalog.read(e.catalog.state)
 	i, _ := view.LookupType(sqltype.Int8)
 	b, _ := view.LookupType(sqltype.Bool)
-	return []ColumnDescriptor{{Name: "last_value", Usage: i.Usage(), NullabilityKnown: true}, {Name: "log_cnt", Usage: i.Usage(), NullabilityKnown: true}, {Name: "is_called", Usage: b.Usage(), NullabilityKnown: true}}
+	return []catalog.Column{{Name: "last_value", Usage: i.Usage(), NullabilityKnown: true}, {Name: "log_cnt", Usage: i.Usage(), NullabilityKnown: true}, {Name: "is_called", Usage: b.Usage(), NullabilityKnown: true}}
 }
 
 // Caller holds Engine.mu. Drop it for manager admission and restore it on every

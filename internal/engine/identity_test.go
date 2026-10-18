@@ -40,7 +40,7 @@ func TestIdentityCatalogReciprocalDefinitions(t *testing.T) {
 		func(d *catalog.Relation) { d.Identities[99] = d.Identities[1] },
 		func(d *catalog.Relation) { d.Identities[1] = d.Identities[2] },
 		func(d *catalog.Relation) {
-			d.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+			d.Columns = append([]catalog.Column(nil), d.Columns...)
 			d.Columns[0].Nullable = true
 		},
 	} {

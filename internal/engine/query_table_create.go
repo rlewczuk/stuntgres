@@ -57,7 +57,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 	if len(schema) > 1600 {
 		return nil, nil, false, sqlError("54011", "tables can have at most 1600 columns")
 	}
-	columns := make([]ColumnDescriptor, len(schema))
+	columns := make([]catalog.Column, len(schema))
 	names := make(map[string]int, len(schema))
 	for i, column := range schema {
 		column.Nullable, column.NullabilityKnown = true, true

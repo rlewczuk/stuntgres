@@ -412,7 +412,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 					}, func(origin catalog.InheritanceOrigin) ids.OID { return origin.Constraint })
 				}
 				if target != a {
-					n.Columns = append([]ColumnDescriptor(nil), r.Columns...)
+					n.Columns = append([]catalog.Column(nil), r.Columns...)
 					for i := range n.Columns {
 						if n.Columns[i].OriginTable == uint32(a.ObjectID) {
 							n.Columns[i].OriginTable = uint32(target.ObjectID)

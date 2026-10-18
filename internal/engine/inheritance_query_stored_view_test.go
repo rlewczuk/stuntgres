@@ -95,7 +95,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 					e.mu.Unlock()
 					t.Fatal(bindErr)
 				}
-				d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: 1, Owner: parent.Owner, RelationKind: catalog.ViewRelation, View: viewPayloadOf(definition), Columns: append([]ColumnDescriptor(nil), b.query.Root.Schema()...), Index: map[string]int{"i": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
+				d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: 1, Owner: parent.Owner, RelationKind: catalog.ViewRelation, View: viewPayloadOf(definition), Columns: append([]catalog.Column(nil), b.query.Root.Schema()...), Index: map[string]int{"i": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
 				d.Columns[0].OriginTable, d.Columns[0].OriginAttribute = uint32(oid), 1
 				viewStage := e.BeginCatalogStage(auth.catalog)
 				bindErr = e.stageRowTypeLocked(viewStage, d)

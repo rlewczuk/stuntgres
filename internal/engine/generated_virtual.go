@@ -25,7 +25,7 @@ func virtualTypeRestriction(t *sqltype.Descriptor) (domain, user bool) {
 	return false, false
 }
 
-func virtualDestination(column ColumnDescriptor) error {
+func virtualDestination(column catalog.Column) error {
 	domain, user := virtualTypeRestriction(column.Usage.Type)
 	if domain {
 		return sqlError("0A000", fmt.Sprintf(`virtual generated column "%s" cannot have a domain type`, column.Name))

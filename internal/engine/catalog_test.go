@@ -98,7 +98,7 @@ func TestCatalogStageConflictsAndForeignViews(t *testing.T) {
 	base := e.CatalogRead()
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	makeDesc := func(oid ids.OID, name string) *catalog.Relation {
-		return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: name, ObjectRevision: 1, Columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
+		return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: name, ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
 	}
 	first, second := e.BeginCatalogStage(base), e.BeginCatalogStage(base)
 	if err := first.Create(makeDesc(catalogUnitOID(t, e), "first")); err != nil {
@@ -211,7 +211,7 @@ func TestCatalogCanceledStageHasNoPublication(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: "canceled", ObjectRevision: 1, Columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
+	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: "canceled", ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
 	d.AttributeHighWater = 1
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Create(d); err != nil {
@@ -292,7 +292,7 @@ func TestCatalogStageAddressCollision(t *testing.T) {
 	prepare := func(name string) *PreparedCatalogPublication {
 		t.Helper()
 		stage := e.BeginCatalogStage(base)
-		d := &catalog.Relation{ObjectAddress: address, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: name, ObjectRevision: 1, Columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
+		d := &catalog.Relation{ObjectAddress: address, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: name, ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
 		d.AttributeHighWater = 1
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
@@ -626,7 +626,7 @@ func TestCatalogReferencesUseCoherentView(t *testing.T) {
 		t.Fatalf("retained creation view: %#v, %v", creation, creationErr)
 	}
 	stage := e.BeginCatalogStage(base)
-	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: creation.Address, ObjectName: "private", ObjectRevision: 1, Columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
+	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: creation.Address, ObjectName: "private", ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
 	d.AttributeHighWater = 1
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
@@ -755,11 +755,11 @@ func TestCatalogCanceledPreparedPublication(t *testing.T) {
 func TestCatalogRejectsMalformedColumnIndex(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
-		columns []ColumnDescriptor
+		columns []catalog.Column
 		index   map[string]int
 	}{
-		{"missing first name", []ColumnDescriptor{{Name: "id"}}, map[string]int{"other": 0}},
-		{"duplicate names", []ColumnDescriptor{{Name: "id"}, {Name: "id"}}, map[string]int{"id": 0, "other": 1}},
+		{"missing first name", []catalog.Column{{Name: "id"}}, map[string]int{"other": 0}},
+		{"duplicate names", []catalog.Column{{Name: "id"}, {Name: "id"}}, map[string]int{"id": 0, "other": 1}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := New()
@@ -852,7 +852,7 @@ func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
 			run(t, e, "INSERT INTO public.sentinel VALUES (11)")
 			base := e.CatalogRead()
 			stage := e.BeginCatalogStage(base)
-			d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "p", ObjectRevision: 1, Columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
+			d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "p", ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
 			d.AttributeHighWater = 1
 			if err := stage.Create(d); err != nil {
 				t.Fatal(err)

@@ -35,7 +35,7 @@ func viewCTEOrdinal(root LogicalNode, ordinal int) LogicalNode {
 	return viewCTEScan(root, func(n *derivedNode) bool { return n.ordinal == ordinal })
 }
 
-func (r *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog catalog.Read, s *parser.Select, project *projectNode, columns []ColumnDescriptor, setOperand bool) (string, error) {
+func (r *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog catalog.Read, s *parser.Select, project *projectNode, columns []catalog.Column, setOperand bool) (string, error) {
 	prefix, err := r.withClauseSQL(ctx, catalog, s.With, s.WithRecursive)
 	if err != nil {
 		return "", err

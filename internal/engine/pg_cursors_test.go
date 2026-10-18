@@ -64,7 +64,7 @@ func TestPGCursorsSource(t *testing.T) {
 	}
 	// A bad scalar identity is an error, never a fallback or partial source.
 	invalid := *currentDescriptor
-	invalid.Columns = append([]ColumnDescriptor(nil), currentDescriptor.Columns...)
+	invalid.Columns = append([]catalog.Column(nil), currentDescriptor.Columns...)
 	invalid.Columns[5].Usage.Type = currentDescriptor.Columns[0].Usage.Type
 	if got, err := capturePGCursors(context.Background(), currentRef, &invalid, s.cursors); got != nil || err == nil {
 		t.Fatal("incompatible timestamp ownership published facts", got, err)
@@ -190,7 +190,7 @@ func TestPGCursorsCatalog(t *testing.T) {
 		t.Fatal("virtual table accepted")
 	}
 	invalid = *d
-	invalid.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	foreign, _ := New().CatalogRead().LookupType(sqltype.Timestamptz)
 	invalid.Columns[5].Usage.Type = foreign
 	if err := (relationProvider{}).Validate(view, &invalid); err == nil {

@@ -89,7 +89,7 @@ func TestTypedSameUsageTypeActionUsesIndependentAttributes(t *testing.T) {
 		t.Fatal("same-usage source TYPE disappeared", actions)
 	}
 	child := inheritanceUnitRelation(e, "c", 22002, "id", "note")
-	child.Columns = append([]ColumnDescriptor(nil), table.Columns...)
+	child.Columns = append([]catalog.Column(nil), table.Columns...)
 	child.Attributes = []int32{3, 8}
 	child.AttributeHighWater = 8
 	for i, attribute := range child.Attributes {

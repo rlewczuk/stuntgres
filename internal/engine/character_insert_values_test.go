@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -148,7 +149,7 @@ func TestCharacterInsertCastResolvedSourceDiagnostic(t *testing.T) {
 			if node == nil || err == nil || node.ResultUsage().Type.ID() != tc.id || node.ResultUsage().Typmod != 6 {
 				t.Fatal("resolved source lost at assignment failure", node, err)
 			}
-			err = insertValueError(e.CatalogRead(), err, ColumnDescriptor{Name: "i", Usage: integer.Usage()}, raw, node.ResultUsage().Type)
+			err = insertValueError(e.CatalogRead(), err, catalog.Column{Name: "i", Usage: integer.Usage()}, raw, node.ResultUsage().Type)
 			d, ok := err.(*sqlstate.Error)
 			if !ok || d.Code != "42804" || d.Message != `column "i" is of type integer but expression is of type `+tc.diagnostic || d.Hint != "You will need to rewrite or cast the expression." || d.Position != "31" {
 				t.Fatal("resolved source diagnostic", err)

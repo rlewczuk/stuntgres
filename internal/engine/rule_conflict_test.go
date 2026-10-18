@@ -52,7 +52,7 @@ func TestRuleConflictAttributeRefresh(t *testing.T) {
 	b.conflict = &boundInsertConflict{targets: b.targets, reads: []int{0}, actionReads: []int{1}, updateTargets: []int{1}, width: 2, update: &boundUpdate{assignments: []expr.Expr{excluded}, predicate: target}}
 	current := *sink
 	current.Attributes = []int32{2, 1}
-	current.Columns = []ColumnDescriptor{sink.Columns[1], sink.Columns[0]}
+	current.Columns = []catalog.Column{sink.Columns[1], sink.Columns[0]}
 	current.Index = map[string]int{"v": 0, "id": 1}
 	catalog := catalog.CloneState(auth.catalog.State())
 	catalog.SetDescriptor(sink.Address(), &current)

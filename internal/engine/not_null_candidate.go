@@ -199,7 +199,7 @@ func notNullCandidate(op *Operation, view catalog.Read, old *catalog.Relation, a
 		}
 	}
 	next := *old
-	next.Columns = append([]ColumnDescriptor(nil), old.Columns...)
+	next.Columns = append([]catalog.Column(nil), old.Columns...)
 	next.Columns[slot].Nullable = !adding
 	if adding {
 		next.NotNullConstraints = make([]catalog.NotNullConstraint, len(old.NotNullConstraints)+1)

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/lock"
@@ -27,7 +28,7 @@ func TestQueryFilterProvenEmptyDemand(t *testing.T) {
 			calls := 0
 			producer := functions.Enum{Info: expr.Info{Usage: mood.Usage()}, Plan: plan, Args: []expr.Expr{enumCapturedArgument{Info: expr.Info{Usage: mood.Usage()}, value: sqltype.Null(mood), calls: &calls}}}
 			project := *query.Root.(*projectNode)
-			project.querySchema = []ColumnDescriptor{{Name: "v", Usage: mood.Usage()}}
+			project.querySchema = []catalog.Column{{Name: "v", Usage: mood.Usage()}}
 			project.expressions = []expr.Expr{producer}
 			bridge := &querySource{ref: input.ref, nestedRoot: &project, nestedInputs: input, materialized: true, flatWidth: 1}
 			if name == "semanticFalse" || name == "identityFalse" {

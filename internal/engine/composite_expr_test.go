@@ -143,7 +143,7 @@ func TestCompositeExprAssignmentPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 	field := func(name string) parser.TargetStep { return parser.TargetStep{Field: &parser.Identifier{Text: name}} }
-	target, err := b.bindAssignmentTarget(ColumnDescriptor{Name: "v", Usage: outer.Usage()}, []parser.TargetStep{field("p"), field("i")}, parser.Position{})
+	target, err := b.bindAssignmentTarget(catalog.Column{Name: "v", Usage: outer.Usage()}, []parser.TargetStep{field("p"), field("i")}, parser.Position{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +160,7 @@ func TestCompositeExprAssignmentPaths(t *testing.T) {
 	if !original.IsNull() || first.CompositeField(0).CompositeField(0).IsNull() || !first.CompositeField(0).CompositeField(1).IsNull() || !first.CompositeField(1).IsNull() {
 		t.Fatal("nested NULL initialization or original ownership")
 	}
-	secondTarget, err := b.bindAssignmentTarget(ColumnDescriptor{Name: "v", Usage: outer.Usage()}, []parser.TargetStep{field("n")}, parser.Position{})
+	secondTarget, err := b.bindAssignmentTarget(catalog.Column{Name: "v", Usage: outer.Usage()}, []parser.TargetStep{field("n")}, parser.Position{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func TestCompositeExprAssignmentPaths(t *testing.T) {
 	if usage := targetUsage(outer.Usage(), []parser.TargetStep{field("p"), field("j")}); usage.Type != integer {
 		t.Fatal("leaf metadata", usage)
 	}
-	if _, err := b.bindAssignmentTarget(ColumnDescriptor{Name: "v", Usage: outer.Usage()}, []parser.TargetStep{field("missing")}, parser.Position{}); err == nil {
+	if _, err := b.bindAssignmentTarget(catalog.Column{Name: "v", Usage: outer.Usage()}, []parser.TargetStep{field("missing")}, parser.Position{}); err == nil {
 		t.Fatal("absent assignment attribute admitted")
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -104,7 +105,7 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 			schema := make(querySchema, width)
 			row := make([]sqltype.Value, width)
 			if width != 0 {
-				schema[0] = ColumnDescriptor{Usage: intType.Usage()}
+				schema[0] = catalog.Column{Usage: intType.Usage()}
 				row[0] = sqltype.Null(intType)
 			}
 			inputs := &querySource{sources: []*querySource{{occurrence: 0}, {occurrence: 1}}}

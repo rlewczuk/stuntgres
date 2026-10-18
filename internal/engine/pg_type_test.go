@@ -176,7 +176,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	for _, badWidth := range []bool{false, true} {
 		root := catalog.CloneState(catalogView.State())
 		bad := *d
-		bad.Columns = append([]ColumnDescriptor(nil), d.Columns...)
+		bad.Columns = append([]catalog.Column(nil), d.Columns...)
 		if badWidth {
 			bad.Columns = bad.Columns[:31]
 		} else {

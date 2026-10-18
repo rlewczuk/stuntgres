@@ -183,7 +183,7 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 	}
 	for _, kind := range []string{"kind", "usage", "origin"} {
 		next := *c
-		next.Columns = append([]ColumnDescriptor(nil), c.Columns...)
+		next.Columns = append([]catalog.Column(nil), c.Columns...)
 		next.Inheritance = cloneInheritance(c.Inheritance)
 		switch kind {
 		case "kind":

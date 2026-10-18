@@ -6,6 +6,7 @@ import (
 	"math"
 	"math/big"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -67,7 +68,7 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 		t.Fatal("Close retained anonymous row ownership")
 	}
 	// A whole typed NULL likewise belongs to the anonymous result, not a session.
-	nullResult, err := anonymousResult([]ColumnDescriptor{{Name: "v", Usage: typ.Usage(), Nullable: true}}, [][]sqltype.Value{{sqltype.Null(typ)}}, 1)
+	nullResult, err := anonymousResult([]catalog.Column{{Name: "v", Usage: typ.Usage(), Nullable: true}}, [][]sqltype.Value{{sqltype.Null(typ)}}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

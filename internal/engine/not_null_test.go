@@ -143,7 +143,7 @@ func TestNotNullProviderInvariants(t *testing.T) {
 		old := e.catalog.state.MustRelation(ref.Address)
 		next := *old
 		next.ObjectRevision++
-		next.Columns = append([]ColumnDescriptor(nil), old.Columns...)
+		next.Columns = append([]catalog.Column(nil), old.Columns...)
 		next.NotNullConstraints = append([]catalog.NotNullConstraint(nil), old.NotNullConstraints...)
 		mutate(&next)
 		stage := e.BeginCatalogStage(e.CatalogRead())
@@ -192,7 +192,7 @@ func notNullMetadataStage(t *testing.T, e *Engine) (*CatalogStage, ids.ObjectRef
 	old := e.catalog.state.MustRelation(ref.Address)
 	next := *old
 	next.ObjectRevision++
-	next.Columns = append([]ColumnDescriptor(nil), old.Columns...)
+	next.Columns = append([]catalog.Column(nil), old.Columns...)
 	next.Columns[0].Nullable = false
 	next.NotNullConstraints = []catalog.NotNullConstraint{{Name: "t_a_not_null", Attribute: 1}}
 	e.mu.Lock()

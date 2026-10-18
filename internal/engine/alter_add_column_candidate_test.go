@@ -28,7 +28,7 @@ func alterAddUnitScope(t *testing.T) (*Engine, *StatementScope, AuthorizationVie
 		t.Fatal(err)
 	}
 	u := testUsage(e, sqltype.Int4)
-	old := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "t", ObjectRevision: 1, Owner: auth.state.CurrentUser, Columns: []ColumnDescriptor{{Name: "a", Usage: u, Nullable: true, NullabilityKnown: true, OriginTable: 20000, OriginAttribute: 1}}, Attributes: []int32{1}, AttributeHighWater: 3, Index: map[string]int{"a": 0}}
+	old := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "t", ObjectRevision: 1, Owner: auth.state.CurrentUser, Columns: []catalog.Column{{Name: "a", Usage: u, Nullable: true, NullabilityKnown: true, OriginTable: 20000, OriginAttribute: 1}}, Attributes: []int32{1}, AttributeHighWater: 3, Index: map[string]int{"a": 0}}
 	return e, scope, auth, old
 }
 
@@ -115,7 +115,7 @@ func TestAlterAddColumnVolatileEffectiveLiveRewrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := *old
-	next.Columns = append(append([]ColumnDescriptor(nil), old.Columns...), ColumnDescriptor{Name: "b", Usage: u, Nullable: true})
+	next.Columns = append(append([]catalog.Column(nil), old.Columns...), catalog.Column{Name: "b", Usage: u, Nullable: true})
 	next.Attributes = []int32{1, 4}
 	next.Index = map[string]int{"a": 0, "b": 1}
 	next.AttributeHighWater = 4

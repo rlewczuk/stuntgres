@@ -140,7 +140,7 @@ func TestViewCheckMapping(t *testing.T) {
 	column := project.expressions[0]
 	// Reorder live physical columns while preserving frozen attribute identities.
 	f.base.Attributes = []int32{11, 7, 19}
-	f.base.Columns = []ColumnDescriptor{f.base.Columns[1], f.base.Columns[0], f.base.Columns[2]}
+	f.base.Columns = []catalog.Column{f.base.Columns[1], f.base.Columns[0], f.base.Columns[2]}
 	viewOf(f.view).checkOption = viewCheckLocal
 	project.child = &filterNode{querySchema: querySchema(f.base.Columns), child: project.child, predicate: column}
 	scope, op := f.scope(t)

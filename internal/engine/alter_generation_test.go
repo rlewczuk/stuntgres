@@ -102,12 +102,12 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 		return v
 	}
 	old := *base
-	old.Columns = []ColumnDescriptor{{Name: "a", Usage: u, Nullable: true}, {Name: "b", Usage: u, Nullable: true}, {Name: "untouched", Usage: u, Nullable: true}}
+	old.Columns = []catalog.Column{{Name: "a", Usage: u, Nullable: true}, {Name: "b", Usage: u, Nullable: true}, {Name: "untouched", Usage: u, Nullable: true}}
 	old.Attributes = []int32{1, 2, 3}
 	old.Index = map[string]int{"a": 0, "b": 1, "untouched": 2}
 	next := old
 	next.Columns = slices.Clone(old.Columns)
-	next.Columns = append(next.Columns, ColumnDescriptor{Name: "c", Usage: u, Nullable: true})
+	next.Columns = append(next.Columns, catalog.Column{Name: "c", Usage: u, Nullable: true})
 	next.Attributes = []int32{1, 2, 3, 4}
 	next.AttributeHighWater = 4
 	next.Index = maps.Clone(old.Index)
@@ -174,7 +174,7 @@ func TestAlterGeneratedExpressionCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	old := *base
-	old.Columns = append(slices.Clone(base.Columns), ColumnDescriptor{Name: "b", Usage: u, Nullable: true})
+	old.Columns = append(slices.Clone(base.Columns), catalog.Column{Name: "b", Usage: u, Nullable: true})
 	old.Attributes = []int32{1, 2}
 	old.Index = map[string]int{"a": 0, "b": 1}
 	old.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored}}

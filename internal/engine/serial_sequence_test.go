@@ -34,7 +34,7 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90001}, ObjectName: "Mixed.Schema", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	table := &catalog.Relation{
 		ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, ObjectNamespace: ns.Address(), ObjectName: "Owned", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
-		Columns:    []ColumnDescriptor{{Name: "ID", Usage: integer.Usage()}, {Name: "plain", Usage: integer.Usage()}},
+		Columns:    []catalog.Column{{Name: "ID", Usage: integer.Usage()}, {Name: "plain", Usage: integer.Usage()}},
 		Attributes: []int32{7, 9}, Index: map[string]int{"ID": 0, "plain": 1}, AttributeHighWater: 9,
 	}
 	owner := table.Address()

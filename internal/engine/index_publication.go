@@ -154,7 +154,7 @@ func evolveIndexRevision(index, oldParent, parent *catalog.Relation, transformat
 	clone := *index
 	clone.ObjectNamespace, clone.Owner = parent.Namespace(), parent.Owner
 	clone.SQLIndex = definition
-	clone.Columns = append([]ColumnDescriptor(nil), index.Columns...)
+	clone.Columns = append([]catalog.Column(nil), index.Columns...)
 	for i, key := range definition.Keys {
 		usage, err := indexKeyUsage(parent, key)
 		if err != nil {

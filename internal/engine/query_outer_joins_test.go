@@ -25,8 +25,8 @@ func TestQueryOuterJoinsMergedOriginsAndNullableFrames(t *testing.T) {
 				t.Fatal("lost preserved origin", schema)
 			}
 			join := query.Root.(*projectNode).child.(*joinNode)
-			beforeLeft := append([]ColumnDescriptor(nil), join.left.Schema()...)
-			beforeRight := append([]ColumnDescriptor(nil), join.right.Schema()...)
+			beforeLeft := append([]catalog.Column(nil), join.left.Schema()...)
+			beforeRight := append([]catalog.Column(nil), join.right.Schema()...)
 			if schema[1].OriginTable == 0 || schema[2].OriginTable == 0 {
 				t.Fatal("lost qualified originals", schema)
 			}

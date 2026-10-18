@@ -118,7 +118,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 		}
 	}
 	flags := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{Zone: utc}, nil)
-	flags.relation = &catalog.Relation{Columns: []ColumnDescriptor{{Name: "z", Usage: flags.typ(sqltype.Timestamptz).Usage()}}, Attributes: []int32{1}, Index: map[string]int{"z": 0}}
+	flags.relation = &catalog.Relation{Columns: []catalog.Column{{Name: "z", Usage: flags.typ(sqltype.Timestamptz).Usage()}}, Attributes: []int32{1}, Index: map[string]int{"z": 0}}
 	column := parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "z"}}}}
 	volatile, err := flags.bindFunctionProvider(datetimeMakeRaw("date_bin", parser.ParameterExpr{Number: 1}, column, datetimeMakeRaw("clock_timestamp")))
 	if err != nil {

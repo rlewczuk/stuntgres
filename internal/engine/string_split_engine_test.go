@@ -152,7 +152,7 @@ func TestStringSplitExpansion(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						schema[i] = ColumnDescriptor{Usage: requests[i].ResultUsage()}
+						schema[i] = catalog.Column{Usage: requests[i].ResultUsage()}
 					}
 					root, err := binder.lowerQuerySets(&singletonNode{}, requests, nil, true)
 					if err != nil {
@@ -357,7 +357,7 @@ func TestStringSplitExpansion(t *testing.T) {
 			}
 		}
 		private := *node
-		private.querySchema = append(append(querySchema(nil), node.querySchema...), ColumnDescriptor{Usage: scalar.ResultUsage()})
+		private.querySchema = append(append(querySchema(nil), node.querySchema...), catalog.Column{Usage: scalar.ResultUsage()})
 		private.scalars = []expr.Expr{scalar, scalar}
 		private.scalarSlots = []int{0, 0}
 		if stage, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, &private); err == nil {
@@ -443,7 +443,7 @@ func TestStringSplitFrames(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				schema[i] = ColumnDescriptor{Usage: requests[i].ResultUsage()}
+				schema[i] = catalog.Column{Usage: requests[i].ResultUsage()}
 			}
 			root, err := binder.lowerQuerySets(&singletonNode{}, requests, nil, true)
 			if err != nil {
@@ -857,7 +857,7 @@ func TestStringSplitPreflight(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					expressions[i], schema[i] = expression, ColumnDescriptor{Usage: expression.ResultUsage()}
+					expressions[i], schema[i] = expression, catalog.Column{Usage: expression.ResultUsage()}
 				}
 				child, err := b.lowerQuerySets(&singletonNode{}, expressions, nil, true)
 				if err != nil {
@@ -963,7 +963,7 @@ func TestStringSplitPreflight(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			projection[i], schema[i] = expr, ColumnDescriptor{Usage: expr.ResultUsage()}
+			projection[i], schema[i] = expr, catalog.Column{Usage: expr.ResultUsage()}
 		}
 		requests := projection
 		if peer {

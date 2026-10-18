@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"sync"
@@ -66,7 +67,7 @@ func sessionSQL(t *testing.T, s *Session, q string) Result {
 func sessionValue(t *testing.T, s *Session, want string) {
 	t.Helper()
 	r := sessionSQL(t, s, "SHOW application_name")
-	if r.Count != 0 || !reflect.DeepEqual(r.Rows.Schema(), []ColumnDescriptor{{Name: "application_name", Usage: testUsage(s.Engine(), sqltype.Text), NullabilityKnown: true}}) || !reflect.DeepEqual(tuples(r), [][]driver.Value{{want}}) {
+	if r.Count != 0 || !reflect.DeepEqual(r.Rows.Schema(), []catalog.Column{{Name: "application_name", Usage: testUsage(s.Engine(), sqltype.Text), NullabilityKnown: true}}) || !reflect.DeepEqual(tuples(r), [][]driver.Value{{want}}) {
 		t.Fatalf("SHOW count=%d %+v %v want count=0 value=%q", r.Count, r.Rows.Schema(), tuples(r), want)
 	}
 }

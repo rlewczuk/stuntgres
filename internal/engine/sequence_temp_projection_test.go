@@ -180,7 +180,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	}
 	sourceBefore, destBefore := captureTemporaryProjectionCatalog(source), captureTemporaryProjectionCatalog(dest)
 	sourceSurvivor := source.catalog.state.MustRelation(roleTableRef(t, source, "portable.survivor").Address)
-	sourceColumns := append([]ColumnDescriptor(nil), sourceSurvivor.Columns...)
+	sourceColumns := append([]catalog.Column(nil), sourceSurvivor.Columns...)
 	sourceStore := source.storage[sourceSurvivor.Address()]
 	sourceValues := make([][]sqltype.Value, len(sourceStore.versions))
 	for i, row := range sourceStore.versions {

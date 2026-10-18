@@ -27,7 +27,7 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 					}
 					provider := &catalog.Type{SQLType: domain, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectRevision: 1}
 					p := inheritanceLifecycleTable(e, 29001, "authority_p")
-					p.Columns = []ColumnDescriptor{{Name: "a", Usage: u}, {Name: "keep", Usage: u}}
+					p.Columns = []catalog.Column{{Name: "a", Usage: u}, {Name: "keep", Usage: u}}
 					p.Attributes, p.AttributeHighWater, p.Index = []int32{3, 7}, 7, map[string]int{"a": 0, "keep": 1}
 					ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), provider.Address())
 					switch definition {
@@ -161,9 +161,9 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 			p := inheritanceLifecycleTable(e, 29101, "prospective_p")
 			c := inheritanceLifecycleTable(e, 29102, "prospective_c", q.Address(), p.Address())
 			u := testUsage(e, sqltype.Int4)
-			p.Columns = []ColumnDescriptor{{Name: "a", Usage: u}}
+			p.Columns = []catalog.Column{{Name: "a", Usage: u}}
 			p.Attributes, p.AttributeHighWater, p.Index = []int32{1}, 1, map[string]int{"a": 0}
-			c.Columns = []ColumnDescriptor{{Name: "a", Usage: u}}
+			c.Columns = []catalog.Column{{Name: "a", Usage: u}}
 			c.Attributes, c.AttributeHighWater, c.Index = []int32{1}, 1, map[string]int{"a": 0}
 			ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), q.Address())
 			if definition == "default" {

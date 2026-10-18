@@ -161,7 +161,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			original := binding{relation: &catalog.Relation{Columns: []ColumnDescriptor{schema[0]}},
+			original := binding{relation: &catalog.Relation{Columns: []catalog.Column{schema[0]}},
 				update: &boundUpdate{from: derived, sourceWidth: 1, assignments: []expr.Expr{expression}}}
 			private, err := preflightUpdate(&evaluation, original.update, func(prepared *boundUpdate) (LogicalNode, error) {
 				current := original
@@ -296,7 +296,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := binding{relation: &catalog.Relation{Columns: []ColumnDescriptor{schema[0]}}, deleteUsing: source, predicate: predicate}
+		original := binding{relation: &catalog.Relation{Columns: []catalog.Column{schema[0]}}, deleteUsing: source, predicate: predicate}
 		private, err := ruleMutationProducerDemand(original)
 		if err != nil {
 			t.Fatal(err)

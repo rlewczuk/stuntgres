@@ -38,7 +38,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 		return nil, err
 	}
 	source := &sourceNode{querySchema: d.Columns, ref: ref, occurrence: 0}
-	root := &projectNode{child: source, expressions: []expr.Expr{node}, frame: 1, querySchema: []ColumnDescriptor{{Usage: node.ResultUsage()}}}
+	root := &projectNode{child: source, expressions: []expr.Expr{node}, frame: 1, querySchema: []catalog.Column{{Usage: node.ResultUsage()}}}
 	capture := binding{
 		query: &BoundQuery{Root: root}, dependencies: b.dependencies, querySources: b.querySources,
 		viewLiterals: b.viewLiterals, viewCastUsages: b.viewCastUsages, viewSimilarSubstrings: b.viewSimilarSubstrings,
