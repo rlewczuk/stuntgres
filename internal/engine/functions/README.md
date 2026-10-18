@@ -129,6 +129,20 @@ SIMILAR escape), `Context` (bind-time template compilation for `to_char`,
 - `FinishBinary` (**leak**): string bytea/bit overloads finish in the binary
   family, which the engine still binds. The binary port removes it.
 
+Added to register `regexp_*` and the variadic string family, replacing the
+values their engine branches passed in:
+
+- `Frame`: the query frame identity that the variadic family's quote-capture
+  folding keys on.
+- `CapturePolymorphicBody`: captures the builtin routines a SQL-bodied
+  builtin (`quote_literal`/`quote_nullable` on anyelement) selects from its
+  actual argument.
+- `TargetSet`: target-list set bookkeeping alone, for regexp sets.
+- `RegexpSetPlacement` (**leak**): the regexp family's own set-returning
+  placement policy (CASE/COALESCE hint, clause tracking), which
+  `AdmitSetReturning` does not cover; unify the two when query analysis gets
+  an owner.
+
 Argument analysis intents are values, not methods: `ThresholdArrayArgument`
 is the comparison operand whose unknown-NULL annotation may name an enum
 array, as `width_bucket`'s threshold array may. `ZoneArgument` is a
@@ -141,8 +155,7 @@ operands get an anonymous record.
 
 Engine state that bind code needs at a single point is passed as a value
 instead of a method: `age(xid)` receives the engine's transaction-identity
-node builder, `regexp_*` its set-placement check, and the variadic string
-binder its query frame.
+node builder.
 
 Prefer passing values to adding methods. A new method needs a reason here:
 either a genuine analyzer capability or a leak that a later step removes.
@@ -196,6 +209,9 @@ Registered families:
 | `like_escape` | `like_escape_bind.go` | `like_escape` | `ExactSpelling`, `SharedGates` |
 | Scalar strings | `string_bind.go` | `stringNames`, `string_to_table` | `ExactSpelling`, `SharedGates` |
 | `parse_ident`, `lower`/`upper` | `string_bind.go` | `parse_ident`, `lower`, `upper` | none |
+| Variadic strings | `string_variadic_bind.go` | `stringVariadicNames` | `Claims` (`StringVariadicFunctionName`) |
+| `regexp_*` | `regexp_bind.go` | `regexpNames` | `ExactSpelling` (checks its own labels) |
+| `to_number` | `numeric_formatting_bind.go` | `to_number` | `ExactSpelling`, `SharedGates` |
 
 `datetimeNames` covers extract/date_part, date_trunc, date_bin,
 timezone/date_add/date_subtract, justify_* and to_char/to_date/to_timestamp.
@@ -209,10 +225,7 @@ entry point, because they need engine state the registry cannot express:
   transaction-identity node.
 - `overlaps` (`BindDatetimeOverlaps`): the engine sets `WrapperContext` from
   inline safety, an engine node walk that F2 replaces.
-- `regexp_*` (`BindRegexpCall`): set placement and Regexp/RegexpSet wrapping.
 - `similar_to_escape` (`BindSimilarEscape`): claimed by call syntax, not name.
-- concat, concat_ws, quote_*, pg_client_encoding (`BindStringVariadic`):
-  polymorphic body capture and the query frame.
 - Not name dispatch: AT TIME ZONE (`BindTimeZone`), the POSIX and SIMILAR TO
   operators (`BindPosix`, `BindSimilar`), the binary family's substring routes
   (`BindPosixSubstring`, `BindSimilarSubstring`, `FinishString`) and `||`/`^@`
@@ -249,8 +262,7 @@ signature spelling by leaf name), `NotedResolutionError` (42883 through
 unqualified argument spelling, `unknown` for deferred literals).
 `operator_error.go`'s `OperatorError` is the operator form of both
 diagnostics. Pure supply helpers serve bind code in and out of the engine:
-`TemporalTypesFor`, `SupplyBinaryTypes` and `NumericFormattingOperands`
-(shared by numeric `to_char` and the engine's `to_number`).
+`TemporalTypesFor` and `SupplyBinaryTypes`.
 
 To add or port a builtin family:
 

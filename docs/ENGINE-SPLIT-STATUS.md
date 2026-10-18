@@ -5,7 +5,7 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `d73e70d4c`.
+Last verified against `master` at `7af01d85b`.
 
 ## Next ready sub-steps
 
@@ -81,7 +81,7 @@ must not run alongside each other or another broad rewrite or alias removal
       *(racecheck skipped at user request)*
     - [x] format
     - [ ] binary
-    - [ ] numeric formatting
+    - [x] numeric formatting (`b6dc6c486`, then the docs commit)
     - [ ] pgcrypto
     - [ ] fuzzystrmatch
     - [ ] unaccent
