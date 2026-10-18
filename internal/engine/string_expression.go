@@ -9,71 +9,18 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// stringNode builds a string node and records what only the analyzer owns:
+// catalog-identifier output of ||, and polymorphic body casts.
 func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos parser.Position, args []BoundExpr, textual [4]bool, syntax parser.StringSyntax) (BoundExpr, error) {
-	stable, stage := functions.StringIntrinsic(name, textual)
-	p := ExprProperties{Volatility: Immutable, StageDependent: stage}
-	if stable {
-		p.Volatility = Stable
+	node, err := functions.StringNode(b, name, result, pos, args, textual, syntax)
+	if err != nil {
+		return nil, err
 	}
 	for i, arg := range args {
 		if functions.StringCatalogOutput(name, textual[i], arg.ResultUsage()) {
 			b.regclassConcat = true
 		}
-		child := arg.Properties()
-		p.Volatility = max(p.Volatility, child.Volatility)
-		p.RowDependent = p.RowDependent || child.RowDependent
-		p.ParameterDependent = p.ParameterDependent || child.ParameterDependent
-		p.StageDependent = p.StageDependent || child.StageDependent
-		p.DomainDependent = p.DomainDependent || child.DomainDependent
-		p.RuntimeDomainConversion = p.RuntimeDomainConversion || child.RuntimeDomainConversion
 	}
-	info := b.info(result, pos, p)
-	inputInfo := info
-	if functions.StringOperationCollation(name) {
-		// Search/prefix demand input collation despite a noncollatable result.
-		inputInfo = b.info(b.typ(sqltype.Text).Usage(), pos, p)
-	}
-	inputInfo, err := b.collatedInfo(inputInfo, args...)
-	if err != nil {
-		return nil, err
-	}
-	if result.Collation.ID != 0 {
-		info = inputInfo
-	}
-	node, err := functions.NewString(info, name, b.typ(sqltype.Text).Usage(), args, textual, syntax, inputInfo.CollationConflict)
-	if err != nil {
-		return nil, err
-	}
-	var formal [4]sqltype.ID
-	for i := range args {
-		formal[i] = node.Plan.ArgumentUsage(i).Type.ID()
-	}
-	count := len(args)
-	if name == "normalize" || name == "is_normalized" {
-		// The NFC default changes written arity, not the released declaration.
-		formal[1], count = sqltype.Text, 2
-	}
-	if name == "parse_ident" {
-		// Defaults and named actual order do not change the released declaration.
-		formal[0], formal[1], count = sqltype.Text, sqltype.Bool, 2
-	}
-	routineName, provider := name, stringRoutineProvider
-	if name == "||" {
-		provider = operatorRoutineProvider
-		switch {
-		case textual[0] && textual[1]:
-			routineName, formal[0], formal[1] = "textcat", sqltype.Text, sqltype.Text
-		case textual[0]:
-			routineName, formal[0], formal[1] = "textanycat", sqltype.Text, sqltype.ID(2776)
-		default:
-			routineName, formal[0], formal[1] = "anytextcat", sqltype.ID(2776), sqltype.Text
-		}
-	}
-	info, err = b.builtinRoutineInfo(info, provider, routineName, formal[:count]...)
-	if err != nil {
-		return nil, err
-	}
-	node.Info = info
 	if err := b.capturePolymorphicBody(node); err != nil {
 		return nil, err
 	}
@@ -198,7 +145,7 @@ func (b *expressionBinder) finishStringFunction(raw parser.FunctionExpr, visible
 		if bitCandidate {
 			family = sqltype.Bit
 		}
-		b.supplyBinaryTypes(functions.BinaryArgumentDemand(name, family, operands, true), &binaryTypes)
+		functions.SupplyBinaryTypes(b, functions.BinaryArgumentDemand(name, family, operands, true), &binaryTypes)
 		if functions.BinaryArgumentsViable(name, family, operands, &binaryTypes) {
 			if b.defaultConsumer && !bitCandidate {
 				return nil, expressionError("0A000", "functions are unsupported", raw.Pos)

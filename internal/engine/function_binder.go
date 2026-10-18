@@ -148,3 +148,7 @@ func (b *expressionBinder) BuiltinOperatorVisible(name parser.ObjectName) (bool,
 func (b *expressionBinder) CallSignatureError(raw parser.FunctionExpr) error {
 	return b.functionSignatureError(raw)
 }
+
+func (b *expressionBinder) FinishBinary(name string, family sqltype.ID, pos parser.Position, operands []functions.Argument, syntax parser.FunctionSyntax, types *functions.BinaryTypes) (expr.Expr, error) {
+	return b.finishBinary(name, family, pos, operands, syntax, types)
+}

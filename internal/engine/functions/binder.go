@@ -97,4 +97,8 @@ type Binder interface {
 	// the arguments for their diagnostic names, reports composite-candidate
 	// calls as unsupported, and notes the missing signature.
 	CallSignatureError(parser.FunctionExpr) error
+	// FinishBinary finishes a selected bytea/bit call. It is a leak: string
+	// overloads route to the binary family, which the engine still binds.
+	// The binary port removes it.
+	FinishBinary(name string, family sqltype.ID, pos parser.Position, operands []Argument, syntax parser.FunctionSyntax, types *BinaryTypes) (expr.Expr, error)
 }
