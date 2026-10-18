@@ -153,10 +153,6 @@ func (b *expressionBinder) LiteralNull(arg expr.Expr) bool { return randomLitera
 
 func (b *expressionBinder) NoteVisibilitySnapshot() { b.visibilitySnapshot = true }
 
-func (b *expressionBinder) FinishBinary(name string, family sqltype.ID, pos parser.Position, operands []functions.Argument, syntax parser.FunctionSyntax, types *functions.BinaryTypes) (expr.Expr, error) {
-	return finishBinary(b, name, family, pos, operands, syntax, types)
-}
-
 func (b *expressionBinder) Frame() uint32 { return b.frameID() }
 
 func (b *expressionBinder) CapturePolymorphicBody(node expr.Expr) error {

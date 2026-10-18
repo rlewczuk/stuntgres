@@ -37,7 +37,7 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 			var node BoundExpr
 			var err error
 			if tc.name == "substring" || tc.name == "bit_count" {
-				node, err = bindBinaryFunction(b, raw, true)
+				node, err = functions.BindBinary(b, raw, true)
 			} else {
 				node, err = functions.BindString(b, raw, true)
 			}
@@ -98,12 +98,12 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 	}
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "substring"}}}, Args: []parser.Expr{bit("10110"), parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}}}
-	node, err := bindBinaryFunction(b, raw, true)
+	node, err := functions.BindBinary(b, raw, true)
 	if err != nil || !node.Properties().ParameterDependent || b.parameters[1].Type.ID() != sqltype.Int4 || b.parameters[2].Type.ID() != sqltype.Int4 {
 		t.Fatal(node, err, b.parameters)
 	}
 	raw.Name.Parts[0].Text = "substr"
-	if _, err := bindBinaryFunction(b, raw, true); err == nil {
+	if _, err := functions.BindBinary(b, raw, true); err == nil {
 		t.Fatal("substr bit admitted")
 	}
 	// BYTEA defaults retain their preexisting capability boundary.
@@ -141,7 +141,7 @@ func TestBitStringFunctionsBoundedOperands(t *testing.T) {
 			operands = append(operands, functions.Argument{Expression: index, Usage: usage})
 		}
 		var types functions.BinaryTypes
-		node, err := finishBinary(b, name, sqltype.Bit, parser.Position{}, operands, parser.OrdinaryFunctionSyntax, &types)
+		node, err := functions.FinishBinary(b, name, sqltype.Bit, parser.Position{}, operands, parser.OrdinaryFunctionSyntax, &types)
 		if err != nil {
 			t.Fatal(name, err)
 		}

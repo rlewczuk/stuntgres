@@ -29,7 +29,7 @@ func TestStringSliceFormalInference(t *testing.T) {
 			var node BoundExpr
 			var err error
 			if name == "substring" || name == "substr" {
-				node, err = bindBinaryFunction(b, raw, true)
+				node, err = functions.BindBinary(b, raw, true)
 			} else {
 				node, err = functions.BindString(b, raw, true)
 			}
@@ -58,7 +58,7 @@ func TestStringSliceFormalInference(t *testing.T) {
 			args[i] = parser.ParameterExpr{Number: i + 1}
 		}
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "substring"}}}, Args: args}
-		node, err := bindBinaryFunction(b, raw, true)
+		node, err := functions.BindBinary(b, raw, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -169,7 +169,7 @@ func TestStringSliceSimilarOrdinaryWrapper(t *testing.T) {
 		return parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: s}}
 	}
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "substring"}}}, Args: []parser.Expr{literal("abc"), literal("%"), literal("xx")}}
-	node, err := bindBinaryFunction(b, raw, true)
+	node, err := functions.BindBinary(b, raw, true)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -104,7 +104,7 @@ func (b *expressionBinder) bindStringConcat(raw parser.OperatorExpr) (BoundExpr,
 	textual, binary, resolution := functions.SelectStringConcat(visible, types)
 	if binary != 0 {
 		var binaryTypes functions.BinaryTypes
-		return finishBinary(b, "||", binary, raw.Pos, operands[:], parser.OrdinaryFunctionSyntax, &binaryTypes)
+		return functions.FinishBinary(b, "||", binary, raw.Pos, operands[:], parser.OrdinaryFunctionSyntax, &binaryTypes)
 	}
 	if resolution != functions.Resolved {
 		if resolution == functions.Missing {

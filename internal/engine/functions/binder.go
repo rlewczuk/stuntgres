@@ -103,10 +103,6 @@ type Binder interface {
 	// NoteVisibilitySnapshot records that execution reads catalog visibility
 	// (encoding conversion lookup), so the statement captures that snapshot.
 	NoteVisibilitySnapshot()
-	// FinishBinary finishes a selected bytea/bit call. It is a leak: string
-	// overloads route to the binary family, which the engine still binds.
-	// The binary port removes it.
-	FinishBinary(name string, family sqltype.ID, pos parser.Position, operands []Argument, syntax parser.FunctionSyntax, types *BinaryTypes) (expr.Expr, error)
 	// Frame identifies the query frame being bound; the variadic string
 	// family's quote-capture folding keys on it.
 	Frame() uint32
