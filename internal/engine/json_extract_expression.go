@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -85,11 +86,11 @@ func (b *expressionBinder) bindJSONExtraction(raw parser.OperatorExpr) (BoundExp
 	node.Info = info
 	return node, nil
 }
-func (b *expressionBinder) bindJSONExtract(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func bindJSONExtract(b functions.Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	document := b.typ(sqltype.JSON).Usage()
+	document := b.Type(sqltype.JSON).Usage()
 	if name == "jsonb_extract_path" || name == "jsonb_extract_path_text" {
-		document = b.typ(sqltype.JSONB).Usage()
+		document = b.Type(sqltype.JSONB).Usage()
 	}
 	var local [16]functions.Argument
 	operands := local[:min(len(raw.Args), len(local))]
@@ -106,14 +107,14 @@ func (b *expressionBinder) bindJSONExtract(raw parser.FunctionExpr, visible bool
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	signature := func() (BoundExpr, error) {
+	signature := func() (expr.Expr, error) {
 		names := make([]string, len(operands))
 		for i, o := range operands {
 			names[i] = functions.NamedArgumentType(raw, i, datetimeFormattingTypeName(o.Usage.Type))
 		}
-		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
 	if len(raw.ArgNames) != 0 && len(raw.ArgNames) != len(raw.Args) {
 		return nil, fmt.Errorf("invalid JSON extraction labels")
@@ -121,16 +122,16 @@ func (b *expressionBinder) bindJSONExtract(raw parser.FunctionExpr, visible bool
 	failure := functions.AnalyzeLabels(raw.ArgNames, raw.Args)
 	switch failure.Kind {
 	case functions.PositionalAfterNamed:
-		return nil, expressionError("42601", "positional argument cannot follow named argument", failure.Pos)
+		return nil, expr.ErrorAt("42601", "positional argument cannot follow named argument", failure.Pos)
 	case functions.DuplicateLabel:
-		return nil, expressionError("42601", fmt.Sprintf("argument name %q used more than once", failure.Name), failure.Pos)
+		return nil, expr.ErrorAt("42601", fmt.Sprintf("argument name %q used more than once", failure.Name), failure.Pos)
 	}
 	if !visible || raw.ResolutionOnly || len(operands) < 2 || raw.Variadic && len(operands) != 2 {
 		return signature()
 	}
-	path := b.typ(sqltype.Text).Usage()
+	path := b.Type(sqltype.Text).Usage()
 	if raw.Variadic {
-		a, ok := b.bindingCatalog().LookupArray(b.typ(sqltype.Text))
+		a, ok := b.ArrayType(b.Type(sqltype.Text))
 		if !ok {
 			return nil, fmt.Errorf("missing text array")
 		}
@@ -156,14 +157,14 @@ func (b *expressionBinder) bindJSONExtract(raw parser.FunctionExpr, visible bool
 			}
 		}
 	}
-	e := functions.JSONExtract{Args: make([]BoundExpr, len(operands)), Variadic: raw.Variadic}
+	e := functions.JSONExtract{Args: make([]expr.Expr, len(operands)), Variadic: raw.Variadic}
 	if len(raw.ArgNames) > 0 {
 		e.Labels = make([]string, len(operands))
 		for i, n := range raw.ArgNames {
 			e.Labels[i] = n.Text
 		}
 	}
-	properties := ExprProperties{Volatility: Immutable}
+	properties := expr.Properties{Volatility: expr.Immutable}
 	for i, o := range operands {
 		target := path
 		if i == 0 {
@@ -174,33 +175,22 @@ func (b *expressionBinder) bindJSONExtract(raw parser.FunctionExpr, visible bool
 			return nil, err
 		}
 		e.Args[i] = arg
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
-	decoration, message := "", "not an aggregate function"
-	switch {
-	case raw.Distinct:
-		decoration = "DISTINCT"
-	case len(raw.Order) != 0:
-		decoration = "ORDER BY"
-	case raw.Filter != nil:
-		decoration = "FILTER"
-	case raw.Window != nil:
-		decoration, message = "OVER", "not a window function nor an aggregate function"
-	}
-	if decoration != "" {
-		return nil, expressionError("42809", decoration+" specified, but "+objectNameText(raw.Name)+" is "+message, raw.Pos)
+	if err := functions.CallDecorationError(raw); err != nil {
+		return nil, err
 	}
 	result := document
 	if name == "json_extract_path_text" || name == "jsonb_extract_path_text" {
-		result = b.typ(sqltype.Text).Usage()
+		result = b.Type(sqltype.Text).Usage()
 	}
-	info := b.info(result, raw.Pos, properties)
+	info := b.Info(result, raw.Pos, properties)
 	plan, err := sqltype.BindJSONExtract(name, result, e.Args[0].ResultUsage(), path, raw.Variadic)
 	if err != nil {
 		return nil, err
 	}
 	// The full released path formal is TEXT[], not expanded TEXT children.
-	info, err = b.builtinRoutineInfo(info, jsonRoutineProvider, name, document.Type.ID(), sqltype.ID(1009))
+	info, err = b.BuiltinRoutineInfo(info, functions.JSONRoutineProvider, name, document.Type.ID(), sqltype.ID(1009))
 	if err != nil {
 		return nil, err
 	}

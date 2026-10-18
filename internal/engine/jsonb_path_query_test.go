@@ -32,7 +32,7 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 				Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name}}},
 				Args: []parser.Expr{parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}},
 			}
-			call, err := b.bindJSONBPathQuery(raw, true)
+			call, err := bindJSONBPathQuery(b, raw, true)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -96,7 +96,7 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 			}
 			if tc.set {
 				b.defaultConsumer = true
-				if _, err := b.bindJSONBPathQuery(raw, true); err == nil {
+				if _, err := bindJSONBPathQuery(b, raw, true); err == nil {
 					t.Fatal("set admitted in scalar default")
 				}
 			} else if validFunctionSourceCall(call) {
@@ -116,7 +116,7 @@ func TestJSONBPathQueryInvocation(t *testing.T) {
 	}
 	bind := func(doc, path string) BoundExpr {
 		t.Helper()
-		call, err := b.bindJSONBPathQuery(parser.FunctionExpr{
+		call, err := bindJSONBPathQuery(b, parser.FunctionExpr{
 			Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "jsonb_path_query"}}},
 			Args: []parser.Expr{literal(doc), literal(path)},
 		}, true)

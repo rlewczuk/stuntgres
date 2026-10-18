@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindJSONBSet(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func bindJSONBSet(b functions.Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	count := 4
 	if name == "jsonb_set_lax" {
@@ -35,14 +36,14 @@ func (b *expressionBinder) bindJSONBSet(raw parser.FunctionExpr, visible bool) (
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	signature := func() (BoundExpr, error) {
+	signature := func() (expr.Expr, error) {
 		names := make([]string, len(operands))
 		for i, o := range operands {
 			names[i] = functions.NamedArgumentType(raw, i, datetimeFormattingTypeName(o.Usage.Type))
 		}
-		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
 	if len(raw.ArgNames) != 0 && len(raw.ArgNames) != len(raw.Args) {
 		return nil, fmt.Errorf("invalid function argument labels")
@@ -50,9 +51,9 @@ func (b *expressionBinder) bindJSONBSet(raw parser.FunctionExpr, visible bool) (
 	failure := functions.AnalyzeLabels(raw.ArgNames, raw.Args)
 	switch failure.Kind {
 	case functions.PositionalAfterNamed:
-		return nil, expressionError("42601", "positional argument cannot follow named argument", failure.Pos)
+		return nil, expr.ErrorAt("42601", "positional argument cannot follow named argument", failure.Pos)
 	case functions.DuplicateLabel:
-		return nil, expressionError("42601", fmt.Sprintf("argument name %q used more than once", failure.Name), failure.Pos)
+		return nil, expr.ErrorAt("42601", fmt.Sprintf("argument name %q used more than once", failure.Name), failure.Pos)
 	}
 	if !visible || raw.ResolutionOnly || (name != "jsonb_set" && name != "jsonb_set_lax" && name != "jsonb_insert") || len(operands) > count {
 		return signature()
@@ -77,7 +78,7 @@ func (b *expressionBinder) bindJSONBSet(raw parser.FunctionExpr, visible bool) (
 		supplied[slot] = true
 		e.WrittenSlots[i] = uint8(slot)
 		if o.Usage.Type != nil {
-			if _, err := sqltype.PlanCoercion(o.Usage, b.typ(ids[slot]).Usage(), sqltype.Implicit); err != nil {
+			if _, err := sqltype.PlanCoercion(o.Usage, b.Type(ids[slot]).Usage(), sqltype.Implicit); err != nil {
 				return signature()
 			}
 		}
@@ -87,42 +88,31 @@ func (b *expressionBinder) bindJSONBSet(raw parser.FunctionExpr, visible bool) (
 			return signature()
 		}
 	}
-	properties := ExprProperties{Volatility: Immutable}
+	properties := expr.Properties{Volatility: expr.Immutable}
 	for i, o := range operands {
 		slot := e.WrittenSlots[i]
-		arg, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: b.typ(ids[slot]).Usage()})
+		arg, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: b.Type(ids[slot]).Usage()})
 		if err != nil {
 			return nil, err
 		}
 		e.Args[slot] = arg
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
 	// Resolve and coerce ordinary arguments before rejecting scalar decorations,
 	// as the existing JSON processing provider does. Never silently discard AST
 	// aggregate/window modifiers transported by the shared function grammar.
-	decoration, message := "", "not an aggregate function"
-	switch {
-	case raw.Distinct:
-		decoration = "DISTINCT"
-	case len(raw.Order) != 0:
-		decoration = "ORDER BY"
-	case raw.Filter != nil:
-		decoration = "FILTER"
-	case raw.Window != nil:
-		decoration, message = "OVER", "not a window function nor an aggregate function"
-	}
-	if decoration != "" {
-		return nil, expressionError("42809", decoration+" specified, but "+objectNameText(raw.Name)+" is "+message, raw.Pos)
+	if err := functions.CallDecorationError(raw); err != nil {
+		return nil, err
 	}
 	if !supplied[3] {
-		typ := b.typ(sqltype.Bool)
-		e.Args[3] = literalExpression{b.info(typ.Usage(), raw.Pos, ExprProperties{Volatility: Immutable}), sqltype.Boolean(typ, name != "jsonb_insert")}
+		typ := b.Type(sqltype.Bool)
+		e.Args[3] = b.Literal(sqltype.Boolean(typ, name != "jsonb_insert"), raw.Pos)
 	}
 	if count == 5 && !supplied[4] {
-		typ := b.typ(sqltype.Text)
-		e.Args[4] = literalExpression{b.info(typ.Usage(), raw.Pos, ExprProperties{Volatility: Immutable}), sqltype.String(typ, "use_json_null")}
+		typ := b.Type(sqltype.Text)
+		e.Args[4] = b.Literal(sqltype.String(typ, "use_json_null"), raw.Pos)
 	}
-	e.Info = b.info(b.typ(sqltype.JSONB).Usage(), raw.Pos, properties)
+	e.Info = b.Info(b.Type(sqltype.JSONB).Usage(), raw.Pos, properties)
 	var usages [5]sqltype.Usage
 	for i := range count {
 		usages[i] = e.Args[i].ResultUsage()
@@ -131,7 +121,7 @@ func (b *expressionBinder) bindJSONBSet(raw parser.FunctionExpr, visible bool) (
 	if err != nil {
 		return nil, err
 	}
-	info, err := b.builtinRoutineInfo(b.info(e.Usage, raw.Pos, properties), jsonRoutineProvider, name, ids[:count]...)
+	info, err := b.BuiltinRoutineInfo(b.Info(e.Usage, raw.Pos, properties), functions.JSONRoutineProvider, name, ids[:count]...)
 	if err != nil {
 		return nil, err
 	}

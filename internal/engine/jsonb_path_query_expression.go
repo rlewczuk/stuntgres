@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindJSONBPathQuery(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func bindJSONBPathQuery(b functions.Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	const count = 4
 	labels := [4]string{"target", "path", "vars", "silent"}
@@ -29,14 +30,14 @@ func (b *expressionBinder) bindJSONBPathQuery(raw parser.FunctionExpr, visible b
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	signature := func() (BoundExpr, error) {
+	signature := func() (expr.Expr, error) {
 		names := make([]string, len(operands))
 		for i, o := range operands {
 			names[i] = functions.NamedArgumentType(raw, i, datetimeFormattingTypeName(o.Usage.Type))
 		}
-		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
 	if len(raw.ArgNames) != 0 && len(raw.ArgNames) != len(raw.Args) {
 		return nil, fmt.Errorf("invalid function argument labels")
@@ -44,15 +45,15 @@ func (b *expressionBinder) bindJSONBPathQuery(raw parser.FunctionExpr, visible b
 	failure := functions.AnalyzeLabels(raw.ArgNames, raw.Args)
 	switch failure.Kind {
 	case functions.PositionalAfterNamed:
-		return nil, expressionError("42601", "positional argument cannot follow named argument", failure.Pos)
+		return nil, expr.ErrorAt("42601", "positional argument cannot follow named argument", failure.Pos)
 	case functions.DuplicateLabel:
-		return nil, expressionError("42601", fmt.Sprintf("argument name %q used more than once", failure.Name), failure.Pos)
+		return nil, expr.ErrorAt("42601", fmt.Sprintf("argument name %q used more than once", failure.Name), failure.Pos)
 	}
 	if !visible || raw.ResolutionOnly || !jsonbPathQueryFunctionName(name) || len(operands) > count {
 		return signature()
 	}
 	e := struct {
-		Args         [4]BoundExpr
+		Args         [4]expr.Expr
 		WrittenCount int
 		WrittenSlots [4]uint8
 		Labels       [4]string
@@ -77,7 +78,7 @@ func (b *expressionBinder) bindJSONBPathQuery(raw parser.FunctionExpr, visible b
 		supplied[slot] = true
 		e.WrittenSlots[i] = uint8(slot)
 		if o.Usage.Type != nil {
-			if _, err := sqltype.PlanCoercion(o.Usage, b.typ(ids[slot]).Usage(), sqltype.Implicit); err != nil {
+			if _, err := sqltype.PlanCoercion(o.Usage, b.Type(ids[slot]).Usage(), sqltype.Implicit); err != nil {
 				return signature()
 			}
 		}
@@ -93,52 +94,37 @@ func (b *expressionBinder) bindJSONBPathQuery(raw parser.FunctionExpr, visible b
 		int(e.WrittenSlots[len(operands)-1]) != len(operands)-1 {
 		return signature()
 	}
-	properties := ExprProperties{Volatility: Immutable}
+	properties := expr.Properties{Volatility: expr.Immutable}
 	for i, o := range operands {
 		slot := e.WrittenSlots[i]
-		arg, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: b.typ(ids[slot]).Usage()})
+		arg, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: b.Type(ids[slot]).Usage()})
 		if err != nil {
 			return nil, err
 		}
 		e.Args[slot] = arg
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
 	// Resolve and coerce ordinary arguments before rejecting scalar decorations,
 	// as the existing JSON processing provider does. Never silently discard AST
 	// aggregate/window modifiers transported by the shared function grammar.
-	decoration, message := "", "not an aggregate function"
-	switch {
-	case raw.Distinct:
-		decoration = "DISTINCT"
-	case len(raw.Order) != 0:
-		decoration = "ORDER BY"
-	case raw.Filter != nil:
-		decoration = "FILTER"
-	case raw.Window != nil:
-		decoration, message = "OVER", "not a window function nor an aggregate function"
-	}
-	if decoration != "" {
-		return nil, expressionError("42809", decoration+" specified, but "+objectNameText(raw.Name)+" is "+message, raw.Pos)
+	if err := functions.CallDecorationError(raw); err != nil {
+		return nil, err
 	}
 	if !supplied[2] {
-		typ := b.typ(sqltype.JSONB)
-		value, err := typ.Input(b.ctx, "{}", -1)
+		typ := b.Type(sqltype.JSONB)
+		value, err := typ.Input(b.Context(), "{}", -1)
 		if err != nil {
 			return nil, err
 		}
-		e.Args[2] = literalExpression{b.info(typ.Usage(), raw.Pos, ExprProperties{Volatility: Immutable}), value}
+		e.Args[2] = b.Literal(value, raw.Pos)
 	}
 	if !supplied[3] {
-		typ := b.typ(sqltype.Bool)
-		e.Args[3] = literalExpression{b.info(typ.Usage(), raw.Pos, ExprProperties{Volatility: Immutable}), sqltype.Boolean(typ, false)}
+		typ := b.Type(sqltype.Bool)
+		e.Args[3] = b.Literal(sqltype.Boolean(typ, false), raw.Pos)
 	}
 	if name == "jsonb_path_query" {
-		if err := b.stringSetAllowed(raw.Pos); err != nil {
+		if err := b.AdmitSetReturning(raw.Pos); err != nil {
 			return nil, err
-		}
-		switch b.aggregateClause {
-		case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
-			b.queryHasTargetSet = true
 		}
 		properties.StageDependent = true
 	}
@@ -146,7 +132,7 @@ func (b *expressionBinder) bindJSONBPathQuery(raw parser.FunctionExpr, visible b
 	if name == "jsonb_path_exists" || name == "jsonb_path_match" {
 		resultID = sqltype.Bool
 	}
-	info, err := b.builtinRoutineInfo(b.info(b.typ(resultID).Usage(), raw.Pos, properties), jsonRoutineProvider, name, ids[:]...)
+	info, err := b.BuiltinRoutineInfo(b.Info(b.Type(resultID).Usage(), raw.Pos, properties), functions.JSONRoutineProvider, name, ids[:]...)
 	if err != nil {
 		return nil, err
 	}
@@ -155,28 +141,28 @@ func (b *expressionBinder) bindJSONBPathQuery(raw parser.FunctionExpr, visible b
 		usages[i] = e.Args[i].ResultUsage()
 	}
 	if name == "jsonb_path_exists" {
-		plan, err := sqltype.BindJSONBPathExists(b.typ(resultID).Usage(), usages[:]...)
+		plan, err := sqltype.BindJSONBPathExists(b.Type(resultID).Usage(), usages[:]...)
 		if err != nil {
 			return nil, err
 		}
 		return functions.JSONBPathExists{Info: info, Plan: plan, Args: e.Args, WrittenCount: e.WrittenCount, WrittenSlots: e.WrittenSlots, Labels: e.Labels, Variadic: e.Variadic}, nil
 	}
 	if name == "jsonb_path_match" {
-		plan, err := sqltype.BindJSONBPathMatch(b.typ(resultID).Usage(), usages[:]...)
+		plan, err := sqltype.BindJSONBPathMatch(b.Type(resultID).Usage(), usages[:]...)
 		if err != nil {
 			return nil, err
 		}
 		return functions.JSONBPathMatch{Info: info, Plan: plan, Args: e.Args, WrittenCount: e.WrittenCount, WrittenSlots: e.WrittenSlots, Labels: e.Labels, Variadic: e.Variadic}, nil
 	}
 	if name == "jsonb_path_query_first" {
-		plan, err := sqltype.BindJSONBPathQueryFirst(b.typ(resultID).Usage(), usages[:]...)
+		plan, err := sqltype.BindJSONBPathQueryFirst(b.Type(resultID).Usage(), usages[:]...)
 		if err != nil {
 			return nil, err
 		}
 		return functions.JSONBPathQueryFirst{Info: info, Plan: plan, Args: e.Args, WrittenCount: e.WrittenCount, WrittenSlots: e.WrittenSlots, Labels: e.Labels, Variadic: e.Variadic}, nil
 	}
 	if name == "jsonb_path_query" {
-		plan, err := sqltype.BindJSONBPathQuery(b.typ(resultID).Usage(), usages[:]...)
+		plan, err := sqltype.BindJSONBPathQuery(b.Type(resultID).Usage(), usages[:]...)
 		if err != nil {
 			return nil, err
 		}

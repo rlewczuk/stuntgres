@@ -3,12 +3,13 @@ package engine
 import (
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindJSONStripNulls(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func bindJSONStripNulls(b functions.Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	labels := [2]string{"target", "strip_in_arrays"}
 	ids := [2]sqltype.ID{sqltype.JSON, sqltype.Bool}
@@ -27,14 +28,14 @@ func (b *expressionBinder) bindJSONStripNulls(raw parser.FunctionExpr, visible b
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	signature := func() (BoundExpr, error) {
+	signature := func() (expr.Expr, error) {
 		names := make([]string, len(operands))
 		for i, o := range operands {
 			names[i] = functions.NamedArgumentType(raw, i, datetimeFormattingTypeName(o.Usage.Type))
 		}
-		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
 	if len(raw.ArgNames) != 0 && len(raw.ArgNames) != len(raw.Args) {
 		return nil, fmt.Errorf("invalid function argument labels")
@@ -42,9 +43,9 @@ func (b *expressionBinder) bindJSONStripNulls(raw parser.FunctionExpr, visible b
 	failure := functions.AnalyzeLabels(raw.ArgNames, raw.Args)
 	switch failure.Kind {
 	case functions.PositionalAfterNamed:
-		return nil, expressionError("42601", "positional argument cannot follow named argument", failure.Pos)
+		return nil, expr.ErrorAt("42601", "positional argument cannot follow named argument", failure.Pos)
 	case functions.DuplicateLabel:
-		return nil, expressionError("42601", fmt.Sprintf("argument name %q used more than once", failure.Name), failure.Pos)
+		return nil, expr.ErrorAt("42601", fmt.Sprintf("argument name %q used more than once", failure.Name), failure.Pos)
 	}
 	if !visible || raw.ResolutionOnly || name != "json_strip_nulls" || len(operands) > 2 {
 		return signature()
@@ -68,7 +69,7 @@ func (b *expressionBinder) bindJSONStripNulls(raw parser.FunctionExpr, visible b
 		}
 		supplied[slot], e.WrittenSlots[i] = true, uint8(slot)
 		if o.Usage.Type != nil {
-			if _, err := sqltype.PlanCoercion(o.Usage, b.typ(ids[slot]).Usage(), sqltype.Implicit); err != nil {
+			if _, err := sqltype.PlanCoercion(o.Usage, b.Type(ids[slot]).Usage(), sqltype.Implicit); err != nil {
 				return signature()
 			}
 		}
@@ -79,35 +80,24 @@ func (b *expressionBinder) bindJSONStripNulls(raw parser.FunctionExpr, visible b
 	if raw.Variadic && len(raw.ArgNames) > 0 && int(e.WrittenSlots[e.WrittenCount-1]) != e.WrittenCount-1 {
 		return signature()
 	}
-	properties := ExprProperties{Volatility: Stable}
+	properties := expr.Properties{Volatility: expr.Stable}
 	for i, o := range operands {
 		slot := e.WrittenSlots[i]
-		arg, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: b.typ(ids[slot]).Usage()})
+		arg, err := b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.ExactFormalArgument, Target: b.Type(ids[slot]).Usage()})
 		if err != nil {
 			return nil, err
 		}
 		e.Args[slot] = arg
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
-	decoration, message := "", "not an aggregate function"
-	switch {
-	case raw.Distinct:
-		decoration = "DISTINCT"
-	case len(raw.Order) != 0:
-		decoration = "ORDER BY"
-	case raw.Filter != nil:
-		decoration = "FILTER"
-	case raw.Window != nil:
-		decoration, message = "OVER", "not a window function nor an aggregate function"
-	}
-	if decoration != "" {
-		return nil, expressionError("42809", decoration+" specified, but "+objectNameText(raw.Name)+" is "+message, raw.Pos)
+	if err := functions.CallDecorationError(raw); err != nil {
+		return nil, err
 	}
 	if !supplied[1] {
-		typ := b.typ(sqltype.Bool)
-		e.Args[1] = literalExpression{b.info(typ.Usage(), raw.Pos, ExprProperties{Volatility: Immutable}), sqltype.Boolean(typ, false)}
+		typ := b.Type(sqltype.Bool)
+		e.Args[1] = b.Literal(sqltype.Boolean(typ, false), raw.Pos)
 	}
-	e.Info = b.info(b.typ(sqltype.JSON).Usage(), raw.Pos, properties)
+	e.Info = b.Info(b.Type(sqltype.JSON).Usage(), raw.Pos, properties)
 	plan, err := sqltype.BindJSONStripNulls(e.Usage, e.Args[0].ResultUsage(), e.Args[1].ResultUsage())
 	if err != nil {
 		return nil, err

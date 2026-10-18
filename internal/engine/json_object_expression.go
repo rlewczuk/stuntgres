@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -8,7 +9,7 @@ import (
 
 // Explicit VARIADIC already carries its final array as one argument. These
 // nonvariadic signatures therefore use exactly the ordinary argument path.
-func (b *expressionBinder) bindTextObjectFunction(raw parser.FunctionExpr, name string, visible bool) (BoundExpr, error) {
+func bindTextObjectFunction(b functions.Binder, raw parser.FunctionExpr, name string, visible bool) (expr.Expr, error) {
 	var small [2]functions.Argument
 	var smallNames [2]string
 	var operands []functions.Argument
@@ -35,14 +36,14 @@ func (b *expressionBinder) bindTextObjectFunction(raw parser.FunctionExpr, name 
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	missing := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
+	missing := func() (expr.Expr, error) { return nil, b.SignatureError(raw.Name, raw.Pos, names) }
 	definition, resolution := functions.ResolveTextObject(name, visible, len(raw.Args))
 	if resolution != functions.Resolved {
 		return missing()
 	}
-	target := b.typ(definition.Argument).Usage()
+	target := b.Type(definition.Argument).Usage()
 	if !functions.TextObjectArgumentsViable(operands, target) {
 		return missing()
 	}
@@ -50,13 +51,13 @@ func (b *expressionBinder) bindTextObjectFunction(raw parser.FunctionExpr, name 
 	if err != nil {
 		return nil, err
 	}
-	properties := ExprProperties{Volatility: Immutable}
+	properties := expr.Properties{Volatility: expr.Immutable}
 	for _, arg := range args {
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
-	usage := b.typ(definition.Result).Usage()
+	usage := b.Type(definition.Result).Usage()
 	formal := [2]sqltype.ID{definition.Argument, definition.Argument}
-	info, err := b.builtinRoutineInfo(b.info(usage, raw.Pos, properties), jsonRoutineProvider, name, formal[:len(args)]...)
+	info, err := b.BuiltinRoutineInfo(b.Info(usage, raw.Pos, properties), functions.JSONRoutineProvider, name, formal[:len(args)]...)
 	if err != nil {
 		return nil, err
 	}

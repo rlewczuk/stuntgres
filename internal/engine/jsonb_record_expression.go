@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -69,7 +70,7 @@ func (c jsonbRecordDomainChecks) CheckDomain(ctx context.Context, target *sqltyp
 	return jsonbRecordHardDomainError{err}
 }
 
-func (b *expressionBinder) bindJSONBRecord(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func bindJSONBRecord(b functions.Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	populate := name == "jsonb_populate_record" || name == "jsonb_populate_recordset" || name == "jsonb_populate_record_valid"
 	count := 1
@@ -90,28 +91,28 @@ func (b *expressionBinder) bindJSONBRecord(raw parser.FunctionExpr, visible bool
 		operands[i] = o
 		names[i] = "unknown"
 		if o.Usage.Type != nil {
-			names[i] = b.diagnosticTypeName(o.Usage.Type)
+			names[i] = b.DiagnosticTypeName(o.Usage.Type)
 		}
 		names[i] = functions.NamedArgumentType(raw, i, names[i])
 	}
-	if _, err := b.bindAggregateFilter(parser.AggregateExpr{Filter: raw.Filter}); err != nil {
+	if err := b.AnalyzeFilter(raw.Filter); err != nil {
 		return nil, err
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	missing := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
+	missing := func() (expr.Expr, error) { return nil, b.SignatureError(raw.Name, raw.Pos, names) }
 	if !visible || len(operands) != count || len(raw.ArgNames) != 0 || raw.Variadic {
 		return missing()
 	}
 	if populate && operands[0].Usage.Type == nil {
-		return nil, sqlError("42804", "could not determine polymorphic type because input has type unknown")
+		return nil, expr.ErrorAt("42804", "could not determine polymorphic type because input has type unknown", parser.Position{})
 	}
-	input := b.typ(sqltype.JSONB).Usage()
+	input := b.Type(sqltype.JSONB).Usage()
 	if functions.ResolveJSONArgument(operands[count-1].Usage, input) != functions.Resolved {
 		return missing()
 	}
-	args := make([]BoundExpr, count)
+	args := make([]expr.Expr, count)
 	if populate {
 		args[0] = operands[0].Expression
 	}
@@ -120,19 +121,8 @@ func (b *expressionBinder) bindJSONBRecord(raw parser.FunctionExpr, visible bool
 	if err != nil {
 		return nil, err
 	}
-	decoration, message := "", "not an aggregate function"
-	switch {
-	case raw.Distinct:
-		decoration = "DISTINCT"
-	case len(raw.Order) != 0:
-		decoration = "ORDER BY"
-	case raw.Filter != nil:
-		decoration = "FILTER"
-	case raw.Window != nil:
-		decoration, message = "OVER", "not a window function nor an aggregate function"
-	}
-	if decoration != "" {
-		return nil, expressionError("42809", decoration+" specified, but "+objectNameText(raw.Name)+" is "+message, raw.Pos)
+	if err := functions.CallDecorationError(raw); err != nil {
+		return nil, err
 	}
 	var result sqltype.Usage
 	unresolved := false
@@ -147,41 +137,32 @@ func (b *expressionBinder) bindJSONBRecord(raw parser.FunctionExpr, visible bool
 		result = shape.Usage()
 		unresolved = true
 	}
-	if err := b.captureTypeDiagnosticInput(result.Type); err != nil {
+	if err := b.CaptureTypeInput(result.Type); err != nil {
 		return nil, err
 	}
-	if result.Type.ContainsCatalogIdentifier() {
-		if err := b.captureElementInput(); err != nil {
-			return nil, err
-		}
-	}
 	if name == "jsonb_populate_record_valid" {
-		result = b.typ(sqltype.Bool).Usage()
+		result = b.Type(sqltype.Bool).Usage()
 	}
-	properties := ExprProperties{Volatility: Stable, RuntimeDomainConversion: true}
+	properties := expr.Properties{Volatility: expr.Stable, RuntimeDomainConversion: true}
 	for _, arg := range args {
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
 	if name == "jsonb_populate_recordset" || name == "jsonb_to_recordset" {
-		if err := b.stringSetAllowed(raw.Pos); err != nil {
+		if err := b.AdmitSetReturning(raw.Pos); err != nil {
 			return nil, err
-		}
-		switch b.aggregateClause {
-		case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
-			b.queryHasTargetSet = true
 		}
 		properties.StageDependent = true
 	}
-	info := b.info(result, raw.Pos, properties)
+	info := b.Info(result, raw.Pos, properties)
 	call := functions.JSONBRecord{Info: info, Name: name, Args: args, Unresolved: unresolved}
 	call, err = call.Reconstruct(call.Info, args)
 	if err != nil {
 		return nil, err
 	}
 	if populate {
-		info, err = b.builtinRoutineInfo(info, jsonRoutineProvider, name, 2283, sqltype.JSONB)
+		info, err = b.BuiltinRoutineInfo(info, functions.JSONRoutineProvider, name, 2283, sqltype.JSONB)
 	} else {
-		info, err = b.builtinRoutineInfo(info, jsonRoutineProvider, name, sqltype.JSONB)
+		info, err = b.BuiltinRoutineInfo(info, functions.JSONRoutineProvider, name, sqltype.JSONB)
 	}
 	if err != nil {
 		return nil, err

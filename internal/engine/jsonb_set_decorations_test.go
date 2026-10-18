@@ -22,7 +22,7 @@ func TestJSONBSetDecorationDiagnostics(t *testing.T) {
 			t.Run(q, func(t *testing.T) {
 				b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 				raw := statement(t, q).(*parser.Select).Targets[0].(parser.FunctionExpr)
-				_, err := b.bindJSONBSet(raw, true)
+				_, err := bindJSONBSet(b, raw, true)
 				var got *sqlstate.Error
 				want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: tc.decoration + " specified, but " + name + " is " + tc.kind, Position: "14"}
 				if !errors.As(err, &got) || *got != want {

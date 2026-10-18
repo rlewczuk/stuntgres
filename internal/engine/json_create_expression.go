@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindJSONCreate(raw parser.FunctionExpr) (BoundExpr, error) {
+func bindJSONCreate(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	kind := functions.JSONCreateKind(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
 	var operands []functions.Argument
 	var small [2]functions.Argument
@@ -32,46 +32,46 @@ func (b *expressionBinder) bindJSONCreate(raw parser.FunctionExpr) (BoundExpr, e
 	}
 	switch failure := functions.AnalyzeLabels(raw.ArgNames, raw.Args); failure.Kind {
 	case functions.PositionalAfterNamed:
-		return nil, expressionError("42601", "positional argument cannot follow named argument", failure.Pos)
+		return nil, expr.ErrorAt("42601", "positional argument cannot follow named argument", failure.Pos)
 	case functions.DuplicateLabel:
-		return nil, expressionError("42601", fmt.Sprintf("argument name %q used more than once", failure.Name), failure.Pos)
+		return nil, expr.ErrorAt("42601", fmt.Sprintf("argument name %q used more than once", failure.Name), failure.Pos)
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	visible, err := b.builtinVisible(raw.Name, functionLookup)
+	visible, err := b.BuiltinVisible(raw.Name)
 	if err != nil {
 		return nil, err
 	}
 	var boolean sqltype.Usage
 	if !kind.Builder() && len(operands) == 2 && operands[1].Usage.Type != nil {
-		boolean = b.typ(sqltype.Bool).Usage()
+		boolean = b.Type(sqltype.Bool).Usage()
 	}
 	if functions.ResolveJSONCreate(kind, raw.Name.Parts[len(raw.Name.Parts)-1].Text, visible, raw.Variadic, raw.ResolutionOnly, len(raw.ArgNames), operands, boolean) != functions.Resolved {
 		names := make([]string, len(operands))
 		for i, o := range operands {
 			names[i] = "unknown"
 			if d := o.Usage.Type; d != nil {
-				names[i] = b.diagnosticTypeName(d)
+				names[i] = b.DiagnosticTypeName(d)
 			}
 			names[i] = functions.NamedArgumentType(raw, i, names[i])
 		}
-		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
 	name := kind.Name()
 	switch {
 	case raw.Star:
-		return nil, expressionError("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
 	case raw.Distinct:
-		return nil, expressionError("42809", "DISTINCT specified, but "+name+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", "DISTINCT specified, but "+name+" is not an aggregate function", raw.Pos)
 	case len(raw.Order) != 0:
-		return nil, expressionError("42809", "ORDER BY specified, but "+name+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", "ORDER BY specified, but "+name+" is not an aggregate function", raw.Pos)
 	case raw.Filter != nil:
-		return nil, expressionError("42809", "FILTER specified, but "+name+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", "FILTER specified, but "+name+" is not an aggregate function", raw.Pos)
 	case raw.Window != nil:
-		return nil, expressionError("42809", "OVER specified, but "+name+" is not a window function nor an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", "OVER specified, but "+name+" is not a window function nor an aggregate function", raw.Pos)
 	}
-	args := make([]BoundExpr, len(operands))
+	args := make([]expr.Expr, len(operands))
 	var unknown [2]uint64
 	properties := expr.IntrinsicProperties(functions.JSONCreateIntrinsicRule())
 	for i, o := range operands {
@@ -82,25 +82,15 @@ func (b *expressionBinder) bindJSONCreate(raw parser.FunctionExpr) (BoundExpr, e
 		}
 		switch functions.JSONCreateRule(kind, i, o.Usage, rawUnknown) {
 		case functions.JSONUnknownPolymorphic:
-			return nil, sqlError("42804", "could not determine polymorphic type because input has type unknown")
+			return nil, expr.ErrorAt("42804", "could not determine polymorphic type because input has type unknown", parser.Position{})
 		case functions.JSONRecordFormal:
 			// The fixed RECORD formal supplies an occurrence-owned transport identity,
 			// not a promotion of catalog RECORD or an anonymous composite text codec.
-			var record *sqltype.Descriptor
-			if p, ok := o.Expression.(parameterExpression); ok {
-				record = b.parameters[p.number].Type
-			}
-			if record == nil {
-				record, err = sqltype.RecordShape(nil)
-				if err != nil {
-					return nil, err
-				}
-			}
-			arg, err = b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.FinalizeArgument, Target: record.Usage()})
+			arg, err = b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.RecordFormalArgument})
 		case functions.JSONBooleanFormal:
-			arg, err = b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.LikeArgument, Target: b.typ(sqltype.Bool).Usage()})
+			arg, err = b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.LikeArgument, Target: b.Type(sqltype.Bool).Usage()})
 		case functions.JSONTextUnknown:
-			arg, err = b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.FinalizeArgument, Target: b.typ(sqltype.Text).Usage()})
+			arg, err = b.CoerceArgument(o, functions.CoercionRequest{Intent: functions.FinalizeArgument, Target: b.Type(sqltype.Text).Usage()})
 		}
 		if err != nil {
 			return nil, err
@@ -109,9 +99,7 @@ func (b *expressionBinder) bindJSONCreate(raw parser.FunctionExpr) (BoundExpr, e
 			return nil, fmt.Errorf("missing JSON function operand")
 		}
 		args[i] = arg
-		if parameter, ok := arg.(parameterExpression); ok && parameter.Usage.Type == nil {
-			b.anyParameters = append(b.anyParameters, parameter)
-		}
+		b.RetainUntypedParameter(arg)
 		p := arg.Properties()
 		properties.Volatility = max(properties.Volatility, p.Volatility)
 		properties.RowDependent = properties.RowDependent || p.RowDependent
@@ -120,13 +108,13 @@ func (b *expressionBinder) bindJSONCreate(raw parser.FunctionExpr) (BoundExpr, e
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 		if arg.ResultUsage().Type != nil && arg.ResultUsage().Type.ContainsCatalogIdentifier() {
-			b.regclassConcat = true
+			b.NoteCatalogText()
 		}
 	}
 	if kind.Builder() && raw.Variadic && !functions.JSONCreateVariadicArgumentValid(args[0].ResultUsage()) {
-		return nil, expressionError("42804", "VARIADIC argument must be an array", raw.Args[0].SourcePosition())
+		return nil, expr.ErrorAt("42804", "VARIADIC argument must be an array", raw.Args[0].SourcePosition())
 	}
-	info := b.info(b.typ(functions.JSONCreateResult(kind)).Usage(), raw.Pos, properties)
+	info := b.Info(b.Type(functions.JSONCreateResult(kind)).Usage(), raw.Pos, properties)
 	node, err := functions.NewJSONCreate(info, kind, args, raw.Variadic, unknown)
 	if err != nil {
 		return nil, err
@@ -146,7 +134,7 @@ func (b *expressionBinder) bindJSONCreate(raw parser.FunctionExpr) (BoundExpr, e
 			formal[0], count = sqltype.ID(2276), 1
 		}
 	}
-	info, err = b.builtinRoutineInfo(info, jsonRoutineProvider, name, formal[:count]...)
+	info, err = b.BuiltinRoutineInfo(info, functions.JSONRoutineProvider, name, formal[:count]...)
 	if err != nil {
 		return nil, err
 	}

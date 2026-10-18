@@ -78,7 +78,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return b.bindStringVariadic(raw)
 	}
 	if functions.JSONCreateKind(name) != 0 {
-		return b.bindJSONCreate(raw)
+		return bindJSONCreate(b, raw)
 	}
 	if strings.EqualFold(name, "generate_series") {
 		visible, err := b.builtinVisible(raw.Name, functionLookup)
@@ -99,49 +99,49 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		if err != nil {
 			return nil, err
 		}
-		return b.bindJSONBPathQueryArray(raw, visible)
+		return bindJSONBPathQueryArray(b, raw, visible)
 	}
 	if parser.JSONBPathQueryFunctionName(name) {
 		visible, err := b.builtinVisible(raw.Name, functionLookup)
 		if err != nil {
 			return nil, err
 		}
-		return b.bindJSONBPathQuery(raw, visible)
+		return bindJSONBPathQuery(b, raw, visible)
 	}
 	if parser.JSONBSetFunctionName(name) {
 		visible, err := b.builtinVisible(raw.Name, functionLookup)
 		if err != nil {
 			return nil, err
 		}
-		return b.bindJSONBSet(raw, visible)
+		return bindJSONBSet(b, raw, visible)
 	}
 	if strings.EqualFold(name, "json_strip_nulls") {
 		visible, err := b.builtinVisible(raw.Name, functionLookup)
 		if err != nil {
 			return nil, err
 		}
-		return b.bindJSONStripNulls(raw, visible)
+		return bindJSONStripNulls(b, raw, visible)
 	}
 	if name == "json_extract_path" || name == "json_extract_path_text" || name == "jsonb_extract_path" || name == "jsonb_extract_path_text" {
 		visible, err := b.builtinVisible(raw.Name, functionLookup)
 		if err != nil {
 			return nil, err
 		}
-		return b.bindJSONExtract(raw, visible)
+		return bindJSONExtract(b, raw, visible)
 	}
 	if parser.JSONBRecordFunctionName(name) {
 		visible, err := b.builtinVisible(raw.Name, functionLookup)
 		if err != nil {
 			return nil, err
 		}
-		return b.bindJSONBRecord(raw, visible)
+		return bindJSONBRecord(b, raw, visible)
 	}
 	if parser.JSONFunctionName(name) {
 		visible, err := b.builtinVisible(raw.Name, functionLookup)
 		if err != nil {
 			return nil, err
 		}
-		return b.bindJSONFunction(raw, visible)
+		return bindJSONFunction(b, raw, visible)
 	}
 	if sqltype.RegexpFunctionKind(name) != 0 {
 		visible, err := b.builtinVisible(raw.Name, functionLookup)
@@ -209,7 +209,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	var kind functions.NullCountKind
 	switch name {
 	case "json_object", "jsonb_object":
-		return b.bindTextObjectFunction(raw, name, visible)
+		return bindTextObjectFunction(b, raw, name, visible)
 	case "enum_first", "enum_last", "enum_range":
 		return b.bindEnumFunction(raw, visible)
 	case "pg_get_constraintdef", "pg_get_expr", "pg_get_indexdef", "pg_get_viewdef", "pg_get_serial_sequence":

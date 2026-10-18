@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -11,7 +12,7 @@ func jsonRecordFunction(name string) bool {
 	return name == "json_populate_record" || name == "json_populate_recordset" || name == "json_to_record" || name == "json_to_recordset"
 }
 
-func (b *expressionBinder) bindJSONRecord(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func bindJSONRecord(b functions.Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	populate := name == "json_populate_record" || name == "json_populate_recordset"
 	var operandStorage [2]functions.Argument
@@ -29,18 +30,18 @@ func (b *expressionBinder) bindJSONRecord(raw parser.FunctionExpr, visible bool)
 		if i < len(names) {
 			names[i] = "unknown"
 			if o.Usage.Type != nil {
-				names[i] = b.diagnosticTypeName(o.Usage.Type)
+				names[i] = b.DiagnosticTypeName(o.Usage.Type)
 			}
 			names[i] = functions.NamedArgumentType(raw, i, names[i])
 		}
 	}
-	if _, err := b.bindAggregateFilter(parser.AggregateExpr{Filter: raw.Filter}); err != nil {
+	if err := b.AnalyzeFilter(raw.Filter); err != nil {
 		return nil, err
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	missing := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
+	missing := func() (expr.Expr, error) { return nil, b.SignatureError(raw.Name, raw.Pos, names) }
 	count, baseIndex, jsonIndex := 1, -1, 0
 	if populate {
 		count, baseIndex, jsonIndex = 2, 0, 1
@@ -76,33 +77,22 @@ func (b *expressionBinder) bindJSONRecord(raw parser.FunctionExpr, visible bool)
 			}
 		}
 	}
-	if functions.ResolveJSONArgument(operands[jsonIndex].Usage, b.typ(sqltype.JSON).Usage()) != functions.Resolved {
+	if functions.ResolveJSONArgument(operands[jsonIndex].Usage, b.Type(sqltype.JSON).Usage()) != functions.Resolved {
 		return missing()
 	}
 	if populate && operands[baseIndex].Usage.Type == nil {
-		return nil, sqlError("42804", "could not determine polymorphic type because input has type unknown")
+		return nil, expr.ErrorAt("42804", "could not determine polymorphic type because input has type unknown", parser.Position{})
 	}
-	decoration, message := "", "not an aggregate function"
-	switch {
-	case raw.Distinct:
-		decoration = "DISTINCT"
-	case len(raw.Order) != 0:
-		decoration = "ORDER BY"
-	case raw.Filter != nil:
-		decoration = "FILTER"
-	case raw.Window != nil:
-		decoration, message = "OVER", "not a window function nor an aggregate function"
+	if err := functions.CallDecorationError(raw); err != nil {
+		return nil, err
 	}
-	if decoration != "" {
-		return nil, expressionError("42809", decoration+" specified, but "+objectNameText(raw.Name)+" is "+message, raw.Pos)
-	}
-	args := make([]BoundExpr, count)
-	properties := ExprProperties{Volatility: Stable}
+	args := make([]expr.Expr, count)
+	properties := expr.Properties{Volatility: expr.Stable}
 	for i, operand := range operands {
 		arg := operand.Expression
 		if i == jsonIndex {
 			var err error
-			arg, err = b.CoerceArgument(operand, functions.CoercionRequest{Intent: functions.LikeArgument, Target: b.typ(sqltype.JSON).Usage()})
+			arg, err = b.CoerceArgument(operand, functions.CoercionRequest{Intent: functions.LikeArgument, Target: b.Type(sqltype.JSON).Usage()})
 			if err != nil {
 				return nil, err
 			}
@@ -121,26 +111,22 @@ func (b *expressionBinder) bindJSONRecord(raw parser.FunctionExpr, visible bool)
 		usage = args[baseIndex].ResultUsage()
 	}
 	if name == "json_populate_recordset" || name == "json_to_recordset" {
-		if err := b.stringSetAllowed(raw.Pos); err != nil {
+		if err := b.AdmitSetReturning(raw.Pos); err != nil {
 			return nil, err
-		}
-		switch b.aggregateClause {
-		case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
-			b.queryHasTargetSet = true
 		}
 		properties.StageDependent = true
 	}
 	properties.DomainDependent = properties.DomainDependent || sqltype.ContainsDomainChecks(usage.Type)
 	properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || sqltype.ContainsDomainChecks(usage.Type)
-	info := b.info(usage, raw.Pos, properties)
+	info := b.Info(usage, raw.Pos, properties)
 	record, err := functions.NewJSONRecord(info, name, baseIndex, args)
 	if err != nil {
 		return nil, err
 	}
 	if populate {
-		info, err = b.builtinRoutineInfo(info, jsonRoutineProvider, name, 2283, sqltype.JSON, sqltype.Bool)
+		info, err = b.BuiltinRoutineInfo(info, functions.JSONRoutineProvider, name, 2283, sqltype.JSON, sqltype.Bool)
 	} else {
-		info, err = b.builtinRoutineInfo(info, jsonRoutineProvider, name, sqltype.JSON)
+		info, err = b.BuiltinRoutineInfo(info, functions.JSONRoutineProvider, name, sqltype.JSON)
 	}
 	if err != nil {
 		return nil, err

@@ -16,7 +16,7 @@ func TestJSONCreateBindingAndVisitors(t *testing.T) {
 	engine := New()
 	binder := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	literal := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "x"}}
-	node, err := binder.bindJSONCreate(nullCountRaw("json_build_array", literal))
+	node, err := bindJSONCreate(binder, nullCountRaw("json_build_array", literal))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,7 +24,7 @@ func TestJSONCreateBindingAndVisitors(t *testing.T) {
 	if bound.Properties().Volatility != Stable || bound.ResultUsage().Type.ID() != sqltype.JSON || bound.ResultUsage().Typmod != -1 || !bound.UnknownArgument(0) {
 		t.Fatal("signature/provenance lost", bound)
 	}
-	if _, err := binder.bindJSONCreate(nullCountRaw("to_json", literal)); err == nil {
+	if _, err := bindJSONCreate(binder, nullCountRaw("to_json", literal)); err == nil {
 		t.Fatal("polymorphic unknown string admitted")
 	} else {
 		var d *sqlstate.Error
@@ -67,11 +67,11 @@ func TestJSONCreateRecordParameterOccurrence(t *testing.T) {
 	engine := New()
 	binder := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	raw := nullCountRaw("row_to_json", parser.ParameterExpr{Number: 1})
-	first, err := binder.bindJSONCreate(raw)
+	first, err := bindJSONCreate(binder, raw)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := binder.bindJSONCreate(raw)
+	second, err := bindJSONCreate(binder, raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestJSONCreateRecordParameterOccurrence(t *testing.T) {
 	}
 	reanalysis := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	reanalysis.seedParameters(signature.Types)
-	rebound, err := reanalysis.bindJSONCreate(raw)
+	rebound, err := bindJSONCreate(reanalysis, raw)
 	if err != nil {
 		t.Fatal("retained RECORD formal lost anonymous shape during reanalysis", err)
 	}
