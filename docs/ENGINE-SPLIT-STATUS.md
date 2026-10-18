@@ -5,7 +5,7 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `604ee2be6`.
+Last verified against `master` at `684513b33`.
 
 ## Next ready sub-steps
 
@@ -66,8 +66,10 @@ must not run alongside each other or another broad rewrite or alias removal
     - [ ] LIKE/SIMILAR/regex
     - [ ] datetime
     - [ ] JSON/JSONB/SQL-JSON
-    - [ ] arrays
-    - [ ] ranges
+    - [x] arrays (with ranges: `a46ee7c5c`, `48d987da7`, `62f610cb1`,
+      `050805a1e`, `a5be023f9`, then the docs commit)
+      *(racecheck skipped at user request)*
+    - [x] ranges (`lower`/`upper` stay with string)
     - [x] UUID (with format and uuid-ossp: `e29efd342`, `6bcd3fb43`,
       `0a04835ae`, `36411c4fd`, `0a80f30a0`, then the docs commit)
       *(racecheck skipped at user request)*
