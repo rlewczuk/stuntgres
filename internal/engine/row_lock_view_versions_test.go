@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"testing"
+
+	"stuntgres/internal/engine/lock"
 )
 
 func TestRowLockViewRecheckModes(t *testing.T) {
@@ -45,15 +47,15 @@ func TestRowLockViewRecheckModes(t *testing.T) {
 						}
 					}
 					done := rowLockViewAsync(t, b, context.Background(), query)
-					mode := keyShare
+					mode := lock.ForKeyShare
 					if clause == "FOR SHARE" {
-						mode = rowShare
+						mode = lock.ForShare
 					}
 					if clause == "FOR NO KEY UPDATE" {
-						mode = noKeyUpdate
+						mode = lock.ForNoKeyUpdate
 					}
 					if clause == "FOR UPDATE" {
-						mode = rowUpdate
+						mode = lock.ForUpdate
 					}
 					rowLockQueued(t, e, a.transactions.ticket, mode)
 					sessionSQL(t, c, "INSERT INTO t VALUES(3,10)")
@@ -61,7 +63,7 @@ func TestRowLockViewRecheckModes(t *testing.T) {
 					rowLockAwait(t, done, tc.want...)
 					if tc.commit && (tc.name == "definition_reject" || tc.name == "outer_reject" || tc.name == "on_reject") {
 						done = rowLockViewAsync(t, c, context.Background(), "DELETE FROM t WHERE id=1")
-						rowLockQueued(t, e, b.transactions.ticket, rowUpdate)
+						rowLockQueued(t, e, b.transactions.ticket, lock.ForUpdate)
 						transactionEnd(t, b, br, false)
 						deleteAwait(t, done, 1, nil)
 					} else {

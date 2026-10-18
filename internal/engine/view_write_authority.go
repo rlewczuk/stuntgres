@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
@@ -102,8 +103,8 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 // same lock ticket/journal owns the real RX grant and all lifecycle source locks.
 func (s *StatementScope) acquireViewWriteTarget(w *viewWrite) error {
 	e := s.op.session.Engine()
-	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: w.ref}, rowExclusive, policy)
+	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: w.ref}, lock.RowExclusive, policy)
 	if request != nil {
 		s.admissionWaited = true
 		if s.replacementRead {

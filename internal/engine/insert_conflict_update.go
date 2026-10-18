@@ -77,11 +77,11 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		// Restore only this candidate's newly granted keys, preserving prior claims.
 		manager.RestoreUniqueDelta(s.ticket)
 		s.discardExclusionCandidate(ref, candidate)
-		mode := noKeyUpdate
+		mode := lock.ForNoKeyUpdate
 		for _, target := range c.updateTargets {
 			for _, key := range s.uniqueBinding.keySlots {
 				if target == key {
-					mode = rowUpdate
+					mode = lock.ForUpdate
 				}
 			}
 		}
@@ -144,8 +144,8 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		if err != nil {
 			return err
 		}
-		if keyChanged && mode != rowUpdate {
-			if err := s.acquireUpdateRowMode(ref, old.row, rowUpdate); err != nil {
+		if keyChanged && mode != lock.ForUpdate {
+			if err := s.acquireUpdateRowMode(ref, old.row, lock.ForUpdate); err != nil {
 				return err
 			}
 			current, _, _, live, err := e.latestConflictUpdateRow(s, ref, checked)
@@ -160,9 +160,9 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			return err
 		}
 		old.pendingKeyChange = old.pendingKeyChange || keyChanged
-		actionMode := multiNoKeyAction
+		actionMode := lock.MultiNoKeyAction
 		if keyChanged {
-			actionMode = multiUpdateAction
+			actionMode = lock.MultiUpdateAction
 		}
 		if err := s.physicalRowEvent(ref, old, actionMode, 0); err != nil {
 			return err

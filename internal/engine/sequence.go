@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -95,10 +96,10 @@ func tableKind(d *relationDescriptor, operation string) error {
 	}
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: message, Detail: detail}
 }
-func (s *StatementScope) acquireSequence(ref ids.ObjectRef, mode relationLockMode, reserveReplacement bool) error {
+func (s *StatementScope) acquireSequence(ref ids.ObjectRef, mode lock.Mode, reserveReplacement bool) error {
 	e := s.op.session.Engine()
-	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, policy)
+	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, policy)
 	if request != nil {
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
@@ -143,7 +144,7 @@ func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationV
 		return ids.ObjectAddress{}, err
 	}
 	e.mu.Unlock()
-	err = scope.acquireSequence(ref, accessShare, true)
+	err = scope.acquireSequence(ref, lock.AccessShare, true)
 	e.mu.Lock()
 	if err != nil {
 		return ids.ObjectAddress{}, err
@@ -312,9 +313,9 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if err != nil {
 			return Result{}, err
 		}
-		mode := shareRowExclusive
+		mode := lock.ShareRowExclusive
 		if s.Action == "rename" || s.Action == "schema" {
-			mode = accessExclusive
+			mode = lock.AccessExclusive
 		}
 		if err = scope.acquireSequence(ref, mode, true); err != nil {
 			return Result{}, err
@@ -519,7 +520,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	}
 	e.mu.Unlock()
 	for _, ref := range refs {
-		if err = scope.acquireSequence(ref, accessExclusive, true); err != nil {
+		if err = scope.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
 			return Result{}, err
 		}
 	}

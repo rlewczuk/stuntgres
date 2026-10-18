@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/lock"
 	"testing"
 )
 
@@ -16,26 +17,26 @@ func TestLockModesCheckpointContributions(t *testing.T) {
 	defer transactionEnd(t, a, ra, false)
 	defer transactionEnd(t, b, rb, false)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	table := lockResource{ObjectRef: ref}
+	table := lock.Resource{ObjectRef: ref}
 	row := table
 	row.Row = 1
 	ta, tb := a.transactions.ticket, b.transactions.ticket
-	acquire := func(resource lockResource, mode relationLockMode) {
+	acquire := func(resource lock.Resource, mode lock.Mode) {
 		t.Helper()
 		if err := e.locks.Acquire(context.Background(), ta, resource, mode); err != nil {
 			t.Fatal(err)
 		}
 	}
-	acquire(table, shareUpdateExclusive)
-	acquire(table, relationShare)
-	acquire(row, keyShare)
+	acquire(table, lock.ShareUpdateExclusive)
+	acquire(table, lock.Share)
+	acquire(row, lock.ForKeyShare)
 	mark := e.locks.Checkpoint(ta)
-	acquire(table, accessExclusive)
-	acquire(row, rowUpdate)
+	acquire(table, lock.AccessExclusive)
+	acquire(row, lock.ForUpdate)
 	next := table
 	next.Row = 2
-	acquire(next, noKeyUpdate)
-	request, err := e.locks.StartAcquire(context.Background(), tb, next, rowUpdate, relationLockPolicy{})
+	acquire(next, lock.ForNoKeyUpdate)
+	request, err := e.locks.StartAcquire(context.Background(), tb, next, lock.ForUpdate, lock.Policy{})
 	if err != nil || request == nil {
 		t.Fatal(request, err)
 	}
@@ -47,7 +48,7 @@ func TestLockModesCheckpointContributions(t *testing.T) {
 	modes := lockState.Resources[table].Holders[ta].Mode
 	rowMode := lockState.Resources[row].Holders[ta].Mode
 	newMode := lockState.Resources[next].Holders[ta].Mode
-	if modes != shareUpdateExclusive|relationShare || rowMode != keyShare || newMode != 0 {
+	if modes != lock.ShareUpdateExclusive|lock.Share || rowMode != lock.ForKeyShare || newMode != 0 {
 		t.Fatal(modes, rowMode, newMode)
 	}
 	e.locks.Restore(ta, mark)

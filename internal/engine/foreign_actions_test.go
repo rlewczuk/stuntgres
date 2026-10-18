@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -150,7 +151,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	if err = scope.admitForeignAction(ref, job, false); err != nil {
 		t.Fatal(err)
 	}
-	if err = scope.foreignKeyGrant(ref, old.row, rowUpdate, children.storage); err != nil {
+	if err = scope.foreignKeyGrant(ref, old.row, lock.ForUpdate, children.storage); err != nil {
 		t.Fatal(err)
 	}
 	if err = scope.stage.deleteForeignAction(ref, old); err == nil {

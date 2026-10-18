@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 type deleteOutcome struct {
@@ -61,8 +62,8 @@ func TestDeleteCoreContention(t *testing.T) {
 			row := e.storage[target.Address].versions[0].row
 			e.mu.Unlock()
 			lockState := e.locks.Inspect()
-			entry := lockState.Resources[lockResource{ObjectRef: target, Row: row}]
-			queued := entry != nil && len(entry.Pending) == 1 && entry.Holders[a.transactions.ticket].Mode == rowUpdate
+			entry := lockState.Resources[lock.Resource{ObjectRef: target, Row: row}]
+			queued := entry != nil && len(entry.Pending) == 1 && entry.Holders[a.transactions.ticket].Mode == lock.ForUpdate
 			if !queued {
 				t.Fatal("not waiting on original logical row")
 			}
@@ -104,37 +105,37 @@ func TestDeleteCoreRowAuthority(t *testing.T) {
 	sessionSQL(t, a, "INSERT INTO t VALUES(1),(1)")
 	ar, br := transactionBegin(t, a), transactionBegin(t, b)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	resource := lockResource{ObjectRef: ref, Row: 1}
+	resource := lock.Resource{ObjectRef: ref, Row: 1}
 	manager := e.locks
-	if err := manager.Acquire(context.Background(), a.transactions.ticket, resource, rowUpdate); err != nil {
+	if err := manager.Acquire(context.Background(), a.transactions.ticket, resource, lock.ForUpdate); err != nil {
 		t.Fatal(err)
 	}
-	if err := manager.Acquire(context.Background(), a.transactions.ticket, resource, rowUpdate); err != nil {
+	if err := manager.Acquire(context.Background(), a.transactions.ticket, resource, lock.ForUpdate); err != nil {
 		t.Fatal("self reentry", err)
 	}
-	if err := manager.Acquire(context.Background(), b.transactions.ticket, lockResource{ObjectRef: ref, Row: 2}, rowUpdate); err != nil {
+	if err := manager.Acquire(context.Background(), b.transactions.ticket, lock.Resource{ObjectRef: ref, Row: 2}, lock.ForUpdate); err != nil {
 		t.Fatal("distinct row", err)
 	}
-	if err := manager.Acquire(context.Background(), b.transactions.ticket, lockResource{ObjectRef: ref}, accessShare); err != nil {
+	if err := manager.Acquire(context.Background(), b.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 		t.Fatal("ordinary SELECT", err)
 	}
 	for _, invalid := range []struct {
-		resource lockResource
-		mode     relationLockMode
+		resource lock.Resource
+		mode     lock.Mode
 	}{
-		{lockResource{ObjectRef: ref}, rowUpdate}, {resource, accessExclusive}, {resource, accessShare},
-		{lockResource{ObjectRef: ref.Domain().Ref(ref.Epoch+1, ref.Address), Row: 1}, rowUpdate},
+		{lock.Resource{ObjectRef: ref}, lock.ForUpdate}, {resource, lock.AccessExclusive}, {resource, lock.AccessShare},
+		{lock.Resource{ObjectRef: ref.Domain().Ref(ref.Epoch+1, ref.Address), Row: 1}, lock.ForUpdate},
 	} {
 		if err := manager.Acquire(context.Background(), b.transactions.ticket, invalid.resource, invalid.mode); err == nil {
 			t.Fatal("invalid resource/mode accepted", invalid)
 		}
 	}
 	copyTicket := *a.transactions.ticket
-	if err := manager.Acquire(context.Background(), &copyTicket, resource, rowUpdate); err == nil {
+	if err := manager.Acquire(context.Background(), &copyTicket, resource, lock.ForUpdate); err == nil {
 		t.Fatal("copied ticket accepted")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	request, err := manager.StartAcquire(ctx, b.transactions.ticket, resource, rowUpdate, relationLockPolicy{})
+	request, err := manager.StartAcquire(ctx, b.transactions.ticket, resource, lock.ForUpdate, lock.Policy{})
 	if err != nil || request == nil {
 		t.Fatal("row did not queue", request, err)
 	}

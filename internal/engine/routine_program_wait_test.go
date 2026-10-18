@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -244,7 +245,7 @@ func routinePendingUniqueIndex(t *testing.T, e *Engine, index ids.ObjectRef, wor
 				continue
 			}
 			for _, request := range entry.Pending {
-				if !request.Terminal && request.Ticket.Ref().Session() == worker.token && request.Mode == uniqueClaim {
+				if !request.Terminal && request.Ticket.Ref().Session() == worker.token && request.Mode == lock.UniqueClaim {
 					found = true
 					break
 				}

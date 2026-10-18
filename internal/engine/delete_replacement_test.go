@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -70,7 +71,7 @@ func TestDeleteCoreReplacementImmediateAdmission(t *testing.T) {
 	ref := scope.lockedRef
 	rows := 0
 	for resource, entry := range e.locks.Inspect().Resources {
-		if resource.ObjectRef == ref && resource.Row != 0 && entry.Holders[scope.ticket].Mode == rowUpdate && len(entry.Pending) == 0 {
+		if resource.ObjectRef == ref && resource.Row != 0 && entry.Holders[scope.ticket].Mode == lock.ForUpdate && len(entry.Pending) == 0 {
 			rows++
 		}
 	}
@@ -128,16 +129,16 @@ func TestDeleteCoreReplacementImmediateAdmission(t *testing.T) {
 
 // Capture the exact DELETE row request, not just a goroutine-start signal or a
 // relation waiter. All observations use the manager's existing protected journal.
-func deleteReplacementQueued(t *testing.T, e *Engine, resource lockResource, holder, waiter *relationTicket) *relationRequest {
+func deleteReplacementQueued(t *testing.T, e *Engine, resource lock.Resource, holder, waiter *lock.Ticket) *lock.Request {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		lockState := e.locks.Inspect()
 		entry := lockState.Resources[resource]
-		var request *relationRequest
-		if entry != nil && entry.Holders[holder].Mode == rowUpdate && len(entry.Pending) == 1 {
+		var request *lock.Request
+		if entry != nil && entry.Holders[holder].Mode == lock.ForUpdate && len(entry.Pending) == 1 {
 			r := entry.Pending[0]
-			if r.Ticket == waiter && r.Resource == resource && r.Mode == rowUpdate && !r.Terminal {
+			if r.Ticket == waiter && r.Resource == resource && r.Mode == lock.ForUpdate && !r.Terminal {
 				request = r.Request
 			}
 		}
@@ -151,7 +152,7 @@ func deleteReplacementQueued(t *testing.T, e *Engine, resource lockResource, hol
 	}
 }
 
-func deleteReplacementScope(t *testing.T, e *Engine, s *Session) (*StatementScope, *relationTicket, <-chan deleteOutcome) {
+func deleteReplacementScope(t *testing.T, e *Engine, s *Session) (*StatementScope, *lock.Ticket, <-chan deleteOutcome) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -234,7 +235,7 @@ func TestDeleteCoreReplacementWaitingPhases(t *testing.T) {
 				sessionSQL(t, peer, "INSERT INTO t VALUES(1),(2),(3)")
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
 				oldStorage := e.storage[ref.Address]
-				resource := lockResource{ObjectRef: ref, Row: oldStorage.versions[1].row}
+				resource := lock.Resource{ObjectRef: ref, Row: oldStorage.versions[1].row}
 				hr := transactionBegin(t, holder)
 				deleteCount(t, holder, "DELETE FROM t WHERE v=2", 1)
 				var wr ids.TxRef
@@ -304,7 +305,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	oldStorage := e.storage[ref.Address]
 	first, blocked := oldStorage.versions[0].row, oldStorage.versions[1].row
-	resource := lockResource{ObjectRef: ref, Row: blocked}
+	resource := lock.Resource{ObjectRef: ref, Row: blocked}
 	hr := transactionBegin(t, holder)
 	deleteCount(t, holder, "DELETE FROM t WHERE v=2", 1)
 	scope, ticket, done := deleteReplacementScope(t, e, waiter)
@@ -344,7 +345,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	for {
 		lockState := e.locks.Inspect(ticket)
 		entry := lockState.Resources[resource]
-		granted := request.Terminal() && request.Err() == nil && entry != nil && entry.Holders[ticket].Mode == rowUpdate && len(entry.Pending) == 0
+		granted := request.Terminal() && request.Err() == nil && entry != nil && entry.Holders[ticket].Mode == lock.ForUpdate && len(entry.Pending) == 0
 		_, journaled := lockState.Journals[ticket][resource]
 		if granted && journaled {
 			break

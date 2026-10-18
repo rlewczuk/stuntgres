@@ -5,32 +5,33 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
-func explicitLockMode(mode parser.TableLockMode) relationLockMode {
+func explicitLockMode(mode parser.TableLockMode) lock.Mode {
 	switch mode {
 	case parser.LockAccessShare:
-		return accessShare
+		return lock.AccessShare
 	case parser.LockRowShare:
-		return relationRowShare
+		return lock.RowShare
 	case parser.LockRowExclusive:
-		return rowExclusive
+		return lock.RowExclusive
 	case parser.LockShareUpdateExclusive:
-		return shareUpdateExclusive
+		return lock.ShareUpdateExclusive
 	case parser.LockShare:
-		return relationShare
+		return lock.Share
 	case parser.LockShareRowExclusive:
-		return shareRowExclusive
+		return lock.ShareRowExclusive
 	case parser.LockExclusive:
-		return relationExclusive
+		return lock.Exclusive
 	case parser.LockAccessExclusive:
-		return accessExclusive
+		return lock.AccessExclusive
 	}
 	return 0
 }
 
-func checkExplicitLock(auth AuthorizationView, ref ids.ObjectRef, d *relationDescriptor, mode relationLockMode) error {
+func checkExplicitLock(auth AuthorizationView, ref ids.ObjectRef, d *relationDescriptor, mode lock.Mode) error {
 	if d.relationKind != tableRelation && d.relationKind != partitionedRelation && d.relationKind != viewRelation {
 		return tableKind(d, "lock")
 	}
@@ -39,10 +40,10 @@ func checkExplicitLock(auth AuthorizationView, ref ids.ObjectRef, d *relationDes
 		return err
 	}
 	alternatives := authorization.MaintainPrivilege | authorization.UpdatePrivilege | authorization.DeletePrivilege | authorization.TruncatePrivilege
-	if mode == accessShare || mode == relationRowShare || mode == rowExclusive {
+	if mode == lock.AccessShare || mode == lock.RowShare || mode == lock.RowExclusive {
 		alternatives |= authorization.InsertPrivilege
 	}
-	if mode == accessShare {
+	if mode == lock.AccessShare {
 		alternatives |= authorization.SelectPrivilege
 	}
 	if rights&alternatives != 0 {
@@ -67,7 +68,7 @@ func (s *StatementScope) acquireExplicitLocks(stmt *parser.LockTable) error {
 	}
 	e := s.op.session.Engine()
 	mode := explicitLockMode(stmt.Mode)
-	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, NoWait: stmt.Nowait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, NoWait: stmt.Nowait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
 	for _, target := range stmt.Targets {
 		e.mu.Lock()
 		auth, err := e.statementAuthorizationLocked(s.op, stmt)
@@ -92,7 +93,7 @@ func (s *StatementScope) acquireExplicitLocks(stmt *parser.LockTable) error {
 
 // Bound view sources never repeat namespace lookup. Each grant retains the
 // original identity and rechecks the principal against grant-time metadata.
-func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids.ObjectRef, name string, mode relationLockMode, policy relationLockPolicy, actor, invoker authorization.PrincipalRef, ancestors []ids.ObjectRef, only bool) error {
+func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids.ObjectRef, name string, mode lock.Mode, policy lock.Policy, actor, invoker authorization.PrincipalRef, ancestors []ids.ObjectRef, only bool) error {
 	for _, ancestor := range ancestors {
 		if ancestor == ref {
 			return nil
@@ -125,8 +126,8 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 	if err != nil {
 		return err
 	}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, policy)
-	if errors.Is(err, errRelationUnavailable) {
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, policy)
+	if errors.Is(err, lock.ErrUnavailable) {
 		return sqlError("55P03", fmt.Sprintf("could not obtain lock on relation \"%s\"", name))
 	}
 	if request != nil {

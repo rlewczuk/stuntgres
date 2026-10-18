@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 )
 
@@ -74,11 +75,11 @@ func (s *StatementScope) writeAuthorizationLocked(e *Engine) (AuthorizationView,
 
 func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJob, writable bool) error {
 	e := s.op.session.Engine()
-	required := relationRowShare | rowExclusive
+	required := lock.RowShare | lock.RowExclusive
 	if writable {
-		required = rowExclusive
+		required = lock.RowExclusive
 	}
-	held := e.locks.Holds(s.ticket, lockResource{ObjectRef: ref}, required)
+	held := e.locks.Holds(s.ticket, lock.Resource{ObjectRef: ref}, required)
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := s.validateLockedRelation(e); err != nil {
@@ -156,7 +157,7 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old rowVersion) (err
 		}
 	}()
 	e := s.op.session.Engine()
-	if !e.locks.Holds(s.ticket, lockResource{ObjectRef: ref, Row: old.row}, rowUpdate) {
+	if !e.locks.Holds(s.ticket, lock.Resource{ObjectRef: ref, Row: old.row}, lock.ForUpdate) {
 		return errors.New("stuntgres: internal action deletion requires its row grant")
 	}
 	s.owner.mu.Lock()

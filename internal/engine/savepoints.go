@@ -6,6 +6,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"time"
 )
@@ -21,7 +22,7 @@ type savepointMark struct {
 	isolation           Isolation
 	readOnly            bool
 	deferrable          bool
-	locks               relationLockCheckpoint
+	locks               lock.Checkpoint
 	cursors             uint64
 	exclusionModes      exclusionModes
 	exclusionProjection *exclusionProjection
@@ -106,7 +107,7 @@ func (t *transactionOwner) restoreSavepoint(mark savepointMark, settings setting
 		delete(e.exclusionPending, t.ticket)
 	} else {
 		if e.exclusionPending == nil {
-			e.exclusionPending = make(map[*relationTicket]*exclusionProjection)
+			e.exclusionPending = make(map[*lock.Ticket]*exclusionProjection)
 		}
 		e.exclusionPending[t.ticket] = mark.exclusionProjection
 	}

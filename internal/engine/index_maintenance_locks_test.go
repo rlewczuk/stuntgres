@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -62,18 +63,18 @@ func TestIndexMaintenanceDropParentAddressOrdering(t *testing.T) {
 	a, b := roleTableRef(t, e, "a"), roleTableRef(t, e, "b")
 	ai, ai2, bi := roleTableRef(t, e, "ai"), roleTableRef(t, e, "ai2"), roleTableRef(t, e, "bi")
 	tx := transactionBegin(t, holder)
-	if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: b}, accessShare); err != nil {
+	if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lock.Resource{ObjectRef: b}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
 	before := indexMaintenanceCapture(e)
 	cancel, await := indexMaintenanceAsync(t, e, utility, "DROP INDEX bi,ai2,ai,ai CASCADE")
 	lockPending(t, e, 1)
 	lockState := e.locks.Inspect()
-	pending := lockState.Resources[lockResource{ObjectRef: b}].Pending[0]
-	first := lockState.Resources[lockResource{ObjectRef: a}]
-	ordered := pending.Mode == accessExclusive && first != nil && first.Holders[pending.Ticket].Mode == accessExclusive
+	pending := lockState.Resources[lock.Resource{ObjectRef: b}].Pending[0]
+	first := lockState.Resources[lock.Resource{ObjectRef: a}]
+	ordered := pending.Mode == lock.AccessExclusive && first != nil && first.Holders[pending.Ticket].Mode == lock.AccessExclusive
 	for _, ref := range []ids.ObjectRef{ai, ai2, bi} {
-		ordered = ordered && lockState.Resources[lockResource{ObjectRef: ref}] == nil
+		ordered = ordered && lockState.Resources[lock.Resource{ObjectRef: ref}] == nil
 	}
 	if !ordered {
 		t.Fatal("DROP did not acquire all sorted parents before any selected index")
@@ -95,14 +96,14 @@ func TestIndexMaintenanceDropParentAddressOrdering(t *testing.T) {
 func TestIndexMaintenanceExactLockModes(t *testing.T) {
 	for _, c := range []struct {
 		name, q, resource string
-		held, want        relationLockMode
+		held, want        lock.Mode
 		parent            bool
 	}{
-		{"index_rebuild", "REINDEX INDEX ix", "ix", accessShare, accessExclusive, true},
-		{"table_rebuild", "REINDEX TABLE t", "ix", accessShare, accessExclusive, true},
-		{"index_rename", "ALTER INDEX ix RENAME TO renamed", "ix", relationShare, shareUpdateExclusive, false},
-		{"table_alias", "ALTER INDEX t RENAME TO renamed", "t", accessShare, accessExclusive, false},
-		{"index_drop", "DROP INDEX ix", "t", accessShare, accessExclusive, false},
+		{"index_rebuild", "REINDEX INDEX ix", "ix", lock.AccessShare, lock.AccessExclusive, true},
+		{"table_rebuild", "REINDEX TABLE t", "ix", lock.AccessShare, lock.AccessExclusive, true},
+		{"index_rename", "ALTER INDEX ix RENAME TO renamed", "ix", lock.Share, lock.ShareUpdateExclusive, false},
+		{"table_alias", "ALTER INDEX t RENAME TO renamed", "t", lock.AccessShare, lock.AccessExclusive, false},
+		{"index_drop", "DROP INDEX ix", "t", lock.AccessShare, lock.AccessExclusive, false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			e := New()
@@ -114,21 +115,21 @@ func TestIndexMaintenanceExactLockModes(t *testing.T) {
 			ref := roleTableRef(t, e, c.resource)
 			sibling := roleTableRef(t, e, "sibling")
 			tx := transactionBegin(t, holder)
-			if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: ref}, c.held); err != nil {
+			if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lock.Resource{ObjectRef: ref}, c.held); err != nil {
 				t.Fatal(err)
 			}
 			cancel, await := indexMaintenanceAsync(t, e, utility, c.q)
 			lockPending(t, e, 1)
 			lockState := e.locks.Inspect()
-			request := lockState.Resources[lockResource{ObjectRef: ref}].Pending[0]
+			request := lockState.Resources[lock.Resource{ObjectRef: ref}].Pending[0]
 			correct := request.Mode == c.want
 			if c.parent {
-				entry := lockState.Resources[lockResource{ObjectRef: table}]
-				correct = correct && entry != nil && entry.Holders[request.Ticket].Mode == relationShare
+				entry := lockState.Resources[lock.Resource{ObjectRef: table}]
+				correct = correct && entry != nil && entry.Holders[request.Ticket].Mode == lock.Share
 			} else if c.resource != "t" {
-				correct = correct && lockState.Resources[lockResource{ObjectRef: table}] == nil
+				correct = correct && lockState.Resources[lock.Resource{ObjectRef: table}] == nil
 			}
-			correct = correct && lockState.Resources[lockResource{ObjectRef: sibling}] == nil
+			correct = correct && lockState.Resources[lock.Resource{ObjectRef: sibling}] == nil
 			if !correct {
 				t.Fatal("utility mode/resource order broadened or omitted parent Share")
 			}
@@ -157,8 +158,8 @@ func TestIndexMaintenanceGrantIncludesCommittedWriterOnly(t *testing.T) {
 			lockPending(t, e, 1)
 			lockState := e.locks.Inspect()
 			parent := e.catalog.domain.Ref(tx.Epoch(), index.sqlIndex.parent)
-			request := lockState.Resources[lockResource{ObjectRef: parent}].Pending[0]
-			share := request.Mode == relationShare
+			request := lockState.Resources[lock.Resource{ObjectRef: parent}].Pending[0]
+			share := request.Mode == lock.Share
 			if !share {
 				t.Fatal("rebuild did not wait for writer through Share admission")
 			}

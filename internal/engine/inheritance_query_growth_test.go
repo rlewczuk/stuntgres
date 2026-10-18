@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -43,7 +44,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	if err = holder.gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	if err = e.locks.Acquire(holderOp.Context(), holder.ticket, lockResource{ObjectRef: originalRef}, accessExclusive); err != nil {
+	if err = e.locks.Acquire(holderOp.Context(), holder.ticket, lock.Resource{ObjectRef: originalRef}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -62,7 +63,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	}
 	parent := queryLeaf{ref: ref(p), relation: p, storage: e.storage[p.address]}
 	scope.querySources = []queryLeaf{parent}
-	if err = e.locks.Acquire(op.Context(), scope.ticket, lockResource{ObjectRef: parent.ref}, accessShare); err != nil {
+	if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: parent.ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
 	joined := false
@@ -82,8 +83,8 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	}()
 	lockPending(t, e, 1)
 	lockState := e.locks.Inspect()
-	entry := lockState.Resources[lockResource{ObjectRef: originalRef}]
-	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == scope.ticket && entry.Pending[0].Mode == accessShare && entry.Holders[holder.ticket].Mode&accessExclusive != 0
+	entry := lockState.Resources[lock.Resource{ObjectRef: originalRef}]
+	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == scope.ticket && entry.Pending[0].Mode == lock.AccessShare && entry.Holders[holder.ticket].Mode&lock.AccessExclusive != 0
 	if !queued {
 		t.Fatal("scanner was not parked on the exact original descendant")
 	}
@@ -118,8 +119,8 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	}
 	lockState = e.locks.Inspect()
 	for _, physical := range []ids.ObjectRef{originalRef, lateRef} {
-		entry := lockState.Resources[lockResource{ObjectRef: physical}]
-		if entry == nil || entry.Holders[scope.ticket].Mode&accessShare == 0 {
+		entry := lockState.Resources[lock.Resource{ObjectRef: physical}]
+		if entry == nil || entry.Holders[scope.ticket].Mode&lock.AccessShare == 0 {
 			t.Fatal("final descendant grant missing", physical)
 		}
 	}

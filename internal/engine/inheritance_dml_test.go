@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -31,7 +32,7 @@ func inheritanceDMLScope(t *testing.T, e *Engine, p *relationDescriptor, ctx con
 	s.lockedRef = e.catalog.domain.Ref(e.CatalogRead().Epoch(), p.address)
 	s.lockedDescriptor = p
 	s.lockedStorage = e.storage[p.address]
-	if err = e.locks.Acquire(ctx, s.ticket, lockResource{ObjectRef: s.lockedRef}, rowExclusive); err != nil {
+	if err = e.locks.Acquire(ctx, s.ticket, lock.Resource{ObjectRef: s.lockedRef}, lock.RowExclusive); err != nil {
 		s.Finish(err)
 		done()
 		t.Fatal(err)
@@ -65,8 +66,8 @@ func TestInheritanceDMLAdmission(t *testing.T) {
 			t.Fatal("duplicate physical identity", ref)
 		}
 		seen[ref] = true
-		entry := lockState.Resources[lockResource{ObjectRef: ref}]
-		if entry == nil || entry.Holders[s.ticket].Mode&rowExclusive == 0 {
+		entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
+		if entry == nil || entry.Holders[s.ticket].Mode&lock.RowExclusive == 0 {
 			t.Fatal("missing physical RX grant", ref)
 		}
 	}

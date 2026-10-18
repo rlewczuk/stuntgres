@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -19,22 +20,22 @@ func TestDeleteCoreRowLifecycle(t *testing.T) {
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			ar, br := transactionBegin(t, a), transactionBegin(t, b)
 			target := catalogRef(t, e, e.CatalogRead(), "t")
-			resource := lockResource{ObjectRef: target, Row: e.storage[target.Address].versions[0].row}
+			resource := lock.Resource{ObjectRef: target, Row: e.storage[target.Address].versions[0].row}
 			manager := e.locks
-			if err := manager.Acquire(context.Background(), a.transactions.ticket, resource, rowUpdate); err != nil {
+			if err := manager.Acquire(context.Background(), a.transactions.ticket, resource, lock.ForUpdate); err != nil {
 				t.Fatal(err)
 			}
 			canceled, stop := context.WithCancel(context.Background())
 			stop()
-			if request, err := manager.StartAcquire(canceled, b.transactions.ticket, resource, rowUpdate, relationLockPolicy{}); request != nil || !errors.Is(err, context.Canceled) {
+			if request, err := manager.StartAcquire(canceled, b.transactions.ticket, resource, lock.ForUpdate, lock.Policy{}); request != nil || !errors.Is(err, context.Canceled) {
 				t.Fatal(request, err)
 			}
-			if request, err := manager.StartAcquire(context.Background(), b.transactions.ticket, resource, rowUpdate, relationLockPolicy{NoWait: true}); request != nil || !errors.Is(err, errRelationUnavailable) {
+			if request, err := manager.StartAcquire(context.Background(), b.transactions.ticket, resource, lock.ForUpdate, lock.Policy{NoWait: true}); request != nil || !errors.Is(err, lock.ErrUnavailable) {
 				t.Fatal(request, err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			request, err := manager.StartAcquire(ctx, b.transactions.ticket, resource, rowUpdate, relationLockPolicy{Timeout: time.Hour})
+			request, err := manager.StartAcquire(ctx, b.transactions.ticket, resource, lock.ForUpdate, lock.Policy{Timeout: time.Hour})
 			if err != nil || request == nil {
 				t.Fatal(request, err)
 			}
@@ -50,13 +51,13 @@ func TestDeleteCoreRowLifecycle(t *testing.T) {
 				manager.End(a.transactions.ticket)
 				cancel()
 			}
-			want := map[string]error{"cancel": context.Canceled, "end": errRelationOwnerEnded, "fence": ErrCatalogReplaced, "grant": nil}[action]
+			want := map[string]error{"cancel": context.Canceled, "end": lock.ErrOwnerEnded, "fence": ErrCatalogReplaced, "grant": nil}[action]
 			if err := request.Wait(); !errors.Is(err, want) {
 				t.Fatal(err, want)
 			}
 			terminal := request.Released()
 			if action == "grant" {
-				terminal = terminal && manager.Inspect().Resources[resource].Holders[b.transactions.ticket].Mode == rowUpdate
+				terminal = terminal && manager.Inspect().Resources[resource].Holders[b.transactions.ticket].Mode == lock.ForUpdate
 			}
 			if !terminal {
 				t.Fatal("row terminal/transfer state invalid")
@@ -78,16 +79,16 @@ func TestDeleteCoreRowDeadlinePolicy(t *testing.T) {
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			ar, br := transactionBegin(t, a), transactionBegin(t, b)
 			target := catalogRef(t, e, e.CatalogRead(), "t")
-			resource := lockResource{ObjectRef: target, Row: 1}
+			resource := lock.Resource{ObjectRef: target, Row: 1}
 			manager := e.locks
-			if err := manager.Acquire(context.Background(), a.transactions.ticket, resource, rowUpdate); err != nil {
+			if err := manager.Acquire(context.Background(), a.transactions.ticket, resource, lock.ForUpdate); err != nil {
 				t.Fatal(err)
 			}
-			policy := relationLockPolicy{Timeout: time.Hour}
+			policy := lock.Policy{Timeout: time.Hour}
 			if kind == "statement" {
 				policy.StatementDeadline = time.Now().Add(time.Minute)
 			}
-			request, err := manager.StartAcquire(context.Background(), b.transactions.ticket, resource, rowUpdate, policy)
+			request, err := manager.StartAcquire(context.Background(), b.transactions.ticket, resource, lock.ForUpdate, policy)
 			if err != nil || request == nil {
 				t.Fatal(request, err)
 			}
@@ -162,8 +163,8 @@ func TestDeleteCoreRelationLifecycle(t *testing.T) {
 			lockPending(t, e, 1)
 			target := catalogRef(t, e, e.CatalogRead(), "t")
 			lockState := e.locks.Inspect()
-			entry := lockState.Resources[lockResource{ObjectRef: target}]
-			queuedRX := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == rowExclusive
+			entry := lockState.Resources[lock.Resource{ObjectRef: target}]
+			queuedRX := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.RowExclusive
 			for resource := range lockState.Resources {
 				if resource.Row != 0 {
 					queuedRX = false
@@ -201,7 +202,7 @@ func TestDeleteCoreRelationLifecycle(t *testing.T) {
 		}
 		held := 0
 		for resource, entry := range e.locks.Inspect().Resources {
-			if resource.Row != 0 || entry.Holders[s.transactions.ticket].Mode != rowExclusive {
+			if resource.Row != 0 || entry.Holders[s.transactions.ticket].Mode != lock.RowExclusive {
 				held = -100
 				break
 			}

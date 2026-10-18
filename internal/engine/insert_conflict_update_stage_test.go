@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -155,8 +156,8 @@ func TestInsertConflictUpdateUniqueDelta(t *testing.T) {
 	}
 	// UniqueKey requests admit only uniqueClaim. Stronger modes belong to
 	// actual logical-row resources, not a fabricated mode on an interned key.
-	strong := lockResource{ObjectRef: ref, Row: 98}
-	if err := manager.Acquire(scope.op.Context(), scope.ticket, strong, rowUpdate); err != nil {
+	strong := lock.Resource{ObjectRef: ref, Row: 98}
+	if err := manager.Acquire(scope.op.Context(), scope.ticket, strong, lock.ForUpdate); err != nil {
 		t.Fatal(err)
 	}
 	manager.BeginUniqueDelta(scope.ticket)
@@ -167,8 +168,8 @@ func TestInsertConflictUpdateUniqueDelta(t *testing.T) {
 	if err := scope.acquireUnique(indexRef, bound, newKey); err != nil {
 		t.Fatal(err)
 	}
-	row := lockResource{ObjectRef: ref, Row: 99}
-	if err := manager.Acquire(scope.op.Context(), scope.ticket, row, rowUpdate); err != nil {
+	row := lock.Resource{ObjectRef: ref, Row: 99}
+	if err := manager.Acquire(scope.op.Context(), scope.ticket, row, lock.ForUpdate); err != nil {
 		t.Fatal(err)
 	}
 	recorded := len(manager.Inspect().UniqueDeltas[scope.ticket])
@@ -177,12 +178,12 @@ func TestInsertConflictUpdateUniqueDelta(t *testing.T) {
 	}
 	manager.RestoreUniqueDelta(scope.ticket)
 	held := manager.Checkpoint(scope.ticket)
-	if held[strong].Mode != rowUpdate || held[row].Mode != rowUpdate {
+	if held[strong].Mode != lock.ForUpdate || held[row].Mode != lock.ForUpdate {
 		t.Fatal("stronger/new row grants lost", held)
 	}
 	keys := manager.CheckpointUnique(scope.ticket, nil)
 	for _, mode := range keys {
-		if mode.Mode != uniqueClaim || len(mode.Multi) != 0 {
+		if mode.Mode != lock.UniqueClaim || len(mode.Multi) != 0 {
 			t.Fatal("prior key mode lost", keys)
 		}
 	}
@@ -194,7 +195,7 @@ func TestInsertConflictUpdateUniqueDelta(t *testing.T) {
 		t.Fatal(err)
 	}
 	manager.EndUniqueDelta(scope.ticket)
-	if manager.Checkpoint(scope.ticket)[strong].Mode != rowUpdate || len(manager.CheckpointUnique(scope.ticket, nil)) != 2 {
+	if manager.Checkpoint(scope.ticket)[strong].Mode != lock.ForUpdate || len(manager.CheckpointUnique(scope.ticket, nil)) != 2 {
 		t.Fatal("accepted candidate or stronger row contribution lost")
 	}
 	// A later release cannot be resurrected by a stale candidate journal.

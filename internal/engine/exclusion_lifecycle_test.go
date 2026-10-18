@@ -36,7 +36,7 @@ func exclusionCommitWorker(t *testing.T, s *Session, ref ids.TxRef) <-chan error
 	return done
 }
 
-func exclusionCompletionQueued(t *testing.T, e *Engine, owner, waiter *relationTicket, done <-chan error) {
+func exclusionCompletionQueued(t *testing.T, e *Engine, owner, waiter *lock.Ticket, done <-chan error) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -45,7 +45,7 @@ func exclusionCompletionQueued(t *testing.T, e *Engine, owner, waiter *relationT
 		queued := false
 		if entry != nil {
 			for _, request := range entry.Pending {
-				if request.Ticket == waiter && request.Mode == transactionCompletion && !request.Terminal {
+				if request.Ticket == waiter && request.Mode == lock.TransactionCompletion && !request.Terminal {
 					queued = true
 				}
 			}
@@ -165,7 +165,7 @@ func TestExclusionEagerClaims(t *testing.T) {
 			lockState := e.locks.Inspect()
 			claimed := false
 			for resource, entry := range lockState.Resources {
-				if resource.Key() != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == uniqueClaim {
+				if resource.Key() != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.UniqueClaim {
 					claimed = true
 				}
 			}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -92,7 +93,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		if r.sqlIndex != nil {
 			continue
 		}
-		if err = scope.acquireSequence(e.catalog.domain.Ref(ref.Epoch, r.address), accessExclusive, false); err != nil {
+		if err = scope.acquireSequence(e.catalog.domain.Ref(ref.Epoch, r.address), lock.AccessExclusive, false); err != nil {
 			return Result{}, err
 		}
 	}

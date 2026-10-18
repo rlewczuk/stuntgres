@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/lock"
 )
 
 func queryLimitAsync(t *testing.T, e *Engine, s *Session, q string, prepared bool) <-chan deleteOutcome {
@@ -73,7 +75,7 @@ func TestQueryLimitLocks(t *testing.T) {
 					sessionSQL(t, a, change)
 					br := transactionBegin(t, b)
 					done := queryLimitAsync(t, e, b, q, prepared)
-					rowLockQueued(t, e, a.transactions.ticket, rowUpdate)
+					rowLockQueued(t, e, a.transactions.ticket, lock.ForUpdate)
 					transactionEnd(t, a, ar, true)
 					rowLockAwait(t, done, 30)
 					if source != "join" {
@@ -132,7 +134,7 @@ func TestQueryLimitLockCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := rowLockViewAsync(t, b, ctx, "SELECT v FROM t ORDER BY id OFFSET 1 LIMIT 1 FOR UPDATE")
-	rowLockQueued(t, e, a.transactions.ticket, rowUpdate)
+	rowLockQueued(t, e, a.transactions.ticket, lock.ForUpdate)
 	cancel()
 	select {
 	case outcome := <-done:
@@ -146,19 +148,19 @@ func TestQueryLimitLockCancellation(t *testing.T) {
 	lockEmpty(t, e)
 }
 
-func queryLimitGrants(t *testing.T, e *Engine, ticket *relationTicket, tables map[string][]int) {
+func queryLimitGrants(t *testing.T, e *Engine, ticket *lock.Ticket, tables map[string][]int) {
 	t.Helper()
-	want := make(map[lockResource]bool)
+	want := make(map[lock.Resource]bool)
 	for table, ids := range tables {
 		ref := roleTableRef(t, e, table)
 		e.mu.Lock()
 		for _, id := range ids {
-			want[lockResource{ObjectRef: ref, Row: e.storage[ref.Address].versions[id-1].row}] = true
+			want[lock.Resource{ObjectRef: ref, Row: e.storage[ref.Address].versions[id-1].row}] = true
 		}
 		e.mu.Unlock()
 	}
 	lockState := e.locks.Inspect()
-	got := make(map[lockResource]bool)
+	got := make(map[lock.Resource]bool)
 	for resource, entry := range lockState.Resources {
 		if resource.Row != 0 && entry.Holders[ticket].Mode != 0 {
 			got[resource] = true

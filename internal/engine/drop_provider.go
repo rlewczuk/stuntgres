@@ -6,6 +6,7 @@ import (
 	"iter"
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -458,7 +459,7 @@ func (p *dropProvider) lockInheritanceClosure(roots []ids.ObjectAddress) error {
 }
 
 func (p *dropProvider) acquire(ref ids.ObjectRef, reserveReplacement bool) error {
-	if err := p.scope.acquireSequence(ref, accessExclusive, reserveReplacement); err != nil {
+	if err := p.scope.acquireSequence(ref, lock.AccessExclusive, reserveReplacement); err != nil {
 		return err
 	}
 	if p.prepared != nil && !slices.Contains(p.prepared.grants, ref) {
@@ -472,7 +473,7 @@ func (scope *StatementScope) holdsColumnDropGrant(ref ids.ObjectRef) bool {
 	if scope.ticket == nil || scope.ticket.Ref() != scope.txRef {
 		return false
 	}
-	return scope.op.session.Engine().locks.Holds(scope.ticket, lockResource{ObjectRef: ref}, accessExclusive)
+	return scope.op.session.Engine().locks.Holds(scope.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive)
 }
 
 // prepareColumnDrop records the actual ordinary provider effects without owning

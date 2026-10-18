@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 )
 
@@ -81,8 +82,8 @@ func (s *StatementScope) acquireRow(candidate deleteCandidate) error {
 		return errors.New("stuntgres: invalid row acquisition authority")
 	}
 	e := s.op.session.Engine()
-	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: candidate.ref, Row: candidate.row}, rowUpdate, policy)
+	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: candidate.ref, Row: candidate.row}, lock.ForUpdate, policy)
 	if err != nil {
 		return err
 	}
@@ -127,7 +128,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 	if err := s.active(); err != nil {
 		return false, err
 	}
-	if !s.op.session.Engine().locks.Holds(s.ticket, lockResource{ObjectRef: candidate.ref, Row: candidate.row}, rowUpdate) {
+	if !s.op.session.Engine().locks.Holds(s.ticket, lock.Resource{ObjectRef: candidate.ref, Row: candidate.row}, lock.ForUpdate) {
 		return false, errors.New("stuntgres: deletion requires its row grant")
 	}
 	s.owner.mu.Lock()
@@ -208,7 +209,7 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate deleteCandidate, o
 	}
 	root.rows[candidate.row] = candidate
 	s.projectExclusionDeletionLocked(e, candidate)
-	s.multiEvents = append(s.multiEvents, multiEvent{Tuple: multiTuple{lockResource{ObjectRef: candidate.ref, Row: original.row}, original.version}, Mode: multiUpdateAction})
+	s.multiEvents = append(s.multiEvents, lock.MultiEvent{Tuple: lock.MultiTuple{lock.Resource{ObjectRef: candidate.ref, Row: original.row}, original.version}, Mode: lock.MultiUpdateAction})
 	return nil
 }
 
@@ -309,7 +310,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 			continue
 		}
 		if current.version != candidate.version {
-			if err := s.physicalRowEvent(candidate.ref, current, multiUpdateLock, 0); err != nil {
+			if err := s.physicalRowEvent(candidate.ref, current, lock.MultiUpdateLock, 0); err != nil {
 				return Result{}, err
 			}
 		}

@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -27,20 +28,20 @@ func partitionAttachUnitRange(t *testing.T, parent *relationDescriptor, lower, u
 	return &partitionMembership{parent: parent.address, lower: []partitionDatum{{value: lo}}, upper: []partitionDatum{{value: hi}}}
 }
 
-func partitionAttachUnitGrant(t *testing.T, scope *StatementScope, ref ids.ObjectRef, mode relationLockMode) {
+func partitionAttachUnitGrant(t *testing.T, scope *StatementScope, ref ids.ObjectRef, mode lock.Mode) {
 	t.Helper()
-	request, err := scope.op.session.Engine().locks.StartAcquire(scope.op.Context(), scope.ticket, lockResource{ObjectRef: ref}, mode, relationLockPolicy{NoWait: true})
+	request, err := scope.op.session.Engine().locks.StartAcquire(scope.op.Context(), scope.ticket, lock.Resource{ObjectRef: ref}, mode, lock.Policy{NoWait: true})
 	if err != nil || request != nil {
 		t.Fatal("expected immediate real manager grant", request, err)
 	}
 }
 
-func partitionAttachUnitQueued(t *testing.T, e *Engine, ref ids.ObjectRef, waiter *relationTicket, mode relationLockMode) {
+func partitionAttachUnitQueued(t *testing.T, e *Engine, ref ids.ObjectRef, waiter *lock.Ticket, mode lock.Mode) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		lockState := e.locks.Inspect()
-		entry := lockState.Resources[lockResource{ObjectRef: ref}]
+		entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 		queued := false
 		if entry != nil {
 			for _, request := range entry.Pending {
@@ -106,14 +107,14 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			reader, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
 			holder, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
 			ref := e.catalog.domain.Ref(e.catalog.state.epoch, old.address)
-			partitionAttachUnitGrant(t, holder, ref, accessExclusive)
+			partitionAttachUnitGrant(t, holder, ref, lock.AccessExclusive)
 			parentRef := ref
 			parentRef.Address = parent.address
-			if err := reader.acquirePartitionLock(parentRef, accessShare); err != nil {
+			if err := reader.acquirePartitionLock(parentRef, lock.AccessShare); err != nil {
 				t.Fatal(err)
 			}
-			join := partitionAttachUnitWorker(t, reader, func() error { return reader.acquirePartitionDescendants(parentRef, accessShare) })
-			partitionAttachUnitQueued(t, e, ref, reader.ticket, accessShare)
+			join := partitionAttachUnitWorker(t, reader, func() error { return reader.acquirePartitionDescendants(parentRef, lock.AccessShare) })
+			partitionAttachUnitQueued(t, e, ref, reader.ticket, lock.AccessShare)
 			stage := e.BeginCatalogStage(e.CatalogRead())
 			defer e.DiscardCatalogStage(stage)
 			p, c := *parent, *candidate
@@ -177,7 +178,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 				t.Fatal("admitted/fresh branch manifests", admitted, fresh)
 			}
 			lockState := e.locks.Inspect()
-			entry := lockState.Resources[lockResource{ObjectRef: e.catalog.domain.Ref(ref.Epoch, candidate.address)}]
+			entry := lockState.Resources[lock.Resource{ObjectRef: e.catalog.domain.Ref(ref.Epoch, candidate.address)}]
 			newHold := entry != nil && entry.Holders[reader.ticket].Mode != 0
 			if newHold {
 				t.Fatal("waiting reader admitted a newly attached branch")
@@ -247,15 +248,15 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 			leafRef := e.catalog.domain.Ref(e.catalog.state.epoch, leaf.address)
 			targetRef := leafRef
 			targetRef.Address = target.address
-			partitionAttachUnitGrant(t, holder, leafRef, accessShare)
-			if err := scope.acquirePartitionLock(targetRef, accessExclusive); err != nil {
+			partitionAttachUnitGrant(t, holder, leafRef, lock.AccessShare)
+			if err := scope.acquirePartitionLock(targetRef, lock.AccessExclusive); err != nil {
 				t.Fatal(err)
 			}
 			bound := partitionAttachUnitRange(t, parent, 1, 3)
 			var scans []partitionAttachScan
 			join := partitionAttachUnitWorker(t, scope, func() error {
 				if mode == "candidate_proven" {
-					if err := scope.acquirePartitionDescendants(targetRef, accessExclusive); err != nil {
+					if err := scope.acquirePartitionDescendants(targetRef, lock.AccessExclusive); err != nil {
 						return err
 					}
 				}
@@ -270,7 +271,7 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 					t.Fatal(err)
 				}
 			} else {
-				partitionAttachUnitQueued(t, e, leafRef, scope.ticket, accessExclusive)
+				partitionAttachUnitQueued(t, e, leafRef, scope.ticket, lock.AccessExclusive)
 				if err := holder.Finish(nil); err != nil {
 					t.Fatal(err)
 				}

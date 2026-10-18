@@ -47,7 +47,7 @@ type Engine struct {
 	lastCommittedXID     uint32
 	lastCommitTimestamp  commitTimestampEntry
 	indexBuildWaits      map[ids.ObjectAddress]indexBuildWait
-	exclusionPending     map[*relationTicket]*exclusionProjection
+	exclusionPending     map[*lock.Ticket]*exclusionProjection
 	exclusionGeneration  uint64
 	serializable         serializableTracker
 	prepared             map[string]*preparedTransaction

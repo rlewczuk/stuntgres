@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -40,12 +41,12 @@ func truncateRestartUnitAsyncSQL(t *testing.T, e *Engine, s *Session, q string) 
 }
 
 func TestTruncateRestartLocks(t *testing.T) {
-	for _, heldMode := range []relationLockMode{accessShare, rowExclusive} {
-		t.Run(map[relationLockMode]string{accessShare: "SequenceRowAS", rowExclusive: "FunctionRX"}[heldMode], func(t *testing.T) {
+	for _, heldMode := range []lock.Mode{lock.AccessShare, lock.RowExclusive} {
+		t.Run(map[lock.Mode]string{lock.AccessShare: "SequenceRowAS", lock.RowExclusive: "FunctionRX"}[heldMode], func(t *testing.T) {
 			e, holder, p, q, ps, qs := truncateRestartUnitFixture(t)
 			waiter := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
-			if heldMode == accessShare {
+			if heldMode == lock.AccessShare {
 				r := sessionSQL(t, holder, "SELECT * FROM q_id_seq")
 				r.Rows.Close()
 			} else {
@@ -55,13 +56,13 @@ func TestTruncateRestartLocks(t *testing.T) {
 			done, cancel := truncateUnitAsync(t, e, waiter, truncateRestartUnitAST("p", "q"))
 			lockPending(t, e, 1)
 			lockState := e.locks.Inspect()
-			entry := lockState.Resources[lockResource{ObjectRef: qs}]
-			valid := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == accessExclusive && entry.Holders[holder.transactions.ticket].Mode == heldMode
+			entry := lockState.Resources[lock.Resource{ObjectRef: qs}]
+			valid := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessExclusive && entry.Holders[holder.transactions.ticket].Mode == heldMode
 			if valid {
 				ticket := entry.Pending[0].Ticket
 				for _, ref := range []ids.ObjectRef{p, q, ps} {
-					prefix := lockState.Resources[lockResource{ObjectRef: ref}]
-					valid = valid && prefix != nil && prefix.Holders[ticket].Mode == accessExclusive
+					prefix := lockState.Resources[lock.Resource{ObjectRef: ref}]
+					valid = valid && prefix != nil && prefix.Holders[ticket].Mode == lock.AccessExclusive
 				}
 			}
 			if !valid {
@@ -73,7 +74,7 @@ func TestTruncateRestartLocks(t *testing.T) {
 				t.Fatal("canceled acquisition published prefix")
 			}
 			last := int64(44)
-			if heldMode == rowExclusive {
+			if heldMode == lock.RowExclusive {
 				last = 45
 			}
 			if oldQS.last != last {
@@ -97,12 +98,12 @@ func TestTruncateRestartLocks(t *testing.T) {
 				done, _ := truncateRestartUnitAsyncSQL(t, e, waiter, query)
 				lockPending(t, e, 1)
 				lockState := e.locks.Inspect()
-				entry := lockState.Resources[lockResource{ObjectRef: ps}]
-				wantMode := rowExclusive
+				entry := lockState.Resources[lock.Resource{ObjectRef: ps}]
+				wantMode := lock.RowExclusive
 				if query == "SELECT * FROM p_id_seq" {
-					wantMode = accessShare
+					wantMode = lock.AccessShare
 				}
-				valid := entry != nil && entry.Holders[holder.transactions.ticket].Mode == accessExclusive && len(entry.Pending) == 1 && entry.Pending[0].Mode == wantMode
+				valid := entry != nil && entry.Holders[holder.transactions.ticket].Mode == lock.AccessExclusive && len(entry.Pending) == 1 && entry.Pending[0].Mode == wantMode
 				if !valid {
 					t.Fatal("function/cache bypassed successful reset AX")
 				}
@@ -139,19 +140,19 @@ func TestTruncateRestartLocks(t *testing.T) {
 		// dependency. TRUNCATE retains table-AX then requests sequence-AX.
 		// The existing shared detector can resolve the closing hard cycle
 		// immediately; two simultaneously pending requests are not promised.
-		if err := e.locks.Acquire(context.Background(), holderTicket, lockResource{ObjectRef: ps}, shareRowExclusive); err != nil {
+		if err := e.locks.Acquire(context.Background(), holderTicket, lock.Resource{ObjectRef: ps}, lock.ShareRowExclusive); err != nil {
 			t.Fatal(err)
 		}
 		reset, _ := truncateUnitAsync(t, e, waiter, truncateRestartUnitAST("p"))
 		lockPending(t, e, 1)
 		lockState := e.locks.Inspect()
-		table := lockState.Resources[lockResource{ObjectRef: p}]
-		sequence := lockState.Resources[lockResource{ObjectRef: ps}]
-		var resetTicket *relationTicket
-		valid := table != nil && sequence != nil && len(sequence.Pending) == 1 && sequence.Pending[0].Mode == accessExclusive && sequence.Holders[holderTicket].Mode == shareRowExclusive
+		table := lockState.Resources[lock.Resource{ObjectRef: p}]
+		sequence := lockState.Resources[lock.Resource{ObjectRef: ps}]
+		var resetTicket *lock.Ticket
+		valid := table != nil && sequence != nil && len(sequence.Pending) == 1 && sequence.Pending[0].Mode == lock.AccessExclusive && sequence.Holders[holderTicket].Mode == lock.ShareRowExclusive
 		if valid {
 			resetTicket = sequence.Pending[0].Ticket
-			valid = table.Holders[resetTicket].Mode == accessExclusive
+			valid = table.Holders[resetTicket].Mode == lock.AccessExclusive
 		}
 		if !valid {
 			t.Fatal("missing real table-AX/sequence-AX prefix and sequence-SRX holder")
@@ -188,7 +189,7 @@ func TestTruncateRestartLocks(t *testing.T) {
 		}
 		expected := make(map[string]bool, 2)
 		for _, edge := range []struct {
-			waiter, blocker *relationTicket
+			waiter, blocker *lock.Ticket
 			ref             ids.ObjectRef
 			mode            string
 		}{

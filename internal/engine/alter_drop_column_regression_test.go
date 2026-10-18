@@ -7,6 +7,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"sync"
 	"sync/atomic"
@@ -216,7 +217,7 @@ func TestAlterDropColumnLockedBindingShadowCreation(t *testing.T) {
 				}()
 				lockPending(t, e, 1)
 				lockState := e.locks.Inspect()
-				entry := lockState.Resources[lockResource{ObjectRef: lateRef}]
+				entry := lockState.Resources[lock.Resource{ObjectRef: lateRef}]
 				queuedOnLate := entry != nil && len(entry.Pending) == 1
 				if !queuedOnLate {
 					t.Fatal("ALTER did not queue on exact late resource")

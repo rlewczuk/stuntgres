@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -73,7 +74,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	if len(mark) != 1 {
 		t.Fatal("holder did not acquire exact unique key", mark)
 	}
-	var resource lockResource
+	var resource lock.Resource
 	for key := range mark {
 		resource = key
 	}
@@ -145,7 +146,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	if len(prefixMark) != 1 {
 		t.Fatal("accepted prefix owns no exact reservation", prefixMark)
 	}
-	var prefixResource lockResource
+	var prefixResource lock.Resource
 	for key := range prefixMark {
 		prefixResource = key
 	}
@@ -163,9 +164,9 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 		entry := lockState.Resources[resource]
 		queued := false
 		prefixEntry := lockState.Resources[prefixResource]
-		if entry != nil && entry.Holders[holder.ticket].Mode&uniqueClaim != 0 && prefixEntry != nil && prefixEntry.Holders[ticket].Mode&uniqueClaim != 0 {
+		if entry != nil && entry.Holders[holder.ticket].Mode&lock.UniqueClaim != 0 && prefixEntry != nil && prefixEntry.Holders[ticket].Mode&lock.UniqueClaim != 0 {
 			for _, request := range entry.Pending {
-				if request.Ticket == ticket && request.Mode&uniqueClaim != 0 && !request.Terminal {
+				if request.Ticket == ticket && request.Mode&lock.UniqueClaim != 0 && !request.Terminal {
 					queued = true
 					break
 				}

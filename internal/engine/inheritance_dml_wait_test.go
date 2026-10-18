@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -50,7 +51,7 @@ func inheritanceDMLQueued(t *testing.T, replace bool) {
 		t.Fatal(err)
 	}
 	old := e.catalog.domain.Ref(e.CatalogRead().Epoch(), c.address)
-	if err = e.locks.Acquire(op.Context(), holder.ticket, lockResource{ObjectRef: old}, accessExclusive); err != nil {
+	if err = e.locks.Acquire(op.Context(), holder.ticket, lock.Resource{ObjectRef: old}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -73,8 +74,8 @@ func inheritanceDMLQueued(t *testing.T, replace bool) {
 	}()
 	lockPending(t, e, 1)
 	lockState := e.locks.Inspect()
-	entry := lockState.Resources[lockResource{ObjectRef: old}]
-	correct := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == s.ticket && entry.Pending[0].Mode == rowExclusive
+	entry := lockState.Resources[lock.Resource{ObjectRef: old}]
+	correct := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == s.ticket && entry.Pending[0].Mode == lock.RowExclusive
 	if !correct {
 		t.Fatal("descendant did not queue an actual physical RX request")
 	}

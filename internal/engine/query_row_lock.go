@@ -13,19 +13,19 @@ type rowLockNode struct {
 	querySchema
 	child     LogicalNode
 	marks     []queryRowMark
-	firstMode relationLockMode
+	firstMode lock.Mode
 }
 
-func queryRowMode(clause string) relationLockMode {
+func queryRowMode(clause string) lock.Mode {
 	switch clause {
 	case "FOR KEY SHARE":
-		return keyShare
+		return lock.ForKeyShare
 	case "FOR SHARE":
-		return rowShare
+		return lock.ForShare
 	case "FOR NO KEY UPDATE":
-		return noKeyUpdate
+		return lock.ForNoKeyUpdate
 	case "FOR UPDATE":
-		return rowUpdate
+		return lock.ForUpdate
 	}
 	panic("invalid SELECT row lock mode")
 }
@@ -120,9 +120,9 @@ func (s *StatementScope) acquireQueryRow(leaf queryLeaf, row ids.RowID, mark que
 	e := s.op.session.Engine()
 	// Conditional requests reuse the manager's atomic immediate-grant branch:
 	// no journal request or timer exists on an unavailable NOWAIT/SKIP probe.
-	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, NoWait: mark.wait != parser.RowLockBlock, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: leaf.ref, Row: row}, mark.mode, policy)
-	if errors.Is(err, errRelationUnavailable) {
+	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, NoWait: mark.wait != parser.RowLockBlock, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: leaf.ref, Row: row}, mark.mode, policy)
+	if errors.Is(err, lock.ErrUnavailable) {
 		if mark.wait == parser.RowLockSkip {
 			return false, nil
 		}
@@ -153,7 +153,7 @@ func (s *StatementScope) acquireQueryRow(leaf queryLeaf, row ids.RowID, mark que
 	return err == nil, err
 }
 
-func (s *StatementScope) latestQueryRow(leaf queryLeaf, candidate rowVersion, hint int, mode relationLockMode) (result rowVersion, present bool, err error) {
+func (s *StatementScope) latestQueryRow(leaf queryLeaf, candidate rowVersion, hint int, mode lock.Mode) (result rowVersion, present bool, err error) {
 	e := s.op.session.Engine()
 	var physical rowVersion
 	defer func() {
@@ -193,7 +193,7 @@ func (s *StatementScope) latestQueryRow(leaf queryLeaf, candidate rowVersion, hi
 			// KEY SHARE retains RR values only across compatible replacements.
 			// A key transition after the frontier remains incompatible even if
 			// later updates restore the key or change only payload.
-			if mode == keyShare && present && current.version != candidate.version && current.keyChangedAt <= s.owner.frontier {
+			if mode == lock.ForKeyShare && present && current.version != candidate.version && current.keyChangedAt <= s.owner.frontier {
 				return candidate, true, nil
 			}
 			return rowVersion{}, false, sqlError("40001", "could not serialize access due to concurrent update")

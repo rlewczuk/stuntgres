@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 )
 
@@ -42,28 +43,28 @@ type queryLockLineage struct {
 	state            *queryState
 }
 
-func strongerQueryRowMode(a, b relationLockMode) relationLockMode {
-	for _, mode := range [...]relationLockMode{rowUpdate, noKeyUpdate, rowShare, keyShare} {
+func strongerQueryRowMode(a, b lock.Mode) lock.Mode {
+	for _, mode := range [...]lock.Mode{lock.ForUpdate, lock.ForNoKeyUpdate, lock.ForShare, lock.ForKeyShare} {
 		if a == mode || b == mode {
 			return mode
 		}
 	}
 	return 0
 }
-func queryRowClause(mode relationLockMode) string {
+func queryRowClause(mode lock.Mode) string {
 	switch mode {
-	case keyShare:
+	case lock.ForKeyShare:
 		return "FOR KEY SHARE"
-	case rowShare:
+	case lock.ForShare:
 		return "FOR SHARE"
-	case noKeyUpdate:
+	case lock.ForNoKeyUpdate:
 		return "FOR NO KEY UPDATE"
-	case rowUpdate:
+	case lock.ForUpdate:
 		return "FOR UPDATE"
 	}
 	return ""
 }
-func queryRootRowMode(node LogicalNode) relationLockMode {
+func queryRootRowMode(node LogicalNode) lock.Mode {
 	for {
 		switch n := node.(type) {
 		case *projectNode:
@@ -81,7 +82,7 @@ func queryRootRowMode(node LogicalNode) relationLockMode {
 		}
 	}
 }
-func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root LogicalNode, leaves []queryLeaf) (relationLockMode, error) {
+func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root LogicalNode, leaves []queryLeaf) (lock.Mode, error) {
 	catalog := e.privateCatalogLocked(scope.owner.catalog)
 	if _, err := validateViewReadGraph(catalog, leaves); err != nil {
 		return 0, err
@@ -89,8 +90,8 @@ func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root LogicalNode
 	if mode := queryRootRowMode(root); mode != 0 {
 		return mode, nil
 	}
-	var visit func(*relationDescriptor, queryRowMark, relationLockMode) (relationLockMode, error)
-	visit = func(d *relationDescriptor, inherited queryRowMark, diagnostic relationLockMode) (relationLockMode, error) {
+	var visit func(*relationDescriptor, queryRowMark, lock.Mode) (lock.Mode, error)
+	visit = func(d *relationDescriptor, inherited queryRowMark, diagnostic lock.Mode) (lock.Mode, error) {
 		if d.relationKind != viewRelation {
 			if inherited.mode == 0 {
 				return 0, nil
@@ -149,7 +150,7 @@ func viewHasStoredRowMarks(d *relationDescriptor, catalog CatalogRead) bool {
 	}
 	return visit(d)
 }
-func viewRowLockLegality(d *viewDefinition, mode relationLockMode) error {
+func viewRowLockLegality(d *viewDefinition, mode lock.Mode) error {
 	if queryHasSetOutput(d.query.Root) {
 		return nil // A stored set view is an opaque physical-lineage boundary.
 	}
@@ -180,7 +181,7 @@ func queryHasSetOutput(node LogicalNode) bool {
 	}
 }
 
-func queryRowLockLegality(root LogicalNode, mode relationLockMode) error {
+func queryRowLockLegality(root LogicalNode, mode lock.Mode) error {
 	if mode == 0 {
 		return nil
 	}

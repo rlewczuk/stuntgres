@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -356,10 +357,10 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 	})
 	e := s.op.session.Engine()
 	for _, ref := range refs {
-		mode := accessShare
+		mode := lock.AccessShare
 		for _, descriptor := range stage.descriptors {
 			if d, ok := descriptor.(*relationDescriptor); ok && d.inheritance != nil && slices.Contains(d.inheritance.parents, ref.Address) {
-				mode = shareUpdateExclusive
+				mode = lock.ShareUpdateExclusive
 				break
 			}
 		}

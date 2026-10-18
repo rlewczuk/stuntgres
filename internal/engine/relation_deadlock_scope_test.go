@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -120,19 +121,19 @@ func TestRelationDeadlockLifecycleCanceledPredecessor(t *testing.T) {
 	transactionBegin(t, b)
 	at, bt := a.transactions.ticket, b.transactions.ticket
 	t.Cleanup(func() { e.endLockOwner(at); e.endLockOwner(bt) })
-	x := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t")}
-	y := lockResource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "u")}
-	deadlockRequest(t, e, at, x, accessExclusive)
-	deadlockRequest(t, e, bt, y, accessExclusive)
+	x := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t")}
+	y := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "u")}
+	deadlockRequest(t, e, at, x, lock.AccessExclusive)
+	deadlockRequest(t, e, bt, y, lock.AccessExclusive)
 	ctx, cancel := context.WithCancel(context.Background())
-	r, err := e.locks.StartAcquire(ctx, at, y, accessExclusive, relationLockPolicy{})
+	r, err := e.locks.StartAcquire(ctx, at, y, lock.AccessExclusive, lock.Policy{})
 	if err != nil || r == nil {
 		t.Fatal(r, err)
 	}
 	cancel()
 	// The canceled A->B request cannot make B->A a live cycle, even if its
 	// asynchronous cancellation callback has not acquired manager metadata yet.
-	follower := deadlockRequest(t, e, bt, x, accessExclusive)
+	follower := deadlockRequest(t, e, bt, x, lock.AccessExclusive)
 	if err := deadlockResult(t, r); !errors.Is(err, context.Canceled) {
 		t.Fatal("lost original cancellation", err)
 	}

@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-func pgLocksUnitCapture(t *testing.T, e *Engine) []pgLockRecord {
+func pgLocksUnitCapture(t *testing.T, e *Engine) []lock.Record {
 	t.Helper()
 	records, err := e.locks.PGLocks(e.catalog.state.epoch)
 	if err != nil {
@@ -23,8 +23,8 @@ func pgLocksUnitCapture(t *testing.T, e *Engine) []pgLockRecord {
 	return records
 }
 
-func pgLocksUnitOwnerRecords(records []pgLockRecord, ticket *relationTicket, kind lock.RecordKind) []pgLockRecord {
-	var result []pgLockRecord
+func pgLocksUnitOwnerRecords(records []lock.Record, ticket *lock.Ticket, kind lock.RecordKind) []lock.Record {
+	var result []lock.Record
 	for _, r := range records {
 		if r.Owner.Session == ticket.Ref().Session().ID() && r.Owner.Local == ticket.Ref().ID() && r.Kind == kind {
 			result = append(result, r)
@@ -33,7 +33,7 @@ func pgLocksUnitOwnerRecords(records []pgLockRecord, ticket *relationTicket, kin
 	return result
 }
 
-func pgLocksUnitAssign(t *testing.T, e *Engine, ticket *relationTicket) uint32 {
+func pgLocksUnitAssign(t *testing.T, e *Engine, ticket *lock.Ticket) uint32 {
 	t.Helper()
 	e.mu.Lock()
 	err := e.assignTransactionXIDLocked(ticket.Ref())
@@ -75,19 +75,19 @@ func TestPGLocksProjectionModes(t *testing.T) {
 	owner := lock.RecordOwner{Session: 7, Local: 9}
 	cases := []struct {
 		kind lock.RecordKind
-		mode relationLockMode
+		mode lock.Mode
 		name string
 	}{
-		{pgRelationLock, accessShare, "AccessShareLock"}, {pgRelationLock, relationRowShare, "RowShareLock"},
-		{pgRelationLock, rowExclusive, "RowExclusiveLock"}, {pgRelationLock, shareUpdateExclusive, "ShareUpdateExclusiveLock"},
-		{pgRelationLock, relationShare, "ShareLock"}, {pgRelationLock, shareRowExclusive, "ShareRowExclusiveLock"},
-		{pgRelationLock, relationExclusive, "ExclusiveLock"}, {pgRelationLock, accessExclusive, "AccessExclusiveLock"},
-		{pgObjectLock, typeExclusive, "ExclusiveLock"}, {pgAdvisoryLock, advisoryShared, "ShareLock"}, {pgAdvisoryLock, advisoryExclusive, "ExclusiveLock"},
-		{pgVirtualLock, 0, "ExclusiveLock"}, {pgTransactionLock, 0, "ExclusiveLock"},
+		{lock.RelationRecord, lock.AccessShare, "AccessShareLock"}, {lock.RelationRecord, lock.RowShare, "RowShareLock"},
+		{lock.RelationRecord, lock.RowExclusive, "RowExclusiveLock"}, {lock.RelationRecord, lock.ShareUpdateExclusive, "ShareUpdateExclusiveLock"},
+		{lock.RelationRecord, lock.Share, "ShareLock"}, {lock.RelationRecord, lock.ShareRowExclusive, "ShareRowExclusiveLock"},
+		{lock.RelationRecord, lock.Exclusive, "ExclusiveLock"}, {lock.RelationRecord, lock.AccessExclusive, "AccessExclusiveLock"},
+		{lock.ObjectRecord, lock.TypeExclusive, "ExclusiveLock"}, {lock.AdvisoryRecord, lock.AdvisoryShare, "ShareLock"}, {lock.AdvisoryRecord, lock.AdvisoryExclusive, "ExclusiveLock"},
+		{lock.VirtualRecord, 0, "ExclusiveLock"}, {lock.TransactionRecord, 0, "ExclusiveLock"},
 	}
 	for _, tc := range cases {
-		r := pgLockRecord{Kind: tc.kind, Owner: owner, Target: owner, Object: 42, Class: 1247, Subobject: 0, XID: 81, Mode: tc.mode}
-		rows, err := pgLockRows(context.Background(), d, 17, []pgLockRecord{r}, nil)
+		r := lock.Record{Kind: tc.kind, Owner: owner, Target: owner, Object: 42, Class: 1247, Subobject: 0, XID: 81, Mode: tc.mode}
+		rows, err := pgLockRows(context.Background(), d, 17, []lock.Record{r}, nil)
 		if err != nil || len(rows) != 1 {
 			t.Fatal("projection", tc, rows, err)
 		}
@@ -99,7 +99,7 @@ func TestPGLocksProjectionModes(t *testing.T) {
 			t.Fatal("mode/owner/null pattern", tc, row)
 		}
 		for _, i := range []int{1, 2, 5, 6, 7, 8, 9} {
-			present := tc.kind == pgRelationLock && (i == 1 || i == 2) || tc.kind == pgObjectLock && (i == 1 || i == 7 || i == 8 || i == 9) || tc.kind == pgAdvisoryLock && (i == 1 || i == 7 || i == 8 || i == 9) || tc.kind == pgVirtualLock && i == 5 || tc.kind == pgTransactionLock && i == 6
+			present := tc.kind == lock.RelationRecord && (i == 1 || i == 2) || tc.kind == lock.ObjectRecord && (i == 1 || i == 7 || i == 8 || i == 9) || tc.kind == lock.AdvisoryRecord && (i == 1 || i == 7 || i == 8 || i == 9) || tc.kind == lock.VirtualRecord && i == 5 || tc.kind == lock.TransactionRecord && i == 6
 			if row[i].IsNull() == present {
 				t.Fatal("target NULL matrix", tc, i, row)
 			}
@@ -108,8 +108,8 @@ func TestPGLocksProjectionModes(t *testing.T) {
 	// Both advisory key spaces preserve unsigned halves, never signed OIDs. The
 	// lock manager's own tests pin the capture record for each key space.
 	for _, subobject := range []int16{1, 2} {
-		r := pgLockRecord{Kind: pgAdvisoryLock, Owner: owner, Mode: advisoryShared | advisoryExclusive, Class: math.MaxUint32, Object: 1 << 31, Subobject: subobject}
-		rows, err := pgLockRows(context.Background(), d, 17, []pgLockRecord{r}, nil)
+		r := lock.Record{Kind: lock.AdvisoryRecord, Owner: owner, Mode: lock.AdvisoryShare | lock.AdvisoryExclusive, Class: math.MaxUint32, Object: 1 << 31, Subobject: subobject}
+		rows, err := pgLockRows(context.Background(), d, 17, []lock.Record{r}, nil)
 		if err != nil || len(rows) != 2 {
 			t.Fatal("held mode expansion", rows, err)
 		}
@@ -121,12 +121,12 @@ func TestPGLocksProjectionModes(t *testing.T) {
 			}
 		}
 	}
-	if rows, err := pgLockRows(context.Background(), d, 17, []pgLockRecord{{Kind: pgRelationLock, Owner: owner}}, nil); err != nil || len(rows) != 0 {
+	if rows, err := pgLockRows(context.Background(), d, 17, []lock.Record{{Kind: lock.RelationRecord, Owner: owner}}, nil); err != nil || len(rows) != 0 {
 		t.Fatal("zero-mode phantom", rows, err)
 	}
 	stamp := time.Now().UTC().Truncate(time.Microsecond)
-	pending := pgLockRecord{Kind: pgTransactionLock, Owner: owner, XID: 81, Waiting: true, WaitStart: stamp}
-	rows, err := pgLockRows(context.Background(), d, 17, []pgLockRecord{pending}, nil)
+	pending := lock.Record{Kind: lock.TransactionRecord, Owner: owner, XID: 81, Waiting: true, WaitStart: stamp}
+	rows, err := pgLockRows(context.Background(), d, 17, []lock.Record{pending}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 	t.Run("registration_assignment_restore_prepare_end", func(t *testing.T) {
 		e := New()
 		_, ticket := blockingUnitOwner(t, e)
-		if len(pgLocksUnitOwnerRecords(pgLocksUnitCapture(t, e), ticket, pgVirtualLock)) != 1 || ticket.AssignedPublicXID() != 0 {
+		if len(pgLocksUnitOwnerRecords(pgLocksUnitCapture(t, e), ticket, lock.VirtualRecord)) != 1 || ticket.AssignedPublicXID() != 0 {
 			t.Fatal("register did not own exact VXID")
 		}
 		xid := pgLocksUnitAssign(t, e, ticket)
@@ -161,19 +161,19 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		xid = pgLocksUnitAssign(t, e, ticket)
 		e.locks.DetachPrepared(ticket)
 		_, waiter := blockingUnitOwner(t, e)
-		request, _ := pgLocksUnitRequest(t, e, waiter, lock.CompletionOf(ticket), transactionCompletion, completionVirtual)
+		request, _ := pgLocksUnitRequest(t, e, waiter, lock.CompletionOf(ticket), lock.TransactionCompletion, lock.CompletionVirtual)
 		e.mu.Lock()
 		e.recordCommitTimestampLocked(ticket.Ref())
 		e.mu.Unlock()
 		pending := pgLocksUnitWait(t, e, waiter)
-		if pending.Kind != pgTransactionLock || pending.XID != xid || request == nil || request.Terminal() {
+		if pending.Kind != lock.TransactionRecord || pending.XID != xid || request == nil || request.Terminal() {
 			t.Fatal("prepared publication gap fabricated VXID or lost dependency", pending)
 		}
 		records := pgLocksUnitCapture(t, e)
-		if len(pgLocksUnitOwnerRecords(records, ticket, pgVirtualLock)) != 0 {
+		if len(pgLocksUnitOwnerRecords(records, ticket, lock.VirtualRecord)) != 0 {
 			t.Fatal("prepared owns live VXID")
 		}
-		xids := pgLocksUnitOwnerRecords(records, ticket, pgTransactionLock)
+		xids := pgLocksUnitOwnerRecords(records, ticket, lock.TransactionRecord)
 		if len(xids) != 1 || xids[0].XID != xid || !xids[0].Owner.Prepared {
 			t.Fatal("prepared identity", xids)
 		}
@@ -181,7 +181,7 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		if err := deadlockResult(t, request); err != nil {
 			t.Fatal(err)
 		}
-		if len(pgLocksUnitOwnerRecords(pgLocksUnitCapture(t, e), ticket, pgTransactionLock)) != 0 {
+		if len(pgLocksUnitOwnerRecords(pgLocksUnitCapture(t, e), ticket, lock.TransactionRecord)) != 0 {
 			t.Fatal("ended transaction owns XID")
 		}
 	})
@@ -256,7 +256,7 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 			t.Fatal("completed phase retained XID or lost association", after)
 		}
 		records := pgLocksUnitCapture(t, e)
-		if len(pgLocksUnitOwnerRecords(records, ticket, pgTransactionLock)) != 0 || len(pgLocksUnitOwnerRecords(records, ticket, pgVirtualLock)) != 1 {
+		if len(pgLocksUnitOwnerRecords(records, ticket, lock.TransactionRecord)) != 0 || len(pgLocksUnitOwnerRecords(records, ticket, lock.VirtualRecord)) != 1 {
 			t.Fatal("phase retirement changed VXID or retained completed XID", records)
 		}
 		next := pgLocksUnitAssign(t, e, ticket)
@@ -312,7 +312,7 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 		v, _ := sqltype.Integer(testUsage(e, sqltype.Int4).Type, 1)
 		err = scope.Writes().Apply(ref, [][]sqltype.Value{{v, sqltype.String(testUsage(e, sqltype.Text).Type, "owned")}})
 	case "row_grant":
-		_, err = scope.acquireQueryRow(queryLeaf{ref: ref, relation: d, storage: store}, 1, queryRowMark{mode: rowUpdate, wait: parser.RowLockBlock})
+		_, err = scope.acquireQueryRow(queryLeaf{ref: ref, relation: d, storage: store}, 1, queryRowMark{mode: lock.ForUpdate, wait: parser.RowLockBlock})
 	case "catalog":
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		defer e.DiscardCatalogStage(stage)
@@ -339,7 +339,7 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 	if uint64(ticket.AssignedPublicXID()) != before+1 || e.assignedXID != before+1 {
 		t.Fatal("actual route failed to mirror exactly one canonical assignment", route, before, ticket.AssignedPublicXID(), e.assignedXID)
 	}
-	if len(pgLocksUnitOwnerRecords(pgLocksUnitCapture(t, e), ticket, pgTransactionLock)) != 1 {
+	if len(pgLocksUnitOwnerRecords(pgLocksUnitCapture(t, e), ticket, lock.TransactionRecord)) != 1 {
 		t.Fatal("actual assignment lacks completion ownership", route)
 	}
 	if route == "prepare" {

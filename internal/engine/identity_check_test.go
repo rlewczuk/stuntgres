@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -174,8 +175,8 @@ func TestIdentityOwnCheckIncumbentAdmission(t *testing.T) {
 	waiting := lockAsync(e, b, ctx, create, false)
 	lockPending(t, e, 1)
 	lockState := e.locks.Inspect()
-	entry := lockState.Resources[lockResource{ObjectRef: ref}]
-	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == accessShare
+	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
+	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessShare
 	if !queued {
 		t.Fatal("mixed staged/incumbent CHECK did not admit exact incumbent")
 	}

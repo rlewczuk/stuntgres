@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -469,7 +470,7 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if beforeErr != nil {
 		return sqltype.Value{}, beforeErr
 	}
-	if err := scope.acquireSequence(ref, rowExclusive, true); err != nil {
+	if err := scope.acquireSequence(ref, lock.RowExclusive, true); err != nil {
 		return sqltype.Value{}, err
 	}
 	e.mu.Lock()

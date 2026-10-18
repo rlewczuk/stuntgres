@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func (stage *CatalogStage) removePartitionHierarchyLocked(relation *relationDescriptor) error {
@@ -76,18 +77,18 @@ func (s *StatementScope) acquirePartitionDropLocks(ref ids.ObjectRef) error {
 	e.mu.Unlock()
 	slices.Reverse(ancestors)
 	for i, ancestor := range ancestors {
-		mode := accessShare
+		mode := lock.AccessShare
 		if i == len(ancestors)-1 {
-			mode = accessExclusive
+			mode = lock.AccessExclusive
 		}
 		if err := s.acquirePartitionLock(ancestor, mode); err != nil {
 			return err
 		}
 	}
-	if err := s.acquirePartitionLock(ref, accessExclusive); err != nil {
+	if err := s.acquirePartitionLock(ref, lock.AccessExclusive); err != nil {
 		return err
 	}
-	return s.acquirePartitionDescendants(ref, accessExclusive)
+	return s.acquirePartitionDescendants(ref, lock.AccessExclusive)
 }
 
 func partitionDependsOn(relation *relationDescriptor, target ids.ObjectAddress) bool {

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -269,9 +270,9 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 	}
 	slices.SortFunc(g.parents, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
 	slices.SortFunc(g.indexes, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
-	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
-	acquire := func(ref ids.ObjectRef, mode relationLockMode) error {
-		request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, policy)
+	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	acquire := func(ref ids.ObjectRef, mode lock.Mode) error {
+		request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, policy)
 		if request != nil {
 			err = request.Wait()
 		}
@@ -299,9 +300,9 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		}
 		return nil
 	}
-	parentMode := relationShare
+	parentMode := lock.Share
 	if drop || g.attach != (ids.ObjectRef{}) {
-		parentMode = accessExclusive
+		parentMode = lock.AccessExclusive
 	}
 	for _, ref := range g.parents {
 		if err := acquire(ref, parentMode); err != nil {
@@ -309,15 +310,15 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		}
 	}
 	for _, ref := range g.indexes {
-		if err := acquire(ref, accessExclusive); err != nil {
+		if err := acquire(ref, lock.AccessExclusive); err != nil {
 			return err
 		}
 	}
 	if _, alter := stmt.(*parser.AlterIndex); alter && len(g.targets) > 0 {
 		ref := g.targets[0]
-		mode := accessExclusive
+		mode := lock.AccessExclusive
 		if g.descriptors[ref.Address].relationKind == indexRelation {
-			mode = shareUpdateExclusive
+			mode = lock.ShareUpdateExclusive
 		}
 		if !slices.Contains(g.indexes, ref) {
 			if err := acquire(ref, mode); err != nil {

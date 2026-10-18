@@ -4,10 +4,11 @@ import (
 	"sort"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func (s *StatementScope) acquireViewSources() (err error) {
-	var grants map[ids.ObjectRef]relationLockMode
+	var grants map[ids.ObjectRef]lock.Mode
 	defer func() {
 		if err == nil {
 			err = s.acquireInheritanceSources(grants)
@@ -28,12 +29,12 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		e.mu.Unlock()
 		return nil
 	}
-	seen := make(map[ids.ObjectRef]relationLockMode)
+	seen := make(map[ids.ObjectRef]lock.Mode)
 	var refs []ids.ObjectRef
 	var retainedViews []*relationDescriptor
 	hasMaterializedSource := false
-	var visit func(ids.ObjectRef, relationLockMode) error
-	visit = func(ref ids.ObjectRef, mode relationLockMode) error {
+	var visit func(ids.ObjectRef, lock.Mode) error
+	visit = func(ref ids.ObjectRef, mode lock.Mode) error {
 		prior, visited := seen[ref]
 		if ref == (ids.ObjectRef{}) || visited && strongerQueryRowMode(prior, mode) == prior {
 			return nil
@@ -50,7 +51,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 			}
 		}
 		admitted := ref == s.lockedRef
-		admittedMode := relationLockMode(0)
+		admittedMode := lock.Mode(0)
 		for _, leaf := range s.querySources {
 			if leaf.ref == ref {
 				admitted = true
@@ -159,10 +160,10 @@ func (s *StatementScope) acquireBoundViewRelations(refs []ids.ObjectRef) error {
 	return s.acquireBoundViewRelationModes(refs, nil)
 }
 
-func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, modes map[ids.ObjectRef]relationLockMode) error {
+func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, modes map[ids.ObjectRef]lock.Mode) error {
 	e := s.op.session.Engine()
 	sort.Slice(refs, func(i, j int) bool { return refs[i].Address.ObjectID < refs[j].Address.ObjectID })
-	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
 	for _, ref := range refs {
 		e.mu.Lock()
 		d, _ := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
@@ -171,11 +172,11 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 		if unsupported {
 			return sqlError("0A000", "row locking partition hierarchies is unsupported")
 		}
-		mode := accessShare
+		mode := lock.AccessShare
 		if modes[ref] != 0 {
-			mode = relationRowShare
+			mode = lock.RowShare
 		}
-		request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, policy)
+		request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, policy)
 		if request != nil {
 			s.admissionWaited = true
 			if s.replacementRead {
@@ -187,7 +188,7 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 		if err != nil {
 			return err
 		}
-		if err := s.acquirePartitionDescendants(ref, accessShare); err != nil {
+		if err := s.acquirePartitionDescendants(ref, lock.AccessShare); err != nil {
 			return err
 		}
 		s.owner.mu.Lock()

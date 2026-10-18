@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -198,7 +199,7 @@ func TestQueryOuterJoinsLocalMarkFrontierManifest(t *testing.T) {
 		{leaf: queryLeaf{relation: &relationDescriptor{relationKind: tableRelation}}},
 		{leaf: queryLeaf{relation: &relationDescriptor{relationKind: tableRelation}}},
 	}}
-	left := &rowLockNode{child: &sourceNode{occurrence: 0}, marks: []queryRowMark{{mode: rowUpdate}}, firstMode: rowUpdate}
+	left := &rowLockNode{child: &sourceNode{occurrence: 0}, marks: []queryRowMark{{mode: lock.ForUpdate}}, firstMode: lock.ForUpdate}
 	for _, kind := range []parser.JoinKind{parser.JoinInner, parser.JoinLeft, parser.JoinRight, parser.JoinFull} {
 		join := &joinNode{kind: kind, left: left, right: &sourceNode{occurrence: 1}}
 		marks := pendingQueryMarks(join, inputs, nil)

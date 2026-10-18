@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -174,18 +175,18 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 	_, stagedPeer := scope.catalog.storage[peerAddress]
 	excluded := scope.truncateSelected[peerAddress] == 0 && !stagedPeer && len(scope.truncateRelations) == 3
 	lockState := e.locks.Inspect(scope.ticket)
-	_, journaledPeer := lockState.Journals[scope.ticket][lockResource{ObjectRef: peerRef}]
-	excluded = excluded && !journaledPeer && lockState.Resources[lockResource{ObjectRef: peerRef}] == nil
+	_, journaledPeer := lockState.Journals[scope.ticket][lock.Resource{ObjectRef: peerRef}]
+	excluded = excluded && !journaledPeer && lockState.Resources[lock.Resource{ObjectRef: peerRef}] == nil
 	admitted := true
 	for _, address := range []ids.ObjectAddress{parent.Address, ownAddress, persistent.Address} {
 		ref := e.catalog.domain.Ref(catalog.Epoch(), address)
-		entry := lockState.Resources[lockResource{ObjectRef: ref}]
+		entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 		if entry == nil {
 			admitted = false
 			continue
 		}
 		grant, held := entry.Holders[scope.ticket]
-		admitted = admitted && held && grant.Mode == accessExclusive && scope.truncateSelected[address] != 0
+		admitted = admitted && held && grant.Mode == lock.AccessExclusive && scope.truncateSelected[address] != 0
 	}
 	if !excluded || !admitted {
 		t.Fatalf("temporary descendant admission: foreign excluded=%v, own/persistent AX admitted=%v", excluded, admitted)
@@ -213,16 +214,16 @@ func TestTruncateLocks(t *testing.T) {
 	done, cancel := truncateUnitAsync(t, e, waiter, truncateUnitAST("p", "q"))
 	lockPending(t, e, 1)
 	lockState := e.locks.Inspect()
-	prefix := lockState.Resources[lockResource{ObjectRef: p}]
-	blocked := lockState.Resources[lockResource{ObjectRef: q}]
+	prefix := lockState.Resources[lock.Resource{ObjectRef: p}]
+	blocked := lockState.Resources[lock.Resource{ObjectRef: q}]
 	valid := prefix != nil && len(prefix.Holders) == 1 && blocked != nil && len(blocked.Pending) == 1
 	if valid {
 		request := blocked.Pending[0]
 		ticket := request.Ticket
-		_, prefixJournal := lockState.Journals[ticket][lockResource{ObjectRef: p}]
-		_, pendingJournal := lockState.Journals[ticket][lockResource{ObjectRef: q}]
+		_, prefixJournal := lockState.Journals[ticket][lock.Resource{ObjectRef: p}]
+		_, pendingJournal := lockState.Journals[ticket][lock.Resource{ObjectRef: q}]
 		grant, held := prefix.Holders[ticket]
-		valid = held && grant.Mode == accessExclusive && request.Mode == accessExclusive && request.Resource == (lockResource{ObjectRef: q}) && request.Provenance.Session() == waiter.token && lockState.Owners[request.Provenance] == ticket && prefixJournal && pendingJournal
+		valid = held && grant.Mode == lock.AccessExclusive && request.Mode == lock.AccessExclusive && request.Resource == (lock.Resource{ObjectRef: q}) && request.Provenance.Session() == waiter.token && lockState.Owners[request.Provenance] == ticket && prefixJournal && pendingJournal
 	}
 	if !valid {
 		t.Fatal("missing real AX prefix/second-target pending request")
@@ -230,8 +231,8 @@ func TestTruncateLocks(t *testing.T) {
 	cancel()
 	lockAwait(t, done, context.Canceled)
 	lockState = e.locks.Inspect()
-	prefix = lockState.Resources[lockResource{ObjectRef: p}]
-	blocked = lockState.Resources[lockResource{ObjectRef: q}]
+	prefix = lockState.Resources[lock.Resource{ObjectRef: p}]
+	blocked = lockState.Resources[lock.Resource{ObjectRef: q}]
 	clean := prefix == nil && blocked != nil && len(blocked.Pending) == 0
 	if !clean || len(e.storage[p.Address].versions) != 2 || len(e.storage[q.Address].versions) != 1 {
 		t.Fatal("cancellation retained prefix or changed roots")

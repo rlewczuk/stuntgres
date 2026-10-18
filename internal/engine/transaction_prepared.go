@@ -4,6 +4,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"time"
@@ -17,7 +18,7 @@ type preparedTransaction struct {
 	ref      ids.TxRef
 	prepared time.Time
 	database string
-	ticket   *relationTicket
+	ticket   *lock.Ticket
 	writes   map[ids.ObjectAddress][]rowVersion
 	deletes  map[ids.ObjectAddress]*privateDeletionRoot
 	catalog  *catalogChanges

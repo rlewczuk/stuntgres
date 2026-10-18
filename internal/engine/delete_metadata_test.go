@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/lock"
 	"testing"
 	"time"
 )
@@ -29,18 +30,18 @@ func TestDeleteCoreMetadataQueuedComment(t *testing.T) {
 				e.mu.Lock()
 				row := e.storage[target.Address].versions[0].row
 				e.mu.Unlock()
-				resource := lockResource{ObjectRef: target, Row: row}
+				resource := lock.Resource{ObjectRef: target, Row: row}
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 				done := deleteAsync(t, b, ctx, "DELETE FROM t WHERE v<=2")
 				lockPending(t, e, 1)
 				lockState := e.locks.Inspect()
 				entry := lockState.Resources[resource]
-				var request *lockWaiter
+				var request *lock.Waiter
 				if entry != nil && len(entry.Pending) == 1 {
 					request = &entry.Pending[0]
 				}
-				queued := request != nil && request.Ticket == waiter && request.Resource == resource && request.Mode == rowUpdate && !request.Terminal && entry.Holders[a.transactions.ticket].Mode == rowUpdate
+				queued := request != nil && request.Ticket == waiter && request.Resource == resource && request.Mode == lock.ForUpdate && !request.Terminal && entry.Holders[a.transactions.ticket].Mode == lock.ForUpdate
 				if !queued {
 					t.Fatal("DELETE not actually queued on the original row resource")
 				}

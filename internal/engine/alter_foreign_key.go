@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -17,16 +18,16 @@ type alterForeignKeyAdmission struct {
 	index   ids.ObjectAddress
 }
 
-func alterTableLockMode(raw *parser.AlterTable) relationLockMode {
+func alterTableLockMode(raw *parser.AlterTable) lock.Mode {
 	for _, action := range raw.Actions {
 		if action.Action != parser.AddForeignKey {
-			return accessExclusive
+			return lock.AccessExclusive
 		}
 	}
 	if len(raw.Actions) == 0 {
-		return accessExclusive
+		return lock.AccessExclusive
 	}
-	return shareRowExclusive
+	return lock.ShareRowExclusive
 }
 
 func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
@@ -111,7 +112,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 	e.mu.Unlock()
 	slices.SortFunc(refs, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
 	for _, ref := range refs {
-		mode := shareRowExclusive
+		mode := lock.ShareRowExclusive
 		if ref == childRef {
 			mode = alterTableLockMode(raw)
 		}

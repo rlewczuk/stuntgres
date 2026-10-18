@@ -1,6 +1,10 @@
 package engine
 
-import "testing"
+import (
+	"testing"
+
+	"stuntgres/internal/engine/lock"
+)
 
 func TestQueryLimitLockedCache(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
@@ -23,7 +27,7 @@ func TestQueryLimitLockedCache(t *testing.T) {
 				transactionRows(t, a, "SELECT v FROM t WHERE id=1 FOR UPDATE", 10)
 				sessionSQL(t, a, "UPDATE t SET v=30 WHERE id=1")
 				done := queryLimitAsync(t, e, b, q, prepared)
-				rowLockQueued(t, e, a.transactions.ticket, rowUpdate)
+				rowLockQueued(t, e, a.transactions.ticket, lock.ForUpdate)
 				transactionEnd(t, a, ar, true)
 				rowLockAwait(t, done, want)
 				transactionRows(t, b, "SELECT currval('s')", want)
@@ -51,7 +55,7 @@ func TestQueryLimitLocalOuterSort(t *testing.T) {
 				transactionRows(t, a, "SELECT v FROM t WHERE id=1 FOR UPDATE", 10)
 				sessionSQL(t, a, "UPDATE t SET v=30 WHERE id=1")
 				done := queryLimitAsync(t, e, b, q, prepared)
-				rowLockQueued(t, e, a.transactions.ticket, rowUpdate)
+				rowLockQueued(t, e, a.transactions.ticket, lock.ForUpdate)
 				transactionEnd(t, a, ar, true)
 				rowLockAwait(t, done, want...)
 				lockEmpty(t, e)

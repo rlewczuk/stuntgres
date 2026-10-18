@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -167,7 +168,7 @@ func TestPGSequencesDemand(t *testing.T) {
 			for _, name := range []string{"a", "b"} {
 				ref := catalogRef(t, e, e.CatalogRead(), name)
 				lockState := e.locks.Inspect()
-				entry := lockState.Resources[lockResource{ObjectRef: ref}]
+				entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 				held := entry != nil && entry.Holders[a.transactions.ticket].Mode != 0
 				if held {
 					t.Fatal("Prepare invoked helper", name)
@@ -178,8 +179,8 @@ func TestPGSequencesDemand(t *testing.T) {
 			for _, name := range []string{"a", "b"} {
 				ref := catalogRef(t, e, e.CatalogRead(), name)
 				lockState := e.locks.Inspect()
-				entry := lockState.Resources[lockResource{ObjectRef: ref}]
-				held := entry != nil && entry.Holders[a.transactions.ticket].Mode == rowExclusive
+				entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
+				held := entry != nil && entry.Holders[a.transactions.ticket].Mode == lock.RowExclusive
 				want := (name == "a" && query != "SELECT last_value FROM pg_sequences WHERE FALSE" && query != "SELECT last_value FROM pg_sequences WHERE FALSE FOR UPDATE") || query == "SELECT count(*) FROM pg_sequences"
 				if held != want {
 					t.Fatal(name, "RX", held, "want", want)
@@ -189,7 +190,7 @@ func TestPGSequencesDemand(t *testing.T) {
 			lockState := e.locks.Inspect()
 			tableMarked := false
 			for resource, entry := range lockState.Resources {
-				if resource.ObjectRef == tableRef && resource.Row != 0 && entry.Holders[a.transactions.ticket].Mode == rowUpdate {
+				if resource.ObjectRef == tableRef && resource.Row != 0 && entry.Holders[a.transactions.ticket].Mode == lock.ForUpdate {
 					tableMarked = true
 				}
 			}
@@ -229,7 +230,7 @@ func TestPGSequencesConcurrency(t *testing.T) {
 			transactionEnd(t, a, tx, false)
 		}
 	}()
-	ownedLockQueued(t, e, ref, shareRowExclusive, done)
+	ownedLockQueued(t, e, ref, lock.ShareRowExclusive, done)
 	transactionEnd(t, a, tx, false)
 	active = false
 	lockAwait(t, done, nil)
@@ -249,7 +250,7 @@ func TestPGSequencesCancellation(t *testing.T) {
 	before := *e.sequences[ref.Address]
 	ctx, cancel := context.WithCancel(context.Background())
 	done := lockAsync(e, b, ctx, "SELECT sequencename FROM pg_sequences", false)
-	ownedLockQueued(t, e, ref, rowExclusive, done)
+	ownedLockQueued(t, e, ref, lock.RowExclusive, done)
 	cancel()
 	lockAwait(t, done, context.Canceled)
 	if *e.sequences[ref.Address] != before {

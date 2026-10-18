@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -102,7 +103,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 		}
 	}()
 	t.mu.Lock()
-	var old, candidate *relationTicket
+	var old, candidate *lock.Ticket
 	var next ids.TxRef
 	installedNext := false
 	defer func() {

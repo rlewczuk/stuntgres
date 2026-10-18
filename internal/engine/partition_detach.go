@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -45,7 +46,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 	e.mu.Unlock()
 	if defaultAddress != (ids.ObjectAddress{}) {
 		ref := e.catalog.domain.Ref(auth.catalog.Epoch(), defaultAddress)
-		if err := scope.acquirePartitionLock(ref, accessExclusive); err != nil {
+		if err := scope.acquirePartitionLock(ref, lock.AccessExclusive); err != nil {
 			return Result{}, err
 		}
 	}
@@ -68,7 +69,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 	if err != nil {
 		return Result{}, err
 	}
-	if err = scope.acquirePartitionLock(candidate, accessExclusive); err != nil {
+	if err = scope.acquirePartitionLock(candidate, lock.AccessExclusive); err != nil {
 		return Result{}, err
 	}
 	catalog, child, err := e.partitionAttachRelation(scope, candidate)
@@ -78,7 +79,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 	if err = partitionDetachMembership(parent, child); err != nil {
 		return Result{}, err
 	}
-	if err = scope.acquirePartitionDescendants(candidate, accessExclusive); err != nil {
+	if err = scope.acquirePartitionDescendants(candidate, lock.AccessExclusive); err != nil {
 		return Result{}, err
 	}
 	e.mu.Lock()

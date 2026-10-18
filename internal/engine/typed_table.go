@@ -5,6 +5,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -271,9 +272,9 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 		}
 		return 0
 	})
-	mode := accessShare
+	mode := lock.AccessShare
 	if drop {
-		mode = accessExclusive
+		mode = lock.AccessExclusive
 	}
 	for _, source := range addresses {
 		typ, ok := stage.base.Type(source)

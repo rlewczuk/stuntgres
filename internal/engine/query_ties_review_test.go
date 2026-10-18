@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -90,7 +91,7 @@ func TestQueryTiesQueuedReplacement(t *testing.T) {
 			sessionSQL(t, a, "UPDATE t SET v=20 WHERE id=3")
 			br := transactionBegin(t, b)
 			done := queryLimitAsync(t, e, b, "SELECT id FROM t ORDER BY "+key+" FETCH FIRST 2 ROWS WITH TIES FOR UPDATE", false)
-			rowLockQueued(t, e, a.transactions.ticket, rowUpdate)
+			rowLockQueued(t, e, a.transactions.ticket, lock.ForUpdate)
 			transactionEnd(t, a, ar, true)
 			rowLockAwait(t, done, 1, 2, 3)
 			rowLockViewGrants(t, e, b.transactions.ticket, "t", 1, 2, 3, 4)

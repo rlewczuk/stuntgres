@@ -3,19 +3,20 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
 func TestAdvisoryXactPreparedOwnership(t *testing.T) {
-	for _, sessionMode := range []relationLockMode{advisoryShared, advisoryExclusive} {
+	for _, sessionMode := range []lock.Mode{lock.AdvisoryShare, lock.AdvisoryExclusive} {
 		e := New()
 		a, _ := advisoryUnitOwner(t, e)
 		peer := sessionStart(t, e, nil)
-		key := lockResource{Kind: advisoryBigintResource, High: 1, Low: 2}
+		key := lock.Resource{Kind: lock.AdvisoryBigintResource, High: 1, Low: 2}
 		mark := e.locks.Checkpoint(a.transactions.ticket)
-		advisoryXactUnitGrant(t, a, key, advisoryExclusive, true)
+		advisoryXactUnitGrant(t, a, key, lock.AdvisoryExclusive, true)
 		advisoryXactUnitGrant(t, a, key, sessionMode, false)
 		err := e.locks.CheckPreparedAdvisory(a.transactions.ticket)
 		var d *sqlstate.Error
@@ -29,8 +30,8 @@ func TestAdvisoryXactPreparedOwnership(t *testing.T) {
 			t.Fatal("restriction on journal rather than grant", err)
 		}
 		pair := key
-		pair.Kind = advisoryPairResource
-		advisoryXactUnitGrant(t, a, pair, advisoryExclusive, true)
+		pair.Kind = lock.AdvisoryPairResource
+		advisoryXactUnitGrant(t, a, pair, lock.AdvisoryExclusive, true)
 		old := a.transactions.ticket
 		if err := preparedUnitControl(t, e, a, parser.KindPrepareTransaction, "advisory_xact_unit"); err != nil {
 			t.Fatal(err)
@@ -40,7 +41,7 @@ func TestAdvisoryXactPreparedOwnership(t *testing.T) {
 			t.Fatal("prepared owner did not detach")
 		}
 		transactionBegin(t, a)
-		if _, err := advisoryXactUnitAcquire(t, a, pair, advisoryExclusive, true, true); !errors.Is(err, errRelationUnavailable) {
+		if _, err := advisoryXactUnitAcquire(t, a, pair, lock.AdvisoryExclusive, true, true); !errors.Is(err, lock.ErrUnavailable) {
 			t.Fatal("origin bypassed detached holder", err)
 		}
 		if advisoryUnitHold(a, key).Mode != sessionMode {
@@ -66,36 +67,36 @@ func TestAdvisoryXactLockSnapshot(t *testing.T) {
 	e := New()
 	a, _ := advisoryUnitOwner(t, e)
 	b, _ := advisoryUnitOwner(t, e)
-	key := lockResource{Kind: advisoryPairResource, High: 0xffffffff, Low: 2}
-	advisoryXactUnitGrant(t, a, key, advisoryShared, false)
-	advisoryXactUnitGrant(t, a, key, advisoryShared, false)
-	advisoryXactUnitGrant(t, a, key, advisoryShared, true)
-	capture := func() []pgLockRecord {
+	key := lock.Resource{Kind: lock.AdvisoryPairResource, High: 0xffffffff, Low: 2}
+	advisoryXactUnitGrant(t, a, key, lock.AdvisoryShare, false)
+	advisoryXactUnitGrant(t, a, key, lock.AdvisoryShare, false)
+	advisoryXactUnitGrant(t, a, key, lock.AdvisoryShare, true)
+	capture := func() []lock.Record {
 		t.Helper()
 		records, err := e.locks.PGLocks(e.CatalogRead().Epoch())
 		if err != nil {
 			t.Fatal(err)
 		}
-		var out []pgLockRecord
+		var out []lock.Record
 		for _, r := range records {
-			if r.Kind == pgAdvisoryLock && r.Class == key.High && r.Object == key.Low && r.Subobject == 2 {
+			if r.Kind == lock.AdvisoryRecord && r.Class == key.High && r.Object == key.Low && r.Subobject == 2 {
 				out = append(out, r)
 			}
 		}
 		return out
 	}
 	rows := capture()
-	if len(rows) != 1 || rows[0].Mode != advisoryShared || rows[0].Owner.Local != a.transactions.ref.ID() {
+	if len(rows) != 1 || rows[0].Mode != lock.AdvisoryShare || rows[0].Owner.Local != a.transactions.ref.ID() {
 		t.Fatal("same process mode duplication", rows)
 	}
-	advisoryXactUnitGrant(t, a, key, advisoryExclusive, true)
+	advisoryXactUnitGrant(t, a, key, lock.AdvisoryExclusive, true)
 	rows = capture()
-	if len(rows) != 1 || rows[0].Mode != advisoryShared|advisoryExclusive {
+	if len(rows) != 1 || rows[0].Mode != lock.AdvisoryShare|lock.AdvisoryExclusive {
 		t.Fatal("combined mode record", rows)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	request, err := e.locks.StartAcquire(ctx, b.transactions.ticket, key, advisoryExclusive, relationLockPolicy{})
+	request, err := e.locks.StartAcquire(ctx, b.transactions.ticket, key, lock.AdvisoryExclusive, lock.Policy{})
 	if err != nil || request == nil {
 		t.Fatal(request, err)
 	}
@@ -105,7 +106,7 @@ func TestAdvisoryXactLockSnapshot(t *testing.T) {
 		for _, r := range rows {
 			if r.Waiting {
 				pending++
-				if r.Owner.Session != b.token.ID() || r.WaitStart.IsZero() || r.Mode != advisoryExclusive {
+				if r.Owner.Session != b.token.ID() || r.WaitStart.IsZero() || r.Mode != lock.AdvisoryExclusive {
 					t.Fatal("pending identity", r)
 				}
 			}
@@ -120,13 +121,13 @@ func TestAdvisoryXactLockSnapshot(t *testing.T) {
 	}
 	e.endLockOwner(a.transactions.ticket)
 	rows = capture()
-	if len(rows) != 1 || rows[0].Mode != advisoryShared {
+	if len(rows) != 1 || rows[0].Mode != lock.AdvisoryShare {
 		t.Fatal("transaction end crossed session mode", rows)
 	}
 	// A different tag may be detached while the live origin owns its session tag.
 	other := key
 	other.Low++
-	advisoryXactUnitGrant(t, b, other, advisoryExclusive, true)
+	advisoryXactUnitGrant(t, b, other, lock.AdvisoryExclusive, true)
 	old := b.transactions.ticket
 	if err := preparedUnitControl(t, e, b, parser.KindPrepareTransaction, "advisory_snapshot"); err != nil {
 		t.Fatal(err)
@@ -138,7 +139,7 @@ func TestAdvisoryXactLockSnapshot(t *testing.T) {
 	}
 	detached := 0
 	for _, r := range records {
-		if r.Kind == pgAdvisoryLock && r.Object == other.Low && r.Class == other.High {
+		if r.Kind == lock.AdvisoryRecord && r.Object == other.Low && r.Class == other.High {
 			detached++
 			if !r.Owner.Prepared || r.Owner.Local != old.Ref().ID() {
 				t.Fatal("detached capture lost origin", r)

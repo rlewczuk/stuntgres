@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -67,7 +68,7 @@ func TestTransactionControlsChainIdentity(t *testing.T) {
 				if err := controlsDescribe(t, a, q); err != nil {
 					t.Fatal(err)
 				}
-				if a.transactions.ref != old || a.transactions.ticket != map[bool]*relationTicket{false: ticket, true: nil}[aborted] {
+				if a.transactions.ref != old || a.transactions.ticket != map[bool]*lock.Ticket{false: ticket, true: nil}[aborted] {
 					t.Fatal("Describe ended owner")
 				}
 				controlsRequire(t, a, q)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -93,7 +94,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 		}
 	}
 	var jobs []foreignKeyJob
-	modes := make(map[ids.ObjectRef]relationLockMode)
+	modes := make(map[ids.ObjectRef]lock.Mode)
 	for _, descriptor := range auth.catalog.Descriptors() {
 		child, ok := descriptor.(*relationDescriptor)
 		if !ok {
@@ -113,12 +114,12 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 			for _, a := range []ids.ObjectAddress{child.address, parent.address} {
 				ref := e.catalog.domain.Ref(auth.catalog.Epoch(), a)
 				if modes[ref] == 0 {
-					modes[ref] = relationRowShare
+					modes[ref] = lock.RowShare
 				}
 			}
 			d := directions[f.Target]
 			if d&1 != 0 && f.DeleteAction >= parser.ForeignKeyCascade || d&2 != 0 && f.UpdateAction >= parser.ForeignKeyCascade {
-				modes[e.catalog.domain.Ref(auth.catalog.Epoch(), child.address)] = rowExclusive
+				modes[e.catalog.domain.Ref(auth.catalog.Epoch(), child.address)] = lock.RowExclusive
 			}
 		}
 	}

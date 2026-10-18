@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -141,9 +142,9 @@ func partitionKeyUsesAttribute(d *relationDescriptor, attribute int32) bool {
 	return false
 }
 
-func (s *StatementScope) acquirePartitionLock(ref ids.ObjectRef, mode relationLockMode) error {
+func (s *StatementScope) acquirePartitionLock(ref ids.ObjectRef, mode lock.Mode) error {
 	e := s.op.session.Engine()
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, relationLockPolicy{Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext})
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, lock.Policy{Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext})
 	if request != nil {
 		s.admissionWaited = true
 		if s.replacementRead {
@@ -204,7 +205,7 @@ func (s *StatementScope) acquirePartitionAncestors(ref ids.ObjectRef) error {
 	e.mu.Unlock()
 	slices.Reverse(ancestors)
 	for _, ancestor := range ancestors {
-		if err := s.acquirePartitionLock(ancestor, accessShare); err != nil {
+		if err := s.acquirePartitionLock(ancestor, lock.AccessShare); err != nil {
 			return err
 		}
 	}
@@ -213,7 +214,7 @@ func (s *StatementScope) acquirePartitionAncestors(ref ids.ObjectRef) error {
 
 // Discover the topology once after the parent grant. Descendant waits must not
 // broaden an already admitted SELECT to newly attached branches.
-func (s *StatementScope) acquirePartitionDescendants(ref ids.ObjectRef, mode relationLockMode) error {
+func (s *StatementScope) acquirePartitionDescendants(ref ids.ObjectRef, mode lock.Mode) error {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	catalog := e.privateCatalogLocked(s.owner.catalog)
@@ -267,10 +268,10 @@ func (s *StatementScope) acquirePartitionDefinitionDefault(parent ids.ObjectRef)
 	if child.Domain() == nil {
 		return nil
 	}
-	if err := s.acquirePartitionLock(child, accessExclusive); err != nil {
+	if err := s.acquirePartitionLock(child, lock.AccessExclusive); err != nil {
 		return err
 	}
-	return s.acquirePartitionDescendants(child, accessExclusive)
+	return s.acquirePartitionDescendants(child, lock.AccessExclusive)
 }
 
 // The stored defining arrays/key providers remain identical. Only an appended

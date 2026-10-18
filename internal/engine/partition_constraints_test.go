@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -590,7 +591,7 @@ func TestPartitionConstraintsAdmittedCancellation(t *testing.T) {
 				resource = "keyed_leaf"
 			}
 			tx := transactionBegin(t, holder)
-			if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: roleTableRef(t, e, resource)}, accessExclusive); err != nil {
+			if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lock.Resource{ObjectRef: roleTableRef(t, e, resource)}, lock.AccessExclusive); err != nil {
 				t.Fatal(err)
 			}
 			before := indexMaintenanceCapture(e)

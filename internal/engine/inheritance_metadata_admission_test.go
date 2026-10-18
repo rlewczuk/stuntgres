@@ -8,6 +8,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -172,8 +173,8 @@ func inheritanceMetadataWorker(t *testing.T, command *inheritanceMetadataAdmissi
 	lockPending(t, command.e, 1)
 	ref := command.e.catalog.domain.Ref(command.auth.catalog.Epoch(), child.address)
 	lockState := command.e.locks.Inspect()
-	entry := lockState.Resources[lockResource{ObjectRef: ref}]
-	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == command.scope.ticket && entry.Pending[0].Mode == accessExclusive
+	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
+	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == command.scope.ticket && entry.Pending[0].Mode == lock.AccessExclusive
 	if !queued {
 		t.Fatal("metadata provider did not queue its actual descendant AX request")
 	}

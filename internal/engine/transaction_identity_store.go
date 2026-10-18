@@ -5,11 +5,12 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 type transactionIdentityRecord struct {
 	state  ids.TxCompletion
-	ticket *relationTicket
+	ticket *lock.Ticket
 }
 
 func nextFullTransactionID(last uint64) (uint64, error) {

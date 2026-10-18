@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -258,11 +259,11 @@ func TestInsertSelectSourceLockIdentity(t *testing.T) {
 		lockPending(t, e, 1)
 		target := catalogRef(t, e, e.CatalogRead(), "t")
 		lockState := e.locks.Inspect()
-		entry := lockState.Resources[lockResource{ObjectRef: target}]
+		entry := lockState.Resources[lock.Resource{ObjectRef: target}]
 		held := false
 		if entry != nil {
 			for _, mode := range entry.Holders {
-				if mode.Mode == rowExclusive {
+				if mode.Mode == lock.RowExclusive {
 					held = true
 				}
 			}

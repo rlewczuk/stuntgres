@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -25,7 +26,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := e.catalog.domain.Ref(e.CatalogRead().Epoch(), parent.address)
-	if err := holder.acquireSequence(ref, accessExclusive, true); err != nil {
+	if err := holder.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
 		t.Fatal(err)
 	}
 	session := sessionStart(t, e, nil)
@@ -51,8 +52,8 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 	go func() { completed <- scope.acquireDefinitionProviders(stage) }()
 	lockPending(t, e, 1)
 	lockState := e.locks.Inspect()
-	entry := lockState.Resources[lockResource{ObjectRef: ref}]
-	exact := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == shareUpdateExclusive && entry.Pending[0].Ticket == scope.ticket
+	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
+	exact := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.ShareUpdateExclusive && entry.Pending[0].Ticket == scope.ticket
 	cancel()
 	lockAwait(t, completed, context.Canceled)
 	if !exact {

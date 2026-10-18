@@ -11,7 +11,7 @@ import (
 // This delegate owns only the physical lifetime handle. Counts, granted modes,
 // queues and terminal decisions belong exclusively to lock.Manager.
 type sessionAdvisory struct {
-	ticket *relationTicket
+	ticket *lock.Ticket
 	locks  *lock.Manager
 }
 
@@ -23,15 +23,15 @@ func (a *sessionAdvisory) EndSession(token ids.SessionToken, _ EndReason) error 
 	return nil
 }
 
-func (s *StatementScope) acquireAdvisory(ctx context.Context, ref lockResource, mode relationLockMode, lifetime advisoryLifetime, try bool) (bool, error) {
+func (s *StatementScope) acquireAdvisory(ctx context.Context, ref lock.Resource, mode lock.Mode, lifetime advisoryLifetime, try bool) (bool, error) {
 	e := s.op.session.Engine()
-	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, NoWait: try, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext, Provenance: s.txRef}
+	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, NoWait: try, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext, Provenance: s.txRef}
 	ticket := s.op.session.advisory.ticket
 	if lifetime == advisoryTransaction {
 		ticket = s.ticket
 	}
 	request, err := e.locks.StartAcquire(ctx, ticket, ref, mode, policy)
-	if errors.Is(err, errRelationUnavailable) {
+	if errors.Is(err, lock.ErrUnavailable) {
 		return false, nil
 	}
 	if request != nil {

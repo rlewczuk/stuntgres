@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func TestUpdateFromQueuedTargetFrozenSources(t *testing.T) {
@@ -173,9 +174,9 @@ func TestUpdateFromQueuedSourceAdmissionAndCancellation(t *testing.T) {
 			sref := catalogRef(t, e, e.CatalogRead(), "s")
 			rref := catalogRef(t, e, e.CatalogRead(), "r")
 			lockState := e.locks.Inspect()
-			te := lockState.Resources[lockResource{ObjectRef: tref}]
-			se := lockState.Resources[lockResource{ObjectRef: sref}]
-			re := lockState.Resources[lockResource{ObjectRef: rref}]
+			te := lockState.Resources[lock.Resource{ObjectRef: tref}]
+			se := lockState.Resources[lock.Resource{ObjectRef: sref}]
+			re := lockState.Resources[lock.Resource{ObjectRef: rref}]
 			admitted := te != nil && len(te.Holders) == 1 && se != nil && len(se.Holders) == 1 && re != nil && len(re.Pending) == 1
 			if !admitted {
 				t.Fatal("source queue did not retain target/first source grants")

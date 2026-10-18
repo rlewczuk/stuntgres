@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
@@ -320,7 +321,7 @@ func (s *StatementScope) acquireForeignKeyTypeProviders(view CatalogRead, addres
 		return 0
 	})
 	for _, ref := range refs {
-		if err := s.foreignKeyGrant(ref, 0, relationRowShare, nil); err != nil {
+		if err := s.foreignKeyGrant(ref, 0, lock.RowShare, nil); err != nil {
 			return err
 		}
 	}
@@ -404,7 +405,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 		return 0
 	})
 	for _, ref := range refs {
-		if err := s.foreignKeyGrant(ref, 0, shareRowExclusive, nil); err != nil {
+		if err := s.foreignKeyGrant(ref, 0, lock.ShareRowExclusive, nil); err != nil {
 			return err
 		}
 	}

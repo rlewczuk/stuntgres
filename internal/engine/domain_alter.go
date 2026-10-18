@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -62,7 +63,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 	if err != nil {
 		return Result{}, err
 	}
-	if err = scope.acquireSequence(ref, typeExclusive, true); err != nil {
+	if err = scope.acquireSequence(ref, lock.TypeExclusive, true); err != nil {
 		return Result{}, err
 	}
 	e.mu.Lock()
@@ -159,7 +160,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		fence, discoveryErr := domainUsesAt(auth.catalog, ref.Address, diagnosticPath)
 		if fence != nil {
 			for _, relation := range fence.reads {
-				if err := scope.acquireSequence(e.catalog.domain.Ref(ref.Epoch, relation.address), accessShare, true); err != nil {
+				if err := scope.acquireSequence(e.catalog.domain.Ref(ref.Epoch, relation.address), lock.AccessShare, true); err != nil {
 					return Result{}, err
 				}
 			}
@@ -180,7 +181,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 			return Result{}, discoveryErr
 		}
 		for _, use := range fence.uses {
-			if err := scope.acquireSequence(e.catalog.domain.Ref(ref.Epoch, use.relation.address), relationShare, true); err != nil {
+			if err := scope.acquireSequence(e.catalog.domain.Ref(ref.Epoch, use.relation.address), lock.Share, true); err != nil {
 				return Result{}, err
 			}
 		}

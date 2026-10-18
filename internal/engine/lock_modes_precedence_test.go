@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -68,8 +69,8 @@ func TestLockModesViewOrder(t *testing.T) {
 	first := roleTableRef(t, e, "first")
 	later := roleTableRef(t, e, "later")
 	lockState := e.locks.Inspect()
-	pending := len(lockState.Resources[lockResource{ObjectRef: first}].Pending)
-	laterEntry := lockState.Resources[lockResource{ObjectRef: later}]
+	pending := len(lockState.Resources[lock.Resource{ObjectRef: first}].Pending)
+	laterEntry := lockState.Resources[lock.Resource{ObjectRef: later}]
 	if pending != 1 || laterEntry != nil {
 		t.Fatal("view definition lock order was sorted/preflighted")
 	}

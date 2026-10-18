@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
@@ -149,7 +150,7 @@ func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *O
 	ref := e.catalog.domain.Ref(auth.catalog.Epoch(), table.address)
 	origin := op.restorePartitionUnique
 	e.mu.Unlock()
-	if err := scope.acquirePartitionDescendants(ref, accessExclusive); err != nil {
+	if err := scope.acquirePartitionDescendants(ref, lock.AccessExclusive); err != nil {
 		return Result{}, err
 	}
 	e.mu.Lock()

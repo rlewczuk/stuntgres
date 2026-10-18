@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"sync"
@@ -63,7 +64,7 @@ type transactionOwner struct {
 	admission       sync.Mutex
 	copyScope       *StatementScope
 	copyDone        chan struct{}
-	ticket          *relationTicket
+	ticket          *lock.Ticket
 	mu              sync.Mutex
 	session         *Session
 	state           TxState
@@ -309,8 +310,8 @@ type StatementScope struct {
 	sessionCompleted               bool // Successful session utilities have no private stage to merge.
 	controlOutcome                 controlOutcome
 	replacementRead                bool
-	ticket                         *relationTicket
-	multiEvents                    []multiEvent
+	ticket                         *lock.Ticket
+	multiEvents                    []lock.MultiEvent
 	viewCreationNamespace          ids.ObjectRef
 	viewPersistence                string
 	viewBinding                    binding

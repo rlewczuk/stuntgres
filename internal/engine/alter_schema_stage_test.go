@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 type alterSchemaCandidateProvider struct {
@@ -157,7 +158,7 @@ func TestAlterSchemaDependentGrantTimeName(t *testing.T) {
 			address := NameAddressForTempMove(t, e, source, "q2")
 			ref := e.catalog.domain.Ref(e.catalog.state.epoch, address)
 			tx := transactionBegin(t, a)
-			if err := e.locks.Acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
+			if err := e.locks.Acquire(context.Background(), a.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
 				t.Fatal(err)
 			}
 			if collision {

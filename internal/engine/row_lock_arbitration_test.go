@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -28,7 +29,7 @@ func TestRowLockRelationAuthority(t *testing.T) {
 				if resource.Row != 0 && held != 0 {
 					rowHolds++
 				}
-				if resource.Row == 0 && held == relationRowShare {
+				if resource.Row == 0 && held == lock.RowShare {
 					relationHolds++
 				}
 			}
@@ -107,7 +108,7 @@ func TestRowLockDeadlock(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	first := deleteAsync(t, a, ctx, "SELECT v FROM t WHERE id=2 FOR KEY SHARE")
-	rowLockQueued(t, e, b.transactions.ticket, keyShare)
+	rowLockQueued(t, e, b.transactions.ticket, lock.ForKeyShare)
 	second := deleteAsync(t, b, ctx, "SELECT v FROM t WHERE id=1 FOR UPDATE")
 	var outcome deleteOutcome
 	var remaining <-chan deleteOutcome

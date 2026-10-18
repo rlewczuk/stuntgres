@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -44,7 +45,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	if err = holder.gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	if err = e.locks.Acquire(holderOp.Context(), holder.ticket, lockResource{ObjectRef: oldRef}, accessExclusive); err != nil {
+	if err = e.locks.Acquire(holderOp.Context(), holder.ticket, lock.Resource{ObjectRef: oldRef}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -64,7 +65,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	parentRef := e.catalog.domain.Ref(e.CatalogRead().Epoch(), p.address)
 	parent := queryLeaf{ref: parentRef, relation: p, storage: e.storage[p.address]}
 	scope.querySources = []queryLeaf{parent}
-	if err = e.locks.Acquire(op.Context(), scope.ticket, lockResource{ObjectRef: parentRef}, accessShare); err != nil {
+	if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: parentRef}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
 	joined := false
@@ -84,8 +85,8 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	}()
 	lockPending(t, e, 1)
 	lockState := e.locks.Inspect()
-	entry := lockState.Resources[lockResource{ObjectRef: oldRef}]
-	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == scope.ticket && entry.Pending[0].Mode == accessShare && entry.Holders[holder.ticket].Mode&accessExclusive != 0
+	entry := lockState.Resources[lock.Resource{ObjectRef: oldRef}]
+	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == scope.ticket && entry.Pending[0].Mode == lock.AccessShare && entry.Holders[holder.ticket].Mode&lock.AccessExclusive != 0
 	if !queued {
 		t.Fatal("SELECT did not wait on admitted original descendant identity")
 	}
@@ -134,7 +135,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	fresh.querySources = []queryLeaf{parent}
-	if err = e.locks.Acquire(freshOp.Context(), fresh.ticket, lockResource{ObjectRef: parentRef}, accessShare); err != nil {
+	if err = e.locks.Acquire(freshOp.Context(), fresh.ticket, lock.Resource{ObjectRef: parentRef}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
 	if err = fresh.acquireInheritanceSources(nil); err != nil {

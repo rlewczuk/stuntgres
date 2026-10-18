@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -26,28 +27,28 @@ const (
 	advisoryTransaction
 )
 
-func advisoryDefinition(name string) (mode relationLockMode, action advisoryAction, lifetime advisoryLifetime, id sqltype.ID, ok bool) {
-	mode, action, id, ok = advisoryExclusive, advisoryAcquire, sqltype.Void, true
+func advisoryDefinition(name string) (mode lock.Mode, action advisoryAction, lifetime advisoryLifetime, id sqltype.ID, ok bool) {
+	mode, action, id, ok = lock.AdvisoryExclusive, advisoryAcquire, sqltype.Void, true
 	switch name {
 	case "pg_advisory_lock":
 	case "pg_advisory_lock_shared":
-		mode = advisoryShared
+		mode = lock.AdvisoryShare
 	case "pg_try_advisory_lock":
 		action = advisoryTry
 	case "pg_try_advisory_lock_shared":
-		mode, action = advisoryShared, advisoryTry
+		mode, action = lock.AdvisoryShare, advisoryTry
 	case "pg_advisory_xact_lock":
 		lifetime = advisoryTransaction
 	case "pg_advisory_xact_lock_shared":
-		lifetime, mode = advisoryTransaction, advisoryShared
+		lifetime, mode = advisoryTransaction, lock.AdvisoryShare
 	case "pg_try_advisory_xact_lock":
 		lifetime, action = advisoryTransaction, advisoryTry
 	case "pg_try_advisory_xact_lock_shared":
-		lifetime, mode, action = advisoryTransaction, advisoryShared, advisoryTry
+		lifetime, mode, action = advisoryTransaction, lock.AdvisoryShare, advisoryTry
 	case "pg_advisory_unlock":
 		action = advisoryUnlock
 	case "pg_advisory_unlock_shared":
-		mode, action = advisoryShared, advisoryUnlock
+		mode, action = lock.AdvisoryShare, advisoryUnlock
 	case "pg_advisory_unlock_all":
 		action = advisoryUnlockAll
 	default:
@@ -86,7 +87,7 @@ type advisoryExpression struct {
 	expr.Info
 	name     string
 	args     []expr.Expr
-	mode     relationLockMode
+	mode     lock.Mode
 	action   advisoryAction
 	lifetime advisoryLifetime
 }
@@ -124,13 +125,13 @@ func (x advisoryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	ref := lockResource{Kind: advisoryBigintResource, High: uint32(uint64(first) >> 32), Low: uint32(first)}
+	ref := lock.Resource{Kind: lock.AdvisoryBigintResource, High: uint32(uint64(first) >> 32), Low: uint32(first)}
 	if len(x.args) == 2 {
 		second, err := values[1].Integer()
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		ref = lockResource{Kind: advisoryPairResource, High: uint32(first), Low: uint32(second)}
+		ref = lock.Resource{Kind: lock.AdvisoryPairResource, High: uint32(first), Low: uint32(second)}
 	}
 	if x.action == advisoryUnlock {
 		unlocked, err := s.op.session.Engine().locks.UnlockAdvisory(ticket, ref, x.mode)
@@ -139,7 +140,7 @@ func (x advisoryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		}
 		if !unlocked {
 			message := "you don't own a lock of type ExclusiveLock"
-			if x.mode == advisoryShared {
+			if x.mode == lock.AdvisoryShare {
 				message = "you don't own a lock of type ShareLock"
 			}
 			s.op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: message})

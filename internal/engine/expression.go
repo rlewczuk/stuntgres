@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -2074,7 +2075,7 @@ type expressionBinder struct {
 	resolvedQueryFrame         uint32
 	presenceFrames             map[uint32]int
 	suppressWholePresence      bool
-	queryRowDiagnosticMode     relationLockMode // Clause diagnostics only; tuple authority is queryRowMark.
+	queryRowDiagnosticMode     lock.Mode // Clause diagnostics only; tuple authority is queryRowMark.
 	subqueryDemand             bool
 	groupSubquery              bool
 	viewValuesCount            int

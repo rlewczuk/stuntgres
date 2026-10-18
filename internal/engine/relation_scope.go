@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -144,100 +145,100 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 
 func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statement, execute, source bool) error {
 	var name parser.ObjectName
-	var mode relationLockMode
+	var mode lock.Mode
 	ownerOnly := false
 	rename, ifExists, tableRename := false, false, false
 	viewReplacement := false
-	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
 	switch v := stmt.(type) {
 	case *parser.CreateRule:
 		if !execute {
 			return nil
 		}
-		name, mode, ownerOnly, rename = v.Table, accessExclusive, true, true
+		name, mode, ownerOnly, rename = v.Table, lock.AccessExclusive, true, true
 	case *parser.AlterRule:
 		if !execute {
 			return nil
 		}
-		name, mode, ownerOnly, rename = v.Table, accessExclusive, true, true
+		name, mode, ownerOnly, rename = v.Table, lock.AccessExclusive, true, true
 	case *parser.DropRule:
 		if !execute {
 			return nil
 		}
-		name, mode, rename, ifExists = v.Table, accessExclusive, true, v.IfExists
+		name, mode, rename, ifExists = v.Table, lock.AccessExclusive, true, v.IfExists
 	case *parser.CreatePolicy:
 		if !execute {
 			return nil
 		}
-		name, mode, ownerOnly, rename = v.Table, accessExclusive, true, true
+		name, mode, ownerOnly, rename = v.Table, lock.AccessExclusive, true, true
 	case *parser.AlterPolicy:
 		if !execute {
 			return nil
 		}
-		name, mode, ownerOnly, rename = v.Table, accessExclusive, true, true
+		name, mode, ownerOnly, rename = v.Table, lock.AccessExclusive, true, true
 	case *parser.DropPolicy:
 		if !execute {
 			return nil
 		}
-		name, mode, rename, ifExists = v.Table, accessExclusive, true, v.IfExists
+		name, mode, rename, ifExists = v.Table, lock.AccessExclusive, true, v.IfExists
 	case *parser.CreateTable:
 		if !execute || v.PartitionOf == nil {
 			return nil
 		}
-		name, mode, ownerOnly = v.PartitionOf.Name, accessExclusive, true
+		name, mode, ownerOnly = v.PartitionOf.Name, lock.AccessExclusive, true
 	case *parser.CreateIndex:
 		if !execute {
 			return nil
 		}
-		name, mode, ownerOnly = v.Table, relationShare, true
+		name, mode, ownerOnly = v.Table, lock.Share, true
 		if v.Concurrent.Character != 0 {
-			mode = shareUpdateExclusive
+			mode = lock.ShareUpdateExclusive
 		}
 	case *parser.CreateView:
 		if !execute || !v.Replace {
 			return nil
 		}
-		name, mode, ownerOnly = v.Name, accessExclusive, true
+		name, mode, ownerOnly = v.Name, lock.AccessExclusive, true
 		viewReplacement = true
 		rename = true
 	case *parser.AlterOwner:
 		if !execute || v.Kind == "type" || v.Kind == "domain" || v.Kind == "database" {
 			return nil
 		}
-		name, mode, ownerOnly = v.Name, accessExclusive, true
+		name, mode, ownerOnly = v.Name, lock.AccessExclusive, true
 		rename, ifExists = true, v.IfExists
 	case *parser.AlterView:
 		if !execute {
 			return nil
 		}
-		name, mode, ownerOnly = v.Name, accessExclusive, true
+		name, mode, ownerOnly = v.Name, lock.AccessExclusive, true
 		rename, ifExists, tableRename = true, v.IfExists, v.Action == "rename"
 	case *parser.Select:
 		if v.From == nil {
 			return nil
 		}
 		name = v.From.(*parser.TableReference).Name
-		mode = accessShare
+		mode = lock.AccessShare
 		if v.Locking != nil {
-			mode = relationRowShare
+			mode = lock.RowShare
 		}
 	case *parser.Copy:
-		name, mode = v.Name, accessShare
+		name, mode = v.Name, lock.AccessShare
 		if v.From {
-			mode = rowExclusive
+			mode = lock.RowExclusive
 		}
 	case *parser.Insert:
 		name = v.Name
-		mode = rowExclusive
+		mode = lock.RowExclusive
 	case *parser.Merge:
 		name = v.Name
-		mode = rowExclusive
+		mode = lock.RowExclusive
 	case *parser.Delete:
 		name = v.Name
-		mode = rowExclusive
+		mode = lock.RowExclusive
 	case *parser.Update:
 		name = v.Name
-		mode = rowExclusive
+		mode = lock.RowExclusive
 	case *parser.Comment:
 		if !execute || (v.Kind != parser.CommentTable && v.Kind != parser.CommentColumn) {
 			return nil
@@ -249,7 +250,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			}
 			name.Parts = name.Parts[:len(name.Parts)-1]
 		}
-		mode = shareUpdateExclusive
+		mode = lock.ShareUpdateExclusive
 	case *parser.AlterTable:
 		if !execute {
 			return nil
@@ -262,47 +263,47 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		if !execute {
 			return nil
 		}
-		name, mode, ownerOnly = v.Name, shareUpdateExclusive, true
+		name, mode, ownerOnly = v.Name, lock.ShareUpdateExclusive, true
 		rename, ifExists = true, v.IfExists
 	case *parser.AlterTableDetachPartition:
 		if !execute {
 			return nil
 		}
-		name, mode, ownerOnly = v.Name, accessExclusive, true
+		name, mode, ownerOnly = v.Name, lock.AccessExclusive, true
 		rename, ifExists = true, v.IfExists
 	case *parser.AlterTableOf:
 		if !execute {
 			return nil
 		}
-		name, mode, ownerOnly = v.Name, accessExclusive, true
+		name, mode, ownerOnly = v.Name, lock.AccessExclusive, true
 	case *parser.AlterTableDefault:
 		if !execute {
 			return nil
 		}
-		name, mode, ownerOnly = v.Name, accessExclusive, true
+		name, mode, ownerOnly = v.Name, lock.AccessExclusive, true
 	case *parser.AlterTableRenameConstraint:
 		if !execute {
 			return nil
 		}
-		name, mode, ownerOnly = v.Name, accessExclusive, true
+		name, mode, ownerOnly = v.Name, lock.AccessExclusive, true
 		rename, ifExists = true, v.IfExists
 	case *parser.AlterTableRenameColumn:
 		if !execute {
 			return nil
 		}
-		name, mode, ownerOnly = v.Name, accessExclusive, true
+		name, mode, ownerOnly = v.Name, lock.AccessExclusive, true
 		rename, ifExists = true, v.IfExists
 	case *parser.AlterTableSetSchema:
 		if !execute {
 			return nil
 		}
-		name, mode, ownerOnly = v.Name, accessExclusive, true
+		name, mode, ownerOnly = v.Name, lock.AccessExclusive, true
 		rename, ifExists = true, v.IfExists
 	case *parser.AlterTableRenameTable:
 		if !execute {
 			return nil
 		}
-		name, mode, ownerOnly = v.Name, accessExclusive, true
+		name, mode, ownerOnly = v.Name, lock.AccessExclusive, true
 		rename, ifExists, tableRename = true, v.IfExists, true
 	default:
 		return nil
@@ -364,7 +365,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 					ref = e.catalog.domain.Ref(auth.catalog.Epoch(), address)
 				}
 			}
-		} else if mode == accessShare || mode == relationRowShare || mode == rowExclusive {
+		} else if mode == lock.AccessShare || mode == lock.RowShare || mode == lock.RowExclusive {
 			if _, copyTarget := stmt.(*parser.Copy); copyTarget {
 				ref, err = e.resolveRelationReference(auth, name, true)
 			} else {
@@ -373,7 +374,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		} else {
 			_, indexBuild := stmt.(*parser.CreateIndex)
 			_, partitionCreate := stmt.(*parser.CreateTable)
-			ref, err = e.resolveRelationReference(parentAuth, name, mode == shareUpdateExclusive || rename || indexBuild || partitionCreate)
+			ref, err = e.resolveRelationReference(parentAuth, name, mode == lock.ShareUpdateExclusive || rename || indexBuild || partitionCreate)
 		}
 	}
 	if rename && ifExists && renameMissing(err) {
@@ -465,7 +466,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		return nil
 	}
 	if typedSourceRef.Domain() != nil {
-		if err := s.acquireSequence(typedSourceRef, accessShare, false); err != nil {
+		if err := s.acquireSequence(typedSourceRef, lock.AccessShare, false); err != nil {
 			return err
 		}
 	}
@@ -474,8 +475,8 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			return err
 		}
 	}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, policy)
-	if errors.Is(err, errRelationUnavailable) {
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, policy)
+	if errors.Is(err, lock.ErrUnavailable) {
 		relationName := name.Parts[0].Text
 		if len(name.Parts) == 2 {
 			relationName += "." + name.Parts[1].Text
@@ -495,7 +496,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		// error callback. Cached execution, COPY targets and utility locks do not.
 		// Query cancellation (57014) deliberately bypasses that callback.
 		_, copyTarget := stmt.(*parser.Copy)
-		if !copyTarget && (mode == accessShare || mode == relationRowShare || mode == rowExclusive) && (!execute || s.Expected == nil) {
+		if !copyTarget && (mode == lock.AccessShare || mode == lock.RowShare || mode == lock.RowExclusive) && (!execute || s.Expected == nil) {
 			var diagnostic *sqlstate.Error
 			if errors.As(err, &diagnostic) && (diagnostic.Code == "55P03" || diagnostic.Code == "40P01" || diagnostic.Code == "25P04") && name.Parts[0].Pos.Character > 0 {
 				copy := *diagnostic
@@ -527,21 +528,21 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		}
 	case *parser.AlterTable:
 		if partitionDrop {
-			if err = s.acquirePartitionDescendants(ref, accessExclusive); err != nil {
+			if err = s.acquirePartitionDescendants(ref, lock.AccessExclusive); err != nil {
 				return err
 			}
 		}
 	case *parser.CreateIndex:
-		if err = s.acquirePartitionDescendants(ref, relationShare); err != nil {
+		if err = s.acquirePartitionDescendants(ref, lock.Share); err != nil {
 			return err
 		}
 	case *parser.Select, *parser.Insert:
-		if err = s.acquirePartitionDescendants(ref, accessShare); err != nil {
+		if err = s.acquirePartitionDescendants(ref, lock.AccessShare); err != nil {
 			return err
 		}
 	case *parser.Copy:
 		if creation.From {
-			if err = s.acquirePartitionDescendants(ref, accessShare); err != nil {
+			if err = s.acquirePartitionDescendants(ref, lock.AccessShare); err != nil {
 				return err
 			}
 		}
@@ -598,7 +599,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				return errors.New("stuntgres: relation storage is missing")
 			}
 		}
-		s.lockedIdentityOnly = mode == shareUpdateExclusive || mode == relationShare
+		s.lockedIdentityOnly = mode == lock.ShareUpdateExclusive || mode == lock.Share
 	}
 	// Definition evolution while waiting is valid for this exact relation.
 	// Pin the grant-time descriptor and revalidate current role authority.

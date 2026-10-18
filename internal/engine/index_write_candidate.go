@@ -5,6 +5,7 @@ import (
 	"maps"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 )
 
@@ -24,7 +25,7 @@ type indexWriteCandidate struct {
 type indexWriteBatch struct {
 	values     [][]sqltype.Value
 	states     []indexWriteState
-	actionMode multiMode // Explicit accepted physical action, never inferred from grant bits.
+	actionMode lock.MultiMode // Explicit accepted physical action, never inferred from grant bits.
 }
 
 type indexWriteState struct {

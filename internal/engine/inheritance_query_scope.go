@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
@@ -98,7 +99,7 @@ func inheritanceQueryLeaves(catalog CatalogRead, roots []queryLeaf, token ids.Se
 // growth after every wait, then freeze one immutable topology for this statement.
 // Previously admitted identities must survive; a same-name replacement is never
 // a substitute. No manager wait is performed under Engine.mu.
-func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]relationLockMode) error {
+func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock.Mode) error {
 	e := s.op.session.Engine()
 	roots := s.querySources
 	if s.materializedRefresh {
@@ -137,21 +138,21 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]rela
 			if leaf.relation.relationKind != tableRelation {
 				return nil
 			}
-			mode := accessShare
+			mode := lock.AccessShare
 			if leaf.mark.mode != 0 {
-				mode = relationRowShare
+				mode = lock.RowShare
 			}
 			// Named query roots already have exact-identity grants. Leave the
 			// ordinary single-table path allocation- and reacquisition-free.
 			for _, root := range roots {
-				if root.ref == leaf.ref && root.relation != nil && root.relation.relationKind == tableRelation && (root.mark.mode != 0 || mode == accessShare) {
+				if root.ref == leaf.ref && root.relation != nil && root.relation.relationKind == tableRelation && (root.mark.mode != 0 || mode == lock.AccessShare) {
 					return nil
 				}
 			}
 			// Stored-base admission uses query rowmark modes: a present zero
 			// entry already holds AccessShare, any nonzero entry holds RowShare.
 			prior, granted := grants[leaf.ref]
-			if granted && (prior != 0 || mode == accessShare) {
+			if granted && (prior != 0 || mode == lock.AccessShare) {
 				return nil
 			}
 			if granted {
@@ -166,7 +167,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]rela
 			leaf.storage = e.privateStorageLocked(s.owner.catalog, leaf.ref.Address)
 			pending = append(pending, leaf)
 			if grants == nil {
-				grants = make(map[ids.ObjectRef]relationLockMode)
+				grants = make(map[ids.ObjectRef]lock.Mode)
 			}
 			grants[leaf.ref] = leaf.mark.mode
 			return nil
@@ -182,12 +183,12 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]rela
 			return nil
 		}
 		for _, leaf := range pending {
-			mode := accessShare
+			mode := lock.AccessShare
 			if grants[leaf.ref] != 0 {
-				mode = relationRowShare
+				mode = lock.RowShare
 			}
-			policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
-			request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: leaf.ref}, mode, policy)
+			policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+			request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: leaf.ref}, mode, policy)
 			if request != nil {
 				s.admissionWaited = true
 				if s.replacementRead {

@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -26,11 +27,11 @@ func foreignActionLockFixture(t *testing.T, definition string) (*Engine, *Sessio
 func TestForeignActionsLocks(t *testing.T) {
 	for _, tc := range []struct {
 		name, definition, q string
-		queued, held        relationLockMode
+		queued, held        lock.Mode
 	}{
-		{"delete", "REFERENCES p ON DELETE CASCADE", "DELETE FROM p", rowUpdate, rowUpdate},
-		{"key-update", "PRIMARY KEY REFERENCES p ON UPDATE CASCADE", "UPDATE p SET id=2", noKeyUpdate, noKeyUpdate | rowUpdate},
-		{"non-key-set", "REFERENCES p ON DELETE SET NULL", "DELETE FROM p", noKeyUpdate, noKeyUpdate},
+		{"delete", "REFERENCES p ON DELETE CASCADE", "DELETE FROM p", lock.ForUpdate, lock.ForUpdate},
+		{"key-update", "PRIMARY KEY REFERENCES p ON UPDATE CASCADE", "UPDATE p SET id=2", lock.ForNoKeyUpdate, lock.ForNoKeyUpdate | lock.ForUpdate},
+		{"non-key-set", "REFERENCES p ON DELETE SET NULL", "DELETE FROM p", lock.ForNoKeyUpdate, lock.ForNoKeyUpdate},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e, a, b, _, ref, row := foreignActionLockFixture(t, tc.definition)
@@ -56,7 +57,7 @@ func TestForeignActionsLocks(t *testing.T) {
 			b.transactions.mu.Lock()
 			ticket := b.transactions.ticket
 			b.transactions.mu.Unlock()
-			foreignKeyHeldMode(t, e, ref, 0, ticket, rowExclusive)
+			foreignKeyHeldMode(t, e, ref, 0, ticket, lock.RowExclusive)
 			// A real canonical queued request must not retain either metadata mutex.
 			deadline := time.Now().Add(time.Second)
 			for !e.mu.TryLock() {
@@ -125,7 +126,7 @@ func TestForeignActionsCancellation(t *testing.T) {
 					lockAwait(t, done, context.Canceled)
 				}
 			}()
-			foreignKeyQueuedMode(t, e, ref, row, a.transactions.ticket, rowUpdate)
+			foreignKeyQueuedMode(t, e, ref, row, a.transactions.ticket, lock.ForUpdate)
 			if replace {
 				if err := e.Reset(ctx); err != nil {
 					t.Fatal(err)
@@ -222,14 +223,14 @@ func TestForeignActionsLocksTwoPhase(t *testing.T) {
 			origin := transactionBegin(t, a)
 			ticket := a.transactions.ticket
 			sessionSQL(t, a, "DELETE FROM p")
-			foreignKeyHeldMode(t, e, ref, 0, ticket, rowExclusive)
-			foreignKeyHeldMode(t, e, ref, row, ticket, rowUpdate)
+			foreignKeyHeldMode(t, e, ref, 0, ticket, lock.RowExclusive)
+			foreignKeyHeldMode(t, e, ref, row, ticket, lock.ForUpdate)
 			sessionSQL(t, a, "PREPARE TRANSACTION 'action_unit'")
 			prepared := e.prepared["action_unit"]
 			if prepared == nil || prepared.ref != origin || prepared.ticket != ticket || a.transactions.ticket != nil || prepared.deletes[ref.Address] == nil {
 				t.Fatal("action deletion/grants did not transfer to prepared owner")
 			}
-			foreignKeyHeldMode(t, e, ref, row, ticket, rowUpdate)
+			foreignKeyHeldMode(t, e, ref, row, ticket, lock.ForUpdate)
 			waiter := transactionBegin(t, b)
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -247,7 +248,7 @@ func TestForeignActionsLocksTwoPhase(t *testing.T) {
 					transactionEnd(t, b, waiter, false)
 				}
 			}()
-			foreignKeyQueuedMode(t, e, ref, row, ticket, noKeyUpdate)
+			foreignKeyQueuedMode(t, e, ref, row, ticket, lock.ForNoKeyUpdate)
 			command := "ROLLBACK PREPARED 'action_unit'"
 			if commit {
 				command = "COMMIT PREPARED 'action_unit'"

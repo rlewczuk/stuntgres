@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -165,7 +166,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := advisoryExpression{Info: expr.Info{Usage: types[sqltype.Bool].Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, name: "pg_try_advisory_lock", mode: advisoryExclusive, action: advisoryTry, args: []expr.Expr{
+		node := advisoryExpression{Info: expr.Info{Usage: types[sqltype.Bool].Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, name: "pg_try_advisory_lock", mode: lock.AdvisoryExclusive, action: advisoryTry, args: []expr.Expr{
 			mathObservedArgument{Info: expr.Info{Usage: types[sqltype.Int4].Usage()}, value: sqltype.Null(types[sqltype.Int4]), order: &order, index: 0},
 			mathObservedArgument{Info: expr.Info{Usage: types[sqltype.Int4].Usage()}, value: one, order: &order, index: 1},
 		}}
@@ -291,7 +292,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		v, err := bound.Eval(&EvalContext{Context: op.Context(), statementScope: scope})
 		finish := scope.Finish(err)
 		op.Done()
-		if err != nil || finish != nil || v.IsNull() || v.Type().ID() != sqltype.Void || advisoryUnitHold(s, lockResource{Kind: advisoryBigintResource, Low: 42}).Exclusive != 1 {
+		if err != nil || finish != nil || v.IsNull() || v.Type().ID() != sqltype.Void || advisoryUnitHold(s, lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 42}).Exclusive != 1 {
 			t.Fatal("actual VOID grant", v, err, finish)
 		}
 		if err = e.locks.UnlockAdvisoryAll(s.advisory.ticket); err != nil {

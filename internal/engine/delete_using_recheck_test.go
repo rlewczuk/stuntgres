@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 )
 
@@ -58,7 +59,7 @@ func TestDeleteUsingSourceGrantsStayReadOnly(t *testing.T) {
 	target := catalogRef(t, e, e.CatalogRead(), "t")
 	source := catalogRef(t, e, e.CatalogRead(), "s")
 	lockState := e.locks.Inspect()
-	var targetMode, sourceMode relationLockMode
+	var targetMode, sourceMode lock.Mode
 	for resource, entry := range lockState.Resources {
 		if resource.ObjectRef == target && resource.Row == 0 {
 			targetMode = entry.Holders[writer.transactions.ticket].Mode
@@ -70,7 +71,7 @@ func TestDeleteUsingSourceGrantsStayReadOnly(t *testing.T) {
 			sourceMode = entry.Holders[writer.transactions.ticket].Mode
 		}
 	}
-	if targetMode&rowExclusive == 0 || sourceMode&accessShare == 0 || sourceMode&rowExclusive != 0 {
+	if targetMode&lock.RowExclusive == 0 || sourceMode&lock.AccessShare == 0 || sourceMode&lock.RowExclusive != 0 {
 		t.Fatal(targetMode, sourceMode)
 	}
 	transactionEnd(t, writer, tx, false)

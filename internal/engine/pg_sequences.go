@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 )
 
@@ -97,7 +98,7 @@ func (p *pgSequencesSource) complete(ctx context.Context, ref ids.ObjectRef, row
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := p.scope.acquireSequence(ref, rowExclusive, true); err != nil {
+	if err := p.scope.acquireSequence(ref, lock.RowExclusive, true); err != nil {
 		return err
 	}
 	e := p.scope.op.session.Engine()

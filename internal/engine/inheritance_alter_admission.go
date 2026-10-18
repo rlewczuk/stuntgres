@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
@@ -57,7 +58,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *Operation, aut
 			ref := original.lockedRef
 			ref.Address = observed.address
 			if !locked[observed.address] {
-				if err := scope.acquireSequence(ref, accessExclusive, true); err != nil {
+				if err := scope.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
 					return err
 				}
 				locked[observed.address] = true

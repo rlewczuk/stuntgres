@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
@@ -56,7 +57,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 			}
 			// This trusted internal holder operates on the actual manager resource; it
 			// does not grant another SQL session access to the owner's TEMP namespace.
-			if err := holder.acquireSequence(current, accessExclusive, true); err != nil {
+			if err := holder.acquireSequence(current, lock.AccessExclusive, true); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithCancel(context.Background())
@@ -108,9 +109,9 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 			go func() { result <- scope.acquireDefinitionProviders(stage) }()
 			lockPending(t, e, 1)
 			lockState := e.locks.Inspect()
-			entry := lockState.Resources[lockResource{ObjectRef: current}]
-			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == accessShare && entry.Holders[holder.ticket].Mode&accessExclusive != 0
-			obsolete := lockState.Resources[lockResource{ObjectRef: old}]
+			entry := lockState.Resources[lock.Resource{ObjectRef: current}]
+			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessShare && entry.Holders[holder.ticket].Mode&lock.AccessExclusive != 0
+			obsolete := lockState.Resources[lock.Resource{ObjectRef: old}]
 			if !queued || obsolete != nil {
 				t.Fatal("old manifest was not normalized only for current-epoch acquisition", queued, obsolete)
 			}
@@ -178,8 +179,8 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 				assertHold := func() {
 					t.Helper()
 					lockState := e.locks.Inspect()
-					entry := lockState.Resources[lockResource{ObjectRef: current}]
-					held := entry != nil && entry.Holders[scope.ticket].Mode&accessShare != 0
+					entry := lockState.Resources[lock.Resource{ObjectRef: current}]
+					held := entry != nil && entry.Holders[scope.ticket].Mode&lock.AccessShare != 0
 					if !held {
 						t.Fatal("retained provider hold lost before statement completion")
 					}

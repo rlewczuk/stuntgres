@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/lock"
 )
 
 func TestAdvisorySessionCompatibleCohortTerminalOrder(t *testing.T) {
@@ -14,21 +16,21 @@ func TestAdvisorySessionCompatibleCohortTerminalOrder(t *testing.T) {
 		b, rb := advisoryUnitOwner(t, e)
 		c, rc := advisoryUnitOwner(t, e)
 		d, rd := advisoryUnitOwner(t, e)
-		key := lockResource{Kind: advisoryPairResource, High: 12, Low: 13}
-		prior := lockResource{Kind: advisoryBigintResource, Low: 14}
-		advisoryUnitGrant(t, a, ra, key, advisoryShared)
-		advisoryUnitGrant(t, b, rb, prior, advisoryExclusive)
+		key := lock.Resource{Kind: lock.AdvisoryPairResource, High: 12, Low: 13}
+		prior := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 14}
+		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryShare)
+		advisoryUnitGrant(t, b, rb, prior, lock.AdvisoryExclusive)
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
-		writer, err := e.locks.StartAcquire(ctx, b.advisory.ticket, key, advisoryExclusive, relationLockPolicy{Source: ctx, Provenance: rb})
+		writer, err := e.locks.StartAcquire(ctx, b.advisory.ticket, key, lock.AdvisoryExclusive, lock.Policy{Source: ctx, Provenance: rb})
 		if err != nil || writer == nil {
 			t.Fatal(writer, err)
 		}
-		first, err := advisoryUnitAcquire(t, c, rc, key, advisoryShared, false)
+		first, err := advisoryUnitAcquire(t, c, rc, key, lock.AdvisoryShare, false)
 		if err != nil || first == nil {
 			t.Fatal("queued first shared", first, err)
 		}
-		second, err := advisoryUnitAcquire(t, d, rd, key, advisoryShared, false)
+		second, err := advisoryUnitAcquire(t, d, rd, key, lock.AdvisoryShare, false)
 		if err != nil || second == nil {
 			t.Fatal("queued second shared", second, err)
 		}
@@ -47,7 +49,7 @@ func TestAdvisorySessionCompatibleCohortTerminalOrder(t *testing.T) {
 		if err = deadlockResult(t, second); err != nil {
 			t.Fatal(err)
 		}
-		if advisoryUnitHold(a, key).Shared != 1 || advisoryUnitHold(c, key).Shared != 1 || advisoryUnitHold(d, key).Shared != 1 || advisoryUnitHold(b, key) != (relationHold{}) || advisoryUnitHold(b, prior).Exclusive != 1 {
+		if advisoryUnitHold(a, key).Shared != 1 || advisoryUnitHold(c, key).Shared != 1 || advisoryUnitHold(d, key).Shared != 1 || advisoryUnitHold(b, key) != (lock.Hold{}) || advisoryUnitHold(b, prior).Exclusive != 1 {
 			t.Fatal("cohort/cancellation changed prior grants")
 		}
 	})
@@ -55,15 +57,15 @@ func TestAdvisorySessionCompatibleCohortTerminalOrder(t *testing.T) {
 		e := New()
 		a, ra := advisoryUnitOwner(t, e)
 		b, rb := advisoryUnitOwner(t, e)
-		key := lockResource{Kind: advisoryBigintResource, Low: 15}
-		advisoryUnitGrant(t, a, ra, key, advisoryExclusive)
+		key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 15}
+		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryExclusive)
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
-		request, err := e.locks.StartAcquire(ctx, b.advisory.ticket, key, advisoryExclusive, relationLockPolicy{Source: ctx, Provenance: rb, Timeout: time.Second})
+		request, err := e.locks.StartAcquire(ctx, b.advisory.ticket, key, lock.AdvisoryExclusive, lock.Policy{Source: ctx, Provenance: rb, Timeout: time.Second})
 		if err != nil || request == nil {
 			t.Fatal(request, err)
 		}
-		advisoryUnitUnlock(t, a, key, advisoryExclusive, true)
+		advisoryUnitUnlock(t, a, key, lock.AdvisoryExclusive, true)
 		terminal := request.Terminal()
 		requestError := request.Err()
 		count := e.locks.Inspect().Resources[key].Holders[b.advisory.ticket].Exclusive
@@ -76,7 +78,7 @@ func TestAdvisorySessionCompatibleCohortTerminalOrder(t *testing.T) {
 		}
 		transactionEnd(t, b, rb, false)
 		next := transactionBegin(t, b)
-		advisoryUnitGrant(t, b, next, key, advisoryExclusive)
+		advisoryUnitGrant(t, b, next, key, lock.AdvisoryExclusive)
 		if advisoryUnitHold(b, key).Exclusive != 2 {
 			t.Fatal("late callback contaminated new incarnation")
 		}

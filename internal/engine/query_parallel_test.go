@@ -11,6 +11,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 )
 
@@ -324,7 +325,7 @@ func TestQueryParallelEligibility(t *testing.T) {
 	if !ok || ordered == nil {
 		t.Fatal("positive scalar scan rejected")
 	}
-	for _, mode := range []relationLockMode{keyShare, rowShare, noKeyUpdate, rowUpdate} {
+	for _, mode := range []lock.Mode{lock.ForKeyShare, lock.ForShare, lock.ForNoKeyUpdate, lock.ForUpdate} {
 		copy := *source
 		copy.inherited = queryRowMark{mode: mode}
 		if _, _, ok := parallelQueryPlan(project, &copy); ok {

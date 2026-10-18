@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func TestAlterSchemaLockCancellationAndTimeout(t *testing.T) {
@@ -24,7 +25,7 @@ func TestAlterSchemaLockCancellationAndTimeout(t *testing.T) {
 				address := NameAddressForTempMove(t, e, source, target)
 				ref := e.catalog.domain.Ref(e.catalog.state.epoch, address)
 				tx := transactionBegin(t, a)
-				if err := e.locks.Acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
+				if err := e.locks.Acquire(context.Background(), a.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
 					t.Fatal(err)
 				}
 				q := "ALTER TABLE s1.t SET SCHEMA s2"

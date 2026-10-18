@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -113,7 +114,7 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := advisoryExpression{Info: expr.Info{Usage: types[sqltype.Bool].Usage()}, name: "pg_try_advisory_xact_lock", lifetime: advisoryTransaction, mode: advisoryExclusive, action: advisoryTry, args: []expr.Expr{
+	node := advisoryExpression{Info: expr.Info{Usage: types[sqltype.Bool].Usage()}, name: "pg_try_advisory_xact_lock", lifetime: advisoryTransaction, mode: lock.AdvisoryExclusive, action: advisoryTry, args: []expr.Expr{
 		mathObservedArgument{Info: expr.Info{Usage: types[sqltype.Int4].Usage()}, value: sqltype.Null(types[sqltype.Int4]), order: &order, index: 0},
 		mathObservedArgument{Info: expr.Info{Usage: types[sqltype.Int4].Usage()}, value: value, order: &order, index: 1},
 	}}

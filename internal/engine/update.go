@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -182,12 +183,12 @@ func updateMatches(eval *EvalContext, predicate expr.Expr) (bool, error) {
 
 // SQL waits never retain replacement admission or state/manager mutexes.
 func (s *StatementScope) acquireUpdateRow(ref ids.ObjectRef, row ids.RowID) error {
-	return s.acquireUpdateRowMode(ref, row, noKeyUpdate)
+	return s.acquireUpdateRowMode(ref, row, lock.ForNoKeyUpdate)
 }
-func (s *StatementScope) acquireUpdateRowMode(ref ids.ObjectRef, row ids.RowID, mode relationLockMode) error {
+func (s *StatementScope) acquireUpdateRowMode(ref ids.ObjectRef, row ids.RowID, mode lock.Mode) error {
 	e := s.op.session.Engine()
-	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref, Row: row}, mode, policy)
+	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref, Row: row}, mode, policy)
 	if request != nil {
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
@@ -413,7 +414,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			eval.bindQueryIdentity(stage.source, stage.index(candidate.sourceIndex))
 		}
 		if old.version != candidate.version {
-			if err := s.physicalRowEvent(ref, old, multiNoKeyLock, 0); err != nil {
+			if err := s.physicalRowEvent(ref, old, lock.MultiNoKeyLock, 0); err != nil {
 				return Result{}, err
 			}
 			matches, err := updateMatches(&eval, b.update.predicate)
@@ -443,7 +444,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			return Result{}, err
 		}
 		if keyChanged {
-			if err := s.acquireUpdateRowMode(ref, old.row, rowUpdate); err != nil {
+			if err := s.acquireUpdateRowMode(ref, old.row, lock.ForUpdate); err != nil {
 				return Result{}, err
 			}
 			if _, live, err := e.latestUpdateRow(s, ref, candidate); err != nil {
@@ -464,9 +465,9 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			}
 		}
 		batch.old = append(batch.old, old)
-		actionMode := multiNoKeyAction
+		actionMode := lock.MultiNoKeyAction
 		if keyChanged {
-			actionMode = multiUpdateAction
+			actionMode = lock.MultiUpdateAction
 		}
 		if err := s.physicalRowEvent(ref, old, actionMode, 0); err != nil {
 			return Result{}, err

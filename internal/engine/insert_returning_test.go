@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -308,7 +309,7 @@ func TestInsertReturningRowRecheck(t *testing.T) {
 				query += " RETURNING old.v,new.v"
 				running := conflictUpdateStartWorker(t, e, worker, query)
 				ticket, mode := conflictUpdatePendingRow(t, e, ref, id)
-				if mode != noKeyUpdate || ticket == nil {
+				if mode != lock.ForNoKeyUpdate || ticket == nil {
 					t.Fatal("not exact pending row resource", ticket, mode)
 				}
 				sessionSQL(t, holder, "UPDATE t SET v=40 WHERE k=1")
@@ -379,7 +380,7 @@ func TestInsertReturningAuthorizationAfterWait(t *testing.T) {
 				if conflict {
 					id := e.storage[ref.Address].versions[0].row
 					ticket, mode := conflictUpdatePendingRow(t, e, ref, id)
-					if ticket == nil || mode != noKeyUpdate {
+					if ticket == nil || mode != lock.ForNoKeyUpdate {
 						t.Fatal("not exact pending output worker", ticket, mode)
 					}
 				} else {

@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 // Engine.mu owns visibility/completion metadata. The ticket is an atomic mirror
@@ -16,14 +17,14 @@ type transactionVisibility struct {
 	ageAnchor             uint32
 	ageDemanded           bool
 	snapshot, safeBuilder bool
-	ticket                *relationTicket // assignment mirror only; never take manager.mu under Engine.mu
+	ticket                *lock.Ticket // assignment mirror only; never take manager.mu under Engine.mu
 }
 
 // Admission serializes this incarnation. Register with the manager first, then
 // associate its exact ticket before any command can reach canonical assignment.
 // This function holds neither manager.mu nor TX synchronization while taking
 // Engine.mu; the general order is documented on lock.Manager.
-func (e *Engine) registerTransactionLocks(ref ids.TxRef) (*relationTicket, error) {
+func (e *Engine) registerTransactionLocks(ref ids.TxRef) (*lock.Ticket, error) {
 	if !txOwnerAttached(ref) {
 		return nil, errors.New("stuntgres: invalid lock owner")
 	}
@@ -166,7 +167,7 @@ func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, index ids.ObjectAd
 			continue
 		}
 		if owner := e.locks.TransactionTicket(ref); owner != nil {
-			if err := s.waitCompletion(owner, completionVirtual); err != nil {
+			if err := s.waitCompletion(owner, lock.CompletionVirtual); err != nil {
 				return err
 			}
 		}

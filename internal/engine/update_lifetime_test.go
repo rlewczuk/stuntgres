@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/lock"
 )
 
 func updateRowWorker(t *testing.T, e *Engine, s *Session, q string) func(error) {
@@ -71,8 +73,8 @@ func TestUpdateCoreRowResourceLifetime(t *testing.T) {
 	oldCtx, oldCancel := context.WithCancel(context.Background())
 	defer oldCancel()
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	resource := lockResource{ObjectRef: ref, Row: e.storage[ref.Address].versions[0].row}
-	request, err := e.locks.StartAcquire(oldCtx, oldTicket, resource, noKeyUpdate, relationLockPolicy{})
+	resource := lock.Resource{ObjectRef: ref, Row: e.storage[ref.Address].versions[0].row}
+	request, err := e.locks.StartAcquire(oldCtx, oldTicket, resource, lock.ForNoKeyUpdate, lock.Policy{})
 	if err != nil || request == nil {
 		t.Fatal(request, err)
 	}
@@ -88,18 +90,18 @@ func TestUpdateCoreRowResourceLifetime(t *testing.T) {
 	sessionSQL(t, c, "UPDATE t SET v=10")
 	newTicket := c.transactions.ticket
 	newRef := catalogRef(t, e, e.CatalogRead(), "t")
-	newResource := lockResource{ObjectRef: newRef, Row: e.storage[newRef.Address].versions[0].row}
+	newResource := lock.Resource{ObjectRef: newRef, Row: e.storage[newRef.Address].versions[0].row}
 	oldCancel()
 	e.endLockOwner(oldTicket)
 	e.locks.Fence(ref.Epoch)
 	lockState := e.locks.Inspect(oldTicket)
 	entry := lockState.Resources[newResource]
-	held := relationLockMode(0)
+	held := lock.Mode(0)
 	if entry != nil {
 		held = entry.Holders[newTicket].Mode
 	}
 	oldJournal := len(lockState.Journals[oldTicket])
-	if held != noKeyUpdate || oldJournal != 0 {
+	if held != lock.ForNoKeyUpdate || oldJournal != 0 {
 		t.Fatal("stale post-fence cleanup changed new journal", held, oldJournal)
 	}
 	join = updateRowWorker(t, e, b, "UPDATE t SET v=11")

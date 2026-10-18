@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/lock"
 )
 
 func TestUpdateFromQueuedContenderRecheck(t *testing.T) {
@@ -67,8 +69,8 @@ func TestUpdateFromQueuedContenderRecheck(t *testing.T) {
 			}()
 			lockPending(t, e, 1)
 			lockState := e.locks.Inspect()
-			entry := lockState.Resources[lockResource{ObjectRef: ref, Row: original.row}]
-			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == noKeyUpdate && entry.Holders[holder.transactions.ticket].Mode == noKeyUpdate
+			entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: original.row}]
+			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.ForNoKeyUpdate && entry.Holders[holder.transactions.ticket].Mode == lock.ForNoKeyUpdate
 			if !queued {
 				t.Fatal("not a genuine same-RowID UPDATE queue")
 			}

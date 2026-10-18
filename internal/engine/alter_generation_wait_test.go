@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -20,7 +21,7 @@ func TestAlterGeneratedExpressionAuthorizationAfterWait(t *testing.T) {
 	if err := blocker.gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.locks.Acquire(context.Background(), blocker.ticket, lockResource{ObjectRef: ref}, accessShare); err != nil {
+	if err := e.locks.Acquire(context.Background(), blocker.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())

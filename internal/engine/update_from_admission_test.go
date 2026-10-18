@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/lock"
 	"testing"
 	"time"
 )
@@ -36,7 +37,7 @@ func TestUpdateFromEarlierSourceMetadataAndAuthorityRefresh(t *testing.T) {
 			lockPending(t, e, 1)
 			sref := catalogRef(t, e, e.CatalogRead(), "s")
 			lockState := e.locks.Inspect()
-			entry := lockState.Resources[lockResource{ObjectRef: sref}]
+			entry := lockState.Resources[lock.Resource{ObjectRef: sref}]
 			firstAdmitted := entry != nil && len(entry.Holders) == 1
 			if !firstAdmitted {
 				t.Fatal("earlier source was not genuinely admitted")

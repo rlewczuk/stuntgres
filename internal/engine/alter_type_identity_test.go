@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -185,7 +186,7 @@ func TestAlterTypeIdentitySequenceGrantFreshness(t *testing.T) {
 			defer cancel()
 			done := ownedLockAsync(e, b, ctx, ast, expected)
 			ref := catalogRef(t, e, e.CatalogRead(), "i_id_seq")
-			ownedLockQueued(t, e, ref, shareRowExclusive, done)
+			ownedLockQueued(t, e, ref, lock.ShareRowExclusive, done)
 			transactionEnd(t, a, tx, true)
 			lockAwait(t, done, nil)
 			options := e.catalog.state.MustRelation(ref.Address).sequence
@@ -219,7 +220,7 @@ func TestAlterTypeIdentityCanceledSequencePublication(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := lockAsync(e, b, ctx, "ALTER TABLE i ALTER id TYPE BIGINT", false)
-	ownedLockQueued(t, e, ref, shareRowExclusive, done)
+	ownedLockQueued(t, e, ref, lock.ShareRowExclusive, done)
 	cancel()
 	lockAwait(t, done, context.Canceled)
 	transactionEnd(t, a, tx, false)

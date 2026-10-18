@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -135,16 +136,16 @@ func TestDeleteUsingSourceAdmissionRefresh(t *testing.T) {
 			for resource, entry := range lockState.Resources {
 				if resource.ObjectRef == target && resource.Row == 0 {
 					for _, mode := range entry.Holders {
-						targetRX = targetRX || mode.Mode&rowExclusive != 0
+						targetRX = targetRX || mode.Mode&lock.RowExclusive != 0
 					}
 				}
 				if resource.ObjectRef == source && resource.Row == 0 {
 					for _, mode := range entry.Holders {
-						sourceAS = sourceAS || mode.Mode&accessShare != 0
+						sourceAS = sourceAS || mode.Mode&lock.AccessShare != 0
 					}
 				}
 				if resource.ObjectRef == blocked && resource.Row == 0 {
-					sourceWait = len(entry.Pending) == 1 && entry.Pending[0].Mode == accessShare
+					sourceWait = len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessShare
 				}
 			}
 			if !targetRX || !sourceAS || !sourceWait {

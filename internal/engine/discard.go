@@ -5,6 +5,7 @@ import (
 	"sort"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"time"
 )
@@ -269,7 +270,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 		if i != 0 && address == relations[i-1] {
 			continue
 		}
-		if err = s.acquireSequence(e.catalog.domain.Ref(base.Epoch(), address), accessExclusive, true); err != nil {
+		if err = s.acquireSequence(e.catalog.domain.Ref(base.Epoch(), address), lock.AccessExclusive, true); err != nil {
 			return err
 		}
 	}

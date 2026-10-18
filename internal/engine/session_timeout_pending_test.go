@@ -107,12 +107,12 @@ func timeoutPendingFixture(t *testing.T, child bool) (*Session, *Session, ids.Tx
 	return s, holder, ref, &parser.LockTable{Targets: []parser.LockTarget{{Name: name}}, Mode: parser.LockAccessShare}
 }
 
-func timeoutPendingRequest(t *testing.T, e *Engine, op *Operation) *relationRequest {
+func timeoutPendingRequest(t *testing.T, e *Engine, op *Operation) *lock.Request {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		lockState := e.locks.Inspect()
-		var found *relationRequest
+		var found *lock.Request
 		for _, entry := range lockState.Resources {
 			for _, request := range entry.Pending {
 				if request.Policy.TimeoutSlot == &op.lockWait && !request.Terminal {
@@ -130,7 +130,7 @@ func timeoutPendingRequest(t *testing.T, e *Engine, op *Operation) *relationRequ
 	}
 }
 
-func timeoutPendingPublish(t *testing.T, e *Engine, request *relationRequest, now time.Time) {
+func timeoutPendingPublish(t *testing.T, e *Engine, request *lock.Request, now time.Time) {
 	t.Helper()
 	// The real cancellation callback may already own terminal publication
 	// after a failing lifecycle assertion. Only the manager's first terminal
@@ -267,7 +267,7 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 						t.Error("due statement ERROR accepted physical FATAL before callback delivery")
 					}
 					s.mu.Unlock()
-					result = lock.WaitError(op.Context(), relationLockPolicy{Source: op.sourceContext, StatementDeadline: op.statementDeadline}, time.Time{}, observed)
+					result = lock.WaitError(op.Context(), lock.Policy{Source: op.sourceContext, StatementDeadline: op.statementDeadline}, time.Time{}, observed)
 					result = scope.Finish(result)
 				} else {
 					returned, finished := make(chan error, 1), make(chan error, 1)

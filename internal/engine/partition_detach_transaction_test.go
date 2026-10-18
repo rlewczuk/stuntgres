@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
@@ -23,7 +24,7 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 			tx := partitionAttachUnitBegin(t, f.e, owner, ReadCommitted)
 			partitionAttachUnitWrite(t, f.e, owner, ref, 2)
 			mark, markOp := partitionAttachUnitScope(t, f.e, owner)
-			partitionAttachUnitGrant(t, mark, parentRef, accessShare)
+			partitionAttachUnitGrant(t, mark, parentRef, lock.AccessShare)
 			control := &parser.SavepointControl{Kind: parser.CreateSavepoint, Name: parser.Identifier{Text: "before_detach"}}
 			if _, err := mark.executeSavepoint(control, 0); err != nil {
 				t.Fatal(err)
@@ -34,8 +35,8 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 			markOp.Done()
 			beforeRows := maps.Clone(owner.transactions.roots)
 			detach, op := partitionAttachUnitScope(t, f.e, owner)
-			partitionAttachUnitGrant(t, detach, parentRef, accessExclusive)
-			partitionAttachUnitGrant(t, detach, ref, accessExclusive)
+			partitionAttachUnitGrant(t, detach, parentRef, lock.AccessExclusive)
+			partitionAttachUnitGrant(t, detach, ref, lock.AccessExclusive)
 			stage := f.e.BeginCatalogStage(detach.ResolutionCatalog())
 			defer f.e.DiscardCatalogStage(stage)
 			if err := f.e.stagePartitionDetach(stage, f.parent, f.child); err != nil {
@@ -70,11 +71,11 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 					t.Fatal("savepoint did not restore exact attached descriptor")
 				}
 				lockState := f.e.locks.Inspect()
-				entry := lockState.Resources[lockResource{ObjectRef: parentRef}]
+				entry := lockState.Resources[lock.Resource{ObjectRef: parentRef}]
 				mode := entry.Holders[owner.transactions.ticket].Mode
-				childEntry := lockState.Resources[lockResource{ObjectRef: ref}]
+				childEntry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 				childHeld := childEntry != nil && childEntry.Holders[owner.transactions.ticket].Mode != 0
-				if mode != accessShare || childHeld {
+				if mode != lock.AccessShare || childHeld {
 					t.Fatal("post-savepoint AX contributions survived", mode, childHeld)
 				}
 			}
@@ -142,7 +143,7 @@ func TestPartitionDetachLockFences(t *testing.T) {
 				holderSession := sessionStart(t, f.e, nil)
 				holderRef := partitionAttachUnitBegin(t, f.e, holderSession, ReadCommitted)
 				holder, holderOp := partitionAttachUnitScope(t, f.e, holderSession)
-				partitionAttachUnitGrant(t, holder, ref, accessShare)
+				partitionAttachUnitGrant(t, holder, ref, lock.AccessShare)
 				raw := &parser.AlterTableDetachPartition{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: f.parent.name}}}, Partition: parser.ObjectName{Parts: []parser.Identifier{{Text: f.child.name}}}}
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
@@ -180,7 +181,7 @@ func TestPartitionDetachLockFences(t *testing.T) {
 					_, err = f.e.detachPartitionLocked(worker, op, auth, raw, 0)
 					return err
 				})
-				partitionAttachUnitQueued(t, f.e, ref, worker.ticket, accessExclusive)
+				partitionAttachUnitQueued(t, f.e, ref, worker.ticket, lock.AccessExclusive)
 				switch veto {
 				case "cancel":
 					op.cancel(context.Canceled)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -263,9 +264,9 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	epoch := auth.catalog.Epoch()
 	e.mu.Unlock()
 	sort.Slice(refs, func(i, j int) bool { return refs[i].Address.ObjectID < refs[j].Address.ObjectID })
-	policy := relationLockPolicy{TimeoutSlot: &scope.op.lockWait, Timeout: scope.op.lockTimeout, StatementDeadline: scope.op.statementDeadline, Source: scope.op.sourceContext}
+	policy := lock.Policy{TimeoutSlot: &scope.op.lockWait, Timeout: scope.op.lockTimeout, StatementDeadline: scope.op.statementDeadline, Source: scope.op.sourceContext}
 	for _, ref := range refs {
-		request, err := e.locks.StartAcquire(scope.op.Context(), scope.ticket, lockResource{ObjectRef: ref}, accessExclusive, policy)
+		request, err := e.locks.StartAcquire(scope.op.Context(), scope.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive, policy)
 		if request != nil {
 			if scope.replacementRead {
 				e.replacementMu.RUnlock()
@@ -334,7 +335,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	}
 	sort.Slice(cascade, func(i, j int) bool { return cascade[i].Address.ObjectID < cascade[j].Address.ObjectID })
 	for _, ref := range cascade {
-		request, err := e.locks.StartAcquire(scope.op.Context(), scope.ticket, lockResource{ObjectRef: ref}, accessExclusive, policy)
+		request, err := e.locks.StartAcquire(scope.op.Context(), scope.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive, policy)
 		if request != nil {
 			err = request.Wait()
 		}

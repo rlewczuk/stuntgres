@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -106,7 +107,7 @@ func (s *StatementScope) beginExclusionProjectionLocked(e *Engine) {
 }
 func (s *StatementScope) installExclusionProjectionLocked(e *Engine, p *exclusionProjection) {
 	if e.exclusionPending == nil {
-		e.exclusionPending = make(map[*relationTicket]*exclusionProjection)
+		e.exclusionPending = make(map[*lock.Ticket]*exclusionProjection)
 	}
 	e.exclusionPending[s.ticket] = p
 	e.exclusionGeneration++
@@ -259,7 +260,7 @@ func (s *StatementScope) projectExclusionDeletionLocked(e *Engine, candidate del
 type exclusionScan struct {
 	generation      uint64
 	root            *logicalIndexRoot
-	pending         map[*relationTicket]*exclusionProjection
+	pending         map[*lock.Ticket]*exclusionProjection
 	auth            AuthorizationView
 	view            CatalogRead
 	schema          string
@@ -343,9 +344,9 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 			evaluation.Input.TypeDiagnosticName = binding.typeName
 		}
 		potential := false
-		var wait *relationTicket
+		var wait *lock.Ticket
 		var hit uniqueConflict
-		visit := func(entry exclusionEntry, owner *relationTicket, committed bool) error {
+		visit := func(entry exclusionEntry, owner *lock.Ticket, committed bool) error {
 			if owner == s.ticket && entry.row.row == candidate.row {
 				return nil
 			}
@@ -438,7 +439,7 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 			return uniqueConflict{}, potential, nil
 		}
 		if wait != nil {
-			if err := s.waitCompletion(wait, completionTransaction); err != nil {
+			if err := s.waitCompletion(wait, lock.CompletionTransaction); err != nil {
 				return uniqueConflict{}, false, err
 			}
 			continue

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -17,25 +18,25 @@ func TestEnumTypeDeadlockRetirement(t *testing.T) {
 		domainUnitPublish(t, e, domainUnitStage(t, e, op, q))
 	}
 	done()
-	var resources [2]lockResource
+	var resources [2]lock.Resource
 	for i, name := range []string{"cycle_left", "cycle_right"} {
 		d := domainUnitType(t, e.CatalogRead(), name)
-		resources[i] = lockResource{ObjectRef: e.catalog.domain.Ref(e.catalog.state.epoch, d.Address())}
+		resources[i] = lock.Resource{ObjectRef: e.catalog.domain.Ref(e.catalog.state.epoch, d.Address())}
 	}
 	sessions := [2]*Session{sessionStart(t, e, nil), sessionStart(t, e, nil)}
 	var refs [2]ids.TxRef
-	var tickets [2]*relationTicket
-	var pending [2]*relationRequest
+	var tickets [2]*lock.Ticket
+	var pending [2]*lock.Request
 	for i, s := range sessions {
 		refs[i] = transactionBegin(t, s)
 		tickets[i] = s.transactions.ticket
 		t.Cleanup(func() { e.endLockOwner(tickets[i]) })
-		if r := deadlockRequest(t, e, tickets[i], resources[i], typeExclusive); r != nil {
+		if r := deadlockRequest(t, e, tickets[i], resources[i], lock.TypeExclusive); r != nil {
 			t.Fatal("initial type grant queued")
 		}
 	}
 	for i := range pending {
-		pending[i] = deadlockRequest(t, e, tickets[i], resources[1-i], typeExclusive)
+		pending[i] = deadlockRequest(t, e, tickets[i], resources[1-i], lock.TypeExclusive)
 		if pending[i] == nil {
 			t.Fatal("opposing request granted")
 		}
@@ -49,7 +50,7 @@ func TestEnumTypeDeadlockRetirement(t *testing.T) {
 			}
 			victim = i
 		}
-		if lockState.Resources[resources[i]].Holders[tickets[i]].Mode != typeExclusive {
+		if lockState.Resources[resources[i]].Holders[tickets[i]].Mode != lock.TypeExclusive {
 			t.Error("deadlock detection released grant before transaction finish")
 		}
 	}
@@ -85,7 +86,7 @@ func TestEnumTypeDeadlockRetirement(t *testing.T) {
 	for _, s := range sessions {
 		ref := transactionBegin(t, s)
 		for _, resource := range resources {
-			if err := e.locks.Acquire(context.Background(), s.transactions.ticket, resource, typeExclusive); err != nil {
+			if err := e.locks.Acquire(context.Background(), s.transactions.ticket, resource, lock.TypeExclusive); err != nil {
 				t.Fatal("retired cycle blocked fresh owner", err)
 			}
 		}

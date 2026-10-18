@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -68,8 +69,8 @@ func TestInsertConflictProducerConsumedCountAndClose(t *testing.T) {
 func TestInsertConflictOmissionPreservesNonKeyGrants(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
 	scope, ref := insertConflictUnitScope(t, f)
-	resource := lockResource{ObjectRef: ref, Row: 5}
-	if err := f.e.locks.Acquire(scope.op.Context(), scope.ticket, resource, rowUpdate); err != nil {
+	resource := lock.Resource{ObjectRef: ref, Row: 5}
+	if err := f.e.locks.Acquire(scope.op.Context(), scope.ticket, resource, lock.ForUpdate); err != nil {
 		t.Fatal(err)
 	}
 	// The mark is deliberately unique-only. Real row/relation/completion ownership
@@ -81,7 +82,7 @@ func TestInsertConflictOmissionPreservesNonKeyGrants(t *testing.T) {
 	if len(f.e.locks.CheckpointUnique(scope.ticket, nil)) != 0 {
 		t.Fatal("skipped key retained")
 	}
-	if f.e.locks.Checkpoint(scope.ticket)[resource].Mode&rowUpdate == 0 {
+	if f.e.locks.Checkpoint(scope.ticket)[resource].Mode&lock.ForUpdate == 0 {
 		t.Fatal("row witness lock was lost")
 	}
 }
@@ -150,12 +151,12 @@ func TestInsertConflictClaimsPreserveAdvisoryCountsAndFinish(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
 	scope, ref := insertConflictUnitScope(t, f)
 	session := scope.op.session
-	key := lockResource{Kind: advisoryBigintResource, Low: 42}
+	key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 42}
 	for range 2 {
-		advisoryUnitGrant(t, session, scope.txRef, key, advisoryShared)
-		advisoryUnitGrant(t, session, scope.txRef, key, advisoryExclusive)
+		advisoryUnitGrant(t, session, scope.txRef, key, lock.AdvisoryShare)
+		advisoryUnitGrant(t, session, scope.txRef, key, lock.AdvisoryExclusive)
 	}
-	want := relationHold{Mode: advisoryShared | advisoryExclusive, Shared: 2, Exclusive: 2}
+	want := lock.Hold{Mode: lock.AdvisoryShare | lock.AdvisoryExclusive, Shared: 2, Exclusive: 2}
 	manager := f.e.locks
 	// A session ticket has no candidate unique-key contribution. The mark must
 	// not capture or later restore the persistent counted ownership.
@@ -188,10 +189,10 @@ func TestInsertConflictClaimsPreserveAdvisoryCountsAndFinish(t *testing.T) {
 		t.Fatal("finished statement retained unique claims")
 	}
 	for range 2 {
-		advisoryUnitUnlock(t, session, key, advisoryExclusive, true)
-		advisoryUnitUnlock(t, session, key, advisoryShared, true)
+		advisoryUnitUnlock(t, session, key, lock.AdvisoryExclusive, true)
+		advisoryUnitUnlock(t, session, key, lock.AdvisoryShare, true)
 	}
-	if got := advisoryUnitHold(session, key); got != (relationHold{}) {
+	if got := advisoryUnitHold(session, key); got != (lock.Hold{}) {
 		t.Fatal("explicit advisory cleanup retained counts", got)
 	}
 }

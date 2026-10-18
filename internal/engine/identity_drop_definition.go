@@ -5,6 +5,7 @@ import (
 	"iter"
 	"maps"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -64,7 +65,7 @@ func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *relationDes
 	ref := e.catalog.domain.Ref(provider.base.Epoch(), identity.sequence)
 	// Do not capture the sequence definition before its actual operation grant:
 	// the incumbent refresh selects this provider at grant time, not by name.
-	if err := provider.scope.acquireSequence(ref, accessExclusive, false); err != nil {
+	if err := provider.scope.acquireSequence(ref, lock.AccessExclusive, false); err != nil {
 		return old, capture, err
 	}
 	e.mu.Lock()

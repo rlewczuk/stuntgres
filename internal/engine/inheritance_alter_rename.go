@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
@@ -226,7 +227,7 @@ func (scope *StatementScope) acquireInheritanceDefinitions(root *relationDescrip
 		ref := scope.lockedRef
 		ref.Address = pending.address
 		e.mu.Unlock()
-		if err := scope.acquireSequence(ref, accessExclusive, true); err != nil {
+		if err := scope.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
 			return nil, AuthorizationView{}, err
 		}
 		e.mu.Lock()

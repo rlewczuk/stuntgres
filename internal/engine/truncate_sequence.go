@@ -3,6 +3,7 @@ package engine
 import (
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
@@ -48,7 +49,7 @@ func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
 	}
 	slices.SortFunc(s.truncateSequences, func(a, b truncateSequence) int { return compareTruncateAddress(a.ref.Address, b.ref.Address) })
 	for _, observed := range s.truncateSequences {
-		if err = s.acquireSequence(observed.ref, accessExclusive, true); err != nil {
+		if err = s.acquireSequence(observed.ref, lock.AccessExclusive, true); err != nil {
 			return err
 		}
 		e.mu.Lock()

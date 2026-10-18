@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/lock"
 )
 
 func TestPGSequencesCTE(t *testing.T) {
@@ -78,7 +80,7 @@ func TestPGSequencesCTE(t *testing.T) {
 						cancel()
 						<-finished
 					}()
-					ownedLockQueued(t, e, ref, rowExclusive, done)
+					ownedLockQueued(t, e, ref, lock.RowExclusive, done)
 					cancel()
 					lockAwait(t, done, context.Canceled)
 					<-finished
@@ -99,14 +101,14 @@ func pgSequencesCTEHolder(t *testing.T, e *Engine, s *Session, used bool) {
 	for _, name := range []string{"a", "b"} {
 		ref := catalogRef(t, e, e.CatalogRead(), name)
 		lockState := e.locks.Inspect()
-		entry := lockState.Resources[lockResource{ObjectRef: ref}]
-		var mode relationLockMode
+		entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
+		var mode lock.Mode
 		if entry != nil {
 			mode = entry.Holders[s.transactions.ticket].Mode
 		}
-		var want relationLockMode
+		var want lock.Mode
 		if used {
-			want = rowExclusive
+			want = lock.RowExclusive
 		}
 		if mode != want {
 			t.Errorf("sequence %s helper mode=%v want %v (used=%v)", name, mode, want, used)

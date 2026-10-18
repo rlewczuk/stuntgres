@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func TestCheckReviewDependencyCreationGrant(t *testing.T) {
@@ -31,8 +32,8 @@ func TestCheckReviewDependencyCreationGrant(t *testing.T) {
 				waiting := lockAsync(e, b, ctx, create, false)
 				lockPending(t, e, 1)
 				lockState := e.locks.Inspect()
-				entry := lockState.Resources[lockResource{ObjectRef: ref}]
-				queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == accessShare && entry.Holders[a.transactions.ticket].Mode&accessExclusive != 0
+				entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
+				queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessShare && entry.Holders[a.transactions.ticket].Mode&lock.AccessExclusive != 0
 				if !queued {
 					t.Fatal("CREATE did not queue AS on exact provider")
 				}
@@ -86,12 +87,12 @@ func TestCheckReviewDependencyActualCreatePublicationHold(t *testing.T) {
 	dropping := lockAsync(e, b, context.Background(), "DROP SEQUENCE s CASCADE", false)
 	lockPending(t, e, 1)
 	lockState := e.locks.Inspect()
-	entry := lockState.Resources[lockResource{ObjectRef: ref}]
-	held := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == accessExclusive
+	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
+	held := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessExclusive
 	if held {
 		held = false
 		for _, mode := range entry.Holders {
-			held = held || mode.Mode&accessShare != 0
+			held = held || mode.Mode&lock.AccessShare != 0
 		}
 	}
 	if !held {

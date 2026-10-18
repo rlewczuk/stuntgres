@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func collationPrivateSession(t *testing.T, e *Engine) *Session {
@@ -59,14 +60,14 @@ func TestCollationTemporaryCleanupAX(t *testing.T) {
 	before := e.CatalogRead()
 	tx := transactionBegin(t, peer)
 	ref := catalogRef(t, e, before, "coll_cleanup_t")
-	if err := e.locks.Acquire(context.Background(), peer.transactions.ticket, lockResource{ObjectRef: ref}, accessShare); err != nil {
+	if err := e.locks.Acquire(context.Background(), peer.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
 	owner.RequestEnd(CleanClose)
 	lockPending(t, e, 1)
 	lockState := e.locks.Inspect()
-	entry := lockState.Resources[lockResource{ObjectRef: ref}]
-	valid := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == accessExclusive && privateSessionOf(entry.Pending[0].Ticket.Ref().Session()) != nil
+	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
+	valid := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessExclusive && privateSessionOf(entry.Pending[0].Ticket.Ref().Session()) != nil
 	if !valid || e.CatalogRead().state != before.state {
 		t.Fatal("cleanup bypassed genuine AX or published before lock admission")
 	}

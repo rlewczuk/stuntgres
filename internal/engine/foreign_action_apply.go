@@ -156,14 +156,14 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			if err != nil || !match {
 				return false, err
 			}
-			if err = s.foreignKeyGrant(ref, child.row, keyShare, children.storage); err != nil {
+			if err = s.foreignKeyGrant(ref, child.row, lock.ForKeyShare, children.storage); err != nil {
 				return false, err
 			}
 			latest, live, err := s.foreignActionRow(ref, child)
 			if err != nil || !live {
 				return false, err
 			}
-			if err := s.physicalRowEvent(ref, latest, multiKeyShare, 0); err != nil {
+			if err := s.physicalRowEvent(ref, latest, lock.MultiKeyShare, 0); err != nil {
 				return false, err
 			}
 			match, err = foreignKeyRowsMatch(s.op.Context(), job.comparisons, latest.values, event.old.values, s.input)
@@ -243,9 +243,9 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 	}
 	schema := auth.catalog.Get(job.child.namespace).Name()
 	for _, candidate := range candidates {
-		mode := noKeyUpdate
+		mode := lock.ForNoKeyUpdate
 		if deletion {
-			mode = rowUpdate
+			mode = lock.ForUpdate
 		}
 		if err = s.foreignKeyGrant(ref, candidate.row, mode, children.storage); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.catalog)
@@ -314,7 +314,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			return s.foreignActionError(err, job, event, action, auth.catalog)
 		}
 		if keyChanged {
-			if err = s.foreignKeyGrant(ref, old.row, rowUpdate, children.storage); err != nil {
+			if err = s.foreignKeyGrant(ref, old.row, lock.ForUpdate, children.storage); err != nil {
 				return s.foreignActionError(err, job, event, action, auth.catalog)
 			}
 		}
@@ -322,9 +322,9 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			return s.foreignActionError(err, job, event, action, auth.catalog)
 		}
 		old.pendingKeyChange = old.pendingKeyChange || keyChanged
-		actionMode := multiNoKeyAction
+		actionMode := lock.MultiNoKeyAction
 		if keyChanged {
-			actionMode = multiUpdateAction
+			actionMode = lock.MultiUpdateAction
 		}
 		if err := s.physicalRowEvent(ref, old, actionMode, 0); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.catalog)

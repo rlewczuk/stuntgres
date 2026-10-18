@@ -42,10 +42,10 @@ func (e *Engine) clearIndexBuildWait(index ids.ObjectAddress, owner ids.TxRef, k
 	e.mu.Unlock()
 }
 
-func (s *StatementScope) waitCompletion(owner *relationTicket, purpose completionLockPurpose) error {
+func (s *StatementScope) waitCompletion(owner *lock.Ticket, purpose lock.CompletionPurpose) error {
 	e := s.op.session.Engine()
-	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext, CompletionPurpose: purpose}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.CompletionOf(owner), transactionCompletion, policy)
+	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext, CompletionPurpose: purpose}
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.CompletionOf(owner), lock.TransactionCompletion, policy)
 	if request != nil {
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
@@ -74,7 +74,7 @@ func (s *StatementScope) waitIndexWriters(index ids.ObjectAddress) error {
 	}
 	defer e.clearIndexBuildWait(index, s.txRef, indexWaitWriters)
 	for _, owner := range owners {
-		if err := s.waitCompletion(owner, completionVirtual); err != nil {
+		if err := s.waitCompletion(owner, lock.CompletionVirtual); err != nil {
 			return err
 		}
 	}

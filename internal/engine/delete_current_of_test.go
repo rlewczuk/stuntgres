@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"stuntgres/internal/engine/lock"
 )
 
 func TestDeleteCurrentOfIdentity(t *testing.T) {
@@ -167,8 +169,8 @@ func TestDeleteCurrentOfArbitration(t *testing.T) {
 	lockPending(t, e, 1)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	lockState := e.locks.Inspect()
-	entry := lockState.Resources[lockResource{ObjectRef: ref, Row: identity.row}]
-	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == worker.transactions.ticket && entry.Pending[0].Mode == rowUpdate
+	entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: identity.row}]
+	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == worker.transactions.ticket && entry.Pending[0].Mode == lock.ForUpdate
 	if !queued {
 		t.Fatal("positioned DELETE did not wait on exact captured duplicate identity")
 	}

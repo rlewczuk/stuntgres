@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -51,7 +52,7 @@ func (s *StatementScope) partitionAttachFrontier(catalog CatalogRead, parent, ta
 			childView := view
 			if lockChildren {
 				ref := s.op.session.Engine().catalog.domain.Ref(view.Epoch(), address)
-				if err := s.acquirePartitionLock(ref, accessExclusive); err != nil {
+				if err := s.acquirePartitionLock(ref, lock.AccessExclusive); err != nil {
 					return err
 				}
 				var err error

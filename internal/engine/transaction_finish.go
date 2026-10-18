@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -171,7 +172,7 @@ func (s *StatementScope) Finish(err error) error {
 	}
 	var diagnostic *sqlstate.Error
 	admittedFailure := s.worked || errors.As(err, &diagnostic) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
-	var endedTicket *relationTicket
+	var endedTicket *lock.Ticket
 	if t.state == TxImplicit && (!t.retainsTransaction() || err != nil) {
 		t.session.settings.finishTransaction(err == nil)
 		e.endSerializable(t.ref, err == nil)

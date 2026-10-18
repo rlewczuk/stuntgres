@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -197,14 +198,14 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 // endLockOwner retires dirty exclusion visibility, then releases the ticket's
 // lock ownership, including its completion resource. Neither Engine.mu nor
 // the manager mutex is held by the caller.
-func (e *Engine) endLockOwner(ticket *relationTicket) {
+func (e *Engine) endLockOwner(ticket *lock.Ticket) {
 	if ticket != nil && ticket.Ref().Domain() != nil {
 		e.removeExclusionOwner(ticket)
 	}
 	e.locks.End(ticket)
 }
 
-func (e *Engine) removeExclusionOwner(ticket *relationTicket) {
+func (e *Engine) removeExclusionOwner(ticket *lock.Ticket) {
 	e.mu.Lock()
 	if _, exists := e.exclusionPending[ticket]; exists {
 		delete(e.exclusionPending, ticket)

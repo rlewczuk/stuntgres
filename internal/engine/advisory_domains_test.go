@@ -16,12 +16,12 @@ func TestAdvisorySessionResourceDomains(t *testing.T) {
 	isolated, ri := advisoryUnitOwner(t, other)
 	boundaries := [][2]uint32{{0, 0}, {0x80000000, 0}, {0x7fffffff, 0xffffffff}, {0xffffffff, 0xffffffff}}
 	for _, words := range boundaries {
-		for _, kind := range []lock.ResourceKind{advisoryBigintResource, advisoryPairResource} {
-			key := lockResource{Kind: kind, High: words[0], Low: words[1]}
-			advisoryUnitGrant(t, a, ra, key, advisoryExclusive)
-			advisoryUnitGrant(t, isolated, ri, key, advisoryExclusive)
-			request, err := advisoryUnitAcquire(t, b, rb, key, advisoryExclusive, true)
-			if request != nil || !errors.Is(err, errRelationUnavailable) {
+		for _, kind := range []lock.ResourceKind{lock.AdvisoryBigintResource, lock.AdvisoryPairResource} {
+			key := lock.Resource{Kind: kind, High: words[0], Low: words[1]}
+			advisoryUnitGrant(t, a, ra, key, lock.AdvisoryExclusive)
+			advisoryUnitGrant(t, isolated, ri, key, lock.AdvisoryExclusive)
+			request, err := advisoryUnitAcquire(t, b, rb, key, lock.AdvisoryExclusive, true)
+			if request != nil || !errors.Is(err, lock.ErrUnavailable) {
 				t.Fatal("busy try created/succeeded request", request, err)
 			}
 			lockState := e.locks.Inspect(b.advisory.ticket, b.transactions.ticket)
@@ -37,22 +37,22 @@ func TestAdvisorySessionResourceDomains(t *testing.T) {
 			}
 		}
 	}
-	key := lockResource{Kind: advisoryBigintResource, High: 0xffffffff, Low: 0xffffffff}
+	key := lock.Resource{Kind: lock.AdvisoryBigintResource, High: 0xffffffff, Low: 0xffffffff}
 	forged := *a.advisory.ticket
-	if _, err := e.locks.StartAcquire(context.Background(), &forged, key, advisoryExclusive, relationLockPolicy{Provenance: ra, NoWait: true}); !errors.Is(err, ErrCatalogReplaced) {
+	if _, err := e.locks.StartAcquire(context.Background(), &forged, key, lock.AdvisoryExclusive, lock.Policy{Provenance: ra, NoWait: true}); !errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal("copied ticket authorized", err)
 	}
-	if _, err := other.locks.StartAcquire(context.Background(), a.advisory.ticket, key, advisoryExclusive, relationLockPolicy{Provenance: ra, NoWait: true}); !errors.Is(err, ErrCatalogReplaced) {
+	if _, err := other.locks.StartAcquire(context.Background(), a.advisory.ticket, key, lock.AdvisoryExclusive, lock.Policy{Provenance: ra, NoWait: true}); !errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal("foreign manager authorized", err)
 	}
 	contaminated := key
 	contaminated.ObjectRef = ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1}}
-	if _, err := advisoryUnitAcquire(t, a, ra, contaminated, advisoryExclusive, true); err == nil || errors.Is(err, ErrCatalogReplaced) {
+	if _, err := advisoryUnitAcquire(t, a, ra, contaminated, lock.AdvisoryExclusive, true); err == nil || errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal("fabricated catalog identity accepted for advisory", err)
 	}
 	retiredSource := ra
 	retiredSource = withTxID(retiredSource, retiredSource.ID()+1)
-	if _, err := advisoryUnitAcquire(t, a, retiredSource, key, advisoryExclusive, true); !errors.Is(err, ErrCatalogReplaced) {
+	if _, err := advisoryUnitAcquire(t, a, retiredSource, key, lock.AdvisoryExclusive, true); !errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal("missing exact transient provenance authorized", err)
 	}
 	if advisoryUnitHold(a, key).Exclusive != 1 || advisoryUnitHold(isolated, key).Exclusive != 1 {

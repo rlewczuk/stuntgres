@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func serialPublicationQuery(alter bool) string {
@@ -57,12 +58,12 @@ func TestSerialDefaultUnpublishedProviderHold(t *testing.T) {
 				default:
 				}
 				lockState := e.locks.Inspect()
-				entry := lockState.Resources[lockResource{ObjectRef: ref}]
-				queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == accessExclusive
+				entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
+				queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessExclusive
 				held := false
 				if entry != nil {
 					for _, mode := range entry.Holders {
-						held = held || mode.Mode&accessShare != 0
+						held = held || mode.Mode&lock.AccessShare != 0
 					}
 				}
 				if queued {
@@ -110,8 +111,8 @@ func TestSerialDefaultProviderDropFirstAndCancellation(t *testing.T) {
 				waiting := lockAsync(e, b, ctx, serialPublicationQuery(alter), false)
 				lockPending(t, e, 1)
 				lockState := e.locks.Inspect()
-				entry := lockState.Resources[lockResource{ObjectRef: ref}]
-				queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == accessShare
+				entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
+				queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessShare
 				if !queued {
 					t.Fatal("default did not queue on captured provider")
 				}

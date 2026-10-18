@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
 )
 
@@ -108,7 +109,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 		evaluation.bindQueryIdentity(stage.source, stage.index(pair.sourceIndex))
 		evaluation.physicalTable = candidate.ref
 		if current.version != candidate.version {
-			if err := s.physicalRowEvent(candidate.ref, current, multiUpdateLock, 0); err != nil {
+			if err := s.physicalRowEvent(candidate.ref, current, lock.MultiUpdateLock, 0); err != nil {
 				return Result{}, err
 			}
 			matches, err := updateMatches(evaluation, b.predicate)

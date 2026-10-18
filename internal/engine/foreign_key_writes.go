@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -105,10 +106,10 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.Obje
 	return r, nil
 }
 
-func (s *StatementScope) foreignKeyGrant(ref ids.ObjectRef, row ids.RowID, mode relationLockMode, storage *relationStorage) error {
+func (s *StatementScope) foreignKeyGrant(ref ids.ObjectRef, row ids.RowID, mode lock.Mode, storage *relationStorage) error {
 	e := s.op.session.Engine()
-	policy := relationLockPolicy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref, Row: row}, mode, policy)
+	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref, Row: row}, mode, policy)
 	if request != nil {
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
@@ -215,7 +216,7 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 	s.foreignKeyTargets = targets
 	slices.SortFunc(refs, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
 	for _, ref := range refs {
-		if err := s.foreignKeyGrant(ref, 0, shareRowExclusive, nil); err != nil {
+		if err := s.foreignKeyGrant(ref, 0, lock.ShareRowExclusive, nil); err != nil {
 			return err
 		}
 	}
@@ -383,7 +384,7 @@ func (s *StatementScope) foreignKeyParentExists(ref ids.ObjectRef, job foreignKe
 		if !lockParent || matching.born == 0 {
 			return true, nil
 		}
-		if err := s.foreignKeyGrant(ref, matching.row, keyShare, rows.storage); err != nil {
+		if err := s.foreignKeyGrant(ref, matching.row, lock.ForKeyShare, rows.storage); err != nil {
 			return false, err
 		}
 		if err := s.refreshForeignKeyRows(ref, rows); err != nil {
@@ -394,7 +395,7 @@ func (s *StatementScope) foreignKeyParentExists(ref ids.ObjectRef, job foreignKe
 		if locator.position >= 0 && locator.position < len(rows.committed) {
 			parent := rows.committed[locator.position]
 			if parent.row == locator.row && parent.version == locator.version && rows.committedLive(parent) {
-				if err := s.physicalRowEvent(ref, parent, multiKeyShare, 0); err != nil {
+				if err := s.physicalRowEvent(ref, parent, lock.MultiKeyShare, 0); err != nil {
 					return false, err
 				}
 				return foreignKeyRowsMatch(s.op.Context(), job.comparisons, child, parent.values, s.input)

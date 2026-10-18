@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -27,12 +28,12 @@ func TestTruncateRestartSavepoints(t *testing.T) {
 		t.Fatal("savepoint failed binding/root/memory separation")
 	}
 	lockState := e.locks.Inspect()
-	entry := lockState.Resources[lockResource{ObjectRef: ps}]
-	mode := relationLockMode(0)
+	entry := lockState.Resources[lock.Resource{ObjectRef: ps}]
+	mode := lock.Mode(0)
 	if entry != nil {
 		mode = entry.Holders[s.transactions.ticket].Mode
 	}
-	if mode&accessExclusive != 0 {
+	if mode&lock.AccessExclusive != 0 {
 		t.Fatal("savepoint retained reset AX")
 	}
 	sequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 4)
@@ -197,8 +198,8 @@ func TestTruncateRestartClosure(t *testing.T) {
 		}
 		for _, ref := range []ids.ObjectRef{rs, ls, hs} {
 			lockState := e.locks.Inspect()
-			entry := lockState.Resources[lockResource{ObjectRef: ref}]
-			valid := entry != nil && entry.Holders[scope.ticket].Mode == accessExclusive
+			entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
+			valid := entry != nil && entry.Holders[scope.ticket].Mode == lock.AccessExclusive
 			if !valid {
 				t.Fatal("missing owned AX", ref)
 			}
@@ -226,8 +227,8 @@ func TestTruncateRestartClosure(t *testing.T) {
 		}
 		lockState := e.locks.Inspect(scope.ticket)
 		foreignRef := e.catalog.domain.Ref(catalog.Epoch(), foreign)
-		_, journaled := lockState.Journals[scope.ticket][lockResource{ObjectRef: foreignRef}]
-		excluded := lockState.Resources[lockResource{ObjectRef: foreignRef}] == nil && !journaled
+		_, journaled := lockState.Journals[scope.ticket][lock.Resource{ObjectRef: foreignRef}]
+		excluded := lockState.Resources[lock.Resource{ObjectRef: foreignRef}] == nil && !journaled
 		if !excluded {
 			t.Fatal("foreign TEMP sequence was locked/journaled")
 		}

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
@@ -94,8 +95,8 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 						valid := true
 						for _, old := range owners {
 							ref := e.catalog.domain.Ref(base.Epoch(), old.address)
-							entry := lockState.Resources[lockResource{ObjectRef: ref}]
-							valid = valid && entry != nil && entry.Holders[scope.ticket].Mode == accessExclusive && len(entry.Pending) == 0
+							entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
+							valid = valid && entry != nil && entry.Holders[scope.ticket].Mode == lock.AccessExclusive && len(entry.Pending) == 0
 						}
 						if !valid || resources != len(owners) {
 							t.Fatal("missing/doubled captured owner grants", valid, resources)

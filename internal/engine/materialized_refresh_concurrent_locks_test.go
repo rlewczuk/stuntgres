@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"testing"
 	"time"
@@ -13,15 +14,15 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 	for _, tc := range []struct {
 		name            string
 		target          bool
-		held            relationLockMode
+		held            lock.Mode
 		blocked, noData bool
 	}{
-		{"reader_target", true, accessShare, false, false},
-		{"refresh_target", true, relationExclusive, true, false},
-		{"plain_target", true, accessExclusive, true, false},
-		{"source_exclusive", false, accessExclusive, true, false},
-		{"source_writer", false, rowExclusive, false, false},
-		{"invalid_no_data_before_source", false, accessExclusive, false, true},
+		{"reader_target", true, lock.AccessShare, false, false},
+		{"refresh_target", true, lock.Exclusive, true, false},
+		{"plain_target", true, lock.AccessExclusive, true, false},
+		{"source_exclusive", false, lock.AccessExclusive, true, false},
+		{"source_writer", false, lock.RowExclusive, false, false},
+		{"invalid_no_data_before_source", false, lock.AccessExclusive, false, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := New()
@@ -41,7 +42,7 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 			if tc.target {
 				heldRef = targetRef
 			}
-			if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lockResource{ObjectRef: heldRef}, tc.held); err != nil {
+			if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lock.Resource{ObjectRef: heldRef}, tc.held); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -67,13 +68,13 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 				lockPending(t, e, 1)
 				if !tc.target {
 					lockState := e.locks.Inspect()
-					entry := lockState.Resources[lockResource{ObjectRef: targetRef}]
-					granted := entry != nil && entry.Holders[scope.ticket].Mode&relationExclusive != 0
+					entry := lockState.Resources[lock.Resource{ObjectRef: targetRef}]
+					granted := entry != nil && entry.Holders[scope.ticket].Mode&lock.Exclusive != 0
 					if !granted {
 						t.Fatal("source waiter did not retain target EXCLUSIVE")
 					}
 					reader := refreshUnitScope(t, e, ctx)
-					request, err := e.locks.StartAcquire(ctx, reader.ticket, lockResource{ObjectRef: targetRef}, accessShare, relationLockPolicy{})
+					request, err := e.locks.StartAcquire(ctx, reader.ticket, lock.Resource{ObjectRef: targetRef}, lock.AccessShare, lock.Policy{})
 					if request != nil || err != nil {
 						t.Fatal("real SELECT grant blocked behind concurrent source waiter", err)
 					}
@@ -113,8 +114,8 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 					t.Fatal(err)
 				}
 				lockState := e.locks.Inspect()
-				entry := lockState.Resources[lockResource{ObjectRef: targetRef}]
-				granted := entry != nil && entry.Holders[scope.ticket].Mode&relationExclusive != 0
+				entry := lockState.Resources[lock.Resource{ObjectRef: targetRef}]
+				granted := entry != nil && entry.Holders[scope.ticket].Mode&lock.Exclusive != 0
 				if !granted {
 					t.Fatal("concurrent refresh used wrong target mode")
 				}
