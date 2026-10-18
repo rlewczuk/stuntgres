@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"fmt"
+
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -62,4 +64,38 @@ func (b *expressionBinder) CommonUsage(usages []sqltype.Usage) sqltype.Usage {
 
 func (b *expressionBinder) ComparisonInfo(left, right expr.Expr) (expr.Info, error) {
 	return b.comparisonInfo(left, right)
+}
+
+func (b *expressionBinder) CollatedInfo(info expr.Info, inputs ...expr.Expr) (expr.Info, error) {
+	return b.collatedInfo(info, inputs...)
+}
+
+func (b *expressionBinder) RetainUntypedParameter(arg expr.Expr) {
+	if parameter, ok := arg.(parameterExpression); ok && parameter.Usage.Type == nil {
+		b.anyParameters = append(b.anyParameters, parameter)
+	}
+}
+
+func (b *expressionBinder) NoteCatalogText() { b.regclassConcat = true }
+
+// InstalledRoutine resolves the namespace path first, so its lookup errors
+// precede every signature diagnostic; the procedure lookup itself is pure.
+func (b *expressionBinder) InstalledRoutine(name parser.ObjectName, extension functions.Extension, signature string) (functions.InstalledRoutine, error) {
+	auth, err := b.bindingAuthorization()
+	if err != nil {
+		return nil, err
+	}
+	path, err := b.engine.lookupNamespacesSnapshot(auth, name, installedFunctionLookup)
+	if err != nil {
+		return nil, err
+	}
+	proc := procedureInNamespaces(auth.catalog, path, name.Parts[len(name.Parts)-1].Text, procedureSignature(signature))
+	switch extension {
+	case functions.UUIDOsspExtension:
+		if proc == nil || proc.uuidOssp != stockUUIDOssp {
+			return nil, nil
+		}
+		return installedUUIDOsspRoutine{binder: b, catalog: auth.catalog, procedure: proc}, nil
+	}
+	return nil, fmt.Errorf("stuntgres: unknown installed extension %d", extension)
 }

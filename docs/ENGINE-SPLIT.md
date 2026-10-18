@@ -702,7 +702,7 @@ package-specific scope. This section holds the rules every session follows.
 |---|---|---|---|
 | 1 | [`ENGINE-SPLIT-ids.md`](ENGINE-SPLIT-ids.md) | — | done (1a–1d) |
 | 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | 2a–2c done; 2d next |
-| 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3, F4/F5 math done; F2 and F4/F5 next |
+| 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3, F4/F5 math, UUID, format and uuid-ossp done; F2 and F4/F5 next |
 | 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | 4a, 4b done; 4c next |
 | 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | 5a done; 5b next |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | not started |

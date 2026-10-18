@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"stuntgres/internal/engine/functions"
@@ -19,7 +20,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	// Registered families are name-disjoint from the chain below.
 	if definition, ok := functions.Lookup(name); ok {
 		if definition.SharedGates {
-			if err := b.sharedCallGates(raw); err != nil {
+			if err := b.sharedCallGates(raw, definition); err != nil {
 				return nil, err
 			}
 		}
@@ -48,9 +49,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	}
 	if strings.EqualFold(name, "digest") || strings.EqualFold(name, "hmac") || strings.EqualFold(name, "crypt") || strings.EqualFold(name, "gen_salt") || strings.EqualFold(name, "encrypt") || strings.EqualFold(name, "decrypt") || strings.EqualFold(name, "encrypt_iv") || strings.EqualFold(name, "decrypt_iv") || strings.EqualFold(name, "gen_random_bytes") || strings.EqualFold(name, "gen_random_uuid") || strings.EqualFold(name, "fips_mode") {
 		return b.bindInstalledCrypto(raw)
-	}
-	if strings.EqualFold(name, "uuid_generate_v4") {
-		return b.bindInstalledUUIDOssp(raw)
 	}
 	if strings.EqualFold(name, "levenshtein") || strings.EqualFold(name, "levenshtein_less_equal") {
 		return b.bindInstalledLevenshtein(raw)
@@ -199,14 +197,11 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return b.bindStringFunction(raw, visible && name == "parse_ident")
 	}
 	// Shared syntax must never silently discard labels in adjacent providers.
-	if len(raw.ArgNames) != 0 && !parser.AdvisoryFunctionName(name) && name != "uuidv7" && name != "make_date" && name != "make_time" && name != "make_timestamp" && name != "make_timestamptz" && name != "make_interval" {
+	if len(raw.ArgNames) != 0 && !parser.AdvisoryFunctionName(name) && name != "make_date" && name != "make_time" && name != "make_timestamp" && name != "make_timestamptz" && name != "make_interval" {
 		return nil, b.functionSignatureError(raw)
 	}
-	if raw.ResolutionOnly || name != "format" && strings.EqualFold(name, "format") {
+	if raw.ResolutionOnly {
 		return nil, b.formatDiagnosticSignatureError(raw)
-	}
-	if name == "format" {
-		return b.bindFormat(raw)
 	}
 	if parser.IdentityFunctionName(name) {
 		return b.bindIdentityFunction(raw)
@@ -233,8 +228,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 		return b.bindTextObjectFunction(raw, name, visible)
 	case "enum_first", "enum_last", "enum_range":
 		return b.bindEnumFunction(raw, visible)
-	case "uuidv4", "uuidv7":
-		return b.bindUUIDGeneration(raw, visible)
 	case "pg_get_constraintdef", "pg_get_expr", "pg_get_indexdef", "pg_get_viewdef", "pg_get_serial_sequence":
 		return b.bindDeparse(raw, visible)
 	case "extract", "date_part":
@@ -422,11 +415,12 @@ func (e currentSchemasExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 
 // sharedCallGates applies, for a registered family, the label and
 // ResolutionOnly gates that the name chain applies before its final switch.
-func (b *expressionBinder) sharedCallGates(raw parser.FunctionExpr) error {
-	if len(raw.ArgNames) != 0 {
+// Other spellings of a case-insensitively claimed name resolve only.
+func (b *expressionBinder) sharedCallGates(raw parser.FunctionExpr, definition functions.Definition) error {
+	if len(raw.ArgNames) != 0 && !definition.OwnsLabels {
 		return b.functionSignatureError(raw)
 	}
-	if raw.ResolutionOnly {
+	if raw.ResolutionOnly || !slices.Contains(definition.Names, raw.Name.Parts[len(raw.Name.Parts)-1].Text) {
 		return b.formatDiagnosticSignatureError(raw)
 	}
 	return nil

@@ -62,6 +62,26 @@ Added for the math family (F4/F5); each is reused by glue still in the engine:
   operands' diagnostic type inputs as dependencies (array search/comparison
   and LIKE use the same service).
 
+Added for UUID generation, `format` and uuid-ossp (F4/F5):
+
+- `CollatedInfo`: result collation derived from the bound inputs, with the
+  engine's conflict diagnostics (17 glue files use the same service).
+- `RetainUntypedParameter`: an argument bound to an ANY formal that is a
+  still-untyped `$n` stays pending, so statement completion reports 42P08
+  unless another occurrence resolves it. Count, NULL-count, JSON creation,
+  string variadics and SQL/JSON do the same.
+- `NoteCatalogText`: the statement renders a catalog-identifier value
+  (`regclass` and friends) as text, so execution captures the catalog
+  snapshot that output reads. It is statement-level analyzer state.
+- `InstalledRoutine`: resolves a name on the function search path (lookup
+  errors propagate) and returns the routine that an `Extension` installed
+  there with a signature (comma-separated input type OIDs), or nil. The
+  result is an opaque handle (`installed_routine.go`): `Validate` checks the
+  installation manifest, and `Attach` completes the call's routine identity,
+  records the dependency and returns the engine's identity-carrying wrapper.
+  Extension installation and procedure identity stay in the engine; pgcrypto,
+  fuzzystrmatch, unaccent, intarray and intagg can reuse this capability.
+
 Argument analysis intents are values, not methods: `ThresholdArrayArgument`
 is the comparison operand whose unknown-NULL annotation may name an enum
 array, as `width_bucket`'s threshold array may.
@@ -85,13 +105,29 @@ Two fields reproduce where a family sat in that chain:
   `"ABS"`, keep the chain's missing-function path.
 - `SharedGates`: the engine applies the chain's shared gates before `Bind`:
   argument labels get the missing-signature error, then `ResolutionOnly`
-  calls get the format diagnostics. `Bind` then checks builtin visibility
-  itself, preserving the old gate, visibility, bind order.
+  calls get the format diagnostics. On a case-insensitive definition, other
+  spellings of a claimed name (`"FORMAT"`) also get the format diagnostics.
+  `Bind` then checks builtin visibility itself, preserving the old gate,
+  visibility, bind order.
+- `OwnsLabels` (requires `SharedGates`): skip the label gate; `Bind` owns
+  every label diagnostic, as `uuidv7` does for its `shift` label.
 
-Math (`math_bind.go`) is registered with both; UUID extraction with neither.
+Registered families:
+
+| Family | File | Names | Fields |
+|---|---|---|---|
+| UUID extraction | `uuid_extract_bind.go` | `uuid_extract_*` | none |
+| Math | `math_bind.go` | `mathNames` | `ExactSpelling`, `SharedGates` |
+| UUID generation | `uuid_generation_bind.go` | `uuidv4`, `uuidv7` | `ExactSpelling`, `SharedGates`; `uuidv7` also `OwnsLabels` |
+| `format` | `format_bind.go` | `format` | `SharedGates` |
+| uuid-ossp | `uuid_ossp_bind.go` | `uuid_generate_v4` | none |
+
+`BindUUIDGeneration` is exported because pgcrypto's `gen_random_uuid`, which
+still binds in the engine, uses it when `pg_catalog` wins the path.
 
 Shared scalar call helpers live in `call_syntax.go`: `ValidateCallSyntax`
-(FILTER analysis, the 100-argument limit, labels), `CallDecorationError`
+(FILTER analysis, the 100-argument limit, labels), `CallLabelError` (the
+label part alone, for families that analyze no FILTER), `CallDecorationError`
 (DISTINCT/ORDER BY/FILTER/OVER on a scalar) and `NamedArgumentType`.
 `resolution_error.go` holds `ResolutionError` (the pure 42883/42725 builder;
 it notes nothing, so missing signatures still go through `SignatureError`),
@@ -110,9 +146,13 @@ To add or port a builtin family:
 3. The chain applies shared gates after some branches: argument labels are
    rejected for most names, and `ResolutionOnly` calls get format diagnostics.
    A family whose engine branch sat after those gates sets `SharedGates`
-   (and `ExactSpelling` if it sat in the final switch), because `Lookup` runs
-   first. Check that no earlier chain predicate claims its names.
-4. Helpers that engine switches still call (retag, conditional planning) are
+   (and `ExactSpelling` if it sat in the final switch, `OwnsLabels` if the
+   label gate exempted it), because `Lookup` runs first. Check that no
+   earlier chain predicate claims its names.
+4. An installed extension family resolves its procedure through
+   `InstalledRoutine` (add its `Extension` and the engine's handle). The
+   engine's wrapper node, its validation and its switch cases stay until F2.
+5. Helpers that engine switches still call (retag, conditional planning) are
    exported until F2 converts those switches.
 
 ## Node protocol
@@ -132,7 +172,12 @@ identity.
 The engine owns the analyzer behind `Binder`, the bind code of families not
 yet registered, name/catalog/ACL and dependency resolution, parameter/result contracts, descriptor generations,
 retag/remap and stored SQL presentation. The capabilities supply existing
-authority without copying rows or the full evaluation context.
+authority without copying rows or the full evaluation context. Installed
+extension routines keep their engine wrapper nodes (for example
+`installedUUIDOsspFunctionExpression`), manifest validation and stored
+identity; registered bind code reaches them only through `InstalledRoutine`.
+UUID DEFAULT admission (`closedUUIDDefault`) stays with the engine's DEFAULT
+binder.
 
 Physical-session RNG, UUID clock/entropy and SQL time ownership stay in the
 engine. Function evaluation borrows the same owners only when demanded. Literal
@@ -249,6 +294,17 @@ switches; reference tests in both modes):
 make check RUN='^(TestLookupClaimsRegisteredNames|TestDefinitionsAreWellFormed|TestMath|TestRandomBinder)'
 make check RUN='^TestReferenceMath'
 make check REFERENCE=1 RUN='^TestReferenceMath'
+```
+
+UUID generation, `format` and uuid-ossp (registry and label helper here; the
+engine's `TestUUIDGeneration*`, `TestUUIDOssp*` and `TestFormat*` cover
+analyzer switches, stored identity and grouping; reference tests in both
+modes):
+
+```sh
+make check RUN='^(TestLookupClaimsRegisteredNames|TestDefinitionsAreWellFormed|TestCallLabelErrorOrder|TestUUIDGeneration|TestUUIDOssp|TestFormat[A-Z])'
+make check RUN='^TestReference(Format|UUID|PgcryptoRandomUUID|ObjectGrantUUIDOssp|NumericFormattingUUIDDefaults|SearchPath)'
+make check REFERENCE=1 RUN='^TestReference(Format|UUID|PgcryptoRandomUUID|ObjectGrantUUIDOssp|NumericFormattingUUIDDefaults|SearchPath)'
 ```
 
 Focused private state/demand examples:

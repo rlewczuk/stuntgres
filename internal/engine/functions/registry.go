@@ -17,10 +17,14 @@ type Definition struct {
 	// spellings keep the engine's existing missing-function path.
 	ExactSpelling bool
 	// SharedGates asks the engine to apply its shared call gates before Bind:
-	// argument labels are rejected and ResolutionOnly calls get the
-	// missing-signature diagnostics, in that order.
+	// argument labels are rejected, then ResolutionOnly calls get the
+	// missing-signature diagnostics. On a case-insensitive definition, other
+	// spellings of a claimed name are treated as ResolutionOnly.
 	SharedGates bool
-	Bind        func(b Binder, call parser.FunctionExpr) (expr.Expr, error)
+	// OwnsLabels exempts the definition from the shared label gate; Bind then
+	// owns every argument-label diagnostic. It requires SharedGates.
+	OwnsLabels bool
+	Bind       func(b Binder, call parser.FunctionExpr) (expr.Expr, error)
 }
 
 // The static table is the registry: no init() registration. Names must not
@@ -28,6 +32,10 @@ type Definition struct {
 var definitions = [...]Definition{
 	{Names: []string{"uuid_extract_timestamp", "uuid_extract_version"}, Bind: bindUUIDExtract},
 	{Names: mathNames[:], ExactSpelling: true, SharedGates: true, Bind: bindMath},
+	{Names: []string{"uuidv4"}, ExactSpelling: true, SharedGates: true, Bind: bindUUIDGeneration},
+	{Names: []string{"uuidv7"}, ExactSpelling: true, SharedGates: true, OwnsLabels: true, Bind: bindUUIDGeneration},
+	{Names: []string{"format"}, SharedGates: true, Bind: bindFormat},
+	{Names: []string{"uuid_generate_v4"}, Bind: bindUUIDOssp},
 }
 
 // Lookup returns the definition that claims an unqualified function name.

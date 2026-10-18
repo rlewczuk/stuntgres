@@ -53,4 +53,18 @@ type Binder interface {
 	// ComparisonInfo derives the comparison input collation of two bound
 	// operands and records their diagnostic type inputs.
 	ComparisonInfo(left, right expr.Expr) (expr.Info, error)
+	// CollatedInfo derives info's result collation from the bound inputs,
+	// reporting collation conflicts as the engine's collation rules do.
+	CollatedInfo(info expr.Info, inputs ...expr.Expr) (expr.Info, error)
+	// RetainUntypedParameter keeps an argument bound to an ANY formal pending
+	// when it is a parameter whose type is still unresolved, so statement
+	// completion reports 42P08 unless another occurrence resolves it.
+	RetainUntypedParameter(expr.Expr)
+	// NoteCatalogText records that the statement renders a catalog-identifier
+	// value as text, so execution captures the catalog snapshot it reads.
+	NoteCatalogText()
+	// InstalledRoutine resolves name on the function search path, propagating
+	// lookup errors, and returns the routine that extension installed there
+	// with the signature (comma-separated input type OIDs), or nil.
+	InstalledRoutine(name parser.ObjectName, extension Extension, signature string) (InstalledRoutine, error)
 }

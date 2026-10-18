@@ -3,9 +3,9 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -15,78 +15,6 @@ type installedUUIDOsspFunctionExpression struct {
 	functions.UUIDGeneration
 	procedure *procedureDescriptor
 	ref       ids.ObjectRef
-}
-
-func (b *expressionBinder) bindInstalledUUIDOssp(raw parser.FunctionExpr) (BoundExpr, error) {
-	var names []string
-	if len(raw.Args) <= 100 {
-		names = make([]string, len(raw.Args))
-	}
-	for i, arg := range raw.Args {
-		o, err := b.AnalyzeArgument(arg, functions.AnalysisRequest{Intent: functions.StringOtherArgument})
-		if err != nil {
-			return nil, err
-		}
-		if names != nil {
-			name := "unknown"
-			if o.Usage.Type != nil {
-				name = b.diagnosticTypeName(o.Usage.Type)
-			}
-			names[i] = functions.NamedArgumentType(raw, i, name)
-		}
-	}
-	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
-	}
-	issue := functions.FunctionLabels(raw)
-	if issue.Malformed {
-		return nil, fmt.Errorf("invalid function argument labels")
-	}
-	if issue.Positional {
-		return nil, expressionError("42601", "positional argument cannot follow named argument", issue.Position)
-	}
-	if issue.Duplicate != "" {
-		return nil, expressionError("42601", fmt.Sprintf("argument name %q used more than once", issue.Duplicate), issue.Position)
-	}
-	failure := func() (BoundExpr, error) { return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
-	auth, err := b.bindingAuthorization()
-	if err != nil {
-		return nil, err
-	}
-	path, err := b.engine.lookupNamespacesSnapshot(auth, raw.Name, installedFunctionLookup)
-	if err != nil {
-		return nil, err
-	}
-	if len(raw.Args) != 0 || raw.Variadic || len(raw.ArgNames) != 0 || raw.Star {
-		return failure()
-	}
-	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	proc := procedureInNamespaces(auth.catalog, path, name, "")
-	if proc == nil || proc.uuidOssp != stockUUIDOssp {
-		return failure()
-	}
-	if err := stockUUIDOssp.validateProcedure(auth.catalog, proc); err != nil {
-		return nil, err
-	}
-	switch {
-	case raw.Distinct:
-		return nil, expressionError("42809", "DISTINCT specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
-	case len(raw.Order) != 0:
-		return nil, expressionError("42809", "ORDER BY specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
-	case raw.Filter != nil:
-		return nil, expressionError("42809", "FILTER specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
-	case raw.Window != nil:
-		return nil, expressionError("42809", "OVER specified, but "+objectNameText(raw.Name)+" is not a window function nor an aggregate function", raw.Pos)
-	}
-	info := b.info(b.typ(sqltype.UUID).Usage(), raw.Pos, ExprProperties{Volatility: Volatile})
-	info.RoutineReference = proc
-	call, err := functions.NewUUIDGeneration(info, "uuidv4", nil, nil)
-	if err != nil {
-		return nil, err
-	}
-	ref := b.engine.catalog.domain.Ref(auth.catalog.Epoch(), proc.address)
-	b.dependency(ref, proc.revision)
-	return installedUUIDOsspFunctionExpression{UUIDGeneration: call, procedure: proc, ref: ref}, nil
 }
 
 func (n installedUUIDOsspFunctionExpression) validShape() bool {
@@ -102,4 +30,27 @@ func (n installedUUIDOsspFunctionExpression) validate(v CatalogRead) error {
 		return fmt.Errorf("stuntgres: invalid stored uuid-ossp identity")
 	}
 	return stockUUIDOssp.validateProcedure(v, n.procedure)
+}
+
+// installedUUIDOsspRoutine is the procedure identity handed to bind code
+// through functions.Binder.InstalledRoutine.
+type installedUUIDOsspRoutine struct {
+	binder    *expressionBinder
+	catalog   CatalogRead
+	procedure *procedureDescriptor
+}
+
+func (r installedUUIDOsspRoutine) Validate() error {
+	return stockUUIDOssp.validateProcedure(r.catalog, r.procedure)
+}
+
+func (r installedUUIDOsspRoutine) Attach(call expr.Expr) (expr.Expr, error) {
+	generation, ok := call.(functions.UUIDGeneration)
+	if !ok {
+		return nil, fmt.Errorf("stuntgres: invalid uuid-ossp call")
+	}
+	generation.RoutineReference = r.procedure
+	ref := r.binder.engine.catalog.domain.Ref(r.catalog.Epoch(), r.procedure.address)
+	r.binder.dependency(ref, r.procedure.revision)
+	return installedUUIDOsspFunctionExpression{UUIDGeneration: generation, procedure: r.procedure, ref: ref}, nil
 }

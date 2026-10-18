@@ -18,6 +18,12 @@ func ValidateCallSyntax(b Binder, raw parser.FunctionExpr) error {
 	if len(raw.Args) > 100 {
 		return expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
+	return CallLabelError(raw)
+}
+
+// CallLabelError reports malformed, positional-after-named and duplicate
+// argument labels, in that order.
+func CallLabelError(raw parser.FunctionExpr) error {
 	issue := FunctionLabels(raw)
 	switch {
 	case issue.Malformed:

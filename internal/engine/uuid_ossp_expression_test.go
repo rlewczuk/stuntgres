@@ -21,7 +21,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	view := e.CatalogRead()
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "uuid_generate_v4"}}}}
-	node, err := binder.bindInstalledUUIDOssp(raw)
+	node, err := binder.bindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestUUIDOsspGroupedExpressionIdentity(t *testing.T) {
 	view := e.CatalogRead()
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "uuid_generate_v4"}}}}
-	node, err := binder.bindInstalledUUIDOssp(raw)
+	node, err := binder.bindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -387,7 +387,7 @@ func TestUUIDOsspRoutineDefaultACL(t *testing.T) {
 		t.Fatal("installed raw ACL must be NULL/default", original.acl)
 	}
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	node, err := binder.bindInstalledUUIDOssp(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "uuid_generate_v4"}}}})
+	node, err := binder.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "uuid_generate_v4"}}}})
 	if err != nil {
 		t.Fatal(err)
 	}

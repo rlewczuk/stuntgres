@@ -1,31 +1,31 @@
-package engine
+package functions
 
 import (
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error) {
-	var args []BoundExpr
+// bindFormat runs after the engine's shared call gates (SharedGates), which
+// also send other spellings of format to the resolution-only diagnostics.
+// Arguments are analyzed before builtin visibility.
+func bindFormat(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
+	var args []expr.Expr
 	if len(raw.Args) <= 100 {
-		args = make([]BoundExpr, len(raw.Args))
+		args = make([]expr.Expr, len(raw.Args))
 	}
-	var first functions.Argument
+	var first Argument
 	var rawUnknown [2]uint64
 	for i, r := range raw.Args {
-		operand, err := b.AnalyzeArgument(r, functions.FormatArgumentAnalysis(i))
+		operand, err := b.AnalyzeArgument(r, FormatArgumentAnalysis(i))
 		node := operand.Expression
 		if i == 0 {
 			first = operand
 		} else if err == nil {
-			if functions.FormatUnknownArgument(r, i) {
+			if FormatUnknownArgument(r, i) {
 				rawUnknown[i/64] |= uint64(1) << uint(i%64)
 			}
-			if parameter, ok := node.(parameterExpression); ok && parameter.Usage.Type == nil {
-				b.anyParameters = append(b.anyParameters, parameter)
-			}
+			b.RetainUntypedParameter(node)
 		}
 		if err != nil {
 			return nil, err
@@ -35,13 +35,13 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	visible, err := b.builtinVisible(raw.Name, functionLookup)
+	visible, err := b.BuiltinVisible(raw.Name)
 	if err != nil {
 		return nil, err
 	}
-	if functions.ResolveFormat(visible, raw.Variadic, len(args), first.Usage) != functions.Resolved {
+	if ResolveFormat(visible, raw.Variadic, len(args), first.Usage) != Resolved {
 		names := make([]string, len(args))
 		for i, arg := range args {
 			names[i] = "unknown"
@@ -52,28 +52,28 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 				names[i] = arg.ResultUsage().Type.DiagnosticName()
 			}
 		}
-		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
 	// Retain this occurrence's unresolved type until every child has been
 	// analyzed and the signature selected; a later occurrence may constrain it.
 	if first.Usage.Type == nil {
-		args[0], err = functions.CoerceFormatFirst(b, first, b.typ(sqltype.Text).Usage())
+		args[0], err = CoerceFormatFirst(b, first, b.Type(sqltype.Text).Usage())
 		if err != nil {
 			return nil, err
 		}
 	}
 	if raw.Variadic && (args[1].ResultUsage().Type == nil || !args[1].ResultUsage().Type.BaseType().IsArray()) {
-		return nil, expressionError("42804", "VARIADIC argument must be an array", raw.Args[1].SourcePosition())
+		return nil, expr.ErrorAt("42804", "VARIADIC argument must be an array", raw.Args[1].SourcePosition())
 	}
-	text := b.typ(sqltype.Text).Usage()
-	if request, needed := functions.FormatFirstCoercion(args[0].ResultUsage(), text); needed {
+	text := b.Type(sqltype.Text).Usage()
+	if request, needed := FormatFirstCoercion(args[0].ResultUsage(), text); needed {
 		first.Expression, first.Usage = args[0], args[0].ResultUsage()
 		args[0], err = b.CoerceArgument(first, request)
 		if err != nil {
 			return nil, err
 		}
 	}
-	properties := expr.IntrinsicProperties(functions.FormatIntrinsicRule())
+	properties := expr.IntrinsicProperties(FormatIntrinsicRule())
 	for _, arg := range args {
 		p := arg.Properties()
 		properties.Volatility = max(properties.Volatility, p.Volatility)
@@ -83,10 +83,10 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 		properties.DomainDependent = properties.DomainDependent || p.DomainDependent
 		properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || p.RuntimeDomainConversion
 		if arg.ResultUsage().Type != nil && arg.ResultUsage().Type.ContainsCatalogIdentifier() {
-			b.regclassConcat = true
+			b.NoteCatalogText()
 		}
 	}
-	info, err := b.collatedInfo(b.info(text, raw.Pos, properties), args...)
+	info, err := b.CollatedInfo(b.Info(text, raw.Pos, properties), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -94,11 +94,11 @@ func (b *expressionBinder) bindFormat(raw parser.FunctionExpr) (BoundExpr, error
 	if raw.Variadic || len(args) > 1 {
 		count = 2
 	}
-	info, err = b.builtinRoutineInfo(info, variadicRoutineProvider, "format", formal[:count]...)
+	info, err = b.BuiltinRoutineInfo(info, VariadicRoutineProvider, "format", formal[:count]...)
 	if err != nil {
 		return nil, err
 	}
-	int4 := b.typ(sqltype.Int4)
-	b.info(int4.Usage(), raw.Pos, ExprProperties{})
-	return functions.Format{Info: info, Args: args, Variadic: raw.Variadic, Int4: int4, RawUnknown: rawUnknown}, nil
+	int4 := b.Type(sqltype.Int4)
+	b.Info(int4.Usage(), raw.Pos, expr.Properties{})
+	return Format{Info: info, Args: args, Variadic: raw.Variadic, Int4: int4, RawUnknown: rawUnknown}, nil
 }
