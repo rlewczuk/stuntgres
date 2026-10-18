@@ -321,7 +321,7 @@ records). `json_object`/`jsonb_object` sat in the final switch, so they use
 `ExactSpelling` and `SharedGates`. The slot calls (`jsonb_set*`, JSONPath
 calls, `json_strip_nulls`) share `bindSlots` in `json_slot_bind.go`.
 `json_sql.go` exports their stored-SQL renderers, `MapJSONExtractChildren`
-and `JSONBPathQueryName` for the engine's deparse, preflight and
+and `JSONBPathQueryName` for the engine's stored scalar SQL, preflight and
 aggregate-binding switches until they adopt the protocol.
 
 Shared scalar call helpers live in `call_syntax.go`: `ValidateCallSyntax`
@@ -418,7 +418,8 @@ To add or port a builtin family:
    explicit wrapper cases ahead of their protocol branch, because the wrapper's
    catalog identity is engine state.
 6. Helpers that remaining engine switches still call (preflight, aggregate
-   binding, deparse) stay exported until those switches adopt the protocol.
+   binding, stored scalar SQL) stay exported until those switches adopt the
+   protocol.
 
 ## Node protocol
 
@@ -451,8 +452,20 @@ Nodes also implement the optional `expr` hooks that the engine's switches ask
   environment and change bit.
 - `Annotation`/`WithAnnotation` on `StringVariadic`, whose quote-capture origin
   the engine owns.
+- `Render` on every node the deparser and node-tree output display: one
+  `expr.Rendering` with the node-tree header and inputs, and the SQL shape
+  (leaf text, call, infix operator or keyword-syntax template) with the
+  quoting, implicit-cast display, labels, VARIADIC and display casts that
+  PostgreSQL's ruleutils uses for that call. `render.go` holds the shared
+  builders: `callRendering`, `writtenArgs`/`writtenCall` for written-order
+  calls with labels, `infixRendering`, and `syntaxPieces`/`trimPieces` for
+  OVERLAY, SUBSTRING, POSITION and TRIM. `Render` runs the validation either
+  renderer ran before. The extension nodes (`Soundex`, `Metaphone`,
+  `Levenshtein`, `Pgcrypto`) have no `Render`: only their engine wrappers
+  display, with the installed procedure's schema.
 
-A new node implements `Children`, `Rebuild` and `IntrinsicVolatility`, and each
+A new node implements `Children`, `Rebuild`, `IntrinsicVolatility` and
+`Render`, and each
 other hook whose default (fold as a constant, never strict, not a stored
 provider, rebuild on change) does not describe it.
 
@@ -469,15 +482,16 @@ extension routines keep their engine wrapper nodes (for example
 `installedFunctionExpression` for unaccent and `daitch_mokotoff`), manifest
 validation and stored identity; registered bind code reaches them only through
 `InstalledRoutine`. UUID and pgcrypto DEFAULT admission (`closedUUIDDefault`,
-`closedPgcryptoDefault`) stay with the engine's DEFAULT binder. Binary call deparse (`renderBinaryCall` in `binary_render.go`) stays
-with the engine's renderers until F2.
+`closedPgcryptoDefault`) stay with the engine's DEFAULT binder. Stored scalar
+SQL (`scalar_function_sql.go` and the function cases of `default.go`) still
+lists function nodes and keeps its helpers (`renderBinaryCall`, `regexpSQL`,
+`datetimeMakeSQL`, `stringSpecialSQL`) until it adopts `expr.Rendering`.
 
 Physical-session RNG, UUID clock/entropy and SQL time ownership stay in the
 engine: `random.go`, the `EvalContext` clock and sleep methods in
 `transaction_time.go`, and the closed DEFAULT admission of clock and sleep
 calls (`closedTransactionTimeDefault`). `TransactionTimeSQL` and
-`CurrentDateTimeSQL` are exported for the engine's deparse and DEFAULT
-switches until F2. Function evaluation borrows the same owners only when demanded. Literal
+`CurrentDateTimeSQL` are exported for the engine's stored scalar SQL switch. Function evaluation borrows the same owners only when demanded. Literal
 NULL folding and reached runtime argument effects remain distinct. Aggregate
 providers own execution-local state; the engine owns FILTER/DISTINCT/ORDER,
 grouping, windows and state lifetime: `finishAggregate`, `ownAggregate`, the
@@ -498,9 +512,9 @@ exported: `FinishArrayTransform` (the `||` operator), `ArraySearchNode` (the
 not registered: their operands are analyzed with string intents, and they
 move with the string family. `unnest` and `generate_subscripts` stay with the
 engine's set-returning functions, and the array/range operators with operator
-binding. `array_node_sql.go` holds the array nodes' child-mapping and deparse
-helpers for the engine's preflight and deparse switches until they adopt the
-protocol.
+binding. `array_node_sql.go` holds the array nodes' child-mapping and SQL
+helpers for the engine's preflight and stored scalar SQL switches until they
+adopt the protocol.
 
 ## Family notes
 
@@ -628,7 +642,8 @@ make check REFERENCE=1 RUN='^TestReference(CountExpression|NumericSum|NumericAvg
 Node protocol on function nodes:
 
 ```sh
-make check RUN='^Test(Composite|IntrinsicVolatilityExcludesChildren|PlanningHooks|RetagReportsDerivedInputChanges|StringVariadicAnnotationRoundTrip)'
+make check RUN='^Test(Composite|IntrinsicVolatilityExcludesChildren|PlanningHooks|RetagReportsDerivedInputChanges|StringVariadicAnnotationRoundTrip|Render)'
+make check RUN='^TestReference(DeparseConstraints|DeparseRelations|View|Generated|Default|Check)'
 ```
 
 JSON/JSONB function calls (registry; the engine's `TestJSON*` bind through

@@ -5,12 +5,13 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `367c16096`.
+Last verified against `master` at `ae1fc88b1`.
 
 ## Next ready sub-steps
 
-- **F2 session 2** — render hooks for deparse, node tree and stored scalar
-  SQL (needs F2 session 1 ✓) *(broad rewrite)*.
+- **F2 stored scalar SQL** — adopt `expr.Rendering` in
+  `scalar_function_sql.go`/`default.go` (needs F2 deparse ✓) *(broad
+  rewrite)*.
 - **4c** — remove the `lock` aliases (needs 4b ✓) *(alias removal)*.
 - **F4/F5 JSON** — JSON operators, SQL/JSON constructors and `IS JSON`
   (needs F3 ✓).
@@ -50,12 +51,14 @@ not run alongside each other or another broad rewrite or alias removal (§8).
     - [x] retag (`1e6bd8aec`)
     - [x] remap (`c703fd8d9`)
     - [x] volatility (`5d7935b7d`)
-    - [ ] deparse
-    - [ ] node tree
+    - [x] deparse (`42ec6b7e5`, then the docs commit) *(racecheck skipped
+      at user request)*
+    - [x] node tree (`68cbeefed`) *(racecheck skipped at user request)*
     - [x] generated admission (`1fa051e96`)
     - [x] conditional plan (`4c54eaf54`)
     - [x] join legality (`144458647`; protocol membership `c6de24e8f`, docs
       `ec2fba8bd`)
+    - [ ] stored scalar SQL
   - [x] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot
     family: UUID extraction (`60dc1cedd`, `cd4a88387`, `5d59e5737`, docs
     `9bca9b2b6`)
