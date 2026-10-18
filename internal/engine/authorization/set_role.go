@@ -1,5 +1,7 @@
 package authorization
 
+import "fmt"
+
 // CanSetRole follows only SET-authorized membership edges. Valid descriptors
 // are required even for self/superuser shortcuts; stale identities fail closed.
 func (r Read) CanSetRole(session, target PrincipalRef) (bool, error) {
@@ -46,4 +48,18 @@ func (r Read) CanSetRole(session, target PrincipalRef) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// ValidateInitialRole admits a session's initial or reset role only when the
+// authenticated role may SET it.
+func ValidateInitialRole(r Read, authenticated, target PrincipalRef) error {
+	allowed, err := r.CanSetRole(authenticated, target)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		role, _ := r.Descriptor(target)
+		return sqlError("42501", fmt.Sprintf("permission denied to set role \"%s\"", role.Name))
+	}
+	return nil
 }

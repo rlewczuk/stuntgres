@@ -254,7 +254,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 			err = roleLoginError(role.Name)
 		}
 		if err == nil && resetRole != (authorization.PrincipalRef{}) {
-			err = validateInitialRole(e.roleRead(CatalogRead{e, e.state}, e.roles), authenticated, resetRole)
+			err = authorization.ValidateInitialRole(e.roleRead(CatalogRead{e, e.state}, e.roles), authenticated, resetRole)
 		}
 		if err == nil && !private {
 			err = e.checkDatabaseConnectLocked(ctx, authenticated)

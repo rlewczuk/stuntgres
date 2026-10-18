@@ -33,22 +33,10 @@ func (e *Engine) initialRole(ctx context.Context, authenticated authorization.Pr
 	if !ok {
 		return authorization.PrincipalRef{}, sqlError("22023", fmt.Sprintf("role \"%s\" does not exist", name))
 	}
-	if err := validateInitialRole(roles, authenticated, target.Ref); err != nil {
+	if err := authorization.ValidateInitialRole(roles, authenticated, target.Ref); err != nil {
 		return authorization.PrincipalRef{}, err
 	}
 	return target.Ref, nil
-}
-
-func validateInitialRole(roles authorization.Read, authenticated, target authorization.PrincipalRef) error {
-	allowed, err := roles.CanSetRole(authenticated, target)
-	if err != nil {
-		return err
-	}
-	if !allowed {
-		role, _ := roles.Descriptor(target)
-		return sqlError("42501", fmt.Sprintf("permission denied to set role \"%s\"", role.Name))
-	}
-	return nil
 }
 
 func roleDiagnostic(code, message, detail string) error {

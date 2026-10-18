@@ -1,9 +1,7 @@
 package engine
 
 import (
-	"context"
 	"fmt"
-	"strings"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/functions"
@@ -216,11 +214,11 @@ func (n accessInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		if failure != nil {
 			return sqltype.Value{}, failure
 		}
-		mask, failure := parseRolePrivileges(privilege)
+		mask, failure := authorization.ParseRolePrivileges(privilege)
 		if failure != nil {
 			return sqltype.Value{}, failure
 		}
-		result, err = accessRoleCheck(c.Context, auth.roles, &e.authorizationDomain, actor, target, mask)
+		result, err = authorization.HasRole(c.Context, auth.roles, &e.authorizationDomain, actor, target, mask)
 	}
 	if err != nil {
 		return sqltype.Value{}, err
@@ -242,109 +240,6 @@ func accessRoleArgument(auth AuthorizationView, arg BoundExpr, value sqltype.Val
 		return 0, sqlError("42704", fmt.Sprintf(`role "%s" does not exist`, name))
 	}
 	return role.Ref.ID(), nil
-}
-
-type rolePrivilege uint8
-
-const (
-	roleMember rolePrivilege = 1 << iota
-	roleUsage
-	roleSet
-	roleAdmin
-)
-
-func rolePrivilegeSpace(c byte) bool {
-	return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f'
-}
-func rolePrivilegeEqual(input, upper string) bool {
-	if len(input) != len(upper) {
-		return false
-	}
-	for i := range len(input) {
-		c := input[i]
-		if c >= 'a' && c <= 'z' {
-			c -= 'a' - 'A'
-		}
-		if c != upper[i] {
-			return false
-		}
-	}
-	return true
-}
-func parseRolePrivileges(text string) (rolePrivilege, error) {
-	var mask rolePrivilege
-	for {
-		token, rest, more := strings.Cut(text, ",")
-		for len(token) > 0 && rolePrivilegeSpace(token[0]) {
-			token = token[1:]
-		}
-		for len(token) > 0 && rolePrivilegeSpace(token[len(token)-1]) {
-			token = token[:len(token)-1]
-		}
-		switch {
-		case rolePrivilegeEqual(token, "MEMBER"):
-			mask |= roleMember
-		case rolePrivilegeEqual(token, "USAGE"):
-			mask |= roleUsage
-		case rolePrivilegeEqual(token, "SET"):
-			mask |= roleSet
-		case rolePrivilegeEqual(token, "MEMBER WITH ADMIN OPTION"), rolePrivilegeEqual(token, "USAGE WITH ADMIN OPTION"), rolePrivilegeEqual(token, "SET WITH ADMIN OPTION"), rolePrivilegeEqual(token, "MEMBER WITH GRANT OPTION"), rolePrivilegeEqual(token, "USAGE WITH GRANT OPTION"), rolePrivilegeEqual(token, "SET WITH GRANT OPTION"):
-			mask |= roleAdmin
-		default:
-			return 0, sqlError("22023", fmt.Sprintf(`unrecognized privilege type: "%s"`, token))
-		}
-		if !more {
-			return mask, nil
-		}
-		text = rest
-	}
-}
-
-// Raw SQL OIDs are not trusted PrincipalRefs. Only this SQL inquiry boundary
-// admits PostgreSQL's self/superuser shortcuts for absent endpoints.
-func accessRoleCheck(ctx context.Context, roles authorization.Read, domain *authorization.Domain, actor, target uint64, mask rolePrivilege) (bool, error) {
-	a, aLive := roles.Find(domain.Principal(actor))
-	_, tLive := roles.Find(domain.Principal(target))
-	if aLive && a.Superuser {
-		return true, nil
-	}
-	if actor == target {
-		return mask&(roleMember|roleUsage|roleSet) != 0, nil
-	}
-	if !aLive || !tLive {
-		return false, nil
-	}
-	destination := domain.Principal(target)
-	if mask&roleUsage != 0 {
-		yes, err := roles.InheritsRole(a.Ref, destination)
-		if err != nil || yes {
-			return yes, err
-		}
-	}
-	if mask&roleSet != 0 {
-		yes, err := roles.CanSetRole(a.Ref, destination)
-		if err != nil || yes {
-			return yes, err
-		}
-	}
-	if mask&roleAdmin != 0 {
-		yes, err := roles.AdminOfRole(a.Ref, destination)
-		if err != nil || yes {
-			return yes, err
-		}
-	}
-	if mask&roleMember != 0 {
-		closure, err := roles.RoleClosure(ctx, a.Ref, false)
-		if err != nil {
-			return false, err
-		}
-		for _, ref := range closure {
-			if ref == destination {
-				return true, nil
-			}
-		}
-	}
-	return false, nil
 }
 
 func (n accessInquiryExpression) validateStored() error {

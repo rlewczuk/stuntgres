@@ -2,11 +2,9 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -60,29 +58,6 @@ func TestAccessInquiryBinding(t *testing.T) {
 	}
 }
 
-func TestAccessInquiryPrivileges(t *testing.T) {
-	for _, tc := range []struct {
-		text string
-		want rolePrivilege
-	}{
-		{"member", roleMember}, {"usage,set", roleUsage | roleSet}, {"MEMBER,MEMBER", roleMember},
-		{"\t\n\v\f\r SeT \r", roleSet}, {"USAGE WITH ADMIN OPTION", roleAdmin},
-		{"SET WITH GRANT OPTION,MEMBER", roleAdmin | roleMember},
-	} {
-		got, err := parseRolePrivileges(tc.text)
-		if err != nil || got != tc.want {
-			t.Fatalf("%q: %v %v want %v", tc.text, got, err, tc.want)
-		}
-	}
-	for _, text := range []string{"", "MEMBER,", "MEMBER,,SET", "MEMBER,bAd", "ADMIN", "MEMBER  WITH ADMIN OPTION", "MEMBER\tWITH ADMIN OPTION", "\u00a0MEMBER", "ſET"} {
-		mask, err := parseRolePrivileges(text)
-		var d *sqlstate.Error
-		if mask != 0 || !errors.As(err, &d) || d.Code != "22023" || d.Position != "" {
-			t.Fatalf("invalid token accepted: %q %v %v", text, mask, err)
-		}
-	}
-}
-
 func TestAccessInquiryRoleOIDs(t *testing.T) {
 	e, op, done, _ := policyUnitFixture(t)
 	defer done()
@@ -99,22 +74,22 @@ func TestAccessInquiryRoleOIDs(t *testing.T) {
 	target, _ := auth.roles.Lookup("ar_unit_target")
 	for _, tc := range []struct {
 		a, b uint64
-		mask rolePrivilege
+		mask authorization.RolePrivileges
 		want bool
 	}{
-		{actor.Ref.ID(), target.Ref.ID(), roleMember, true},
-		{actor.Ref.ID(), target.Ref.ID(), roleUsage, false},
-		{actor.Ref.ID(), target.Ref.ID(), roleSet, false},
-		{actor.Ref.ID(), target.Ref.ID(), roleAdmin, true},
-		{actor.Ref.ID(), actor.Ref.ID(), roleMember | roleUsage | roleSet, true},
-		{actor.Ref.ID(), actor.Ref.ID(), roleAdmin, false},
-		{0, 0, roleMember, true}, {0, 0, roleAdmin, false},
-		{4294967295, 4294967295, roleSet, true},
-		{0, 4294967295, roleMember, false},
-		{actor.Ref.ID(), 4294967295, roleMember, false},
-		{auth.state.CurrentUser.ID(), 4294967295, roleAdmin, true},
+		{actor.Ref.ID(), target.Ref.ID(), authorization.RoleMember, true},
+		{actor.Ref.ID(), target.Ref.ID(), authorization.RoleUsage, false},
+		{actor.Ref.ID(), target.Ref.ID(), authorization.RoleSet, false},
+		{actor.Ref.ID(), target.Ref.ID(), authorization.RoleAdmin, true},
+		{actor.Ref.ID(), actor.Ref.ID(), authorization.RoleMember | authorization.RoleUsage | authorization.RoleSet, true},
+		{actor.Ref.ID(), actor.Ref.ID(), authorization.RoleAdmin, false},
+		{0, 0, authorization.RoleMember, true}, {0, 0, authorization.RoleAdmin, false},
+		{4294967295, 4294967295, authorization.RoleSet, true},
+		{0, 4294967295, authorization.RoleMember, false},
+		{actor.Ref.ID(), 4294967295, authorization.RoleMember, false},
+		{auth.state.CurrentUser.ID(), 4294967295, authorization.RoleAdmin, true},
 	} {
-		got, err := accessRoleCheck(context.Background(), auth.roles, &e.authorizationDomain, tc.a, tc.b, tc.mask)
+		got, err := authorization.HasRole(context.Background(), auth.roles, &e.authorizationDomain, tc.a, tc.b, tc.mask)
 		if err != nil || got != tc.want {
 			t.Fatalf("raw boundary %+v: %v %v", tc, got, err)
 		}
