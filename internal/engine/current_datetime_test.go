@@ -79,7 +79,7 @@ func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 		}
 	}
 	for _, raw := range []parser.CurrentDateTimeExpr{{Kind: 255}, {Kind: parser.CurrentDate, HasPrecision: true, Precision: 1}, {Kind: parser.CurrentTime, HasPrecision: true, Precision: -1}} {
-		if _, _, err := bindCurrentDateTime(b, raw); err == nil {
+		if _, _, err := functions.BindCurrentDateTime(b, raw); err == nil {
 			t.Fatal("invalid current AST accepted", raw)
 		}
 	}

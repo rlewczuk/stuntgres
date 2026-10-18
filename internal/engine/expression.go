@@ -2458,7 +2458,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		case parser.CurrentDateTimeExpr:
 			var err error
 			var warning *sqlstate.Error
-			node, warning, err = bindCurrentDateTime(b, r)
+			node, warning, err = functions.BindCurrentDateTime(b, r)
 			if err != nil {
 				return nil, err
 			}

@@ -2,96 +2,17 @@ package engine
 
 import (
 	"fmt"
-	"strings"
 
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-// analyzeIntaggArguments analyzes intagg call operands, then checks the
-// argument limit and labels.
-func analyzeIntaggArguments(b functions.Binder, raw parser.FunctionExpr) ([]functions.Argument, error) {
-	var small [1]functions.Argument
-	var operands []functions.Argument
-	if len(raw.Args) <= 1 {
-		operands = small[:len(raw.Args)]
-	} else if len(raw.Args) <= 100 {
-		operands = make([]functions.Argument, len(raw.Args))
-	}
-	for i, child := range raw.Args {
-		o, err := b.AnalyzeArgument(child, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
-		if err != nil {
-			return nil, err
-		}
-		if operands != nil {
-			operands[i] = o
-		}
-	}
-	if len(raw.Args) > 100 {
-		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
-	}
-	if err := functions.CallLabelError(raw); err != nil {
-		return nil, err
-	}
-	return operands, nil
-}
-
-// resolveIntagg selects the installed intagg routine for one operand:
-// int_array_enum(integer[]) or int_array_aggregate(integer). Search path
-// errors precede signature errors; the operand is coerced to the formal.
-func resolveIntagg(b functions.Binder, raw parser.FunctionExpr, operands []functions.Argument) (expr.Expr, functions.InstalledRoutine, error) {
-	names := make([]string, len(operands))
-	for i, o := range operands {
-		names[i] = "unknown"
-		if o.Usage.Type != nil {
-			names[i] = b.DiagnosticTypeName(o.Usage.Type)
-		}
-		names[i] = functions.NamedArgumentType(raw, i, names[i])
-	}
-	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	formal, signature := b.Type(sqltype.Int4).Usage(), "23"
-	if strings.EqualFold(name, "int_array_enum") {
-		formal, signature = sqltype.Usage{}, "1007"
-	}
-	routine, err := b.InstalledRoutine(raw.Name, functions.IntaggExtension, signature)
-	if err != nil {
-		return nil, nil, err
-	}
-	if formal.Type == nil {
-		array, ok := b.ArrayType(b.Type(sqltype.Int4))
-		if !ok {
-			return nil, nil, fmt.Errorf("stuntgres: missing integer array descriptor")
-		}
-		formal = array.Usage()
-	}
-	if raw.Star || len(operands) != 1 || len(raw.ArgNames) != 0 {
-		return nil, nil, b.SignatureError(raw.Name, raw.Pos, names)
-	}
-	if operands[0].Usage.Type != nil {
-		if _, err := sqltype.PlanCoercion(operands[0].Usage, formal, sqltype.Implicit); err != nil {
-			return nil, nil, b.SignatureError(raw.Name, raw.Pos, names)
-		}
-	}
-	if routine == nil {
-		return nil, nil, b.SignatureError(raw.Name, raw.Pos, names)
-	}
-	if err := routine.Validate(); err != nil {
-		return nil, nil, err
-	}
-	arg, err := b.CoerceArgument(operands[0], functions.CoercionRequest{Intent: functions.DirectFormalArgument, Target: formal})
-	if err != nil {
-		return nil, nil, err
-	}
-	return arg, routine, nil
-}
-
 // resolveIntaggAggregate analyzes an int_array_aggregate call's operands, its
 // FILTER and its installed routine, and records the routine's identity.
 func (b *expressionBinder) resolveIntaggAggregate(raw parser.AggregateExpr, call parser.FunctionExpr) (BoundExpr, *procedureDescriptor, ids.ObjectRef, BoundExpr, error) {
-	operands, err := analyzeIntaggArguments(b, call)
+	operands, err := functions.AnalyzeIntaggArguments(b, call)
 	if err != nil {
 		return nil, nil, ids.ObjectRef{}, nil, err
 	}
@@ -99,7 +20,7 @@ func (b *expressionBinder) resolveIntaggAggregate(raw parser.AggregateExpr, call
 	if err != nil {
 		return nil, nil, ids.ObjectRef{}, nil, err
 	}
-	arg, routine, err := resolveIntagg(b, call, operands)
+	arg, routine, err := functions.ResolveIntagg(b, call, operands)
 	if err != nil {
 		return nil, nil, ids.ObjectRef{}, nil, err
 	}
@@ -143,29 +64,6 @@ func (b *expressionBinder) bindIntaggAggregate(raw parser.AggregateExpr, name pa
 	info := b.info(array.Usage(), raw.Pos, properties)
 	call := aggregateCall{provider: functions.NewArrayAggregateProvider(arg.ResultUsage().Type, array.Usage(), false), argument: arg, operation: aggregateArrayScalar, includeNulls: true, procedure: proc, ref: ref, routine: ref}
 	return b.finishAggregate(raw, call, filter, info)
-}
-
-// bindIntagg binds intagg's installed routines called as functions. Only
-// int_array_enum is one; int_array_aggregate called this way is missing.
-func bindIntagg(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, error) {
-	operands, err := analyzeIntaggArguments(b, raw)
-	if err != nil {
-		return nil, err
-	}
-	arg, routine, err := resolveIntagg(b, raw, operands)
-	if err != nil {
-		return nil, err
-	}
-	// The installed routine's name is the written name, found exactly.
-	if raw.Name.Parts[len(raw.Name.Parts)-1].Text != "int_array_enum" {
-		return nil, b.SignatureError(raw.Name, raw.Pos, []string{b.DiagnosticTypeName(arg.ResultUsage().Type)})
-	}
-	if err := functions.CallDecorationError(raw); err != nil {
-		return nil, err
-	}
-	properties := expr.MergeProperties(expr.Properties{Volatility: expr.Immutable, StageDependent: true}, arg.Properties())
-	info := b.Info(b.Type(sqltype.Int4).Usage(), raw.Pos, properties)
-	return routine.Attach(functions.IntaggEnumeration{Info: info, Arg: arg})
 }
 
 func sameIntaggIdentity(a *procedureDescriptor, ar ids.ObjectRef, b *procedureDescriptor, br ids.ObjectRef) bool {

@@ -6,7 +6,6 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -27,50 +26,13 @@ func (c *EvalContext) FunctionWallTime() time.Time {
 func (c *EvalContext) FunctionTimeOfDayZone() *sqltype.Zone {
 	return c.Input.Zone
 }
-func bindTransactionTime(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, error) {
-	kind := functions.TransactionTimeKindForName(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
-	var names []string
-	if len(raw.Args) != 0 {
-		var err error
-		names, err = functions.ArgumentTypeNames(b, raw)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if err := b.AnalyzeFilter(raw.Filter); err != nil {
-		return nil, err
-	}
-	if len(raw.Args) > 100 {
-		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
-	}
-	if err := functions.CallLabelError(raw); err != nil {
-		return nil, err
-	}
-	visible, err := b.BuiltinVisible(raw.Name)
-	if err != nil {
-		return nil, err
-	}
-	if !functions.TransactionTimeAllowed(raw, visible, kind) {
-		return nil, b.SignatureError(raw.Name, raw.Pos, names)
-	}
-	name := kind.Name()
-	if decoration := functions.TransactionTimeDecoration(raw); decoration != "" {
-		if decoration == "(*)" {
-			return nil, expr.ErrorAt("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
-		}
-		owner := "an aggregate function"
-		if decoration == "OVER" {
-			owner = "a window function nor an aggregate function"
-		}
-		return nil, expr.ErrorAt("42809", decoration+" specified, but "+name+" is not "+owner, raw.Pos)
-	}
-	info := b.Info(b.Type(kind.Type()).Usage(), raw.Pos, expr.IntrinsicProperties(kind.IntrinsicRule()))
-	info, err = b.BuiltinRoutineInfo(info, functions.DatetimeRoutineProvider, name)
-	if err != nil {
-		return nil, err
-	}
-	return functions.TransactionTime{Info: info, Kind: kind}, nil
+
+func (c *EvalContext) FunctionSleepClock(usage sqltype.Usage) (sqltype.Value, error) {
+	input := c.Input
+	input.TransactionStart = c.FunctionWallTime()
+	return sqltype.CurrentDateTime(usage, input)
 }
+func (c *EvalContext) FunctionSleepArgumentPresent(arg BoundExpr) bool { return arg != nil }
 
 // Only selected time leaves may introduce volatility into this closed default.
 // Other volatile producers retain their separately owned admission rules.
