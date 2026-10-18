@@ -5,15 +5,19 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `e884b9126`.
+Last verified against `master` at `444bdbefe`.
 
 ## Next ready sub-steps
 
-- **2b** — create `expr` and move the contract (needs 2a ✓).
+- **2c** — node protocol with the walk switch as first adopter (needs 2b ✓).
 - **4b** — create `lock` and move the declarations (needs 4a ✓).
+- **F1** — remove the `functions` generics (needs 2b ✓) *(broad rewrite)*.
+- **F3** — `Binder`, `Definition`/`Lookup` and engine dispatch with a pilot
+  family (needs 2b ✓).
+- **5a** — `catalogStore` state ownership (needs 1 ✓, 2b ✓).
 
-Both may run in parallel on separate branches. Neither is a broad
-mechanical rewrite under §8. 2b unblocks F1, F3–F5 and step 5.
+They may run in parallel on separate branches, except that F1 must not run
+alongside another broad rewrite (§8).
 
 ## Task tree
 
@@ -30,7 +34,8 @@ mechanical rewrite under §8. 2b unblocks F1, F3–F5 and step 5.
   - [x] 2a — Evaluation through `ExprContext`; `routineRecipe` cut, cut 7
     (`52d15cad4`, `a7bc48424`, `d0fb3f388`, docs `19466ff87`; merged in
     `e884b9126`)
-  - [ ] 2b — `expr` created, contract moved, aliases in place
+  - [x] 2b — `expr` created, contract moved, aliases in place (`dced86ba6`,
+    `9e1ba1dae`, docs DOCSHASH)
   - [ ] 2c — Node protocol landed with the walk switch as first adopter
   - [ ] 2d — Aliases removed *(broad rewrite)*
 - [ ] **Step 3 — `functions`** ([prompt](ENGINE-SPLIT-functions.md); needs

@@ -41,19 +41,8 @@ Reuse catalog's component-wise normalized `ObjectName`/`Identifier`; no splittin
 Proposed engine contracts:
 
 ```go
-type BoundExpr interface {
-    boundExpression()
-    ResultUsage() sqltype.Usage
-    SourcePosition() parser.Position
-    Properties() ExprProperties
-    Eval(ExprContext) (sqltype.Value, error) // implemented by *EvalContext; see docs/ENGINE-SPLIT.md
-}
-type Volatility uint8
-const (Immutable Volatility = iota; Stable; Volatile)
-type ExprProperties struct {
-    Volatility Volatility
-    RowDependent, ParameterDependent, StageDependent bool
-}
+// BoundExpr, ExprProperties and Volatility are now expr.Expr, expr.Properties
+// and expr.Volatility; see internal/engine/expr/README.md.
 type ExpressionAnalysis struct { Expr BoundExpr; Dependencies []PlanDependency }
 func (b *expressionBinder) Bind(raw parser.Expr, policy ExprPolicy) (ExpressionAnalysis, error)
 ```

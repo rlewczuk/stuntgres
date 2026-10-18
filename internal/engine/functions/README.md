@@ -3,12 +3,15 @@
 This package owns builtin-specific signatures and argument rules, immutable scalar
 call carriers, evaluation semantics and aggregate provider/state algorithms. It
 reuses `internal/sqltype` selected plans, coercion, values and input/output codecs;
-it does not import the engine or public adapters.
+it does not import the engine or public adapters. It imports the expression
+contract [`internal/engine/expr`](../expr/README.md), which owns
+`RoutineReference`, `RoutineRecipeReference`, `RandomOwner` and
+`IntrinsicPropertyRule`; this package keeps aliases for them until step 2d.
 
 The engine owns generic expression metadata and binding, name/catalog/ACL and
 dependency resolution, parameter/result contracts, descriptor generations,
 retag/remap and stored SQL presentation. `Info[P]` carries the engine's opaque
-properties; narrow typed argument/context capabilities supply existing authority
+properties until step 3 (F1) replaces it with `expr.Info`; narrow typed argument/context capabilities supply existing authority
 without copying rows or the full evaluation context.
 
 Physical-session RNG, UUID clock/entropy and SQL time ownership stay in the
