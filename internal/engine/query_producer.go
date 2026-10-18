@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -99,11 +100,11 @@ func producingStage(child *indexedStage, schema []ColumnDescriptor) indexedStage
 type evaluationNode struct {
 	querySchema
 	child       LogicalNode
-	expressions []BoundExpr
+	expressions []expr.Expr
 	base        int
 }
 
-func (b *expressionBinder) scheduleQueryProjection(root LogicalNode, projection []BoundExpr, bounded bool) LogicalNode {
+func (b *expressionBinder) scheduleQueryProjection(root LogicalNode, projection []expr.Expr, bounded bool) LogicalNode {
 	base := 0
 	var lateSlots []int
 	ordered, sorting := root.(*sortNode)
@@ -113,25 +114,25 @@ func (b *expressionBinder) scheduleQueryProjection(root LogicalNode, projection 
 	if sorting {
 		base = ordered.cacheWidth
 	}
-	var late []BoundExpr
-	for i, expr := range projection {
-		if querySetDepth(expr) != 0 {
+	var late []expr.Expr
+	for i, bound := range projection {
+		if querySetDepth(bound) != 0 {
 			continue
 		}
-		if expr.ResultUsage().Type == nil {
+		if bound.ResultUsage().Type == nil {
 			continue
 		}
-		switch expr.(type) {
+		switch bound.(type) {
 		case columnExpression, groupExpression, cachedOrderExpression, unknownOutput, literalExpression, parameterExpression:
 			continue
 		}
-		if sorting && expr.Properties().Volatility != Volatile {
+		if sorting && bound.Properties().Volatility != expr.Volatile {
 			slot := ordered.cacheWidth
-			ordered.outputs = append(ordered.outputs, expr)
+			ordered.outputs = append(ordered.outputs, bound)
 			ordered.cacheWidth++
-			projection[i] = cachedOrderExpression{expressionInfo: boundExpressionInfo(expr), slot: slot}
+			projection[i] = cachedOrderExpression{Info: expr.InfoOf(bound), slot: slot}
 		} else if bounded {
-			late = append(late, expr)
+			late = append(late, bound)
 			lateSlots = append(lateSlots, i)
 		}
 	}
@@ -142,8 +143,8 @@ func (b *expressionBinder) scheduleQueryProjection(root LogicalNode, projection 
 		return root
 	}
 	for j, i := range lateSlots {
-		expr := projection[i]
-		projection[i] = cachedOrderExpression{expressionInfo: boundExpressionInfo(expr), slot: base + j}
+		bound := projection[i]
+		projection[i] = cachedOrderExpression{Info: expr.InfoOf(bound), slot: base + j}
 	}
 	return &evaluationNode{querySchema: root.Schema(), child: root, expressions: late, base: base}
 }

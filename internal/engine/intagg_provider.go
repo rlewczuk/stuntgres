@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
@@ -36,7 +37,7 @@ func (p *intaggProvider) stage(e *Engine, stage *CatalogStage, ext *extensionDes
 		}
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		ext.members[i] = address
-		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, routineKind: member.kind, owner: owner, result: member.result, volatility: Immutable, strict: member.strict, intagg: p}
+		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, routineKind: member.kind, owner: owner, result: member.result, volatility: expr.Immutable, strict: member.strict, intagg: p}
 		if i == 0 {
 			state, err := e.catalog.allocateOIDLocked()
 			if err != nil {
@@ -72,7 +73,7 @@ func (p *intaggProvider) validate(v CatalogRead, ext *extensionDescriptor) error
 	var seen [len(intaggMembers)]bool
 	for _, address := range ext.members {
 		proc, ok := v.Procedure(address)
-		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.volatility != Immutable || proc.intagg != p || proc.uuidOssp != nil || proc.fuzzy != nil || proc.crypto != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || v.NameAddress(descriptorNameKey(proc)) != address {
+		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.volatility != expr.Immutable || proc.intagg != p || proc.uuidOssp != nil || proc.fuzzy != nil || proc.crypto != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || v.NameAddress(descriptorNameKey(proc)) != address {
 			return invalid()
 		}
 		if err := validateOwnedAggregate(v, proc); err != nil {

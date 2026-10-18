@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -18,15 +19,15 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 		name, expression, signature string
 		oid, result                 ids.OID
 		kind                        aclValueKind
-		volatility                  Volatility
+		volatility                  expr.Volatility
 		set                         bool
 		provider                    routineProvider
 		formals                     []sqltype.ID
 	}{
-		{"acldefault", "acldefault('r',$1::oid)", "18,26", 3943, 1034, aclDefault, Immutable, false, catalogRoutineProvider, []sqltype.ID{18, 26}},
-		{"makeaclitem", "makeaclitem($1::oid,$2::oid,$3::text,$4::boolean)", "26,26,25,16", 1365, 1033, aclMake, Immutable, false, catalogRoutineProvider, []sqltype.ID{26, 26, 25, 16}},
-		{"aclexplode", "aclexplode(acl => $1::aclitem[])", "1034", 1689, 2249, aclExplode, Stable, true, catalogRoutineProvider, []sqltype.ID{1034}},
-		{"aclcontains", "$1::aclitem[] @> $2::aclitem", "1034,1033", 1037, 16, aclContains, Immutable, false, operatorRoutineProvider, []sqltype.ID{1034, 1033}},
+		{"acldefault", "acldefault('r',$1::oid)", "18,26", 3943, 1034, aclDefault, expr.Immutable, false, catalogRoutineProvider, []sqltype.ID{18, 26}},
+		{"makeaclitem", "makeaclitem($1::oid,$2::oid,$3::text,$4::boolean)", "26,26,25,16", 1365, 1033, aclMake, expr.Immutable, false, catalogRoutineProvider, []sqltype.ID{26, 26, 25, 16}},
+		{"aclexplode", "aclexplode(acl => $1::aclitem[])", "1034", 1689, 2249, aclExplode, expr.Stable, true, catalogRoutineProvider, []sqltype.ID{1034}},
+		{"aclcontains", "$1::aclitem[] @> $2::aclitem", "1034,1033", 1037, 16, aclContains, expr.Immutable, false, operatorRoutineProvider, []sqltype.ID{1034, 1033}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			node, binder, evaluation := strictNullUnitBind(t, e, op, scope, tc.expression)

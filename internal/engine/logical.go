@@ -3,13 +3,14 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 // Boolean context resolves only unknown inputs. A known parameter's type is
 // preserved just like a column's type, rather than assignment-coerced to BOOL.
-func (b *expressionBinder) bindBoolean(raw parser.Expr, context expressionContext, construct string) (BoundExpr, error) {
+func (b *expressionBinder) bindBoolean(raw parser.Expr, context expressionContext, construct string) (expr.Expr, error) {
 	u := b.typ(sqltype.Bool).Usage()
 	if p, ok := raw.(parser.ParameterExpr); ok {
 		if known := b.parameters[p.Number]; known.Type != nil {
@@ -19,7 +20,7 @@ func (b *expressionBinder) bindBoolean(raw parser.Expr, context expressionContex
 	return b.bind(raw, expressionPolicy{context: context, expected: u, booleanConstruct: construct})
 }
 
-func (b *expressionBinder) bindLogical(raw parser.LogicalExpr, context expressionContext) (BoundExpr, error) {
+func (b *expressionBinder) bindLogical(raw parser.LogicalExpr, context expressionContext) (expr.Expr, error) {
 	if context == assignmentContext || raw.Left == nil {
 		return nil, fmt.Errorf("stuntgres: invalid logical expression")
 	}
@@ -41,7 +42,7 @@ func (b *expressionBinder) bindLogical(raw parser.LogicalExpr, context expressio
 	if err != nil {
 		return nil, err
 	}
-	var right BoundExpr
+	var right expr.Expr
 	properties := left.Properties()
 	queryFrame := b.nextQueryFrame
 	if raw.Right != nil {
@@ -62,7 +63,7 @@ func (b *expressionBinder) bindLogical(raw parser.LogicalExpr, context expressio
 	// Children already retain their earliest positions. Combining those cached
 	// positions avoids walking raw subtrees again for every parent in a chain.
 	pos := raw.Pos
-	for _, child := range [...]BoundExpr{left, right} {
+	for _, child := range [...]expr.Expr{left, right} {
 		if child != nil {
 			p := child.SourcePosition()
 			if p.Character > 0 && (pos.Character <= 0 || p.Character < pos.Character) {
@@ -70,19 +71,19 @@ func (b *expressionBinder) bindLogical(raw parser.LogicalExpr, context expressio
 			}
 		}
 	}
-	return logicalExpression{expressionInfo: b.info(b.typ(sqltype.Bool).Usage(), pos, properties), op: raw.Op, left: left, right: right, queryRight: b.nextQueryFrame != queryFrame}, nil
+	return logicalExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), pos, properties), op: raw.Op, left: left, right: right, queryRight: b.nextQueryFrame != queryFrame}, nil
 }
 
 type logicalExpression struct {
-	expressionInfo
+	expr.Info
 	op          parser.LogicalOperator
-	left, right BoundExpr
+	left, right expr.Expr
 	// A newly allocated child frame identifies a query-containing right operand.
 	// This does not enable ordinary native Boolean/cast branch optimization.
 	queryRight bool
 }
 
-func (e logicalExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e logicalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err

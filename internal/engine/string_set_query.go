@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 )
@@ -11,7 +12,7 @@ import (
 // These are closed query stages, not a general table-function provider surface.
 type functionFromNode struct {
 	querySchema
-	calls                  []BoundExpr
+	calls                  []expr.Expr
 	scalarNull             []bool // Execution-only strict scalar plans; analyzed calls retain the stage layout.
 	ordinality, correlated bool
 	frame                  uint32
@@ -39,9 +40,9 @@ type querySetStep struct {
 // simplification and re-lowers surviving occurrences without rebinding syntax.
 type querySetTemplate struct {
 	group          *uint32 // Immutable local-group identity and analyzed frame, shared across copies.
-	expressions    []BoundExpr
-	origins        []BoundExpr
-	scalars        []BoundExpr // Typed non-call owner candidates, before lower-marker substitution.
+	expressions    []expr.Expr
+	origins        []expr.Expr
+	scalars        []expr.Expr // Typed non-call owner candidates, before lower-marker substitution.
 	scalarRequests []int       // Original owner request indices, not source-text identity.
 	attempts       bool
 	steps          []querySetStep // Original fixed marker/scalar identities in executable root order.
@@ -50,8 +51,8 @@ type querySetTemplate struct {
 type setProjectNode struct {
 	querySchema
 	child                  LogicalNode
-	calls                  []BoundExpr
-	scalars                []BoundExpr
+	calls                  []expr.Expr
+	scalars                []expr.Expr
 	frame                  uint32
 	template               *querySetTemplate
 	callSlots              []int // Marker slots relative to the group's fixed base, retained and executable.
@@ -146,7 +147,7 @@ func (s *functionSetInvocation) close() {
 func preflightFunctionFrom(c *EvalContext, n *functionFromNode) (LogicalNode, error) {
 	// Plan every child before simplifying a source call. Keep the analyzed
 	// call carrier: it owns aliases, record expansion and the fixed stage width.
-	planned, err := rewriteQueryExpressions(n, func(expr BoundExpr) (BoundExpr, bool, error) {
+	planned, err := rewriteQueryExpressions(n, func(expr expr.Expr) (expr.Expr, bool, error) {
 		return preflightCoercions(c, expr)
 	})
 	if err != nil {
@@ -200,7 +201,7 @@ func openFunctionInvocation(c *EvalContext, n *functionFromNode) (functionSetInv
 	}
 	return s, nil
 }
-func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, error) {
+func openFunctionCall(c *EvalContext, expression expr.Expr) (functionSetCursor, error) {
 	switch call := expression.(type) {
 	case functions.JSONBPathQuery:
 		values, err := call.EvalSet(c)
@@ -531,7 +532,7 @@ func openFunctionCall(c *EvalContext, expression BoundExpr) (functionSetCursor, 
 		return functionSetCursor{}, fmt.Errorf("stuntgres: invalid closed function source")
 	}
 }
-func (s *functionSetInvocation) next(ctx context.Context, calls []BoundExpr, row []sqltype.Value, slots []int) (bool, error) {
+func (s *functionSetInvocation) next(ctx context.Context, calls []expr.Expr, row []sqltype.Value, slots []int) (bool, error) {
 	present := false
 	for i := range s.cursors {
 		cursor := &s.cursors[i]
@@ -877,7 +878,7 @@ func openSetProjectNode(ctx context.Context, state *queryState, n *setProjectNod
 
 // Result usages are the immutable source of FROM spans. Targets continue to
 // occupy one record-valued marker slot; only FROM expands member columns.
-func functionFromCallWidth(call BoundExpr) int {
+func functionFromCallWidth(call expr.Expr) int {
 	if typ := call.ResultUsage().Type.BaseType(); typ.IsComposite() {
 		return typ.CompositeLen()
 	}
@@ -926,7 +927,7 @@ func validateFunctionFromLayout(n *functionFromNode) error {
 	return nil
 }
 
-func (s *functionSetInvocation) nextFrom(ctx context.Context, calls []BoundExpr, row []sqltype.Value) (bool, error) {
+func (s *functionSetInvocation) nextFrom(ctx context.Context, calls []expr.Expr, row []sqltype.Value) (bool, error) {
 	present, offset := false, 0
 	for i := range s.cursors {
 		typ := calls[i].ResultUsage().Type

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -18,13 +19,13 @@ func recursiveUnitFixture(t *testing.T, all bool, seeds []int64, terminal int64)
 	schema := querySchema{{Name: "n", Usage: typ.Usage()}}
 	d := &cteDefinition{owner: 1, recursive: true, name: "r", schema: schema}
 	column := func(frame uint32) columnExpression {
-		return columnExpression{expressionInfo: expressionInfo{Usage: typ.Usage(), Property: ExprProperties{RowDependent: true}}, scope: 1, frame: frame, slot: 0}
+		return columnExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, scope: 1, frame: frame, slot: 0}
 	}
-	rows := make([][]BoundExpr, len(seeds))
+	rows := make([][]expr.Expr, len(seeds))
 	for i, n := range seeds {
-		rows[i] = []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: cteUnitValue(t, typ, n)}}
+		rows[i] = []expr.Expr{literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: cteUnitValue(t, typ, n)}}
 	}
-	left := &projectNode{querySchema: schema, child: &valuesNode{querySchema: schema, rows: rows}, expressions: []BoundExpr{column(2)}, frame: 2}
+	left := &projectNode{querySchema: schema, child: &valuesNode{querySchema: schema, rows: rows}, expressions: []expr.Expr{column(2)}, frame: 2}
 	self := &worktableScanNode{derivedNode: derivedNode{querySchema: schema, cte: d, scanFrame: 3}}
 	read := column(3)
 	predicate := queryProbe(boolean.Usage(), func(c *EvalContext) (sqltype.Value, error) {
@@ -46,7 +47,7 @@ func recursiveUnitFixture(t *testing.T, all bool, seeds []int64, terminal int64)
 		}
 		return sqltype.Integer(typ, n+1)
 	})
-	right := &projectNode{querySchema: schema, child: &filterNode{querySchema: schema, child: self, predicate: predicate}, expressions: []BoundExpr{successor}, frame: 3}
+	right := &projectNode{querySchema: schema, child: &filterNode{querySchema: schema, child: self, predicate: predicate}, expressions: []expr.Expr{successor}, frame: 3}
 	n := &recursiveUnionNode{setNode: setNode{querySchema: schema, left: left, right: right, operation: "union", all: all, leftExpressions: left.expressions, rightExpressions: right.expressions}, definition: d}
 	if !all {
 		grouping, err := sqltype.BindGrouping(typ.Usage())
@@ -55,7 +56,7 @@ func recursiveUnitFixture(t *testing.T, all bool, seeds []int64, terminal int64)
 		}
 		n.grouping = []queryGrouping{{Grouping: grouping}}
 	}
-	project := &projectNode{querySchema: schema, child: n, expressions: []BoundExpr{column(4)}, frame: 4}
+	project := &projectNode{querySchema: schema, child: n, expressions: []expr.Expr{column(4)}, frame: 4}
 	d.query = &BoundQuery{Root: project}
 	state := &queryState{source: &querySource{materialized: true}}
 	owner := &cteInvocation{frame: 1, state: *state}
@@ -214,7 +215,7 @@ func TestQueryRecursiveCTENullAndZeroWidth(t *testing.T) {
 			n.querySchema = querySchema{}
 			n.left.querySchema = querySchema{}
 			n.left.child.(*valuesNode).querySchema = querySchema{}
-			n.left.child.(*valuesNode).rows = [][]BoundExpr{{}, {}}
+			n.left.child.(*valuesNode).rows = [][]expr.Expr{{}, {}}
 			n.left.expressions = nil
 			n.leftExpressions = nil
 			n.grouping = nil
@@ -227,9 +228,9 @@ func TestQueryRecursiveCTENullAndZeroWidth(t *testing.T) {
 			node.query.Root.(*projectNode).expressions = nil
 		} else {
 			typ := n.Schema()[0].Usage.Type
-			n.left.child.(*valuesNode).rows = [][]BoundExpr{{literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: sqltype.Null(typ)}}, {literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: sqltype.Null(typ)}}}
+			n.left.child.(*valuesNode).rows = [][]expr.Expr{{literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: sqltype.Null(typ)}}, {literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: sqltype.Null(typ)}}}
 			n.right.child = &worktableScanNode{derivedNode: derivedNode{cte: node.cte, querySchema: n.Schema()}}
-			n.right.expressions = []BoundExpr{columnExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, scope: 1, frame: 3, slot: 0}}
+			n.right.expressions = []expr.Expr{columnExpression{Info: expr.Info{Usage: typ.Usage()}, scope: 1, frame: 3, slot: 0}}
 			n.rightExpressions = n.right.expressions
 		}
 		stage, err := openCTEScan(context.Background(), state, node)
@@ -303,7 +304,7 @@ func TestQueryRecursiveCTEBindingUsageAndIdentity(t *testing.T) {
 		case *worktableScanNode:
 			self = n
 		}
-	}, func(BoundExpr) {}, true)
+	}, func(expr.Expr) {}, true)
 	if union == nil || self == nil || self.query != nil || self.cte != union.definition || self.cte.folded() {
 		t.Fatal("self edge/folding contract", union, self)
 	}
@@ -325,14 +326,14 @@ func TestQueryRecursiveCTERewriteAndForeignRemap(t *testing.T) {
 		if recursive, ok := node.(*recursiveUnionNode); ok {
 			n = recursive
 		}
-	}, func(BoundExpr) {}, true)
+	}, func(expr.Expr) {}, true)
 	if n == nil {
 		t.Fatal("missing recursive node")
 	}
 	project := n.definition.query.Root.(*projectNode)
 	original := n.leftExpressions[0]
 	replacement := queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { return original.Eval(c) })
-	rewritten, err := rewriteQueryExpressions(project, func(e BoundExpr) (BoundExpr, bool, error) {
+	rewritten, err := rewriteQueryExpressions(project, func(e expr.Expr) (expr.Expr, bool, error) {
 		if e == original {
 			return replacement, true, nil
 		}
@@ -358,7 +359,7 @@ func TestQueryRecursiveCTERewriteAndForeignRemap(t *testing.T) {
 		if scan, ok := node.(*worktableScanNode); ok {
 			self = scan
 		}
-	}, func(BoundExpr) {}, true)
+	}, func(expr.Expr) {}, true)
 	if copy.definition == n.definition || self.cte != copy.definition || self.query != nil || copy.definition.query.Root != mapped {
 		t.Fatal("remapped recursive identities disagree")
 	}

@@ -6,6 +6,7 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -285,7 +286,7 @@ func TestPGAttributeCarrier(t *testing.T) {
 	if present, err := result.Rows.Next(context.Background(), dst); !present || err != nil || !dst[0].IsNull() || dst[0].Type() != u.Type {
 		t.Fatal("catalog result carrier", dst, present, err)
 	}
-	column := columnExpression{expressionInfo: expressionInfo{Usage: u}, slot: 0, scope: 1, frame: 1}
+	column := columnExpression{Info: expr.Info{Usage: u}, slot: 0, scope: 1, frame: 1}
 	got, err := column.Eval(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{value}})
 	if err != nil || !got.ValidResult(u) {
 		t.Fatal("projection carrier", got, err)

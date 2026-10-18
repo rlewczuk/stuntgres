@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -21,13 +22,13 @@ type domainCheckConstraint struct {
 	Name         string
 	NotValid     bool
 	ordinal      int
-	expression   BoundExpr
+	expression   expr.Expr
 	dependencies []expressionDependency
 }
 
-type domainValueExpression struct{ expressionInfo }
+type domainValueExpression struct{ expr.Info }
 
-func (e domainValueExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e domainValueExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -74,7 +75,7 @@ func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth
 			continue
 		}
 		if check.NoInherit {
-			return expressionError("42P17", "check constraints for domains cannot be marked NO INHERIT", check.Pos)
+			return expr.ErrorAt("42P17", "check constraints for domains cannot be marked NO INHERIT", check.Pos)
 		}
 		name := check.Name.Text
 		if name == "" {
@@ -237,7 +238,7 @@ func (c *EvalContext) prepareOwnDomainChecks(d *typeDescriptor) error {
 			}
 			if changed {
 				if programme.expressions == nil {
-					programme.expressions = make([]BoundExpr, len(d.domainChecks))
+					programme.expressions = make([]expr.Expr, len(d.domainChecks))
 					for j := range d.domainChecks {
 						programme.expressions[j] = d.domainChecks[j].expression
 					}
@@ -350,14 +351,14 @@ func (s *StatementScope) CheckDomain(ctx context.Context, target *sqltype.Descri
 	return s.domainEvaluation.CheckDomain(ctx, target, value)
 }
 
-func domainNullInputExpression(target sqltype.Usage) BoundExpr {
+func domainNullInputExpression(target sqltype.Usage) expr.Expr {
 	base := target.BaseUsage()
 	plan, err := sqltype.PlanCoercion(base, target, sqltype.Assignment)
 	if err != nil {
 		panic(err)
 	}
-	child := literalExpression{expressionInfo: expressionInfo{Usage: base}, value: sqltype.Null(base.Type)}
-	return coercionExpression{expressionInfo: expressionInfo{Usage: target, Property: coercionProperties(child, plan)}, child: child, plan: plan, mode: sqltype.Assignment}
+	child := literalExpression{Info: expr.Info{Usage: base}, value: sqltype.Null(base.Type)}
+	return coercionExpression{Info: expr.Info{Usage: target, Property: coercionProperties(child, plan)}, child: child, plan: plan, mode: sqltype.Assignment}
 }
 
 func validateDomainCheckDefinitions(view CatalogRead, domain *typeDescriptor) error {

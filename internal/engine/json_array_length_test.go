@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"testing"
 
@@ -33,7 +34,7 @@ func TestJSONArrayLengthEvaluationAndRetag(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expr := functions.Binary{Info: expressionInfo{Usage: u}, Plan: p, Args: []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: v}}}
+			expr := functions.Binary{Info: expr.Info{Usage: u}, Plan: p, Args: []expr.Expr{literalExpression{Info: expr.Info{Usage: d.Usage()}, value: v}}}
 			got, err := expr.Eval(&EvalContext{Context: context.Background()})
 			if err != nil {
 				t.Fatal(err)
@@ -75,11 +76,11 @@ func TestJSONArrayLengthParameterProperties(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expr, ok := bound.(functions.Binary)
-			if !ok || expr.Plan.Name() != tc.name || bound.ResultUsage() != b.typ(sqltype.Int4).Usage() || b.parameters[1].Type.ID() != tc.id {
+			node, ok := bound.(functions.Binary)
+			if !ok || node.Plan.Name() != tc.name || bound.ResultUsage() != b.typ(sqltype.Int4).Usage() || b.parameters[1].Type.ID() != tc.id {
 				t.Fatal(bound, b.parameters[1])
 			}
-			if !bound.Properties().ParameterDependent || bound.Properties().Volatility != Immutable {
+			if !bound.Properties().ParameterDependent || bound.Properties().Volatility != expr.Immutable {
 				t.Fatal(bound.Properties())
 			}
 		})
@@ -103,7 +104,7 @@ func TestJSONArrayLengthLiteralDeparse(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			arg := literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: value}
+			arg := literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: value}
 			renderer := pgRenderer{view: view}
 			got, err := renderer.literal(context.Background(), arg)
 			if err != nil || got != tc.literal {
@@ -114,7 +115,7 @@ func TestJSONArrayLengthLiteralDeparse(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expr := functions.Binary{Info: expressionInfo{Usage: usage}, Plan: plan, Args: []BoundExpr{arg}}
+			expr := functions.Binary{Info: expr.Info{Usage: usage}, Plan: plan, Args: []expr.Expr{arg}}
 			got, err = renderer.sql(context.Background(), expr, pgRenderParent{})
 			want := tc.name + "(" + tc.literal + ")"
 			if err != nil || got != want {

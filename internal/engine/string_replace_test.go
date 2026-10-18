@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"testing"
 
@@ -57,11 +58,11 @@ func TestStringReplacementFourChildrenAndRetag(t *testing.T) {
 	text, integer := b.typ(sqltype.Text), b.typ(sqltype.Int4)
 	two, _ := sqltype.Integer(integer, 2)
 	one, _ := sqltype.Integer(integer, 1)
-	args := []BoundExpr{
-		literalExpression{expressionInfo{Usage: text.Usage(), Property: ExprProperties{ParameterDependent: true}}, sqltype.Null(text)},
-		literalExpression{expressionInfo{Usage: text.Usage(), Property: ExprProperties{RowDependent: true}}, sqltype.String(text, "X")},
-		literalExpression{expressionInfo{Usage: integer.Usage(), Property: ExprProperties{Volatility: Stable}}, two},
-		literalExpression{expressionInfo{Usage: integer.Usage(), Property: ExprProperties{Volatility: Volatile, StageDependent: true}}, one},
+	args := []expr.Expr{
+		literalExpression{expr.Info{Usage: text.Usage(), Property: expr.Properties{ParameterDependent: true}}, sqltype.Null(text)},
+		literalExpression{expr.Info{Usage: text.Usage(), Property: expr.Properties{RowDependent: true}}, sqltype.String(text, "X")},
+		literalExpression{expr.Info{Usage: integer.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, two},
+		literalExpression{expr.Info{Usage: integer.Usage(), Property: expr.Properties{Volatility: expr.Volatile, StageDependent: true}}, one},
 	}
 	bound, err := b.stringNode("overlay", text.Usage(), parser.Position{}, args, [4]bool{true, true}, parser.OverlayStringSyntax)
 	if err != nil {
@@ -70,12 +71,12 @@ func TestStringReplacementFourChildrenAndRetag(t *testing.T) {
 	n := bound.(functions.String)
 	// Keep owner property merging and descriptor retag integration. Four-child
 	// runtime NULL/error demand is exercised locally by the extracted carrier.
-	if n.Properties() != (ExprProperties{Volatility: Volatile, RowDependent: true, ParameterDependent: true, StageDependent: true}) {
+	if n.Properties() != (expr.Properties{Volatility: expr.Volatile, RowDependent: true, ParameterDependent: true, StageDependent: true}) {
 		t.Fatal(n.Properties())
 	}
 	// Retag executable literal children, retaining all four formal owners.
 	original := bound.(functions.String)
-	original.Args = []BoundExpr{literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, "abc")}, literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, "X")}, literalExpression{expressionInfo{Usage: integer.Usage()}, two}, literalExpression{expressionInfo{Usage: integer.Usage()}, one}}
+	original.Args = []expr.Expr{literalExpression{expr.Info{Usage: text.Usage()}, sqltype.String(text, "abc")}, literalExpression{expr.Info{Usage: text.Usage()}, sqltype.String(text, "X")}, literalExpression{expr.Info{Usage: integer.Usage()}, two}, literalExpression{expr.Info{Usage: integer.Usage()}, one}}
 	fresh := map[sqltype.ID]*sqltype.Descriptor{}
 	for _, d := range sqltype.Builtins() {
 		fresh[d.ID()] = d
@@ -104,7 +105,7 @@ func TestStringReplacementFourChildrenAndRetag(t *testing.T) {
 func TestStringPrefixSemanticIdentityAndCollation(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	text, boolean := b.typ(sqltype.Text), b.typ(sqltype.Bool)
-	args := []BoundExpr{literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, "abc")}, literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, "a")}}
+	args := []expr.Expr{literalExpression{expr.Info{Usage: text.Usage()}, sqltype.String(text, "abc")}, literalExpression{expr.Info{Usage: text.Usage()}, sqltype.String(text, "a")}}
 	function, err := b.stringNode("starts_with", boolean.Usage(), parser.Position{}, args, [4]bool{true, true}, parser.OrdinaryStringSyntax)
 	if err != nil {
 		t.Fatal(err)
@@ -115,7 +116,7 @@ func TestStringPrefixSemanticIdentityAndCollation(t *testing.T) {
 	}
 	left, right := text.Usage(), text.Usage()
 	left.Collation.ID, right.Collation.ID = 950, 951
-	args = []BoundExpr{literalExpression{expressionInfo{Usage: left}, sqltype.String(text, "")}, literalExpression{expressionInfo{Usage: right}, sqltype.String(text, "")}}
+	args = []expr.Expr{literalExpression{expr.Info{Usage: left}, sqltype.String(text, "")}, literalExpression{expr.Info{Usage: right}, sqltype.String(text, "")}}
 	conflict, err := b.stringNode("starts_with", boolean.Usage(), parser.Position{}, args, [4]bool{true, true}, parser.PrefixStringSyntax)
 	if err != nil {
 		t.Fatal(err)

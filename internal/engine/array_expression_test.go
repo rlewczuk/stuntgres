@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -63,7 +64,7 @@ func TestArrayExpressionParameterManifestAndTraversal(t *testing.T) {
 		t.Fatal(manifest, err)
 	}
 	var numbers []int
-	walkBoundExpression(node, func(child BoundExpr) {
+	walkBoundExpression(node, func(child expr.Expr) {
 		if p, ok := child.(parameterExpression); ok {
 			numbers = append(numbers, p.number)
 		}
@@ -100,8 +101,8 @@ func TestArrayExpressionImmutableRewriteAndGeneration(t *testing.T) {
 	}
 	node := original.(subscriptExpression)
 	saved := node.subscripts[0].upper
-	replacement := literalExpression{expressionInfo: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, ExprProperties{}), value: sqltype.Null(b.typ(sqltype.Int4))}
-	mapped, changed, err := mapSubscript(node, func(child BoundExpr) (BoundExpr, bool, error) {
+	replacement := literalExpression{Info: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{}), value: sqltype.Null(b.typ(sqltype.Int4))}
+	mapped, changed, err := mapSubscript(node, func(child expr.Expr) (expr.Expr, bool, error) {
 		if child == saved {
 			return replacement, true, nil
 		}
@@ -138,11 +139,11 @@ func TestArrayExpressionImmutableRewriteAndGeneration(t *testing.T) {
 }
 
 type arrayDemandExpression struct {
-	expressionInfo
+	expr.Info
 	evaluate func(*EvalContext) (sqltype.Value, error)
 }
 
-func (n arrayDemandExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (n arrayDemandExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return n.evaluate(evalContext(ctx))
 }
 
@@ -158,10 +159,10 @@ func TestArrayExpressionRuntimeDemandOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	var order []string
-	child := func(label string, value sqltype.Value) BoundExpr {
-		return arrayDemandExpression{b.info(value.Type().Usage(), parser.Position{}, ExprProperties{}), func(*EvalContext) (sqltype.Value, error) { order = append(order, label); return value, nil }}
+	child := func(label string, value sqltype.Value) expr.Expr {
+		return arrayDemandExpression{b.info(value.Type().Usage(), parser.Position{}, expr.Properties{}), func(*EvalContext) (sqltype.Value, error) { order = append(order, label); return value, nil }}
 	}
-	node := subscriptExpression{expressionInfo: b.info(arr.Usage(), parser.Position{}, ExprProperties{}), base: child("base", input), slice: true, subscripts: []boundArraySubscript{{lower: child("l1", one), upper: child("u1", one), slice: true}, {lower: child("l2", one), upper: child("u2", one), slice: true}}}
+	node := subscriptExpression{Info: b.info(arr.Usage(), parser.Position{}, expr.Properties{}), base: child("base", input), slice: true, subscripts: []boundArraySubscript{{lower: child("l1", one), upper: child("u1", one), slice: true}, {lower: child("l2", one), upper: child("u2", one), slice: true}}}
 	if _, err := node.Eval(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +195,7 @@ func TestArrayExpressionRuntimeDemandOrder(t *testing.T) {
 	}
 	order = nil
 	stop := errors.New("lower evaluation failed")
-	target.node.subscripts[1].lower = arrayDemandExpression{b.info(typ.Usage(), parser.Position{}, ExprProperties{}), func(*EvalContext) (sqltype.Value, error) { order = append(order, "l2"); return sqltype.Value{}, stop }}
+	target.node.subscripts[1].lower = arrayDemandExpression{b.info(typ.Usage(), parser.Position{}, expr.Properties{}), func(*EvalContext) (sqltype.Value, error) { order = append(order, "l2"); return sqltype.Value{}, stop }}
 	_, err = target.applyExpression(ctx, input, child("rhs", input))
 	if !errors.Is(err, stop) || !reflect.DeepEqual(order, []string{"u1", "u2", "l1", "l2"}) {
 		t.Fatal("bound error must precede NULL check and RHS", order, err)
@@ -229,7 +230,7 @@ func TestArrayExpressionColumnUseAndTargetManifest(t *testing.T) {
 		t.Fatal("partial target must read bounds, not the implicit old container", b.uses)
 	}
 	var slots []int
-	var storage [13]BoundExpr
+	var storage [13]expr.Expr
 	for _, child := range subscriptChildren(target.node, &storage) {
 		if col, ok := child.(columnExpression); ok {
 			slots = append(slots, col.slot)

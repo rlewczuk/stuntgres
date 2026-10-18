@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -10,7 +11,7 @@ import (
 // claims. The shared aggregate placement gates have already run.
 // It returns the bound node, not yet owned, and the SQL/JSON RETURNING usage
 // that the caller applies after ownership (zero when absent).
-func (b *expressionBinder) bindRegisteredAggregate(raw parser.AggregateExpr, name parser.ObjectName, definition functions.AggregateDefinition) (BoundExpr, sqltype.Usage, error) {
+func (b *expressionBinder) bindRegisteredAggregate(raw parser.AggregateExpr, name parser.ObjectName, definition functions.AggregateDefinition) (expr.Expr, sqltype.Usage, error) {
 	if definition.ValuesNamespace {
 		defer b.valuesAggregateNamespace()()
 	}
@@ -23,7 +24,7 @@ func (b *expressionBinder) bindRegisteredAggregate(raw parser.AggregateExpr, nam
 
 // aggregateReturning applies a SQL/JSON aggregate's RETURNING clause to the
 // owned aggregate as an assignment coercion.
-func (b *expressionBinder) aggregateReturning(raw parser.AggregateExpr, node BoundExpr, returning sqltype.Usage) (BoundExpr, error) {
+func (b *expressionBinder) aggregateReturning(raw parser.AggregateExpr, node expr.Expr, returning sqltype.Usage) (expr.Expr, error) {
 	if err := b.captureTypeDiagnosticInput(returning.Type); err != nil {
 		return nil, err
 	}
@@ -61,7 +62,7 @@ func (b *expressionBinder) valuesAggregateNamespace() func() {
 
 // rejectOrdinaryWithin analyzes WITHIN GROUP on an aggregate that is not an
 // ordered-set aggregate as an ordinary call first, so its errors win.
-func (b *expressionBinder) rejectOrdinaryWithin(raw parser.AggregateExpr) (BoundExpr, error) {
+func (b *expressionBinder) rejectOrdinaryWithin(raw parser.AggregateExpr) (expr.Expr, error) {
 	combined := raw
 	combined.Args = make([]parser.Expr, 0, len(raw.Args)+len(raw.Order))
 	combined.Args = append(combined.Args, raw.Args...)
@@ -72,5 +73,5 @@ func (b *expressionBinder) rejectOrdinaryWithin(raw parser.AggregateExpr) (Bound
 	if _, err := b.bind(combined, expressionPolicy{context: projectionContext}); err != nil {
 		return nil, err
 	}
-	return nil, expressionError("42809", raw.Name+" is not an ordered-set aggregate, so it cannot have WITHIN GROUP", raw.Pos)
+	return nil, expr.ErrorAt("42809", raw.Name+" is not an ordered-set aggregate, so it cannot have WITHIN GROUP", raw.Pos)
 }

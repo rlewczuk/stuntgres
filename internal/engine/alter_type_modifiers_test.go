@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -69,12 +70,12 @@ func TestAlterTypeStableDefaultDeferredAndReplay(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO d(id) VALUES(1)")
 	ref := roleTableRef(t, e, "d")
 	before := e.catalog.state.MustRelation(ref.Address)
-	if before.defaults[before.attributes[1]].expression.Properties().Volatility != Stable {
+	if before.defaults[before.attributes[1]].expression.Properties().Volatility != expr.Stable {
 		t.Fatal("fixture default is not Stable")
 	}
 	sessionSQL(t, s, "ALTER TABLE d ALTER c TYPE TIMESTAMPTZ(2)")
 	after := e.catalog.state.MustRelation(ref.Address)
-	if after.columns[1].Usage.Typmod != 2 || after.defaults[after.attributes[1]].expression.Properties().Volatility != Stable {
+	if after.columns[1].Usage.Typmod != 2 || after.defaults[after.attributes[1]].expression.Properties().Volatility != expr.Stable {
 		t.Fatal("TYPE froze stable default", after)
 	}
 	sessionSQL(t, s, "SET TIME ZONE 'America/New_York'")
@@ -91,7 +92,7 @@ func TestAlterTypeStableDefaultDeferredAndReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	restored := e.catalog.state.MustRelation(roleTableRef(t, e, "d").Address)
-	if restored.columns[1].Usage.Typmod != 2 || restored.defaults[restored.attributes[1]].expression.Properties().Volatility != Stable {
+	if restored.columns[1].Usage.Typmod != 2 || restored.defaults[restored.attributes[1]].expression.Properties().Volatility != expr.Stable {
 		t.Fatal("Restore lost stable default or precision", restored)
 	}
 	sessionSQL(t, s, "SET TIME ZONE 'UTC'")

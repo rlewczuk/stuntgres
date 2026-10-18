@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -35,24 +36,24 @@ func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *relationDescrip
 func ruleUnitRef(e *Engine, d *relationDescriptor) ids.ObjectRef {
 	return e.catalog.domain.Ref(e.catalog.state.epoch, d.address)
 }
-func ruleUnitInt(d *relationDescriptor, n int64) BoundExpr {
+func ruleUnitInt(d *relationDescriptor, n int64) expr.Expr {
 	value, err := sqltype.Integer(d.columns[0].Usage.Type, n)
 	if err != nil {
 		panic(err)
 	}
-	return literalExpression{expressionInfo: expressionInfo{Usage: d.columns[0].Usage, Pos: parser.Position{Offset: -1}}, value: value}
+	return literalExpression{Info: expr.Info{Usage: d.columns[0].Usage, Pos: parser.Position{Offset: -1}}, value: value}
 }
 func ruleUnitInsert(e *Engine, d *relationDescriptor, id, v int64) ruleAction {
-	return ruleAction{syntax: &parser.Insert{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.name}}}}, binding: binding{relation: d, ref: ruleUnitRef(e, d), targets: []int{0, 1}, expressions: [][]BoundExpr{{ruleUnitInt(d, id), ruleUnitInt(d, v)}}}}
+	return ruleAction{syntax: &parser.Insert{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.name}}}}, binding: binding{relation: d, ref: ruleUnitRef(e, d), targets: []int{0, 1}, expressions: [][]expr.Expr{{ruleUnitInt(d, id), ruleUnitInt(d, v)}}}}
 }
 
 func TestRuleTemplateSubstitution(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
 	original := ruleUnitInsert(e, src, 1, 10).binding
-	original.expressions = append(original.expressions, []BoundExpr{ruleUnitInt(src, 2), ruleUnitInt(src, 20)})
+	original.expressions = append(original.expressions, []expr.Expr{ruleUnitInt(src, 2), ruleUnitInt(src, 20)})
 	ref := ruleUnitRef(e, src)
 	ref.Address.SubID = 1
-	pseudo := columnExpression{expressionInfo: ruleColumnInfo(src.columns[0]), origin: ref, scope: rulePseudoScope, frame: 2, slot: 0}
+	pseudo := columnExpression{Info: ruleColumnInfo(src.columns[0]), origin: ref, scope: rulePseudoScope, frame: 2, slot: 0}
 	action := ruleUnitInsert(e, sink, 0, 0)
 	action.binding.expressions[0][0] = pseudo
 	composed, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, action)
@@ -72,7 +73,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		t.Fatal("mutated stored template")
 	}
 	condition := ruleDefinition{event: "INSERT", instead: true, condition: pseudo}
-	condition.condition = literalExpression{expressionInfo: expressionInfo{Usage: func() sqltype.Usage { typ, _ := auth.catalog.LookupType(sqltype.Bool); return typ.Usage() }()}, value: func() sqltype.Value { typ, _ := auth.catalog.LookupType(sqltype.Bool); return sqltype.Null(typ) }()}
+	condition.condition = literalExpression{Info: expr.Info{Usage: func() sqltype.Usage { typ, _ := auth.catalog.LookupType(sqltype.Bool); return typ.Usage() }()}, value: func() sqltype.Value { typ, _ := auth.catalog.LookupType(sqltype.Bool); return sqltype.Null(typ) }()}
 	residual, err := ruleResidual(auth, original, "INSERT", []ruleDefinition{condition})
 	if err != nil {
 		t.Fatal(err)
@@ -94,8 +95,8 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		output := arithmeticExpression{expressionInfo: ruleColumnInfo(src.columns[1]), left: pseudoV, right: ruleUnitInt(src, 10), provider: provider}
-		projection := []BoundExpr{pseudo, output}
+		output := arithmeticExpression{Info: ruleColumnInfo(src.columns[1]), left: pseudoV, right: ruleUnitInt(src, 10), provider: provider}
+		projection := []expr.Expr{pseudo, output}
 		order, err := (*expressionBinder)(nil).finishOrder(&singletonNode{}, []sortKey{{expression: output, slot: -1, cache: -1, targetIdentity: 2}}, projection)
 		if err != nil {
 			t.Fatal(err)
@@ -129,7 +130,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		}
 		schema := slices.Clone(src.columns)
 		schema[1].Usage = random.ResultUsage()
-		source := &projectNode{querySchema: querySchema(schema), child: &singletonNode{}, expressions: []BoundExpr{ruleUnitInt(src, 1), random}, frame: 2}
+		source := &projectNode{querySchema: querySchema(schema), child: &singletonNode{}, expressions: []expr.Expr{ruleUnitInt(src, 1), random}, frame: 2}
 		selectBinding := original
 		selectBinding.query, selectBinding.expressions = &BoundQuery{Root: source}, nil
 		selectBinding.insertSubquerySource = true
@@ -146,7 +147,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 			t.Fatal("NEW lost derived output identity")
 		}
 		pure := *source
-		pure.expressions = []BoundExpr{source.expressions[0], ruleUnitInt(src, 99)}
+		pure.expressions = []expr.Expr{source.expressions[0], ruleUnitInt(src, 99)}
 		pure.querySchema = querySchema(src.columns)
 		selectBinding.query = &BoundQuery{Root: &pure}
 		producer, err = makeRuleProducer(auth.catalog, selectBinding, "INSERT", []int{0})
@@ -210,13 +211,13 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		}
 	})
 	t.Run("domain_truth_barrier", func(t *testing.T) {
-		leaf := domainValueExpression{expressionInfo: expressionInfo{Usage: src.columns[0].Usage, Property: ExprProperties{DomainDependent: true, RuntimeDomainConversion: true}}}
+		leaf := domainValueExpression{Info: expr.Info{Usage: src.columns[0].Usage, Property: expr.Properties{DomainDependent: true, RuntimeDomainConversion: true}}}
 		properties := rewrittenIntrinsicProperties(leaf)
 		if !properties.DomainDependent || !properties.RuntimeDomainConversion {
 			t.Fatal("rewrite erased runtime domain authority")
 		}
 		properties.ParameterDependent = true
-		mapped, _, err := mapBoundExpression(auth.catalog, leaf, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
+		mapped, _, err := mapBoundExpression(auth.catalog, leaf, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 			copy := expr.(domainValueExpression)
 			copy.Property = properties
 			return copy, true, nil
@@ -232,7 +233,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		bind := func(index int) BoundExpr {
+		bind := func(index int) expr.Expr {
 			node, err := binder.bind(statements[0].(*parser.Select).Targets[index], expressionPolicy{context: projectionContext})
 			if err != nil {
 				t.Fatal(err)
@@ -240,32 +241,32 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 			return node
 		}
 		absolute, draw, format := bind(0), bind(1), bind(2)
-		if draw.Properties().Volatility != Volatile {
+		if draw.Properties().Volatility != expr.Volatile {
 			t.Fatal("random provider lost intrinsic volatility")
 		}
-		replaceFormal := func(expr BoundExpr) (BoundExpr, bool, error) {
+		replaceFormal := func(expr expr.Expr) (expr.Expr, bool, error) {
 			if column, ok := expr.(columnExpression); ok && column.scope == rulePseudoScope {
 				return draw, true, nil
 			}
 			return expr, false, nil
 		}
 		identityType := func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }
-		for _, parent := range []BoundExpr{absolute, format} {
+		for _, parent := range []expr.Expr{absolute, format} {
 			mapped, _, err := mapBoundExpression(auth.catalog, parent, identityType, nil, nil, replaceFormal)
-			if err != nil || mapped.Properties().Volatility != Volatile || mapped.Properties().RowDependent {
+			if err != nil || mapped.Properties().Volatility != expr.Volatile || mapped.Properties().RowDependent {
 				t.Fatalf("generic parent lost fresh child demand: %v %v", mapped, err)
 			}
 			if !parent.Properties().RowDependent {
 				t.Fatal("mutated original formal-dependent function")
 			}
 			if _, formatting := mapped.(functions.Format); formatting {
-				stable, _, err := mapBoundExpression(auth.catalog, mapped, identityType, nil, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
+				stable, _, err := mapBoundExpression(auth.catalog, mapped, identityType, nil, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 					if _, random := expr.(functions.Random); random {
 						return ruleUnitInt(src, 11), true, nil
 					}
 					return expr, false, nil
 				})
-				if err != nil || stable.Properties().Volatility != Stable {
+				if err != nil || stable.Properties().Volatility != expr.Stable {
 					t.Fatalf("generic format lost intrinsic STABLE authority: %v %v", stable, err)
 				}
 			}
@@ -288,7 +289,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	})
 	t.Run("event_source_identity", func(t *testing.T) {
 		f := viewWriteMechanics(t)
-		original := binding{relation: f.base, ref: f.baseRef, storage: f.e.storage[f.base.address], targets: []int{0}, usedColumns: []int{0}, update: &boundUpdate{assignments: []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: f.integer.Usage()}, value: sqltype.Null(f.integer)}}}}
+		original := binding{relation: f.base, ref: f.baseRef, storage: f.e.storage[f.base.address], targets: []int{0}, usedColumns: []int{0}, update: &boundUpdate{assignments: []expr.Expr{literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, value: sqltype.Null(f.integer)}}}}
 		producer, err := makeRuleProducer(f.e.CatalogRead(), original, "UPDATE")
 		if err != nil {
 			t.Fatal(err)
@@ -369,9 +370,9 @@ func TestRuleProgramAuthority(t *testing.T) {
 		f.base.rules = []ruleDefinition{{OID: 900201, Name: "inner_stop", event: "UPDATE", instead: true}}
 		f.view.view.checkOption = viewCheckCascaded
 		project := f.view.view.query.Root.(*projectNode)
-		predicate := literalExpression{expressionInfo: expressionInfo{Usage: f.boolean.Usage()}, value: sqltype.Boolean(f.boolean, true)}
+		predicate := literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, value: sqltype.Boolean(f.boolean, true)}
 		project.child = &filterNode{querySchema: querySchema(f.base.columns), child: project.child, predicate: predicate}
-		original := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, update: &boundUpdate{assignments: []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: f.integer.Usage()}, value: sqltype.Null(f.integer)}}}}
+		original := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, update: &boundUpdate{assignments: []expr.Expr{literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, value: sqltype.Null(f.integer)}}}}
 		mapped := original
 		if err := f.e.bindViewWrite(&mapped, auth, &parser.Update{}); err != nil {
 			t.Fatal(err)
@@ -460,7 +461,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 	})
 	ref := ruleUnitRef(e, src)
 	ref.Address.SubID = 1
-	condition := columnExpression{expressionInfo: ruleColumnInfo(src.columns[0]), origin: ref, scope: rulePseudoScope, frame: 2}
+	condition := columnExpression{Info: ruleColumnInfo(src.columns[0]), origin: ref, scope: rulePseudoScope, frame: 2}
 	r := ruleDefinition{OID: 900101, Name: "r", event: "INSERT", condition: condition, actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}
 	refs, err := ruleReferences(context.Background(), auth.catalog, r)
 	if err != nil {
@@ -509,7 +510,7 @@ func TestRuleDefinitionRemap(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
 	oldRef := ruleUnitRef(e, src)
 	oldRef.Address.SubID = 1
-	src.rules = []ruleDefinition{{OID: 900101, Name: "r", event: "INSERT", condition: columnExpression{expressionInfo: ruleColumnInfo(src.columns[0]), origin: oldRef, scope: rulePseudoScope, frame: 2}, references: []ids.ObjectAddress{oldRef.Address}, actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}}
+	src.rules = []ruleDefinition{{OID: 900101, Name: "r", event: "INSERT", condition: columnExpression{Info: ruleColumnInfo(src.columns[0]), origin: oldRef, scope: rulePseudoScope, frame: 2}, references: []ids.ObjectAddress{oldRef.Address}, actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}}
 	newSrc, newSink := *src, *sink
 	newSrc.address.ObjectID += 10
 	newSink.address.ObjectID += 10

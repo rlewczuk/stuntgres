@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -38,9 +39,9 @@ type quoteCaptureCandidate struct {
 	sealed  bool
 }
 
-func foldStringVariadic(c *EvalContext, e functions.StringVariadic) (BoundExpr, bool, error) {
+func foldStringVariadic(c *EvalContext, e functions.StringVariadic) (expr.Expr, bool, error) {
 	p := e.Properties()
-	if e.IntrinsicStable() || p.Volatility != Immutable || !conditionalConstantInputs(e) {
+	if e.IntrinsicStable() || p.Volatility != expr.Immutable || !conditionalConstantInputs(e) {
 		return e, false, nil
 	}
 	if err := admitRoutineCall(c, e, true, true); err != nil {

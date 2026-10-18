@@ -30,7 +30,7 @@ func networkFormatUnit(t *testing.T, kind sqltype.NetworkFormatKind, input sqlty
 func TestNetworkFormatReconstruction(t *testing.T) {
 	for _, kind := range []sqltype.NetworkFormatKind{sqltype.NetworkAbbrev, sqltype.NetworkHost, sqltype.NetworkFamily, sqltype.NetworkMasklen, sqltype.NetworkSameFamily, sqltype.NetworkBroadcast} {
 		original, c, _ := networkFormatUnit(t, kind, sqltype.Inet)
-		if original.Validate() != nil || NetworkFormatIntrinsicRule() != ExactImmutable {
+		if original.Validate() != nil || NetworkFormatIntrinsicRule() != expr.ExactImmutable {
 			t.Fatal("invalid intrinsic carrier")
 		}
 		types := inspectCarrierTypes()

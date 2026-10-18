@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 )
@@ -10,7 +11,7 @@ import (
 type aggregateNode struct {
 	querySchema
 	child          LogicalNode
-	keys           []BoundExpr
+	keys           []expr.Expr
 	grouping       []queryGrouping
 	calls          []aggregateCall
 	sets           [][]int // Canonical key IDs; each occurrence has isolated state.

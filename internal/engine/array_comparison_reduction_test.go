@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -19,7 +20,7 @@ func TestArrayCompareReduction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	left := literalExpression{expressionInfo: b.info(integer.Usage(), parser.Position{}, ExprProperties{}), value: leftValue}
+	left := literalExpression{Info: b.info(integer.Usage(), parser.Position{}, expr.Properties{}), value: leftValue}
 	c := &EvalContext{Context: context.Background()}
 	for _, tc := range []struct {
 		input string
@@ -44,14 +45,14 @@ func TestArrayCompareReduction(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		right := literalExpression{expressionInfo: b.info(arrayType.Usage(), parser.Position{}, ExprProperties{}), value: array}
+		right := literalExpression{Info: b.info(arrayType.Usage(), parser.Position{}, expr.Properties{}), value: array}
 		for i, name := range []string{"=", "=", "<>", "<>"} {
 			op, _ := comparisonOperator(name)
 			predicate, err := sqltype.BindComparisonPredicate(op, integer, integer, boolean, sqltype.CollationRef{}, false)
 			if err != nil {
 				t.Fatal(err)
 			}
-			node := scalarArrayComparisonExpression{expressionInfo: b.info(boolean.Usage(), parser.Position{}, ExprProperties{}), left: left, array: right, predicate: predicate, operator: name, all: i%2 == 1}
+			node := scalarArrayComparisonExpression{Info: b.info(boolean.Usage(), parser.Position{}, expr.Properties{}), left: left, array: right, predicate: predicate, operator: name, all: i%2 == 1}
 			value, err := node.Eval(c)
 			if err != nil {
 				t.Fatal(tc.input, err)
@@ -60,7 +61,7 @@ func TestArrayCompareReduction(t *testing.T) {
 			if err != nil || truth != tc.want[i] {
 				t.Fatal(tc.input, name, node.all, truth, tc.want[i], err)
 			}
-			node.left = literalExpression{expressionInfo: left.expressionInfo, value: sqltype.Null(integer)}
+			node.left = literalExpression{Info: left.Info, value: sqltype.Null(integer)}
 			value, err = node.Eval(c)
 			if err != nil {
 				t.Fatal(err)
@@ -90,7 +91,7 @@ func TestArrayCompareReduction(t *testing.T) {
 	}
 	calls := 0
 	last := queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; return leftValue, nil })
-	node := scalarArrayComparisonExpression{expressionInfo: b.info(boolean.Usage(), parser.Position{}, ExprProperties{}), left: left, items: []BoundExpr{left, last}, predicate: predicate, operator: "="}
+	node := scalarArrayComparisonExpression{Info: b.info(boolean.Usage(), parser.Position{}, expr.Properties{}), left: left, items: []expr.Expr{left, last}, predicate: predicate, operator: "="}
 	value, err := node.Eval(c)
 	truth, truthErr := TruthOf(value)
 	if err != nil || truthErr != nil || truth != True || calls != 1 {
@@ -114,7 +115,7 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 			t.Fatal(err)
 		}
 		var numbers []int
-		walkBoundExpression(original, func(child BoundExpr) {
+		walkBoundExpression(original, func(child expr.Expr) {
 			if p, ok := child.(parameterExpression); ok {
 				numbers = append(numbers, p.number)
 			}
@@ -149,8 +150,8 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 			t.Fatal("structural identity ignored predicate generations")
 		}
 		node := original.(scalarArrayComparisonExpression)
-		replacement := literalExpression{expressionInfo: b.info(node.left.ResultUsage(), parser.Position{}, ExprProperties{}), value: sqltype.Null(node.left.ResultUsage().Type)}
-		next, changed, err := mapScalarArrayChildren(node, func(old BoundExpr) (BoundExpr, bool, error) {
+		replacement := literalExpression{Info: b.info(node.left.ResultUsage(), parser.Position{}, expr.Properties{}), value: sqltype.Null(node.left.ResultUsage().Type)}
+		next, changed, err := mapScalarArrayChildren(node, func(old expr.Expr) (expr.Expr, bool, error) {
 			if old == node.left {
 				return replacement, true, nil
 			}

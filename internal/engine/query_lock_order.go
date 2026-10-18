@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -39,7 +40,7 @@ func refreshLockedOrder(n *sortNode, row []sqltype.Value, evaluation *EvalContex
 			continue
 		}
 		properties := key.expression.Properties()
-		if !properties.RowDependent && !properties.StageDependent && properties.Volatility != Volatile {
+		if !properties.RowDependent && !properties.StageDependent && properties.Volatility != expr.Volatile {
 			continue
 		}
 		if key.cache >= len(evaluation.orderValues) {
@@ -54,20 +55,20 @@ func refreshLockedOrder(n *sortNode, row []sqltype.Value, evaluation *EvalContex
 		}
 		evaluation.orderValues[key.cache] = value
 	}
-	for i, expr := range n.outputs {
-		properties := expr.Properties()
-		if !properties.RowDependent && !properties.StageDependent && properties.Volatility != Volatile {
+	for i, bound := range n.outputs {
+		properties := bound.Properties()
+		if !properties.RowDependent && !properties.StageDependent && properties.Volatility != expr.Volatile {
 			continue
 		}
 		slot := n.cacheWidth - len(n.outputs) + i
 		if slot >= len(evaluation.orderValues) {
 			return fmt.Errorf("stuntgres: missing replacement output cache")
 		}
-		value, err := expr.Eval(evaluation)
+		value, err := bound.Eval(evaluation)
 		if err != nil {
 			return err
 		}
-		if err := validateProducedValue(value, expr.ResultUsage()); err != nil {
+		if err := validateProducedValue(value, bound.ResultUsage()); err != nil {
 			return err
 		}
 		evaluation.orderValues[slot] = value

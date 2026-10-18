@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/engine/expr"
 )
 
 func preparedBoundaryName(name string) parser.ObjectName {
@@ -82,7 +83,7 @@ func preparedBoundaryFixture(t *testing.T) (*Engine, *Session, *preparedTransact
 	key := parser.CaseExpr{
 		Arms: []parser.CaseArm{{
 			Condition: parser.PredicateExpr{Kind: parser.IsNotNull, Left: parser.ColumnExpr{Name: preparedBoundaryName("v")}},
-			Result: parser.ColumnExpr{Name: preparedBoundaryName("v")},
+			Result:    parser.ColumnExpr{Name: preparedBoundaryName("v")},
 		}},
 		Else: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}},
 	}
@@ -274,13 +275,13 @@ func TestPreparedPopulatedReplaceCatalogGuards(t *testing.T) {
 }
 
 type preparedBoundaryExpression struct {
-	BoundExpr
+	expr.Expr
 	once    sync.Once
 	barrier func()
 }
 
-func (expression *preparedBoundaryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
-	value, err := expression.BoundExpr.Eval(ctx)
+func (expression *preparedBoundaryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+	value, err := expression.Expr.Eval(ctx)
 	if err == nil {
 		expression.once.Do(expression.barrier)
 	}
@@ -296,7 +297,7 @@ func preparedBoundaryBarrier(t *testing.T, e *Engine, origin, finisher *Session,
 			continue
 		}
 		derived := index.sqlIndex.keys[0].derived
-		derived.execution = &preparedBoundaryExpression{BoundExpr: derived.execution, barrier: func() {
+		derived.execution = &preparedBoundaryExpression{Expr: derived.execution, barrier: func() {
 			// Assert the blocking callback is outside every metadata mutex, including
 			// the detached origin and finishing attachment. Never wait under a lock.
 			for _, lock := range []*sync.Mutex{&e.mu, &origin.mu, &origin.transactions.mu, &finisher.mu, &finisher.transactions.mu} {

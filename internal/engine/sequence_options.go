@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"math"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -77,7 +78,7 @@ func bindSequenceOptions(old *sequenceOptions, state sequenceGenerator, raw []pa
 	seen := make(map[string]parser.SequenceOption, len(raw))
 	for _, r := range raw {
 		if _, ok := seen[r.Name]; ok {
-			return o, nil, expressionError("42601", "conflicting or redundant options", r.Pos)
+			return o, nil, expr.ErrorAt("42601", "conflicting or redundant options", r.Pos)
 		}
 		seen[r.Name] = r
 	}

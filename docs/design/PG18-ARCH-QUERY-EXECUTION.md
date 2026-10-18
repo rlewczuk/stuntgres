@@ -8,7 +8,7 @@ Adopt one immutable typed relational tree inside the existing statement binder a
 
 Consume these authorities, with their existing precedence:
 
-- [EXPRESSION-ANALYSIS](PG18-ARCH-EXPRESSION-ANALYSIS.md) §§2–6: private `expressionBinder`, `BoundExpr`, explicit `ExprPolicy`, scope/frame coordinates, `EvalContext`, `StageValues`, scalar laziness, diagnostics and no statement-fragment publication.
+- [EXPRESSION-ANALYSIS](PG18-ARCH-EXPRESSION-ANALYSIS.md) §§2–6: private `expressionBinder`, `expr.Expr`, explicit `ExprPolicy`, scope/frame coordinates, `EvalContext`, `StageValues`, scalar laziness, diagnostics and no statement-fragment publication.
 - [TYPE-SYSTEM](PG18-ARCH-TYPE-SYSTEM.md) §§2,5–7: `sqltype.Usage`/immutable `Value`, coercions, ordered `CommonType`, parameters, typed key families, `ColumnDescriptor`/`StatementDescription`, `ImportParameter`/`ExportValue`.
 - [CATALOG-IDENTITY](PG18-ARCH-CATALOG-IDENTITY.md) §§2–7: authoritative lookup, provenance, dependencies, retained definitions, `BoundPlan` validity/reanalysis and storage/publication identity. PG18-CAT-CORE is implemented; the other typed execution contracts are not thereby implemented.
 - [SESSION](PG18-ARCH-SESSION.md) §3: same pointer-owned `*Operation`, selected target, coherent resolution and combined cancellation; [TX-VISIBILITY](PG18-ARCH-TX-VISIBILITY.md) §§2–3,5–8: `StatementScope`, conditional `AcquireDataView`, write stage and `Finish`. [AUTHORIZATION](PG18-ARCH-AUTHORIZATION.md) owns access requirements, checks and RLS/leakproof placement. Query scheduling cannot bypass these policies.

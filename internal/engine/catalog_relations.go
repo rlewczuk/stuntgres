@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -11,16 +12,16 @@ import (
 )
 
 type catalogUserNameExpression struct {
-	expressionInfo
-	arg BoundExpr
+	expr.Info
+	arg expr.Expr
 }
 
 type catalogForeignKeysExpression struct {
-	expressionInfo
+	expr.Info
 	metadata *catalogForeignKeyValues
 }
 
-func (b *expressionBinder) bindCatalogRelation(raw parser.FunctionExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindCatalogRelation(raw parser.FunctionExpr) (expr.Expr, error) {
 	// As with other OID inquiries, transform operands before overload/decorator
 	// diagnostics, but retain UNKNOWN until the sole formal type is selected.
 	var operand comparisonOperand
@@ -48,7 +49,7 @@ func (b *expressionBinder) bindCatalogRelation(raw parser.FunctionExpr) (BoundEx
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	if err := functions.ValidateCallSyntax(b, raw); err != nil {
 		return nil, err
@@ -63,7 +64,7 @@ func (b *expressionBinder) bindCatalogRelation(raw parser.FunctionExpr) (BoundEx
 	if !visible || !scalar && !set || scalar && len(raw.Args) != 1 || set && len(raw.Args) != 0 || len(raw.ArgNames) != 0 || raw.Variadic || raw.ResolutionOnly {
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
-	var arg BoundExpr
+	var arg expr.Expr
 	if scalar {
 		target := b.typ(sqltype.Oid).Usage()
 		arg, err = b.finalizeOperand(operand, target.Type)
@@ -82,14 +83,14 @@ func (b *expressionBinder) bindCatalogRelation(raw parser.FunctionExpr) (BoundEx
 		}
 	}
 	if raw.Star {
-		return nil, expressionError("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
 	}
 	if err := functions.CallDecorationError(raw); err != nil {
 		return nil, err
 	}
 	if scalar {
 		properties := arg.Properties()
-		properties.Volatility = max(Stable, properties.Volatility)
+		properties.Volatility = max(expr.Stable, properties.Volatility)
 		info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.Name).Usage(), raw.Pos, properties), catalogRoutineProvider, name, sqltype.Oid)
 		if err != nil {
 			return nil, err
@@ -115,7 +116,7 @@ func (b *expressionBinder) bindCatalogRelation(raw parser.FunctionExpr) (BoundEx
 	if err != nil {
 		return nil, err
 	}
-	info, err := b.builtinRoutineInfo(b.info(shape.Usage(), raw.Pos, ExprProperties{Volatility: Stable}), catalogRoutineProvider, name)
+	info, err := b.builtinRoutineInfo(b.info(shape.Usage(), raw.Pos, expr.Properties{Volatility: expr.Stable}), catalogRoutineProvider, name)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +136,7 @@ func (n catalogUserNameExpression) validate() error {
 	return nil
 }
 
-func (n catalogUserNameExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (n catalogUserNameExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -187,6 +188,6 @@ func (n catalogForeignKeysExpression) validate() error {
 	return nil
 }
 
-func (n catalogForeignKeysExpression) Eval(ExprContext) (sqltype.Value, error) {
+func (n catalogForeignKeysExpression) Eval(expr.Context) (sqltype.Value, error) {
 	return sqltype.Value{}, fmt.Errorf("stuntgres: catalog foreign-key set used as scalar")
 }

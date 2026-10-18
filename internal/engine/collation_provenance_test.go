@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -111,7 +112,7 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	}
 	// Render genuine retained trees through the complete serializer. Compare
 	// complete ObjectRefs, including epochs, rather than addresses or one helper.
-	assertManifest := func(name string, renderer scalarRenderer, expression BoundExpr, want []ids.ObjectRef) {
+	assertManifest := func(name string, renderer scalarRenderer, expression expr.Expr, want []ids.ObjectRef) {
 		t.Helper()
 		var got []ids.ObjectRef
 		renderer.dependencies = &got

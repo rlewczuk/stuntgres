@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -66,7 +67,7 @@ func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *extensionD
 		if i == 1 {
 			name, signature, result = "bqarr_out", queryIntSignature(typ.ID()), 2275
 		}
-		proc := &procedureDescriptor{address: ext.members[i+1], namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: name, signature: signature, routineKind: functionRoutine, owner: owner, result: result, volatility: Immutable, strict: true, queryCodec: p}
+		proc := &procedureDescriptor{address: ext.members[i+1], namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: name, signature: signature, routineKind: functionRoutine, owner: owner, result: result, volatility: expr.Immutable, strict: true, queryCodec: p}
 		if stage.lookupName(descriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			err := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf(`function "%s" already exists with same argument types`, name)}
 			if i == 0 {
@@ -111,7 +112,7 @@ func (p *intarrayProvider) validate(v CatalogRead, ext *extensionDescriptor) err
 		if i == 1 {
 			name, signature, result = "bqarr_out", queryIntSignature(base.typ.ID()), 2275
 		}
-		if proc.name != name || proc.signature != signature || proc.result != result || !proc.strict || proc.volatility != Immutable || proc.provider != nil || proc.intagg != nil || proc.uuidOssp != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) {
+		if proc.name != name || proc.signature != signature || proc.result != result || !proc.strict || proc.volatility != expr.Immutable || proc.provider != nil || proc.intagg != nil || proc.uuidOssp != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) {
 			return invalid()
 		}
 	}

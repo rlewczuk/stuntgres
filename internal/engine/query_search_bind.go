@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -27,11 +28,11 @@ func (b *expressionBinder) bindSearchShape(d *cteDefinition) error {
 			}
 		}
 		if slot < 0 && s.shapeError == nil {
-			s.shapeError = expressionError("42601", fmt.Sprintf(`search column "%s" not in WITH query column list`, key.Text), s.syntax.Pos)
+			s.shapeError = expr.ErrorAt("42601", fmt.Sprintf(`search column "%s" not in WITH query column list`, key.Text), s.syntax.Pos)
 		}
 		for _, prior := range s.keys[:i] {
 			if slot >= 0 && prior == slot && s.shapeError == nil {
-				s.shapeError = expressionError("42701", fmt.Sprintf(`search column "%s" specified more than once`, key.Text), s.syntax.Pos)
+				s.shapeError = expr.ErrorAt("42701", fmt.Sprintf(`search column "%s" specified more than once`, key.Text), s.syntax.Pos)
 			}
 		}
 		s.keys[i] = slot
@@ -64,7 +65,7 @@ func searchNameError(d *cteDefinition) error {
 	}
 	for _, column := range d.schema[:d.userWidth] {
 		if column.Name == s.syntax.Sequence.Text {
-			return expressionError("42601", fmt.Sprintf(`search sequence column name "%s" already used in WITH query column list`, column.Name), s.syntax.Pos)
+			return expr.ErrorAt("42601", fmt.Sprintf(`search sequence column name "%s" already used in WITH query column list`, column.Name), s.syntax.Pos)
 		}
 	}
 	return nil

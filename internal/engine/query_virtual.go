@@ -1,11 +1,15 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+
+	"stuntgres/internal/engine/expr"
+)
 
 // Retention is an execution demand, independent of row-lock admission.
 func queryHasVirtualReads(root LogicalNode) bool {
 	found := false
-	visitExecutableQuery(root, func(LogicalNode) {}, func(expr BoundExpr) {
+	visitExecutableQuery(root, func(LogicalNode) {}, func(expr expr.Expr) {
 		if lexicalHasVirtualReads(expr) {
 			found = true
 		}
@@ -13,9 +17,9 @@ func queryHasVirtualReads(root LogicalNode) bool {
 	return found
 }
 
-func boundHasVirtualReads(expr BoundExpr) bool {
-	found := lexicalHasVirtualReads(expr)
-	walkBoundExpression(expr, func(node BoundExpr) {
+func boundHasVirtualReads(bound expr.Expr) bool {
+	found := lexicalHasVirtualReads(bound)
+	walkBoundExpression(bound, func(node expr.Expr) {
 		if query, ok := node.(subqueryExpression); !found && ok && !query.cteDefinition {
 			found = queryHasVirtualReads(query.queryPlan.Root)
 		}
@@ -23,9 +27,9 @@ func boundHasVirtualReads(expr BoundExpr) bool {
 	return found
 }
 
-func lexicalHasVirtualReads(expr BoundExpr) bool {
+func lexicalHasVirtualReads(bound expr.Expr) bool {
 	found := false
-	walkBoundExpression(expr, func(node BoundExpr) {
+	walkBoundExpression(bound, func(node expr.Expr) {
 		if column, ok := node.(columnExpression); ok && column.virtual != nil && column.queryOccurrence != 0 {
 			found = true
 		}

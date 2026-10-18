@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -36,13 +37,13 @@ func TestJSONStripNullsJoinDependencies(t *testing.T) {
 				}
 				e := jsonStripUnitBind(t, b, q).(functions.JSONStripNulls)
 				if tc.nullTarget {
-					e.Args[0] = literalExpression{expressionInfo: expressionInfo{Usage: e.Args[0].ResultUsage()}, value: sqltype.Null(e.Args[0].ResultUsage().Type)}
+					e.Args[0] = literalExpression{Info: expr.Info{Usage: e.Args[0].ResultUsage()}, value: sqltype.Null(e.Args[0].ResultUsage().Type)}
 				}
 				for formal, slot := range [2]int{tc.target, tc.flag} {
 					if slot < 0 {
 						continue
 					}
-					e.Args[formal] = columnExpression{expressionInfo: expressionInfo{Usage: e.Args[formal].ResultUsage(), Property: ExprProperties{RowDependent: true}}, slot: slot}
+					e.Args[formal] = columnExpression{Info: expr.Info{Usage: e.Args[formal].ResultUsage(), Property: expr.Properties{RowDependent: true}}, slot: slot}
 				}
 				next, err := e.Reconstruct(e.Info, e.Args)
 				if err != nil {

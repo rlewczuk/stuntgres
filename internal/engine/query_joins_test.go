@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -177,7 +178,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 			case "merge_error":
 				usage := project.expressions[0].ResultUsage()
 				join.querySchema = append(join.querySchema, ColumnDescriptor{Usage: usage})
-				join.merges = []BoundExpr{queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
+				join.merges = []expr.Expr{queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
 					calls++
 					if calls == 3 {
 						return sqltype.Value{}, sentinel

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -27,7 +28,7 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 		},
 		func(d *relationDescriptor) {
 			u := old.columns[0].Usage
-			node := parameterExpression{expressionInfo: expressionInfo{Usage: u, Property: ExprProperties{ParameterDependent: true}}, number: 1}
+			node := parameterExpression{Info: expr.Info{Usage: u, Property: expr.Properties{ParameterDependent: true}}, number: 1}
 			bad := old.defaults[1]
 			bad.expression = node
 			d.defaults = map[int32]columnDefault{1: bad}
@@ -37,7 +38,7 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 		},
 		func(d *relationDescriptor) {
 			u := old.columns[0].Usage
-			node := literalExpression{expressionInfo: expressionInfo{Usage: u}, value: sqltype.Boolean(old.columns[1].Usage.Type, true)}
+			node := literalExpression{Info: expr.Info{Usage: u}, value: sqltype.Boolean(old.columns[1].Usage.Type, true)}
 			bad := old.defaults[1]
 			bad.expression = node
 			d.defaults = map[int32]columnDefault{1: bad}
@@ -83,40 +84,40 @@ func TestDefaultDescriptorProviderClosedPredicates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	foreignChild := literalExpression{expressionInfo: expressionInfo{Usage: foreignType.Usage()}, value: foreignValue}
+	foreignChild := literalExpression{Info: expr.Info{Usage: foreignType.Usage()}, value: foreignValue}
 	for _, tc := range []struct {
 		name      string
 		attribute int32
-		mutate    func(BoundExpr) BoundExpr
+		mutate    func(expr.Expr) expr.Expr
 	}{
-		{"null-child", 1, func(node BoundExpr) BoundExpr { n := node.(nullTestExpression); n.child = nil; return n }},
-		{"null-result-type", 1, func(node BoundExpr) BoundExpr {
+		{"null-child", 1, func(node expr.Expr) expr.Expr { n := node.(nullTestExpression); n.child = nil; return n }},
+		{"null-result-type", 1, func(node expr.Expr) expr.Expr {
 			n := node.(nullTestExpression)
 			n.Usage = old.columns[3].Usage
 			return n
 		}},
-		{"null-foreign-child", 1, func(node BoundExpr) BoundExpr { n := node.(nullTestExpression); n.child = foreignChild; return n }},
-		{"null-dependent-child", 1, func(node BoundExpr) BoundExpr {
+		{"null-foreign-child", 1, func(node expr.Expr) expr.Expr { n := node.(nullTestExpression); n.child = foreignChild; return n }},
+		{"null-dependent-child", 1, func(node expr.Expr) expr.Expr {
 			n := node.(nullTestExpression)
 			child := old.defaults[4].expression.(literalExpression)
 			child.Property.RowDependent = true
 			n.child = child
 			return n
 		}},
-		{"truth-child", 2, func(node BoundExpr) BoundExpr { n := node.(truthTestExpression); n.child = nil; return n }},
-		{"truth-child-type", 2, func(node BoundExpr) BoundExpr {
+		{"truth-child", 2, func(node expr.Expr) expr.Expr { n := node.(truthTestExpression); n.child = nil; return n }},
+		{"truth-child-type", 2, func(node expr.Expr) expr.Expr {
 			n := node.(truthTestExpression)
 			n.child = old.defaults[4].expression
 			return n
 		}},
-		{"truth-enum", 2, func(node BoundExpr) BoundExpr { n := node.(truthTestExpression); n.truth = Truth(255); return n }},
-		{"distinct-child", 3, func(node BoundExpr) BoundExpr { n := node.(distinctExpression); n.left = nil; return n }},
-		{"distinct-plan", 3, func(node BoundExpr) BoundExpr {
+		{"truth-enum", 2, func(node expr.Expr) expr.Expr { n := node.(truthTestExpression); n.truth = Truth(255); return n }},
+		{"distinct-child", 3, func(node expr.Expr) expr.Expr { n := node.(distinctExpression); n.left = nil; return n }},
+		{"distinct-plan", 3, func(node expr.Expr) expr.Expr {
 			n := node.(distinctExpression)
 			n.equality = sqltype.ComparisonPredicate{}
 			return n
 		}},
-		{"distinct-operand", 3, func(node BoundExpr) BoundExpr {
+		{"distinct-operand", 3, func(node expr.Expr) expr.Expr {
 			n := node.(distinctExpression)
 			n.right = old.defaults[2].expression
 			return n

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -8,7 +9,7 @@ import (
 
 // Imported parameters remain Execute-owned. This predicate inspects structure
 // and availability only, never evaluates a child again or freezes its value.
-func overlapsExecutionConstant(node BoundExpr, c *EvalContext) bool {
+func overlapsExecutionConstant(node expr.Expr, c *EvalContext) bool {
 	switch n := node.(type) {
 	case literalExpression:
 		return true
@@ -17,11 +18,11 @@ func overlapsExecutionConstant(node BoundExpr, c *EvalContext) bool {
 	case columnExpression, groupExpression, aggregateExpression, groupingExpression, subqueryExpression:
 		return false
 	}
-	if plannedVolatility(node) != Immutable {
+	if plannedVolatility(node) != expr.Immutable {
 		return false
 	}
 	found, constant := false, true
-	boundExpressionChildren(node, func(child BoundExpr) { found = true; constant = constant && overlapsExecutionConstant(child, c) })
+	boundExpressionChildren(node, func(child expr.Expr) { found = true; constant = constant && overlapsExecutionConstant(child, c) })
 	return found && constant
 }
 
@@ -33,11 +34,11 @@ func overlapsInlineSafe(e functions.DatetimeOverlaps) bool {
 			continue
 		}
 		start := e.Args[pair*2]
-		if plannedVolatility(start) == Volatile {
+		if plannedVolatility(start) == expr.Volatile {
 			return false
 		}
 		safe, cost := true, 0
-		walkBoundExpression(start, func(node BoundExpr) {
+		walkBoundExpression(start, func(node expr.Expr) {
 			if _, ok := node.(subqueryExpression); ok {
 				safe = false
 			}
@@ -52,7 +53,7 @@ func overlapsInlineSafe(e functions.DatetimeOverlaps) bool {
 
 // Costs are released builtin procost units, not AST node counts. Structural
 // boolean/CASE nodes cost zero; only function-backed work adds to the threshold.
-func overlapsNodeCost(node BoundExpr) int {
+func overlapsNodeCost(node expr.Expr) int {
 	switch n := node.(type) {
 	case literalExpression, parameterExpression, columnExpression, groupExpression, aggregateExpression, groupingExpression, collationExpression, logicalExpression, nullTestExpression, truthTestExpression, returningColumnExpression, returningWholeRowExpression:
 		return 0
@@ -101,9 +102,9 @@ func overlapsNodeCost(node BoundExpr) int {
 	}
 }
 
-func overlapsTreeCost(node BoundExpr) int {
+func overlapsTreeCost(node expr.Expr) int {
 	cost := 0
-	walkBoundExpression(node, func(n BoundExpr) { cost = min(11, cost+overlapsNodeCost(n)) })
+	walkBoundExpression(node, func(n expr.Expr) { cost = min(11, cost+overlapsNodeCost(n)) })
 	return cost
 }
 

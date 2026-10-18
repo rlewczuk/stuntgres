@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -43,7 +44,7 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 			for _, column := range inner.Schema() {
 				project.expressions = append(project.expressions, queryProbe(column.Usage, fail))
 			}
-			wrapped := &evaluationNode{querySchema: project.Schema(), child: project, expressions: []BoundExpr{queryProbe(boolType.Usage(), fail)}}
+			wrapped := &evaluationNode{querySchema: project.Schema(), child: project, expressions: []expr.Expr{queryProbe(boolType.Usage(), fail)}}
 			if missingLeft {
 				outer.left = wrapped
 			} else {
@@ -131,7 +132,7 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 			return sqltype.Value{}, errors.New("absent lineage recipe evaluated")
 		})
 		stage := &querySource{materialized: true}
-		inner := &querySource{lineage: &queryLockLineage{stage: stage, currentIndex: 0, currentOrder: []sqltype.Value{sqltype.Boolean(boolType, true)}, root: &projectNode{child: &singletonNode{}, expressions: []BoundExpr{recipe}}}}
+		inner := &querySource{lineage: &queryLockLineage{stage: stage, currentIndex: 0, currentOrder: []sqltype.Value{sqltype.Boolean(boolType, true)}, root: &projectNode{child: &singletonNode{}, expressions: []expr.Expr{recipe}}}}
 		bridge := &querySource{lineage: &queryLockLineage{stage: inner, currentIndex: 0, currentOrder: []sqltype.Value{sqltype.Boolean(boolType, true)}}}
 		setQueryLineage(bridge, absentQueryIndex)
 		if bridge.lineage.currentOrder != nil || inner.lineage.currentOrder != nil || inner.lineage.currentIndex != absentQueryIndex {

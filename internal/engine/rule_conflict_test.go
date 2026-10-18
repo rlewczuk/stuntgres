@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -11,7 +12,7 @@ func TestRuleConflictInstantiation(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
 	original := ruleUnitInsert(e, src, 1, 10).binding
 	action := ruleUnitInsert(e, sink, 1, 10)
-	recipe := &boundInsertConflict{targets: action.binding.targets, keys: []conflictKey{{attribute: 1}}, update: &boundUpdate{assignments: []BoundExpr{ruleUnitInt(sink, 20)}}, updateTargets: []int{1}, width: 2}
+	recipe := &boundInsertConflict{targets: action.binding.targets, keys: []conflictKey{{attribute: 1}}, update: &boundUpdate{assignments: []expr.Expr{ruleUnitInt(sink, 20)}}, updateTargets: []int{1}, width: 2}
 	action.binding.conflict = recipe
 	first, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, action)
 	if err != nil {
@@ -44,10 +45,10 @@ func TestRuleConflictAttributeRefresh(t *testing.T) {
 	b := ruleUnitInsert(e, sink, 1, 10).binding
 	ref := b.ref
 	ref.Address.SubID = sink.attributes[1]
-	target := columnExpression{expressionInfo: ruleColumnInfo(sink.columns[1]), origin: ref, scope: 1, frame: 1, slot: 1}
+	target := columnExpression{Info: ruleColumnInfo(sink.columns[1]), origin: ref, scope: 1, frame: 1, slot: 1}
 	excluded := target
 	excluded.slot = 3
-	b.conflict = &boundInsertConflict{targets: b.targets, reads: []int{0}, actionReads: []int{1}, updateTargets: []int{1}, width: 2, update: &boundUpdate{assignments: []BoundExpr{excluded}, predicate: target}}
+	b.conflict = &boundInsertConflict{targets: b.targets, reads: []int{0}, actionReads: []int{1}, updateTargets: []int{1}, width: 2, update: &boundUpdate{assignments: []expr.Expr{excluded}, predicate: target}}
 	current := *sink
 	current.attributes = []int32{2, 1}
 	current.columns = []ColumnDescriptor{sink.columns[1], sink.columns[0]}
@@ -85,7 +86,7 @@ func TestRuleIndependentActionProducer(t *testing.T) {
 		t.Run(event, func(t *testing.T) {
 			original := ruleUnitInsert(e, src, 1, 10).binding
 			if event == "UPDATE" {
-				original.update = &boundUpdate{assignments: []BoundExpr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}}
+				original.update = &boundUpdate{assignments: []expr.Expr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}}
 			}
 			action := ruleUnitInsert(e, sink, 7, 8)
 			composed, err := composeRuleAction(auth, original, event, ruleDefinition{}, action)
@@ -98,7 +99,7 @@ func TestRuleIndependentActionProducer(t *testing.T) {
 			}
 			ref := original.ref
 			ref.Address.SubID = src.attributes[0]
-			action.binding.expressions = [][]BoundExpr{{columnExpression{expressionInfo: ruleColumnInfo(src.columns[0]), origin: ref, scope: rulePseudoScope, frame: 1}, ruleUnitInt(sink, 8)}}
+			action.binding.expressions = [][]expr.Expr{{columnExpression{Info: ruleColumnInfo(src.columns[0]), origin: ref, scope: rulePseudoScope, frame: 1}, ruleUnitInt(sink, 8)}}
 			dependent, err := composeRuleAction(auth, original, event, ruleDefinition{}, action)
 			if err != nil {
 				t.Fatal(err)

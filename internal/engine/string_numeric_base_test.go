@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -35,14 +36,14 @@ func TestStringNumericBaseBindingAndRebinding(t *testing.T) {
 			t.Fatal(err)
 		}
 		selected, ok := node.(functions.String)
-		if !ok || selected.Plan.ArgumentUsage(0).Type.ID() != id || selected.ResultUsage().Type.ID() != sqltype.Text || selected.Properties().Volatility != Immutable {
+		if !ok || selected.Plan.ArgumentUsage(0).Type.ID() != id || selected.ResultUsage().Type.ID() != sqltype.Text || selected.Properties().Volatility != expr.Immutable {
 			t.Fatal(node)
 		}
 		v, err := sqltype.Integer(b.typ(id), -1)
 		if err != nil {
 			t.Fatal(err)
 		}
-		selected.Args[0] = literalExpression{expressionInfo: expressionInfo{Usage: b.typ(id).Usage()}, value: v}
+		selected.Args[0] = literalExpression{Info: expr.Info{Usage: b.typ(id).Usage()}, value: v}
 		replacements := make(map[sqltype.ID]*sqltype.Descriptor)
 		for _, d := range sqltype.Builtins() {
 			replacements[d.ID()] = d
@@ -81,8 +82,8 @@ func TestStringNumericBaseMD5Rebinding(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	u := b.typ(sqltype.Text).Usage()
 	value := sqltype.String(u.Type, "abc")
-	arg := literalExpression{expressionInfo: expressionInfo{Usage: u}, value: value}
-	node, err := b.stringNode("md5", u, parser.Position{}, []BoundExpr{arg}, [4]bool{true}, parser.OrdinaryStringSyntax)
+	arg := literalExpression{Info: expr.Info{Usage: u}, value: value}
+	node, err := b.stringNode("md5", u, parser.Position{}, []expr.Expr{arg}, [4]bool{true}, parser.OrdinaryStringSyntax)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +143,7 @@ func TestStringNumericBaseStoredWidthReplay(t *testing.T) {
 					if err != nil {
 						t.Fatal(canonical, err)
 					}
-					for _, node := range []BoundExpr{original, replayed} {
+					for _, node := range []expr.Expr{original, replayed} {
 						selected := node.(functions.String)
 						id, want := sqltype.Int4, tc.int4
 						if width == "bigint" {

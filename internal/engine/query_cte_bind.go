@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -76,13 +77,13 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 				return nil, err
 			}
 			if !definition.recursive {
-				return nil, expressionError("42601", "WITH query is not recursive", raw.Name.Pos)
+				return nil, expr.ErrorAt("42601", "WITH query is not recursive", raw.Name.Pos)
 			}
 		}
 		if selection, ok := raw.Query.(*parser.Select); ok {
 			b.cteSelectBodies = true
 			if selection.Values != nil {
-				return nil, expressionError("0A000", "WITH bodies must be SELECT queries", raw.Name.Pos)
+				return nil, expr.ErrorAt("0A000", "WITH bodies must be SELECT queries", raw.Name.Pos)
 			}
 			b.cteAnalysisDepth++
 			oldRecursive := b.recursiveDefinition
@@ -116,10 +117,10 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 			}
 		}
 		if len(raw.Columns) > len(definition.outputSchema()) {
-			return nil, expressionError("42P10", fmt.Sprintf(`WITH query "%s" has %d columns available but %d columns specified`, raw.Name.Text, len(definition.outputSchema()), len(raw.Columns)), raw.Name.Pos)
+			return nil, expr.ErrorAt("42P10", fmt.Sprintf(`WITH query "%s" has %d columns available but %d columns specified`, raw.Name.Text, len(definition.outputSchema()), len(raw.Columns)), raw.Name.Pos)
 		}
 		if raw.Search != nil && !definition.recursive {
-			return nil, expressionError("42601", "WITH query is not recursive", raw.Name.Pos)
+			return nil, expr.ErrorAt("42601", "WITH query is not recursive", raw.Name.Pos)
 		}
 		if len(raw.Columns) != 0 {
 			aliased := append(querySchema(nil), definition.outputSchema()...)
@@ -149,7 +150,7 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 func (b *expressionBinder) bindCTEScan(table *parser.TableReference, binding cteBinding) (LogicalNode, queryNamespace, error) {
 	d := binding.definition
 	if d.mutation != nil && d.mutation.returning == nil {
-		return nil, queryNamespace{}, expressionError("0A000", fmt.Sprintf(`WITH query "%s" does not have a RETURNING clause`, table.Name.Parts[0].Text), table.Name.Parts[0].Pos)
+		return nil, queryNamespace{}, expr.ErrorAt("0A000", fmt.Sprintf(`WITH query "%s" does not have a RETURNING clause`, table.Name.Parts[0].Text), table.Name.Parts[0].Pos)
 	}
 	d.references++
 	schema := d.outputSchema()
@@ -180,24 +181,24 @@ func (b *expressionBinder) bindCTEScan(table *parser.TableReference, binding cte
 
 // Runtime demand omits unused definitions, while PostgreSQL's static folding
 // eligibility inspects even nested WITH bodies that will never execute.
-func visitExecutableQuery(node LogicalNode, visit func(LogicalNode), expression func(BoundExpr)) {
+func visitExecutableQuery(node LogicalNode, visit func(LogicalNode), expression func(expr.Expr)) {
 	visitCTEQuery(node, visit, expression, false)
 }
 
-func visitCTEQuery(node LogicalNode, visit func(LogicalNode), expression func(BoundExpr), includeDefinitions bool) {
+func visitCTEQuery(node LogicalNode, visit func(LogicalNode), expression func(expr.Expr), includeDefinitions bool) {
 	if node == nil {
 		return
 	}
 	visit(node)
-	queryExpressions(node, func(expr BoundExpr) {
-		if expr == nil {
+	queryExpressions(node, func(bound expr.Expr) {
+		if bound == nil {
 			return
 		}
-		if edge, ok := expr.(subqueryExpression); ok && edge.cteDefinition && !includeDefinitions {
+		if edge, ok := bound.(subqueryExpression); ok && edge.cteDefinition && !includeDefinitions {
 			return
 		}
-		expression(expr)
-		walkBoundExpression(expr, func(n BoundExpr) {
+		expression(bound)
+		walkBoundExpression(bound, func(n expr.Expr) {
 			if s, ok := n.(subqueryExpression); ok {
 				visitCTEQuery(s.queryPlan.Root, visit, expression, includeDefinitions)
 			}
@@ -219,8 +220,8 @@ func cteVolatile(root LogicalNode) bool {
 				volatile = true
 			}
 		}
-	}, func(expr BoundExpr) {
-		if expr.Properties().Volatility == Volatile {
+	}, func(bound expr.Expr) {
+		if bound.Properties().Volatility == expr.Volatile {
 			volatile = true
 		}
 	}, true)
@@ -242,7 +243,7 @@ func cteStoredViewVolatile(catalog CatalogRead, root LogicalNode) (bool, error) 
 				leaves = append(leaves, queryLeaf{relation: relation})
 			}
 		}
-	}, func(BoundExpr) {}, true)
+	}, func(expr.Expr) {}, true)
 	if sourceErr != nil {
 		return false, sourceErr
 	}
@@ -287,5 +288,5 @@ func activateCTESources(root LogicalNode, leaves []queryLeaf) {
 		if source, ok := n.(*sourceNode); ok && source.occurrence >= 0 && source.occurrence < len(leaves) {
 			leaves[source.occurrence].analysisOnly = false
 		}
-	}, func(BoundExpr) {})
+	}, func(expr.Expr) {})
 }

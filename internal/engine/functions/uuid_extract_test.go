@@ -133,7 +133,7 @@ func TestUUIDExtractCancellation(t *testing.T) {
 
 func TestUUIDExtractProperties(t *testing.T) {
 	node, _, _ := uuidExtractUnit(t, UUIDExtractVersion, "00000000-0000-1000-8000-000000000000")
-	if UUIDExtractIntrinsicRule() != ExactImmutable || node.Validate() != nil {
+	if UUIDExtractIntrinsicRule() != expr.ExactImmutable || node.Validate() != nil {
 		t.Fatal("invalid intrinsic carrier")
 	}
 	bad := node

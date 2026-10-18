@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -38,7 +39,7 @@ func TestDomainCheckBindingIdentityInternal(t *testing.T) {
 		if check.expression.Properties().RowDependent || !check.expression.Properties().DomainDependent {
 			t.Fatal("VALUE is not conversion-dependent", check.expression.Properties())
 		}
-		walkBoundExpression(check.expression, func(node BoundExpr) {
+		walkBoundExpression(check.expression, func(node expr.Expr) {
 			if _, value := node.(domainValueExpression); value && node.ResultUsage() != d.typ.DomainBase() {
 				t.Fatal("VALUE lost immediate base usage")
 			}
@@ -135,7 +136,7 @@ func TestDomainCheckEvaluationFrameInternal(t *testing.T) {
 			t.Fatal("nested/error VALUE frame leaked", tc)
 		}
 	}
-	leaf := domainValueExpression{expressionInfo: expressionInfo{Usage: integer.Usage(), Property: ExprProperties{DomainDependent: true}}}
+	leaf := domainValueExpression{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{DomainDependent: true}}}
 	if _, err := leaf.Eval(&eval); err == nil {
 		t.Fatal("wrong VALUE frame type accepted")
 	}
@@ -152,7 +153,7 @@ func TestDomainCheckEvaluationFrameInternal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	textLeaf := domainValueExpression{expressionInfo: expressionInfo{Usage: short, Property: ExprProperties{DomainDependent: true}}}
+	textLeaf := domainValueExpression{Info: expr.Info{Usage: short, Property: expr.Properties{DomainDependent: true}}}
 	eval.domainValue, eval.domainFrameUsage, eval.domainValueActive = sqltype.String(varchar, "abc"), long, true
 	if _, err := textLeaf.Eval(&eval); err == nil {
 		t.Fatal("foreign immediate-base typmod accepted")
@@ -221,7 +222,7 @@ func TestDomainCheckRetirementAndRemapInternal(t *testing.T) {
 	if err := validateDomainCheckDefinitions(view, child); err != nil {
 		t.Fatal(err)
 	}
-	walkBoundExpression(child.domainChecks[0].expression, func(node BoundExpr) {
+	walkBoundExpression(child.domainChecks[0].expression, func(node expr.Expr) {
 		if _, value := node.(domainValueExpression); value && node.ResultUsage().Type != d.typ {
 			t.Fatal("VALUE retained old base generation")
 		}

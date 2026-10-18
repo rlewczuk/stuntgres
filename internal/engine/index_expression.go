@@ -2,13 +2,14 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 type derivedIndexKey struct {
-	definition, execution BoundExpr
+	definition, execution expr.Expr
 	dependencies          []ids.ObjectRef
 	attributes            []int32 // Immutable parent layout used by both bound row frames.
 }
@@ -54,7 +55,7 @@ func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironme
 	if err != nil {
 		return nil, "", err
 	}
-	if plannedVolatility(execution) != Immutable {
+	if plannedVolatility(execution) != expr.Immutable {
 		return nil, "", sqlError("42P17", "functions in index expression must be marked IMMUTABLE")
 	}
 	key := &derivedIndexKey{definition: definition, execution: execution, attributes: parent.attributes}

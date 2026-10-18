@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 )
@@ -15,7 +16,7 @@ type installedSoundexFunctionExpression struct {
 
 // Rebuild keeps the installed-routine identity; the promoted Rebuild would
 // return the bare functions node.
-func (e installedSoundexFunctionExpression) Rebuild(info expressionInfo, children []BoundExpr) (BoundExpr, error) {
+func (e installedSoundexFunctionExpression) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	node, err := e.Soundex.Rebuild(info, children)
 	if err != nil {
 		return nil, err

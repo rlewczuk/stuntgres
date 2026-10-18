@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -73,7 +74,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if len(call.Args) != arity || call.Plan.BaseIndex() != tc.base || call.Defined || call.Plan.ResultUsage() != call.ResultUsage() || call.Plan.ReturnsSet() != tc.set || isQuerySet(call) != tc.set || !validFunctionSourceCall(call) || binder.queryHasTargetSet != tc.set {
 				t.Fatal("physical arity/base/defined/source/project identity", call)
 			}
-			if call.Properties().Volatility != Stable || call.Properties().StageDependent != tc.set || call.Properties().DomainDependent || call.Properties().RuntimeDomainConversion {
+			if call.Properties().Volatility != expr.Stable || call.Properties().StageDependent != tc.set || call.Properties().DomainDependent || call.Properties().RuntimeDomainConversion {
 				t.Fatal("original stable/stage/domain properties", call.Properties())
 			}
 			jsonIndex := 0
@@ -92,10 +93,10 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}
 			declaration := captured.builtin
-			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != call.Plan.Name() || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || captured.strict != tc.strict || captured.volatility != Stable || captured.revision == 0 || len(captured.body) != 0 {
+			if captured.address != address || captured.namespace != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.name != call.Plan.Name() || string(captured.signature) != tc.signature || captured.result != tc.result || captured.routineKind != functionRoutine || captured.strict != tc.strict || captured.volatility != expr.Stable || captured.revision == 0 || len(captured.body) != 0 {
 				t.Fatal("independent released identity", captured)
 			}
-			if declaration.kind != functionRoutine || declaration.result != tc.result || declaration.strict != tc.strict || declaration.volatility != Stable || declaration.parallel != 's' || declaration.returnsSet != tc.set || declaration.variadic != 0 || int(declaration.defaults) != tc.defaults || declaration.providers&jsonRoutineProvider == 0 {
+			if declaration.kind != functionRoutine || declaration.result != tc.result || declaration.strict != tc.strict || declaration.volatility != expr.Stable || declaration.parallel != 's' || declaration.returnsSet != tc.set || declaration.variadic != 0 || int(declaration.defaults) != tc.defaults || declaration.providers&jsonRoutineProvider == 0 {
 				t.Fatal("independent released full-IN/default/strict/set metadata", declaration)
 			}
 			if evaluation.catalog.Get(address) != captured {
@@ -117,7 +118,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("selected declaration must have one original manifest entry", selected)
 			}
 			before := call
-			before.Args = append([]BoundExpr(nil), call.Args...)
+			before.Args = append([]expr.Expr(nil), call.Args...)
 			rebuilt, err := call.Reconstruct(call.Info, call.Args)
 			if err != nil || !reflect.DeepEqual(rebuilt, call) {
 				t.Fatal("reconstruct changed original physical carrier", err)
@@ -143,7 +144,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 					t.Fatal("anonymous FROM shape completion", err)
 				}
 				next := completed.(functions.JSONRecord)
-				if !next.Defined || next.Info.RoutineReference != captured || next.SourcePosition() != call.SourcePosition() || next.Plan.BaseIndex() != tc.base || !reflect.DeepEqual(next.Args, call.Args) || next.Plan.ResultUsage() != next.ResultUsage() || next.ResultUsage().Type.CompositeLen() != 2 || !next.Properties().DomainDependent || !next.Properties().RuntimeDomainConversion || next.Properties().Volatility != Stable || next.Properties().StageDependent != tc.set {
+				if !next.Defined || next.Info.RoutineReference != captured || next.SourcePosition() != call.SourcePosition() || next.Plan.BaseIndex() != tc.base || !reflect.DeepEqual(next.Args, call.Args) || next.Plan.ResultUsage() != next.ResultUsage() || next.ResultUsage().Type.CompositeLen() != 2 || !next.Properties().DomainDependent || !next.Properties().RuntimeDomainConversion || next.Properties().Volatility != expr.Stable || next.Properties().StageDependent != tc.set {
 					t.Fatal("completion erased original authority or domain/stage/shape", next)
 				}
 				rebuilt, err := next.Reconstruct(next.Info, next.Args)
@@ -249,7 +250,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 		// Compare that exact metadata change, not grafted Args to ungrafted Args.
 		expectedGraft := call
 		expectedGraft.Info.RoutineRecipeReference = recipe
-		expectedGraft.Args = append([]BoundExpr(nil), call.Args...)
+		expectedGraft.Args = append([]expr.Expr(nil), call.Args...)
 		for i, arg := range expectedGraft.Args {
 			literal, ok := arg.(literalExpression)
 			if !ok {
@@ -282,7 +283,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 		if err != nil {
 			t.Fatal("retag grafted shape", err)
 		}
-		for i, retained := range []BoundExpr{grafted, finished, rebuilt, retagged} {
+		for i, retained := range []expr.Expr{grafted, finished, rebuilt, retagged} {
 			next := retained.(functions.JSONRecord)
 			expectedInfo := expectedGraft.Info
 			expectedDefined := call.Defined

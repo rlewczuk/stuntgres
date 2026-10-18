@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -12,8 +13,8 @@ func cycleUnitRecipe(t *testing.T, usages ...sqltype.Usage) *cycleRecipe {
 	t.Helper()
 	c := &cycleRecipe{markSlot: len(usages), keys: make([]int, len(usages)), grouping: make([]sqltype.Grouping, len(usages))}
 	boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)
-	c.mark = literalExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, true)}
-	c.fallback = literalExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}
+	c.mark = literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, true)}
+	c.fallback = literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}
 	members := make([]sqltype.CompositeMember, len(usages))
 	for i, u := range usages {
 		c.keys[i] = i
@@ -198,7 +199,7 @@ func TestQueryCycleOwnership(t *testing.T) {
 		if n, ok := node.(*recursiveUnionNode); ok {
 			original = n
 		}
-	}, func(BoundExpr) {}, true)
+	}, func(expr.Expr) {}, true)
 	if original == nil {
 		t.Fatal("missing cycle recursive node")
 	}
@@ -212,7 +213,7 @@ func TestQueryCycleOwnership(t *testing.T) {
 		t.Fatal("original cycle arm layout", err)
 	}
 	badWidth := original.setNode
-	badWidth.leftExpressions = append(append([]BoundExpr(nil), original.leftExpressions...), original.rightExpressions[original.cycle.markSlot])
+	badWidth.leftExpressions = append(append([]expr.Expr(nil), original.leftExpressions...), original.rightExpressions[original.cycle.markSlot])
 	if err := validateStoredSetNode(&badWidth, original.cycle, nil); err == nil {
 		t.Fatal("accepted generated anchor slot as an original user target")
 	}
@@ -232,7 +233,7 @@ func TestQueryCycleOwnership(t *testing.T) {
 		t.Fatal("remapped cycle arm layout", err)
 	}
 	badParent := union.setNode
-	badParent.rightExpressions = append([]BoundExpr(nil), union.rightExpressions...)
+	badParent.rightExpressions = append([]expr.Expr(nil), union.rightExpressions...)
 	badParent.rightExpressions[union.cycle.markSlot+1] = union.rightExpressions[union.cycle.markSlot]
 	if err := validateStoredSetNode(&badParent, union.cycle, nil); err == nil {
 		t.Fatal("accepted parent mark in the hidden path slot")

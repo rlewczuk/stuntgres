@@ -1,8 +1,10 @@
 package engine
 
+import "stuntgres/internal/engine/expr"
+
 // Transplanted queries retain lexical identity, including expression-owned
 // subqueries and CTE producers. This shares the existing copy-on-change walkers.
-func rewriteRuleFrames(view CatalogRead, root LogicalNode, expr BoundExpr, frame func(uint32) uint32, retainedCTEs ...[]*cteDefinition) (LogicalNode, BoundExpr, error) {
+func rewriteRuleFrames(view CatalogRead, root LogicalNode, expr expr.Expr, frame func(uint32) uint32, retainedCTEs ...[]*cteDefinition) (LogicalNode, expr.Expr, error) {
 	var retained []*cteDefinition
 	if len(retainedCTEs) != 0 {
 		retained = retainedCTEs[0]
@@ -26,9 +28,9 @@ func ruleBindingMaxFrame(b binding) uint32 {
 			}
 		}
 	}
-	visitExpression := func(expr BoundExpr) {
-		if expr != nil {
-			visit(&projectNode{expressions: []BoundExpr{expr}})
+	visitExpression := func(bound expr.Expr) {
+		if bound != nil {
+			visit(&projectNode{expressions: []expr.Expr{bound}})
 		}
 	}
 	for _, definition := range b.ctes {
@@ -64,22 +66,22 @@ func ruleBindingMaxFrame(b binding) uint32 {
 		visit(b.query.Root)
 	}
 	for _, row := range b.expressions {
-		for _, expr := range row {
-			visit(&projectNode{expressions: []BoundExpr{expr}})
+		for _, bound := range row {
+			visit(&projectNode{expressions: []expr.Expr{bound}})
 		}
 	}
 	if b.update != nil {
 		visit(b.update.from)
 		visitExpression(b.update.predicate)
-		for _, expr := range b.update.assignments {
-			visit(&projectNode{expressions: []BoundExpr{expr}})
+		for _, bound := range b.update.assignments {
+			visit(&projectNode{expressions: []expr.Expr{bound}})
 		}
 	}
 	visit(b.deleteUsing)
 	return max
 }
 
-func rewriteRuleOccurrences(view CatalogRead, root LogicalNode, expr BoundExpr, offset int) (LogicalNode, BoundExpr, error) {
+func rewriteRuleOccurrences(view CatalogRead, root LogicalNode, expr expr.Expr, offset int) (LogicalNode, expr.Expr, error) {
 	if offset == 0 {
 		return root, expr, nil
 	}

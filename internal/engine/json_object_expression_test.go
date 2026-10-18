@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"testing"
 
@@ -28,7 +29,7 @@ func TestJSONObjectExpressionRetagRemapAndRendering(t *testing.T) {
 		types[id] = binder.typ(id)
 	}
 	for _, texts := range [][]string{{"[-2:1]={a,1,b,2}"}, {"[-2:-1]={a,b}", "[7:8]={1,2}"}} {
-		args := make([]BoundExpr, len(texts))
+		args := make([]expr.Expr, len(texts))
 		usages := make([]sqltype.Usage, len(texts))
 		for i, text := range texts {
 			value, err := types[1009].Input(context.Background(), text, -1)
@@ -36,13 +37,13 @@ func TestJSONObjectExpressionRetagRemapAndRendering(t *testing.T) {
 				t.Fatal(err)
 			}
 			usages[i] = types[1009].Usage()
-			args[i] = literalExpression{expressionInfo: expressionInfo{Usage: usages[i]}, value: value}
+			args[i] = literalExpression{Info: expr.Info{Usage: usages[i]}, value: value}
 		}
 		plan, err := sqltype.BindBinary("json_object", types[sqltype.JSON].Usage(), usages...)
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := functions.Binary{Info: expressionInfo{Usage: types[sqltype.JSON].Usage()}, Plan: plan, Args: args}
+		original := functions.Binary{Info: expr.Info{Usage: types[sqltype.JSON].Usage()}, Plan: plan, Args: args}
 		rebound, changed, err := retagBoundTypes(view, original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(changed, err)
@@ -101,14 +102,14 @@ func TestJSONObjectExpressionRetagRemapAndRendering(t *testing.T) {
 func TestJSONObjectExpressionGroupTraversal(t *testing.T) {
 	types := jsonObjectUnitTypes()
 	usage := types[1009].Usage()
-	column := columnExpression{expressionInfo: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}}
+	column := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}}
 	plan, err := sqltype.BindBinary("json_object", types[sqltype.JSON].Usage(), usage, usage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	expr := functions.Binary{Info: expressionInfo{Usage: types[sqltype.JSON].Usage()}, Plan: plan, Args: []BoundExpr{column, column}}
+	bound := functions.Binary{Info: expr.Info{Usage: types[sqltype.JSON].Usage()}, Plan: plan, Args: []expr.Expr{column, column}}
 	binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	rewritten, err := binder.rewriteGroup(expr, []BoundExpr{column})
+	rewritten, err := binder.rewriteGroup(bound, []expr.Expr{column})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,11 +119,11 @@ func TestJSONObjectExpressionGroupTraversal(t *testing.T) {
 			t.Fatal(arg)
 		}
 	}
-	if _, ok := expr.Args[0].(columnExpression); !ok {
+	if _, ok := bound.Args[0].(columnExpression); !ok {
 		t.Fatal("mutated original arguments")
 	}
 	var count int
-	boundExpressionChildren(expr, func(child BoundExpr) {
+	boundExpressionChildren(bound, func(child expr.Expr) {
 		if !sameGroupExpression(child, column) {
 			t.Fatal(child)
 		}

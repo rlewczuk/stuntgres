@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -15,7 +16,7 @@ import (
 
 type foreignActionPlan struct {
 	targets, parentSlots []int
-	defaults             []BoundExpr
+	defaults             []expr.Expr
 	conversions          []sqltype.CoercionPlan
 	convert              []bool
 	input                sqltype.InputEnvironment
@@ -63,7 +64,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 		b := binding{relation: job.child}
 		e := s.op.session.Engine()
 		e.bindInsertDefaults(&b, auth, parser.OverrideNone)
-		plan.defaults = make([]BoundExpr, len(plan.targets))
+		plan.defaults = make([]expr.Expr, len(plan.targets))
 		for i, slot := range plan.targets {
 			if len(b.defaults) != 0 {
 				plan.defaults[i] = b.defaults[slot]
@@ -101,7 +102,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 		}
 	}
 	if action == parser.ForeignKeySetNull && plan.domainChecks {
-		plan.defaults = make([]BoundExpr, len(plan.targets))
+		plan.defaults = make([]expr.Expr, len(plan.targets))
 		for i, slot := range plan.targets {
 			if job.child.columns[slot].Usage.Type.HasDomainChecks() {
 				plan.defaults[i] = domainNullInputExpression(job.child.columns[slot].Usage)

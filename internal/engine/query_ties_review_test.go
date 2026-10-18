@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -44,18 +45,18 @@ func TestQueryTiesReplacementCache(t *testing.T) {
 	two, _ := sqltype.Integer(typ, 2)
 	for _, properties := range []struct {
 		name       string
-		properties ExprProperties
+		properties expr.Properties
 		refresh    bool
 	}{
-		{"row", ExprProperties{RowDependent: true}, true},
-		{"stage", ExprProperties{StageDependent: true}, true},
-		{"volatile", ExprProperties{Volatility: Volatile}, true},
-		{"stable independent", ExprProperties{Volatility: Stable}, false},
+		{"row", expr.Properties{RowDependent: true}, true},
+		{"stage", expr.Properties{StageDependent: true}, true},
+		{"volatile", expr.Properties{Volatility: expr.Volatile}, true},
+		{"stable independent", expr.Properties{Volatility: expr.Stable}, false},
 	} {
 		for _, mode := range []string{"ties hidden", "only hidden", "only visible"} {
 			t.Run(properties.name+"/"+mode, func(t *testing.T) {
 				calls := 0
-				expr := queryProbeExpression{expressionInfo: expressionInfo{Usage: typ.Usage(), Property: properties.properties}, eval: func(c *EvalContext) (sqltype.Value, error) { calls++; return c.Row[0], nil }}
+				expr := queryProbeExpression{Info: expr.Info{Usage: typ.Usage(), Property: properties.properties}, eval: func(c *EvalContext) (sqltype.Value, error) { calls++; return c.Row[0], nil }}
 				ordered := &sortNode{keys: []sortKey{{cache: 0, expression: expr, output: mode == "only visible"}, {cache: 0, expression: expr, output: mode == "only visible"}}, cacheWidth: 1}
 				if mode == "ties hidden" {
 					limit := &limitNode{withTies: true}
@@ -110,7 +111,7 @@ func TestQueryTiesReplacementFailure(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			calls := 0
-			expr := queryProbeExpression{expressionInfo: expressionInfo{Usage: typ.Usage(), Property: ExprProperties{RowDependent: true}}, eval: func(c *EvalContext) (sqltype.Value, error) {
+			expr := queryProbeExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, eval: func(c *EvalContext) (sqltype.Value, error) {
 				calls++
 				switch phase {
 				case "type":

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -78,7 +79,7 @@ func (p *pendingPartitionDefinition) checkHashOverlap(scope *StatementScope) err
 		}
 	}
 	if conflict != nil {
-		return expressionError("42P17", fmt.Sprintf(`partition "%s" would overlap partition "%s"`, p.child.name, conflict.name), p.rawBounds.Pos)
+		return expr.ErrorAt("42P17", fmt.Sprintf(`partition "%s" would overlap partition "%s"`, p.child.name, conflict.name), p.rawBounds.Pos)
 	}
 	return nil
 }

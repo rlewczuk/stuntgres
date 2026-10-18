@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -195,20 +196,20 @@ func storedProjectionDemand(project *projectNode, uses []int) (*projectNode, err
 			return nil, fmt.Errorf("stuntgres: invalid stored projection use")
 		}
 	}
-	var expressions []BoundExpr
+	var expressions []expr.Expr
 	for slot, expression := range project.expressions {
 		if storedProjectionOutputDemand(expression, slot, uses) {
 			continue
 		}
 		if expressions == nil {
-			expressions = append([]BoundExpr(nil), project.expressions...)
+			expressions = append([]expr.Expr(nil), project.expressions...)
 		}
-		expressions[slot] = literalExpression{boundExpressionInfo(expression), sqltype.Null(expression.ResultUsage().Type)}
+		expressions[slot] = literalExpression{expr.InfoOf(expression), sqltype.Null(expression.ResultUsage().Type)}
 	}
 	if expressions == nil {
 		return project, nil
 	}
-	child, err := storedScheduledPayloadDemand(project.child, func(visit func(BoundExpr)) {
+	child, err := storedScheduledPayloadDemand(project.child, func(visit func(expr.Expr)) {
 		for _, expression := range expressions {
 			visit(expression)
 		}
@@ -222,8 +223,8 @@ func storedProjectionDemand(project *projectNode, uses []int) (*projectNode, err
 	return &copy, nil
 }
 
-func storedProjectionOutputDemand(expression BoundExpr, slot int, uses []int) bool {
-	if uses == nil || expression.Properties().Volatility == Volatile {
+func storedProjectionOutputDemand(expression expr.Expr, slot int, uses []int) bool {
+	if uses == nil || expression.Properties().Volatility == expr.Volatile {
 		return true
 	}
 	for _, use := range uses {
@@ -237,13 +238,13 @@ func storedProjectionOutputDemand(expression BoundExpr, slot int, uses []int) bo
 // Inspect the same retained payload/cache/clause authority without copying or
 // executing the producer. Rule-program liveness converges before its sole
 // copy-on-change projection pruning pass.
-func storedProjectionDemandExpressions(project *projectNode, uses []int, inspect func(BoundExpr), boundary func(LogicalNode)) error {
+func storedProjectionDemandExpressions(project *projectNode, uses []int, inspect func(expr.Expr), boundary func(LogicalNode)) error {
 	for _, slot := range uses {
 		if slot < 0 || slot >= len(project.expressions) {
 			return fmt.Errorf("stuntgres: invalid stored projection use")
 		}
 	}
-	retained := func(visit func(BoundExpr)) {
+	retained := func(visit func(expr.Expr)) {
 		for slot, expression := range project.expressions {
 			if storedProjectionOutputDemand(expression, slot, uses) {
 				visit(expression)
@@ -258,7 +259,7 @@ func storedProjectionDemandExpressions(project *projectNode, uses []int, inspect
 // Projection scheduling owns payload cache slots on the outer query's unary
 // path. Follow those existing owners, not source/derived-query frames, and
 // retain the transitive slot reads of selected payloads and internal clauses.
-func storedScheduledPayloadDemand(root LogicalNode, retained func(func(BoundExpr)), inspect func(BoundExpr), boundary func(LogicalNode)) (LogicalNode, error) {
+func storedScheduledPayloadDemand(root LogicalNode, retained func(func(expr.Expr)), inspect func(expr.Expr), boundary func(LogicalNode)) (LogicalNode, error) {
 	input := func(node LogicalNode) LogicalNode {
 		switch node.(type) {
 		case *projectNode, *derivedNode, *worktableScanNode, *joinNode, *setNode, *recursiveUnionNode:
@@ -270,10 +271,10 @@ func storedScheduledPayloadDemand(root LogicalNode, retained func(func(BoundExpr
 		}
 		return left
 	}
-	var producers map[int]BoundExpr
+	var producers map[int]expr.Expr
 	var owners map[LogicalNode]int
 	for node := root; node != nil; node = input(node) {
-		var expressions []BoundExpr
+		var expressions []expr.Expr
 		var base int
 		switch n := node.(type) {
 		case *sortNode:
@@ -285,7 +286,7 @@ func storedScheduledPayloadDemand(root LogicalNode, retained func(func(BoundExpr
 			continue
 		}
 		if producers == nil {
-			producers = make(map[int]BoundExpr)
+			producers = make(map[int]expr.Expr)
 			owners = make(map[LogicalNode]int)
 		}
 		owners[node] = base
@@ -300,12 +301,12 @@ func storedScheduledPayloadDemand(root LogicalNode, retained func(func(BoundExpr
 	if len(producers) != 0 {
 		live = make(map[int]bool)
 	}
-	var demand func(BoundExpr)
-	demand = func(expression BoundExpr) {
+	var demand func(expr.Expr)
+	demand = func(expression expr.Expr) {
 		if len(producers) == 0 {
 			return
 		}
-		walkBoundExpression(expression, func(node BoundExpr) {
+		walkBoundExpression(expression, func(node expr.Expr) {
 			cache, ok := node.(cachedOrderExpression)
 			if !ok || live[cache.slot] {
 				return
@@ -318,12 +319,12 @@ func storedScheduledPayloadDemand(root LogicalNode, retained func(func(BoundExpr
 	}
 	retained(demand)
 	for slot, producer := range producers {
-		if producer.Properties().Volatility == Volatile {
+		if producer.Properties().Volatility == expr.Volatile {
 			live[slot] = true
 			demand(producer)
 		}
 	}
-	clauses := func(visit func(BoundExpr), boundary func(LogicalNode)) {
+	clauses := func(visit func(expr.Expr), boundary func(LogicalNode)) {
 		for node := root; node != nil; node = input(node) {
 			switch n := node.(type) {
 			case *sortNode:
@@ -351,7 +352,7 @@ func storedScheduledPayloadDemand(root LogicalNode, retained func(func(BoundExpr
 		clauses(inspect, boundary)
 		return root, nil
 	}
-	identity := func(expression BoundExpr) (BoundExpr, bool, error) {
+	identity := func(expression expr.Expr) (expr.Expr, bool, error) {
 		return expression, false, nil
 	}
 	var rewrite func(LogicalNode) (LogicalNode, error)
@@ -360,7 +361,7 @@ func storedScheduledPayloadDemand(root LogicalNode, retained func(func(BoundExpr
 		if !owned {
 			return node, nil
 		}
-		var expressions []BoundExpr
+		var expressions []expr.Expr
 		var child LogicalNode
 		switch n := node.(type) {
 		case *sortNode:
@@ -368,15 +369,15 @@ func storedScheduledPayloadDemand(root LogicalNode, retained func(func(BoundExpr
 		case *evaluationNode:
 			expressions, child = n.expressions, n.child
 		}
-		var replacement []BoundExpr
+		var replacement []expr.Expr
 		for i, expression := range expressions {
 			if live[base+i] {
 				continue
 			}
 			if replacement == nil {
-				replacement = append([]BoundExpr(nil), expressions...)
+				replacement = append([]expr.Expr(nil), expressions...)
 			}
-			replacement[i] = literalExpression{boundExpressionInfo(expression), sqltype.Null(expression.ResultUsage().Type)}
+			replacement[i] = literalExpression{expr.InfoOf(expression), sqltype.Null(expression.ResultUsage().Type)}
 		}
 		if replacement == nil {
 			return node, nil

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -21,7 +22,7 @@ func setOperand(arm *projectNode, slot int) comparisonOperand {
 	return operand
 }
 
-func (b *expressionBinder) finalizeSetOperand(arm *projectNode, slot int, target sqltype.Usage, operation string) (BoundExpr, error) {
+func (b *expressionBinder) finalizeSetOperand(arm *projectNode, slot int, target sqltype.Usage, operation string) (expr.Expr, error) {
 	original := arm.expressions[slot]
 	operand := setOperand(arm, slot)
 	oldFrame := b.queryFrame
@@ -74,11 +75,11 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 		if len(right.expressions) > 0 {
 			pos = right.expressions[0].SourcePosition()
 		}
-		return nil, expressionError("42601", "each "+operation+" query must have the same number of columns", pos)
+		return nil, expr.ErrorAt("42601", "each "+operation+" query must have the same number of columns", pos)
 	}
 	width := len(left.Schema())
-	n := &setNode{querySchema: make(querySchema, width), left: left, right: right, operation: strings.ToLower(operation), all: s.Set.All, leftExpressions: make([]BoundExpr, width), rightExpressions: make([]BoundExpr, width)}
-	projection := make([]BoundExpr, width)
+	n := &setNode{querySchema: make(querySchema, width), left: left, right: right, operation: strings.ToLower(operation), all: s.Set.All, leftExpressions: make([]expr.Expr, width), rightExpressions: make([]expr.Expr, width)}
+	projection := make([]expr.Expr, width)
 	names := make([]string, width)
 	namespace := queryNamespace{frame: n.querySchema, columns: make([]queryColumn, width)}
 	if !(n.operation == "union" && n.all) {
@@ -103,12 +104,12 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 		if operands[0].descriptor() == nil && operands[1].descriptor() != nil {
 			position = commonOperandStart(operands[1])
 		}
-		info, err := b.collatedInfo(b.info(common, position, ExprProperties{RowDependent: true}), l, r)
+		info, err := b.collatedInfo(b.info(common, position, expr.Properties{RowDependent: true}), l, r)
 		if err != nil {
 			return nil, err
 		}
 		common = info.Usage
-		for side, node := range [2]BoundExpr{l, r} {
+		for side, node := range [2]expr.Expr{l, r} {
 			plan, err := sqltype.PlanCoercion(node.ResultUsage(), common, sqltype.Implicit)
 			if err != nil {
 				return nil, err
@@ -126,7 +127,7 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 		n.querySchema[i] = ColumnDescriptor{Name: left.Schema()[i].Name, Usage: common}
 		names[i] = n.Schema()[i].Name
 		namespace.columns[i] = queryColumn{descriptor: n.Schema()[i], slot: i, leaf: -1, physical: -1}
-		projection[i] = columnExpression{expressionInfo: info, scope: 1, frame: b.frameID(), slot: i}
+		projection[i] = columnExpression{Info: info, scope: 1, frame: b.frameID(), slot: i}
 		regclass = regclass || common.Type.ContainsCatalogIdentifier()
 		if n.grouping != nil {
 			n.grouping[i], err = b.bindDistinctGrouping(projection[i])
@@ -164,7 +165,7 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 	return &BoundQuery{Root: &projectNode{querySchema: n.querySchema, child: root, expressions: projection, frame: b.frameID(), syntax: s}, regclassOutput: regclass, visibilitySnapshot: leftQuery.visibilitySnapshot || rightQuery.visibilitySnapshot}, nil
 }
 
-func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []BoundExpr, names []string, right []ColumnDescriptor) ([]sortKey, error) {
+func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []expr.Expr, names []string, right []ColumnDescriptor) ([]sortKey, error) {
 	if order == nil {
 		return nil, nil
 	}
@@ -181,7 +182,7 @@ func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []BoundE
 				for j, label := range names {
 					if label == name {
 						if slot >= 0 {
-							return nil, expressionError("42702", fmt.Sprintf(`ORDER BY "%s" is ambiguous`, name), raw.Pos)
+							return nil, expr.ErrorAt("42702", fmt.Sprintf(`ORDER BY "%s" is ambiguous`, name), raw.Pos)
 						}
 						slot = j
 					}
@@ -189,7 +190,7 @@ func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []BoundE
 				if slot < 0 {
 					for _, column := range right {
 						if column.Name == name {
-							d := expressionError("42703", fmt.Sprintf(`column "%s" does not exist`, name), raw.Expr.SourcePosition()).(*sqlstate.Error)
+							d := expr.ErrorAt("42703", fmt.Sprintf(`column "%s" does not exist`, name), raw.Expr.SourcePosition()).(*sqlstate.Error)
 							d.Detail = fmt.Sprintf(`There is a column named "%s" in table "*SELECT* 2", but it cannot be referenced from this part of the query.`, name)
 							return nil, d
 						}
@@ -200,7 +201,7 @@ func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []BoundE
 				if _, err := b.bind(raw.Expr, expressionPolicy{context: projectionContext}); err != nil {
 					return nil, err
 				}
-				d := expressionError("0A000", "invalid UNION/INTERSECT/EXCEPT ORDER BY clause", parser.ExpressionStart(raw.Expr)).(*sqlstate.Error)
+				d := expr.ErrorAt("0A000", "invalid UNION/INTERSECT/EXCEPT ORDER BY clause", parser.ExpressionStart(raw.Expr)).(*sqlstate.Error)
 				d.Detail = "Only result column names can be used, not expressions or functions."
 				d.Hint = "Add the expression/function to every SELECT, or move the UNION into a FROM clause."
 				return nil, d

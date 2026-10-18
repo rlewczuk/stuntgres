@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -13,9 +14,9 @@ type joinNode struct {
 	querySchema
 	kind                  parser.JoinKind
 	left, right           LogicalNode
-	predicate             BoundExpr
+	predicate             expr.Expr
 	leftWidth, rightWidth int
-	merges                []BoundExpr
+	merges                []expr.Expr
 	correlatedRight       bool
 	frame                 uint32
 	correlationPrefix     int
@@ -39,7 +40,7 @@ func preflightJoin(c *EvalContext, n *joinNode) (LogicalNode, error) {
 			return nil, err
 		}
 	}
-	var merges []BoundExpr
+	var merges []expr.Expr
 	for i, expression := range n.merges {
 		folded, replacement, err := preflightCoercions(c, expression)
 		if err != nil {
@@ -47,7 +48,7 @@ func preflightJoin(c *EvalContext, n *joinNode) (LogicalNode, error) {
 		}
 		if replacement {
 			if merges == nil {
-				merges = append([]BoundExpr(nil), n.merges...)
+				merges = append([]expr.Expr(nil), n.merges...)
 			}
 			merges[i] = folded
 		}
@@ -365,23 +366,23 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 
 // Only top-level conjunctive equality keys spanning the two inputs initialize
 // a join strategy. Comparisons inside branches remain ordinary scalar demand.
-func initializeJoinEquality(ctx context.Context, expr BoundExpr, leftWidth int) error {
-	if expr == nil {
+func initializeJoinEquality(ctx context.Context, bound expr.Expr, leftWidth int) error {
+	if bound == nil {
 		return nil
 	}
-	if logical, ok := expr.(logicalExpression); ok && logical.op == parser.LogicalAnd {
+	if logical, ok := bound.(logicalExpression); ok && logical.op == parser.LogicalAnd {
 		if err := initializeJoinEquality(ctx, logical.left, leftWidth); err != nil {
 			return err
 		}
 		return initializeJoinEquality(ctx, logical.right, leftWidth)
 	}
-	comparison, ok := expr.(comparisonExpression)
+	comparison, ok := bound.(comparisonExpression)
 	if !ok || comparison.operator != "=" {
 		return nil
 	}
-	side := func(expr BoundExpr) int {
+	side := func(bound expr.Expr) int {
 		result := 0
-		walkBoundExpression(expr, func(node BoundExpr) {
+		walkBoundExpression(bound, func(node expr.Expr) {
 			column, ok := node.(columnExpression)
 			if !ok || column.scope != 1 {
 				return

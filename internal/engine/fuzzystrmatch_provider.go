@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
@@ -51,7 +52,7 @@ func (p *fuzzystrmatchProvider) stage(e *Engine, stage *CatalogStage, ext *exten
 		}
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 		ext.members[i] = address
-		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, routineKind: functionRoutine, owner: owner, result: member.result, volatility: Immutable, strict: true, fuzzy: p}
+		proc := &procedureDescriptor{address: address, namespace: ext.targetNamespace, extension: ext.address, revision: revision, name: member.name, signature: member.signature, routineKind: functionRoutine, owner: owner, result: member.result, volatility: expr.Immutable, strict: true, fuzzy: p}
 		if stage.lookupName(descriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.name)}
 		}
@@ -70,7 +71,7 @@ func (p *fuzzystrmatchProvider) validate(v CatalogRead, ext *extensionDescriptor
 	var seen [len(fuzzystrmatchMembers)]bool
 	for _, address := range ext.members {
 		proc, ok := v.Procedure(address)
-		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.routineKind != functionRoutine || proc.volatility != Immutable || !proc.strict || proc.fuzzy != p || proc.intagg != nil || proc.uuidOssp != nil || proc.crypto != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || v.NameAddress(descriptorNameKey(proc)) != address {
+		if !ok || address.ClassID != ids.ProcedureClassID || address.ObjectID == 0 || address.SubID != 0 || proc.address != address || proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.revision == 0 || proc.routineKind != functionRoutine || proc.volatility != expr.Immutable || !proc.strict || proc.fuzzy != p || proc.intagg != nil || proc.uuidOssp != nil || proc.crypto != nil || proc.provider != nil || proc.queryCodec != nil || proc.conversion.Name() != "" || proc.dictionary != (ids.ObjectAddress{}) || v.NameAddress(descriptorNameKey(proc)) != address {
 			return invalid()
 		}
 		found := false

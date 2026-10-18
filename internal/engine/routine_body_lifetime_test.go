@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -100,7 +101,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 	sessionSQL(t, setup, "CREATE VIEW body_view AS SELECT bit_length('abc') AS v")
 	type recipe struct {
 		consumer *relationDescriptor
-		node     BoundExpr
+		node     expr.Expr
 		refs     []ids.ObjectRef
 		checks   []expressionDependency
 	}

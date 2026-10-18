@@ -1,11 +1,12 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqlstate"
 )
 
-func regexpSQL(call functions.RegexpCall, name string, render func(BoundExpr) (string, error), identifier func(string) string) (string, error) {
+func regexpSQL(call functions.RegexpCall, name string, render func(expr.Expr) (string, error), identifier func(string) string) (string, error) {
 	text := name + "("
 	for i, slot := range call.WrittenSlots[:len(call.Args)] {
 		if i > 0 {
@@ -24,7 +25,7 @@ func regexpSQL(call functions.RegexpCall, name string, render func(BoundExpr) (s
 }
 
 func preflightRegexpCall(c *EvalContext, call functions.RegexpCall, decisive bool) (functions.RegexpCall, bool, error) {
-	var args []BoundExpr
+	var args []expr.Expr
 	for i, old := range call.Args {
 		next, did, err := preflightCoercionsWithPolicy(c, old, decisive)
 		if err != nil {
@@ -32,7 +33,7 @@ func preflightRegexpCall(c *EvalContext, call functions.RegexpCall, decisive boo
 		}
 		if did {
 			if args == nil {
-				args = append([]BoundExpr(nil), call.Args...)
+				args = append([]expr.Expr(nil), call.Args...)
 			}
 			args[i] = next
 		}
@@ -42,7 +43,7 @@ func preflightRegexpCall(c *EvalContext, call functions.RegexpCall, decisive boo
 	}
 	return call, args != nil, nil
 }
-func sameRegexpCall(a, b functions.RegexpCall, same func(BoundExpr, BoundExpr) bool) bool {
+func sameRegexpCall(a, b functions.RegexpCall, same func(expr.Expr, expr.Expr) bool) bool {
 	if a.Plan != b.Plan || len(a.Args) != len(b.Args) {
 		return false
 	}
@@ -62,7 +63,7 @@ func (b *expressionBinder) regexpPlacement(call functions.RegexpCall) error {
 		if b.argumentOwner.window {
 			message = "window function calls cannot contain set-returning function calls"
 		}
-		err := expressionError("0A000", message, call.SourcePosition()).(*sqlstate.Error)
+		err := expr.ErrorAt("0A000", message, call.SourcePosition()).(*sqlstate.Error)
 		err.Hint = "You might be able to move the set-returning function into a LATERAL FROM item."
 		return err
 	}

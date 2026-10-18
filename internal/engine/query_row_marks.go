@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 )
 
@@ -183,7 +184,7 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virt
 		}
 		for _, name := range clause.Targets {
 			if len(name.Parts) != 1 {
-				return marks, expressionError("42601", clause.Mode+" must specify unqualified relation names", name.Parts[0].Pos)
+				return marks, expr.ErrorAt("42601", clause.Mode+" must specify unqualified relation names", name.Parts[0].Pos)
 			}
 			found := false
 			for _, target := range targets {
@@ -192,16 +193,16 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virt
 				}
 				found = true
 				if target.function {
-					return marks, expressionError("0A000", clause.Mode+" cannot be applied to a function", name.Parts[0].Pos)
+					return marks, expr.ErrorAt("0A000", clause.Mode+" cannot be applied to a function", name.Parts[0].Pos)
 				}
 				if target.cte {
-					return marks, expressionError("0A000", clause.Mode+" cannot be applied to a WITH query", name.Parts[0].Pos)
+					return marks, expr.ErrorAt("0A000", clause.Mode+" cannot be applied to a WITH query", name.Parts[0].Pos)
 				}
 				if target.join {
-					return marks, expressionError("0A000", clause.Mode+" cannot be applied to a join", name.Parts[0].Pos)
+					return marks, expr.ErrorAt("0A000", clause.Mode+" cannot be applied to a join", name.Parts[0].Pos)
 				}
 				if target.function {
-					return marks, expressionError("0A000", clause.Mode+" cannot be applied to a function", name.Parts[0].Pos)
+					return marks, expr.ErrorAt("0A000", clause.Mode+" cannot be applied to a function", name.Parts[0].Pos)
 				}
 				for _, occurrence := range target.occurrences {
 					if marks[occurrence].mode == 0 {
@@ -213,7 +214,7 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virt
 				break
 			}
 			if !found {
-				return marks, expressionError("42P01", fmt.Sprintf(`relation "%s" in %s clause not found in FROM clause`, name.Parts[0].Text, clause.Mode), name.Parts[0].Pos)
+				return marks, expr.ErrorAt("42P01", fmt.Sprintf(`relation "%s" in %s clause not found in FROM clause`, name.Parts[0].Text, clause.Mode), name.Parts[0].Pos)
 			}
 		}
 	}

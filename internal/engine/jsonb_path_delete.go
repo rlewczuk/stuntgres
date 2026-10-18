@@ -3,12 +3,13 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindJSONBPathDelete(raw parser.OperatorExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindJSONBPathDelete(raw parser.OperatorExpr) (expr.Expr, error) {
 	var operands [2]comparisonOperand
 	for i, arg := range raw.Args {
 		o, err := b.comparisonOperand(arg)
@@ -42,14 +43,14 @@ func (b *expressionBinder) bindJSONBPathDelete(raw parser.OperatorExpr) (BoundEx
 			}
 		}
 	}
-	args := make([]BoundExpr, 2)
-	properties := ExprProperties{}
+	args := make([]expr.Expr, 2)
+	properties := expr.Properties{}
 	for i, o := range operands {
 		args[i], err = b.coerceConditional(o, targets[i], "#-")
 		if err != nil {
 			return nil, err
 		}
-		properties = mergeExpressionProperties(properties, args[i].Properties())
+		properties = expr.MergeProperties(properties, args[i].Properties())
 	}
 	info := b.info(targets[0], raw.Pos, properties)
 	node, err := functions.NewBinary(info, "#-", args, parser.OrdinaryFunctionSyntax)

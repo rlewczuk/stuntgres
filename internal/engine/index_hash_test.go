@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -184,7 +185,7 @@ func TestHashIndexMetadataAndForeignReplacement(t *testing.T) {
 		want.IndCollation = []ids.OID{tc.collation}
 		want.IndOption = []int16{0}
 		if tc.attribute == 0 {
-			want.IndexExpressions = []BoundExpr{index.sqlIndex.keys[0].derived.definition}
+			want.IndexExpressions = []expr.Expr{index.sqlIndex.keys[0].derived.definition}
 		}
 		if !reflect.DeepEqual(got, want) || names != (indexesMetadata{SchemaName: "public", TableName: "t", IndexName: tc.name, IndexDef: tc.definition}) {
 			t.Fatal(got, names, want)

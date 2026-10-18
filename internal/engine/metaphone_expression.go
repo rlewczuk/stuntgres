@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 )
@@ -14,7 +15,7 @@ type installedMetaphoneFunctionExpression struct {
 
 // Rebuild keeps the installed-routine identity; the promoted Rebuild would
 // return the bare functions node.
-func (e installedMetaphoneFunctionExpression) Rebuild(info expressionInfo, children []BoundExpr) (BoundExpr, error) {
+func (e installedMetaphoneFunctionExpression) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	node, err := e.Metaphone.Rebuild(info, children)
 	if err != nil {
 		return nil, err

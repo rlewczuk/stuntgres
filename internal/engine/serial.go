@@ -3,6 +3,7 @@ package engine
 import (
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -70,7 +71,7 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *relationDescript
 }
 
 // Only fixed nextval leaves remain volatile inside constructor/field/cast wrappers.
-func closedSequenceDefault(node BoundExpr) bool {
+func closedSequenceDefault(node expr.Expr) bool {
 	if node == nil || node.Properties().RowDependent || node.Properties().ParameterDependent || node.Properties().StageDependent {
 		return false
 	}
@@ -79,7 +80,7 @@ func closedSequenceDefault(node BoundExpr) bool {
 		return closedSequenceDefault(n.child)
 	case rowExpression:
 		for _, field := range n.fields {
-			if field.Properties().Volatility > Stable && !closedSequenceDefault(field) {
+			if field.Properties().Volatility > expr.Stable && !closedSequenceDefault(field) {
 				return false
 			}
 		}
@@ -87,11 +88,11 @@ func closedSequenceDefault(node BoundExpr) bool {
 	case fieldExpression:
 		return closedSequenceDefault(n.base)
 	case sequenceCallExpression:
-		if n.name != "nextval" || n.identity || len(n.args) != 1 || n.ref == (ids.ObjectRef{}) || n.ResultUsage().Type.ID() != sqltype.Int8 || n.Properties() != (ExprProperties{Volatility: Volatile}) {
+		if n.name != "nextval" || n.identity || len(n.args) != 1 || n.ref == (ids.ObjectRef{}) || n.ResultUsage().Type.ID() != sqltype.Int8 || n.Properties() != (expr.Properties{Volatility: expr.Volatile}) {
 			return false
 		}
 		literal, ok := n.args[0].(literalExpression)
-		if !ok || literal.value.IsNull() || literal.ResultUsage().Type.ID() != sqltype.Regclass || literal.Properties() != (ExprProperties{}) {
+		if !ok || literal.value.IsNull() || literal.ResultUsage().Type.ID() != sqltype.Regclass || literal.Properties() != (expr.Properties{}) {
 			return false
 		}
 		text, err := literal.value.Text()
@@ -100,7 +101,7 @@ func closedSequenceDefault(node BoundExpr) bool {
 	return false
 }
 
-func closedRegclassDefault(node BoundExpr) bool {
+func closedRegclassDefault(node expr.Expr) bool {
 	if node == nil || node.Properties().RowDependent || node.Properties().ParameterDependent || node.Properties().StageDependent {
 		return false
 	}

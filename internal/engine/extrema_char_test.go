@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -27,13 +28,13 @@ func TestExtremaCharConversionAndRemap(t *testing.T) {
 			if null {
 				v = sqltype.Null(char)
 			}
-			child := literalExpression{expressionInfo: expressionInfo{Usage: char.Usage()}, value: v}
+			child := literalExpression{Info: expr.Info{Usage: char.Usage()}, value: v}
 			plan, err := sqltype.PlanCoercion(char.Usage(), text.Usage(), sqltype.Implicit)
 			if err != nil {
 				t.Fatal(err)
 			}
-			node := coercionExpression{expressionInfo{Usage: text.Usage()}, child, plan, sqltype.Implicit, false}
-			check := func(expression BoundExpr, owner *sqltype.Descriptor) {
+			node := coercionExpression{expr.Info{Usage: text.Usage()}, child, plan, sqltype.Implicit, false}
+			check := func(expression expr.Expr, owner *sqltype.Descriptor) {
 				got, err := expression.Eval(&EvalContext{Context: ctx})
 				if err != nil || got.Type() != owner || got.IsNull() != null {
 					t.Fatal(got, err)

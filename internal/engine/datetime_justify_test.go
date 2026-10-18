@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -12,22 +13,22 @@ import (
 
 func TestDatetimeJustifyBindingPropertiesRemap(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	var previous BoundExpr
+	var previous expr.Expr
 	for _, name := range []string{"justify_days", "justify_hours", "justify_interval"} {
 		node, err := b.bindFunctionProvider(datetimeMakeRaw(name, ageFiniteTyped("interval", "30 days")))
 		if err != nil {
 			t.Fatal(err)
 		}
 		e := node.(functions.DatetimeJustify)
-		if e.ResultUsage().Type.ID() != sqltype.Interval || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != Immutable || plannedVolatility(e) != Immutable || !generationImmutable(e) {
+		if e.ResultUsage().Type.ID() != sqltype.Interval || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != expr.Immutable || plannedVolatility(e) != expr.Immutable || !generationImmutable(e) {
 			t.Fatal(e.Properties(), e.ResultUsage())
 		}
 		if !b.sameGroupExpression(e, e) || previous != nil && b.sameGroupExpression(previous, e) {
 			t.Fatal("function identity lost")
 		}
 		previous = e
-		var walked []BoundExpr
-		boundExpressionChildren(e, func(child BoundExpr) { walked = append(walked, child) })
+		var walked []expr.Expr
+		boundExpressionChildren(e, func(child expr.Expr) { walked = append(walked, child) })
 		if len(walked) != 1 || walked[0] != e.Arg {
 			t.Fatal("unary traversal", walked)
 		}
@@ -75,7 +76,7 @@ func TestDatetimeJustifyParameterAndStrictNull(t *testing.T) {
 			t.Fatal(err)
 		}
 		e := null.(functions.DatetimeJustify)
-		e.Arg = literalExpression{boundExpressionInfo(e), sqltype.Null(e.ResultUsage().Type)}
+		e.Arg = literalExpression{expr.InfoOf(e), sqltype.Null(e.ResultUsage().Type)}
 		v, err := e.Eval(&EvalContext{Context: context.Background()})
 		if err != nil || !v.IsNull() || v.Type() != e.ResultUsage().Type {
 			t.Fatal(v, err)

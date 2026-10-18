@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -20,9 +21,9 @@ type sequenceConstant struct {
 	represented bool
 }
 type sequenceCallExpression struct {
-	expressionInfo
+	expr.Info
 	name      string
-	args      []BoundExpr
+	args      []expr.Expr
 	ref       ids.ObjectRef
 	temporary ids.SessionToken
 	identity  bool
@@ -57,14 +58,14 @@ func (b *expressionBinder) sequenceSignatureError(r parser.CallExpr) error {
 			}
 		}
 	}
-	diagnostic := expressionError("42883", fmt.Sprintf("function %s(%s) does not exist", objectNameText(r.Name), strings.Join(names, ", ")), r.SourcePosition()).(*sqlstate.Error)
+	diagnostic := expr.ErrorAt("42883", fmt.Sprintf("function %s(%s) does not exist", objectNameText(r.Name), strings.Join(names, ", ")), r.SourcePosition()).(*sqlstate.Error)
 	diagnostic.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
 	return diagnostic
 }
-func (b *expressionBinder) bindSequenceCall(r parser.CallExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindSequenceCall(r parser.CallExpr) (expr.Expr, error) {
 	name := r.Name.Parts[len(r.Name.Parts)-1].Text
 	if b.defaultConsumer && (name != "nextval" || len(r.Args) != 1) {
-		return nil, expressionError("0A000", "functions are unsupported", r.SourcePosition())
+		return nil, expr.ErrorAt("0A000", "functions are unsupported", r.SourcePosition())
 	}
 	visible, err := b.builtinVisible(r.Name, functionLookup)
 	if err != nil {
@@ -84,21 +85,21 @@ func (b *expressionBinder) bindSequenceCall(r parser.CallExpr) (BoundExpr, error
 	if count != want && !(name == "setval" && count == 3) {
 		return nil, b.sequenceSignatureError(r)
 	}
-	args := make([]BoundExpr, count)
-	properties := ExprProperties{Volatility: Stable}
+	args := make([]expr.Expr, count)
+	properties := expr.Properties{Volatility: expr.Stable}
 	if name == "nextval" || name == "setval" {
-		properties.Volatility = Volatile
+		properties.Volatility = expr.Volatile
 	}
 	var ref ids.ObjectRef
 	for i, raw := range r.Args {
-		var node BoundExpr
+		var node expr.Expr
 		var err error
 		if i == 0 {
 			if b.defaultConsumer {
 				node, ref, err = b.bindRegclass(raw)
 				literal, ok := node.(literalExpression)
 				if err == nil && (!ok || literal.value.IsNull() || ref == (ids.ObjectRef{})) {
-					return nil, expressionError("0A000", "unsupported sequence DEFAULT argument", parser.ExpressionStart(raw))
+					return nil, expr.ErrorAt("0A000", "unsupported sequence DEFAULT argument", parser.ExpressionStart(raw))
 				}
 			} else {
 				node, ref, err = b.bindRegclass(raw)
@@ -147,12 +148,12 @@ func (b *expressionBinder) bindSequenceCall(r parser.CallExpr) (BoundExpr, error
 			// input even when another input is volatile. Keep analysis captures
 			// and parameter types, but never evaluate the eliminated argument tree.
 			typ := b.typ(sqltype.Int8)
-			return literalExpression{b.info(typ.Usage(), r.SourcePosition(), ExprProperties{}), sqltype.Null(typ)}, nil
+			return literalExpression{b.info(typ.Usage(), r.SourcePosition(), expr.Properties{}), sqltype.Null(typ)}, nil
 		}
 	}
-	return sequenceCallExpression{expressionInfo: info, name: name, args: args, ref: ref, temporary: temporary}, nil
+	return sequenceCallExpression{Info: info, name: name, args: args, ref: ref, temporary: temporary}, nil
 }
-func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ids.ObjectRef, error) {
+func (b *expressionBinder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectRef, error) {
 	if err := qualifiedCastChild(raw); err != nil {
 		return nil, ids.ObjectRef{}, err
 	}
@@ -198,7 +199,7 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ids.ObjectR
 		}
 		b.sequenceConstants = append(b.sequenceConstants, sequenceConstant{offset: literal.Value.Pos.Offset, ref: ref, temporary: temporary, stamp: stamp, represented: represented})
 		text := strconv.FormatUint(uint64(ref.Address.ObjectID), 10)
-		info := b.info(typ.Usage(), literal.Value.Pos, ExprProperties{})
+		info := b.info(typ.Usage(), literal.Value.Pos, expr.Properties{})
 		if _, ok := auth.definitionRelation(ref.Address); ok {
 			info.RegclassRef = ref
 		}
@@ -230,7 +231,7 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ids.ObjectR
 // Explicit casts share name input with sequence consumers but use the ordinary
 // coercion matrix for typed sources. Keep coercion nodes: they are not stored
 // regclass input constants and must not acquire relation dependencies.
-func (b *expressionBinder) bindRegclassCast(raw parser.Expr, pos parser.Position) (BoundExpr, error) {
+func (b *expressionBinder) bindRegclassCast(raw parser.Expr, pos parser.Position) (expr.Expr, error) {
 	if err := qualifiedCastChild(raw); err != nil {
 		return nil, err
 	}
@@ -248,7 +249,7 @@ func (b *expressionBinder) bindRegclassCast(raw parser.Expr, pos parser.Position
 	}
 	plan, err := sqltype.PlanCoercion(child.ResultUsage(), target, sqltype.Explicit)
 	if err != nil {
-		return nil, expressionError("42846", fmt.Sprintf("cannot cast type %s to regclass", b.diagnosticTypeName(child.ResultUsage().Type)), pos)
+		return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to regclass", b.diagnosticTypeName(child.ResultUsage().Type)), pos)
 	}
 	if child.ResultUsage() == target {
 		return child, nil
@@ -395,7 +396,7 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 	}
 	return 0, sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, objectNameText(name)))
 }
-func (x sequenceCallExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err

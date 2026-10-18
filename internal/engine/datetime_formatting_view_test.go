@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -28,7 +29,7 @@ func TestDatetimeFormattingViewCastUsage(t *testing.T) {
 		Child:    parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "timestamp"}, Text: "2000-01-01 00:00:00"},
 		TypeName: parser.TypeName{Name: "timestamp", Modifiers: []parser.TypeModifier{{Integer: &precision}}},
 	}
-	node := coercionExpression{expressionInfo{Usage: target}, literalExpression{expressionInfo{Usage: timestamp.Usage()}, value}, plan, sqltype.Explicit, false}
+	node := coercionExpression{expr.Info{Usage: target}, literalExpression{expr.Info{Usage: timestamp.Usage()}, value}, plan, sqltype.Explicit, false}
 	if err := b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +55,7 @@ func TestDatetimeFormattingViewCastUsage(t *testing.T) {
 		t.Fatal(err)
 	}
 	outerRaw := parser.CastExpr{Child: raw, TypeName: parser.TypeName{Name: "text"}}
-	outerNode := coercionExpression{expressionInfo{Usage: text.Usage()}, node, outerPlan, sqltype.Explicit, false}
+	outerNode := coercionExpression{expr.Info{Usage: text.Usage()}, node, outerPlan, sqltype.Explicit, false}
 	b.viewLiterals, b.viewCastUsages = nil, nil
 	if err := b.captureViewLiterals(outerRaw, outerNode, viewTargetLiteral, 0); err != nil {
 		t.Fatal(err)

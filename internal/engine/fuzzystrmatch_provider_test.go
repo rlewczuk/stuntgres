@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -39,7 +40,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		t.Fatal("member count", ext.members)
 	}
 	proc := view.MustProcedure(ext.members[0])
-	if proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.owner != ext.owner || proc.result != 1009 || proc.signature != "25" || proc.volatility != Immutable || !proc.strict || proc.fuzzy != stockFuzzystrmatch {
+	if proc.namespace != ext.targetNamespace || proc.extension != ext.address || proc.owner != ext.owner || proc.result != 1009 || proc.signature != "25" || proc.volatility != expr.Immutable || !proc.strict || proc.fuzzy != stockFuzzystrmatch {
 		t.Fatal("installed identity", proc)
 	}
 	expected := map[string]ids.OID{"daitch_mokotoff:25": 1009, "levenshtein:25,25": 23, "levenshtein:25,25,23,23,23": 23, "levenshtein_less_equal:25,25,23": 23, "levenshtein_less_equal:25,25,23,23,23,23": 23, "metaphone:25,23": 25, "dmetaphone:25": 25, "dmetaphone_alt:25": 25, "soundex:25": 25, "difference:25,25": 23}
@@ -47,7 +48,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 	for _, address := range ext.members {
 		member := view.MustProcedure(address)
 		key := member.name + ":" + string(member.signature)
-		if expected[key] == 0 || member.result != expected[key] || addresses[address] || member.owner != proc.owner || member.namespace != ext.targetNamespace || member.extension != ext.address || member.volatility != Immutable || !member.strict || member.fuzzy != stockFuzzystrmatch {
+		if expected[key] == 0 || member.result != expected[key] || addresses[address] || member.owner != proc.owner || member.namespace != ext.targetNamespace || member.extension != ext.address || member.volatility != expr.Immutable || !member.strict || member.fuzzy != stockFuzzystrmatch {
 			t.Fatal("selected member identity", member)
 		}
 		delete(expected, key)
@@ -82,7 +83,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 	}
 	for _, mutate := range []func(*procedureDescriptor){
 		func(p *procedureDescriptor) { p.name = "text_soundex" }, func(p *procedureDescriptor) { p.signature = "23" },
-		func(p *procedureDescriptor) { p.result = 25 }, func(p *procedureDescriptor) { p.volatility = Stable },
+		func(p *procedureDescriptor) { p.result = 25 }, func(p *procedureDescriptor) { p.volatility = expr.Stable },
 		func(p *procedureDescriptor) { p.strict = false }, func(p *procedureDescriptor) { p.provider = stockUnaccent },
 		func(p *procedureDescriptor) { p.queryCodec = stockIntarray }, func(p *procedureDescriptor) { p.fuzzy = &fuzzystrmatchProvider{version: "1.2"} },
 		func(p *procedureDescriptor) { p.namespace = ids.ObjectAddress{} }, func(p *procedureDescriptor) { p.extension = ids.ObjectAddress{} },
@@ -183,12 +184,12 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 }
 
 type daitchCountingArgument struct {
-	expressionInfo
+	expr.Info
 	calls *int
 	value sqltype.Value
 }
 
-func (a daitchCountingArgument) Eval(ExprContext) (sqltype.Value, error) {
+func (a daitchCountingArgument) Eval(expr.Context) (sqltype.Value, error) {
 	*a.calls++
 	return a.value, nil
 }
@@ -199,7 +200,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	ctx := &EvalContext{Context: context.Background()}
 	value, err := n.Eval(ctx)
 	text, _ := n.Usage.Type.Output(ctx.Context, value)
-	if err != nil || text != "{794575,794574,794750,794740,745750,745740,747500,747400}" || plannedVolatility(n) != Immutable || !generationImmutable(n) {
+	if err != nil || text != "{794575,794574,794750,794740,745750,745740,747500,747400}" || plannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
 		t.Fatal("immutable complete evaluation", text, err)
 	}
 	if n.ref.Address != ext.members[0] || n.dictionary != nil || n.template != nil || value.Type() != n.Usage.Type || value.ArrayLen() != 8 {
@@ -237,7 +238,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 		t.Fatal("corrupt installed generation manifest admitted")
 	}
 	children := 0
-	boundExpressionChildren(n, func(BoundExpr) { children++ })
+	boundExpressionChildren(n, func(expr.Expr) { children++ })
 	if children != 1 || !sameGroupExpression(n, n) {
 		t.Fatal("walker/group identity", children)
 	}
@@ -269,9 +270,9 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 		t.Fatal("foreign generation evaluated")
 	}
 	calls := 0
-	n.Arg = daitchCountingArgument{expressionInfo: expressionInfo{Usage: n.Arg.ResultUsage(), Property: ExprProperties{Volatility: Volatile}}, calls: &calls, value: sqltype.Null(n.Arg.ResultUsage().Type)}
+	n.Arg = daitchCountingArgument{Info: expr.Info{Usage: n.Arg.ResultUsage(), Property: expr.Properties{Volatility: expr.Volatile}}, calls: &calls, value: sqltype.Null(n.Arg.ResultUsage().Type)}
 	v, err := n.Eval(ctx)
-	if err != nil || calls != 1 || !v.IsNull() || v.Type() != n.Usage.Type || plannedVolatility(n) != Volatile || generationImmutable(n) {
+	if err != nil || calls != 1 || !v.IsNull() || v.Type() != n.Usage.Type || plannedVolatility(n) != expr.Volatile || generationImmutable(n) {
 		t.Fatal("strict single eval/child volatility", calls, v, err)
 	}
 	ctxCanceled, cancel := context.WithCancel(ctx.Context)
@@ -282,7 +283,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	unaccent, _, _ := extensionUnitInstalled(t)
 	b := newTestExpressionBinder(t, ctx.Context, unaccent, sqltype.InputEnvironment{}, nil)
 	u, err := b.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unaccent"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Hôtel"}}}})
-	if err != nil || plannedVolatility(u) != Stable || generationImmutable(u) {
+	if err != nil || plannedVolatility(u) != expr.Stable || generationImmutable(u) {
 		t.Fatal("unaccent remains stable", u, err)
 	}
 }

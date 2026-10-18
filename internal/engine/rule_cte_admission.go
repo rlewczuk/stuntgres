@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/parser"
+import (
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/parser"
+)
 
 // PostgreSQL checks the action's own WITH and INSERT source SELECT's WITH,
 // not WITHs in nested subqueries or the enclosing statement. Position selects
@@ -29,11 +32,11 @@ func validateRuleActionCTEs(action parser.Statement, b binding) error {
 	}
 	old, new := false, false
 	var inspectQuery func(LogicalNode)
-	sides := func(expr BoundExpr) {
-		if expr == nil {
+	sides := func(bound expr.Expr) {
+		if bound == nil {
 			return
 		}
-		walkBoundExpression(expr, func(node BoundExpr) {
+		walkBoundExpression(bound, func(node expr.Expr) {
 			switch node := node.(type) {
 			case columnExpression:
 				if node.scope == rulePseudoScope {
@@ -47,12 +50,12 @@ func validateRuleActionCTEs(action parser.Statement, b binding) error {
 		})
 	}
 	inspectQuery = func(root LogicalNode) { visitCTEQuery(root, func(LogicalNode) {}, sides, true) }
-	inspectExpression := func(expr BoundExpr) {
-		if expr == nil {
+	inspectExpression := func(bound expr.Expr) {
+		if bound == nil {
 			return
 		}
-		sides(expr)
-		walkBoundExpression(expr, func(node BoundExpr) {
+		sides(bound)
+		walkBoundExpression(bound, func(node expr.Expr) {
 			if query, ok := node.(subqueryExpression); ok {
 				inspectQuery(query.queryPlan.Root)
 			}
@@ -124,8 +127,8 @@ func validateRuleActionCTEs(action parser.Statement, b binding) error {
 		}
 	}
 	if b.query != nil {
-		visitCTEQuery(b.query.Root, func(LogicalNode) {}, func(expr BoundExpr) {
-			walkBoundExpression(expr, func(node BoundExpr) {
+		visitCTEQuery(b.query.Root, func(LogicalNode) {}, func(bound expr.Expr) {
+			walkBoundExpression(bound, func(node expr.Expr) {
 				if query, ok := node.(subqueryExpression); ok && query.cteDefinition && owned(query.Pos) {
 					for _, definition := range b.ctes {
 						if definition.query == query.queryPlan && owned(definition.position) {

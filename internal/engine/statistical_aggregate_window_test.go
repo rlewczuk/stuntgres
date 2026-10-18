@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -41,7 +42,7 @@ func TestStatisticalAggregateWindowSignatures(t *testing.T) {
 				}
 				before := append([]aggregateCall(nil), b.aggregates...)
 				callee := parser.ObjectName{Parts: []parser.Identifier{{Text: name, Pos: raw.Pos}}}
-				var argument BoundExpr
+				var argument expr.Expr
 				usage, err := b.resolveWindowAggregateSignature(raw, callee, &argument)
 				if tc.code == "" {
 					want := tc.result

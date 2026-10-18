@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -65,7 +66,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 				}
 			}
 			e.mu.Unlock()
-			getter := namespaceInquiryExpression{expressionInfo: expressionInfo{Usage: oidType.Usage(), Property: ExprProperties{Volatility: Stable}}, kind: myTempNamespace}
+			getter := namespaceInquiryExpression{Info: expr.Info{Usage: oidType.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, kind: myTempNamespace}
 			value, err := getter.Eval(&EvalContext{Context: context.Background(), statementScope: scope})
 			if err != nil {
 				t.Fatal(err)
@@ -78,7 +79,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			if err != nil || toast == (ids.ObjectAddress{}) {
 				t.Fatal("TOAST pair", err)
 			}
-			classifier := namespaceInquiryExpression{expressionInfo: expressionInfo{Usage: boolType.Usage(), Property: ExprProperties{Volatility: Stable}}, kind: otherTempNamespace, arg: literalExpression{expressionInfo: expressionInfo{Usage: oidType.Usage()}, value: input}}
+			classifier := namespaceInquiryExpression{Info: expr.Info{Usage: boolType.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, kind: otherTempNamespace, arg: literalExpression{Info: expr.Info{Usage: oidType.Usage()}, value: input}}
 			value, err = classifier.Eval(&EvalContext{Context: context.Background(), statementScope: scope})
 			if err != nil {
 				t.Fatal(err)
@@ -124,12 +125,12 @@ func TestNamespaceIdentityStoredValidation(t *testing.T) {
 	view := e.CatalogRead()
 	oidType, _ := view.LookupType(sqltype.Oid)
 	boolType, _ := view.LookupType(sqltype.Bool)
-	n := namespaceInquiryExpression{expressionInfo: expressionInfo{Usage: oidType.Usage(), Property: ExprProperties{Volatility: Stable}}, kind: myTempNamespace}
+	n := namespaceInquiryExpression{Info: expr.Info{Usage: oidType.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, kind: myTempNamespace}
 	if err := n.validateStored(); err != nil {
 		t.Fatal(err)
 	}
 	bad := n
-	bad.Property.Volatility = Immutable
+	bad.Property.Volatility = expr.Immutable
 	if bad.validateStored() == nil {
 		t.Fatal("lost stable volatility accepted")
 	}
@@ -141,7 +142,7 @@ func TestNamespaceIdentityStoredValidation(t *testing.T) {
 	n.kind = otherTempNamespace
 	n.Usage = boolType.Usage()
 	value, _ := sqltype.OIDValue(oidType, 0)
-	n.arg = literalExpression{expressionInfo: expressionInfo{Usage: oidType.Usage()}, value: value}
+	n.arg = literalExpression{Info: expr.Info{Usage: oidType.Usage()}, value: value}
 	if err := n.validateStored(); err != nil {
 		t.Fatal(err)
 	}
@@ -162,11 +163,11 @@ func TestNamespaceIdentityTypedBinding(t *testing.T) {
 	query := domainUnitBindSelect(t, e, op, "SELECT pg_my_temp_schema(),pg_is_other_temp_schema($1)")
 	expressions := query.Root.(*projectNode).expressions
 	getter, ok := expressions[0].(namespaceInquiryExpression)
-	if !ok || getter.kind != myTempNamespace || getter.arg != nil || getter.ResultUsage().Type.ID() != sqltype.Oid || getter.Properties().Volatility != Stable {
+	if !ok || getter.kind != myTempNamespace || getter.arg != nil || getter.ResultUsage().Type.ID() != sqltype.Oid || getter.Properties().Volatility != expr.Stable {
 		t.Fatal("getter typed node", expressions[0])
 	}
 	classifier, ok := expressions[1].(namespaceInquiryExpression)
-	if !ok || classifier.kind != otherTempNamespace || classifier.arg == nil || classifier.arg.ResultUsage().Type.ID() != sqltype.Oid || classifier.ResultUsage().Type.ID() != sqltype.Bool || classifier.Properties().Volatility != Stable || !classifier.Properties().ParameterDependent {
+	if !ok || classifier.kind != otherTempNamespace || classifier.arg == nil || classifier.arg.ResultUsage().Type.ID() != sqltype.Oid || classifier.ResultUsage().Type.ID() != sqltype.Bool || classifier.Properties().Volatility != expr.Stable || !classifier.Properties().ParameterDependent {
 		t.Fatal("classifier typed OID inference", expressions[1])
 	}
 	if err := getter.validateStored(); err != nil {

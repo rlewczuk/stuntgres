@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -95,10 +96,10 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 		switch key {
 		case "from", "provider", "deterministic", "locale", "lc_collate", "lc_ctype", "rules", "version":
 		default:
-			return expressionError("42601", fmt.Sprintf(`collation attribute "%s" not recognized`, key), o.Name.Pos)
+			return expr.ErrorAt("42601", fmt.Sprintf(`collation attribute "%s" not recognized`, key), o.Name.Pos)
 		}
 		if options[key] != nil {
-			return expressionError("42601", "conflicting or redundant options", o.Name.Pos)
+			return expr.ErrorAt("42601", "conflicting or redundant options", o.Name.Pos)
 		}
 		options[key] = o
 	}

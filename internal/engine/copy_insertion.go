@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -30,7 +31,7 @@ type copyInsertionState struct {
 func newCopyInsertionState(cursor copyInsertionCursor, b binding) *copyInsertionState {
 	state := &copyInsertionState{cursor: cursor}
 	for _, expression := range b.defaults {
-		if plannedPhysicalVolatility(expression, true) == Volatile {
+		if plannedPhysicalVolatility(expression, true) == expr.Volatile {
 			state.single = true
 			break
 		}

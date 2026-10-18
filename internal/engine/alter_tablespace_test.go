@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -195,7 +196,7 @@ func TestAlterTablespaceInheritanceTypeCapture(t *testing.T) {
 	assertRootOrigin := func(captured alterTypePreparation) {
 		t.Helper()
 		columns := 0
-		walkBoundExpression(captured.transformation.expression, func(expression BoundExpr) {
+		walkBoundExpression(captured.transformation.expression, func(expression expr.Expr) {
 			if column, ok := expression.(columnExpression); ok {
 				columns++
 				if column.origin != rootColumn || column.slot != 0 || column.ResultUsage().Type.ID() != sqltype.Int4 {

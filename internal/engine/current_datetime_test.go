@@ -28,7 +28,7 @@ func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 			t.Fatal(raw, err)
 		}
 		node, ok := bound.(functions.CurrentDateTime)
-		if !ok || node.Properties() != (ExprProperties{Volatility: Stable}) || node.ResultUsage().Type.ID() != functions.CurrentDateTimeType(kind) || plannedVolatility(node) != Stable || generationImmutable(node) {
+		if !ok || node.Properties() != (expr.Properties{Volatility: expr.Stable}) || node.ResultUsage().Type.ID() != functions.CurrentDateTimeType(kind) || plannedVolatility(node) != expr.Stable || generationImmutable(node) {
 			t.Fatal(raw, node)
 		}
 		sql, err := functions.CurrentDateTimeSQL(node)

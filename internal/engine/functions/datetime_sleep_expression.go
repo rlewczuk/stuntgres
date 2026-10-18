@@ -61,7 +61,7 @@ func (x DatetimeSleep) Eval(c expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if !x.Validate(c.FunctionPropertiesMatch(x.Property, VolatileOnly), c.FunctionSleepArgumentPresent(x.Arg)) {
+	if !x.Validate(c.FunctionPropertiesMatch(x.Property, expr.VolatileOnly), c.FunctionSleepArgumentPresent(x.Arg)) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid datetime sleep expression")
 	}
 	value, err := x.Arg.Eval(c)
@@ -228,7 +228,7 @@ func (x DatetimeSleep) Reconstruct(info expr.Info, arg expr.Expr, clock sqltype.
 	x.Info, x.Arg, x.ClockUsage, x.Calendar = info, arg, clock, calendar
 	return x, nil
 }
-func DatetimeSleepIntrinsicRule() IntrinsicPropertyRule { return VolatileOnly }
+func DatetimeSleepIntrinsicRule() expr.IntrinsicPropertyRule { return expr.VolatileOnly }
 
 // DatetimeSleep implements expr.Composite. Rebuild keeps the bound clock usage.
 var _ expr.Composite = DatetimeSleep{}

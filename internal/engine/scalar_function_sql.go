@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 // The common sql entry validates provenance and records dependencies once.
-func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead, node BoundExpr, u sqltype.Usage) (string, error) {
+func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead, node expr.Expr, u sqltype.Usage) (string, error) {
 	switch n := node.(type) {
 	case functions.JSONRecord:
 		if _, err := n.Reconstruct(n.Info, n.Args); err != nil {
@@ -128,7 +129,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			return "", fmt.Errorf("stuntgres: missing stored function namespace")
 		}
 		r.record(n.ref)
-		return r.functionSQL(ctx, view, quoteIdentifier(namespace.name)+"."+quoteIdentifier(proc.name), []BoundExpr{n.Arg})
+		return r.functionSQL(ctx, view, quoteIdentifier(namespace.name)+"."+quoteIdentifier(proc.name), []expr.Expr{n.Arg})
 	case functions.UUIDGeneration:
 		if u.Type.ID() != sqltype.UUID || (n.Name != "uuidv7" && n.Name != "uuidv4" && n.Name != "gen_random_uuid") || len(n.Args) > 1 || len(n.Args) != 0 && n.Name != "uuidv7" {
 			return "", fmt.Errorf("stuntgres: invalid stored UUID generation signature")
@@ -183,7 +184,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 			return "", err
 		}
 		if n.Plan.Name() != "||" && n.Plan.Name() != "-" && n.Plan.Name() != "#-" && !jsonbContainmentName(n.Plan.Name()) && !jsonbExistenceName(n.Plan.Name()) && !jsonExtractionName(n.Plan.Name()) {
-			return renderBinaryCall(n.Plan.Name(), n.Syntax, n.Args, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
+			return renderBinaryCall(n.Plan.Name(), n.Syntax, n.Args, "pg_catalog."+n.Plan.Name(), func(arg expr.Expr) (string, error) { return r.sql(ctx, view, arg) })
 		}
 		left, err := r.sql(ctx, view, n.Args[0])
 		if err != nil {
@@ -197,9 +198,9 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 	case functions.DatetimeJustify:
 		return r.functionSQL(ctx, view, "pg_catalog."+n.Plan.Name(), n.Arguments())
 	case functions.DatetimeExtract:
-		return datetimeExtractLogicalSQL(n, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
+		return datetimeExtractLogicalSQL(n, "pg_catalog."+n.Plan.Name(), func(arg expr.Expr) (string, error) { return r.sql(ctx, view, arg) })
 	case functions.DatetimeOverlaps:
-		return datetimeOverlapsLogicalSQL(n, func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
+		return datetimeOverlapsLogicalSQL(n, func(arg expr.Expr) (string, error) { return r.sql(ctx, view, arg) })
 	case functions.DatetimeBin:
 		return r.functionSQL(ctx, view, "pg_catalog.date_bin", n.Arguments())
 	case functions.DatetimeTrunc:
@@ -207,23 +208,23 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 	case functions.DatetimeAgeFinite:
 		return r.functionSQL(ctx, view, "pg_catalog."+n.Plan.Name(), n.Arguments())
 	case functions.JSONStripNulls:
-		return functions.JSONStripNullsSQL(n, "pg_catalog.json_strip_nulls", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
+		return functions.JSONStripNullsSQL(n, "pg_catalog.json_strip_nulls", func(arg expr.Expr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.JSONExtract:
-		return functions.JSONExtractSQL(n, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
+		return functions.JSONExtractSQL(n, "pg_catalog."+n.Plan.Name(), func(arg expr.Expr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.JSONBPathQueryArray:
-		return functions.JSONBPathQueryArraySQL(n, "pg_catalog.jsonb_path_query_array", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
+		return functions.JSONBPathQueryArraySQL(n, "pg_catalog.jsonb_path_query_array", func(arg expr.Expr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.JSONBPathExists:
-		return functions.JSONBPathExistsSQL(n, "pg_catalog.jsonb_path_exists", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
+		return functions.JSONBPathExistsSQL(n, "pg_catalog.jsonb_path_exists", func(arg expr.Expr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.JSONBPathMatch:
-		return functions.JSONBPathMatchSQL(n, "pg_catalog.jsonb_path_match", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
+		return functions.JSONBPathMatchSQL(n, "pg_catalog.jsonb_path_match", func(arg expr.Expr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.JSONBPathQueryFirst:
-		return functions.JSONBPathQueryFirstSQL(n, "pg_catalog.jsonb_path_query_first", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
+		return functions.JSONBPathQueryFirstSQL(n, "pg_catalog.jsonb_path_query_first", func(arg expr.Expr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.JSONBPathQuery:
-		return functions.JSONBPathQuerySQL(n, "pg_catalog.jsonb_path_query", func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
+		return functions.JSONBPathQuerySQL(n, "pg_catalog.jsonb_path_query", func(arg expr.Expr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.JSONBSet:
-		return functions.JSONBSetSQL(n, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
+		return functions.JSONBSetSQL(n, "pg_catalog."+n.Plan.Name(), func(arg expr.Expr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.DatetimeMake:
-		return datetimeMakeSQL(n, "pg_catalog."+n.Plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
+		return datetimeMakeSQL(n, "pg_catalog."+n.Plan.Name(), func(arg expr.Expr) (string, error) { return r.sql(ctx, view, arg) }, quoteIdentifier)
 	case functions.DatetimeFormatting:
 		return r.functionSQL(ctx, view, "pg_catalog."+n.Plan.Name(), n.Args[:])
 	case functions.NumericFormatting:
@@ -291,28 +292,28 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		}
 		return "pg_catalog." + name + "(" + strings.Join(parts, ", ") + ")", nil
 	case functions.ArrayRandom:
-		return functions.ArrayRandomSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) })
+		return functions.ArrayRandomSQL(n, func(child expr.Expr) (string, error) { return r.sql(ctx, view, child) })
 	case functions.ArrayTransform:
-		return functions.ArrayTransformSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, func(namespace, name string) string {
+		return functions.ArrayTransformSQL(n, func(child expr.Expr) (string, error) { return r.sql(ctx, view, child) }, func(namespace, name string) string {
 			if namespace != "" {
 				return "OPERATOR(" + quoteIdentifier(namespace) + "." + name + ")"
 			}
 			return name
 		})
 	case functions.ArrayInspect:
-		return functions.ArrayInspectSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) })
+		return functions.ArrayInspectSQL(n, func(child expr.Expr) (string, error) { return r.sql(ctx, view, child) })
 	case functions.ArraySearch:
 		if err := n.Validate(); err != nil {
 			return "", err
 		}
-		return functions.ArraySearchSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, func(namespace, name string) string {
+		return functions.ArraySearchSQL(n, func(child expr.Expr) (string, error) { return r.sql(ctx, view, child) }, func(namespace, name string) string {
 			if namespace != "" {
 				return "OPERATOR(" + quoteIdentifier(namespace) + "." + name + ")"
 			}
 			return name
 		})
 	case aclValueExpression:
-		return n.sql(func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) })
+		return n.sql(func(child expr.Expr) (string, error) { return r.sql(ctx, view, child) })
 	case catalogUserNameExpression:
 		if r.commentSnapshot != nil {
 			*r.commentSnapshot = true
@@ -320,7 +321,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		if err := n.validate(); err != nil {
 			return "", err
 		}
-		args := [1]BoundExpr{n.arg}
+		args := [1]expr.Expr{n.arg}
 		return r.functionSQL(ctx, view, "pg_catalog.pg_get_userbyid", args[:])
 	case catalogForeignKeysExpression:
 		if r.commentSnapshot != nil {
@@ -337,7 +338,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		if n.arg == nil {
 			return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), nil)
 		}
-		args := [1]BoundExpr{n.arg}
+		args := [1]expr.Expr{n.arg}
 		return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), args[:])
 	case commitTimestampExpression:
 		if err := n.validate(); err != nil {
@@ -346,7 +347,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		if n.arg == nil {
 			return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), nil)
 		}
-		args := [1]BoundExpr{n.arg}
+		args := [1]expr.Expr{n.arg}
 		return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), args[:])
 	case functions.UUIDExtract:
 		if err := n.Validate(); err != nil {
@@ -369,7 +370,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view CatalogRead,
 		if err := n.Validate(); err != nil {
 			return "", err
 		}
-		return rangeOperatorSQL(n, func(child BoundExpr) (string, error) { return r.sql(ctx, view, child) }, func(namespace, name string) string {
+		return rangeOperatorSQL(n, func(child expr.Expr) (string, error) { return r.sql(ctx, view, child) }, func(namespace, name string) string {
 			if namespace != "" {
 				return "OPERATOR(" + quoteIdentifier(namespace) + "." + name + ")"
 			}

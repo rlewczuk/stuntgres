@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -39,13 +40,13 @@ func TestCharacterSourceValuesCommonUsage(t *testing.T) {
 		{[]sqltype.ID{sqltype.Unknown, sqltype.BPChar}, sqltype.BPChar},
 		{[]sqltype.ID{sqltype.VarChar, sqltype.Unknown}, sqltype.VarChar},
 	} {
-		rows := make([][]BoundExpr, len(tc.ids))
+		rows := make([][]expr.Expr, len(tc.ids))
 		for i, id := range tc.ids {
 			u := sqltype.Usage{}
 			if id != sqltype.Unknown {
 				u = usage(id)
 			}
-			rows[i] = []BoundExpr{queryProbe(u, nil)}
+			rows[i] = []expr.Expr{queryProbe(u, nil)}
 		}
 		got, err := commonValuesUsage(rows, nil, 0, usage(sqltype.Text))
 		if err != nil {
@@ -98,7 +99,7 @@ func TestCharacterSourceValuesSchemaAndTypmods(t *testing.T) {
 		a, _ := e.CatalogRead().LookupType(tc.first)
 		b, _ := e.CatalogRead().LookupType(tc.second)
 		text, _ := e.CatalogRead().LookupType(sqltype.Text)
-		_, err := commonValuesUsage([][]BoundExpr{{queryProbe(a.Usage(), nil)}, {queryProbe(b.Usage(), nil)}}, nil, 0, text.Usage())
+		_, err := commonValuesUsage([][]expr.Expr{{queryProbe(a.Usage(), nil)}, {queryProbe(b.Usage(), nil)}}, nil, 0, text.Usage())
 		d, ok := err.(*sqlstate.Error)
 		if !ok || d.Code != "42804" || d.Message != tc.message {
 			t.Fatal("category boundary changed", tc, err)
@@ -121,7 +122,7 @@ func TestCharacterSourceValuesCrossIdentityTypmods(t *testing.T) {
 			text, _ := e.CatalogRead().LookupType(sqltype.Text)
 			a, b := first.Usage(), second.Usage()
 			a.Typmod, b.Typmod = 6, 6
-			got, err := commonValuesUsage([][]BoundExpr{{queryProbe(a, nil)}, {queryProbe(b, nil)}}, nil, 0, text.Usage())
+			got, err := commonValuesUsage([][]expr.Expr{{queryProbe(a, nil)}, {queryProbe(b, nil)}}, nil, 0, text.Usage())
 			if err != nil || got != first.Usage() {
 				t.Fatal("cross-identity width retained", tc, got, err)
 			}

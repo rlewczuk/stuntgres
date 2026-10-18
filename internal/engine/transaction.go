@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -353,7 +354,7 @@ type StatementScope struct {
 	input                          sqltype.InputEnvironment
 	domainEvaluation               *EvalContext
 	domainPreparedChecks           map[*typeDescriptor]domainCheckProgram
-	partitionPrograms              map[partitionRoutineIdentity][]BoundExpr
+	partitionPrograms              map[partitionRoutineIdentity][]expr.Expr
 	routinePrograms                []commandRoutineProgram // Consumed command graphs; same admission lease as queryAuthority.
 	domainInputCatalog             CatalogRead
 	statementStart                 time.Time

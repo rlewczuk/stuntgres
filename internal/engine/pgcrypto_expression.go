@@ -4,6 +4,7 @@ import (
 	"crypto/fips140"
 	"crypto/rand"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -17,7 +18,7 @@ type installedCryptoFunctionExpression struct {
 
 // Rebuild keeps the installed-routine identity; the promoted Rebuild would
 // return the bare functions node.
-func (e installedCryptoFunctionExpression) Rebuild(info expressionInfo, children []BoundExpr) (BoundExpr, error) {
+func (e installedCryptoFunctionExpression) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	node, err := e.Pgcrypto.Rebuild(info, children)
 	if err != nil {
 		return nil, err
@@ -89,7 +90,7 @@ func cryptoExpressionSignature(n installedCryptoFunctionExpression) procedureSig
 // Only genuine installed crypto calls introduce volatility here. Like the
 // existing UUID/time default owners, recurse through supported scalar wrappers
 // without admitting unrelated volatile producers or frame-dependent recipes.
-func closedPgcryptoDefault(node BoundExpr) bool {
+func closedPgcryptoDefault(node expr.Expr) bool {
 	if node == nil {
 		return true
 	}
@@ -118,9 +119,9 @@ func closedPgcryptoDefault(node BoundExpr) bool {
 		functions.LikeEscape,
 		functions.JSONCreate:
 	default:
-		return p.Volatility <= Stable
+		return p.Volatility <= expr.Stable
 	}
 	valid := true
-	boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedPgcryptoDefault(child) })
+	boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedPgcryptoDefault(child) })
 	return valid
 }

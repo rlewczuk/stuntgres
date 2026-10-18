@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -304,11 +305,11 @@ func TestCommitTimeExpression(t *testing.T) {
 		if err := n.validate(); err != nil {
 			t.Fatal(err)
 		}
-		if n.Properties().Volatility != Volatile || plannedVolatility(n) != Volatile || generationImmutable(n) || conditionalConstantInputs(n) || !sameGroupExpression(n, n) {
+		if n.Properties().Volatility != expr.Volatile || plannedVolatility(n) != expr.Volatile || generationImmutable(n) || conditionalConstantInputs(n) || !sameGroupExpression(n, n) {
 			t.Fatal("volatile expression lifecycle")
 		}
 		count := 0
-		boundExpressionChildren(n, func(BoundExpr) { count++ })
+		boundExpressionChildren(n, func(expr.Expr) { count++ })
 		if count != len(raw.Args) {
 			t.Fatal("child traversal", count)
 		}
@@ -328,12 +329,12 @@ func TestCommitTimeExpression(t *testing.T) {
 		}
 		if n.arg != nil {
 			column := columnExpression{
-				expressionInfo: b.info(b.typ(sqltype.Xid).Usage(), parser.Position{}, ExprProperties{RowDependent: true}),
-				origin:         ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 16384, SubID: 1}},
+				Info:   b.info(b.typ(sqltype.Xid).Usage(), parser.Position{}, expr.Properties{RowDependent: true}),
+				origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 16384, SubID: 1}},
 			}
 			withColumn := n
 			withColumn.arg = column
-			withColumn.Property = mergeExpressionProperties(ExprProperties{Volatility: Volatile}, column.Properties())
+			withColumn.Property = expr.MergeProperties(expr.Properties{Volatility: expr.Volatile}, column.Properties())
 			persisted, err := remapBoundExpression(withColumn, func(ref ids.ObjectRef) ids.ObjectRef {
 				ref.Address.SubID++
 				return ref

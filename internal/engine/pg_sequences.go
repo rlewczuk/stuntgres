@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -12,7 +13,7 @@ import (
 type pgSequencesSource struct {
 	scope      *StatementScope
 	refs       []ids.ObjectRef
-	predicates []BoundExpr
+	predicates []expr.Expr
 }
 
 func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectRef, source *relationDescriptor) (*querySource, error) {

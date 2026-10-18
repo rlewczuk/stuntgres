@@ -2,19 +2,20 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 type nullTestExpression struct {
-	expressionInfo
-	child BoundExpr
+	expr.Info
+	child expr.Expr
 	not   bool
 	// DISTINCT FROM an undecorated NULL tests the whole value, even for rows.
 	whole bool
 }
 
-func (e nullTestExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e nullTestExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	v, err := e.child.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -36,13 +37,13 @@ func (e nullTestExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 }
 
 type truthTestExpression struct {
-	expressionInfo
-	child BoundExpr
+	expr.Info
+	child expr.Expr
 	truth Truth
 	not   bool
 }
 
-func (e truthTestExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e truthTestExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	v, err := e.child.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -59,13 +60,13 @@ func (e truthTestExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 }
 
 type distinctExpression struct {
-	expressionInfo
-	left, right BoundExpr
+	expr.Info
+	left, right expr.Expr
 	equality    sqltype.ComparisonPredicate
 	not         bool
 }
 
-func (e distinctExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e distinctExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	a, err := e.left.Eval(c)
 	if err != nil {
@@ -98,7 +99,7 @@ func rawNull(raw parser.Expr) bool {
 	return ok && literal.Value.Kind == parser.NullValue
 }
 
-func unknownOperand(raw parser.Expr, node BoundExpr) bool {
+func unknownOperand(raw parser.Expr, node expr.Expr) bool {
 	if node.ResultUsage().Type == nil {
 		return true
 	}
@@ -108,14 +109,14 @@ func unknownOperand(raw parser.Expr, node BoundExpr) bool {
 
 // Only the coerced occurrence acquires a type. Earlier unknown parameters
 // beneath null tests deliberately remain unresolved through final validation.
-func (b *expressionBinder) contextualOperand(raw parser.Expr, node BoundExpr, u sqltype.Usage, context expressionContext) (BoundExpr, error) {
+func (b *expressionBinder) contextualOperand(raw parser.Expr, node expr.Expr, u sqltype.Usage, context expressionContext) (expr.Expr, error) {
 	if p, ok := node.(parameterExpression); ok {
 		return b.coerceParameter(p, u)
 	}
 	return b.bind(raw, expressionPolicy{context: context, expected: u, operand: true})
 }
 
-func (b *expressionBinder) nullTest(raw parser.Expr, pos parser.Position, not, whole bool, context expressionContext) (BoundExpr, error) {
+func (b *expressionBinder) nullTest(raw parser.Expr, pos parser.Position, not, whole bool, context expressionContext) (expr.Expr, error) {
 	child, err := b.bind(raw, expressionPolicy{context: context, operand: true})
 	if err != nil {
 		return nil, err
@@ -126,7 +127,7 @@ func (b *expressionBinder) nullTest(raw parser.Expr, pos parser.Position, not, w
 	return nullTestExpression{b.info(b.typ(sqltype.Bool).Usage(), pos, child.Properties()), child, not, whole}, nil
 }
 
-func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expressionContext) (BoundExpr, error) {
+func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expressionContext) (expr.Expr, error) {
 	switch raw.Kind {
 	case parser.IsNull, parser.IsNotNull:
 		return b.nullTest(raw.Left, raw.Pos, raw.Kind == parser.IsNotNull, false, context)
@@ -147,7 +148,7 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 		if child.ResultUsage().Type != boolUsage.Type {
 			plan, err := sqltype.PlanCoercion(child.ResultUsage(), boolUsage, sqltype.Implicit)
 			if err != nil {
-				return nil, expressionError("42804", fmt.Sprintf("argument of %s must be type boolean, not type %s", names[index], b.diagnosticTypeName(child.ResultUsage().Type)), parser.ExpressionStart(raw.Left))
+				return nil, expr.ErrorAt("42804", fmt.Sprintf("argument of %s must be type boolean, not type %s", names[index], b.diagnosticTypeName(child.ResultUsage().Type)), parser.ExpressionStart(raw.Left))
 			}
 			info, err := b.coercionInfo(b.info(boolUsage, child.SourcePosition(), coercionProperties(child, plan)), child)
 			if err != nil {
@@ -190,7 +191,7 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 			return nil, err
 		}
 		equality := bound.(comparisonExpression)
-		return distinctExpression{equality.expressionInfo, equality.left, equality.right, equality.predicate, raw.Kind == parser.IsNotDistinct}, nil
+		return distinctExpression{equality.Info, equality.left, equality.right, equality.predicate, raw.Kind == parser.IsNotDistinct}, nil
 	default:
 		return nil, fmt.Errorf("stuntgres: invalid predicate kind")
 	}

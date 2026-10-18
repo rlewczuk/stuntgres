@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -111,7 +112,7 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	regclass := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}).typ
 	consumer := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46901}, namespace: f.leaf.namespace, owner: f.leaf.owner, name: "unit_local_consumer", revision: 1, relationKind: tableRelation, columns: []ColumnDescriptor{{Name: "ref", Usage: regclass.Usage()}}, attributes: []int32{1}, attributeHighWater: 1, index: map[string]int{"ref": 0}}
 	value := sqltype.String(regclass, strconv.FormatUint(uint64(local.address.ObjectID), 10))
-	consumer.defaults = map[int32]columnDefault{1: {OID: 46902, expression: literalExpression{expressionInfo: expressionInfo{Usage: regclass.Usage()}, value: value}, dependencies: []ids.ObjectRef{f.e.catalog.domain.Ref(f.view.Epoch(), local.address)}}}
+	consumer.defaults = map[int32]columnDefault{1: {OID: 46902, expression: literalExpression{Info: expr.Info{Usage: regclass.Usage()}, value: value}, dependencies: []ids.ObjectRef{f.e.catalog.domain.Ref(f.view.Epoch(), local.address)}}}
 	f.view.state.setDescriptor(consumer.address, consumer)
 	f.view.state.bindName(descriptorNameKey(consumer), consumer.address)
 	provider, err := dumpPredecessor(f.view, consumer.defaults[1].dependencies[0].Address, consumer.address)

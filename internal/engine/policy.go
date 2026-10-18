@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -18,7 +19,7 @@ type policyRole struct {
 
 type policyExpression struct {
 	syntax       parser.Expr
-	expression   BoundExpr
+	expression   expr.Expr
 	presentation *viewDefinition
 }
 

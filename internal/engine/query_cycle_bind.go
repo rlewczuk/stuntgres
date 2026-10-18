@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -36,11 +37,11 @@ func (b *expressionBinder) bindCycleMarks(raw *parser.CycleClause) (*cycleRecipe
 	if err != nil {
 		return nil, err
 	}
-	info, err := b.collatedInfo(b.info(common, raw.Pos, ExprProperties{}), mark, otherwise)
+	info, err := b.collatedInfo(b.info(common, raw.Pos, expr.Properties{}), mark, otherwise)
 	if err != nil {
 		return nil, err
 	}
-	nodes := []BoundExpr{mark, otherwise}
+	nodes := []expr.Expr{mark, otherwise}
 	for i, node := range nodes {
 		if node.ResultUsage() != info.Usage {
 			plan, err := sqltype.PlanCoercion(node.ResultUsage(), info.Usage, sqltype.Implicit)
@@ -82,11 +83,11 @@ func (b *expressionBinder) bindCycleShape(d *cteDefinition) error {
 			}
 		}
 		if slot < 0 && c.shapeError == nil {
-			c.shapeError = expressionError("42601", fmt.Sprintf(`cycle column "%s" not in WITH query column list`, key.Text), c.syntax.Pos)
+			c.shapeError = expr.ErrorAt("42601", fmt.Sprintf(`cycle column "%s" not in WITH query column list`, key.Text), c.syntax.Pos)
 		}
 		for _, prior := range c.keys[:i] {
 			if slot >= 0 && prior == slot && c.shapeError == nil {
-				c.shapeError = expressionError("42701", fmt.Sprintf(`cycle column "%s" specified more than once`, key.Text), c.syntax.Pos)
+				c.shapeError = expr.ErrorAt("42701", fmt.Sprintf(`cycle column "%s" specified more than once`, key.Text), c.syntax.Pos)
 			}
 		}
 		c.keys[i] = slot
@@ -117,16 +118,16 @@ func cycleNameError(d *cteDefinition) error {
 	c := d.cycle
 	for _, column := range d.schema[:d.userWidth] {
 		if column.Name == c.syntax.Mark.Text {
-			return expressionError("42601", fmt.Sprintf(`cycle mark column name "%s" already used in WITH query column list`, column.Name), c.syntax.Pos)
+			return expr.ErrorAt("42601", fmt.Sprintf(`cycle mark column name "%s" already used in WITH query column list`, column.Name), c.syntax.Pos)
 		}
 	}
 	for _, column := range d.schema[:d.userWidth] {
 		if column.Name == c.syntax.Path.Text {
-			return expressionError("42601", fmt.Sprintf(`cycle path column name "%s" already used in WITH query column list`, column.Name), c.syntax.Pos)
+			return expr.ErrorAt("42601", fmt.Sprintf(`cycle path column name "%s" already used in WITH query column list`, column.Name), c.syntax.Pos)
 		}
 	}
 	if c.syntax.Mark.Text == c.syntax.Path.Text {
-		return expressionError("42601", "cycle mark column name and cycle path column name are the same", c.syntax.Pos)
+		return expr.ErrorAt("42601", "cycle mark column name and cycle path column name are the same", c.syntax.Pos)
 	}
 	return nil
 }

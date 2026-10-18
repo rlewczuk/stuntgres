@@ -190,7 +190,7 @@ func AnalyzeLabels(labels []parser.Identifier, args []parser.Expr) LabelFailure 
 	return LabelFailure{}
 }
 
-func JSONCreateIntrinsicRule() IntrinsicPropertyRule { return ExactStable }
+func JSONCreateIntrinsicRule() expr.IntrinsicPropertyRule { return expr.ExactStable }
 func JSONCreateVariadicArgumentValid(usage sqltype.Usage) bool {
 	return usage.Type != nil && usage.Type.BaseType().IsArray()
 }

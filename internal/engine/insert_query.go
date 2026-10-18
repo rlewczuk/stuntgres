@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -122,7 +123,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 	if len(out.identityDiscard) != 0 && (s.Source.Select != nil || len(s.Source.Values.Rows) == 1) {
 		for i, target := range out.targets {
 			expression := project.expressions[i]
-			if !out.identityDiscard[target] || expression.Properties().Volatility == Volatile {
+			if !out.identityDiscard[target] || expression.Properties().Volatility == expr.Volatile {
 				continue
 			}
 			var discard bool
@@ -158,7 +159,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 	return nil
 }
 
-func commonValuesUsage(nodes [][]BoundExpr, raw [][]parser.Expr, column int, text sqltype.Usage) (sqltype.Usage, error) {
+func commonValuesUsage(nodes [][]expr.Expr, raw [][]parser.Expr, column int, text sqltype.Usage) (sqltype.Usage, error) {
 	return selectCommonUsage(len(nodes), func(i int) comparisonOperand {
 		operand := comparisonOperand{node: nodes[i][column]}
 		if raw != nil {
@@ -185,7 +186,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 	occurrence := b.viewValuesCount
 	b.viewValuesCount++
 	width := -1
-	nodes := make([][]BoundExpr, len(source.Rows))
+	nodes := make([][]expr.Expr, len(source.Rows))
 	rawRows := make([][]parser.Expr, len(source.Rows))
 	var lists []expandedExpressionList
 	if b.noParameters || b.materializedDefinition {
@@ -201,10 +202,10 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 		}
 		row, expanded := list.raw, list.nodes
 		rawRows[i] = row
-		nodes[i] = make([]BoundExpr, len(row))
+		nodes[i] = make([]expr.Expr, len(row))
 		for j, raw := range row {
 			if _, requested := raw.(parser.DefaultExpr); requested {
-				return nil, expressionError("42601", "DEFAULT is not allowed in this context", raw.SourcePosition())
+				return nil, expr.ErrorAt("42601", "DEFAULT is not allowed in this context", raw.SourcePosition())
 			}
 			if expanded != nil && expanded[j] != nil {
 				nodes[i][j] = expanded[j]
@@ -223,17 +224,17 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 			if len(row) != 0 {
 				pos = parser.ExpressionStart(row[0])
 			}
-			return nil, expressionError("42601", "VALUES lists must all be the same length", pos)
+			return nil, expr.ErrorAt("42601", "VALUES lists must all be the same length", pos)
 		}
 	}
 	schema := make([]ColumnDescriptor, width)
-	projection := make([]BoundExpr, width)
+	projection := make([]expr.Expr, width)
 	for j := range width {
 		common, err := commonValuesUsage(nodes, rawRows, j, b.typ(sqltype.Text).Usage())
 		if err != nil {
 			return nil, err
 		}
-		info := b.info(common, parser.Position{Offset: -1}, ExprProperties{RowDependent: true})
+		info := b.info(common, parser.Position{Offset: -1}, expr.Properties{RowDependent: true})
 		for i := range nodes {
 			node, err := b.coerceConditional(comparisonOperand{raw: rawRows[i][j], node: nodes[i][j]}, common, "VALUES")
 			if err != nil {
@@ -247,7 +248,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 		}
 		common = info.Usage
 		schema[j] = ColumnDescriptor{Name: fmt.Sprintf("column%d", j+1), Usage: common}
-		projection[j] = columnExpression{expressionInfo: info, scope: 1, frame: b.frameID(), slot: j}
+		projection[j] = columnExpression{Info: info, scope: 1, frame: b.frameID(), slot: j}
 	}
 	if lists != nil {
 		for i, written := range source.Rows {
@@ -327,7 +328,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 // Match PostgreSQL's bounded, case-sensitive character-distance suggestions
 // without changing ordinary relation/projection name resolution.
 func valuesOrderColumnError(schema []ColumnDescriptor, name string, pos parser.Position) error {
-	d := expressionError("42703", fmt.Sprintf(`column "%s" does not exist`, name), pos).(*sqlstate.Error)
+	d := expr.ErrorAt("42703", fmt.Sprintf(`column "%s" does not exist`, name), pos).(*sqlstate.Error)
 	if len(schema) == 0 {
 		return d
 	}
@@ -582,12 +583,12 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 	return rows, nil
 }
 
-func identityUnusedOutput(expression BoundExpr) BoundExpr {
-	info := boundExpressionInfo(expression)
-	info.Property = ExprProperties{}
+func identityUnusedOutput(expression expr.Expr) expr.Expr {
+	info := expr.InfoOf(expression)
+	info.Property = expr.Properties{}
 	return literalExpression{
-		expressionInfo: info,
-		value:          sqltype.Null(expression.ResultUsage().Type),
+		Info:  info,
+		value: sqltype.Null(expression.ResultUsage().Type),
 	}
 }
 
@@ -595,7 +596,7 @@ func identityUnusedOutput(expression BoundExpr) BoundExpr {
 // existing count/ORDER cache. Remove only that output's pure producer; ORDER
 // keys and multirow VALUES remain independent source consumers. Nodes are owned
 // by this fresh binding, never a published descriptor or held execution plan.
-func pruneIdentityQueryProducer(node LogicalNode, expression BoundExpr) (LogicalNode, bool) {
+func pruneIdentityQueryProducer(node LogicalNode, expression expr.Expr) (LogicalNode, bool) {
 	for {
 		coercion, ok := expression.(coercionExpression)
 		if !ok {
@@ -623,7 +624,7 @@ func pruneIdentityQueryProducer(node LogicalNode, expression BoundExpr) (Logical
 	case *evaluationNode:
 		if cached, ok := expression.(cachedOrderExpression); ok && cached.slot >= n.base && cached.slot < n.base+len(n.expressions) {
 			slot := cached.slot - n.base
-			if n.expressions[slot].Properties().Volatility == Volatile {
+			if n.expressions[slot].Properties().Volatility == expr.Volatile {
 				return n, false
 			}
 			n.expressions[slot] = identityUnusedOutput(n.expressions[slot])
@@ -653,7 +654,7 @@ func pruneIdentityQueryProducer(node LogicalNode, expression BoundExpr) (Logical
 			}
 			slot := cached.slot - (n.cacheWidth - len(n.outputs))
 			if slot >= 0 && slot < len(n.outputs) {
-				if n.outputs[slot].Properties().Volatility == Volatile {
+				if n.outputs[slot].Properties().Volatility == expr.Volatile {
 					return n, false
 				}
 				n.outputs[slot] = identityUnusedOutput(n.outputs[slot])
@@ -669,7 +670,7 @@ func pruneIdentityQueryProducer(node LogicalNode, expression BoundExpr) (Logical
 			return n, false
 		}
 		cell := n.rows[0][column.slot]
-		if cell.Properties().Volatility == Volatile {
+		if cell.Properties().Volatility == expr.Volatile {
 			return n, false
 		}
 		if !n.identityOrderDemand[column.slot] {

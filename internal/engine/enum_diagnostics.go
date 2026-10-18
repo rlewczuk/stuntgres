@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -170,7 +171,7 @@ func needsTypeDiagnosticInput(typ *sqltype.Descriptor) bool {
 
 // Retained reads and writes have identical input demands, independent of the
 // tree walker used by their consumer. Naming never suppresses catalog input.
-func captureRetainedExpressionInput(node BoundExpr, element func() error, diagnostic func(*sqltype.Descriptor) error) error {
+func captureRetainedExpressionInput(node expr.Expr, element func() error, diagnostic func(*sqltype.Descriptor) error) error {
 	// Stored columns and record constructors can demand a named nested provider
 	// without any input conversion. Retain the same naming authority as fresh
 	// comparison binding, including domain and array identity.
@@ -231,7 +232,7 @@ func captureRetainedDefinitionInput(catalog CatalogRead, definition *viewDefinit
 		}
 		seen[definition] = true
 		var failure error
-		walkQueryArgumentNode(definition.query.Root, func(node BoundExpr) {
+		walkQueryArgumentNode(definition.query.Root, func(node expr.Expr) {
 			if failure == nil {
 				failure = captureRetainedExpressionInput(node, element, diagnostic)
 			}
@@ -254,9 +255,9 @@ func captureRetainedDefinitionInput(catalog CatalogRead, definition *viewDefinit
 
 // Retained write expressions are not rebound with the consuming statement.
 // Capture input authority and lazy naming without evaluating defaults or branches.
-func (b *expressionBinder) captureRetainedWriteInput(defaults []BoundExpr, generations map[int32]columnGeneration, checks []checkConstraint) error {
+func (b *expressionBinder) captureRetainedWriteInput(defaults []expr.Expr, generations map[int32]columnGeneration, checks []checkConstraint) error {
 	var failure error
-	visit := func(node BoundExpr) {
+	visit := func(node expr.Expr) {
 		if failure != nil {
 			return
 		}

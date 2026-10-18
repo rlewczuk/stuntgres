@@ -94,7 +94,7 @@ func ResolveDatetimeFormatting(name string, visible, variadic bool, operands []A
 	return DatetimeFormattingSelection{Source: source}
 }
 
-func DatetimeFormattingIntrinsicRule() IntrinsicPropertyRule { return ExactStable }
+func DatetimeFormattingIntrinsicRule() expr.IntrinsicPropertyRule { return expr.ExactStable }
 
 func DatetimeFormattingResult(name string) sqltype.ID {
 	switch name {

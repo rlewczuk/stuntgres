@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -295,9 +296,9 @@ func (b *pgConstraintBuilder) keys(row []sqltype.Value, i int, attributes []int3
 	}
 	b.vector(row, i, values)
 }
-func (b *pgConstraintBuilder) checkKeys(ctx context.Context, row []sqltype.Value, table *relationDescriptor, expression BoundExpr) {
+func (b *pgConstraintBuilder) checkKeys(ctx context.Context, row []sqltype.Value, table *relationDescriptor, expression expr.Expr) {
 	var values []sqltype.Value
-	walkBoundExpression(expression, func(node BoundExpr) {
+	walkBoundExpression(expression, func(node expr.Expr) {
 		if b.err != nil {
 			return
 		}

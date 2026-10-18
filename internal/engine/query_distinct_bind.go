@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -78,10 +79,10 @@ func (b *expressionBinder) groupingRoutineReference(usage sqltype.Usage) (ids.Ob
 	return ref, false, err
 }
 
-func (b *expressionBinder) bindDistinctGrouping(expression BoundExpr) (queryGrouping, error) {
+func (b *expressionBinder) bindDistinctGrouping(expression expr.Expr) (queryGrouping, error) {
 	if expression.CollationIndeterminate() {
 		left, right, position := expression.ImplicitCollationConflict()
-		d := expressionError("42P21", fmt.Sprintf(`collation mismatch between implicit collations "%s" and "%s"`, b.collationName(left.ID), b.collationName(right.ID)), position).(*sqlstate.Error)
+		d := expr.ErrorAt("42P21", fmt.Sprintf(`collation mismatch between implicit collations "%s" and "%s"`, b.collationName(left.ID), b.collationName(right.ID)), position).(*sqlstate.Error)
 		d.Hint = "You can choose the collation by applying the COLLATE clause to one or both expressions."
 		return queryGrouping{}, d
 	}

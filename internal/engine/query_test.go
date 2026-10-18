@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -54,15 +55,15 @@ func queryCoreFixture(t *testing.T, sql string) (*Engine, *BoundQuery, *querySou
 }
 
 type queryProbeExpression struct {
-	expressionInfo
+	expr.Info
 	eval func(*EvalContext) (sqltype.Value, error)
 }
 
-func (e queryProbeExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e queryProbeExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return e.eval(evalContext(ctx))
 }
-func queryProbe(usage sqltype.Usage, eval func(*EvalContext) (sqltype.Value, error)) BoundExpr {
-	return queryProbeExpression{expressionInfo: expressionInfo{Usage: usage, Pos: parser.Position{Offset: -1}}, eval: eval}
+func queryProbe(usage sqltype.Usage, eval func(*EvalContext) (sqltype.Value, error)) expr.Expr {
+	return queryProbeExpression{Info: expr.Info{Usage: usage, Pos: parser.Position{Offset: -1}}, eval: eval}
 }
 
 func TestQueryCoreEagerFinalization(t *testing.T) {

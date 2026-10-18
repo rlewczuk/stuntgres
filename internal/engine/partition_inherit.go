@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -53,7 +54,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 		}
 		slot, ok := d.index[element.Column.Name]
 		if !ok {
-			return nil, expressionError("42703", fmt.Sprintf(`column "%s" does not exist`, element.Column.Name), element.Column.Pos)
+			return nil, expr.ErrorAt("42703", fmt.Sprintf(`column "%s" does not exist`, element.Column.Name), element.Column.Pos)
 		}
 		if seenColumns == nil {
 			seenColumns = make([]bool, len(d.columns))

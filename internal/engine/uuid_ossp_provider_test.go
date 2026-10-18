@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -46,7 +47,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	}
 	address := ext.members[0]
 	proc := view.MustProcedure(address)
-	if proc.name != "uuid_generate_v4" || proc.signature != "" || procedureArity(proc) != 0 || proc.routineKind != functionRoutine || proc.builtin != nil || proc.result != 2950 || proc.volatility != Volatile || !proc.strict || proc.owner != ext.owner || proc.namespace != ext.targetNamespace {
+	if proc.name != "uuid_generate_v4" || proc.signature != "" || procedureArity(proc) != 0 || proc.routineKind != functionRoutine || proc.builtin != nil || proc.result != 2950 || proc.volatility != expr.Volatile || !proc.strict || proc.owner != ext.owner || proc.namespace != ext.targetNamespace {
 		t.Fatal(proc)
 	}
 	if err := e.catalog.providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
@@ -82,7 +83,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 		func(p *procedureDescriptor) { p.name = "uuidv4" },
 		func(p *procedureDescriptor) { p.signature = "25" },
 		func(p *procedureDescriptor) { p.result = 25 },
-		func(p *procedureDescriptor) { p.volatility = Immutable },
+		func(p *procedureDescriptor) { p.volatility = expr.Immutable },
 		func(p *procedureDescriptor) { p.strict = false },
 		func(p *procedureDescriptor) { p.revision = 0 },
 		func(p *procedureDescriptor) { p.owner = authorization.PrincipalRef{} },

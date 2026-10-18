@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -61,7 +62,7 @@ func TestBetweenBindingProperties(t *testing.T) {
 		}
 		node := bound.query.Root.(*projectNode).expressions[0]
 		p := node.Properties()
-		if node.ResultUsage().Type.ID() != sqltype.Bool || p.RowDependent != tc.row || p.ParameterDependent != (len(tc.ids) > 0) || p.StageDependent || p.Volatility != Immutable {
+		if node.ResultUsage().Type.ID() != sqltype.Bool || p.RowDependent != tc.row || p.ParameterDependent != (len(tc.ids) > 0) || p.StageDependent || p.Volatility != expr.Immutable {
 			t.Fatal(tc.expr, node, p)
 		}
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -21,7 +22,7 @@ func TestCompositeAlterFunctionalRetainedFields(t *testing.T) {
 			t.Fatal(err)
 		}
 		binder := expressionBinder{engine: e}
-		base := literalExpression{expressionInfo{Usage: current.Usage()}, sqltype.Null(current)}
+		base := literalExpression{expr.Info{Usage: current.Usage()}, sqltype.Null(current)}
 		node := binder.retainedCompositeField(base, key, capture, parser.Position{})
 		literal, ok := node.(literalExpression)
 		if !ok || !literal.value.IsNull() || node.ResultUsage() != original.CompositeMember(1).Usage {
@@ -33,7 +34,7 @@ func TestCompositeAlterFunctionalRetainedFields(t *testing.T) {
 		}
 	}
 	binder := expressionBinder{engine: e}
-	base := literalExpression{expressionInfo{Usage: original.Usage()}, sqltype.Null(original)}
+	base := literalExpression{expr.Info{Usage: original.Usage()}, sqltype.Null(original)}
 	if field, ok := binder.retainedCompositeField(base, key, capture, parser.Position{}).(fieldExpression); !ok || field.attribute != source.attributes[1] {
 		t.Fatal("live identity lost")
 	}

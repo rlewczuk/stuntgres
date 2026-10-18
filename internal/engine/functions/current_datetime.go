@@ -63,7 +63,7 @@ func (e CurrentDateTime) Validate(intrinsicMatch bool) error {
 	}
 	return nil
 }
-func CurrentDateTimeIntrinsicRule() IntrinsicPropertyRule { return ExactStable }
+func CurrentDateTimeIntrinsicRule() expr.IntrinsicPropertyRule { return expr.ExactStable }
 
 // CurrentDateTimeSQL renders the SQL value function for the engine's deparse
 // and DEFAULT switches, until step 3 F2 gives the node a render hook.

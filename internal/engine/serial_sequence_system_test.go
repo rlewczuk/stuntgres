@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -17,7 +18,7 @@ func TestSerialSequenceSystemColumns(t *testing.T) {
 				f := serialSequenceUnitFixture(t)
 				f.table.relationKind = kind
 				text := f.node.ResultUsage().Type
-				f.node.args[1] = literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, column)}
+				f.node.args[1] = literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, column)}
 				value, err := f.node.Eval(f.context)
 				// Keep expectations independent of the production name helper.
 				system := column == "ctid" || column == "xmin" || column == "cmin" || column == "xmax" || column == "cmax" || column == "tableoid"
@@ -44,7 +45,7 @@ func TestSerialSequenceSystemColumns(t *testing.T) {
 	f.table.index["ctid"] = 0
 	f.sequence.sequence.owned = ids.ObjectAddress{}
 	text := f.node.ResultUsage().Type
-	f.node.args[1] = literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, "ctid")}
+	f.node.args[1] = literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "ctid")}
 	value, err := f.node.Eval(f.context)
 	if err != nil || !value.IsNull() || value.Type() != text {
 		t.Fatal("declared view column skipped", value, err)

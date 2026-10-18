@@ -7,20 +7,21 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 type mathObservedArgument struct {
-	expressionInfo
+	expr.Info
 	value sqltype.Value
 	order *[]int
 	index int
 	err   error
 }
 
-func (e mathObservedArgument) Eval(ExprContext) (sqltype.Value, error) {
+func (e mathObservedArgument) Eval(expr.Context) (sqltype.Value, error) {
 	*e.order = append(*e.order, e.index)
 	return e.value, e.err
 }
@@ -47,11 +48,11 @@ func TestMathTraversal(t *testing.T) {
 		t.Fatal(err)
 	}
 	zero, _ := sqltype.Integer(int4, 0)
-	mod := functions.Math{Info: expressionInfo{Usage: int4.Usage()}, Plan: modPlan, Args: []BoundExpr{
-		literalExpression{expressionInfo{Usage: int4.Usage()}, one},
-		literalExpression{expressionInfo{Usage: int4.Usage()}, zero},
+	mod := functions.Math{Info: expr.Info{Usage: int4.Usage()}, Plan: modPlan, Args: []expr.Expr{
+		literalExpression{expr.Info{Usage: int4.Usage()}, one},
+		literalExpression{expr.Info{Usage: int4.Usage()}, zero},
 	}}
-	expr := functions.Math{Info: expressionInfo{Usage: numeric.Usage()}, Plan: plan, Args: []BoundExpr{literalExpression{expressionInfo{Usage: numeric.Usage()}, sqltype.Null(numeric)}, mod}}
+	expr := functions.Math{Info: expr.Info{Usage: numeric.Usage()}, Plan: plan, Args: []expr.Expr{literalExpression{expr.Info{Usage: numeric.Usage()}, sqltype.Null(numeric)}, mod}}
 	_, _, err = simplifyConditional(&EvalContext{Context: context.Background()}, expr, false)
 	var diagnostic interface{ SQLState() string }
 	if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "22012" {

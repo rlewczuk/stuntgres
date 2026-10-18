@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -145,8 +146,8 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 	p := inheritanceUnitRelation(e, "p", 22000, "a")
 	c := inheritanceUnitRelation(e, "c", 22001, "a")
 	usage := testUsage(e, sqltype.Int4)
-	expression := func(n int64) BoundExpr {
-		return literalExpression{expressionInfo: expressionInfo{Usage: usage}, value: inheritanceQueryInt(e, n)}
+	expression := func(n int64) expr.Expr {
+		return literalExpression{Info: expr.Info{Usage: usage}, value: inheritanceQueryInt(e, n)}
 	}
 	p.defaults = map[int32]columnDefault{1: {expression: expression(1)}}
 	c.defaults = map[int32]columnDefault{1: {expression: expression(9)}}

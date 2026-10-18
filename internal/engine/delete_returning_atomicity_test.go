@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -49,7 +50,7 @@ func TestDeleteReturningOutputAtomicity(t *testing.T) {
 				}
 				return c.Row[0], nil
 			})
-			b.returning = &boundReturning{expressions: []BoundExpr{probe}, schema: []ColumnDescriptor{{Name: "v", Usage: integer.Usage()}}}
+			b.returning = &boundReturning{expressions: []expr.Expr{probe}, schema: []ColumnDescriptor{{Name: "v", Usage: integer.Usage()}}}
 			if phase == "sequence_error" {
 				e.mu.Lock()
 				binder := newExpressionBinder(ctx, e, scope.input, scope.op, nil)

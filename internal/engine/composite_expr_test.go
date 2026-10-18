@@ -2,13 +2,14 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func compositeExprUnitLiteral(value sqltype.Value) BoundExpr {
-	return literalExpression{expressionInfo: expressionInfo{Usage: value.Type().Usage()}, value: value}
+func compositeExprUnitLiteral(value sqltype.Value) expr.Expr {
+	return literalExpression{Info: expr.Info{Usage: value.Type().Usage()}, value: value}
 }
 func compositeExprUnitInteger(t *testing.T, typ *sqltype.Descriptor, n int64) sqltype.Value {
 	t.Helper()
@@ -27,20 +28,20 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	row := rowExpression{expressionInfo: expressionInfo{Usage: shape.Usage()}, fields: []BoundExpr{compositeExprUnitLiteral(compositeExprUnitInteger(t, integer, 7)), compositeExprUnitLiteral(sqltype.Null(integer))}}
+	row := rowExpression{Info: expr.Info{Usage: shape.Usage()}, fields: []expr.Expr{compositeExprUnitLiteral(compositeExprUnitInteger(t, integer, 7)), compositeExprUnitLiteral(sqltype.Null(integer))}}
 	c := &EvalContext{Context: context.Background(), Scope: 1, Frame: 1}
 	value, err := row.Eval(c)
 	if err != nil || value.IsNull() || !value.CompositeField(1).IsNull() {
 		t.Fatal("present partially NULL constructor", err)
 	}
-	selected := fieldExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}, base: row, attribute: 1, index: 0}
+	selected := fieldExpression{Info: expr.Info{Usage: integer.Usage()}, base: row, attribute: 1, index: 0}
 	value, err = selected.Eval(c)
 	number, nerr := value.Integer()
 	if err != nil || nerr != nil || number != 7 {
 		t.Fatal(number, err, nerr)
 	}
 	// A selected constructor child does not evaluate an unused invalid child.
-	row.fields = []BoundExpr{row.fields[0], literalExpression{}}
+	row.fields = []expr.Expr{row.fields[0], literalExpression{}}
 	selected.base = row
 	if _, err := selected.Eval(c); err != nil {
 		t.Fatal("selected field evaluated sibling", err)
@@ -48,7 +49,7 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 	if _, err := row.Eval(c); err == nil {
 		t.Fatal("full constructor omitted sibling")
 	}
-	row.fields = []BoundExpr{compositeExprUnitLiteral(sqltype.Null(integer)), compositeExprUnitLiteral(sqltype.Null(integer))}
+	row.fields = []expr.Expr{compositeExprUnitLiteral(sqltype.Null(integer)), compositeExprUnitLiteral(sqltype.Null(integer))}
 	row.wholeNames = []string{"f1", "f2"}
 	row.presenceSlot = 1
 	row.presenceFrame = 1
@@ -77,7 +78,7 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	zero := rowExpression{expressionInfo: expressionInfo{Usage: empty.Usage()}, wholeNames: []string{}, presenceSlot: 1, presenceFrame: 1}
+	zero := rowExpression{Info: expr.Info{Usage: empty.Usage()}, wholeNames: []string{}, presenceSlot: 1, presenceFrame: 1}
 	c.presenceSlots = []int{1}
 	c.presence = []bool{true}
 	if value, err := zero.Eval(c); err != nil || value.IsNull() || value.CompositeLen() != 0 {
@@ -150,7 +151,7 @@ func TestCompositeExprAssignmentPaths(t *testing.T) {
 	}
 	original := sqltype.Null(outer)
 	c := &EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{compositeExprUnitInteger(t, integer, 9)}}
-	rhs := columnExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}, scope: 1, frame: 1, slot: 0}
+	rhs := columnExpression{Info: expr.Info{Usage: integer.Usage()}, scope: 1, frame: 1, slot: 0}
 	first, err := target.applyExpression(c, original, rhs)
 	if err != nil {
 		t.Fatal(err)
@@ -192,13 +193,13 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 		t.Fatal(err)
 	}
 	row := bound.(rowExpression)
-	row.expansions = map[int]compositeExpansionBinding{0: {base: row.fields[1], fields: []BoundExpr{row.fields[1]}}}
+	row.expansions = map[int]compositeExpansionBinding{0: {base: row.fields[1], fields: []expr.Expr{row.fields[1]}}}
 	selected, err := b.selectCompositeField(row, "f2", parser.Position{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	count := 0
-	walkBoundExpression(selected, func(BoundExpr) { count++ })
+	walkBoundExpression(selected, func(expr.Expr) { count++ })
 	if count != 5 {
 		t.Fatal("lexical children omitted or analysis-only duplicate visited", count)
 	}
@@ -249,7 +250,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	left := rowExpression{expressionInfo: expressionInfo{Usage: empty.Usage(), Property: ExprProperties{RowDependent: true}}, wholeNames: []string{}, wholeName: "a", presenceFrame: 1}
+	left := rowExpression{Info: expr.Info{Usage: empty.Usage(), Property: expr.Properties{RowDependent: true}}, wholeNames: []string{}, wholeName: "a", presenceFrame: 1}
 	right := left
 	right.wholeName = "b"
 	if b.sameGroupExpression(left, right) {

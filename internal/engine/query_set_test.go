@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -15,10 +16,10 @@ func querySetUnitFixture(t *testing.T, operation string, all, zeroWidth bool) (*
 	_, query, source := queryCoreFixture(t, "SELECT v FROM t")
 	arm := query.Root.(*projectNode)
 	copy := *arm
-	copy.expressions = append([]BoundExpr(nil), arm.expressions...)
+	copy.expressions = append([]expr.Expr(nil), arm.expressions...)
 	copy.querySchema = append(querySchema(nil), arm.querySchema...)
 	if zeroWidth {
-		copy.expressions = []BoundExpr{}
+		copy.expressions = []expr.Expr{}
 		copy.querySchema = querySchema{}
 	}
 	schema := append(querySchema(nil), copy.Schema()...)
@@ -28,7 +29,7 @@ func querySetUnitFixture(t *testing.T, operation string, all, zeroWidth bool) (*
 		schema[i].Nullable = false
 		schema[i].NullabilityKnown = false
 	}
-	n := &setNode{querySchema: schema, left: &copy, right: &copy, operation: operation, all: all, leftExpressions: append([]BoundExpr(nil), copy.expressions...), rightExpressions: append([]BoundExpr(nil), copy.expressions...)}
+	n := &setNode{querySchema: schema, left: &copy, right: &copy, operation: operation, all: all, leftExpressions: append([]expr.Expr(nil), copy.expressions...), rightExpressions: append([]expr.Expr(nil), copy.expressions...)}
 	if operation != "union" || !all {
 		n.grouping = make([]queryGrouping, len(schema))
 		for i := range schema {
@@ -39,9 +40,9 @@ func querySetUnitFixture(t *testing.T, operation string, all, zeroWidth bool) (*
 			}
 		}
 	}
-	projection := make([]BoundExpr, len(schema))
+	projection := make([]expr.Expr, len(schema))
 	for i := range schema {
-		projection[i] = columnExpression{expressionInfo: boundExpressionInfo(copy.expressions[i]), scope: 1, frame: copy.frame, slot: i}
+		projection[i] = columnExpression{Info: expr.InfoOf(copy.expressions[i]), scope: 1, frame: copy.frame, slot: i}
 	}
 	return n, &projectNode{querySchema: schema, child: n, expressions: projection, frame: copy.frame}, source
 }
@@ -236,8 +237,8 @@ func TestQuerySetImmutableRewriteRemap(t *testing.T) {
 	n, project, source := querySetUnitFixture(t, "intersect", true, false)
 	defer source.close()
 	original := n.leftExpressions[0]
-	replacement := &queryProbeExpression{expressionInfo: boundExpressionInfo(original), eval: func(c *EvalContext) (sqltype.Value, error) { return original.Eval(c) }}
-	rewritten, err := rewriteQueryExpressions(project, func(e BoundExpr) (BoundExpr, bool, error) {
+	replacement := &queryProbeExpression{Info: expr.InfoOf(original), eval: func(c *EvalContext) (sqltype.Value, error) { return original.Eval(c) }}
+	rewritten, err := rewriteQueryExpressions(project, func(e expr.Expr) (expr.Expr, bool, error) {
 		if e == original {
 			return replacement, true, nil
 		}
@@ -268,7 +269,7 @@ func TestQuerySetImmutableRewriteRemap(t *testing.T) {
 	if reminted == n || reminted.left == n.left || reminted.right == n.right || n.Schema()[0].Usage.Type != typ {
 		t.Fatal("remap mutated held set")
 	}
-	for _, expression := range []BoundExpr{reminted.leftExpressions[0], reminted.rightExpressions[0]} {
+	for _, expression := range []expr.Expr{reminted.leftExpressions[0], reminted.rightExpressions[0]} {
 		if expression.ResultUsage().Type != &destination {
 			t.Fatal("side recipe kept source-owner type")
 		}
@@ -344,9 +345,9 @@ func TestQuerySetInsertNoBatchOnLateArmFailure(t *testing.T) {
 	b, source := insertSelectEvaluationFixture(t, "SELECT id FROM t")
 	project := b.query.Root.(*projectNode)
 	arm := *project
-	arm.expressions = append([]BoundExpr(nil), project.expressions...)
+	arm.expressions = append([]expr.Expr(nil), project.expressions...)
 	arm.querySchema = append(querySchema(nil), project.querySchema...)
-	n := &setNode{querySchema: arm.querySchema, left: &arm, right: &arm, operation: "union", all: true, leftExpressions: append([]BoundExpr(nil), arm.expressions...), rightExpressions: append([]BoundExpr(nil), arm.expressions...)}
+	n := &setNode{querySchema: arm.querySchema, left: &arm, right: &arm, operation: "union", all: true, leftExpressions: append([]expr.Expr(nil), arm.expressions...), rightExpressions: append([]expr.Expr(nil), arm.expressions...)}
 	original := n.rightExpressions[0]
 	sentinel := errors.New("late INSERT set arm")
 	calls := 0
@@ -359,7 +360,7 @@ func TestQuerySetInsertNoBatchOnLateArmFailure(t *testing.T) {
 	})
 	project.child = n
 	for i, expression := range project.expressions {
-		project.expressions[i] = columnExpression{expressionInfo: boundExpressionInfo(expression), scope: 1, frame: project.frame, slot: i}
+		project.expressions[i] = columnExpression{Info: expr.InfoOf(expression), scope: 1, frame: project.frame, slot: i}
 	}
 	rows, err := evaluateInsertQuery(context.Background(), b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
 	if rows.values != nil || err != sentinel || source.view != nil || source.anonymous != nil {

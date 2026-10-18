@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -55,7 +56,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 		if index.address == old.address || index.Revision() == old.Revision() || index.sqlIndex.parent != destination.address || !index.sqlIndex.ready || !index.sqlIndex.valid || !index.sqlIndex.live {
 			t.Fatal("index identity/parent/state copied", index)
 		}
-		if predicate.definition.ResultUsage() != old.sqlIndex.predicate.definition.ResultUsage() || predicate.execution.ResultUsage() != old.sqlIndex.predicate.execution.ResultUsage() || predicate.definition.Properties() != old.sqlIndex.predicate.definition.Properties() || predicate.execution.Properties() != old.sqlIndex.predicate.execution.Properties() || plannedVolatility(predicate.execution) != Immutable {
+		if predicate.definition.ResultUsage() != old.sqlIndex.predicate.definition.ResultUsage() || predicate.execution.ResultUsage() != old.sqlIndex.predicate.execution.ResultUsage() || predicate.definition.Properties() != old.sqlIndex.predicate.definition.Properties() || predicate.execution.Properties() != old.sqlIndex.predicate.execution.Properties() || plannedVolatility(predicate.execution) != expr.Immutable {
 			t.Fatal("typed predicate properties changed", predicate)
 		}
 		if !slices.Contains(predicate.dependencies, local) {
@@ -66,7 +67,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 				t.Fatal("source row dependency retained", dependency)
 			}
 		}
-		for _, node := range []BoundExpr{predicate.definition, predicate.execution} {
+		for _, node := range []expr.Expr{predicate.definition, predicate.execution} {
 			if _, err := (scalarRenderer{owner: destination}).sql(context.Background(), e.stageRead(stage), node); err != nil {
 				t.Fatal("wrong owner in predicate tree", err)
 			}
@@ -114,7 +115,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 			if !slices.Contains(key.dependencies, target) {
 				t.Fatal("dropped attribute mapping lost", key.dependencies)
 			}
-			for _, node := range []BoundExpr{key.definition, key.execution} {
+			for _, node := range []expr.Expr{key.definition, key.execution} {
 				if _, err := (scalarRenderer{owner: destination}).sql(context.Background(), e.stageRead(stage), node); err != nil {
 					t.Fatal(err)
 				}
@@ -196,7 +197,7 @@ func TestTableLikePartialUniqueClone(t *testing.T) {
 		t.Fatal("standalone partial unique/backing authority lost", copied)
 	}
 	predicate := copied.sqlIndex.predicate
-	for _, node := range []BoundExpr{predicate.definition, predicate.execution} {
+	for _, node := range []expr.Expr{predicate.definition, predicate.execution} {
 		column, ok := node.(columnExpression)
 		if !ok || column.origin.Address.ObjectID != destination.address.ObjectID || column.origin.Address.SubID != 4 || column.slot != 3 {
 			t.Fatal("partial unique predicate row mapping", node)

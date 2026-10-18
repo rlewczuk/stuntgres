@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -200,8 +201,8 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 			usage, boolean := target.columns[0].Usage, testUsage(e, sqltype.Bool)
 			ref := e.catalog.domain.Ref(view.Epoch(), target.address)
 			ref.Address.SubID = 1
-			key := columnExpression{expressionInfo: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
-			cmp := func(op string, n int64) BoundExpr {
+			key := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
+			cmp := func(op string, n int64) expr.Expr {
 				operator := sqltype.CompareLess
 				if op == ">=" {
 					operator = sqltype.CompareGreaterEqual
@@ -214,12 +215,12 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				return comparisonExpression{expressionInfo: expressionInfo{Usage: boolean, Property: ExprProperties{RowDependent: true}}, left: key, right: literalExpression{expressionInfo: expressionInfo{Usage: usage}, value: value}, predicate: predicate, operator: op}
+				return comparisonExpression{Info: expr.Info{Usage: boolean, Property: expr.Properties{RowDependent: true}}, left: key, right: literalExpression{Info: expr.Info{Usage: usage}, value: value}, predicate: predicate, operator: op}
 			}
-			var proof BoundExpr = logicalExpression{expressionInfo: expressionInfo{Usage: boolean}, op: parser.LogicalOr, left: cmp("<", 1), right: cmp(">=", 3)}
+			var proof expr.Expr = logicalExpression{Info: expr.Info{Usage: boolean}, op: parser.LogicalOr, left: cmp("<", 1), right: cmp(">=", 3)}
 			if mode == "candidate_proven" {
-				bounds := logicalExpression{expressionInfo: expressionInfo{Usage: boolean}, op: parser.LogicalAnd, left: cmp(">=", 1), right: cmp("<", 3)}
-				proof = logicalExpression{expressionInfo: expressionInfo{Usage: boolean}, op: parser.LogicalAnd, left: nullTestExpression{expressionInfo: expressionInfo{Usage: boolean}, child: key, not: true}, right: bounds}
+				bounds := logicalExpression{Info: expr.Info{Usage: boolean}, op: parser.LogicalAnd, left: cmp(">=", 1), right: cmp("<", 3)}
+				proof = logicalExpression{Info: expr.Info{Usage: boolean}, op: parser.LogicalAnd, left: nullTestExpression{Info: expr.Info{Usage: boolean}, child: key, not: true}, right: bounds}
 			}
 			if mode != "default_unproven" {
 				check := checkConstraint{OID: 46113, Name: "frontier_proof", expression: proof}

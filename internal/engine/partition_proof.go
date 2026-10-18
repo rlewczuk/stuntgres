@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -76,7 +77,7 @@ func partitionConstraintProven(scope *StatementScope, catalog CatalogRead, paren
 	if bound.strategy == parser.PartitionHash {
 		return false, scope.op.Context().Err()
 	}
-	var keys [32]BoundExpr
+	var keys [32]expr.Expr
 	in := createLikeInput{source: parent, targetSlots: make([]int, len(parent.columns))}
 	for i, column := range parent.columns {
 		slot, ok := relation.index[column.Name]
@@ -86,7 +87,7 @@ func partitionConstraintProven(scope *StatementScope, catalog CatalogRead, paren
 		in.targetSlots[i] = slot
 	}
 	for i, key := range parent.partition.keys {
-		var node BoundExpr
+		var node expr.Expr
 		if key.derived != nil {
 			var err error
 			node, err = in.remap(key.derived.definition, relation, catalog)
@@ -97,10 +98,10 @@ func partitionConstraintProven(scope *StatementScope, catalog CatalogRead, paren
 			slot := in.targetSlots[parent.indexForAttribute(key.attribute)]
 			ref := catalog.owner.domain.Ref(catalog.Epoch(), relation.address)
 			ref.Address.SubID = relation.attributes[slot]
-			node = columnExpression{expressionInfo: expressionInfo{Usage: relation.columns[slot].Usage, Property: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
+			node = columnExpression{Info: expr.Info{Usage: relation.columns[slot].Usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: slot}
 		}
 		if node.ResultUsage().Collation.ID != key.usage.Collation.ID {
-			node = collationExpression{expressionInfo: expressionInfo{Usage: key.usage, Property: node.Properties()}, child: node}
+			node = collationExpression{Info: expr.Info{Usage: key.usage, Property: node.Properties()}, child: node}
 		}
 		keys[i] = node
 	}
@@ -141,16 +142,16 @@ func partitionConstraintProven(scope *StatementScope, catalog CatalogRead, paren
 type partitionProof struct {
 	scope    *StatementScope
 	relation *relationDescriptor
-	keys     []BoundExpr
+	keys     []expr.Expr
 	entries  []partitionKeyEntry
 }
 
-func partitionProofSame(a, b BoundExpr) bool {
+func partitionProofSame(a, b expr.Expr) bool {
 	binder := expressionBinder{checkDefinitionEquality: true}
 	return binder.sameGroupExpression(a, b)
 }
 
-func (p *partitionProof) nonNull(key BoundExpr) bool {
+func (p *partitionProof) nonNull(key expr.Expr) bool {
 	if column, ok := key.(columnExpression); ok {
 		for _, constraint := range p.relation.notNullConstraints {
 			if constraint.Attribute == column.origin.Address.SubID && !constraint.NotValid {
@@ -166,7 +167,7 @@ func (p *partitionProof) nonNull(key BoundExpr) bool {
 	return false
 }
 
-func partitionCheckNonNull(node, key BoundExpr) bool {
+func partitionCheckNonNull(node, key expr.Expr) bool {
 	switch e := node.(type) {
 	case nullTestExpression:
 		return e.not && partitionProofSame(e.child, key)
@@ -207,7 +208,7 @@ func (p *partitionProof) implies(goal *partitionProofGoal) (bool, error) {
 	return false, nil
 }
 
-func (p *partitionProof) fact(node BoundExpr, goal *partitionProofGoal) (bool, error) {
+func (p *partitionProof) fact(node expr.Expr, goal *partitionProofGoal) (bool, error) {
 	if goal.op == "true" {
 		return true, nil
 	}

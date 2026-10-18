@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 type caseBranch struct {
-	condition, result BoundExpr
+	condition, result expr.Expr
 	// Simple CASE compares a coerced view of its one saved test value.
 	testPlan  sqltype.CoercionPlan
 	equality  sqltype.Comparison
@@ -18,13 +19,13 @@ type caseBranch struct {
 	routine   *procedureDescriptor // Selected equality declaration, never captured permission.
 }
 type caseExpression struct {
-	expressionInfo
-	test      BoundExpr
+	expr.Info
+	test      expr.Expr
 	arms      []caseBranch
-	otherwise BoundExpr
+	otherwise expr.Expr
 }
 
-func (e caseExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e caseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -72,14 +73,14 @@ func (e caseExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 }
 
 type conditionalExpression struct {
-	expressionInfo
+	expr.Info
 	kind            parser.ConditionalKind
 	missingOrdering bool
-	args            []BoundExpr
+	args            []expr.Expr
 	comparison      sqltype.Comparison
 }
 
-func (e conditionalExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e conditionalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -207,7 +208,7 @@ func selectCommonUsage(count int, operand func(int) comparisonOperand, text sqlt
 			if label == "" {
 				return sqltype.Usage{}, nil
 			}
-			return sqltype.Usage{}, expressionError("42804", fmt.Sprintf("%s types %s and %s cannot be matched", label, typeName(candidate.Type), typeName(u.Type)), commonOperandStart(o))
+			return sqltype.Usage{}, expr.ErrorAt("42804", fmt.Sprintf("%s types %s and %s cannot be matched", label, typeName(candidate.Type), typeName(u.Type)), commonOperandStart(o))
 		}
 		if chosen == u.Type {
 			candidate = u
@@ -223,7 +224,7 @@ func selectCommonUsage(count int, operand func(int) comparisonOperand, text sqlt
 	}
 	return candidate, nil
 }
-func (b *expressionBinder) coerceConditional(o comparisonOperand, target sqltype.Usage, label string) (BoundExpr, error) {
+func (b *expressionBinder) coerceConditional(o comparisonOperand, target sqltype.Usage, label string) (expr.Expr, error) {
 	if err := b.captureTypeDiagnosticInput(target.Type); err != nil {
 		return nil, err
 	}
@@ -243,18 +244,18 @@ func (b *expressionBinder) coerceConditional(o comparisonOperand, target sqltype
 		return b.assignCompositeMember(row, target.Type.Usage(), sqltype.Implicit, commonOperandStart(o))
 	}
 	input, annotations := domainCoercionInput(node, target.Type.Usage())
-	info, err := b.coercionInfo(b.info(target.Type.Usage(), node.SourcePosition(), ExprProperties{}), input)
+	info, err := b.coercionInfo(b.info(target.Type.Usage(), node.SourcePosition(), expr.Properties{}), input)
 	if err != nil {
 		return nil, err
 	}
 	plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Implicit)
 	if err != nil {
-		return nil, expressionError("42846", fmt.Sprintf("%s could not convert type %s to %s", label, b.diagnosticTypeName(node.ResultUsage().Type), b.diagnosticTypeName(target.Type)), commonOperandStart(o))
+		return nil, expr.ErrorAt("42846", fmt.Sprintf("%s could not convert type %s to %s", label, b.diagnosticTypeName(node.ResultUsage().Type), b.diagnosticTypeName(target.Type)), commonOperandStart(o))
 	}
 	info.Property = coercionProperties(input, plan)
 	return restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Implicit, false}), nil
 }
-func (b *expressionBinder) conditionalEquality(left, right comparisonOperand, pos parser.Position) (BoundExpr, BoundExpr, sqltype.Comparison, *procedureDescriptor, error) {
+func (b *expressionBinder) conditionalEquality(left, right comparisonOperand, pos parser.Position) (expr.Expr, expr.Expr, sqltype.Comparison, *procedureDescriptor, error) {
 	raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "="}}}, Pos: pos}
 	lt, rt, err := b.resolveComparisonTypes(raw, left.descriptor(), right.descriptor())
 	if err != nil {
@@ -305,7 +306,7 @@ func bindExtremaComparison(usage sqltype.Usage, indeterminate bool) (sqltype.Com
 	return comparison, false, err
 }
 
-func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (expr.Expr, error) {
 	oldRegexp := b.regexpClause
 	if raw.Kind == parser.Coalesce {
 		old := b.stringSetGuard
@@ -322,7 +323,7 @@ func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (BoundExp
 		}
 		operands[i] = o
 	}
-	args := make([]BoundExpr, len(operands))
+	args := make([]expr.Expr, len(operands))
 	var usage sqltype.Usage
 	var comparison sqltype.Comparison
 	var routine *procedureDescriptor
@@ -346,12 +347,12 @@ func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (BoundExp
 			}
 		}
 	}
-	var properties ExprProperties
+	var properties expr.Properties
 	for _, arg := range args {
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
 	if comparison.SessionDependent() {
-		properties = mergeExpressionProperties(properties, ExprProperties{Volatility: Stable})
+		properties = expr.MergeProperties(properties, expr.Properties{Volatility: expr.Stable})
 	}
 	info, err := b.collatedInfo(b.info(usage, raw.Pos, properties), args...)
 	if err != nil {
@@ -371,15 +372,15 @@ func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (BoundExp
 
 // CASE compares the once-saved test datum through an implicit CaseTestExpr.
 // Its type and selected capability survive, but explicit derivation does not.
-type implicitComparisonOperand struct{ BoundExpr }
+type implicitComparisonOperand struct{ expr.Expr }
 
 func (implicitComparisonOperand) ExplicitCollation() parser.Position { return parser.Position{} }
 
-func (b *expressionBinder) bindCase(raw parser.CaseExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindCase(raw parser.CaseExpr) (expr.Expr, error) {
 	oldGuard, oldRegexp := b.stringSetGuard, b.regexpClause
 	b.stringSetGuard, b.regexpClause = "CASE", "CASE"
 	defer func() { b.stringSetGuard, b.regexpClause = oldGuard, oldRegexp }()
-	var test BoundExpr
+	var test expr.Expr
 	var err error
 	if raw.Test != nil {
 		o, err := b.comparisonOperand(raw.Test)
@@ -405,7 +406,7 @@ func (b *expressionBinder) bindCase(raw parser.CaseExpr) (BoundExpr, error) {
 			if e != nil {
 				return nil, e
 			}
-			var view BoundExpr
+			var view expr.Expr
 			view, arms[i].condition, arms[i].equality, arms[i].routine, err = b.conditionalEquality(comparisonOperand{node: implicitComparisonOperand{test}, raw: raw.Test}, o, arm.Pos)
 			if err == nil {
 				arms[i].testUsage = view.ResultUsage()
@@ -436,20 +437,20 @@ func (b *expressionBinder) bindCase(raw parser.CaseExpr) (BoundExpr, error) {
 	if err != nil {
 		return nil, err
 	}
-	var properties ExprProperties
+	var properties expr.Properties
 	if test != nil {
 		properties = test.Properties()
 	}
-	properties = mergeExpressionProperties(properties, otherwiseNode.Properties())
+	properties = expr.MergeProperties(properties, otherwiseNode.Properties())
 	for i := range arms {
 		arms[i].result, err = b.coerceConditional(outputs[i+1], usage, "CASE/WHEN")
 		if err != nil {
 			return nil, err
 		}
-		properties = mergeExpressionProperties(properties, arms[i].condition.Properties())
-		properties = mergeExpressionProperties(properties, arms[i].result.Properties())
+		properties = expr.MergeProperties(properties, arms[i].condition.Properties())
+		properties = expr.MergeProperties(properties, arms[i].result.Properties())
 		if test != nil && (arms[i].testPlan.SessionDependent() || arms[i].equality.SessionDependent()) {
-			properties = mergeExpressionProperties(properties, ExprProperties{Volatility: Stable})
+			properties = expr.MergeProperties(properties, expr.Properties{Volatility: expr.Stable})
 		}
 	}
 	info := b.info(usage.Type.Usage(), raw.Pos, properties)
@@ -477,7 +478,7 @@ func qualifiedCastChild(raw parser.Expr) error {
 	switch e := raw.(type) {
 	case parser.ColumnExpr:
 		if len(e.Name.Parts) > 1 {
-			return expressionError("0A000", "qualified column references are unsupported", e.Pos)
+			return expr.ErrorAt("0A000", "qualified column references are unsupported", e.Pos)
 		}
 	case parser.CaseExpr:
 		if err := qualifiedCastChild(e.Test); err != nil {

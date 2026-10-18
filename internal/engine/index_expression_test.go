@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -14,12 +15,12 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 	typ, _ := e.CatalogRead().LookupType(sqltype.Text)
 	u := typ.Usage()
 	parent := &relationDescriptor{address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 9000}, attributes: []int32{1}, columns: []ColumnDescriptor{{Name: "v", Usage: u}}, index: map[string]int{"v": 0}}
-	column := columnExpression{expressionInfo: expressionInfo{Usage: u, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
+	column := columnExpression{Info: expr.Info{Usage: u, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
 	plan, err := sqltype.BindString("lower", u, u, []sqltype.Usage{u}, [4]bool{true}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := functions.String{Info: column.expressionInfo, Plan: plan, Args: []BoundExpr{column}, Textual: [4]bool{true}}
+	node := functions.String{Info: column.Info, Plan: plan, Args: []expr.Expr{column}, Textual: [4]bool{true}}
 	d := &indexDefinition{parent: parent.address, keys: []indexKey{{derived: &derivedIndexKey{definition: node, execution: node}}}, ready: true, valid: true, live: true}
 	values := []sqltype.Value{sqltype.String(typ, "Alpha"), sqltype.String(typ, "ALPHA"), sqltype.String(typ, "Beta"), sqltype.Null(typ), sqltype.String(typ, "alpha")}
 	store := &relationStorage{}
@@ -60,7 +61,7 @@ func TestExpressionIndexUniqueSlotContract(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(ordering.slots, []int{1, 0}) || ordering.derived != nil {
 		t.Fatal(ordering, err)
 	}
-	d.keys[0] = indexKey{derived: &derivedIndexKey{execution: literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: sqltype.Null(typ)}}}
+	d.keys[0] = indexKey{derived: &derivedIndexKey{execution: literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: sqltype.Null(typ)}}}
 	if _, err := bindIndexOrdering(parent, d); err == nil {
 		t.Fatal("derived UNIQUE sentinel admitted")
 	}
@@ -69,12 +70,12 @@ func TestExpressionIndexUniqueSlotContract(t *testing.T) {
 func TestExpressionIndexPlannedVolatility(t *testing.T) {
 	e := New()
 	typ, _ := e.CatalogRead().LookupType(sqltype.Float8)
-	value := literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage(), Property: ExprProperties{Volatility: Volatile}}, value: sqltype.Null(typ)}
-	if plannedVolatility(value) != Immutable {
+	value := literalExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, value: sqltype.Null(typ)}
+	if plannedVolatility(value) != expr.Immutable {
 		t.Fatal("conservative literal metadata rejected")
 	}
-	wrapper := caseExpression{expressionInfo: value.expressionInfo, otherwise: value}
-	if plannedVolatility(wrapper) != Immutable || wrapper.Properties().Volatility != Volatile {
+	wrapper := caseExpression{Info: value.Info, otherwise: value}
+	if plannedVolatility(wrapper) != expr.Immutable || wrapper.Properties().Volatility != expr.Volatile {
 		t.Fatal("pruned CASE metadata changed")
 	}
 }

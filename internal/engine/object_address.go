@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -62,14 +63,14 @@ func (op objectAddressOperation) fields() ([]string, []sqltype.ID) {
 // Arguments, labels and coercions retain written order independently of slots.
 // The immutable recipe never retains a mutable catalog or a computed result.
 type objectAddressExpression struct {
-	expressionInfo
+	expr.Info
 	op     objectAddressOperation
-	args   [3]BoundExpr
+	args   [3]expr.Expr
 	slots  [3]uint8
 	labels [3]string
 }
 
-func (b *expressionBinder) bindObjectAddress(raw parser.FunctionExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindObjectAddress(raw parser.FunctionExpr) (expr.Expr, error) {
 	var operands [3]comparisonOperand
 	var small [3]string
 	names := small[:0]
@@ -138,7 +139,7 @@ func (b *expressionBinder) bindObjectAddress(raw parser.FunctionExpr) (BoundExpr
 			}
 		}
 	}
-	properties := ExprProperties{Volatility: Stable}
+	properties := expr.Properties{Volatility: expr.Stable}
 	for i := range n.args {
 		target := b.typ(ids[n.slots[i]]).Usage()
 		arg, err := b.finalizeOperand(operands[i], target.Type)
@@ -153,7 +154,7 @@ func (b *expressionBinder) bindObjectAddress(raw parser.FunctionExpr) (BoundExpr
 			arg = coercionExpression{b.info(target, raw.Args[i].SourcePosition(), coercionProperties(arg, plan)), arg, plan, sqltype.Implicit, false}
 		}
 		n.args[i] = arg
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
 	if err := functions.CallDecorationError(raw); err != nil {
 		return nil, err
@@ -171,7 +172,7 @@ func (b *expressionBinder) bindObjectAddress(raw parser.FunctionExpr) (BoundExpr
 		}
 		usage = shape.Usage()
 	}
-	n.expressionInfo, err = b.builtinRoutineInfo(b.info(usage, raw.Pos, properties), catalogRoutineProvider, op.name(), ids[:]...)
+	n.Info, err = b.builtinRoutineInfo(b.info(usage, raw.Pos, properties), catalogRoutineProvider, op.name(), ids[:]...)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +185,7 @@ func (n objectAddressExpression) validateStored() error {
 	ids, labels := n.op.signature()
 	var seen [3]bool
 	named := false
-	properties := ExprProperties{Volatility: Stable}
+	properties := expr.Properties{Volatility: expr.Stable}
 	for i, arg := range n.args {
 		slot := n.slots[i]
 		if slot >= 3 || seen[slot] || arg == nil || !arg.ResultUsage().Valid() || arg.ResultUsage() != arg.ResultUsage().Type.Usage() || arg.ResultUsage().Type.ID() != ids[slot] {
@@ -199,7 +200,7 @@ func (n objectAddressExpression) validateStored() error {
 		} else if named || int(slot) != i {
 			return fmt.Errorf("stuntgres: invalid object address argument order")
 		}
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
 	if properties != n.Properties() {
 		return fmt.Errorf("stuntgres: invalid object address properties")
@@ -223,7 +224,7 @@ func (n objectAddressExpression) validateStored() error {
 	}
 	return nil
 }
-func (n objectAddressExpression) sql(name string, render func(BoundExpr) (string, error)) (string, error) {
+func (n objectAddressExpression) sql(name string, render func(expr.Expr) (string, error)) (string, error) {
 	if err := n.validateStored(); err != nil {
 		return "", err
 	}
@@ -251,7 +252,7 @@ func objectAddressTextArray(d *sqltype.Descriptor, names []string) (sqltype.Valu
 	}
 	return sqltype.OwnedArrayValue(d, dims, values)
 }
-func (n objectAddressExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (n objectAddressExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err

@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -34,7 +35,7 @@ func TestRandomBinder(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if x.ResultUsage().Type.ID() != tc.id || x.Properties().Volatility != Volatile {
+			if x.ResultUsage().Type.ID() != tc.id || x.Properties().Volatility != expr.Volatile {
 				t.Fatalf("usage/properties: %#v %#v", x.ResultUsage(), x.Properties())
 			}
 		})

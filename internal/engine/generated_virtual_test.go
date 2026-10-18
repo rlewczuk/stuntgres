@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -13,7 +14,7 @@ import (
 func TestGeneratedVirtualStorageDemandAndFrames(t *testing.T) {
 	_, _, d := generatedUnitDescriptor(t)
 	typ := d.columns[0].Usage.Type
-	base := columnExpression{expressionInfo: expressionInfo{Usage: typ.Usage(), Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
+	base := columnExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
 	d.generations = map[int32]columnGeneration{2: {kind: generationVirtual, expression: base, planned: base}}
 	two, _ := sqltype.Integer(typ, 2)
 	seven, _ := sqltype.Integer(typ, 7)
@@ -23,7 +24,7 @@ func TestGeneratedVirtualStorageDemandAndFrames(t *testing.T) {
 	if err := evaluateGenerations(context.Background(), d, row, &eval); err != nil || !row[1].IsNull() || row[1].Type() != typ {
 		t.Fatal(row, err)
 	}
-	generated := columnExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, scope: 1, frame: 4, slot: 2}.withGeneration(d, 1, 1)
+	generated := columnExpression{Info: expr.Info{Usage: typ.Usage()}, scope: 1, frame: 4, slot: 2}.withGeneration(d, 1, 1)
 	outer := EvalContext{Context: context.Background(), Scope: 1, Frame: 4, Row: []sqltype.Value{ten, two, row[1]}, OldRow: []sqltype.Value{ten, seven, row[1]}}
 	inner := EvalContext{Context: context.Background(), Scope: 1, Frame: 8, Outer: &outer}
 	v, err := generated.Eval(&inner)
@@ -105,9 +106,9 @@ func TestGeneratedVirtualUnsimplifiedTypeSecurity(t *testing.T) {
 	if err := virtualDestination(ColumnDescriptor{Name: "b", Usage: builtinArray.Usage()}); err != nil {
 		t.Fatal(err)
 	}
-	hidden := literalExpression{expressionInfo: expressionInfo{Usage: domain.Usage(), Pos: parser.Position{Character: 17}}, value: sqltype.Null(domain)}
-	otherwise := literalExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}, value: sqltype.Null(integer)}
-	tree := caseExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}, arms: []caseBranch{{result: hidden}}, otherwise: otherwise}
+	hidden := literalExpression{Info: expr.Info{Usage: domain.Usage(), Pos: parser.Position{Character: 17}}, value: sqltype.Null(domain)}
+	otherwise := literalExpression{Info: expr.Info{Usage: integer.Usage()}, value: sqltype.Null(integer)}
+	tree := caseExpression{Info: expr.Info{Usage: integer.Usage()}, arms: []caseBranch{{result: hidden}}, otherwise: otherwise}
 	var diagnostic *sqlstate.Error
 	if err := virtualGenerationSecurity(tree); !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Position != "17" || diagnostic.Message != "generation expression uses user-defined type" {
 		t.Fatal(err)
@@ -120,7 +121,7 @@ func TestGeneratedVirtualUnsimplifiedTypeSecurity(t *testing.T) {
 func TestGeneratedVirtualReadManifestAndLogicalNullability(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	typ := d.columns[0].Usage.Type
-	base := columnExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 0}
+	base := columnExpression{Info: expr.Info{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 0}
 	d.generations = map[int32]columnGeneration{2: {kind: generationVirtual, expression: base, planned: base}}
 	ref := e.catalog.domain.Ref(view.Epoch(), d.address)
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
@@ -159,7 +160,7 @@ func TestGeneratedVirtualReplacementDoesNotMaterializeOwner(t *testing.T) {
 	d.address.ObjectID++
 	d.columns[1].Usage = oid.Usage()
 	ref := e.catalog.domain.Ref(view.Epoch()+1, d.address)
-	node := tableOIDExpression{expressionInfo: expressionInfo{Usage: oid.Usage(), Property: ExprProperties{RowDependent: true}}, owner: ref}
+	node := tableOIDExpression{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, owner: ref}
 	d.generations = map[int32]columnGeneration{2: {kind: generationVirtual, expression: node, planned: node}}
 	base, _ := sqltype.Integer(d.columns[0].Usage.Type, 2)
 	store := &relationStorage{versions: []rowVersion{{values: []sqltype.Value{base, sqltype.Null(oid)}}}}

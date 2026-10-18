@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -45,8 +46,8 @@ func queryInputs(node LogicalNode) (LogicalNode, LogicalNode) {
 	return nil, nil
 }
 
-func queryExpressions(node LogicalNode, visit func(BoundExpr)) {
-	args := func(items []BoundExpr) {
+func queryExpressions(node LogicalNode, visit func(expr.Expr)) {
+	args := func(items []expr.Expr) {
 		for _, expr := range items {
 			visit(expr)
 		}
@@ -149,8 +150,8 @@ func collectQueryFrames(root LogicalNode) (map[uint32]*projectNode, map[*parser.
 		left, right := queryInputs(node)
 		walk(left)
 		walk(right)
-		queryExpressions(node, func(expr BoundExpr) {
-			walkBoundExpression(expr, func(expr BoundExpr) {
+		queryExpressions(node, func(bound expr.Expr) {
+			walkBoundExpression(bound, func(expr expr.Expr) {
 				if e, ok := expr.(subqueryExpression); ok {
 					walk(e.queryPlan.Root)
 				}
@@ -171,8 +172,8 @@ func queryDescriptorsChanged(node LogicalNode, typ func(*sqltype.Descriptor) *sq
 		}
 	}
 	changed := false
-	queryExpressions(node, func(expr BoundExpr) {
-		walkBoundExpression(expr, func(expr BoundExpr) {
+	queryExpressions(node, func(bound expr.Expr) {
+		walkBoundExpression(bound, func(expr expr.Expr) {
 			if typ(expr.ResultUsage().Type) != expr.ResultUsage().Type {
 				changed = true
 			}
@@ -196,8 +197,8 @@ func queryRoutineCarriersChanged(view CatalogRead, node LogicalNode) bool {
 		return false
 	}
 	changed := false
-	queryExpressions(node, func(expression BoundExpr) {
-		walkBoundExpression(expression, func(expression BoundExpr) {
+	queryExpressions(node, func(expression expr.Expr) {
+		walkBoundExpression(expression, func(expression expr.Expr) {
 			captured, err := expressionRoutineDescriptor(expression)
 			if err != nil || captured != nil && view.Get(captured.address) != captured {
 				changed = true
@@ -228,25 +229,25 @@ func queryIgnoresOwnExpressions(node LogicalNode) bool {
 	return false
 }
 
-func queryDemandProperties(project *projectNode, presence bool) ExprProperties {
-	var properties ExprProperties
+func queryDemandProperties(project *projectNode, presence bool) expr.Properties {
+	var properties expr.Properties
 	var walk func(LogicalNode, *projectNode)
 	walk = func(node LogicalNode, ignoredProject *projectNode) {
 		if node == nil {
 			return
 		}
 		if node != ignoredProject && !queryIgnoresOwnExpressions(node) {
-			queryExpressions(node, func(expr BoundExpr) {
-				if edge, ok := expr.(subqueryExpression); ok && edge.cteDefinition {
+			queryExpressions(node, func(bound expr.Expr) {
+				if edge, ok := bound.(subqueryExpression); ok && edge.cteDefinition {
 					return
 				}
-				if expr == nil {
+				if bound == nil {
 					return
 				}
-				p := expr.Properties()
+				p := bound.Properties()
 				p.RowDependent = false
-				properties = mergeExpressionProperties(properties, p)
-				walkBoundExpression(expr, func(expr BoundExpr) {
+				properties = expr.MergeProperties(properties, p)
+				walkBoundExpression(bound, func(expr expr.Expr) {
 					var frame uint32
 					switch n := expr.(type) {
 					case columnExpression:
@@ -326,8 +327,8 @@ func queryExecutionSourceReads(root LogicalNode, ignoredProject *projectNode) ma
 		if node == ignored || queryIgnoresOwnExpressions(node) {
 			return
 		}
-		visit := func(expression BoundExpr) {
-			walkBoundExpression(expression, func(expression BoundExpr) {
+		visit := func(expression expr.Expr) {
+			walkBoundExpression(expression, func(expression expr.Expr) {
 				switch e := expression.(type) {
 				case subqueryExpression:
 					if e.cteDefinition {

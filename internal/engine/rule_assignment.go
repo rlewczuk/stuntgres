@@ -2,10 +2,11 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
-func mapRuleAssignmentTargets(targets []*arrayAssignmentTarget, expression func(BoundExpr) (BoundExpr, bool, error), usage func(sqltype.Usage) (sqltype.Usage, error)) ([]*arrayAssignmentTarget, error) {
+func mapRuleAssignmentTargets(targets []*arrayAssignmentTarget, expression func(expr.Expr) (expr.Expr, bool, error), usage func(sqltype.Usage) (sqltype.Usage, error)) ([]*arrayAssignmentTarget, error) {
 	var target func(*arrayAssignmentTarget) (*arrayAssignmentTarget, error)
 	target = func(old *arrayAssignmentTarget) (*arrayAssignmentTarget, error) {
 		if old == nil {

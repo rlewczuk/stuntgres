@@ -7,6 +7,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -31,11 +32,11 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 			check := source.checkConstraints[0]
 			originalChecks := slices.Clone(check.dependencies)
 			indexes := []*relationDescriptor{tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "source_expression"), tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "source_partial")}
-			sourceTrees := []BoundExpr{generations[3].expression, generations[3].planned, generations[4].expression, generations[4].planned, check.expression, indexes[0].sqlIndex.keys[0].derived.definition, indexes[0].sqlIndex.keys[0].derived.execution, indexes[1].sqlIndex.keys[0].derived.definition, indexes[1].sqlIndex.keys[0].derived.execution, indexes[1].sqlIndex.predicate.definition, indexes[1].sqlIndex.predicate.execution}
-			rowRefs := func(nodes []BoundExpr) []ids.ObjectRef {
+			sourceTrees := []expr.Expr{generations[3].expression, generations[3].planned, generations[4].expression, generations[4].planned, check.expression, indexes[0].sqlIndex.keys[0].derived.definition, indexes[0].sqlIndex.keys[0].derived.execution, indexes[1].sqlIndex.keys[0].derived.definition, indexes[1].sqlIndex.keys[0].derived.execution, indexes[1].sqlIndex.predicate.definition, indexes[1].sqlIndex.predicate.execution}
+			rowRefs := func(nodes []expr.Expr) []ids.ObjectRef {
 				var refs []ids.ObjectRef
 				for _, node := range nodes {
-					walkBoundExpression(node, func(node BoundExpr) {
+					walkBoundExpression(node, func(node expr.Expr) {
 						switch n := node.(type) {
 						case columnExpression:
 							refs = append(refs, n.origin)
@@ -75,9 +76,9 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 			local := func(attribute int32) ids.ObjectRef {
 				return e.catalog.domain.Ref(stage.base.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.address.ObjectID, SubID: attribute})
 			}
-			assertTree := func(node BoundExpr) {
+			assertTree := func(node expr.Expr) {
 				t.Helper()
-				refs := rowRefs([]BoundExpr{node})
+				refs := rowRefs([]expr.Expr{node})
 				if len(refs) == 0 {
 					t.Fatal("fixture lost row reference")
 				}
@@ -217,9 +218,9 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 	if !slices.Contains(generation.dependencies, oldRef) {
 		t.Fatal("external literal manifest reminted", generation.dependencies)
 	}
-	assertNode := func(node BoundExpr) {
+	assertNode := func(node expr.Expr) {
 		t.Helper()
-		walkBoundExpression(node, func(node BoundExpr) {
+		walkBoundExpression(node, func(node expr.Expr) {
 			switch n := node.(type) {
 			case columnExpression:
 				if n.origin.Domain() != e.catalog.domain || n.origin.Epoch != stage.base.Epoch() || n.origin.Address.ObjectID != destination.address.ObjectID {

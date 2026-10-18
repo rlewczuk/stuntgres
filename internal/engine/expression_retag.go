@@ -11,7 +11,7 @@ import (
 // Replacement can retain TEMP sequence builtin generations. Rebind persisted
 // scalar trees to those types without evaluating them or changing captured
 // values, positions or expression properties.
-func retagBoundTypes(view CatalogRead, node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (BoundExpr, bool, error) {
+func retagBoundTypes(view CatalogRead, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...collationRemapper) (expr.Expr, bool, error) {
 	retainedType = recordTypeMapper(retainedType, collations...)
 	return retagBoundTypesWithQuery(view, node, retainedType, func(root LogicalNode) (LogicalNode, error) {
 		if (view.state == nil || view.state.aclItemImport == nil) && (len(collations) == 0 || collations[0] == nil) && !queryDescriptorsChanged(root, retainedType) && !queryRoutineCarriersChanged(view, root) {
@@ -21,16 +21,16 @@ func retagBoundTypes(view CatalogRead, node BoundExpr, retainedType func(*sqltyp
 	}, collations...)
 }
 
-func retagBoundTypesWithQuery(view CatalogRead, node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), collations ...collationRemapper) (BoundExpr, bool, error) {
+func retagBoundTypesWithQuery(view CatalogRead, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), collations ...collationRemapper) (expr.Expr, bool, error) {
 	return mapBoundExpression(view, node, retainedType, queryMapper, nil, nil, collations...)
 }
 
 // mapBoundExpression shares the complete copy-on-change traversal with catalog
 // retagging. A leaf rewrite runs before children, without evaluating expressions.
-func mapBoundExpression(view CatalogRead, node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *relationDescriptor, leaf func(BoundExpr) (BoundExpr, bool, error), collations ...collationRemapper) (BoundExpr, bool, error) {
+func mapBoundExpression(view CatalogRead, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *relationDescriptor, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...collationRemapper) (expr.Expr, bool, error) {
 	return mapBoundExpressionReader(view, nil, node, retainedType, queryMapper, recipe, leaf, collations...)
 }
-func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *relationDescriptor, leaf func(BoundExpr) (BoundExpr, bool, error), collations ...collationRemapper) (BoundExpr, bool, error) {
+func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *relationDescriptor, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...collationRemapper) (expr.Expr, bool, error) {
 	if node == nil {
 		return nil, false, nil
 	}
@@ -49,7 +49,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		return node, false, nil
 	}
-	info := boundExpressionInfo(node)
+	info := expr.InfoOf(node)
 	if leaf != nil {
 		info.Property = rewrittenIntrinsicProperties(node)
 	}
@@ -117,7 +117,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if err != nil {
 			return nil, false, err
 		}
-		oldInfo := boundExpressionInfo(node)
+		oldInfo := expr.InfoOf(node)
 		changed = changed || info.CollationLeft != oldInfo.CollationLeft || info.CollationRight != oldInfo.CollationRight
 	}
 	comparisonCollation := func(ref sqltype.CollationRef) sqltype.CollationRef {
@@ -129,24 +129,24 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		changed = changed || next != ref
 		return next
 	}
-	mapChild := func(old BoundExpr) (BoundExpr, bool, error) {
+	mapChild := func(old expr.Expr) (expr.Expr, bool, error) {
 		next, replaced, failure := mapBoundExpressionReader(view, reader, old, retainedType, queryMapper, recipe, leaf, collations...)
 		changed = changed || replaced
 		if next != nil && (leaf != nil || replaced) {
-			info.Property = mergeExpressionProperties(info.Property, next.Properties())
+			info.Property = expr.MergeProperties(info.Property, next.Properties())
 		}
 		return next, replaced, failure
 	}
-	child := func(old BoundExpr) BoundExpr {
+	child := func(old expr.Expr) expr.Expr {
 		if err != nil {
 			return old
 		}
-		var next BoundExpr
+		var next expr.Expr
 		next, _, err = mapChild(old)
 		return next
 	}
-	children := func(old []BoundExpr) []BoundExpr {
-		var args []BoundExpr
+	children := func(old []expr.Expr) []expr.Expr {
+		var args []expr.Expr
 		for i, arg := range old {
 			next, replaced, failure := mapChild(arg)
 			if failure != nil {
@@ -155,7 +155,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			}
 			if replaced {
 				if args == nil {
-					args = append([]BoundExpr(nil), old...)
+					args = append([]expr.Expr(nil), old...)
 				}
 				args[i] = next
 			}
@@ -165,7 +165,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		return old
 	}
-	var rebound BoundExpr
+	var rebound expr.Expr
 	switch n := node.(type) {
 	case assignmentValueExpression:
 		n.base, n.value = child(n.base), child(n.value)
@@ -179,19 +179,19 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		changed = changed || targets[0] != n.target
 		n.target = targets[0]
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case seriesExpression:
 		n.args = children(n.args)
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case subscriptsExpression:
 		n.args = children(n.args)
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case unnestExpression:
 		n.args = children(n.args)
-		n.expressionInfo = info
+		n.Info = info
 		if n.procedure != nil {
 			descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
 			proc, ok := descriptor.(*procedureDescriptor)
@@ -319,13 +319,13 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		changed = changed || replaced
 		n = mapped.(viewQualificationExpression)
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case rowExpression:
 		var replaced bool
 		n, replaced, err = mapRowAnalysis(n, mapChild)
 		changed = changed || replaced
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case fieldExpression:
 		n.base = child(n.base)
@@ -338,10 +338,10 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 		changed = changed || index != n.index
 		n.index = index
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case arrayExpression:
-		var elements []BoundExpr
+		var elements []expr.Expr
 		for i, old := range n.elements {
 			next, replaced, failure := mapChild(old)
 			if failure != nil {
@@ -350,7 +350,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			if replaced {
 				changed = true
 				if elements == nil {
-					elements = append([]BoundExpr(nil), n.elements...)
+					elements = append([]expr.Expr(nil), n.elements...)
 				}
 				elements[i] = next
 			}
@@ -361,7 +361,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if elements != nil {
 			n.elements = elements
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case subscriptExpression:
 		var replaced bool
@@ -370,10 +370,10 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			return nil, false, err
 		}
 		changed = changed || replaced
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case tableOIDExpression:
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case indexPropertyExpression:
 		for i := range n.children() {
@@ -382,7 +382,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if err != nil {
 			return nil, false, err
 		}
-		n.expressionInfo = info
+		n.Info = info
 		if n.kind != accessMethodProperty {
 			n.oidUsage.Type = retainedType(n.oidUsage.Type)
 			n.oidPlan, err = sqltype.PlanCoercion(n.args[0].ResultUsage(), n.oidUsage, sqltype.Implicit)
@@ -403,7 +403,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 				n.queryPlan = &copy
 				changed = true
 				if leaf != nil {
-					visitCTEQuery(root, func(LogicalNode) {}, func(expr BoundExpr) {
+					visitCTEQuery(root, func(LogicalNode) {}, func(expr expr.Expr) {
 						properties := expr.Properties()
 						info.Property.Volatility = max(info.Property.Volatility, properties.Volatility)
 						info.Property.ParameterDependent = info.Property.ParameterDependent || properties.ParameterDependent
@@ -475,30 +475,30 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 				}
 			}
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case deparseExpression:
 		n.args = children(n.args)
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case advisoryExpression:
 		n.args = children(n.args)
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case parameterExpression:
 		if !changed {
 			return node, false, nil
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case columnExpression:
 		n.virtual = child(n.virtual)
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case returningColumnExpression:
 		if n.value != nil {
 			n.value = child(n.value)
-			n.expressionInfo = info
+			n.Info = info
 			rebound = n
 			break
 		}
@@ -510,11 +510,11 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		n.columnExpression = column
 		rebound = n
 	case returningWholeRowExpression:
-		var members []BoundExpr
+		var members []expr.Expr
 		for i, member := range n.members {
 			next := child(member)
 			if changed && members == nil {
-				members = append([]BoundExpr(nil), n.members...)
+				members = append([]expr.Expr(nil), n.members...)
 			}
 			if members != nil {
 				members[i] = next
@@ -523,19 +523,19 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if members != nil {
 			n.members = members
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case mergeActionExpression:
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case groupExpression:
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case aggregateExpression:
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case groupingExpression:
-		var args []BoundExpr
+		var args []expr.Expr
 		for i, arg := range n.args {
 			next, replaced, failure := mapChild(arg)
 			if failure != nil {
@@ -544,7 +544,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			if replaced {
 				changed = true
 				if args == nil {
-					args = append([]BoundExpr(nil), n.args...)
+					args = append([]expr.Expr(nil), n.args...)
 				}
 				args[i] = next
 			}
@@ -552,59 +552,59 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if args != nil {
 			n.args = args
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case *windowExpression:
 		if !changed {
 			return node, false, nil
 		}
 		copy := *n
-		copy.expressionInfo = info
+		copy.Info = info
 		rebound = &copy
 	case cachedOrderExpression:
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case currentSchemasExpression:
 		n.arg = child(n.arg)
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case objectAddressExpression:
 		for i := range n.args {
 			n.args[i] = child(n.args[i])
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case aclValueExpression:
 		for i := range n.arguments() {
 			n.args[i] = child(n.args[i])
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case objectACLExpression:
 		for i := range n.args {
 			n.args[i] = child(n.args[i])
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case accessInquiryExpression:
 		for i := range n.count {
 			n.args[i] = child(n.args[i])
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case namespaceInquiryExpression:
 		if n.arg != nil {
 			n.arg = child(n.arg)
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case blockingInquiryExpression:
 		n.arg = child(n.arg)
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case sequenceCallExpression:
 		n.args = children(n.args)
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case catalogUserNameExpression:
 		n.arg = child(n.arg)
@@ -614,13 +614,13 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case catalogForeignKeysExpression:
 		if !changed {
 			return node, false, nil
 		}
-		n.expressionInfo = info
+		n.Info = info
 		n.metadata, err = newCatalogForeignKeyValues(info.Usage.Type)
 		if err != nil {
 			return node, false, err
@@ -636,7 +636,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case commitTimestampExpression:
 		if n.arg != nil {
@@ -648,15 +648,15 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case visibilityInquiryExpression:
 		n.arg = child(n.arg)
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case commentInquiryExpression:
 		n.args = children(n.args)
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case sqlJSONExpression:
 		n.args = children(n.args)
@@ -665,7 +665,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		}
 	case jsonPredicateExpression:
 		n.child = child(n.child)
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case caseExpression:
 		n.test, n.otherwise = child(n.test), child(n.otherwise)
@@ -709,16 +709,16 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if arms != nil {
 			n.arms = arms
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case conditionalExpression:
 		ref, conflict := n.comparison.InputCollation()
 		ref = comparisonCollation(ref)
-		var args []BoundExpr
+		var args []expr.Expr
 		for i, old := range n.args {
 			next := child(old)
 			if changed && args == nil {
-				args = append([]BoundExpr(nil), n.args...)
+				args = append([]expr.Expr(nil), n.args...)
 			}
 			if args != nil {
 				args[i] = next
@@ -741,16 +741,16 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 				n.comparison, err = sqltype.BindComparison(left, right, ref, conflict)
 			}
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case identityExpression:
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case domainValueExpression:
 		if !changed {
 			return node, false, nil
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case literalExpression:
 		info.UnknownNull = n.UnknownNull
@@ -771,14 +771,14 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, nil
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case collationExpression:
 		n.child = child(n.child)
 		if !changed {
 			return node, false, err
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case coercionExpression:
 		n.child = child(n.child)
@@ -791,7 +791,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if changed && err == nil {
 			n.plan, err = n.plan.Rebind(n.child.ResultUsage(), info.Usage, n.mode)
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case bitwiseExpression:
 		n.left, n.right = child(n.left), child(n.right)
@@ -812,7 +812,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 				n.provider, err = sqltype.BindBitwise(n.operator, n.left.ResultUsage().Type, rt)
 			}
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case selectedOperatorExpression:
 		n.provider = child(n.provider)
@@ -825,7 +825,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if !changed {
 			return node, false, err
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case arithmeticExpression:
 		n.left, n.right = child(n.left), child(n.right)
@@ -839,7 +839,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			}
 			n.provider, err = sqltype.BindArithmetic(n.operator, n.left.ResultUsage().Type, rightType, info.Usage.Type)
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case likeExpression:
 		n.left, n.right = child(n.left), child(n.right)
@@ -847,13 +847,13 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			return node, false, err
 		}
 		if err == nil {
-			var collation expressionInfo
-			collation, err = collatedInfo(view, expressionInfo{Usage: n.left.ResultUsage(), Pos: info.Pos}, n.left, n.right)
+			var collation expr.Info
+			collation, err = collatedInfo(view, expr.Info{Usage: n.left.ResultUsage(), Pos: info.Pos}, n.left, n.right)
 			if err == nil {
 				n.provider, err = sqltype.BindLike(n.operator, n.left.ResultUsage(), n.right.ResultUsage(), info.Usage, collation.CollationConflict)
 			}
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case rowComparisonExpression:
 		var pairs []comparisonExpression
@@ -893,7 +893,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 				}
 			}
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case scalarArrayComparisonExpression:
 		ref, conflict := n.predicate.InputCollation()
@@ -911,7 +911,7 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			}
 			n.predicate, err = sqltype.BindComparisonPredicate(operator, n.left.ResultUsage().Type, n.elementType(), typ, ref, conflict)
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case comparisonExpression:
 		ref, conflict := n.predicate.InputCollation()
@@ -940,21 +940,21 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 			}
 			n.predicate, err = sqltype.BindComparisonPredicate(operator, n.left.ResultUsage().Type, n.right.ResultUsage().Type, typ, ref, conflict)
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case nullTestExpression:
 		n.child = child(n.child)
 		if !changed {
 			return node, false, err
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case truthTestExpression:
 		n.child = child(n.child)
 		if !changed {
 			return node, false, err
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case distinctExpression:
 		ref, conflict := n.equality.InputCollation()
@@ -966,18 +966,18 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 		if changed && err == nil {
 			n.equality, err = sqltype.BindComparisonPredicate(sqltype.CompareEqual, n.left.ResultUsage().Type, n.right.ResultUsage().Type, typ, ref, conflict)
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case logicalExpression:
 		n.left, n.right = child(n.left), child(n.right)
 		if !changed {
 			return node, false, err
 		}
-		n.expressionInfo = info
+		n.Info = info
 		rebound = n
 	case expr.Composite:
 		// Last, so the explicit engine wrappers above keep precedence.
-		var mapped []BoundExpr
+		var mapped []expr.Expr
 		mapped, err = mapCompositeChildren(n, mapChild)
 		if err != nil {
 			return node, false, err
@@ -1001,9 +1001,9 @@ func mapBoundExpressionReader(view CatalogRead, reader definitionReader, node Bo
 
 // mapCompositeChildren maps a protocol node's children, copying the slice only
 // when a child is replaced.
-func mapCompositeChildren(node expr.Composite, mapChild func(BoundExpr) (BoundExpr, bool, error)) ([]BoundExpr, error) {
+func mapCompositeChildren(node expr.Composite, mapChild func(expr.Expr) (expr.Expr, bool, error)) ([]expr.Expr, error) {
 	children := node.Children()
-	var mapped []BoundExpr
+	var mapped []expr.Expr
 	for i, old := range children {
 		next, replaced, err := mapChild(old)
 		if err != nil {
@@ -1011,7 +1011,7 @@ func mapCompositeChildren(node expr.Composite, mapChild func(BoundExpr) (BoundEx
 		}
 		if replaced {
 			if mapped == nil {
-				mapped = append([]BoundExpr(nil), children...)
+				mapped = append([]expr.Expr(nil), children...)
 			}
 			mapped[i] = next
 		}
@@ -1032,7 +1032,7 @@ func retagEnvironment(view CatalogRead, retainedType func(*sqltype.Descriptor) *
 	return expr.Retag{
 		Type:      retainedType,
 		Collation: remap,
-		Collated: func(info expressionInfo, inputs ...BoundExpr) (expressionInfo, error) {
+		Collated: func(info expr.Info, inputs ...expr.Expr) (expr.Info, error) {
 			return collatedInfo(view, info, inputs...)
 		},
 	}

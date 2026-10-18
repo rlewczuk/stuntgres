@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -10,30 +11,30 @@ import (
 )
 
 type unnestExpression struct {
-	expressionInfo
-	args      []BoundExpr
+	expr.Info
+	args      []expr.Expr
 	procedure *procedureDescriptor
 	ref       ids.ObjectRef
 }
 
-func (e unnestExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e unnestExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted unnest call")
 }
-func (e unnestExpression) mapChildren(mapper func(BoundExpr) (BoundExpr, bool, error)) (unnestExpression, bool, error) {
+func (e unnestExpression) mapChildren(mapper func(expr.Expr) (expr.Expr, bool, error)) (unnestExpression, bool, error) {
 	arg, changed, err := mapper(e.args[0])
 	if err != nil {
 		return e, false, err
 	}
 	if changed {
-		e.args = []BoundExpr{arg}
+		e.args = []expr.Expr{arg}
 	}
 	return e, changed, nil
 }
-func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (expr.Expr, error) {
 	var small [1]functions.Argument
 	var operands []functions.Argument
 	if len(raw.Args) <= len(small) {
@@ -95,7 +96,7 @@ func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (BoundExpr, error
 		return nil, err
 	}
 	if b.executeParameters {
-		return nil, expressionError("0A000", "set-returning functions are not allowed in EXECUTE parameters", raw.Pos)
+		return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", raw.Pos)
 	}
 	if b.policyConsumer && b.queryFrame == 0 {
 		return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions")
@@ -107,7 +108,7 @@ func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (BoundExpr, error
 	case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
 		b.queryHasTargetSet = true
 	}
-	properties := mergeExpressionProperties(ExprProperties{Volatility: Immutable, StageDependent: true}, arg.Properties())
+	properties := expr.MergeProperties(expr.Properties{Volatility: expr.Immutable, StageDependent: true}, arg.Properties())
 	usage := result.Usage()
 	if input.IsArray() {
 		usage.Collation = target.Collation
@@ -127,5 +128,5 @@ func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (BoundExpr, error
 	if err != nil {
 		return nil, err
 	}
-	return unnestExpression{expressionInfo: info, args: []BoundExpr{arg}}, nil
+	return unnestExpression{Info: info, args: []expr.Expr{arg}}, nil
 }

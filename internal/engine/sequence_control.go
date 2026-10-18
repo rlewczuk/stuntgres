@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -178,8 +179,8 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			for _, column := range relation.columns {
 				retainBuiltin(column.Usage.Type)
 			}
-			retainExpression := func(node BoundExpr) {
-				walkBoundExpression(node, func(node BoundExpr) { retainBuiltin(node.ResultUsage().Type) })
+			retainExpression := func(node expr.Expr) {
+				walkBoundExpression(node, func(node expr.Expr) { retainBuiltin(node.ResultUsage().Type) })
 			}
 			for _, definition := range relation.defaults {
 				retainExpression(definition.expression)
@@ -190,7 +191,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			for _, policy := range relation.policies {
 				for _, condition := range []*policyExpression{policy.using, policy.check} {
 					if condition != nil {
-						walkQueryArgumentExpression(condition.expression, func(node BoundExpr) { retainBuiltin(node.ResultUsage().Type) })
+						walkQueryArgumentExpression(condition.expression, func(node expr.Expr) { retainBuiltin(node.ResultUsage().Type) })
 					}
 				}
 			}
@@ -219,8 +220,8 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 					for _, column := range node.Schema() {
 						retainBuiltin(column.Usage.Type)
 					}
-					queryExpressions(node, func(expression BoundExpr) {
-						walkBoundExpression(expression, func(expression BoundExpr) {
+					queryExpressions(node, func(expression expr.Expr) {
+						walkBoundExpression(expression, func(expression expr.Expr) {
 							retainBuiltin(expression.ResultUsage().Type)
 							if child, ok := expression.(subqueryExpression); ok {
 								retainQuery(child.queryPlan.Root)

@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -19,22 +20,22 @@ func TestInstalledFunctionRebuildKeepsWrapper(t *testing.T) {
 			text = d
 		}
 	}
-	textOf := func(node BoundExpr) string {
+	textOf := func(node expr.Expr) string {
 		s, _ := node.(literalExpression).value.Text()
 		return s
 	}
-	literal := func(s string) BoundExpr {
-		return literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, s)}
+	literal := func(s string) expr.Expr {
+		return literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, s)}
 	}
-	info := expressionInfo{Usage: text.Usage()}
-	call, err := functions.NewSoundex(info, "soundex", []BoundExpr{literal("a")})
+	info := expr.Info{Usage: text.Usage()}
+	call, err := functions.NewSoundex(info, "soundex", []expr.Expr{literal("a")})
 	if err != nil {
 		t.Fatal(err)
 	}
 	procedure := &procedureDescriptor{}
 	ref := ids.ObjectRef{Address: ids.ObjectAddress{ObjectID: 7}}
 	node := installedSoundexFunctionExpression{Soundex: call, procedure: procedure, ref: ref}
-	rebuilt, err := node.Rebuild(info, []BoundExpr{literal("b")})
+	rebuilt, err := node.Rebuild(info, []expr.Expr{literal("b")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,19 +60,19 @@ func TestWalkBoundExpressionVisitsCompositeChildren(t *testing.T) {
 			text = d
 		}
 	}
-	info := expressionInfo{Usage: text.Usage()}
-	leaf := literalExpression{expressionInfo: info, value: sqltype.String(text, "x")}
-	inner, err := functions.NewSoundex(info, "soundex", []BoundExpr{leaf})
+	info := expr.Info{Usage: text.Usage()}
+	leaf := literalExpression{Info: info, value: sqltype.String(text, "x")}
+	inner, err := functions.NewSoundex(info, "soundex", []expr.Expr{leaf})
 	if err != nil {
 		t.Fatal(err)
 	}
 	wrapper := installedSoundexFunctionExpression{Soundex: inner}
-	outer, err := functions.NewSoundex(info, "soundex", []BoundExpr{wrapper})
+	outer, err := functions.NewSoundex(info, "soundex", []expr.Expr{wrapper})
 	if err != nil {
 		t.Fatal(err)
 	}
 	var visited []string
-	walkBoundExpression(outer, func(node BoundExpr) { visited = append(visited, fmt.Sprintf("%T", node)) })
+	walkBoundExpression(outer, func(node expr.Expr) { visited = append(visited, fmt.Sprintf("%T", node)) })
 	want := []string{"functions.Soundex", "engine.installedSoundexFunctionExpression", "engine.literalExpression"}
 	if !reflect.DeepEqual(visited, want) {
 		t.Fatalf("walk visited %v, want %v", visited, want)
@@ -87,7 +88,7 @@ func TestInstalledUUIDOsspRebuildKeepsWrapper(t *testing.T) {
 			uuid = d
 		}
 	}
-	info := expressionInfo{Usage: uuid.Usage(), Property: ExprProperties{Volatility: Volatile}}
+	info := expr.Info{Usage: uuid.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}
 	call, err := functions.NewUUIDGeneration(info, "uuidv4", nil, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -105,7 +106,7 @@ func TestInstalledUUIDOsspRebuildKeepsWrapper(t *testing.T) {
 	if !ok || got.procedure != procedure || got.ref != ref || got.Pos.Offset != 3 || node.Pos.Offset != 0 {
 		t.Fatalf("rebuilt %#v", rebuilt)
 	}
-	if _, err := node.Rebuild(info, []BoundExpr{literalExpression{}}); err == nil {
+	if _, err := node.Rebuild(info, []expr.Expr{literalExpression{}}); err == nil {
 		t.Fatal("Rebuild accepted an extra child")
 	}
 }

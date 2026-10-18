@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -15,7 +16,7 @@ import (
 func TestStringCoreBinding(t *testing.T) {
 	engine := New()
 	binder := newTestExpressionBinder(t, context.Background(), engine, sqltype.InputEnvironment{}, nil)
-	bind := func(query string) BoundExpr {
+	bind := func(query string) expr.Expr {
 		t.Helper()
 		raw := statement(t, query).(*parser.Select).Targets[0]
 		node, err := binder.bind(raw, expressionPolicy{context: projectionContext})
@@ -25,7 +26,7 @@ func TestStringCoreBinding(t *testing.T) {
 		return node
 	}
 	first := bind("SELECT btrim(' x ')")
-	if first.Properties().Volatility != Immutable || first.ResultUsage().Type.ID() != sqltype.Text {
+	if first.Properties().Volatility != expr.Immutable || first.ResultUsage().Type.ID() != sqltype.Text {
 		t.Fatal(first)
 	}
 	if !binder.sameGroupExpression(first, bind("SELECT btrim(' x ')")) || binder.sameGroupExpression(first, bind("SELECT ltrim(' x ')")) || binder.sameGroupExpression(first, bind("SELECT btrim(' y ')")) {
@@ -33,10 +34,10 @@ func TestStringCoreBinding(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		query      string
-		volatility Volatility
+		volatility expr.Volatility
 	}{
-		{"SELECT 'a'||'b'", Immutable}, {"SELECT 'a'||42", Stable}, {"SELECT 'a'||setseed(0)", Volatile},
-		{"SELECT setseed(0)||'a'", Volatile}, {"SELECT normalize($1)", Immutable},
+		{"SELECT 'a'||'b'", expr.Immutable}, {"SELECT 'a'||42", expr.Stable}, {"SELECT 'a'||setseed(0)", expr.Volatile},
+		{"SELECT setseed(0)||'a'", expr.Volatile}, {"SELECT normalize($1)", expr.Immutable},
 	} {
 		node := bind(tc.query)
 		if node.Properties().Volatility != tc.volatility {
@@ -74,9 +75,9 @@ func TestStringCorePropertiesAndWalkers(t *testing.T) {
 	}
 	// Keep genuine owner retag/walker integration here; runtime demand is
 	// exercised locally by functions.TestStringRuntimeDemand.
-	node := functions.String{Info: expressionInfo{Usage: text.Usage()}, Plan: plan, Textual: [4]bool{true, true}, Args: []BoundExpr{
-		literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, "a")},
-		literalExpression{expressionInfo{Usage: text.Usage()}, sqltype.String(text, "b")},
+	node := functions.String{Info: expr.Info{Usage: text.Usage()}, Plan: plan, Textual: [4]bool{true, true}, Args: []expr.Expr{
+		literalExpression{expr.Info{Usage: text.Usage()}, sqltype.String(text, "a")},
+		literalExpression{expr.Info{Usage: text.Usage()}, sqltype.String(text, "b")},
 	}}
 	var replacement *sqltype.Descriptor
 	for _, d := range sqltype.Builtins() {
@@ -105,8 +106,8 @@ func TestStringCorePropertiesAndWalkers(t *testing.T) {
 		t.Fatal("retag mutated original generation")
 	}
 	nested := node
-	nested.Args = append([]BoundExpr(nil), node.Args...)
-	nested.Args[1] = columnExpression{expressionInfo: expressionInfo{Usage: text.Usage(), Pos: parser.Position{Character: 17}, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1}
+	nested.Args = append([]expr.Expr(nil), node.Args...)
+	nested.Args[1] = columnExpression{Info: expr.Info{Usage: text.Usage(), Pos: parser.Position{Character: 17}, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1}
 	nested.Pos = parser.Position{Character: 8}
 	nested.Property.RowDependent = true
 	if position := firstQueryBoundFrameVariable(nested, 1); position.Character != 17 {
@@ -171,7 +172,7 @@ func TestStringCoreOrdinaryDeparseDoesNotChangeBoundArguments(t *testing.T) {
 	ref := roleTableRef(t, e, "deparse_args")
 	relation := e.catalog.state.MustRelation(ref.Address)
 	node := relation.checkConstraints[0].expression.(comparisonExpression).left.(functions.String)
-	args := append([]BoundExpr(nil), node.Args...)
+	args := append([]expr.Expr(nil), node.Args...)
 	plan := node.Plan
 	for _, pretty := range []bool{false, true} {
 		renderer := pgRenderer{view: e.CatalogRead(), relation: relation, pretty: pretty}

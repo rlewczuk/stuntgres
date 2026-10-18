@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -13,7 +14,7 @@ func retainRuleCTEPresentation(view CatalogRead, b binding) binding {
 		return b
 	}
 	project := b.query.Root.(*projectNode)
-	var analysis []BoundExpr
+	var analysis []expr.Expr
 	for _, definition := range b.ctes {
 		if definition.query == nil {
 			continue
@@ -32,7 +33,7 @@ func retainRuleCTEPresentation(view CatalogRead, b binding) binding {
 			analysis = slices.Clone(project.analysisExpressions)
 		}
 		typ, _ := view.LookupType(sqltype.Bool)
-		analysis = append(analysis, subqueryExpression{expressionInfo: expressionInfo{Usage: typ.Usage(), Pos: definition.position}, queryPlan: definition.query, cteDefinition: true})
+		analysis = append(analysis, subqueryExpression{Info: expr.Info{Usage: typ.Usage(), Pos: definition.position}, queryPlan: definition.query, cteDefinition: true})
 	}
 	if analysis == nil {
 		return b

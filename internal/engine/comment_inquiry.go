@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -18,12 +19,12 @@ const (
 )
 
 type commentInquiryExpression struct {
-	expressionInfo
+	expr.Info
 	kind commentInquiryKind
-	args []BoundExpr
+	args []expr.Expr
 }
 
-func (b *expressionBinder) bindCommentInquiry(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func (b *expressionBinder) bindCommentInquiry(raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	inquiry, err := b.bindCommentInquiryStructure(raw, visible)
 	if err != nil {
 		return nil, err
@@ -32,7 +33,7 @@ func (b *expressionBinder) bindCommentInquiry(raw parser.FunctionExpr, visible b
 	for _, arg := range inquiry.args {
 		if literal, ok := arg.(literalExpression); ok && literal.value.IsNull() {
 			typ := b.typ(sqltype.Text)
-			return literalExpression{b.info(typ.Usage(), raw.Pos, ExprProperties{}), sqltype.Null(typ)}, nil
+			return literalExpression{b.info(typ.Usage(), raw.Pos, expr.Properties{}), sqltype.Null(typ)}, nil
 		}
 	}
 	return inquiry, nil
@@ -42,7 +43,7 @@ func (b *expressionBinder) bindCommentInquiry(raw parser.FunctionExpr, visible b
 // evaluating them or changing the executable STRICT fold.
 func (b *expressionBinder) bindCommentInquiryStructure(raw parser.FunctionExpr, visible bool) (commentInquiryExpression, error) {
 	if b.defaultConsumer {
-		return commentInquiryExpression{}, expressionError("0A000", "functions are unsupported", raw.Pos)
+		return commentInquiryExpression{}, expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
 	}
 	if len(raw.Args) > 100 {
 		// Argument transformation precedes PostgreSQL's global limit check.
@@ -52,7 +53,7 @@ func (b *expressionBinder) bindCommentInquiryStructure(raw parser.FunctionExpr, 
 				return commentInquiryExpression{}, err
 			}
 		}
-		return commentInquiryExpression{}, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return commentInquiryExpression{}, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	kind, second := objectDescription, sqltype.Name
@@ -70,8 +71,8 @@ func (b *expressionBinder) bindCommentInquiryStructure(raw parser.FunctionExpr, 
 	if !visible || len(raw.Args) != arity {
 		return commentInquiryExpression{}, b.functionSignatureError(raw)
 	}
-	args := make([]BoundExpr, arity)
-	properties := ExprProperties{Volatility: Stable}
+	args := make([]expr.Expr, arity)
+	properties := expr.Properties{Volatility: expr.Stable}
 	for i, child := range raw.Args {
 		id := sqltype.Oid
 		if i == 1 {
@@ -120,7 +121,7 @@ func descriptorComment(d Descriptor, sub int32) string {
 	return ""
 }
 
-func (e commentInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e commentInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err

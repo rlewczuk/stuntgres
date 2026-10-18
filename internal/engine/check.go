@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -22,7 +23,7 @@ type checkConstraint struct {
 	NotValid  bool
 	// Declaration order is independent of alphabetical enforcement order.
 	ordinal            int
-	expression         BoundExpr
+	expression         expr.Expr
 	dependencies       []expressionDependency
 	commentSnapshot    bool
 	visibilitySnapshot bool
@@ -483,7 +484,7 @@ func validateCheckRow(d *relationDescriptor, row []sqltype.Value, eval *EvalCont
 			}
 			if changed {
 				if expressions == nil {
-					expressions = make([]BoundExpr, len(d.checkConstraints))
+					expressions = make([]expr.Expr, len(d.checkConstraints))
 					for j := range d.checkConstraints {
 						expressions[j] = d.checkConstraints[j].expression
 					}
@@ -492,7 +493,7 @@ func validateCheckRow(d *relationDescriptor, row []sqltype.Value, eval *EvalCont
 			}
 		}
 		if eval.preparedChecks == nil {
-			eval.preparedChecks = make(map[*relationDescriptor][]BoundExpr)
+			eval.preparedChecks = make(map[*relationDescriptor][]expr.Expr)
 		}
 		eval.preparedChecks[d] = expressions
 	}

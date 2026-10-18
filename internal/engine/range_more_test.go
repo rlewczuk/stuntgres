@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"testing"
 
@@ -19,8 +20,8 @@ func moreUnitExpression(t *testing.T, view CatalogRead) unnestExpression {
 		t.Fatal(err)
 	}
 	return unnestExpression{
-		expressionInfo: expressionInfo{Usage: r.Usage(), Pos: parser.Position{Offset: 7, Character: 8}, Property: ExprProperties{Volatility: Immutable, StageDependent: true}},
-		args:           []BoundExpr{literalExpression{expressionInfo: expressionInfo{Usage: m.Usage()}, value: v}},
+		Info: expr.Info{Usage: r.Usage(), Pos: parser.Position{Offset: 7, Character: 8}, Property: expr.Properties{Volatility: expr.Immutable, StageDependent: true}},
+		args: []expr.Expr{literalExpression{Info: expr.Info{Usage: m.Usage()}, value: v}},
 	}
 }
 
@@ -98,7 +99,7 @@ func TestRangeMoreExpressionHooks(t *testing.T) {
 	if sameQuerySetOccurrence(e, n) || !sameQuerySetOccurrence(e, e) {
 		t.Fatal("occurrence identity")
 	}
-	mapped, changed, err := e.mapChildren(func(BoundExpr) (BoundExpr, bool, error) { return n.args[0], true, nil })
+	mapped, changed, err := e.mapChildren(func(expr.Expr) (expr.Expr, bool, error) { return n.args[0], true, nil })
 	if err != nil || !changed || mapped.args[0].ResultUsage() != n.args[0].ResultUsage() || e.args[0].ResultUsage() == n.args[0].ResultUsage() {
 		t.Fatal("child map mutated source", err)
 	}
@@ -123,7 +124,7 @@ func TestRangeMoreBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		arg := literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: value}
+		arg := literalExpression{Info: expr.Info{Usage: d.Usage()}, value: value}
 		raw := nullCountRaw("multirange")
 		node, err := functions.FinishRangeInspect(b, raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}})
 		if err != nil || node.ResultUsage().Type != b.typ(tc.output) {

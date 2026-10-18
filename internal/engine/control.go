@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -2407,7 +2408,7 @@ func restoreScalar(raw parser.Expr, stored bool) error {
 		}
 		return nil
 	case parser.ParameterExpr:
-		return expressionError("42P02", "parameters are not allowed in restore", r.Pos)
+		return expr.ErrorAt("42P02", "parameters are not allowed in restore", r.Pos)
 	case parser.CurrentDateTimeExpr, parser.IdentityExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.DefaultExpr:
 		return nil
 	case parser.OperatorExpr:

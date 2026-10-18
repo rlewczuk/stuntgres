@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"sort"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
 
 // structuralNull only recognizes transparent coercions of a literal NULL.
 // Other expressions remain definitions even when evaluation would return NULL.
-func structuralNull(node BoundExpr) bool {
+func structuralNull(node expr.Expr) bool {
 	for {
 		switch n := node.(type) {
 		case literalExpression:

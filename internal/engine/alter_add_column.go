@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -17,7 +18,7 @@ type addedColumn struct {
 	attribute    int32
 	column       *parser.Column
 	declaration  createColumnDeclaration
-	expression   BoundExpr
+	expression   expr.Expr
 	dependencies []ids.ObjectRef // Borrowed cooked DEFAULT manifest, distinct from the ALTER statement.
 	consumer     *relationDescriptor
 	value        sqltype.Value
@@ -162,7 +163,7 @@ func planAddedColumns(scope *StatementScope, additions []addedColumn) (map[int32
 			}
 			added.expression = planned
 			properties := planned.Properties()
-			if properties.Volatility > Stable || properties.RuntimeDomainConversion {
+			if properties.Volatility > expr.Stable || properties.RuntimeDomainConversion {
 				perRow = true
 				continue
 			}

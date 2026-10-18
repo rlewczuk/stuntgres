@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -14,7 +15,7 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *cteDefinition) 
 	}
 	left := leftQuery.Root.(*projectNode)
 	if len(d.columns) > len(left.Schema()) {
-		return nil, expressionError("42P10", fmt.Sprintf(`WITH query "%s" has %d columns available but %d columns specified`, d.name, len(left.Schema()), len(d.columns)), d.position)
+		return nil, expr.ErrorAt("42P10", fmt.Sprintf(`WITH query "%s" has %d columns available but %d columns specified`, d.name, len(left.Schema()), len(d.columns)), d.position)
 	}
 	d.schema = make(querySchema, len(left.Schema()))
 	for i, column := range left.Schema() {
@@ -58,7 +59,7 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *cteDefinition) 
 		overall := column.Usage
 		position := left.expressions[i].SourcePosition()
 		if anchor.Type != overall.Type || anchor.Typmod != overall.Typmod {
-			failure := expressionError("42804", fmt.Sprintf(`recursive query "%s" column %d has type %s in non-recursive term but type %s overall`, d.name, i+1, b.recursiveUsageName(anchor), b.recursiveUsageName(overall)), position)
+			failure := expr.ErrorAt("42804", fmt.Sprintf(`recursive query "%s" column %d has type %s in non-recursive term but type %s overall`, d.name, i+1, b.recursiveUsageName(anchor), b.recursiveUsageName(overall)), position)
 			failure.(*sqlstate.Error).Hint = "Cast the output of the non-recursive term to the correct type."
 			return nil, failure
 		}
@@ -71,7 +72,7 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *cteDefinition) 
 				}
 				return b.collationName(id)
 			}
-			failure := expressionError("42P21", fmt.Sprintf(`recursive query "%s" column %d has collation "%s" in non-recursive term but collation "%s" overall`, d.name, i+1, name(anchor.Collation.ID, anchorConflict), name(overall.Collation.ID, overallConflict)), position)
+			failure := expr.ErrorAt("42P21", fmt.Sprintf(`recursive query "%s" column %d has collation "%s" in non-recursive term but collation "%s" overall`, d.name, i+1, name(anchor.Collation.ID, anchorConflict), name(overall.Collation.ID, overallConflict)), position)
 			failure.(*sqlstate.Error).Hint = "Use the COLLATE clause to set the collation of the non-recursive term."
 			return nil, failure
 		}
@@ -101,10 +102,10 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *cteDefinition) 
 		if d.search != nil {
 			name := d.search.syntax.Sequence.Text
 			if name == d.cycle.syntax.Mark.Text {
-				return nil, expressionError("42601", "search sequence column name and cycle mark column name are the same", d.search.syntax.Pos)
+				return nil, expr.ErrorAt("42601", "search sequence column name and cycle mark column name are the same", d.search.syntax.Pos)
 			}
 			if name == d.cycle.syntax.Path.Text {
-				return nil, expressionError("42601", "search sequence column name and cycle path column name are the same", d.search.syntax.Pos)
+				return nil, expr.ErrorAt("42601", "search sequence column name and cycle path column name are the same", d.search.syntax.Pos)
 			}
 		}
 		if !set.all {
@@ -134,11 +135,11 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *cteDefinition) 
 		for slot := d.userWidth; slot < len(d.schema); slot++ {
 			scan.demand[slot] = true
 			column := d.schema[slot]
-			info := b.info(column.Usage, d.position, ExprProperties{RowDependent: true})
-			right.expressions = append(right.expressions, columnExpression{expressionInfo: info, scope: 1, frame: right.frame, slot: offset + slot})
+			info := b.info(column.Usage, d.position, expr.Properties{RowDependent: true})
+			right.expressions = append(right.expressions, columnExpression{Info: info, scope: 1, frame: right.frame, slot: offset + slot})
 			right.querySchema = append(right.querySchema, column)
 			set.rightExpressions = append(set.rightExpressions, right.expressions[len(right.expressions)-1])
-			project.expressions = append(project.expressions, columnExpression{expressionInfo: info, scope: 1, frame: project.frame, slot: slot})
+			project.expressions = append(project.expressions, columnExpression{Info: info, scope: 1, frame: project.frame, slot: slot})
 		}
 		set.querySchema = d.schema
 		project.querySchema = d.schema

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 	"time"
@@ -29,7 +30,7 @@ func TestTimezoneBoundSessionSensitiveOperations(t *testing.T) {
 		if err != nil {
 			t.Fatal(query, err)
 		}
-		if node.Properties().Volatility != Stable {
+		if node.Properties().Volatility != expr.Stable {
 			t.Fatal(query, node.Properties())
 		}
 		evaluation := EvalContext{Context: ctx, Input: sqltype.InputEnvironment{Zone: ny, TransactionStart: clock}, Output: sqltype.OutputEnvironment{Zone: ny}}

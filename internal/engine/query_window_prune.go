@@ -1,5 +1,7 @@
 package engine
 
+import "stuntgres/internal/engine/expr"
+
 // pruneProjectWindows retains analyzed slots and original routine references,
 // but removes execution demand for window occurrences absent from the surviving
 // expressions above their stage. Empty input is not evidence of absent demand.
@@ -33,7 +35,7 @@ func pruneProjectWindows(project *projectNode) (*projectNode, error) {
 	// changing the original call expression's analyzed identity. Demand reads
 	// the current physical overlay, not those retained metadata coordinates.
 	firstSlot := len(window.child.Schema())
-	var expression func(BoundExpr)
+	var expression func(expr.Expr)
 	var query func(LogicalNode)
 	query = func(node LogicalNode) {
 		if node == nil {
@@ -44,12 +46,12 @@ func pruneProjectWindows(project *projectNode) (*projectNode, error) {
 		query(left)
 		query(right)
 	}
-	expression = func(expr BoundExpr) {
+	expression = func(bound expr.Expr) {
 		// ORDER/LIMIT lowering can own the original CASE in a sort or
 		// evaluation slot while projection only reads its cached result.
 		// Use the existing physical-literal demand policy before those
 		// owners preflight; a lexical walk would revive their dead arms.
-		walkDemandedBoundExpression(expr, func(expr BoundExpr) {
+		walkDemandedBoundExpression(bound, func(expr expr.Expr) {
 			if occurrence, ok := expr.(*windowExpression); ok {
 				// Physical window results occupy consecutive slots after input.
 				i := occurrence.slot - firstSlot
@@ -85,7 +87,7 @@ func pruneProjectWindows(project *projectNode) (*projectNode, error) {
 	}
 	copy := *window
 	copy.calls = calls
-	child, err := rewriteQueryExpressions(project.child, func(expr BoundExpr) (BoundExpr, bool, error) {
+	child, err := rewriteQueryExpressions(project.child, func(expr expr.Expr) (expr.Expr, bool, error) {
 		return expr, false, nil
 	}, func(node LogicalNode) (LogicalNode, error) {
 		if node == window {

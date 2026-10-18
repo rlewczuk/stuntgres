@@ -4,15 +4,16 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 type boundUpdate struct {
-	assignments  []BoundExpr
+	assignments  []expr.Expr
 	arrayTargets []*arrayAssignmentTarget
-	predicate    BoundExpr
+	predicate    expr.Expr
 	from         LogicalNode
 	sourceWidth  int
 }
@@ -25,7 +26,7 @@ func preflightUpdate(c *EvalContext, original *boundUpdate, sourceDemand ...func
 
 func preflightUpdateWithPlanning(c *EvalContext, original *boundUpdate, planConstants bool, sourceDemand ...func(*boundUpdate) (LogicalNode, error)) (*boundUpdate, error) {
 	result := original
-	var assignments []BoundExpr
+	var assignments []expr.Expr
 	targets, err := preflightArrayTargetsWithPlanning(c, original.arrayTargets, planConstants)
 	if err != nil {
 		return nil, err
@@ -42,7 +43,7 @@ func preflightUpdateWithPlanning(c *EvalContext, original *boundUpdate, planCons
 		}
 		if changed {
 			if assignments == nil {
-				assignments = append([]BoundExpr(nil), original.assignments...)
+				assignments = append([]expr.Expr(nil), original.assignments...)
 			}
 			assignments[i] = folded
 		}
@@ -88,7 +89,7 @@ func preflightUpdateWithPlanning(c *EvalContext, original *boundUpdate, planCons
 	return result, nil
 }
 
-func preflightUpdateExpression(c *EvalContext, expression BoundExpr, planConstants bool) (BoundExpr, bool, error) {
+func preflightUpdateExpression(c *EvalContext, expression expr.Expr, planConstants bool) (expr.Expr, bool, error) {
 	changed := false
 	if planConstants {
 		// Plan SQL constants before importing execution-frame coercions:
@@ -116,7 +117,7 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 		binder.updateParameters = false
 		binder.updateInputParameters = nil
 	}()
-	u := &boundUpdate{assignments: make([]BoundExpr, len(s.Assignments))}
+	u := &boundUpdate{assignments: make([]expr.Expr, len(s.Assignments))}
 	var err error
 	target := binder.mutationTargetNamespace()
 	binder.queryHidden = append(binder.queryHidden, target.qualifiers[0])
@@ -167,7 +168,7 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 	return nil
 }
 
-func updateMatches(eval *EvalContext, predicate BoundExpr) (bool, error) {
+func updateMatches(eval *EvalContext, predicate expr.Expr) (bool, error) {
 	if predicate == nil {
 		return true, eval.Context.Err()
 	}

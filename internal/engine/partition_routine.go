@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -32,13 +33,13 @@ func evaluatePartitionRecipe(evaluation *EvalContext, owner *relationDescriptor,
 	if scope != nil {
 		identity.ri = scope.foreignActionAuth != nil && scope.foreignActionAuth.state.CurrentUser == auth.state.CurrentUser
 	}
-	var expressions []BoundExpr
+	var expressions []expr.Expr
 	if scope != nil {
 		expressions = scope.partitionPrograms[identity]
 	}
 	if expressions == nil {
 		var admission routineAdmissionProgram
-		expressions = make([]BoundExpr, len(owner.partition.keys))
+		expressions = make([]expr.Expr, len(owner.partition.keys))
 		for i, entry := range owner.partition.keys {
 			if entry.derived == nil {
 				continue
@@ -51,7 +52,7 @@ func evaluatePartitionRecipe(evaluation *EvalContext, owner *relationDescriptor,
 		}
 		if scope != nil {
 			if scope.partitionPrograms == nil {
-				scope.partitionPrograms = make(map[partitionRoutineIdentity][]BoundExpr)
+				scope.partitionPrograms = make(map[partitionRoutineIdentity][]expr.Expr)
 			}
 			scope.partitionPrograms[identity] = expressions
 			scope.routinePrograms = append(scope.routinePrograms, commandRoutineProgram{admission: admission})

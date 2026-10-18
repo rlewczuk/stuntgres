@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -23,17 +24,17 @@ func TestBinaryConversionCarrier(t *testing.T) {
 		result     sqltype.ID
 		raw        []string
 		want       string
-		volatility Volatility
+		volatility expr.Volatility
 	}{
-		{"convert", []sqltype.ID{sqltype.Bytea, sqltype.Name, sqltype.Name}, sqltype.Bytea, []string{"\xe9", "LATIN1", "UTF8"}, "é", Stable},
-		{"convert_from", []sqltype.ID{sqltype.Bytea, sqltype.Name}, sqltype.Text, []string{"\xe9", "LATIN1"}, "é", Stable},
-		{"convert_to", []sqltype.ID{sqltype.Text, sqltype.Name}, sqltype.Bytea, []string{"é", "LATIN1"}, "\xe9", Stable},
-		{"encode", []sqltype.ID{sqltype.Bytea, sqltype.Text}, sqltype.Text, []string{"\xe9", "hex"}, "e9", Immutable},
-		{"decode", []sqltype.ID{sqltype.Text, sqltype.Text}, sqltype.Bytea, []string{"e9", "hex"}, "\xe9", Immutable},
+		{"convert", []sqltype.ID{sqltype.Bytea, sqltype.Name, sqltype.Name}, sqltype.Bytea, []string{"\xe9", "LATIN1", "UTF8"}, "é", expr.Stable},
+		{"convert_from", []sqltype.ID{sqltype.Bytea, sqltype.Name}, sqltype.Text, []string{"\xe9", "LATIN1"}, "é", expr.Stable},
+		{"convert_to", []sqltype.ID{sqltype.Text, sqltype.Name}, sqltype.Bytea, []string{"é", "LATIN1"}, "\xe9", expr.Stable},
+		{"encode", []sqltype.ID{sqltype.Bytea, sqltype.Text}, sqltype.Text, []string{"\xe9", "hex"}, "e9", expr.Immutable},
+		{"decode", []sqltype.ID{sqltype.Text, sqltype.Text}, sqltype.Bytea, []string{"e9", "hex"}, "\xe9", expr.Immutable},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			usages := make([]sqltype.Usage, len(tc.ids))
-			args := make([]BoundExpr, len(tc.ids))
+			args := make([]expr.Expr, len(tc.ids))
 			var order []int
 			for i, id := range tc.ids {
 				d := types[id]
@@ -48,14 +49,14 @@ func TestBinaryConversionCarrier(t *testing.T) {
 				} else {
 					v = sqltype.String(d, tc.raw[i])
 				}
-				args[i] = mathObservedArgument{expressionInfo: expressionInfo{Usage: d.Usage()}, value: v, order: &order, index: i}
+				args[i] = mathObservedArgument{Info: expr.Info{Usage: d.Usage()}, value: v, order: &order, index: i}
 			}
 			usage := types[tc.result].Usage()
 			plan, err := sqltype.BindBinary(tc.name, usage, usages...)
 			if err != nil {
 				t.Fatal(err)
 			}
-			expr := functions.Binary{Info: expressionInfo{Usage: usage}, Plan: plan, Args: args}
+			bound := functions.Binary{Info: expr.Info{Usage: usage}, Plan: plan, Args: args}
 			e := New()
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
@@ -71,7 +72,7 @@ func TestBinaryConversionCarrier(t *testing.T) {
 				t.Fatal(err)
 			}
 			eval := &EvalContext{Context: context.Background(), statementScope: scope}
-			got, err := expr.Eval(eval)
+			got, err := bound.Eval(eval)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -91,17 +92,17 @@ func TestBinaryConversionCarrier(t *testing.T) {
 			if !reflect.DeepEqual(order, wantOrder) {
 				t.Fatal(order)
 			}
-			if plannedVolatility(expr) != tc.volatility {
+			if plannedVolatility(bound) != tc.volatility {
 				t.Fatal("intrinsic volatility lost")
 			}
 			for i, arg := range args {
 				observed := arg.(mathObservedArgument)
-				args[i] = literalExpression{expressionInfo: observed.expressionInfo, value: observed.value}
+				args[i] = literalExpression{Info: observed.Info, value: observed.value}
 			}
-			if generationImmutable(expr) != (tc.volatility == Immutable) {
+			if generationImmutable(bound) != (tc.volatility == expr.Immutable) {
 				t.Fatal("generation intrinsic volatility lost")
 			}
-			rebound, changed, err := retagBoundTypes(New().CatalogRead(), expr, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
+			rebound, changed, err := retagBoundTypes(New().CatalogRead(), bound, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
 			if err != nil || !changed {
 				t.Fatal(changed, err)
 			}
@@ -111,7 +112,7 @@ func TestBinaryConversionCarrier(t *testing.T) {
 			if err != nil || retagErr != nil || result != want {
 				t.Fatal(result, want, err, retagErr)
 			}
-			if expr.Plan.ResultUsage().Type != types[tc.result] || next.Plan.ResultUsage().Type != replacement[tc.result] {
+			if bound.Plan.ResultUsage().Type != types[tc.result] || next.Plan.ResultUsage().Type != replacement[tc.result] {
 				t.Fatal("descriptor ownership")
 			}
 		})

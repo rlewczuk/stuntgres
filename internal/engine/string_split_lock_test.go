@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -13,11 +14,11 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	text, bigint := b.typ(sqltype.Text), b.typ(sqltype.Int8)
 	var evaluations []int
-	dependent := columnExpression{expressionInfo: expressionInfo{Usage: text.Usage(), Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
-	independent := mathObservedArgument{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, "x,y"), order: &evaluations, index: 0}
+	dependent := columnExpression{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
+	independent := mathObservedArgument{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "x,y"), order: &evaluations, index: 0}
 	call := stringSplitMarker(t, b, 1, dependent, stringSplitLiteral(b, ","), stringSplitLiteral(b, "replacement"))
 	peer := stringSplitMarker(t, b, 2, independent, stringSplitLiteral(b, ","))
-	node := &functionFromNode{calls: []BoundExpr{call, peer}, ordinality: true, frame: 1, querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: bigint.Usage()}}}
+	node := &functionFromNode{calls: []expr.Expr{call, peer}, ordinality: true, frame: 1, querySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: bigint.Usage()}}}
 	ordinal, err := sqltype.Integer(bigint, 2)
 	if err != nil {
 		t.Fatal(err)
@@ -51,8 +52,8 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 	}
 	// A recheck searches later fields rather than testing only the first field.
 	filteredCall := stringSplitMarker(t, b, 3, dependent, stringSplitLiteral(b, ","))
-	filteredNode := &functionFromNode{calls: []BoundExpr{filteredCall}, ordinality: true, frame: 1, querySchema: querySchema{{Usage: text.Usage()}, {Usage: bigint.Usage()}}}
-	field := columnExpression{expressionInfo: expressionInfo{Usage: text.Usage(), Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
+	filteredNode := &functionFromNode{calls: []expr.Expr{filteredCall}, ordinality: true, frame: 1, querySchema: querySchema{{Usage: text.Usage()}, {Usage: bigint.Usage()}}}
+	field := columnExpression{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
 	raw := statement(t, "SELECT 'x'='b'").(*parser.Select).Targets[0].(parser.OperatorExpr)
 	predicate, err := b.bindComparisonOperands(raw, sqltype.CompareEqual, comparisonOperand{node: field}, comparisonOperand{node: stringSplitLiteral(b, "b")})
 	if err != nil {

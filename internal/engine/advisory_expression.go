@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -82,15 +83,15 @@ func (x advisoryExpression) validStored() bool {
 }
 
 type advisoryExpression struct {
-	expressionInfo
+	expr.Info
 	name     string
-	args     []BoundExpr
+	args     []expr.Expr
 	mode     relationLockMode
 	action   advisoryAction
 	lifetime advisoryLifetime
 }
 
-func (x advisoryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (x advisoryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -156,19 +157,19 @@ func (x advisoryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	return sqltype.VoidValue(x.Usage.Type), nil
 }
 
-func (b *expressionBinder) bindAdvisory(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+func (b *expressionBinder) bindAdvisory(raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	if b.defaultConsumer {
-		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
+		return nil, expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
 	}
-	var args []BoundExpr
+	var args []expr.Expr
 	var unknown [2]bool
 	if len(raw.Args) <= 100 {
-		args = make([]BoundExpr, len(raw.Args))
+		args = make([]expr.Expr, len(raw.Args))
 	}
 	for i, child := range raw.Args {
 		if l, ok := child.(parser.LiteralExpr); ok && (l.Value.Kind == parser.StringValue || l.Value.Kind == parser.NullValue) {
 			if args != nil {
-				args[i] = literalExpression{expressionInfo: expressionInfo{Pos: child.SourcePosition()}}
+				args[i] = literalExpression{Info: expr.Info{Pos: child.SourcePosition()}}
 				if i < len(unknown) {
 					unknown[i] = true
 				}
@@ -187,7 +188,7 @@ func (b *expressionBinder) bindAdvisory(raw parser.FunctionExpr, visible bool) (
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	mode, action, lifetime, id, defined := advisoryDefinition(name)
@@ -223,7 +224,7 @@ func (b *expressionBinder) bindAdvisory(raw parser.FunctionExpr, visible bool) (
 			return nil, signatureError()
 		}
 	}
-	properties := ExprProperties{Volatility: Volatile}
+	properties := expr.Properties{Volatility: expr.Volatile}
 	for i, arg := range args {
 		if unknown[i] {
 			var err error
@@ -234,7 +235,7 @@ func (b *expressionBinder) bindAdvisory(raw parser.FunctionExpr, visible bool) (
 		} else if arg.ResultUsage() != usage {
 			args[i] = coercionExpression{b.info(usage, raw.Args[i].SourcePosition(), arg.Properties()), arg, coercions[i], sqltype.Implicit, false}
 		}
-		properties = mergeExpressionProperties(properties, args[i].Properties())
+		properties = expr.MergeProperties(properties, args[i].Properties())
 	}
 	// Constant-NULL folding belongs after demanded child simplification, not
 	// here: a constant bad cast must still report its own error first.
@@ -243,13 +244,13 @@ func (b *expressionBinder) bindAdvisory(raw parser.FunctionExpr, visible bool) (
 	if err != nil {
 		return nil, err
 	}
-	return advisoryExpression{expressionInfo: info, name: name, args: args, mode: mode, action: action, lifetime: lifetime}, nil
+	return advisoryExpression{Info: info, name: name, args: args, mode: mode, action: action, lifetime: lifetime}, nil
 }
 
-func foldAdvisoryNull(x advisoryExpression) (BoundExpr, bool) {
+func foldAdvisoryNull(x advisoryExpression) (expr.Expr, bool) {
 	for _, arg := range x.args {
 		if randomLiteralNull(arg) {
-			return literalExpression{expressionInfo: expressionInfo{Usage: x.Usage, Pos: x.Pos}, value: sqltype.Null(x.Usage.Type)}, true
+			return literalExpression{Info: expr.Info{Usage: x.Usage, Pos: x.Pos}, value: sqltype.Null(x.Usage.Type)}, true
 		}
 	}
 	return x, false

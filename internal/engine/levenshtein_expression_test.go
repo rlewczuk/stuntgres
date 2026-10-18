@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -35,7 +36,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 	ctx := &EvalContext{Context: context.Background()}
 	value, err := n.Eval(ctx)
 	integer, readErr := value.Integer()
-	if err != nil || readErr != nil || integer != 10 || n.ref.Address != ext.members[4] || value.Type() != n.ResultUsage().Type || plannedVolatility(n) != Immutable || !generationImmutable(n) {
+	if err != nil || readErr != nil || integer != 10 || n.ref.Address != ext.members[4] || value.Type() != n.ResultUsage().Type || plannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
 		t.Fatal(value, n.ref, err, readErr)
 	}
 	if err := n.validate(e.CatalogRead()); err != nil {
@@ -52,14 +53,14 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.ref.Address}) {
 		t.Fatal(refs, err)
 	}
-	var children []BoundExpr
-	boundExpressionChildren(n, func(child BoundExpr) { children = append(children, child) })
+	var children []expr.Expr
+	boundExpressionChildren(n, func(child expr.Expr) { children = append(children, child) })
 	if !reflect.DeepEqual(children, n.Args) || !sameGroupExpression(n, n) {
 		t.Fatal(children)
 	}
 	for i := range n.Args {
 		changed := n
-		changed.Args = append([]BoundExpr(nil), n.Args...)
+		changed.Args = append([]expr.Expr(nil), n.Args...)
 		if i < 2 {
 			changed.Args[i] = n.Args[1-i]
 		} else {
@@ -177,7 +178,7 @@ func TestLevenshteinRemap(t *testing.T) {
 	}
 	view := e.catalog.read(next)
 	relocated := next.MustRelation(address)
-	for _, node := range []BoundExpr{relocated.defaults[1].expression, relocated.generations[2].expression, relocated.generations[2].planned} {
+	for _, node := range []expr.Expr{relocated.defaults[1].expression, relocated.generations[2].expression, relocated.generations[2].planned} {
 		n := node.(installedLevenshteinFunctionExpression)
 		if n.ref.Address != mapping[call.ref.Address] || n.ref.Epoch != next.epoch || n.procedure != next.Get(n.ref.Address) {
 			t.Fatal("stale remapped authority", n.ref)

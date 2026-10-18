@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -28,12 +29,12 @@ func (k blockingInquiryKind) name() string {
 }
 
 type blockingInquiryExpression struct {
-	expressionInfo
+	expr.Info
 	kind blockingInquiryKind
-	arg  BoundExpr
+	arg  expr.Expr
 }
 
-func (b *expressionBinder) bindBlockingInquiry(raw parser.FunctionExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindBlockingInquiry(raw parser.FunctionExpr) (expr.Expr, error) {
 	var operand comparisonOperand
 	var single [1]string
 	names := single[:0]
@@ -59,7 +60,7 @@ func (b *expressionBinder) bindBlockingInquiry(raw parser.FunctionExpr) (BoundEx
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	visible, err := b.builtinVisible(raw.Name, functionLookup)
 	if err != nil {
@@ -89,7 +90,7 @@ func (b *expressionBinder) bindBlockingInquiry(raw parser.FunctionExpr) (BoundEx
 		arg = coercionExpression{b.info(target, raw.Args[0].SourcePosition(), coercionProperties(arg, plan)), arg, plan, sqltype.Implicit, false}
 	}
 	properties := arg.Properties()
-	properties.Volatility = Volatile
+	properties.Volatility = expr.Volatile
 	info, err := b.builtinRoutineInfo(b.info(b.typ(target.Type.AssociatedArray()).Usage(), raw.Pos, properties), catalogRoutineProvider, kind.name(), sqltype.Int4)
 	if err != nil {
 		return nil, err
@@ -97,21 +98,21 @@ func (b *expressionBinder) bindBlockingInquiry(raw parser.FunctionExpr) (BoundEx
 	return blockingInquiryExpression{info, kind, arg}, nil
 }
 
-func (n blockingInquiryExpression) arguments() []BoundExpr { return []BoundExpr{n.arg} }
+func (n blockingInquiryExpression) arguments() []expr.Expr { return []expr.Expr{n.arg} }
 
 func (n blockingInquiryExpression) validateStored() error {
 	if n.kind.name() == "" || n.arg == nil || n.arg.ResultUsage().Type == nil || n.arg.ResultUsage() != n.arg.ResultUsage().Type.Usage() || n.arg.ResultUsage().Type.ID() != sqltype.Int4 {
 		return fmt.Errorf("stuntgres: invalid stored blocking inquiry argument")
 	}
 	properties := n.arg.Properties()
-	properties.Volatility = Volatile
+	properties.Volatility = expr.Volatile
 	if n.Usage.Type == nil || n.Usage != n.Usage.Type.Usage() || n.Usage.Type.ID() != n.arg.ResultUsage().Type.AssociatedArray() || n.Usage.Type.Element() != n.arg.ResultUsage().Type || n.Properties() != properties {
 		return fmt.Errorf("stuntgres: invalid stored blocking inquiry signature")
 	}
 	return nil
 }
 
-func (n blockingInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (n blockingInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err

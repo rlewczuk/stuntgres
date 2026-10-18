@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -14,7 +15,7 @@ func captureUsingIndexDefinition(reader definitionReader, parent *relationDescri
 	address := reader.lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.namespace, Name: raw.Index.Text})
 	descriptor, _ := reader.descriptor(address)
 	if descriptor == nil {
-		return usingIndexAttachment{}, expressionError("42704", fmt.Sprintf(`index "%s" does not exist`, raw.Index.Text), raw.Pos)
+		return usingIndexAttachment{}, expr.ErrorAt("42704", fmt.Sprintf(`index "%s" does not exist`, raw.Index.Text), raw.Pos)
 	}
 	index, ok := descriptor.(*relationDescriptor)
 	if !ok || index.sqlIndex == nil {

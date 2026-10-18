@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -26,7 +27,7 @@ func TestMathHyperbolicBinding(t *testing.T) {
 					t.Fatal("FLOAT8 result usage", u)
 				}
 				properties := node.Properties()
-				if properties.Volatility != Immutable || properties.RowDependent || properties.StageDependent || properties.ParameterDependent != (input == "$1") {
+				if properties.Volatility != expr.Immutable || properties.RowDependent || properties.StageDependent || properties.ParameterDependent != (input == "$1") {
 					t.Fatal("immutable argument properties", properties)
 				}
 				if input == "$1" && b.parameters[1] != u {

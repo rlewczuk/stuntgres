@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -16,8 +17,8 @@ func uuidExtractEngineUnit(t *testing.T, b *expressionBinder, kind functions.UUI
 	if err != nil {
 		t.Fatal(err)
 	}
-	arg := literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: value}
-	node, err := functions.NewUUIDExtract(b.info(b.typ(kind.Result()).Usage(), parser.Position{Character: 8}, ExprProperties{Volatility: Immutable}), kind, BoundExpr(arg))
+	arg := literalExpression{Info: expr.Info{Usage: d.Usage()}, value: value}
+	node, err := functions.NewUUIDExtract(b.info(b.typ(kind.Result()).Usage(), parser.Position{Character: 8}, expr.Properties{Volatility: expr.Immutable}), kind, expr.Expr(arg))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,12 +37,12 @@ func TestUUIDExtractIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	other.Arg = literalExpression{expressionInfo: expressionInfo{Usage: b.typ(sqltype.UUID).Usage()}, value: v}
+	other.Arg = literalExpression{Info: expr.Info{Usage: b.typ(sqltype.UUID).Usage()}, value: v}
 	if sameGroupExpression(version, other) {
 		t.Fatal("child identity lost")
 	}
 	children := 0
-	boundExpressionChildren(version, func(child BoundExpr) {
+	boundExpressionChildren(version, func(child expr.Expr) {
 		children++
 		if !sameGroupExpression(child, version.Arg) {
 			t.Fatal("wrong child")
@@ -50,7 +51,7 @@ func TestUUIDExtractIdentity(t *testing.T) {
 	if children != 1 {
 		t.Fatal("unary traversal", children)
 	}
-	rewritten, err := b.rewriteGroup(version, []BoundExpr{version.Arg})
+	rewritten, err := b.rewriteGroup(version, []expr.Expr{version.Arg})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +95,7 @@ func TestUUIDExtractScalarLifecycle(t *testing.T) {
 	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	for _, kind := range []functions.UUIDExtractKind{functions.UUIDExtractTimestamp, functions.UUIDExtractVersion} {
 		node := uuidExtractEngineUnit(t, b, kind)
-		if !generationImmutable(node) || plannedVolatility(node) != Immutable || !conditionalConstantInputs(node) {
+		if !generationImmutable(node) || plannedVolatility(node) != expr.Immutable || !conditionalConstantInputs(node) {
 			t.Fatal("immutable lifecycle")
 		}
 		folded, changed, err := preflightCoercions(&EvalContext{Context: ctx}, node)
@@ -118,7 +119,7 @@ func TestUUIDExtractScalarLifecycle(t *testing.T) {
 	// A UUID-producing volatile descendant remains visible through extraction.
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "uuid_extract_version"}}}, Args: []parser.Expr{parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "uuidv4"}}}}}}
 	node, err := b.bindFunctionProvider(raw)
-	if err != nil || node.Properties().Volatility != Volatile || plannedVolatility(node) != Volatile || generationImmutable(node) {
+	if err != nil || node.Properties().Volatility != expr.Volatile || plannedVolatility(node) != expr.Volatile || generationImmutable(node) {
 		t.Fatal("volatile child erased", node, err)
 	}
 	if !closedUUIDDefault(node) {

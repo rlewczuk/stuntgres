@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -20,7 +21,7 @@ func settingColumns(typ *sqltype.Descriptor, names ...string) []ColumnDescriptor
 // describeSettingCall uses the same inference and literal binding as relations.
 type settingCallBinding struct {
 	parameters   ParameterInfo
-	arguments    []BoundExpr
+	arguments    []expr.Expr
 	routine      ids.ObjectRef
 	dependencies []expressionDependency
 }
@@ -133,7 +134,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 	}
 	validInputs := true
 	for _, expression := range bound {
-		walkBoundExpression(expression, func(node BoundExpr) {
+		walkBoundExpression(expression, func(node expr.Expr) {
 			address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(node.ResultUsage().Type.ID())}
 			if provider, exists := catalog.Descriptor(address); exists {
 				validInputs = validInputs && current.catalog.Get(address) == provider

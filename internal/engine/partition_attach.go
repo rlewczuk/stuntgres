@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -162,7 +163,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	}
 	if bound.defaultBound && parent.partition.defaultChild != (ids.ObjectAddress{}) {
 		old := auth.catalog.MustRelation(parent.partition.defaultChild)
-		return Result{}, expressionError("42P17", fmt.Sprintf(`partition "%s" conflicts with existing default partition "%s"`, child.name, old.name), raw.Bound.Pos)
+		return Result{}, expr.ErrorAt("42P17", fmt.Sprintf(`partition "%s" conflicts with existing default partition "%s"`, child.name, old.name), raw.Bound.Pos)
 	}
 	if !bound.defaultBound {
 		if err = pending.checkOverlap(scope); err != nil {

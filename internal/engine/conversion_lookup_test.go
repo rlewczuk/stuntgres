@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -61,9 +62,9 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := functions.Binary{Info: expressionInfo{Usage: bytea.Usage()}, Plan: plan, Args: []BoundExpr{
-		literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, "é")},
-		literalExpression{expressionInfo: expressionInfo{Usage: name.Usage()}, value: sqltype.String(name, "LATIN1")},
+	node := functions.Binary{Info: expr.Info{Usage: bytea.Usage()}, Plan: plan, Args: []expr.Expr{
+		literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "é")},
+		literalExpression{Info: expr.Info{Usage: name.Usage()}, value: sqltype.String(name, "LATIN1")},
 	}}
 	result, err := node.Eval(&EvalContext{Context: context.Background(), statementScope: fresh})
 	if err != nil {
@@ -77,7 +78,7 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	if _, err = node.Eval(&EvalContext{Context: context.Background(), statementScope: missing}); err == nil {
 		t.Fatal("hardwired provider fallback repaired missing default")
 	}
-	node.Args[0] = literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, "")}
+	node.Args[0] = literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "")}
 	if _, err = node.Eval(&EvalContext{Context: context.Background()}); err != nil {
 		t.Fatal("empty input demanded default snapshot", err)
 	}
@@ -172,7 +173,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	catalog := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	// Use actual registered unaccent providers for overload/name shadowing, not
 	// an invented conversion callback or generic SQL CREATE FUNCTION fixture.
-	first := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, namespace: public, revision: 1, name: "unaccent", signature: unaccentTextSignature, routineKind: functionRoutine, owner: e.authorizationDomain.Principal(10), result: 25, volatility: Stable, strict: true, provider: stockUnaccent}
+	first := &procedureDescriptor{address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, namespace: public, revision: 1, name: "unaccent", signature: unaccentTextSignature, routineKind: functionRoutine, owner: e.authorizationDomain.Principal(10), result: 25, volatility: expr.Stable, strict: true, provider: stockUnaccent}
 	second := *first
 	second.address.ObjectID, second.namespace = 90001, catalog
 	stage := e.BeginCatalogStage(view)

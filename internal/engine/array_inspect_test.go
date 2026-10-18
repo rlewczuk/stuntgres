@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -37,7 +38,7 @@ func TestArrayInspectResolver(t *testing.T) {
 		}
 		for _, u := range []sqltype.Usage{b.typ(2277).Usage(), {Type: sqltype.LookupOnly(2277, "anyarray", 0), Typmod: -1}} {
 			// Exact catalog carrier is admissible; an identical-looking descriptor is not.
-			call.Args[0] = columnExpression{expressionInfo: b.info(u, parser.Position{}, ExprProperties{RowDependent: true}), slot: 0}
+			call.Args[0] = columnExpression{Info: b.info(u, parser.Position{}, expr.Properties{RowDependent: true}), slot: 0}
 			if u.CatalogNullUsage() {
 				if err := call.Validate(); err != nil {
 					t.Fatal(err)
@@ -94,17 +95,17 @@ func TestArrayInspectStoredRemap(t *testing.T) {
 	if old.Usage.Type != b.typ(sqltype.Int4) || next.Usage.Type != tb.typ(sqltype.Int4) || old.Args[0].ResultUsage().Type == next.Args[0].ResultUsage().Type || old.Args[1].ResultUsage().Type == next.Args[1].ResultUsage().Type {
 		t.Fatal("lost generation ownership")
 	}
-	for _, call := range []BoundExpr{old, next} {
+	for _, call := range []expr.Expr{old, next} {
 		v, err := call.Eval(&EvalContext{Context: ctx})
 		n, nerr := v.Integer()
 		if err != nil || nerr != nil || n != 3 || v.Type() != call.ResultUsage().Type {
 			t.Fatal(v, err, nerr)
 		}
-		if !sameGroupExpression(call, call) || !closedTransactionTimeDefault(call) || !closedUUIDDefault(call) || plannedPhysicalVolatility(call, false) != Immutable {
+		if !sameGroupExpression(call, call) || !closedTransactionTimeDefault(call) || !closedUUIDDefault(call) || plannedPhysicalVolatility(call, false) != expr.Immutable {
 			t.Fatal("lost scalar traversal")
 		}
 		visited := 0
-		boundExpressionChildren(call, func(BoundExpr) { visited++ })
+		boundExpressionChildren(call, func(expr.Expr) { visited++ })
 		if visited != 2 {
 			t.Fatal("lost children", visited)
 		}
@@ -119,11 +120,11 @@ func TestArrayInspectStoredRemap(t *testing.T) {
 	if !sameGroupExpression(old, qualified) || !sameGroupExpression(qualified, old) || old.Namespace != "" {
 		t.Fatal("lexical qualification changed resolved grouping identity")
 	}
-	unchanged, did, err := functions.MapArrayInspectChildren(old, func(child BoundExpr) (BoundExpr, bool, error) { return child, false, nil })
+	unchanged, did, err := functions.MapArrayInspectChildren(old, func(child expr.Expr) (expr.Expr, bool, error) { return child, false, nil })
 	if err != nil || did || &unchanged.Args[0] != &old.Args[0] {
 		t.Fatal("copied unchanged children")
 	}
-	changedCall, did, err := functions.MapArrayInspectChildren(old, func(child BoundExpr) (BoundExpr, bool, error) {
+	changedCall, did, err := functions.MapArrayInspectChildren(old, func(child expr.Expr) (expr.Expr, bool, error) {
 		if child == old.Args[1] {
 			return next.Args[1], true, nil
 		}
@@ -146,7 +147,7 @@ func TestArrayInspectClosedDefaults(t *testing.T) {
 		if producer == "uuidv4" {
 			valid = closedUUIDDefault(node)
 		}
-		if !valid || plannedPhysicalVolatility(node, false) != Volatile {
+		if !valid || plannedPhysicalVolatility(node, false) != expr.Volatile {
 			t.Fatal("lost nested producer", producer)
 		}
 	}

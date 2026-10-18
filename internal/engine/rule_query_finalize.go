@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -43,14 +44,14 @@ func finalizeRuleQuery(view CatalogRead, root LogicalNode, alreadyFinalized ...m
 		if scan, ok := node.(*derivedNode); ok && scan.cte != nil && scan.cte.query != nil {
 			retain(scan.cte.query.Root)
 		}
-	}, func(expr BoundExpr) {
+	}, func(expr expr.Expr) {
 		if subquery, ok := expr.(subqueryExpression); ok && subquery.cteDefinition {
 			retain(subquery.queryPlan.Root)
 		}
 	}, true)
 	var query func(LogicalNode) (LogicalNode, error)
-	var expression func(BoundExpr) (BoundExpr, bool, error)
-	expression = func(expr BoundExpr) (BoundExpr, bool, error) {
+	var expression func(expr.Expr) (expr.Expr, bool, error)
+	expression = func(expr expr.Expr) (expr.Expr, bool, error) {
 		return mapBoundExpression(view, expr, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, query, nil, nil)
 	}
 	query = func(root LogicalNode) (LogicalNode, error) {
@@ -109,7 +110,7 @@ func finalizeRuleQuery(view CatalogRead, root LogicalNode, alreadyFinalized ...m
 				copy.child = child
 				return rewriteQueryExpressions(&copy, expression)
 			}
-			recipe := func(slot int) (BoundExpr, error) {
+			recipe := func(slot int) (expr.Expr, error) {
 				if evaluation != nil && slot >= evaluation.base && slot < evaluation.base+len(evaluation.expressions) {
 					return evaluation.expressions[slot-evaluation.base], nil
 				}
@@ -126,8 +127,8 @@ func finalizeRuleQuery(view CatalogRead, root LogicalNode, alreadyFinalized ...m
 				}
 				return nil, fmt.Errorf("stuntgres: invalid retained rule query cache")
 			}
-			recover := func(expr BoundExpr) (BoundExpr, bool, error) {
-				return mapBoundExpression(view, expr, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, query, nil, func(expr BoundExpr) (BoundExpr, bool, error) {
+			recover := func(bound expr.Expr) (expr.Expr, bool, error) {
+				return mapBoundExpression(view, bound, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, query, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 					if cached, ok := expr.(cachedOrderExpression); ok {
 						next, err := recipe(cached.slot)
 						return next, true, err

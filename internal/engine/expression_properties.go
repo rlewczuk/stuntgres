@@ -1,17 +1,19 @@
 package engine
 
+import "stuntgres/internal/engine/expr"
+
 // The canonical mapper adds every mapped child's properties to this base before
 // constructing its existing node. Preserve analyzed dependence from eliminated
 // branches and runtime domain barriers, but do not retain replaced child demand.
-func rewrittenIntrinsicProperties(node BoundExpr) ExprProperties {
-	var children ExprProperties
-	boundExpressionChildren(node, func(child BoundExpr) {
+func rewrittenIntrinsicProperties(node expr.Expr) expr.Properties {
+	var children expr.Properties
+	boundExpressionChildren(node, func(child expr.Expr) {
 		if child != nil {
-			children = mergeExpressionProperties(children, child.Properties())
+			children = expr.MergeProperties(children, child.Properties())
 		}
 	})
 	original := node.Properties()
-	properties := ExprProperties{Volatility: plannedIntrinsicVolatility(node)}
+	properties := expr.Properties{Volatility: plannedIntrinsicVolatility(node)}
 	if original.Volatility > children.Volatility {
 		properties.Volatility = max(properties.Volatility, original.Volatility)
 	}
@@ -26,7 +28,7 @@ func rewrittenIntrinsicProperties(node BoundExpr) ExprProperties {
 		properties.StageDependent = original.StageDependent || properties.StageDependent
 	case subqueryExpression:
 		// Its owned query is not a lexical child; query mapping adds fresh demand.
-		properties = mergeExpressionProperties(properties, original)
+		properties = expr.MergeProperties(properties, original)
 	}
 	return properties
 }

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -10,15 +11,15 @@ import (
 // Named transition rows retain their lexical target owner and actual presence.
 // This does not introduce generic ROW or composite field syntax.
 type returningWholeRowExpression struct {
-	expressionInfo
-	members      []BoundExpr
+	expr.Info
+	members      []expr.Expr
 	scope, frame uint32
 	old          bool
 	merge        bool
 	side         mergeReturningSide
 }
 
-func (e returningWholeRowExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e returningWholeRowExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	parent, err := returningRowContext(c, e.scope, e.frame)
 	if err != nil {
@@ -36,7 +37,7 @@ func (e returningWholeRowExpression) Eval(ctx ExprContext) (sqltype.Value, error
 	}
 	return sqltype.OwnedCompositeValue(e.Usage.Type, fields)
 }
-func (b *expressionBinder) returningWholeRow(name string, relation *relationDescriptor, frame uint32, aliases *returningAliases, pos parser.Position) (BoundExpr, bool, error) {
+func (b *expressionBinder) returningWholeRow(name string, relation *relationDescriptor, frame uint32, aliases *returningAliases, pos parser.Position) (expr.Expr, bool, error) {
 	if aliases == nil || aliases.mode != returningInsert && aliases.mode != returningMerge {
 		return nil, false, nil
 	}
@@ -58,7 +59,7 @@ func (b *expressionBinder) returningWholeRow(name string, relation *relationDesc
 		return nil, true, fmt.Errorf("stuntgres: RETURNING named row descriptor is missing")
 	}
 	b.returningReadRequired = true
-	members := make([]BoundExpr, len(relation.columns))
+	members := make([]expr.Expr, len(relation.columns))
 	scope := &queryBindingScope{relation: relation, frame: frame, returning: aliases}
 	for i := range members {
 		if aliases.mode == returningMerge && side == mergeDefaultSide {
@@ -69,6 +70,6 @@ func (b *expressionBinder) returningWholeRow(name string, relation *relationDesc
 			members[i] = b.outerReturningColumnAt(scope, i, pos, !old)
 		}
 	}
-	info := b.info(sqltype.Usage{Type: descriptor.typ, Typmod: -1}, pos, ExprProperties{RowDependent: true})
-	return returningWholeRowExpression{expressionInfo: info, members: members, scope: 1, frame: frame, old: old, merge: aliases.mode == returningMerge, side: side}, true, nil
+	info := b.info(sqltype.Usage{Type: descriptor.typ, Typmod: -1}, pos, expr.Properties{RowDependent: true})
+	return returningWholeRowExpression{Info: info, members: members, scope: 1, frame: frame, old: old, merge: aliases.mode == returningMerge, side: side}, true, nil
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -176,7 +177,7 @@ func TestCTEDMLLateFailureIdentity(t *testing.T) {
 				}
 				return c.Row[0], nil
 			})
-			bound.ctes[1].mutation.returning.expressions = []BoundExpr{probe}
+			bound.ctes[1].mutation.returning.expressions = []expr.Expr{probe}
 			quotes := quoteCaptureCandidate{}
 			evaluation := EvalContext{Context: ctx, statementScope: scope, catalog: auth.catalog, Input: scope.input, Output: scope.output, quoteCaptures: &quotes}
 			e.mu.Lock()

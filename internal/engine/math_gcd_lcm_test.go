@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -49,7 +50,7 @@ func TestMathGcdLcmBinding(t *testing.T) {
 					}
 				}
 				properties := node.Properties()
-				if properties.Volatility != Immutable || properties.ParameterDependent != (len(tc.parameters) != 0) || properties.RowDependent || properties.StageDependent {
+				if properties.Volatility != expr.Immutable || properties.ParameterDependent != (len(tc.parameters) != 0) || properties.RowDependent || properties.StageDependent {
 					t.Fatal("merged immutable properties", properties)
 				}
 				for i, id := range tc.parameters {

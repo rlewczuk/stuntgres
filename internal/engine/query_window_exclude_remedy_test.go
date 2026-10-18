@@ -8,20 +8,21 @@ import (
 
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/engine/expr"
 )
 
 // Instrument argument occurrences, not providers or the executor. Evaluating the
 // real bound child still checks row binding; the replacement value exposes the
 // actual transition schedule through the existing typed SUM providers.
 type windowSumArgumentProbe struct {
-	BoundExpr
+	expr.Expr
 	sequence   *int64
 	visits     *[]int
 	occurrence int
 }
 
-func (p windowSumArgumentProbe) Eval(ctx ExprContext) (sqltype.Value, error) {
-	if _, err := p.BoundExpr.Eval(ctx); err != nil {
+func (p windowSumArgumentProbe) Eval(ctx expr.Context) (sqltype.Value, error) {
+	if _, err := p.Expr.Eval(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
 	*p.sequence++
@@ -187,4 +188,3 @@ func TestQueryWindowExcludeFinalizeThenAdvance(t *testing.T) {
 		}
 	}
 }
-

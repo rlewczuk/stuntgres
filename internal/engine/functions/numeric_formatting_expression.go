@@ -82,7 +82,7 @@ func NumericFormattingResult(name string) sqltype.ID {
 	}
 	return sqltype.Text
 }
-func NumericFormattingIntrinsicRule() IntrinsicPropertyRule { return ExactStable }
+func NumericFormattingIntrinsicRule() expr.IntrinsicPropertyRule { return expr.ExactStable }
 
 func (e NumericFormatting) IntrinsicVolatility() expr.Volatility { return expr.Stable }
 

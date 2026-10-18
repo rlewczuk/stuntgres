@@ -109,14 +109,10 @@ rest), the plan IR, `EvalContext` and its private state, binding, and the
 recovery helper `evalContext`. Engine nodes recover `*EvalContext` from the
 `Context` they receive.
 
-Temporary aliases until step 2d: in the engine, `BoundExpr`,
-`ExprProperties`, `ExprContext`, `Volatility`, `expressionInfo`, the
-volatility constants and the forwarding helpers `boundExpressionInfo`,
-`mergeExpressionProperties` and `expressionError` (`expr_aliases.go`); in
-`functions`, `RoutineReference`, `RoutineRecipeReference`, `RandomOwner`,
-`IntrinsicPropertyRule` and its constants (`expr_aliases.go`).
-Since step 3 (F1), `functions` nodes embed `Info` and evaluate against
-`Context` directly, with no type parameters.
+Engine nodes embed `expr.Info` and the engine and `functions` use the
+`expr` names directly; step 2d removed the temporary aliases. Since step 3
+(F1), `functions` nodes embed `Info` and evaluate against `Context` directly,
+with no type parameters.
 
 ## Testing
 

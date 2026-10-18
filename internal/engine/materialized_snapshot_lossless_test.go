@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -47,8 +48,8 @@ func TestMaterializedViewSnapshotLosslessCoercions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	literal := literalExpression{expressionInfo{Usage: u.Type.Usage()}, v}
-	inner := coercionExpression{expressionInfo{Usage: u}, literal, plan, sqltype.Explicit, false}
+	literal := literalExpression{expr.Info{Usage: u.Type.Usage()}, v}
+	inner := coercionExpression{expr.Info{Usage: u}, literal, plan, sqltype.Explicit, false}
 	// The explicit node already has the destination usage. A final assignment
 	// wrapper is neither required nor sufficient to validate its child.
 	if _, err := inner.Eval(&EvalContext{Context: context.Background(), Input: input}); err == nil {
@@ -58,7 +59,7 @@ func TestMaterializedViewSnapshotLosslessCoercions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	outer := coercionExpression{expressionInfo{Usage: u.Type.Usage()}, inner, wide, sqltype.Explicit, false}
+	outer := coercionExpression{expr.Info{Usage: u.Type.Usage()}, inner, wide, sqltype.Explicit, false}
 	if _, err := outer.Eval(&EvalContext{Context: context.Background(), Input: input}); err == nil {
 		t.Fatal("outer widening hid inner loss")
 	}

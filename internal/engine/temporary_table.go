@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -49,9 +50,9 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 		e.mu.Unlock()
 		pos := s.PartitionBy
 		if s.PartitionOf != nil {
-			return Result{}, expressionError("0A000", "temporary partition definitions are unsupported", s.PartitionOf.Pos)
+			return Result{}, expr.ErrorAt("0A000", "temporary partition definitions are unsupported", s.PartitionOf.Pos)
 		}
-		return Result{}, expressionError("0A000", "temporary partition definitions are unsupported", pos.Pos)
+		return Result{}, expr.ErrorAt("0A000", "temporary partition definitions are unsupported", pos.Pos)
 	}
 	if !temporary {
 		// Permanent CREATE does not need the TEMP namespace overlay. Preserve

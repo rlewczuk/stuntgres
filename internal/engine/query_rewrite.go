@@ -1,10 +1,14 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+
+	"stuntgres/internal/engine/expr"
+)
 
 // Copy only paths changed by an expression rewrite. Query-local frame identities
 // and analyzed schemas are preserved across outer grouping and stored replay.
-func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExpr, bool, error), rewriteNode ...func(LogicalNode) (LogicalNode, error)) (LogicalNode, error) {
+func rewriteQueryExpressions(node LogicalNode, rewrite func(expr.Expr) (expr.Expr, bool, error), rewriteNode ...func(LogicalNode) (LogicalNode, error)) (LogicalNode, error) {
 	if node == nil {
 		return nil, nil
 	}
@@ -25,7 +29,7 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 		changed = changed || next != old
 		return next
 	}
-	expression := func(old BoundExpr) BoundExpr {
+	expression := func(old expr.Expr) expr.Expr {
 		if old == nil || err != nil {
 			return old
 		}
@@ -34,8 +38,8 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 		changed = changed || different
 		return next
 	}
-	args := func(old []BoundExpr) []BoundExpr {
-		var next []BoundExpr
+	args := func(old []expr.Expr) []expr.Expr {
+		var next []expr.Expr
 		for i, item := range old {
 			if err != nil {
 				break
@@ -44,7 +48,7 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 			err = failure
 			if different {
 				if next == nil {
-					next = append([]BoundExpr(nil), old...)
+					next = append([]expr.Expr(nil), old...)
 				}
 				next[i] = replaced
 				changed = true
@@ -57,8 +61,8 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 	}
 	// Stage-owned set calls cannot be replaced by outer GROUP keys or folded
 	// into scalars. Their lexical arguments still use the ordinary rewrite.
-	stringCalls := func(old []BoundExpr) []BoundExpr {
-		var next []BoundExpr
+	stringCalls := func(old []expr.Expr) []expr.Expr {
+		var next []expr.Expr
 		for i, call := range old {
 			original := functionCallArguments(call)
 			arguments := args(original)
@@ -66,7 +70,7 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 				continue
 			}
 			if next == nil {
-				next = append([]BoundExpr(nil), old...)
+				next = append([]expr.Expr(nil), old...)
 			}
 			if err == nil {
 				next[i], err = withFunctionCallArguments(call, arguments)
@@ -121,7 +125,7 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 		leftExpressions, rightExpressions := args(n.leftExpressions), args(n.rightExpressions)
 		cycle := n.cycle
 		if cycle != nil {
-			marks := args([]BoundExpr{cycle.mark, cycle.fallback})
+			marks := args([]expr.Expr{cycle.mark, cycle.fallback})
 			if marks[0] != cycle.mark || marks[1] != cycle.fallback {
 				copy := *cycle
 				copy.mark, copy.fallback = marks[0], marks[1]
@@ -242,7 +246,7 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 			if call.analysisOnly {
 				continue
 			}
-			for j, expression := range [3]BoundExpr{call.argument, call.ordinal, call.defaultValue} {
+			for j, expression := range [3]expr.Expr{call.argument, call.ordinal, call.defaultValue} {
 				if expression == nil || err != nil {
 					continue
 				}
@@ -330,7 +334,7 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 			}
 			nextCall := call
 			callChanged := false
-			for j, expr := range [3]BoundExpr{call.argument, call.separator, call.filter} {
+			for j, expr := range [3]expr.Expr{call.argument, call.separator, call.filter} {
 				if expr == nil || err != nil {
 					continue
 				}
@@ -347,16 +351,16 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 					}
 				}
 			}
-			var direct []BoundExpr
-			for j, expr := range call.direct {
+			var direct []expr.Expr
+			for j, operand := range call.direct {
 				if err != nil {
 					break
 				}
-				next, different, failure := rewrite(expr)
+				next, different, failure := rewrite(operand)
 				err = failure
 				if different {
 					if direct == nil {
-						direct = append([]BoundExpr(nil), call.direct...)
+						direct = append([]expr.Expr(nil), call.direct...)
 					}
 					direct[j] = next
 					callChanged = true
@@ -400,11 +404,11 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(BoundExpr) (BoundExp
 			out = &copy
 		}
 	case *valuesNode:
-		var rows [][]BoundExpr
+		var rows [][]expr.Expr
 		for i, row := range n.rows {
 			next := args(row)
 			if changed && rows == nil {
-				rows = append([][]BoundExpr(nil), n.rows...)
+				rows = append([][]expr.Expr(nil), n.rows...)
 			}
 			if rows != nil {
 				rows[i] = next
@@ -432,7 +436,7 @@ func queryUsesFrame(node LogicalNode, frame uint32) bool {
 		return false
 	}
 	found := false
-	queryExpressions(node, func(expr BoundExpr) {
+	queryExpressions(node, func(expr expr.Expr) {
 		if expressionUsesFrame(expr, frame) {
 			found = true
 		}
@@ -443,9 +447,9 @@ func queryUsesFrame(node LogicalNode, frame uint32) bool {
 	left, right := queryInputs(node)
 	return queryUsesFrame(left, frame) || queryUsesFrame(right, frame)
 }
-func expressionUsesFrame(expr BoundExpr, frame uint32) bool {
+func expressionUsesFrame(bound expr.Expr, frame uint32) bool {
 	found := false
-	walkBoundExpression(expr, func(expr BoundExpr) {
+	walkBoundExpression(bound, func(expr expr.Expr) {
 		switch e := expr.(type) {
 		case columnExpression:
 			found = found || e.frame == frame

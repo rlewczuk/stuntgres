@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/parser"
+import (
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/parser"
+)
 
 // Engine.mu is held. Analysis shares the ordinary Boolean binder and frozen
 // query presentation; no condition is evaluated and no row storage is opened.
@@ -34,7 +37,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 		return nil, err
 	}
 	source := &sourceNode{querySchema: d.columns, ref: ref, occurrence: 0}
-	root := &projectNode{child: source, expressions: []BoundExpr{node}, frame: 1, querySchema: []ColumnDescriptor{{Usage: node.ResultUsage()}}}
+	root := &projectNode{child: source, expressions: []expr.Expr{node}, frame: 1, querySchema: []ColumnDescriptor{{Usage: node.ResultUsage()}}}
 	capture := binding{
 		query: &BoundQuery{Root: root}, dependencies: b.dependencies, querySources: b.querySources,
 		viewLiterals: b.viewLiterals, viewCastUsages: b.viewCastUsages, viewSimilarSubstrings: b.viewSimilarSubstrings,

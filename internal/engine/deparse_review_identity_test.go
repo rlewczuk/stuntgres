@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -34,13 +35,13 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 			e := New()
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			raw := statement(t, "SELECT "+tc.source+" FROM t").(*parser.Select).Targets[0]
-			expr, err := b.bind(raw, expressionPolicy{context: projectionContext})
+			bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
-			node, ok := expr.(identityExpression)
-			if !ok || node.kind != tc.kind || node.ordinaryCall != tc.call || node.Properties() != (ExprProperties{Volatility: Stable}) {
-				t.Fatal(expr)
+			node, ok := bound.(identityExpression)
+			if !ok || node.kind != tc.kind || node.ordinaryCall != tc.call || node.Properties() != (expr.Properties{Volatility: expr.Stable}) {
+				t.Fatal(bound)
 			}
 			id := sqltype.Name
 			if tc.kind == identitySystemUser {
@@ -112,7 +113,7 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 		e := New()
 		name, _ := e.CatalogRead().LookupType(sqltype.Name)
 		text, _ := e.CatalogRead().LookupType(sqltype.Text)
-		valid := identityExpression{expressionInfo: expressionInfo{Usage: name.Usage(), Property: ExprProperties{Volatility: Stable}}, kind: identityCurrentUser}
+		valid := identityExpression{Info: expr.Info{Usage: name.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, kind: identityCurrentUser}
 		for _, tc := range []struct {
 			name   string
 			mutate func(*identityExpression)
@@ -126,8 +127,8 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 			{"system type", func(n *identityExpression) { n.kind = identitySystemUser }},
 			{"missing type", func(n *identityExpression) { n.Usage.Type = nil }},
 			{"typmod", func(n *identityExpression) { n.Usage.Typmod = 3 }},
-			{"immutable", func(n *identityExpression) { n.Property.Volatility = Immutable }},
-			{"volatile", func(n *identityExpression) { n.Property.Volatility = Volatile }},
+			{"immutable", func(n *identityExpression) { n.Property.Volatility = expr.Immutable }},
+			{"volatile", func(n *identityExpression) { n.Property.Volatility = expr.Volatile }},
 			{"row", func(n *identityExpression) { n.Property.RowDependent = true }},
 			{"parameter", func(n *identityExpression) { n.Property.ParameterDependent = true }},
 			{"stage", func(n *identityExpression) { n.Property.StageDependent = true }},

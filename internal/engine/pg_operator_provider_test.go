@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -126,7 +127,7 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 			for _, textArray := range witnesses {
 				left, right := physical(leftID, textArray), physical(rightID, textArray)
 				executable := (leftID == 0 || left != nil && left.Concrete()) && right != nil && right.Concrete()
-				var bound BoundExpr
+				var bound expr.Expr
 				var err error
 				if executable {
 					b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
@@ -146,8 +147,8 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 					executable = err == nil
 				}
 				if executable {
-					var operands []BoundExpr
-					boundExpressionChildren(bound, func(child BoundExpr) {
+					var operands []expr.Expr
+					boundExpressionChildren(bound, func(child expr.Expr) {
 						if child != nil {
 							operands = append(operands, child)
 						}

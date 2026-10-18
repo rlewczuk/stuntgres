@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -44,9 +45,9 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 			}
 		})
 	}
-	for _, node := range []BoundExpr{
-		parameterExpression{expressionInfo: expressionInfo{Usage: predicate.Usage}, number: 1},
-		aggregateExpression{expressionInfo: expressionInfo{Usage: predicate.Usage}, slot: 0},
+	for _, node := range []expr.Expr{
+		parameterExpression{Info: expr.Info{Usage: predicate.Usage}, number: 1},
+		aggregateExpression{Info: expr.Info{Usage: predicate.Usage}, slot: 0},
 	} {
 		copy := *original
 		copy.checkConstraints = append([]checkConstraint(nil), original.checkConstraints...)

@@ -3,6 +3,7 @@ package engine
 import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -185,13 +186,13 @@ func (b *expressionBinder) regtypeArrayConstant(text string, u sqltype.Usage, po
 	return value, nil
 }
 
-func (b *expressionBinder) foldRegtypeConstant(child BoundExpr, plan sqltype.CoercionPlan, info expressionInfo) (BoundExpr, bool, error) {
+func (b *expressionBinder) foldRegtypeConstant(child expr.Expr, plan sqltype.CoercionPlan, info expr.Info) (expr.Expr, bool, error) {
 	if (info.Usage.Type.BaseType().ID() != sqltype.Regtype && !sqltype.IsOperatorAlias(info.Usage.Type.BaseType().ID()) && !sqltype.IsRoutineAlias(info.Usage.Type.BaseType().ID()) && !sqltype.IsRegObjectAlias(info.Usage.Type.BaseType().ID()) && !sqltype.IsRegTS(info.Usage.Type.BaseType().ID())) || !(b.defaultConsumer || b.checkConsumer || b.indexConsumer || b.generatedOwner != nil || b.noParameters || b.materializedDefinition) {
 		return nil, false, nil
 	}
 	p := child.Properties()
 	id := child.ResultUsage().BaseUsage().Type.ID()
-	if p.Volatility != Immutable || p.RowDependent || p.ParameterDependent || p.StageDependent || p.DomainDependent || p.RuntimeDomainConversion || sqltype.ContainsDomainChecks(info.Usage.Type) || id != sqltype.Oid && id != sqltype.Int2 && id != sqltype.Int4 && id != sqltype.Int8 && !sqltype.IsRoutineAlias(id) {
+	if p.Volatility != expr.Immutable || p.RowDependent || p.ParameterDependent || p.StageDependent || p.DomainDependent || p.RuntimeDomainConversion || sqltype.ContainsDomainChecks(info.Usage.Type) || id != sqltype.Oid && id != sqltype.Int2 && id != sqltype.Int4 && id != sqltype.Int8 && !sqltype.IsRoutineAlias(id) {
 		return nil, false, nil
 	}
 	value, err := child.Eval(&EvalContext{Context: b.ctx, Input: b.input})

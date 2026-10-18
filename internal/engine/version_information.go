@@ -16,7 +16,7 @@ func versionInformationSQL(e functions.VersionInformation) (string, error) {
 	return e.Kind.Name() + "()", nil
 }
 
-func (b *expressionBinder) bindVersionInformation(raw parser.FunctionExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindVersionInformation(raw parser.FunctionExpr) (expr.Expr, error) {
 	kind := functions.VersionInformationKindForName(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
 	var names []string
 	if len(raw.Args) != 0 {
@@ -32,16 +32,16 @@ func (b *expressionBinder) bindVersionInformation(raw parser.FunctionExpr) (Boun
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	issue := functions.FunctionLabels(raw)
 	switch {
 	case issue.Malformed:
 		return nil, fmt.Errorf("invalid function argument labels")
 	case issue.Positional:
-		return nil, expressionError("42601", "positional argument cannot follow named argument", issue.Position)
+		return nil, expr.ErrorAt("42601", "positional argument cannot follow named argument", issue.Position)
 	case issue.Duplicate != "":
-		return nil, expressionError("42601", fmt.Sprintf("argument name %q used more than once", issue.Duplicate), issue.Position)
+		return nil, expr.ErrorAt("42601", fmt.Sprintf("argument name %q used more than once", issue.Duplicate), issue.Position)
 	}
 	visible, err := b.builtinVisible(raw.Name, functionLookup)
 	if err != nil {
@@ -53,13 +53,13 @@ func (b *expressionBinder) bindVersionInformation(raw parser.FunctionExpr) (Boun
 	name := kind.Name()
 	if decoration := functions.TransactionTimeDecoration(raw); decoration != "" {
 		if decoration == "(*)" {
-			return nil, expressionError("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
+			return nil, expr.ErrorAt("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)
 		}
 		owner := "an aggregate function"
 		if decoration == "OVER" {
 			owner = "a window function nor an aggregate function"
 		}
-		return nil, expressionError("42809", decoration+" specified, but "+name+" is not "+owner, raw.Pos)
+		return nil, expr.ErrorAt("42809", decoration+" specified, but "+name+" is not "+owner, raw.Pos)
 	}
 	info := b.info(b.typ(sqltype.Text).Usage(), raw.Pos, expr.IntrinsicProperties(kind.IntrinsicRule()))
 	info, err = b.builtinRoutineInfo(info, catalogRoutineProvider, name)

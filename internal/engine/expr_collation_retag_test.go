@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -118,7 +119,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	if !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for string comparison", Hint: "Use the COLLATE clause to set the collation explicitly."}) {
 		t.Fatal("mapped conflict no longer demanded", err)
 	}
-	storedExpression := func(name string) BoundExpr {
+	storedExpression := func(name string) expr.Expr {
 		ref := catalogRef(t, e, view, name)
 		return view.MustRelation(ref.Address).view.query.Root.(*projectNode).expressions[0]
 	}
@@ -154,8 +155,8 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	mappedRow.comparisons = append([]comparisonExpression(nil), mappedRow.comparisons...)
 	for i, pair := range mappedRow.comparisons {
 		if i == 1 {
-			pair.left = literalExpression{boundExpressionInfo(pair.left), sqltype.String(pair.left.ResultUsage().Type, "A")}
-			pair.right = literalExpression{boundExpressionInfo(pair.right), sqltype.String(pair.right.ResultUsage().Type, "A")}
+			pair.left = literalExpression{expr.InfoOf(pair.left), sqltype.String(pair.left.ResultUsage().Type, "A")}
+			pair.right = literalExpression{expr.InfoOf(pair.right), sqltype.String(pair.right.ResultUsage().Type, "A")}
 		}
 		mappedRow.comparisons[i] = pair
 	}

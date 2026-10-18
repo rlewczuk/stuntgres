@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -11,13 +12,13 @@ import (
 
 func TestPosixDependencyAndPresentationIdentity(t *testing.T) {
 	text, boolean := similarUnitTypes()
-	source := columnExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, slot: 0}
-	pattern := columnExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, slot: 1}
-	predicate := functions.Posix{Info: expressionInfo{Usage: boolean.Usage()}, Left: source, Right: pattern, Operator: "~"}
-	extraction := functions.PosixSubstring{Info: expressionInfo{Usage: text.Usage()}, Args: [2]BoundExpr{source, pattern}}
-	for _, node := range []BoundExpr{predicate, extraction} {
+	source := columnExpression{Info: expr.Info{Usage: text.Usage()}, slot: 0}
+	pattern := columnExpression{Info: expr.Info{Usage: text.Usage()}, slot: 1}
+	predicate := functions.Posix{Info: expr.Info{Usage: boolean.Usage()}, Left: source, Right: pattern, Operator: "~"}
+	extraction := functions.PosixSubstring{Info: expr.Info{Usage: text.Usage()}, Args: [2]expr.Expr{source, pattern}}
+	for _, node := range []expr.Expr{predicate, extraction} {
 		var slots []int
-		walkBoundExpression(node, func(n BoundExpr) {
+		walkBoundExpression(node, func(n expr.Expr) {
 			if c, ok := n.(columnExpression); ok {
 				slots = append(slots, c.slot)
 			}
@@ -32,7 +33,7 @@ func TestPosixDependencyAndPresentationIdentity(t *testing.T) {
 		t.Fatal("regex substring presentation changed grouping identity")
 	}
 	swapped := extraction
-	swapped.Args = [2]BoundExpr{pattern, source}
+	swapped.Args = [2]expr.Expr{pattern, source}
 	if sameGroupExpression(extraction, swapped) {
 		t.Fatal("regex operands lost grouping identity")
 	}
@@ -45,9 +46,9 @@ func TestPosixDependencyAndPresentationIdentity(t *testing.T) {
 
 func TestPosixCommonStatementOwner(t *testing.T) {
 	text, boolean := similarUnitTypes()
-	info := expressionInfo{Usage: text.Usage()}
-	literal := func(s string) BoundExpr {
-		return literalExpression{expressionInfo: info, value: sqltype.String(text, s)}
+	info := expr.Info{Usage: text.Usage()}
+	literal := func(s string) expr.Expr {
+		return literalExpression{Info: info, value: sqltype.String(text, s)}
 	}
 	pp, err := sqltype.BindPosix("~*", text.Usage(), text.Usage(), boolean.Usage(), text.Usage().Collation, false)
 	if err != nil {
@@ -58,9 +59,9 @@ func TestPosixCommonStatementOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := &EvalContext{Context: context.Background(), pgRegex: sqltype.PGRegexExecution{}}
-	p := functions.Posix{Info: expressionInfo{Usage: boolean.Usage()}, Left: literal("AbC"), Right: literal("abc"), Provider: pp, Operator: "~*"}
-	s := functions.Similar{Info: expressionInfo{Usage: boolean.Usage()}, Left: literal("AbC"), Right: literal("abc"), Provider: sp, Operator: "~"}
-	for _, node := range []BoundExpr{p, s, p} {
+	p := functions.Posix{Info: expr.Info{Usage: boolean.Usage()}, Left: literal("AbC"), Right: literal("abc"), Provider: pp, Operator: "~*"}
+	s := functions.Similar{Info: expr.Info{Usage: boolean.Usage()}, Left: literal("AbC"), Right: literal("abc"), Provider: sp, Operator: "~"}
+	for _, node := range []expr.Expr{p, s, p} {
 		value, err := node.Eval(c)
 		if err != nil {
 			t.Fatal(err)

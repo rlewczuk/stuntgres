@@ -48,11 +48,11 @@ func TransactionTimeKindForName(name string) TransactionTimeKind {
 	}
 	return 0
 }
-func (kind TransactionTimeKind) IntrinsicRule() IntrinsicPropertyRule {
+func (kind TransactionTimeKind) IntrinsicRule() expr.IntrinsicPropertyRule {
 	if kind == TransactionTimeClock || kind == TransactionTimeOfDay {
-		return ExactVolatile
+		return expr.ExactVolatile
 	}
-	return ExactStable
+	return expr.ExactStable
 }
 func (kind TransactionTimeKind) Type() sqltype.ID {
 	if kind == TransactionTimeOfDay {

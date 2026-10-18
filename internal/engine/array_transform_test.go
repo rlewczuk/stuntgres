@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -87,15 +88,15 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 				t.Fatal("qualification altered builtin identity")
 			}
 			visited := 0
-			boundExpressionChildren(call, func(BoundExpr) { visited++ })
+			boundExpressionChildren(call, func(expr.Expr) { visited++ })
 			if visited != len(call.Args) || !closedTransactionTimeDefault(call) || !closedUUIDDefault(call) {
 				t.Fatal("lost children", visited)
 			}
-			volatility := Immutable
+			volatility := expr.Immutable
 			if call.Kind == functions.ArrayToString {
-				volatility = Stable
+				volatility = expr.Stable
 			}
-			if plannedPhysicalVolatility(call, false) != volatility || generationImmutable(call) != (volatility == Immutable) {
+			if plannedPhysicalVolatility(call, false) != volatility || generationImmutable(call) != (volatility == expr.Immutable) {
 				t.Fatal("lost intrinsic volatility")
 			}
 			if _, _, err := simplifyConditional(&EvalContext{Context: ctx}, call, false); err != nil {
@@ -108,7 +109,7 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 		if render(old, source.CatalogRead()) != originalSQL || render(next, target.CatalogRead()) != originalSQL {
 			t.Fatal("remap changed symbolic recipe")
 		}
-		unchanged, did, err := functions.MapArrayTransformChildren(old, func(child BoundExpr) (BoundExpr, bool, error) { return child, false, nil })
+		unchanged, did, err := functions.MapArrayTransformChildren(old, func(child expr.Expr) (expr.Expr, bool, error) { return child, false, nil })
 		if err != nil || did || &unchanged.Args[0] != &old.Args[0] {
 			t.Fatal("no-op copied children")
 		}
@@ -143,7 +144,7 @@ func TestArrayTransformNamedAndConcatSelection(t *testing.T) {
 		t.Fatal(s, err)
 	}
 	var order []sqltype.ID
-	_, changed, err := functions.MapArrayTransformChildren(call, func(child BoundExpr) (BoundExpr, bool, error) {
+	_, changed, err := functions.MapArrayTransformChildren(call, func(child expr.Expr) (expr.Expr, bool, error) {
 		order = append(order, child.ResultUsage().Type.ID())
 		return child, false, nil
 	})
@@ -197,9 +198,9 @@ func TestArrayTransformCollationRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	old := functions.ArrayTransform{
-		Info: b.info(usage, parser.Position{}, ExprProperties{}),
+		Info: b.info(usage, parser.Position{}, expr.Properties{}),
 		Kind: functions.ArraySort, Slots: [3]uint8{0, 1, 2}, Sort: plan,
-		Args: []BoundExpr{literalExpression{expressionInfo: b.info(usage, parser.Position{}, ExprProperties{}), value: value}},
+		Args: []expr.Expr{literalExpression{Info: b.info(usage, parser.Position{}, expr.Properties{}), value: value}},
 	}
 	originalSQL, err := defaultSQL(ctx, source.CatalogRead(), old)
 	if err != nil {

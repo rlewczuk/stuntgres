@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -36,7 +37,7 @@ func intaggUnitRecipes(t *testing.T) {
 			if len(b.aggregates) != 0 {
 				child = &aggregateNode{child: child, calls: b.aggregates}
 			}
-			project := &projectNode{querySchema: querySchema{{Name: "v", Usage: node.ResultUsage()}}, child: child, expressions: []BoundExpr{node}, frame: b.frameID(), syntax: syntax}
+			project := &projectNode{querySchema: querySchema{{Name: "v", Usage: node.ResultUsage()}}, child: child, expressions: []expr.Expr{node}, frame: b.frameID(), syntax: syntax}
 			definition := &viewDefinition{query: &BoundQuery{Root: project}, syntax: syntax, dependencies: b.dependencies, intaggRefs: b.viewIntaggRefs, literals: b.viewLiterals, castUsages: b.viewCastUsages}
 			definition.frames, definition.queries = collectQueryFrames(project)
 			if err := definition.validateLiterals(e.CatalogRead()); err != nil {

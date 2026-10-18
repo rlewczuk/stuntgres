@@ -5,19 +5,20 @@ import (
 	"strings"
 	"stuntgres/internal/engine/functions"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 type sqlJSONExpression struct {
-	expressionInfo
+	expr.Info
 	raw  parser.SQLJSONExpr
-	args []BoundExpr
+	args []expr.Expr
 	plan sqltype.SQLJSONPlan
 }
 
-func (e sqlJSONExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e sqlJSONExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -51,7 +52,7 @@ func sqlJSONKind(name string) sqltype.SQLJSONKind {
 	}
 	return 0
 }
-func (e sqlJSONExpression) reconstruct(info expressionInfo, args []BoundExpr) (BoundExpr, error) {
+func (e sqlJSONExpression) reconstruct(info expr.Info, args []expr.Expr) (expr.Expr, error) {
 	var small [8]sqltype.Usage
 	usages := small[:min(len(args), len(small))]
 	if len(args) > len(small) {
@@ -64,10 +65,10 @@ func (e sqlJSONExpression) reconstruct(info expressionInfo, args []BoundExpr) (B
 	if err != nil {
 		return nil, err
 	}
-	e.expressionInfo, e.args, e.plan = info, args, plan
+	e.Info, e.args, e.plan = info, args, plan
 	return e, nil
 }
-func (b *expressionBinder) sqlJSONInput(arg BoundExpr, format *parser.JSONFormat, implicit, unique bool) (BoundExpr, error) {
+func (b *expressionBinder) sqlJSONInput(arg expr.Expr, format *parser.JSONFormat, implicit, unique bool) (expr.Expr, error) {
 	base := arg.ResultUsage().Type.BaseType()
 	if format == nil && !implicit {
 		return arg, nil
@@ -79,16 +80,16 @@ func (b *expressionBinder) sqlJSONInput(arg BoundExpr, format *parser.JSONFormat
 		encoding = format.Encoding
 	}
 	if encoding != "" && base.ID() != sqltype.Bytea {
-		return nil, expressionError("42804", "JSON ENCODING clause is only allowed for bytea input type", pos)
+		return nil, expr.ErrorAt("42804", "JSON ENCODING clause is only allowed for bytea input type", pos)
 	}
 	if base.ID() == sqltype.JSON || base.ID() == sqltype.JSONB {
 		return arg, nil
 	}
 	if base.ID() != sqltype.Bytea && !sqltype.StringCategory(base.ID()) {
 		if format != nil {
-			return nil, expressionError("42804", "cannot use non-string types with explicit FORMAT JSON clause", pos)
+			return nil, expr.ErrorAt("42804", "cannot use non-string types with explicit FORMAT JSON clause", pos)
 		}
-		return nil, expressionError("42846", "cannot cast type "+base.DiagnosticName()+" to json", arg.SourcePosition())
+		return nil, expr.ErrorAt("42846", "cannot cast type "+base.DiagnosticName()+" to json", arg.SourcePosition())
 	}
 	plan, err := sqltype.PlanJSONFormattedInput(arg.ResultUsage(), b.typ(sqltype.JSON).Usage(), encoding)
 	if err != nil {
@@ -106,7 +107,7 @@ func (b *expressionBinder) sqlJSONInput(arg BoundExpr, format *parser.JSONFormat
 	}
 	return coercionExpression{info, arg, plan, sqltype.Explicit, false}, nil
 }
-func (b *expressionBinder) bindSQLJSON(raw parser.SQLJSONExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindSQLJSON(raw parser.SQLJSONExpr) (expr.Expr, error) {
 	kind := sqlJSONKind(raw.Kind)
 	if kind == 0 {
 		return nil, fmt.Errorf("invalid SQL/JSON constructor")
@@ -115,10 +116,10 @@ func (b *expressionBinder) bindSQLJSON(raw parser.SQLJSONExpr) (BoundExpr, error
 		return b.bindSQLJSONArrayQuery(raw)
 	}
 	if kind >= sqltype.SQLJSONParse && len(raw.Args) != 1 || kind == sqltype.SQLJSONObject && len(raw.Args)%2 != 0 {
-		return nil, expressionError("42601", "invalid SQL/JSON constructor arguments", raw.Pos)
+		return nil, expr.ErrorAt("42601", "invalid SQL/JSON constructor arguments", raw.Pos)
 	}
 	if kind == sqltype.SQLJSONScalar && raw.Returning != nil {
-		return nil, expressionError("42601", "syntax error at or near \"RETURNING\"", raw.Returning.Pos)
+		return nil, expr.ErrorAt("42601", "syntax error at or near \"RETURNING\"", raw.Returning.Pos)
 	}
 	var returning sqltype.Usage
 	var err error
@@ -134,8 +135,8 @@ func (b *expressionBinder) bindSQLJSON(raw parser.SQLJSONExpr) (BoundExpr, error
 			return nil, sqlError("0A000", "returning pseudo-types is not supported in SQL/JSON functions")
 		}
 	}
-	args := make([]BoundExpr, len(raw.Args))
-	properties := ExprProperties{Volatility: Immutable}
+	args := make([]expr.Expr, len(raw.Args))
+	properties := expr.Properties{Volatility: expr.Immutable}
 	id := sqltype.JSON
 	for i, child := range raw.Args {
 		operand, err := b.comparisonOperand(child)
@@ -147,7 +148,7 @@ func (b *expressionBinder) bindSQLJSON(raw parser.SQLJSONExpr) (BoundExpr, error
 			if parameter, ok := arg.(parameterExpression); ok {
 				b.anyParameters = append(b.anyParameters, parameter)
 				args[i] = arg
-				properties = mergeExpressionProperties(properties, arg.Properties())
+				properties = expr.MergeProperties(properties, arg.Properties())
 				continue
 			}
 		}
@@ -158,7 +159,7 @@ func (b *expressionBinder) bindSQLJSON(raw parser.SQLJSONExpr) (BoundExpr, error
 			}
 		}
 		if raw.Unique && kind == sqltype.SQLJSONParse && arg.ResultUsage().Type.BaseType().ID() != sqltype.Bytea && !sqltype.StringCategory(arg.ResultUsage().Type.BaseType().ID()) {
-			return nil, expressionError("42804", "cannot use non-string types with WITH UNIQUE KEYS clause", raw.Pos)
+			return nil, expr.ErrorAt("42804", "cannot use non-string types with WITH UNIQUE KEYS clause", raw.Pos)
 		}
 		var format *parser.JSONFormat
 		if i < len(raw.Formats) {
@@ -175,11 +176,11 @@ func (b *expressionBinder) bindSQLJSON(raw parser.SQLJSONExpr) (BoundExpr, error
 		if arg.ResultUsage().Type.ContainsCatalogIdentifier() {
 			b.regclassConcat = true
 		}
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 		base := arg.ResultUsage().Type.BaseType()
 		if kind == sqltype.SQLJSONScalar || kind == sqltype.SQLJSONArray || kind == sqltype.SQLJSONObject {
 			if base.IsComposite() || base.OutputSessionDependent() || base.ID() == sqltype.Date || base.ID() == sqltype.Timestamp || base.ID() == sqltype.Timestamptz {
-				properties.Volatility = max(properties.Volatility, Stable)
+				properties.Volatility = max(properties.Volatility, expr.Stable)
 			}
 		}
 	}
@@ -232,13 +233,13 @@ func (b *expressionBinder) bindSQLJSON(raw parser.SQLJSONExpr) (BoundExpr, error
 }
 
 type jsonPredicateExpression struct {
-	expressionInfo
-	child       BoundExpr
+	expr.Info
+	child       expr.Expr
 	kind        string
 	unique, not bool
 }
 
-func (e jsonPredicateExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e jsonPredicateExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -259,7 +260,7 @@ func (e jsonPredicateExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	}
 	return sqltype.Boolean(e.Usage.Type, truth), nil
 }
-func (b *expressionBinder) bindJSONPredicate(raw parser.JSONPredicateExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindJSONPredicate(raw parser.JSONPredicateExpr) (expr.Expr, error) {
 	operand, err := b.comparisonOperand(raw.Child)
 	if err != nil {
 		return nil, err
@@ -275,5 +276,5 @@ func (b *expressionBinder) bindJSONPredicate(raw parser.JSONPredicateExpr) (Boun
 	if typ.ID() != sqltype.JSON && typ.ID() != sqltype.JSONB && typ.ID() != sqltype.Bytea && !sqltype.StringCategory(typ.ID()) {
 		return nil, sqlError("42804", "cannot use type "+b.diagnosticTypeName(typ)+" in IS JSON predicate")
 	}
-	return jsonPredicateExpression{expressionInfo: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, child.Properties()), child: child, kind: raw.Kind, unique: raw.Unique, not: raw.Not}, nil
+	return jsonPredicateExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, child.Properties()), child: child, kind: raw.Kind, unique: raw.Unique, not: raw.Not}, nil
 }

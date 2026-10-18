@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -39,7 +40,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 				if name == "pg_advisory_lock" || name == "pg_advisory_lock_shared" || name == "pg_advisory_unlock_all" {
 					id = sqltype.Void
 				}
-				if node.ResultUsage().Type.ID() != id || node.Properties().Volatility != Volatile || generationImmutable(node) || !pgIndexFunctionExpression(node) {
+				if node.ResultUsage().Type.ID() != id || node.Properties().Volatility != expr.Volatile || generationImmutable(node) || !pgIndexFunctionExpression(node) {
 					t.Fatal("fixed identity/volatility", node.ResultUsage(), node.Properties())
 				}
 				if !node.validStored() {
@@ -58,7 +59,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 				}
 				reparsed := statement(t, "SELECT "+text).(*parser.Select).Targets[0]
 				rebound, err := b.bind(reparsed, expressionPolicy{context: projectionContext})
-				if err != nil || rebound.ResultUsage() != node.ResultUsage() || rebound.Properties().Volatility != Volatile {
+				if err != nil || rebound.ResultUsage() != node.ResultUsage() || rebound.Properties().Volatility != expr.Volatile {
 					t.Fatal("deparse rebinding", rebound, err)
 				}
 				lockState := e.locks.Inspect()
@@ -117,7 +118,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, preflight := range []bool{false, true} {
-			var folded BoundExpr
+			var folded expr.Expr
 			var changed bool
 			if preflight {
 				folded, changed, err = preflightCoercions(&EvalContext{Context: ctx}, bound)
@@ -146,9 +147,9 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		child := literalExpression{expressionInfo: b.info(textUsage, parser.Position{}, ExprProperties{Volatility: Immutable}), value: sqltype.String(textUsage.Type, "bad")}
-		deferred.args = append([]BoundExpr(nil), deferred.args...)
-		deferred.args[1] = coercionExpression{b.info(integerUsage, parser.Position{}, ExprProperties{Volatility: Immutable}), child, plan, sqltype.Explicit, false}
+		child := literalExpression{Info: b.info(textUsage, parser.Position{}, expr.Properties{Volatility: expr.Immutable}), value: sqltype.String(textUsage.Type, "bad")}
+		deferred.args = append([]expr.Expr(nil), deferred.args...)
+		deferred.args[1] = coercionExpression{b.info(integerUsage, parser.Position{}, expr.Properties{Volatility: expr.Immutable}), child, plan, sqltype.Explicit, false}
 		bound = deferred
 		for _, preflight := range []bool{false, true} {
 			if preflight {
@@ -164,9 +165,9 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := advisoryExpression{expressionInfo: expressionInfo{Usage: types[sqltype.Bool].Usage(), Property: ExprProperties{Volatility: Volatile}}, name: "pg_try_advisory_lock", mode: advisoryExclusive, action: advisoryTry, args: []BoundExpr{
-			mathObservedArgument{expressionInfo: expressionInfo{Usage: types[sqltype.Int4].Usage()}, value: sqltype.Null(types[sqltype.Int4]), order: &order, index: 0},
-			mathObservedArgument{expressionInfo: expressionInfo{Usage: types[sqltype.Int4].Usage()}, value: one, order: &order, index: 1},
+		node := advisoryExpression{Info: expr.Info{Usage: types[sqltype.Bool].Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, name: "pg_try_advisory_lock", mode: advisoryExclusive, action: advisoryTry, args: []expr.Expr{
+			mathObservedArgument{Info: expr.Info{Usage: types[sqltype.Int4].Usage()}, value: sqltype.Null(types[sqltype.Int4]), order: &order, index: 0},
+			mathObservedArgument{Info: expr.Info{Usage: types[sqltype.Int4].Usage()}, value: one, order: &order, index: 1},
 		}}
 		v, err := node.Eval(&EvalContext{Context: ctx})
 		if err != nil || !v.IsNull() || v.Type().ID() != sqltype.Bool || !reflect.DeepEqual(order, []int{0, 1}) {
@@ -174,7 +175,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		}
 		failure := errors.New("demanded advisory sibling")
 		order = nil
-		node.args[1] = mathObservedArgument{expressionInfo: expressionInfo{Usage: types[sqltype.Int4].Usage()}, order: &order, index: 1, err: failure}
+		node.args[1] = mathObservedArgument{Info: expr.Info{Usage: types[sqltype.Int4].Usage()}, order: &order, index: 1, err: failure}
 		if _, err = node.Eval(&EvalContext{Context: ctx}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
 			t.Fatal("runtime NULL suppressed demanded error", order, err)
 		}
@@ -186,15 +187,15 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			t.Fatal(err)
 		}
 		node := bound.(advisoryExpression)
-		column := columnExpression{expressionInfo: expressionInfo{Usage: node.args[0].ResultUsage(), Pos: parser.Position{Character: 99}, Property: ExprProperties{RowDependent: true}}, scope: 1, frame: b.frameID(), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999, SubID: 1}}}
-		node.args = []BoundExpr{node.args[0], column}
+		column := columnExpression{Info: expr.Info{Usage: node.args[0].ResultUsage(), Pos: parser.Position{Character: 99}, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: b.frameID(), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999, SubID: 1}}}
+		node.args = []expr.Expr{node.args[0], column}
 		node.Property.RowDependent = true
 		visits := 0
-		walkBoundExpression(node, func(BoundExpr) { visits++ })
+		walkBoundExpression(node, func(expr.Expr) { visits++ })
 		if visits != 3 || firstQueryBoundFrameVariable(node, b.frameID()).Character != 99 {
 			t.Fatal("lexical child/frame walk", visits)
 		}
-		grouped, err := b.rewriteGroup(node, []BoundExpr{column})
+		grouped, err := b.rewriteGroup(node, []expr.Expr{column})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -208,7 +209,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			t.Fatal("group structural identity")
 		}
 		other := node
-		other.args = []BoundExpr{node.args[1], node.args[0]}
+		other.args = []expr.Expr{node.args[1], node.args[0]}
 		if b.sameGroupExpression(node, other) {
 			t.Fatal("group identity ignored argument order")
 		}
@@ -229,8 +230,8 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if fresh.ResultUsage().Type != types[sqltype.Bool] || fresh.args[1].ResultUsage().Type != types[sqltype.Int4] || fresh.mode != node.mode || fresh.action != node.action || node.ResultUsage().Type == fresh.ResultUsage().Type {
 			t.Fatal("retained generation/compiled action")
 		}
-		aggregate := aggregateExpression{expressionInfo: expressionInfo{Usage: node.args[0].ResultUsage(), Property: ExprProperties{StageDependent: true}}, slot: 7}
-		node.args = []BoundExpr{node.args[0], aggregate}
+		aggregate := aggregateExpression{Info: expr.Info{Usage: node.args[0].ResultUsage(), Property: expr.Properties{StageDependent: true}}, slot: 7}
+		node.args = []expr.Expr{node.args[0], aggregate}
 		if found := aggregateOccurrence(node); found == nil || found.slot != 7 {
 			t.Fatal("aggregate descendant lost")
 		}
@@ -303,7 +304,7 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 	ctx := context.Background()
 	e := New()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	bind := func(text string) BoundExpr {
+	bind := func(text string) expr.Expr {
 		t.Helper()
 		node, err := b.bind(statement(t, "SELECT "+text).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
 		if err != nil {
@@ -320,7 +321,7 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	column := columnExpression{expressionInfo: expressionInfo{Usage: trueNode.ResultUsage(), Property: ExprProperties{RowDependent: true}}, scope: 1, frame: 1}
+	column := columnExpression{Info: expr.Info{Usage: trueNode.ResultUsage(), Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1}
 	stored := bind("pg_try_advisory_lock(NULL::integer,CASE WHEN pg_try_advisory_lock(3201) THEN 2 ELSE 3 END)")
 	var before strings.Builder
 	if err := appendBoundTree(ctx, &before, stored); err != nil {
@@ -381,7 +382,7 @@ func TestAdvisorySessionCheckPrepareAllBeforeEvaluation(t *testing.T) {
 	ctx := context.Background()
 	e := New()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	var nodes [2]BoundExpr
+	var nodes [2]expr.Expr
 	for i, text := range []string{"pg_try_advisory_lock(3205)", "pg_try_advisory_lock(NULL::integer,1/0)"} {
 		var err error
 		nodes[i], err = b.bind(statement(t, "SELECT "+text).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})

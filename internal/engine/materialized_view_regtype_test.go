@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -21,7 +22,7 @@ func TestMaterializedViewRegtypePresentation(t *testing.T) {
 		t.Fatal(err)
 	}
 	renderer := pgRenderer{view: source.stageRead(sourceStage), path: []ids.ObjectAddress{original.namespace}}
-	text, err := renderer.literal(context.Background(), literalExpression{expressionInfo: expressionInfo{Usage: regtype.Usage()}, value: builtin})
+	text, err := renderer.literal(context.Background(), literalExpression{Info: expr.Info{Usage: regtype.Usage()}, value: builtin})
 	if err != nil || text != "'integer'::regtype" {
 		t.Fatalf("builtin symbolic deparse: %q %v", text, err)
 	}
@@ -59,7 +60,7 @@ func TestMaterializedViewRegtypePresentation(t *testing.T) {
 		t.Fatal(err)
 	}
 	renderer = pgRenderer{view: destination.stageRead(destinationStage), path: []ids.ObjectAddress{reminted.namespace}}
-	text, err = renderer.literal(context.Background(), literalExpression{expressionInfo: expressionInfo{Usage: destinationRegtype.Usage()}, value: value})
+	text, err = renderer.literal(context.Background(), literalExpression{Info: expr.Info{Usage: destinationRegtype.Usage()}, value: value})
 	if err != nil || text != "'unit_mv'::regtype" {
 		t.Fatalf("reminted symbolic deparse: %q %v", text, err)
 	}

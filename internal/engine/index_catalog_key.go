@@ -1,12 +1,16 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+
+	"stuntgres/internal/engine/expr"
+)
 
 // PostgreSQL ComputeIndexAttrs strips top-level CollateExpr before deciding
 // whether a key is an attribute or an indexprs entry. Do not strip coercions or
 // use execution simplification: native execution/original trees stay untouched.
 // Both catalog projection and compact index deparsing use this one decision.
-func indexCatalogKey(parent *relationDescriptor, key indexKey) (int32, BoundExpr, error) {
+func indexCatalogKey(parent *relationDescriptor, key indexKey) (int32, expr.Expr, error) {
 	if key.derived == nil {
 		if !parent.hasAttribute(key.attribute) {
 			return 0, nil, fmt.Errorf("stuntgres: index attribute is missing")

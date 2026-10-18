@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -21,7 +22,7 @@ func TestDomainCheckPreflightDemandInternal(t *testing.T) {
 	} {
 		domainUnitPublish(t, e, domainUnitStage(t, e, op, ddl))
 	}
-	bind := func(query string) (BoundExpr, EvalContext) {
+	bind := func(query string) (expr.Expr, EvalContext) {
 		t.Helper()
 		raw := statement(t, query).(*parser.Select).Targets[0]
 		e.mu.Lock()
@@ -51,7 +52,7 @@ func TestDomainCheckPreflightDemandInternal(t *testing.T) {
 		t.Run(query, func(t *testing.T) {
 			node, evaluation := bind(query)
 			p := node.Properties()
-			if !p.RuntimeDomainConversion || p.DomainDependent || p.Volatility != Immutable {
+			if !p.RuntimeDomainConversion || p.DomainDependent || p.Volatility != expr.Immutable {
 				t.Fatal("runtime barrier conflated with VALUE or volatility", p)
 			}
 			prepared, _, err := preflightCoercions(&evaluation, node)

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -83,7 +84,7 @@ func (e *Engine) captureUsingIndexes(stage *CatalogStage, parent *relationDescri
 func usingIndexEligibility(parent, index *relationDescriptor, raw *parser.UsingIndexConstraint) ([]int32, error) {
 	definition := index.sqlIndex
 	fail := func(code, message string, detail bool) ([]int32, error) {
-		diagnostic := expressionError(code, message, raw.Pos).(*sqlstate.Error)
+		diagnostic := expr.ErrorAt(code, message, raw.Pos).(*sqlstate.Error)
 		if detail {
 			diagnostic.Detail = "Cannot create a primary key or unique constraint using such an index."
 		}

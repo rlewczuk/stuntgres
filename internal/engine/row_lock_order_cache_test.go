@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -141,12 +142,12 @@ func TestRowLockOrderedCacheRefreshCounts(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := [3]int{}
-	probe := func(slot int, properties ExprProperties) BoundExpr {
-		return queryProbeExpression{expressionInfo: expressionInfo{Usage: usage, Property: properties}, eval: func(*EvalContext) (sqltype.Value, error) { calls[slot]++; return value, nil }}
+	probe := func(slot int, properties expr.Properties) expr.Expr {
+		return queryProbeExpression{Info: expr.Info{Usage: usage, Property: properties}, eval: func(*EvalContext) (sqltype.Value, error) { calls[slot]++; return value, nil }}
 	}
-	volatile := probe(0, ExprProperties{Volatility: Volatile})
-	hidden := probe(1, ExprProperties{Volatility: Volatile})
-	immutable := probe(2, ExprProperties{})
+	volatile := probe(0, expr.Properties{Volatility: expr.Volatile})
+	hidden := probe(1, expr.Properties{Volatility: expr.Volatile})
+	immutable := probe(2, expr.Properties{})
 	sorted := &sortNode{keys: []sortKey{{expression: volatile, cache: 0, output: true}, {expression: volatile, cache: 0, output: true}, {expression: hidden, cache: 1}, {expression: immutable, cache: 2, output: true}}}
 	evaluation := &EvalContext{orderValues: []sqltype.Value{value, value, value}}
 	if err := refreshLockedOrder(sorted, nil, evaluation); err != nil {

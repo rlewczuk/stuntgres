@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -97,7 +98,7 @@ func evaluateWindowValue(ctx context.Context, evaluation *EvalContext, child *in
 // A sort-input boundary retains exact required targets before matching window
 // leaves from postponed volatile payloads. Only an ACTUAL whole retained target
 // can own a leaf; unmatched postponed leaves keep independent execution slots.
-func (b *expressionBinder) windowValueAliases(calls []windowCall, projection []BoundExpr, order, on []sortKey) []int {
+func (b *expressionBinder) windowValueAliases(calls []windowCall, projection []expr.Expr, order, on []sortKey) []int {
 	if len(order) == 0 {
 		return nil
 	}
@@ -119,7 +120,7 @@ func (b *expressionBinder) windowValueAliases(calls []windowCall, projection []B
 		return false
 	}
 	owners := make([]*windowExpression, 0, len(calls))
-	retain := func(expression BoundExpr) {
+	retain := func(expression expr.Expr) {
 		leaf, ok := expression.(*windowExpression)
 		if !ok || leaf.frame != b.frameID() || leaf.call < 0 || leaf.call >= len(calls) || !calls[leaf.call].operation.evaluatesArgument() {
 			return
@@ -132,7 +133,7 @@ func (b *expressionBinder) windowValueAliases(calls []windowCall, projection []B
 		owners = append(owners, leaf)
 	}
 	for i, expression := range projection {
-		if demanded(i) || expression.Properties().Volatility != Volatile {
+		if demanded(i) || expression.Properties().Volatility != expr.Volatile {
 			retain(expression)
 		}
 	}
@@ -143,10 +144,10 @@ func (b *expressionBinder) windowValueAliases(calls []windowCall, projection []B
 	}
 	var aliases []int
 	for i, expression := range projection {
-		if demanded(i) || expression.Properties().Volatility != Volatile {
+		if demanded(i) || expression.Properties().Volatility != expr.Volatile {
 			continue
 		}
-		walkBoundExpression(expression, func(child BoundExpr) {
+		walkBoundExpression(expression, func(child expr.Expr) {
 			leaf, ok := child.(*windowExpression)
 			if !ok || leaf.frame != b.frameID() || leaf.call < 0 || leaf.call >= len(calls) || !calls[leaf.call].operation.evaluatesArgument() {
 				return

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 )
 
@@ -8,13 +9,13 @@ import (
 // its DEFAULT markers and supply the real base's complete omission schedule.
 func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.Insert) error {
 	d := b.viewWrite.base
-	b.defaults = make([]BoundExpr, len(d.columns))
+	b.defaults = make([]expr.Expr, len(d.columns))
 	b.identityDiscard = nil
 	b.insertProjection = nil
 	for i, attr := range d.attributes {
 		b.defaults[i] = d.defaults[attr].expression
 		if identity, ok := d.identities[attr]; ok {
-			b.defaults[i] = sequenceCallExpression{expressionInfo: expressionInfo{Usage: d.columns[i].Usage, Property: ExprProperties{Volatility: Volatile}}, name: "nextval", ref: e.catalog.domain.Ref(auth.catalog.Epoch(), identity.sequence), identity: true}
+			b.defaults[i] = sequenceCallExpression{Info: expr.Info{Usage: d.columns[i].Usage, Property: expr.Properties{Volatility: expr.Volatile}}, name: "nextval", ref: e.catalog.domain.Ref(auth.catalog.Epoch(), identity.sequence), identity: true}
 		}
 	}
 	if s.Override == parser.OverrideUser && len(d.identities) != 0 {

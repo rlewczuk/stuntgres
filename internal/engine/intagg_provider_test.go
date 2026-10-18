@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"testing"
 )
@@ -43,7 +44,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 		for _, mutate := range []func(*procedureDescriptor){
 			func(p *procedureDescriptor) { p.name = "int_agg_state" }, func(p *procedureDescriptor) { p.signature = "25" },
 			func(p *procedureDescriptor) { p.result = 25 }, func(p *procedureDescriptor) { p.strict = !p.strict },
-			func(p *procedureDescriptor) { p.volatility = Stable }, func(p *procedureDescriptor) { p.revision = 0 },
+			func(p *procedureDescriptor) { p.volatility = expr.Stable }, func(p *procedureDescriptor) { p.revision = 0 },
 			func(p *procedureDescriptor) { p.routineKind = procedureRoutine },
 			func(p *procedureDescriptor) { p.owner = authorization.PrincipalRef{} },
 			func(p *procedureDescriptor) { p.namespace = ids.ObjectAddress{} }, func(p *procedureDescriptor) { p.extension = ids.ObjectAddress{} },

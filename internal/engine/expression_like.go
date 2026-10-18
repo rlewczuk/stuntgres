@@ -3,19 +3,20 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 type likeExpression struct {
-	expressionInfo
-	left, right         BoundExpr
+	expr.Info
+	left, right         expr.Expr
 	provider            sqltype.LikePlan
 	operator, namespace string
 }
 
-func (e likeExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e likeExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	a, err := e.left.Eval(c)
 	if err != nil {
@@ -32,7 +33,7 @@ func likeName(name string) bool {
 	return name == "~~" || name == "!~~" || name == "~~*" || name == "!~~*"
 }
 
-func likeProperties(a, b BoundExpr) ExprProperties {
+func likeProperties(a, b expr.Expr) expr.Properties {
 	p, q := a.Properties(), b.Properties()
 	p.Volatility = max(p.Volatility, q.Volatility)
 	p.RowDependent = p.RowDependent || q.RowDependent
@@ -62,14 +63,14 @@ func likeCollation(a, b sqltype.Usage) (sqltype.CollationRef, bool) {
 	return sqltype.CollationRef{ID: 100, Derivation: sqltype.Default}, true
 }
 
-func (b *expressionBinder) collatedInfo(info expressionInfo, inputs ...BoundExpr) (expressionInfo, error) {
+func (b *expressionBinder) collatedInfo(info expr.Info, inputs ...expr.Expr) (expr.Info, error) {
 	return collatedInfo(b.bindingCatalog(), info, inputs...)
 }
 
 // Coercion inherits its child's authority except CoerceToDomain to a declared
 // nondefault collation. Targeting coercions move top-level COLLATE wrappers
 // outside their domain boundary; nested explicit authority is replaced here.
-func coercionInfo(view CatalogRead, info expressionInfo, child BoundExpr) (expressionInfo, error) {
+func coercionInfo(view CatalogRead, info expr.Info, child expr.Expr) (expr.Info, error) {
 	info.CollationExplicit = parser.Position{}
 	info.CollationConflict = false
 	info.CollationLeft, info.CollationRight, info.CollationConflictPos = sqltype.CollationRef{}, sqltype.CollationRef{}, parser.Position{}
@@ -89,37 +90,37 @@ func coercionInfo(view CatalogRead, info expressionInfo, child BoundExpr) (expre
 	return collatedInfo(view, info, child)
 }
 
-func (b *expressionBinder) coercionInfo(info expressionInfo, child BoundExpr) (expressionInfo, error) {
+func (b *expressionBinder) coercionInfo(info expr.Info, child expr.Expr) (expr.Info, error) {
 	info, err := coercionInfo(b.bindingCatalog(), info, child)
 	if err != nil {
-		return expressionInfo{}, err
+		return expr.Info{}, err
 	}
 	return b.coercionRoutineInfo(info, child)
 }
 
 // Some successful coercion seams deliberately retain their own collation
 // handling. They still select the same actual function-method identity.
-func (b *expressionBinder) coercionRoutineInfo(info expressionInfo, child BoundExpr) (expressionInfo, error) {
+func (b *expressionBinder) coercionRoutineInfo(info expr.Info, child expr.Expr) (expr.Info, error) {
 	if id := embeddedCastOID(child.ResultUsage().Type, info.Usage.Type); id != 0 {
 		return b.selectedBuiltinRoutineInfo(info, builtinRoutineByOID[id])
 	}
 	return info, nil
 }
 
-func comparisonInfo(view CatalogRead, left, right BoundExpr) (expressionInfo, error) {
+func comparisonInfo(view CatalogRead, left, right expr.Expr) (expr.Info, error) {
 	usage := left.ResultUsage()
 	if usage.Collation.ID == 0 {
 		usage = right.ResultUsage()
 	}
-	return collatedInfo(view, expressionInfo{Usage: usage}, left, right)
+	return collatedInfo(view, expr.Info{Usage: usage}, left, right)
 }
 
-func (b *expressionBinder) comparisonInfo(left, right BoundExpr) (expressionInfo, error) {
+func (b *expressionBinder) comparisonInfo(left, right expr.Expr) (expr.Info, error) {
 	if err := b.captureComparisonDiagnosticInput(left.ResultUsage().Type); err != nil {
-		return expressionInfo{}, err
+		return expr.Info{}, err
 	}
 	if err := b.captureComparisonDiagnosticInput(right.ResultUsage().Type); err != nil {
-		return expressionInfo{}, err
+		return expr.Info{}, err
 	}
 	return comparisonInfo(b.bindingCatalog(), left, right)
 }
@@ -127,7 +128,7 @@ func (b *expressionBinder) comparisonInfo(left, right BoundExpr) (expressionInfo
 // Collation identity is valid Usage metadata; indeterminacy is expression
 // state. Preserve both across collatable wrappers without inventing an invalid
 // stored collation or evaluating branches merely to choose their collation.
-func collatedInfo(view CatalogRead, info expressionInfo, inputs ...BoundExpr) (expressionInfo, error) {
+func collatedInfo(view CatalogRead, info expr.Info, inputs ...expr.Expr) (expr.Info, error) {
 	if info.Usage.Collation.ID == 0 {
 		return info, nil
 	}
@@ -138,7 +139,7 @@ func collatedInfo(view CatalogRead, info expressionInfo, inputs ...BoundExpr) (e
 		}
 		if explicit.Character > 0 {
 			if info.CollationExplicit.Character > 0 && info.Usage.Collation.ID != u.Collation.ID {
-				return info, expressionError("42P21", fmt.Sprintf(`collation mismatch between explicit collations "%s" and "%s"`, collationName(view, info.Usage.Collation.ID), collationName(view, u.Collation.ID)), explicit)
+				return info, expr.ErrorAt("42P21", fmt.Sprintf(`collation mismatch between explicit collations "%s" and "%s"`, collationName(view, info.Usage.Collation.ID), collationName(view, u.Collation.ID)), explicit)
 			}
 			info.Usage.Collation = u.Collation
 			if info.CollationExplicit.Character == 0 {
@@ -163,7 +164,7 @@ func collatedInfo(view CatalogRead, info expressionInfo, inputs ...BoundExpr) (e
 	return info, nil
 }
 
-func (b *expressionBinder) likeOperand(o comparisonOperand, target *sqltype.Descriptor) (BoundExpr, error) {
+func (b *expressionBinder) likeOperand(o comparisonOperand, target *sqltype.Descriptor) (expr.Expr, error) {
 	node, err := b.finalizeOperand(o, target)
 	if err != nil {
 		return nil, err
@@ -186,7 +187,7 @@ func (b *expressionBinder) likeOperand(o comparisonOperand, target *sqltype.Desc
 	return coercionExpression{info, node, plan, sqltype.Implicit, false}, nil
 }
 
-func bindLike(b functions.Binder, raw parser.OperatorExpr) (BoundExpr, error) {
+func bindLike(b functions.Binder, raw parser.OperatorExpr) (expr.Expr, error) {
 	if len(raw.Args) != 2 || len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 {
 		return nil, fmt.Errorf("stuntgres: invalid LIKE expression")
 	}
@@ -202,7 +203,7 @@ func bindLike(b functions.Binder, raw parser.OperatorExpr) (BoundExpr, error) {
 	if err != nil {
 		return nil, err
 	}
-	missing := func() (BoundExpr, error) {
+	missing := func() (expr.Expr, error) {
 		return nil, functions.OperatorError(sqlError("42883", "operator does not exist"), left.Usage.Type, right.Usage.Type, raw)
 	}
 	if !visible {
@@ -245,13 +246,13 @@ func bindLike(b functions.Binder, raw parser.OperatorExpr) (BoundExpr, error) {
 	if err != nil {
 		return nil, err
 	}
-	collation, err := b.CollatedInfo(b.Info(l.ResultUsage(), raw.Pos, ExprProperties{}), l, r)
+	collation, err := b.CollatedInfo(b.Info(l.ResultUsage(), raw.Pos, expr.Properties{}), l, r)
 	if err != nil {
 		return nil, err
 	}
 	if !collation.CollationConflict && (operator == "~~*" || operator == "!~~*") &&
 		collation.Usage.Collation.Unicode() {
-		return nil, expressionError("0A000", "ILIKE is unsupported for this collation", raw.Pos)
+		return nil, expr.ErrorAt("0A000", "ILIKE is unsupported for this collation", raw.Pos)
 	}
 	provider, err := sqltype.BindLike(operator, l.ResultUsage(), r.ResultUsage(), b.Type(sqltype.Bool).Usage(), collation.CollationConflict)
 	if err != nil {

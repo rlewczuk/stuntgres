@@ -32,11 +32,11 @@ func (c *EvalContext) FunctionSleepClock(usage sqltype.Usage) (sqltype.Value, er
 	input.TransactionStart = c.FunctionWallTime()
 	return sqltype.CurrentDateTime(usage, input)
 }
-func (c *EvalContext) FunctionSleepArgumentPresent(arg BoundExpr) bool { return arg != nil }
+func (c *EvalContext) FunctionSleepArgumentPresent(arg expr.Expr) bool { return arg != nil }
 
 // Only selected time leaves may introduce volatility into this closed default.
 // Other volatile producers retain their separately owned admission rules.
-func closedTransactionTimeDefault(node BoundExpr) bool {
+func closedTransactionTimeDefault(node expr.Expr) bool {
 	if node == nil {
 		return true
 	}
@@ -51,7 +51,7 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 		return n.Validate(expr.PropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) && closedTransactionTimeDefault(n.Arg)
 	case rowExpression, fieldExpression, functions.Posix, functions.PosixSubstring, functions.Similar, functions.SimilarEscape, functions.SimilarSubstring, functions.Regexp:
 		valid := true
-		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
+		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
 	case aclValueExpression:
 		if n.kind == aclExplode {
@@ -82,29 +82,29 @@ func closedTransactionTimeDefault(node BoundExpr) bool {
 		return true
 	case functions.ArrayRandom:
 		valid := true
-		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
+		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
 	case functions.ArrayTransform, functions.RangeOperator, functions.RangeInspect, functions.Enum, functions.ArraySearch, functions.ArrayInspect:
 		valid := true
-		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
+		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
 	case scalarArrayComparisonExpression:
 		valid := true
-		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
+		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
 	case sqlJSONExpression, jsonPredicateExpression:
 		valid := true
-		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
+		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
 	case functions.JSONBPathExists, functions.JSONBPathMatch, functions.JSONBPathQueryFirst, functions.JSONBPathQueryArray, functions.JSONBSet, functions.JSONStripNulls, functions.JSONExtract:
 		valid := true
-		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
+		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
 	case coercionExpression, collationExpression, comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression, functions.LikeEscape, nullTestExpression, truthTestExpression, logicalExpression, distinctExpression, conditionalExpression, functions.Binary, functions.DatetimeJustify, functions.DatetimeAgeFinite, functions.DatetimeMake, functions.DatetimeFormatting, functions.NumericFormatting, functions.String, functions.Timezone, functions.Math, functions.NullCount, functions.Format, functions.StringVariadic, functions.JSONCreate, caseExpression:
 		valid := true
-		boundExpressionChildren(node, func(child BoundExpr) { valid = valid && closedTransactionTimeDefault(child) })
+		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
 	default:
-		return p.Volatility <= Stable
+		return p.Volatility <= expr.Stable
 	}
 }

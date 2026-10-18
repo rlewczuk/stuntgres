@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -8,13 +9,13 @@ import (
 
 type sqlJSONArrayQuery struct {
 	raw   parser.SQLJSONExpr
-	input BoundExpr
+	input expr.Expr
 	plan  sqltype.JSONArrayAggregatePlan
 }
 
-func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (expr.Expr, error) {
 	if raw.Kind != "json_array" {
-		return nil, expressionError("42601", "syntax error at or near \"SELECT\"", raw.Pos)
+		return nil, expr.ErrorAt("42601", "syntax error at or near \"SELECT\"", raw.Pos)
 	}
 	bound, err := b.bindSubquery(parser.SubqueryExpr{Kind: parser.SubqueryScalar, Query: raw.Query, Pos: raw.Pos})
 	if err != nil {
@@ -22,7 +23,7 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (BoundE
 	}
 	query := bound.(subqueryExpression)
 	project := query.queryPlan.Root.(*projectNode)
-	arg := BoundExpr(columnExpression{expressionInfo: b.info(query.Usage, raw.Pos, ExprProperties{RowDependent: true}), scope: 1, frame: project.frame, slot: 0})
+	arg := expr.Expr(columnExpression{Info: b.info(query.Usage, raw.Pos, expr.Properties{RowDependent: true}), scope: 1, frame: project.frame, slot: 0})
 	var format *parser.JSONFormat
 	if len(raw.Formats) > 0 {
 		format = raw.Formats[0]

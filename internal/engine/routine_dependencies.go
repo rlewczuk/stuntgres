@@ -1,11 +1,15 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+
+	"stuntgres/internal/engine/expr"
+)
 
 // Reuse the persisted recipe's actual reference when validating it. COW ACL and
 // owner changes do not replace lifetime identity; native retagging remaps both
 // the descriptor carrier and existing manifest before this renderer runs.
-func (r scalarRenderer) recordStoredRoutine(view CatalogRead, node BoundExpr) error {
+func (r scalarRenderer) recordStoredRoutine(view CatalogRead, node expr.Expr) error {
 	if selected, ok := node.(selectedOperatorExpression); ok {
 		// The wrapper owns operator identity, not a second invocation. Its
 		// actual provider owns the selected routine and immutable body.

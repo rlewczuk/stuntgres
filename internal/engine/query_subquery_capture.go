@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -11,7 +12,7 @@ import (
 
 // The normalized constructor is a source association only. Executable comparison
 // fields retain their existing ownership and are never evaluated through it.
-func (b *expressionBinder) normalizeQuantifiedConstructor(raw parser.Expr, constructor rowExpression) (BoundExpr, error) {
+func (b *expressionBinder) normalizeQuantifiedConstructor(raw parser.Expr, constructor rowExpression) (expr.Expr, error) {
 	members := make([]sqltype.CompositeMember, len(constructor.fields))
 	for i, field := range constructor.fields {
 		members[i] = constructor.Usage.Type.CompositeMember(i)
@@ -35,8 +36,8 @@ func (b *expressionBinder) normalizeQuantifiedConstructor(raw parser.Expr, const
 // still needs that identity. The ordinary pg_depend expression owner decides.
 func frozenQueryDependencies(catalog CatalogRead, b binding) ([]expressionDependency, error) {
 	var erased map[sqltype.ID]bool
-	visitCTEQuery(b.query.Root, func(LogicalNode) {}, func(expr BoundExpr) {
-		walkBoundExpression(expr, func(node BoundExpr) {
+	visitCTEQuery(b.query.Root, func(LogicalNode) {}, func(bound expr.Expr) {
+		walkBoundExpression(bound, func(node expr.Expr) {
 			if n, ok := node.(subqueryExpression); ok && n.erasedLeftType != 0 {
 				if erased == nil {
 					erased = make(map[sqltype.ID]bool)
@@ -68,7 +69,7 @@ func frozenQueryDependencies(catalog CatalogRead, b binding) ([]expressionDepend
 
 // Quantified and residual IN constructors share source slots, expansion
 // associations and synthetic member casts; only frozen capture needs this walk.
-func (b *expressionBinder) captureConstructorFields(raw parser.RowExpr, count int, fieldAt func(int) BoundExpr, expansions map[int]compositeExpansionBinding, memberCasts bool, path viewLiteralPath, ordinal *int) error {
+func (b *expressionBinder) captureConstructorFields(raw parser.RowExpr, count int, fieldAt func(int) expr.Expr, expansions map[int]compositeExpansionBinding, memberCasts bool, path viewLiteralPath, ordinal *int) error {
 	if memberCasts && b.viewCastUsages == nil {
 		b.viewCastUsages = make(map[viewLiteralPath]sqltype.Usage)
 	}

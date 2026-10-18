@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -13,9 +14,9 @@ import (
 // Access inquiries retain only their typed recipe. All authority is borrowed
 // from the executing statement, never cached on the expression or statement.
 type accessInquiryExpression struct {
-	expressionInfo
+	expr.Info
 	rowSecurity bool
-	args        [3]BoundExpr
+	args        [3]expr.Expr
 	count       int
 }
 
@@ -25,9 +26,9 @@ func (n accessInquiryExpression) name() string {
 	}
 	return "pg_has_role"
 }
-func (n accessInquiryExpression) arguments() []BoundExpr { return n.args[:n.count] }
+func (n accessInquiryExpression) arguments() []expr.Expr { return n.args[:n.count] }
 
-func (b *expressionBinder) bindAccessInquiry(raw parser.FunctionExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindAccessInquiry(raw parser.FunctionExpr) (expr.Expr, error) {
 	var operands [3]comparisonOperand
 	var small [3]string
 	names := small[:0]
@@ -56,19 +57,19 @@ func (b *expressionBinder) bindAccessInquiry(raw parser.FunctionExpr) (BoundExpr
 		return nil, err
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	issue := functions.FunctionLabels(raw)
 	switch {
 	case issue.Malformed:
 		return nil, fmt.Errorf("invalid function argument labels")
 	case issue.Positional:
-		return nil, expressionError("42601", "positional argument cannot follow named argument", issue.Position)
+		return nil, expr.ErrorAt("42601", "positional argument cannot follow named argument", issue.Position)
 	case issue.Duplicate != "":
-		return nil, expressionError("42601", fmt.Sprintf("argument name %q used more than once", issue.Duplicate), issue.Position)
+		return nil, expr.ErrorAt("42601", fmt.Sprintf("argument name %q used more than once", issue.Duplicate), issue.Position)
 	}
 	if b.defaultConsumer {
-		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
+		return nil, expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
 	}
 	visible, err := b.builtinVisible(raw.Name, functionLookup)
 	if err != nil {
@@ -79,7 +80,7 @@ func (b *expressionBinder) bindAccessInquiry(raw parser.FunctionExpr) (BoundExpr
 	if !visible || name != n.name() || len(raw.ArgNames) != 0 || n.rowSecurity && n.count != 1 || !n.rowSecurity && n.count != 2 && n.count != 3 {
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
-	properties := ExprProperties{Volatility: Stable}
+	properties := expr.Properties{Volatility: expr.Stable}
 	var formal [3]sqltype.ID
 	for i := range n.count {
 		id := sqltype.Text
@@ -110,28 +111,28 @@ func (b *expressionBinder) bindAccessInquiry(raw parser.FunctionExpr) (BoundExpr
 			arg = coercionExpression{b.info(target, raw.Args[i].SourcePosition(), coercionProperties(arg, plan)), arg, plan, sqltype.Implicit, false}
 		}
 		n.args[i] = arg
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
 	// Arguments and FILTER are analyzed before scalar resolution. ORDER BY
 	// children are not: a resolved scalar rejects that decoration first.
 	// Matching scalar VARIADIC syntax is intentionally not rejected.
 	switch {
 	case raw.Distinct:
-		return nil, expressionError("42809", "DISTINCT specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", "DISTINCT specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
 	case len(raw.Order) != 0:
-		return nil, expressionError("42809", "ORDER BY specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", "ORDER BY specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
 	case raw.Filter != nil:
-		return nil, expressionError("42809", "FILTER specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
+		return nil, expr.ErrorAt("42809", "FILTER specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
 	}
 	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties), catalogRoutineProvider, name, formal[:n.count]...)
 	if err != nil {
 		return nil, err
 	}
-	n.expressionInfo = info
+	n.Info = info
 	return n, nil
 }
 
-func (n accessInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (n accessInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
@@ -228,7 +229,7 @@ func (n accessInquiryExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
 	return sqltype.Boolean(n.Usage.Type, result), nil
 }
 
-func accessRoleArgument(auth AuthorizationView, arg BoundExpr, value sqltype.Value) (uint64, error) {
+func accessRoleArgument(auth AuthorizationView, arg expr.Expr, value sqltype.Value) (uint64, error) {
 	if arg.ResultUsage().Type.ID() == sqltype.Oid {
 		oid, err := value.OID()
 		return uint64(oid), err
@@ -248,7 +249,7 @@ func (n accessInquiryExpression) validateStored() error {
 	if n.rowSecurity && n.count != 1 || !n.rowSecurity && n.count != 2 && n.count != 3 {
 		return fmt.Errorf("stuntgres: invalid stored access inquiry arity")
 	}
-	properties := ExprProperties{Volatility: Stable}
+	properties := expr.Properties{Volatility: expr.Stable}
 	for i, arg := range n.args {
 		if i >= n.count {
 			if arg != nil {
@@ -269,7 +270,7 @@ func (n accessInquiryExpression) validateStored() error {
 		if !valid {
 			return fmt.Errorf("stuntgres: invalid stored access inquiry signature")
 		}
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
 	if n.Usage.Type == nil || n.Usage != n.Usage.Type.Usage() || n.Usage.Type.ID() != sqltype.Bool || n.Properties() != properties {
 		return fmt.Errorf("stuntgres: invalid stored access inquiry result")

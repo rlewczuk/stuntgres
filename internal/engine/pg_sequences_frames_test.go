@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -22,7 +23,7 @@ func TestPGSequencesAdmissionFrames(t *testing.T) {
 				leaf := &querySource{pgSequences: provider}
 				child := &sourceNode{querySchema: d.columns, occurrence: 0}
 				inner := columnExpression{scope: 1, frame: 2, slot: 1}
-				project := &projectNode{querySchema: d.columns[:1], child: child, expressions: []BoundExpr{inner}, frame: 2}
+				project := &projectNode{querySchema: d.columns[:1], child: child, expressions: []expr.Expr{inner}, frame: 2}
 				column := columnExpression{scope: 1, frame: 1, slot: 0}
 				switch invalid {
 				case "foreign_frame", "mixed_and":
@@ -35,7 +36,7 @@ func TestPGSequencesAdmissionFrames(t *testing.T) {
 					inner.frame = 9
 					project.expressions[0] = inner
 				}
-				var predicate BoundExpr = nullTestExpression{child: column}
+				var predicate expr.Expr = nullTestExpression{child: column}
 				if invalid == "mixed_and" {
 					predicate = logicalExpression{op: parser.LogicalAnd, left: nullTestExpression{child: columnExpression{scope: 1, frame: 1, slot: 0}}, right: predicate}
 				}
@@ -78,7 +79,7 @@ func TestPGSequencesAdmissionLocalFrames(t *testing.T) {
 			provider := &pgSequencesSource{}
 			leaf := &querySource{pgSequences: provider}
 			child := &sourceNode{querySchema: d.columns, occurrence: 0}
-			project := &projectNode{querySchema: d.columns[:2], child: child, expressions: []BoundExpr{
+			project := &projectNode{querySchema: d.columns[:2], child: child, expressions: []expr.Expr{
 				columnExpression{scope: 1, frame: 2, slot: 1},
 				columnExpression{scope: 1, frame: 2, slot: 0},
 			}, frame: 2}

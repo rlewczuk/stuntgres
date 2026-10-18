@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -78,7 +79,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 				if !slices.Equal(derived.attributes, wantLayout) {
 					t.Fatal("captured layout", derived.attributes, wantLayout)
 				}
-				for _, expression := range []BoundExpr{derived.definition, derived.execution} {
+				for _, expression := range []expr.Expr{derived.definition, derived.execution} {
 					node := expression.(arithmeticExpression).left
 					for {
 						cast, ok := node.(coercionExpression)
@@ -133,7 +134,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 				slot      int
 			}{{index, 3}, {intermediate, 2}} {
 				derived := retained.candidate.sqlIndex.keys[0].derived
-				for _, expression := range []BoundExpr{derived.definition, derived.execution} {
+				for _, expression := range []expr.Expr{derived.definition, derived.execution} {
 					node := expression.(arithmeticExpression).left
 					for {
 						cast, ok := node.(coercionExpression)
@@ -267,12 +268,12 @@ func TestTemporaryTablePredicateOnlyRetainedTypes(t *testing.T) {
 	predicate := index.sqlIndex.predicate
 	definitionTypes, executionTypes := map[sqltype.ID]*sqltype.Descriptor{}, map[sqltype.ID]*sqltype.Descriptor{}
 	for _, tree := range []struct {
-		node  BoundExpr
+		node  expr.Expr
 		types map[sqltype.ID]*sqltype.Descriptor
 	}{
 		{predicate.definition, definitionTypes}, {predicate.execution, executionTypes},
 	} {
-		walkBoundExpression(tree.node, func(node BoundExpr) { typ := node.ResultUsage().Type; tree.types[typ.ID()] = typ })
+		walkBoundExpression(tree.node, func(node expr.Expr) { typ := node.ResultUsage().Type; tree.types[typ.ID()] = typ })
 		if tree.types[sqltype.Bool] == nil || tree.types[sqltype.Int4] == nil {
 			t.Fatal("missing actual predicate BOOL/INT4", tree.types)
 		}
@@ -303,7 +304,7 @@ func TestTemporaryTablePredicateOnlyRetainedTypes(t *testing.T) {
 	}
 	for _, tree := range []struct {
 		name  string
-		node  BoundExpr
+		node  expr.Expr
 		types map[sqltype.ID]*sqltype.Descriptor
 	}{
 		{"definition", predicate.definition, definitionTypes}, {"execution", predicate.execution, executionTypes},
@@ -314,7 +315,7 @@ func TestTemporaryTablePredicateOnlyRetainedTypes(t *testing.T) {
 				t.Fatal("predicate concrete type generation not retained", tree.name, id, actual, typ)
 			}
 		}
-		walkBoundExpression(tree.node, func(node BoundExpr) {
+		walkBoundExpression(tree.node, func(node expr.Expr) {
 			typ := node.ResultUsage().Type
 			if tree.types[typ.ID()] != typ {
 				t.Fatal("immutable predicate type rebound", tree.name, typ)

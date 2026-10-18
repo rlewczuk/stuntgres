@@ -8,6 +8,7 @@ import (
 	"sort"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -197,12 +198,12 @@ func TestQueryWindowNtileGraphAndMetadata(t *testing.T) {
 	}
 	call := node.calls[0]
 	found := false
-	queryExpressions(node, func(expr BoundExpr) { found = found || expr == call.argument })
+	queryExpressions(node, func(expr expr.Expr) { found = found || expr == call.argument })
 	if !found {
 		t.Fatal("bucket missing from graph")
 	}
 	replacement := node.calls[1].argument
-	next, err := rewriteQueryExpressions(node, func(expr BoundExpr) (BoundExpr, bool, error) {
+	next, err := rewriteQueryExpressions(node, func(expr expr.Expr) (expr.Expr, bool, error) {
 		if expr == call.argument {
 			return replacement, true, nil
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -37,7 +38,7 @@ func TestBitwiseDefaultValidationAndRetag(t *testing.T) {
 			foreign := New()
 			typ, _ := foreign.CatalogRead().LookupType(sqltype.Int4)
 			value, _ := sqltype.Integer(typ, 1)
-			n.left = literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: value}
+			n.left = literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: value}
 			return n
 		},
 	} {
@@ -118,7 +119,7 @@ func TestBitwiseScopedCastDefaultSerializationAndRetag(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(rebound, changed, err)
 		}
-		for _, node := range []BoundExpr{original, rebound} {
+		for _, node := range []expr.Expr{original, rebound} {
 			value, err := node.Eval(ctx)
 			if err != nil {
 				t.Fatal(err)
@@ -170,19 +171,19 @@ func TestBitwiseConstantNullPlanning(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rowInfo := expressionInfo{Usage: text.Usage(), Property: ExprProperties{RowDependent: true}}
-	column := columnExpression{expressionInfo: rowInfo, scope: 1, frame: 1, slot: 0}
-	conversion := coercionExpression{expressionInfo: expressionInfo{Usage: integer.Usage(), Property: rowInfo.Property}, child: column, plan: plan, mode: sqltype.Explicit}
-	null := literalExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}, value: sqltype.Null(integer)}
-	info := expressionInfo{Usage: integer.Usage(), Pos: parser.Position{Offset: 7}, Property: ExprProperties{RowDependent: true, ParameterDependent: true, StageDependent: true}}
+	rowInfo := expr.Info{Usage: text.Usage(), Property: expr.Properties{RowDependent: true}}
+	column := columnExpression{Info: rowInfo, scope: 1, frame: 1, slot: 0}
+	conversion := coercionExpression{Info: expr.Info{Usage: integer.Usage(), Property: rowInfo.Property}, child: column, plan: plan, mode: sqltype.Explicit}
+	null := literalExpression{Info: expr.Info{Usage: integer.Usage()}, value: sqltype.Null(integer)}
+	info := expr.Info{Usage: integer.Usage(), Pos: parser.Position{Offset: 7}, Property: expr.Properties{RowDependent: true, ParameterDependent: true, StageDependent: true}}
 	bad, err := text.Input(context.Background(), "bad", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx := &EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{bad}}
-	for _, simplify := range []func(*EvalContext, BoundExpr, bool) (BoundExpr, bool, error){preflightCoercionsWithPolicy, simplifyConditional} {
+	for _, simplify := range []func(*EvalContext, expr.Expr, bool) (expr.Expr, bool, error){preflightCoercionsWithPolicy, simplifyConditional} {
 		for _, reverse := range []bool{false, true} {
-			root := bitwiseExpression{expressionInfo: info, left: null, right: conversion, provider: provider, operator: sqltype.BitwiseAnd}
+			root := bitwiseExpression{Info: info, left: null, right: conversion, provider: provider, operator: sqltype.BitwiseAnd}
 			if reverse {
 				root.left, root.right = root.right, root.left
 			}
@@ -193,7 +194,7 @@ func TestBitwiseConstantNullPlanning(t *testing.T) {
 					t.Fatal(planned, changed, err)
 				}
 				literal, ok := planned.(literalExpression)
-				if !ok || !reflect.DeepEqual(literal.expressionInfo, info) || literal.value.Type() != integer || !literal.value.IsNull() {
+				if !ok || !reflect.DeepEqual(literal.Info, info) || literal.value.Type() != integer || !literal.value.IsNull() {
 					t.Fatal("lost analyzed metadata or NULL type", planned)
 				}
 				if !reflect.DeepEqual(root, original) {
@@ -209,7 +210,7 @@ func TestBitwiseConstantNullPlanning(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				wrapper := coercionExpression{expressionInfo: info, child: root, plan: identity, mode: sqltype.Explicit}
+				wrapper := coercionExpression{Info: info, child: root, plan: identity, mode: sqltype.Explicit}
 				nested, changed, err := simplify(ctx, wrapper, defaults)
 				if err != nil || !changed || !reflect.DeepEqual(nested.ResultUsage(), info.Usage) || nested.Properties() != info.Property || nested.SourcePosition() != info.Pos {
 					t.Fatal("nested coercion lost metadata", nested, changed, err)
@@ -231,9 +232,9 @@ func TestBitwiseConstantNullPlanning(t *testing.T) {
 		}
 		// Imported NULL parameters may become physical literals during cast
 		// preflight, but their conservative parameter ownership is retained.
-		parameter := parameterExpression{expressionInfo: expressionInfo{Usage: text.Usage(), Property: ExprProperties{ParameterDependent: true}}, number: 1}
-		parameterCast := coercionExpression{expressionInfo: expressionInfo{Usage: integer.Usage(), Property: parameter.Property}, child: parameter, plan: plan, mode: sqltype.Explicit}
-		root := bitwiseExpression{expressionInfo: info, left: parameterCast, right: conversion, provider: provider, operator: sqltype.BitwiseAnd}
+		parameter := parameterExpression{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{ParameterDependent: true}}, number: 1}
+		parameterCast := coercionExpression{Info: expr.Info{Usage: integer.Usage(), Property: parameter.Property}, child: parameter, plan: plan, mode: sqltype.Explicit}
+		root := bitwiseExpression{Info: info, left: parameterCast, right: conversion, provider: provider, operator: sqltype.BitwiseAnd}
 		valid, err := text.Input(ctx.Context, "3", -1)
 		if err != nil {
 			t.Fatal(err)
@@ -254,8 +255,8 @@ func TestBitwiseConstantNullPlanning(t *testing.T) {
 		// An immutable bad conversion still fails during child planning, even
 		// though a constant NULL makes the operator itself unnecessary.
 		constantBad := conversion
-		constantBad.Property = ExprProperties{}
-		constantBad.child = literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: bad}
+		constantBad.Property = expr.Properties{}
+		constantBad.child = literalExpression{Info: expr.Info{Usage: text.Usage()}, value: bad}
 		root.left, root.right = null, constantBad
 		if _, _, err := simplify(ctx, root, false); err == nil {
 			t.Fatal("immutable bad conversion hidden")

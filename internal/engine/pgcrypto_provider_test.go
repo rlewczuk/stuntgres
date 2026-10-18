@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -40,15 +41,15 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 		name       string
 		signature  procedureSignature
 		result     ids.OID
-		volatility Volatility
+		volatility expr.Volatility
 		strict     bool
 	}{
-		{"digest", "25,25", 17, Immutable, true}, {"digest", "17,25", 17, Immutable, true},
-		{"hmac", "25,25,25", 17, Immutable, true}, {"hmac", "17,17,25", 17, Immutable, true},
-		{"crypt", "25,25", 25, Immutable, true}, {"gen_salt", "25", 25, Volatile, true}, {"gen_salt", "25,23", 25, Volatile, true},
-		{"encrypt", "17,17,25", 17, Immutable, true}, {"decrypt", "17,17,25", 17, Immutable, true},
-		{"encrypt_iv", "17,17,17,25", 17, Immutable, true}, {"decrypt_iv", "17,17,17,25", 17, Immutable, true},
-		{"gen_random_bytes", "23", 17, Volatile, true}, {"gen_random_uuid", "", 2950, Volatile, false}, {"fips_mode", "", 16, Volatile, true},
+		{"digest", "25,25", 17, expr.Immutable, true}, {"digest", "17,25", 17, expr.Immutable, true},
+		{"hmac", "25,25,25", 17, expr.Immutable, true}, {"hmac", "17,17,25", 17, expr.Immutable, true},
+		{"crypt", "25,25", 25, expr.Immutable, true}, {"gen_salt", "25", 25, expr.Volatile, true}, {"gen_salt", "25,23", 25, expr.Volatile, true},
+		{"encrypt", "17,17,25", 17, expr.Immutable, true}, {"decrypt", "17,17,25", 17, expr.Immutable, true},
+		{"encrypt_iv", "17,17,17,25", 17, expr.Immutable, true}, {"decrypt_iv", "17,17,17,25", 17, expr.Immutable, true},
+		{"gen_random_bytes", "23", 17, expr.Volatile, true}, {"gen_random_uuid", "", 2950, expr.Volatile, false}, {"fips_mode", "", 16, expr.Volatile, true},
 	}
 	for i, address := range ext.members {
 		proc := view.MustProcedure(address)
@@ -89,7 +90,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 		func(p *procedureDescriptor) { p.owner = authorization.PrincipalRef{} },
 		func(p *procedureDescriptor) { p.dictionary = ext.address },
 		func(p *procedureDescriptor) { p.strict = false },
-		func(p *procedureDescriptor) { p.volatility = Stable },
+		func(p *procedureDescriptor) { p.volatility = expr.Stable },
 	} {
 		original := view.Get(ext.members[0])
 		bad := *original.(*procedureDescriptor)
@@ -147,7 +148,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	n := node.(installedCryptoFunctionExpression)
-	if n.ref.Address != ext.members[2] || plannedVolatility(n) != Immutable || n.ResultUsage().Type.ID() != sqltype.Bytea {
+	if n.ref.Address != ext.members[2] || plannedVolatility(n) != expr.Immutable || n.ResultUsage().Type.ID() != sqltype.Bytea {
 		t.Fatal(n)
 	}
 	value, err := n.Eval(&EvalContext{Context: context.Background()})
@@ -178,8 +179,8 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	if err := validateGenerationProviders(e.CatalogRead(), generated); err == nil {
 		t.Fatal("invalid installed generation epoch accepted")
 	}
-	var children []BoundExpr
-	boundExpressionChildren(n, func(child BoundExpr) { children = append(children, child) })
+	var children []expr.Expr
+	boundExpressionChildren(n, func(child expr.Expr) { children = append(children, child) })
 	if !reflect.DeepEqual(children, n.Args) {
 		t.Fatal(children)
 	}
@@ -215,7 +216,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		t.Fatal("four-child installed identity", aesCall)
 	}
 	children = nil
-	boundExpressionChildren(aesCall, func(child BoundExpr) { children = append(children, child) })
+	boundExpressionChildren(aesCall, func(child expr.Expr) { children = append(children, child) })
 	if !reflect.DeepEqual(children, aesCall.Args) {
 		t.Fatal("lost four-child traversal", children)
 	}
@@ -247,14 +248,14 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 			t.Fatal(v.name, err)
 		}
 		call := bound.(installedCryptoFunctionExpression)
-		if call.ResultUsage().Type.ID() != v.result || plannedVolatility(call) != Volatile || !closedPgcryptoDefault(call) {
+		if call.ResultUsage().Type.ID() != v.result || plannedVolatility(call) != expr.Volatile || !closedPgcryptoDefault(call) {
 			t.Fatal("random/FIPS properties", call)
 		}
 		if err := call.validate(e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
-		var children []BoundExpr
-		boundExpressionChildren(call, func(child BoundExpr) { children = append(children, child) })
+		var children []expr.Expr
+		boundExpressionChildren(call, func(child expr.Expr) { children = append(children, child) })
 		if len(children) != len(call.Args) {
 			t.Fatal("random/FIPS walk", children)
 		}
@@ -266,7 +267,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		if err := actual.validate(e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
-		if plannedVolatility(actual) != Volatile || !closedPgcryptoDefault(actual) {
+		if plannedVolatility(actual) != expr.Volatile || !closedPgcryptoDefault(actual) {
 			t.Fatal("lost reconstructed volatility")
 		}
 		rendered, err := (scalarRenderer{}).sql(context.Background(), e.CatalogRead(), actual)

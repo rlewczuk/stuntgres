@@ -1,12 +1,13 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) selectJSONBConcat(raw parser.OperatorExpr, operands [2]functions.Argument, visible bool) (BoundExpr, bool, error) {
+func (b *expressionBinder) selectJSONBConcat(raw parser.OperatorExpr, operands [2]functions.Argument, visible bool) (expr.Expr, bool, error) {
 	known := false
 	var args [2]comparisonOperand
 	for i, o := range operands {
@@ -28,7 +29,7 @@ func (b *expressionBinder) selectJSONBConcat(raw parser.OperatorExpr, operands [
 // Select deletion with a known JSONB left operand, or an unknown left operand
 // and a known right operand implicitly coercible to TEXT. Unknown-left/integer
 // stays numeric; both unknown operands retain arithmetic ambiguity.
-func (b *expressionBinder) selectJSONBDelete(raw parser.OperatorExpr, left, right comparisonOperand) (BoundExpr, bool, error) {
+func (b *expressionBinder) selectJSONBDelete(raw parser.OperatorExpr, left, right comparisonOperand) (expr.Expr, bool, error) {
 	lt, rt := left.descriptor(), right.descriptor()
 	knownLeft := lt != nil && lt.BaseType().ID() == sqltype.JSONB
 	rhs := sqltype.Text
@@ -51,18 +52,18 @@ func (b *expressionBinder) selectJSONBDelete(raw parser.OperatorExpr, left, righ
 	return node, true, err
 }
 
-func (b *expressionBinder) jsonbOperatorNode(raw parser.OperatorExpr, operands [2]comparisonOperand, rhs sqltype.ID) (BoundExpr, error) {
+func (b *expressionBinder) jsonbOperatorNode(raw parser.OperatorExpr, operands [2]comparisonOperand, rhs sqltype.ID) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	targets := [2]sqltype.Usage{b.typ(sqltype.JSONB).Usage(), b.typ(rhs).Usage()}
-	args := make([]BoundExpr, 2)
-	properties := ExprProperties{}
+	args := make([]expr.Expr, 2)
+	properties := expr.Properties{}
 	for i, o := range operands {
 		node, err := b.coerceConditional(o, targets[i], name)
 		if err != nil {
 			return nil, err
 		}
 		args[i] = node
-		properties = mergeExpressionProperties(properties, node.Properties())
+		properties = expr.MergeProperties(properties, node.Properties())
 	}
 	info := b.info(targets[0], raw.Pos, properties)
 	node, err := functions.NewBinary(info, name, args, parser.OrdinaryFunctionSyntax)

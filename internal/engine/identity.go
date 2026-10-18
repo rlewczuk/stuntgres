@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -88,14 +89,14 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 			for _, option := range definition.Options {
 				if option.Name == "logged" || option.Name == "unlogged" {
 					if persistenceSet {
-						return expressionError("42601", "conflicting or redundant options", option.Pos)
+						return expr.ErrorAt("42601", "conflicting or redundant options", option.Pos)
 					}
 					persistence, persistenceSet = option.Name, true
 					continue
 				}
 				if option.Name == "name" {
 					if len(explicit.Parts) != 0 {
-						return expressionError("42601", "conflicting or redundant options", option.Pos)
+						return expr.ErrorAt("42601", "conflicting or redundant options", option.Pos)
 					}
 					explicit = option.Owned
 					continue
@@ -116,7 +117,7 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 				if persistenceSet {
 					for _, option := range definition.Options {
 						if option.Name == "logged" || option.Name == "unlogged" {
-							return expressionError("42P16", "cannot set logged status of a temporary sequence", option.Pos)
+							return expr.ErrorAt("42P16", "cannot set logged status of a temporary sequence", option.Pos)
 						}
 					}
 				}
@@ -193,7 +194,7 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *relationDescr
 // Ordinary single VALUES is a destination-attribute projection. Multirow VALUES
 // first demands the complete source row, like the shared query source cursor.
 // Bound expressions and imported parameters survive USER pruning in both cases.
-func evaluateIdentityValuesRow(read CatalogRead, b *binding, supplied []BoundExpr, syntax []parser.Expr, row []sqltype.Value, sourceFirst bool, evaluation *EvalContext) error {
+func evaluateIdentityValuesRow(read CatalogRead, b *binding, supplied []expr.Expr, syntax []parser.Expr, row []sqltype.Value, sourceFirst bool, evaluation *EvalContext) error {
 	if sourceFirst {
 		for i, expression := range supplied {
 			if expression == nil {

@@ -55,7 +55,7 @@ func (c *randomUnitContext) FunctionContext() context.Context {
 	}
 	return c.Context
 }
-func (c *randomUnitContext) FunctionRandomOwner() (RandomOwner, error) {
+func (c *randomUnitContext) FunctionRandomOwner() (expr.RandomOwner, error) {
 	return nil, fmt.Errorf("stuntgres: missing random session scope")
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -69,7 +70,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 			}
 			project.child = &sourceNode{querySchema: project.Schema(), ref: sourceRef}
 			usage := project.Schema()[0].Usage
-			project.expressions = []BoundExpr{columnExpression{expressionInfo: expressionInfo{Usage: usage, Property: ExprProperties{RowDependent: true}}, origin: sourceRef, scope: 1, frame: 1, slot: 0}}
+			project.expressions = []expr.Expr{columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, origin: sourceRef, scope: 1, frame: 1, slot: 0}}
 			predicates := 0
 			project.child = &filterNode{querySchema: project.Schema(), child: project.child, predicate: queryProbe(testUsage(e, sqltype.Bool), func(c *EvalContext) (sqltype.Value, error) {
 				predicates++

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -125,7 +126,7 @@ func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
 func TestDeparseConstraintsReviewLiteralQuotePolicy(t *testing.T) {
 	e := New()
 	typ, _ := e.CatalogRead().LookupType(sqltype.Text)
-	literal := literalExpression{expressionInfo: expressionInfo{Usage: typ.Usage()}, value: sqltype.String(typ, "a'b\\c")}
+	literal := literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: sqltype.String(typ, "a'b\\c")}
 	for _, tc := range []struct {
 		off  bool
 		want string

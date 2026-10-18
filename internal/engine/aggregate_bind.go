@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -11,15 +12,15 @@ import (
 
 // Persisted predicates have no query-local window-call metadata. A nil binder
 // selects conservative structural comparison without constructing binder state.
-func sameGroupExpression(a, other BoundExpr) bool {
+func sameGroupExpression(a, other expr.Expr) bool {
 	return (*expressionBinder)(nil).sameGroupExpression(a, other)
 }
 
-func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
+func (b *expressionBinder) sameGroupExpression(a, other expr.Expr) bool {
 	return b.sameGroupExpressionIn(a, other, nil)
 }
 
-func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison *queryTargetComparison) bool {
+func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison *queryTargetComparison) bool {
 	if a == nil || other == nil {
 		return a == nil && other == nil
 	}
@@ -33,7 +34,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	}
 	same := b.sameGroupExpression
 	if comparison != nil {
-		same = func(a, other BoundExpr) bool { return b.sameGroupExpressionIn(a, other, comparison) }
+		same = func(a, other expr.Expr) bool { return b.sameGroupExpressionIn(a, other, comparison) }
 	}
 	switch e := a.(type) {
 	case assignmentValueExpression:
@@ -916,38 +917,38 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other BoundExpr, comparison 
 	}
 	return false
 }
-func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (BoundExpr, error) {
+func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr.Expr, error) {
 	if err := b.ctx.Err(); err != nil {
 		return nil, err
 	}
-	if operation, ok := expr.(groupingExpression); ok {
+	if operation, ok := bound.(groupingExpression); ok {
 		return b.rewriteGrouping(operation, keys)
 	}
 	for i, key := range keys {
-		if b.sameGroupExpression(expr, key) {
-			properties := expr.Properties()
+		if b.sameGroupExpression(bound, key) {
+			properties := bound.Properties()
 			properties.RowDependent = false
 			properties.StageDependent = true
-			info := boundExpressionInfo(expr)
+			info := expr.InfoOf(bound)
 			info.Property = properties
-			return groupExpression{expressionInfo: info, slot: i, frame: b.frameID()}, nil
+			return groupExpression{Info: info, slot: i, frame: b.frameID()}, nil
 		}
 	}
 	var err error
-	rewrite := func(child BoundExpr) BoundExpr {
+	rewrite := func(child expr.Expr) expr.Expr {
 		if err != nil || child == nil {
 			return child
 		}
-		var out BoundExpr
+		var out expr.Expr
 		out, err = b.rewriteGroup(child, keys)
 		return out
 	}
-	stage := func(info *expressionInfo) { info.Property.StageDependent = true }
-	switch e := expr.(type) {
+	stage := func(info *expr.Info) { info.Property.StageDependent = true }
+	switch e := bound.(type) {
 	case subqueryExpression:
 		old := b.groupSubquery
 		b.groupSubquery = true
-		root, failure := rewriteQueryExpressions(e.queryPlan.Root, func(child BoundExpr) (BoundExpr, bool, error) {
+		root, failure := rewriteQueryExpressions(e.queryPlan.Root, func(child expr.Expr) (expr.Expr, bool, error) {
 			if !expressionUsesFrame(child, b.frameID()) {
 				return child, false, nil
 			}
@@ -970,50 +971,50 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 			}
 			e.comparisons = comparisons
 		}
-		expr = e
+		bound = e
 	case currentSchemasExpression:
 		e.arg = rewrite(e.arg)
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case objectAddressExpression:
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
 		}
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case aclValueExpression:
 		for i := range e.arguments() {
 			e.args[i] = rewrite(e.args[i])
 		}
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case objectACLExpression:
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
 		}
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case accessInquiryExpression:
 		for i := range e.count {
 			e.args[i] = rewrite(e.args[i])
 		}
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case namespaceInquiryExpression:
 		if e.arg != nil {
 			e.arg = rewrite(e.arg)
 		}
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case blockingInquiryExpression:
 		e.arg = rewrite(e.arg)
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case aggregateExpression:
 		if e.frame != 0 && e.frame != b.frameID() {
 			return e, nil
 		}
-		return groupExpression{expressionInfo: e.expressionInfo, slot: len(keys) + e.slot, frame: b.frameID()}, nil
+		return groupExpression{Info: e.Info, slot: len(keys) + e.slot, frame: b.frameID()}, nil
 	case *windowExpression:
 		return e, nil
 	case columnExpression:
@@ -1035,33 +1036,33 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 			}
 		}
 		if b.groupSubquery {
-			return nil, expressionError("42803", fmt.Sprintf(`subquery uses ungrouped column "%s" from outer query`, name), e.Pos)
+			return nil, expr.ErrorAt("42803", fmt.Sprintf(`subquery uses ungrouped column "%s" from outer query`, name), e.Pos)
 		}
-		return nil, expressionError("42803", fmt.Sprintf(`column "%s" must appear in the GROUP BY clause or be used in an aggregate function`, name), e.Pos)
+		return nil, expr.ErrorAt("42803", fmt.Sprintf(`column "%s" must appear in the GROUP BY clause or be used in an aggregate function`, name), e.Pos)
 	case rowExpression:
-		e, _, err = mapRow(e, func(old BoundExpr) (BoundExpr, bool, error) {
+		e, _, err = mapRow(e, func(old expr.Expr) (expr.Expr, bool, error) {
 			next := rewrite(old)
 			return next, !b.sameGroupExpression(old, next), err
 		})
 		if err != nil {
 			return nil, err
 		}
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case fieldExpression:
 		e.base = rewrite(e.base)
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case arrayExpression:
-		e.elements = append([]BoundExpr(nil), e.elements...)
+		e.elements = append([]expr.Expr(nil), e.elements...)
 		for i, element := range e.elements {
 			e.elements[i] = rewrite(element)
 		}
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case subscriptExpression:
 		var failure error
-		e, _, failure = mapSubscript(e, func(child BoundExpr) (BoundExpr, bool, error) {
+		e, _, failure = mapSubscript(e, func(child expr.Expr) (expr.Expr, bool, error) {
 			if child == nil {
 				return nil, false, nil
 			}
@@ -1071,203 +1072,203 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		if failure != nil {
 			return nil, failure
 		}
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case collationExpression:
 		e.child = rewrite(e.child)
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case coercionExpression:
 		e.child = rewrite(e.child)
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case bitwiseExpression:
 		e.left = rewrite(e.left)
 		e.right = rewrite(e.right)
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case functions.Timezone:
 		e.Value = rewrite(e.Value)
 		if !e.Local {
 			e.Zone = rewrite(e.Zone)
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case selectedOperatorExpression:
 		e.provider = rewrite(e.provider)
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case arithmeticExpression:
 		e.left = rewrite(e.left)
 		e.right = rewrite(e.right)
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case likeExpression:
 		e.left, e.right = rewrite(e.left), rewrite(e.right)
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case functions.LikeEscape:
 		e.Pattern, e.Escape = rewrite(e.Pattern), rewrite(e.Escape)
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.Posix:
 		e.Left, e.Right = rewrite(e.Left), rewrite(e.Right)
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.Similar:
 		e.Left, e.Right = rewrite(e.Left), rewrite(e.Right)
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.SimilarEscape:
 		e.Pattern, e.Escape = rewrite(e.Pattern), rewrite(e.Escape)
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.PosixSubstring:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.SimilarSubstring:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case rowComparisonExpression:
 		e.comparisons = append([]comparisonExpression(nil), e.comparisons...)
 		for i, pair := range e.comparisons {
 			e.comparisons[i] = rewrite(pair).(comparisonExpression)
 		}
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case functions.Regexp:
-		e.Args = append([]BoundExpr(nil), e.Args...)
+		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.RegexpSet:
-		e.Args = append([]BoundExpr(nil), e.Args...)
+		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case scalarArrayComparisonExpression:
 		e.left = rewrite(e.left)
 		if e.array != nil {
 			e.array = rewrite(e.array)
 		}
-		e.items = append([]BoundExpr(nil), e.items...)
+		e.items = append([]expr.Expr(nil), e.items...)
 		for i := range e.items {
 			e.items[i] = rewrite(e.items[i])
 		}
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case seriesExpression:
-		e.args = append([]BoundExpr(nil), e.args...)
+		e.args = append([]expr.Expr(nil), e.args...)
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
 		}
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case subscriptsExpression:
-		e.args = append([]BoundExpr(nil), e.args...)
+		e.args = append([]expr.Expr(nil), e.args...)
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
 		}
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case unnestExpression:
-		e.args = []BoundExpr{rewrite(e.args[0])}
-		stage(&e.expressionInfo)
-		expr = e
+		e.args = []expr.Expr{rewrite(e.args[0])}
+		stage(&e.Info)
+		bound = e
 	case functions.JSONKeys:
-		e.Args = []BoundExpr{rewrite(e.Args[0])}
-		info := boundExpressionInfo(e)
+		e.Args = []expr.Expr{rewrite(e.Args[0])}
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONBRecord:
-		args := make([]BoundExpr, len(e.Args))
+		args := make([]expr.Expr, len(e.Args))
 		for i, arg := range e.Args {
 			args[i] = rewrite(arg)
 		}
 		e.Args = args
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONBElements:
-		e.Args = []BoundExpr{rewrite(e.Args[0])}
-		info := boundExpressionInfo(e)
+		e.Args = []expr.Expr{rewrite(e.Args[0])}
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONRecord:
-		e.Args = append([]BoundExpr(nil), e.Args...)
+		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i, arg := range e.Args {
 			e.Args[i] = rewrite(arg)
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONEach:
-		e.Args = []BoundExpr{rewrite(e.Args[0])}
-		info := boundExpressionInfo(e)
+		e.Args = []expr.Expr{rewrite(e.Args[0])}
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONElements:
-		e.Args = []BoundExpr{rewrite(e.Args[0])}
-		info := boundExpressionInfo(e)
+		e.Args = []expr.Expr{rewrite(e.Args[0])}
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case comparisonExpression:
 		e.left = rewrite(e.left)
 		e.right = rewrite(e.right)
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case logicalExpression:
 		e.left = rewrite(e.left)
 		e.right = rewrite(e.right)
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case nullTestExpression:
 		e.child = rewrite(e.child)
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case truthTestExpression:
 		e.child = rewrite(e.child)
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case distinctExpression:
 		e.left = rewrite(e.left)
 		e.right = rewrite(e.right)
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case caseExpression:
 		e.test = rewrite(e.test)
 		e.arms = append([]caseBranch(nil), e.arms...)
@@ -1276,452 +1277,452 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 			e.arms[i].result = rewrite(e.arms[i].result)
 		}
 		e.otherwise = rewrite(e.otherwise)
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case conditionalExpression:
-		e.args = append([]BoundExpr(nil), e.args...)
+		e.args = append([]expr.Expr(nil), e.args...)
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
 		}
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case sequenceCallExpression:
-		e.args = append([]BoundExpr(nil), e.args...)
+		e.args = append([]expr.Expr(nil), e.args...)
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
 		}
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case functions.Binary:
-		e.Args = append([]BoundExpr(nil), e.Args...)
+		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.DatetimeJustify:
 		e.Arg = rewrite(e.Arg)
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.DatetimeExtract:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.DatetimeOverlaps:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.DatetimeBin:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.DatetimeTrunc:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.DatetimeZoneCalendar:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.DatetimeAgeFinite:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONStripNulls:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONExtract:
-		e, _, err = functions.MapJSONExtractChildren(e, func(arg BoundExpr) (BoundExpr, bool, error) {
+		e, _, err = functions.MapJSONExtractChildren(e, func(arg expr.Expr) (expr.Expr, bool, error) {
 			next := rewrite(arg)
 			return next, !b.sameGroupExpression(arg, next), err
 		})
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONBPathQueryArray:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONBPathExists:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONBPathMatch:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONBPathQueryFirst:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONBPathQuery:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.JSONBSet:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.DatetimeMake:
 		for i := range e.Arguments() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.DatetimeFormatting:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.NumericFormatting:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.String:
-		e.Args = append([]BoundExpr(nil), e.Args...)
+		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.ArrayRandom:
-		e.Args = append([]BoundExpr(nil), e.Args...)
+		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.ArrayTransform:
-		e.Args = append([]BoundExpr(nil), e.Args...)
+		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.ArrayInspect:
-		e.Args = append([]BoundExpr(nil), e.Args...)
+		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.ArraySearch:
-		e.Args = append([]BoundExpr(nil), e.Args...)
+		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case catalogUserNameExpression:
 		e.arg = rewrite(e.arg)
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case catalogForeignKeysExpression:
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case transactionIdentityExpression:
 		if e.arg != nil {
 			e.arg = rewrite(e.arg)
 		}
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case commitTimestampExpression:
 		if e.arg != nil {
 			e.arg = rewrite(e.arg)
 		}
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case functions.UUIDExtract:
 		e.Arg = rewrite(e.Arg)
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.NetworkFormat:
 		for i := range e.Kind.Arity() {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.RangeOperator:
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.RangeInspect:
-		e.Args = append([]BoundExpr(nil), e.Args...)
+		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.Enum:
-		e.Args = append([]BoundExpr(nil), e.Args...)
+		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.Math:
-		e.Args = append([]BoundExpr(nil), e.Args...)
+		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.UUIDGeneration:
 		if len(e.Args) != 0 {
-			e.Args = []BoundExpr{rewrite(e.Args[0])}
+			e.Args = []expr.Expr{rewrite(e.Args[0])}
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.Random:
-		e.Args = append([]BoundExpr(nil), e.Args...)
+		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.DatetimeSleep:
 		e.Arg = rewrite(e.Arg)
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case advisoryExpression:
-		e.args = append([]BoundExpr(nil), e.args...)
+		e.args = append([]expr.Expr(nil), e.args...)
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
 		}
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case indexPropertyExpression:
-		e.Property = ExprProperties{Volatility: Stable}
+		e.Property = expr.Properties{Volatility: expr.Stable}
 		for i := range e.children() {
 			e.args[i] = rewrite(e.args[i])
 			if err != nil {
 				return nil, err
 			}
-			e.Property = mergeExpressionProperties(e.Property, e.args[i].Properties())
+			e.Property = expr.MergeProperties(e.Property, e.args[i].Properties())
 		}
-		expr = e
+		bound = e
 	case deparseExpression:
-		e.args = append([]BoundExpr(nil), e.args...)
-		e.Property = ExprProperties{Volatility: Stable}
+		e.args = append([]expr.Expr(nil), e.args...)
+		e.Property = expr.Properties{Volatility: expr.Stable}
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
 			if err != nil {
 				return nil, err
 			}
-			e.Property = mergeExpressionProperties(e.Property, e.args[i].Properties())
+			e.Property = expr.MergeProperties(e.Property, e.args[i].Properties())
 		}
-		expr = e
+		bound = e
 	case visibilityInquiryExpression:
 		e.arg = rewrite(e.arg)
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case commentInquiryExpression:
-		e.args = append([]BoundExpr(nil), e.args...)
+		e.args = append([]expr.Expr(nil), e.args...)
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
 		}
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case functions.NullCount:
-		e.Args = append([]BoundExpr(nil), e.Args...)
+		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case installedSoundexFunctionExpression:
-		e.Args = append([]BoundExpr(nil), e.Args...)
+		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case installedMetaphoneFunctionExpression:
-		e.Args = append([]BoundExpr(nil), e.Args...)
+		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case installedLevenshteinFunctionExpression:
-		e.Args = append([]BoundExpr(nil), e.Args...)
+		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case installedUUIDOsspFunctionExpression:
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case installedCryptoFunctionExpression:
-		e.Args = append([]BoundExpr(nil), e.Args...)
+		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case installedFunctionExpression:
 		e.Arg = rewrite(e.Arg)
 		stage(&e.Info)
-		expr = e
+		bound = e
 	case sqlJSONExpression:
-		e.args = append([]BoundExpr(nil), e.args...)
+		e.args = append([]expr.Expr(nil), e.args...)
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
 		}
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case jsonPredicateExpression:
 		e.child = rewrite(e.child)
-		stage(&e.expressionInfo)
-		expr = e
+		stage(&e.Info)
+		bound = e
 	case functions.JSONCreate:
-		e.Args = append([]BoundExpr(nil), e.Args...)
+		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.StringVariadic:
-		e.Args = append([]BoundExpr(nil), e.Args...)
+		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	case functions.Format:
-		e.Args = append([]BoundExpr(nil), e.Args...)
+		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
 		}
-		info := boundExpressionInfo(e)
+		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
-		expr = e
+		bound = e
 	}
-	return expr, err
+	return bound, err
 }
-func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
+func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 	var found *aggregateExpression
-	walk := func(child BoundExpr) {
+	walk := func(child expr.Expr) {
 		if found == nil {
 			found = aggregateOccurrence(child)
 		}
 	}
-	switch e := expr.(type) {
+	switch e := bound.(type) {
 	case rowExpression:
 		for _, field := range e.fields {
 			walk(field)
@@ -2095,10 +2096,10 @@ func groupOrdinal(raw parser.Expr, width int) (int, bool, error) {
 	}
 	ordinal, isOrdinal := constant.Ordinal()
 	if !isOrdinal {
-		return 0, false, expressionError("42601", "non-integer constant in GROUP BY", raw.SourcePosition())
+		return 0, false, expr.ErrorAt("42601", "non-integer constant in GROUP BY", raw.SourcePosition())
 	}
 	if ordinal < 1 || ordinal > int64(width) {
-		return 0, false, expressionError("42P10", fmt.Sprintf("GROUP BY position %d is not in select list", ordinal), raw.SourcePosition())
+		return 0, false, expr.ErrorAt("42P10", fmt.Sprintf("GROUP BY position %d is not in select list", ordinal), raw.SourcePosition())
 	}
 	return int(ordinal) - 1, true, nil
 }

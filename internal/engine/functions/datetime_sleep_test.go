@@ -26,7 +26,7 @@ func (c *datetimeSleepUnitContext) FunctionContext() context.Context {
 	return c.Context
 }
 func (c *datetimeSleepUnitContext) FunctionInput() sqltype.InputEnvironment { return c.input }
-func (*datetimeSleepUnitContext) FunctionPropertiesMatch(p expr.Properties, rule IntrinsicPropertyRule) bool {
+func (*datetimeSleepUnitContext) FunctionPropertiesMatch(p expr.Properties, rule expr.IntrinsicPropertyRule) bool {
 	return expr.PropertiesMatch(p, rule)
 }
 func (*datetimeSleepUnitContext) FunctionSleepArgumentPresent(arg expr.Expr) bool {
@@ -209,7 +209,7 @@ func TestDatetimeSleepZeroDelayAllocations(t *testing.T) {
 		t.Fatal(err)
 	}
 	arg := datetimeSleepUnitArgument{Info: expr.Info{Usage: types[sqltype.Float8].Usage()}, value: value}
-	node, err := NewDatetimeSleep(expr.Info{Usage: types[sqltype.Void].Usage(), Property: expr.IntrinsicProperties(VolatileOnly)}, DatetimeSleepSeconds, arg, types[sqltype.Timestamptz].Usage())
+	node, err := NewDatetimeSleep(expr.Info{Usage: types[sqltype.Void].Usage(), Property: expr.IntrinsicProperties(expr.VolatileOnly)}, DatetimeSleepSeconds, arg, types[sqltype.Timestamptz].Usage())
 	if err != nil {
 		t.Fatal(err)
 	}

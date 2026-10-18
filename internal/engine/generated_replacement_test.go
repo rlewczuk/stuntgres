@@ -6,6 +6,7 @@ import (
 	"math/rand/v2"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -63,11 +64,11 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	floating, _ := view.LookupType(sqltype.Float8)
 	d.columns[1].Usage = oid.Usage()
 	ref := e.catalog.domain.Ref(view.Epoch()+1, d.address)
-	leaf := tableOIDExpression{expressionInfo{Usage: oid.Usage(), Property: ExprProperties{RowDependent: true}}, ref}
+	leaf := tableOIDExpression{expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, ref}
 	d.generations = map[int32]columnGeneration{2: {kind: generationStored, expression: leaf, planned: leaf}}
 	// CHECK consumes the repaired cell as well as the scoped provider. A stale
 	// source tableoid vetoes the row instead of reaching the final stale fence.
-	probe := functions.Random{Info: expressionInfo{Usage: floating.Usage(), Property: ExprProperties{Volatility: Volatile}}, Name: "random"}
+	probe := functions.Random{Info: expr.Info{Usage: floating.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "random"}
 	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, oid, oid, boolean, sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
@@ -78,10 +79,10 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	}
 	columnRef := ref
 	columnRef.Address.SubID = 2
-	repairedCell := columnExpression{expressionInfo: expressionInfo{Usage: oid.Usage(), Property: ExprProperties{RowDependent: true}}, origin: columnRef, scope: 1, frame: 1, slot: 1}
-	equal := comparisonExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, left: repairedCell, right: literalExpression{expressionInfo{Usage: oid.Usage()}, expectedOID}, predicate: predicate, operator: "="}
-	scoped := nullTestExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, child: probe, not: true}
-	d.checkConstraints = []checkConstraint{{Name: "scoped_gate", expression: logicalExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, op: parser.LogicalAnd, left: equal, right: scoped}}}
+	repairedCell := columnExpression{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, origin: columnRef, scope: 1, frame: 1, slot: 1}
+	equal := comparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, left: repairedCell, right: literalExpression{expr.Info{Usage: oid.Usage()}, expectedOID}, predicate: predicate, operator: "="}
+	scoped := nullTestExpression{Info: expr.Info{Usage: boolean.Usage()}, child: probe, not: true}
+	d.checkConstraints = []checkConstraint{{Name: "scoped_gate", expression: logicalExpression{Info: expr.Info{Usage: boolean.Usage()}, op: parser.LogicalAnd, left: equal, right: scoped}}}
 	base, err := sqltype.Integer(d.columns[0].Usage.Type, 2)
 	if err != nil {
 		t.Fatal(err)

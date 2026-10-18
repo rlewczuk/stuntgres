@@ -1,13 +1,17 @@
 package engine
 
-import "slices"
+import (
+	"slices"
+
+	"stuntgres/internal/engine/expr"
+)
 
 // Demand is derived from typed NEW references before substitution. The ordinary
 // stored projection planner also retains volatile outputs and clause caches.
 func ruleProducerOutputUses(original binding, rule ruleDefinition, action binding) []int {
 	uses := []int{}
-	inspect := func(expr BoundExpr) {
-		walkBoundExpression(expr, func(node BoundExpr) {
+	inspect := func(bound expr.Expr) {
+		walkBoundExpression(bound, func(node expr.Expr) {
 			column, ok := node.(columnExpression)
 			if !ok || column.scope != rulePseudoScope || column.frame != 2 {
 				return
@@ -21,9 +25,9 @@ func ruleProducerOutputUses(original binding, rule ruleDefinition, action bindin
 		})
 	}
 	query := func(root LogicalNode) { visitCTEQuery(root, func(LogicalNode) {}, inspect, true) }
-	expression := func(expr BoundExpr) {
-		if expr != nil {
-			query(&projectNode{expressions: []BoundExpr{expr}})
+	expression := func(bound expr.Expr) {
+		if bound != nil {
+			query(&projectNode{expressions: []expr.Expr{bound}})
 		}
 	}
 	targets := func(items []*arrayAssignmentTarget) {
@@ -84,7 +88,7 @@ func ruleProducerOutputUses(original binding, rule ruleDefinition, action bindin
 // rule-program static preparation. Slots are interpreted in their retained
 // lexical input frame, including the offset contributed by preceding join arms.
 // Analysis-only expressions are not executable demand.
-func ruleQueryProducerDemand(root LogicalNode, external func(func(BoundExpr)), targetPrefix int) (LogicalNode, error) {
+func ruleQueryProducerDemand(root LogicalNode, external func(func(expr.Expr)), targetPrefix int) (LogicalNode, error) {
 	type producer struct {
 		frame   uint32
 		offset  int
@@ -150,8 +154,8 @@ func ruleQueryProducerDemand(root LogicalNode, external func(func(BoundExpr)), t
 			collect(left, offset, 0, inputFrame)
 			collect(right, offset, 0, inputFrame)
 		}
-		queryExpressions(node, func(expression BoundExpr) {
-			walkDemandedBoundExpression(expression, func(node BoundExpr) {
+		queryExpressions(node, func(expression expr.Expr) {
+			walkDemandedBoundExpression(expression, func(node expr.Expr) {
 				if subquery, ok := node.(subqueryExpression); ok && !subquery.cteDefinition && subquery.queryPlan != nil {
 					collect(subquery.queryPlan.Root, 0, 0, 1)
 				}
@@ -183,9 +187,9 @@ func ruleQueryProducerDemand(root LogicalNode, external func(func(BoundExpr)), t
 	}
 	var failure error
 	var observe func(LogicalNode)
-	var inspect func(BoundExpr, int)
-	inspect = func(expression BoundExpr, prefix int) {
-		walkDemandedBoundExpression(expression, func(node BoundExpr) {
+	var inspect func(expr.Expr, int)
+	inspect = func(expression expr.Expr, prefix int) {
+		walkDemandedBoundExpression(expression, func(node expr.Expr) {
 			if column, ok := node.(columnExpression); ok {
 				for _, item := range producers {
 					slot := column.slot - prefix - item.offset
@@ -217,11 +221,11 @@ func ruleQueryProducerDemand(root LogicalNode, external func(func(BoundExpr)), t
 			// Modifying scans have no SELECT graph and retain their spool key.
 			return
 		case *projectNode:
-			failure = storedProjectionDemandExpressions(n, nil, func(expression BoundExpr) {
+			failure = storedProjectionDemandExpressions(n, nil, func(expression expr.Expr) {
 				inspect(expression, 0)
 			}, observe)
 		default:
-			queryExpressions(node, func(expression BoundExpr) { inspect(expression, 0) })
+			queryExpressions(node, func(expression expr.Expr) { inspect(expression, 0) })
 			left, right := queryInputs(node)
 			observe(left)
 			observe(right)
@@ -229,7 +233,7 @@ func ruleQueryProducerDemand(root LogicalNode, external func(func(BoundExpr)), t
 	}
 	observe(root)
 	if external != nil {
-		external(func(expression BoundExpr) { inspect(expression, targetPrefix) })
+		external(func(expression expr.Expr) { inspect(expression, targetPrefix) })
 	}
 	// Original immutable recipes remain intact until liveness converges. A
 	// retained payload can read a supplier in an outer lexical frame; each new
@@ -237,7 +241,7 @@ func ruleQueryProducerDemand(root LogicalNode, external func(func(BoundExpr)), t
 	for next := 0; next < len(queue) && failure == nil; next++ {
 		item := queue[next]
 		item.dirty = false
-		failure = storedProjectionDemandExpressions(item.project, item.uses, func(expression BoundExpr) {
+		failure = storedProjectionDemandExpressions(item.project, item.uses, func(expression expr.Expr) {
 			inspect(expression, 0)
 		}, observe)
 	}
@@ -273,7 +277,7 @@ func ruleQueryProducerDemand(root LogicalNode, external func(func(BoundExpr)), t
 	if len(pruned) == 0 {
 		return root, nil
 	}
-	identity := func(expression BoundExpr) (BoundExpr, bool, error) { return expression, false, nil }
+	identity := func(expression expr.Expr) (expr.Expr, bool, error) { return expression, false, nil }
 	var rewrite func(LogicalNode) (LogicalNode, error)
 	rewrite = func(node LogicalNode) (LogicalNode, error) {
 		project, ok := node.(*projectNode)
@@ -302,7 +306,7 @@ func ruleMutationProducerDemand(b binding) (binding, error) {
 	if root == nil {
 		return b, nil
 	}
-	mapped, err := ruleQueryProducerDemand(root, func(visit func(BoundExpr)) {
+	mapped, err := ruleQueryProducerDemand(root, func(visit func(expr.Expr)) {
 		targets := b.arrayTargets
 		if b.update != nil {
 			for _, expression := range b.update.assignments {

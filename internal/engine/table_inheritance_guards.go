@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"iter"
 	"slices"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -95,7 +96,7 @@ func inheritanceColumnGuard(relation *relationDescriptor, name, operation string
 	}
 	message := fmt.Sprintf(`cannot %s inherited column "%s"`, operation, name)
 	if operation == "alter" {
-		return expressionError("42P16", message, position)
+		return expr.ErrorAt("42P16", message, position)
 	}
 	return sqlError("42P16", message)
 }

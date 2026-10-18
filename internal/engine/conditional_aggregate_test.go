@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -16,10 +17,10 @@ func TestConditionalAggregateGroupingIdentityAndRewrite(t *testing.T) {
 			integer = typ
 		}
 	}
-	info := expressionInfo{Usage: integer.Usage()}
-	key := columnExpression{expressionInfo: info, slot: 0}
+	info := expr.Info{Usage: integer.Usage()}
+	key := columnExpression{Info: info, slot: 0}
 	key.Property.RowDependent = true
-	count := aggregateExpression{expressionInfo: info, slot: 0}
+	count := aggregateExpression{Info: info, slot: 0}
 	count.Property.StageDependent = true
 	plan, err := sqltype.PlanCoercion(integer.Usage(), integer.Usage(), sqltype.Implicit)
 	if err != nil {
@@ -30,14 +31,14 @@ func TestConditionalAggregateGroupingIdentityAndRewrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	arm := caseBranch{condition: key, result: key, testPlan: plan, equality: equality, testUsage: integer.Usage()}
-	groupCase := caseExpression{expressionInfo: info, test: key, arms: []caseBranch{arm}, otherwise: key}
-	groupList := conditionalExpression{expressionInfo: info, kind: parser.Coalesce, args: []BoundExpr{groupCase, key}}
+	groupCase := caseExpression{Info: info, test: key, arms: []caseBranch{arm}, otherwise: key}
+	groupList := conditionalExpression{Info: info, kind: parser.Coalesce, args: []expr.Expr{groupCase, key}}
 	// Aggregates cannot occur in grouping keys. Use scalar-only keys for
 	// structural identity, and a separate aggregate-containing tree for rewrite.
 	original := groupCase
 	original.arms = []caseBranch{arm}
 	original.arms[0].result = count
-	list := conditionalExpression{expressionInfo: info, kind: parser.Coalesce, args: []BoundExpr{original, count}}
+	list := conditionalExpression{Info: info, kind: parser.Coalesce, args: []expr.Expr{original, count}}
 	if !b.sameGroupExpression(groupCase, groupCase) || !b.sameGroupExpression(groupList, groupList) {
 		t.Fatal("identical conditional grouping keys differ")
 	}
@@ -57,7 +58,7 @@ func TestConditionalAggregateGroupingIdentityAndRewrite(t *testing.T) {
 	if aggregateOccurrence(list) == nil {
 		t.Fatal("nested aggregate occurrence lost")
 	}
-	rewritten, err := b.rewriteGroup(list, []BoundExpr{key})
+	rewritten, err := b.rewriteGroup(list, []expr.Expr{key})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,8 +85,8 @@ func TestConditionalAggregateGroupingIdentityAndRewrite(t *testing.T) {
 	if _, ok := list.args[1].(aggregateExpression); !ok {
 		t.Fatal("immutable list args mutated")
 	}
-	for _, expr := range []BoundExpr{groupCase, groupList} {
-		got, err := b.rewriteGroup(expr, []BoundExpr{expr})
+	for _, bound := range []expr.Expr{groupCase, groupList} {
+		got, err := b.rewriteGroup(bound, []expr.Expr{bound})
 		if _, ok := got.(groupExpression); err != nil || !ok {
 			t.Fatal("whole conditional grouping key not recognized", err)
 		}

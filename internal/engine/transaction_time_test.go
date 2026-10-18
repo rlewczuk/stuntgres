@@ -137,7 +137,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 		if !closedTransactionTimeDefault(leaf) {
 			t.Error("selected closed default rejected")
 		}
-		for _, properties := range []ExprProperties{{Volatility: Volatile, RowDependent: true}, {Volatility: Volatile, ParameterDependent: true}, {Volatility: Volatile, StageDependent: true}} {
+		for _, properties := range []expr.Properties{{Volatility: expr.Volatile, RowDependent: true}, {Volatility: expr.Volatile, ParameterDependent: true}, {Volatility: expr.Volatile, StageDependent: true}} {
 			bad := leaf
 			bad.Property = properties
 			if closedTransactionTimeDefault(bad) {
@@ -157,11 +157,11 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 		t.Error("wrong result type admitted")
 	}
 	invalid = clock
-	invalid.Property.Volatility = Stable
+	invalid.Property.Volatility = expr.Stable
 	if invalid.Validate(expr.PropertiesMatch(invalid.Property, invalid.Kind.IntrinsicRule())) == nil {
 		t.Error("demoted clock admitted")
 	}
-	random := functions.Random{Info: expressionInfo{Usage: binder.typ(sqltype.Float8).Usage(), Property: ExprProperties{Volatility: Volatile}}, Name: "random"}
+	random := functions.Random{Info: expr.Info{Usage: binder.typ(sqltype.Float8).Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "random"}
 	if closedTransactionTimeDefault(random) {
 		t.Error("unrelated volatile default admitted")
 	}

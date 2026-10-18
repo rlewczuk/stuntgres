@@ -7,13 +7,13 @@ import (
 
 // Query boundaries are explicit: lexical argument walking visits predicate
 // left operands but never confuses a child query's local columns with ours.
-func walkBoundExpression(node BoundExpr, visit func(BoundExpr)) {
+func walkBoundExpression(node expr.Expr, visit func(expr.Expr)) {
 	expr.Walk(node, boundExpressionChildren, visit)
 }
 
 // Enumerate lexical children only; a subquery's query graph is a separate frame.
-func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
-	args := func(children []BoundExpr) {
+func boundExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
+	args := func(children []expr.Expr) {
 		for _, child := range children {
 			walk(child)
 		}
@@ -176,22 +176,22 @@ func boundExpressionChildren(node BoundExpr, walk func(BoundExpr)) {
 	}
 }
 
-func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
+func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 	e := node.(aggregateExpression)
 	call := b.aggregates[e.slot]
-	walkArguments := func(visit func(BoundExpr)) {
+	walkArguments := func(visit func(expr.Expr)) {
 		// Ordered-set direct args do not select the aggregate's owner.
 		ownerCall := call
 		ownerCall.direct = nil
-		ownerCall.expressions(func(expr BoundExpr) { walkQueryArgumentExpression(expr, visit) })
+		ownerCall.expressions(func(expr expr.Expr) { walkQueryArgumentExpression(expr, visit) })
 	}
 	owner, index := b.argumentQueryOwner(walkArguments)
 	clause := b.aggregateClause
 	if index >= 0 {
 		clause = b.queryScopes[index].clause
 	}
-	var nested BoundExpr
-	walkArguments(func(node BoundExpr) {
+	var nested expr.Expr
+	walkArguments(func(node expr.Expr) {
 		switch n := node.(type) {
 		case aggregateExpression:
 			if n.frame == owner && nested == nil {
@@ -204,7 +204,7 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 		}
 	})
 	if nested != nil {
-		return nil, expressionError("42803", "aggregate function calls cannot be nested", nested.SourcePosition())
+		return nil, expr.ErrorAt("42803", "aggregate function calls cannot be nested", nested.SourcePosition())
 	}
 	for _, direct := range call.direct {
 		level := func(frame uint32) int {
@@ -220,22 +220,22 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 		}
 		ownerLevel := level(owner)
 		var directError error
-		walkQueryArgumentExpression(direct, func(node BoundExpr) {
+		walkQueryArgumentExpression(direct, func(node expr.Expr) {
 			if directError != nil {
 				return
 			}
 			switch n := node.(type) {
 			case columnExpression:
 				if level(n.frame) > ownerLevel {
-					directError = expressionError("42803", "outer-level aggregate cannot contain a lower-level variable in its direct arguments", n.SourcePosition())
+					directError = expr.ErrorAt("42803", "outer-level aggregate cannot contain a lower-level variable in its direct arguments", n.SourcePosition())
 				}
 			case aggregateExpression:
 				if l := level(n.frame); l >= 0 && l <= ownerLevel {
-					directError = expressionError("42803", "aggregate function calls cannot be nested", n.SourcePosition())
+					directError = expr.ErrorAt("42803", "aggregate function calls cannot be nested", n.SourcePosition())
 				}
 			case groupingExpression:
 				if l := level(n.frame); l >= 0 && l <= ownerLevel {
-					directError = expressionError("42803", "aggregate function calls cannot be nested", n.SourcePosition())
+					directError = expr.ErrorAt("42803", "aggregate function calls cannot be nested", n.SourcePosition())
 				}
 			}
 		})
@@ -258,11 +258,11 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 	switch clause {
 	case "SELECT", "HAVING", "ORDER BY", "DISTINCT ON", "window definitions":
 	case "window RANGE", "window GROUPS", "window ROWS":
-		return nil, expressionError("42803", "aggregate functions are not allowed in "+clause, e.Pos)
+		return nil, expr.ErrorAt("42803", "aggregate functions are not allowed in "+clause, e.Pos)
 	case "WHERE", "GROUP BY", "JOIN conditions", "LIMIT", "OFFSET", "RETURNING", "VALUES", "FILTER", "UPDATE", "policy expressions":
-		return nil, expressionError("42803", "aggregate functions are not allowed in "+clause, e.Pos)
+		return nil, expr.ErrorAt("42803", "aggregate functions are not allowed in "+clause, e.Pos)
 	default:
-		return nil, expressionError("0A000", "aggregate calls outside SELECT are unsupported", e.Pos)
+		return nil, expr.ErrorAt("0A000", "aggregate calls outside SELECT are unsupported", e.Pos)
 	}
 	if index >= 0 {
 		// This call was registered locally by the existing provider binder.
@@ -273,8 +273,8 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 		s := &b.queryScopes[index]
 		e.slot = len(s.aggregates)
 		immutable := true
-		call.expressions(func(expr BoundExpr) {
-			if expr != nil && expr.Properties().Volatility != Immutable {
+		call.expressions(func(bound expr.Expr) {
+			if bound != nil && bound.Properties().Volatility != expr.Immutable {
 				immutable = false
 			}
 		})
@@ -295,9 +295,9 @@ func (b *expressionBinder) ownAggregate(node BoundExpr) (BoundExpr, error) {
 }
 
 // Pick the nearest visible argument frame, ignoring child-local query frames.
-func (b *expressionBinder) argumentQueryOwner(walk func(func(BoundExpr))) (uint32, int) {
+func (b *expressionBinder) argumentQueryOwner(walk func(func(expr.Expr))) (uint32, int) {
 	owner, index, local := b.frameID(), -1, false
-	walk(func(node BoundExpr) {
+	walk(func(node expr.Expr) {
 		var frame uint32
 		switch n := node.(type) {
 		case columnExpression:
@@ -358,8 +358,8 @@ func (b *expressionBinder) aggregateCallAt(e aggregateExpression) (aggregateCall
 // Aggregate ownership crosses sublinks, but only columns/aggregates in a
 // visible ancestor frame participate. Child-local frames are ignored by the
 // owner selection above; nesting is checked against that selected owner.
-func walkQueryArgumentExpression(expr BoundExpr, visit func(BoundExpr)) {
-	walkBoundExpression(expr, func(node BoundExpr) {
+func walkQueryArgumentExpression(bound expr.Expr, visit func(expr.Expr)) {
+	walkBoundExpression(bound, func(node expr.Expr) {
 		visit(node)
 		if child, ok := node.(subqueryExpression); ok {
 			walkQueryArgumentNode(child.queryPlan.Root, visit)
@@ -367,8 +367,8 @@ func walkQueryArgumentExpression(expr BoundExpr, visit func(BoundExpr)) {
 	})
 }
 
-func walkQueryArgumentNode(node LogicalNode, visit func(BoundExpr)) {
-	queryExpressions(node, func(expr BoundExpr) { walkQueryArgumentExpression(expr, visit) })
+func walkQueryArgumentNode(node LogicalNode, visit func(expr.Expr)) {
+	queryExpressions(node, func(expr expr.Expr) { walkQueryArgumentExpression(expr, visit) })
 	left, right := queryInputs(node)
 	if left != nil {
 		walkQueryArgumentNode(left, visit)

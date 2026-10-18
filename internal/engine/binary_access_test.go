@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -85,7 +86,7 @@ func TestBinaryAccessRetagAndRestoreArguments(t *testing.T) {
 		if name == "set_bit" || name == "set_byte" {
 			arity, result = 3, tc.family
 		}
-		args := make([]BoundExpr, arity)
+		args := make([]expr.Expr, arity)
 		usages := make([]sqltype.Usage, arity)
 		for i := range args {
 			d := types[functions.BinaryArgumentID(name, i, tc.family)]
@@ -100,13 +101,13 @@ func TestBinaryAccessRetagAndRestoreArguments(t *testing.T) {
 			} else {
 				value, _ = sqltype.Integer(d, 0)
 			}
-			args[i] = literalExpression{expressionInfo: expressionInfo{Usage: d.Usage()}, value: value}
+			args[i] = literalExpression{Info: expr.Info{Usage: d.Usage()}, value: value}
 		}
 		p, err := sqltype.BindBinary(name, types[result].Usage(), usages...)
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := functions.Binary{Info: expressionInfo{Usage: types[result].Usage()}, Plan: p, Args: args}
+		original := functions.Binary{Info: expr.Info{Usage: types[result].Usage()}, Plan: p, Args: args}
 		rebound, changed, err := retagBoundTypes(New().CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return replacement[d.ID()] })
 		if err != nil || !changed {
 			t.Fatal(name, changed, err)
@@ -156,7 +157,7 @@ func bitAccessBindingProperties(t *testing.T) {
 				if err := binary.Validate(); err != nil {
 					t.Fatal(err)
 				}
-				if node.Properties().Volatility != Immutable || node.ResultUsage().Typmod != -1 || binary.Args[0].ResultUsage().Type.ID() != sqltype.Bit || binary.Args[1].ResultUsage().Type.ID() != sqltype.Int4 {
+				if node.Properties().Volatility != expr.Immutable || node.ResultUsage().Typmod != -1 || binary.Args[0].ResultUsage().Type.ID() != sqltype.Bit || binary.Args[1].ResultUsage().Type.ID() != sqltype.Int4 {
 					t.Fatal(name, node)
 				}
 				// DEFAULT admission must not widen the adjacent BYTEA family.
@@ -179,7 +180,7 @@ func bitAccessBindingProperties(t *testing.T) {
 			raw.Args = append(raw.Args, parser.ParameterExpr{Number: 2})
 		}
 		node, err := functions.BindBinary(b, raw, true)
-		if err != nil || !node.Properties().ParameterDependent || node.Properties().Volatility != Immutable || b.parameters[1].Type.ID() != sqltype.Int4 {
+		if err != nil || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable || b.parameters[1].Type.ID() != sqltype.Int4 {
 			t.Fatal("parameter propagation", name, node, err)
 		}
 		for _, family := range []sqltype.ID{sqltype.Bit, sqltype.VarBit} {
@@ -189,13 +190,13 @@ func bitAccessBindingProperties(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			props := ExprProperties{Volatility: Stable, RowDependent: true, StageDependent: true, DomainDependent: true}
-			source := literalExpression{expressionInfo: expressionInfo{Usage: usage, Property: props}, value: value}
+			props := expr.Properties{Volatility: expr.Stable, RowDependent: true, StageDependent: true, DomainDependent: true}
+			source := literalExpression{Info: expr.Info{Usage: usage, Property: props}, value: value}
 			operands := []functions.Argument{{Expression: source, Usage: usage}}
 			for i := 1; i < len(raw.Args); i++ {
 				u := b.typ(sqltype.Int4).Usage()
 				v, _ := sqltype.Integer(u.Type, 0)
-				operands = append(operands, functions.Argument{Expression: literalExpression{expressionInfo: expressionInfo{Usage: u}, value: v}, Usage: u})
+				operands = append(operands, functions.Argument{Expression: literalExpression{Info: expr.Info{Usage: u}, value: v}, Usage: u})
 			}
 			var types functions.BinaryTypes
 			node, err := functions.FinishBinary(b, name, sqltype.Bit, parser.Position{}, operands, parser.OrdinaryFunctionSyntax, &types)

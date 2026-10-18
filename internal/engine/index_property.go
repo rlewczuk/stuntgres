@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -50,22 +51,22 @@ func (k indexPropertyKind) argument(i int) sqltype.ID {
 }
 
 type indexPropertyExpression struct {
-	expressionInfo
+	expr.Info
 	kind     indexPropertyKind
-	args     [3]BoundExpr
+	args     [3]expr.Expr
 	oidPlan  sqltype.CoercionPlan
 	oidUsage sqltype.Usage
 }
 
-func (e indexPropertyExpression) children() []BoundExpr { return e.args[:e.kind.count()] }
+func (e indexPropertyExpression) children() []expr.Expr { return e.args[:e.kind.count()] }
 
-func (b *expressionBinder) bindIndexProperty(raw parser.FunctionExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindIndexProperty(raw parser.FunctionExpr) (expr.Expr, error) {
 	return b.bindIndexPropertyStructure(raw, true)
 }
 
-func (b *expressionBinder) bindIndexPropertyStructure(raw parser.FunctionExpr, foldNull bool) (BoundExpr, error) {
+func (b *expressionBinder) bindIndexPropertyStructure(raw parser.FunctionExpr, foldNull bool) (expr.Expr, error) {
 	if b.defaultConsumer {
-		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
+		return nil, expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
 	}
 	var kind indexPropertyKind
 	switch raw.Name.Parts[len(raw.Name.Parts)-1].Text {
@@ -100,7 +101,7 @@ func (b *expressionBinder) bindIndexPropertyStructure(raw parser.FunctionExpr, f
 		}
 	}
 	if len(raw.Args) > 100 {
-		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	names = names[:len(raw.Args)]
 	visible, err := b.builtinVisible(raw.Name, functionLookup)
@@ -121,7 +122,7 @@ func (b *expressionBinder) bindIndexPropertyStructure(raw parser.FunctionExpr, f
 		}
 	}
 	n := indexPropertyExpression{kind: kind}
-	properties := ExprProperties{Volatility: Stable}
+	properties := expr.Properties{Volatility: expr.Stable}
 	null := false
 	for i := range raw.Args {
 		target := b.typ(kind.argument(i)).Usage()
@@ -139,7 +140,7 @@ func (b *expressionBinder) bindIndexPropertyStructure(raw parser.FunctionExpr, f
 			arg = coercionExpression{b.info(target, raw.Args[i].SourcePosition(), coercionProperties(arg, plan)), arg, plan, sqltype.Implicit, false}
 		}
 		n.args[i] = arg
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 		if literal, ok := arg.(literalExpression); ok && literal.value.IsNull() {
 			null = true
 		}
@@ -148,12 +149,12 @@ func (b *expressionBinder) bindIndexPropertyStructure(raw parser.FunctionExpr, f
 	for i := range raw.Args {
 		formal[i] = kind.argument(i)
 	}
-	n.expressionInfo, err = b.builtinRoutineInfo(b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties), catalogRoutineProvider, kind.name(), formal[:kind.count()]...)
+	n.Info, err = b.builtinRoutineInfo(b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties), catalogRoutineProvider, kind.name(), formal[:kind.count()]...)
 	if err != nil {
 		return nil, err
 	}
 	if foldNull && null {
-		return literalExpression{b.info(n.Usage, raw.Pos, ExprProperties{}), sqltype.Null(n.Usage.Type)}, nil
+		return literalExpression{b.info(n.Usage, raw.Pos, expr.Properties{}), sqltype.Null(n.Usage.Type)}, nil
 	}
 	if kind != accessMethodProperty {
 		n.oidUsage = b.typ(sqltype.Oid).Usage()
@@ -169,7 +170,7 @@ func validateIndexPropertyExpression(e indexPropertyExpression) error {
 	if e.kind.count() == 0 || e.Usage.Type == nil || e.Usage != e.Usage.Type.Usage() || e.Usage.Type.ID() != sqltype.Bool {
 		return fmt.Errorf("stuntgres: invalid stored index property signature")
 	}
-	properties := ExprProperties{Volatility: Stable}
+	properties := expr.Properties{Volatility: expr.Stable}
 	for i, arg := range e.args {
 		if i >= e.kind.count() {
 			if arg != nil {
@@ -180,7 +181,7 @@ func validateIndexPropertyExpression(e indexPropertyExpression) error {
 		if arg == nil || arg.ResultUsage().Type == nil || arg.ResultUsage() != arg.ResultUsage().Type.Usage() || arg.ResultUsage().Type.ID() != e.kind.argument(i) {
 			return fmt.Errorf("stuntgres: invalid stored index property argument")
 		}
-		properties = mergeExpressionProperties(properties, arg.Properties())
+		properties = expr.MergeProperties(properties, arg.Properties())
 	}
 	if properties != e.Properties() {
 		return fmt.Errorf("stuntgres: invalid stored index property properties")
@@ -208,7 +209,7 @@ func validateStoredIndexPropertyExpression(e indexPropertyExpression) error {
 	return nil
 }
 
-func (e indexPropertyExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e indexPropertyExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err

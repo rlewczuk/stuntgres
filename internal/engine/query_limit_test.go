@@ -5,11 +5,12 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func queryLimitBound(t *testing.T, e *Engine, value int64) BoundExpr {
+func queryLimitBound(t *testing.T, e *Engine, value int64) expr.Expr {
 	t.Helper()
 	typ, _ := e.CatalogRead().LookupType(sqltype.Int8)
 	v, err := sqltype.Integer(typ, value)
@@ -75,7 +76,7 @@ func TestQueryLimitBoundsOnce(t *testing.T) {
 	project := query.Root.(*projectNode)
 	typ, _ := e.CatalogRead().LookupType(sqltype.Int8)
 	var calls []string
-	probe := func(name string, n int64) BoundExpr {
+	probe := func(name string, n int64) expr.Expr {
 		v, _ := sqltype.Integer(typ, n)
 		return queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) { calls = append(calls, name); return v, nil })
 	}
@@ -116,7 +117,7 @@ func TestQueryLimitCancellation(t *testing.T) {
 				filter.predicate = queryProbe(bt.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; cancel(); return sqltype.Boolean(bt, false), nil })
 			} else {
 				original := project.expressions[0]
-				expr := queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+				bound := queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 					calls++
 					if phase != "prepublication" || calls == 2 {
 						cancel()
@@ -125,12 +126,12 @@ func TestQueryLimitCancellation(t *testing.T) {
 				})
 				if phase == "offset" {
 					limit.offset = queryLimitBound(t, e, 1)
-					limit.child = &evaluationNode{querySchema: filter.Schema(), child: filter, expressions: []BoundExpr{expr}}
+					limit.child = &evaluationNode{querySchema: filter.Schema(), child: filter, expressions: []expr.Expr{bound}}
 				} else {
 					if phase == "prepublication" {
 						limit.count = queryLimitBound(t, e, 2)
 					}
-					project.expressions[0] = expr
+					project.expressions[0] = bound
 				}
 			}
 			rows, n, err := finalizeQuery(ctx, project, source, nil)

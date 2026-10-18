@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -31,8 +32,8 @@ func TestJSONBExistsBinding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expr, ok := bound.(functions.Binary)
-			if !ok || expr.Plan.Name() != name || !expr.Plan.Immutable() || bound.ResultUsage() != b.typ(sqltype.Bool).Usage() || !bound.Properties().ParameterDependent || bound.Properties().Volatility != Immutable || b.parameters[1].Type.ID() != sqltype.JSONB {
+			node, ok := bound.(functions.Binary)
+			if !ok || node.Plan.Name() != name || !node.Plan.Immutable() || bound.ResultUsage() != b.typ(sqltype.Bool).Usage() || !bound.Properties().ParameterDependent || bound.Properties().Volatility != expr.Immutable || b.parameters[1].Type.ID() != sqltype.JSONB {
 				t.Fatal(bound, b.parameters)
 			}
 			right := sqltype.Text
@@ -42,11 +43,11 @@ func TestJSONBExistsBinding(t *testing.T) {
 			if b.parameters[2].Type.ID() != right {
 				t.Fatal(b.parameters)
 			}
-			next, err := expr.Reconstruct(expr.Info, expr.Args)
-			if err != nil || next.Plan != expr.Plan || next.Syntax != expr.Syntax || next.Property != expr.Property {
+			next, err := node.Reconstruct(node.Info, node.Args)
+			if err != nil || next.Plan != node.Plan || next.Syntax != node.Syntax || next.Property != node.Property {
 				t.Fatal(next, err)
 			}
-			if pgIndexFunctionExpression(expr) {
+			if pgIndexFunctionExpression(node) {
 				t.Fatal("operator classified as function")
 			}
 		})
@@ -71,11 +72,11 @@ func TestJSONBExistsRetagAndDeparse(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		args := []BoundExpr{
-			literalExpression{expressionInfo: expressionInfo{Usage: b.typ(sqltype.JSONB).Usage()}, value: doc},
-			literalExpression{expressionInfo: expressionInfo{Usage: right.Usage()}, value: key},
+		args := []expr.Expr{
+			literalExpression{Info: expr.Info{Usage: b.typ(sqltype.JSONB).Usage()}, value: doc},
+			literalExpression{Info: expr.Info{Usage: right.Usage()}, value: key},
 		}
-		expr, err := functions.NewBinary(b.info(b.typ(sqltype.Bool).Usage(), parser.Position{}, ExprProperties{}), name, args, parser.OrdinaryFunctionSyntax)
+		expr, err := functions.NewBinary(b.info(b.typ(sqltype.Bool).Usage(), parser.Position{}, expr.Properties{}), name, args, parser.OrdinaryFunctionSyntax)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -1,16 +1,19 @@
 package engine
 
-import "stuntgres/internal/sqltype"
+import (
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/sqltype"
+)
 
 // A query-macro NEW recipe uses the same typed path and assignment codec as the
 // ordinary mutation executor; it does not execute a physical row callback.
 type assignmentValueExpression struct {
-	expressionInfo
-	base, value BoundExpr
+	expr.Info
+	base, value expr.Expr
 	target      *arrayAssignmentTarget
 }
 
-func (e assignmentValueExpression) Eval(ctx ExprContext) (sqltype.Value, error) {
+func (e assignmentValueExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err

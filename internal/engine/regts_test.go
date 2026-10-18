@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -168,7 +169,7 @@ func TestRegTSPersistenceRemap(t *testing.T) {
 			}
 		}
 	}
-	literal := literalExpression{expressionInfo: expressionInfo{Usage: dictionary.Usage()}, value: live}
+	literal := literalExpression{Info: expr.Info{Usage: dictionary.Usage()}, value: live}
 	text, err := catalogLiteralSQL(ctx, view, literal)
 	if err != nil || !strings.Contains(text, `"Reg.TS".unaccent`) || strings.Contains(text, "91000") {
 		t.Fatal("qualified logical reference", text, err)

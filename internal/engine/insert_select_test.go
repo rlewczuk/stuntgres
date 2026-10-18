@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -61,14 +62,14 @@ func TestInsertSelectCommonTypes(t *testing.T) {
 		}
 		return typ.Usage()
 	}
-	nodes := func(ids ...sqltype.ID) [][]BoundExpr {
-		rows := make([][]BoundExpr, len(ids))
+	nodes := func(ids ...sqltype.ID) [][]expr.Expr {
+		rows := make([][]expr.Expr, len(ids))
 		for i, id := range ids {
 			u := sqltype.Usage{}
 			if id != sqltype.Unknown {
 				u = usage(id)
 			}
-			rows[i] = []BoundExpr{queryProbe(u, nil)}
+			rows[i] = []expr.Expr{queryProbe(u, nil)}
 		}
 		return rows
 	}

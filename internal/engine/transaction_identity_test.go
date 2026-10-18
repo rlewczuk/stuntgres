@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -227,7 +228,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 		if tc.kind != identityCurrent && tc.kind != identityAssigned {
 			raw.Args = []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}
 		}
-		var bound BoundExpr
+		var bound expr.Expr
 		var err error
 		if tc.kind == identityAge {
 			raw.Args = []parser.Expr{ageFiniteTyped("xid", "0")}
@@ -249,15 +250,15 @@ func TestTransactionIdentityBinding(t *testing.T) {
 		if tc.kind != identityMembers && n.ResultUsage().Type.ID() != tc.result {
 			t.Fatal("result usage", tc.kind)
 		}
-		intrinsic := Stable
+		intrinsic := expr.Stable
 		if tc.kind == identityStatus || tc.kind == identityMembers {
-			intrinsic = Volatile
+			intrinsic = expr.Volatile
 		}
 		if plannedVolatility(n) != intrinsic || conditionalConstantInputs(n) || generationImmutable(n) {
 			t.Fatal("unsafe constant/volatility admission", tc.kind)
 		}
 		count := 0
-		boundExpressionChildren(n, func(BoundExpr) { count++ })
+		boundExpressionChildren(n, func(expr.Expr) { count++ })
 		if count != len(raw.Args) {
 			t.Fatal("closed traversal", tc.kind, count)
 		}

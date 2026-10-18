@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -41,17 +42,17 @@ func TestQuerySubquerySecondProjectedTuple(t *testing.T) {
 					}
 					return sqltype.Integer(usage.Type, 1)
 				})
-				expr := subqueryTestExpression(t, e, q, kind)
+				bound := subqueryTestExpression(t, e, q, kind)
 				if kind == parser.SubqueryRow {
-					predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, usage.Type, usage.Type, expr.Usage.Type, usage.Collation, false)
+					predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, usage.Type, usage.Type, bound.Usage.Type, usage.Collation, false)
 					if err != nil {
 						t.Fatal(err)
 					}
-					expr.comparisons = []comparisonExpression{{left: literalExpression{expressionInfo: expressionInfo{Usage: usage}, value: subqueryTestInteger(t, usage.Type, 1)}, right: columnExpression{expressionInfo: expressionInfo{Usage: usage}, scope: 1, frame: project.frame, slot: 0}, predicate: predicate}}
+					bound.comparisons = []comparisonExpression{{left: literalExpression{Info: expr.Info{Usage: usage}, value: subqueryTestInteger(t, usage.Type, 1)}, right: columnExpression{Info: expr.Info{Usage: usage}, scope: 1, frame: project.frame, slot: 0}, predicate: predicate}}
 				}
 				parent := queryState{source: source}
 				c := parent.evaluation(ctx)
-				_, err := expr.Eval(&c)
+				_, err := bound.Eval(&c)
 				if calls != 2 {
 					t.Fatal("must project exactly two tuples", calls, err)
 				}
@@ -91,8 +92,8 @@ func TestQuerySubqueryProjectionScheduling(t *testing.T) {
 			}
 			immutable := queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Integer(usage.Type, 1) })
 			volatile := immutable.(queryProbeExpression)
-			volatile.Property.Volatility = Volatile
-			projection := []BoundExpr{immutable, volatile}
+			volatile.Property.Volatility = expr.Volatile
+			projection := []expr.Expr{immutable, volatile}
 			b := expressionBinder{}
 			next := b.scheduleQueryProjection(root, projection, bounded)
 			if sorting {
@@ -211,12 +212,12 @@ func TestQuerySubqueryPresenceProperties(t *testing.T) {
 			t.Fatal("property visitor evaluated ignored expression")
 			return sqltype.Value{}, nil
 		}).(queryProbeExpression)
-		probe.Property.Volatility = Volatile
+		probe.Property.Volatility = expr.Volatile
 		probe.Property.RowDependent = true
 		if distinct {
-			project.child = &distinctNode{child: project.child, expressions: []BoundExpr{probe}}
+			project.child = &distinctNode{child: project.child, expressions: []expr.Expr{probe}}
 		} else {
-			project.child = &aggregateNode{child: project.child, keys: []BoundExpr{probe}}
+			project.child = &aggregateNode{child: project.child, keys: []expr.Expr{probe}}
 		}
 		project.expressions[0] = probe
 		plan, err := presenceQueryPlan(q)
@@ -224,12 +225,12 @@ func TestQuerySubqueryPresenceProperties(t *testing.T) {
 			t.Fatal(err)
 		}
 		properties := queryDemandProperties(plan.Root.(*projectNode), true)
-		if properties.Volatility == Volatile || properties.RowDependent {
+		if properties.Volatility == expr.Volatile || properties.RowDependent {
 			t.Fatal("ignored graph polluted demand properties", properties)
 		}
 		nested := subqueryExpression{kind: parser.SubqueryExists, queryPlan: plan, presenceOnly: true}
-		outer := &projectNode{frame: 99, child: &singletonNode{}, expressions: []BoundExpr{nested}}
-		if properties := queryDemandProperties(outer, false); properties.Volatility == Volatile || properties.RowDependent {
+		outer := &projectNode{frame: 99, child: &singletonNode{}, expressions: []expr.Expr{nested}}
+		if properties := queryDemandProperties(outer, false); properties.Volatility == expr.Volatile || properties.RowDependent {
 			t.Fatal("nested ignored target polluted demand properties", properties)
 		}
 	}
@@ -273,15 +274,15 @@ func TestQuerySubqueryLiteralDemandBoundary(t *testing.T) {
 	e, query, source := queryJoinsFixture(t, "SELECT TRUE FROM a")
 	child := subqueryTestExpression(t, e, query, parser.SubqueryScalar)
 	typ := child.Usage.Type
-	info := expressionInfo{Usage: typ.Usage()}
-	falseLiteral := literalExpression{expressionInfo: info, value: sqltype.Boolean(typ, false)}
-	trueLiteral := literalExpression{expressionInfo: info, value: sqltype.Boolean(typ, true)}
-	nullLiteral := literalExpression{expressionInfo: info, value: sqltype.Null(typ)}
-	parameter := parameterExpression{expressionInfo: info, number: 1}
+	info := expr.Info{Usage: typ.Usage()}
+	falseLiteral := literalExpression{Info: info, value: sqltype.Boolean(typ, false)}
+	trueLiteral := literalExpression{Info: info, value: sqltype.Boolean(typ, true)}
+	nullLiteral := literalExpression{Info: info, value: sqltype.Null(typ)}
+	parameter := parameterExpression{Info: info, number: 1}
 	for _, tc := range []struct {
 		name        string
 		op          parser.LogicalOperator
-		left, right BoundExpr
+		left, right expr.Expr
 		want        bool
 		state       string
 	}{
@@ -296,7 +297,7 @@ func TestQuerySubqueryLiteralDemandBoundary(t *testing.T) {
 			parent := queryState{source: source}
 			c := parent.evaluation(context.Background())
 			c.Parameters = []sqltype.Value{sqltype.Boolean(typ, false)}
-			expression := logicalExpression{expressionInfo: info, op: tc.op, left: tc.left, right: tc.right, queryRight: tc.right != nil}
+			expression := logicalExpression{Info: info, op: tc.op, left: tc.left, right: tc.right, queryRight: tc.right != nil}
 			value, err := expression.Eval(&c)
 			if tc.state != "" {
 				var diagnostic *sqlstate.Error

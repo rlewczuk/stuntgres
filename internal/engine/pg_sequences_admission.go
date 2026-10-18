@@ -1,17 +1,20 @@
 package engine
 
-import "stuntgres/internal/parser"
+import (
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/parser"
+)
 
 // This is only the sequence view's definition qualifier frontier. It is not a
 // general predicate optimizer: unknown, volatile and helper-dependent expressions
 // remain in their original evaluation stage.
-func mapPGSequencesPredicate(expr BoundExpr, column func(columnExpression) (BoundExpr, bool)) (BoundExpr, bool) {
-	if expr == nil {
+func mapPGSequencesPredicate(bound expr.Expr, column func(columnExpression) (expr.Expr, bool)) (expr.Expr, bool) {
+	if bound == nil {
 		return nil, false
 	}
-	switch n := expr.(type) {
+	switch n := bound.(type) {
 	case literalExpression, parameterExpression:
-		return expr, true
+		return bound, true
 	case columnExpression:
 		return column(n)
 	case comparisonExpression:
@@ -30,7 +33,7 @@ func mapPGSequencesPredicate(expr BoundExpr, column func(columnExpression) (Boun
 		if !ok {
 			return nil, false
 		}
-		var right BoundExpr
+		var right expr.Expr
 		if n.right != nil {
 			right, ok = mapPGSequencesPredicate(n.right, column)
 			if !ok {
@@ -53,14 +56,14 @@ func mapPGSequencesPredicate(expr BoundExpr, column func(columnExpression) (Boun
 // Admission must prove the whole expression belongs to the current evaluation
 // frame before splitting AND or interpreting any numeric slot. In particular,
 // a correlated column cannot be substituted with a coincident local slot.
-func pgSequencesPredicateInFrame(predicate BoundExpr, frame uint32) bool {
-	_, ok := mapPGSequencesPredicate(predicate, func(column columnExpression) (BoundExpr, bool) {
+func pgSequencesPredicateInFrame(predicate expr.Expr, frame uint32) bool {
+	_, ok := mapPGSequencesPredicate(predicate, func(column columnExpression) (expr.Expr, bool) {
 		return column, frame != 0 && column.scope == 1 && column.frame == frame && column.virtual == nil
 	})
 	return ok
 }
 
-func admitPGSequencesPredicate(node LogicalNode, inputs *querySource, predicate BoundExpr, offset int, frame uint32) {
+func admitPGSequencesPredicate(node LogicalNode, inputs *querySource, predicate expr.Expr, offset int, frame uint32) {
 	if inputs == nil || !pgSequencesPredicateInFrame(predicate, frame) {
 		return
 	}
@@ -83,7 +86,7 @@ func admitPGSequencesPredicate(node LogicalNode, inputs *querySource, predicate 
 		if !ok {
 			return
 		}
-		mapped, valid := mapPGSequencesPredicate(predicate, func(column columnExpression) (BoundExpr, bool) {
+		mapped, valid := mapPGSequencesPredicate(predicate, func(column columnExpression) (expr.Expr, bool) {
 			slot := column.slot - offset
 			if slot < 0 || slot >= len(project.expressions) {
 				return nil, false
@@ -97,7 +100,7 @@ func admitPGSequencesPredicate(node LogicalNode, inputs *querySource, predicate 
 		}
 	case *sourceNode:
 		source := querySourceAt(inputs, n.occurrence)
-		mapped, ok := mapPGSequencesPredicate(predicate, func(column columnExpression) (BoundExpr, bool) {
+		mapped, ok := mapPGSequencesPredicate(predicate, func(column columnExpression) (expr.Expr, bool) {
 			slot := column.slot - offset
 			if slot < 0 || slot >= len(n.Schema()) {
 				return nil, false
@@ -112,7 +115,7 @@ func admitPGSequencesPredicate(node LogicalNode, inputs *querySource, predicate 
 	}
 }
 
-func admitPGSequencesSource(source *querySource, predicate BoundExpr, frame uint32) {
+func admitPGSequencesSource(source *querySource, predicate expr.Expr, frame uint32) {
 	if source == nil || !pgSequencesPredicateInFrame(predicate, frame) {
 		return
 	}
@@ -124,7 +127,7 @@ func admitPGSequencesSource(source *querySource, predicate BoundExpr, frame uint
 			admitPGSequencesSource(source, conjunction.right, frame)
 			return
 		}
-		mapped, ok := mapPGSequencesPredicate(predicate, func(column columnExpression) (BoundExpr, bool) {
+		mapped, ok := mapPGSequencesPredicate(predicate, func(column columnExpression) (expr.Expr, bool) {
 			return column, column.slot >= 0 && column.slot < 10
 		})
 		if ok {
@@ -133,7 +136,7 @@ func admitPGSequencesSource(source *querySource, predicate BoundExpr, frame uint
 		return
 	}
 	if source.input != nil {
-		mapped, ok := mapPGSequencesPredicate(predicate, func(column columnExpression) (BoundExpr, bool) {
+		mapped, ok := mapPGSequencesPredicate(predicate, func(column columnExpression) (expr.Expr, bool) {
 			if column.slot < 0 || column.slot >= len(source.layout) || source.layout[column.slot] < 0 {
 				return nil, false
 			}
@@ -147,7 +150,7 @@ func admitPGSequencesSource(source *querySource, predicate BoundExpr, frame uint
 		return
 	}
 	if project, ok := source.nestedRoot.(*projectNode); ok {
-		mapped, valid := mapPGSequencesPredicate(predicate, func(column columnExpression) (BoundExpr, bool) {
+		mapped, valid := mapPGSequencesPredicate(predicate, func(column columnExpression) (expr.Expr, bool) {
 			if column.slot < 0 || column.slot >= len(project.expressions) {
 				return nil, false
 			}

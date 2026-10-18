@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -67,7 +68,7 @@ func TestUpdateFromImportedPreflightCopiesOnlyChangedTree(t *testing.T) {
 			t.Fatal("analyzed output mutated")
 		}
 	}
-	unchanged := &boundUpdate{assignments: []BoundExpr{output.expressions[1]}, from: join.left}
+	unchanged := &boundUpdate{assignments: []expr.Expr{output.expressions[1]}, from: join.left}
 	eval := EvalContext{Context: context.Background()}
 	same, err := preflightUpdate(&eval, unchanged)
 	if err != nil || same != unchanged {

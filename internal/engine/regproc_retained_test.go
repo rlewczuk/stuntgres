@@ -7,6 +7,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -31,10 +32,10 @@ func TestRoutineRetainedWriteInputAuthority(t *testing.T) {
 	// A restored fragment expression retains this character-to-container cast.
 	// Its consuming statement must supply input authority without rebinding it.
 	node := coercionExpression{
-		expressionInfo: expressionInfo{Usage: pair.Usage()},
-		child:          literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: value},
-		plan:           plan,
-		mode:           sqltype.Explicit,
+		Info:  expr.Info{Usage: pair.Usage()},
+		child: literalExpression{Info: expr.Info{Usage: text.Usage()}, value: value},
+		plan:  plan,
+		mode:  sqltype.Explicit,
 	}
 	for _, route := range []string{"default", "generation", "check"} {
 		for _, named := range []bool{false, true} {
@@ -46,12 +47,12 @@ func TestRoutineRetainedWriteInputAuthority(t *testing.T) {
 			}
 			t.Run(name, func(t *testing.T) {
 				b := newTestExpressionBinder(t, context.Background(), e, input, nil)
-				var defaults []BoundExpr
+				var defaults []expr.Expr
 				var generations map[int32]columnGeneration
 				var checks []checkConstraint
 				switch route {
 				case "default":
-					defaults = []BoundExpr{node}
+					defaults = []expr.Expr{node}
 				case "generation":
 					generations = map[int32]columnGeneration{1: {planned: node}}
 				case "check":

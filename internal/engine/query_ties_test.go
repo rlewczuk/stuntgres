@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -87,7 +88,7 @@ func TestQueryTiesLookaheadFailureAtomic(t *testing.T) {
 				}
 				return c.Row[0], nil
 			})
-			limit.child = &evaluationNode{querySchema: limit.child.Schema(), child: limit.child, expressions: []BoundExpr{probe}}
+			limit.child = &evaluationNode{querySchema: limit.child.Schema(), child: limit.child, expressions: []expr.Expr{probe}}
 			rows, count, err := finalizeQuery(ctx, query.Root, source, nil)
 			want := sentinel
 			if cancelled {

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -42,7 +43,7 @@ func TestExpressionArithmeticInferenceAndDependencies(t *testing.T) {
 		}
 		project := bound.query.Root.(*projectNode)
 		for i, n := range project.expressions {
-			if n.ResultUsage().Type.ID() != tc.results[i] || !n.Properties().ParameterDependent || n.Properties().Volatility != Immutable {
+			if n.ResultUsage().Type.ID() != tc.results[i] || !n.Properties().ParameterDependent || n.Properties().Volatility != expr.Immutable {
 				t.Fatal(n)
 			}
 			if tc.q == "SELECT s+$1,i+$1 FROM t" && i == 1 {

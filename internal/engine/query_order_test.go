@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -37,7 +38,7 @@ func TestQueryOrderCacheAndCancellation(t *testing.T) {
 			}
 			sorted.keys = []sortKey{{expression: key, comparison: provider, slot: -1, cache: 0, desc: true}}
 			sorted.cacheWidth = 1
-			project.expressions = []BoundExpr{cachedOrderExpression{expressionInfo: expressionInfo{Usage: usage, Property: ExprProperties{StageDependent: true}}, slot: 0}}
+			project.expressions = []expr.Expr{cachedOrderExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{StageDependent: true}}, slot: 0}}
 			rows, count, err := finalizeQuery(ctx, query.Root, source, nil)
 			if failure != "none" {
 				want := error(sentinel)

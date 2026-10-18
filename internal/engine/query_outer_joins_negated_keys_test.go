@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -12,11 +13,11 @@ func TestQueryOuterJoinsNegatedKeys(t *testing.T) {
 	e := New()
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
-	info := expressionInfo{Usage: boolean.Usage(), Property: ExprProperties{RowDependent: true, ParameterDependent: true, StageDependent: true}}
-	columnInfo := expressionInfo{Usage: integer.Usage(), Property: info.Property}
-	left := columnExpression{expressionInfo: columnInfo, slot: 0}
-	right := columnExpression{expressionInfo: columnInfo, slot: 1}
-	comparison := func(op string, a, b BoundExpr) comparisonExpression {
+	info := expr.Info{Usage: boolean.Usage(), Property: expr.Properties{RowDependent: true, ParameterDependent: true, StageDependent: true}}
+	columnInfo := expr.Info{Usage: integer.Usage(), Property: info.Property}
+	left := columnExpression{Info: columnInfo, slot: 0}
+	right := columnExpression{Info: columnInfo, slot: 1}
+	comparison := func(op string, a, b expr.Expr) comparisonExpression {
 		t.Helper()
 		operator := map[string]sqltype.ComparisonOperator{
 			"=": sqltype.CompareEqual, "<>": sqltype.CompareNotEqual,
@@ -27,25 +28,25 @@ func TestQueryOuterJoinsNegatedKeys(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return comparisonExpression{expressionInfo: info, left: a, right: b, operator: op, predicate: provider}
+		return comparisonExpression{Info: info, left: a, right: b, operator: op, predicate: provider}
 	}
-	logical := func(op parser.LogicalOperator, a, b BoundExpr) logicalExpression {
-		return logicalExpression{expressionInfo: info, op: op, left: a, right: b}
+	logical := func(op parser.LogicalOperator, a, b expr.Expr) logicalExpression {
+		return logicalExpression{Info: info, op: op, left: a, right: b}
 	}
-	not := func(a BoundExpr) BoundExpr { return logical(parser.LogicalNot, a, nil) }
+	not := func(a expr.Expr) expr.Expr { return logical(parser.LogicalNot, a, nil) }
 	equal := comparison("=", left, right)
 	unequal := comparison("<>", left, right)
-	unknown := literalExpression{expressionInfo: expressionInfo{Usage: boolean.Usage()}, value: sqltype.Null(boolean)}
+	unknown := literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: sqltype.Null(boolean)}
 	one, _ := sqltype.Integer(integer, 1)
 	two, _ := sqltype.Integer(integer, 2)
-	constant := literalExpression{expressionInfo: expressionInfo{Usage: integer.Usage()}, value: one}
+	constant := literalExpression{Info: expr.Info{Usage: integer.Usage()}, value: one}
 	volatile := left
-	volatile.Property.Volatility = Volatile
+	volatile.Property.Volatility = expr.Volatile
 	stable := left
-	stable.Property.Volatility = Stable
+	stable.Property.Volatility = expr.Stable
 	cases := []struct {
 		name string
-		expr BoundExpr
+		expr expr.Expr
 		keys int
 	}{
 		{"plain_equality", equal, 1},

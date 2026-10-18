@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
@@ -11,7 +12,7 @@ func validatePolicyExpression(view CatalogRead, owner *relationDescriptor, expre
 		return fmt.Errorf("stuntgres: invalid policy condition")
 	}
 	var invalid bool
-	walkBoundExpression(expression.expression, func(node BoundExpr) {
+	walkBoundExpression(expression.expression, func(node expr.Expr) {
 		switch node.(type) {
 		case parameterExpression, aggregateExpression, *windowExpression:
 			invalid = true
@@ -20,7 +21,7 @@ func validatePolicyExpression(view CatalogRead, owner *relationDescriptor, expre
 	if invalid {
 		return fmt.Errorf("stuntgres: invalid policy-level expression")
 	}
-	walkQueryArgumentExpression(expression.expression, func(node BoundExpr) {
+	walkQueryArgumentExpression(expression.expression, func(node expr.Expr) {
 		if _, parameter := node.(parameterExpression); parameter {
 			invalid = true
 		}

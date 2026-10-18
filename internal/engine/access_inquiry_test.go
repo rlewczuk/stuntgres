@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -34,7 +35,7 @@ func TestAccessInquiryBinding(t *testing.T) {
 		t.Run(tc.sql, func(t *testing.T) {
 			q := domainUnitBindSelect(t, e, op, tc.sql)
 			n, ok := q.Root.(*projectNode).expressions[0].(accessInquiryExpression)
-			if !ok || n.count != len(tc.ids) || n.rowSecurity != tc.rls || n.ResultUsage().Type.ID() != sqltype.Bool || n.Properties().Volatility != Stable {
+			if !ok || n.count != len(tc.ids) || n.rowSecurity != tc.rls || n.ResultUsage().Type.ID() != sqltype.Bool || n.Properties().Volatility != expr.Stable {
 				t.Fatalf("typed signature %#v", n)
 			}
 			for i, id := range tc.ids {
@@ -46,7 +47,7 @@ func TestAccessInquiryBinding(t *testing.T) {
 				t.Fatal(err)
 			}
 			bad := n
-			bad.Property.Volatility = Immutable
+			bad.Property.Volatility = expr.Immutable
 			if bad.validateStored() == nil {
 				t.Fatal("accepted immutable inquiry")
 			}
@@ -164,11 +165,11 @@ func TestAccessInquiryLifecycle(t *testing.T) {
 	oid, _ := view.LookupType(sqltype.Oid)
 	name, _ := view.LookupType(sqltype.Name)
 	text, _ := view.LookupType(sqltype.Text)
-	n := accessInquiryExpression{expressionInfo: expressionInfo{Usage: boolean.Usage(), Property: ExprProperties{Volatility: Stable}}, count: 3}
-	n.args[0] = literalExpression{expressionInfo: expressionInfo{Usage: name.Usage()}, value: sqltype.String(name, "postgres")}
+	n := accessInquiryExpression{Info: expr.Info{Usage: boolean.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, count: 3}
+	n.args[0] = literalExpression{Info: expr.Info{Usage: name.Usage()}, value: sqltype.String(name, "postgres")}
 	v, _ := sqltype.OIDValue(oid, 10)
-	n.args[1] = literalExpression{expressionInfo: expressionInfo{Usage: oid.Usage()}, value: v}
-	n.args[2] = literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, "MEMBER")}
+	n.args[1] = literalExpression{Info: expr.Info{Usage: oid.Usage()}, value: v}
+	n.args[2] = literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "MEMBER")}
 	destination := New().CatalogRead()
 	mapped, changed, err := retagBoundTypes(destination, n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == nil {
@@ -195,7 +196,7 @@ func TestAccessInquiryLifecycle(t *testing.T) {
 	if n.args[0].ResultUsage().Type != name {
 		t.Fatal("mutated original children")
 	}
-	rewritten, changed, err := mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(child BoundExpr) (BoundExpr, bool, error) {
+	rewritten, changed, err := mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(child expr.Expr) (expr.Expr, bool, error) {
 		if literal, ok := child.(literalExpression); ok && literal.value.Type().ID() == sqltype.Name {
 			literal.value = sqltype.String(name, "replacement")
 			return literal, true, nil

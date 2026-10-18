@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -43,7 +44,7 @@ func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view CatalogRead) *typeDesc
 		}
 	}
 	valueLeaves := 0
-	walkBoundExpression(check.expression, func(node BoundExpr) {
+	walkBoundExpression(check.expression, func(node expr.Expr) {
 		if _, ok := node.(domainValueExpression); ok {
 			valueLeaves++
 			if node.ResultUsage() != d.typ.DomainBase() {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -65,7 +66,7 @@ func TestCompareOpsBindingPropertiesAndOccurrences(t *testing.T) {
 				t.Fatal(node)
 			}
 			p := comparison.Properties()
-			if p.RowDependent != tc.row || p.ParameterDependent != tc.parameter || p.StageDependent || p.Volatility != Immutable {
+			if p.RowDependent != tc.row || p.ParameterDependent != tc.parameter || p.StageDependent || p.Volatility != expr.Immutable {
 				t.Fatal(tc.q, p)
 			}
 			raw := ast.(*parser.Select).Targets[i].(parser.OperatorExpr)
@@ -76,7 +77,7 @@ func TestCompareOpsBindingPropertiesAndOccurrences(t *testing.T) {
 			if result.Name != "?column?" || result.OriginTable != 0 || result.OriginAttribute != 0 || result.NullabilityKnown {
 				t.Fatal(result)
 			}
-			for j, child := range []BoundExpr{comparison.left, comparison.right} {
+			for j, child := range []expr.Expr{comparison.left, comparison.right} {
 				if child.SourcePosition() != raw.Args[j].SourcePosition() {
 					t.Fatal(child.SourcePosition(), raw.Args[j].SourcePosition())
 				}
@@ -102,7 +103,7 @@ func TestCompareOpsBindingPropertiesAndOccurrences(t *testing.T) {
 func TestCompareOpsUnknownOccurrenceConflict(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	p := parameterExpression{expressionInfo: expressionInfo{Pos: parser.Position{Character: 8}, Property: ExprProperties{ParameterDependent: true}}, number: 1}
+	p := parameterExpression{Info: expr.Info{Pos: parser.Position{Character: 8}, Property: expr.Properties{ParameterDependent: true}}, number: 1}
 	b.parameters[1] = b.typ(sqltype.Int4).Usage()
 	_, err := b.coerceParameter(p, b.typ(sqltype.Text).Usage())
 	state(t, err, "42P08")

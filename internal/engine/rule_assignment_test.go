@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -16,7 +17,7 @@ func TestRuleAssignmentMapping(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	index := literalExpression{expressionInfo: binder.info(integer.Usage(), parser.Position{}, ExprProperties{}), value: value}
+	index := literalExpression{Info: binder.info(integer.Usage(), parser.Position{}, expr.Properties{}), value: value}
 	plan, err := sqltype.PlanCoercion(array.Usage(), array.Usage(), sqltype.Assignment)
 	if err != nil {
 		t.Fatal(err)
@@ -24,7 +25,7 @@ func TestRuleAssignmentMapping(t *testing.T) {
 	tail := &arrayAssignmentTarget{container: array.Usage(), destination: integer.Usage(), reapply: plan, node: subscriptExpression{subscripts: []boundArraySubscript{{upper: index}}}}
 	head := &arrayAssignmentTarget{container: array.Usage(), destination: array.Usage(), reapply: plan, next: tail}
 	targets := []*arrayAssignmentTarget{head, nil}
-	identity := func(expr BoundExpr) (BoundExpr, bool, error) { return expr, false, nil }
+	identity := func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil }
 	usage := func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil }
 	mapped, err := mapRuleAssignmentTargets(targets, identity, usage)
 	if err != nil || &mapped[0] != &targets[0] || mapped[0] != head || mapped[0].next != tail {
@@ -38,8 +39,8 @@ func TestRuleAssignmentMapping(t *testing.T) {
 	}); allocations != 0 {
 		t.Fatalf("identity mapping allocated %g times", allocations)
 	}
-	replacement := parameterExpression{expressionInfo: binder.info(integer.Usage(), parser.Position{}, ExprProperties{ParameterDependent: true}), number: 1}
-	changed, err := mapRuleAssignmentTargets(targets, func(expr BoundExpr) (BoundExpr, bool, error) {
+	replacement := parameterExpression{Info: binder.info(integer.Usage(), parser.Position{}, expr.Properties{ParameterDependent: true}), number: 1}
+	changed, err := mapRuleAssignmentTargets(targets, func(expr expr.Expr) (expr.Expr, bool, error) {
 		if expr == nil {
 			return nil, false, nil
 		}

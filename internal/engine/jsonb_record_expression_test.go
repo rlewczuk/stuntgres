@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -38,7 +39,7 @@ func TestJSONBRecordBinding(t *testing.T) {
 		t.Fatal("lost definition usage", node, ns)
 	}
 	call := source.calls[0].(functions.JSONBRecord)
-	if isQuerySet(call) || !validFunctionSourceCall(call) || !call.Definitions || call.Unresolved || call.Properties().Volatility != Stable {
+	if isQuerySet(call) || !validFunctionSourceCall(call) || !call.Definitions || call.Unresolved || call.Properties().Volatility != expr.Stable {
 		t.Fatal("invalid scalar properties", call)
 	}
 	eval := &EvalContext{Context: context.Background()}
@@ -76,7 +77,7 @@ func TestJSONBRecordBinding(t *testing.T) {
 	if !sameGroupExpression(call, call) {
 		t.Fatal("record equality lost")
 	}
-	if plannedVolatility(call) != Stable {
+	if plannedVolatility(call) != expr.Stable {
 		t.Fatal("record incorrectly immutable")
 	}
 	raw.Name.Parts[0].Text = "jsonb_to_recordset"
@@ -237,12 +238,12 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	}
 	callFor := func(typ *sqltype.Descriptor) functions.JSONBRecord {
 		call := functions.JSONBRecord{
-			Info: expressionInfo{Usage: typ.Usage(), Pos: parser.Position{Offset: 40}},
+			Info: expr.Info{Usage: typ.Usage(), Pos: parser.Position{Offset: 40}},
 			Name: "jsonb_populate_record",
 		}
-		args := []BoundExpr{
-			literalExpression{expressionInfo{Usage: typ.Usage()}, sqltype.Null(typ)},
-			literalExpression{expressionInfo{Usage: jsonb.Usage()}, document},
+		args := []expr.Expr{
+			literalExpression{expr.Info{Usage: typ.Usage()}, sqltype.Null(typ)},
+			literalExpression{expr.Info{Usage: jsonb.Usage()}, document},
 		}
 		next, err := call.Reconstruct(call.Info, args)
 		if err != nil {
@@ -283,7 +284,7 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	ordinal := column("n", 8, first.Usage)
 	currentColumns := []queryColumn{left, currentSource[0], currentSource[1], currentSource[2], ordinal}
 	call := callFor(current)
-	node := &functionFromNode{calls: []BoundExpr{call}, ordinality: true, frame: 3}
+	node := &functionFromNode{calls: []expr.Expr{call}, ordinality: true, frame: 3}
 	qualifier := queryQualifier{sourceRoot: node, columns: append(append([]queryColumn(nil), currentSource...), ordinal)}
 	out, err = b.jsonbRecordStarColumns(currentColumns, 3, star, &qualifier)
 	if err != nil || len(out) != 4 {

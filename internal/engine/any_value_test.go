@@ -1,6 +1,10 @@
 package engine
 
-import "testing"
+import (
+	"testing"
+
+	"stuntgres/internal/engine/expr"
+)
 
 func TestAnyValueSlotsAndMetadata(t *testing.T) {
 	_, q, source := queryCoreFixture(t, "SELECT any_value(v),any_value(v),count(v),any_value(f) FROM t")
@@ -21,7 +25,7 @@ func TestAnyValueSlotsAndMetadata(t *testing.T) {
 		t.Fatal("volatile occurrences shared")
 	}
 	for _, call := range calls {
-		if !call.argument.Properties().ParameterDependent || call.argument.Properties().Volatility != Volatile {
+		if !call.argument.Properties().ParameterDependent || call.argument.Properties().Volatility != expr.Volatile {
 			t.Fatal(call.argument.Properties())
 		}
 	}

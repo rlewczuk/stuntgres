@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -23,20 +24,20 @@ func similarUnitTypes() (*sqltype.Descriptor, *sqltype.Descriptor) {
 
 func TestSimilarNormalizerPreflightDemand(t *testing.T) {
 	text, boolean := similarUnitTypes()
-	literal := func(s string) BoundExpr {
-		return literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.String(text, s)}
+	literal := func(s string) expr.Expr {
+		return literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, s)}
 	}
 	ep, err := sqltype.BindSimilarEscape(text.Usage(), text.Usage(), text.Usage())
 	if err != nil {
 		t.Fatal(err)
 	}
-	normalizer := functions.SimilarEscape{Info: expressionInfo{Usage: text.Usage()}, Pattern: literal("a"), Escape: literal("ab"), Provider: ep}
+	normalizer := functions.SimilarEscape{Info: expr.Info{Usage: text.Usage()}, Pattern: literal("a"), Escape: literal("ab"), Provider: ep}
 	mp, err := sqltype.BindSimilar("~", text.Usage(), text.Usage(), boolean.Usage(), text.Usage().Collation, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	null := literalExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, value: sqltype.Null(text)}
-	node := functions.Similar{Info: expressionInfo{Usage: boolean.Usage()}, Left: null, Right: normalizer, Provider: mp, Operator: "~"}
+	null := literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.Null(text)}
+	node := functions.Similar{Info: expr.Info{Usage: boolean.Usage()}, Left: null, Right: normalizer, Provider: mp, Operator: "~"}
 	_, _, err = preflightCoercions(&EvalContext{Context: context.Background()}, node)
 	state(t, err, "22025")
 	normalizer.Pattern = null
@@ -53,15 +54,15 @@ func TestSimilarNormalizerPreflightDemand(t *testing.T) {
 
 func TestSimilarDependencyChildren(t *testing.T) {
 	text, boolean := similarUnitTypes()
-	source := columnExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, slot: 0}
-	pattern := columnExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, slot: 1}
-	escape := columnExpression{expressionInfo: expressionInfo{Usage: text.Usage()}, slot: 2}
-	helper := functions.SimilarEscape{Info: expressionInfo{Usage: text.Usage()}, Pattern: pattern, Escape: escape}
-	predicate := functions.Similar{Info: expressionInfo{Usage: boolean.Usage()}, Left: source, Right: helper}
-	extraction := functions.SimilarSubstring{Info: expressionInfo{Usage: text.Usage()}, Args: [3]BoundExpr{source, pattern, escape}}
-	for _, node := range []BoundExpr{predicate, extraction} {
+	source := columnExpression{Info: expr.Info{Usage: text.Usage()}, slot: 0}
+	pattern := columnExpression{Info: expr.Info{Usage: text.Usage()}, slot: 1}
+	escape := columnExpression{Info: expr.Info{Usage: text.Usage()}, slot: 2}
+	helper := functions.SimilarEscape{Info: expr.Info{Usage: text.Usage()}, Pattern: pattern, Escape: escape}
+	predicate := functions.Similar{Info: expr.Info{Usage: boolean.Usage()}, Left: source, Right: helper}
+	extraction := functions.SimilarSubstring{Info: expr.Info{Usage: text.Usage()}, Args: [3]expr.Expr{source, pattern, escape}}
+	for _, node := range []expr.Expr{predicate, extraction} {
 		var slots []int
-		walkBoundExpression(node, func(n BoundExpr) {
+		walkBoundExpression(node, func(n expr.Expr) {
 			if column, ok := n.(columnExpression); ok {
 				slots = append(slots, column.slot)
 			}

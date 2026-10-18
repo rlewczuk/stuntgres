@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/engine/expr"
 )
 
 func soundexUnitExpression(t *testing.T, e *Engine, name string) installedSoundexFunctionExpression {
@@ -30,7 +31,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 	for i, name := range []string{"soundex", "difference"} {
 		t.Run(name, func(t *testing.T) {
 			n := soundexUnitExpression(t, e, name)
-			if n.ref.Address != ext.members[8+i] || n.procedure != e.catalog.state.Get(n.ref.Address) || plannedVolatility(n) != Immutable || !generationImmutable(n) {
+			if n.ref.Address != ext.members[8+i] || n.procedure != e.catalog.state.Get(n.ref.Address) || plannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
 				t.Fatal("identity/properties", n)
 			}
 			value, err := n.Eval(ctx)
@@ -43,12 +44,12 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 			if err := n.validate(e.CatalogRead()); err != nil { t.Fatal(err) }
 			refs, err := pgDependExpressionRefs(ctx.Context, e.CatalogRead(), n)
 			if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.ref.Address}) { t.Fatal(refs, err) }
-			var children []BoundExpr
-			boundExpressionChildren(n, func(child BoundExpr) { children = append(children, child) })
+			var children []expr.Expr
+			boundExpressionChildren(n, func(child expr.Expr) { children = append(children, child) })
 			if !reflect.DeepEqual(children, n.Args) || !sameGroupExpression(n, n) { t.Fatal(children) }
 			changed := n
-			changed.Args = append([]BoundExpr(nil), n.Args...)
-			changed.Args[0] = literalExpression{expressionInfo: boundExpressionInfo(n.Args[0]), value: sqltype.String(n.Args[0].ResultUsage().Type, "Andrew")}
+			changed.Args = append([]expr.Expr(nil), n.Args...)
+			changed.Args[0] = literalExpression{Info: expr.InfoOf(n.Args[0]), value: sqltype.String(n.Args[0].ResultUsage().Type, "Andrew")}
 			if sameGroupExpression(n, changed) { t.Fatal("argument identity collapsed") }
 			other := n
 			other.ref.Address = ext.members[0]
@@ -111,7 +112,7 @@ func TestSoundexExpressionRemap(t *testing.T) {
 			if err := e.reownCatalogExpressions(next, mapping, false); err != nil { t.Fatal(err) }
 			view := e.catalog.read(next)
 			relocated := next.MustRelation(address)
-			for _, node := range []BoundExpr{relocated.defaults[1].expression, relocated.generations[2].expression, relocated.generations[2].planned} {
+			for _, node := range []expr.Expr{relocated.defaults[1].expression, relocated.generations[2].expression, relocated.generations[2].planned} {
 				n := node.(installedSoundexFunctionExpression)
 				if n.ref.Address != mapping[call.ref.Address] || n.ref.Epoch != next.epoch || n.procedure != next.Get(n.ref.Address) { t.Fatal("stale remapped authority", n.ref) }
 				if err := n.validate(view); err != nil { t.Fatal(err) }
@@ -128,7 +129,7 @@ func TestSoundexExpressionProperties(t *testing.T) {
 	for _, name := range []string{"soundex", "difference"} {
 		n := soundexUnitExpression(t, e, name)
 		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		rewritten, err := binder.rewriteGroup(n, []BoundExpr{n.Args[0]})
+		rewritten, err := binder.rewriteGroup(n, []expr.Expr{n.Args[0]})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -139,19 +140,19 @@ func TestSoundexExpressionProperties(t *testing.T) {
 		if _, ok := n.Args[0].(literalExpression); !ok {
 			t.Fatal("group rewrite mutated source")
 		}
-		for _, property := range []ExprProperties{
-			{Volatility: Stable}, {Volatility: Volatile}, {RowDependent: true},
+		for _, property := range []expr.Properties{
+			{Volatility: expr.Stable}, {Volatility: expr.Volatile}, {RowDependent: true},
 			{ParameterDependent: true}, {StageDependent: true}, {DomainDependent: true},
 			{RuntimeDomainConversion: true},
 		} {
 			modified := n
-			modified.Args = append([]BoundExpr(nil), n.Args...)
-			modified.Args[0] = parameterExpression{expressionInfo: expressionInfo{Usage: n.Args[0].ResultUsage(), Property: property}, number: 1}
+			modified.Args = append([]expr.Expr(nil), n.Args...)
+			modified.Args[0] = parameterExpression{Info: expr.Info{Usage: n.Args[0].ResultUsage(), Property: property}, number: 1}
 			modified.Property = property
 			if plannedVolatility(modified) != property.Volatility {
 				t.Fatal("child volatility lost", property)
 			}
-			if property.Volatility != Immutable && generationImmutable(modified) {
+			if property.Volatility != expr.Immutable && generationImmutable(modified) {
 				t.Fatal("nonimmutable child admitted", property)
 			}
 			retagged, _, err := retagBoundTypes(e.CatalogRead(), modified, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -17,13 +18,13 @@ func TestDatetimeTruncBindingOwnership(t *testing.T) {
 	for _, tc := range []struct {
 		typ, source string
 		result      sqltype.ID
-		volatility  Volatility
+		volatility  expr.Volatility
 	}{
-		{"timestamp", "2001-02-16 12:34:56", sqltype.Timestamp, Immutable},
-		{"timestamptz", "2001-02-16 12:34:56+00", sqltype.Timestamptz, Stable},
-		{"interval", "1 day 12:34:56", sqltype.Interval, Immutable},
-		{"date", "2001-02-16", sqltype.Timestamptz, Stable},
-		{"time", "24:00", sqltype.Interval, Immutable},
+		{"timestamp", "2001-02-16 12:34:56", sqltype.Timestamp, expr.Immutable},
+		{"timestamptz", "2001-02-16 12:34:56+00", sqltype.Timestamptz, expr.Stable},
+		{"interval", "1 day 12:34:56", sqltype.Interval, expr.Immutable},
+		{"date", "2001-02-16", sqltype.Timestamptz, expr.Stable},
+		{"time", "24:00", sqltype.Interval, expr.Immutable},
 	} {
 		raw := datetimeMakeRaw("date_trunc", datetimeMakeString("day"), ageFiniteTyped(tc.typ, tc.source))
 		node, err := b.bindFunctionProvider(raw)
@@ -31,14 +32,14 @@ func TestDatetimeTruncBindingOwnership(t *testing.T) {
 			t.Fatal(tc, err)
 		}
 		e := node.(functions.DatetimeTrunc)
-		if e.ResultUsage().Type.ID() != tc.result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != tc.volatility || plannedVolatility(e) != tc.volatility || generationImmutable(e) != (tc.volatility == Immutable) {
+		if e.ResultUsage().Type.ID() != tc.result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != tc.volatility || plannedVolatility(e) != tc.volatility || generationImmutable(e) != (tc.volatility == expr.Immutable) {
 			t.Fatal(tc, e.Properties(), e.ResultUsage())
 		}
 		if tc.typ == "time" && e.Args[1].ResultUsage().Type.ID() != sqltype.Time {
 			t.Fatal("selected TIME conversion lost")
 		}
-		var children []BoundExpr
-		boundExpressionChildren(e, func(child BoundExpr) { children = append(children, child) })
+		var children []expr.Expr
+		boundExpressionChildren(e, func(child expr.Expr) { children = append(children, child) })
 		if len(children) != 2 {
 			t.Fatal(children)
 		}
@@ -71,15 +72,15 @@ func TestDatetimeTruncInferenceStrictChildren(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b.parameters[1].Type.ID() != sqltype.Text || b.parameters[2].Type.ID() != sqltype.Timestamptz || b.parameters[3].Type.ID() != sqltype.Text || !node.Properties().ParameterDependent || plannedVolatility(node) != Immutable {
+	if b.parameters[1].Type.ID() != sqltype.Text || b.parameters[2].Type.ID() != sqltype.Timestamptz || b.parameters[3].Type.ID() != sqltype.Text || !node.Properties().ParameterDependent || plannedVolatility(node) != expr.Immutable {
 		t.Fatal(node.Properties(), b.parameters)
 	}
 	e := node.(functions.DatetimeTrunc)
 	for _, i := range []int{0, 1, 2} {
 		n := e
-		n.Args[i] = literalExpression{expressionInfo: b.info(n.Args[i].ResultUsage(), parser.Position{}, ExprProperties{Volatility: Immutable}), value: sqltype.Null(n.Args[i].ResultUsage().Type)}
+		n.Args[i] = literalExpression{Info: b.info(n.Args[i].ResultUsage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), value: sqltype.Null(n.Args[i].ResultUsage().Type)}
 		simplified, changed, err := simplifyConditional(&EvalContext{Context: context.Background()}, n, false)
-		if err != nil || !changed || plannedVolatility(simplified) != Immutable || !generationImmutable(simplified) {
+		if err != nil || !changed || plannedVolatility(simplified) != expr.Immutable || !generationImmutable(simplified) {
 			t.Fatal(simplified, changed, err)
 		}
 	}

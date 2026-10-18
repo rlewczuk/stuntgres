@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 )
@@ -18,7 +19,7 @@ func strictScalarRoutine(routine *procedureDescriptor) bool {
 // argument, but a separate known-NULL argument can discard runtime siblings,
 // including domain coercions. No domain truth or provider is sampled here.
 // The analyzed tree and its original dependency manifest remain untouched.
-func foldStrictParameterNull(c *EvalContext, node BoundExpr) (BoundExpr, bool, error) {
+func foldStrictParameterNull(c *EvalContext, node expr.Expr) (expr.Expr, bool, error) {
 	if node == nil || len(c.Parameters) == 0 || !node.Properties().ParameterDependent {
 		return node, false, nil
 	}
@@ -37,7 +38,7 @@ func foldStrictParameterNull(c *EvalContext, node BoundExpr) (BoundExpr, bool, e
 	}
 	null := false
 	var failure error
-	strictRoutineArguments(node, func(argument BoundExpr) {
+	strictRoutineArguments(node, func(argument expr.Expr) {
 		if null || failure != nil {
 			return
 		}
@@ -50,12 +51,12 @@ func foldStrictParameterNull(c *EvalContext, node BoundExpr) (BoundExpr, bool, e
 		return node, false, nil
 	}
 	info := foldedExpressionInfo(node)
-	return literalExpression{expressionInfo: info, value: sqltype.ResultNull(info.Usage)}, true, nil
+	return literalExpression{Info: info, value: sqltype.ResultNull(info.Usage)}, true, nil
 }
 
 // Expanded variadic path elements form one non-NULL array argument. A NULL
 // element is not a NULL formal; explicit VARIADIC retains the array child.
-func strictRoutineArguments(node BoundExpr, visit func(BoundExpr)) {
+func strictRoutineArguments(node expr.Expr, visit func(expr.Expr)) {
 	if expression, ok := node.(functions.JSONExtract); ok && !expression.Variadic {
 		visit(expression.Args[0])
 		return
@@ -63,7 +64,7 @@ func strictRoutineArguments(node BoundExpr, visit func(BoundExpr)) {
 	boundExpressionChildren(node, visit)
 }
 
-func executionKnownNullArgument(c *EvalContext, node BoundExpr) (bool, error) {
+func executionKnownNullArgument(c *EvalContext, node expr.Expr) (bool, error) {
 	if node == nil || node.Properties().RuntimeDomainConversion {
 		return false, nil
 	}

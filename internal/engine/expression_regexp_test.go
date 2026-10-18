@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -85,7 +86,7 @@ func TestRegexpScalarPreflight(t *testing.T) {
 		t.Fatal(err)
 	}
 	node := bound.(functions.Regexp)
-	node.Args[1] = columnExpression{expressionInfo: expressionInfo{Usage: node.Args[1].ResultUsage(), Property: ExprProperties{Volatility: Immutable, RowDependent: true}}, slot: 0}
+	node.Args[1] = columnExpression{Info: expr.Info{Usage: node.Args[1].ResultUsage(), Property: expr.Properties{Volatility: expr.Immutable, RowDependent: true}}, slot: 0}
 	node.Property.RowDependent = true
 	_, _, err = preflightCoercionsWithPolicy(&EvalContext{Context: context.Background()}, node, true)
 	if err != nil {
@@ -104,7 +105,7 @@ func TestRegexpScalarGroupingAlias(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw := &parser.GroupClause{Items: []parser.GroupItem{{Kind: parser.GroupExpression, Expr: parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "x"}}}}}}}
-	keys, families, sets, err := b.bindGroupClause(raw, []BoundExpr{first}, []string{"x"})
+	keys, families, sets, err := b.bindGroupClause(raw, []expr.Expr{first}, []string{"x"})
 	if err != nil || len(keys) != 1 || len(families) != 1 || !reflect.DeepEqual(sets, [][]int{{0}}) {
 		t.Fatal(keys, families, sets, err)
 	}
@@ -115,7 +116,7 @@ func TestRegexpScalarGroupingAlias(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, _, err = b.bindGroupClause(raw, []BoundExpr{first, second}, []string{"x", "x"})
+	_, _, _, err = b.bindGroupClause(raw, []expr.Expr{first, second}, []string{"x", "x"})
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42702" || diagnostic.Message != `GROUP BY "x" is ambiguous` {
 		t.Fatal("ambiguous output alias", err)
@@ -152,7 +153,7 @@ func TestRegexpScalarOuterFromFrame(t *testing.T) {
 			}
 			for _, call := range n.calls {
 				for _, arg := range functionCallArguments(call) {
-					walkBoundExpression(arg, func(child BoundExpr) {
+					walkBoundExpression(arg, func(child expr.Expr) {
 						if column, ok := child.(columnExpression); ok {
 							captured++
 							if column.frame != 1 {
@@ -163,8 +164,8 @@ func TestRegexpScalarOuterFromFrame(t *testing.T) {
 				}
 			}
 		}
-		queryExpressions(node, func(expr BoundExpr) {
-			walkBoundExpression(expr, func(child BoundExpr) {
+		queryExpressions(node, func(bound expr.Expr) {
+			walkBoundExpression(bound, func(child expr.Expr) {
 				if subquery, ok := child.(subqueryExpression); ok {
 					inspect(subquery.queryPlan.Root)
 				}

@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
 
 // Retained TEMP definitions keep their original row-reference epoch across a
 // persistent replacement. Compare at current row authority without changing
 // either descriptor or remapping external provider references.
-func sameInheritedExpression(mapped, child BoundExpr, d *relationDescriptor, v CatalogRead) bool {
+func sameInheritedExpression(mapped, child expr.Expr, d *relationDescriptor, v CatalogRead) bool {
 	if sameGroupExpression(mapped, child) {
 		return true
 	}

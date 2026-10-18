@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -21,7 +22,7 @@ func TestJSONCreateBindingAndVisitors(t *testing.T) {
 		t.Fatal(err)
 	}
 	bound := node.(functions.JSONCreate)
-	if bound.Properties().Volatility != Stable || bound.ResultUsage().Type.ID() != sqltype.JSON || bound.ResultUsage().Typmod != -1 || !bound.UnknownArgument(0) {
+	if bound.Properties().Volatility != expr.Stable || bound.ResultUsage().Type.ID() != sqltype.JSON || bound.ResultUsage().Typmod != -1 || !bound.UnknownArgument(0) {
 		t.Fatal("signature/provenance lost", bound)
 	}
 	if _, err := binder.bindFunctionProvider(nullCountRaw("to_json", literal)); err == nil {
@@ -32,11 +33,11 @@ func TestJSONCreateBindingAndVisitors(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if plannedVolatility(node) != Stable || generationImmutable(node) || conditionalConstantInputs(node) {
+	if plannedVolatility(node) != expr.Stable || generationImmutable(node) || conditionalConstantInputs(node) {
 		t.Fatal("STABLE creation treated as immutable")
 	}
 	visited := 0
-	boundExpressionChildren(node, func(BoundExpr) { visited++ })
+	boundExpressionChildren(node, func(expr.Expr) { visited++ })
 	if visited != 1 {
 		t.Fatal("creation children hidden", visited)
 	}

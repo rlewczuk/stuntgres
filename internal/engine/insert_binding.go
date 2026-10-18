@@ -2,6 +2,7 @@ package engine
 
 import (
 	"strconv"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -40,7 +41,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 			continue
 		}
 		if binder.mergeInput {
-			return expressionError("0A000", "MERGE partial insertion targets are unsupported", target.Pos)
+			return expr.ErrorAt("0A000", "MERGE partial insertion targets are unsupported", target.Pos)
 		}
 		if b.arrayTargets == nil {
 			b.arrayTargets = make([]*arrayAssignmentTarget, len(b.targets))
@@ -67,7 +68,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 	if len(s.Rows) > 1 {
 		binder.regexpClause = "VALUES"
 	}
-	b.expressions = make([][]BoundExpr, len(s.Rows))
+	b.expressions = make([][]expr.Expr, len(s.Rows))
 	b.insertRows = s.Rows
 	width := -1
 	rowsExpanded := false
@@ -96,7 +97,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 			if len(row) != 0 {
 				pos = row[0].SourcePosition()
 			}
-			return expressionError("42601", "VALUES lists must all be the same length", pos)
+			return expr.ErrorAt("42601", "VALUES lists must all be the same length", pos)
 		}
 		if len(row) > len(b.targets) {
 			return insertError("42601", "INSERT has more expressions than target columns", row[len(b.targets)].SourcePosition())
@@ -104,7 +105,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 		if rowIndex == 0 && len(s.Targets) != 0 && len(row) < len(b.targets) {
 			return insertError("42601", "INSERT has more target columns than expressions", s.Targets[len(row)].Pos)
 		}
-		b.expressions[rowIndex] = make([]BoundExpr, len(row))
+		b.expressions[rowIndex] = make([]expr.Expr, len(row))
 		stringRow := binder.mergeInput
 		for _, v := range row {
 			stringRow = stringRow || parser.ContainsStringExpression(v)
@@ -128,7 +129,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 					return identityInsertError(c.Name)
 				}
 				if literal, ok := v.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
-					b.expressions[rowIndex][j] = unknownOutput{expressionInfo: expressionInfo{Pos: v.SourcePosition()}, raw: v}
+					b.expressions[rowIndex][j] = unknownOutput{Info: expr.Info{Pos: v.SourcePosition()}, raw: v}
 					continue
 				}
 				context := assignmentContext
@@ -145,7 +146,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 		for j, v := range row {
 			if _, requested := v.(parser.DefaultExpr); requested {
 				if len(b.arrayTargets) != 0 && b.arrayTargets[j] != nil {
-					return expressionError("0A000", "cannot set an array element to DEFAULT", s.Targets[j].Pos)
+					return expr.ErrorAt("0A000", "cannot set an array element to DEFAULT", s.Targets[j].Pos)
 				}
 				continue
 			}
@@ -163,7 +164,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 			if identity, ok := b.relation.identities[b.relation.attributes[b.targets[j]]]; ok && identity.mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
 				return identityInsertError(c.Name)
 			}
-			var plan BoundExpr
+			var plan expr.Expr
 			var err error
 			if expanded != nil && expanded[j] != nil {
 				plan, err = binder.assignOutput(expanded[j], c)
@@ -260,14 +261,14 @@ func (e *Engine) bindInsertDefaults(b *binding, auth AuthorizationView, override
 	if len(b.relation.defaults) == 0 && len(b.relation.identities) == 0 && !hasDomains {
 		return
 	}
-	b.defaults = make([]BoundExpr, len(b.relation.columns))
+	b.defaults = make([]expr.Expr, len(b.relation.columns))
 	for i, attribute := range b.relation.attributes {
 		b.defaults[i] = b.relation.defaults[attribute].expression
 		if b.defaults[i] == nil && b.relation.columns[i].Usage.Type.HasDomainChecks() {
 			b.defaults[i] = domainNullInputExpression(b.relation.columns[i].Usage)
 		}
 		if identity, ok := b.relation.identities[attribute]; ok {
-			b.defaults[i] = sequenceCallExpression{expressionInfo: expressionInfo{Usage: b.relation.columns[i].Usage, Property: ExprProperties{Volatility: Volatile}}, name: "nextval", ref: e.catalog.domain.Ref(auth.catalog.Epoch(), identity.sequence), identity: true}
+			b.defaults[i] = sequenceCallExpression{Info: expr.Info{Usage: b.relation.columns[i].Usage, Property: expr.Properties{Volatility: expr.Volatile}}, name: "nextval", ref: e.catalog.domain.Ref(auth.catalog.Epoch(), identity.sequence), identity: true}
 		}
 	}
 	if override == parser.OverrideUser {

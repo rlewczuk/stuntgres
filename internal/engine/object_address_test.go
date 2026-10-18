@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -153,11 +154,11 @@ func TestObjectAddressStoredRecipes(t *testing.T) {
 	for _, name := range []string{"pg_identify_object", "pg_identify_object_as_address", "pg_get_object_address", "pg_describe_object"} {
 		q := domainUnitBindSelect(t, e, op, "SELECT "+name+"(NULL,NULL,NULL)")
 		n, ok := q.Root.(*projectNode).expressions[0].(objectAddressExpression)
-		if !ok || n.validateStored() != nil || n.Properties().Volatility != Stable || generationImmutable(n) {
+		if !ok || n.validateStored() != nil || n.Properties().Volatility != expr.Stable || generationImmutable(n) {
 			t.Fatal("typed stable carrier", name, n)
 		}
 		children := 0
-		boundExpressionChildren(n, func(BoundExpr) { children++ })
+		boundExpressionChildren(n, func(expr.Expr) { children++ })
 		if children != 3 {
 			t.Fatal("carrier children", children)
 		}
@@ -167,7 +168,7 @@ func TestObjectAddressStoredRecipes(t *testing.T) {
 			t.Fatal("duplicate slot accepted")
 		}
 		bad = n
-		bad.Property.Volatility = Immutable
+		bad.Property.Volatility = expr.Immutable
 		if bad.validateStored() == nil {
 			t.Fatal("immutable inquiry accepted")
 		}
@@ -175,7 +176,7 @@ func TestObjectAddressStoredRecipes(t *testing.T) {
 		if err != nil || !value.IsNull() || value.Type() != n.ResultUsage().Type {
 			t.Fatal("strict typed NULL", value, err)
 		}
-		rendered, err := n.sql("pg_catalog."+name, func(BoundExpr) (string, error) { return "NULL", nil })
+		rendered, err := n.sql("pg_catalog."+name, func(expr.Expr) (string, error) { return "NULL", nil })
 		if err != nil || rendered != "pg_catalog."+name+"(NULL, NULL, NULL)" {
 			t.Fatal("stored renderer", rendered, err)
 		}
