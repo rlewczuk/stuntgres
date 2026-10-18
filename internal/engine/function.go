@@ -112,21 +112,11 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	if strings.EqualFold(name, "unnest") {
 		return b.bindUnnest(raw)
 	}
-	if strings.EqualFold(name, "lower") || strings.EqualFold(name, "upper") {
-		return b.bindLowerUpper(raw)
-	}
 	if parser.NetworkFormatFunctionName(name) {
 		return b.bindNetworkFormat(raw)
 	}
 	if parser.BlockingInquiryFunctionName(name) {
 		return b.bindBlockingInquiry(raw)
-	}
-	if strings.EqualFold(name, "parse_ident") {
-		visible, err := b.builtinVisible(raw.Name, functionLookup)
-		if err != nil {
-			return nil, err
-		}
-		return bindStringFunction(b, raw, visible && name == "parse_ident")
 	}
 	// Shared syntax must never silently discard labels in adjacent providers.
 	if len(raw.ArgNames) != 0 && !parser.AdvisoryFunctionName(name) {
@@ -178,7 +168,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 	case "to_number":
 		return b.bindNumericFormatting(raw, visible)
 	case "string_to_table":
-		expr, err := bindStringFunction(b, raw, visible)
+		expr, err := functions.BindString(b, raw, visible)
 		if err != nil {
 			return nil, err
 		}
@@ -190,10 +180,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (BoundE
 			b.queryHasTargetSet = true
 		}
 		return expr, nil
-	case "split_part", "string_to_array":
-		return bindStringFunction(b, raw, visible)
-	case "left", "right", "to_bin", "to_oct", "to_hex", "md5", "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "trim", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "position", "strpos", "overlay", "replace", "translate", "starts_with", "lpad", "rpad", "repeat", "reverse", "ascii", "chr", "to_ascii", "unistr", "unicode_assigned":
-		return bindStringFunction(b, raw, visible && name != "trim")
 	case "col_description", "obj_description", "shobj_description":
 		return b.bindCommentInquiry(raw, visible)
 	case "convert", "convert_from", "convert_to", "encode", "decode", "substring", "substr", "crc32", "crc32c", "sha224", "sha256", "sha384", "sha512", "bit_count", "get_bit", "get_byte", "set_bit", "set_byte":

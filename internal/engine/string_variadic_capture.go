@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -119,4 +120,26 @@ func (g *quoteCaptureCandidate) prune(view CatalogRead) {
 		g.entries, g.private = next, true
 		return
 	}
+}
+
+// bindStringVariadic records, after a successful bind, what only the analyzer
+// owns: untyped parameters left for statement finish, catalog-identifier
+// output, and polymorphic body casts of quote_literal/quote_nullable.
+func (b *expressionBinder) bindStringVariadic(raw parser.FunctionExpr) (BoundExpr, error) {
+	node, err := functions.BindStringVariadic(b, raw, b.frameID())
+	if err != nil {
+		return nil, err
+	}
+	for _, arg := range node.Args {
+		if parameter, ok := arg.(parameterExpression); ok && parameter.Usage.Type == nil {
+			b.anyParameters = append(b.anyParameters, parameter)
+		}
+		if arg.ResultUsage().Type != nil && arg.ResultUsage().Type.ContainsCatalogIdentifier() {
+			b.regclassConcat = true
+		}
+	}
+	if err := b.capturePolymorphicBody(node); err != nil {
+		return nil, err
+	}
+	return node, nil
 }

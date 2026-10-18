@@ -56,7 +56,7 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 	case functions.BinarySimilarSubstring:
 		return functions.BindSimilarSubstring(b, raw, operands)
 	case functions.BinaryTextSubstring:
-		return finishStringFunction(b, raw, visible, operands)
+		return functions.FinishString(b, raw, visible, operands)
 	case functions.BinaryTextUnsupported:
 		return nil, expressionError("0A000", "text overloads of "+name+" are unsupported", raw.Pos)
 	}

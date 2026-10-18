@@ -120,7 +120,7 @@ func TestRangeInspectTextDiagnosticEnvelope(t *testing.T) {
 		for _, directString := range []bool{false, true} {
 			bind := func(raw parser.FunctionExpr) (BoundExpr, error) {
 				if directString {
-					return bindStringFunction(b, raw, true)
+					return functions.BindString(b, raw, true)
 				}
 				return b.bindFunctionProvider(raw)
 			}
