@@ -59,28 +59,9 @@ func closedUUIDDefault(node expr.Expr) bool {
 		valid := true
 		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid
-	case functions.DatetimeTrunc, functions.DatetimeBin:
-		valid := true
-		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
-		return valid
-	case functions.Posix, functions.PosixSubstring, functions.Similar, functions.SimilarEscape, functions.SimilarSubstring, functions.Regexp:
-		valid := true
-		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
-		return valid
-	case functions.UUIDExtract:
-		return closedUUIDDefault(n.Arg)
-	case functions.NetworkFormat:
-		for _, arg := range n.Args[:n.Kind.Arity()] {
-			if !closedUUIDDefault(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.ArrayRandom:
-		valid := true
-		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
-		return valid
-	case functions.ArrayTransform, functions.RangeOperator, functions.RangeInspect, functions.Enum, functions.ArraySearch, functions.ArrayInspect:
+	case functions.DatetimeTrunc, functions.DatetimeBin, functions.DatetimeZoneCalendar:
+		// Looked through here only; the transaction-time check closes them by
+		// volatility.
 		valid := true
 		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid
@@ -88,15 +69,12 @@ func closedUUIDDefault(node expr.Expr) bool {
 		valid := true
 		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid
-	case functions.SQLJSON, functions.JSONPredicate:
+	case coercionExpression, collationExpression, comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression, nullTestExpression, truthTestExpression, logicalExpression, distinctExpression, conditionalExpression, caseExpression:
 		valid := true
 		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid
-	case functions.JSONBPathExists, functions.JSONBPathMatch, functions.JSONBPathQueryFirst, functions.JSONBPathQueryArray, functions.JSONBSet, functions.JSONStripNulls, functions.JSONExtract:
-		valid := true
-		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
-		return valid
-	case coercionExpression, collationExpression, comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression, functions.LikeEscape, nullTestExpression, truthTestExpression, logicalExpression, distinctExpression, conditionalExpression, functions.Binary, functions.DatetimeJustify, functions.DatetimeAgeFinite, functions.DatetimeZoneCalendar, functions.DatetimeMake, functions.DatetimeFormatting, functions.NumericFormatting, functions.String, functions.Timezone, functions.Math, functions.NullCount, functions.Format, functions.StringVariadic, functions.JSONCreate, caseExpression:
+	case expr.ClosureTransparent:
+		// Function nodes the closure looks through.
 		valid := true
 		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid

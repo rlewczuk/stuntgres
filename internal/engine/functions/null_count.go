@@ -196,3 +196,6 @@ func (e NullCount) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, 
 	e.Info, e.Args = info, children
 	return e, nil
 }
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e NullCount) ClosureTransparent() {}

@@ -217,3 +217,9 @@ func (e JSONPredicate) Substitute(info expr.Info, children []expr.Expr) (expr.Ex
 func (e SQLJSON) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	return e.Rebuild(info, children)
 }
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e SQLJSON) ClosureTransparent() {}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e JSONPredicate) ClosureTransparent() {}

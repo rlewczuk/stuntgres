@@ -185,3 +185,12 @@ type FunctionSyntax interface {
 type Substitutable interface {
 	Substitute(info Info, children []Expr) (Expr, error)
 }
+
+// ClosureTransparent marks a call that the closed-DEFAULT checks look
+// through: the DEFAULT is closed when every child is. Those checks decide
+// whether a DEFAULT built around a volatile generator (gen_random_uuid(), the
+// transaction clocks) needs no row, parameter or stage. Other calls are closed
+// only when no more than stable.
+type ClosureTransparent interface {
+	ClosureTransparent()
+}

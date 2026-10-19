@@ -395,3 +395,12 @@ func (e JSONBPathQuery) Substitute(info expr.Info, children []expr.Expr) (expr.E
 	copy(e.Args[:], children)
 	return e, nil
 }
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e JSONBPathExists) ClosureTransparent() {}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e JSONBPathMatch) ClosureTransparent() {}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e JSONBPathQueryFirst) ClosureTransparent() {}

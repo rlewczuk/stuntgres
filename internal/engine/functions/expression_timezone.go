@@ -122,3 +122,6 @@ func (e Timezone) LooksLikeFunction() bool { return e.Function }
 func (e Timezone) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	return e.Rebuild(info, children)
 }
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e Timezone) ClosureTransparent() {}

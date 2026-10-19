@@ -121,3 +121,6 @@ func (e JSONBSet) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, e
 	copy(e.Args[:], children)
 	return e, nil
 }
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e JSONBSet) ClosureTransparent() {}

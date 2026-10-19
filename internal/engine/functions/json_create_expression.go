@@ -243,3 +243,6 @@ func (e JSONCreate) LooksLikeFunction() bool { return true }
 func (e JSONCreate) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	return e.Rebuild(info, children)
 }
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e JSONCreate) ClosureTransparent() {}

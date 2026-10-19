@@ -114,3 +114,6 @@ func (e JSONStripNulls) Substitute(info expr.Info, children []expr.Expr) (expr.E
 	copy(e.Args[:], children)
 	return e, nil
 }
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e JSONStripNulls) ClosureTransparent() {}

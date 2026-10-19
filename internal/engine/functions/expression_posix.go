@@ -230,3 +230,9 @@ func (e Posix) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, erro
 	e.Info, e.Left, e.Right = info, children[0], children[1]
 	return e, nil
 }
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e Posix) ClosureTransparent() {}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e PosixSubstring) ClosureTransparent() {}

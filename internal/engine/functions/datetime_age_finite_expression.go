@@ -265,3 +265,6 @@ func (e DatetimeAgeFinite) Substitute(info expr.Info, children []expr.Expr) (exp
 	copy(e.Args[:], children)
 	return e, nil
 }
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e DatetimeAgeFinite) ClosureTransparent() {}

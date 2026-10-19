@@ -129,3 +129,6 @@ func (e NetworkFormat) Substitute(info expr.Info, children []expr.Expr) (expr.Ex
 	copy(e.Args[:], children)
 	return e, nil
 }
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e NetworkFormat) ClosureTransparent() {}

@@ -33,3 +33,17 @@ func TestFunctionSyntaxFollowsSpelling(t *testing.T) {
 		}
 	}
 }
+
+func TestClosureTransparencyExcludesGenerators(t *testing.T) {
+	for _, node := range []expr.Expr{String{}, Binary{}, Timezone{}, UUIDExtract{}, JSONCreate{}} {
+		if _, ok := node.(expr.ClosureTransparent); !ok {
+			t.Errorf("%T is not looked through", node)
+		}
+	}
+	// Generators and the calls only one check looks through stay explicit.
+	for _, node := range []expr.Expr{UUIDGeneration{}, TransactionTime{}, DatetimeSleep{}, Random{}, DatetimeTrunc{}, DatetimeBin{}, DatetimeZoneCalendar{}, JSONEach{}} {
+		if _, ok := node.(expr.ClosureTransparent); ok {
+			t.Errorf("%T is looked through", node)
+		}
+	}
+}

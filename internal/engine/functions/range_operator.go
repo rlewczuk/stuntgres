@@ -99,3 +99,6 @@ func (e RangeOperator) Substitute(info expr.Info, children []expr.Expr) (expr.Ex
 	copy(e.Args[:], children)
 	return e, nil
 }
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e RangeOperator) ClosureTransparent() {}

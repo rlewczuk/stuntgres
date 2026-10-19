@@ -103,3 +103,6 @@ func (e DatetimeJustify) Substitute(info expr.Info, children []expr.Expr) (expr.
 	e.Info, e.Arg = info, children[0]
 	return e, nil
 }
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e DatetimeJustify) ClosureTransparent() {}

@@ -449,3 +449,15 @@ func (e SimilarEscape) Substitute(info expr.Info, children []expr.Expr) (expr.Ex
 	e.Info, e.Pattern, e.Escape = info, children[0], children[1]
 	return e, nil
 }
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e Similar) ClosureTransparent() {}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e SimilarEscape) ClosureTransparent() {}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e SimilarSubstring) ClosureTransparent() {}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e LikeEscape) ClosureTransparent() {}

@@ -173,3 +173,6 @@ func (e DatetimeFormatting) Substitute(info expr.Info, children []expr.Expr) (ex
 	copy(e.Args[:], children)
 	return e, nil
 }
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e DatetimeFormatting) ClosureTransparent() {}

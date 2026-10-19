@@ -153,3 +153,6 @@ func (e UUIDExtract) Substitute(info expr.Info, children []expr.Expr) (expr.Expr
 	e.Info, e.Arg = info, children[0]
 	return e, nil
 }
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e UUIDExtract) ClosureTransparent() {}
