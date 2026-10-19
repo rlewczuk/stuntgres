@@ -13,71 +13,34 @@ import (
 	"testing"
 )
 
-// Setup and fixed expectations are shared by independently owned scenarios.
-// Each caller creates its own fixture; no control phase borrows an earlier
-// scenario's remaining deadline or retained handles.
-func pgcryptoConsumerSetup(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder) (check, view, nested, failure fixture.Step) {
-	t.Helper()
-	run := func(s fixture.Step) {
-		t.Helper()
-		defer func() {
-			if t.Failed() {
-				t.Logf("pgcrypto step prepared=%v SQL=%s args=%#v", s.Prepared, s.Query, s.Args)
-			}
-		}()
-		fixture.RunStep(t, p.Ctx, c, r, s)
-	}
-	run(fixture.Exec("CREATE USER pgcrypto_owner SUPERUSER", 0))
-	run(fixture.Exec("CREATE SCHEMA pgcrypto_part AUTHORIZATION pgcrypto_owner", 0))
-	run(fixture.Exec("SET SESSION AUTHORIZATION pgcrypto_owner", 0))
-	run(fixture.Exec("CREATE EXTENSION pgcrypto SCHEMA pgcrypto_part", 0))
-	run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
-	pgcryptoInventory(t, p, c, "pgcrypto_owner", "pgcrypto_owner")
-	sha := pgcryptoDigestVectors[3].abc
-	run(fixture.Exec("CREATE TABLE pgcrypto_stored(id integer,v text,d bytea DEFAULT pgcrypto_part.digest('abc','sha256'),g bytea GENERATED ALWAYS AS(pgcrypto_part.digest(v,'sha256')) STORED,CONSTRAINT pgcrypto_valid CHECK(v IS NULL OR pgcrypto_part.digest(v,'sha256')='\\x"+sha+"'::bytea))", 0))
-	run(fixture.Exec("CREATE INDEX pgcrypto_hash_idx ON pgcrypto_stored ((pgcrypto_part.digest(v,'sha256')))", 0))
-	run(fixture.Exec("CREATE VIEW pgcrypto_view AS SELECT id,pgcrypto_part.digest(v,'sha256') AS digest,pgcrypto_part.hmac(v,'Jefe','sha256') AS hmac FROM pgcrypto_stored", 0))
-	run(fixture.Exec("CREATE VIEW pgcrypto_nested AS SELECT id,(SELECT pgcrypto_part.digest('abc','sha256')) AS digest FROM pgcrypto_view", 0))
-	run(fixture.Exec("INSERT INTO pgcrypto_stored(id,v) VALUES(1,'abc'),(2,NULL)", 2))
-	check = fixture.Select("SELECT id,d,g FROM pgcrypto_stored ORDER BY id", []string{"id", "d", "g"}, []string{"INT4", "BYTEA", "BYTEA"}, [][]any{{int64(1), pgcryptoBytes(t, sha), pgcryptoBytes(t, sha)}, {int64(2), pgcryptoBytes(t, sha), nil}})
-	run(check)
-	run(fixture.Prepared(check))
-	view = fixture.Select("SELECT id,digest,hmac FROM pgcrypto_view ORDER BY id", []string{"id", "digest", "hmac"}, []string{"INT4", "BYTEA", "BYTEA"}, [][]any{{int64(1), pgcryptoBytes(t, sha), pgcryptoBytes(t, "7cf4ec4f741f51cb0d887013c46251d6f4175643c4f422906a1aaec688cc13e8")}, {int64(2), nil, nil}})
-	run(view)
-	run(fixture.Prepared(view))
-	nested = fixture.Select("SELECT id,digest FROM pgcrypto_nested ORDER BY id", []string{"id", "digest"}, []string{"INT4", "BYTEA"}, [][]any{{int64(1), pgcryptoBytes(t, sha)}, {int64(2), pgcryptoBytes(t, sha)}})
-	run(nested)
-	run(fixture.Prepared(nested))
-	// CHECK failure is statement-atomic, even after a valid first tuple.
-	// Generated/default BYTEA values make the release's failing-row Detail long;
-	// use a separate CHECK table to keep every diagnostic field independently exact.
-	run(fixture.Exec("CREATE TABLE pgcrypto_atomic(v text CONSTRAINT pgcrypto_atomic_valid CHECK(pgcrypto_part.digest(v,'sha256')='\\x"+sha+"'::bytea))", 0))
-	failure = fixture.ImplicitError("INSERT INTO pgcrypto_atomic VALUES('abc'),('wrong')", fixture.Diagnostic{Code: "23514", Message: `new row for relation "pgcrypto_atomic" violates check constraint "pgcrypto_atomic_valid"`, Detail: "Failing row contains (wrong).", Schema: "public", Table: "pgcrypto_atomic", Constraint: "pgcrypto_atomic_valid"})
-	run(failure)
-	run(fixture.Select("SELECT count(*) FROM pgcrypto_atomic", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
-	pgcryptoConsumerDependencies(t, p, c, r, pgcryptoProcedureIDs(t, p, c))
-	return
-}
-
+// Each proof owns a fresh bounded scenario. Only dependent retained consumers
+// and replacement targets share a fixture.
 func TestReferencePgcryptoConsumersAndControls(t *testing.T) {
-	pgcryptoCase(t, false, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
-		pgcryptoConsumerSetup(t, p, c, r)
+	pgcryptoConsumerCase(t, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool, proof pgcryptoConsumerProof) {
+		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, r, s) }
+		pgcryptoInventory(t, p, c, "pgcrypto_owner", "pgcrypto_owner")
+		for _, step := range []fixture.Step{proof.check, proof.view, proof.nested} {
+			run(step)
+			run(fixture.Prepared(step))
+		}
+		run(proof.failure)
+		run(fixture.Select("SELECT count(*) FROM pgcrypto_atomic", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
+		pgcryptoConsumerDependencies(t, p, c, r, pgcryptoProcedureIDs(t, p, c))
 		if pg {
-			// This phase uses PostgreSQL's real TEMP lifetime, not native Restore.
+			// PostgreSQL's real TEMP lifetime, not a simulated Restore API.
 			fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("CREATE TEMP TABLE pgcrypto_retained(v integer,b bytea)", 0))
 			pgcryptoTempLinks(t, p, c)
 		}
 	})
 }
 
-func TestReferencePgcryptoRetainedControls(t *testing.T) {
-	pgcryptoCase(t, false, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
-		check, view, nested, failure := pgcryptoConsumerSetup(t, p, c, r)
+func TestReferencePgcryptoControlRetention(t *testing.T) {
+	pgcryptoConsumerCase(t, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool, proof pgcryptoConsumerProof) {
+		if pg {
+			return
+		}
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, r, s) }
 		sha := pgcryptoDigestVectors[3].abc
-		if pg {
-			return // Reset/Restore are explicit native-only controls.
-		}
 		heldSQL := "SELECT pgcrypto_part.digest($1,$2)"
 		held, err := c.PrepareContext(p.Ctx, heldSQL)
 		if err != nil {
@@ -121,23 +84,22 @@ func TestReferencePgcryptoRetainedControls(t *testing.T) {
 			t.Fatal(err)
 		}
 		pgcryptoInventory(t, p, c, "pgcrypto_owner", "pgcrypto_owner")
-		run(check)
-		run(view)
-		run(nested)
+		run(proof.check)
+		run(proof.view)
+		run(proof.nested)
 		pgcryptoReplayOverloads(t, p, c, r, pg)
 		fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Statement: held, SQL: heldSQL}, r, fixture.Select(heldSQL, []string{"digest"}, []string{"BYTEA"}, [][]any{{pgcryptoBytes(t, sha)}}, "abc", "sha256"))
 		run(fixture.Exec("INSERT INTO pgcrypto_stored(id,v) VALUES(3,'abc')", 1))
-		run(failure)
+		run(proof.failure)
 	})
 }
 
 func TestReferencePgcryptoReplayAtomicity(t *testing.T) {
 	for _, name := range pgcryptoReplayFailureNames() {
 		t.Run(name, func(t *testing.T) {
-			pgcryptoCase(t, false, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
-				pgcryptoConsumerSetup(t, p, c, r)
+			pgcryptoConsumerCase(t, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool, proof pgcryptoConsumerProof) {
 				if pg {
-					return // PostgreSQL executes the shared consumer contract above.
+					return
 				}
 				script := extensionDump(t, p.Ctx, p.Native)
 				fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("INSERT INTO pgcrypto_stored(id,v) VALUES(3,'abc')", 1))
@@ -156,8 +118,7 @@ func TestReferencePgcryptoReplayAtomicity(t *testing.T) {
 }
 
 func TestReferencePgcryptoReplayLifecycle(t *testing.T) {
-	pgcryptoCase(t, false, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
-		pgcryptoConsumerSetup(t, p, c, r)
+	pgcryptoConsumerCase(t, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool, proof pgcryptoConsumerProof) {
 		if pg {
 			return
 		}
@@ -186,11 +147,32 @@ func TestReferencePgcryptoReplayLifecycle(t *testing.T) {
 	})
 }
 
-func TestReferencePgcryptoRelocation(t *testing.T) {
-	for _, name := range append(pgcryptoReplayFailureNames(), "private_temp", "cancellation", "dependent_temp_view") {
-		t.Run(name, func(t *testing.T) {
-			pgcryptoCase(t, false, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
-				check, view, nested, failure := pgcryptoConsumerSetup(t, p, c, r)
+func TestReferencePgcryptoControlDestination(t *testing.T) {
+	pgcryptoConsumerCase(t, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool, proof pgcryptoConsumerProof) {
+		if pg {
+			return
+		}
+		dump := extensionDump(t, p.Ctx, p.Native)
+		other, target, targetRecord := pgcryptoControlDestination(t, p, "pgcrypto_destination")
+		if _, err := other.ExecContext(p.Ctx, "CREATE USER pgcrypto_owner NOSUPERUSER"); err != nil {
+			t.Fatal(err)
+		}
+		if err := stuntgres.Restore(p.Ctx, other, strings.NewReader(dump)); err != nil {
+			t.Fatal(err)
+		}
+		pgcryptoInventory(t, p, target, "pgcrypto_owner", "pgcrypto_owner")
+		fixture.RunStep(t, p.Ctx, target, targetRecord, proof.check)
+		fixture.RunStep(t, p.Ctx, target, targetRecord, proof.view)
+		fixture.RunStep(t, p.Ctx, target, targetRecord, proof.nested)
+		pgcryptoReplayOverloads(t, p, target, targetRecord, pg)
+		pgcryptoResult(t, p, target, targetRecord, "digest", "SELECT pgcrypto_part.digest('abc','sha256')", pgcryptoDigestVectors[3].abc)
+	})
+}
+
+func TestReferencePgcryptoForcedRelocation(t *testing.T) {
+	for _, refusal := range pgcryptoRelocationRefusals() {
+		t.Run(refusal.name, func(t *testing.T) {
+			pgcryptoConsumerCase(t, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool, proof pgcryptoConsumerProof) {
 				if pg {
 					return
 				}
@@ -199,18 +181,17 @@ func TestReferencePgcryptoRelocation(t *testing.T) {
 				if _, err := other.ExecContext(p.Ctx, "CREATE USER pgcrypto_owner NOSUPERUSER"); err != nil {
 					t.Fatal(err)
 				}
-				// The baseline must retain only the original two rows.
-				// Dump before the source-only future write, as in retained replay.
+				// Baseline retains the two original rows; only the source gains row3.
 				fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("INSERT INTO pgcrypto_stored(id,v) VALUES(3,'abc')", 1))
 				if err := stuntgres.Restore(p.Ctx, other, strings.NewReader(script)); err != nil {
 					t.Fatal(err)
 				}
 				pgcryptoInventory(t, p, target, "pgcrypto_owner", "pgcrypto_owner")
-				for _, step := range []fixture.Step{check, view, nested} {
+				for _, step := range []fixture.Step{proof.check, proof.view, proof.nested} {
 					fixture.RunStep(t, p.Ctx, target, targetRecord, step)
 				}
 				pgcryptoReplayOverloads(t, p, target, targetRecord, pg)
-				pgcryptoForcedRelocation(t, p, c, target, r, targetRecord, script, check, view, nested, failure, name)
+				pgcryptoForcedRelocation(t, p, c, target, r, targetRecord, script, proof.check, proof.view, proof.nested, proof.failure, refusal)
 				pgcryptoResult(t, p, target, targetRecord, "digest", "SELECT pgcrypto_part.digest('abc','sha256')", pgcryptoDigestVectors[3].abc)
 			})
 		})
@@ -251,9 +232,9 @@ func pgcryptoReplayFailure(t *testing.T, script, name string) string {
 	case "sql":
 		return script + "\nINVALID SQL;"
 	}
-	for i, kind := range pgcryptoInvalidOwnerKinds() {
+	for _, kind := range pgcryptoInvalidOwnerKinds() {
 		if kind == name {
-			return pgcryptoInvalidOwnerDumps(t, script)[i]
+			return pgcryptoInvalidOwnerDump(t, script, kind)
 		}
 	}
 	t.Fatal("unknown replay failure", name)
@@ -264,9 +245,7 @@ func pgcryptoInvalidOwnerKinds() []string {
 	return []string{"missing", "extra", "duplicate", "name", "signature", "dictionary", "type", "empty_owner", "missing_owner"}
 }
 
-// Corrupt the actual emitted manifest rather than inventing a separate replay
-// format. Every candidate is exercised through public Restore against live data.
-func pgcryptoInvalidOwnerDumps(t *testing.T, dump string) []string {
+func pgcryptoInvalidOwnerDump(t *testing.T, dump, kind string) string {
 	t.Helper()
 	const marker = "-- stuntgres-extension-owners-v1 "
 	var line string
@@ -296,40 +275,38 @@ func pgcryptoInvalidOwnerDumps(t *testing.T, dump string) []string {
 		Owner   string   `json:"owner"`
 		Members []member `json:"members"`
 	}
-	var scripts []string
-	for _, kind := range pgcryptoInvalidOwnerKinds() {
-		var record manifest
-		if err := json.Unmarshal(payload, &record); err != nil {
-			t.Fatal(err)
-		}
-		if record.Name != "pgcrypto" || record.Version != "1.4" || len(record.Members) != 14 {
-			t.Fatal("unexpected pgcrypto manifest", record)
-		}
-		switch kind {
-		case "missing":
-			record.Members = record.Members[1:]
-		case "extra":
-			record.Members = append(record.Members, record.Members[0])
-		case "duplicate":
-			record.Members[1] = record.Members[0]
-		case "name":
-			record.Members[0].Name = "unaccent"
-		case "signature":
-			record.Members[0].Signature = "17,25,25"
-		case "dictionary":
-			record.Members[0] = member{Kind: "dictionary", Name: "unaccent", Owner: "pgcrypto_owner"}
-		case "type":
-			record.Members[0] = member{Kind: "type", Name: "query_int", Owner: "pgcrypto_owner"}
-		case "empty_owner":
-			record.Members[0].Owner = ""
-		case "missing_owner":
-			record.Members[0].Owner = "pgcrypto_absent_owner"
-		}
-		data, err := json.Marshal(record)
-		if err != nil {
-			t.Fatal(err)
-		}
-		scripts = append(scripts, strings.Replace(dump, line, marker+base64.StdEncoding.EncodeToString(data), 1))
+	var record manifest
+	if err := json.Unmarshal(payload, &record); err != nil {
+		t.Fatal(err)
 	}
-	return scripts
+	if record.Name != "pgcrypto" || record.Version != "1.4" || len(record.Members) != 14 {
+		t.Fatal("unexpected pgcrypto manifest", record)
+	}
+	switch kind {
+	case "missing":
+		record.Members = record.Members[1:]
+	case "extra":
+		record.Members = append(record.Members, record.Members[0])
+	case "duplicate":
+		record.Members[1] = record.Members[0]
+	case "name":
+		record.Members[0].Name = "unaccent"
+	case "signature":
+		record.Members[0].Signature = "17,25,25"
+	case "dictionary":
+		record.Members[0] = member{Kind: "dictionary", Name: "unaccent", Owner: "pgcrypto_owner"}
+	case "type":
+		record.Members[0] = member{Kind: "type", Name: "query_int", Owner: "pgcrypto_owner"}
+	case "empty_owner":
+		record.Members[0].Owner = ""
+	case "missing_owner":
+		record.Members[0].Owner = "pgcrypto_absent_owner"
+	default:
+		t.Fatalf("unknown pgcrypto owner mutation %q", kind)
+	}
+	data, err := json.Marshal(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Replace(dump, line, marker+base64.StdEncoding.EncodeToString(data), 1)
 }

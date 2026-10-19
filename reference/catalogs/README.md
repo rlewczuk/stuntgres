@@ -2068,7 +2068,7 @@ types/collations, exactly once each. The supplementary `TestPgcryptoControlRemap
 component regression retains its manually mapped descriptor coverage; it is not
 evidence of actual Restore collision handling.
 
-`TestReferencePgcryptoRelocation` owns independent native-only real-pipeline
+`TestReferencePgcryptoForcedRelocation` owns independent native-only real-pipeline
 relocation scenarios. An ordinary independent-Driver replay establishes candidate
 procedure identities. A second identically initialized destination allocates
 live TEMP sequences until all fourteen procedure OIDs have actual cross-class
@@ -2117,33 +2117,77 @@ These are source assertions requiring fresh selected native and pinned-reference
 proof; test definitions alone are not passing evidence.
 
 Hashing and AES control workloads are deliberately separate fixture owners.
-`ConsumersAndControls` checks shared direct/prepared stored consumers, exact
-CHECK diagnostics/atomicity and procedure dependencies. `RetainedControls`
-owns unread rows/metadata and held calls across real Dump/Reset/Restore.
-`ReplayAtomicity` gives every malformed-owner variant and other failed replay
-its own scenario; `ReplayLifecycle` owns cancellation and missing-owner
-destination atomicity. `Relocation` independently reconstructs the real collision
-pipeline for each refusal, retaining the complete held/direct, identity,
-dependency, TEMP, fresh-write and failed-write postconditions after that refusal.
-In each case the same consumer setup and fixed expectations run on both backends;
-native control phases are explicit, not simulated in PostgreSQL.
-Each leaf calls the existing `pgcryptoCase` and gets its own unchanged30-second
-fixture. No scenario renews a deadline or retries an expired operation. In
-particular, all nine malformed-owner forms are exercised both before and after
-forced relocation, rather than dropping their repeated refusal postconditions.
+The hashing `pgcryptoConsumerCase` helper creates the real SQL seed and supplies
+literal proof steps without repeating all consumer observations in every case.
+`TestReferencePgcryptoConsumersAndControls` checks the original inventory,
+direct/prepared stored/view/nested results, exact CHECK diagnostic/atomicity,
+procedure dependencies and real PostgreSQL TEMP links once.
+`TestReferencePgcryptoControlRetention` owns unread rows/metadata and held calls
+across real Dump/Reset/Restore on the same owner.
+`TestReferencePgcryptoReplayAtomicity` gives each of the thirteen original bad
+scripts its own changed-target scenario, preserving the complete unchanged dump,
+owner inventory and digest postconditions. `TestReferencePgcryptoReplayLifecycle`
+retains ordinary cancellation and missing-owner sentinel-target atomicity.
+`TestReferencePgcryptoControlDestination` retains positive independent-Driver
+import with changed owner attributes and all stored/view/nested/overload results.
+`TestReferencePgcryptoForcedRelocation` reconstructs the real collision pipeline
+for each refusal, retaining complete held/direct, identity, dependency, TEMP,
+fresh-write and failed-write postconditions.
 
-Focused workload remedy proof (all changed/new public definitions, both modes
-and selected race coverage):
+Each leaf uses the existing unchanged30-second fixture. No scenario renews a
+deadline or retries an expired operation. All nine malformed-owner forms remain
+covered both before and after forced relocation. Native control phases remain
+explicit, not simulated in PostgreSQL. The seed-only helper has six top-level
+consumers: ConsumersAndControls, ControlRetention, ReplayAtomicity,
+ReplayLifecycle, ControlDestination and ForcedRelocation. The relocation helper
+has one top-level caller, ForcedRelocation.
+
+ForcedRelocation has fifteen named cells: `version`, `manifest_version`,
+`unknown_provider`, `late_sql`, `private_temp_schema`, `owner_missing`,
+`owner_extra`, `owner_duplicate`, `owner_name`, `owner_signature`,
+`owner_dictionary`, `owner_type`, `owner_empty_owner`, `owner_missing_owner`
+and `cancellation_then_stale_view`. Each retains real source/baseline replay,
+all fourteen actual procedure-OID collisions, successful Restore, held statements,
+TEMP identities and unread captures, full refusal postconditions, sequence73→74,
+final source count3/baseline checks and original TEMP-cursor consumption.
+The final cell preserves cancellation followed by the exact stale-TEMP-view
+refusal on the SAME owner/handles, with both complete postconditions,
+generator74 before stale-view creation, and the exact late error/projected rows.
+The independent cells repeat required real preparation rather than borrowing
+an earlier cell's remaining context; no variant or consumer assertion is removed.
+
+`pgcryptoInvalidOwnerKinds` is the single nine-kind inventory and
+`pgcryptoInvalidOwnerDump` implements all named owner mutations against the
+actual emitted manifest, rejecting unknown names. `pgcryptoReplayFailure`
+shares those mutations with hashing ReplayAtomicity and AES ReplayAtomicity/
+Relocation, with no plural-script positional lookup. ForcedRelocation also
+reuses the same named mutations and the four common replay-failure transforms.
+The obsolete plural mutation helper and competing setup framework are removed.
+
+AES retains its independently integrated ConsumersAndControls, RetainedControls,
+ReplayAtomicity, ReplayLifecycle and Relocation definitions and workload split.
+Shared mutation changes specifically affect AESReplayAtomicity and AESRelocation;
+the complete focused proof below also retains the other integrated AES cases.
+Oracle first, then the same completed native definitions and race;
+external900-second deadline per command:
 
 ```sh
-make check RUN='^TestReferencePgcrypto(AES)?(ConsumersAndControls|RetainedControls|ReplayAtomicity|ReplayLifecycle|Relocation)$' REFERENCE=1
-make check RUN='^TestReferencePgcrypto(AES)?(ConsumersAndControls|RetainedControls|ReplayAtomicity|ReplayLifecycle|Relocation)$'
-make check RUN='^TestReferencePgcrypto(AES)?(ConsumersAndControls|RetainedControls|ReplayAtomicity|ReplayLifecycle|Relocation)$' RACE=1
+make check RUN='^TestReferencePgcrypto(ConsumersAndControls|ControlRetention|ReplayAtomicity|ReplayLifecycle|ControlDestination|ForcedRelocation)$' REFERENCE=1
+make check RUN='^TestReferencePgcrypto(ConsumersAndControls|ControlRetention|ReplayAtomicity|ReplayLifecycle|ControlDestination|ForcedRelocation)$'
+make check RUN='^TestReferencePgcrypto(ConsumersAndControls|ControlRetention|ReplayAtomicity|ReplayLifecycle|ControlDestination|ForcedRelocation)$' RACE=1
+make check RUN='^TestReferencePgcryptoAES(ConsumersAndControls|RetainedControls|ReplayAtomicity|ReplayLifecycle|Relocation)$' REFERENCE=1
+make check RUN='^TestReferencePgcryptoAES(ConsumersAndControls|RetainedControls|ReplayAtomicity|ReplayLifecycle|Relocation)$'
+make check RUN='^TestReferencePgcryptoAES(ConsumersAndControls|RetainedControls|ReplayAtomicity|ReplayLifecycle|Relocation)$' RACE=1
 ```
 
+Feature smoke remains `make check RUN='^TestReferencePgcryptoFeatureSmoke$'`
+(also with `REFERENCE=1`): expect the independently specified owner/member
+inventory, fixed text/binary digest and HMAC vectors, exact unsupported-hash
+diagnostic and typed NULL. Smoke does not replace lifecycle proof.
+
 ```sh
-make check RUN='^TestReferencePgcrypto(Password(Identity|Vectors|SaltGeneration|Diagnostics|OverloadsAndNull|ConsumersAndControls|Relocation|Cancellation|FeatureSmoke)|DigestVectors|HMACVectors|OverloadsAndParameters|DiagnosticsAndNull|InstalledIdentity|ConsumersAndControls|RetainedControls|ReplayAtomicity|ReplayLifecycle|Relocation|FeatureSmoke)$'
-make check REFERENCE=1 RUN='^TestReferencePgcrypto(Password(Identity|Vectors|SaltGeneration|Diagnostics|OverloadsAndNull|ConsumersAndControls|Relocation|Cancellation|FeatureSmoke)|DigestVectors|HMACVectors|OverloadsAndParameters|DiagnosticsAndNull|InstalledIdentity|ConsumersAndControls|RetainedControls|ReplayAtomicity|ReplayLifecycle|Relocation|FeatureSmoke)$'
+make check RUN='^TestReferencePgcrypto(Password(Identity|Vectors|SaltGeneration|Diagnostics|OverloadsAndNull|ConsumersAndControls|Relocation|Cancellation|FeatureSmoke)|DigestVectors|HMACVectors|OverloadsAndParameters|DiagnosticsAndNull|InstalledIdentity|ConsumersAndControls|ControlRetention|ReplayAtomicity|ReplayLifecycle|ControlDestination|ForcedRelocation|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferencePgcrypto(Password(Identity|Vectors|SaltGeneration|Diagnostics|OverloadsAndNull|ConsumersAndControls|Relocation|Cancellation|FeatureSmoke)|DigestVectors|HMACVectors|OverloadsAndParameters|DiagnosticsAndNull|InstalledIdentity|ConsumersAndControls|ControlRetention|ReplayAtomicity|ReplayLifecycle|ControlDestination|ForcedRelocation|FeatureSmoke)$'
 make check RUN='^TestReferenceAvailableExtensionsFiltering$'
 make check REFERENCE=1 RUN='^TestReferenceAvailableExtensionsFiltering$'
 make check RUN='^TestReferenceBinaryHash(Vectors|MD5Overloads|Consumers|Controls|Diagnostics|Quoted|Metadata|Inference|PreparedOwnership|Smoke)$'

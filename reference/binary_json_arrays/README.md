@@ -2054,12 +2054,39 @@ work and recovery, native Dump/Reset/Restore/fresh-driver replay, old cursors,
 deterministic redump, all-formal Restore parameter rejection and actual emitted
 SQL replay on PostgreSQL.
 
-Cancellation gives each of the five traversal paths its own scenario and existing
-30-second fixture context, rather than charging all paths to one shared deadline.
-Each case retains the full 32MiB typed document, both native precanceled calls,
-real evaluator/server admission, canceled read and write, sentinel-only rollback
-and recovery on the same physical connection and preheld statements. Read/write
-phases stay together; no evaluator workload or admission proof is reduced.
+`TestReferenceJSONPathNavigateCancellation` gives each independent path (`$[*]`,
+`strict $.**`, `$[*]?(@ == @)`, `$[*]?(@ like_regex "x+$")` and `$`) its own
+ordinary 30-second scenario, rather than charging all five workloads to one
+fixture deadline. Within each path, read and write cancellation plus valid
+reuse retain the same physical connection and both original held statements.
+There is no cross-path identity assertion: each path starts from the same
+independently specified rows. Each imports the same near-32MiB encoded array of
+8192 strings of 4092 bytes into four rows twice. Bounded elements exercise provider
+traversal/output cancellation checks rather than relying on one giant runtime
+copy as an admission window. Native uses real evaluator/worker admission;
+PostgreSQL uses active-query admission and backend cancellation.
+The existing admission helper joins the worker and rejects any published Rows
+or Result, with unchanged ordinary-cancellation/full PostgreSQL diagnostics.
+Native direct and held precancellation also require ordinary cancellation
+and nil outputs. Same-held recovery retains the exact INT8 sum25, five inserted
+rows, sentinel99 and JSONB `[[0]]` values, metadata/middleware assertions, no
+canceled-write effects and final five-row deletion before fixture cleanup.
+No fixture deadline is extended or restarted, and no operation is retried.
+Bounded child cleanup restores input/output even on assertion failure; its
+separate context does not restart a witness or retry the canceled operation.
+
+Selected cancellation proof and feature smoke (same body in both modes):
+
+```sh
+make check RUN='^TestReferenceJSONPathNavigateCancellation$' REFERENCE=1
+make check RUN='^TestReferenceJSONPathNavigateCancellation$'
+make check RUN='^TestReferenceJSONPathNavigateCancellation$' RACE=1
+```
+
+Expected observations are admitted cancellation without outputs, unchanged
+sentinel-only destination, then the exact same-held read/write recovery above
+for every path. Each path's statements and connection close before its fixture
+cleanup and the next independent scenario.
 
 Variadic pins redundant final `VARIADIC` acceptance for positional calls and
 named/mixed calls whose final written formal matches its supplied ordinal.

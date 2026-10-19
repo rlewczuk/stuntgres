@@ -12,7 +12,9 @@ import (
 func TestReferenceJSONPathNavigateCancellation(t *testing.T) {
 	for _, path := range []string{`$[*]`, `strict $.**`, `$[*]?(@ == @)`, `$[*]?(@ like_regex "x+$")`, `$`} {
 		t.Run(path, func(t *testing.T) {
-			// Each traversal owns its fixture deadline, records and held recovery.
+			// Paths are independent workloads, not a cross-path statement-identity
+			// contract. Each owns an ordinary bounded fixture; both cancellations
+			// and their same-held-statement recoveries stay on its physical owner.
 			jsonpathNavigateScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 				run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
 				run(fixture.Exec(`CREATE TABLE jpn_active(id int,v jsonb,p jsonpath)`, 0))
@@ -39,17 +41,25 @@ func TestReferenceJSONPathNavigateCancellation(t *testing.T) {
 				if !b.PG {
 					ctx, cancel := context.WithCancel(p.Ctx)
 					cancel()
-					rows, err := read.QueryContext(ctx)
-					if rows != nil {
-						rows.Close()
-						t.Fatal("precanceled read published rows")
+					for _, route := range []struct {
+						name        string
+						read, write fixture.Executor
+					}{
+						{"direct", c, c},
+						{"held", fixture.HeldStatement{Executor: c, Statement: read, SQL: readSQL}, fixture.HeldStatement{Executor: c, Statement: write, SQL: writeSQL}},
+					} {
+						rows, err := route.read.QueryContext(ctx, readSQL)
+						if rows != nil {
+							rows.Close()
+							t.Fatal(route.name, "precanceled read published rows")
+						}
+						fixture.LexicalOrdinary(t, err, context.Canceled)
+						result, err := route.write.ExecContext(ctx, writeSQL)
+						if result != nil {
+							t.Fatal(route.name, "precanceled write published result")
+						}
+						fixture.LexicalOrdinary(t, err, context.Canceled)
 					}
-					fixture.LexicalOrdinary(t, err, context.Canceled)
-					result, err := write.ExecContext(ctx)
-					if result != nil {
-						t.Fatal("precanceled write published result")
-					}
-					fixture.LexicalOrdinary(t, err, context.Canceled)
 				}
 				provider := "sqltype.JSONBPathQueryArrayPlan.Evaluate"
 				defer func() {

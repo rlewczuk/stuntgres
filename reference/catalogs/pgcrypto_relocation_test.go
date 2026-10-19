@@ -15,6 +15,45 @@ import (
 	"stuntgres/reference/fixture"
 )
 
+type pgcryptoRelocationRefusal struct {
+	name        string
+	script      func(*testing.T, string, string) string
+	privateTemp bool
+}
+
+// Each invalid input is independent, but its successful publication and held
+// consumers must precede the refusal on the SAME owner. A nil script selects
+// the final cancellation-then-stale-view continuity proof.
+func pgcryptoRelocationRefusals() []pgcryptoRelocationRefusal {
+	refusals := []pgcryptoRelocationRefusal{
+		{name: "version", script: func(t *testing.T, script, _ string) string {
+			return pgcryptoReplayFailure(t, script, "version")
+		}},
+		{name: "manifest_version", script: func(t *testing.T, script, _ string) string {
+			return pgcryptoReplayFailure(t, script, "metadata")
+		}},
+		{name: "unknown_provider", script: func(t *testing.T, script, _ string) string {
+			return pgcryptoReplayFailure(t, script, "provider")
+		}},
+		{name: "late_sql", script: func(t *testing.T, script, _ string) string {
+			return pgcryptoReplayFailure(t, script, "sql")
+		}},
+		{name: "private_temp_schema", privateTemp: true, script: func(_ *testing.T, _, schema string) string {
+			// Staging cannot borrow the live destination's private namespace.
+			return "CREATE EXTENSION pgcrypto SCHEMA \"" + strings.ReplaceAll(schema, "\"", "\"\"") + "\" VERSION '1.4';"
+		}},
+	}
+	for _, kind := range pgcryptoInvalidOwnerKinds() {
+		refusals = append(refusals, pgcryptoRelocationRefusal{
+			name: "owner_" + kind,
+			script: func(t *testing.T, script, _ string) string {
+				return pgcryptoInvalidOwnerDump(t, script, kind)
+			},
+		})
+	}
+	return append(refusals, pgcryptoRelocationRefusal{name: "cancellation_then_stale_view"})
+}
+
 func pgcryptoReplayOverloads(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
 	t.Helper()
 	pgcryptoResult(t, p, c, r, "digest", "SELECT pgcrypto_part.digest('abc','sha256')", pgcryptoDigestVectors[3].abc)
@@ -142,7 +181,7 @@ func pgcryptoConsumerDependencies(t *testing.T, p *fixture.Pair, c *sql.Conn, r 
 	return addresses
 }
 
-func pgcryptoForcedRelocation(t *testing.T, p *fixture.Pair, source, baseline *sql.Conn, sourceRecord, baselineRecord *fixture.Recorder, script string, check, view, nested, failure fixture.Step, refusal string) {
+func pgcryptoForcedRelocation(t *testing.T, p *fixture.Pair, source, baseline *sql.Conn, sourceRecord, baselineRecord *fixture.Recorder, script string, check, view, nested, failure fixture.Step, refusal pgcryptoRelocationRefusal) {
 	t.Helper()
 	// The ordinary replay supplies actual candidate identities, independently
 	// of allocator assumptions about the original SQL creation sequence.
@@ -281,37 +320,31 @@ func pgcryptoForcedRelocation(t *testing.T, p *fixture.Pair, source, baseline *s
 			t.Fatal("consumer witness changed persistent data")
 		}
 	}
-	// Each independently initialized collision destination exercises one refusal
-	// with the complete postcondition, rather than spending one fixture deadline
-	// on every malformed manifest and lifecycle transition.
-	if refusal != "dependent_temp_view" {
+	if refusal.script != nil {
+		bad := refusal.script(t, script, temp.schema)
 		before := extensionDump(t, p.Ctx, other)
 		unread := pgcryptoCaptureTemp(t, p, c)
-		if refusal == "cancellation" {
-			ctx, cancel := context.WithCancel(p.Ctx)
-			err = stuntgres.Restore(ctx, other, &fixture.CatalogControlCancelReader{Cancel: cancel})
-			cancel()
-			if !errors.Is(err, context.Canceled) {
-				t.Fatal("cancelled destination replay", err)
+		err := stuntgres.Restore(p.Ctx, other, strings.NewReader(bad))
+		if err == nil {
+			t.Fatal("invalid destination replay accepted", refusal.name)
+		}
+		if refusal.privateTemp {
+			var diagnostic *stuntgres.Error
+			if !errors.As(err, &diagnostic) || diagnostic.Code != "3F000" {
+				t.Fatal("private TEMP placement diagnostic", err)
 			}
-		} else {
-			var bad string
-			if refusal == "private_temp" {
-				// Staging may not borrow the live private TEMP namespace.
-				bad = "CREATE EXTENSION pgcrypto SCHEMA \"" + strings.ReplaceAll(temp.schema, "\"", "\"\"") + "\" VERSION '1.4';"
-			} else {
-				bad = pgcryptoReplayFailure(t, script, refusal)
-			}
-			err = stuntgres.Restore(p.Ctx, other, strings.NewReader(bad))
-			if err == nil {
-				t.Fatal("invalid destination replay accepted", refusal)
-			}
-			if refusal == "private_temp" {
-				var diagnostic *stuntgres.Error
-				if !errors.As(err, &diagnostic) || diagnostic.Code != "3F000" {
-					t.Fatal("private TEMP placement diagnostic", err)
-				}
-			}
+		}
+		postcondition(before)
+		unread.unchanged(t, p, c, r)
+		unread.consume(t)
+	} else {
+		before := extensionDump(t, p.Ctx, other)
+		unread := pgcryptoCaptureTemp(t, p, c)
+		ctx, cancel := context.WithCancel(p.Ctx)
+		err = stuntgres.Restore(ctx, other, &fixture.CatalogControlCancelReader{Cancel: cancel})
+		cancel()
+		if !errors.Is(err, context.Canceled) {
+			t.Fatal("cancelled destination replay", err)
 		}
 		postcondition(before)
 		unread.unchanged(t, p, c, r)
@@ -320,7 +353,7 @@ func pgcryptoForcedRelocation(t *testing.T, p *fixture.Pair, source, baseline *s
 	if err := held.QueryRowContext(p.Ctx).Scan(&next); err != nil || next != 74 {
 		t.Fatal("failed replay changed retained generator", next, err)
 	}
-	if refusal == "dependent_temp_view" {
+	if refusal.script == nil {
 		fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("CREATE TEMP VIEW pgcrypto_stale_capture AS SELECT id,digest FROM pgcrypto_view", 0))
 		stale := pgcryptoCaptureTempView(t, p, c)
 		if stale.namespace != temp.namespace || stale.target != consumerIDs["view_relation"] {
@@ -329,7 +362,7 @@ func pgcryptoForcedRelocation(t *testing.T, p *fixture.Pair, source, baseline *s
 		blockingView = &stale
 		blockingView.unchanged(t, p, c, r)
 		before := extensionDump(t, p.Ctx, other)
-		err = stuntgres.Restore(p.Ctx, other, strings.NewReader(script))
+		err := stuntgres.Restore(p.Ctx, other, strings.NewReader(script))
 		if err == nil || err.Error() != "stuntgres: catalog replacement with live temporary view persistent dependencies is unsupported" {
 			t.Fatal("stale persistent consumer identity not refused", err)
 		}

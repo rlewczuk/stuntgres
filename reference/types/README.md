@@ -1708,23 +1708,51 @@ asserted identically on both backends: `unnamed portal parameter $1 = '...'`
 for inferred parameters and base-typed malformed/overflowing text, and `$2`
 for the held INSERT.
 
-Run all six families from the repository root, with an external900-second
-deadline per command (root owns execution):
+Run all eight families from the repository root, with an external900-second
+deadline per command (root owns execution), oracle mode first:
 
 ```sh
-make check RUN='^TestReferenceInfoCardinalNumber(Values|Metadata|Identity|Diagnostics|NativeControls|FeatureSmoke)$'
-make check RUN='^TestReferenceInfoCardinalNumber(Values|Metadata|Identity|Diagnostics|NativeControls|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceInfoCardinalNumber(Values|Metadata|Identity|Diagnostics|NativeControls|NativeFreshRestore|NativeRestoreAtomicity|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceInfoCardinalNumber(Values|Metadata|Identity|Diagnostics|NativeControls|NativeFreshRestore|NativeRestoreAtomicity|FeatureSmoke)$'
 make check RUN='^TestReferenceInfoCardinalNumberFeatureSmoke$'
 make check RUN='^TestReferenceInfoCardinalNumberFeatureSmoke$' REFERENCE=1
 ```
 
 The smoke expects exact 0/7/NULL rows, INT4 metadata and linked domain identity,
 negative/malformed-text rejection without a valid prefix, then native
-Dump/Reset/Restore retaining rows and enforcement. NativeControls adds
-same/fresh/repeated Restore, retained rows/metadata and failed/canceled Restore
-atomicity. These APIs are explicit native-only phases after shared SQL
-acceptance, not simulated PostgreSQL controls. Allocated domain/constraint OIDs
-are checked by relationships, not cross-server numeric equality.
+Dump/Reset/Restore retaining rows and enforcement. `NativeControls` keeps the
+retained cursor and saved metadata across Reset/Restore on the same owner.
+`NativeFreshRestore` independently checks fresh-driver restoration with the
+remap-spacer role, followed by a second Dump/Restore on that same destination.
+`NativeRestoreAtomicity` gives each negative, malformed, syntax and precanceled
+replacement its own fresh `NewScenario` SQL baseline and fresh destination;
+these are independent failed-replacement witnesses, not phases of the retained
+cursor or repeated roundtrip. All fixtures keep their existing bounded contexts;
+no existing fixture clock is reset and no operation is retried for success.
+Each failed Restore preserves sentinel42, absence of the staged table, exact
+0/7/NULL rows, domain relationships and all direct/prepared enforcement checks
+on the same restored destination. Negative and malformed replay diagnostics
+retain their full fields and literal positions; precancellation retains ordinary
+`context.Canceled` identity. Source and destination use the existing fixture's
+owned pools, recorders and cleanup; no parallel fixture framework is introduced.
+These APIs are explicit native-only phases after shared SQL acceptance, not
+simulated PostgreSQL controls. Allocated domain/constraint OIDs are checked by
+relationships, not cross-server numeric equality.
+
+For the lifecycle remedy alone, select every changed/new definition in both
+modes (external900-second deadline each), then selected race proof:
+
+```sh
+make check RUN='^TestReferenceInfoCardinalNumberNative(Controls|FreshRestore|RestoreAtomicity)$' REFERENCE=1
+make check RUN='^TestReferenceInfoCardinalNumberNative(Controls|FreshRestore|RestoreAtomicity)$'
+make check RUN='^TestReferenceInfoCardinalNumberNative(Controls|FreshRestore|RestoreAtomicity)$' RACE=1
+```
+
+`NativeRestoreAtomicity` contains `negative`, `malformed`, `syntax` and
+`precancel` subcases, each running the same SQL baseline on every available
+backend before its explicit native-only phase. The unchanged FeatureSmoke
+also consumes `infoCardinalNumberDump` and `infoCardinalNumberRestored`; neither
+helper's assertions or implementation change in this remedy.
 
 Physical database/sql metadata is INT4, raw Go int64 or nil, with unknown
 Length/DecimalSize. Native ScanType is int64 and declared Nullable is known;
