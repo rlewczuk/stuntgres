@@ -46,7 +46,7 @@ type serializablePublicationSnapshot struct {
 }
 
 func serializableSnapshotPublication(e *Engine) serializablePublicationSnapshot {
-	s := serializablePublicationSnapshot{catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), namespaceGeneration: e.catalog.state.NamespaceGeneration(), revision: e.catalog.nextRevision, frontier: e.visibility.commitSeq, order: e.visibility.Serializable.order, storage: make(map[ids.ObjectAddress]serializableStorageSnapshot), indexes: make(map[ids.ObjectAddress]serializableIndexSnapshot), sequences: maps.Clone(e.storage.Sequences), generators: make(map[ids.ObjectAddress]storage.SequenceGenerator), providers: make(map[ids.OID]reflect.Type)}
+	s := serializablePublicationSnapshot{catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), namespaceGeneration: e.catalog.state.NamespaceGeneration(), revision: e.catalog.nextRevision, frontier: e.visibility.CommitSeq(), order: e.visibility.SerializableOrder(), storage: make(map[ids.ObjectAddress]serializableStorageSnapshot), indexes: make(map[ids.ObjectAddress]serializableIndexSnapshot), sequences: maps.Clone(e.storage.Sequences), generators: make(map[ids.ObjectAddress]storage.SequenceGenerator), providers: make(map[ids.OID]reflect.Type)}
 	for address, store := range e.storage.Relations {
 		rows := append([]storage.RowVersion(nil), store.Versions[:cap(store.Versions)]...)
 		for i := range rows {
@@ -98,10 +98,10 @@ func serializableUnitCycle(t *testing.T, e *Engine, node *serializableTransactio
 	peer := serializableUnitNode(t, e, false)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if err := e.visibility.serializableEdgeLocked(node, node, peer); err != nil {
+	if err := e.visibility.SerializableEdgeLocked(node, node, peer); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.visibility.serializableEdgeLocked(peer, peer, node); err != nil {
+	if err := e.visibility.SerializableEdgeLocked(peer, peer, node); err != nil {
 		t.Fatal(err)
 	}
 	return peer
@@ -124,10 +124,10 @@ func TestSerializablePublicationDoomedCatalogIndexSequenceProviderAtomicity(t *t
 	node := e.visibility.Serializable.Nodes[a.transactions.ref]
 	peer := serializableUnitCycle(t, e, node)
 	e.mu.Lock()
-	if err := e.visibility.serializablePrecommitLocked(peer.Ref); err != nil {
+	if err := e.visibility.SerializablePrecommitLocked(peer.Ref); err != nil {
 		t.Fatal(err)
 	}
-	e.visibility.serializableCommittedLocked(peer.Ref, e.visibility.commitSeq)
+	e.visibility.SerializableCommittedLocked(peer.Ref, e.visibility.CommitSeq())
 	if !node.Doomed {
 		t.Fatal("cycle did not doom staged participant")
 	}
@@ -310,7 +310,7 @@ func TestSerializablePublicationRealChangedPredecessorRetry(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if !node.Committed || !peer.Doomed || e.visibility.commitSeq != afterPeer.frontier+1 || e.visibility.Serializable.order != afterPeer.order+1 {
+				if !node.Committed || !peer.Doomed || e.visibility.CommitSeq() != afterPeer.frontier+1 || e.visibility.SerializableOrder() != afterPeer.order+1 {
 					t.Fatal("retry did not finalize exactly once")
 				}
 				rows := e.storage.Relations[address].Versions

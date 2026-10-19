@@ -21,7 +21,7 @@ type remintedIndexStorage struct {
 }
 
 func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, snapshot *indexSnapshot) (remintedIndexStorage, error) {
-	prepared := remintedIndexStorage{catalog: next, baseCatalog: e.catalog.state, baseRow: e.storage.RowFrontier(), baseVersion: e.storage.VersionFrontier(), frontier: e.visibility.commitSeq}
+	prepared := remintedIndexStorage{catalog: next, baseCatalog: e.catalog.state, baseRow: e.storage.RowFrontier(), baseVersion: e.storage.VersionFrontier(), frontier: e.visibility.CommitSeq()}
 	var err error
 	prepared.roots, prepared.nextRow, prepared.nextVersion, err = e.prepareRemintedStorage(ctx, next, relations, snapshot)
 	if err == nil {
@@ -75,7 +75,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalog.State
 			}
 			selected[identity] = i
 			row.Row, row.Version = ids.RowID(rowID), ids.VersionID(versionID)
-			row.Base, row.Born = 0, e.visibility.commitSeq+1
+			row.Base, row.Born = 0, e.visibility.CommitSeq()+1
 			row.KeyChangedAt, row.PendingKeyChange = 0, false
 			row.IndexAdmission = nil
 			row.IndexOutputs = nil

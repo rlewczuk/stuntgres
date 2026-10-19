@@ -56,8 +56,8 @@ func TestUniqueKeyHistoryPublicationAndProjection(t *testing.T) {
 	}
 	sessionSQL(t, s, "UPDATE t SET k=2")
 	changed := head()
-	if changed.KeyChangedAt == 0 || changed.KeyChangedAt != e.visibility.commitSeq || changed.PendingKeyChange {
-		t.Fatal("transition not stamped at final publication", changed, e.visibility.commitSeq)
+	if changed.KeyChangedAt == 0 || changed.KeyChangedAt != e.visibility.CommitSeq() || changed.PendingKeyChange {
+		t.Fatal("transition not stamped at final publication", changed, e.visibility.CommitSeq())
 	}
 	changedPrefix := e.storage.Relations[ref.Address].Versions
 	changedCopy := uniqueHistoryCopy(changedPrefix)
@@ -71,7 +71,7 @@ func TestUniqueKeyHistoryPublicationAndProjection(t *testing.T) {
 	sessionSQL(t, s, "UPDATE t SET v=50")
 	transactionEnd(t, s, tx, true)
 	restored := head()
-	if restored.KeyChangedAt != e.visibility.commitSeq || restored.KeyChangedAt <= changed.KeyChangedAt || restored.PendingKeyChange {
+	if restored.KeyChangedAt != e.visibility.CommitSeq() || restored.KeyChangedAt <= changed.KeyChangedAt || restored.PendingKeyChange {
 		t.Fatal("changed-and-restored transaction lost history", restored)
 	}
 	sessionSQL(t, s, "ALTER TABLE t DROP extra")
@@ -142,7 +142,7 @@ func TestUniqueKeyHistoryFailedBatchAndSavepoint(t *testing.T) {
 		}
 		if row.KeyChangedAt != 0 {
 			changed++
-			if row.KeyChangedAt != e.visibility.commitSeq || row.Row != pendingCopy[0].Row {
+			if row.KeyChangedAt != e.visibility.CommitSeq() || row.Row != pendingCopy[0].Row {
 				t.Fatal("unaffected row acquired transition history", row)
 			}
 		}

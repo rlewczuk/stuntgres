@@ -20,12 +20,12 @@ func (e *Engine) assignTransactionXIDLocked(ref ids.TxRef) error {
 	if ref.Domain() != domainOf(e) || ref.Epoch() != e.catalog.state.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	return e.visibility.assignTransactionXIDLocked(ref)
+	return e.visibility.AssignTransactionXIDLocked(ref)
 }
 
 // assignTransactionXIDLocked gives ref its canonical full XID once, reserving
 // its commit timestamp slot. Caller holds Engine.mu and has fenced ref.
-func (reg *visibilityRegistry) assignTransactionXIDLocked(ref ids.TxRef) error {
+func (reg *visibilityRegistry) AssignTransactionXIDLocked(ref ids.TxRef) error {
 	v := reg.Entries[ref]
 	if v.AssignedXID != 0 {
 		return nil
@@ -80,12 +80,12 @@ func (reg *visibilityRegistry) assignTransactionXIDLocked(ref ids.TxRef) error {
 
 // All storage is reserved before the publisher's final no-failure region.
 // Consume completion ownership so an already-published utility cannot record twice.
-func (reg *visibilityRegistry) recordCommitTimestampLocked(ref ids.TxRef) {
+func (reg *visibilityRegistry) RecordCommitTimestampLocked(ref ids.TxRef) {
 	v := reg.Entries[ref]
 	if v.AssignedXID == 0 {
 		return
 	}
-	reg.endTransactionIdentityLocked(ref, true)
+	reg.EndTransactionIdentityLocked(ref, true)
 	if reg.trackCommitTimestamp {
 		entry := commitTimestampEntry{Stamp: time.Now().UTC().Truncate(time.Microsecond), Present: true}
 		reg.CommitTimestamps[v.FullXID] = entry
@@ -96,7 +96,7 @@ func (reg *visibilityRegistry) recordCommitTimestampLocked(ref ids.TxRef) {
 	reg.Entries[ref] = v
 }
 
-func (reg *visibilityRegistry) retireCommitTimestampsLocked() {
+func (reg *visibilityRegistry) RetireCommitTimestampsLocked() {
 	reg.CommitTimestamps = nil
 	reg.commitTimestampBase = uint64(reg.assignedXID) + 1
 	reg.lastCommittedXID, reg.lastCommitTimestamp = 0, commitTimestampEntry{}
@@ -107,19 +107,13 @@ func (reg *visibilityRegistry) retireCommitTimestampsLocked() {
 
 // tracksCommitTimestamps reports track_commit_timestamp, fixed at engine
 // construction.
-func (reg *visibilityRegistry) tracksCommitTimestamps() bool {
+func (reg *visibilityRegistry) TracksCommitTimestamps() bool {
 	return reg.trackCommitTimestamp
-}
-
-// lastCommitTimestampLocked returns the newest recorded commit and its
-// timestamp, or zero values before the first one. Caller holds Engine.mu.
-func (reg *visibilityRegistry) lastCommitTimestampLocked() (uint32, commitTimestampEntry) {
-	return reg.lastCommittedXID, reg.lastCommitTimestamp
 }
 
 // XID input names the newest possible retained epoch only. An absent/aborted
 // newest assignment never falls back to an older completion with the same low32.
-func (reg *visibilityRegistry) lookupCommitTimestampLocked(xid uint32) commitTimestampEntry {
+func (reg *visibilityRegistry) LookupCommitTimestampLocked(xid uint32) commitTimestampEntry {
 	full := reg.assignedXID&^uint64(0xffffffff) | uint64(xid)
 	if full > reg.assignedXID && full >= 1<<32 {
 		full -= 1 << 32

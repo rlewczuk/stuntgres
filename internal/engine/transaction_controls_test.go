@@ -145,7 +145,7 @@ func TestTransactionControlsCountersAndReferences(t *testing.T) {
 		transactionRows(t, a, "SELECT v FROM t", 1)
 		waiter := lockAsync(e, b, context.Background(), "SELECT v FROM t", false)
 		lockPending(t, e, 1)
-		frontier := e.visibility.commitSeq
+		frontier := e.visibility.CommitSeq()
 		// Unlike Begin/Rollback/statement entry, native Commit deliberately
 		// admits caller cancellation, then discards a valid incarnation and
 		// releases its holds with the original context error.
@@ -155,7 +155,7 @@ func TestTransactionControlsCountersAndReferences(t *testing.T) {
 			t.Fatal("canceled native Commit outcome", result, err)
 		}
 		if a.TransactionState() != TxIdle || a.transactions.ref.ID() != 0 ||
-			a.transactions.ticket != nil || a.transactions.writes != nil || e.visibility.commitSeq != frontier {
+			a.transactions.ticket != nil || a.transactions.writes != nil || e.visibility.CommitSeq() != frontier {
 			t.Fatal("canceled native Commit retained work/holds or published")
 		}
 		op.Done()
@@ -178,12 +178,12 @@ func TestTransactionControlsCountersAndReferences(t *testing.T) {
 			controlsRequire(t, a, "BEGIN")
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			old := a.transactions.ref
-			frontier := e.visibility.commitSeq
+			frontier := e.visibility.CommitSeq()
 			switch counter {
 			case "tx":
 				a.transactions.next = ids.TxID(^uint64(0))
 			case "frontier":
-				e.visibility.commitSeq = ids.CommitSeq(^uint64(0))
+				e.visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
 			case "command":
 				a.transactions.command = ids.CommandID(^uint64(0))
 			}
@@ -200,7 +200,7 @@ func TestTransactionControlsCountersAndReferences(t *testing.T) {
 				if err == nil || err.Error() != want || errors.As(err, &diagnostic) || a.transactions.ref.ID() != 0 && a.transactions.ref != old {
 					t.Fatal(err, a.transactions.ref)
 				}
-				if counter == "tx" && e.visibility.commitSeq != frontier {
+				if counter == "tx" && e.visibility.CommitSeq() != frontier {
 					t.Fatal("birth exhaustion published")
 				}
 				transactionRows(t, b, "SELECT v FROM t")

@@ -56,7 +56,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 				f.store.Versions = append(f.store.Versions, storage.RowVersion{Row: ids.RowID(i + 2), Version: ids.VersionID(i + 2), Born: 1, Values: values})
 			}
 			f.e.storage.SetFrontierLocked(3, 3)
-			f.e.visibility.commitSeq = 1
+			f.e.visibility.SetCommitSeqLocked(1)
 			root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &definition, f.store, nil)
 			if err != nil {
 				t.Fatal(err)
@@ -97,7 +97,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 					p.next[publicationSlot(&p, i)] = row
 					f.e.storage.SetFrontierLocked(max(f.e.storage.RowFrontier(), uint64(row.Row)), max(f.e.storage.VersionFrontier(), uint64(row.Version)))
 				}
-				f.e.visibility.commitSeq = 2
+				f.e.visibility.SetCommitSeqLocked(2)
 				f.store = &storage.Relation{Versions: p.next, Ends: p.nextEnds}
 				if p.nextEnds == nil {
 					f.store.Ends = p.ends
@@ -210,7 +210,7 @@ func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	f.store.Versions = append(f.store.Versions, storage.RowVersion{Row: 2, Version: 2, Born: 2, Values: insertConflictUnitRow(t, f, 20)})
 	f.store.Ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 1}}}
 	f.e.storage.SetFrontierLocked(2, 2)
-	f.e.visibility.commitSeq = 2
+	f.e.visibility.SetCommitSeqLocked(2)
 	authOp, done := roleOperation(t, f.e, "postgres")
 	defer done()
 	auth, err := authOp.Authorization()

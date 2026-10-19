@@ -22,8 +22,8 @@ func serializableUnitNode(t *testing.T, e *Engine, readOnly bool) *serializableT
 	node := e.visibility.Serializable.Nodes[ref]
 	node.Captured = true
 	node.ReadOnly = readOnly
-	node.Frontier = e.visibility.commitSeq
-	node.SnapshotOrder = e.visibility.Serializable.order
+	node.Frontier = e.visibility.CommitSeq()
+	node.SnapshotOrder = e.visibility.SerializableOrder()
 	e.mu.Unlock()
 	return node
 }
@@ -42,24 +42,24 @@ func TestSerializableGraphDirectionDedupAndLoneEdge(t *testing.T) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for range 2 {
-		if err := e.visibility.serializableEdgeLocked(a, a, b); err != nil {
+		if err := e.visibility.SerializableEdgeLocked(a, a, b); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := e.visibility.serializableEdgeLocked(a, a, a); err != nil {
+	if err := e.visibility.SerializableEdgeLocked(a, a, a); err != nil {
 		t.Fatal(err)
 	}
 	if len(a.Outgoing) != 1 || len(a.Incoming) != 0 || len(b.Incoming) != 1 || len(b.Outgoing) != 0 {
 		t.Fatal("wrong direction/dedup/self edge")
 	}
-	if err := e.visibility.serializablePrecommitLocked(a.Ref); err != nil {
+	if err := e.visibility.SerializablePrecommitLocked(a.Ref); err != nil {
 		t.Fatal(err)
 	}
-	e.visibility.serializableCommittedLocked(a.Ref, e.visibility.commitSeq)
-	if err := e.visibility.serializablePrecommitLocked(b.Ref); err != nil {
+	e.visibility.SerializableCommittedLocked(a.Ref, e.visibility.CommitSeq())
+	if err := e.visibility.SerializablePrecommitLocked(b.Ref); err != nil {
 		t.Fatal(err)
 	}
-	e.visibility.serializableCommittedLocked(b.Ref, e.visibility.commitSeq)
+	e.visibility.SerializableCommittedLocked(b.Ref, e.visibility.CommitSeq())
 	if !a.Committed || !b.Committed || a.Doomed || b.Doomed || a.Order >= b.Order {
 		t.Fatal("lone edge/empty commit order")
 	}
@@ -76,20 +76,20 @@ func TestSerializableGraphCycleFirstCommitDoomsActivePivot(t *testing.T) {
 			}
 			e.mu.Lock()
 			defer e.mu.Unlock()
-			if err := e.visibility.serializableEdgeLocked(a, a, b); err != nil {
+			if err := e.visibility.SerializableEdgeLocked(a, a, b); err != nil {
 				t.Fatal(err)
 			}
-			if err := e.visibility.serializableEdgeLocked(b, b, a); err != nil {
+			if err := e.visibility.SerializableEdgeLocked(b, b, a); err != nil {
 				t.Fatal(err)
 			}
-			if err := e.visibility.serializablePrecommitLocked(first.Ref); err != nil {
+			if err := e.visibility.SerializablePrecommitLocked(first.Ref); err != nil {
 				t.Fatal(err)
 			}
-			e.visibility.serializableCommittedLocked(first.Ref, e.visibility.commitSeq)
+			e.visibility.SerializableCommittedLocked(first.Ref, e.visibility.CommitSeq())
 			if !last.Doomed || last.Committed || txOwnerOf(last.Ref).state != TxActive || first.Doomed {
 				t.Fatal("peer doom became an asynchronous TX abort")
 			}
-			serializableUnitDiagnostic(t, e.visibility.serializablePrecommitLocked(last.Ref), "Canceled on identification as a pivot, during commit attempt.")
+			serializableUnitDiagnostic(t, e.visibility.SerializablePrecommitLocked(last.Ref), "Canceled on identification as a pivot, during commit attempt.")
 		})
 	}
 }
@@ -105,11 +105,11 @@ func TestSerializableGraphCommitOrderingAndReadOnlyRefinement(t *testing.T) {
 				defer e.mu.Unlock()
 				pivot.Outgoing[out] = struct{}{}
 				out.Incoming[pivot] = struct{}{}
-				e.visibility.serializableCommittedLocked(out.Ref, e.visibility.commitSeq)
+				e.visibility.SerializableCommittedLocked(out.Ref, e.visibility.CommitSeq())
 				if outBeforeSnapshot {
 					in.SnapshotOrder = out.Order
 				}
-				err := e.visibility.serializableEdgeLocked(pivot, in, pivot)
+				err := e.visibility.SerializableEdgeLocked(pivot, in, pivot)
 				if readOnly && !outBeforeSnapshot {
 					if err != nil || pivot.Doomed {
 						t.Fatal("late Tout falsely aborted read-only Tin", err)
@@ -137,13 +137,13 @@ func TestSerializableGraphFinalizedPivotIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	publicXID := e.visibility.Entries[pivot.Ref].AssignedXID
-	e.visibility.recordCommitTimestampLocked(pivot.Ref)
+	e.visibility.RecordCommitTimestampLocked(pivot.Ref)
 	if e.visibility.Entries[pivot.Ref].AssignedXID != 0 || pivot.AssignedXID != publicXID {
 		t.Fatal("completion lost the pivot's canonical diagnostic identity")
 	}
-	e.visibility.serializableCommittedLocked(out.Ref, e.visibility.commitSeq)
-	e.visibility.serializableCommittedLocked(pivot.Ref, e.visibility.commitSeq)
-	serializableUnitDiagnostic(t, e.visibility.serializableEdgeLocked(reader, reader, pivot), fmt.Sprintf("Canceled on conflict out to pivot %d, during read.", publicXID))
+	e.visibility.SerializableCommittedLocked(out.Ref, e.visibility.CommitSeq())
+	e.visibility.SerializableCommittedLocked(pivot.Ref, e.visibility.CommitSeq())
+	serializableUnitDiagnostic(t, e.visibility.SerializableEdgeLocked(reader, reader, pivot), fmt.Sprintf("Canceled on conflict out to pivot %d, during read.", publicXID))
 	if pivot.Doomed || out.Doomed || !pivot.Committed {
 		t.Fatal("finalized victim mutated")
 	}
@@ -158,11 +158,11 @@ func TestSerializableGraphNonDangerousOrderAndExcludedCauses(t *testing.T) {
 			e.mu.Lock()
 			defer e.mu.Unlock()
 			if excluded == "earlier_reader" {
-				e.visibility.serializableCommittedLocked(in.Ref, e.visibility.commitSeq)
+				e.visibility.SerializableCommittedLocked(in.Ref, e.visibility.CommitSeq())
 			}
 			pivot.Outgoing[out] = struct{}{}
 			out.Incoming[pivot] = struct{}{}
-			e.visibility.serializableCommittedLocked(out.Ref, e.visibility.commitSeq)
+			e.visibility.SerializableCommittedLocked(out.Ref, e.visibility.CommitSeq())
 			if excluded == "aborted" {
 				out.Aborted = true
 			}
@@ -172,7 +172,7 @@ func TestSerializableGraphNonDangerousOrderAndExcludedCauses(t *testing.T) {
 			if excluded == "self" {
 				in = pivot
 			}
-			if err := e.visibility.serializableEdgeLocked(pivot, in, pivot); err != nil || pivot.Doomed {
+			if err := e.visibility.SerializableEdgeLocked(pivot, in, pivot); err != nil || pivot.Doomed {
 				t.Fatal("excluded/non-dangerous cause", err)
 			}
 		})
@@ -183,8 +183,8 @@ func TestSerializableGraphConcurrentFinalPreflights(t *testing.T) {
 	a := serializableUnitNode(t, e, false)
 	b := serializableUnitNode(t, e, false)
 	e.mu.Lock()
-	e.visibility.serializableEdgeLocked(a, a, b)
-	e.visibility.serializableEdgeLocked(b, b, a)
+	e.visibility.SerializableEdgeLocked(a, a, b)
+	e.visibility.SerializableEdgeLocked(b, b, a)
 	e.mu.Unlock()
 	start := make(chan struct{})
 	results := make(chan error, 2)
@@ -195,9 +195,9 @@ func TestSerializableGraphConcurrentFinalPreflights(t *testing.T) {
 			defer workers.Done()
 			<-start
 			e.mu.Lock()
-			err := e.visibility.serializablePrecommitLocked(node.Ref)
+			err := e.visibility.SerializablePrecommitLocked(node.Ref)
 			if err == nil {
-				e.visibility.serializableCommittedLocked(node.Ref, e.visibility.commitSeq)
+				e.visibility.SerializableCommittedLocked(node.Ref, e.visibility.CommitSeq())
 			}
 			e.mu.Unlock()
 			results <- err
@@ -224,8 +224,8 @@ func TestSerializableGraphCohortRetentionAndDrain(t *testing.T) {
 	a := serializableUnitNode(t, e, false)
 	b := serializableUnitNode(t, e, false)
 	e.mu.Lock()
-	e.visibility.serializableEdgeLocked(a, a, b)
-	e.visibility.serializableCommittedLocked(a.Ref, e.visibility.commitSeq)
+	e.visibility.SerializableEdgeLocked(a, a, b)
+	e.visibility.SerializableCommittedLocked(a.Ref, e.visibility.CommitSeq())
 	e.endSerializableLocked(a.Ref, true)
 	if e.visibility.Serializable.Nodes[a.Ref] != a || len(b.Incoming) != 1 {
 		t.Fatal("commit end erased overlapping evidence")
@@ -239,7 +239,7 @@ func TestSerializableGraphCohortRetentionAndDrain(t *testing.T) {
 	c := serializableUnitNode(t, e, false)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if err := e.visibility.serializablePrecommitLocked(c.Ref); err != nil {
+	if err := e.visibility.SerializablePrecommitLocked(c.Ref); err != nil {
 		t.Fatal("new cohort inherited conflicts", err)
 	}
 }
@@ -258,7 +258,7 @@ func TestSerializablePrecommitRetainsAttemptedWriteReadOnlyHistory(t *testing.T)
 	pivot.Incoming[in] = struct{}{}
 	pivot.Outgoing[out] = struct{}{}
 	out.Incoming[pivot] = struct{}{}
-	if err := e.visibility.serializablePrecommitLocked(out.Ref); err != nil {
+	if err := e.visibility.SerializablePrecommitLocked(out.Ref); err != nil {
 		t.Fatal(err)
 	}
 	if !pivot.Doomed || in.Doomed || out.Doomed {

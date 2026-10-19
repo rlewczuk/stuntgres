@@ -67,7 +67,7 @@ func TestQueryJoinsStatementFrontierAndNoWidening(t *testing.T) {
 	if err == nil {
 		source, err = e.captureQuerySourcesLocked(scope, binding.querySources, false)
 	}
-	frontier := e.visibility.commitSeq
+	frontier := e.visibility.CommitSeq()
 	if err == nil {
 		_, widenErr = scope.acquireDataViewLocked(e, unrelated)
 	}

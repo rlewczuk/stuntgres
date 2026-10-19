@@ -17,7 +17,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 		t.Run(map[bool]string{false: "rollback", true: "commit"}[commit], func(t *testing.T) {
 			e := New()
 			a := sessionStart(t, e, nil)
-			beforeCatalog, beforeRoles, frontier := e.catalog.state, e.roles.published, e.visibility.commitSeq
+			beforeCatalog, beforeRoles, frontier := e.catalog.state, e.roles.published, e.visibility.CommitSeq()
 			original, revision := a.authorization.state, a.authorization.revision
 			m := batchUnitStart(t, a, context.Background())
 			defer m.end(context.Canceled)
@@ -56,7 +56,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 			if changes.storage[table].original != nil || len(changes.uniqueRoots[index].Entries) != 0 || len(a.transactions.writes[table]) != 2 {
 				t.Fatal("baseline and own writes conflated")
 			}
-			if e.catalog.state != beforeCatalog || e.roles.published != beforeRoles || e.visibility.commitSeq != frontier || e.storage.Relations[table] != nil || e.storage.IndexRoots[index] != nil {
+			if e.catalog.state != beforeCatalog || e.roles.published != beforeRoles || e.visibility.CommitSeq() != frontier || e.storage.Relations[table] != nil || e.storage.IndexRoots[index] != nil {
 				t.Fatal("candidate escaped before message end")
 			}
 			if _, ok := e.Roles().Lookup("batch_member"); ok {
@@ -83,7 +83,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 				if end := m.end(err); end != err {
 					t.Fatal("primary error replaced", end, err)
 				}
-				if e.catalog.state != beforeCatalog || e.roles.published != beforeRoles || e.visibility.commitSeq != frontier || a.authorization.state != original || a.authorization.revision <= revision || a.transactions.identityCaptured {
+				if e.catalog.state != beforeCatalog || e.roles.published != beforeRoles || e.visibility.CommitSeq() != frontier || a.authorization.state != original || a.authorization.revision <= revision || a.transactions.identityCaptured {
 					t.Fatal("joint rollback or identity revision")
 				}
 			}

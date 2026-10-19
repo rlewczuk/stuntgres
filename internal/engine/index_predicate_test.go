@@ -358,7 +358,7 @@ func partialMaskFixture(t *testing.T) (partialIndexFixture, *StatementScope, que
 	f := newPartialIndexFixture(t)
 	scope := &StatementScope{owner: &transactionOwner{isolation: ReadCommitted}}
 	leaf := queryLeaf{ref: f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address()), relation: f.parent, storage: f.store, partialCandidate: f.index}
-	data := &visibilityData{Catalog: f.e.CatalogRead(), Frontier: f.e.visibility.commitSeq, Committed: map[ids.ObjectAddress][]storage.RowVersion{f.parent.Address(): f.store.Versions}, SingleGeneration: f.store}
+	data := &visibilityData{Catalog: f.e.CatalogRead(), Frontier: f.e.visibility.CommitSeq(), Committed: map[ids.ObjectAddress][]storage.RowVersion{f.parent.Address(): f.store.Versions}, SingleGeneration: f.store}
 	view := newVisibilityView(data)
 	t.Cleanup(view.Release)
 	return f, scope, leaf, view
@@ -430,7 +430,7 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 			case "historical":
 				scope.owner.isolation = RepeatableRead
 			case "frontier":
-				f.e.visibility.commitSeq++
+				f.e.visibility.AdvanceCommitSeqLocked()
 			case "rewrite":
 				data.RewrittenFrontiers = map[ids.ObjectAddress]ids.CommitSeq{a: 0}
 			case "generation":
@@ -525,7 +525,7 @@ func TestPartialIndexPredicateReplacement(t *testing.T) {
 	old := f.e.storage.IndexRoots[f.index.Address()]
 	destination := &storage.Relation{Versions: append([]storage.RowVersion(nil), f.store.Versions...)}
 	f.e.storage.SetFrontierLocked(100, 200)
-	snapshot, err := f.e.captureIndexSnapshot(context.Background(), f.e.CatalogRead(), f.e.storage.Relations, f.e.storage.IndexRoots, f.e.visibility.commitSeq)
+	snapshot, err := f.e.captureIndexSnapshot(context.Background(), f.e.CatalogRead(), f.e.storage.Relations, f.e.storage.IndexRoots, f.e.visibility.CommitSeq())
 	if err != nil {
 		t.Fatal(err)
 	}

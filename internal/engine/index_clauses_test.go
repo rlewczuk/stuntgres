@@ -332,7 +332,7 @@ func TestIndexClausesReplacement(t *testing.T) {
 	e.catalog.state = catalog
 	e.storage.Relations[parent.Address()] = source
 	e.storage.IndexRoots = map[ids.ObjectAddress]*storage.IndexRoot{index.Address(): original}
-	e.visibility.commitSeq = 1
+	e.visibility.SetCommitSeqLocked(1)
 	snapshot, err := e.captureIndexSnapshot(ctx, e.catalog.read(catalog), map[ids.ObjectAddress]*storage.Relation{parent.Address(): source}, map[ids.ObjectAddress]*storage.IndexRoot{index.Address(): original}, 1)
 	if err != nil {
 		t.Fatal(err)

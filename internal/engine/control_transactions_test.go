@@ -40,7 +40,7 @@ func TestControlTransactionsEndMatrix(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						frontier := e.visibility.commitSeq
+						frontier := e.visibility.CommitSeq()
 						if state == "stale_failure" {
 							for range 2 {
 								op := transactionOperation(t, a)
@@ -61,7 +61,7 @@ func TestControlTransactionsEndMatrix(t *testing.T) {
 							t.Fatal(err)
 						}
 						chain := !commit && strings.HasSuffix(end, "AND CHAIN")
-						if a.token != token || a.transactions.writes != nil || e.visibility.commitSeq != frontier {
+						if a.token != token || a.transactions.writes != nil || e.visibility.CommitSeq() != frontier {
 							t.Fatal("replacement/end mutated identity/private writes/frontier")
 						}
 						if chain {
@@ -117,7 +117,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 			defer retained.Close()
 			before := target.CatalogRead()
 			ref := catalogRef(t, target, before, "t")
-			owner, stored, frontier := target.catalog.Domain, target.storage.Relations[ref.Address], target.visibility.commitSeq
+			owner, stored, frontier := target.catalog.Domain, target.storage.Relations[ref.Address], target.visibility.CommitSeq()
 			stage := target.BeginCatalogStage(before)
 			controlsRequire(t, a, "BEGIN")
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
@@ -135,7 +135,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				preparedStorage[address] = &storage.Relation{Versions: append([]storage.RowVersion(nil), relation.Versions...)}
 			}
 			preparedSequences, sequenceErr := copySequenceState(source, replacement)
-			indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage.Relations, source.storage.IndexRoots, source.visibility.commitSeq)
+			indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage.Relations, source.storage.IndexRoots, source.visibility.CommitSeq())
 			source.mu.Unlock()
 			if sequenceErr != nil {
 				t.Fatal(sequenceErr)
@@ -174,7 +174,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				t.Fatal("boundary not exercised", boundary.observed, err)
 			}
 			if late {
-				if err != nil || target.CatalogRead().Epoch() != before.Epoch()+1 || target.visibility.commitSeq != frontier+1 {
+				if err != nil || target.CatalogRead().Epoch() != before.Epoch()+1 || target.visibility.CommitSeq() != frontier+1 {
 					t.Fatal("late cancellation retracted install", err)
 				}
 				transactionRows(t, b, "SELECT v FROM t", 99)
@@ -201,7 +201,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				if !errors.Is(err, context.Canceled) {
 					t.Fatal(err)
 				}
-				if target.CatalogRead().State() != before.State() || target.storage.Relations[ref.Address] != stored || target.visibility.commitSeq != frontier {
+				if target.CatalogRead().State() != before.State() || target.storage.Relations[ref.Address] != stored || target.visibility.CommitSeq() != frontier {
 					t.Fatal("failed replacement changed state/storage/frontier")
 				}
 				if err = target.ValidateObjectRef(before, ref); err != nil {

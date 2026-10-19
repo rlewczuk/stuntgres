@@ -150,8 +150,8 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		held := e.locks.Checkpoint(ticket)
 		e.locks.Restore(ticket, held)
 		e.mu.Lock()
-		e.visibility.recordCommitTimestampLocked(ticket.Ref())
-		e.visibility.dropSnapshotLocked(ticket.Ref())
+		e.visibility.RecordCommitTimestampLocked(ticket.Ref())
+		e.visibility.DropSnapshotLocked(ticket.Ref())
 		e.mu.Unlock()
 		if ticket.AssignedPublicXID() != xid {
 			t.Fatal("history/snapshot consumed lock ownership")
@@ -164,7 +164,7 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		_, waiter := blockingUnitOwner(t, e)
 		request, _ := pgLocksUnitRequest(t, e, waiter, lock.CompletionOf(ticket), lock.TransactionCompletion, lock.CompletionVirtual)
 		e.mu.Lock()
-		e.visibility.recordCommitTimestampLocked(ticket.Ref())
+		e.visibility.RecordCommitTimestampLocked(ticket.Ref())
 		e.mu.Unlock()
 		pending := pgLocksUnitWait(t, e, waiter)
 		if pending.Kind != lock.TransactionRecord || pending.XID != xid || request == nil || request.Terminal() {
@@ -200,14 +200,14 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 			t.Fatal(err)
 		}
 		before := e.visibility.Entries[ticket.Ref()]
-		e.visibility.assignedXID = math.MaxUint64
+		e.visibility.SetLastAssignedXIDLocked(math.MaxUint64)
 		e.mu.Lock()
 		err = e.assignTransactionXIDLocked(ticket.Ref())
 		e.mu.Unlock()
 		if err == nil || e.visibility.Entries[ticket.Ref()] != before || ticket.AssignedPublicXID() != 0 {
 			t.Fatal("exhaustion partially mutated", err)
 		}
-		e.visibility.assignedXID = 2
+		e.visibility.SetLastAssignedXIDLocked(2)
 		pgLocksUnitAssign(t, e, ticket)
 		if e.visibility.Entries[ticket.Ref()].Xmin != before.Xmin || !e.visibility.Entries[ticket.Ref()].Snapshot {
 			t.Fatal("assignment discarded visibility")
@@ -227,7 +227,7 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		v := e.visibility.Entries[ticket.Ref()]
 		v.XID, v.Xmin, v.Snapshot, v.SafeBuilder = 91, 13, true, true
 		e.visibility.Entries[ticket.Ref()] = v
-		e.visibility.resetPhaseLocked(ticket.Ref())
+		e.visibility.ResetPhaseLocked(ticket.Ref())
 		after := e.visibility.Entries[ticket.Ref()]
 		e.mu.Unlock()
 		if after != (transactionVisibility{Ticket: ticket}) {
@@ -238,19 +238,19 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		v = e.visibility.Entries[ticket.Ref()]
 		v.XID, v.Xmin, v.Snapshot, v.SafeBuilder = 92, 14, true, true
 		e.visibility.Entries[ticket.Ref()] = v
-		e.visibility.resetPhaseLocked(ticket.Ref())
+		e.visibility.ResetPhaseLocked(ticket.Ref())
 		after = e.visibility.Entries[ticket.Ref()]
 		e.mu.Unlock()
 		if after != (transactionVisibility{Ticket: ticket, AssignedXID: xid, FullXID: uint64(xid)}) || ticket.AssignedPublicXID() != xid {
 			t.Fatal("phase reset discarded real assigned ownership", after)
 		}
 		e.mu.Lock()
-		e.visibility.recordCommitTimestampLocked(ticket.Ref())
+		e.visibility.RecordCommitTimestampLocked(ticket.Ref())
 		if ticket.AssignedPublicXID() != xid {
 			e.mu.Unlock()
 			t.Fatal("bookkeeping impersonated manager release")
 		}
-		e.visibility.resetPhaseLocked(ticket.Ref())
+		e.visibility.ResetPhaseLocked(ticket.Ref())
 		after = e.visibility.Entries[ticket.Ref()]
 		e.mu.Unlock()
 		if after != (transactionVisibility{Ticket: ticket}) || ticket.AssignedPublicXID() != 0 {
@@ -307,7 +307,7 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
 	store := e.storage.Relations[d.Address()]
 	scope.lockedRef, scope.lockedStorage, scope.lockedDescriptor = ref, store, d
-	before := e.visibility.assignedXID
+	before := e.visibility.LastAssignedXID()
 	switch route {
 	case "insert":
 		v, _ := sqltype.Integer(testUsage(e, sqltype.Int4).Type, 1)
@@ -337,8 +337,8 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 	if err != nil {
 		t.Fatal(route, err)
 	}
-	if uint64(ticket.AssignedPublicXID()) != before+1 || e.visibility.assignedXID != before+1 {
-		t.Fatal("actual route failed to mirror exactly one canonical assignment", route, before, ticket.AssignedPublicXID(), e.visibility.assignedXID)
+	if uint64(ticket.AssignedPublicXID()) != before+1 || e.visibility.LastAssignedXID() != before+1 {
+		t.Fatal("actual route failed to mirror exactly one canonical assignment", route, before, ticket.AssignedPublicXID(), e.visibility.LastAssignedXID())
 	}
 	if len(pgLocksUnitOwnerRecords(pgLocksUnitCapture(t, e), ticket, lock.TransactionRecord)) != 1 {
 		t.Fatal("actual assignment lacks completion ownership", route)

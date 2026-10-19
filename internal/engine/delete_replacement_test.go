@@ -86,13 +86,13 @@ func TestDeleteCoreReplacementImmediateAdmission(t *testing.T) {
 		t.Fatal("immediate row grants lost continuous replacement reservation")
 	}
 	transactionRows(t, peer, "SELECT v FROM t ORDER BY v", 1, 2, 3)
-	frontier := e.visibility.commitSeq
+	frontier := e.visibility.CommitSeq()
 	writer := make(chan bool, 1)
 	go func() {
 		e.replacementMu.Lock()
 		e.mu.Lock()
 		root := e.storage.Relations[ref.Address].Ends
-		published := root != nil && len(root.Rows) == 2 && e.visibility.commitSeq == frontier+1
+		published := root != nil && len(root.Rows) == 2 && e.visibility.CommitSeq() == frontier+1
 		e.mu.Unlock()
 		e.replacementMu.Unlock()
 		writer <- published
@@ -327,7 +327,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 		relations[address] = &storage.Relation{Versions: append([]storage.RowVersion(nil), relation.Versions...)}
 	}
 	sequences, sequenceErr := copySequenceState(source, replacement)
-	indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage.Relations, source.storage.IndexRoots, source.visibility.commitSeq)
+	indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage.Relations, source.storage.IndexRoots, source.visibility.CommitSeq())
 	source.mu.Unlock()
 	if sequenceErr != nil {
 		t.Fatal(sequenceErr)

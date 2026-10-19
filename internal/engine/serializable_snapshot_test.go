@@ -100,7 +100,7 @@ func TestSerializableSafeSnapshotWriterAbortOrNoWriteCommitWakes(t *testing.T) {
 			serializableUnitAwaitCandidate(t, e, node)
 			e.mu.Lock()
 			if commit {
-				e.visibility.serializableCommittedLocked(writer.Ref, e.visibility.commitSeq)
+				e.visibility.SerializableCommittedLocked(writer.Ref, e.visibility.CommitSeq())
 			}
 			e.endSerializableLocked(writer.Ref, commit)
 			e.mu.Unlock()
@@ -122,7 +122,7 @@ func TestSerializableSafeSnapshotUnsafeRejectsRootsAndRecaptures(t *testing.T) {
 	writer.DidWrite = true
 	writer.Outgoing[out] = struct{}{}
 	out.Incoming[writer] = struct{}{}
-	e.visibility.serializableCommittedLocked(out.Ref, e.visibility.commitSeq)
+	e.visibility.SerializableCommittedLocked(out.Ref, e.visibility.CommitSeq())
 	old := e.storage.Relations[ref.Address]
 	e.mu.Unlock()
 	scope, node := serializableUnitAcquisition(t, e, context.Background(), true, true)
@@ -134,14 +134,14 @@ func TestSerializableSafeSnapshotUnsafeRejectsRootsAndRecaptures(t *testing.T) {
 	}
 	next := &storage.Relation{Generation: old.Generation + 1}
 	e.storage.Relations[ref.Address] = next
-	e.visibility.commitSeq++
-	e.visibility.serializableCommittedLocked(writer.Ref, e.visibility.commitSeq)
+	e.visibility.AdvanceCommitSeqLocked()
+	e.visibility.SerializableCommittedLocked(writer.Ref, e.visibility.CommitSeq())
 	e.endSerializableLocked(writer.Ref, true)
 	e.mu.Unlock()
 	if err := join(); err != nil {
 		t.Fatal(err)
 	}
-	if scope.owner.roots[ref.Address].Storage != next || scope.owner.frontier != e.visibility.commitSeq || !node.Exempt || node.Unsafe {
+	if scope.owner.roots[ref.Address].Storage != next || scope.owner.frontier != e.visibility.CommitSeq() || !node.Exempt || node.Unsafe {
 		t.Fatal("unsafe candidate escaped or was not recaptured")
 	}
 }
@@ -156,8 +156,8 @@ func TestSerializableSafeSnapshotLateOutgoingCommitIsSafe(t *testing.T) {
 	writer.DidWrite = true
 	writer.Outgoing[out] = struct{}{}
 	out.Incoming[writer] = struct{}{}
-	e.visibility.serializableCommittedLocked(out.Ref, e.visibility.commitSeq)
-	e.visibility.serializableCommittedLocked(writer.Ref, e.visibility.commitSeq)
+	e.visibility.SerializableCommittedLocked(out.Ref, e.visibility.CommitSeq())
+	e.visibility.SerializableCommittedLocked(writer.Ref, e.visibility.CommitSeq())
 	e.endSerializableLocked(writer.Ref, true)
 	e.mu.Unlock()
 	if err := join(); err != nil {
@@ -289,7 +289,7 @@ func TestSerializableSafeSnapshotCancelAndEpochFence(t *testing.T) {
 				if err != nil {
 					t.Fatal("new epoch acquisition", err)
 				}
-				if fresh.Ref.Epoch() != oldEpoch+1 || !fresh.Exempt || !freshScope.owner.snapshotSet || len(fresh.Possible) != 0 || freshScope.owner.frontier != e.visibility.commitSeq {
+				if fresh.Ref.Epoch() != oldEpoch+1 || !fresh.Exempt || !freshScope.owner.snapshotSet || len(fresh.Possible) != 0 || freshScope.owner.frontier != e.visibility.CommitSeq() {
 					t.Fatal("new epoch inherited replaced cohort")
 				}
 				freshRelation := catalogRef(t, e, e.CatalogRead(), "replacement_rows")
@@ -351,9 +351,9 @@ func TestSerializablePublicationOrdinaryFailureCannotDoomPeers(t *testing.T) {
 	a := serializableUnitNode(t, e, false)
 	b := serializableUnitNode(t, e, false)
 	e.mu.Lock()
-	e.visibility.serializableEdgeLocked(a, a, b)
-	e.visibility.serializableEdgeLocked(b, b, a)
-	frontier := e.visibility.commitSeq
+	e.visibility.SerializableEdgeLocked(a, a, b)
+	e.visibility.SerializableEdgeLocked(b, b, a)
+	frontier := e.visibility.CommitSeq()
 	e.mu.Unlock()
 	ctx, cancel := context.WithCancel(context.Background())
 	op, err := txOwnerOf(a.Ref).session.Acquire(ctx)
@@ -368,7 +368,7 @@ func TestSerializablePublicationOrdinaryFailureCannotDoomPeers(t *testing.T) {
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if a.Committed || b.Committed || a.Doomed || b.Doomed || e.visibility.commitSeq != frontier {
+	if a.Committed || b.Committed || a.Doomed || b.Doomed || e.visibility.CommitSeq() != frontier {
 		t.Fatal("failed ordinary preflight published or selected a victim")
 	}
 }

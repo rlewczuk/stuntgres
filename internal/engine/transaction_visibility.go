@@ -150,7 +150,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 			return nil, err
 		}
 	}
-	frontier := e.visibility.commitSeq
+	frontier := e.visibility.CommitSeq()
 	if !latest && stableIsolation(s.owner.isolation) {
 		frontier = s.owner.frontier
 	}

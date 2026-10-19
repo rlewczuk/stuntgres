@@ -44,7 +44,7 @@ func TestTruncateRestartGeneration(t *testing.T) {
 			oldPS, oldQS := e.storage.Sequences[ps.Address], e.storage.Sequences[qs.Address]
 			psValue, qsValue := *oldPS, *oldQS
 			oldPD, oldQD := e.catalog.state.MustRelation(ps.Address), e.catalog.state.MustRelation(qs.Address)
-			frontier := e.visibility.commitSeq
+			frontier := e.visibility.CommitSeq()
 			scope := truncateRestartUnitStage(t, e, s, "p", "q", "p")
 			if len(scope.truncateSequences) != 2 || len(scope.catalog.generators) != 2 {
 				t.Fatal("owned sequences not deduplicated")
@@ -64,7 +64,7 @@ func TestTruncateRestartGeneration(t *testing.T) {
 					t.Fatal("lost committed descriptor fence")
 				}
 			}
-			if e.storage.Sequences[ps.Address] != oldPS || e.storage.Sequences[qs.Address] != oldQS || e.storage.Relations[p.Address] != oldP || e.storage.Relations[q.Address] != oldQ || e.visibility.commitSeq != frontier {
+			if e.storage.Sequences[ps.Address] != oldPS || e.storage.Sequences[qs.Address] != oldQS || e.storage.Relations[p.Address] != oldP || e.storage.Relations[q.Address] != oldQ || e.visibility.CommitSeq() != frontier {
 				t.Fatal("staging published a prefix")
 			}
 			var veto error
@@ -79,10 +79,10 @@ func TestTruncateRestartGeneration(t *testing.T) {
 				t.Fatal("predecessor mutated")
 			}
 			if commit {
-				if e.storage.Sequences[ps.Address] != scope.catalog.generators[ps.Address] || e.storage.Sequences[qs.Address] != scope.catalog.generators[qs.Address] || e.storage.Relations[p.Address] == oldP || e.storage.Relations[q.Address] == oldQ || e.visibility.commitSeq != frontier+1 {
+				if e.storage.Sequences[ps.Address] != scope.catalog.generators[ps.Address] || e.storage.Sequences[qs.Address] != scope.catalog.generators[qs.Address] || e.storage.Relations[p.Address] == oldP || e.storage.Relations[q.Address] == oldQ || e.visibility.CommitSeq() != frontier+1 {
 					t.Fatal("table and generator set not installed at one frontier")
 				}
-			} else if e.storage.Sequences[ps.Address] != oldPS || e.storage.Sequences[qs.Address] != oldQS || e.catalog.state.Get(ps.Address) != oldPD || e.catalog.state.Get(qs.Address) != oldQD || e.storage.Relations[p.Address] != oldP || e.storage.Relations[q.Address] != oldQ || e.visibility.commitSeq != frontier {
+			} else if e.storage.Sequences[ps.Address] != oldPS || e.storage.Sequences[qs.Address] != oldQS || e.catalog.state.Get(ps.Address) != oldPD || e.catalog.state.Get(qs.Address) != oldQD || e.storage.Relations[p.Address] != oldP || e.storage.Relations[q.Address] != oldQ || e.visibility.CommitSeq() != frontier {
 				t.Fatal("veto leaked staged state")
 			}
 			lockEmpty(t, e)
@@ -105,9 +105,9 @@ func TestTruncateRestartPublication(t *testing.T) {
 	if first.generators[ps.Address] == second.generators[ps.Address] || second.originals[ps.Address] != oldD || second.storage[p.Address].original != oldP || second.storage[q.Address].original != oldQ || e.storage.Sequences[ps.Address] != oldPS || oldPS.Last != 3 || e.storage.Sequences[qs.Address] != oldQS {
 		t.Fatal("repeat lost originals or mutated live binding")
 	}
-	frontier := e.visibility.commitSeq
+	frontier := e.visibility.CommitSeq()
 	transactionEnd(t, s, tx, true)
-	if e.visibility.commitSeq != frontier+1 || e.storage.Sequences[ps.Address] != second.generators[ps.Address] || e.storage.Sequences[qs.Address] != second.generators[qs.Address] || e.storage.Relations[p.Address] != second.storage[p.Address].replacement || e.storage.Relations[q.Address] != second.storage[q.Address].replacement {
+	if e.visibility.CommitSeq() != frontier+1 || e.storage.Sequences[ps.Address] != second.generators[ps.Address] || e.storage.Sequences[qs.Address] != second.generators[qs.Address] || e.storage.Relations[p.Address] != second.storage[p.Address].replacement || e.storage.Relations[q.Address] != second.storage[q.Address].replacement {
 		t.Fatal("explicit commit did not install combined candidate once")
 	}
 	sequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 1)

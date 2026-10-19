@@ -62,7 +62,7 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer result.Rows.Close()
-			state, frontier := e.catalog.state, e.visibility.commitSeq
+			state, frontier := e.catalog.state, e.visibility.CommitSeq()
 			switch boundary {
 			case "cancel_before", "cancel_after":
 				barrier := &batchPublicationContext{Context: m.op.ctx, e: e, s: s, entered: make(chan struct{}), release: make(chan struct{})}
@@ -81,7 +81,7 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 				case <-time.After(5 * time.Second):
 					t.Fatal("final publication boundary not reached")
 				}
-				if e.catalog.state != state || e.visibility.commitSeq != frontier || len(store.Versions) != 0 {
+				if e.catalog.state != state || e.visibility.CommitSeq() != frontier || len(store.Versions) != 0 {
 					t.Fatal("prefix escaped before publication")
 				}
 				if boundary == "cancel_before" {
@@ -104,8 +104,8 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 				err = m.end(nil)
 			case "counter_before":
 				e.mu.Lock()
-				e.visibility.commitSeq = ids.CommitSeq(^uint64(0))
-				frontier = e.visibility.commitSeq
+				e.visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
+				frontier = e.visibility.CommitSeq()
 				e.mu.Unlock()
 				err = m.end(nil)
 			case "ref_before":
@@ -131,11 +131,11 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 			}
 			committed := boundary == "success" || boundary == "cancel_after"
 			if committed {
-				if err != nil || e.visibility.commitSeq != frontier+1 || len(store.Versions) != 1 {
+				if err != nil || e.visibility.CommitSeq() != frontier+1 || len(store.Versions) != 1 {
 					t.Fatal("complete publication lost", err)
 				}
 			} else {
-				if err == nil || e.visibility.commitSeq != frontier || len(store.Versions) != 0 || e.catalog.state != state {
+				if err == nil || e.visibility.CommitSeq() != frontier || len(store.Versions) != 0 || e.catalog.state != state {
 					t.Fatal("rejected publication changed roots", err)
 				}
 				if boundary == "cancel_before" && !errors.Is(err, context.Canceled) {
@@ -185,11 +185,11 @@ func TestDriverBatchRoleACLConflictKeepsPeerRoot(t *testing.T) {
 				t.Fatal("missing pending role/ACL revision authority")
 			}
 			sessionSQL(t, peer, "CREATE ROLE peer LOGIN")
-			roles, frontier := e.roles.published, e.visibility.commitSeq
+			roles, frontier := e.roles.published, e.visibility.CommitSeq()
 			if err := m.end(nil); err == nil {
 				t.Fatal("role authority conflict committed")
 			}
-			if e.catalog.state != state || e.roles.published != roles || e.visibility.commitSeq != frontier {
+			if e.catalog.state != state || e.roles.published != roles || e.visibility.CommitSeq() != frontier {
 				t.Fatal("private ACL or stale role root overwrote peer")
 			}
 			if _, ok := e.Roles().Lookup("peer"); !ok {

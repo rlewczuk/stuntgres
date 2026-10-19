@@ -133,7 +133,7 @@ func TestMaterializedRefreshConcurrentIndexCancellation(t *testing.T) {
 	index := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 	d = e.catalog.state.MustRelation(d.Address())
 	old := e.storage.Relations[d.Address()]
-	frontier := e.visibility.commitSeq
+	frontier := e.visibility.CommitSeq()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
 	if err := e.stageMaterializedRows(context.Background(), stage, d, old, refreshUnitRows(t, d, 128), true, ids.TxRef{}); err != nil {
@@ -148,7 +148,7 @@ func TestMaterializedRefreshConcurrentIndexCancellation(t *testing.T) {
 	if entries != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("index preparation ignored cancellation", err)
 	}
-	if e.storage.Relations[d.Address()] != old || e.visibility.commitSeq != frontier || old.MaterializedLineage != nil || stage.materializedReplacement.storage.MaterializedLineage != nil {
+	if e.storage.Relations[d.Address()] != old || e.visibility.CommitSeq() != frontier || old.MaterializedLineage != nil || stage.materializedReplacement.storage.MaterializedLineage != nil {
 		t.Fatal("canceled index preparation published or stamped")
 	}
 }

@@ -246,7 +246,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 				roots[address] = transactionRoot{storage.Versions, storage.Ends, storage, relation}
 			}
 		}
-		frontier = e.visibility.commitSeq
+		frontier = e.visibility.CommitSeq()
 		sequenceCatalog = e.catalog.state
 	}
 	if !needsProjection(roots) {

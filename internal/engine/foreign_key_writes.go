@@ -81,7 +81,7 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.Obje
 	if storage == nil {
 		return foreignKeyRows{}, ids.ErrCatalogReplaced
 	}
-	r := foreignKeyRows{storage: storage, committed: storage.Versions, ends: storage.Ends, own: s.ownWrites[ref.Address], staged: s.stage.rows[ref.Address], priorDeletes: s.ownDeletes[ref.Address], currentDeletes: s.stage.deletes[ref.Address], frontier: e.visibility.commitSeq}
+	r := foreignKeyRows{storage: storage, committed: storage.Versions, ends: storage.Ends, own: s.ownWrites[ref.Address], staged: s.stage.rows[ref.Address], priorDeletes: s.ownDeletes[ref.Address], currentDeletes: s.stage.deletes[ref.Address], frontier: e.visibility.CommitSeq()}
 	r.index = index
 	if index != (ids.ObjectAddress{}) {
 		r.root = e.storage.IndexRoots[index]
@@ -421,7 +421,7 @@ func (s *StatementScope) refreshForeignKeyRows(ref ids.ObjectRef, rows *foreignK
 	if storage == nil || storage != rows.storage {
 		return ids.ErrCatalogReplaced
 	}
-	rows.committed, rows.ends, rows.frontier = storage.Versions, storage.Ends, e.visibility.commitSeq
+	rows.committed, rows.ends, rows.frontier = storage.Versions, storage.Ends, e.visibility.CommitSeq()
 	rows.root = e.storage.IndexRoots[rows.index]
 	if changes != nil && changes.uniqueRoots[rows.index] != nil {
 		rows.root = changes.uniqueRoots[rows.index]

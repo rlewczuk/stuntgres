@@ -64,7 +64,7 @@ func TestSerializableEvidenceInvisibleCreatorAndVisibleEnder(t *testing.T) {
 			creator.Writes[ref.Address] = map[serializableWriteKey]serializableWrite{{Version: 1}: {Row: 1, Version: 1}}
 			creator.DidWrite = true
 			e.visibility.Serializable.Creators[1] = creator.Ref
-			e.visibility.serializableCommittedLocked(creator.Ref, reader.Frontier+1)
+			e.visibility.SerializableCommittedLocked(creator.Ref, reader.Frontier+1)
 			if visible {
 				reader.Frontier = creator.CommitFrontier
 				reader.SnapshotOrder = creator.Order
@@ -134,7 +134,7 @@ func TestSerializableEvidenceRollbackKeepsReadsEdgesDoomAndStickyWrite(t *testin
 	if err := e.serializableWriteLocked(scope, ref, event[:]); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.visibility.serializableEdgeLocked(a, a, b); err != nil {
+	if err := e.visibility.SerializableEdgeLocked(a, a, b); err != nil {
 		t.Fatal(err)
 	}
 	b.Doomed = true
@@ -144,7 +144,7 @@ func TestSerializableEvidenceRollbackKeepsReadsEdgesDoomAndStickyWrite(t *testin
 	}
 	serializableUnitDiagnostic(t, e.serializableWriteLocked(scope, ref, event[:]), "Canceled on identification as a pivot, during conflict in checking.")
 	serializableUnitDiagnostic(t, e.serializableReadLocked(scope, ref), "Canceled on identification as a pivot, during conflict out checking.")
-	serializableUnitDiagnostic(t, e.visibility.serializablePrecommitLocked(b.Ref), "Canceled on identification as a pivot, during commit attempt.")
+	serializableUnitDiagnostic(t, e.visibility.SerializablePrecommitLocked(b.Ref), "Canceled on identification as a pivot, during commit attempt.")
 }
 func TestSerializableEvidenceExemptSourcesAndUnrelatedFrontier(t *testing.T) {
 	e := New()
@@ -168,8 +168,8 @@ func TestSerializableEvidenceExemptSourcesAndUnrelatedFrontier(t *testing.T) {
 	if len(node.Reads) != 0 || len(node.Writes) != 0 || node.DidWrite {
 		t.Fatal("system source participated")
 	}
-	e.visibility.commitSeq += 100
-	if err := e.visibility.serializablePrecommitLocked(node.Ref); err != nil {
+	e.visibility.SetCommitSeqLocked(e.visibility.CommitSeq() + 100)
+	if err := e.visibility.SerializablePrecommitLocked(node.Ref); err != nil {
 		t.Fatal("unrelated frontier aborted owner", err)
 	}
 }
@@ -204,7 +204,7 @@ func TestSerializableEvidenceOwnCreatorSurvivesEndingRollback(t *testing.T) {
 	if !ok || event.Row != 41 || event.Version != 73 || event.Deletion || len(writer.Writes[relation.Address]) != 1 || e.visibility.Serializable.Creators[73] != writer.Ref || !writer.DidWrite {
 		t.Fatal("rollback lost surviving exact creator identity")
 	}
-	e.visibility.serializableCommittedLocked(writer.Ref, e.visibility.commitSeq+1)
+	e.visibility.SerializableCommittedLocked(writer.Ref, e.visibility.CommitSeq()+1)
 	if err := e.serializableReadLocked(serializableUnitScope(reader), relation); err != nil {
 		t.Fatal(err)
 	}

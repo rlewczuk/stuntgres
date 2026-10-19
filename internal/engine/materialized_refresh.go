@@ -138,7 +138,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 	var oldEntries []storage.IndexEntry
 	var ownRows []storage.RowVersion
 	var ownDeletes *privateDeletionRoot
-	frontier := e.visibility.commitSeq
+	frontier := e.visibility.CommitSeq()
 	if concurrent {
 		indices = materializedEligibleIndexes(caller.Catalog, d)
 		previous = *scope.lockedStorage

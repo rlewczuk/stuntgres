@@ -105,11 +105,11 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 					t.Fatal("last revision not allocated", d.Revision())
 				}
 			}
-			before, storage, sequence := e.CatalogRead(), e.storage.Relations, e.visibility.commitSeq
+			before, storage, sequence := e.CatalogRead(), e.storage.Relations, e.visibility.CommitSeq()
 			op, done := roleOperation(t, e, "postgres")
 			_, err := e.Execute(op, statement(t, "ALTER SCHEMA "+name+" RENAME TO forbidden"), 0, nil)
 			done()
-			if err == nil || err.Error() != "stuntgres: catalog definition revision exhausted" || e.CatalogRead().State() != before.State() || !reflect.DeepEqual(e.storage.Relations, storage) || e.visibility.commitSeq != sequence {
+			if err == nil || err.Error() != "stuntgres: catalog definition revision exhausted" || e.CatalogRead().State() != before.State() || !reflect.DeepEqual(e.storage.Relations, storage) || e.visibility.CommitSeq() != sequence {
 				t.Fatal("terminal mutation published or returned wrong failure", err)
 			}
 			if err := e.Reset(context.Background()); err != nil {

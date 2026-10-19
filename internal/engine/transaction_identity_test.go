@@ -32,7 +32,7 @@ func TestTransactionIdentityAgeArithmetic(t *testing.T) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	anchor, err := e.transactionAgeLocked(a.Ref(), 3)
-	if err != nil || anchor != 0 || e.visibility.assignedXID != 2 || e.visibility.Entries[a.Ref()].AssignedXID != 0 {
+	if err != nil || anchor != 0 || e.visibility.LastAssignedXID() != 2 || e.visibility.Entries[a.Ref()].AssignedXID != 0 {
 		t.Fatal("inquiry allocation", anchor, err)
 	}
 	if err := e.assignTransactionXIDLocked(b.Ref()); err != nil {
@@ -63,12 +63,12 @@ func TestTransactionIdentityAllocation(t *testing.T) {
 	pgLocksUnitAssign(t, e, a)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.visibility.assignedXID = 4294967295
+	e.visibility.SetLastAssignedXIDLocked(4294967295)
 	before := len(e.visibility.History)
-	if err := e.assignTransactionXIDLocked(b.Ref()); err == nil || e.visibility.assignedXID != 4294967295 || len(e.visibility.History) != before || b.AssignedPublicXID() != 0 {
+	if err := e.assignTransactionXIDLocked(b.Ref()); err == nil || e.visibility.LastAssignedXID() != 4294967295 || len(e.visibility.History) != before || b.AssignedPublicXID() != 0 {
 		t.Fatal("live low32 alias partially admitted", err)
 	}
-	e.visibility.recordCommitTimestampLocked(a.Ref())
+	e.visibility.RecordCommitTimestampLocked(a.Ref())
 	if err := e.assignTransactionXIDLocked(b.Ref()); err == nil {
 		t.Fatal("publisher-to-release gap reused live mirror")
 	}
@@ -85,7 +85,7 @@ func TestTransactionIdentityAllocation(t *testing.T) {
 	if err := e.assignTransactionXIDLocked(b.Ref()); err != nil || e.visibility.Entries[b.Ref()] != previous {
 		t.Fatal("non-idempotent assignment", err)
 	}
-	e.visibility.assignedXID = math.MaxUint64
+	e.visibility.SetLastAssignedXIDLocked(math.MaxUint64)
 	if err := e.assignTransactionXIDLocked(c.Ref()); err == nil || e.visibility.Entries[c.Ref()].FullXID != 0 || c.AssignedPublicXID() != 0 {
 		t.Fatal("exhaustion published assignment", err)
 	}
@@ -94,7 +94,7 @@ func TestTransactionIdentityAllocation(t *testing.T) {
 func identityUnitStatus(t *testing.T, e *Engine, id uint64, want string, present bool) {
 	t.Helper()
 	e.mu.Lock()
-	got, ok, err := e.visibility.transactionStatusLocked(id)
+	got, ok, err := e.visibility.TransactionStatusLocked(id)
 	e.mu.Unlock()
 	if err != nil || got != want || ok != present {
 		t.Fatalf("status %d = %q/%v (%v), want %q/%v", id, got, ok, err, want, present)
@@ -121,7 +121,7 @@ func TestTransactionIdentityHistory(t *testing.T) {
 		identityUnitStatus(t, e, id, "committed", true)
 	}
 	e.mu.Lock()
-	_, _, err := e.visibility.transactionStatusLocked(math.MaxUint64)
+	_, _, err := e.visibility.TransactionStatusLocked(math.MaxUint64)
 	e.mu.Unlock()
 	var state *sqlstate.Error
 	if !errors.As(err, &state) || state.Code != "22023" || state.Message != "transaction ID 18446744073709551615 is in the future" {
@@ -139,8 +139,8 @@ func TestTransactionIdentityHistory(t *testing.T) {
 	identityUnitStatus(t, e, id, "", false)
 	identityUnitStatus(t, e, aborted, "", false)
 	e.mu.Lock()
-	gap := e.visibility.assignedXID
-	e.visibility.assignedXID += 2
+	gap := e.visibility.LastAssignedXID()
+	e.visibility.SetLastAssignedXIDLocked(e.visibility.LastAssignedXID() + 2)
 	e.mu.Unlock()
 	identityUnitStatus(t, e, gap+1, "", false)
 	identityUnitTimestampWrap(t)
@@ -151,7 +151,7 @@ func TestTransactionIdentityCompletion(t *testing.T) {
 	_, a := blockingUnitOwner(t, e)
 	id := uint64(pgLocksUnitAssign(t, e, a))
 	e.mu.Lock()
-	e.visibility.recordCommitTimestampLocked(a.Ref())
+	e.visibility.RecordCommitTimestampLocked(a.Ref())
 	e.endSerializableLocked(a.Ref(), false)
 	e.mu.Unlock()
 	identityUnitStatus(t, e, id, "in progress", true)
@@ -198,17 +198,17 @@ func TestTransactionIdentityCompletion(t *testing.T) {
 		pgLocksUnitAssign(t, phaseEngine, ticket)
 		phaseEngine.mu.Lock()
 		defer phaseEngine.mu.Unlock()
-		phaseEngine.visibility.recordCommitTimestampLocked(ticket.Ref())
-		phaseEngine.visibility.resetPhaseLocked(ticket.Ref())
-		phaseEngine.visibility.assignedXID = 4294967295
+		phaseEngine.visibility.RecordCommitTimestampLocked(ticket.Ref())
+		phaseEngine.visibility.ResetPhaseLocked(ticket.Ref())
+		phaseEngine.visibility.SetLastAssignedXIDLocked(4294967295)
 		if err := phaseEngine.assignTransactionXIDLocked(ticket.Ref()); err != nil {
 			t.Fatal(err)
 		}
-		old, oldPresent, err := phaseEngine.visibility.transactionStatusLocked(3)
+		old, oldPresent, err := phaseEngine.visibility.TransactionStatusLocked(3)
 		if err != nil || !oldPresent || old != "committed" {
 			t.Fatal("low32 phase alias changed old completion", old, oldPresent, err)
 		}
-		current, present, err := phaseEngine.visibility.transactionStatusLocked(4294967299)
+		current, present, err := phaseEngine.visibility.TransactionStatusLocked(4294967299)
 		if err != nil || !present || current != "in progress" {
 			t.Fatal("new full phase not active", current, present, err)
 		}

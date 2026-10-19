@@ -41,7 +41,7 @@ func virtualTransaction(owner lock.RecordOwner) string {
 // association even after commit; no session lookup or live ticket is needed.
 func (e *Engine) capturePGPredicateLocksLocked() ([]lock.Record, error) {
 	var records []lock.Record
-	for _, holder := range e.visibility.predicateLocksLocked(e.catalog.state.Epoch()) {
+	for _, holder := range e.visibility.PredicateLocksLocked(e.catalog.state.Epoch()) {
 		owner, visible, err := lock.PublicOwner(e.catalog.Domain, holder.Ref, holder.Prepared)
 		if err != nil {
 			return nil, err
@@ -67,7 +67,7 @@ type predicateLockHolder struct {
 
 // predicateLocksLocked lists the relevant serializable transactions of epoch
 // with their read sets. Caller holds Engine.mu.
-func (reg *visibilityRegistry) predicateLocksLocked(epoch ids.CatalogEpoch) []predicateLockHolder {
+func (reg *visibilityRegistry) PredicateLocksLocked(epoch ids.CatalogEpoch) []predicateLockHolder {
 	var holders []predicateLockHolder
 	for ref, node := range reg.Serializable.Nodes {
 		if ref.Epoch() != epoch || node.Ref != ref || !serializableRelevant(node) {

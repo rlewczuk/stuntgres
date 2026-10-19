@@ -27,16 +27,16 @@ func (e *Engine) serializableReadLocked(s *StatementScope, ref ids.ObjectRef) er
 		return errors.New("stuntgres: invalid SSI read authority")
 	}
 	// Relevance is the cheap test; most readers are not serializable.
-	node := e.visibility.relevantSerializableLocked(s.txRef)
+	node := e.visibility.RelevantSerializableLocked(s.txRef)
 	if node == nil || !e.serializableEligibleLocked(ref, s.owner.catalog) {
 		return nil
 	}
-	return e.visibility.serializableReadLocked(node, ref.Address)
+	return e.visibility.SerializableReadLocked(node, ref.Address)
 }
 
 // relevantSerializableLocked returns ref's captured, live, non-exempt tracker
 // node, or nil. Caller holds Engine.mu.
-func (reg *visibilityRegistry) relevantSerializableLocked(ref ids.TxRef) *serializableTransaction {
+func (reg *visibilityRegistry) RelevantSerializableLocked(ref ids.TxRef) *serializableTransaction {
 	if node := reg.Serializable.Nodes[ref]; serializableRelevant(node) {
 		return node
 	}
@@ -45,14 +45,14 @@ func (reg *visibilityRegistry) relevantSerializableLocked(ref ids.TxRef) *serial
 
 // serializableCreatorLocked is the serializable transaction that created
 // version, or the zero ref. Caller holds Engine.mu.
-func (reg *visibilityRegistry) serializableCreatorLocked(version ids.VersionID) ids.TxRef {
+func (reg *visibilityRegistry) SerializableCreatorLocked(version ids.VersionID) ids.TxRef {
 	return reg.Serializable.Creators[version]
 }
 
 // serializableReadLocked records node's read of an eligible relation and its
 // rw-conflicts out to overlapping writers. Caller holds Engine.mu and has
 // checked authority, epoch and eligibility.
-func (reg *visibilityRegistry) serializableReadLocked(node *serializableTransaction, address ids.ObjectAddress) error {
+func (reg *visibilityRegistry) SerializableReadLocked(node *serializableTransaction, address ids.ObjectAddress) error {
 	if node.Doomed {
 		return serializableError("Canceled on identification as a pivot, during conflict out checking.")
 	}
@@ -71,7 +71,7 @@ func (reg *visibilityRegistry) serializableReadLocked(node *serializableTransact
 			if event.Base != 0 && event.BaseBorn > node.Frontier {
 				selected = reg.Serializable.Nodes[event.Creator]
 			}
-			if err := reg.serializableEdgeLocked(node, node, selected); err != nil {
+			if err := reg.SerializableEdgeLocked(node, node, selected); err != nil {
 				return err
 			}
 		}
@@ -94,18 +94,18 @@ func (e *Engine) serializableWriteLocked(s *StatementScope, ref ids.ObjectRef, e
 	if !e.serializableEligibleLocked(ref, s.owner.catalog) {
 		return nil
 	}
-	node := e.visibility.relevantSerializableLocked(s.txRef)
+	node := e.visibility.RelevantSerializableLocked(s.txRef)
 	if node == nil {
 		return nil
 	}
-	return e.visibility.serializableWriteLocked(node, s.txRef, ref.Address, events)
+	return e.visibility.SerializableWriteLocked(node, s.txRef, ref.Address, events)
 }
 
 // serializableWriteLocked records node's validated write events on an
 // eligible relation, its rw-conflicts in from earlier readers, and writer
 // as the creator of each inserted version. Caller holds Engine.mu and has checked
 // authority, epoch, event identities and eligibility.
-func (reg *visibilityRegistry) serializableWriteLocked(node *serializableTransaction, writer ids.TxRef, address ids.ObjectAddress, events []serializableWrite) error {
+func (reg *visibilityRegistry) SerializableWriteLocked(node *serializableTransaction, writer ids.TxRef, address ids.ObjectAddress, events []serializableWrite) error {
 	if node.Doomed {
 		return serializableError("Canceled on identification as a pivot, during conflict in checking.")
 	}
@@ -115,7 +115,7 @@ func (reg *visibilityRegistry) serializableWriteLocked(node *serializableTransac
 	node.DidWrite = true
 	for _, reader := range reg.Serializable.Nodes {
 		if _, read := reader.Reads[address]; read {
-			if err := reg.serializableEdgeLocked(node, reader, node); err != nil {
+			if err := reg.SerializableEdgeLocked(node, reader, node); err != nil {
 				return err
 			}
 		}
@@ -137,7 +137,7 @@ func (reg *visibilityRegistry) serializableWriteLocked(node *serializableTransac
 // Rollback restores surviving identity evidence only, never graph edges,
 // predicates, doom or attempted-write history. Engine.mu and owner.mu held.
 func (e *Engine) reconcileSerializableWritesLocked(t *transactionOwner) {
-	e.visibility.reconcileSerializableWritesLocked(t.ref, func(address ids.ObjectAddress, event serializableWrite) bool {
+	e.visibility.ReconcileSerializableWritesLocked(t.ref, func(address ids.ObjectAddress, event serializableWrite) bool {
 		if event.Rewrite {
 			return t.catalog != nil && t.catalog.storage[address].rewritten
 		}
@@ -162,7 +162,7 @@ func (e *Engine) reconcileSerializableWritesLocked(t *transactionOwner) {
 // rejects, and the creator records of dropped insertions. keep reads only
 // the caller's transaction state: it takes no lock and never calls back into
 // the registry. Caller holds Engine.mu.
-func (reg *visibilityRegistry) reconcileSerializableWritesLocked(ref ids.TxRef, keep func(ids.ObjectAddress, serializableWrite) bool) {
+func (reg *visibilityRegistry) ReconcileSerializableWritesLocked(ref ids.TxRef, keep func(ids.ObjectAddress, serializableWrite) bool) {
 	node := reg.Serializable.Nodes[ref]
 	if node == nil {
 		return

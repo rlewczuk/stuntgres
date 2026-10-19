@@ -190,14 +190,14 @@ func (n commitTimestampExpression) Eval(ctx expr.Context) (sqltype.Value, error)
 		}
 		e := scope.op.session.Engine()
 		e.mu.Lock()
-		if !e.visibility.tracksCommitTimestamps() {
+		if !e.visibility.TracksCommitTimestamps() {
 			e.mu.Unlock()
 			return sqltype.Value{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: "could not get commit timestamp data", Hint: `Make sure the configuration parameter "track_commit_timestamp" is set.`}
 		}
 		if n.kind == commitTimestampLast {
-			xid, entry = e.visibility.lastCommitTimestampLocked()
+			xid, entry = e.visibility.LastCommittedXID(), e.visibility.LastCommitTimestamp()
 		} else {
-			entry = e.visibility.lookupCommitTimestampLocked(xid)
+			entry = e.visibility.LookupCommitTimestampLocked(xid)
 		}
 		e.mu.Unlock()
 	}

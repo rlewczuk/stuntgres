@@ -195,7 +195,7 @@ func (e *Engine) blockingPidValues(pid ids.SessionID, typ *sqltype.Descriptor) (
 // unlike possible/ready alone, which also exist for nondeferrable readers.
 func (e *Engine) safeSnapshotBlockingPidsLocked(pid ids.SessionID, typ *sqltype.Descriptor) ([]sqltype.Value, error) {
 	var values []sqltype.Value
-	for _, writer := range e.visibility.safeSnapshotBlockersLocked(e.catalog.Domain, e.catalog.state.Epoch(), e.catalog.Domain.Session(pid)) {
+	for _, writer := range e.visibility.SafeSnapshotBlockersLocked(e.catalog.Domain, e.catalog.state.Epoch(), e.catalog.Domain.Session(pid)) {
 		var err error
 		values, err = appendBlockingPid(values, typ, writer.Session, writer.Prepared, e.catalog.Domain)
 		if err != nil {
@@ -215,7 +215,7 @@ type safeSnapshotBlocker struct {
 // safeSnapshotBlockersLocked lists the writers blocking session's unresolved
 // DEFERRABLE acquisition in domain and epoch, or nil when it has none.
 // Caller holds Engine.mu.
-func (reg *visibilityRegistry) safeSnapshotBlockersLocked(domain *ids.Domain, epoch ids.CatalogEpoch, session ids.SessionToken) []safeSnapshotBlocker {
+func (reg *visibilityRegistry) SafeSnapshotBlockersLocked(domain *ids.Domain, epoch ids.CatalogEpoch, session ids.SessionToken) []safeSnapshotBlocker {
 	for ref, node := range reg.Serializable.Nodes {
 		if ref.Domain() != domain || ref.Epoch() != epoch || ref.Session() != session || node.Prepared || !node.Captured || !node.ReadOnly || !node.Deferrable || node.Aborted || node.Ended || node.Committed || node.Resolved || node.Ready == nil {
 			continue

@@ -15,7 +15,7 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 		t.Run(map[bool]string{false: "rollback", true: "commit"}[commit], func(t *testing.T) {
 			e := New()
 			s := sessionStart(t, e, nil)
-			before, frontier := e.catalog.state, e.visibility.commitSeq
+			before, frontier := e.catalog.state, e.visibility.CommitSeq()
 			original := e.catalog.Providers[ids.RelationClassID]
 			defer func() { e.catalog.Providers[ids.RelationClassID] = original }()
 			calls := 0
@@ -24,7 +24,7 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 				if !e.mu.TryLock() {
 					t.Error("catalog provider under Engine.mu")
 				} else {
-					if e.catalog.state != before || e.visibility.commitSeq != frontier {
+					if e.catalog.state != before || e.visibility.CommitSeq() != frontier {
 						t.Error("utility escaped before final publication")
 					}
 					e.mu.Unlock()
@@ -81,7 +81,7 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 			if !absence {
 				t.Fatal("new-index committed source-absence fence omitted")
 			}
-			if e.catalog.state != before || e.visibility.commitSeq != frontier || e.storage.Relations[ct] != nil || e.storage.Relations[mv] != nil || e.storage.Sequences[seq] != nil {
+			if e.catalog.state != before || e.visibility.CommitSeq() != frontier || e.storage.Relations[ct] != nil || e.storage.Relations[mv] != nil || e.storage.Sequences[seq] != nil {
 				t.Fatal("initial data or generators published before end")
 			}
 			if commit {
@@ -102,13 +102,13 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 				t.Fatal("private initial rows and row-shape result", got)
 			}
 			if commit {
-				if e.visibility.commitSeq != frontier+1 || len(e.storage.Relations[ct].Versions) != 1 || len(e.storage.Relations[mv].Versions) != 1 || e.storage.Sequences[seq] == nil || len(e.storage.IndexRoots[index].Entries) != 1 {
+				if e.visibility.CommitSeq() != frontier+1 || len(e.storage.Relations[ct].Versions) != 1 || len(e.storage.Relations[mv].Versions) != 1 || e.storage.Sequences[seq] == nil || len(e.storage.IndexRoots[index].Entries) != 1 {
 					t.Fatal("joint initial rows/shape/sequence/index installation")
 				}
 				transactionRows(t, s, "SELECT x FROM ct", 5)
 				transactionRows(t, s, "SELECT x FROM mv", 5)
 			} else {
-				if e.catalog.state != before || e.visibility.commitSeq != frontier || e.storage.Relations[ct] != nil || e.storage.Relations[mv] != nil || e.storage.Sequences[seq] != nil || e.storage.IndexRoots[index] != nil {
+				if e.catalog.state != before || e.visibility.CommitSeq() != frontier || e.storage.Relations[ct] != nil || e.storage.Relations[mv] != nil || e.storage.Sequences[seq] != nil || e.storage.IndexRoots[index] != nil {
 					t.Fatal("initial table or provider result escaped rollback")
 				}
 			}

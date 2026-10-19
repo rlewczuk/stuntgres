@@ -64,13 +64,13 @@ func (e *Engine) enrollSerializableLocked(ref ids.TxRef, isolation Isolation) {
 	if ref.ID() == 0 || ref.Epoch() != e.catalog.state.Epoch() {
 		return
 	}
-	e.visibility.enrollSerializableLocked(ref, isolation == Serializable)
+	e.visibility.EnrollSerializableLocked(ref, isolation == Serializable)
 }
 
 // enrollSerializableLocked creates ref's tracker node for a serializable
 // transaction and drops an uncaptured one otherwise. A captured node keeps
 // its snapshot's mode. Caller holds Engine.mu and has fenced ref.
-func (reg *visibilityRegistry) enrollSerializableLocked(ref ids.TxRef, serializable bool) {
+func (reg *visibilityRegistry) EnrollSerializableLocked(ref ids.TxRef, serializable bool) {
 	node := reg.Serializable.Nodes[ref]
 	if node != nil && node.Captured {
 		return
@@ -104,7 +104,7 @@ func serializableOverlap(a, b *serializableTransaction) bool {
 
 // REL_18_0 OnConflict_CheckForSerializationFailure. Finalized nodes are immune;
 // prepared finalization orders conflicts without resolving committed outcome.
-func (reg *visibilityRegistry) serializableEdgeLocked(current, reader, writer *serializableTransaction) error {
+func (reg *visibilityRegistry) SerializableEdgeLocked(current, reader, writer *serializableTransaction) error {
 	if !serializableOverlap(reader, writer) || reader.Doomed || writer.Doomed {
 		return nil
 	}
@@ -144,7 +144,7 @@ func (reg *visibilityRegistry) serializableEdgeLocked(current, reader, writer *s
 	return nil
 }
 
-func (reg *visibilityRegistry) serializablePrecommitLocked(ref ids.TxRef) error {
+func (reg *visibilityRegistry) SerializablePrecommitLocked(ref ids.TxRef) error {
 	node := reg.Serializable.Nodes[ref]
 	if !serializableRelevant(node) {
 		return nil
@@ -184,7 +184,7 @@ func (reg *visibilityRegistry) serializablePrecommitLocked(ref ids.TxRef) error 
 }
 
 // Called only at the callback-free installation boundary, Engine.mu held.
-func (reg *visibilityRegistry) serializableCommittedLocked(ref ids.TxRef, frontier ids.CommitSeq) {
+func (reg *visibilityRegistry) SerializableCommittedLocked(ref ids.TxRef, frontier ids.CommitSeq) {
 	node := reg.Serializable.Nodes[ref]
 	if !serializableRelevant(node) {
 		return
@@ -200,7 +200,7 @@ func (reg *visibilityRegistry) serializableCommittedLocked(ref ids.TxRef, fronti
 	reg.resolveSerializableCandidatesLocked(node)
 }
 
-func (reg *visibilityRegistry) serializablePreparedLocked(ref ids.TxRef) {
+func (reg *visibilityRegistry) SerializablePreparedLocked(ref ids.TxRef) {
 	node := reg.Serializable.Nodes[ref]
 	if !serializableRelevant(node) {
 		return
@@ -248,7 +248,7 @@ func (e *Engine) endSerializable(ref ids.TxRef, committed bool) {
 // endSerializableLocked ends ref in the registry and drops its index build
 // waits. Caller holds Engine.mu.
 func (e *Engine) endSerializableLocked(ref ids.TxRef, committed bool) {
-	e.visibility.endTransactionLocked(ref, committed)
+	e.visibility.EndTransactionLocked(ref, committed)
 	for index, wait := range e.indexBuildWaits {
 		if wait.owner == ref {
 			delete(e.indexBuildWaits, index)
@@ -259,8 +259,8 @@ func (e *Engine) endSerializableLocked(ref ids.TxRef, committed bool) {
 // endTransactionLocked completes ref's identity, removes its visibility
 // entry and ends its tracker node, waking a safe-snapshot waiter. The graph
 // is cleared once no live participant remains. Caller holds Engine.mu.
-func (reg *visibilityRegistry) endTransactionLocked(ref ids.TxRef, committed bool) {
-	reg.endTransactionIdentityLocked(ref, committed)
+func (reg *visibilityRegistry) EndTransactionLocked(ref ids.TxRef, committed bool) {
+	reg.EndTransactionIdentityLocked(ref, committed)
 	delete(reg.Entries, ref)
 	node := reg.Serializable.Nodes[ref]
 	if node == nil || node.Ended {
@@ -287,13 +287,13 @@ func (reg *visibilityRegistry) endTransactionLocked(ref ids.TxRef, committed boo
 // Epoch replacement wakes every unresolved acquisition. Operation/ref epoch
 // validation supplies the ordinary fence error, not a serialization diagnostic.
 func (e *Engine) fenceSerializableLocked() {
-	e.visibility.fenceLocked()
+	e.visibility.FenceLocked()
 	clear(e.indexBuildWaits)
 }
 
 // fenceLocked drops every visibility entry and aborts every tracker node,
 // waking unresolved acquisitions. Caller holds Engine.mu.
-func (reg *visibilityRegistry) fenceLocked() {
+func (reg *visibilityRegistry) FenceLocked() {
 	clear(reg.Entries)
 	for _, node := range reg.Serializable.Nodes {
 		node.Aborted = true

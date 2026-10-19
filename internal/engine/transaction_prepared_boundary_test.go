@@ -166,7 +166,7 @@ func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoun
 	lockState := e.locks.Inspect(entry.ticket)
 	s := preparedBoundarySnapshot{
 		catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()),
-		counters:        [10]uint64{uint64(e.catalog.state.Epoch()), e.catalog.state.NamespaceGeneration(), uint64(e.catalog.nextOID), uint64(e.catalog.nextRevision), e.storage.RowFrontier(), e.storage.VersionFrontier(), uint64(e.visibility.commitSeq), uint64(e.visibility.diagnosticTx), e.visibility.Serializable.order, e.roles.nextPrincipal},
+		counters:        [10]uint64{uint64(e.catalog.state.Epoch()), e.catalog.state.NamespaceGeneration(), uint64(e.catalog.nextOID), uint64(e.catalog.nextRevision), e.storage.RowFrontier(), e.storage.VersionFrontier(), uint64(e.visibility.CommitSeq()), uint64(e.visibility.DiagnosticTx()), e.visibility.SerializableOrder(), e.roles.nextPrincipal},
 		storagePointers: maps.Clone(e.storage.Relations), storage: map[ids.ObjectAddress]storage.Relation{},
 		generators: maps.Clone(e.storage.Sequences), generatorValues: map[ids.ObjectAddress]storage.SequenceGenerator{},
 		indexes: maps.Clone(e.storage.IndexRoots), indexValues: map[ids.ObjectAddress][]storage.IndexEntry{},
@@ -332,7 +332,7 @@ func TestPreparedPopulatedCompetingCompletionAndRetry(t *testing.T) {
 			arrived, release := preparedBoundaryBarrier(t, e, origin, finisher, entry)
 			if veto == "counter" {
 				e.mu.Lock()
-				e.visibility.commitSeq = ids.CommitSeq(math.MaxUint64)
+				e.visibility.SetCommitSeqLocked(ids.CommitSeq(math.MaxUint64))
 				e.mu.Unlock()
 			}
 			before := preparedBoundaryCapture(e, entry)
@@ -383,7 +383,7 @@ func TestPreparedPopulatedCompetingCompletionAndRetry(t *testing.T) {
 			}
 			if veto == "counter" {
 				e.mu.Lock()
-				e.visibility.commitSeq = entry.frontier
+				e.visibility.SetCommitSeqLocked(entry.frontier)
 				e.mu.Unlock()
 			}
 			if err := preparedUnitControl(t, e, finisher, parser.KindCommitPrepared, "boundary"); err != nil {
@@ -404,7 +404,7 @@ func preparedBoundaryPublished(t *testing.T, e *Engine, entry *preparedTransacti
 	t.Helper()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.prepared[entry.gid] != nil || e.visibility.commitSeq != entry.frontier+1 {
+	if e.prepared[entry.gid] != nil || e.visibility.CommitSeq() != entry.frontier+1 {
 		t.Fatal("completion did not publish exactly once")
 	}
 	relation := e.catalog.state.MustRelation(parent)
@@ -412,7 +412,7 @@ func preparedBoundaryPublished(t *testing.T, e *Engine, entry *preparedTransacti
 		t.Fatal("catalogue shape did not publish")
 	}
 	store := e.storage.Relations[parent]
-	selected, err := selectQuerySource(context.Background(), &querySource{committed: store.Versions}, e.visibility.commitSeq, store.Ends, nil)
+	selected, err := selectQuerySource(context.Background(), &querySource{committed: store.Versions}, e.visibility.CommitSeq(), store.Ends, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -428,7 +428,7 @@ func preparedBoundaryPublished(t *testing.T, e *Engine, entry *preparedTransacti
 		}
 		if i == 0 {
 			_, update := preparedBoundaryUpdate(t, entry, parent)
-			if row.Row != update.Row || row.Version != update.Version || row.Base != 0 || row.Born != e.visibility.commitSeq {
+			if row.Row != update.Row || row.Version != update.Version || row.Base != 0 || row.Born != e.visibility.CommitSeq() {
 				t.Fatal("surviving UPDATE did not publish its retained identity exactly once")
 			}
 		}
@@ -575,7 +575,7 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 	}
 	for address := range entry.writes {
 		store := e.storage.Relations[address]
-		selected, err := selectQuerySource(context.Background(), &querySource{committed: store.Versions}, e.visibility.commitSeq, store.Ends, nil)
+		selected, err := selectQuerySource(context.Background(), &querySource{committed: store.Versions}, e.visibility.CommitSeq(), store.Ends, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

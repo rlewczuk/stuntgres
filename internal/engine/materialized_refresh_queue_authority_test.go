@@ -107,7 +107,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			}
 			nextState.SetDescriptor(expectedAddress, &next)
 			e.catalog.state = &nextState
-			before, rowCounter, versionCounter := e.visibility.commitSeq, e.storage.RowFrontier(), e.storage.VersionFrontier()
+			before, rowCounter, versionCounter := e.visibility.CommitSeq(), e.storage.RowFrontier(), e.storage.VersionFrontier()
 			e.mu.Unlock()
 			e.endLockOwner(holder.transactions.ticket)
 			var err error
@@ -123,7 +123,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			if scope.lockedDescriptor != nil || scope.lockedStorage != nil || scope.lockedRef != (ids.ObjectRef{}) || len(scope.materializedSources) != 0 {
 				t.Fatal("rejected queue captured or retargeted a producer")
 			}
-			if e.catalog.state.Get(expectedAddress) != &next || e.storage.Relations[expectedAddress] != expectedStorage || len(expectedStorage.Versions) != 3 || e.visibility.commitSeq != before || e.storage.RowFrontier() != rowCounter || e.storage.VersionFrontier() != versionCounter || !next.Populated {
+			if e.catalog.state.Get(expectedAddress) != &next || e.storage.Relations[expectedAddress] != expectedStorage || len(expectedStorage.Versions) != 3 || e.visibility.CommitSeq() != before || e.storage.RowFrontier() != rowCounter || e.storage.VersionFrontier() != versionCounter || !next.Populated {
 				t.Fatal("rejected queue changed current metadata/store/frontier/counters")
 			}
 			// Restore only the fixture epoch before normal session/transaction cleanup.

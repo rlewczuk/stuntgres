@@ -112,7 +112,7 @@ func TestTransactionRollbackAndAbortDoNotPublishFrontier(t *testing.T) {
 	b := sessionStart(t, e, nil)
 	sessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
 	sessionSQL(t, b, "INSERT INTO t VALUES(7)")
-	frontier := e.visibility.commitSeq
+	frontier := e.visibility.CommitSeq()
 	for _, abort := range []bool{false, true} {
 		ref := transactionBegin(t, a)
 		sessionSQL(t, a, "INSERT INTO t VALUES(1)")
@@ -127,14 +127,14 @@ func TestTransactionRollbackAndAbortDoNotPublishFrontier(t *testing.T) {
 		} else {
 			transactionEnd(t, a, ref, false)
 		}
-		if e.visibility.commitSeq != frontier {
+		if e.visibility.CommitSeq() != frontier {
 			t.Fatal("discard emitted a committed frontier")
 		}
 		transactionRows(t, b, "SELECT v FROM t ORDER BY v", 7)
 	}
 	ref := transactionBegin(t, a)
 	sessionSQL(t, a, "INSERT INTO t VALUES(3)")
-	if !transactionEnd(t, a, ref, true).Committed || e.visibility.commitSeq != frontier+1 {
+	if !transactionEnd(t, a, ref, true).Committed || e.visibility.CommitSeq() != frontier+1 {
 		t.Fatal("successful commit did not advance exactly one frontier")
 	}
 	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 3, 7)

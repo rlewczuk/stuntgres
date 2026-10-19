@@ -312,7 +312,7 @@ func TestProtocolCopyHooks(t *testing.T) {
 		sentinel := errors.New("protocol terminal failure")
 		called := false
 		e.mu.Lock()
-		frontier := e.visibility.commitSeq
+		frontier := e.visibility.CommitSeq()
 		e.mu.Unlock()
 		count, err := scope.CopyProtocol(copyUnitSyntax(), bytes.NewBufferString("1\n\\.\nignored"), nil, CopyProtocolHooks{FinishInput: func() error {
 			called = true
@@ -332,7 +332,7 @@ func TestProtocolCopyHooks(t *testing.T) {
 			t.Fatal(err)
 		}
 		e.mu.Lock()
-		published := e.visibility.commitSeq != frontier
+		published := e.visibility.CommitSeq() != frontier
 		e.mu.Unlock()
 		if published {
 			t.Fatal("terminal veto published rows")

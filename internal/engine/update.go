@@ -247,7 +247,7 @@ func (e *Engine) latestUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate
 	if err := s.repeatableConflict(row, store.Ends); err != nil {
 		return storage.RowVersion{}, false, err
 	}
-	return row, liveVersion(row, e.visibility.commitSeq, store.Ends, s.ownDeletes[ref.Address]), nil
+	return row, liveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address]), nil
 }
 
 func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding, source, from *querySource, parameters []sqltype.Value, schema string) (Result, error) {

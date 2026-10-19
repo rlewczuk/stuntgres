@@ -295,7 +295,7 @@ func TestPGSequenceSerializableCandidateLifecycle(t *testing.T) {
 				writer.DidWrite = true
 				writer.Outgoing[out] = struct{}{}
 				out.Incoming[writer] = struct{}{}
-				e.visibility.serializableCommittedLocked(out.Ref, e.visibility.commitSeq)
+				e.visibility.SerializableCommittedLocked(out.Ref, e.visibility.CommitSeq())
 				e.mu.Unlock()
 			}
 			ctx, cancel := context.WithCancel(context.Background())
@@ -314,8 +314,8 @@ func TestPGSequenceSerializableCandidateLifecycle(t *testing.T) {
 				e.mu.Lock()
 				e.catalog.state = catalog.CloneState(e.catalog.state)
 				next := e.catalog.state
-				e.visibility.commitSeq++
-				e.visibility.serializableCommittedLocked(writer.Ref, e.visibility.commitSeq)
+				e.visibility.AdvanceCommitSeqLocked()
+				e.visibility.SerializableCommittedLocked(writer.Ref, e.visibility.CommitSeq())
 				e.endSerializableLocked(writer.Ref, true)
 				e.mu.Unlock()
 				if err := join(); err != nil {

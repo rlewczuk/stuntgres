@@ -53,7 +53,7 @@ func TestAlterNullabilityLifecycle(t *testing.T) {
 			sessionSQL(t, a, "INSERT INTO t VALUES(7,9)")
 			ref := roleTableRef(t, e, "t")
 			descriptor, store := e.catalog.state.Get(ref.Address), e.storage.Relations[ref.Address]
-			frontier := e.visibility.commitSeq
+			frontier := e.visibility.CommitSeq()
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 			ctx, cancel := context.WithCancel(context.Background())
@@ -63,7 +63,7 @@ func TestAlterNullabilityLifecycle(t *testing.T) {
 			cancel()
 			lockAwait(t, done, context.Canceled)
 			lockPending(t, e, 0)
-			if e.catalog.state.Get(ref.Address) != descriptor || e.storage.Relations[ref.Address] != store || e.visibility.commitSeq != frontier {
+			if e.catalog.state.Get(ref.Address) != descriptor || e.storage.Relations[ref.Address] != store || e.visibility.CommitSeq() != frontier {
 				t.Fatal("canceled list published")
 			}
 			transactionEnd(t, a, tx, false)
@@ -105,7 +105,7 @@ func TestAlterNullabilityCancellationBoundaries(t *testing.T) {
 				e, ref := setup()
 				store := e.storage.Relations[ref.Address]
 				descriptor := e.catalog.state.Get(ref.Address)
-				frontier, generation, ends := e.visibility.commitSeq, store.Generation, store.Ends
+				frontier, generation, ends := e.visibility.CommitSeq(), store.Generation, store.Ends
 				all := append([]storage.RowVersion(nil), store.Versions[:cap(store.Versions)]...)
 				for i := range all {
 					all[i].Values = append([]sqltype.Value(nil), all[i].Values...)
@@ -123,7 +123,7 @@ func TestAlterNullabilityCancellationBoundaries(t *testing.T) {
 					if !errors.Is(err, context.Canceled) {
 						t.Fatal(at, err)
 					}
-					if e.catalog.state.Get(ref.Address) != descriptor || e.storage.Relations[ref.Address] != store || store.Generation != generation || store.Ends != ends || e.visibility.commitSeq != frontier || !reflect.DeepEqual(all, store.Versions[:cap(store.Versions)]) {
+					if e.catalog.state.Get(ref.Address) != descriptor || e.storage.Relations[ref.Address] != store || store.Generation != generation || store.Ends != ends || e.visibility.CommitSeq() != frontier || !reflect.DeepEqual(all, store.Versions[:cap(store.Versions)]) {
 						t.Fatal("cancellation mutated a prefix or spare suffix", at)
 					}
 				} else if e.catalog.state.Get(ref.Address) == descriptor {

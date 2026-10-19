@@ -44,7 +44,7 @@ func captureSequenceDeletePublication(e *Engine, s *Session, table ids.ObjectAdd
 		stores:          make(map[ids.ObjectAddress]*storage.Relation),
 		generators:      make(map[ids.ObjectAddress]*storage.SequenceGenerator),
 		generatorValues: make(map[ids.ObjectAddress]storage.SequenceGenerator),
-		store:           e.storage.Relations[table], frontier: e.visibility.commitSeq,
+		store:           e.storage.Relations[table], frontier: e.visibility.CommitSeq(),
 		temporary: s.temporaryNamespace, last: s.lastSequence,
 		memoryID: uintptr(reflect.ValueOf(s.sequences).UnsafePointer()),
 		memory:   make(map[ids.ObjectAddress]*sequenceMemory), memoryValues: make(map[ids.ObjectAddress]sequenceMemory),
@@ -96,7 +96,7 @@ func (p sequenceDeletePublicationSnapshot) assertUnchanged(t *testing.T, e *Engi
 			t.Fatal("changed generator identity/state", a)
 		}
 	}
-	if len(p.store.Versions) != len(p.root) || &p.store.Versions[0] != &p.root[0] || !reflect.DeepEqual(p.store.Versions, p.rows) || p.store.Ends != p.ends || e.visibility.commitSeq != p.frontier {
+	if len(p.store.Versions) != len(p.root) || &p.store.Versions[0] != &p.root[0] || !reflect.DeepEqual(p.store.Versions, p.rows) || p.store.Ends != p.ends || e.visibility.CommitSeq() != p.frontier {
 		t.Fatal("failed combined publication changed row/version vector, predecessor root or frontier")
 	}
 	if p.ends != nil && !reflect.DeepEqual(p.ends.Rows, p.endValues) {

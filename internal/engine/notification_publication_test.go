@@ -74,7 +74,7 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 				if catalog {
 					changes = newCatalogChanges()
 				}
-				original, frontier, root := e.catalog.state, e.visibility.commitSeq, receiver.notifications.state
+				original, frontier, root := e.catalog.state, e.visibility.CommitSeq(), receiver.notifications.state
 				switch failure {
 				case "cancel":
 					cancel()
@@ -84,14 +84,14 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 					e.catalog.state = &next
 					original = e.catalog.state
 				case "xid":
-					e.visibility.assignedXID = ^uint64(0)
+					e.visibility.SetLastAssignedXIDLocked(^uint64(0))
 				}
 				err = e.publishRowsPrepared(op, ref, nil, nil, changes, nil, nil, nil)
 				if failure != "success" {
 					if err == nil {
 						t.Fatal("failed preflight published")
 					}
-					if receiver.notifications.state != root || e.catalog.state != original || e.visibility.commitSeq != frontier {
+					if receiver.notifications.state != root || e.catalog.state != original || e.visibility.CommitSeq() != frontier {
 						t.Fatal("partial catalog/notification installation")
 					}
 					return
@@ -99,15 +99,15 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if e.visibility.assignedXID == 0 {
+				if e.visibility.LastAssignedXID() == 0 {
 					t.Fatal("notification-only publication did not assign XID")
 				}
 				wantFrontier := frontier
 				if catalog {
 					wantFrontier++
 				}
-				if e.visibility.commitSeq != wantFrontier {
-					t.Fatal("notification publication invented row commit sequence", e.visibility.commitSeq, wantFrontier)
+				if e.visibility.CommitSeq() != wantFrontier {
+					t.Fatal("notification publication invented row commit sequence", e.visibility.CommitSeq(), wantFrontier)
 				}
 				if got := notificationUnitReceive(t, receiver); got.Payload != "published" {
 					t.Fatal(got)
@@ -253,16 +253,16 @@ func TestNotificationIdentityAndAssignment(t *testing.T) {
 	if e.notifications != nil || s.notifications.state != nil || s.notifications.wake != nil {
 		t.Fatal("unused feature allocated queue state")
 	}
-	before := e.visibility.assignedXID
+	before := e.visibility.LastAssignedXID()
 	notificationUnitListen(t, s)
-	if e.visibility.assignedXID != before {
+	if e.visibility.LastAssignedXID() != before {
 		t.Fatal("subscription-only commit assigned XID")
 	}
 	notificationUnitNotify(t, s, "wide")
 	if got := notificationUnitReceive(t, s); got.PID != uint64(s.token.ID()) || got.PID <= uint64(^uint32(0)) {
 		t.Fatal("sender identity narrowed", got)
 	}
-	if e.visibility.assignedXID != before+1 {
+	if e.visibility.LastAssignedXID() != before+1 {
 		t.Fatal("outgoing-only commit missing XID")
 	}
 }

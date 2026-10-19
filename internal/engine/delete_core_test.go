@@ -145,9 +145,9 @@ func TestDeleteCoreCombinedCommit(t *testing.T) {
 	sessionSQL(t, b, "INSERT INTO t VALUES(4)")
 	transactionRows(t, a, "SELECT v FROM t ORDER BY v", 2, 3, 4)
 	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 2, 4)
-	frontier := e.visibility.commitSeq
+	frontier := e.visibility.CommitSeq()
 	transactionEnd(t, a, ref, true)
-	if e.visibility.commitSeq != frontier+1 {
+	if e.visibility.CommitSeq() != frontier+1 {
 		t.Fatal("combined commit advanced multiple frontiers")
 	}
 	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 2, 3, 4)
@@ -157,7 +157,7 @@ func TestDeleteCoreCombinedCommit(t *testing.T) {
 			continue
 		}
 		for _, end := range store.Ends.Rows {
-			if end.End != e.visibility.commitSeq {
+			if end.End != e.visibility.CommitSeq() {
 				t.Fatal("mixed deletion frontier", end)
 			}
 		}

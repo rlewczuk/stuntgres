@@ -27,7 +27,7 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf,
 	}
 	a := leaf.ref.Address
 	store := data.GenerationAt(a)
-	if store == nil || store != e.storage.Relations[a] || data.FrontierAt(a) != e.visibility.commitSeq || data.Deleted[a] != nil || len(source.committed) != len(store.Versions) || data.Ends[a] != store.Ends {
+	if store == nil || store != e.storage.Relations[a] || data.FrontierAt(a) != e.visibility.CommitSeq() || data.Deleted[a] != nil || len(source.committed) != len(store.Versions) || data.Ends[a] != store.Ends {
 		return nil
 	}
 	for address, carrier := range e.storage.IndexRoots {

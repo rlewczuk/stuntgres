@@ -287,7 +287,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 			return err
 		}
 		for i := range versions {
-			versions[i].Born = e.visibility.commitSeq
+			versions[i].Born = e.visibility.CommitSeq()
 		}
 		d := *item.descriptor
 		d.ObjectRevision, err = e.catalog.revisionLocked()

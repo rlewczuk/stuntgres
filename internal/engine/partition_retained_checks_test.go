@@ -49,7 +49,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	live := storage.RowVersion{Row: 2, Version: 2, Born: 3, Values: oldValues}
 	store := &storage.Relation{Versions: []storage.RowVersion{dead, live}, Ends: &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 1, End: 2}}}}
 	e.catalog.state = view.State()
-	e.visibility.commitSeq = 3
+	e.visibility.SetCommitSeqLocked(3)
 	e.storage.Relations = map[ids.ObjectAddress]*storage.Relation{leaf.Address(): store}
 	snapshot, err := e.captureIndexSnapshot(context.Background(), view, e.storage.Relations, nil, 3)
 	if err != nil {

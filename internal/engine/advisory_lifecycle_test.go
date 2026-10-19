@@ -81,7 +81,7 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 		relations[address] = &storage.Relation{Versions: append([]storage.RowVersion(nil), relation.Versions...)}
 	}
 	sequences, err := copySequenceState(source, replacement)
-	indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage.Relations, source.storage.IndexRoots, source.visibility.commitSeq)
+	indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage.Relations, source.storage.IndexRoots, source.visibility.CommitSeq())
 	source.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

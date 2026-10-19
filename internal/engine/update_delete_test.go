@@ -263,7 +263,7 @@ func TestUpdateCoreDeletePublication(t *testing.T) {
 			roots := [2][]storage.RowVersion{ts.Versions, us.Versions}
 			old := [2]storage.RowVersion{roots[0][0], roots[1][0]}
 			ends := [2]*storage.DeletionRoot{ts.Ends, us.Ends}
-			frontier := e.visibility.commitSeq
+			frontier := e.visibility.CommitSeq()
 			tx := transactionBegin(t, owner)
 			sessionSQL(t, owner, "UPDATE t SET v=11")
 			sessionSQL(t, owner, "DELETE FROM u")
@@ -278,7 +278,7 @@ func TestUpdateCoreDeletePublication(t *testing.T) {
 			switch mode {
 			case "commit":
 				_, err = e.Commit(op, tx)
-				if err != nil || e.visibility.commitSeq != frontier+1 || ts.Versions[0].Born != e.visibility.commitSeq || us.Ends.Rows[old[1].Row].End != e.visibility.commitSeq {
+				if err != nil || e.visibility.CommitSeq() != frontier+1 || ts.Versions[0].Born != e.visibility.CommitSeq() || us.Ends.Rows[old[1].Row].End != e.visibility.CommitSeq() {
 					t.Fatal("head/end not one frontier", err)
 				}
 			case "restore_fenced":
@@ -305,7 +305,7 @@ func TestUpdateCoreDeletePublication(t *testing.T) {
 				cancel()
 				close(barrier.release)
 				lockAwait(t, done, context.Canceled)
-				if e.visibility.commitSeq != frontier || ts.Ends != ends[0] || us.Ends != ends[1] || &ts.Versions[0] != &roots[0][0] || &us.Versions[0] != &roots[1][0] {
+				if e.visibility.CommitSeq() != frontier || ts.Ends != ends[0] || us.Ends != ends[1] || &ts.Versions[0] != &roots[0][0] || &us.Versions[0] != &roots[1][0] {
 					t.Fatal("partial canceled head/end installation")
 				}
 			}
@@ -370,9 +370,9 @@ func TestUpdateCoreDeleteImportIdentity(t *testing.T) {
 				case "version_exhaustion":
 					target.storage.SetFrontierLocked(target.storage.RowFrontier(), ^uint64(0))
 				case "frontier_exhaustion":
-					target.visibility.commitSeq = ids.CommitSeq(^uint64(0))
+					target.visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
 				}
-				state, frontier, rowCounter, versionCounter := target.catalog.state, target.visibility.commitSeq, target.storage.RowFrontier(), target.storage.VersionFrontier()
+				state, frontier, rowCounter, versionCounter := target.catalog.state, target.visibility.CommitSeq(), target.storage.RowFrontier(), target.storage.VersionFrontier()
 				oldStorage := target.storage.Relations
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
@@ -387,7 +387,7 @@ func TestUpdateCoreDeleteImportIdentity(t *testing.T) {
 					if failure == "canceled" && !errors.Is(err, context.Canceled) {
 						t.Fatal(err)
 					}
-					if target.catalog.state != state || target.visibility.commitSeq != frontier || target.storage.RowFrontier() != rowCounter || target.storage.VersionFrontier() != versionCounter {
+					if target.catalog.state != state || target.visibility.CommitSeq() != frontier || target.storage.RowFrontier() != rowCounter || target.storage.VersionFrontier() != versionCounter {
 						t.Fatal("failed import consumed state/identities")
 					}
 					for address, store := range oldStorage {
@@ -398,7 +398,7 @@ func TestUpdateCoreDeleteImportIdentity(t *testing.T) {
 				} else {
 					tr := catalogRef(t, target, target.CatalogRead(), "t")
 					store := target.storage.Relations[tr.Address]
-					if tr.Epoch != state.Epoch()+1 || store == oldStore || len(store.Versions) != 1 || store.Ends != nil || store.Versions[0].Row == 0 || store.Versions[0].Version == 0 || store.Versions[0].Row == oldHead.Row || store.Versions[0].Version == oldHead.Version || store.Versions[0].Born != target.visibility.commitSeq {
+					if tr.Epoch != state.Epoch()+1 || store == oldStore || len(store.Versions) != 1 || store.Ends != nil || store.Versions[0].Row == 0 || store.Versions[0].Version == 0 || store.Versions[0].Row == oldHead.Row || store.Versions[0].Version == oldHead.Version || store.Versions[0].Born != target.visibility.CommitSeq() {
 						t.Fatal("live-only fresh import", store)
 					}
 					if got := tuples(run(t, target, "SELECT v FROM t")); !reflect.DeepEqual(got, [][]driver.Value{{int64(2)}}) {
@@ -466,7 +466,7 @@ func TestUpdateCoreDeleteFailedReplacement(t *testing.T) {
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
 			store := e.storage.Relations[ref.Address]
 			root := store.Versions
-			ends, frontier, epoch := store.Ends, e.visibility.commitSeq, e.catalog.state.Epoch()
+			ends, frontier, epoch := store.Ends, e.visibility.CommitSeq(), e.catalog.state.Epoch()
 			tx := transactionBegin(t, owner)
 			sessionSQL(t, owner, "UPDATE t SET v=11 WHERE id=1")
 			sessionSQL(t, owner, "DELETE FROM t WHERE id=2")
@@ -489,7 +489,7 @@ func TestUpdateCoreDeleteFailedReplacement(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if err == nil || e.catalog.state.Epoch() != epoch || e.visibility.commitSeq != frontier || e.storage.Relations[ref.Address] != store || store.Ends != ends || &store.Versions[0] != &root[0] || owner.TransactionState() != TxActive || owner.transactions.ticket != ticket || owner.transactions.deletes[ref.Address] != deletes || &owner.transactions.writes[ref.Address][0] != &writes[0] {
+			if err == nil || e.catalog.state.Epoch() != epoch || e.visibility.CommitSeq() != frontier || e.storage.Relations[ref.Address] != store || store.Ends != ends || &store.Versions[0] != &root[0] || owner.TransactionState() != TxActive || owner.transactions.ticket != ticket || owner.transactions.deletes[ref.Address] != deletes || &owner.transactions.writes[ref.Address][0] != &writes[0] {
 				t.Fatal("failed replacement changed mixed authority", err)
 			}
 			transactionRows(t, owner, "SELECT v FROM t", 11)

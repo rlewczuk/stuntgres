@@ -93,7 +93,7 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 		source := catalogRef(t, e, e.CatalogRead(), "src")
 		holderTx := transactionBegin(t, holder)
 		sessionSQL(t, holder, "INSERT INTO t VALUES(1,10)")
-		frontier := e.visibility.commitSeq
+		frontier := e.visibility.CommitSeq()
 		running := conflictUpdateStartWorker(t, e, worker, "INSERT INTO t SELECT src.k,src.v FROM src LEFT JOIN t ON t.k=src.k WHERE t.k IS NULL ON CONFLICT(k) DO UPDATE SET v=t.v+excluded.v")
 		lockPending(t, e, 1)
 		request := func() lock.Waiter {
