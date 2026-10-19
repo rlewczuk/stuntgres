@@ -238,17 +238,17 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 					stage.domainBases = append(stage.domainBases, auth.Catalog.Get(foreign.Wrapper))
 				}
 			case *catalog.Namespace:
-				err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(stage.Base.Epoch(), a), OwnerOnly: true})
+				err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(stage.Base.Epoch(), a), OwnerOnly: true})
 				if err == nil {
-					err = access.OwnershipSuccessor(auth.accessView, target)
+					err = access.OwnershipSuccessor(auth.View, target)
 				}
 				if err == nil {
-					err = access.OwnershipDatabaseCreate(auth.accessView, auth)
+					err = access.OwnershipDatabaseCreate(auth.View, auth)
 				}
 			case *catalog.Collation, *catalog.Conversion, *catalog.Operator, *catalog.Database, *catalog.Extension, *catalog.Procedure, *catalog.TSDictionary:
-				err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(stage.Base.Epoch(), a), OwnerOnly: true})
+				err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(stage.Base.Epoch(), a), OwnerOnly: true})
 				if err == nil {
-					err = access.OwnershipEligibility(auth.accessView, auth, target, d.Namespace())
+					err = access.OwnershipEligibility(auth.View, auth, target, d.Namespace())
 				}
 			}
 			if err != nil {

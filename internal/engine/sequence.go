@@ -310,7 +310,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		old := auth.Catalog.MustRelation(ref.Address)
 		err = sequenceKind(old)
 		if err == nil {
-			err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
+			err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true})
 		}
 		e.mu.Unlock()
 		if err != nil {
@@ -334,12 +334,12 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			return Result{}, ids.ErrCatalogReplaced
 		}
 		old = current
-		if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+		if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			return Result{}, err
 		}
 		var ownerTarget authorization.PrincipalRef
 		if s.Action == "owner" {
-			ownerTarget, err = access.SchemaOwner(auth.accessView, s.Target.Text, s.OwnerIdentity)
+			ownerTarget, err = access.SchemaOwner(auth.View, s.Target.Text, s.OwnerIdentity)
 			if err != nil {
 				return Result{}, err
 			}
@@ -377,7 +377,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 				}
 			}
 		}
-		if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+		if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			return Result{}, err
 		}
 		switch s.Action {
@@ -622,7 +622,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	return Result{}, nil
 }
 func relationDropOwner(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Relation) error {
-	err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
+	err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true})
 	if err == nil {
 		return nil
 	}
@@ -634,7 +634,7 @@ func relationDropOwner(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Rel
 		return fmt.Errorf("stuntgres: invalid sequence namespace")
 	}
 	namespace := ref.Domain().Ref(ref.Epoch, ns.Address())
-	if auth.Check(AccessRequirement{Object: namespace, OwnerOnly: true}) == nil {
+	if auth.Check(access.Requirement{Object: namespace, OwnerOnly: true}) == nil {
 		return nil
 	}
 	return err

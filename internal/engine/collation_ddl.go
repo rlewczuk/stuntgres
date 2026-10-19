@@ -223,7 +223,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 	}
 	var ownerTarget authorization.PrincipalRef
 	if s.Action == "owner" {
-		ownerTarget, err = access.SchemaOwner(auth.accessView, s.Target.Text, s.OwnerIdentity)
+		ownerTarget, err = access.SchemaOwner(auth.View, s.Target.Text, s.OwnerIdentity)
 		if err != nil {
 			return err
 		}
@@ -232,7 +232,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 		}
 	}
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
-	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+	if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		return err
 	}
 	if d.Provider == "d" && s.Action == "refresh" {
@@ -277,7 +277,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 		}
 		next.ObjectNamespace = dest.Address
 	case "owner":
-		if err = access.OwnershipEligibility(auth.accessView, auth, ownerTarget, d.Namespace()); err != nil {
+		if err = access.OwnershipEligibility(auth.View, auth, ownerTarget, d.Namespace()); err != nil {
 			return err
 		}
 		next.Owner = ownerTarget
@@ -305,7 +305,7 @@ func (e *Engine) stageDropCollationLocked(op *Operation, auth AuthorizationView,
 			return err
 		}
 		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
-		if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+		if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}
 		if d.Seeded() {

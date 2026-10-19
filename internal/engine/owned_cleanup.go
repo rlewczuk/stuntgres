@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func ownedMembershipCandidate(ctx context.Context, roles authorization.Read, revision uint64, sources map[authorization.PrincipalRef]bool) (*roleCatalog, error) {
+func ownedMembershipCandidate(ctx context.Context, roles authorization.Read, revision uint64, sources map[authorization.PrincipalRef]bool) (*access.RoleRecord, error) {
 	if !authorization.OwnedMembershipNeeded(roles, sources) {
 		return nil, ctx.Err()
 	}
@@ -20,7 +20,7 @@ func ownedMembershipCandidate(ctx context.Context, roles authorization.Read, rev
 	if err != nil {
 		return nil, err
 	}
-	return &roleCatalog{Root: root, Revision: revision + 1}, nil
+	return &access.RoleRecord{Root: root, Revision: revision + 1}, nil
 }
 func ownedPolicies(policies []catalog.PolicyDefinition, sources map[authorization.PrincipalRef]bool) ([]catalog.PolicyDefinition, bool) {
 	needed := false
@@ -58,7 +58,7 @@ func ownedPolicies(policies []catalog.PolicyDefinition, sources map[authorizatio
 	}
 	return out, true
 }
-func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authorization.Read, publication *roleCatalog, sources map[authorization.PrincipalRef]bool) error {
+func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authorization.Read, publication *access.RoleRecord, sources map[authorization.PrincipalRef]bool) error {
 	candidate, err := ownedMembershipCandidate(ctx, roles, publication.Revision, sources)
 	if err != nil {
 		return err
@@ -258,7 +258,7 @@ func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization
 
 // The optional candidate is membership deletion only. It shares immutable role
 // descriptors/name maps and preserves the order and flags of surviving rows.
-func (s *CatalogStage) validateRoleCandidate(current *roleCatalog) error {
+func (s *CatalogStage) validateRoleCandidate(current *access.RoleRecord) error {
 	if s.roleCandidate == nil {
 		return nil
 	}
@@ -274,7 +274,7 @@ func (s *CatalogStage) validateRoleCandidate(current *roleCatalog) error {
 	}
 	return current.Root.ValidateDeletionCandidate(&next.Root)
 }
-func (s *CatalogStage) roleRead(current *roleCatalog, catalog catalog.Read) authorization.Read {
+func (s *CatalogStage) roleRead(current *access.RoleRecord, catalog catalog.Read) authorization.Read {
 	if s.roleCandidate != nil {
 		return s.owner.roles.read(s.owner.catalog.owner(), catalog, s.roleCandidate)
 	}

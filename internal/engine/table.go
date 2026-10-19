@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -82,11 +83,11 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		if seen[ref.Address] {
 			continue
 		}
-		tableErr := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
+		tableErr := auth.Check(access.Requirement{Object: ref, OwnerOnly: true})
 		if tableErr != nil {
 			descriptor := auth.Catalog.Get(ref.Address)
 			nsref := e.catalog.Domain.Ref(ref.Epoch, descriptor.Namespace())
-			if err := auth.Check(AccessRequirement{Object: nsref, OwnerOnly: true}); err != nil {
+			if err := auth.Check(access.Requirement{Object: nsref, OwnerOnly: true}); err != nil {
 				e.mu.Unlock()
 				return Result{}, tableErr
 			}

@@ -74,7 +74,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 			if d.RelationKind != catalog.ForeignRelation {
 				return nil, nil, sqlError("42809", fmt.Sprintf(`"%s" is not a foreign table`, d.Name()))
 			}
-			if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+			if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 				return nil, nil, err
 			}
 			if err := stage.removeObjectLocked(ref, false); err != nil {
@@ -103,7 +103,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 	if err != nil {
 		return nil, nil, err
 	}
-	if err = auth.Check(AccessRequirement{Object: foreignRef(auth, server), Privileges: authorization.UsagePrivilege}); err != nil {
+	if err = auth.Check(access.Requirement{Object: foreignRef(auth, server), Privileges: authorization.UsagePrivilege}); err != nil {
 		return nil, nil, err
 	}
 	if err = foreignTableDeclaration(s.Table); err != nil {
@@ -181,7 +181,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
-	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+	if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}

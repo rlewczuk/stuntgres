@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -33,7 +34,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		}
 	}
 	if err == nil {
-		err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), source.Address()), OwnerOnly: true})
+		err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), source.Address()), OwnerOnly: true})
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -85,7 +86,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		}
 		ownersChecked = true
 		for _, address := range addresses {
-			if err := auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), address), OwnerOnly: true}); err != nil {
+			if err := auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), address), OwnerOnly: true}); err != nil {
 				return err
 			}
 		}

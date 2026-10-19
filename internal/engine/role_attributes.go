@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -97,7 +98,7 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 	if _, creating := stmt.(*parser.CreateRole); creating {
 		e.roles.nextPrincipal = d.Ref.ID() + 1
 	}
-	e.installOperationRolesLocked(op, &roleCatalog{Root: n, Revision: v.RoleRecord.Revision + 1})
+	e.installOperationRolesLocked(op, &access.RoleRecord{Root: n, Revision: v.RoleRecord.Revision + 1})
 	emitPasswordNotice(op, notice)
 	return Result{}, nil
 }

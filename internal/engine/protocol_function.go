@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -64,8 +65,8 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	ns := auth.Catalog.Get(d.Namespace())
 	nsRef := auth.Catalog.Owner().Domain.Ref(auth.Catalog.Epoch(), d.Namespace())
 	ref := auth.Catalog.Owner().Domain.Ref(auth.Catalog.Epoch(), d.Address())
-	if err = auth.Check(AccessRequirement{Object: nsRef, Privileges: authorization.UsagePrivilege}); err == nil {
-		err = auth.Check(AccessRequirement{Object: ref, Privileges: authorization.ExecutePrivilege})
+	if err = auth.Check(access.Requirement{Object: nsRef, Privileges: authorization.UsagePrivilege}); err == nil {
+		err = auth.Check(access.Requirement{Object: ref, Privileges: authorization.ExecutePrivilege})
 	}
 	if err != nil {
 		e.mu.Unlock()

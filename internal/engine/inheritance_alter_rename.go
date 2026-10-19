@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -214,7 +215,7 @@ func (scope *StatementScope) acquireInheritanceDefinitions(root *catalog.Relatio
 		for _, old := range targets {
 			ref := scope.lockedRef
 			ref.Address = old.Address()
-			if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+			if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 				return fail(err)
 			}
 			if captured[old.Address()] == nil && pending == nil {

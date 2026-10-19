@@ -112,7 +112,7 @@ func TestDatabaseTemporaryCapturedRights(t *testing.T) {
 	base := e.CatalogRead()
 	auth := catalogAuthorization(e, base)
 	auth.State.CurrentUser = reader
-	if rights, err := auth.accessView.OwnTemporaryPrivileges(auth); err != nil || rights != authorization.UsagePrivilege|authorization.CreatePrivilege {
+	if rights, err := auth.View.OwnTemporaryPrivileges(auth); err != nil || rights != authorization.UsagePrivilege|authorization.CreatePrivilege {
 		t.Fatal("PUBLIC TEMP baseline", rights, err)
 	}
 	candidate := catalog.CloneState(base.State())
@@ -121,10 +121,10 @@ func TestDatabaseTemporaryCapturedRights(t *testing.T) {
 	candidate.SetDescriptor(catalog.CurrentDatabaseAddress, &next)
 	fresh := catalogAuthorization(e, e.catalog.read(candidate))
 	fresh.State.CurrentUser = reader
-	if rights, err := fresh.accessView.OwnTemporaryPrivileges(fresh); err != nil || rights != authorization.UsagePrivilege {
+	if rights, err := fresh.View.OwnTemporaryPrivileges(fresh); err != nil || rights != authorization.UsagePrivilege {
 		t.Fatal("revoked own namespace keeps USAGE only", rights, err)
 	}
-	if rights, err := auth.accessView.OwnTemporaryPrivileges(auth); err != nil || rights != authorization.UsagePrivilege|authorization.CreatePrivilege {
+	if rights, err := auth.View.OwnTemporaryPrivileges(auth); err != nil || rights != authorization.UsagePrivilege|authorization.CreatePrivilege {
 		t.Fatal("retained pair mutated", rights, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())

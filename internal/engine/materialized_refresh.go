@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -21,7 +22,7 @@ func materializedRefreshAccess(auth AuthorizationView, ref ids.ObjectRef) error 
 	if d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation && d.RelationKind != catalog.MaterializedViewRelation {
 		return sqlError("42809", fmt.Sprintf(`"%s" is not a table or materialized view`, d.Name()))
 	}
-	if err := auth.Check(AccessRequirement{Object: ref, Privileges: authorization.MaintainPrivilege}); err != nil {
+	if err := auth.Check(access.Requirement{Object: ref, Privileges: authorization.MaintainPrivilege}); err != nil {
 		return err
 	}
 	if d.RelationKind != catalog.MaterializedViewRelation {

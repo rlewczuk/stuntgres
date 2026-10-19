@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -50,13 +51,13 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				if private && auth.Catalog.Get(catalog.CurrentDatabaseAddress) == committed {
 					t.Fatal("private DB authority is not distinct from committed predecessor")
 				}
-				if err := auth.Check(AccessRequirement{Object: root, OwnerOnly: true}); err != nil {
+				if err := auth.Check(access.Requirement{Object: root, OwnerOnly: true}); err != nil {
 					t.Fatal("selected DB owner cannot authorize actual table", err)
 				}
 				checkReader := func(view AuthorizationView, allowed bool) {
 					t.Helper()
 					view.State.CurrentUser = reader
-					err := view.Check(AccessRequirement{Object: root, Privileges: authorization.SelectPrivilege})
+					err := view.Check(access.Requirement{Object: root, Privileges: authorization.SelectPrivilege})
 					if allowed {
 						if err != nil {
 							t.Fatal("actual staged reader right is absent", err)

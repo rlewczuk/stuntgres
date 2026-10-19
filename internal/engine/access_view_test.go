@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -80,10 +81,10 @@ func TestAccessViewTemporaryNamespaceFromEnvironment(t *testing.T) {
 			t.Fatal(err)
 		}
 		ref := auth.Ref(temporary)
-		if none, err = auth.accessView.Effective(fixedAccessEnvironment{}, ref, false); err != nil {
+		if none, err = auth.View.Effective(fixedAccessEnvironment{}, ref, false); err != nil {
 			t.Fatal(err)
 		}
-		if own, err = auth.accessView.Effective(fixedAccessEnvironment{temporary: temporary}, ref, false); err != nil {
+		if own, err = auth.View.Effective(fixedAccessEnvironment{temporary: temporary}, ref, false); err != nil {
 			t.Fatal(err)
 		}
 		return none, own
@@ -125,7 +126,7 @@ func TestAccessViewTypeDenialQualifiesByReferencePath(t *testing.T) {
 	if !ok {
 		t.Fatal("missing type")
 	}
-	req := AccessRequirement{Object: auth.Ref(address), Privileges: authorization.UsagePrivilege}
+	req := access.Requirement{Object: auth.Ref(address), Privileges: authorization.UsagePrivilege}
 	for _, tc := range []struct {
 		path []ids.ObjectAddress
 		want string
@@ -133,7 +134,7 @@ func TestAccessViewTypeDenialQualifiesByReferencePath(t *testing.T) {
 		{[]ids.ObjectAddress{public}, "permission denied for type moods.mood"},
 		{[]ids.ObjectAddress{schema}, "permission denied for type mood"},
 	} {
-		err := auth.accessView.Check(fixedAccessEnvironment{path: tc.path}, req)
+		err := auth.View.Check(fixedAccessEnvironment{path: tc.path}, req)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != tc.want {
 			t.Fatalf("path %v: got %v, want %q", tc.path, err, tc.want)

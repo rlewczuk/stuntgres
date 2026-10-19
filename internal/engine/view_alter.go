@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -19,10 +20,10 @@ func alterViewAuthority(auth AuthorizationView, ref ids.ObjectRef, s *parser.Alt
 	if s.Materialized {
 		kind, label = catalog.MaterializedViewRelation, "materialized view"
 		if s.Action == "column" {
-			return auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
+			return auth.Check(access.Requirement{Object: ref, OwnerOnly: true})
 		}
 		if s.Action != "depends" && s.Action != "no_depends" {
-			if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+			if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 				return err
 			}
 			ownerChecked = true
@@ -34,7 +35,7 @@ func alterViewAuthority(auth AuthorizationView, ref ids.ObjectRef, s *parser.Alt
 	if ownerChecked {
 		return nil
 	}
-	return auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
+	return auth.Check(access.Requirement{Object: ref, OwnerOnly: true})
 }
 
 // Utility admission pins the target identity before waiting. Shared rename and
@@ -192,7 +193,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 }
 
 func viewDropOwner(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Relation) error {
-	ownerErr := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
+	ownerErr := auth.Check(access.Requirement{Object: ref, OwnerOnly: true})
 	if ownerErr == nil {
 		return nil
 	}

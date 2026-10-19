@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -91,7 +92,7 @@ func TestDeleteCoreAuthorization(t *testing.T) {
 	if _, err := view.Effective(column, false); err != nil {
 		t.Fatal(err)
 	}
-	if err := view.Check(AccessRequirement{Object: column, Privileges: authorization.DeletePrivilege}); err == nil {
+	if err := view.Check(access.Requirement{Object: column, Privileges: authorization.DeletePrivilege}); err == nil {
 		t.Fatal("column DELETE requirement accepted")
 	}
 	lockEmpty(t, e)

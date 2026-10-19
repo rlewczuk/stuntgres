@@ -110,7 +110,7 @@ func TestFDWCatalogOverlay(t *testing.T) {
 		if err := auth.CanUse(ref); err != nil {
 			t.Fatal(err)
 		}
-		if err := auth.Check(AccessRequirement{Object: ref, Privileges: authorization.UsagePrivilege}); err != nil {
+		if err := auth.Check(access.Requirement{Object: ref, Privileges: authorization.UsagePrivilege}); err != nil {
 			t.Fatal(err)
 		}
 	}

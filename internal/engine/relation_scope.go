@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -385,7 +386,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		switch utility := stmt.(type) {
 		case *parser.CreateView:
 			if ref.Domain() != nil {
-				err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
+				err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true})
 				if err == nil {
 					d := auth.Catalog.MustRelation(ref.Address)
 					if d.RelationKind != catalog.ViewRelation {
@@ -400,7 +401,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		}
 		if ownerOnly && !viewReplacement && err == nil {
 			if ref.Domain() != nil {
-				err = parentAuth.Check(AccessRequirement{Object: ref, OwnerOnly: true, OwnerNoun: policyOwnerNoun(stmt)})
+				err = parentAuth.Check(access.Requirement{Object: ref, OwnerOnly: true, OwnerNoun: policyOwnerNoun(stmt)})
 				if _, altering := stmt.(*parser.AlterTable); altering && err == nil {
 					err = alterTableLookupKind(parentAuth.Catalog.MustRelation(ref.Address))
 				}
@@ -620,7 +621,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		if err := auth.CheckCreate(ns); err != nil {
 			return err
 		}
-		if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+		if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}
 		if descriptor.RelationKind != catalog.ViewRelation {
@@ -645,7 +646,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				return err
 			}
 		}
-		if err := parentAuth.Check(AccessRequirement{Object: ref, OwnerOnly: true, OwnerNoun: policyOwnerNoun(stmt)}); err != nil {
+		if err := parentAuth.Check(access.Requirement{Object: ref, OwnerOnly: true, OwnerNoun: policyOwnerNoun(stmt)}); err != nil {
 			return err
 		}
 		if _, altering := stmt.(*parser.AlterTable); altering {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -53,7 +54,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		err = ids.ErrCatalogReplaced
 	}
 	if err == nil {
-		err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
+		err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true})
 	}
 	if err != nil {
 		return fail(err)

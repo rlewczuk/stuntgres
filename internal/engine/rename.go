@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -44,7 +45,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 	if err != nil {
 		return fail(err)
 	}
-	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+	if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		return fail(err)
 	}
 	old := scope.lockedDescriptor.(*catalog.Relation)

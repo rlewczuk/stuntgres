@@ -25,7 +25,7 @@ import (
 type roleStore struct {
 	domain        authorization.Domain
 	aclAuthority  sqltype.ACLAuthority
-	published     *roleCatalog
+	published     *access.RoleRecord
 	nextPrincipal uint64
 	references    map[string][]authorization.PrincipalRef
 }
@@ -33,7 +33,7 @@ type roleStore struct {
 // initialize seeds the predefined roles and the principal allocator. It runs
 // once, while the engine is not yet shared.
 func (s *roleStore) initialize() {
-	s.published = &roleCatalog{Root: authorization.Seed(&s.domain), Revision: 1}
+	s.published = &access.RoleRecord{Root: authorization.Seed(&s.domain), Revision: 1}
 	s.nextPrincipal = authorization.LastPredefinedRoleID + 1
 }
 
@@ -57,7 +57,7 @@ func (s *roleStore) principalCandidateLocked() (authorization.PrincipalRef, erro
 // read returns the role view of root as seen by view's current database
 // owner. It is empty unless view belongs to owner, the catalog owner this
 // store backs, and root belongs to this store's domain.
-func (s *roleStore) read(owner *catalog.Owner, view catalog.Read, root *roleCatalog) authorization.Read {
+func (s *roleStore) read(owner *catalog.Owner, view catalog.Read, root *access.RoleRecord) authorization.Read {
 	return access.RoleRead(owner, &s.domain, view, root)
 }
 

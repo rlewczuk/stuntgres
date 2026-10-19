@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -39,7 +40,7 @@ func TestCommentPublicationFailures(t *testing.T) {
 	commentWant(t, e, e.CatalogRead(), ref, "old")
 	roleExecute(t, e, op, "CREATE ROLE free")
 	roles := e.roles.published
-	e.roles.published = &roleCatalog{Revision: ^uint64(0), Root: roles.Root}
+	e.roles.published = &access.RoleRecord{Revision: ^uint64(0), Root: roles.Root}
 	if _, err := e.Execute(op, statement(t, "COMMENT ON ROLE free IS 'bad'"), 0, nil); err == nil {
 		t.Fatal("role exhaustion accepted")
 	}

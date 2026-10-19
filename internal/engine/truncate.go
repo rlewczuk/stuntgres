@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -32,7 +33,7 @@ func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Relatio
 		return sqlError("42809", fmt.Sprintf("%q is not a table", d.Name()))
 	}
 	if privilege {
-		if err := auth.Check(AccessRequirement{Object: ref, Privileges: authorization.TruncatePrivilege}); err != nil {
+		if err := auth.Check(access.Requirement{Object: ref, Privileges: authorization.TruncatePrivilege}); err != nil {
 			return err
 		}
 	}

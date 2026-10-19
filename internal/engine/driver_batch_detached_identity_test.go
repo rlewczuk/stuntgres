@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -63,13 +64,13 @@ func TestDriverBatchDetachedPrincipalAuthority(t *testing.T) {
 			if _, exists := auth.Roles.Lookup("detached"); exists {
 				t.Fatal("detached private role name leaked into new command")
 			}
-			batchUnitDiagnostic(t, auth.Check(AccessRequirement{Object: table, Privileges: authorization.SelectPrivilege}), "42501", "permission denied for table t")
+			batchUnitDiagnostic(t, auth.Check(access.Requirement{Object: table, Privileges: authorization.SelectPrivilege}), "42501", "permission denied for table t")
 			unadmitted := auth
 			unadmitted.MissingCurrent = authorization.PrincipalRef{}
 			if _, err := unadmitted.Effective(table, false); err == nil {
 				t.Fatal("unadmitted missing actor acquired numeric authority")
 			}
-			if err := unadmitted.Check(AccessRequirement{Object: table, Privileges: authorization.SelectPrivilege}); err == nil {
+			if err := unadmitted.Check(access.Requirement{Object: table, Privileges: authorization.SelectPrivilege}); err == nil {
 				t.Fatal("unadmitted missing actor bypassed privilege preflight")
 			}
 			foreign := auth

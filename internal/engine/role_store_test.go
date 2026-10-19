@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 )
 
@@ -38,7 +39,7 @@ func TestRoleStoreSetReferencesFailuresLeaveStateUnchanged(t *testing.T) {
 	if err := e.roles.setReferencesLocked(ctx, "kept", nil); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled update: %v", err)
 	}
-	e.roles.published = &roleCatalog{Root: published.Root, Revision: ^uint64(0)}
+	e.roles.published = &access.RoleRecord{Root: published.Root, Revision: ^uint64(0)}
 	exhausted := e.roles.published
 	if err := e.roles.setReferencesLocked(context.Background(), "kept", nil); err == nil || err.Error() != "stuntgres: authorization revision exhausted" {
 		t.Fatalf("exhausted update: %v", err)

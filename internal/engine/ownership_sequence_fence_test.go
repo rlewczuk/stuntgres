@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -121,7 +122,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 						t.Fatal("explicit membership bypasses implicit database ownership")
 					}
 				}
-				if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+				if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 					t.Fatal("selected database owner cannot own actual sequence", err)
 				}
 				if allowed, err := auth.Roles.CanSetRole(actor.Ref, target); err != nil || !allowed {

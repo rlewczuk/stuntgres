@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -123,7 +124,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 		if source.RelationKind != catalog.TableRelation {
 			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`inherited relation "%s" is not a table or foreign table`, source.Name()))
 		}
-		if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+		if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			return nil, nil, nil, err
 		}
 		parentNS := auth.Catalog.MustNamespace(source.Namespace())

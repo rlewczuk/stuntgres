@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"testing"
 )
@@ -25,7 +26,7 @@ func TestMembershipInheritedOwnerAndColumnACL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := retained.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+	if err := retained.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		t.Fatal("inherited owner", err)
 	}
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
@@ -35,10 +36,10 @@ func TestMembershipInheritedOwnerAndColumnACL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := view.Check(AccessRequirement{Object: ref, Privileges: authorization.SelectPrivilege}); err == nil {
+	if err := view.Check(access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}); err == nil {
 		t.Fatal("explicit empty inherited owner use")
 	}
-	if err := view.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+	if err := view.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		t.Fatal(err)
 	}
 	mask := authorization.TableGrantPrivileges
@@ -77,18 +78,18 @@ func TestMembershipInheritedOwnerAndColumnACL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := view.Check(AccessRequirement{Object: column, Privileges: authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege}); err != nil {
+	if err := view.Check(access.Requirement{Object: column, Privileges: authorization.SelectPrivilege | authorization.InsertPrivilege | authorization.UpdatePrivilege}); err != nil {
 		t.Fatal("exact column aggregation", err)
 	}
-	if err := view.Check(AccessRequirement{Object: ref, Privileges: authorization.UpdatePrivilege}); err == nil {
+	if err := view.Check(access.Requirement{Object: ref, Privileges: authorization.UpdatePrivilege}); err == nil {
 		t.Fatal("column grants leaked into table mask")
 	}
 	other := column
 	other.Address.SubID = 2
-	if err := view.Check(AccessRequirement{Object: other, Privileges: authorization.UpdatePrivilege}); err == nil {
+	if err := view.Check(access.Requirement{Object: other, Privileges: authorization.UpdatePrivilege}); err == nil {
 		t.Fatal("other column leaked")
 	}
-	if err := retained.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+	if err := retained.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		t.Fatal("retained authority changed", err)
 	}
 }

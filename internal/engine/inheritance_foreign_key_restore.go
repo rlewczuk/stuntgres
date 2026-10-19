@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -186,7 +187,7 @@ func (e *Engine) captureInheritedForeignKey(op *Operation, raw *parser.AlterTabl
 	if auth.Catalog.MustNamespace(source.Namespace()).Temporary != (ids.SessionToken{}) || auth.Catalog.MustNamespace(target.Namespace()).Temporary != (ids.SessionToken{}) {
 		return reject()
 	}
-	if err := auth.Check(AccessRequirement{Object: sourceRef, OwnerOnly: true}); err != nil {
+	if err := auth.Check(access.Requirement{Object: sourceRef, OwnerOnly: true}); err != nil {
 		return restoredForeignKeys{}, false, err
 	}
 	receipt := &restoredInheritedForeignKey{source: sourceRef, target: targetRef, beforeSource: source, beforeTarget: target, raw: *foreign, providers: make(map[ids.ObjectAddress]restoredInheritedForeignIndex)}
@@ -290,7 +291,7 @@ func (receipt *restoredInheritedForeignKey) validate(e *Engine, op *Operation, d
 	if seen != len(receipt.providers) {
 		return ids.ErrCatalogReplaced
 	}
-	return auth.Check(AccessRequirement{Object: receipt.source, OwnerOnly: true})
+	return auth.Check(access.Requirement{Object: receipt.source, OwnerOnly: true})
 }
 
 func (receipt *restoredInheritedForeignKey) accepts(foreign *catalog.ForeignKeyConstraint) bool {

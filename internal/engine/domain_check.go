@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -42,7 +43,7 @@ func (e *Engine) initializeBuiltinDomainChecks() error {
 	if err != nil {
 		return err
 	}
-	auth := AuthorizationView{engine: e, accessView: accessView{
+	auth := AuthorizationView{engine: e, View: access.View{
 		Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.roles.published, Catalog: view,
 		Roles: e.roles.read(e.catalog.owner(), view, e.roles.published), State: authorization.RoleState{CurrentUser: d.Owner},
 	}}

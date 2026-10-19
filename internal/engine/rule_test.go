@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -32,7 +33,7 @@ func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *catalog.Relatio
 	next.SetDescriptor(src.Address(), src)
 	next.SetDescriptor(sink.Address(), sink)
 	e.catalog.state = next
-	return e, AuthorizationView{accessView: accessView{Owner: e.catalog.owner(), Catalog: e.catalog.read(next)}, engine: e}, src, sink
+	return e, AuthorizationView{View: access.View{Owner: e.catalog.owner(), Catalog: e.catalog.read(next)}, engine: e}, src, sink
 }
 
 func ruleUnitRef(e *Engine, d *catalog.Relation) ids.ObjectRef {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -28,7 +29,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 	if ref != scope.lockedRef {
 		return fail(ids.ErrCatalogReplaced)
 	}
-	if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+	if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		return fail(err)
 	}
 	parent := scope.lockedDescriptor.(*catalog.Relation)

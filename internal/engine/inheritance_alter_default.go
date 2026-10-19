@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"maps"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -30,7 +31,7 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 			err = ids.ErrCatalogReplaced
 		}
 		if err == nil {
-			err = fresh.Check(AccessRequirement{Object: ref, OwnerOnly: true})
+			err = fresh.Check(access.Requirement{Object: ref, OwnerOnly: true})
 		}
 		childSlot, exists := old.Index[raw.Column.Text]
 		if err == nil && !exists {

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -41,7 +42,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 		}
 		physical := binding{relation: source, ref: layer.sourceRef}
 		if mask == authorization.DeletePrivilege {
-			if err := authority.Check(AccessRequirement{Object: layer.sourceRef, Privileges: mask}); err != nil {
+			if err := authority.Check(access.Requirement{Object: layer.sourceRef, Privileges: mask}); err != nil {
 				return err
 			}
 		} else if err := authority.checkColumns(physical, mask, layer.targets); err != nil {

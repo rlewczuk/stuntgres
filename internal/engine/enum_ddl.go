@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -67,7 +68,7 @@ func (e *Engine) resolveAlterEnumLocked(auth AuthorizationView, name parser.Obje
 			}
 			return nil, ref, sqlError("42809", display+" is not an enum")
 		}
-		if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+		if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			return nil, ref, err
 		}
 		return d, ref, nil

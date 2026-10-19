@@ -30,8 +30,8 @@ type catalogChanges struct {
 	cached              catalog.Read
 	enumCreated         map[ids.ObjectAddress]bool // CREATE at top transaction level only.
 	enumUnsafe          map[int64]bool             // Globally nonreused member identities.
-	rolesBase           *roleCatalog
-	roles               *roleCatalog
+	rolesBase           *access.RoleRecord
+	roles               *access.RoleRecord
 	retiredRoles        map[authorization.PrincipalRef]struct{}
 	indexRebuilds       map[ids.ObjectAddress]*catalog.Relation
 	indexFences         []catalogIndexFence

@@ -75,10 +75,6 @@ helpers (`names.go`); keep those copies identical to the engine's.
   binding walkers (`checkBinding`, `checkQuerySources`, `checkViewWrite`,
   `checkViewRowMarks*`), which call `access` for each object.
 
-Until ENGINE-SPLIT B4, the engine keeps temporary aliases: `accessView`,
-`accessEnvironment`, `AccessRequirement`, `AuthorizationStamp`,
-`roleCatalog`, `rlsDisposition` and its constants.
-
 ## Testing
 
 Run from the repository root under the shared

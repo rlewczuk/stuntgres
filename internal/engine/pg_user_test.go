@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"reflect"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -52,7 +53,7 @@ func pgUserUnitRows(t *testing.T, source *querySource) map[uint32][]sqltype.Valu
 	return bag
 }
 
-func pgUserUnitRole(e *Engine, state *roleCatalog, id uint64, name string) authorization.PrincipalRef {
+func pgUserUnitRole(e *Engine, state *access.RoleRecord, id uint64, name string) authorization.PrincipalRef {
 	e.roles.nextPrincipal = id
 	ref, err := e.roles.principalCandidateLocked()
 	if err != nil {
