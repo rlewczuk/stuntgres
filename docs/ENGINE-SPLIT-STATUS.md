@@ -5,11 +5,11 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `1f457c21c`.
+Last verified against `master` at `af324f738`.
 
 ## Next ready sub-steps
 
-- **6c** — `storage` aliases removed (needs 6b ✓) *(broad rewrite)*.
+- **7a** — `visibilityRegistry` state ownership (needs 4 ✓ and 6 ✓).
 - **B2** — `accessView` and `accessEnvironment`; checks ported in place
   (needs B1 ✓).
 
@@ -136,14 +136,16 @@ They may run in parallel on separate branches (§8).
     (`43c6b86ec`, `47a4495b2`, `089bf7856`, `3ef61771b`, `90f6a9b52`, then
     the docs commit) *(racecheck skipped at user request; targeted RACE=1
     runs passed)*
-- [ ] **Step 6 — `storage`** ([prompt](ENGINE-SPLIT-storage.md); needs 5e)
+- [x] **Step 6 — `storage`** ([prompt](ENGINE-SPLIT-storage.md); needs 5e)
   - [x] 6a — `storageStore` state ownership (`79c8a6f3a`, `d6bbc8a3e`,
     then the docs commit) *(racecheck skipped at user request; targeted
     RACE=1 runs passed)*
   - [x] 6b — `storage` created and types moved (`c001ffa28`, `af2501215`,
     then the docs commit) *(racecheck skipped at user request; targeted
     RACE=1 runs passed)*
-  - [ ] 6c — Aliases removed *(broad rewrite)*
+  - [x] 6c — Aliases removed (`518fd7141`, `4c9a2a229`, `33c1b6f43`,
+    `a57f5648e`, then the docs commit) *(racecheck skipped at user
+    request)*
 - [ ] **Step 7 — `visibility`** ([prompt](ENGINE-SPLIT-visibility.md); needs
   4 and 6 complete)
   - [ ] 7a — `visibilityRegistry` state ownership
