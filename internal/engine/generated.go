@@ -656,7 +656,7 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 			return fmt.Errorf("stuntgres: invalid composite row plan")
 		}
 		for i, field := range n.fields {
-			if field == nil || !sameRecordUsage(field.ResultUsage(), shape.CompositeMember(i).Usage) {
+			if field == nil || !sqltype.SameRecordUsage(field.ResultUsage(), shape.CompositeMember(i).Usage) {
 				return fmt.Errorf("stuntgres: incompatible composite row member")
 			}
 		}
@@ -667,7 +667,7 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 		}
 		shape := n.base.ResultUsage().Type.BaseType()
 		index, ok := shape.CompositeAttributeIndex(n.attribute)
-		if !ok || index != n.index || !sameRecordUsage(n.Usage, shape.CompositeMember(index).Usage) {
+		if !ok || index != n.index || !sqltype.SameRecordUsage(n.Usage, shape.CompositeMember(index).Usage) {
 			return fmt.Errorf("stuntgres: invalid composite field plan")
 		}
 		return child(n.base)

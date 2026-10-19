@@ -7,8 +7,8 @@ func sameStatementUsage(a, b sqltype.Usage) bool {
 		return a.Type == b.Type && a.Typmod == b.Typmod && a.Collation == b.Collation
 	}
 	// Parameter contracts retain exact occurrence shape, unlike public results.
-	if occurrenceRecordArray(a.Type) || occurrenceRecordArray(b.Type) {
-		return occurrenceRecordArray(a.Type) && occurrenceRecordArray(b.Type) && a.Typmod == b.Typmod && a.Collation == b.Collation && sameStatementUsage(a.Type.Element().Usage(), b.Type.Element().Usage())
+	if sqltype.OccurrenceRecordArray(a.Type) || sqltype.OccurrenceRecordArray(b.Type) {
+		return sqltype.OccurrenceRecordArray(a.Type) && sqltype.OccurrenceRecordArray(b.Type) && a.Typmod == b.Typmod && a.Collation == b.Collation && sameStatementUsage(a.Type.Element().Usage(), b.Type.Element().Usage())
 	}
 	if a.Type.ID() == 2249 && a.Type.IsComposite() || b.Type.ID() == 2249 && b.Type.IsComposite() {
 		if !a.Type.IsComposite() || !b.Type.IsComposite() || a.Type.ID() != b.Type.ID() || a.Type.CompositeLen() != b.Type.CompositeLen() {
@@ -82,8 +82,8 @@ func sameStatementResultUsage(a, b sqltype.Usage) bool {
 	if record(a.Type) || record(b.Type) {
 		return record(a.Type) && record(b.Type) && a.Typmod == b.Typmod && a.Collation == b.Collation
 	}
-	if occurrenceRecordArray(a.Type) || occurrenceRecordArray(b.Type) {
-		return occurrenceRecordArray(a.Type) && occurrenceRecordArray(b.Type) && a.Typmod == b.Typmod && a.Collation == b.Collation
+	if sqltype.OccurrenceRecordArray(a.Type) || sqltype.OccurrenceRecordArray(b.Type) {
+		return sqltype.OccurrenceRecordArray(a.Type) && sqltype.OccurrenceRecordArray(b.Type) && a.Typmod == b.Typmod && a.Collation == b.Collation
 	}
 	return sameStatementUsage(a, b)
 }

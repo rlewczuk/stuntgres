@@ -286,3 +286,63 @@ func jsonbPathQueryRendering(args [4]expr.Expr, count int, slots [4]uint8, label
 	}
 	return writtenCall("JSONPath query", args[:], name, written, variadic), nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONBPathExists) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONBPathExists)
+	// Redundant VARIADIC is presentation only for this nonvariadic routine.
+	if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
+		return false
+	}
+	for i, arg := range e.Arguments() {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONBPathMatch) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONBPathMatch)
+	// Redundant VARIADIC is presentation only for this nonvariadic routine.
+	if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
+		return false
+	}
+	for i, arg := range e.Arguments() {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONBPathQueryFirst) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONBPathQueryFirst)
+	// Redundant VARIADIC is presentation only for this nonvariadic routine.
+	if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
+		return false
+	}
+	for i, arg := range e.Arguments() {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONBPathQuery) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONBPathQuery)
+	// Redundant VARIADIC is presentation only for this nonvariadic routine.
+	if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
+		return false
+	}
+	for i, arg := range e.Arguments() {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}

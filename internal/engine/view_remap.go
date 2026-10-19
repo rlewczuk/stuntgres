@@ -1128,7 +1128,7 @@ func (m *viewQueryRemapper) cte(old *cteDefinition) (*cteDefinition, error) {
 func (m *viewQueryRemapper) cycle(old *cycleRecipe) (*cycleRecipe, error) {
 	copy := *old
 	copy.record, copy.path = m.typ(old.record), m.typ(old.path)
-	if !occurrenceRecordArray(copy.path) || copy.path.Element() != copy.record {
+	if !sqltype.OccurrenceRecordArray(copy.path) || copy.path.Element() != copy.record {
 		return nil, ids.ErrCatalogReplaced
 	}
 	expression := func(old expr.Expr) (expr.Expr, error) {
@@ -1190,7 +1190,7 @@ func (m *viewQueryRemapper) search(old *searchRecipe) (*searchRecipe, error) {
 	copy.record, copy.result, copy.depth = m.typ(old.record), m.typ(old.result), m.typ(old.depth)
 	if copy.record == nil || copy.record.ID() != 2249 || !copy.record.IsComposite() ||
 		old.syntax.Breadth && copy.result != copy.record ||
-		!old.syntax.Breadth && (!occurrenceRecordArray(copy.result) || copy.result.Element() != copy.record) {
+		!old.syntax.Breadth && (!sqltype.OccurrenceRecordArray(copy.result) || copy.result.Element() != copy.record) {
 		return nil, ids.ErrCatalogReplaced
 	}
 	copy.grouping = make([]sqltype.Grouping, len(old.grouping))

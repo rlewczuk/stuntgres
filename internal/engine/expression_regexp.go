@@ -25,18 +25,6 @@ func preflightRegexpCall(c *EvalContext, call functions.RegexpCall, decisive boo
 	}
 	return call, args != nil, nil
 }
-func sameRegexpCall(a, b functions.RegexpCall, same func(expr.Expr, expr.Expr) bool) bool {
-	if a.Plan != b.Plan || len(a.Args) != len(b.Args) {
-		return false
-	}
-	for i, arg := range a.Args {
-		if !same(arg, b.Args[i]) {
-			return false
-		}
-	}
-	return true
-}
-
 func (b *expressionBinder) regexpPlacement(call functions.RegexpCall) error {
 	context := b.regexpClause
 	hint := context == "CASE" || context == "COALESCE"

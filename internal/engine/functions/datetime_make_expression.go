@@ -200,3 +200,17 @@ func (e DatetimeMake) Render() (expr.Rendering, error) {
 	}
 	return writtenCall("Datetime constructor "+e.Plan.Name(), e.Args[:e.Count], e.Plan.Name(), args, false), nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e DatetimeMake) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(DatetimeMake)
+	if !ok || e.Plan.Name() != o.Plan.Name() || e.Count != o.Count {
+		return false
+	}
+	for i, arg := range e.Arguments() {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}

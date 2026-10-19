@@ -87,3 +87,17 @@ func (e JSONStripNulls) Render() (expr.Rendering, error) {
 	}
 	return writtenCall("JSON stripping", e.Args[:], "json_strip_nulls", args, e.Variadic), nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONStripNulls) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONStripNulls)
+	if !ok {
+		return false
+	}
+	for i, arg := range e.Arguments() {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}

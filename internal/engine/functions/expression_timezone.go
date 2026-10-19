@@ -105,3 +105,9 @@ func (e Timezone) Render() (expr.Rendering, error) {
 	}
 	return expr.Rendering{Tree: "AtTimeZone", Inputs: []expr.Expr{e.Value, e.Zone}, Form: expr.FormTemplate, Args: hiddenArgs(e.Value, e.Zone), Pieces: []expr.Piece{text("("), arg(0), text(" AT TIME ZONE "), arg(1), text(")")}}, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e Timezone) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(Timezone)
+	return ok && e.Local == o.Local && same(e.Value, o.Value) && (e.Local || same(e.Zone, o.Zone))
+}

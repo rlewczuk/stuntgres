@@ -190,3 +190,15 @@ func (e PosixSubstring) Render() (expr.Rendering, error) {
 	}
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e Posix) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(Posix)
+	return ok && e.Provider == o.Provider && e.Operator == o.Operator && same(e.Left, o.Left) && same(e.Right, o.Right)
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e PosixSubstring) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(PosixSubstring)
+	return ok && e.Provider == o.Provider && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1])
+}

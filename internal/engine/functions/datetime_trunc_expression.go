@@ -193,3 +193,17 @@ var _ expr.Renderable = DatetimeTrunc{}
 func (e DatetimeTrunc) Render() (expr.Rendering, error) {
 	return callRendering("Datetime truncation", e.Arguments(), "date_trunc", e.Arguments()), nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e DatetimeTrunc) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(DatetimeTrunc)
+	if !ok || e.Plan != o.Plan || e.Count != o.Count {
+		return false
+	}
+	for i, arg := range e.Arguments() {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}

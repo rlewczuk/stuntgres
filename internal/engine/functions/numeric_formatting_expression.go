@@ -94,3 +94,9 @@ var _ expr.Renderable = NumericFormatting{}
 func (e NumericFormatting) Render() (expr.Rendering, error) {
 	return callRendering("NumericFormatting "+e.Plan.Name(), e.Args[:], e.Plan.Name(), e.Args[:]), nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e NumericFormatting) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(NumericFormatting)
+	return ok && e.Plan.Name() == o.Plan.Name() && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1])
+}

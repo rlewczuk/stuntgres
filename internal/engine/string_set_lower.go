@@ -33,13 +33,13 @@ func sameQuerySetOccurrence(a, b expr.Expr) bool {
 	switch first := a.(type) {
 	case catalogForeignKeysExpression:
 		second, ok := b.(catalogForeignKeysExpression)
-		return ok && sameRecordUsage(first.ResultUsage(), second.ResultUsage())
+		return ok && sqltype.SameRecordUsage(first.ResultUsage(), second.ResultUsage())
 	case functions.JSONBPathQuery:
 		second, ok := b.(functions.JSONBPathQuery)
 		return ok && first.ResultUsage() == second.ResultUsage()
 	case aclValueExpression:
 		second, ok := b.(aclValueExpression)
-		return ok && first.kind == aclExplode && second.kind == aclExplode && sameRecordUsage(first.ResultUsage(), second.ResultUsage())
+		return ok && first.kind == aclExplode && second.kind == aclExplode && sqltype.SameRecordUsage(first.ResultUsage(), second.ResultUsage())
 	case seriesExpression:
 		second, ok := b.(seriesExpression)
 		return ok && first.ResultUsage() == second.ResultUsage() && len(first.args) == len(second.args)
@@ -54,16 +54,16 @@ func sameQuerySetOccurrence(a, b expr.Expr) bool {
 		return ok && first.Plan.Name() == second.Plan.Name()
 	case functions.JSONBRecord:
 		second, ok := b.(functions.JSONBRecord)
-		return ok && first.Name == second.Name && sameRecordUsage(first.ResultUsage(), second.ResultUsage())
+		return ok && first.Name == second.Name && sqltype.SameRecordUsage(first.ResultUsage(), second.ResultUsage())
 	case functions.JSONBElements:
 		second, ok := b.(functions.JSONBElements)
 		return ok && first.Plan.Name() == second.Plan.Name() && first.ResultUsage() == second.ResultUsage()
 	case functions.JSONRecord:
 		second, ok := b.(functions.JSONRecord)
-		return ok && first.Plan.Name() == second.Plan.Name() && first.Plan.BaseIndex() == second.Plan.BaseIndex() && first.Defined == second.Defined && sameRecordUsage(first.ResultUsage(), second.ResultUsage())
+		return ok && first.Plan.Name() == second.Plan.Name() && first.Plan.BaseIndex() == second.Plan.BaseIndex() && first.Defined == second.Defined && sqltype.SameRecordUsage(first.ResultUsage(), second.ResultUsage())
 	case functions.JSONEach:
 		second, ok := b.(functions.JSONEach)
-		return ok && first.Plan.Name() == second.Plan.Name() && sameRecordUsage(first.ResultUsage(), second.ResultUsage())
+		return ok && first.Plan.Name() == second.Plan.Name() && sqltype.SameRecordUsage(first.ResultUsage(), second.ResultUsage())
 	case functions.JSONElements:
 		second, ok := b.(functions.JSONElements)
 		return ok && first.Plan.Name() == second.Plan.Name() && first.ResultUsage() == second.ResultUsage()

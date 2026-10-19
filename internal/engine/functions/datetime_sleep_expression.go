@@ -274,3 +274,9 @@ func (e DatetimeSleep) Render() (expr.Rendering, error) {
 	spec.Replay.Types = []*sqltype.Descriptor{e.ClockUsage.Type}
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e DatetimeSleep) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(DatetimeSleep)
+	return ok && e.Kind == o.Kind && same(e.Arg, o.Arg)
+}

@@ -170,3 +170,23 @@ func JSONPredicateSuffix(kind string, unique, not bool) string {
 	}
 	return text + ")"
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e SQLJSON) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(SQLJSON)
+	if !ok || e.Raw.Kind != o.Raw.Kind || e.Raw.Absent != o.Raw.Absent || e.Raw.Unique != o.Raw.Unique || len(e.Args) != len(o.Args) {
+		return false
+	}
+	for i := range e.Args {
+		if !same(e.Args[i], o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONPredicate) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONPredicate)
+	return ok && e.Kind == o.Kind && e.Unique == o.Unique && e.Not == o.Not && same(e.Child, o.Child)
+}

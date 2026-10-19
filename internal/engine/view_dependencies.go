@@ -887,7 +887,7 @@ func validateStoredSetNode(n *setNode, cycle *cycleRecipe, search *searchRecipe)
 			n.Schema()[search.slot].Usage != search.result.Usage() ||
 			search.record == nil || !search.record.IsComposite() || search.record.ID() != 2249 ||
 			(search.syntax.Breadth && search.result != search.record) ||
-			(!search.syntax.Breadth && (!occurrenceRecordArray(search.result) || search.result.Element() != search.record)) {
+			(!search.syntax.Breadth && (!sqltype.OccurrenceRecordArray(search.result) || search.result.Element() != search.record)) {
 			return fmt.Errorf("stuntgres: invalid stored search layout")
 		}
 		if !n.all && len(search.grouping) != search.record.CompositeLen() || n.all && len(search.grouping) != 0 {

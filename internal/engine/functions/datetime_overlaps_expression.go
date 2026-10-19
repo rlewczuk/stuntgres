@@ -368,3 +368,19 @@ func (e DatetimeOverlaps) Render() (expr.Rendering, error) {
 	}
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e DatetimeOverlaps) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(DatetimeOverlaps)
+	if !ok || e.Plan != o.Plan || e.WrapperContext != o.WrapperContext {
+		return false
+	}
+	// Folded endpoints are a deterministic derivative of the physical
+	// literal arguments below, not another SQL child or signature.
+	for i, arg := range e.Args {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}

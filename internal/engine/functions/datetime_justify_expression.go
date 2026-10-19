@@ -85,3 +85,9 @@ var _ expr.Renderable = DatetimeJustify{}
 func (e DatetimeJustify) Render() (expr.Rendering, error) {
 	return callRendering("Datetime "+e.Plan.Name(), e.Arguments(), e.Plan.Name(), e.Arguments()), nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e DatetimeJustify) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(DatetimeJustify)
+	return ok && e.Plan.Name() == o.Plan.Name() && same(e.Arg, o.Arg)
+}

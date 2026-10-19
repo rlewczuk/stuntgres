@@ -111,3 +111,9 @@ func (e VersionInformation) Render() (expr.Rendering, error) {
 	}
 	return expr.Rendering{Tree: fmt.Sprintf("VersionInformation kind %d", e.Kind), Form: expr.FormLeaf, Text: e.Kind.Name() + "()"}, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e VersionInformation) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(VersionInformation)
+	return ok && e.Kind == o.Kind
+}

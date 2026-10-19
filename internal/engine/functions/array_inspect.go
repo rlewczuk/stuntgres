@@ -185,3 +185,19 @@ func (e ArrayInspect) Render() (expr.Rendering, error) {
 	spec.Replay.Validate = e.Validate
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e ArrayInspect) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(ArrayInspect)
+	// Kind identifies the resolved builtin; lexical pg_catalog qualification
+	// is presentation provenance, not a different grouping expression.
+	if !ok || e.Kind != o.Kind || len(e.Args) != len(o.Args) {
+		return false
+	}
+	for i := range e.Args {
+		if !same(e.Args[i], o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}

@@ -196,7 +196,7 @@ func TestQuerySearchRemap(t *testing.T) {
 		if d.schema[1].Usage.Type != d.search.result || d.search.record.CompositeMember(d.search.record.CompositeLen()-1).Usage.Type != small {
 			t.Fatal("source mutated")
 		}
-		if sameRecordUsage(d.search.result.Usage(), copy.search.result.Usage()) {
+		if sqltype.SameRecordUsage(d.search.result.Usage(), copy.search.result.Usage()) {
 			t.Fatal("same-OID shapes merged")
 		}
 		bound := literalExpression{Info: expr.Info{Usage: small.Usage()}, value: sqltype.Null(small)}
@@ -252,7 +252,7 @@ func TestQuerySearchSignature(t *testing.T) {
 			}
 		}
 		left, right := a.search.result.Usage(), b.search.result.Usage()
-		if !sameStatementResultUsage(left, right) || sameStatementUsage(left, right) || sameRecordUsage(left, right) {
+		if !sameStatementResultUsage(left, right) || sameStatementUsage(left, right) || sqltype.SameRecordUsage(left, right) {
 			t.Fatal("public/internal/parameter signatures conflated")
 		}
 		expected := StatementDescription{Results: []catalog.Column{{Name: "seq", Usage: left}}}

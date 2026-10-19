@@ -196,7 +196,7 @@ func (v *viewDefinition) validateCompositeSource(captured compositeOccurrence) e
 	}
 	for i, column := range columns {
 		member := shape.CompositeMember(i)
-		if column.slot < 0 || column.slot >= len(root.Schema()) || !sameRecordUsage(member.Usage, root.Schema()[column.slot].Usage) {
+		if column.slot < 0 || column.slot >= len(root.Schema()) || !sqltype.SameRecordUsage(member.Usage, root.Schema()[column.slot].Usage) {
 			return fmt.Errorf("stuntgres: incompatible frozen whole-row member")
 		}
 		if shape.ID() != 2249 && column.leaf >= 0 && member.Attribute != column.attribute {

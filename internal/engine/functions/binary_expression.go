@@ -593,3 +593,18 @@ func (e Binary) Operator() bool {
 	}
 	return false
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e Binary) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(Binary)
+	// SQL-special spelling is display provenance, not semantic identity.
+	if !ok || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
+		return false
+	}
+	for i := range e.Args {
+		if !same(e.Args[i], o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}

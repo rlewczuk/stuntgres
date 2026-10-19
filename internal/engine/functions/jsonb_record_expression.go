@@ -231,3 +231,17 @@ func (e JSONBRecord) Render() (expr.Rendering, error) {
 	spec.Replay.Validate = unsupportedReplay
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONBRecord) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONBRecord)
+	if !ok || e.Name != o.Name || e.Unresolved != o.Unresolved || e.Definitions != o.Definitions || !sqltype.SameRecordUsage(e.ResultUsage(), o.ResultUsage()) || len(e.Args) != len(o.Args) {
+		return false
+	}
+	for i, arg := range e.Args {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}

@@ -164,3 +164,9 @@ func (e TransactionTime) Render() (expr.Rendering, error) {
 	}
 	return expr.Rendering{Tree: fmt.Sprintf("TransactionTime kind %d", e.Kind), Form: expr.FormLeaf, Text: text}, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e TransactionTime) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(TransactionTime)
+	return ok && e.Kind == o.Kind
+}

@@ -225,3 +225,17 @@ func (e ArrayRandom) Render() (expr.Rendering, error) {
 	spec.Replay.Validate = e.Validate
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e ArrayRandom) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(ArrayRandom)
+	if !ok || e.Kind != o.Kind || e.ResultUsage() != o.ResultUsage() || len(e.Args) != len(o.Args) {
+		return false
+	}
+	for i := range e.Args {
+		if !same(e.Args[i], o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}

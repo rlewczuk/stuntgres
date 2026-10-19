@@ -135,3 +135,9 @@ func (e UUIDExtract) Render() (expr.Rendering, error) {
 	spec.Replay.Validate = e.Validate
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e UUIDExtract) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(UUIDExtract)
+	return ok && e.Kind == o.Kind && same(e.Arg, o.Arg)
+}

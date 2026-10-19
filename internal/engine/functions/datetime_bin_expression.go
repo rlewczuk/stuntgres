@@ -163,3 +163,17 @@ var _ expr.Renderable = DatetimeBin{}
 func (e DatetimeBin) Render() (expr.Rendering, error) {
 	return callRendering("Datetime binning", e.Arguments(), "date_bin", e.Arguments()), nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e DatetimeBin) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(DatetimeBin)
+	if !ok || e.Plan != o.Plan {
+		return false
+	}
+	for i, arg := range e.Args {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}

@@ -148,3 +148,17 @@ func (e Format) Render() (expr.Rendering, error) {
 	spec.Replay.CatalogSnapshot = catalogArguments(e.Args)
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e Format) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(Format)
+	if !ok || e.Variadic != o.Variadic || len(e.Args) != len(o.Args) {
+		return false
+	}
+	for i := range e.Args {
+		if !same(e.Args[i], o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}

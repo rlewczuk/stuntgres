@@ -29,7 +29,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 	if checkDefinitionEquality {
 		leftUsage.Collation.Derivation = rightUsage.Collation.Derivation
 	}
-	if !sameRecordUsage(leftUsage, rightUsage) || a.CollationIndeterminate() != other.CollationIndeterminate() || !checkDefinitionEquality && (a.ExplicitCollation().Character > 0) != (other.ExplicitCollation().Character > 0) {
+	if !sqltype.SameRecordUsage(leftUsage, rightUsage) || a.CollationIndeterminate() != other.CollationIndeterminate() || !checkDefinitionEquality && (a.ExplicitCollation().Character > 0) != (other.ExplicitCollation().Character > 0) {
 		return false
 	}
 	same := b.sameGroupExpression
@@ -123,15 +123,6 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 	case identityExpression:
 		o, ok := other.(identityExpression)
 		return ok && e.kind == o.kind && (!checkDefinitionEquality || e.ordinaryCall == o.ordinaryCall)
-	case functions.CurrentDateTime:
-		o, ok := other.(functions.CurrentDateTime)
-		return ok && e.Kind == o.Kind && e.HasPrecision == o.HasPrecision && (!checkDefinitionEquality || e.Precision == o.Precision)
-	case functions.VersionInformation:
-		o, ok := other.(functions.VersionInformation)
-		return ok && e.Kind == o.Kind
-	case functions.TransactionTime:
-		o, ok := other.(functions.TransactionTime)
-		return ok && e.Kind == o.Kind
 	case aggregateExpression:
 		o, ok := other.(aggregateExpression)
 		return ok && e.slot == o.slot && comparison.sameFrame(e.frame, o.frame)
@@ -275,9 +266,6 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 	case bitwiseExpression:
 		o, ok := other.(bitwiseExpression)
 		return ok && e.provider == o.provider && e.bits == o.bits && e.network == o.network && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
-	case functions.Timezone:
-		o, ok := other.(functions.Timezone)
-		return ok && e.Local == o.Local && same(e.Value, o.Value) && (e.Local || same(e.Zone, o.Zone))
 	case selectedOperatorExpression:
 		o, ok := other.(selectedOperatorExpression)
 		return ok && e.ref == o.ref && same(e.provider, o.provider)
@@ -287,30 +275,6 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 	case likeExpression:
 		o, ok := other.(likeExpression)
 		return ok && e.provider == o.provider && e.operator == o.operator && e.namespace == o.namespace && same(e.left, o.left) && same(e.right, o.right)
-	case functions.LikeEscape:
-		o, ok := other.(functions.LikeEscape)
-		return ok && e.Provider == o.Provider && same(e.Pattern, o.Pattern) && same(e.Escape, o.Escape)
-	case functions.Posix:
-		o, ok := other.(functions.Posix)
-		return ok && e.Provider == o.Provider && e.Operator == o.Operator && same(e.Left, o.Left) && same(e.Right, o.Right)
-	case functions.Similar:
-		o, ok := other.(functions.Similar)
-		return ok && e.Provider == o.Provider && e.Operator == o.Operator && same(e.Left, o.Left) && same(e.Right, o.Right)
-	case functions.SimilarEscape:
-		o, ok := other.(functions.SimilarEscape)
-		return ok && e.Provider == o.Provider && e.Omitted == o.Omitted && same(e.Pattern, o.Pattern) && same(e.Escape, o.Escape)
-	case functions.PosixSubstring:
-		o, ok := other.(functions.PosixSubstring)
-		return ok && e.Provider == o.Provider && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1])
-	case functions.SimilarSubstring:
-		o, ok := other.(functions.SimilarSubstring)
-		return ok && e.Provider == o.Provider && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1]) && same(e.Args[2], o.Args[2])
-	case functions.Regexp:
-		o, ok := other.(functions.Regexp)
-		return ok && sameRegexpCall(e.RegexpCall, o.RegexpCall, same)
-	case functions.RegexpSet:
-		o, ok := other.(functions.RegexpSet)
-		return ok && sameRegexpCall(e.RegexpCall, o.RegexpCall, same)
 	case scalarArrayComparisonExpression:
 		o, ok := other.(scalarArrayComparisonExpression)
 		if !ok || !e.predicate.Equal(o.predicate) || e.operator != o.operator || e.namespace != o.namespace || e.all != o.all || !same(e.left, o.left) || !same(e.array, o.array) || len(e.items) != len(o.items) {
@@ -347,40 +311,6 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 	case unnestExpression:
 		o, ok := other.(unnestExpression)
 		return ok && sameIntaggIdentity(e.procedure, e.ref, o.procedure, o.ref) && e.ResultUsage() == o.ResultUsage() && same(e.args[0], o.args[0])
-	case functions.JSONKeys:
-		o, ok := other.(functions.JSONKeys)
-		return ok && e.Plan == o.Plan && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
-	case functions.JSONBRecord:
-		o, ok := other.(functions.JSONBRecord)
-		if !ok || e.Name != o.Name || e.Unresolved != o.Unresolved || e.Definitions != o.Definitions || !sameRecordUsage(e.ResultUsage(), o.ResultUsage()) || len(e.Args) != len(o.Args) {
-			return false
-		}
-		for i, arg := range e.Args {
-			if !same(arg, o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.JSONBElements:
-		o, ok := other.(functions.JSONBElements)
-		return ok && e.Plan == o.Plan && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
-	case functions.JSONRecord:
-		o, ok := other.(functions.JSONRecord)
-		if !ok || e.Plan.Name() != o.Plan.Name() || e.Plan.BaseIndex() != o.Plan.BaseIndex() || e.Defined != o.Defined || !sameRecordUsage(e.ResultUsage(), o.ResultUsage()) || len(e.Args) != len(o.Args) {
-			return false
-		}
-		for i, arg := range e.Args {
-			if !same(arg, o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.JSONEach:
-		o, ok := other.(functions.JSONEach)
-		return ok && e.Plan.Name() == o.Plan.Name() && sameRecordUsage(e.ResultUsage(), o.ResultUsage()) && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
-	case functions.JSONElements:
-		o, ok := other.(functions.JSONElements)
-		return ok && e.Plan == o.Plan && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
 	case comparisonExpression:
 		o, ok := other.(comparisonExpression)
 		return ok && e.predicate.Equal(o.predicate) && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
@@ -430,248 +360,6 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			}
 		}
 		return true
-	case functions.Binary:
-		o, ok := other.(functions.Binary)
-		// SQL-special spelling is display provenance, not semantic identity.
-		if !ok || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
-			return false
-		}
-		for i := range e.Args {
-			if !same(e.Args[i], o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.DatetimeJustify:
-		o, ok := other.(functions.DatetimeJustify)
-		return ok && e.Plan.Name() == o.Plan.Name() && same(e.Arg, o.Arg)
-	case functions.DatetimeExtract:
-		o, ok := other.(functions.DatetimeExtract)
-		return ok && e.Plan.Name() == o.Plan.Name() && e.Plan.InputID() == o.Plan.InputID() && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1])
-	case functions.DatetimeOverlaps:
-		o, ok := other.(functions.DatetimeOverlaps)
-		if !ok || e.Plan != o.Plan || e.WrapperContext != o.WrapperContext {
-			return false
-		}
-		// Folded endpoints are a deterministic derivative of the physical
-		// literal arguments below, not another SQL child or signature.
-		for i, arg := range e.Args {
-			if !same(arg, o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.DatetimeBin:
-		o, ok := other.(functions.DatetimeBin)
-		if !ok || e.Plan != o.Plan {
-			return false
-		}
-		for i, arg := range e.Args {
-			if !same(arg, o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.DatetimeTrunc:
-		o, ok := other.(functions.DatetimeTrunc)
-		if !ok || e.Plan != o.Plan || e.Count != o.Count {
-			return false
-		}
-		for i, arg := range e.Arguments() {
-			if !same(arg, o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.DatetimeZoneCalendar:
-		o, ok := other.(functions.DatetimeZoneCalendar)
-		if !ok || e.Name != o.Name || e.Count != o.Count {
-			return false
-		}
-		for i, arg := range e.Arguments() {
-			if !same(arg, o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.DatetimeAgeFinite:
-		o, ok := other.(functions.DatetimeAgeFinite)
-		if !ok || e.Plan.Name() != o.Plan.Name() || e.Plan.InputID() != o.Plan.InputID() || e.Count != o.Count {
-			return false
-		}
-		for i, arg := range e.Arguments() {
-			if !same(arg, o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.JSONStripNulls:
-		o, ok := other.(functions.JSONStripNulls)
-		if !ok {
-			return false
-		}
-		for i, arg := range e.Arguments() {
-			if !same(arg, o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.JSONExtract:
-		o, ok := other.(functions.JSONExtract)
-		if !ok || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
-			return false
-		}
-		for i, arg := range e.Args {
-			if !same(arg, o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.JSONBPathQueryArray:
-		o, ok := other.(functions.JSONBPathQueryArray)
-		// Redundant VARIADIC is presentation only for this nonvariadic routine.
-		if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
-			return false
-		}
-		for i, arg := range e.Arguments() {
-			if !same(arg, o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.JSONBPathExists:
-		o, ok := other.(functions.JSONBPathExists)
-		// Redundant VARIADIC is presentation only for this nonvariadic routine.
-		if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
-			return false
-		}
-		for i, arg := range e.Arguments() {
-			if !same(arg, o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.JSONBPathMatch:
-		o, ok := other.(functions.JSONBPathMatch)
-		// Redundant VARIADIC is presentation only for this nonvariadic routine.
-		if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
-			return false
-		}
-		for i, arg := range e.Arguments() {
-			if !same(arg, o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.JSONBPathQueryFirst:
-		o, ok := other.(functions.JSONBPathQueryFirst)
-		// Redundant VARIADIC is presentation only for this nonvariadic routine.
-		if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
-			return false
-		}
-		for i, arg := range e.Arguments() {
-			if !same(arg, o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.JSONBPathQuery:
-		o, ok := other.(functions.JSONBPathQuery)
-		// Redundant VARIADIC is presentation only for this nonvariadic routine.
-		if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
-			return false
-		}
-		for i, arg := range e.Arguments() {
-			if !same(arg, o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.JSONBSet:
-		o, ok := other.(functions.JSONBSet)
-		if !ok || e.Plan.Name() != o.Plan.Name() || e.Count != o.Count {
-			return false
-		}
-		for i, arg := range e.Arguments() {
-			if !same(arg, o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.DatetimeMake:
-		o, ok := other.(functions.DatetimeMake)
-		if !ok || e.Plan.Name() != o.Plan.Name() || e.Count != o.Count {
-			return false
-		}
-		for i, arg := range e.Arguments() {
-			if !same(arg, o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.DatetimeFormatting:
-		o, ok := other.(functions.DatetimeFormatting)
-		return ok && e.Plan.Name() == o.Plan.Name() && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1])
-	case functions.NumericFormatting:
-		o, ok := other.(functions.NumericFormatting)
-		return ok && e.Plan.Name() == o.Plan.Name() && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1])
-	case functions.String:
-		o, ok := other.(functions.String)
-		if !ok || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
-			return false
-		}
-		for i := range e.Args {
-			if !same(e.Args[i], o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.ArrayRandom:
-		o, ok := other.(functions.ArrayRandom)
-		if !ok || e.Kind != o.Kind || e.ResultUsage() != o.ResultUsage() || len(e.Args) != len(o.Args) {
-			return false
-		}
-		for i := range e.Args {
-			if !same(e.Args[i], o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.ArrayTransform:
-		o, ok := other.(functions.ArrayTransform)
-		if !ok || e.Kind != o.Kind || len(e.Args) != len(o.Args) || !e.Sort.Equal(o.Sort) {
-			return false
-		}
-		for i := range e.Args {
-			if !same(e.Formal(i), o.Formal(i)) {
-				return false
-			}
-		}
-		return true
-	case functions.ArrayInspect:
-		o, ok := other.(functions.ArrayInspect)
-		// Kind identifies the resolved builtin; lexical pg_catalog qualification
-		// is presentation provenance, not a different grouping expression.
-		if !ok || e.Kind != o.Kind || len(e.Args) != len(o.Args) {
-			return false
-		}
-		for i := range e.Args {
-			if !same(e.Args[i], o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.ArraySearch:
-		o, ok := other.(functions.ArraySearch)
-		if !ok || !e.Plan.Equal(o.Plan) || e.Namespace != o.Namespace || len(e.Args) != len(o.Args) {
-			return false
-		}
-		for i := range e.Args {
-			if !same(e.Args[i], o.Args[i]) {
-				return false
-			}
-		}
-		return true
 	case catalogUserNameExpression:
 		o, ok := other.(catalogUserNameExpression)
 		return ok && same(e.arg, o.arg)
@@ -684,81 +372,6 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 	case commitTimestampExpression:
 		o, ok := other.(commitTimestampExpression)
 		return ok && e.kind == o.kind && ((e.arg == nil && o.arg == nil) || (e.arg != nil && o.arg != nil && same(e.arg, o.arg)))
-	case functions.UUIDExtract:
-		o, ok := other.(functions.UUIDExtract)
-		return ok && e.Kind == o.Kind && same(e.Arg, o.Arg)
-	case functions.NetworkFormat:
-		o, ok := other.(functions.NetworkFormat)
-		if !ok || e.Kind != o.Kind || e.Plan != o.Plan {
-			return false
-		}
-		for i := range e.Kind.Arity() {
-			if !same(e.Args[i], o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.RangeOperator:
-		o, ok := other.(functions.RangeOperator)
-		return ok && e.Plan == o.Plan && e.Namespace == o.Namespace && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1])
-	case functions.RangeInspect:
-		o, ok := other.(functions.RangeInspect)
-		if !ok || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
-			return false
-		}
-		for i := range e.Args {
-			if !same(e.Args[i], o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.Enum:
-		o, ok := other.(functions.Enum)
-		if !ok || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
-			return false
-		}
-		for i := range e.Args {
-			if !same(e.Args[i], o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.Math:
-		o, ok := other.(functions.Math)
-		if !ok || !e.Plan.Equal(o.Plan) || e.WrapperContext != o.WrapperContext || len(e.Args) != len(o.Args) {
-			return false
-		}
-		for i := range e.Args {
-			if !same(e.Args[i], o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.UUIDGeneration:
-		o, ok := other.(functions.UUIDGeneration)
-		if !ok || e.Name != o.Name || len(e.Args) != len(o.Args) {
-			return false
-		}
-		for i := range e.Args {
-			if !same(e.Args[i], o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.Random:
-		o, ok := other.(functions.Random)
-		if !ok || e.Name != o.Name || len(e.Args) != len(o.Args) {
-			return false
-		}
-		for i := range e.Args {
-			if !same(e.Args[i], o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.DatetimeSleep:
-		o, ok := other.(functions.DatetimeSleep)
-		return ok && e.Kind == o.Kind && same(e.Arg, o.Arg)
 	case advisoryExpression:
 		o, ok := other.(advisoryExpression)
 		if !ok || e.name != o.name || len(e.args) != len(o.args) {
@@ -802,17 +415,6 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 		}
 		for i := range e.args {
 			if !same(e.args[i], o.args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.NullCount:
-		o, ok := other.(functions.NullCount)
-		if !ok || e.Kind != o.Kind || len(e.Args) != len(o.Args) {
-			return false
-		}
-		for i := range e.Args {
-			if !same(e.Args[i], o.Args[i]) {
 				return false
 			}
 		}
@@ -867,53 +469,10 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 	case installedFunctionExpression:
 		o, ok := other.(installedFunctionExpression)
 		return ok && e.ref == o.ref && e.procedure.Revision() == o.procedure.Revision() && same(e.Arg, o.Arg)
-	case functions.SQLJSON:
-		o, ok := other.(functions.SQLJSON)
-		if !ok || e.Raw.Kind != o.Raw.Kind || e.Raw.Absent != o.Raw.Absent || e.Raw.Unique != o.Raw.Unique || len(e.Args) != len(o.Args) {
-			return false
-		}
-		for i := range e.Args {
-			if !same(e.Args[i], o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.JSONPredicate:
-		o, ok := other.(functions.JSONPredicate)
-		return ok && e.Kind == o.Kind && e.Unique == o.Unique && e.Not == o.Not && same(e.Child, o.Child)
-	case functions.JSONCreate:
-		o, ok := other.(functions.JSONCreate)
-		if !ok || e.Kind != o.Kind || e.Variadic != o.Variadic || len(e.Args) != len(o.Args) {
-			return false
-		}
-		for i := range e.Args {
-			if !same(e.Args[i], o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.StringVariadic:
-		o, ok := other.(functions.StringVariadic)
-		if !ok || e.Name != o.Name || e.AnyElement != o.AnyElement || e.Variadic != o.Variadic || len(e.Args) != len(o.Args) {
-			return false
-		}
-		for i := range e.Args {
-			if !same(e.Args[i], o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.Format:
-		o, ok := other.(functions.Format)
-		if !ok || e.Variadic != o.Variadic || len(e.Args) != len(o.Args) {
-			return false
-		}
-		for i := range e.Args {
-			if !same(e.Args[i], o.Args[i]) {
-				return false
-			}
-		}
-		return true
+	case expr.GroupIdentity:
+		// Function nodes compare their own identity; installed-routine
+		// wrappers that embed one keep their explicit cases above.
+		return e.SameGroup(other, same, checkDefinitionEquality)
 	}
 	return false
 }

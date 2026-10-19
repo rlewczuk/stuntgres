@@ -94,3 +94,13 @@ type Annotated interface {
 	Annotation() any
 	WithAnnotation(any) Expr
 }
+
+// GroupIdentity nodes decide whether another expression is the same grouping
+// expression: GROUP BY matching, DISTINCT ON and CHECK definition equality.
+// SameGroup compares the node's own identity and uses same for children, so
+// the engine keeps its frame and query comparisons. definition selects CHECK
+// definition equality, which ignores presentation-only differences. Nodes
+// without the hook never match.
+type GroupIdentity interface {
+	SameGroup(other Expr, same func(a, b Expr) bool, definition bool) bool
+}

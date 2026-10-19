@@ -280,3 +280,17 @@ func (e Random) replayFault() error {
 	}
 	return nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e Random) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(Random)
+	if !ok || e.Name != o.Name || len(e.Args) != len(o.Args) {
+		return false
+	}
+	for i := range e.Args {
+		if !same(e.Args[i], o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}

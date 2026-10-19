@@ -261,3 +261,17 @@ var _ expr.Renderable = DatetimeZoneCalendar{}
 func (e DatetimeZoneCalendar) Render() (expr.Rendering, error) {
 	return callRendering("Datetime "+e.Name, e.Arguments(), e.Name, e.Arguments()), nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e DatetimeZoneCalendar) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(DatetimeZoneCalendar)
+	if !ok || e.Name != o.Name || e.Count != o.Count {
+		return false
+	}
+	for i, arg := range e.Arguments() {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}

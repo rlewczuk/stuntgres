@@ -376,3 +376,27 @@ func (e SimilarSubstring) Render() (expr.Rendering, error) {
 	}
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e LikeEscape) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(LikeEscape)
+	return ok && e.Provider == o.Provider && same(e.Pattern, o.Pattern) && same(e.Escape, o.Escape)
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e Similar) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(Similar)
+	return ok && e.Provider == o.Provider && e.Operator == o.Operator && same(e.Left, o.Left) && same(e.Right, o.Right)
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e SimilarEscape) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(SimilarEscape)
+	return ok && e.Provider == o.Provider && e.Omitted == o.Omitted && same(e.Pattern, o.Pattern) && same(e.Escape, o.Escape)
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e SimilarSubstring) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(SimilarSubstring)
+	return ok && e.Provider == o.Provider && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1]) && same(e.Args[2], o.Args[2])
+}

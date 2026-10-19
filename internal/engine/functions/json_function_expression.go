@@ -261,3 +261,27 @@ func (e JSONElements) Render() (expr.Rendering, error) {
 	spec.Replay.Validate = unsupportedReplay
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONKeys) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONKeys)
+	return ok && e.Plan == o.Plan && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONBElements) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONBElements)
+	return ok && e.Plan == o.Plan && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONEach) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONEach)
+	return ok && e.Plan.Name() == o.Plan.Name() && sqltype.SameRecordUsage(e.ResultUsage(), o.ResultUsage()) && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONElements) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONElements)
+	return ok && e.Plan == o.Plan && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
+}

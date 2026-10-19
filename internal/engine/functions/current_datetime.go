@@ -111,3 +111,9 @@ func (e CurrentDateTime) Render() (expr.Rendering, error) {
 	spec.Replay.Text = text
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e CurrentDateTime) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(CurrentDateTime)
+	return ok && e.Kind == o.Kind && e.HasPrecision == o.HasPrecision && (!definition || e.Precision == o.Precision)
+}

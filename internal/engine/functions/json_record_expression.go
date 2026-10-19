@@ -93,3 +93,17 @@ func (e JSONRecord) Render() (expr.Rendering, error) {
 	}
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONRecord) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONRecord)
+	if !ok || e.Plan.Name() != o.Plan.Name() || e.Plan.BaseIndex() != o.Plan.BaseIndex() || e.Defined != o.Defined || !sqltype.SameRecordUsage(e.ResultUsage(), o.ResultUsage()) || len(e.Args) != len(o.Args) {
+		return false
+	}
+	for i, arg := range e.Args {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}

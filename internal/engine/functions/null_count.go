@@ -167,3 +167,17 @@ func (e NullCount) Render() (expr.Rendering, error) {
 	}
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e NullCount) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(NullCount)
+	if !ok || e.Kind != o.Kind || len(e.Args) != len(o.Args) {
+		return false
+	}
+	for i := range e.Args {
+		if !same(e.Args[i], o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}

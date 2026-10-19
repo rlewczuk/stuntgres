@@ -385,3 +385,17 @@ func (e ArrayTransform) Render() (expr.Rendering, error) {
 	spec.Replay.Name = e.Kind.Name()
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e ArrayTransform) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(ArrayTransform)
+	if !ok || e.Kind != o.Kind || len(e.Args) != len(o.Args) || !e.Sort.Equal(o.Sort) {
+		return false
+	}
+	for i := range e.Args {
+		if !same(e.Formal(i), o.Formal(i)) {
+			return false
+		}
+	}
+	return true
+}

@@ -102,3 +102,17 @@ func (e NetworkFormat) Render() (expr.Rendering, error) {
 	spec.Replay.Validate = e.Validate
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e NetworkFormat) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(NetworkFormat)
+	if !ok || e.Kind != o.Kind || e.Plan != o.Plan {
+		return false
+	}
+	for i := range e.Kind.Arity() {
+		if !same(e.Args[i], o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}

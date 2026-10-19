@@ -93,3 +93,18 @@ func (e JSONBPathQueryArray) Render() (expr.Rendering, error) {
 	}
 	return writtenCall("JSONPath array query", e.Args[:], "jsonb_path_query_array", args, e.Variadic), nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONBPathQueryArray) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONBPathQueryArray)
+	// Redundant VARIADIC is presentation only for this nonvariadic routine.
+	if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
+		return false
+	}
+	for i, arg := range e.Arguments() {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
