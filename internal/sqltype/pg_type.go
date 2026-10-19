@@ -82,7 +82,7 @@ func (d *Descriptor) PGTypeMetadata() (PGTypeMetadata, bool) {
 	if d.IsComposite() {
 		return CompositePGTypeMetadata(), true
 	}
-	if d.IsQueryInt() {
+	if d.IsQueryInt() || d.IsCube() {
 		return PGTypeMetadata{PostgreSQLAttributeFacts: d.AttributeFacts(), Kind: "b", Category: "U", Modifier: -1}, true
 	}
 	if !d.IsBuiltin() {

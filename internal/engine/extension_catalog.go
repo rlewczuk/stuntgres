@@ -117,6 +117,12 @@ func (p extensionCatalogProvider) Validate(v catalog.Read, d catalog.Descriptor)
 			}
 			ext = d.Extension
 			break
+		} else if cubeProviderOf(d) != nil {
+			if err := cubeProviderOf(d).validateProcedure(v, d); err != nil {
+				return err
+			}
+			ext = d.Extension
+			break
 		}
 		if d.Conversion.Name() != "" {
 			registered, ok := sqltype.RegisteredEncodingConversion(d.Name())

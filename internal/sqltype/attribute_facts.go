@@ -30,6 +30,10 @@ func (d *Descriptor) AttributeFacts() PostgreSQLAttributeFacts {
 		f.ByValue = true
 		return f
 	}
+	if d.IsCube() {
+		f.Alignment = "d"
+		return f
+	}
 	switch d.id {
 	case Bool, Char:
 		f.ByValue, f.Alignment = true, "c"

@@ -71,7 +71,7 @@ func pgTypeFacts(ctx context.Context, catalog catalog.Read, d *catalog.Type, out
 	if !ok {
 		return f, fmt.Errorf("stuntgres: missing admitted type metadata")
 	}
-	if d.SQLType.IsQueryInt() {
+	if d.SQLType.IsQueryInt() || d.SQLType.IsCube() {
 		ext, ok := catalog.Extension(d.Extension)
 		if !ok || len(ext.Members) != 3 {
 			return f, fmt.Errorf("stuntgres: missing installed type routines")

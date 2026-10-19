@@ -16,6 +16,11 @@ func intarrayProviderOf(d *catalog.Procedure) *intarrayProvider {
 	return p
 }
 
+func cubeProviderOf(d *catalog.Procedure) *cubeProvider {
+	p, _ := d.Implementation.(*cubeProvider)
+	return p
+}
+
 func fuzzystrmatchProviderOf(d *catalog.Procedure) *fuzzystrmatchProvider {
 	p, _ := d.Implementation.(*fuzzystrmatchProvider)
 	return p

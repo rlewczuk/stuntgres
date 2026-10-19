@@ -29,7 +29,7 @@ func reownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 		if !ok {
 			return fmt.Errorf("stuntgres: missing domain base")
 		}
-		if d.SQLType.IsQueryInt() {
+		if d.SQLType.IsQueryInt() || d.SQLType.IsCube() {
 			target, namespace, extension := address, d.Namespace(), d.Extension
 			if to, ok := mapping[address]; ok {
 				target = to
@@ -50,7 +50,11 @@ func reownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 				associated = sqltype.ID(to.ObjectID)
 			}
 			if target != address || namespace != d.Namespace() || extension != d.Extension || associated != d.Array || declaration != d.SQLType.SQLName() {
-				typ, err := sqltype.QueryInt(sqltype.ID(target.ObjectID), d.Name(), declaration)
+				constructor := sqltype.QueryInt
+				if d.SQLType.IsCube() {
+					constructor = sqltype.Cube
+				}
+				typ, err := constructor(sqltype.ID(target.ObjectID), d.Name(), declaration)
 				if err != nil {
 					return err
 				}
@@ -313,7 +317,7 @@ func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation
 		}
 	}
 	if imported := imports[value.Type().BaseType()]; imported != nil {
-		if imported != target.BaseType() || !target.BaseType().IsEnum() && !target.BaseType().IsQueryInt() {
+		if imported != target.BaseType() || !target.BaseType().IsEnum() && !target.BaseType().IsQueryInt() && !target.BaseType().IsCube() {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: foreign imported scalar destination")
 		}
 		physical, err := value.BaseValue()
@@ -322,6 +326,8 @@ func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation
 		}
 		if physical.Type().IsQueryInt() {
 			physical, err = physical.RemapQueryInt(target.BaseType())
+		} else if physical.Type().IsCube() {
+			physical, err = physical.RemapCube(target.BaseType())
 		} else {
 			physical, err = physical.RemapEnum(target.BaseType())
 		}
@@ -347,7 +353,7 @@ func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation
 		}
 		from.Collation = mapped
 	}
-	if (!from.Type.IsEnum() && !from.Type.IsComposite() && !from.Type.IsQueryInt() && from.Type.ID() != to.Type.ID()) || from.Typmod != to.Typmod || from.Collation != to.Collation {
+	if (!from.Type.IsEnum() && !from.Type.IsComposite() && !from.Type.IsQueryInt() && !from.Type.IsCube() && from.Type.ID() != to.Type.ID()) || from.Typmod != to.Typmod || from.Collation != to.Collation {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: incompatible imported domain base")
 	}
 	physical, err := value.BaseValue()

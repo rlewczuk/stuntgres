@@ -51,6 +51,9 @@ func extensionOwnerMetadata(view catalog.Read, roles authorization.Read, ext *ca
 			if intarrayProviderOf(d) != nil && d.Name() == "bqarr_out" {
 				member.Signature = "query_int"
 			}
+			if cubeProviderOf(d) != nil && d.Name() == "cube_out" {
+				member.Signature = "cube"
+			}
 			principal = d.Owner
 		case *catalog.TSDictionary:
 			member = extensionMemberOwner{Kind: "dictionary", Name: d.Name()}
@@ -150,6 +153,8 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 		expectedMembers = 5
 	case record.Name == "intarray" && record.Version == "1.5":
 		expectedMembers = 3
+	case record.Name == "cube" && record.Version == "1.5":
+		expectedMembers = 3
 	case record.Name == "fuzzystrmatch" && record.Version == "1.2":
 		expectedMembers = len(fuzzystrmatchMembers)
 	case record.Name == "intagg" && record.Version == "1.1":
@@ -190,6 +195,8 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 				valid = member.Name == "unaccent" && (member.Signature == string(catalog.UnaccentTextSignature) || member.Signature == string(catalog.UnaccentDictionarySignature)) || member.Name == "unaccent_init" && member.Signature == string(catalog.UnaccentInitSignature) || member.Name == "unaccent_lexize" && member.Signature == string(catalog.UnaccentLexizeSignature)
 			case "intarray":
 				valid = member.Name == "bqarr_in" && member.Signature == "2275" || member.Name == "bqarr_out" && member.Signature == "query_int"
+			case "cube":
+				valid = member.Name == "cube_in" && member.Signature == "2275" || member.Name == "cube_out" && member.Signature == "cube"
 			case "intagg":
 				for _, selected := range intaggMembers {
 					if member.Name == selected.name && member.Signature == string(selected.signature) {
@@ -214,7 +221,7 @@ func decodeExtensionOwners(comment string) (extensionOwnerRecord, bool, error) {
 				return invalid()
 			}
 		case "type":
-			if record.Name != "intarray" || member.Name != "query_int" || member.Signature != "" {
+			if (record.Name != "intarray" || member.Name != "query_int") && (record.Name != "cube" || member.Name != "cube") || member.Signature != "" {
 				return invalid()
 			}
 		default:
@@ -271,10 +278,10 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *Operation, recor
 				class = ids.TypeClassID
 			}
 			signature := member.Signature
-			if record.Name == "intarray" && member.Kind == "procedure" && member.Name == "bqarr_out" {
+			if member.Kind == "procedure" && (record.Name == "intarray" && member.Name == "bqarr_out" || record.Name == "cube" && member.Name == "cube_out") {
 				base, ok := candidate.Type(ext.Members[0])
-				if !ok || !base.SQLType.IsQueryInt() {
-					return fmt.Errorf("stuntgres: missing intarray owner type")
+				if !ok || record.Name == "intarray" && !base.SQLType.IsQueryInt() || record.Name == "cube" && !base.SQLType.IsCube() {
+					return fmt.Errorf("stuntgres: missing installed owner type")
 				}
 				signature = string(queryIntSignature(base.SQLType.ID()))
 			}

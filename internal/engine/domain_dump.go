@@ -259,7 +259,7 @@ func catalogLiteralWithACLAt(ctx context.Context, view catalog.Read, reader defi
 	if n.value.Type() != u.Type {
 		return "", fmt.Errorf("stuntgres: invalid stored literal")
 	}
-	if u.Type.IsEnum() || u.Type.IsQueryInt() {
+	if u.Type.IsEnum() || u.Type.IsQueryInt() || u.Type.IsCube() {
 		declaration, err := catalogTypeDeclarationAt(view, reader, u)
 		if err != nil {
 			return "", err

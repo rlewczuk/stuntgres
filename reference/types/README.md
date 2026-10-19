@@ -47,6 +47,70 @@ The query arena's fixed32 pending-operator limit remains shared grammar, not
 one of those physical distinctions. Selected proof does not replace root's
 whole-project Docker-free quickcheck or post-integration finalcheck.
 
+### Cube scalar oracle-first contract
+
+`TestReferenceCubeInstallation`, `Grammar`, `Assignment`, `Diagnostics`,
+`Metadata`, `Controls`, and `FeatureSmoke` are permanent shared-body definitions
+for installed cube1.5 scalar text storage. Expectations were independently
+specified from released PostgreSQL18 grammar/codecs and corrected against root's
+pinned18.6 oracle observations before native production work. Coverage includes declared
+identity, orientation-preserving text, coincident-corner collapse, 0/100/101
+dimensions, IEEE special values and precision, direct/new/held prepared binds,
+owned bytes/NULL, directional character I/O, full diagnostic records and write
+atomicity, raw extension metadata, retained readers and native control replay.
+`TestReferenceCubeDiagnosticPrecedence` adds independently specified diagnostic
+boundaries confirmed by root's pinned18.6 oracle run before the native remedy:
+incomplete punctuation beats overflow; bracketed boxes require `]` before
+dimension checks; completed productions check mismatched dimensions, then the
+100-dimension limit, then convert coordinates before rejecting trailing garbage.
+Mismatch details discard inter-token ASCII whitespace while preserving numeric
+token spellings, not formatted float values. Literal and bound direct/prepared
+routes assert complete diagnostics and unchanged ordered sentinel rows.
+The PostgreSQL control branch uses real SQL extension recreation. Real-mode
+native control execution also replays the actual emitted dump SQL in PostgreSQL.
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceCube(Installation|Grammar|Assignment|Diagnostics|DiagnosticPrecedence|Metadata|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceAvailableExtensionsFiltering$'
+make check RUN='^TestReferenceCube(Installation|Grammar|Assignment|Diagnostics|DiagnosticPrecedence|Metadata|Controls|FeatureSmoke)$'
+make check RUN='^TestReferenceAvailableExtensionsFiltering$'
+```
+
+Root runs these commands with an external900-second deadline. Repeat both
+selected modes after expectation/implementation edits. Whole-project Docker-free
+verification uses `make quickcheck`, not a broad selected check. Supplementary
+units cover immutable coordinate/descriptor authority, coercion directions,
+float display versus exact literals, genuine staged manifests and import remapping:
+
+```sh
+make check RUN='^(TestCube(Input|Output|Identity|Coercion|Cancellation|DiagnosticStages|MismatchDetail)|TestCubeProvider(Identity|Conflicts|Controls)|TestAvailableExtensions(Projection|StatementFrontier))$'
+make check RACE=1 RUN='^(TestCube(Cancellation|DiagnosticStages|MismatchDetail)|TestCubeProviderControls|TestReferenceCube(Assignment|Diagnostics|DiagnosticPrecedence|Metadata|Controls))$'
+```
+
+The focused behavioral smoke selector is
+`make check RUN='^TestReferenceCubeFeatureSmoke$'` (also with `REFERENCE=1`).
+It expects literal box storage, a genuinely held reversed-endpoint bind, NULL,
+exact rows and metadata, and native Dump/Reset/Restore or PostgreSQL extension
+recreation. The separate standalone public API executable is supplied as the OMP
+session artifact `local://cube-smoke.go`. Materialize that artifact into the
+session-files directory as `$SESSION_TMP/cube-smoke.go`, then run from the
+repository root (standard library plus the public stuntgres module only):
+
+```sh
+timeout 900s go run "$SESSION_TMP/cube-smoke.go"
+```
+
+It is quiet on success and exits nonzero on a mismatch. It asserts owned byte/
+held bindings, typed NULL, raw cells and empty metadata, genuine codec/regtype
+identity, exact settled diagnostics and failure atomicity (including incomplete
+overflow, missing box bracket, overlimit-with-overflow and spelling-preserving
+mismatch boundary representatives), low-display-precision
+dump exactness, retained readers, same/fresh-driver replacement and deterministic
+redump after failed Restore. Native's selected capability is text codecs
+only: no cube arrays, advanced operators/functions, or binary handlers.
+PostgreSQL's real cube_recv/cube_send and pq unknown-OID metadata are explicit
+backend differences, never normalized into nonexistent native capabilities.
+
 ### Information-schema sql_identifier selected proof
 
 The untagged shared `TestReferenceInfoSQLIdentifier` scenarios cover qualified

@@ -373,7 +373,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					e.mu.Unlock()
 					return fmt.Errorf("%s", message)
 				}
-				if t.SQLType.IsQueryInt() || t.Extension != (ids.ObjectAddress{}) {
+				if t.SQLType.IsQueryInt() || t.SQLType.IsCube() || t.Extension != (ids.ObjectAddress{}) {
 					if err := (typeProvider{}).Validate(catalogView, t); err != nil {
 						e.mu.Unlock()
 						return err

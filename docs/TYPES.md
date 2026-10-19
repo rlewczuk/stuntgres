@@ -7,6 +7,23 @@ is the SQL authority. This page describes native value ownership, Go transport
 and implementation limits, not a supported-syntax inventory or a claim of full
 PostgreSQL compatibility.
 
+## Installed cube transport
+
+`CREATE EXTENSION cube` allocates a genuine scalar identity with immutable
+binary64 coordinates, dimension and point/box representation. Contextual string
+and owned nonnil byte bindings use its text codec; nil and typed-nil bytes are
+typed SQL NULL, while empty nonnil input is malformed. Result cells are strings
+or nil, with CUBE/string metadata. Explicit TEXT/VARCHAR I/O and assignment from
+cube to character types use the shared coercion machinery; typed character
+assignment into cube is rejected.
+
+Corner orientation and signed zero survive input and native replacement;
+coincident corners collapse except NaN pairs. Display honors extra_float_digits,
+but dump literals use exact shortest float8 output. Import remints descriptors
+without formatting/reparsing or copying immutable coordinate payloads. The
+associated _cube is catalog lookup-only. Native text hooks are real installed
+routines; binary receive/send stay absent, unlike PostgreSQL's larger manifest.
+
 ## Descriptors, parameters and retained results
 
 The typed foundation uses catalog-owned immutable descriptors, concrete nullable
@@ -1393,7 +1410,7 @@ Wire OID hints use real admitted descriptors, not an implicit SQL CAST or a new
 storage provider. Lookup-only MONEY, operator-alias, text-search-alias, network
 and identifier companion arrays remain unavailable. Existing raw internal CHAR
 codecs do not enable CHAR columns. Native TID binary input/output reports a
-type-specific `0A000`; ACLITEM and installed query_int report `42883` for their
+type-specific `0A000`; ACLITEM and installed query_int/cube report `42883` for their
 missing binary functions. No fallback converts those requests to text while
 claiming binary format. Anonymous RECORD preserves its occurrence-owned input
 authority rather than borrowing the lookup-only catalog identity: NULL transport

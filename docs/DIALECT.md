@@ -1501,6 +1501,37 @@ All six overloads have zero arguments; passing NULL is a missing overload.
 Other uuid-ossp generators and arbitrary shared-library loading remain excluded;
 PostgreSQL's complete upstream inventory is larger.
 
+## cube extension type
+
+The registered cube1.5 provider supplies scalar columns, contextual literal and
+bound text/byte input, typed NULL, same-type assignment and explicit TEXT/VARCHAR
+I/O casts. Cube-to-character assignment is supported; typed character assignment
+into cube and implicit character function-argument conversion are not.
+Coordinates retain their entered corner orientation, binary64 precision and
+signed zero. Coincident corners collapse using IEEE equality (NaN never equals
+NaN); zero through100 dimensions are accepted. Output uses the shared float8
+formatter and current extra_float_digits; native dump literals remain exact.
+Input diagnostics follow completed grammar productions: required punctuation
+precedes dimension checks, which precede float8 conversion; semantic errors in a
+completed production can precede trailing-garbage errors. Dimension-mismatch
+details preserve numeric token spelling but discard inter-token ASCII whitespace.
+
+The actual native selected manifest is cube plus strict immutable text hooks
+cube_in(cstring) and cube_out(cube). The real associated _cube catalog identity
+is lookup-only, with an internal dependency, not array storage. Native receive/
+send metadata is zero: PostgreSQL's actual cube_recv/cube_send are deliberately
+not advertised or executable here. Constructors, other functions/operators,
+comparison/sorting, indexes/opclasses, array input/binding and binary COPY are
+outside this provider.
+
+Native results expose CUBE, string ScanType, known declared nullability and
+unknown length/precision even for empty/NULL-only results. lib/pq does not know
+the dynamically allocated PostgreSQL cube OID: its type name is empty, ScanType
+is interface{}, non-NULL values are []byte, and nullability/length/precision are
+unknown. Reset/Dump/Restore remaps actual scalar, codec and owner identities;
+pending readers retain their original immutable values, metadata and display.
+Availability now includes cube alongside the six existing registered providers.
+
 ## query_int extension type
 
 The registered intarray provider supplies selected query_int scalar storage,

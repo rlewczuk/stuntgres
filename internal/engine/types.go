@@ -85,14 +85,23 @@ func (typeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) e
 	}
 	if t.Extension != (ids.ObjectAddress{}) {
 		parent, ok := view.Extension(t.Extension)
-		if !ok || parent.Name() != "intarray" || parent.TargetNamespace != t.Namespace() || !t.SQLType.IsQueryInt() {
+		if !ok || parent.TargetNamespace != t.Namespace() {
 			return fmt.Errorf("stuntgres: invalid installed type membership")
 		}
-		if err := stockIntarray.ValidateExtension(view, parent); err != nil {
+		var err error
+		switch {
+		case parent.Name() == "intarray" && t.SQLType.IsQueryInt():
+			err = stockIntarray.ValidateExtension(view, parent)
+		case parent.Name() == "cube" && t.SQLType.IsCube():
+			err = stockCube.ValidateExtension(view, parent)
+		default:
+			return fmt.Errorf("stuntgres: invalid installed type membership")
+		}
+		if err != nil {
 			return err
 		}
-	} else if t.SQLType.IsQueryInt() {
-		return fmt.Errorf("stuntgres: query_int type has no installation")
+	} else if t.SQLType.IsQueryInt() || t.SQLType.IsCube() {
+		return fmt.Errorf("stuntgres: installed scalar type has no installation")
 	}
 	if t.OwningRelation != (ids.ObjectAddress{}) {
 		relation, ok := view.Relation(t.OwningRelation)

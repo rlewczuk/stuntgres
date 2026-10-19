@@ -80,6 +80,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					unaccentVersion = "1.1"
 				}
 				expected := map[string][]any{
+					"cube":          {"cube", "1.5", nil, "data type for multidimensional cubes"},
 					"unaccent":      {"unaccent", "1.1", unaccentVersion, "text search dictionary that removes accents"},
 					"intarray":      {"intarray", "1.5", nil, "functions, operators, and index support for 1-D arrays of integers"},
 					"intagg":        {"intagg", "1.1", nil, "integer aggregator and enumerator (obsolete)"},
@@ -88,6 +89,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					"uuid-ossp":     {"uuid-ossp", "1.1", nil, "generate universally unique identifiers (UUIDs)"},
 				}
 				if oid == 12085 {
+					expected["cube"] = []any{"cube", "1.5", false, true, true, true, nil, nil, "data type for multidimensional cubes"}
 					expected["unaccent"] = []any{"unaccent", "1.1", installed, true, true, true, nil, nil, "text search dictionary that removes accents"}
 					expected["intarray"] = []any{"intarray", "1.5", false, true, true, true, nil, nil, "functions, operators, and index support for 1-D arrays of integers"}
 					expected["intagg"] = []any{"intagg", "1.1", false, true, false, true, nil, nil, "integer aggregator and enumerator (obsolete)"}

@@ -73,10 +73,11 @@ func availableUnitExpected(t *testing.T, e *Engine, catalog catalog.Read, versio
 	for _, oid := range []ids.OID{12081, 12085} {
 		d, ref := availableUnitSource(e, oid)
 		source, err := captureAvailableExtensions(context.Background(), e.catalog.Extensions, catalog, ref, d)
-		if err != nil || source == nil || source.count() != 6 || source.ref != ref {
+		if err != nil || source == nil || source.count() != 7 || source.ref != ref {
 			t.Fatal("capture", source, err)
 		}
 		expected := map[string][]any{
+			"cube":          {"cube", "1.5", nil, "data type for multidimensional cubes"},
 			"unaccent":      {"unaccent", "1.1", version, comment},
 			"intarray":      {"intarray", "1.5", nil, "functions, operators, and index support for 1-D arrays of integers"},
 			"intagg":        {"intagg", "1.1", nil, "integer aggregator and enumerator (obsolete)"},
@@ -85,6 +86,7 @@ func availableUnitExpected(t *testing.T, e *Engine, catalog catalog.Read, versio
 			"uuid-ossp":     {"uuid-ossp", "1.1", nil, "generate universally unique identifiers (UUIDs)"},
 		}
 		if oid == 12085 {
+			expected["cube"] = []any{"cube", "1.5", false, true, true, true, nil, nil, "data type for multidimensional cubes"}
 			expected["unaccent"] = []any{"unaccent", "1.1", installed, true, true, true, nil, nil, comment}
 			expected["intarray"] = []any{"intarray", "1.5", false, true, true, true, nil, nil, "functions, operators, and index support for 1-D arrays of integers"}
 			expected["intagg"] = []any{"intagg", "1.1", false, true, false, true, nil, nil, "integer aggregator and enumerator (obsolete)"}

@@ -208,7 +208,7 @@ func newEngine(providers []catalog.Provider, definitions []SettingDefinition, da
 	for _, extension := range []struct {
 		name           string
 		implementation extensionInstaller
-	}{{"unaccent", stockUnaccent}, {"intarray", stockIntarray}, {"fuzzystrmatch", stockFuzzystrmatch}, {"intagg", stockIntagg}, {"pgcrypto", stockPgcrypto}, {"uuid-ossp", stockUUIDOssp}} {
+	}{{"cube", stockCube}, {"unaccent", stockUnaccent}, {"intarray", stockIntarray}, {"fuzzystrmatch", stockFuzzystrmatch}, {"intagg", stockIntagg}, {"pgcrypto", stockPgcrypto}, {"uuid-ossp", stockUUIDOssp}} {
 		if err := e.registerExtension(extension.name, extension.implementation); err != nil {
 			return nil, err
 		}

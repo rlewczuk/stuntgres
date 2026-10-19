@@ -76,6 +76,17 @@ interoperability remain outside this feature.
 See [domain semantics](docs/TYPES.md) and
 [selected proof and smoke](reference/types/README.md#domain-defaults-and-nullability).
 
+## Installed cube scalar storage — change note
+
+`CREATE EXTENSION cube` installs the selected cube1.5 scalar text provider.
+Declared columns, literal and held prepared bindings, NULL and CUBE/string
+metadata use the shared type system. Text preserves corner orientation,
+collapses coincident corners and supports zero through100 binary64 dimensions.
+Native Dump/Reset/Restore preserves exact values independently of display
+precision. Arrays, binary codecs and advanced cube operations remain excluded.
+See [cube limits](docs/DIALECT.md#cube-extension-type) and
+[selected proof](reference/types/README.md#cube-scalar-oracle-first-contract).
+
 ## IP address formatting, masks and networks — change note
 
 `abbrev(inet/cidr)`, `host`, `text(inet)`, `family`, `masklen`,

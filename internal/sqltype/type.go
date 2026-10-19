@@ -119,6 +119,7 @@ type Descriptor struct {
 	delimiter                     byte
 	enum                          *enumDefinition
 	queryInt                      bool
+	cube                          bool
 	composite                     *compositeDefinition
 	rangeSubtype                  *Descriptor
 	rangeBoolean                  *Descriptor
@@ -367,6 +368,7 @@ type Value struct {
 	queryInt        *queryIntPayload
 	ftsVector       *fts.Vector
 	ftsQuery        *fts.Query
+	cube            *cubePayload
 }
 
 func (v Value) Type() *Descriptor { return v.typ }
@@ -395,6 +397,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	}
 	if fromEnum.IsQueryInt() && !v.null && !v.validQueryInt() {
 		return Value{}, fmt.Errorf("invalid query_int payload")
+	}
+	if fromEnum.IsCube() != toEnum.IsCube() || fromEnum.IsCube() && !v.null && !v.validCube() {
+		return Value{}, fmt.Errorf("incompatible cube payload")
 	}
 	if d.IsDomain() {
 		from, to := v.typ.Usage().BaseUsage(), d.Usage().BaseUsage()
@@ -643,7 +648,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.id == PgNodeTree {
 		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
 	}
-	if IsFTS(d.id) || d.IsQueryInt() || IsCharacter(d.id) || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
+	if IsFTS(d.id) || d.IsCube() || d.IsQueryInt() || IsCharacter(d.id) || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
 		if err := ValidateTextInput(text); err != nil {
 			return Value{}, err
 		}
@@ -655,6 +660,9 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	}
 	if d.IsQueryInt() {
 		return d.queryIntInput(ctx, text)
+	}
+	if d.IsCube() {
+		return d.cubeInput(ctx, text)
 	}
 	switch d.id {
 	case TSVector, TSQuery:
@@ -926,6 +934,9 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	if d.IsQueryInt() {
 		return d.queryIntOutput(ctx, v)
 	}
+	if d.IsCube() {
+		return d.cubeOutput(ctx, v, env)
+	}
 	switch d.id {
 	case TSVector, TSQuery:
 		return d.ftsOutput(v)
@@ -1114,6 +1125,13 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 	}
 	if d.IsQueryInt() {
 		text, err := d.queryIntOutput(ctx, v)
+		if err != nil {
+			return "", err
+		}
+		return "'" + text + "'", nil
+	}
+	if d.IsCube() {
+		text, err := d.cubeOutput(ctx, v, OutputEnvironment{})
 		if err != nil {
 			return "", err
 		}
@@ -1580,12 +1598,12 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 			return p, failure("42804", "incompatible source and destination types")
 		}
 	}
-	if source.Type.IsQueryInt() || target.Type.IsQueryInt() {
+	if source.Type.IsQueryInt() || target.Type.IsQueryInt() || source.Type.IsCube() || target.Type.IsCube() {
 		if source.Type == target.Type {
 			return p, nil
 		}
 		if context == Explicit && (IsCharacter(source.Type.id) || IsCharacter(target.Type.id)) ||
-			context == Assignment && source.Type.IsQueryInt() && IsCharacter(target.Type.id) {
+			context == Assignment && (source.Type.IsQueryInt() || source.Type.IsCube()) && IsCharacter(target.Type.id) {
 			p.method = viaIO
 			return p, nil
 		}
