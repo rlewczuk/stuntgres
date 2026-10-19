@@ -29,7 +29,7 @@ func (p extensionCatalogProvider) Validate(v catalog.Read, d catalog.Descriptor)
 	switch d := d.(type) {
 	case *catalog.Extension:
 		implementation, registered := v.Owner().Extensions[d.Name()]
-		if !registered || d.Version != implementation.Control().Version || d.Namespace() != (ids.ObjectAddress{}) {
+		if !registered || implementation.Versions().InstallPath(d.Version) == nil || d.Namespace() != (ids.ObjectAddress{}) {
 			return invalid()
 		}
 		if _, ok := v.Namespace(d.TargetNamespace); !ok {

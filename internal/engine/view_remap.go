@@ -312,6 +312,9 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 		next = n
 	case catalogForeignKeysExpression:
 		next = n
+	case extensionPathsExpression:
+		n.arg = child(n.arg)
+		next = n
 	case transactionIdentityExpression:
 		if n.arg != nil {
 			n.arg = child(n.arg)

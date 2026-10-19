@@ -124,6 +124,8 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 		return merge(children(n.arg), expr.Stable)
 	case catalogForeignKeysExpression:
 		return expr.Stable
+	case extensionPathsExpression:
+		return merge(children(n.arg), expr.Stable)
 	case transactionIdentityExpression:
 		volatility := expr.Stable
 		if n.kind == identityStatus || n.kind == identityMembers {

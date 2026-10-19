@@ -281,7 +281,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 			return "", fmt.Errorf("stuntgres: invalid stored advisory signature")
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+n.name, n.args)
-	case catalogUserNameExpression, catalogForeignKeysExpression, transactionIdentityExpression, commitTimestampExpression, installedFunctionExpression, installedUUIDOsspFunctionExpression, installedCryptoFunctionExpression, installedSoundexFunctionExpression, installedMetaphoneFunctionExpression, installedLevenshteinFunctionExpression:
+	case catalogUserNameExpression, catalogForeignKeysExpression, extensionPathsExpression, transactionIdentityExpression, commitTimestampExpression, installedFunctionExpression, installedUUIDOsspFunctionExpression, installedCryptoFunctionExpression, installedSoundexFunctionExpression, installedMetaphoneFunctionExpression, installedLevenshteinFunctionExpression:
 		return r.scalarFunctionSQL(ctx, view, node)
 	case visibilityInquiryExpression:
 		if r.owner == nil {

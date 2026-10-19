@@ -228,7 +228,7 @@ func pgIndexFunctionExpression(node expr.Expr) bool {
 		return false
 	case indexPropertyExpression:
 		return true
-	case catalogUserNameExpression, catalogForeignKeysExpression:
+	case catalogUserNameExpression, catalogForeignKeysExpression, extensionPathsExpression:
 		return true
 	case transactionIdentityExpression:
 		return true

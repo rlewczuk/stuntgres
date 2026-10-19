@@ -433,13 +433,13 @@ package parser
 %type <collationOptions> collation_options
 %type <collationOption> collation_option
 %type <tok> collation_name_word
-%type <stmt> create_extension drop_extension
+%type <stmt> create_extension drop_extension alter_extension_update
 %type <stmt> create_tablespace
 %type <grantor> tablespace_owner
 %type <tok> tablespace_location
 %type <indexOptions> tablespace_options
-%type <extensionOptions> extension_options extension_option_list
-%type <extensionOption> extension_option
+%type <extensionOptions> extension_options extension_option_list extension_update_options
+%type <extensionOption> extension_option extension_update_option
 %type <tok> extension_version
 %type <enumLabels> enum_labels enum_label_list
 %type <columns> composite_members composite_member_list
@@ -742,7 +742,7 @@ statement: create | create_sequence | alter_sequence | drop_sequence | alter_ind
  | set_constraints
  | declare_cursor | fetch_cursor | close_cursor
  | prepare_sql | execute_sql | deallocate_sql | discard
- | create_extension | drop_extension
+ | create_extension | drop_extension | alter_extension_update
  | create_tablespace
  | alter_collation | drop_collation | alter_enum
  | alter_conversion | drop_conversion
@@ -2965,6 +2965,14 @@ extension_option_list: /* empty */ { $$=nil } | extension_option_list extension_
 extension_option: SCHEMA name { $$=ExtensionOption{Name:"schema",Value:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
  | VERSION extension_version { $$=ExtensionOption{Name:"version",Value:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} } ;
 extension_version: name | STRING ;
+/* Keep excluded actions explicit: the UPDATE prefix now bypasses the generic
+ * ALTER guard, but SET SCHEMA and member ADD/DROP remain command boundaries. */
+alter_extension_update: ALTER EXTENSION name UPDATE extension_update_options { $$=&AlterExtensionUpdate{Name:Identifier{Text:$3.text,Pos:$3.pos},Options:$5,Pos:$1.pos} }
+ | ALTER EXTENSION name SET {sqllex.(*lexer).failAt("0A000","statement is unsupported",$1.pos.Offset);return 1}
+ | ALTER EXTENSION name ADD {sqllex.(*lexer).failAt("0A000","statement is unsupported",$1.pos.Offset);return 1}
+ | ALTER EXTENSION name DROP {sqllex.(*lexer).failAt("0A000","statement is unsupported",$1.pos.Offset);return 1} ;
+extension_update_options: /* empty */ { $$=nil } | extension_update_options extension_update_option { $$=append($1,$2) } ;
+extension_update_option: TO extension_version { $$=ExtensionOption{Name:"version",Value:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} } ;
 alter_owner: ALTER TYPE relation_name OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"type",Name:$3,Target:$6,Pos:$1.pos} }
  | ALTER DOMAIN relation_name OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"domain",Name:$3,Target:$6,Pos:$1.pos} }
  | ALTER DATABASE name OWNER TO membership_role_spec { $$=&AlterOwner{Kind:"database",Name:ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$3.pos}}},Target:$6,Pos:$1.pos} } ;

@@ -15,6 +15,9 @@ type cubeProvider struct{ control catalog.ExtensionControl }
 
 // Control implements extensionImplementation.
 func (p *cubeProvider) Control() catalog.ExtensionControl { return p.control.Detached() }
+func (p *cubeProvider) Versions() catalog.ExtensionVersions {
+	return catalog.ExtensionVersions{Bases: []string{"1.5"}}
+}
 
 var stockCube = &cubeProvider{control: catalog.ExtensionControl{Version: "1.5", Trusted: true, Superuser: true, Relocatable: true, Comment: new("data type for multidimensional cubes")}}
 

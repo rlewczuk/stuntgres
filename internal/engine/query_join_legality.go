@@ -746,6 +746,8 @@ func joinExpressionSides(node expr.Expr, leftWidth, rightWidth int) (uint8, erro
 		return joinExpressionSides(e.arg, leftWidth, rightWidth)
 	case catalogForeignKeysExpression:
 		return 0, nil
+	case extensionPathsExpression:
+		return joinExpressionSides(e.arg, leftWidth, rightWidth)
 	case transactionIdentityExpression:
 		if e.arg == nil {
 			return 0, nil

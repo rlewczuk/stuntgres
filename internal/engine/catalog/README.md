@@ -118,6 +118,20 @@ definitions, extension implementations). Those register through the same
 Follow the [shared testing guide](../../../docs/TESTING.md). Run from the
 repository root.
 
+Extension implementations expose detached explicit base-version and directed
+script inventories. `ExtensionVersions` owns filename-safety validation,
+shortest directed paths and base-reachable installability; graph knowledge
+alone is not install support. Engine-side registration validates executable
+coverage separately, and typed update staging remains in the engine.
+Path search walks the declared outgoing edges directly; it does not rebuild
+or sort the vertex set for each source/target pair. Pair projection owns one
+sorted vertex list, while declared-edge tie order is internal only.
+The owning graph/manifest/publication proof is
+`make check RUN='^TestExtensionVersion(Graph|Manifest|Publication|PathsConsumers)$'` with an
+external900-second deadline; public dual-mode proof is documented in
+`reference/catalogs/README.md#extension-version-selected-proof`.
+
+
 - Read and write API: `make check RUN='^TestCatalog(ReadTypedAccessors|ReadUntypedAndNameAccessors|ReadAccessorsRequirePopulatedRead|StateWritesStayOnTheirState)$'`.
 - Diagnostic names: `make check RUN='^Test(DependencyIdentifierQuotesLikeQuoteIdentifier|TypeDiagnosticNameAtQualifiesHiddenTypes)$'`.
 - Engine-side catalog seams (registry, payload accessors, operator index,

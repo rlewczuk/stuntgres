@@ -37,6 +37,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return e.executeExtension(scope, stmt.(*parser.CreateExtension), count)
 	case *parser.DropExtension:
 		return e.executeDropExtension(scope, stmt.(*parser.DropExtension), count)
+	case *parser.AlterExtensionUpdate:
+		return e.executeExtensionUpdate(scope, stmt.(*parser.AlterExtensionUpdate), count)
 	case *parser.Discard:
 		return scope.executeDiscard(stmt.(*parser.Discard), count)
 	case *parser.PrepareSQL:

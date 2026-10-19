@@ -65,7 +65,7 @@ func closedTransactionTimeDefault(node expr.Expr) bool {
 		return true
 	case catalogUserNameExpression:
 		return closedTransactionTimeDefault(n.arg)
-	case catalogForeignKeysExpression:
+	case catalogForeignKeysExpression, extensionPathsExpression:
 		return false
 	case transactionIdentityExpression:
 		return n.arg == nil || closedTransactionTimeDefault(n.arg)

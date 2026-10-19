@@ -122,15 +122,19 @@ func TestReferencePGExtensionCommandBoundaries(t *testing.T) {
 			s.Prepared, s.ErrorStage = prepared, "execute"
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
 		}
-		for _, prepared := range []bool{false, true} {
-			s := fixture.ImplicitError("DROP EXTENSION pgext_missing_control", fixture.Diagnostic{Code: "42704", Message: `extension "pgext_missing_control" does not exist`})
-			s.Prepared, s.ErrorStage = prepared, "execute"
-			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
+		for _, query := range []string{
+			"DROP EXTENSION pgext_missing_control",
+			"ALTER EXTENSION pgext_missing_control UPDATE",
+		} {
+			for _, prepared := range []bool{false, true} {
+				s := fixture.ImplicitError(query, fixture.Diagnostic{Code: "42704", Message: `extension "pgext_missing_control" does not exist`})
+				s.Prepared, s.ErrorStage = prepared, "execute"
+				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
+			}
 		}
 		if !b.PG {
 			// These unchanged command families remain outside native admission.
 			for _, tc := range []struct{ query, code, message, position string }{
-				{"ALTER EXTENSION pgext_missing_control UPDATE", "0A000", "statement is unsupported", "1"},
 				{"LOAD 'pgext_missing_library'", "42601", "syntax error at or near \"LOAD\"", "1"},
 			} {
 				for _, prepared := range []bool{false, true} {

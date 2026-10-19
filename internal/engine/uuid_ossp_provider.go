@@ -14,6 +14,9 @@ type uuidOsspProvider struct{ control catalog.ExtensionControl }
 
 // Control implements extensionImplementation.
 func (p *uuidOsspProvider) Control() catalog.ExtensionControl { return p.control.Detached() }
+func (p *uuidOsspProvider) Versions() catalog.ExtensionVersions {
+	return catalog.ExtensionVersions{Bases: []string{"1.1"}}
+}
 
 var stockUUIDOssp = &uuidOsspProvider{control: catalog.ExtensionControl{Version: "1.1", Trusted: true, Superuser: true, Relocatable: true, Comment: new("generate universally unique identifiers (UUIDs)")}}
 

@@ -424,6 +424,14 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 		expression = e
 	case catalogForeignKeysExpression:
 		expression = e
+	case extensionPathsExpression:
+		arg, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
+		if failure != nil {
+			return nil, false, failure
+		}
+		e.arg = arg
+		changed = changed || did
+		expression = e
 	case transactionIdentityExpression:
 		if e.arg != nil {
 			arg, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
@@ -775,7 +783,7 @@ func conditionalConstantInputs(node expr.Expr) bool {
 			}
 		}
 		return true
-	case catalogUserNameExpression, catalogForeignKeysExpression, transactionIdentityExpression, commitTimestampExpression, objectAddressExpression:
+	case catalogUserNameExpression, catalogForeignKeysExpression, extensionPathsExpression, transactionIdentityExpression, commitTimestampExpression, objectAddressExpression:
 		return false
 	case installedSoundexFunctionExpression:
 		for _, arg := range e.Args {

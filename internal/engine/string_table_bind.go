@@ -15,6 +15,9 @@ func isStringSet(expr expr.Expr) bool {
 	return ok && e.Plan.Name() == "string_to_table"
 }
 func isQuerySet(expr expr.Expr) bool {
+	if _, ok := expr.(extensionPathsExpression); ok {
+		return true
+	}
 	if _, ok := expr.(catalogForeignKeysExpression); ok {
 		return true
 	}
@@ -40,7 +43,7 @@ func isQuerySet(expr expr.Expr) bool {
 }
 func validFunctionSourceCall(expr expr.Expr) bool {
 	switch call := expr.(type) {
-	case functions.JSONBPathQuery, catalogUserNameExpression, catalogForeignKeysExpression:
+	case functions.JSONBPathQuery, catalogUserNameExpression, catalogForeignKeysExpression, extensionPathsExpression:
 		return true
 	case functions.ACLValue:
 		return call.Kind != functions.ACLContains
@@ -118,6 +121,8 @@ func functionCallArguments(bound expr.Expr) []expr.Expr {
 		return []expr.Expr{call.arg}
 	case catalogForeignKeysExpression:
 		return nil
+	case extensionPathsExpression:
+		return []expr.Expr{call.arg}
 	case functions.ACLValue:
 		return call.Children()
 	case objectAddressExpression:
@@ -181,6 +186,12 @@ func withFunctionCallArguments(bound expr.Expr, args []expr.Expr) (expr.Expr, er
 		if len(args) != 0 {
 			return nil, fmt.Errorf("stuntgres: invalid catalog foreign-key arguments")
 		}
+		return call, nil
+	case extensionPathsExpression:
+		if len(args) != 1 {
+			return nil, fmt.Errorf("stuntgres: invalid extension path arguments")
+		}
+		call.arg = args[0]
 		return call, nil
 	case functions.ACLValue:
 		if len(args) != len(call.Children()) {

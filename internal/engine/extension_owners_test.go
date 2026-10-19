@@ -59,10 +59,12 @@ func TestExtensionOwnerManifestAdmission(t *testing.T) {
 	intarray, intarrayExt, _ := intarrayUnitInstalled(t)
 	crypto, cryptoExt := pgcryptoUnitInstalled(t)
 	intagg, intaggExt := intaggUnitInstalled(t)
+	fuzzyBase, _, fuzzyBaseExt := extensionVersionUnitInstalled(t, "1.1")
+	fuzzyUpdated, _, fuzzyUpdatedExt := extensionVersionUnitInstalled(t, "1.2")
 	for _, installed := range []struct {
 		e   *Engine
 		ext *catalog.Extension
-	}{{unaccent, unaccentExt}, {intarray, intarrayExt}, {crypto, cryptoExt}, {intagg, intaggExt}} {
+	}{{unaccent, unaccentExt}, {intarray, intarrayExt}, {crypto, cryptoExt}, {intagg, intaggExt}, {fuzzyBase, fuzzyBaseExt}, {fuzzyUpdated, fuzzyUpdatedExt}} {
 		metadata, err := extensionOwnerMetadata(installed.e.CatalogRead(), installed.e.Roles(), installed.ext)
 		if err != nil {
 			t.Fatal(err)
@@ -71,13 +73,20 @@ func TestExtensionOwnerManifestAdmission(t *testing.T) {
 		if err != nil || !found {
 			t.Fatal("valid manifest rejected", installed.ext.Name(), err)
 		}
-		for _, kind := range []string{"version", "missing", "extra", "duplicate", "name", "signature", "foreign_procedure", "foreign_dictionary", "foreign_type", "owner"} {
-			t.Run(record.Name+"/"+kind, func(t *testing.T) {
+		for _, kind := range []string{"version", "graph_only", "missing", "extra", "duplicate", "name", "signature", "foreign_procedure", "foreign_dictionary", "foreign_type", "owner", "dm_in_base"} {
+			t.Run(record.Name+"/"+record.Version+"/"+kind, func(t *testing.T) {
 				bad := record
 				bad.Members = slices.Clone(record.Members)
 				switch kind {
 				case "version":
 					bad.Version = "missing"
+				case "graph_only":
+					bad.Version = "1.0"
+				case "dm_in_base":
+					if record.Name != "fuzzystrmatch" || record.Version != "1.1" {
+						return
+					}
+					bad.Members[0] = extensionMemberOwner{Kind: "procedure", Name: "daitch_mokotoff", Signature: "25", Owner: "postgres"}
 				case "missing":
 					bad.Members = bad.Members[1:]
 				case "extra":
@@ -110,6 +119,7 @@ func TestExtensionOwnerManifestAdmission(t *testing.T) {
 			})
 		}
 	}
+	extensionVersionOwnerImports(t)
 }
 
 func TestPgcryptoControlRemap(t *testing.T) {

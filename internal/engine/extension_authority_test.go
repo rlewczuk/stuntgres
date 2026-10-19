@@ -19,7 +19,17 @@ func extensionUnitExecute(t *testing.T, e *Engine, op *Operation, stmt parser.St
 	if err != nil {
 		return err
 	}
+	finished := false
+	defer func() {
+		// A malformed unit AST or an unexpected engine panic must not leave
+		// statement admission held while roleOperation closes the session.
+		// Preserve the panic; this defer only performs the normal scope unwind.
+		if !finished {
+			_ = scope.Finish(errors.New("stuntgres: extension unit statement unwound"))
+		}
+	}()
 	_, err = scope.Execute(stmt, 0, nil)
+	finished = true
 	return scope.Finish(err)
 }
 func extensionUnitGrant(name string, role string) *parser.ObjectGrant {

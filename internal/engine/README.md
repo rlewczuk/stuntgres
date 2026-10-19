@@ -88,6 +88,26 @@ make check RACE=1 RUN='^TestSessionTimeout(ResidualBefore(Statement|Idle)|Pendin
 Each selected invocation needs an external 900-second deadline. Public portable
 timeout contracts remain dual-mode tests in `reference/session_state`.
 
+Extension versions use one immutable catalog inventory and the existing
+statement-owned catalog stage. Only base-reachable graph edges require typed
+actions; fuzzy1.1→1.2 creates the real DM member. UPDATE retains exact extension
+and predecessor-member read fences (including ACLs) from the staged snapshot,
+not newer descriptors observed after outside-lock provider validation.
+Old members are fences, not redundant replacements. CREATE/UPDATE share final
+authority/name/epoch publication; no retry, second registry or script runner.
+
+Selected unit proof:
+```sh
+make check RUN='^(TestExtensionVersion(Graph|Manifest|Publication|PathsConsumers)|TestExtensionOwnerManifestAdmission|TestAvailableExtensions(Projection|Capture|StatementFrontier))$'
+make check RACE=1 RUN='^(TestExtensionVersionPublication|TestAvailableExtensionsStatementFrontier)$'
+```
+Use external900-second deadlines. Graph tests cover topology/detachment and
+registration/action validation; manifest/owner tests use genuine providers
+and version-specific nine/ten members. Publication tests gate genuine validation
+outside the mutex, then perform real competing updates, ACL/role mutations,
+Reset/replacement or cancellation, retaining exact winner consumers/data.
+Public SQL/control proof stays in `reference/catalogs/extension_version_*`.
+
 ### Relation lock timeout mechanics
 
 Relation-lock timeout units observe completion and lock state together in short

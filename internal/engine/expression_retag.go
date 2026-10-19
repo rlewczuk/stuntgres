@@ -623,6 +623,19 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			return node, false, err
 		}
 		rebound = n
+	case extensionPathsExpression:
+		n.arg = child(n.arg)
+		if err != nil {
+			return node, false, err
+		}
+		if !changed {
+			return node, false, nil
+		}
+		n.Info = info
+		if err := n.validate(); err != nil {
+			return node, false, err
+		}
+		rebound = n
 	case transactionIdentityExpression:
 		if n.arg != nil {
 			n.arg = child(n.arg)

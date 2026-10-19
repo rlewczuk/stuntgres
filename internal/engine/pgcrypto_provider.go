@@ -13,6 +13,9 @@ type pgcryptoProvider struct{ control catalog.ExtensionControl }
 
 // Control implements extensionImplementation.
 func (p *pgcryptoProvider) Control() catalog.ExtensionControl { return p.control.Detached() }
+func (p *pgcryptoProvider) Versions() catalog.ExtensionVersions {
+	return catalog.ExtensionVersions{Bases: []string{"1.4"}}
+}
 
 var stockPgcrypto = &pgcryptoProvider{control: catalog.ExtensionControl{Version: "1.4", Trusted: true, Superuser: true, Relocatable: true, Comment: new("cryptographic functions")}}
 

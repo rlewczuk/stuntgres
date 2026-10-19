@@ -219,6 +219,14 @@ type DropExtension struct {
 
 func (*DropExtension) statement() {}
 
+type AlterExtensionUpdate struct {
+	Name    Identifier
+	Options []ExtensionOption
+	Pos     Position
+}
+
+func (*AlterExtensionUpdate) statement() {}
+
 // TypeName is syntax, not a resolved catalog type.
 type TypeName struct {
 	Name        string

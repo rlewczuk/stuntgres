@@ -28,6 +28,8 @@ func (c ExtensionControl) Detached() ExtensionControl {
 type ExtensionImplementation interface {
 	// Control returns the extension's control metadata as a detached copy.
 	Control() ExtensionControl
+	// Versions returns detached explicit bases and directed script metadata.
+	Versions() ExtensionVersions
 	// ValidateExtension checks an installed extension's manifest.
 	ValidateExtension(Read, *Extension) error
 }

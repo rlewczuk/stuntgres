@@ -15,6 +15,9 @@ type intarrayProvider struct{ control catalog.ExtensionControl }
 
 // Control implements extensionImplementation.
 func (p *intarrayProvider) Control() catalog.ExtensionControl { return p.control.Detached() }
+func (p *intarrayProvider) Versions() catalog.ExtensionVersions {
+	return catalog.ExtensionVersions{Bases: []string{"1.5"}}
+}
 
 var stockIntarray = &intarrayProvider{control: catalog.ExtensionControl{Version: "1.5", Trusted: true, Superuser: true, Relocatable: true, Comment: new("functions, operators, and index support for 1-D arrays of integers")}}
 

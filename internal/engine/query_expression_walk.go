@@ -127,6 +127,8 @@ func boundExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
 	case catalogUserNameExpression:
 		walk(e.arg)
 	case catalogForeignKeysExpression:
+	case extensionPathsExpression:
+		walk(e.arg)
 	case transactionIdentityExpression:
 		if e.arg != nil {
 			walk(e.arg)

@@ -61,12 +61,17 @@ func (b *expressionBinder) bindCatalogRelation(raw parser.FunctionExpr) (expr.Ex
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	scalar := name == "pg_get_userbyid"
 	set := name == "pg_get_catalog_foreign_keys"
-	if !visible || !scalar && !set || scalar && len(raw.Args) != 1 || set && len(raw.Args) != 0 || len(raw.ArgNames) != 0 || raw.Variadic || raw.ResolutionOnly {
+	paths := name == "pg_extension_update_paths"
+	if !visible || !scalar && !set && !paths || (scalar || paths) && len(raw.Args) != 1 || set && len(raw.Args) != 0 || len(raw.ArgNames) != 0 || raw.Variadic || raw.ResolutionOnly {
 		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
 	var arg expr.Expr
-	if scalar {
-		target := b.typ(sqltype.Oid).Usage()
+	if scalar || paths {
+		targetID := sqltype.Oid
+		if paths {
+			targetID = sqltype.Name
+		}
+		target := b.typ(targetID).Usage()
 		arg, err = b.finalizeOperand(operand, target.Type)
 		if err != nil {
 			return nil, err
@@ -103,6 +108,9 @@ func (b *expressionBinder) bindCatalogRelation(raw parser.FunctionExpr) (expr.Ex
 	}
 	if err := b.stringSetAllowed(raw.Pos); err != nil {
 		return nil, err
+	}
+	if paths {
+		return b.bindExtensionPaths(raw, arg)
 	}
 	members := []sqltype.CompositeMember{
 		{Attribute: 1, Name: "fktable", Usage: b.typ(sqltype.Regclass).Usage()},

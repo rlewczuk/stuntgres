@@ -224,6 +224,12 @@ func openFunctionCall(c *EvalContext, expression expr.Expr) (functionSetCursor, 
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{catalogKeys: call.metadata, kind: functionCatalogKeysCursor, initialized: true}, nil
+	case extensionPathsExpression:
+		rows, err := call.open(c)
+		if err != nil {
+			return functionSetCursor{}, err
+		}
+		return functionSetCursor{owned: rows, kind: functionOwnedSetCursor, initialized: true}, nil
 	case transactionIdentityExpression:
 		if call.kind == identityMembers {
 			rows, err := call.openMembers(c)

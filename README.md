@@ -4683,13 +4683,25 @@ consumers; a conflicting imported global extension name or foreign TEMP transfer
 fails atomically rather than substituting session authority.
 PostgreSQL ignores native ownership comments and uses ordinary installation
 ownership on SQL replay. General FUNCTION/text-search DDL, internal SQL codecs,
-ALTER/DROP/UPDATE EXTENSION and arbitrary/native-ABI loaders remain
-excluded. See [registered extensions](https://www.postgresql.org/docs/18/sql.html)
+other ALTER EXTENSION operations and arbitrary/native-ABI loaders remain
+excluded; bounded version UPDATE and installed-extension DROP are supported.
+See [registered extensions](https://www.postgresql.org/docs/18/sql.html)
 and [selected proof](reference/catalogs/README.md#registered-extension-selected-proof).
 
 Change note: `CREATE EXTENSION fuzzystrmatch [WITH SCHEMA schema]
-[VERSION '1.2']` installs `daitch_mokotoff(text) RETURNS text[]`, the four
-Levenshtein overloads, three Metaphone signatures, and two Soundex signatures below.
+[VERSION '1.1' | VERSION '1.2']` installs the released selected definition.
+Version1.1 has nine functions: four Levenshtein overloads, three Metaphone
+signatures and two Soundex signatures. `ALTER EXTENSION fuzzystrmatch UPDATE
+[TO '1.2']` genuinely creates `daitch_mokotoff(text) RETURNS text[]` and advances
+the installed version atomically, preserving the extension and old member
+identities, ownership, ACLs and stored consumers. Version1.2 is the default;
+explicit/default1.2 CREATE executes the same base1.1→1.2 transition privately.
+Failure, cancellation or a competing publication leaves no partial update.
+Updates require ownership and, for an ordinary trusted updater running a script,
+actual database CREATE. New trusted-script members are bootstrap-owned; old
+member owners remain unchanged. Same-version UPDATE emits a NOTICE without
+requiring a new database CREATE grant. Dump records the installed VERSION,
+not update history; both1.1 and1.2 restore genuine definitions before consumers.
 This selected immutable, strict, parallel-safe provider preserves every six-digit
 alternative in PostgreSQL's element order: John returns `{160000,460000}` and
 Bierschbach returns all eight published codes. NULL, empty and unencodable-only
@@ -4949,12 +4961,14 @@ pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGExtensionFeatur
 **Available-extension metadata change note:** `pg_catalog.pg_available_extensions`
 and `pg_catalog.pg_available_extension_versions` are readonly PUBLIC SELECT views
 over the same immutable embedded registry used by installation. The native
-universe is genuine unaccent1.1, selected-type intarray1.5, selected-function fuzzystrmatch1.2 and bounded pgcrypto1.4,
-with their released control comments and superuser/trusted/relocatable flags.
-The intarray/pgcrypto comments do not promise their stock complete native object
-inventories. hstore, file_fdw and plpgsql are not invented.
-Default/available version and actual installed version are distinct. Control
-schema/dependencies remain NULL for all four providers even when installed elsewhere.
+universe has seven providers: cube1.5, unaccent1.1, selected-type intarray1.5,
+selected-function fuzzystrmatch1.1/1.2, intagg1.1, pgcrypto1.4 and uuid-ossp1.1,
+with released control comments and superuser/trusted/relocatable flags. The
+comments do not promise complete upstream member inventories. hstore, file_fdw
+and plpgsql are not invented. The default view has seven rows; the versions view
+has eight. Default, available and actual installed versions are distinct.
+Control schema/dependencies remain NULL for all seven providers even when
+installed elsewhere.
 Metadata is not filtered by member namespace privileges or TEMP ownership;
 ordinary relation admission and SQL predicates still apply.
 Both availability views and `pg_extension` share one caller-visible installed-state
@@ -4963,6 +4977,19 @@ affects the next execution, not later occurrences in the same statement.
 See [fields, visibility and controls](https://www.postgresql.org/docs/18/catalogs.html).
 Feature smoke: `make check RUN='^TestReferenceAvailableExtensionsFeatureSmoke$'`;
 add `REFERENCE=1` for the pinned counterpart.
+
+`pg_catalog.pg_extension_update_paths(name)` is a STABLE, STRICT record SRF
+with TEXT source/target/path columns. The fuzzy graph has1.0→1.1→1.2 and all
+six ordered distinct pairs; unreachable paths are NULL. Graph-only1.0 records
+the shipped parallel-safety script but has no base installation and cannot
+be installed/restored. Only1.1→1.2 is executable from an admitted fuzzy
+manifest. Other native providers explicitly expose only their current base
+and no edges; this is an embedded inventory, not an OS package scan. In
+particular real PostgreSQL has additional historical unaccent graph metadata.
+There is no empty-action fallback, arbitrary SQL-script interpreter, old
+provider-file provisioning or shared-library loading.
+Selected proof: [extension versions](reference/catalogs/README.md#extension-version-selected-proof).
+
 
 **Pgcrypto change note:** installed pgcrypto1.4 supplies fourteen PARALLEL SAFE
 scalar overloads: immutable digest(TEXT,TEXT), digest(BYTEA,TEXT),

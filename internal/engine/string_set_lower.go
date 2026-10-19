@@ -34,6 +34,9 @@ func sameQuerySetOccurrence(a, b expr.Expr) bool {
 	case catalogForeignKeysExpression:
 		second, ok := b.(catalogForeignKeysExpression)
 		return ok && sqltype.SameRecordUsage(first.ResultUsage(), second.ResultUsage())
+	case extensionPathsExpression:
+		second, ok := b.(extensionPathsExpression)
+		return ok && sqltype.SameRecordUsage(first.ResultUsage(), second.ResultUsage())
 	case functions.JSONBPathQuery:
 		second, ok := b.(functions.JSONBPathQuery)
 		return ok && first.ResultUsage() == second.ResultUsage()

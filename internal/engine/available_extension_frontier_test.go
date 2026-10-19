@@ -96,11 +96,24 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					expected["fuzzystrmatch"] = []any{"fuzzystrmatch", "1.2", false, true, true, true, nil, nil, "determine similarities and distance between strings"}
 					expected["pgcrypto"] = []any{"pgcrypto", "1.4", false, true, true, true, nil, nil, "cryptographic functions"}
 					expected["uuid-ossp"] = []any{"uuid-ossp", "1.1", false, true, true, true, nil, nil, "generate universally unique identifiers (UUIDs)"}
+					versions := make(map[string][]any, len(expected)+1)
+					for name, row := range expected {
+						versions[name+"\x00"+row[1].(string)] = row
+					}
+					expected = versions
+					expected["fuzzystrmatch\x001.1"] = []any{"fuzzystrmatch", "1.1", false, true, true, true, nil, nil, "determine similarities and distance between strings"}
 				}
 				for _, row := range source.anonymous {
 					name, err := row[0].Text()
 					if err != nil {
 						t.Fatal("inventory name", oid, err)
+					}
+					if oid == 12085 {
+						version, versionErr := row[1].Text()
+						if versionErr != nil {
+							t.Fatal(versionErr)
+						}
+						name += "\x00" + version
 					}
 					want, ok := expected[name]
 					if !ok || len(row) != len(want) {
@@ -151,4 +164,5 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 			}
 		})
 	}
+	t.Run("version_update", extensionVersionAvailableFrontier)
 }

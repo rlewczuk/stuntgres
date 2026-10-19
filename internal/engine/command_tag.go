@@ -138,6 +138,8 @@ func classifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 		base = "CREATE EXTENSION"
 	case *parser.DropExtension:
 		base = "DROP EXTENSION"
+	case *parser.AlterExtensionUpdate:
+		base = "ALTER EXTENSION"
 	case *parser.AlterOwner:
 		// Keep the ownership family closed rather than uppercasing arbitrary AST text.
 		switch s.Kind {

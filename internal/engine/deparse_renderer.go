@@ -817,6 +817,9 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		return function("pg_get_userbyid", args[:], true)
 	case catalogForeignKeysExpression:
 		return function("pg_get_catalog_foreign_keys", nil, true)
+	case extensionPathsExpression:
+		args := [1]expr.Expr{n.arg}
+		return function("pg_extension_update_paths", args[:], true)
 	case transactionIdentityExpression:
 		if n.arg == nil {
 			return function(n.kind.name(), nil, true)

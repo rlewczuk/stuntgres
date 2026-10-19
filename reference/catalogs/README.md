@@ -61,6 +61,50 @@ in both modes: expect the authentic edge count1 before RESTRICT, count0 after
 private/committed CHECK pruning, the same edge/identities after rollback,
 unchanged Hotel/NULL rows and Hôtel acceptance only after CHECK removal.
 
+### Extension version selected proof
+
+The six untagged `TestReferenceExtensionVersion...` definitions independently
+specify CREATE1.1/1.2/default and genuine fuzzy1.1→1.2 DM creation, unchanged
+old-nine identities/ownership/EXECUTE privileges, direct/new/held statements,
+strict NULL/empty arrays, exact metadata and six directed graph pairs.
+They retain complete English diagnostics/notices, authority and transaction
+rollback, real PostgreSQL loose-member conflict, native control replay of both
+versions with stored consumers/data/named owners, and zero-byte TEMP portability.
+PostgreSQL supplies broader OS inventories; native current-only unaccent paths
+are intentionally empty. Fuzzy1.0 is graph-only and never installable.
+Missing-provider path queries require the same complete `0A000` diagnostic on
+both backends, including PostgreSQL's system-installation Hint and empty Detail;
+no host-specific file path is fabricated.
+The genuine native competing-update/ACL/role/namespace/epoch/cancellation
+counterparts live in package units, not fake loose provider setup.
+Native Restore conflict proof recreates an actually captured named extension
+owner during external input and verifies exact incumbent1.1 extension/member
+identities, stored consumers/data and DM absence after rejection. Restore
+captures principal incarnations, not a global all-DDL catalog predecessor;
+the fixture does not invent an arbitrary concurrent-CREATE rejection contract.
+The SRF's set-returning contract is asserted through exact rows, RECORD values,
+ordinality and strict-NULL results, not an unsupported native pg_proc column.
+
+```sh
+make check RUN='^TestReferenceExtensionVersion(InstallAndUpdate|PathsAndMetadata)$'
+make check REFERENCE=1 RUN='^TestReferenceExtensionVersion(InstallAndUpdate|PathsAndMetadata)$'
+make check RUN='^TestReferenceExtensionVersion(DiagnosticsAndConflict|TransactionsAndAuthority|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceExtensionVersion(DiagnosticsAndConflict|TransactionsAndAuthority|Controls|FeatureSmoke)$'
+make check RUN='^TestReference(AvailableExtensionsFiltering|PGExtensionCommandBoundaries)$'
+make check REFERENCE=1 RUN='^TestReference(AvailableExtensionsFiltering|PGExtensionCommandBoundaries)$'
+```
+
+Use external900-second deadlines. Oracle-first discovery establishes independent
+expectations; both selected native and real modes must pass again after affected
+definition or implementation edits. Discovery is not final verification.
+Feature smoke selector: `^TestReferenceExtensionVersionFeatureSmoke$`.
+The standalone public consumer source is session evidence
+`local://ext-version-smoke.go`, materialized as `/tmp/pg18-ext-version-smoke.go`
+and invoked from the repository root with
+`timeout 900s go run /tmp/pg18-ext-version-smoke.go`. It stays quiet on success
+and exits nonzero on any identity/result/path/control mismatch.
+
+
 ### Type catalog metadata and proof
 
 `TestReferencePGTypeShape`, `TestReferencePGTypeBuiltins`,

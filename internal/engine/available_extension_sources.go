@@ -39,11 +39,23 @@ func captureAvailableExtensions(ctx context.Context, registry map[string]catalog
 		}
 		address := catalog.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: name})
 		installed, _ := catalog.Extension(address)
-		row, err := projectAvailableExtension(name, implementation.Control(), installed, source)
-		if err != nil {
-			return nil, err
+		control := implementation.Control()
+		if source.Address().ObjectID == 12085 {
+			for _, version := range implementation.Versions().Installable() {
+				control.Version = version
+				row, err := projectAvailableExtension(name, control, installed, source)
+				if err != nil {
+					return nil, err
+				}
+				rows = append(rows, row)
+			}
+		} else {
+			row, err := projectAvailableExtension(name, control, installed, source)
+			if err != nil {
+				return nil, err
+			}
+			rows = append(rows, row)
 		}
-		rows = append(rows, row)
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err

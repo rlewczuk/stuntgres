@@ -14,6 +14,9 @@ type intaggProvider struct{ control catalog.ExtensionControl }
 
 // Control implements extensionImplementation.
 func (p *intaggProvider) Control() catalog.ExtensionControl { return p.control.Detached() }
+func (p *intaggProvider) Versions() catalog.ExtensionVersions {
+	return catalog.ExtensionVersions{Bases: []string{"1.1"}}
+}
 
 var stockIntagg = &intaggProvider{control: catalog.ExtensionControl{Version: "1.1", Superuser: true, Relocatable: true, Comment: new("integer aggregator and enumerator (obsolete)")}}
 

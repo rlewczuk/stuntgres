@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -29,6 +28,12 @@ func (e *Engine) registerExtension(name string, implementation extensionInstalle
 	if name == "" || implementation == nil || implementation.Control().Version == "" {
 		return fmt.Errorf("stuntgres: invalid extension registration")
 	}
+	if catalog.ExtensionNameDetail(name, false) != "" {
+		return fmt.Errorf("stuntgres: invalid extension registration name")
+	}
+	if err := validateExtensionActions(implementation); err != nil {
+		return err
+	}
 	if e.catalog.Extensions == nil {
 		e.catalog.Extensions = make(map[string]catalog.ExtensionImplementation)
 	}
@@ -49,13 +54,33 @@ func (e *Engine) executeExtension(scope *StatementScope, s *parser.CreateExtensi
 	if err != nil || stage == nil {
 		return Result{}, err
 	}
+	return e.publishExtensionStage(scope, stage)
+}
+
+// CREATE and UPDATE publish through the same validated statement-owned changes.
+// Provider callbacks run in ValidateCatalogStage outside the engine mutex.
+func (e *Engine) publishExtensionStage(scope *StatementScope, stage *CatalogStage) (Result, error) {
 	defer e.DiscardCatalogStage(stage)
-	if _, err = e.ValidateCatalogStage(scope.op.Context(), stage); err != nil {
+	if _, err := e.ValidateCatalogStage(scope.op.Context(), stage); err != nil {
 		return Result{}, err
 	}
 	e.mu.Lock()
 	changes := cloneCatalogChanges(scope.owner.catalog)
 	for a, d := range stage.Descriptors {
+		// Validation ran without the mutex. Capture the stage's exact
+		// predecessor, never whatever a peer published during validation.
+		if _, captured := changes.originals[a]; !captured {
+			changes.originals[a] = stage.Base.Get(a)
+		}
+		if _, extension := d.(*catalog.Extension); extension {
+			if old, exists := stage.Base.Extension(a); exists {
+				for _, member := range old.Members {
+					if _, captured := changes.originals[member]; !captured {
+						changes.originals[member] = stage.Base.Get(member)
+					}
+				}
+			}
+		}
 		e.catalogChangeLocked(changes, a, d)
 	}
 	for key, original := range stage.Touched {
@@ -106,21 +131,11 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 			return nil, fmt.Errorf("stuntgres: invalid extension option")
 		}
 	}
-	detail := ""
-	switch {
-	case version == "":
-		detail = "Version names must not be empty."
-	case strings.Contains(version, "--"):
-		detail = `Version names must not contain "--".`
-	case strings.ContainsAny(version, "/\\"):
-		detail = "Version names must not contain directory separator characters."
-	case strings.HasPrefix(version, "-") || strings.HasSuffix(version, "-"):
-		detail = `Version names must not begin or end with "-".`
+	if err := extensionVersionError(version); err != nil {
+		return nil, err
 	}
-	if detail != "" {
-		return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid extension version name: "%s"`, version), Detail: detail}
-	}
-	if version != registration.Version {
+	path := implementation.Versions().InstallPath(version)
+	if path == nil {
 		return nil, sqlError("22023", fmt.Sprintf(`extension "%s" has no installation script nor update path for version "%s"`, s.Name.Text, version))
 	}
 	var namespace ids.ObjectAddress
@@ -167,7 +182,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	if err != nil {
 		return nil, err
 	}
-	ext := &catalog.Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: oid}, ObjectRevision: rev, ObjectName: s.Name.Text, Version: version, TargetNamespace: namespace, Owner: actor.Ref}
+	ext := &catalog.Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: oid}, ObjectRevision: rev, ObjectName: s.Name.Text, Version: path[0], TargetNamespace: namespace, Owner: actor.Ref}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
 	stage.extensionNamespace = namespace
@@ -175,6 +190,9 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 		return nil, err
 	}
 	if err := installer.stage(e, stage, ext, memberOwner, auth); err != nil {
+		return nil, err
+	}
+	if err := stageExtensionPath(op.Context(), e, stage, implementation, ext, memberOwner, auth, path); err != nil {
 		return nil, err
 	}
 	return stage, nil

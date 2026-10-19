@@ -121,6 +121,15 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 			return "", err
 		}
 		return r.functionSQL(ctx, view, "pg_catalog.pg_get_catalog_foreign_keys", nil)
+	case extensionPathsExpression:
+		if r.commentSnapshot != nil {
+			*r.commentSnapshot = true
+		}
+		if err := n.validate(); err != nil {
+			return "", err
+		}
+		args := [1]expr.Expr{n.arg}
+		return r.functionSQL(ctx, view, "pg_catalog.pg_extension_update_paths", args[:])
 	case transactionIdentityExpression:
 		if err := n.validate(); err != nil {
 			return "", err

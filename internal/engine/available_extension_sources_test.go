@@ -73,7 +73,11 @@ func availableUnitExpected(t *testing.T, e *Engine, catalog catalog.Read, versio
 	for _, oid := range []ids.OID{12081, 12085} {
 		d, ref := availableUnitSource(e, oid)
 		source, err := captureAvailableExtensions(context.Background(), e.catalog.Extensions, catalog, ref, d)
-		if err != nil || source == nil || source.count() != 7 || source.ref != ref {
+		wantCount := 7
+		if oid == 12085 {
+			wantCount = 8
+		}
+		if err != nil || source == nil || source.count() != wantCount || source.ref != ref {
 			t.Fatal("capture", source, err)
 		}
 		expected := map[string][]any{
@@ -93,11 +97,24 @@ func availableUnitExpected(t *testing.T, e *Engine, catalog catalog.Read, versio
 			expected["fuzzystrmatch"] = []any{"fuzzystrmatch", "1.2", false, true, true, true, nil, nil, "determine similarities and distance between strings"}
 			expected["pgcrypto"] = []any{"pgcrypto", "1.4", false, true, true, true, nil, nil, "cryptographic functions"}
 			expected["uuid-ossp"] = []any{"uuid-ossp", "1.1", false, true, true, true, nil, nil, "generate universally unique identifiers (UUIDs)"}
+			versions := make(map[string][]any, len(expected)+1)
+			for name, row := range expected {
+				versions[name+"\x00"+row[1].(string)] = row
+			}
+			expected = versions
+			expected["fuzzystrmatch\x001.1"] = []any{"fuzzystrmatch", "1.1", false, true, true, true, nil, nil, "determine similarities and distance between strings"}
 		}
 		for _, row := range source.anonymous {
 			name, err := row[0].Text()
 			if err != nil {
 				t.Fatal(err)
+			}
+			if oid == 12085 {
+				version, versionErr := row[1].Text()
+				if versionErr != nil {
+					t.Fatal(versionErr)
+				}
+				name += "\x00" + version
 			}
 			want, ok := expected[name]
 			if !ok {

@@ -207,6 +207,12 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 			return failure
 		}
 		out.WriteString("CatalogForeignKeys")
+	case extensionPathsExpression:
+		if failure := n.validate(); failure != nil {
+			return failure
+		}
+		out.WriteString("ExtensionPaths")
+		err = child(n.arg)
 	case transactionIdentityExpression:
 		out.WriteString("TransactionIdentity " + n.kind.name())
 		if n.arg != nil {

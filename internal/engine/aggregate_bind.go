@@ -337,6 +337,9 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 	case catalogUserNameExpression:
 		o, ok := other.(catalogUserNameExpression)
 		return ok && same(e.arg, o.arg)
+	case extensionPathsExpression:
+		o, ok := other.(extensionPathsExpression)
+		return ok && same(e.arg, o.arg)
 	case catalogForeignKeysExpression:
 		_, ok := other.(catalogForeignKeysExpression)
 		return ok
@@ -711,6 +714,10 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		e.arg = rewrite(e.arg)
 		stage(&e.Info)
 		bound = e
+	case extensionPathsExpression:
+		e.arg = rewrite(e.arg)
+		stage(&e.Info)
+		bound = e
 	case catalogForeignKeysExpression:
 		stage(&e.Info)
 		bound = e
@@ -942,6 +949,8 @@ func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 			walk(arg)
 		}
 	case catalogUserNameExpression:
+		walk(e.arg)
+	case extensionPathsExpression:
 		walk(e.arg)
 	case catalogForeignKeysExpression:
 	case transactionIdentityExpression:

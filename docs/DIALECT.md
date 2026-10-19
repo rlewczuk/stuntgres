@@ -1312,10 +1312,32 @@ those windows; native does not implement another array/window runtime.
 
 ## Daitch–Mokotoff installed function
 
-The fuzzystrmatch1.2 provider installs exactly ten overloads:
-`daitch_mokotoff(text) RETURNS text[]`, four INT4 Levenshtein signatures,
-three TEXT Metaphone signatures and the two Soundex signatures below,
-not the complete upstream extension.
+The fuzzystrmatch provider has a real1.1 base with nine selected overloads:
+four INT4 Levenshtein signatures, three TEXT Metaphone signatures and two
+Soundex signatures. Its real1.1→1.2 update creates
+`daitch_mokotoff(text) RETURNS text[]`, yielding ten selected overloads,
+not the complete upstream extension. CREATE defaults to1.2 and executes the
+same base/update path; VERSION1.1 deliberately has no DM function.
+ALTER EXTENSION UPDATE [TO version] runs through the same private validated
+catalog stage as CREATE, preserving extension/old member identities and ACLs.
+Owner and actual database CREATE authority apply; trusted elevation owns only
+the new member. Version and members publish atomically or not at all.
+Dump/Restore represents the installed version and genuine selected manifest.
+
+Availability distinguishes default, installable and installed versions.
+`pg_extension_update_paths(name)` reports directed shortest script-count paths
+as TEXT source/target/path records, including NULL for unreachable pairs and
+zero rows for strict NULL input. Fuzzy graph-only1.0→1.1 records a shipped
+parallel-safety script, not an executable action: no base reaches1.0, so it is
+not installable/importable. Other native providers have explicit current-only
+base inventories and no update edges. This is not an OS file inventory.
+No arbitrary script execution, library loading, historical adjacent-provider
+transitions, ALTER EXTENSION SET SCHEMA/ADD/DROP member commands or undocumented
+text_soundex alias is implied. Installed-extension DROP has its own dependency
+and removal contract.
+The excluded ALTER EXTENSION SET SCHEMA and ADD/DROP member routes retain
+the native parser boundary `0A000`, `statement is unsupported`, positioned at
+ALTER; supporting UPDATE does not enable relocation or membership changes.
 Installation is required; missing/off-path calls use normal function resolution.
 The immutable, strict, parallel-safe function emits all alternative six-digit
 codes in release order, with significant array element order and no truncation.
