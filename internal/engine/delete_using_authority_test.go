@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"testing"
 )
 
@@ -17,11 +18,11 @@ func TestDeleteUsingCandidateAuthorityRemainsStrict(t *testing.T) {
 	}
 	op, scope, b, target, inputs := updateFromBoundSources(t, e, session, context.Background(), "DELETE FROM t USING s WHERE id=k")
 	v := target.versionAt(target.rawIndex(0))
-	candidate := deleteCandidate{Ref: b.ref, Storage: b.storage, Row: v.Row, Version: v.Version, Ordinal: target.rawIndex(0)}
+	candidate := visibility.DeleteCandidate{Ref: b.ref, Storage: b.storage, Row: v.Row, Version: v.Version, Ordinal: target.rawIndex(0)}
 	if err := scope.acquireRow(candidate); err != nil {
 		t.Fatal(err)
 	}
-	for _, bad := range []deleteCandidate{
+	for _, bad := range []visibility.DeleteCandidate{
 		{Ref: b.ref, Storage: &storage.Relation{}, Row: v.Row, Version: v.Version, Ordinal: candidate.Ordinal},
 		{Ref: b.ref, Storage: b.storage, Row: v.Row, Version: v.Version + 1, Ordinal: candidate.Ordinal},
 		{Ref: b.ref, Storage: b.storage, Row: v.Row, Version: v.Version, Ordinal: candidate.Ordinal + 1},

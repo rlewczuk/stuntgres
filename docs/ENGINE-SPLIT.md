@@ -731,11 +731,11 @@ package-specific scope. This section holds the rules every session follows.
 |---|---|---|---|
 | 1 | [`ENGINE-SPLIT-ids.md`](ENGINE-SPLIT-ids.md) | — | done (1a–1d) |
 | 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | done (2a–2d) |
-| 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3, F4/F5 Tier A, Tier B, and aggregates and windows done; F2 eight of nine switches done (deparse and node tree through `expr.Rendering`); F2 stored scalar SQL next |
+| 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3, F4/F5 Tier A, Tier B, and aggregates and windows done; F2 switches done (`Arguments()` cleanup left); Tier C refinement next |
 | 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | done (4a–4c) |
 | 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | done (5a–5g) |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | done (6a–6c) |
-| 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | 7a and 7b done; 7c next |
+| 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | done (7a–7c) |
 | A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | done (A1, B0–B4) |
 
 Tracks may run in parallel only on separate branches. Do not run two broad

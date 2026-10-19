@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/visibility"
 )
 
 func blockingUnitSafeWant(t *testing.T, e *Engine, pid ids.SessionID, want ...int64) {
@@ -38,12 +39,12 @@ func TestBlockingPidsSafeAuthority(t *testing.T) {
 	writer, wt := blockingUnitOwner(t, e)
 	_, second := blockingUnitOwner(t, e)
 	typ := blockingUnitType(e)
-	r := &serializableTransaction{Ref: rt.Ref(), Captured: true, ReadOnly: true, Deferrable: true, Ready: make(chan struct{})}
-	w := &serializableTransaction{Ref: wt.Ref(), Captured: true}
-	w2 := &serializableTransaction{Ref: second.Ref(), Captured: true}
-	r.Possible = map[*serializableTransaction]struct{}{w: {}, w2: {}}
+	r := &visibility.SerializableTx{Ref: rt.Ref(), Captured: true, ReadOnly: true, Deferrable: true, Ready: make(chan struct{})}
+	w := &visibility.SerializableTx{Ref: wt.Ref(), Captured: true}
+	w2 := &visibility.SerializableTx{Ref: second.Ref(), Captured: true}
+	r.Possible = map[*visibility.SerializableTx]struct{}{w: {}, w2: {}}
 	e.mu.Lock()
-	e.visibility.Serializable.Nodes = map[ids.TxRef]*serializableTransaction{r.Ref: r, w.Ref: w, w2.Ref: w2}
+	e.visibility.Serializable.Nodes = map[ids.TxRef]*visibility.SerializableTx{r.Ref: r, w.Ref: w, w2.Ref: w2}
 	e.mu.Unlock()
 	blockingUnitSafeWant(t, e, reader.token.ID(), int64(writer.token.ID()), int64(second.Session().ID()))
 	blockingUnitWant(t, e, reader.token.ID()) // SSI must never invent ordinary locks.
@@ -84,7 +85,7 @@ func TestBlockingPidsSafeAuthority(t *testing.T) {
 	e.mu.Lock()
 	r.Resolved = false
 	r.Ready = make(chan struct{})
-	r.Possible = map[*serializableTransaction]struct{}{w: {}}
+	r.Possible = map[*visibility.SerializableTx]struct{}{w: {}}
 	e.visibility.Serializable.Nodes[r.Ref] = r
 	e.mu.Unlock()
 	blockingUnitSafeWant(t, e, reader.token.ID())
@@ -104,7 +105,7 @@ func TestBlockingPidsSafeAuthority(t *testing.T) {
 	delete(e.visibility.Serializable.Nodes, r.Ref)
 	r.Ref = withTxSession(r.Ref, reader.token)
 	e.visibility.Serializable.Nodes[r.Ref] = r
-	r.Possible = map[*serializableTransaction]struct{}{w: {}}
+	r.Possible = map[*visibility.SerializableTx]struct{}{w: {}}
 	_, err := e.safeSnapshotBlockingPidsLocked(reader.token.ID(), typ)
 	e.mu.Unlock()
 	if err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {

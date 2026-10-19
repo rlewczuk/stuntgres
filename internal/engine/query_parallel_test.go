@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
@@ -277,7 +278,7 @@ func TestQueryParallelSnapshot(t *testing.T) {
 			t.Fatal("workers did not enter")
 		}
 	}
-	pins := []*VisibilityView{states[0].source.view, states[1].source.view}
+	pins := []*visibility.View{states[0].source.view, states[1].source.view}
 	if pins[0] == pins[1] || pins[0].Data() != source.view.Data() || pins[1].Data() != source.view.Data() {
 		t.Fatal("pin/frontier isolation")
 	}

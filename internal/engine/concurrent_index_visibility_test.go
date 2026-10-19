@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/visibility"
 )
 
 func concurrentUnitSnapshotScope(t *testing.T, e *Engine, s *Session) (*StatementScope, *Operation, context.CancelFunc) {
@@ -168,7 +169,7 @@ func TestConcurrentIndexU3LateEndangeredEqualFrontier(t *testing.T) {
 	e.mu.Unlock()
 	// Phase reset withdraws all ordering/snapshot advertisement, not the
 	// registered ticket's canonical assignment association.
-	wantSelf := transactionVisibility{AssignedXID: builderVisibility.AssignedXID, FullXID: builderVisibility.FullXID, Ticket: scope.ticket}
+	wantSelf := visibility.Entry{AssignedXID: builderVisibility.AssignedXID, FullXID: builderVisibility.FullXID, Ticket: scope.ticket}
 	if !associated || builderVisibility.Ticket != scope.ticket || self != wantSelf || mirroredXID != wantSelf.AssignedXID {
 		t.Fatal("builder retained phase advertisement or lost canonical ticket association during older wait", self, wantSelf, mirroredXID)
 	}

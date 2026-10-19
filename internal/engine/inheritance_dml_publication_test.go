@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -41,7 +42,7 @@ func TestInheritanceDMLAtomicPublication(t *testing.T) {
 				store := s.mutationStorage(ref)
 				before[ref.Address] = append([]storage.RowVersion(nil), store.Versions...)
 				old := store.Versions[0]
-				if err = s.acquireRow(deleteCandidate{Ref: ref, Storage: store, Row: old.Row, Version: old.Version, Base: old.Base, Ordinal: 0}); err != nil {
+				if err = s.acquireRow(visibility.DeleteCandidate{Ref: ref, Storage: store, Row: old.Row, Version: old.Version, Base: old.Base, Ordinal: 0}); err != nil {
 					t.Fatal(err)
 				}
 				if err = s.Writes().replace(ref, []storage.RowVersion{old}, indexWriteBatch{values: [][]sqltype.Value{{inheritanceQueryInt(e, 30)}}}); err != nil {

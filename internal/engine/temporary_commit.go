@@ -5,12 +5,13 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 )
 
 // Prepare descriptor-owned actions only at an outer successful commit. The
 // transaction/savepoint roots remain untouched until the ordinary final install.
-func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges) (map[ids.ObjectAddress][]storage.RowVersion, map[ids.ObjectAddress]*privateDeletionRoot, *catalogChanges, error) {
+func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *catalogChanges) (map[ids.ObjectAddress][]storage.RowVersion, map[ids.ObjectAddress]*visibility.PrivateDeletes, *catalogChanges, error) {
 	e.mu.Lock()
 	if ref.Epoch() != e.catalog.state.Epoch() {
 		e.mu.Unlock()
@@ -86,7 +87,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 			}
 			if deleted != nil || nextDeletes != nil {
 				if nextDeletes == nil {
-					nextDeletes = make(map[ids.ObjectAddress]*privateDeletionRoot)
+					nextDeletes = make(map[ids.ObjectAddress]*visibility.PrivateDeletes)
 				}
 				nextDeletes[old.Address()] = deleted
 			}

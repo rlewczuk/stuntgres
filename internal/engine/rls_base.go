@@ -6,13 +6,14 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
 // Empty protected inputs still own their immutable visibility catalog. Do not
 // capture physical prefixes or permit later live-version selection to revive rows.
-func captureDeniedQuerySource(view *VisibilityView, ref ids.ObjectRef) (*querySource, error) {
+func captureDeniedQuerySource(view *visibility.View, ref ids.ObjectRef) (*querySource, error) {
 	pin := view.Retain()
 	if pin == nil {
 		return nil, fmt.Errorf("stuntgres: visibility view is released")

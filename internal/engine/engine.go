@@ -33,7 +33,7 @@ type Engine struct {
 	sessionMu            sync.Mutex
 	sessions             map[ids.SessionToken]*Session
 	settingsDefinitions  map[string]SettingDefinition
-	visibility           visibilityRegistry
+	visibility           visibility.Registry
 	indexBuildWaits      map[ids.ObjectAddress]indexBuildWait
 	exclusionPending     map[*lock.Ticket]*exclusionProjection
 	exclusionGeneration  uint64

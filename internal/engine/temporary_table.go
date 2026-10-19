@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 )
 
@@ -355,7 +356,7 @@ func (s *StatementScope) discardRemovedWrites(stage *CatalogStage) {
 			s.stage.rows[a] = values
 		}
 	}
-	s.stage.deletes = make(map[ids.ObjectAddress]*privateDeletionRoot, len(deletes))
+	s.stage.deletes = make(map[ids.ObjectAddress]*visibility.PrivateDeletes, len(deletes))
 	for a, root := range deletes {
 		if _, removed := stage.Removals[a]; !removed {
 			s.stage.deletes[a] = root

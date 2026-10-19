@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -24,10 +25,10 @@ func TestPartialIndexUniqueTypeFinalMembershipBaseline(t *testing.T) {
 			// is evaluated against final Usage, not a mock expression or key validator.
 			store.Versions[2].Values[3] = store.Versions[0].Values[3]
 			var writes []storage.RowVersion
-			var deletes *privateDeletionRoot
+			var deletes *visibility.PrivateDeletes
 			if overlay == "delete" {
 				r := store.Versions[2]
-				deletes = &privateDeletionRoot{Rows: map[ids.RowID]deleteCandidate{r.Row: {Ref: f.ref, Storage: &store, Row: r.Row, Version: r.Version}}}
+				deletes = &visibility.PrivateDeletes{Rows: map[ids.RowID]visibility.DeleteCandidate{r.Row: {Ref: f.ref, Storage: &store, Row: r.Row, Version: r.Version}}}
 			}
 			if overlay == "outside_successor" || overlay == "member_successor" {
 				active := "false"

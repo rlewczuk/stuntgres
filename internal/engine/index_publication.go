@@ -582,7 +582,7 @@ func preserveUnchangedIndexRoots(prepared, previous, live map[ids.ObjectAddress]
 // Explicit statements must discover derived-key errors before installing private
 // rows, not defer them to COMMIT. Admission owns these rows; the captured catalog
 // and execution trees are immutable. Finish retains its final publication veto.
-func (s *StatementScope) validatePrivateIndexExpressions(changes *catalogChanges, deletes map[ids.ObjectAddress]*privateDeletionRoot) error {
+func (s *StatementScope) validatePrivateIndexExpressions(changes *catalogChanges, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes) error {
 	if len(s.stage.rows) == 0 {
 		return nil
 	}

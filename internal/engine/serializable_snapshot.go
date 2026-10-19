@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/engine/ids"
+import (
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/visibility"
+)
 
 // Caller holds the admitted owner's mutex, never a peer owner. Waiting releases
 // Engine.mu and the implicit replacement fence; terminal session cancellation
@@ -24,10 +27,10 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 		}
 		e.enrollSerializableLocked(t.ref, t.isolation)
 		node := e.visibility.CaptureSerializableLocked(t.ref, t.readOnly, t.deferrable)
-		roots := make(map[ids.ObjectAddress]transactionRoot, len(e.storage.Relations))
+		roots := make(map[ids.ObjectAddress]visibility.Root, len(e.storage.Relations))
 		for address, storage := range e.storage.Relations {
 			if relation, ok := e.catalog.state.Relation(address); ok {
-				roots[address] = transactionRoot{storage.Versions, storage.Ends, storage, relation}
+				roots[address] = visibility.Root{storage.Versions, storage.Ends, storage, relation}
 			}
 		}
 		t.roots, t.frontier = roots, e.visibility.CommitSeq()

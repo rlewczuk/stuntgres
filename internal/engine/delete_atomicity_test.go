@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
@@ -192,7 +193,7 @@ func TestDeleteCoreStageAuthority(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO t VALUES(1),(1)")
 	scope, b, source := deleteProbeScope(t, s)
 	version := source.committed[0]
-	candidate := deleteCandidate{Ref: b.ref, Storage: b.storage, Row: version.Row, Version: version.Version, Ordinal: 0}
+	candidate := visibility.DeleteCandidate{Ref: b.ref, Storage: b.storage, Row: version.Row, Version: version.Version, Ordinal: 0}
 	copiedScope := *scope
 	if err := copiedScope.acquireRow(candidate); err == nil {
 		t.Fatal("copied scope acquired a row")
@@ -253,7 +254,7 @@ func TestDeleteCoreStageShapeAuthority(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO t VALUES(1),(2)")
 	scope, b, source := deleteProbeScope(t, s)
 	version := source.committed[0]
-	candidate := deleteCandidate{Ref: b.ref, Storage: b.storage, Row: version.Row, Version: version.Version, Ordinal: 0}
+	candidate := visibility.DeleteCandidate{Ref: b.ref, Storage: b.storage, Row: version.Row, Version: version.Version, Ordinal: 0}
 	if err := scope.acquireRow(candidate); err != nil {
 		t.Fatal(err)
 	}

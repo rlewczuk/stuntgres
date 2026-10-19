@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"time"
@@ -21,10 +22,10 @@ type preparedTransaction struct {
 	database string
 	ticket   *lock.Ticket
 	writes   map[ids.ObjectAddress][]storage.RowVersion
-	deletes  map[ids.ObjectAddress]*privateDeletionRoot
+	deletes  map[ids.ObjectAddress]*visibility.PrivateDeletes
 	catalog  *catalogChanges
 	claimed  bool
-	roots    map[ids.ObjectAddress]transactionRoot
+	roots    map[ids.ObjectAddress]visibility.Root
 	frontier ids.CommitSeq
 	options  TxOptions
 }

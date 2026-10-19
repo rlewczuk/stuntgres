@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -134,7 +135,7 @@ func TestAlterAddColumnVolatileEffectiveLiveRewrite(t *testing.T) {
 		{Row: 4, Version: 4, Born: 1, Values: []sqltype.Value{one}},
 	}, Ends: &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{2: {Version: 2, End: 2}}}}
 	scope.ownWrites = map[ids.ObjectAddress][]storage.RowVersion{old.Address(): {{Row: 3, Version: 5, Base: 3, Values: []sqltype.Value{one}}, {Row: 5, Version: 6, Values: []sqltype.Value{one}}}}
-	scope.ownDeletes = map[ids.ObjectAddress]*privateDeletionRoot{old.Address(): {Rows: map[ids.RowID]deleteCandidate{4: {Row: 4, Version: 4}}}}
+	scope.ownDeletes = map[ids.ObjectAddress]*visibility.PrivateDeletes{old.Address(): {Rows: map[ids.RowID]visibility.DeleteCandidate{4: {Row: 4, Version: 4}}}}
 	transformCalls := 0
 	transformed, err := sqltype.Integer(u.Type, 31)
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -182,7 +183,7 @@ func (n commitTimestampExpression) Eval(ctx expr.Context) (sqltype.Value, error)
 			return sqltype.Value{}, sqlError("22023", "cannot retrieve commit timestamp for transaction 0")
 		}
 	}
-	var entry commitTimestampEntry
+	var entry visibility.CommitTimestamp
 	if n.kind == commitTimestampLast || xid >= 3 {
 		scope := c.liveScope()
 		if scope == nil {

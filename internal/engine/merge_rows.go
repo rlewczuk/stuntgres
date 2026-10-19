@@ -18,7 +18,7 @@ import (
 type mergeActionRow struct {
 	action     parser.MergeAction
 	payload    int
-	deletion   deleteCandidate
+	deletion   visibility.DeleteCandidate
 	updateMode lock.MultiMode
 }
 type mergeRows struct {
@@ -62,7 +62,7 @@ func (rows *mergeRows) stage(w *WriteStage, ref ids.ObjectRef) error {
 type mergeCandidate struct {
 	updateCandidate
 	class    parser.MergeMatch
-	deletion deleteCandidate
+	deletion visibility.DeleteCandidate
 }
 
 // Source completion and ON membership precede every action wait. Match marks
@@ -139,7 +139,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 	capture := func(i int, class parser.MergeMatch, source int) mergeCandidate {
 		slot := target.rawIndex(i)
 		old := target.versionAt(slot)
-		deletion := deleteCandidate{Ref: b.ref, Storage: b.storage, Row: old.Row, Version: old.Version, Ordinal: slot}
+		deletion := visibility.DeleteCandidate{Ref: b.ref, Storage: b.storage, Row: old.Row, Version: old.Version, Ordinal: slot}
 		if slot >= len(target.committed) {
 			deletion.Own = true
 			deletion.Ordinal -= len(target.committed)
@@ -360,7 +360,7 @@ func mergeCardinalityError() error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "21000", Message: "MERGE command cannot affect row a second time", Hint: "Ensure that not more than one source row matches any one target row."}
 }
 
-func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mergeRows, evaluation *EvalContext, schema string, unique bool, arm *boundMergeArm, old storage.RowVersion, deletion deleteCandidate, accepted map[ids.RowID]bool, excluded *[]storage.RowVersion) error {
+func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mergeRows, evaluation *EvalContext, schema string, unique bool, arm *boundMergeArm, old storage.RowVersion, deletion visibility.DeleteCandidate, accepted map[ids.RowID]bool, excluded *[]storage.RowVersion) error {
 	if arm.action == parser.MergeDeleteAction {
 		if accepted[old.Row] {
 			return mergeCardinalityError()

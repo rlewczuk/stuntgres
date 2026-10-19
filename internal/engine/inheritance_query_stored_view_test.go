@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -253,7 +254,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			catalog := scope.inheritanceRead(e.privateCatalogLocked(scope.owner.catalog))
 			collectAuth.Recapture(catalog)
 			refs, captureErr := e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, scope.querySources, nil, op.session.token, queryRowMark{})
-			var snapshot *VisibilityView
+			var snapshot *visibility.View
 			if captureErr == nil {
 				snapshot, captureErr = scope.acquireDataViewsLocked(e, refs)
 			}

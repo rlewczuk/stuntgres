@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -79,7 +80,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 					if !ok {
 						t.Fatal("missing deletion", deleted)
 					}
-					p.deletion = &privateDeletionRoot{Rows: map[ids.RowID]deleteCandidate{deleted: {Ref: ref, Storage: f.store, Row: deleted, Version: old.Version, Ordinal: position}}}
+					p.deletion = &visibility.PrivateDeletes{Rows: map[ids.RowID]visibility.DeleteCandidate{deleted: {Ref: ref, Storage: f.store, Row: deleted, Version: old.Version, Ordinal: position}}}
 				}
 				if err := f.e.prepareRowPublication(&p, scope.txRef, true); err != nil {
 					t.Fatal(err)

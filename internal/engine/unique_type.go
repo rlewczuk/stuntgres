@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
@@ -176,7 +177,7 @@ func indexAttributeAffected(definition *catalog.IndexDefinition, attribute int32
 
 // TYPE must fail at Execute, including private writes. Merge overlay successors
 // before building a real unique root; this is not a commit-only integrity fence.
-func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, candidate catalog.Read, parent *catalog.Relation, store *storage.Relation, writes []storage.RowVersion, deletes *privateDeletionRoot, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation, generations []int32, added []ids.ObjectAddress, physicalRewrite bool) (map[string]*alterIndexBuild, error) {
+func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, candidate catalog.Read, parent *catalog.Relation, store *storage.Relation, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation, generations []int32, added []ids.ObjectAddress, physicalRewrite bool) (map[string]*alterIndexBuild, error) {
 	ctx := evaluation.Context
 	if parent.Partition != nil {
 		return nil, nil

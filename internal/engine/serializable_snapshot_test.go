@@ -10,9 +10,10 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 )
 
-func serializableUnitAcquisition(t *testing.T, e *Engine, parent context.Context, readOnly, deferrable bool) (*StatementScope, *serializableTransaction) {
+func serializableUnitAcquisition(t *testing.T, e *Engine, parent context.Context, readOnly, deferrable bool) (*StatementScope, *visibility.SerializableTx) {
 	t.Helper()
 	session := sessionStart(t, e, nil)
 	op, err := session.Acquire(parent)
@@ -26,7 +27,7 @@ func serializableUnitAcquisition(t *testing.T, e *Engine, parent context.Context
 	}
 	return &StatementScope{owner: session.transactions, op: op, txRef: ref}, e.visibility.Serializable.Nodes[ref]
 }
-func serializableUnitAwaitCandidate(t *testing.T, e *Engine, node *serializableTransaction) {
+func serializableUnitAwaitCandidate(t *testing.T, e *Engine, node *visibility.SerializableTx) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -332,7 +333,7 @@ func TestSerializableSafeSnapshotResolutionBeforeSleepCannotLoseWake(t *testing.
 	writer := serializableUnitNode(t, e, false)
 	reader := serializableUnitNode(t, e, true)
 	e.mu.Lock()
-	reader.Possible = map[*serializableTransaction]struct{}{writer: {}}
+	reader.Possible = map[*visibility.SerializableTx]struct{}{writer: {}}
 	reader.Ready = make(chan struct{})
 	e.endSerializableLocked(writer.Ref, false)
 	ready := reader.Ready

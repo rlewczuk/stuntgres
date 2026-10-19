@@ -154,7 +154,7 @@ type preparedBoundarySnapshot struct {
 	indexValues     map[ids.ObjectAddress][]storage.IndexEntry
 	registry        map[string]*preparedTransaction
 	entries         map[string]preparedTransaction
-	ssi             map[ids.TxRef]serializableTransaction
+	ssi             map[ids.TxRef]visibility.SerializableTx
 	creators        map[ids.VersionID]ids.TxRef
 	owners          map[ids.TxRef]*lock.Ticket
 	resources       map[lock.Resource]struct{}
@@ -172,7 +172,7 @@ func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoun
 		generators: maps.Clone(e.storage.Sequences), generatorValues: map[ids.ObjectAddress]storage.SequenceGenerator{},
 		indexes: maps.Clone(e.storage.IndexRoots), indexValues: map[ids.ObjectAddress][]storage.IndexEntry{},
 		registry: maps.Clone(e.prepared), entries: map[string]preparedTransaction{},
-		ssi: map[ids.TxRef]serializableTransaction{}, creators: maps.Clone(e.visibility.Serializable.Creators),
+		ssi: map[ids.TxRef]visibility.SerializableTx{}, creators: maps.Clone(e.visibility.Serializable.Creators),
 		owners: lockState.Owners, resources: lockState.Journals[entry.ticket], locks: map[lock.Resource]lock.ResourceState{},
 	}
 	for address, store := range e.storage.Relations {
@@ -205,7 +205,7 @@ func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoun
 		}
 		value.deletes = maps.Clone(prepared.deletes)
 		for address, deletion := range value.deletes {
-			value.deletes[address] = &privateDeletionRoot{Rows: maps.Clone(deletion.Rows)}
+			value.deletes[address] = &visibility.PrivateDeletes{Rows: maps.Clone(deletion.Rows)}
 		}
 		value.roots = maps.Clone(prepared.roots)
 		if prepared.catalog != nil {

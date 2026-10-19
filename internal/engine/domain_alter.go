@@ -241,7 +241,7 @@ func (c *EvalContext) evaluateSelectedDomainCheck(view catalog.Read, selected *c
 	return c.evaluateOwnDomainChecks(view, selected, selected, value, violation)
 }
 
-func (c *EvalContext) validateSelectedDomainRows(view catalog.Read, selected *catalog.Type, use domainValidationUse, frontier ids.CommitSeq, writes []storage.RowVersion, deletes *privateDeletionRoot) error {
+func (c *EvalContext) validateSelectedDomainRows(view catalog.Read, selected *catalog.Type, use domainValidationUse, frontier ids.CommitSeq, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) error {
 	violations := make([]error, len(use.columns))
 	for i, column := range use.columns {
 		violations[i] = domainHistoricalViolation(view, use.relation, column)

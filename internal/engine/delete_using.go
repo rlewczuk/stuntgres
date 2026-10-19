@@ -4,11 +4,12 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
 type deleteUsingCandidate struct {
-	deleteCandidate
+	visibility.DeleteCandidate
 	sourceIndex int
 	physical    queryPhysicalRow
 }
@@ -64,7 +65,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 				return Result{}, err
 			}
 			if matches {
-				candidates = append(candidates, deleteUsingCandidate{deleteCandidate: candidate, sourceIndex: j, physical: physical})
+				candidates = append(candidates, deleteUsingCandidate{DeleteCandidate: candidate, sourceIndex: j, physical: physical})
 			}
 		}
 	}
@@ -88,7 +89,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 		if err := ctx.Err(); err != nil {
 			return Result{}, err
 		}
-		candidate := pair.deleteCandidate
+		candidate := pair.DeleteCandidate
 		identity := mutationRowIdentity{candidate.Ref, candidate.Row}
 		if deletedIDs[identity] {
 			continue

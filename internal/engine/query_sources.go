@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 )
 
@@ -323,7 +324,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 	if collectErr != nil {
 		return nil, collectErr
 	}
-	var view *VisibilityView
+	var view *visibility.View
 	var err error
 	needsView := len(refs) != 0
 	if !needsView {

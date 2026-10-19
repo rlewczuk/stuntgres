@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -98,7 +99,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 			if _, ok := node.Reads[sourceRef.Address]; !ok {
 				t.Fatal("owned runtime source omitted serializable read evidence")
 			}
-			var peer *serializableTransaction
+			var peer *visibility.SerializableTx
 			if tc.doomed {
 				peer = serializableUnitCycle(t, e, node)
 				e.mu.Lock()

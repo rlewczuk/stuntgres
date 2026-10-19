@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"time"
 )
@@ -17,7 +18,7 @@ import (
 type savepointMark struct {
 	name                string
 	writes              map[ids.ObjectAddress][]storage.RowVersion
-	deletes             map[ids.ObjectAddress]*privateDeletionRoot
+	deletes             map[ids.ObjectAddress]*visibility.PrivateDeletes
 	catalog             *catalogChanges
 	settings            settingsMark
 	isolation           Isolation

@@ -9,7 +9,7 @@ import (
 
 // Historical ALTER worklists are separate from unconditional successor DML.
 // The caller supplies only selected valid CHECKs and required valid NN jobs.
-func (s *StatementScope) validateAddedConstraintRows(validator alterRowValidator, versions []storage.RowVersion, ends *storage.DeletionRoot, frontier ids.CommitSeq, writes []storage.RowVersion, deletes *privateDeletionRoot) error {
+func (s *StatementScope) validateAddedConstraintRows(validator alterRowValidator, versions []storage.RowVersion, ends *storage.DeletionRoot, frontier ids.CommitSeq, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) error {
 	var replaced map[ids.RowID]bool
 	for _, row := range writes {
 		if row.Base != 0 {

@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -132,7 +133,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	collectAuth.Recapture(scope.inheritanceCatalog)
 	e.mu.Lock()
 	refs, err := e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, scope.querySources, nil, op.session.token, queryRowMark{})
-	var view *VisibilityView
+	var view *visibility.View
 	if err == nil {
 		view, err = scope.acquireDataViewsLocked(e, refs)
 	}

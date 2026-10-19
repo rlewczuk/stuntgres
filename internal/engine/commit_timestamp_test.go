@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -64,7 +65,7 @@ func TestCommitTimeAssignment(t *testing.T) {
 	counter, slots, ordering := e.visibility.LastAssignedXID(), len(e.visibility.CommitTimestamps), e.visibility.VisibilityXID()
 	e.visibility.SetLastAssignedXIDLocked(^uint64(0))
 	c := commitTimeUnitRef(e, 3)
-	if err := e.assignTransactionXIDLocked(c); err == nil || e.visibility.Entries[c] != (transactionVisibility{}) || len(e.visibility.CommitTimestamps) != slots || e.visibility.VisibilityXID() != ordering {
+	if err := e.assignTransactionXIDLocked(c); err == nil || e.visibility.Entries[c] != (visibility.Entry{}) || len(e.visibility.CommitTimestamps) != slots || e.visibility.VisibilityXID() != ordering {
 		t.Fatal("exhaustion partially assigned identity", err)
 	}
 	e.visibility.SetLastAssignedXIDLocked(counter)
@@ -83,7 +84,7 @@ func TestCommitTimeAssignment(t *testing.T) {
 		t.Fatal("assigned-only prepared ownership was discarded")
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 16384}
-	if publicationNeedsXID(map[ids.ObjectAddress][]storage.RowVersion{address: nil}, map[ids.ObjectAddress]*privateDeletionRoot{address: {}}, newCatalogChanges(), nil) {
+	if publicationNeedsXID(map[ids.ObjectAddress][]storage.RowVersion{address: nil}, map[ids.ObjectAddress]*visibility.PrivateDeletes{address: {}}, newCatalogChanges(), nil) {
 		t.Fatal("empty reserved publication containers fabricated assignment")
 	}
 	if !publicationNeedsXID(nil, nil, nil, &preparedPublication{preparing: true}) {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -162,7 +163,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 	version.IndexAdmission = catalog.State()
 	version.IndexOutputs = candidate.indexes
 	if e.visibility.RelevantSerializableLocked(s.txRef) != nil {
-		events := [1]serializableWrite{{Row: version.Row, Version: version.Version}}
+		events := [1]visibility.SerializableWrite{{Row: version.Row, Version: version.Version}}
 		if err = e.serializableWriteLocked(s, ref, events[:]); err != nil {
 			return false, false, err
 		}

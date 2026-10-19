@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -34,7 +35,7 @@ func updateBoundSource(t *testing.T, e *Engine, s *Session, ctx context.Context,
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	var b binding
-	var view *VisibilityView
+	var view *visibility.View
 	if err == nil {
 		b, err = e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
 		scope.routineAuth, scope.routineDependencies = auth, b.dependencies

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -193,7 +194,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 	if err := s.acquireSerializableSnapshot(); err != nil {
 		return err
 	}
-	needsProjection := func(roots map[ids.ObjectAddress]transactionRoot) bool {
+	needsProjection := func(roots map[ids.ObjectAddress]visibility.Root) bool {
 		if !stableIsolation(t.isolation) || t.catalog == nil {
 			return false
 		}
@@ -232,10 +233,10 @@ func (s *StatementScope) snapshotDataPhase() error {
 			e.mu.Unlock()
 			return err
 		}
-		roots = make(map[ids.ObjectAddress]transactionRoot, len(e.storage.Relations))
+		roots = make(map[ids.ObjectAddress]visibility.Root, len(e.storage.Relations))
 		for address, storage := range e.storage.Relations {
 			if relation, ok := e.catalog.state.Relation(address); ok {
-				roots[address] = transactionRoot{storage.Versions, storage.Ends, storage, relation}
+				roots[address] = visibility.Root{storage.Versions, storage.Ends, storage, relation}
 			}
 		}
 		frontier = e.visibility.CommitSeq()

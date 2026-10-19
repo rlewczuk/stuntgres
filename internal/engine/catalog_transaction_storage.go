@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
@@ -179,11 +180,11 @@ func (p columnProjection) versions(ctx context.Context, rows []storage.RowVersio
 	return projected, nil
 }
 
-func projectDeletions(root *privateDeletionRoot, store *storage.Relation) *privateDeletionRoot {
+func projectDeletions(root *visibility.PrivateDeletes, store *storage.Relation) *visibility.PrivateDeletes {
 	if root == nil {
 		return nil
 	}
-	next := &privateDeletionRoot{Rows: make(map[ids.RowID]deleteCandidate, len(root.Rows))}
+	next := &visibility.PrivateDeletes{Rows: make(map[ids.RowID]visibility.DeleteCandidate, len(root.Rows))}
 	for id, candidate := range root.Rows {
 		candidate.Storage = store
 		next.Rows[id] = candidate
@@ -193,7 +194,7 @@ func projectDeletions(root *privateDeletionRoot, store *storage.Relation) *priva
 
 // Savepoint marks may predate first snapshot establishment. Clone only the
 // immutable shape map when attaching the matching projection to such a mark.
-func projectPrivateSnapshotRoots(ctx context.Context, catalog *catalogChanges, roots map[ids.ObjectAddress]transactionRoot) (*catalogChanges, error) {
+func projectPrivateSnapshotRoots(ctx context.Context, catalog *catalogChanges, roots map[ids.ObjectAddress]visibility.Root) (*catalogChanges, error) {
 	var next *catalogChanges
 	for address, shape := range catalog.storage {
 		root, exists := roots[address]

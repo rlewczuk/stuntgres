@@ -359,7 +359,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 
 // Rewrite only effective live heads. Own updates become inserts into the private
 // replacement because their committed predecessors are intentionally omitted.
-func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *catalog.Relation, store *storage.Relation, frontier ids.CommitSeq, transforms []columnTransformation, additions []addedColumn, generations []int32, validator alterRowValidator) (*storage.Relation, []storage.RowVersion, *privateDeletionRoot, error) {
+func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *catalog.Relation, store *storage.Relation, frontier ids.CommitSeq, transforms []columnTransformation, additions []addedColumn, generations []int32, validator alterRowValidator) (*storage.Relation, []storage.RowVersion, *visibility.PrivateDeletes, error) {
 	if store.Generation == ^uint64(0) {
 		return nil, nil, nil, fmt.Errorf("stuntgres: storage generation exhausted")
 	}

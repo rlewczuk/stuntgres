@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -206,7 +207,7 @@ func mergeUpdateRepeatableReadPending(t *testing.T, targetOnly bool) {
 				transactionRows(t, worker, "SELECT v FROM t WHERE id=1", 10)
 				worker.transactions.mu.Lock()
 				frontier := worker.transactions.frontier
-				roots := make(map[ids.ObjectAddress]transactionRoot, len(worker.transactions.roots))
+				roots := make(map[ids.ObjectAddress]visibility.Root, len(worker.transactions.roots))
 				for address, root := range worker.transactions.roots {
 					roots[address] = root
 				}
