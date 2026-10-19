@@ -173,3 +173,6 @@ func (e TransactionTime) SameGroup(other expr.Expr, same func(a, b expr.Expr) bo
 
 // GroupLeaf implements expr.GroupLeaf.
 func (e TransactionTime) GroupLeaf() {}
+
+// PreflightFold implements expr.Preflighting.
+func (e TransactionTime) PreflightFold() expr.Preflight { return expr.PreflightKeep }

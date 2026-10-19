@@ -120,3 +120,6 @@ func (e VersionInformation) SameGroup(other expr.Expr, same func(a, b expr.Expr)
 
 // GroupLeaf implements expr.GroupLeaf.
 func (e VersionInformation) GroupLeaf() {}
+
+// PreflightFold implements expr.Preflighting.
+func (e VersionInformation) PreflightFold() expr.Preflight { return expr.PreflightKeep }

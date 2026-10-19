@@ -1,6 +1,10 @@
 package expr
 
-import "stuntgres/internal/sqltype"
+import (
+	"context"
+
+	"stuntgres/internal/sqltype"
+)
 
 // Optional hooks a Composite node implements when an engine switch needs more
 // than its children. Each hook is named for the single question it answers;
@@ -111,4 +115,57 @@ type GroupIdentity interface {
 // call over its rewritten children and marks it stage dependent.
 type GroupLeaf interface {
 	GroupLeaf()
+}
+
+// Preflight is how statement preparation folds a call once the engine has
+// preflighted its children (materialized their immutable conversions).
+type Preflight uint8
+
+const (
+	// PreflightSimplify runs the engine's conditional simplification on the
+	// call over its preflighted children.
+	PreflightSimplify Preflight = iota
+	// PreflightKeep leaves a childless leaf call as it is.
+	PreflightKeep
+	// PreflightChildren only preflights the children.
+	PreflightChildren
+	// PreflightEvaluate evaluates the call when it is immutable and depends on
+	// no row, stage or domain.
+	PreflightEvaluate
+	// PreflightNullOrEvaluate replaces the call with a typed NULL when a
+	// preflighted child is a literal NULL, and otherwise acts as
+	// PreflightEvaluate.
+	PreflightNullOrEvaluate
+	// PreflightRegexNullOrEvaluate is PreflightNullOrEvaluate for calls that
+	// own regular-expression execution state, which the NULL replacement
+	// resets.
+	PreflightRegexNullOrEvaluate
+	// PreflightNullFirst replaces the call with a typed NULL when a child is a
+	// literal NULL before preflight, and otherwise acts as PreflightSimplify.
+	PreflightNullFirst
+	// PreflightNullBare replaces the call with a NULL that keeps only its
+	// usage and position when a preflighted child is a literal NULL.
+	PreflightNullBare
+)
+
+// Preflighting selects a node's Preflight; nodes without it use
+// PreflightSimplify.
+type Preflighting interface {
+	PreflightFold() Preflight
+}
+
+// ConstantTemplate nodes specialize their provider for a literal template
+// argument during preflight, before conditional simplification. literal reports
+// the value of a literal child; SpecializeTemplate returns whether the node
+// changed.
+type ConstantTemplate interface {
+	SpecializeTemplate(ctx context.Context, literal func(Expr) (sqltype.Value, bool)) (Expr, bool, error)
+}
+
+// EvaluationOrdered nodes list their children in written order although they
+// evaluate them in another (named arguments bound to formal slots).
+// EvaluationOrder returns the child indices in evaluation order; MapEvaluated
+// follows it.
+type EvaluationOrdered interface {
+	EvaluationOrder() []int
 }

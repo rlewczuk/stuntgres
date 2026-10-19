@@ -399,3 +399,17 @@ func (e ArrayTransform) SameGroup(other expr.Expr, same func(a, b expr.Expr) boo
 	}
 	return true
 }
+
+// EvaluationOrder implements expr.EvaluationOrdered: Args keep their written
+// slots, and evaluation follows the formal slots.
+func (e ArrayTransform) EvaluationOrder() []int {
+	order := make([]int, 0, len(e.Args))
+	for slot := range e.Args {
+		for i := range e.Args {
+			if int(e.Slots[i]) == slot {
+				order = append(order, i)
+			}
+		}
+	}
+	return order
+}

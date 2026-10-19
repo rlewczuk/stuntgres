@@ -111,17 +111,3 @@ func (b *expressionBinder) bindRangeShared(raw parser.OperatorExpr) (expr.Expr, 
 	node.Info = info
 	return node, nil
 }
-func mapRangeOperatorChildren(e functions.RangeOperator, child func(expr.Expr) (expr.Expr, bool, error)) (functions.RangeOperator, bool, error) {
-	changed := false
-	for i, arg := range e.Args {
-		next, did, err := child(arg)
-		if err != nil {
-			return e, false, err
-		}
-		if did {
-			e.Args[i] = next
-			changed = true
-		}
-	}
-	return e, changed, nil
-}

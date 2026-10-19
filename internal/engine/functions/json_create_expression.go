@@ -231,3 +231,6 @@ func (e JSONCreate) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, d
 	}
 	return true
 }
+
+// PreflightFold implements expr.Preflighting.
+func (e JSONCreate) PreflightFold() expr.Preflight { return expr.PreflightChildren }

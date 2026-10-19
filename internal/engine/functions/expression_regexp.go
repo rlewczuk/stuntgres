@@ -281,3 +281,9 @@ func (c RegexpCall) sameGroup(other RegexpCall, same func(a, b expr.Expr) bool) 
 	}
 	return true
 }
+
+// PreflightFold implements expr.Preflighting.
+func (e RegexpSet) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// PreflightFold implements expr.Preflighting.
+func (e Regexp) PreflightFold() expr.Preflight { return expr.PreflightEvaluate }

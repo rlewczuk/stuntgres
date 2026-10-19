@@ -285,3 +285,15 @@ func (e JSONElements) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool,
 	o, ok := other.(JSONElements)
 	return ok && e.Plan == o.Plan && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
 }
+
+// PreflightFold implements expr.Preflighting.
+func (e JSONKeys) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// PreflightFold implements expr.Preflighting.
+func (e JSONBElements) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// PreflightFold implements expr.Preflighting.
+func (e JSONEach) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// PreflightFold implements expr.Preflighting.
+func (e JSONElements) PreflightFold() expr.Preflight { return expr.PreflightChildren }

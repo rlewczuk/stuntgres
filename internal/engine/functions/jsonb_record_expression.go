@@ -26,26 +26,6 @@ func (e JSONBRecord) RecordUsage() sqltype.Usage {
 	}
 	return e.Args[0].ResultUsage()
 }
-func (e JSONBRecord) MapChildren(child func(expr.Expr) (expr.Expr, bool, error)) (JSONBRecord, bool, error) {
-	var args []expr.Expr
-	for i, old := range e.Args {
-		next, changed, err := child(old)
-		if err != nil {
-			return e, false, err
-		}
-		if changed && args == nil {
-			args = append([]expr.Expr(nil), e.Args...)
-		}
-		if args != nil {
-			args[i] = next
-		}
-	}
-	if args == nil {
-		return e, false, nil
-	}
-	e.Args = args
-	return e, true, nil
-}
 func (e JSONBRecord) Reconstruct(info expr.Info, args []expr.Expr) (JSONBRecord, error) {
 	count := 2
 	switch e.Name {
@@ -245,3 +225,6 @@ func (e JSONBRecord) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, 
 	}
 	return true
 }
+
+// PreflightFold implements expr.Preflighting.
+func (e JSONBRecord) PreflightFold() expr.Preflight { return expr.PreflightChildren }

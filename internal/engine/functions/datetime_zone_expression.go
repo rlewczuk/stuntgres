@@ -275,3 +275,6 @@ func (e DatetimeZoneCalendar) SameGroup(other expr.Expr, same func(a, b expr.Exp
 	}
 	return true
 }
+
+// PreflightFold implements expr.Preflighting.
+func (e DatetimeZoneCalendar) PreflightFold() expr.Preflight { return expr.PreflightNullFirst }

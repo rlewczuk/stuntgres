@@ -190,3 +190,9 @@ func (e JSONPredicate) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool
 	o, ok := other.(JSONPredicate)
 	return ok && e.Kind == o.Kind && e.Unique == o.Unique && e.Not == o.Not && same(e.Child, o.Child)
 }
+
+// PreflightFold implements expr.Preflighting.
+func (e SQLJSON) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// PreflightFold implements expr.Preflighting.
+func (e JSONPredicate) PreflightFold() expr.Preflight { return expr.PreflightChildren }

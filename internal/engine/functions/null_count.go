@@ -181,3 +181,6 @@ func (e NullCount) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, de
 	}
 	return true
 }
+
+// PreflightFold implements expr.Preflighting.
+func (e NullCount) PreflightFold() expr.Preflight { return expr.PreflightChildren }

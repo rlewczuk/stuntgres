@@ -280,3 +280,6 @@ func (e DatetimeSleep) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool
 	o, ok := other.(DatetimeSleep)
 	return ok && e.Kind == o.Kind && same(e.Arg, o.Arg)
 }
+
+// PreflightFold implements expr.Preflighting.
+func (x DatetimeSleep) PreflightFold() expr.Preflight { return expr.PreflightNullBare }

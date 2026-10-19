@@ -202,3 +202,9 @@ func (e PosixSubstring) SameGroup(other expr.Expr, same func(a, b expr.Expr) boo
 	o, ok := other.(PosixSubstring)
 	return ok && e.Provider == o.Provider && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1])
 }
+
+// PreflightFold implements expr.Preflighting.
+func (e Posix) PreflightFold() expr.Preflight { return expr.PreflightRegexNullOrEvaluate }
+
+// PreflightFold implements expr.Preflighting.
+func (e PosixSubstring) PreflightFold() expr.Preflight { return expr.PreflightRegexNullOrEvaluate }

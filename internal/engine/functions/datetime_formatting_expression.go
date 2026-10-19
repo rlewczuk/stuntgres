@@ -1,6 +1,8 @@
 package functions
 
 import (
+	"context"
+
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
@@ -145,4 +147,19 @@ func (e DatetimeFormatting) Render() (expr.Rendering, error) {
 func (e DatetimeFormatting) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
 	o, ok := other.(DatetimeFormatting)
 	return ok && e.Plan.Name() == o.Plan.Name() && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1])
+}
+
+// SpecializeTemplate implements expr.ConstantTemplate: a literal template
+// argument selects its parsed format once.
+func (e DatetimeFormatting) SpecializeTemplate(ctx context.Context, literal func(expr.Expr) (sqltype.Value, bool)) (expr.Expr, bool, error) {
+	template, ok := literal(e.Args[1])
+	if !ok {
+		return e, false, nil
+	}
+	plan, changed, err := e.Plan.WithConstantTemplate(ctx, template)
+	if err != nil || !changed {
+		return e, false, err
+	}
+	e.Plan = plan
+	return e, true, nil
 }

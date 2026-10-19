@@ -120,18 +120,14 @@ func TestArrayInspectStoredRemap(t *testing.T) {
 	if !sameGroupExpression(old, qualified) || !sameGroupExpression(qualified, old) || old.Namespace != "" {
 		t.Fatal("lexical qualification changed resolved grouping identity")
 	}
-	unchanged, did, err := functions.MapArrayInspectChildren(old, func(child expr.Expr) (expr.Expr, bool, error) { return child, false, nil })
-	if err != nil || did || &unchanged.Args[0] != &old.Args[0] {
+	unchanged, did, err := expr.Map(old, func(child expr.Expr) (expr.Expr, bool, error) { return child, false, nil })
+	if err != nil || did || &unchanged.(functions.ArrayInspect).Args[0] != &old.Args[0] {
 		t.Fatal("copied unchanged children")
 	}
-	changedCall, did, err := functions.MapArrayInspectChildren(old, func(child expr.Expr) (expr.Expr, bool, error) {
-		if child == old.Args[1] {
-			return next.Args[1], true, nil
-		}
-		return child, false, nil
-	})
-	if err != nil || !did || old.Args[1].ResultUsage().Type != b.typ(sqltype.Int4) || changedCall.Args[1].ResultUsage().Type != tb.typ(sqltype.Int4) {
-		t.Fatal("child map mutated source")
+	// A changed child rebuilds on a fresh slice and leaves the source intact.
+	changedCall, did, err := expr.Map(old, func(child expr.Expr) (expr.Expr, bool, error) { return child, child == old.Args[1], nil })
+	if err != nil || !did || &changedCall.(functions.ArrayInspect).Args[0] == &old.Args[0] || old.Args[1].ResultUsage().Type != b.typ(sqltype.Int4) {
+		t.Fatal("child map mutated source", err)
 	}
 }
 

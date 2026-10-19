@@ -33,9 +33,32 @@ func Walk(node Expr, children func(Expr, func(Expr)), visit func(Expr)) {
 // RegclassRef, which InfoOf does not copy. Unchanged nodes are returned as
 // they are.
 func Map(node Composite, child func(Expr) (Expr, bool, error)) (Expr, bool, error) {
+	return mapChildren(node, nil, child)
+}
+
+// MapEvaluated is Map visiting the children in evaluation order: a node that
+// lists them in written order names that order through EvaluationOrdered. The
+// rebuilt children keep their positions, so only error precedence and side
+// effects of child follow the evaluation order.
+func MapEvaluated(node Composite, child func(Expr) (Expr, bool, error)) (Expr, bool, error) {
+	var order []int
+	if hook, ok := node.(EvaluationOrdered); ok {
+		order = hook.EvaluationOrder()
+	}
+	return mapChildren(node, order, child)
+}
+
+func mapChildren(node Composite, order []int, child func(Expr) (Expr, bool, error)) (Expr, bool, error) {
 	children := node.Children()
+	if order == nil {
+		order = make([]int, len(children))
+		for i := range order {
+			order[i] = i
+		}
+	}
 	var mapped []Expr
-	for i, original := range children {
+	for _, i := range order {
+		original := children[i]
 		if original == nil {
 			continue
 		}

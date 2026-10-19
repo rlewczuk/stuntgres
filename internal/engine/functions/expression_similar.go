@@ -400,3 +400,15 @@ func (e SimilarSubstring) SameGroup(other expr.Expr, same func(a, b expr.Expr) b
 	o, ok := other.(SimilarSubstring)
 	return ok && e.Provider == o.Provider && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1]) && same(e.Args[2], o.Args[2])
 }
+
+// PreflightFold implements expr.Preflighting.
+func (e LikeEscape) PreflightFold() expr.Preflight { return expr.PreflightEvaluate }
+
+// PreflightFold implements expr.Preflighting.
+func (e SimilarEscape) PreflightFold() expr.Preflight { return expr.PreflightRegexNullOrEvaluate }
+
+// PreflightFold implements expr.Preflighting.
+func (e Similar) PreflightFold() expr.Preflight { return expr.PreflightNullOrEvaluate }
+
+// PreflightFold implements expr.Preflighting.
+func (e SimilarSubstring) PreflightFold() expr.Preflight { return expr.PreflightNullOrEvaluate }

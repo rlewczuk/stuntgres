@@ -111,3 +111,6 @@ func (e Timezone) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, def
 	o, ok := other.(Timezone)
 	return ok && e.Local == o.Local && same(e.Value, o.Value) && (e.Local || same(e.Zone, o.Zone))
 }
+
+// PreflightFold implements expr.Preflighting.
+func (e Timezone) PreflightFold() expr.Preflight { return expr.PreflightNullFirst }

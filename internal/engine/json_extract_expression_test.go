@@ -76,12 +76,12 @@ func TestJSONExtractInferenceAndLifecycle(t *testing.T) {
 		t.Fatal("replay presentation", spec, err)
 	}
 	// Reconstruct and copy-on-change mapping cannot mutate a held source tree.
-	copied, did, err := functions.MapJSONExtractChildren(original, func(arg expr.Expr) (expr.Expr, bool, error) { return arg, false, nil })
-	if err != nil || did || &copied.Args[0] != &original.Args[0] {
+	copied, did, err := expr.Map(original, func(arg expr.Expr) (expr.Expr, bool, error) { return arg, false, nil })
+	if err != nil || did || &copied.(functions.JSONExtract).Args[0] != &original.Args[0] {
 		t.Fatal("unchanged mapper copied", err)
 	}
-	copied, did, err = functions.MapJSONExtractChildren(original, func(arg expr.Expr) (expr.Expr, bool, error) { return arg, true, nil })
-	if err != nil || !did || &copied.Args[0] == &original.Args[0] {
+	copied, did, err = expr.Map(original, func(arg expr.Expr) (expr.Expr, bool, error) { return arg, true, nil })
+	if err != nil || !did || &copied.(functions.JSONExtract).Args[0] == &original.Args[0] {
 		t.Fatal("changed mapper aliased source", err)
 	}
 	bad := original

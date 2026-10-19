@@ -83,12 +83,12 @@ func TestJSONBExtractInferenceAndLifecycle(t *testing.T) {
 	if err != nil || spec.Form != expr.FormCall || !spec.Variadic || len(spec.Args) == 0 || spec.Args[len(spec.Args)-1].Label != "path_elems" {
 		t.Fatal("replay presentation", spec, err)
 	}
-	copied, did, err := functions.MapJSONExtractChildren(original, func(arg expr.Expr) (expr.Expr, bool, error) { return arg, false, nil })
-	if err != nil || did || &copied.Args[0] != &original.Args[0] {
+	copied, did, err := expr.Map(original, func(arg expr.Expr) (expr.Expr, bool, error) { return arg, false, nil })
+	if err != nil || did || &copied.(functions.JSONExtract).Args[0] != &original.Args[0] {
 		t.Fatal("unchanged mapper copied", err)
 	}
-	copied, did, err = functions.MapJSONExtractChildren(original, func(arg expr.Expr) (expr.Expr, bool, error) { return arg, true, nil })
-	if err != nil || !did || &copied.Args[0] == &original.Args[0] {
+	copied, did, err = expr.Map(original, func(arg expr.Expr) (expr.Expr, bool, error) { return arg, true, nil })
+	if err != nil || !did || &copied.(functions.JSONExtract).Args[0] == &original.Args[0] {
 		t.Fatal("changed mapper aliased source", err)
 	}
 	bad := original

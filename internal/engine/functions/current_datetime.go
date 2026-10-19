@@ -120,3 +120,6 @@ func (e CurrentDateTime) SameGroup(other expr.Expr, same func(a, b expr.Expr) bo
 
 // GroupLeaf implements expr.GroupLeaf.
 func (e CurrentDateTime) GroupLeaf() {}
+
+// PreflightFold implements expr.Preflighting.
+func (e CurrentDateTime) PreflightFold() expr.Preflight { return expr.PreflightKeep }
