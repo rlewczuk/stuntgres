@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 type indexRowIdentity struct {
@@ -18,7 +19,7 @@ type indexRowIdentity struct {
 // A validated overlay has a compact physical layout. Baseline installation
 // filters its already-produced entries and restores genuine heap positions;
 // owner-invisible predecessors have no invented keys.
-func (b *alterIndexBuild) baselineRoot(ctx context.Context, index *catalog.Relation, baseline *relationStorage, positions map[indexRowIdentity]int) (*logicalIndexRoot, error) {
+func (b *alterIndexBuild) baselineRoot(ctx context.Context, index *catalog.Relation, baseline *storage.Relation, positions map[indexRowIdentity]int) (*storage.IndexRoot, error) {
 	if b == nil || b.index == nil || !sameIndexKeySemantics(b.index, index) || b.store == nil || baseline == nil {
 		return nil, ids.ErrCatalogReplaced
 	}
@@ -27,7 +28,7 @@ func (b *alterIndexBuild) baselineRoot(ctx context.Context, index *catalog.Relat
 	}
 	if b.root.Hash != nil {
 		old := b.root.Hash
-		next := &hashIndexRoot{Buckets: make(map[uint64][]hashIndexEntry), Binding: old.Binding, Storage: baseline.IndexIdentity(), Generation: baseline.Generation, Prefix: len(baseline.Versions), Ends: baseline.Ends}
+		next := &storage.HashRoot{Buckets: make(map[uint64][]storage.HashEntry), Binding: old.Binding, Storage: baseline.IndexIdentity(), Generation: baseline.Generation, Prefix: len(baseline.Versions), Ends: baseline.Ends}
 		for h, bucket := range old.Buckets {
 			for _, entry := range bucket {
 				if err := ctx.Err(); err != nil {
@@ -44,9 +45,9 @@ func (b *alterIndexBuild) baselineRoot(ctx context.Context, index *catalog.Relat
 		if err := next.CaptureRowEntries(ctx, index.SQLIndex); err != nil {
 			return nil, err
 		}
-		return &logicalIndexRoot{Hash: next}, nil
+		return &storage.IndexRoot{Hash: next}, nil
 	}
-	entries := make([]logicalIndexEntry, 0, len(b.root.Entries))
+	entries := make([]storage.IndexEntry, 0, len(b.root.Entries))
 	for _, entry := range b.root.Entries {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -61,9 +62,9 @@ func (b *alterIndexBuild) baselineRoot(ctx context.Context, index *catalog.Relat
 	return newLogicalIndexRoot(index.SQLIndex, entries), nil
 }
 
-func retainIndexBuild(changes *catalogChanges, index *catalog.Relation, baseline *relationStorage, root *logicalIndexRoot) {
+func retainIndexBuild(changes *catalogChanges, index *catalog.Relation, baseline *storage.Relation, root *storage.IndexRoot) {
 	if changes.uniqueRoots == nil {
-		changes.uniqueRoots = make(map[ids.ObjectAddress]*logicalIndexRoot)
+		changes.uniqueRoots = make(map[ids.ObjectAddress]*storage.IndexRoot)
 	}
 	if changes.indexCandidates == nil {
 		changes.indexCandidates = make(map[ids.ObjectAddress]indexRootCandidate)
@@ -74,11 +75,11 @@ func retainIndexBuild(changes *catalogChanges, index *catalog.Relation, baseline
 
 // Only pending executable index data needs row-coupled outputs. Plain rows keep
 // their existing headers/maps and all outputs are frozen before staging.
-func attachIndexBuildOutputs(ctx context.Context, rows []rowVersion, builds map[string]*alterIndexBuild) ([]rowVersion, bool, error) {
+func attachIndexBuildOutputs(ctx context.Context, rows []storage.RowVersion, builds map[string]*alterIndexBuild) ([]storage.RowVersion, bool, error) {
 	if len(rows) == 0 {
 		return rows, false, nil
 	}
-	var source *relationStorage
+	var source *storage.Relation
 	for _, build := range builds {
 		if len(build.outputs) != 0 {
 			source = build.store
@@ -104,7 +105,7 @@ func attachIndexBuildOutputs(ctx context.Context, rows []rowVersion, builds map[
 		if !ok {
 			continue
 		}
-		var outputs map[ids.ObjectAddress]indexRowOutput
+		var outputs map[ids.ObjectAddress]storage.IndexOutput
 		for _, build := range builds {
 			if len(build.outputs) == 0 {
 				continue
@@ -122,7 +123,7 @@ func attachIndexBuildOutputs(ctx context.Context, rows []rowVersion, builds map[
 			if outputs == nil {
 				outputs = maps.Clone(row.IndexOutputs)
 				if outputs == nil {
-					outputs = make(map[ids.ObjectAddress]indexRowOutput)
+					outputs = make(map[ids.ObjectAddress]storage.IndexOutput)
 				}
 			}
 			outputs[build.index.Address()] = output
@@ -138,7 +139,7 @@ func attachIndexBuildOutputs(ctx context.Context, rows []rowVersion, builds map[
 	return rows, copied, nil
 }
 
-func indexBuildPositions(ctx context.Context, store *relationStorage) (map[indexRowIdentity]int, error) {
+func indexBuildPositions(ctx context.Context, store *storage.Relation) (map[indexRowIdentity]int, error) {
 	positions := make(map[indexRowIdentity]int, len(store.Versions))
 	for i, row := range store.Versions {
 		if err := ctx.Err(); err != nil {
@@ -149,7 +150,7 @@ func indexBuildPositions(ctx context.Context, store *relationStorage) (map[index
 	return positions, nil
 }
 
-func indexBuildVisibleStore(ctx context.Context, store *relationStorage, writes []rowVersion, deletes *privateDeletionRoot) (*relationStorage, error) {
+func indexBuildVisibleStore(ctx context.Context, store *storage.Relation, writes []storage.RowVersion, deletes *privateDeletionRoot) (*storage.Relation, error) {
 	if len(writes) == 0 && (deletes == nil || len(deletes.rows) == 0) {
 		return store, nil
 	}
@@ -157,7 +158,7 @@ func indexBuildVisibleStore(ctx context.Context, store *relationStorage, writes 
 	for _, row := range writes {
 		replaced[row.Row] = true
 	}
-	var live []rowVersion
+	var live []storage.RowVersion
 	for _, row := range store.Versions {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -174,5 +175,5 @@ func indexBuildVisibleStore(ctx context.Context, store *relationStorage, writes 
 			live = append(live, row)
 		}
 	}
-	return &relationStorage{Versions: live}, nil
+	return &storage.Relation{Versions: live}, nil
 }

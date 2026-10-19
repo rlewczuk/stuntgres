@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -47,7 +48,7 @@ func TestIndexClausesRootAttributes(t *testing.T) {
 		}
 		return v
 	}
-	store := &relationStorage{Versions: []rowVersion{
+	store := &storage.Relation{Versions: []storage.RowVersion{
 		{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{integer(1), integer(2), sqltype.String(types[sqltype.Text], "x")}},
 		{Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{integer(1), sqltype.Null(types[sqltype.Int4]), sqltype.String(types[sqltype.Text], "z")}},
 		{Row: 3, Version: 3, Born: 1, Values: []sqltype.Value{integer(1), integer(2), sqltype.Null(types[sqltype.Text])}},
@@ -75,7 +76,7 @@ func TestIndexClausesRootAttributes(t *testing.T) {
 	successor.Base = 1
 	successor.Version = 4
 	successor.Values = []sqltype.Value{integer(1), integer(2), sqltype.String(types[sqltype.Text], "changed")}
-	merged, err := mergeIndexRoot(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, parent, index, root.Entries, &rowPublication{writes: []rowVersion{successor}}, false, true, false, "", sqltype.OutputEnvironment{}, nil)
+	merged, err := mergeIndexRoot(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, parent, index, root.Entries, &rowPublication{writes: []storage.RowVersion{successor}}, false, true, false, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +121,7 @@ func TestIndexClausesClassRoots(t *testing.T) {
 	}
 	one, _ := sqltype.Integer(types[sqltype.Int4], 1)
 	negative, _ := sqltype.Integer(types[sqltype.Int4], -1)
-	store := &relationStorage{Versions: []rowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{negative, one, sqltype.Null(types[sqltype.Text])}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{one, one, sqltype.String(types[sqltype.Text], "p")}}}}
+	store := &storage.Relation{Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{negative, one, sqltype.Null(types[sqltype.Text])}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{one, one, sqltype.String(types[sqltype.Text], "p")}}}}
 	root, err := buildIndexRoot(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, parent, index.SQLIndex, store, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -134,8 +135,8 @@ func TestIndexClausesClassRoots(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := logicalIndexEntry{Keys: []sqltype.Value{sqltype.String(types[sqltype.Text], "a")}}
-	b := logicalIndexEntry{Keys: []sqltype.Value{sqltype.String(types[sqltype.Text], "a ")}}
+	a := storage.IndexEntry{Keys: []sqltype.Value{sqltype.String(types[sqltype.Text], "a")}}
+	b := storage.IndexEntry{Keys: []sqltype.Value{sqltype.String(types[sqltype.Text], "a ")}}
 	if cmp, err := ordering.compareKeys(ctx, a, b); err != nil || cmp != 0 {
 		t.Fatal("bpchar class lost padding semantics", cmp, err)
 	}
@@ -159,7 +160,7 @@ func TestIndexClausesUniquePayload(t *testing.T) {
 	}
 	one, _ := sqltype.Integer(types[sqltype.Int4], 1)
 	for _, payload := range []sqltype.Value{sqltype.String(types[sqltype.Text], "different"), sqltype.Null(types[sqltype.Text])} {
-		store := &relationStorage{Versions: []rowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{one, one, sqltype.String(types[sqltype.Text], "first")}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{one, one, payload}}}}
+		store := &storage.Relation{Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{one, one, sqltype.String(types[sqltype.Text], "first")}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{one, one, payload}}}}
 		root, err := buildIndexRoot(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, parent, index.SQLIndex, store, nil)
 		if err != nil {
 			t.Fatal(err)
@@ -320,23 +321,23 @@ func TestIndexClausesReplacement(t *testing.T) {
 	parent, index, catalog, types := indexClausesFixture(t)
 	ctx := context.Background()
 	one, _ := sqltype.Integer(types[sqltype.Int4], 1)
-	source := &relationStorage{Versions: []rowVersion{{Row: 1, Version: 2, Born: 1, Values: []sqltype.Value{one, one, sqltype.String(types[sqltype.Text], "payload")}}}}
+	source := &storage.Relation{Versions: []storage.RowVersion{{Row: 1, Version: 2, Born: 1, Values: []sqltype.Value{one, one, sqltype.String(types[sqltype.Text], "payload")}}}}
 	original, err := buildIndexRoot(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, parent, index.SQLIndex, source, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	destination := &relationStorage{Versions: append([]rowVersion(nil), source.Versions...)}
+	destination := &storage.Relation{Versions: append([]storage.RowVersion(nil), source.Versions...)}
 	e := New()
 	e.storage.SetFrontierLocked(100, 200)
 	e.catalog.state = catalog
 	e.storage.Relations[parent.Address()] = source
-	e.storage.IndexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.Address(): original}
+	e.storage.IndexRoots = map[ids.ObjectAddress]*storage.IndexRoot{index.Address(): original}
 	e.commitSeq = 1
-	snapshot, err := e.captureIndexSnapshot(ctx, e.catalog.read(catalog), map[ids.ObjectAddress]*relationStorage{parent.Address(): source}, map[ids.ObjectAddress]*logicalIndexRoot{index.Address(): original}, 1)
+	snapshot, err := e.captureIndexSnapshot(ctx, e.catalog.read(catalog), map[ids.ObjectAddress]*storage.Relation{parent.Address(): source}, map[ids.ObjectAddress]*storage.IndexRoot{index.Address(): original}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	roots, rows, versions, err := e.prepareRemintedStorage(ctx, catalog, map[ids.ObjectAddress]*relationStorage{parent.Address(): destination}, snapshot)
+	roots, rows, versions, err := e.prepareRemintedStorage(ctx, catalog, map[ids.ObjectAddress]*storage.Relation{parent.Address(): destination}, snapshot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -348,7 +349,7 @@ func TestIndexClausesReplacement(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	if _, _, _, err := e.prepareRemintedStorage(canceled, catalog, map[ids.ObjectAddress]*relationStorage{parent.Address(): destination}, snapshot); !errors.Is(err, context.Canceled) {
+	if _, _, _, err := e.prepareRemintedStorage(canceled, catalog, map[ids.ObjectAddress]*storage.Relation{parent.Address(): destination}, snapshot); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	if e.storage.RowFrontier() != 100 || e.storage.VersionFrontier() != 200 {
@@ -362,12 +363,12 @@ func TestIndexClausesValidationOnlyReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	storage := map[ids.ObjectAddress]*relationStorage{parent.Address(): {Versions: []rowVersion{{Row: 1, Version: 2, Born: 1, Values: []sqltype.Value{one, one, sqltype.String(types[sqltype.Text], "payload")}}}}}
+	relations := map[ids.ObjectAddress]*storage.Relation{parent.Address(): {Versions: []storage.RowVersion{{Row: 1, Version: 2, Born: 1, Values: []sqltype.Value{one, one, sqltype.String(types[sqltype.Text], "payload")}}}}}
 	e := New()
 	// This is a deliberately reduced but valid key-construction catalogue:
 	// namespace descriptors are needed for UNIQUE diagnostics, not nonunique
 	// ordering/provider/shape validation or replacement materialization.
-	roots, err := e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, snapshot, snapshot, storage, nil, nil, nil, nil, false, sqltype.OutputEnvironment{}, nil, nil, nil)
+	roots, err := e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, snapshot, snapshot, relations, nil, nil, nil, nil, false, sqltype.OutputEnvironment{}, nil, nil, nil)
 	if err != nil || roots != nil {
 		t.Fatal("validation-only replacement required unrelated namespace metadata or materialized roots", roots, err)
 	}
@@ -378,7 +379,7 @@ func TestIndexClausesValidationOnlyReplacement(t *testing.T) {
 	broken.SQLIndex = &definition
 	invalid := catalogStateFixture(0, map[ids.ObjectAddress]catalog.Descriptor{parent.Address(): parent, index.Address(): &broken}, nil)
 	for _, materialize := range []bool{false, true} {
-		if _, err := e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, snapshot, invalid, storage, nil, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, nil, nil, nil); err == nil {
+		if _, err := e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, snapshot, invalid, relations, nil, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, nil, nil, nil); err == nil {
 			t.Fatal("phase switch weakened actual index definition validation", materialize)
 		}
 	}
@@ -396,13 +397,13 @@ func TestIndexClausesDerivedProviders(t *testing.T) {
 	node := functions.String{Info: column.Info, Plan: plan, Args: []expr.Expr{column}, Textual: [4]bool{true}}
 	class, _ := sqltype.LookupIndexClass("bpchar_ops")
 	definition := &catalog.IndexDefinition{Parent: parent.Address(), Keys: []catalog.IndexKey{{Derived: &catalog.DerivedIndexKey{Definition: node, Execution: node, Attributes: parent.Attributes}, Class: class, ExplicitClass: true, Collation: 950}}, Include: []int32{10}, Ready: true, Valid: true, Live: true}
-	store := &relationStorage{}
+	store := &storage.Relation{}
 	for i, text := range []string{"Alpha ", "ALPHA"} {
 		payload, err := sqltype.Integer(types[sqltype.Int4], int64(i+1))
 		if err != nil {
 			t.Fatal(err)
 		}
-		store.Versions = append(store.Versions, rowVersion{Row: ids.RowID(i + 1), Version: ids.VersionID(i + 1), Values: []sqltype.Value{payload, payload, sqltype.String(typ, text)}})
+		store.Versions = append(store.Versions, storage.RowVersion{Row: ids.RowID(i + 1), Version: ids.VersionID(i + 1), Values: []sqltype.Value{payload, payload, sqltype.String(typ, text)}})
 	}
 	root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, definition, store, nil)
 	if err != nil {
@@ -492,12 +493,12 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 				}
 				return v
 			}
-			store := &relationStorage{Versions: []rowVersion{
+			store := &storage.Relation{Versions: []storage.RowVersion{
 				{Row: 1, Version: 1, Values: []sqltype.Value{value(0), value(-1), sqltype.String(text.Type, "a "), sqltype.String(text.Type, "space")}},
 				{Row: 2, Version: 2, Values: []sqltype.Value{value(0), value(1), sqltype.String(text.Type, "a"), sqltype.String(text.Type, "plain")}},
 			}}
-			root := func(owner, index *catalog.Relation, storage *relationStorage) *logicalIndexRoot {
-				r, err := buildIndexRoot(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, owner, index.SQLIndex, storage, nil)
+			root := func(owner, index *catalog.Relation, stored *storage.Relation) *storage.IndexRoot {
+				r, err := buildIndexRoot(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, owner, index.SQLIndex, stored, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -549,7 +550,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 			compactedView := e.stageRead(layout)
 			compactedCover := compactedView.MustRelation(cover.Address())
 			compactedUnsigned := compactedView.MustRelation(unsigned.Address())
-			compactedStore := &relationStorage{}
+			compactedStore := &storage.Relation{}
 			for _, row := range store.Versions {
 				row.Values = append([]sqltype.Value(nil), row.Values[1:]...)
 				compactedStore.Versions = append(compactedStore.Versions, row)
@@ -613,7 +614,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 			if err := validateIndexDefinition(finalView, next); err != nil {
 				t.Fatal(err)
 			}
-			finalStore := &relationStorage{}
+			finalStore := &storage.Relation{}
 			for _, row := range compactedStore.Versions {
 				row.Values = append([]sqltype.Value(nil), row.Values...)
 				if dependencyType {

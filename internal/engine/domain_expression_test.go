@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -240,7 +241,7 @@ func TestDomainRegclassOutputSnapshotRepresentations(t *testing.T) {
 			case "anonymous":
 				rows.anonymous = [][]sqltype.Value{{value}}
 			case "selected source":
-				rows.source = &querySource{committed: []rowVersion{{Values: []sqltype.Value{sqltype.Null(domain.SQLType)}}, {Values: []sqltype.Value{value}}}}
+				rows.source = &querySource{committed: []storage.RowVersion{{Values: []sqltype.Value{sqltype.Null(domain.SQLType)}}, {Values: []sqltype.Value{value}}}}
 				rows.selection = []int{1}
 				rows.slots = []int{0}
 			}

@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -44,12 +45,12 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	}
 	leaf.Constraints.Check = []catalog.CheckConstraint{makeCheck(26000, "old_payload", 1, sqltype.CompareNotEqual, 0), makeCheck(26001, "changed_key", 0, sqltype.CompareEqual, 1)}
 	oldValues := []sqltype.Value{integer(1), integer(0)}
-	dead := rowVersion{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{integer(99), integer(99)}}
-	live := rowVersion{Row: 2, Version: 2, Born: 3, Values: oldValues}
-	store := &relationStorage{Versions: []rowVersion{dead, live}, Ends: &deletionRoot{Rows: map[ids.RowID]rowEnd{1: {Version: 1, End: 2}}}}
+	dead := storage.RowVersion{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{integer(99), integer(99)}}
+	live := storage.RowVersion{Row: 2, Version: 2, Born: 3, Values: oldValues}
+	store := &storage.Relation{Versions: []storage.RowVersion{dead, live}, Ends: &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 1, End: 2}}}}
 	e.catalog.state = view.State()
 	e.commitSeq = 3
-	e.storage.Relations = map[ids.ObjectAddress]*relationStorage{leaf.Address(): store}
+	e.storage.Relations = map[ids.ObjectAddress]*storage.Relation{leaf.Address(): store}
 	snapshot, err := e.captureIndexSnapshot(context.Background(), view, e.storage.Relations, nil, 3)
 	if err != nil {
 		t.Fatal(err)
@@ -67,7 +68,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 		t.Fatal("deleted source version changed old-row matching", position, before, err)
 	}
 	position = 0
-	if _, err := history.nextRow(context.Background(), &position, rowVersion{Row: 9, Version: 9}); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := history.nextRow(context.Background(), &position, storage.RowVersion{Row: 9, Version: 9}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("mismatched source identity accepted", err)
 	}
 	evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: view}

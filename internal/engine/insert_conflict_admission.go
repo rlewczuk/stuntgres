@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 func bindingForConflict(ref ids.ObjectRef, parent *catalog.Relation, action *boundInsertConflict) binding {
@@ -54,7 +55,7 @@ func (s *StatementScope) admitInsertConflictRow(ref ids.ObjectRef, candidate *in
 		return true, nil
 	}
 }
-func (s *StatementScope) insertConflictVisible(row rowVersion, committed bool) error {
+func (s *StatementScope) insertConflictVisible(row storage.RowVersion, committed bool) error {
 	if committed && stableIsolation(s.owner.isolation) && row.Born > s.owner.frontier {
 		return sqlError("40001", "could not serialize access due to concurrent update")
 	}

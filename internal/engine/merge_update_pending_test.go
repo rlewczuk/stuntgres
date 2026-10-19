@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -214,7 +215,7 @@ func mergeUpdateRepeatableReadPending(t *testing.T, targetOnly bool) {
 				sessionSQL(t, worker, "DELETE FROM t WHERE id=3")
 				sessionSQL(t, worker, "INSERT INTO t VALUES(4,40)")
 				worker.transactions.mu.Lock()
-				priorWrites := append([]rowVersion(nil), worker.transactions.writes[ref.Address]...)
+				priorWrites := append([]storage.RowVersion(nil), worker.transactions.writes[ref.Address]...)
 				priorDeletes := worker.transactions.deletes[ref.Address]
 				worker.transactions.mu.Unlock()
 				if targetOnly {
@@ -275,7 +276,7 @@ func mergeUpdateRepeatableReadPending(t *testing.T, targetOnly bool) {
 					// The replacement keeps logical identity and its actual predecessor base;
 					// a peer descendant of snapshot10 is not a new unmatched INSERT.
 					worker.transactions.mu.Lock()
-					var own rowVersion
+					var own storage.RowVersion
 					for _, v := range worker.transactions.writes[ref.Address] {
 						if v.Row == original.Row {
 							own = v

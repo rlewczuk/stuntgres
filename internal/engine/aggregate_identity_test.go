@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -244,7 +245,7 @@ func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 	target.catalog.nextOID = 30000
 	next := catalog.CloneState(source.catalog.state)
 	target.mu.Lock()
-	err := target.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*relationStorage{}, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
+	err := target.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil)
 	target.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

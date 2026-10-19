@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 // Selection occurrence identity is VersionID, not RowID. A MERGE descendant
@@ -22,8 +23,8 @@ func TestMergeUpdateCaptureBaseOverlay(t *testing.T) {
 				name += "MatchingControl"
 			}
 			t.Run(name, func(t *testing.T) {
-				captured := []rowVersion{{Row: 1, Version: 10, Born: 1}, {Row: 2, Version: 20, Born: 1}}
-				before := append([]rowVersion(nil), captured...)
+				captured := []storage.RowVersion{{Row: 1, Version: 10, Born: 1}, {Row: 2, Version: 20, Born: 1}}
+				before := append([]storage.RowVersion(nil), captured...)
 				retained, err := selectQuerySource(context.Background(), &querySource{committed: captured}, 1, nil, nil)
 				if err != nil {
 					t.Fatal(err)
@@ -33,12 +34,12 @@ func TestMergeUpdateCaptureBaseOverlay(t *testing.T) {
 				if matching {
 					base = 10
 				}
-				own := []rowVersion{{Row: 1, Version: 100, Base: base}}
+				own := []storage.RowVersion{{Row: 1, Version: 100, Base: base}}
 				if multiple {
-					own = append(own, rowVersion{Row: 2, Version: 200, Base: 20})
+					own = append(own, storage.RowVersion{Row: 2, Version: 200, Base: 20})
 				}
-				own = append(own, rowVersion{Row: 3, Version: 300})
-				selected, err := selectQuerySource(context.Background(), &querySource{committed: captured, own: own}, 1, &deletionRoot{Rows: map[ids.RowID]rowEnd{1: {Version: 10, End: 2}}}, nil)
+				own = append(own, storage.RowVersion{Row: 3, Version: 300})
+				selected, err := selectQuerySource(context.Background(), &querySource{committed: captured, own: own}, 1, &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 10, End: 2}}}, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -75,7 +76,7 @@ func TestMergeUpdateCaptureBaseOverlay(t *testing.T) {
 func TestMergeUpdateCaptureCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	source, err := selectQuerySource(ctx, &querySource{committed: []rowVersion{{Row: 1, Version: 10, Born: 1}}, own: []rowVersion{{Row: 1, Version: 100, Base: 11}}}, 1, nil, nil)
+	source, err := selectQuerySource(ctx, &querySource{committed: []storage.RowVersion{{Row: 1, Version: 10, Born: 1}}, own: []storage.RowVersion{{Row: 1, Version: 100, Base: 11}}}, 1, nil, nil)
 	if source != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("capture escaped cancellation", source, err)
 	}

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -631,7 +632,7 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 	}
 	occurrences := appendQueryOccurrences(nil, child.source)
 	provenance := make([]int, 0, len(occurrences))
-	versions := make([]rowVersion, 0, len(occurrences))
+	versions := make([]storage.RowVersion, 0, len(occurrences))
 	currentRows := make([][]sqltype.Value, len(locks.leaves))
 	scratch := make([]sqltype.Value, queryLockRecheckWidth(node, state.source))
 	evaluation := state.evaluation(nil)
@@ -735,7 +736,7 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 							}
 						}
 						source.versionValid = append(source.versionValid, make([]bool, index+1-len(source.versionValid))...)
-						source.versions = append(source.versions, make([]rowVersion, missing)...)
+						source.versions = append(source.versions, make([]storage.RowVersion, missing)...)
 					}
 					copy(source.versions[index*width:(index+1)*width], versions)
 					if source.versionValid != nil {

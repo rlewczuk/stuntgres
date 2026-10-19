@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -14,7 +15,7 @@ import (
 // It never substitutes for the initiating target's admission or candidate view.
 type foreignActionAdmission struct {
 	ref               ids.ObjectRef
-	storage           *relationStorage
+	storage           *storage.Relation
 	relation          *catalog.Relation
 	tx                ids.TxRef
 	jobs              []foreignKeyJob
@@ -23,7 +24,7 @@ type foreignActionAdmission struct {
 
 type foreignActionTransition struct {
 	relation  ids.ObjectAddress
-	old, next rowVersion
+	old, next storage.RowVersion
 	owner     authorization.PrincipalRef // zero means the initiating statement's actor
 }
 
@@ -124,31 +125,31 @@ func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJo
 
 // Locate the latest live physical row after the row grant, including this
 // statement's replacements. Stable snapshots use the ordinary conflict seam.
-func (s *StatementScope) foreignActionRow(ref ids.ObjectRef, candidate rowVersion) (rowVersion, bool, error) {
+func (s *StatementScope) foreignActionRow(ref ids.ObjectRef, candidate storage.RowVersion) (storage.RowVersion, bool, error) {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := s.validateForeignActionLocked(e, ref); err != nil {
-		return rowVersion{}, false, err
+		return storage.RowVersion{}, false, err
 	}
-	storage := s.foreignActionAdmissions[ref.Address].storage
+	stored := s.foreignActionAdmissions[ref.Address].storage
 	if uniqueRowDeleted(candidate.Row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
-		return rowVersion{}, false, nil
+		return storage.RowVersion{}, false, nil
 	}
-	for _, rows := range [][]rowVersion{s.stage.rows[ref.Address], s.ownWrites[ref.Address], storage.Versions} {
+	for _, rows := range [][]storage.RowVersion{s.stage.rows[ref.Address], s.ownWrites[ref.Address], stored.Versions} {
 		row, _, found := rowByID(rows, candidate.Row, -1)
 		if !found {
 			continue
 		}
-		if err := s.repeatableConflict(row, storage.Ends); err != nil {
-			return rowVersion{}, false, err
+		if err := s.repeatableConflict(row, stored.Ends); err != nil {
+			return storage.RowVersion{}, false, err
 		}
-		return row, liveVersion(row, e.commitSeq, storage.Ends, nil), nil
+		return row, liveVersion(row, e.commitSeq, stored.Ends, nil), nil
 	}
-	return rowVersion{}, false, fmt.Errorf("stuntgres: missing internal action predecessor")
+	return storage.RowVersion{}, false, fmt.Errorf("stuntgres: missing internal action predecessor")
 }
 
-func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old rowVersion) (err error) {
+func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersion) (err error) {
 	s := w.scope
 	defer func() {
 		if err == nil {
@@ -177,8 +178,8 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old rowVersion) (err
 	if uniqueRowDeleted(old.Row, s.ownDeletes[ref.Address], w.deletes[ref.Address]) {
 		return nil
 	}
-	storage := s.foreignActionAdmissions[ref.Address].storage
-	candidate := deleteCandidate{ref: ref, storage: storage, row: old.Row, version: old.Version, base: old.Base, own: old.Born == 0}
+	stored := s.foreignActionAdmissions[ref.Address].storage
+	candidate := deleteCandidate{ref: ref, storage: stored, row: old.Row, version: old.Version, base: old.Base, own: old.Born == 0}
 	if old.Born != 0 {
 		candidate.base = old.Version
 	}
@@ -190,7 +191,7 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old rowVersion) (err
 	return nil
 }
 
-func (s *StatementScope) recordForeignActionReplacement(ref ids.ObjectRef, old, next rowVersion) {
+func (s *StatementScope) recordForeignActionReplacement(ref ids.ObjectRef, old, next storage.RowVersion) {
 	if !s.foreignActionsSettling {
 		return
 	}

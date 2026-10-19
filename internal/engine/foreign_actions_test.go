@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -133,7 +134,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 		sessionSQL(t, s, q)
 	}
 	scope := foreignActionUnitScope(t, e, s, "UPDATE p SET id=2")
-	named, storage, descriptor := scope.lockedRef, scope.lockedStorage, scope.lockedDescriptor
+	named, stored, descriptor := scope.lockedRef, scope.lockedStorage, scope.lockedDescriptor
 	jobs, auth, err := scope.prepareForeignActions()
 	if err != nil {
 		t.Fatal(err)
@@ -147,7 +148,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	old := children.committed[0]
 	value, _ := sqltype.Integer(job.child.Columns[0].Usage.Type, 2)
 	replacement := [1][]sqltype.Value{{value}}
-	predecessor := [1]rowVersion{old}
+	predecessor := [1]storage.RowVersion{old}
 	if err = scope.stage.replace(ref, predecessor[:], indexWriteBatch{values: replacement[:]}); err == nil {
 		t.Fatal("FK address alone authorized a child replacement")
 	}
@@ -175,7 +176,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	if next.Row != old.Row || next.Version == old.Version || next.Base != old.Version || len(scope.foreignActionTransitions) != 1 || scope.foreignActionTransitions[0].old.Version != old.Version || scope.foreignActionTransitions[0].next.Version != next.Version {
 		t.Fatal("physical lineage was not recorded", old, next, scope.foreignActionTransitions)
 	}
-	if scope.lockedRef != named || scope.lockedStorage != storage || scope.lockedDescriptor != descriptor {
+	if scope.lockedRef != named || scope.lockedStorage != stored || scope.lockedDescriptor != descriptor {
 		t.Fatal("child action spoofed initiating admission")
 	}
 	admission := scope.foreignActionAdmissions[ref.Address]
@@ -200,7 +201,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 		t.Fatal("changed action definition authority survived", err)
 	}
 	originalStorage := admission.storage
-	admission.storage = &relationStorage{}
+	admission.storage = &storage.Relation{}
 	e.mu.Lock()
 	err = scope.validateForeignActionLocked(e, ref)
 	e.mu.Unlock()

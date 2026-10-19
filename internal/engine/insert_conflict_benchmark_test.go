@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -16,9 +17,9 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 		for _, size := range []int{128, 4096, 65536} {
 			b.Run(fmt.Sprintf("isolation=%d/rows=%d", isolation, size), func(b *testing.B) {
 				f := insertConflictUniqueFixture(b)
-				f.store.Versions = make([]rowVersion, size)
+				f.store.Versions = make([]storage.RowVersion, size)
 				for i := range f.store.Versions {
-					f.store.Versions[i] = rowVersion{Row: ids.RowID(i + 1), Version: ids.VersionID(i + 1), Born: 1, Values: insertConflictUnitRow(b, f, int64(size-i))}
+					f.store.Versions[i] = storage.RowVersion{Row: ids.RowID(i + 1), Version: ids.VersionID(i + 1), Born: 1, Values: insertConflictUnitRow(b, f, int64(size-i))}
 				}
 				f.e.storage.SetFrontierLocked(uint64(size), uint64(size))
 				f.e.commitSeq = 1

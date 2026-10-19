@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -14,9 +15,9 @@ import (
 type domainValidationUse struct {
 	relation   *catalog.Relation
 	columns    []int
-	storage    *relationStorage
-	versions   []rowVersion
-	ends       *deletionRoot
+	storage    *storage.Relation
+	versions   []storage.RowVersion
+	ends       *storage.DeletionRoot
 	generation uint64
 }
 
@@ -154,13 +155,13 @@ func domainGraphEqual(a, b *domainValidationFence) bool {
 	return a.target == b.target && maps.Equal(a.objects, b.objects)
 }
 
-func (f *domainValidationFence) current(view catalog.Read, storage map[ids.ObjectAddress]*relationStorage) bool {
+func (f *domainValidationFence) current(view catalog.Read, relations map[ids.ObjectAddress]*storage.Relation) bool {
 	next, err := domainUsesAt(view, f.target, f.path)
 	if next == nil || err != nil && !f.allowContainers || !maps.Equal(f.objects, next.objects) {
 		return false
 	}
 	for _, use := range f.uses {
-		store := storage[use.relation.Address()]
+		store := relations[use.relation.Address()]
 		if store != use.storage || store == nil || len(store.Versions) != len(use.versions) || store.Ends != use.ends || store.Generation != use.generation {
 			return false
 		}

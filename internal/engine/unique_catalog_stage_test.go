@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 // TYPE UNIQUE rebuilds replace one backing relation with a new identity under
@@ -180,7 +181,7 @@ func TestUniqueCoCreatedParentStorageFence(t *testing.T) {
 	}
 	changed := *e.storage.Relations[ref.Address]
 	changed.Generation++
-	if indexStoresUnchanged(map[ids.ObjectAddress]*relationStorage{ref.Address: &changed}, captured, e.catalog.state, e.catalog.state, e.storage.IndexRoots, nil) {
+	if indexStoresUnchanged(map[ids.ObjectAddress]*storage.Relation{ref.Address: &changed}, captured, e.catalog.state, e.catalog.state, e.storage.IndexRoots, nil) {
 		t.Fatal("existing parent generation change passed its storage fence")
 	}
 	before, root, stores := e.catalog.state, e.storage.IndexRoots[index], len(e.storage.Relations)

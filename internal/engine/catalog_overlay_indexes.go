@@ -5,11 +5,12 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 type catalogOverlayIndex struct {
 	index, parent *catalog.Relation
-	store         relationStorage
+	store         storage.Relation
 }
 
 // Ordinary key providers run only on detached storage captures, never under
@@ -127,7 +128,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			outputs = &indexBuildCapture{index: index}
 		}
 		if outputs != nil {
-			outputs.outputs = make([]indexRowOutput, len(visible.Versions))
+			outputs.outputs = make([]storage.IndexOutput, len(visible.Versions))
 		}
 		full, err := buildIndexRoot(&evaluation, parent, index.SQLIndex, visible, outputs)
 		if err != nil {

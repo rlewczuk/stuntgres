@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 func TestMaterializedRefreshConcurrentRetainedProvenance(t *testing.T) {
@@ -14,7 +15,7 @@ func TestMaterializedRefreshConcurrentRetainedProvenance(t *testing.T) {
 		changes := newCatalogChanges()
 		previous := original
 		for i, concurrent := range sequence {
-			replacement := &relationStorage{Generation: previous.Generation + 1}
+			replacement := &storage.Relation{Generation: previous.Generation + 1}
 			stage := &CatalogStage{materializedReplacement: &materializedReplacement{original: d, descriptor: d, predecessor: previous, storage: replacement, generation: previous.Generation, ends: previous.Ends, concurrent: concurrent}}
 			e.mu.Lock()
 			e.stageCatalogChangesLocked(stage, changes)
@@ -35,10 +36,10 @@ func TestMaterializedRefreshConcurrentRetainedProvenance(t *testing.T) {
 	}
 	e := New()
 	d := concurrentUnitRelation(t, e)
-	private := &relationStorage{}
+	private := &storage.Relation{}
 	changes := newCatalogChanges()
 	changes.storage[d.Address()] = catalogStorageChange{replacement: private, relation: d}
-	stage := &CatalogStage{materializedReplacement: &materializedReplacement{original: d, descriptor: d, predecessor: private, storage: &relationStorage{}, concurrent: true}}
+	stage := &CatalogStage{materializedReplacement: &materializedReplacement{original: d, descriptor: d, predecessor: private, storage: &storage.Relation{}, concurrent: true}}
 	e.mu.Lock()
 	e.stageCatalogChangesLocked(stage, changes)
 	e.mu.Unlock()
@@ -54,9 +55,9 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 	old = e.catalog.state.MustRelation(old.Address())
 	old = concurrentUnitReplace(t, e, old, refreshUnitRows(t, old, 1), false, true)
 	catalog := e.CatalogRead()
-	storage := e.storage.Relations[old.Address()]
-	snapshot := &visibilityData{catalog: catalog, committed: map[ids.ObjectAddress][]rowVersion{old.Address(): storage.Versions}, singleGeneration: storage}
-	fence := materializedSourceFence{ref: e.catalog.Domain.Ref(catalog.Epoch(), old.Address()), relation: old, storage: storage}
+	stored := e.storage.Relations[old.Address()]
+	snapshot := &visibilityData{catalog: catalog, committed: map[ids.ObjectAddress][]storage.RowVersion{old.Address(): stored.Versions}, singleGeneration: stored}
+	fence := materializedSourceFence{ref: e.catalog.Domain.Ref(catalog.Epoch(), old.Address()), relation: old, storage: stored}
 	current := concurrentUnitReplace(t, e, old, refreshUnitRows(t, old, 2), true, true)
 	e.mu.Lock()
 	if !materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage.Relations[old.Address()]) || !e.materializedSourceFenceCurrent(fence) {

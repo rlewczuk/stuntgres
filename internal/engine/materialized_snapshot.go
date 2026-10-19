@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -295,7 +296,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 		}
 		d.Populated = item.populated
 		next.SetDescriptor(d.Address(), &d)
-		e.storage.Relations[d.Address()] = &relationStorage{Versions: versions}
+		e.storage.Relations[d.Address()] = &storage.Relation{Versions: versions}
 	}
 	e.catalog.state = next
 	return nil

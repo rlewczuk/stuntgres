@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -78,7 +79,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	}
 	f.e.mu.Lock()
 	f.e.catalog.state = next
-	f.e.storage.IndexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.Address(): root}
+	f.e.storage.IndexRoots = map[ids.ObjectAddress]*storage.IndexRoot{index.Address(): root}
 	f.e.mu.Unlock()
 	current, _, err := projectIndexMetadata(ctx, f.e.CatalogRead(), ref)
 	if err != nil {

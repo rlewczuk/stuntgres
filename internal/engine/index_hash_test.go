@@ -8,11 +8,12 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func hashRoot(t *testing.T, e *Engine, name string) (*catalog.Relation, *hashIndexRoot) {
+func hashRoot(t *testing.T, e *Engine, name string) (*catalog.Relation, *storage.HashRoot) {
 	t.Helper()
 	index, carrier := btreeRoot(t, e, name)
 	if index.SQLIndex.Method != catalog.HashMethod || carrier.Hash == nil || len(carrier.Entries) != 0 {
@@ -20,7 +21,7 @@ func hashRoot(t *testing.T, e *Engine, name string) (*catalog.Relation, *hashInd
 	}
 	return index, carrier.Hash
 }
-func hashKeys(t *testing.T, root *hashIndexRoot) []string {
+func hashKeys(t *testing.T, root *storage.HashRoot) []string {
 	t.Helper()
 	keys := []string{}
 	versions := map[ids.VersionID]bool{}
@@ -249,7 +250,7 @@ func TestHashIndexValidationOnlyPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	writes := append([]rowVersion(nil), store.Versions...)
+	writes := append([]storage.RowVersion(nil), store.Versions...)
 	for i := range writes {
 		writes[i].Base, writes[i].Born = writes[i].Version, 0
 		writes[i].Version += 100

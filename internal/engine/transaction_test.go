@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -90,7 +91,7 @@ func TestTransactionVisibilityVersionsAndRetention(t *testing.T) {
 		t.Fatal("retained result widened")
 	}
 	e.mu.Lock()
-	var versions []rowVersion
+	var versions []storage.RowVersion
 	for _, store := range e.storage.Relations {
 		versions = append(versions, store.Versions...)
 	}
@@ -364,24 +365,24 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				catalogRef(t, e, e.CatalogRead(), "t").Address,
 				catalogRef(t, e, e.CatalogRead(), "u").Address,
 			}
-			stores := [2]*relationStorage{e.storage.Relations[addresses[0]], e.storage.Relations[addresses[1]]}
-			roots := [2][]rowVersion{stores[0].Versions, stores[1].Versions}
-			records := [2][]rowVersion{}
+			stores := [2]*storage.Relation{e.storage.Relations[addresses[0]], e.storage.Relations[addresses[1]]}
+			roots := [2][]storage.RowVersion{stores[0].Versions, stores[1].Versions}
+			records := [2][]storage.RowVersion{}
 			for i, root := range roots {
-				records[i] = append([]rowVersion(nil), root...)
+				records[i] = append([]storage.RowVersion(nil), root...)
 				for j := range records[i] {
 					records[i][j].Values = append([]sqltype.Value(nil), root[j].Values...)
 				}
 			}
 			spare := roots[0][len(roots[0]):cap(roots[0])]
-			suffix := append([]rowVersion(nil), spare...)
+			suffix := append([]storage.RowVersion(nil), spare...)
 			frontier := e.commitSeq
 			retainedFrontier, retainedEpoch := frontier, e.catalog.state.Epoch()
 			retainedCatalog := e.catalog.state
 			ref := transactionBegin(t, a)
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			sessionSQL(t, a, "INSERT INTO u VALUES(9)")
-			staged := [2]rowVersion{a.transactions.writes[addresses[0]][0], a.transactions.writes[addresses[1]][0]}
+			staged := [2]storage.RowVersion{a.transactions.writes[addresses[0]][0], a.transactions.writes[addresses[1]][0]}
 			for i, root := range roots {
 				size := len(root) + len(a.transactions.writes[addresses[i]])
 				if len(root) != [2]int{3, 1}[i] || cap(root) != [2]int{4, 1}[i] || (size <= cap(root)) != (i == 0) {

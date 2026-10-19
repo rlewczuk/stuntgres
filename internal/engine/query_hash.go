@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
 type capturedHashIndex struct {
 	definition *catalog.IndexDefinition
-	root       *hashIndexRoot
+	root       *storage.HashRoot
 	usage      sqltype.Usage
 }
 
@@ -62,7 +63,7 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf,
 // This state is consumed by the real filter producer, not exported telemetry.
 // Occurrences are local to the captured source's selected visibility mapping.
 type hashCandidateSelection struct {
-	root        *hashIndexRoot
+	root        *storage.HashRoot
 	occurrences []int
 	position    int
 }

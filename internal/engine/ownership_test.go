@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -78,7 +79,7 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 	oldTable := base.MustRelation(table.Address())
 	store := e.storage.Relations[table.Address()]
 	rows := store.Versions
-	generators := make(map[ids.ObjectAddress]*sequenceGenerator)
+	generators := make(map[ids.ObjectAddress]*storage.SequenceGenerator)
 	for a, g := range e.storage.Sequences {
 		generators[a] = g
 	}

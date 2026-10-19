@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -77,12 +78,12 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				sessionSQL(t, b, q)
 			}
 			addresses := [2]ids.ObjectAddress{catalogRef(t, e, e.CatalogRead(), "t").Address, catalogRef(t, e, e.CatalogRead(), "u").Address}
-			stores := [2]*relationStorage{e.storage.Relations[addresses[0]], e.storage.Relations[addresses[1]]}
-			roots := [2][]rowVersion{stores[0].Versions, stores[1].Versions}
+			stores := [2]*storage.Relation{e.storage.Relations[addresses[0]], e.storage.Relations[addresses[1]]}
+			roots := [2][]storage.RowVersion{stores[0].Versions, stores[1].Versions}
 			if len(roots[0]) != 3 || cap(roots[0]) != 4 || len(roots[1]) != 1 || cap(roots[1]) != 1 {
 				t.Fatal("mixed spare/growth witness not selected")
 			}
-			prefixes := [2][]rowVersion{append([]rowVersion(nil), roots[0]...), append([]rowVersion(nil), roots[1]...)}
+			prefixes := [2][]storage.RowVersion{append([]storage.RowVersion(nil), roots[0]...), append([]storage.RowVersion(nil), roots[1]...)}
 			for i, root := range roots {
 				for j := range prefixes[i] {
 					prefixes[i][j].Values = append([]sqltype.Value(nil), root[j].Values...)
@@ -92,12 +93,12 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			retainedCatalog := e.catalog.state
 			retainedEpoch := e.catalog.state.Epoch()
 			retainedFrontier := e.commitSeq
-			spare := append([]rowVersion(nil), roots[0][3:4]...)
+			spare := append([]storage.RowVersion(nil), roots[0][3:4]...)
 			frontier := e.commitSeq
 			controlsRequire(t, a, "BEGIN")
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			sessionSQL(t, a, "INSERT INTO u VALUES(9)")
-			staged := [2]rowVersion{a.transactions.writes[addresses[0]][0], a.transactions.writes[addresses[1]][0]}
+			staged := [2]storage.RowVersion{a.transactions.writes[addresses[0]][0], a.transactions.writes[addresses[1]][0]}
 			old := a.transactions.ref
 			oldTicket := a.transactions.ticket
 			ctx, cancel := context.WithCancel(context.Background())
@@ -298,7 +299,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			retained := transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 7)
 			data := retained.source.view.read()
 			catalog, epoch := data.catalog.State(), data.catalog.Epoch()
-			versions := append([]rowVersion(nil), data.committed[address]...)
+			versions := append([]storage.RowVersion(nil), data.committed[address]...)
 			for i := range versions {
 				versions[i].Values = append([]sqltype.Value(nil), versions[i].Values...)
 			}

@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
 
@@ -349,7 +350,7 @@ func TestRestoreConstraintHistoryAtomicity(t *testing.T) {
 	}
 	before := e.catalog.state
 	stores := maps.Clone(e.storage.Relations)
-	rows := make(map[ids.ObjectAddress][]rowVersion)
+	rows := make(map[ids.ObjectAddress][]storage.RowVersion)
 	resources := retiredResourceCounts(e)
 	for address, store := range stores {
 		rows[address] = slices.Clone(store.Versions)

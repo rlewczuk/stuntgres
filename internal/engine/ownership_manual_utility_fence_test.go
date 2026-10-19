@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -56,27 +57,27 @@ type ownershipManualSnapshot struct {
 	roots           indexMaintenanceSnapshot
 	roles           *roleCatalog
 	revision        uint64
-	generators      map[ids.ObjectAddress]*sequenceGenerator
-	generatorValues map[ids.ObjectAddress]sequenceGenerator
+	generators      map[ids.ObjectAddress]*storage.SequenceGenerator
+	generatorValues map[ids.ObjectAddress]storage.SequenceGenerator
 	memory          *sequenceMemory
 	memoryValue     sequenceMemory
 	last            ids.ObjectAddress
-	rows            map[ids.ObjectAddress][]rowVersion
+	rows            map[ids.ObjectAddress][]storage.RowVersion
 }
 
 func ownershipManualCapture(e *Engine, session *Session, sequence ids.ObjectRef) ownershipManualSnapshot {
 	snapshot := ownershipManualSnapshot{
 		roots: indexMaintenanceCapture(e), roles: e.roles.published, revision: session.authorization.revision,
-		generators: make(map[ids.ObjectAddress]*sequenceGenerator), generatorValues: make(map[ids.ObjectAddress]sequenceGenerator),
+		generators: make(map[ids.ObjectAddress]*storage.SequenceGenerator), generatorValues: make(map[ids.ObjectAddress]storage.SequenceGenerator),
 		memory: session.sequences[sequence.Address], last: session.lastSequence,
-		rows: make(map[ids.ObjectAddress][]rowVersion),
+		rows: make(map[ids.ObjectAddress][]storage.RowVersion),
 	}
 	snapshot.memoryValue = *snapshot.memory
 	for address, generator := range e.storage.Sequences {
 		snapshot.generators[address], snapshot.generatorValues[address] = generator, *generator
 	}
-	for address, storage := range e.storage.Relations {
-		rows := append([]rowVersion(nil), storage.Versions...)
+	for address, stored := range e.storage.Relations {
+		rows := append([]storage.RowVersion(nil), stored.Versions...)
 		for i := range rows {
 			rows[i].Values = append([]sqltype.Value(nil), rows[i].Values...)
 		}

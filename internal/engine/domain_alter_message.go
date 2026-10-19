@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 // Stage observations describe the exact private entry roots. Outer publication
@@ -12,7 +13,7 @@ import (
 // equality and never another execution of the selected CHECK.
 func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogChanges, current *catalog.State) error {
 	if fence := stage.domainValidation; fence != nil {
-		stores := make(map[ids.ObjectAddress]*relationStorage, len(fence.uses))
+		stores := make(map[ids.ObjectAddress]*storage.Relation, len(fence.uses))
 		for _, use := range fence.uses {
 			stores[use.relation.Address()] = e.stageStorageLocked(stage, use.relation.Address())
 		}
@@ -40,7 +41,7 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 	if len(stage.domainIndexRoots) != 0 {
 		changes.domainIndexRoots = maps.Clone(changes.domainIndexRoots)
 		if changes.domainIndexRoots == nil {
-			changes.domainIndexRoots = make(map[ids.ObjectAddress]*logicalIndexRoot)
+			changes.domainIndexRoots = make(map[ids.ObjectAddress]*storage.IndexRoot)
 		}
 		for address, root := range stage.domainIndexRoots {
 			if e.domainStageIndexRootLocked(stage, address) != root {
@@ -52,7 +53,7 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 	return nil
 }
 
-func (e *Engine) domainStageIndexRootLocked(stage *CatalogStage, address ids.ObjectAddress) *logicalIndexRoot {
+func (e *Engine) domainStageIndexRootLocked(stage *CatalogStage, address ids.ObjectAddress) *storage.IndexRoot {
 	if stage.authSession != nil && stage.authSession.transactions.retainsTransaction() {
 		if changes := stage.authSession.transactions.catalog; changes != nil {
 			if root := changes.uniqueRoots[address]; root != nil {
@@ -77,7 +78,7 @@ func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes
 		if err != nil {
 			return err
 		}
-		original, target := relationStorage{Versions: writes}, relationStorage{Versions: mapped}
+		original, target := storage.Relation{Versions: writes}, storage.Relation{Versions: mapped}
 		rebound, err := reownDomainIndexOutputs(scope.op.Context(), stage.Base.State(), next, &original, &target)
 		if err != nil {
 			return err

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -45,7 +46,7 @@ func TestUniqueIndexProviderHashAgreement(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			cmp, err := ordering.compareKeys(ctx, logicalIndexEntry{Keys: []sqltype.Value{a}}, logicalIndexEntry{Keys: []sqltype.Value{b}})
+			cmp, err := ordering.compareKeys(ctx, storage.IndexEntry{Keys: []sqltype.Value{a}}, storage.IndexEntry{Keys: []sqltype.Value{b}})
 			if err != nil || cmp != 0 {
 				t.Fatal(cmp, err)
 			}

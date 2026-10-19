@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -39,7 +40,7 @@ func concurrentUnitCompletion(t *testing.T, e *Engine, owner *lock.Ticket, build
 	}
 }
 
-func concurrentUnitIndex(t *testing.T, e *Engine, name string, ready, valid bool) (*catalog.Relation, *logicalIndexRoot) {
+func concurrentUnitIndex(t *testing.T, e *Engine, name string, ready, valid bool) (*catalog.Relation, *storage.IndexRoot) {
 	t.Helper()
 	e.mu.Lock()
 	defer e.mu.Unlock()

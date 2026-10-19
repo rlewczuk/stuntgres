@@ -111,18 +111,12 @@ completes the step.
 - [x] 6b — `storage` created and types moved (`c001ffa28`, `af2501215`,
   then the commit that records this status) *(racecheck skipped at user
   request; targeted RACE=1 runs passed)*
-- [ ] 6c — Aliases removed
+- [x] 6c — Aliases removed (`518fd7141`, `4c9a2a229`, `33c1b6f43`,
+  `a57f5648e`, then the commit that records this status) *(racecheck
+  skipped at user request)*
 
-Outstanding aliases (6b, `internal/engine/storage_aliases.go`), all
-unexported: `storageStore` (`storage.Store`), `relationStorage`
-(`Relation`), `rowVersion` (`RowVersion`), `rowEnd` (`RowEnd`),
-`deletionRoot` (`DeletionRoot`), `logicalIndexRoot` (`IndexRoot`),
-`logicalIndexEntry` (`IndexEntry`), `indexRowOutput` (`IndexOutput`),
-`hashIndexRoot` (`HashRoot`), `hashIndexEntry` (`HashEntry`),
-`hashIndexBinding` (`HashBinding`), `sequenceGenerator`
-(`SequenceGenerator`), `truncateLineage` (`TruncateLineage`) and
-`materializedLineage` (`MaterializedLineage`). No constant or function
-aliases.
+Outstanding aliases: none. 6b kept 14 unexported type aliases in
+`internal/engine/storage_aliases.go`; 6c removed them all.
 
 6a results:
 
@@ -221,11 +215,63 @@ aliases.
   branch, over the <1 ms target that `master` already misses. `make deps`
   lists only module paths. `AGENTS.md` stays at 100 lines.
 
+6c results:
+
+- **Scope.** Measured on `af324f738` with go/types: 1,172 alias uses in
+  242 engine files, the largest `rowVersion` (512), `relationStorage`
+  (270), `logicalIndexRoot` (95), `logicalIndexEntry` (83) and
+  `sequenceGenerator` (82). No use outside package `engine` (the aliases
+  were unexported). One embedded alias field, `updateCandidate.rowVersion`
+  (`update.go`), became `storage.RowVersion`; its selectors follow.
+- **Shadowing** (`518fd7141`). 33 of the 153 locals named `storage` would
+  have captured an inserted `storage.X`. They became `relations`
+  (`map[ids.ObjectAddress]*storage.Relation`) or `stored`
+  (`*storage.Relation`): 142 edits in 24 files.
+- **Rewrite.** Index types (`IndexRoot`, `IndexEntry`, `IndexOutput`,
+  `HashRoot`, `HashEntry`, `HashBinding`; `4c9a2a229`, 305 edits in 62
+  files), then the rest and deletion of `storage_aliases.go` (`33c1b6f43`,
+  1,113 edits in 226 files). Imports were added to 242 files; two comments
+  that named `rowVersion` were fixed by hand.
+- **Readability** (`a57f5648e`). Locals named `storage` in any function that
+  also names the package (for example `storage *storage.Relation`
+  parameters, legal because parameter scope is the body) were renamed the
+  same way: 69 edits in 20 files. No local named `storage` now shares a
+  function with the package; two struct fields named `storage` remain.
+- **Tool.** Scratchpad `storagex`, the 5f `aliasx` tool parametrized for
+  `storage` (modes `count`, `locals`, `shadow`, `apply`, and a new `tidy`).
+  Each write reloads the package with its tests, requires zero type errors
+  and an exact per-object use census before and after, mapped through the
+  edits. gofmt moved `"testing"` after the inserted import in eight test
+  files.
+- **Tests.** Adapted mechanically by the same tool; none moved, deleted or
+  rewritten by hand.
+- **Docs.** Design notes already name `storage.Relation` where they mean
+  current code; plan-time records keep the old names. The `storage` README
+  and `AGENTS.md` are unchanged (100 lines).
+- **Verification.** `make build` and targeted `make check` storage
+  selections (index, hash, unique, exclusion, sequence, TRUNCATE,
+  materialized view, UPDATE, INSERT, DELETE, Restore, Dump, TEMP, domain,
+  serial, partial, view, commit time, CREATE, foreign key, generated,
+  remap, partition, replacement, `TestStore`, `TestRelation`) after each
+  commit; `quickcheck` passed on the rebased branch. `racecheck` skipped at
+  the user's request. No `REFERENCE=1` selection is required for a pure
+  rename. `make bench` (interleaved, three rounds each, load average about
+  22): 7,768 allocations and about 2.07 MB/op on both; best 2.76 ms on
+  `master` and 2.29 ms on the branch in the last round, with times falling
+  as the load dropped. The <1 ms target is already missed on `master`.
+  `make deps` lists only module paths. `storage` still imports only
+  `catalog`, `expr`, `ids`, `sqltype` and the standard library.
+- **Unrelated failure.** One `quickcheck` run failed
+  `TestReferenceServerCopyCancelInput/server/invalid_record` (57014 instead
+  of 22P02: the cancel won the race with the bad record). It passed 10 of 10
+  in isolation on both `master` and the branch, and the next `quickcheck`
+  passed; it is a timing race in server COPY cancellation, not this change.
+
 Notes for later steps:
 
-- 6c: about 61 production and 93 test locals or parameters are named
-  `storage`. Rename those that would capture an inserted `storage.X`
-  reference first, as 5f did for `catalog`; `e.storage` selectors are not
-  affected. The 6a and 6b counter and overlay notes are resolved above.
+- 96 engine locals (31 production) are still named `storage`, none in a
+  function that names the package. New code that names the package inside
+  their scope must rename the local first. The field `Engine.storage` is
+  unaffected.
 - Later: the store maps are exported fields; confining their writes to
   methods (as 5b did for `catalog.State`) is optional follow-up work.

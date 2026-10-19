@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -42,10 +43,10 @@ func preparedBoundaryReceive[T any](t *testing.T, channel <-chan T, description 
 	}
 }
 
-func preparedBoundaryUpdate(t *testing.T, entry *preparedTransaction, parent ids.ObjectAddress) (int, rowVersion) {
+func preparedBoundaryUpdate(t *testing.T, entry *preparedTransaction, parent ids.ObjectAddress) (int, storage.RowVersion) {
 	t.Helper()
 	position := -1
-	var update rowVersion
+	var update storage.RowVersion
 	for i, row := range entry.writes[parent] {
 		if row.Base == 0 {
 			continue
@@ -144,12 +145,12 @@ type preparedBoundarySnapshot struct {
 	descriptors     map[ids.ObjectAddress]catalog.Descriptor
 	names           map[ids.NameKey]ids.ObjectAddress
 	counters        [10]uint64
-	storagePointers map[ids.ObjectAddress]*relationStorage
-	storage         map[ids.ObjectAddress]relationStorage
-	generators      map[ids.ObjectAddress]*sequenceGenerator
-	generatorValues map[ids.ObjectAddress]sequenceGenerator
-	indexes         map[ids.ObjectAddress]*logicalIndexRoot
-	indexValues     map[ids.ObjectAddress][]logicalIndexEntry
+	storagePointers map[ids.ObjectAddress]*storage.Relation
+	storage         map[ids.ObjectAddress]storage.Relation
+	generators      map[ids.ObjectAddress]*storage.SequenceGenerator
+	generatorValues map[ids.ObjectAddress]storage.SequenceGenerator
+	indexes         map[ids.ObjectAddress]*storage.IndexRoot
+	indexValues     map[ids.ObjectAddress][]storage.IndexEntry
 	registry        map[string]*preparedTransaction
 	entries         map[string]preparedTransaction
 	ssi             map[ids.TxRef]serializableTransaction
@@ -166,9 +167,9 @@ func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoun
 	s := preparedBoundarySnapshot{
 		catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()),
 		counters:        [10]uint64{uint64(e.catalog.state.Epoch()), e.catalog.state.NamespaceGeneration(), uint64(e.catalog.nextOID), uint64(e.catalog.nextRevision), e.storage.RowFrontier(), e.storage.VersionFrontier(), uint64(e.commitSeq), uint64(e.diagnosticTx), e.serializable.order, e.roles.nextPrincipal},
-		storagePointers: maps.Clone(e.storage.Relations), storage: map[ids.ObjectAddress]relationStorage{},
-		generators: maps.Clone(e.storage.Sequences), generatorValues: map[ids.ObjectAddress]sequenceGenerator{},
-		indexes: maps.Clone(e.storage.IndexRoots), indexValues: map[ids.ObjectAddress][]logicalIndexEntry{},
+		storagePointers: maps.Clone(e.storage.Relations), storage: map[ids.ObjectAddress]storage.Relation{},
+		generators: maps.Clone(e.storage.Sequences), generatorValues: map[ids.ObjectAddress]storage.SequenceGenerator{},
+		indexes: maps.Clone(e.storage.IndexRoots), indexValues: map[ids.ObjectAddress][]storage.IndexEntry{},
 		registry: maps.Clone(e.prepared), entries: map[string]preparedTransaction{},
 		ssi: map[ids.TxRef]serializableTransaction{}, creators: maps.Clone(e.serializable.creators),
 		owners: lockState.Owners, resources: lockState.Journals[entry.ticket], locks: map[lock.Resource]lock.ResourceState{},
@@ -736,7 +737,7 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 			if staleKind == "wrong_base_version" {
 				stale.writes[updatePosition].Base = ids.VersionID(^uint64(0))
 			} else {
-				stale.ends = &deletionRoot{Rows: map[ids.RowID]rowEnd{update.Row: {Version: update.Base, End: entry.frontier}}}
+				stale.ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{update.Row: {Version: update.Base, End: entry.frontier}}}
 			}
 			err := e.prepareRowPublication(&stale, entry.ref, materialize)
 			if err == nil || err.Error() != "stuntgres: stale update predecessor" {

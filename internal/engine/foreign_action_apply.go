@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -152,7 +153,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 		if err != nil {
 			return err
 		}
-		return children.each(func(child rowVersion) (bool, error) {
+		return children.each(func(child storage.RowVersion) (bool, error) {
 			match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
 			if err != nil || !match {
 				return false, err
@@ -202,10 +203,10 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 	}
 	// Retained matches take precedence by real RowID. The canonical grant and
 	// live-successor crosscheck below run before any latest-key match/staging.
-	var candidates []rowVersion
+	var candidates []storage.RowVersion
 	var retainedMatches map[ids.RowID]struct{}
 	if retained.storage != nil {
-		err = retained.each(func(child rowVersion) (bool, error) {
+		err = retained.each(func(child storage.RowVersion) (bool, error) {
 			match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
 			if err != nil || !match {
 				return false, err
@@ -221,7 +222,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			return err
 		}
 	}
-	err = children.each(func(child rowVersion) (bool, error) {
+	err = children.each(func(child storage.RowVersion) (bool, error) {
 		if _, exists := retainedMatches[child.Row]; exists {
 			return false, nil
 		}
@@ -330,7 +331,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 		if err := s.physicalRowEvent(ref, old, actionMode, 0); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.catalog)
 		}
-		predecessor := [1]rowVersion{old}
+		predecessor := [1]storage.RowVersion{old}
 		proposal := indexWriteCandidate{values: row}
 		if err = s.checkUniqueRow(ref, &proposal, predecessor[:], indexWriteBatch{}); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.catalog)
@@ -354,7 +355,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 		if err != nil {
 			return err
 		}
-		return final.each(func(child rowVersion) (bool, error) {
+		return final.each(func(child storage.RowVersion) (bool, error) {
 			match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
 			if err != nil || !match {
 				return false, err

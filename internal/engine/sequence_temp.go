@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
 
@@ -277,20 +278,20 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 		}
 	}
 	next := e.stageRead(stage).State()
-	sequences := make(map[ids.ObjectAddress]*sequenceGenerator, len(e.storage.Sequences))
+	sequences := make(map[ids.ObjectAddress]*storage.SequenceGenerator, len(e.storage.Sequences))
 	for a, g := range e.storage.Sequences {
 		sequences[a] = g
 	}
-	storage := make(map[ids.ObjectAddress]*relationStorage, len(e.storage.Relations))
+	relations := make(map[ids.ObjectAddress]*storage.Relation, len(e.storage.Relations))
 	for a, store := range e.storage.Relations {
-		storage[a] = store
+		relations[a] = store
 	}
-	roots := make(map[ids.ObjectAddress]*logicalIndexRoot, len(e.storage.IndexRoots))
+	roots := make(map[ids.ObjectAddress]*storage.IndexRoot, len(e.storage.IndexRoots))
 	for a, root := range e.storage.IndexRoots {
 		roots[a] = root
 	}
 	for address, shape := range stage.rowShapes {
-		storage[address] = shape.replacement
+		relations[address] = shape.replacement
 	}
 	if indexes != nil {
 		for address, root := range indexes.roots {
@@ -299,7 +300,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 	}
 	for a := range stage.Removals {
 		delete(sequences, a)
-		delete(storage, a)
+		delete(relations, a)
 		delete(roots, a)
 	}
 	catalog.PruneNamespaceDefaults(stage.Base.State(), next, namespaces)
@@ -312,7 +313,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 			}
 		}
 	}
-	e.catalog.state, e.storage.Sequences, e.storage.Relations, e.storage.IndexRoots = next, sequences, storage, roots
+	e.catalog.state, e.storage.Sequences, e.storage.Relations, e.storage.IndexRoots = next, sequences, relations, roots
 	stage.lifecycle = catalogPublished
 	e.catalog.nextRevision = nextRevision
 	s.sequences = nil
@@ -322,8 +323,8 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 }
 
 type temporarySessionIndexes struct {
-	previous map[ids.ObjectAddress]*logicalIndexRoot
-	roots    map[ids.ObjectAddress]*logicalIndexRoot
+	previous map[ids.ObjectAddress]*storage.IndexRoot
+	roots    map[ids.ObjectAddress]*storage.IndexRoot
 }
 
 // Capture affected roots under the mutex; construction remains outside the
@@ -334,7 +335,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 		e.mu.Unlock()
 		return nil, catalog.Conflict{}
 	}
-	result := &temporarySessionIndexes{previous: make(map[ids.ObjectAddress]*logicalIndexRoot)}
+	result := &temporarySessionIndexes{previous: make(map[ids.ObjectAddress]*storage.IndexRoot)}
 	for address := range stage.Removals {
 		index, ok := stage.Base.Relation(address)
 		if ok && index.SQLIndex != nil {
@@ -379,7 +380,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 			return nil, err
 		}
 	}
-	result.roots = make(map[ids.ObjectAddress]*logicalIndexRoot, len(result.previous))
+	result.roots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(result.previous))
 	for address := range result.previous {
 		if _, removed := stage.Removals[address]; !removed {
 			index, ok := next.Relation(address)

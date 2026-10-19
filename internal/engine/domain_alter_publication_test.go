@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -41,7 +42,7 @@ func domainAlterPublicationFixture(t *testing.T) (*Engine, *Operation, func(), *
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.storage.Relations[table.Address()] = &relationStorage{Generation: 1, Versions: []rowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value}}}}
+	e.storage.Relations[table.Address()] = &storage.Relation{Generation: 1, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value}}}}
 	e.commitSeq = 1
 	stage := e.BeginCatalogStage(view)
 	next := *d
@@ -85,11 +86,11 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 				store := *e.storage.Relations[table.Address()]
 				switch kind {
 				case "length":
-					store.Versions = append(slices.Clone(store.Versions), rowVersion{Row: 2, Version: 2})
+					store.Versions = append(slices.Clone(store.Versions), storage.RowVersion{Row: 2, Version: 2})
 				case "generation":
 					store.Generation++
 				case "ends":
-					store.Ends = &deletionRoot{}
+					store.Ends = &storage.DeletionRoot{}
 				}
 				e.storage.Relations[table.Address()] = &store
 			case "replacement":

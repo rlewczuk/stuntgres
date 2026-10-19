@@ -5,12 +5,13 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
 // Inspect every tuple component, not merely the leading ordering key.
-func expressionRootTuples(t *testing.T, root *logicalIndexRoot) [][]string {
+func expressionRootTuples(t *testing.T, root *storage.IndexRoot) [][]string {
 	t.Helper()
 	btreeKeys(t, root)
 	tuples := make([][]string, len(root.Entries))
@@ -31,7 +32,7 @@ func expressionRootTuples(t *testing.T, root *logicalIndexRoot) [][]string {
 	return tuples
 }
 
-func expressionWantRoot(t *testing.T, e *Engine, name string, want [][]string) *logicalIndexRoot {
+func expressionWantRoot(t *testing.T, e *Engine, name string, want [][]string) *storage.IndexRoot {
 	t.Helper()
 	index, root := btreeRoot(t, e, name)
 	if got := expressionRootTuples(t, root); !reflect.DeepEqual(got, want) {

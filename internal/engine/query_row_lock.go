@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
 
@@ -153,9 +154,9 @@ func (s *StatementScope) acquireQueryRow(leaf queryLeaf, row ids.RowID, mark que
 	return err == nil, err
 }
 
-func (s *StatementScope) latestQueryRow(leaf queryLeaf, candidate rowVersion, hint int, mode lock.Mode) (result rowVersion, present bool, err error) {
+func (s *StatementScope) latestQueryRow(leaf queryLeaf, candidate storage.RowVersion, hint int, mode lock.Mode) (result storage.RowVersion, present bool, err error) {
 	e := s.op.session.Engine()
-	var physical rowVersion
+	var physical storage.RowVersion
 	defer func() {
 		if err != nil || !present {
 			return
@@ -170,7 +171,7 @@ func (s *StatementScope) latestQueryRow(leaf queryLeaf, candidate rowVersion, hi
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if _, err := currentQuerySourceLocked(e, e.privateCatalogLocked(s.owner.catalog), s.owner.catalog, leaf); err != nil {
-		return rowVersion{}, false, err
+		return storage.RowVersion{}, false, err
 	}
 	store := leaf.storage
 	rows := store.Versions
@@ -179,7 +180,7 @@ func (s *StatementScope) latestQueryRow(leaf queryLeaf, candidate rowVersion, hi
 	}
 	current, _, found := rowByID(rows, candidate.Row, hint)
 	if !found {
-		return rowVersion{}, false, fmt.Errorf("stuntgres: invalid query row predecessor")
+		return storage.RowVersion{}, false, fmt.Errorf("stuntgres: invalid query row predecessor")
 	}
 	physical = current
 	present = liveVersion(current, e.commitSeq, store.Ends, s.ownDeletes[leaf.ref.Address])
@@ -196,7 +197,7 @@ func (s *StatementScope) latestQueryRow(leaf queryLeaf, candidate rowVersion, hi
 			if mode == lock.ForKeyShare && present && current.Version != candidate.Version && current.KeyChangedAt <= s.owner.frontier {
 				return candidate, true, nil
 			}
-			return rowVersion{}, false, sqlError("40001", "could not serialize access due to concurrent update")
+			return storage.RowVersion{}, false, sqlError("40001", "could not serialize access due to concurrent update")
 		}
 	}
 	return current, present, nil

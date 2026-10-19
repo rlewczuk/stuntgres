@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -54,7 +55,7 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]boo
 		if bound == nil {
 			continue
 		}
-		conflict, _, err := s.probeExclusion(event.parent, binding, bound, rowVersion{Row: event.row, Version: event.version}, true, indexProbeRuntime)
+		conflict, _, err := s.probeExclusion(event.parent, binding, bound, storage.RowVersion{Row: event.row, Version: event.version}, true, indexProbeRuntime)
 		if err != nil {
 			return err
 		}

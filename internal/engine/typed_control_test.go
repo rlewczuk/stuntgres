@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"testing"
 )
 
@@ -36,22 +37,22 @@ func typedControlsTemporary(e *Engine, tables ...*catalog.Relation) {
 func TestTypedTemporaryReplacementAdmission(t *testing.T) {
 	e, _, table := typedUnitCatalog(t, false)
 	typedControlsTemporary(e, table)
-	e.storage.Relations[table.Address()] = &relationStorage{}
-	state, oid, revision, storage := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision, e.storage.Relations[table.Address()]
+	e.storage.Relations[table.Address()] = &storage.Relation{}
+	state, oid, revision, stored := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision, e.storage.Relations[table.Address()]
 	next := catalog.CloneState(New().catalog.state)
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*relationStorage{}, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
+	err := e.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
 	if err == nil || err.Error() != temporaryTypedReplacementError {
 		t.Fatal(err)
 	}
-	if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[table.Address()] != storage {
+	if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[table.Address()] != stored {
 		t.Fatal("final admission rejection mutated target")
 	}
 	if err := e.Reset(context.Background()); err == nil || err.Error() != temporaryTypedReplacementError {
 		t.Fatal(err)
 	}
-	if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[table.Address()] != storage {
+	if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[table.Address()] != stored {
 		t.Fatal("preallocation rejection mutated target")
 	}
 }
@@ -59,18 +60,18 @@ func TestTypedTemporaryReplacementAdmission(t *testing.T) {
 func TestTypedTemporaryProviderSourceIdentityRetention(t *testing.T) {
 	e, source, table := typedUnitCatalog(t, false)
 	typedControlsTemporary(e, source, table)
-	e.storage.Relations[table.Address()] = &relationStorage{}
+	e.storage.Relations[table.Address()] = &storage.Relation{}
 	next := catalog.CloneState(New().catalog.state)
-	storage := map[ids.ObjectAddress]*relationStorage{}
+	relations := map[ids.ObjectAddress]*storage.Relation{}
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, storage, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
+	err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 	retained := next.MustRelation(table.Address())
 	backing := next.MustRelation(source.Address())
-	if retained.OfType != table.OfType || retained.RowType != table.RowType || backing.RowType != source.RowType || storage[table.Address()] != e.storage.Relations[table.Address()] {
+	if retained.OfType != table.OfType || retained.RowType != table.RowType || backing.RowType != source.RowType || relations[table.Address()] != e.storage.Relations[table.Address()] {
 		t.Fatal("retained TEMP providers were retargeted")
 	}
 	if err := validateTypedAttachment(e.catalog.read(next), retained); err != nil {

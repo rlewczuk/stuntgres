@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 // Validation is shared by prepare and commit. Only commit constructs install
@@ -29,7 +30,7 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materia
 			if replacements != 0 {
 				capacity = size
 			}
-			p.next = make([]rowVersion, size, capacity)
+			p.next = make([]storage.RowVersion, size, capacity)
 			copy(p.next, p.root)
 		}
 	}
@@ -53,7 +54,7 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materia
 				tail++
 				continue
 			}
-			var predecessor rowVersion
+			var predecessor storage.RowVersion
 			var slot int
 			var found bool
 			if index != nil {
@@ -82,7 +83,7 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materia
 			if p.ends != nil {
 				count += len(p.ends.Rows)
 			}
-			p.nextEnds = &deletionRoot{Rows: make(map[ids.RowID]rowEnd, count)}
+			p.nextEnds = &storage.DeletionRoot{Rows: make(map[ids.RowID]storage.RowEnd, count)}
 			if p.ends != nil {
 				for id, end := range p.ends.Rows {
 					p.nextEnds.Rows[id] = end
@@ -105,7 +106,7 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materia
 				return errors.New("stuntgres: deletion predecessor already ended")
 			}
 			if materialize {
-				p.nextEnds.Rows[id] = rowEnd{Version: candidate.version}
+				p.nextEnds.Rows[id] = storage.RowEnd{Version: candidate.version}
 			}
 		}
 	}

@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 )
 
 func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
@@ -154,7 +155,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 					if err := change.Create(&replacement); err != nil {
 						t.Fatal(err)
 					}
-					change.generators = map[ids.ObjectAddress]*sequenceGenerator{replacement.Address(): {Last: replacement.Sequence.Start, Generation: replacement.Revision()}}
+					change.generators = map[ids.ObjectAddress]*storage.SequenceGenerator{replacement.Address(): {Last: replacement.Sequence.Start, Generation: replacement.Revision()}}
 					queryCreatePublish(t, e, change)
 					if replacement.Address() == provider.Address() {
 						t.Fatal("recreated provider reused old identity")

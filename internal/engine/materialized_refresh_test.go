@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -136,7 +137,7 @@ func TestMaterializedRefreshPublicationFences(t *testing.T) {
 			case "length":
 				store.Versions = store.Versions[:2]
 			case "ends":
-				store.Ends = &deletionRoot{}
+				store.Ends = &storage.DeletionRoot{}
 			case "store":
 				copy := *store
 				e.storage.Relations[d.Address()] = &copy

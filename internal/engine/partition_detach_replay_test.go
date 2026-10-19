@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -127,7 +128,7 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	}
 	// A real captured private-name projection exercises the local constraint's
 	// rename barrier. Stored REGCLASS data must wait for that original identity.
-	tables := []dumpRelation{{descriptor: f.root}, {descriptor: f.leaf}, {descriptor: consumer, columns: consumer.Columns, attributes: consumer.Attributes, defaults: consumer.ColumnMeta.Defaults, versions: []rowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{value}}}}}
+	tables := []dumpRelation{{descriptor: f.root}, {descriptor: f.leaf}, {descriptor: consumer, columns: consumer.Columns, attributes: consumer.Attributes, defaults: consumer.ColumnMeta.Defaults, versions: []storage.RowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{value}}}}}
 	indices := map[ids.OID]int{pi: 0, ci: 1, li: 2}
 	_, replay := partitionConstraintDumpCatalog(f.view)
 	if err := partitionDumpEvents(context.Background(), f.view, graph, declarations, tables, indices, replay, false); err != nil {

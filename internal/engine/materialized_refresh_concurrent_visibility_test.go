@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -87,7 +88,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			stage, unrelated := queryCreateStage(t, e, "unrelated_snapshot", 1)
 			queryCreatePublish(t, e, stage)
 			original := e.storage.Relations[d.Address()]
-			original.Ends = &deletionRoot{}
+			original.Ends = &storage.DeletionRoot{}
 			scope := refreshUnitScope(t, e, context.Background())
 			scope.owner.isolation = RepeatableRead
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {

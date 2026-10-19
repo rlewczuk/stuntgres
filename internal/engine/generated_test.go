@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -219,12 +220,12 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	base, _ := sqltype.Integer(d.Columns[0].Usage.Type, 2)
 	oldOID, _ := sqltype.OIDValue(oid, uint32(oldAddress.ObjectID))
 	source := []sqltype.Value{base, oldOID}
-	rows := &relationStorage{Versions: []rowVersion{{Values: source}}}
+	rows := &storage.Relation{Versions: []storage.RowVersion{{Values: source}}}
 	candidate := catalog.CloneState(view.State())
 	candidate.SetDescriptor(d.Address(), d)
-	storage := map[ids.ObjectAddress]*relationStorage{d.Address(): rows}
+	relations := map[ids.ObjectAddress]*storage.Relation{d.Address(): rows}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.Address()}
-	if err := recomputeRemappedGenerations(context.Background(), candidate, storage, mapping, EvalContext{Context: context.Background()}, nil); err != nil {
+	if err := recomputeRemappedGenerations(context.Background(), candidate, relations, mapping, EvalContext{Context: context.Background()}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if n, _ := source[1].OID(); n != uint32(oldAddress.ObjectID) {
@@ -235,12 +236,12 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := recomputeRemappedGenerations(canceled, candidate, storage, mapping, EvalContext{Context: canceled}, nil); !errors.Is(err, context.Canceled) {
+	if err := recomputeRemappedGenerations(canceled, candidate, relations, mapping, EvalContext{Context: canceled}, nil); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	boolean, _ := view.LookupType(sqltype.Bool)
 	d.Constraints.Check = []catalog.CheckConstraint{{Name: "blocked", Expression: literalExpression{expr.Info{Usage: boolean.Usage()}, sqltype.Boolean(boolean, false)}}}
-	if err := recomputeRemappedGenerations(context.Background(), candidate, storage, mapping, EvalContext{Context: context.Background()}, nil); err == nil {
+	if err := recomputeRemappedGenerations(context.Background(), candidate, relations, mapping, EvalContext{Context: context.Background()}, nil); err == nil {
 		t.Fatal("replacement ignored completed-row CHECK")
 	}
 	if n, _ := source[1].OID(); n != uint32(oldAddress.ObjectID) {

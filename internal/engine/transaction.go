@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"sync"
@@ -56,7 +57,7 @@ type transactionOwner struct {
 	ref             ids.TxRef
 	next            ids.TxID
 	command         ids.CommandID
-	writes          map[ids.ObjectAddress][]rowVersion
+	writes          map[ids.ObjectAddress][]storage.RowVersion
 	deletes         map[ids.ObjectAddress]*privateDeletionRoot
 	start           time.Time
 	isolation       Isolation
@@ -313,9 +314,9 @@ type StatementScope struct {
 	activeViews                    []ids.ObjectAddress
 	txRef                          ids.TxRef
 	command                        ids.CommandID
-	ownWrites                      map[ids.ObjectAddress][]rowVersion
+	ownWrites                      map[ids.ObjectAddress][]storage.RowVersion
 	ownDeletes                     map[ids.ObjectAddress]*privateDeletionRoot
-	existingIndexOutputs           map[ids.ObjectAddress]map[indexRowIdentity]indexRowOutput
+	existingIndexOutputs           map[ids.ObjectAddress]map[indexRowIdentity]storage.IndexOutput
 	exclusionModes                 exclusionModes
 	exclusionStarted               bool
 	inheritanceRelations           []queryLeaf  // Exact physical SELECT grants, separate from SQL occurrences.
@@ -393,7 +394,7 @@ type StatementScope struct {
 type WriteStage struct {
 	self      *WriteStage
 	scope     *StatementScope
-	rows      map[ids.ObjectAddress][]rowVersion
+	rows      map[ids.ObjectAddress][]storage.RowVersion
 	deletes   map[ids.ObjectAddress]*privateDeletionRoot
 	replacing bool
 }
@@ -650,10 +651,10 @@ retry:
 	if err := e.assignTransactionXIDLocked(s.txRef); err != nil {
 		return err
 	}
-	var versions []rowVersion
+	var versions []storage.RowVersion
 	var err error
 	if len(relation.Constraints.Exclusion) != 0 {
-		versions = make([]rowVersion, len(rows))
+		versions = make([]storage.RowVersion, len(rows))
 		for i := range rows {
 			reserved := batch.candidate(i).exclusion
 			if reserved == nil {
@@ -682,7 +683,7 @@ retry:
 		}
 	}
 	if w.rows == nil {
-		w.rows = make(map[ids.ObjectAddress][]rowVersion)
+		w.rows = make(map[ids.ObjectAddress][]storage.RowVersion)
 	}
 	if len(w.rows[ref.Address]) == 0 {
 		w.rows[ref.Address] = versions
@@ -982,11 +983,11 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 }
 
 // Prepare only vector headers/capacity. Tail writes follow the final preflight.
-func prepareOwnWrites(previous, staged map[ids.ObjectAddress][]rowVersion, replacing bool) map[ids.ObjectAddress][]rowVersion {
+func prepareOwnWrites(previous, staged map[ids.ObjectAddress][]storage.RowVersion, replacing bool) map[ids.ObjectAddress][]storage.RowVersion {
 	if len(staged) == 0 {
 		return previous
 	}
-	next := make(map[ids.ObjectAddress][]rowVersion, len(previous)+len(staged))
+	next := make(map[ids.ObjectAddress][]storage.RowVersion, len(previous)+len(staged))
 	for a, rows := range previous {
 		next[a] = rows
 	}
@@ -1006,7 +1007,7 @@ func prepareOwnWrites(previous, staged map[ids.ObjectAddress][]rowVersion, repla
 			continue
 		}
 		capacity := max(size, cap(old)*2)
-		dst := make([]rowVersion, size, capacity)
+		dst := make([]storage.RowVersion, size, capacity)
 		copy(dst, old)
 		next[a] = dst
 	}

@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
 
@@ -157,9 +158,9 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 	if deletes[provider.Address()] == nil {
 		t.Fatal("fixture has no actual committed-provider deletion root")
 	}
-	beforeWrites := make(map[ids.ObjectAddress][]rowVersion, len(writes))
+	beforeWrites := make(map[ids.ObjectAddress][]storage.RowVersion, len(writes))
 	for a, rows := range writes {
-		beforeWrites[a] = append([]rowVersion(nil), rows...)
+		beforeWrites[a] = append([]storage.RowVersion(nil), rows...)
 	}
 	beforeDeletes := maps.Clone(deletes)
 	leafWrites := 0
@@ -229,8 +230,8 @@ func TestRangePartitionRetirementPhysicalState(t *testing.T) {
 		t.Fatal(err)
 	}
 	peerDescriptors := make(map[ids.ObjectAddress]catalog.Descriptor)
-	peerStorage := make(map[ids.ObjectAddress]*relationStorage)
-	peerIndexes := make(map[ids.ObjectAddress]*logicalIndexRoot)
+	peerStorage := make(map[ids.ObjectAddress]*storage.Relation)
+	peerIndexes := make(map[ids.ObjectAddress]*storage.IndexRoot)
 	for a, d := range base.Descriptors() {
 		if ns, ok := base.Namespace(d.Namespace()); ok && ns.Temporary == peer.token {
 			peerDescriptors[a], peerStorage[a], peerIndexes[a] = d, e.storage.Relations[a], e.storage.IndexRoots[a]

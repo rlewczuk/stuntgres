@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -260,7 +261,7 @@ func TestTruncateAdmission(t *testing.T) {
 				stage := e.BeginCatalogStage(base)
 				next := *base.MustRelation(p.Address)
 				next.ObjectRevision++
-				replacement := &relationStorage{Versions: old.Versions, Ends: old.Ends, Generation: old.Generation + 1}
+				replacement := &storage.Relation{Versions: old.Versions, Ends: old.Ends, Generation: old.Generation + 1}
 				if err := stage.alterRelation(context.Background(), p, &next, old, replacement, len(old.Versions), old.Generation, old.Ends); err != nil {
 					t.Fatal(err)
 				}

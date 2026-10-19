@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -60,7 +61,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			if duplicate {
 				second = 1
 			}
-			store := &relationStorage{Generation: 4, Versions: []rowVersion{
+			store := &storage.Relation{Generation: 4, Versions: []storage.RowVersion{
 				{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{integer(0, 7), integer(1, 1), sqltype.String(f.leaf.Columns[2].Usage.Type, "first")}},
 				{Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{integer(0, 7), integer(1, second), sqltype.String(f.leaf.Columns[2].Usage.Type, "different included payload")}},
 			}}
@@ -69,7 +70,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			f.e.storage.IndexRoots = map[ids.ObjectAddress]*logicalIndexRoot{local.Address(): oldRoot}
+			f.e.storage.IndexRoots = map[ids.ObjectAddress]*storage.IndexRoot{local.Address(): oldRoot}
 			beforeStore := uniquePublicationStore(store)
 			beforeEntries := slices.Clone(oldRoot.Entries)
 			beforeCatalog, beforeRoots := f.e.catalog.state, maps.Clone(f.e.storage.IndexRoots)

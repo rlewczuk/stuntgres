@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/storage"
 	"testing"
 )
 
@@ -46,8 +47,8 @@ func TestUpdateCoreMultiRelationPreflight(t *testing.T) {
 	sessionSQL(t, b, "INSERT INTO u VALUES(2)")
 	tRef := catalogRef(t, e, e.CatalogRead(), "t")
 	uRef := catalogRef(t, e, e.CatalogRead(), "u")
-	beforeT := append([]rowVersion(nil), e.storage.Relations[tRef.Address].Versions...)
-	beforeU := append([]rowVersion(nil), e.storage.Relations[uRef.Address].Versions...)
+	beforeT := append([]storage.RowVersion(nil), e.storage.Relations[tRef.Address].Versions...)
+	beforeU := append([]storage.RowVersion(nil), e.storage.Relations[uRef.Address].Versions...)
 	tx := transactionBegin(t, a)
 	sessionSQL(t, a, "UPDATE t SET v=7")
 	sessionSQL(t, a, "UPDATE u SET v=8")

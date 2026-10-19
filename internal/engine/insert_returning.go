@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -149,14 +150,14 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 	if err = auth.checkBinding(b, &parser.Insert{}); err != nil {
 		return false, false, err
 	}
-	var version rowVersion
+	var version storage.RowVersion
 	if candidate.exclusion != nil {
 		version = *candidate.exclusion
 	} else {
 		if e.storage.RowFrontier() == ^uint64(0) || e.storage.VersionFrontier() == ^uint64(0) {
 			return false, false, errors.New("stuntgres: row or version identity exhausted")
 		}
-		version = rowVersion{Row: e.storage.AllocateRowLocked(), Version: e.storage.AllocateVersionLocked(), Values: row}
+		version = storage.RowVersion{Row: e.storage.AllocateRowLocked(), Version: e.storage.AllocateVersionLocked(), Values: row}
 	}
 	version.IndexAdmission = catalog.State()
 	version.IndexOutputs = candidate.indexes
@@ -167,7 +168,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 		}
 	}
 	if w.rows == nil {
-		w.rows = make(map[ids.ObjectAddress][]rowVersion)
+		w.rows = make(map[ids.ObjectAddress][]storage.RowVersion)
 	}
 	w.rows[ref.Address] = append(w.rows[ref.Address], version)
 	return true, false, nil

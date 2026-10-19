@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -158,10 +159,10 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	movedRow := rowVersion{Row: 7, Version: 11, Born: 1, Values: []sqltype.Value{value}}
-	storage := map[ids.ObjectAddress]*relationStorage{
+	movedRow := storage.RowVersion{Row: 7, Version: 11, Born: 1, Values: []sqltype.Value{value}}
+	relations := map[ids.ObjectAddress]*storage.Relation{
 		source.Address():      {},
-		destination.Address(): {Versions: []rowVersion{movedRow}},
+		destination.Address(): {Versions: []storage.RowVersion{movedRow}},
 	}
 	snapshot := &indexSnapshot{sources: map[ids.ObjectAddress]indexSnapshotSource{
 		sourceIndex.Address():      {index: sourceIndex, parent: source, frontier: 1},
@@ -169,13 +170,13 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 	}}
 	evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: view}
 	dirty := map[ids.ObjectAddress]bool{source.Address(): true, destination.Address(): true}
-	if err := snapshot.repair(evaluation.Context, &evaluation, storage, nil, dirty, AuthorizationView{}); err != nil {
+	if err := snapshot.repair(evaluation.Context, &evaluation, relations, nil, dirty, AuthorizationView{}); err != nil {
 		t.Fatal(err)
 	}
 	// The existing storage remint mutates candidate row identities in place.
 	// Repaired snapshot versions must remain the pre-remint transport authority.
-	storage[destination.Address()].Versions[0].Row = 99
-	storage[destination.Address()].Versions[0].Version = 100
+	relations[destination.Address()].Versions[0].Row = 99
+	relations[destination.Address()].Versions[0].Version = 100
 	captured := snapshot.sources[destinationIndex.Address()].store.Versions[0]
 	if captured.Row != 7 || captured.Version != 11 {
 		t.Fatal("repaired snapshot aliases reminted candidate identities", captured.Row, captured.Version)
@@ -184,7 +185,7 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 		source.Address():      {},
 		destination.Address(): {{row: 7, version: 11}: 0},
 	}
-	roots, err := snapshot.transport(evaluation.Context, view.State(), storage, positions)
+	roots, err := snapshot.transport(evaluation.Context, view.State(), relations, positions)
 	if err != nil {
 		t.Fatal(err)
 	}

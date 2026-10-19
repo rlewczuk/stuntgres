@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -108,7 +109,7 @@ func (s *StatementScope) Finish(err error) error {
 			}
 		} else if !s.sessionCompleted {
 			var deletes map[ids.ObjectAddress]*privateDeletionRoot
-			var writes map[ids.ObjectAddress][]rowVersion
+			var writes map[ids.ObjectAddress][]storage.RowVersion
 			if s.projectedRoots {
 				writes, deletes = s.stage.rows, s.stage.deletes
 			} else {

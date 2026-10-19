@@ -5,25 +5,26 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 // Prepare immutable replacement heads/end roots outside final locks. Appends
 // retain geometric capacity; final installation follows one all-relations veto.
 type rowPublication struct {
 	address            ids.ObjectAddress
-	store              *relationStorage
-	original           *relationStorage
+	store              *storage.Relation
+	original           *storage.Relation
 	originalRelation   *catalog.Relation
 	relation           *catalog.Relation
-	root, next, writes []rowVersion
-	ends, nextEnds     *deletionRoot
+	root, next, writes []storage.RowVersion
+	ends, nextEnds     *storage.DeletionRoot
 	deletion           *privateDeletionRoot
 	generation         uint64
 	slots              []int
 	singleSlot         int
 }
 
-func (e *Engine) publishWrites(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]rowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot) error {
+func (e *Engine) publishWrites(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot) error {
 	owner := txOwnerOf(ref)
 	if op == nil || op.self != op || op.session == nil || op.session.transactions == nil || owner == nil || ref.Domain() != domainOf(e) || ref.Session() != op.session.token || owner != op.session.transactions || ref.ID() == 0 || ref != owner.ref {
 		return errors.New("stuntgres: foreign or stale publication transaction")
@@ -34,7 +35,7 @@ func (e *Engine) publishWrites(op *Operation, ref ids.TxRef, writes map[ids.Obje
 	return e.publishRows(op, ref, writes, deletes, owner.catalog, nil, nil)
 }
 
-func (e *Engine) publishRows(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]rowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority, scope *StatementScope) error {
+func (e *Engine) publishRows(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority, scope *StatementScope) error {
 	var err error
 	writes, deletes, c, err = e.prepareTemporaryCommit(op, ref, writes, deletes, c)
 	if err != nil {
@@ -45,7 +46,7 @@ func (e *Engine) publishRows(op *Operation, ref ids.TxRef, writes map[ids.Object
 
 // A reserved empty container is not a write. PREPARE is the explicit exception:
 // even an otherwise empty prepared transaction needs a retained public identity.
-func publicationNeedsXID(writes map[ids.ObjectAddress][]rowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges, phase *preparedPublication) bool {
+func publicationNeedsXID(writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges, phase *preparedPublication) bool {
 	if phase != nil && phase.preparing {
 		return true
 	}
@@ -67,7 +68,7 @@ func publicationNeedsXID(writes map[ids.ObjectAddress][]rowVersion, deletes map[
 	return false
 }
 
-func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]rowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority, phase *preparedPublication, scope *StatementScope) error {
+func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority, phase *preparedPublication, scope *StatementScope) error {
 	materialize := phase == nil || !phase.preparing
 	actions, events, err := notificationEffects(op, ref, phase, scope)
 	if err != nil {
@@ -148,7 +149,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			return ids.ErrCatalogReplaced
 		}
 		current, frontier := e.catalog.state, e.commitSeq
-		var indexStores map[ids.ObjectAddress]*relationStorage
+		var indexStores map[ids.ObjectAddress]*storage.Relation
 		if len(e.storage.IndexRoots) != 0 || c != nil {
 			captureCatalog := current
 			if nextCatalog != nil {
@@ -157,9 +158,9 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			indexStores = captureIndexStores(e.storage.Relations, captureCatalog)
 		}
 		indexPredecessors := e.storage.IndexRoots
-		var nextSequences map[ids.ObjectAddress]*sequenceGenerator
-		var nextStorage map[ids.ObjectAddress]*relationStorage
-		var materializedTokens map[ids.ObjectAddress]*materializedLineage
+		var nextSequences map[ids.ObjectAddress]*storage.SequenceGenerator
+		var nextStorage map[ids.ObjectAddress]*storage.Relation
+		var materializedTokens map[ids.ObjectAddress]*storage.MaterializedLineage
 		if c != nil {
 			if c.cachedBase != current {
 				e.mu.Unlock()
@@ -173,26 +174,26 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				for address, shape := range c.storage {
 					if shape.materializedContinuous && shape.original != nil {
 						if materializedTokens == nil {
-							materializedTokens = make(map[ids.ObjectAddress]*materializedLineage)
+							materializedTokens = make(map[ids.ObjectAddress]*storage.MaterializedLineage)
 						}
 						token := shape.original.MaterializedLineage
 						if token == nil {
-							token = &materializedLineage{}
+							token = &storage.MaterializedLineage{}
 						}
 						materializedTokens[address] = token
 					}
 				}
-				nextSequences = make(map[ids.ObjectAddress]*sequenceGenerator, len(e.storage.Sequences)+len(c.generators))
+				nextSequences = make(map[ids.ObjectAddress]*storage.SequenceGenerator, len(e.storage.Sequences)+len(c.generators))
 				for a, g := range e.storage.Sequences {
 					nextSequences[a] = g
 				}
-				nextStorage = make(map[ids.ObjectAddress]*relationStorage, len(e.storage.Relations))
+				nextStorage = make(map[ids.ObjectAddress]*storage.Relation, len(e.storage.Relations))
 				for a, store := range e.storage.Relations {
 					nextStorage[a] = store
 				}
 			}
 		}
-		capture := func(a ids.ObjectAddress, rows []rowVersion, deletion *privateDeletionRoot) error {
+		capture := func(a ids.ObjectAddress, rows []storage.RowVersion, deletion *privateDeletionRoot) error {
 			original := e.storage.Relations[a]
 			store := e.privateStorageLocked(c, a)
 			originalRelation, live := e.catalog.state.Relation(a)
@@ -286,12 +287,12 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		if indexCatalog == nil {
 			indexCatalog = current
 		}
-		var indexRoots map[ids.ObjectAddress]*logicalIndexRoot
+		var indexRoots map[ids.ObjectAddress]*storage.IndexRoot
 		if len(indexPredecessors) != 0 || c != nil {
 			buildStores := indexStores
 			var rebuildIndexes map[ids.ObjectAddress]bool
 			if c != nil && len(c.storage) > 0 {
-				buildStores = make(map[ids.ObjectAddress]*relationStorage, len(indexStores))
+				buildStores = make(map[ids.ObjectAddress]*storage.Relation, len(indexStores))
 				for a, store := range indexStores {
 					buildStores[a] = store
 				}
@@ -428,7 +429,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			}
 			if p.nextEnds != nil {
 				for id, candidate := range p.deletion.rows {
-					p.nextEnds.Rows[id] = rowEnd{Version: candidate.version, End: e.commitSeq + 1}
+					p.nextEnds.Rows[id] = storage.RowEnd{Version: candidate.version, End: e.commitSeq + 1}
 				}
 				p.store.Ends = p.nextEnds
 			}

@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 func indexHasTableOID(index *catalog.IndexDefinition) bool {
@@ -67,11 +68,11 @@ func (snapshot *indexSnapshot) trackedGenerations(next *catalog.State) map[ids.O
 // This is part of the existing admitted restore-repair statement, before its
 // Finish. Only genuinely changed inputs or owner-dependent expressions produce
 // new entries; all other snapshots retain their original produced data.
-func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalContext, storage map[ids.ObjectAddress]*relationStorage, changed map[ids.ObjectAddress]map[int32]bool, moved map[ids.ObjectAddress]bool, auth AuthorizationView) error {
+func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalContext, relations map[ids.ObjectAddress]*storage.Relation, changed map[ids.ObjectAddress]map[int32]bool, moved map[ids.ObjectAddress]bool, auth AuthorizationView) error {
 	if snapshot == nil {
 		return nil
 	}
-	var repairedStores map[ids.ObjectAddress]relationStorage
+	var repairedStores map[ids.ObjectAddress]storage.Relation
 	for address, source := range snapshot.sources {
 		parentAddress := snapshot.destination(source.parent.Address())
 		affected := moved[parentAddress] || parentAddress != source.parent.Address() && indexHasTableOID(source.index.SQLIndex)
@@ -92,7 +93,7 @@ func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalConte
 		if !ok || parent.Partition != nil || index.SQLIndex.Parent != parentAddress {
 			return ids.ErrCatalogReplaced
 		}
-		store := storage[parentAddress]
+		store := relations[parentAddress]
 		if store == nil {
 			return ids.ErrCatalogReplaced
 		}
@@ -112,7 +113,7 @@ func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalConte
 			captured = *store
 			captured.Versions = slices.Clone(store.Versions)
 			if repairedStores == nil {
-				repairedStores = make(map[ids.ObjectAddress]relationStorage)
+				repairedStores = make(map[ids.ObjectAddress]storage.Relation)
 			}
 			repairedStores[parentAddress] = captured
 		}

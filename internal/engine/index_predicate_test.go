@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -17,7 +18,7 @@ type partialIndexFixture struct {
 	e             *Engine
 	parent, index *catalog.Relation
 	predicate     columnExpression
-	store         *relationStorage
+	store         *storage.Relation
 }
 
 func newPartialIndexFixture(t testing.TB) partialIndexFixture {
@@ -32,7 +33,7 @@ func newPartialIndexFixture(t testing.TB) partialIndexFixture {
 	predicate := &catalog.IndexPredicate{Definition: column, Execution: column, Attributes: parent.Attributes, Dependencies: []ids.ObjectRef{ref}}
 	class, _ := sqltype.DefaultIndexClass(integer)
 	index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: parent.Namespace(), ObjectName: "pi", ObjectRevision: 1, RelationKind: catalog.IndexRelation, Columns: []catalog.Column{parent.Columns[0]}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}, Index: map[string]int{"k": 0}, SQLIndex: &catalog.IndexDefinition{Parent: parent.Address(), Method: catalog.BtreeMethod, Ready: true, Valid: true, Live: true, Keys: []catalog.IndexKey{{Attribute: 10, Class: class}}, Predicate: predicate}}
-	store := &relationStorage{}
+	store := &storage.Relation{}
 	for i, k := range []int64{10, 20, 30, 0, 10} {
 		value, _ := sqltype.Integer(integer, k)
 		if i == 3 {
@@ -42,7 +43,7 @@ func newPartialIndexFixture(t testing.TB) partialIndexFixture {
 		if i == 2 {
 			active = sqltype.Null(boolean)
 		}
-		store.Versions = append(store.Versions, rowVersion{Row: ids.RowID(i + 1), Version: ids.VersionID(i + 1), Values: []sqltype.Value{value, active}})
+		store.Versions = append(store.Versions, storage.RowVersion{Row: ids.RowID(i + 1), Version: ids.VersionID(i + 1), Values: []sqltype.Value{value, active}})
 	}
 	e.catalog.state.SetDescriptor(parent.Address(), parent)
 	e.catalog.state.SetDescriptor(index.Address(), index)
@@ -51,11 +52,11 @@ func newPartialIndexFixture(t testing.TB) partialIndexFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.storage.IndexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.Address(): root}
+	e.storage.IndexRoots = map[ids.ObjectAddress]*storage.IndexRoot{index.Address(): root}
 	return partialIndexFixture{e, parent, index, column, store}
 }
 
-func partialWantMembership(t *testing.T, root *logicalIndexRoot, want map[ids.RowID]ids.VersionID) {
+func partialWantMembership(t *testing.T, root *storage.IndexRoot, want map[ids.RowID]ids.VersionID) {
 	t.Helper()
 	if !reflect.DeepEqual(root.Membership, want) || len(root.Entries) != len(want) {
 		t.Fatal("wrong membership", root.Membership, want, root.Entries)
@@ -128,14 +129,14 @@ func TestPartialIndexMembershipTransitions(t *testing.T) {
 	f := newPartialIndexFixture(t)
 	old := f.e.storage.IndexRoots[f.index.Address()]
 	boolean := f.predicate.Usage.Type
-	write := func(id ids.RowID, version, base ids.VersionID, active sqltype.Value) rowVersion {
+	write := func(id ids.RowID, version, base ids.VersionID, active sqltype.Value) storage.RowVersion {
 		row := f.store.Versions[id-1]
 		row.Version, row.Base = version, base
 		row.Values = append([]sqltype.Value(nil), row.Values...)
 		row.Values[1] = active
 		return row
 	}
-	p := &rowPublication{writes: []rowVersion{
+	p := &rowPublication{writes: []storage.RowVersion{
 		write(1, 6, 1, sqltype.Boolean(boolean, false)),
 		write(2, 7, 2, sqltype.Boolean(boolean, true)),
 		write(3, 8, 3, sqltype.Boolean(boolean, true)),
@@ -155,7 +156,7 @@ func TestPartialIndexMembershipTransitions(t *testing.T) {
 	}
 	partialWantMembership(t, next, map[ids.RowID]ids.VersionID{3: 8, 5: 10})
 	// Excluded successors and own-deleted additions must never resurrect identities.
-	p = &rowPublication{writes: []rowVersion{write(3, 11, 8, sqltype.Boolean(boolean, false)), write(2, 12, 0, sqltype.Boolean(boolean, true))}, deletion: &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{2: {version: 12, own: true}}}}
+	p = &rowPublication{writes: []storage.RowVersion{write(3, 11, 8, sqltype.Boolean(boolean, false)), write(2, 12, 0, sqltype.Boolean(boolean, true))}, deletion: &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{2: {version: 12, own: true}}}}
 	next, err = mergeIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, f.index, next.Entries, p, false, true, false, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -192,11 +193,11 @@ func TestPartialIndexPrivatePreflight(t *testing.T) {
 	idx := *f.index
 	idx.SQLIndex = &def
 	f.e.catalog.state.SetDescriptor(idx.Address(), &idx)
-	scope.stage.rows = map[ids.ObjectAddress][]rowVersion{f.parent.Address(): {f.store.Versions[1], f.store.Versions[2]}}
+	scope.stage.rows = map[ids.ObjectAddress][]storage.RowVersion{f.parent.Address(): {f.store.Versions[1], f.store.Versions[2]}}
 	if err := scope.validatePrivateIndexExpressions(nil, nil); err != nil || calls != 0 {
 		t.Fatal("excluded keys evaluated", calls, err)
 	}
-	excluded := &relationStorage{Versions: scope.stage.rows[f.parent.Address()]}
+	excluded := &storage.Relation{Versions: scope.stage.rows[f.parent.Address()]}
 	built, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &def, excluded, nil)
 	if err != nil || calls != 0 || len(built.Entries) != 0 {
 		t.Fatal("build evaluated excluded keys", calls, err)
@@ -205,7 +206,7 @@ func TestPartialIndexPrivatePreflight(t *testing.T) {
 	if err != nil || calls != 0 || merged != nil {
 		t.Fatal("excluded writes changed root or evaluated keys", merged, calls, err)
 	}
-	scope.stage.rows[f.parent.Address()] = []rowVersion{f.store.Versions[0]}
+	scope.stage.rows[f.parent.Address()] = []storage.RowVersion{f.store.Versions[0]}
 	if err := scope.validatePrivateIndexExpressions(nil, nil); !errors.Is(err, failure) || calls != 1 {
 		t.Fatal("qualifying key not vetoed", calls, err)
 	}
@@ -357,7 +358,7 @@ func partialMaskFixture(t *testing.T) (partialIndexFixture, *StatementScope, que
 	f := newPartialIndexFixture(t)
 	scope := &StatementScope{owner: &transactionOwner{isolation: ReadCommitted}}
 	leaf := queryLeaf{ref: f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address()), relation: f.parent, storage: f.store, partialCandidate: f.index}
-	data := &visibilityData{catalog: f.e.CatalogRead(), frontier: f.e.commitSeq, committed: map[ids.ObjectAddress][]rowVersion{f.parent.Address(): f.store.Versions}, singleGeneration: f.store}
+	data := &visibilityData{catalog: f.e.CatalogRead(), frontier: f.e.commitSeq, committed: map[ids.ObjectAddress][]storage.RowVersion{f.parent.Address(): f.store.Versions}, singleGeneration: f.store}
 	view := newVisibilityView(data)
 	t.Cleanup(view.Release)
 	return f, scope, leaf, view
@@ -400,9 +401,9 @@ func TestPartialIndexCandidateMask(t *testing.T) {
 		t.Fatal("mask was not consulted before residual", calls, ids)
 	}
 	// A later generation/root change cannot mutate the retained selected mask.
-	f.store.Versions = append(f.store.Versions, rowVersion{Row: 6, Version: 6})
+	f.store.Versions = append(f.store.Versions, storage.RowVersion{Row: 6, Version: 6})
 	f.e.storage.IndexRoots[f.index.Address()] = newLogicalIndexRoot(f.index.SQLIndex, nil)
-	if !partialMaskContains(mask, source.committed[0]) || partialMaskContains(mask, rowVersion{Row: 1, Version: 99}) {
+	if !partialMaskContains(mask, source.committed[0]) || partialMaskContains(mask, storage.RowVersion{Row: 1, Version: 99}) {
 		t.Fatal("retained identity mask changed")
 	}
 }
@@ -418,12 +419,12 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 			case "private catalog":
 				scope.owner.catalog = &catalogChanges{}
 			case "own insert":
-				data.own = map[ids.ObjectAddress][]rowVersion{a: {f.store.Versions[1]}}
+				data.own = map[ids.ObjectAddress][]storage.RowVersion{a: {f.store.Versions[1]}}
 			case "own update":
 				row := f.store.Versions[0]
 				row.Base = row.Version
 				row.Version = 100
-				data.own = map[ids.ObjectAddress][]rowVersion{a: {row}}
+				data.own = map[ids.ObjectAddress][]storage.RowVersion{a: {row}}
 			case "own delete":
 				data.deleted = map[ids.ObjectAddress]*privateDeletionRoot{a: {}}
 			case "historical":
@@ -433,13 +434,13 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 			case "rewrite":
 				data.rewrittenFrontiers = map[ids.ObjectAddress]ids.CommitSeq{a: 0}
 			case "generation":
-				data.singleGeneration = &relationStorage{}
+				data.singleGeneration = &storage.Relation{}
 			case "prefix":
 				data.committed[a] = data.committed[a][:1]
 			case "vector":
-				data.committed[a] = append([]rowVersion(nil), data.committed[a]...)
+				data.committed[a] = append([]storage.RowVersion(nil), data.committed[a]...)
 			case "ends":
-				f.store.Ends = &deletionRoot{}
+				f.store.Ends = &storage.DeletionRoot{}
 			case "definition":
 				copy := *f.index
 				f.e.catalog.state.SetDescriptor(f.index.Address(), &copy)
@@ -522,13 +523,13 @@ func TestPartialIndexPredicateLifecycle(t *testing.T) {
 func TestPartialIndexPredicateReplacement(t *testing.T) {
 	f := newPartialIndexFixture(t)
 	old := f.e.storage.IndexRoots[f.index.Address()]
-	destination := &relationStorage{Versions: append([]rowVersion(nil), f.store.Versions...)}
+	destination := &storage.Relation{Versions: append([]storage.RowVersion(nil), f.store.Versions...)}
 	f.e.storage.SetFrontierLocked(100, 200)
 	snapshot, err := f.e.captureIndexSnapshot(context.Background(), f.e.CatalogRead(), f.e.storage.Relations, f.e.storage.IndexRoots, f.e.commitSeq)
 	if err != nil {
 		t.Fatal(err)
 	}
-	roots, rows, versions, err := f.e.prepareRemintedStorage(context.Background(), f.e.catalog.state, map[ids.ObjectAddress]*relationStorage{f.parent.Address(): destination}, snapshot)
+	roots, rows, versions, err := f.e.prepareRemintedStorage(context.Background(), f.e.catalog.state, map[ids.ObjectAddress]*storage.Relation{f.parent.Address(): destination}, snapshot)
 	if err != nil || rows != 105 || versions != 205 {
 		t.Fatal(rows, versions, err)
 	}

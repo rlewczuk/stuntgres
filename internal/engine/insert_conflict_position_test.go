@@ -8,12 +8,13 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func insertConflictWantHints(t *testing.T, root *logicalIndexRoot, store *relationStorage, want map[ids.RowID]int) {
+func insertConflictWantHints(t *testing.T, root *storage.IndexRoot, store *storage.Relation, want map[ids.RowID]int) {
 	t.Helper()
 	if root == nil || len(root.Entries) != len(want) {
 		t.Fatal("wrong hint membership", root, want)
@@ -52,7 +53,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 				} else {
 					values[1] = sqltype.Null(f.parent.Columns[1].Usage.Type)
 				}
-				f.store.Versions = append(f.store.Versions, rowVersion{Row: ids.RowID(i + 2), Version: ids.VersionID(i + 2), Born: 1, Values: values})
+				f.store.Versions = append(f.store.Versions, storage.RowVersion{Row: ids.RowID(i + 2), Version: ids.VersionID(i + 2), Born: 1, Values: values})
 			}
 			f.e.storage.SetFrontierLocked(3, 3)
 			f.e.commitSeq = 1
@@ -70,7 +71,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			scope, ref := insertConflictUnitScope(t, f)
 			// Real row publication preparation supplies replacement/append slots. The
 			// independently stated physical positions below cannot be sorted ordinals.
-			publish := func(writes []rowVersion, deleted ids.RowID) {
+			publish := func(writes []storage.RowVersion, deleted ids.RowID) {
 				t.Helper()
 				p := rowPublication{address: f.parent.Address(), relation: f.parent, store: f.store, root: f.store.Versions, ends: f.store.Ends, writes: writes, singleSlot: -1}
 				if deleted != 0 {
@@ -97,7 +98,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 					f.e.storage.SetFrontierLocked(max(f.e.storage.RowFrontier(), uint64(row.Row)), max(f.e.storage.VersionFrontier(), uint64(row.Version)))
 				}
 				f.e.commitSeq = 2
-				f.store = &relationStorage{Versions: p.next, Ends: p.nextEnds}
+				f.store = &storage.Relation{Versions: p.next, Ends: p.nextEnds}
 				if p.nextEnds == nil {
 					f.store.Ends = p.ends
 				}
@@ -106,17 +107,17 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 				insertConflictWantHints(t, root, f.store, want)
 			}
 			want[4] = 3
-			publish([]rowVersion{{Row: 4, Version: 4, Values: insertConflictUnitRow(t, f, 5)}}, 0)
+			publish([]storage.RowVersion{{Row: 4, Version: 4, Values: insertConflictUnitRow(t, f, 5)}}, 0)
 			want[2] = 1
-			publish([]rowVersion{{Row: 2, Version: 5, Base: 2, Values: insertConflictUnitRow(t, f, 20)}}, 0)
+			publish([]storage.RowVersion{{Row: 2, Version: 5, Base: 2, Values: insertConflictUnitRow(t, f, 20)}}, 0)
 			want[3] = 2
-			publish([]rowVersion{{Row: 3, Version: 6, Base: 3, Values: insertConflictUnitRow(t, f, 7)}}, 0)
+			publish([]storage.RowVersion{{Row: 3, Version: 6, Base: 3, Values: insertConflictUnitRow(t, f, 7)}}, 0)
 			values := insertConflictUnitRow(t, f, 10)
 			values[1] = sqltype.Boolean(f.parent.Columns[1].Usage.Type, false)
 			if partial {
 				delete(want, 1)
 			}
-			publish([]rowVersion{{Row: 1, Version: 7, Base: 1, Values: values}}, 0)
+			publish([]storage.RowVersion{{Row: 1, Version: 7, Base: 1, Values: values}}, 0)
 			delete(want, 2)
 			publish(nil, 2)
 			rebuilt, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &definition, f.store, nil)
@@ -195,7 +196,7 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 	}
 	f := insertConflictUniqueFixture(t)
 	entry := f.e.storage.IndexRoots[f.index.Address()].Entries[0]
-	for _, change := range []func(*logicalIndexEntry){func(e *logicalIndexEntry) { e.Position = -1 }, func(e *logicalIndexEntry) { e.Position = len(f.store.Versions) }, func(e *logicalIndexEntry) { e.Row++ }, func(e *logicalIndexEntry) { e.Version++ }} {
+	for _, change := range []func(*storage.IndexEntry){func(e *storage.IndexEntry) { e.Position = -1 }, func(e *storage.IndexEntry) { e.Position = len(f.store.Versions) }, func(e *storage.IndexEntry) { e.Row++ }, func(e *storage.IndexEntry) { e.Version++ }} {
 		bad := entry
 		change(&bad)
 		if _, err := conflictEntryVersion(f.store.Versions, bad); !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -206,8 +207,8 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 
 func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
-	f.store.Versions = append(f.store.Versions, rowVersion{Row: 2, Version: 2, Born: 2, Values: insertConflictUnitRow(t, f, 20)})
-	f.store.Ends = &deletionRoot{Rows: map[ids.RowID]rowEnd{1: {Version: 1}}}
+	f.store.Versions = append(f.store.Versions, storage.RowVersion{Row: 2, Version: 2, Born: 2, Values: insertConflictUnitRow(t, f, 20)})
+	f.store.Ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 1}}}
 	f.e.storage.SetFrontierLocked(2, 2)
 	f.e.commitSeq = 2
 	authOp, done := roleOperation(t, f.e, "postgres")

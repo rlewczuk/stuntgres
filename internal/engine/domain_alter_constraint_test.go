@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -150,7 +151,7 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := &relationStorage{Generation: 3, Versions: []rowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value, arrayValue, composite}}}}
+	store := &storage.Relation{Generation: 3, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value, arrayValue, composite}}}}
 	e.storage.Relations[table.Address()] = store
 	e.commitSeq = 3
 	// A permanently FALSE recipe proves pure retagging does not check old data.

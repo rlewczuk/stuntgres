@@ -5,6 +5,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -12,14 +13,14 @@ import (
 // and NULL hash keys that intentionally have no physical index entry.
 type indexBuildCapture struct {
 	index   *catalog.Relation
-	outputs []indexRowOutput
+	outputs []storage.IndexOutput
 }
 
 type alterIndexBuild struct {
-	root    *logicalIndexRoot
+	root    *storage.IndexRoot
 	index   *catalog.Relation
-	store   *relationStorage
-	outputs []indexRowOutput
+	store   *storage.Relation
+	outputs []storage.IndexOutput
 }
 
 // A TYPE action rebuilds each affected constraint/backing relation as one
@@ -175,7 +176,7 @@ func indexAttributeAffected(definition *catalog.IndexDefinition, attribute int32
 
 // TYPE must fail at Execute, including private writes. Merge overlay successors
 // before building a real unique root; this is not a commit-only integrity fence.
-func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, candidate catalog.Read, parent *catalog.Relation, store *relationStorage, writes []rowVersion, deletes *privateDeletionRoot, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation, generations []int32, added []ids.ObjectAddress, physicalRewrite bool) (map[string]*alterIndexBuild, error) {
+func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, candidate catalog.Read, parent *catalog.Relation, store *storage.Relation, writes []storage.RowVersion, deletes *privateDeletionRoot, schema string, output sqltype.OutputEnvironment, transformations []columnTransformation, generations []int32, added []ids.ObjectAddress, physicalRewrite bool) (map[string]*alterIndexBuild, error) {
 	ctx := evaluation.Context
 	if parent.Partition != nil {
 		return nil, nil
@@ -231,7 +232,7 @@ func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, c
 			named = true
 		}
 		if index.SQLIndex.HasRuntimeDomainConversion() || len(writes) != 0 {
-			capture = &indexBuildCapture{index: index, outputs: make([]indexRowOutput, len(validationStore.Versions))}
+			capture = &indexBuildCapture{index: index, outputs: make([]storage.IndexOutput, len(validationStore.Versions))}
 		}
 		root, err := buildIndexRoot(evaluation, parent, index.SQLIndex, validationStore, capture)
 		if err != nil {
@@ -253,7 +254,7 @@ func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, c
 
 // A genuine DDL build is reusable even with an own overlay: derive the baseline
 // from produced entries, and carry exact private pins rather than invoking SQL.
-func prepareAlterIndexRoots(evaluation *EvalContext, changes *catalogChanges, source catalog.Read, parent *catalog.Relation, baseline *relationStorage, validated map[string]*alterIndexBuild, metadataOnly bool) error {
+func prepareAlterIndexRoots(evaluation *EvalContext, changes *catalogChanges, source catalog.Read, parent *catalog.Relation, baseline *storage.Relation, validated map[string]*alterIndexBuild, metadataOnly bool) error {
 	if parent.Partition != nil {
 		return nil
 	}

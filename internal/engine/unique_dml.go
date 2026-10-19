@@ -5,6 +5,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -235,11 +236,11 @@ func (b *uniqueBoundKey) matches(evaluation *EvalContext, values, key []sqltype.
 	if err := b.fillKeys(values, b.scratch, evaluation); err != nil {
 		return false, err
 	}
-	cmp, err := b.ordering.compareKeys(evaluation.Context, logicalIndexEntry{Keys: key}, logicalIndexEntry{Keys: b.scratch})
+	cmp, err := b.ordering.compareKeys(evaluation.Context, storage.IndexEntry{Keys: key}, storage.IndexEntry{Keys: b.scratch})
 	return cmp == 0, err
 }
 
-func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row rowVersion) error {
+func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row storage.RowVersion) error {
 	binding, err := s.bindUniqueWrite(ref)
 	if err != nil {
 		return err
@@ -284,7 +285,7 @@ func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row rowVersion) error
 	return nil
 }
 
-func uniqueRowExcluded(id ids.RowID, excluded []rowVersion) bool {
+func uniqueRowExcluded(id ids.RowID, excluded []storage.RowVersion) bool {
 	for _, row := range excluded {
 		if row.Row == id {
 			return true
@@ -312,7 +313,7 @@ type uniqueConflict struct {
 	auth          AuthorizationView
 	view          catalog.Read
 	schema        string
-	row           rowVersion
+	row           storage.RowVersion
 	committed     bool
 	position      int
 }
@@ -327,7 +328,7 @@ func (c *uniqueConflict) diagnostic(s *StatementScope, ref ids.ObjectRef) error 
 	}
 	return uniqueDiagnostic(s.op.Context(), c.parent, c.index, c.key, c.schema, s.output, allowed, false, c.view)
 }
-func (s *StatementScope) checkUniqueRow(ref ids.ObjectRef, candidate *indexWriteCandidate, excluded []rowVersion, prefix indexWriteBatch) error {
+func (s *StatementScope) checkUniqueRow(ref ids.ObjectRef, candidate *indexWriteCandidate, excluded []storage.RowVersion, prefix indexWriteBatch) error {
 	conflict, err := s.probeUniqueRow(ref, candidate, excluded, prefix, nil, indexProbeRuntime)
 	if err != nil {
 		return err
@@ -337,7 +338,7 @@ func (s *StatementScope) checkUniqueRow(ref ids.ObjectRef, candidate *indexWrite
 	}
 	return nil
 }
-func (s *StatementScope) probeUniqueRow(ref ids.ObjectRef, candidate *indexWriteCandidate, excluded []rowVersion, prefix indexWriteBatch, action *boundInsertConflict, purpose indexProbePurpose) (uniqueConflict, error) {
+func (s *StatementScope) probeUniqueRow(ref ids.ObjectRef, candidate *indexWriteCandidate, excluded []storage.RowVersion, prefix indexWriteBatch, action *boundInsertConflict, purpose indexProbePurpose) (uniqueConflict, error) {
 	row := candidate.values
 retry:
 	binding, err := s.bindUniqueWrite(ref)
@@ -439,10 +440,10 @@ retry:
 				root = private
 			}
 		}
-		var versions []rowVersion
+		var versions []storage.RowVersion
 		if action != nil && (action.update != nil || stableIsolation(s.owner.isolation) || index.SQLIndex.HasRuntimeDomainKeyConversion()) {
-			if storage := e.privateStorageLocked(s.owner.catalog, ref.Address); storage != nil {
-				versions = storage.Versions
+			if stored := e.privateStorageLocked(s.owner.catalog, ref.Address); stored != nil {
+				versions = stored.Versions
 			}
 		}
 		e.mu.Unlock()
@@ -464,7 +465,7 @@ retry:
 		lo, hi := 0, len(root.Entries)
 		for lo < hi {
 			mid := lo + (hi-lo)/2
-			cmp, err := bound.ordering.compareKeys(ctx, root.Entries[mid], logicalIndexEntry{Keys: key})
+			cmp, err := bound.ordering.compareKeys(ctx, root.Entries[mid], storage.IndexEntry{Keys: key})
 			if err != nil {
 				return uniqueConflict{}, err
 			}
@@ -476,7 +477,7 @@ retry:
 		}
 		for at := lo; at < len(root.Entries); at++ {
 			entry := root.Entries[at]
-			cmp, err := bound.ordering.compareKeys(ctx, entry, logicalIndexEntry{Keys: key})
+			cmp, err := bound.ordering.compareKeys(ctx, entry, storage.IndexEntry{Keys: key})
 			if err != nil {
 				return uniqueConflict{}, err
 			}
@@ -541,7 +542,7 @@ retry:
 				return outcome, nil
 			}
 		} else {
-			for overlayIndex, overlay := range [2][]rowVersion{s.stage.rows[ref.Address], s.ownWrites[ref.Address]} {
+			for overlayIndex, overlay := range [2][]storage.RowVersion{s.stage.rows[ref.Address], s.ownWrites[ref.Address]} {
 				for _, own := range overlay {
 					if overlayIndex == 1 {
 						if _, _, replaced := rowByID(s.stage.rows[ref.Address], own.Row, -1); replaced {
@@ -582,13 +583,13 @@ retry:
 	return uniqueConflict{}, nil
 }
 
-func conflictEntryVersion(versions []rowVersion, entry logicalIndexEntry) (rowVersion, error) {
+func conflictEntryVersion(versions []storage.RowVersion, entry storage.IndexEntry) (storage.RowVersion, error) {
 	if entry.Position < 0 || entry.Position >= len(versions) {
-		return rowVersion{}, ids.ErrCatalogReplaced
+		return storage.RowVersion{}, ids.ErrCatalogReplaced
 	}
 	head := versions[entry.Position]
 	if head.Row != entry.Row || head.Version != entry.Version {
-		return rowVersion{}, ids.ErrCatalogReplaced
+		return storage.RowVersion{}, ids.ErrCatalogReplaced
 	}
 	return head, nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -53,7 +54,7 @@ func TestDomainCascadeStableAttributesAndRowGenerations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := &relationStorage{Generation: 3, Versions: []rowVersion{{Row: 42, Version: 99, Born: 3, Values: []sqltype.Value{keep, value, sqltype.Null(chain.SQLType), tail}}}}
+	source := &storage.Relation{Generation: 3, Versions: []storage.RowVersion{{Row: 42, Version: 99, Born: 3, Values: []sqltype.Value{keep, value, sqltype.Null(chain.SQLType), tail}}}}
 	e.mu.Lock()
 	e.storage.Relations[table.Address()] = source
 	e.commitSeq = 3
@@ -125,8 +126,8 @@ func TestDomainExplicitCatalogRemapDetachesPayloadAndBase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	original := &relationStorage{Generation: 2, Versions: []rowVersion{{Row: 1, Version: 2, Born: 1, Values: []sqltype.Value{value}}}}
-	storage := map[ids.ObjectAddress]*relationStorage{table.Address(): original}
+	original := &storage.Relation{Generation: 2, Versions: []storage.RowVersion{{Row: 1, Version: 2, Born: 1, Values: []sqltype.Value{value}}}}
+	relations := map[ids.ObjectAddress]*storage.Relation{table.Address(): original}
 	next := catalog.CloneState(e.CatalogRead().State())
 	physical, _ := New().CatalogRead().LookupType(sqltype.Numeric)
 	builtin := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Numeric)}
@@ -136,14 +137,14 @@ func TestDomainExplicitCatalogRemapDetachesPayloadAndBase(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	if err = reownCatalogScalarTypes(next, storage, mapping); err != nil {
+	if err = reownCatalogScalarTypes(next, relations, mapping); err != nil {
 		t.Fatal(err)
 	}
 	imported := next.MustType(chain.Address())
 	if imported.SQLType.ID() != 60002 || imported.SQLType.DomainBase().Type.ID() != 60001 || imported.SQLType.BaseType() != physical || imported.SQLType.Usage().BaseUsage().Typmod != 327686 {
 		t.Fatal(imported)
 	}
-	rebound := storage[table.Address()]
+	rebound := relations[table.Address()]
 	if rebound == original || rebound.Versions[0].Values[0].Type() != imported.SQLType || next.MustRelation(table.Address()).Columns[0].Usage.Type != imported.SQLType {
 		t.Fatal("remap did not detach/retag", rebound)
 	}

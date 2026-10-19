@@ -9,6 +9,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -248,8 +249,8 @@ func notNullProviderPublicationFences(t *testing.T, q string) {
 			run(t, e, "INSERT INTO t VALUES(1,8)")
 			ref := roleTableRef(t, e, "t")
 			old := e.catalog.state.Get(ref.Address)
-			storage := e.storage.Relations[ref.Address]
-			ends, generation := storage.Ends, storage.Generation
+			stored := e.storage.Relations[ref.Address]
+			ends, generation := stored.Ends, stored.Generation
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			provider := e.catalog.Providers[ids.RelationClassID]
@@ -274,10 +275,10 @@ func notNullProviderPublicationFences(t *testing.T, q string) {
 				case "insert":
 					value := sqltype.Null(testUsage(e, sqltype.Int4).Type)
 					if dropping {
-						value = storage.Versions[0].Values[0]
+						value = stored.Versions[0].Values[0]
 					}
 					e.mu.Lock()
-					storage.Versions = append(storage.Versions, rowVersion{Row: 99, Version: 99, Born: e.commitSeq, Values: []sqltype.Value{value, storage.Versions[0].Values[1]}})
+					stored.Versions = append(stored.Versions, storage.RowVersion{Row: 99, Version: 99, Born: e.commitSeq, Values: []sqltype.Value{value, stored.Versions[0].Values[1]}})
 					e.mu.Unlock()
 				case "descriptor":
 					next := *old.(*catalog.Relation)
@@ -319,7 +320,7 @@ func notNullProviderPublicationFences(t *testing.T, q string) {
 				t.Fatal("descriptor changed", err)
 			}
 			if kind != "reset" && kind != "restore" {
-				if e.storage.Relations[ref.Address] != storage || storage.Ends != ends || storage.Generation != generation || len(storage.Versions) != map[bool]int{false: 1, true: 2}[kind == "insert"] {
+				if e.storage.Relations[ref.Address] != stored || stored.Ends != ends || stored.Generation != generation || len(stored.Versions) != map[bool]int{false: 1, true: 2}[kind == "insert"] {
 					t.Fatal("failed alteration changed storage", err)
 				}
 				if dropping {

@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 // Engine.mu is held. Reuse replacement's copy-on-change type/expression/value
@@ -46,7 +47,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 			}
 		}
 	}
-	var stores map[ids.ObjectAddress]*relationStorage
+	var stores map[ids.ObjectAddress]*storage.Relation
 	for address, descriptor := range next.Descriptors() {
 		previous := stage.Descriptors[address]
 		if previous == nil {
@@ -68,7 +69,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 				}
 				if store != nil {
 					if stores == nil {
-						stores = make(map[ids.ObjectAddress]*relationStorage)
+						stores = make(map[ids.ObjectAddress]*storage.Relation)
 					}
 					stores[address] = store
 				}
@@ -84,7 +85,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 					}
 					if store != nil {
 						if stores == nil {
-							stores = make(map[ids.ObjectAddress]*relationStorage)
+							stores = make(map[ids.ObjectAddress]*storage.Relation)
 						}
 						stores[parent] = store
 					}

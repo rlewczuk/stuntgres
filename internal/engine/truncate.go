@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -16,7 +17,7 @@ import (
 type truncateRelation struct {
 	ref       ids.ObjectRef
 	relation  *catalog.Relation
-	storage   *relationStorage
+	storage   *storage.Relation
 	privilege bool
 }
 
@@ -67,7 +68,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		e.mu.Lock()
 		auth, err := e.statementAuthorizationLocked(s.op, stmt)
 		var before *catalog.Relation
-		var store *relationStorage
+		var store *storage.Relation
 		otherTemporary := false
 		if err == nil {
 			if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || s.txRef.Epoch() != ref.Epoch {

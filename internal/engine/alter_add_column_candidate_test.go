@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -126,13 +127,13 @@ func TestAlterAddColumnVolatileEffectiveLiveRewrite(t *testing.T) {
 	if err != nil || !volatile || calls != 0 || len(fills) != 0 {
 		t.Fatal(fills, volatile, calls, err)
 	}
-	store := &relationStorage{Generation: 1, Versions: []rowVersion{
+	store := &storage.Relation{Generation: 1, Versions: []storage.RowVersion{
 		{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{one}},
 		{Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{one}},
 		{Row: 3, Version: 3, Born: 1, Values: []sqltype.Value{one}},
 		{Row: 4, Version: 4, Born: 1, Values: []sqltype.Value{one}},
-	}, Ends: &deletionRoot{Rows: map[ids.RowID]rowEnd{2: {Version: 2, End: 2}}}}
-	scope.ownWrites = map[ids.ObjectAddress][]rowVersion{old.Address(): {{Row: 3, Version: 5, Base: 3, Values: []sqltype.Value{one}}, {Row: 5, Version: 6, Values: []sqltype.Value{one}}}}
+	}, Ends: &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{2: {Version: 2, End: 2}}}}
+	scope.ownWrites = map[ids.ObjectAddress][]storage.RowVersion{old.Address(): {{Row: 3, Version: 5, Base: 3, Values: []sqltype.Value{one}}, {Row: 5, Version: 6, Values: []sqltype.Value{one}}}}
 	scope.ownDeletes = map[ids.ObjectAddress]*privateDeletionRoot{old.Address(): {rows: map[ids.RowID]deleteCandidate{4: {row: 4, version: 4}}}}
 	transformCalls := 0
 	transformed, err := sqltype.Integer(u.Type, 31)
@@ -157,7 +158,7 @@ func TestAlterAddColumnVolatileEffectiveLiveRewrite(t *testing.T) {
 	if transformCalls != 3 {
 		t.Fatal("TYPE effective demand", transformCalls)
 	}
-	for i, row := range append(append([]rowVersion(nil), replacement.Versions...), own...) {
+	for i, row := range append(append([]storage.RowVersion(nil), replacement.Versions...), own...) {
 		expectedDraw, drawErr := sqltype.Integer(u.Type, int64(i+1))
 		if drawErr != nil {
 			t.Fatal(drawErr)

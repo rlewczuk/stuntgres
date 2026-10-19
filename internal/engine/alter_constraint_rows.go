@@ -3,11 +3,12 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 // Historical ALTER worklists are separate from unconditional successor DML.
 // The caller supplies only selected valid CHECKs and required valid NN jobs.
-func (s *StatementScope) validateAddedConstraintRows(validator alterRowValidator, versions []rowVersion, ends *deletionRoot, frontier ids.CommitSeq, writes []rowVersion, deletes *privateDeletionRoot) error {
+func (s *StatementScope) validateAddedConstraintRows(validator alterRowValidator, versions []storage.RowVersion, ends *storage.DeletionRoot, frontier ids.CommitSeq, writes []storage.RowVersion, deletes *privateDeletionRoot) error {
 	var replaced map[ids.RowID]bool
 	for _, row := range writes {
 		if row.Base != 0 {
@@ -18,7 +19,7 @@ func (s *StatementScope) validateAddedConstraintRows(validator alterRowValidator
 		}
 	}
 	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, statementScope: s, Input: s.input, Output: s.output}
-	scan := func(rows []rowVersion, committed bool) error {
+	scan := func(rows []storage.RowVersion, committed bool) error {
 		for _, row := range rows {
 			if err := s.op.Context().Err(); err != nil {
 				return err

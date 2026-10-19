@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -169,7 +170,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			return err
 		}
 		replacement := indexWriteCandidate{values: row}
-		if err := s.checkUniqueRow(ref, &replacement, []rowVersion{old}, indexWriteBatch{}); err != nil {
+		if err := s.checkUniqueRow(ref, &replacement, []storage.RowVersion{old}, indexWriteBatch{}); err != nil {
 			return err
 		}
 		b.viewWrite = s.viewWrite
@@ -179,7 +180,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		var batch indexWriteBatch
 		batch.actionMode = actionMode
 		batch.append(replacement)
-		if err := s.Writes().replaceDistinct(ref, []rowVersion{old}, batch); err != nil {
+		if err := s.Writes().replaceDistinct(ref, []storage.RowVersion{old}, batch); err != nil {
 			return err
 		}
 		c.markAffected(old.Row, len(s.stage.rows[ref.Address])-1)
@@ -202,35 +203,35 @@ func conflictUpdateCardinalityError() error {
 
 // Committed hits retain their provider's exact physical hint. Private overlays
 // are keyed by RowID, with this command's replacement ahead of prior writes.
-func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate uniqueConflict) (rowVersion, *catalog.Relation, string, bool, error) {
+func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate uniqueConflict) (storage.RowVersion, *catalog.Relation, string, bool, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := s.validateLockedRelation(e); err != nil {
-		return rowVersion{}, nil, "", false, err
+		return storage.RowVersion{}, nil, "", false, err
 	}
 	if ref.Epoch != e.catalog.state.Epoch() {
-		return rowVersion{}, nil, "", false, ids.ErrCatalogReplaced
+		return storage.RowVersion{}, nil, "", false, ids.ErrCatalogReplaced
 	}
 	catalog := e.privateCatalogLocked(s.owner.catalog)
 	parent, ok := catalog.Relation(ref.Address)
 	store := e.privateStorageLocked(s.owner.catalog, ref.Address)
 	if !ok || store == nil || !sameRelationRowShape(candidate.parent, parent) {
-		return rowVersion{}, nil, "", false, ids.ErrCatalogReplaced
+		return storage.RowVersion{}, nil, "", false, ids.ErrCatalogReplaced
 	}
 	auth, err := s.writeAuthorizationLocked(e)
 	if err != nil {
-		return rowVersion{}, nil, "", false, err
+		return storage.RowVersion{}, nil, "", false, err
 	}
 	auth.catalog = catalog
 	auth.recaptureCatalog(auth.catalog)
 	if err := auth.checkBinding(bindingForConflict(ref, parent, s.insertConflict), &parser.Insert{}); err != nil {
-		return rowVersion{}, nil, "", false, err
+		return storage.RowVersion{}, nil, "", false, err
 	}
 	namespace, ok := catalog.Namespace(parent.Namespace())
 	if !ok {
-		return rowVersion{}, nil, "", false, ids.ErrCatalogReplaced
+		return storage.RowVersion{}, nil, "", false, ids.ErrCatalogReplaced
 	}
-	var row rowVersion
+	var row storage.RowVersion
 	var found bool
 	if candidate.committed {
 		row, _, found = rowByID(store.Versions, candidate.row.Row, candidate.position)
@@ -243,10 +244,10 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 		}
 	}
 	if !found {
-		return rowVersion{}, nil, "", false, errors.New("stuntgres: invalid conflict update predecessor")
+		return storage.RowVersion{}, nil, "", false, errors.New("stuntgres: invalid conflict update predecessor")
 	}
 	if err := s.repeatableConflict(row, store.Ends); err != nil {
-		return rowVersion{}, nil, "", false, err
+		return storage.RowVersion{}, nil, "", false, err
 	}
 	live := liveVersion(row, e.commitSeq, store.Ends, s.ownDeletes[ref.Address]) && !uniqueRowDeleted(row.Row, s.stage.deletes[ref.Address])
 	return row, parent, namespace.Name(), live, nil

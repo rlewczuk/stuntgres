@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -22,7 +23,7 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 	if len(b.querySources) != 1 || inputs == nil || inputs.view == nil || inputs.view.read() != data {
 		t.Fatal("incoherent command capture")
 	}
-	original := append([]rowVersion(nil), target.committed...)
+	original := append([]storage.RowVersion(nil), target.committed...)
 	if original[0].Row == original[1].Row {
 		t.Fatal("equal values lack distinct physical identities")
 	}

@@ -4,6 +4,7 @@ import (
 	"maps"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -15,7 +16,7 @@ type ruleCommandScratch struct {
 	mutation   statementMutation
 	ref        ids.ObjectRef
 	descriptor catalog.Descriptor
-	storage    *relationStorage
+	storage    *storage.Relation
 	viewWrite  *viewWrite
 	sources    []queryLeaf
 	unique     *uniqueWriteBinding
@@ -139,7 +140,7 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 			data := *originalView.read()
 			data.own = maps.Clone(originalWrites)
 			if data.own == nil && len(scope.stage.rows) != 0 {
-				data.own = make(map[ids.ObjectAddress][]rowVersion, len(scope.stage.rows))
+				data.own = make(map[ids.ObjectAddress][]storage.RowVersion, len(scope.stage.rows))
 			}
 			for address, rows := range scope.stage.rows {
 				data.own[address] = mergePrivateRows(originalWrites[address], rows, false)

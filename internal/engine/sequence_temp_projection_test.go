@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -173,8 +174,8 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	generatorState, memoryState := *generator, *memory
 	sourceGenerator, sourceMemory := source.storage.Sequences[sourceTemp], a.sequences[sourceTemp]
 	sourceGeneratorState, sourceMemoryState := *sourceGenerator, *sourceMemory
-	sourceGenerators := make(map[ids.ObjectAddress]*sequenceGenerator)
-	sourceStates := make(map[ids.ObjectAddress]sequenceGenerator)
+	sourceGenerators := make(map[ids.ObjectAddress]*storage.SequenceGenerator)
+	sourceStates := make(map[ids.ObjectAddress]storage.SequenceGenerator)
 	for a, g := range source.storage.Sequences {
 		sourceGenerators[a], sourceStates[a] = g, *g
 	}

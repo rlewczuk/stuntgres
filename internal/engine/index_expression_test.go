@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -24,9 +25,9 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 	node := functions.String{Info: column.Info, Plan: plan, Args: []expr.Expr{column}, Textual: [4]bool{true}}
 	d := &catalog.IndexDefinition{Parent: parent.Address(), Keys: []catalog.IndexKey{{Derived: &catalog.DerivedIndexKey{Definition: node, Execution: node}}}, Ready: true, Valid: true, Live: true}
 	values := []sqltype.Value{sqltype.String(typ, "Alpha"), sqltype.String(typ, "ALPHA"), sqltype.String(typ, "Beta"), sqltype.Null(typ), sqltype.String(typ, "alpha")}
-	store := &relationStorage{}
+	store := &storage.Relation{}
 	for i, v := range values {
-		store.Versions = append(store.Versions, rowVersion{Row: ids.RowID(i + 1), Version: ids.VersionID(i + 1), Values: []sqltype.Value{v}})
+		store.Versions = append(store.Versions, storage.RowVersion{Row: ids.RowID(i + 1), Version: ids.VersionID(i + 1), Values: []sqltype.Value{v}})
 	}
 	root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, d, store, nil)
 	if err != nil {
@@ -36,7 +37,7 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 	if got := btreeKeys(t, root); !reflect.DeepEqual(got, want) {
 		t.Fatal(got, want)
 	}
-	publication := &rowPublication{writes: []rowVersion{{Row: 6, Version: 6, Values: []sqltype.Value{sqltype.String(typ, "AlPhA")}}}}
+	publication := &rowPublication{writes: []storage.RowVersion{{Row: 6, Version: 6, Values: []sqltype.Value{sqltype.String(typ, "AlPhA")}}}}
 	next, err := mergeIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, &catalog.Relation{SQLIndex: d}, root.Entries, publication, false, true, false, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)

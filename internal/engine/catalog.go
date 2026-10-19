@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"unicode/utf8"
@@ -157,7 +158,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		if r.SequencePlanStamp == 0 || r.Sequence == nil || len(r.Columns) != 3 || r.Columns[0].Name != "last_value" || r.Columns[1].Name != "log_cnt" || r.Columns[2].Name != "is_called" || r.Columns[0].Usage.Type.ID() != sqltype.Int8 || r.Columns[1].Usage.Type.ID() != sqltype.Int8 || r.Columns[2].Usage.Type.ID() != sqltype.Bool {
 			return fmt.Errorf("stuntgres: invalid sequence descriptor")
 		}
-		if _, _, err := bindSequenceOptions(r.Sequence, sequenceGenerator{Last: r.Sequence.Start}, nil); err != nil {
+		if _, _, err := bindSequenceOptions(r.Sequence, storage.SequenceGenerator{Last: r.Sequence.Start}, nil); err != nil {
 			return err
 		}
 		if r.Sequence.Identity && r.Sequence.Owned == (ids.ObjectAddress{}) {
@@ -323,11 +324,11 @@ const (
 )
 
 type catalogRowShape struct {
-	original       *relationStorage
-	root           []rowVersion
-	replacement    *relationStorage
+	original       *storage.Relation
+	root           []storage.RowVersion
+	replacement    *storage.Relation
 	observedLength int
-	observedEnds   *deletionRoot
+	observedEnds   *storage.DeletionRoot
 	generation     uint64
 }
 
@@ -345,7 +346,7 @@ type CatalogStage struct {
 	indexParents         map[ids.ObjectAddress]*catalog.Relation
 	indexSets            map[ids.ObjectAddress]int
 	indexOutput          sqltype.OutputEnvironment
-	generators           map[ids.ObjectAddress]*sequenceGenerator
+	generators           map[ids.ObjectAddress]*storage.SequenceGenerator
 	identityOriginals    map[ids.ObjectAddress]catalog.Descriptor
 	identityDependencies []catalogDependencyObservation
 	typedSource          ids.ObjectAddress
@@ -368,13 +369,13 @@ type CatalogStage struct {
 	domainBases        []catalog.Descriptor
 	domainValidation   *domainValidationFence
 	domainAlter        context.Context
-	domainIndexRoots   map[ids.ObjectAddress]*logicalIndexRoot
+	domainIndexRoots   map[ids.ObjectAddress]*storage.IndexRoot
 	// Physical retirement alone may saturate dependent descriptor/store/index
 	// counters; fresh identities and exact predecessor fences remain mandatory.
 	terminalCleanup bool
 	// New query-derived tables carry private initial storage, never replacements
 	// of live storage. Publication installs the definition and data together.
-	initialTables           map[ids.ObjectAddress]*relationStorage
+	initialTables           map[ids.ObjectAddress]*storage.Relation
 	initialTx               ids.TxRef
 	materializedReplacement *materializedReplacement
 	querySources            []catalog.Descriptor
@@ -442,7 +443,7 @@ func (s *CatalogStage) replaceDescriptor(d catalog.Descriptor, synchronize bool)
 }
 
 // alterRelation couples a same-identity revision with an immutable storage root.
-func (s *CatalogStage) alterRelation(ctx context.Context, ref ids.ObjectRef, d *catalog.Relation, original, replacement *relationStorage, observedLength int, observedGeneration uint64, observedEnds *deletionRoot) error {
+func (s *CatalogStage) alterRelation(ctx context.Context, ref ids.ObjectRef, d *catalog.Relation, original, replacement *storage.Relation, observedLength int, observedGeneration uint64, observedEnds *storage.DeletionRoot) error {
 	if s == nil || s.owner == nil || s.lifecycle != catalogOpen || s.invalid != nil {
 		return fmt.Errorf("stuntgres: invalid catalog stage")
 	}
@@ -913,7 +914,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				continue
 			}
 			if indexStores == nil {
-				indexStores = make(map[ids.ObjectAddress]*relationStorage)
+				indexStores = make(map[ids.ObjectAddress]*storage.Relation)
 			}
 			a := index.SQLIndex.Parent
 			if indexStores[a] == nil && currentStorage[a] != nil {
@@ -936,9 +937,9 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		next := catalog.CloneState(current)
 		next.OverlayDefaultACLs(current, s.DefaultACLs)
 		operators := catalog.OperatorIndexEdit{Index: current.OperatorNames()}
-		storage := make(map[ids.ObjectAddress]*relationStorage, len(currentStorage)+len(s.Descriptors))
+		relations := make(map[ids.ObjectAddress]*storage.Relation, len(currentStorage)+len(s.Descriptors))
 		for a, v := range currentStorage {
-			storage[a] = v
+			relations[a] = v
 		}
 		for a, removal := range s.Removals {
 			d := removal.Descriptor
@@ -946,7 +947,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			next.RemoveDescriptor(a)
 			next.RemoveDumpPriority(a)
 			next.UnbindName(catalog.DescriptorNameKey(d))
-			delete(storage, a)
+			delete(relations, a)
 		}
 		for k := range s.OldNames {
 			next.UnbindName(k)
@@ -956,19 +957,19 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				operators.Replace(current.Get(a), d)
 			}
 			next.SetDescriptor(a, d)
-			if relation, ok := d.(*catalog.Relation); ok && relation.RelationKind.Stored() && storage[a] == nil {
+			if relation, ok := d.(*catalog.Relation); ok && relation.RelationKind.Stored() && relations[a] == nil {
 				if initial := s.initialTables[a]; initial != nil {
-					storage[a] = initial
+					relations[a] = initial
 				} else {
-					storage[a] = &relationStorage{}
+					relations[a] = &storage.Relation{}
 				}
 			}
 		}
 		for a, shape := range s.rowShapes {
-			storage[a] = shape.replacement
+			relations[a] = shape.replacement
 		}
 		if replacement := s.materializedReplacement; replacement != nil {
-			storage[replacement.original.Address()] = replacement.storage
+			relations[replacement.original.Address()] = replacement.storage
 		}
 		for k, a := range s.Names {
 			next.BindName(k, a)
@@ -981,7 +982,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		candidateStores := false
 		var rebuildIndexes map[ids.ObjectAddress]bool
 		if len(indexStores) > 0 && (len(s.rowShapes) > 0 || s.materializedReplacement != nil) {
-			buildStores = make(map[ids.ObjectAddress]*relationStorage, len(indexStores))
+			buildStores = make(map[ids.ObjectAddress]*storage.Relation, len(indexStores))
 			for a, store := range indexStores {
 				buildStores[a] = store
 			}
@@ -1009,17 +1010,17 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				continue
 			}
 			if !candidateStores {
-				buildStores = make(map[ids.ObjectAddress]*relationStorage, len(indexStores)+1)
+				buildStores = make(map[ids.ObjectAddress]*storage.Relation, len(indexStores)+1)
 				for address, store := range indexStores {
 					buildStores[address] = store
 				}
 				candidateStores = true
 			}
-			buildStores[a] = storage[a]
+			buildStores[a] = relations[a]
 		}
 		sourceRoots := indexPredecessors
 		if len(s.indexCandidates) != 0 {
-			sourceRoots = make(map[ids.ObjectAddress]*logicalIndexRoot, len(indexPredecessors)+len(s.indexCandidates))
+			sourceRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(indexPredecessors)+len(s.indexCandidates))
 			for a, root := range indexPredecessors {
 				sourceRoots[a] = root
 			}
@@ -1246,7 +1247,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 					if replacement.concurrent {
 						lineage := replacement.predecessor.MaterializedLineage
 						if lineage == nil {
-							lineage = &materializedLineage{}
+							lineage = &storage.MaterializedLineage{}
 						}
 						replacement.predecessor.MaterializedLineage = lineage
 						replacement.storage.MaterializedLineage = lineage
@@ -1258,7 +1259,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				e.serializableCommittedLocked(s.initialTx, e.commitSeq)
 			}
 			e.catalog.state = next
-			e.storage.Relations = storage
+			e.storage.Relations = relations
 			preserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.storage.IndexRoots)
 			e.storage.IndexRoots = indexRoots
 			for a := range s.Removals {
@@ -1352,8 +1353,8 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 			relationAddresses = append(relationAddresses, a)
 		}
 	}
-	storage := make(map[ids.ObjectAddress]*relationStorage, len(relationAddresses))
-	var sequences map[ids.ObjectAddress]*sequenceGenerator
+	relations := make(map[ids.ObjectAddress]*storage.Relation, len(relationAddresses))
+	var sequences map[ids.ObjectAddress]*storage.SequenceGenerator
 	var indexes *indexSnapshot
 	copyRows := func(owner *Engine) error {
 		source, frontier := owner.storage.Relations, owner.commitSeq
@@ -1365,12 +1366,12 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 			if err != nil {
 				return err
 			}
-			versions := make([]rowVersion, selected.count())
+			versions := make([]storage.RowVersion, selected.count())
 			for i := range versions {
 				versions[i] = selected.versionAt(selected.rawIndex(i))
 			}
 			selected.close()
-			storage[a] = &relationStorage{Versions: versions}
+			relations[a] = &storage.Relation{Versions: versions}
 		}
 		var err error
 		indexes, err = owner.captureIndexSnapshot(ctx, replacement, source, owner.storage.IndexRoots, frontier)
@@ -1402,7 +1403,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		if sequenceErr != nil {
 			return ChangeSet{}, sequenceErr
 		}
-		if err := e.preserveTemporaryLocked(ctx, next, storage, sequences, restoreOp, indexes); err != nil {
+		if err := e.preserveTemporaryLocked(ctx, next, relations, sequences, restoreOp, indexes); err != nil {
 			return ChangeSet{}, err
 		}
 		if err := catalog.ValidateDefaultACLs(e.roles.read(e.catalog.owner(), e.catalog.read(next), e.roles.published), e.catalog.read(next)); err != nil {
@@ -1424,7 +1425,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 			return ChangeSet{}, fmt.Errorf("stuntgres: catalog epoch exhausted")
 		}
 		var imported uint64
-		for _, relation := range storage {
+		for _, relation := range relations {
 			imported += uint64(len(relation.Versions))
 		}
 		if imported > ^uint64(0)-e.storage.RowFrontier() {
@@ -1446,7 +1447,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 				}
 			}
 		}
-		roots, nextRow, nextVersion, err := e.prepareRemintedStorage(ctx, next, storage, indexes)
+		roots, nextRow, nextVersion, err := e.prepareRemintedStorage(ctx, next, relations, indexes)
 		if err != nil {
 			return ChangeSet{}, err
 		}
@@ -1458,7 +1459,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		e.commitSeq++
 		next.SetEpoch(e.catalog.state.Epoch() + 1)
 		e.catalog.state = next
-		e.storage.Relations = storage
+		e.storage.Relations = relations
 		e.exclusionPending = nil
 		e.exclusionGeneration++
 		e.storage.Sequences = sequences
@@ -1485,7 +1486,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		return ChangeSet{}, err
 	}
 	var imported uint64
-	for _, relation := range storage {
+	for _, relation := range relations {
 		imported += uint64(len(relation.Versions))
 	}
 	e.replacementMu.Lock()
@@ -1519,7 +1520,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	if err != nil {
 		return ChangeSet{}, err
 	}
-	if err = e.preserveTemporaryLocked(ctx, next, storage, sequences, restoreOp, indexes); err != nil {
+	if err = e.preserveTemporaryLocked(ctx, next, relations, sequences, restoreOp, indexes); err != nil {
 		return ChangeSet{}, err
 	}
 	if err := catalog.ValidateDefaultACLs(e.roles.read(e.catalog.owner(), e.catalog.read(next), e.roles.published), e.catalog.read(next)); err != nil {
@@ -1537,11 +1538,11 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 			}
 		}
 	}
-	prepared, err := e.prepareForeignIndexStorage(ctx, next, storage, indexes)
+	prepared, err := e.prepareForeignIndexStorage(ctx, next, relations, indexes)
 	if err != nil {
 		return ChangeSet{}, err
 	}
-	if err := e.installForeignCatalogLocked(ctx, next, storage, sequences, nextRevision, prepared); err != nil {
+	if err := e.installForeignCatalogLocked(ctx, next, relations, sequences, nextRevision, prepared); err != nil {
 		return ChangeSet{}, err
 	}
 	e.foreignNamespaces = foreignNamespaces
@@ -1554,7 +1555,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 // replacementMu and mu and has validated capacity, descriptors and authority.
 // Storage vectors and sequence generator scalars are private copies; payload
 // values remain immutable. All prepared containers publish at the same boundary.
-func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, sequences map[ids.ObjectAddress]*sequenceGenerator, nextRevision ids.DefinitionRevision, prepared remintedIndexStorage) error {
+func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared remintedIndexStorage) error {
 	if prepared.catalog != next || prepared.baseCatalog != e.catalog.state || prepared.baseRow != e.storage.RowFrontier() || prepared.baseVersion != e.storage.VersionFrontier() || prepared.frontier != e.commitSeq {
 		return ids.ErrCatalogReplaced
 	}
@@ -1566,7 +1567,7 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.
 	e.commitSeq++
 	next.SetEpoch(e.catalog.state.Epoch() + 1)
 	e.catalog.state = next
-	e.storage.Relations = storage
+	e.storage.Relations = relations
 	e.exclusionPending = nil
 	e.exclusionGeneration++
 	e.storage.Sequences = sequences

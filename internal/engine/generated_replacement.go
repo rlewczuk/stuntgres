@@ -4,12 +4,13 @@ import (
 	"context"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
 
 // The caller retains replacementMu throughout, but providers must never run
 // under the target catalog mutex. All effects belong to an isolated real session.
-func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, sequences map[ids.ObjectAddress]*sequenceGenerator, mapping map[ids.ObjectAddress]ids.ObjectAddress, op *Operation, indexes *indexSnapshot) (result error) {
+func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, mapping map[ids.ObjectAddress]ids.ObjectAddress, op *Operation, indexes *indexSnapshot) (result error) {
 	needed := indexes.needsOwnerRepair() || hasHashPartition(next)
 	for source, target := range mapping {
 		if source == target {
@@ -50,7 +51,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	}
 	if err == nil {
 		stage.catalog.state = candidate
-		stage.storage.Relations = storage
+		stage.storage.Relations = relations
 		stage.storage.Sequences = sequences
 	}
 	stage.mu.Unlock()
@@ -91,14 +92,14 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: stage.catalog.read(candidate)}
 	changed := indexes.trackedGenerations(candidate)
 	if err == nil {
-		err = recomputeRemappedGenerations(ctx, candidate, storage, mapping, evaluation, changed)
+		err = recomputeRemappedGenerations(ctx, candidate, relations, mapping, evaluation, changed)
 	}
 	var moved map[ids.ObjectAddress]bool
 	if err == nil {
-		moved, err = repairRemappedHashPartitions(ctx, &evaluation, storage, auth, indexes)
+		moved, err = repairRemappedHashPartitions(ctx, &evaluation, relations, auth, indexes)
 	}
 	if err == nil {
-		err = indexes.repair(ctx, &evaluation, storage, changed, moved, auth)
+		err = indexes.repair(ctx, &evaluation, relations, changed, moved, auth)
 	}
 	if err == nil {
 		scope.completed = true

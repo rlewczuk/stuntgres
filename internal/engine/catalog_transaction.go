@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 // Transactional descriptors, row shapes and generators share one private overlay.
@@ -18,9 +19,9 @@ type catalogChanges struct {
 	defaultACLs         map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
 	defaultOriginals    map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
 	defaultReads        map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
-	generators          map[ids.ObjectAddress]*sequenceGenerator
+	generators          map[ids.ObjectAddress]*storage.SequenceGenerator
 	storage             map[ids.ObjectAddress]catalogStorageChange
-	uniqueRoots         map[ids.ObjectAddress]*logicalIndexRoot
+	uniqueRoots         map[ids.ObjectAddress]*storage.IndexRoot
 	indexCandidates     map[ids.ObjectAddress]indexRootCandidate // Private produced DDL roots and their exact baseline pins.
 	dependencies        []catalogDependencyObservation
 	extensionAuthority  []extensionAuthorityObservation
@@ -38,12 +39,12 @@ type catalogChanges struct {
 	truncateFences      []truncateGraphFence
 	materializedSources []materializedSourceFence
 	domainValidations   []*domainValidationFence
-	domainIndexRoots    map[ids.ObjectAddress]*logicalIndexRoot
+	domainIndexRoots    map[ids.ObjectAddress]*storage.IndexRoot
 	domainChanged       bool
 }
 
 func newCatalogChanges() *catalogChanges {
-	return &catalogChanges{originals: map[ids.ObjectAddress]catalog.Descriptor{}, descriptors: map[ids.ObjectAddress]catalog.Descriptor{}, names: map[ids.NameKey]ids.ObjectAddress{}, generators: map[ids.ObjectAddress]*sequenceGenerator{}, storage: map[ids.ObjectAddress]catalogStorageChange{}}
+	return &catalogChanges{originals: map[ids.ObjectAddress]catalog.Descriptor{}, descriptors: map[ids.ObjectAddress]catalog.Descriptor{}, names: map[ids.NameKey]ids.ObjectAddress{}, generators: map[ids.ObjectAddress]*storage.SequenceGenerator{}, storage: map[ids.ObjectAddress]catalogStorageChange{}}
 }
 func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	n := newCatalogChanges()
@@ -79,7 +80,7 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 		n.storage[a] = shape
 	}
 	if c.uniqueRoots != nil {
-		n.uniqueRoots = make(map[ids.ObjectAddress]*logicalIndexRoot, len(c.uniqueRoots))
+		n.uniqueRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(c.uniqueRoots))
 		for a, root := range c.uniqueRoots {
 			n.uniqueRoots[a] = root
 		}
@@ -113,7 +114,7 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	n.extensionAuthority = append(n.extensionAuthority, c.extensionAuthority...)
 	n.domainValidations = append(n.domainValidations, c.domainValidations...)
 	if c.domainIndexRoots != nil {
-		n.domainIndexRoots = make(map[ids.ObjectAddress]*logicalIndexRoot, len(c.domainIndexRoots))
+		n.domainIndexRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(c.domainIndexRoots))
 		for address, root := range c.domainIndexRoots {
 			n.domainIndexRoots[address] = root
 		}
@@ -182,7 +183,7 @@ func (e *Engine) catalogChangeLocked(c *catalogChanges, a ids.ObjectAddress, d c
 	c.cachedBase = nil
 	c.cached = catalog.Read{}
 }
-func (e *Engine) sequenceGeneratorLocked(s *StatementScope, a ids.ObjectAddress) *sequenceGenerator {
+func (e *Engine) sequenceGeneratorLocked(s *StatementScope, a ids.ObjectAddress) *storage.SequenceGenerator {
 	if s.catalog != nil {
 		if descriptor, exists := s.catalog.descriptors[a]; exists && descriptor == nil {
 			return nil

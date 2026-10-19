@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
 
@@ -556,12 +557,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				options + " AS " + body + ";\n"
 			if r.RelationKind == catalog.MaterializedViewRelation {
 				sql = "CREATE MATERIALIZED VIEW " + quoteIdentifier(ns.Name()) + "." + quoteIdentifier(r.Name()) + columns + " AS " + body + " WITH NO DATA;\n"
-				storage := e.storage.Relations[a]
-				if storage == nil {
+				stored := e.storage.Relations[a]
+				if stored == nil {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: materialized view storage is missing")
 				}
-				materialized = append(materialized, dumpRelation{owner: principal.Name, schema: ns.Name(), name: r.Name(), columns: r.Columns, attributes: r.Attributes, versions: storage.Versions, ends: storage.Ends, frontier: e.commitSeq, descriptor: r})
+				materialized = append(materialized, dumpRelation{owner: principal.Name, schema: ns.Name(), name: r.Name(), columns: r.Columns, attributes: r.Attributes, versions: stored.Versions, ends: stored.Ends, frontier: e.commitSeq, descriptor: r})
 			}
 			// Capture every source occurrence and expression dependency from the
 			// same immutable catalog used to render the definition. Attribute
@@ -646,8 +647,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			sequences = append(sequences, sequence)
 			continue
 		}
-		storage := e.storage.Relations[a]
-		if storage == nil && r.Partition == nil {
+		stored := e.storage.Relations[a]
+		if stored == nil && r.Partition == nil {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: relation storage is missing")
 		}
@@ -770,10 +771,10 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			sequence := e.catalog.state.MustRelation(identity.Sequence)
 			linked[identity.Sequence] = dumpSequence{owner: principal.Name, schema: ns.Name(), name: sequence.Name(), options: *sequence.Sequence, state: *e.storage.Sequences[identity.Sequence], comment: sequence.Comment}
 		}
-		var versions []rowVersion
-		var ends *deletionRoot
-		if storage != nil {
-			versions, ends = storage.Versions, storage.Ends
+		var versions []storage.RowVersion
+		var ends *storage.DeletionRoot
+		if stored != nil {
+			versions, ends = stored.Versions, stored.Ends
 		}
 		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.Name(), name: r.Name(), columns: r.Columns, attributes: r.Attributes, versions: versions, ends: ends, frontier: e.commitSeq, comment: r.Comment, columnComments: r.ColumnMeta.Comments, notNullConstraints: r.Constraints.NotNull, defaults: r.ColumnMeta.Defaults, deferredDefinitions: deferredDefinitions, descriptor: r, identities: r.ColumnMeta.Identities, identitySequences: linked})
 		if selected := recipePlan[r.Address()]; selected != nil {

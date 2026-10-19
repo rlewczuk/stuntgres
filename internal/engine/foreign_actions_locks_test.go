@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -198,7 +199,7 @@ func TestForeignActionsPrepared(t *testing.T) {
 		t.Fatal("Prepare demanded an action/default", probe.ordinal, description.analysis)
 	}
 	ref := catalogRef(t, e, e.CatalogRead(), "d")
-	originals := append([]rowVersion(nil), e.storage.Relations[ref.Address].Versions...)
+	originals := append([]storage.RowVersion(nil), e.storage.Relations[ref.Address].Versions...)
 	// Replace the current evaluator at the established private default seam. The
 	// retained initiating analysis must never own an executable child plan/value.
 	current := &defaultOrdinal{ordinal: 5}

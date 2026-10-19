@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -108,8 +109,8 @@ func TestACLItemPrincipalRemap(t *testing.T) {
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 45002}
 	next.SetDescriptor(address, &catalog.Relation{ObjectAddress: address, Columns: []catalog.Column{{Name: "a", Usage: d.Usage()}}})
-	original := &relationStorage{Versions: []rowVersion{{Values: []sqltype.Value{value}}}}
-	stores := map[ids.ObjectAddress]*relationStorage{address: original}
+	original := &storage.Relation{Versions: []storage.RowVersion{{Values: []sqltype.Value{value}}}}
+	stores := map[ids.ObjectAddress]*storage.Relation{address: original}
 	if err := reownCatalogScalarTypes(next, stores, nil); err != nil {
 		t.Fatal(err)
 	}

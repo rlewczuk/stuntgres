@@ -5,6 +5,7 @@ import (
 	"errors"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/storage"
 	"testing"
 	"time"
 )
@@ -91,11 +92,11 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 				store := *e.storage.Relations[table.Address]
 				switch kind {
 				case "length":
-					store.Versions = append(append([]rowVersion(nil), store.Versions...), rowVersion{Row: 200, Version: 200})
+					store.Versions = append(append([]storage.RowVersion(nil), store.Versions...), storage.RowVersion{Row: 200, Version: 200})
 				case "generation":
 					store.Generation++
 				case "ends":
-					store.Ends = &deletionRoot{}
+					store.Ends = &storage.DeletionRoot{}
 				}
 				e.storage.Relations[table.Address] = &store
 				fail = true

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -133,15 +134,15 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 	}
 	concurrent := stmt.Concurrent.Character != 0
 	var indices []*catalog.Relation
-	var previous relationStorage
-	var oldEntries []logicalIndexEntry
-	var ownRows []rowVersion
+	var previous storage.Relation
+	var oldEntries []storage.IndexEntry
+	var ownRows []storage.RowVersion
 	var ownDeletes *privateDeletionRoot
 	frontier := e.commitSeq
 	if concurrent {
 		indices = materializedEligibleIndexes(caller.catalog, d)
 		previous = *scope.lockedStorage
-		var root *logicalIndexRoot
+		var root *storage.IndexRoot
 		if len(indices) != 0 {
 			root = e.storage.IndexRoots[indices[0].Address()]
 			if scope.owner.catalog != nil && scope.owner.catalog.uniqueRoots[indices[0].Address()] != nil {
@@ -174,7 +175,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 	if concurrent {
 		var err error
 		if len(ownRows) != 0 || ownDeletes != nil {
-			versions := make([]rowVersion, 0, len(previous.Versions)+len(ownRows))
+			versions := make([]storage.RowVersion, 0, len(previous.Versions)+len(ownRows))
 			for _, row := range previous.Versions {
 				if liveVersion(row, frontier, previous.Ends, ownDeletes) {
 					versions = append(versions, row)
@@ -267,17 +268,17 @@ func (e *Engine) materializedRefreshRowsLocked(scope *StatementScope, ref ids.Ob
 
 type materializedReplacement struct {
 	original    *catalog.Relation
-	predecessor *relationStorage
-	storage     *relationStorage
+	predecessor *storage.Relation
+	storage     *storage.Relation
 	generation  uint64
 	length      int
 	descriptor  *catalog.Relation
-	ends        *deletionRoot
+	ends        *storage.DeletionRoot
 	concurrent  bool
 	indexCount  int
 }
 
-func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *catalog.Relation, previous *relationStorage, rows [][]sqltype.Value, populated bool, tx ids.TxRef) error {
+func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *catalog.Relation, previous *storage.Relation, rows [][]sqltype.Value, populated bool, tx ids.TxRef) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -312,7 +313,7 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 	if err := s.replaceDescriptor(&next, false); err != nil {
 		return err
 	}
-	s.materializedReplacement = &materializedReplacement{original: d, descriptor: &next, predecessor: previous, storage: &relationStorage{Versions: versions, Generation: previous.Generation + 1}, generation: previous.Generation, length: len(previous.Versions), ends: previous.Ends}
+	s.materializedReplacement = &materializedReplacement{original: d, descriptor: &next, predecessor: previous, storage: &storage.Relation{Versions: versions, Generation: previous.Generation + 1}, generation: previous.Generation, length: len(previous.Versions), ends: previous.Ends}
 	for _, descriptor := range s.Base.Descriptors() {
 		if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil && index.SQLIndex.Parent == d.Address() {
 			s.materializedReplacement.indexCount++
@@ -360,7 +361,7 @@ func (s *CatalogStage) validateMaterializedReplacement() error {
 	return nil
 }
 
-func (s *CatalogStage) materializedReplacementCurrent(snapshot *catalog.State, storage *relationStorage) error {
+func (s *CatalogStage) materializedReplacementCurrent(snapshot *catalog.State, stored *storage.Relation) error {
 	r := s.materializedReplacement
 	if r == nil {
 		return nil
@@ -368,7 +369,7 @@ func (s *CatalogStage) materializedReplacementCurrent(snapshot *catalog.State, s
 	if s.Descriptors[r.original.Address()] != r.descriptor {
 		return catalog.Conflict{}
 	}
-	if snapshot.Epoch() != s.Base.Epoch() || snapshot.Get(r.original.Address()) != r.original || storage != r.predecessor || r.predecessor.Generation != r.generation || len(r.predecessor.Versions) != r.length || r.predecessor.Ends != r.ends {
+	if snapshot.Epoch() != s.Base.Epoch() || snapshot.Get(r.original.Address()) != r.original || stored != r.predecessor || r.predecessor.Generation != r.generation || len(r.predecessor.Versions) != r.length || r.predecessor.Ends != r.ends {
 		return catalog.Conflict{}
 	}
 	// The effective diff depends on every eligible key; root publication also

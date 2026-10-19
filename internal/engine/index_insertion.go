@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 // Only a target with checked nonunique indexes needs a mixed insertion lane.
@@ -15,7 +16,7 @@ type indexInsertionBinding struct {
 	preparation indexExecutionPreparation
 	unique      *uniqueBoundKey
 	ordering    indexOrdering
-	hash        hashIndexBinding
+	hash        storage.HashBinding
 }
 
 func (r *indexWriteCandidate) materializeInsertion(bound *indexInsertionBinding, evaluation *EvalContext) error {
@@ -30,7 +31,7 @@ func (r *indexWriteCandidate) materializeInsertion(bound *indexInsertionBinding,
 		return err
 	}
 	if r.indexes == nil {
-		r.indexes = make(map[ids.ObjectAddress]indexRowOutput)
+		r.indexes = make(map[ids.ObjectAddress]storage.IndexOutput)
 	} else if r.sharedIndexes {
 		r.indexes = maps.Clone(r.indexes)
 	}
@@ -49,7 +50,7 @@ const (
 
 // Catalog-drift staging can refresh grants and immutable providers, but cannot
 // manufacture a new checked insertion occurrence after the producer finished.
-func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []rowVersion, batch *indexWriteBatch) error {
+func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.RowVersion, batch *indexWriteBatch) error {
 	prior := s.uniqueBinding
 	if prior != nil && prior.ref != ref {
 		prior = s.indexBindings[ref.Address]
@@ -92,7 +93,7 @@ func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []rowVersion
 	}
 	for i := range batch.values {
 		candidate := batch.candidate(i)
-		var excluded []rowVersion
+		var excluded []storage.RowVersion
 		if old != nil {
 			excluded = old[:i+1]
 		}
@@ -110,13 +111,13 @@ func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []rowVersion
 
 // The mixed lane may need ordinary prior-own keys again after catalog drift.
 // Freeze actual probe data by immutable row/version, not CHECK truth or values.
-func (s *StatementScope) retainExistingIndexOutput(index *catalog.Relation, row rowVersion, output indexRowOutput) {
+func (s *StatementScope) retainExistingIndexOutput(index *catalog.Relation, row storage.RowVersion, output storage.IndexOutput) {
 	if s.existingIndexOutputs == nil {
-		s.existingIndexOutputs = make(map[ids.ObjectAddress]map[indexRowIdentity]indexRowOutput)
+		s.existingIndexOutputs = make(map[ids.ObjectAddress]map[indexRowIdentity]storage.IndexOutput)
 	}
 	outputs := s.existingIndexOutputs[index.Address()]
 	if outputs == nil {
-		outputs = make(map[indexRowIdentity]indexRowOutput)
+		outputs = make(map[indexRowIdentity]storage.IndexOutput)
 		s.existingIndexOutputs[index.Address()] = outputs
 	}
 	outputs[indexRowIdentity{row: row.Row, version: row.Version}] = output

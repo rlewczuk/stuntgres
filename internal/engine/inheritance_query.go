@@ -6,6 +6,7 @@ import (
 	"sort"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -120,15 +121,15 @@ func (segment *inheritanceQuerySegment) mapValues(values []sqltype.Value) []sqlt
 // the named-parent layout and the currently cached candidate row version.
 // Its segment is capture-owned, so refreshed values reuse mapping scratch.
 // Provenance retains the original visible index through every existing adapter;
-// caches retain physical versions, never a reconstructed parent rowVersion.
+// caches retain physical versions, never a reconstructed parent storage.RowVersion.
 type queryPhysicalRow struct {
 	leaf    queryLeaf
-	version rowVersion
+	version storage.RowVersion
 	hint    int
 	segment *inheritanceQuerySegment
 }
 
-func (s *querySource) physicalRow(index int, logical queryLeaf, candidate rowVersion) queryPhysicalRow {
+func (s *querySource) physicalRow(index int, logical queryLeaf, candidate storage.RowVersion) queryPhysicalRow {
 	prefix := s
 	var segment *inheritanceQuerySegment
 	if s.inheritance != nil {
@@ -144,7 +145,7 @@ func (s *querySource) physicalRow(index int, logical queryLeaf, candidate rowVer
 	return queryPhysicalRow{leaf: logical, version: candidate, hint: hint, segment: segment}
 }
 
-func (row queryPhysicalRow) values(version rowVersion) []sqltype.Value {
+func (row queryPhysicalRow) values(version storage.RowVersion) []sqltype.Value {
 	if row.segment != nil {
 		return row.segment.mapValues(version.Values)
 	}

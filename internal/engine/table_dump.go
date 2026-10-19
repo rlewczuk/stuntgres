@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -15,8 +16,8 @@ type dumpRelation struct {
 	owner, schema, name string
 	columns             []catalog.Column
 	attributes          []int32
-	versions            []rowVersion
-	ends                *deletionRoot
+	versions            []storage.RowVersion
+	ends                *storage.DeletionRoot
 	frontier            ids.CommitSeq
 	comment             string
 	columnComments      map[int32]string

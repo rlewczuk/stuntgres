@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"unicode/utf8"
@@ -380,7 +381,7 @@ func uniqueDiagnostic(ctx context.Context, parent, index *catalog.Relation, key 
 	return d
 }
 
-func validateUniqueRoot(ctx context.Context, parent, index *catalog.Relation, root *logicalIndexRoot, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool) error {
+func validateUniqueRoot(ctx context.Context, parent, index *catalog.Relation, root *storage.IndexRoot, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool) error {
 	d := index.SQLIndex
 	if d.IsExclusion() {
 		return validateExclusionRoot(ctx, parent, index, root, schema, output, auth, building)
@@ -395,7 +396,7 @@ func validateUniqueRoot(ctx context.Context, parent, index *catalog.Relation, ro
 	return validateUniqueEntries(ctx, parent, index, root.Entries, schema, output, auth, building, ordering)
 }
 
-func validateUniqueEntries(ctx context.Context, parent, index *catalog.Relation, entries []logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool, ordering indexOrdering) error {
+func validateUniqueEntries(ctx context.Context, parent, index *catalog.Relation, entries []storage.IndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool, ordering indexOrdering) error {
 	if index.SQLIndex.IsExclusion() {
 		return validateExclusionEntries(ctx, parent, index, entries, schema, output, auth, building)
 	}
@@ -407,7 +408,7 @@ func validateUniqueEntries(ctx context.Context, parent, index *catalog.Relation,
 	return nil
 }
 
-func validateUniquePair(ctx context.Context, parent, index *catalog.Relation, previous, current logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool, ordering indexOrdering) error {
+func validateUniquePair(ctx context.Context, parent, index *catalog.Relation, previous, current storage.IndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool, ordering indexOrdering) error {
 	d := index.SQLIndex
 	if d.IsExclusion() {
 		return validateExclusionPair(ctx, parent, index, previous, current, schema, output, auth, building)

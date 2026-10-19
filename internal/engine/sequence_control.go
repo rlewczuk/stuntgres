@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -53,8 +54,8 @@ func persistentReplacementCatalog(view catalog.Read) (catalog.Read, error) {
 
 // Called under source synchronization; generator scalars are detached from the
 // source, unlike immutable relation descriptors.
-func copySequenceState(source *Engine, view catalog.Read) (map[ids.ObjectAddress]*sequenceGenerator, error) {
-	result := make(map[ids.ObjectAddress]*sequenceGenerator)
+func copySequenceState(source *Engine, view catalog.Read) (map[ids.ObjectAddress]*storage.SequenceGenerator, error) {
+	result := make(map[ids.ObjectAddress]*storage.SequenceGenerator)
 	for a, d := range view.Descriptors() {
 		r, ok := d.(*catalog.Relation)
 		if !ok || r.RelationKind != catalog.SequenceRelation {
@@ -72,7 +73,7 @@ func copySequenceState(source *Engine, view catalog.Read) (map[ids.ObjectAddress
 
 // Preserve session-owned temporary namespaces and generations during persistent
 // replacement. Imported identity collisions are remapped, never temp identities.
-func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, sequences map[ids.ObjectAddress]*sequenceGenerator, restoreOp *Operation, indexes *indexSnapshot) error {
+func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, restoreOp *Operation, indexes *indexSnapshot) error {
 	e.retainDatabaseLocked(next)
 	if err := e.checkTemporaryRelationSourcesReplacementLocked(); err != nil {
 		return err
@@ -324,7 +325,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	refreshScalarImportDestinations(next)
 	indexes.captureMapping(mapping, next.ScalarImports())
 	if typesChanged || domainsChanged || len(mapping) != 0 || len(next.ScalarImports()) != 0 || next.ACLItemImport() != nil {
-		if err := reownCatalogScalarTypes(next, storage, mapping); err != nil {
+		if err := reownCatalogScalarTypes(next, relations, mapping); err != nil {
 			return err
 		}
 	}
@@ -496,18 +497,18 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		}
 		next.SetOperatorNames(catalog.RebuildOperatorNames(next.Descriptors()))
 		// Copy into fresh maps before deleting old keys to avoid remap collisions.
-		oldStorage := make(map[ids.ObjectAddress]*relationStorage, len(storage))
-		for a, s := range storage {
+		oldStorage := make(map[ids.ObjectAddress]*storage.Relation, len(relations))
+		for a, s := range relations {
 			oldStorage[a] = s
-			delete(storage, a)
+			delete(relations, a)
 		}
 		for a, s := range oldStorage {
 			if dest, ok := mapping[a]; ok {
 				a = dest
 			}
-			storage[a] = s
+			relations[a] = s
 		}
-		oldSequences := make(map[ids.ObjectAddress]*sequenceGenerator, len(sequences))
+		oldSequences := make(map[ids.ObjectAddress]*storage.SequenceGenerator, len(sequences))
 		for a, g := range sequences {
 			oldSequences[a] = g
 			delete(sequences, a)
@@ -526,7 +527,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err := rebindImportedExclusions(next); err != nil {
 		return err
 	}
-	if err := e.repairRemappedGenerationsLocked(ctx, next, storage, sequences, mapping, restoreOp, indexes); err != nil {
+	if err := e.repairRemappedGenerationsLocked(ctx, next, relations, sequences, mapping, restoreOp, indexes); err != nil {
 		return err
 	}
 	operators := catalog.OperatorIndexEdit{Index: next.OperatorNames()}
@@ -535,7 +536,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		next.SetDescriptor(a, d)
 		next.BindName(catalog.DescriptorNameKey(d), a)
 		if rows := e.storage.Relations[a]; rows != nil {
-			storage[a] = rows
+			relations[a] = rows
 		}
 		if g := e.storage.Sequences[a]; g != nil {
 			sequences[a] = g
@@ -633,7 +634,7 @@ func (e *Engine) clearPersistentSequenceMemoryLocked() {
 type dumpSequence struct {
 	owner, schema, name     string
 	options                 catalog.SequenceOptions
-	state                   sequenceGenerator
+	state                   storage.SequenceGenerator
 	comment                 string
 	ownedTable, ownedColumn string
 	divergent               bool

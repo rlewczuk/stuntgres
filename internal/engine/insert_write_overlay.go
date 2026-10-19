@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -31,9 +32,9 @@ func (s *StatementScope) writeOverlay() *insertWriteOverlay {
 	return nil
 }
 
-func (s *StatementScope) insertOwnRow(ref ids.ObjectRef, id ids.RowID) (rowVersion, bool) {
+func (s *StatementScope) insertOwnRow(ref ids.ObjectRef, id ids.RowID) (storage.RowVersion, bool) {
 	if len(s.ownWrites[ref.Address]) == 0 {
-		return rowVersion{}, false
+		return storage.RowVersion{}, false
 	}
 	c := s.writeOverlay()
 	if c.ownRowSlots == nil {
@@ -49,12 +50,12 @@ func (s *StatementScope) insertOwnRow(ref ids.ObjectRef, id ids.RowID) (rowVersi
 	}
 	slot, found := slots[id]
 	if !found {
-		return rowVersion{}, false
+		return storage.RowVersion{}, false
 	}
 	return s.ownWrites[ref.Address][slot], true
 }
 
-func (o *insertWriteKeyOverlay) add(s *StatementScope, bound *uniqueBoundKey, evaluation *EvalContext, row rowVersion, slot int, buckets map[uint64][]int, purpose indexProbePurpose) error {
+func (o *insertWriteKeyOverlay) add(s *StatementScope, bound *uniqueBoundKey, evaluation *EvalContext, row storage.RowVersion, slot int, buckets map[uint64][]int, purpose indexProbePurpose) error {
 	member, keys, err := s.existingUniqueOutput(bound, row, evaluation, purpose)
 	if err != nil || !member {
 		return err
@@ -70,7 +71,7 @@ func (o *insertWriteKeyOverlay) add(s *StatementScope, bound *uniqueBoundKey, ev
 	return nil
 }
 
-func (s *StatementScope) probeInsertWriteOverlay(ref ids.ObjectRef, bound *uniqueBoundKey, evaluation *EvalContext, key []sqltype.Value, excluded []rowVersion, purpose indexProbePurpose) (rowVersion, bool, error) {
+func (s *StatementScope) probeInsertWriteOverlay(ref ids.ObjectRef, bound *uniqueBoundKey, evaluation *EvalContext, key []sqltype.Value, excluded []storage.RowVersion, purpose indexProbePurpose) (storage.RowVersion, bool, error) {
 	c := s.writeOverlay()
 	if c.overlays == nil {
 		c.overlays = make(map[*uniqueBoundKey]*insertWriteKeyOverlay)
@@ -83,7 +84,7 @@ func (s *StatementScope) probeInsertWriteOverlay(ref ids.ObjectRef, bound *uniqu
 	if !o.ownReady {
 		for slot, row := range s.ownWrites[ref.Address] {
 			if err := o.add(s, bound, evaluation, row, slot, o.own, purpose); err != nil {
-				return rowVersion{}, false, err
+				return storage.RowVersion{}, false, err
 			}
 		}
 		o.ownReady = true
@@ -91,13 +92,13 @@ func (s *StatementScope) probeInsertWriteOverlay(ref ids.ObjectRef, bound *uniqu
 	stage := s.stage.rows[ref.Address]
 	for o.stageCount < len(stage) {
 		if err := o.add(s, bound, evaluation, stage[o.stageCount], o.stageCount, o.stage, purpose); err != nil {
-			return rowVersion{}, false, err
+			return storage.RowVersion{}, false, err
 		}
 		o.stageCount++
 	}
 	hash, err := uniqueKeyHash(evaluation.Context, bound.ordering, bound.grouping, key)
 	if err != nil {
-		return rowVersion{}, false, err
+		return storage.RowVersion{}, false, err
 	}
 	for overlayIndex, slots := range [2][]int{o.stage[hash], o.own[hash]} {
 		rows := stage
@@ -116,12 +117,12 @@ func (s *StatementScope) probeInsertWriteOverlay(ref ids.ObjectRef, bound *uniqu
 			}
 			matches, err := s.matchesExistingUnique(bound, row, evaluation, key, purpose)
 			if err != nil {
-				return rowVersion{}, false, err
+				return storage.RowVersion{}, false, err
 			}
 			if matches {
 				return row, true, nil
 			}
 		}
 	}
-	return rowVersion{}, false, nil
+	return storage.RowVersion{}, false, nil
 }

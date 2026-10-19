@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 // evolveIndexRevision records this only for its explicit slot-only path, with
@@ -69,13 +70,13 @@ func indexLayoutSlotsUnchanged(index, oldParent, parent *catalog.Relation) bool 
 
 // A layout projection preserves surviving cells and exact row/version order.
 // Both baseline entries and private row outputs therefore travel without SQL.
-func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes *catalogChanges, parent *catalog.Relation, sourceStore, targetStore *relationStorage, sourceWrites, writes []rowVersion) ([]rowVersion, bool, error) {
+func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes *catalogChanges, parent *catalog.Relation, sourceStore, targetStore *storage.Relation, sourceWrites, writes []storage.RowVersion) ([]storage.RowVersion, bool, error) {
 	if len(stage.indexLayouts) == 0 {
 		return writes, false, nil
 	}
 	type capture struct {
 		lineage indexLayoutLineage
-		root    *logicalIndexRoot
+		root    *storage.IndexRoot
 	}
 	var captures []capture
 	e := stage.owner
@@ -187,7 +188,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 			if err := next.CaptureRowEntries(evaluation.Context, lineage.target.SQLIndex); err != nil {
 				return nil, false, err
 			}
-			root = &logicalIndexRoot{Hash: &next}
+			root = &storage.IndexRoot{Hash: &next}
 		} else {
 			for _, entry := range root.Entries {
 				if err := evaluation.Context.Err(); err != nil {
@@ -233,7 +234,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 		if !ok {
 			return nil, false, ids.ErrCatalogReplaced
 		}
-		var outputs map[ids.ObjectAddress]indexRowOutput
+		var outputs map[ids.ObjectAddress]storage.IndexOutput
 		for _, captured := range captures {
 			lineage := captured.lineage
 			output, ok := sourceWrites[position].IndexOutputs[lineage.source.Address()]
@@ -246,7 +247,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 			if outputs == nil {
 				outputs = maps.Clone(row.IndexOutputs)
 				if outputs == nil {
-					outputs = make(map[ids.ObjectAddress]indexRowOutput)
+					outputs = make(map[ids.ObjectAddress]storage.IndexOutput)
 				}
 			}
 			output.Index = lineage.target
@@ -280,7 +281,7 @@ func (e *Engine) fenceEmptyIndexStorageLocked(snapshot *catalog.State, changes *
 // A real whole-storage deletion has no SQL index inputs. Rebind its empty
 // physical artifacts to the new incarnation rather than retaining old pins or
 // evaluating declarations during publication.
-func transportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, changes *catalogChanges, stage *CatalogStage, address ids.ObjectAddress, store *relationStorage) error {
+func transportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, changes *catalogChanges, stage *CatalogStage, address ids.ObjectAddress, store *storage.Relation) error {
 	parent, ok := snapshot.Relation(address)
 	if !ok || store == nil || len(store.Versions) != 0 {
 		return ids.ErrCatalogReplaced
@@ -298,13 +299,13 @@ func transportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, ch
 			delete(changes.indexCandidates, index.Address())
 			continue
 		}
-		var root *logicalIndexRoot
+		var root *storage.IndexRoot
 		if index.SQLIndex.Method == catalog.HashMethod {
 			binding, err := bindHashIndex(parent, index.SQLIndex)
 			if err != nil {
 				return err
 			}
-			root = &logicalIndexRoot{Hash: &hashIndexRoot{Buckets: make(map[uint64][]hashIndexEntry), Binding: binding, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends}}
+			root = &storage.IndexRoot{Hash: &storage.HashRoot{Buckets: make(map[uint64][]storage.HashEntry), Binding: binding, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends}}
 		} else {
 			if err := bindIndexProvider(parent, index.SQLIndex); err != nil {
 				return err

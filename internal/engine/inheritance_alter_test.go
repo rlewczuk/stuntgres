@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -114,8 +115,8 @@ func TestInheritanceAlterAtomicity(t *testing.T) {
 	e, p, c := inheritanceDMLPublishedGraph(t)
 	before := e.CatalogRead()
 	parentStore, childStore := e.storage.Relations[p.Address()], e.storage.Relations[c.Address()]
-	parentRows := append([]rowVersion(nil), parentStore.Versions...)
-	childRows := append([]rowVersion(nil), childStore.Versions...)
+	parentRows := append([]storage.RowVersion(nil), parentStore.Versions...)
+	childRows := append([]storage.RowVersion(nil), childStore.Versions...)
 	stage := e.BeginCatalogStage(before)
 	defer e.DiscardCatalogStage(stage)
 	for _, old := range []*catalog.Relation{p, c} {

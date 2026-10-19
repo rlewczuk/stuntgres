@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -190,7 +191,7 @@ func TestSequenceOwnedTableLockFailure(t *testing.T) {
 					sessionSQL(t, b, "SET lock_timeout TO '1h'")
 					before := e.CatalogRead()
 					var sequence ids.ObjectRef
-					var generator sequenceGenerator
+					var generator storage.SequenceGenerator
 					if !create {
 						sequence = catalogRef(t, e, before, "late")
 						generator = *e.storage.Sequences[sequence.Address]

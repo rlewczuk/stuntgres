@@ -5,6 +5,7 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -174,7 +175,7 @@ func TestHashIndexLookupParametersResidualAndFallback(t *testing.T) {
 	one := source.committed[1]
 	// One forced hash collision is rejected by class equality; a false-positive
 	// stored key passes that guard but must fail the original SQL comparison.
-	clone.Buckets[h] = append(append([]hashIndexEntry(nil), clone.Buckets[h]...), hashIndexEntry{Key: one.Values[0], Row: one.Row, Version: one.Version, Position: 1}, hashIndexEntry{Key: probe, Row: one.Row, Version: one.Version, Position: 1})
+	clone.Buckets[h] = append(append([]storage.HashEntry(nil), clone.Buckets[h]...), storage.HashEntry{Key: one.Values[0], Row: one.Row, Version: one.Version, Position: 1}, storage.HashEntry{Key: probe, Row: one.Row, Version: one.Version, Position: 1})
 	source.hashIndexes[0].root = &clone
 	stage := hashFilterStage(t, query, source, nil)
 	if stage.hashCandidates == nil || len(stage.hashCandidates.occurrences) != 3 {

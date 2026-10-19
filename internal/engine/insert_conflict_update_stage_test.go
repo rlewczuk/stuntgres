@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -45,7 +46,7 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 				}
 				return value
 			}
-			var pinned []rowVersion
+			var pinned []storage.RowVersion
 			for k := 1; k <= size*2; k++ {
 				proposal := []sqltype.Value{integer(int64(k)), integer(1)}
 				if admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: proposal}, indexWriteBatch{}, &evaluation); admitted || err != nil {

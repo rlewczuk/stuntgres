@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -429,7 +430,7 @@ func TestRuleProgramAtomicStage(t *testing.T) {
 	s.self = s
 	s.stage.self = &s.stage
 	s.stage.scope = s
-	s.stage.rows = map[ids.ObjectAddress][]rowVersion{src.Address(): {{Row: 1, Version: 1}}}
+	s.stage.rows = map[ids.ObjectAddress][]storage.RowVersion{src.Address(): {{Row: 1, Version: 1}}}
 	before := s.ruleScratch()
 	stageRows := s.stage.rows
 	s.installRuleScratch(ruleCommandScratch{ref: ruleUnitRef(e, sink), descriptor: sink})
@@ -437,7 +438,7 @@ func TestRuleProgramAtomicStage(t *testing.T) {
 		t.Fatal("action scratch changed original envelope/stage")
 	}
 	s.installRuleScratch(before)
-	if s.lockedRef.Address != src.Address() || !maps.EqualFunc(stageRows, s.stage.rows, func(a, b []rowVersion) bool { return len(a) == len(b) && a[0].Row == b[0].Row }) {
+	if s.lockedRef.Address != src.Address() || !maps.EqualFunc(stageRows, s.stage.rows, func(a, b []storage.RowVersion) bool { return len(a) == len(b) && a[0].Row == b[0].Row }) {
 		t.Fatal("scratch restoration lost original stage")
 	}
 }

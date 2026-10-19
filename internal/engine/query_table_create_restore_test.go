@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -122,7 +123,7 @@ func TestQueryTableCreateRegclassArrayReownership(t *testing.T) {
 	imported.Columns = append([]catalog.Column(nil), d.Columns...)
 	imported.Columns[0].Usage = array.Usage()
 	candidate.SetDescriptor(d.Address(), &imported)
-	stores := map[ids.ObjectAddress]*relationStorage{d.Address(): source.storage.Relations[sourceCopy.Address()]}
+	stores := map[ids.ObjectAddress]*storage.Relation{d.Address(): source.storage.Relations[sourceCopy.Address()]}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{anchor.Address(): targetAnchor.Address()}
 	if err = reownCatalogScalarTypes(candidate, stores, mapping); err != nil {
 		t.Fatal(err)
@@ -227,7 +228,7 @@ func identifierScalarReownership(t *testing.T, id sqltype.ID) {
 	imported.Columns = append([]catalog.Column(nil), d.Columns...)
 	imported.Columns[0].Usage = sourceType.Usage()
 	candidate.SetDescriptor(d.Address(), &imported)
-	stores := map[ids.ObjectAddress]*relationStorage{d.Address(): source.storage.Relations[sourceCopy.Address()]}
+	stores := map[ids.ObjectAddress]*storage.Relation{d.Address(): source.storage.Relations[sourceCopy.Address()]}
 	if err := reownCatalogScalarTypes(candidate, stores, nil); err != nil {
 		t.Fatal(err)
 	}

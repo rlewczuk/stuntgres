@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -459,7 +460,7 @@ func generationHasTableOID(node expr.Expr) bool {
 
 // Replacement candidates own detached vectors; the source and retained TEMP
 // roots are never modified. Only owner-dependent stored cells are recomputed.
-func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, mapping map[ids.ObjectAddress]ids.ObjectAddress, eval EvalContext, changed map[ids.ObjectAddress]map[int32]bool) error {
+func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, eval EvalContext, changed map[ids.ObjectAddress]map[int32]bool) error {
 	for source, target := range mapping {
 		if source == target {
 			continue
@@ -482,7 +483,7 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, stor
 		if len(filtered.ColumnMeta.Generations) == 0 {
 			continue
 		}
-		rows := storage[target]
+		rows := relations[target]
 		if rows == nil {
 			return fmt.Errorf("stuntgres: missing generated replacement storage")
 		}

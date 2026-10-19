@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -30,22 +31,22 @@ func TestInheritanceControlsTemporaryReplacementRejection(t *testing.T) {
 	p := inheritanceLifecycleTable(e, 20000, "p")
 	inheritanceLifecycleInstall(e, p)
 	temp := inheritanceControlsTemporary(e, 20001, "tc", p.Address())
-	state, oid, revision, epoch, storage := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision, e.catalog.state.Epoch(), e.storage.Relations[temp.Address()]
+	state, oid, revision, epoch, stored := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision, e.catalog.state.Epoch(), e.storage.Relations[temp.Address()]
 	next := catalog.CloneState(New().catalog.state)
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*relationStorage{}, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
+	err := e.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
 	if err == nil || err.Error() != temporaryInheritanceReplacementError {
 		t.Fatal(err)
 	}
-	if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.catalog.state.Epoch() != epoch || e.storage.Relations[temp.Address()] != storage {
+	if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.catalog.state.Epoch() != epoch || e.storage.Relations[temp.Address()] != stored {
 		t.Fatal("rejection changed target/allocator")
 	}
 	// Reset uses the same final replacement fence, not just a helper-only guard.
 	if err = e.Reset(context.Background()); err == nil || err.Error() != temporaryInheritanceReplacementError {
 		t.Fatal(err)
 	}
-	if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[temp.Address()] != storage {
+	if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[temp.Address()] != stored {
 		t.Fatal("Reset rejection changed state")
 	}
 }
@@ -60,15 +61,15 @@ func TestInheritanceControlsRetainedTemporaryCollision(t *testing.T) {
 	child := inheritanceLifecycleTable(source, 20001, "c", parent.Address())
 	inheritanceLifecycleInstall(source, parent, child)
 	next := catalog.CloneState(source.catalog.state)
-	storage := map[ids.ObjectAddress]*relationStorage{parent.Address(): {}, child.Address(): {}}
+	relations := map[ids.ObjectAddress]*storage.Relation{parent.Address(): {}, child.Address(): {}}
 	e.catalog.nextOID = 30000
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, storage, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
+	err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next.Get(temp.Address()) != temp || next.Get(tempChild.Address()) != tempChild || storage[temp.Address()] != retainedStorage {
+	if next.Get(temp.Address()) != temp || next.Get(tempChild.Address()) != tempChild || relations[temp.Address()] != retainedStorage {
 		t.Fatal("TEMP identities changed")
 	}
 	imported := next.MustRelation(child.Address())
@@ -123,9 +124,9 @@ func TestInheritanceControlsRetainedDefinitionCollision(t *testing.T) {
 	child := inheritanceLifecycleTable(source, 20001, "c", parent.Address())
 	inheritanceLifecycleInstall(source, parent, child)
 	next := catalog.CloneState(source.catalog.state)
-	storage := map[ids.ObjectAddress]*relationStorage{parent.Address(): {}, child.Address(): {}}
+	relations := map[ids.ObjectAddress]*storage.Relation{parent.Address(): {}, child.Address(): {}}
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, storage, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
+	err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -172,15 +173,15 @@ func TestInheritanceControlsRetainedChecksAndConstraintCollisions(t *testing.T) 
 	installDefinitions(source, parent, child)
 	inheritanceLifecycleInstall(source, parent, child)
 	next := catalog.CloneState(source.catalog.state)
-	storage := map[ids.ObjectAddress]*relationStorage{parent.Address(): {}, child.Address(): {}}
+	relations := map[ids.ObjectAddress]*storage.Relation{parent.Address(): {}, child.Address(): {}}
 	retainedStorage := e.storage.Relations[tempChild.Address()]
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, storage, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
+	err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next.Get(temp.Address()) != temp || next.Get(tempChild.Address()) != tempChild || storage[tempChild.Address()] != retainedStorage || temp.Constraints.NotNull[0].OID != 23000 || temp.Constraints.Check[0].OID != 23002 {
+	if next.Get(temp.Address()) != temp || next.Get(tempChild.Address()) != tempChild || relations[tempChild.Address()] != retainedStorage || temp.Constraints.NotNull[0].OID != 23000 || temp.Constraints.Check[0].OID != 23002 {
 		t.Fatal("retained TEMP graph, storage or definition identity changed")
 	}
 	imported := next.MustRelation(child.Address())
@@ -255,17 +256,17 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 	retainedParentStorage, retainedChildStorage := e.storage.Relations[temp.Address()], e.storage.Relations[tempChild.Address()]
 	originalIndex := index.SQLIndex
 	next := catalog.CloneState(source.catalog.state)
-	parentStorage, childStorage := &relationStorage{}, &relationStorage{}
-	storage := map[ids.ObjectAddress]*relationStorage{parent.Address(): parentStorage, child.Address(): childStorage}
+	parentStorage, childStorage := &storage.Relation{}, &storage.Relation{}
+	relations := map[ids.ObjectAddress]*storage.Relation{parent.Address(): parentStorage, child.Address(): childStorage}
 	e.mu.Lock()
-	err = e.preserveTemporaryLocked(context.Background(), next, storage, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
+	err = e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 	imported := next.MustRelation(child.Address())
 	mapped := imported.Inheritance.Parents[0]
-	if mapped == parent.Address() || next.Get(mapped).Name() != parent.Name() || storage[mapped] != parentStorage || storage[imported.Address()] != childStorage {
+	if mapped == parent.Address() || next.Get(mapped).Name() != parent.Name() || relations[mapped] != parentStorage || relations[imported.Address()] != childStorage {
 		t.Fatal("imported descriptor/storage did not yield to retained exclusion", mapped)
 	}
 	if imported.Inheritance.Columns[1].Origins[0].Parent != mapped || imported.Inheritance.Columns[2].Origins[0].Parent != mapped || imported.Inheritance.NotNull[1].Origins[0].Parent != mapped || imported.Inheritance.Checks["ck"].Origins[0].Parent != mapped {
@@ -275,7 +276,7 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 	if mappedParent.Columns[0].OriginTable != uint32(mapped.ObjectID) || mappedParent.Columns[1].OriginTable != uint32(mapped.ObjectID) || imported.Inheritance.NotNull[1].Origins[0].Constraint != mappedParent.Constraints.NotNull[0].OID || imported.Inheritance.Checks["ck"].Origins[0].Constraint != mappedParent.Constraints.Check[0].OID {
 		t.Fatal("imported row/constraint origins did not follow mapping")
 	}
-	if e.catalog.state != before || next.Get(temp.Address()) != temp || next.Get(tempChild.Address()) != tempChild || next.Get(index.Address()) != index || storage[temp.Address()] != retainedParentStorage || storage[tempChild.Address()] != retainedChildStorage || index.SQLIndex != originalIndex || !reflect.DeepEqual(tempChild.Constraints.Exclusion[0], constraint) || !backingConstraintPresent(tempChild, index) {
+	if e.catalog.state != before || next.Get(temp.Address()) != temp || next.Get(tempChild.Address()) != tempChild || next.Get(index.Address()) != index || relations[temp.Address()] != retainedParentStorage || relations[tempChild.Address()] != retainedChildStorage || index.SQLIndex != originalIndex || !reflect.DeepEqual(tempChild.Constraints.Exclusion[0], constraint) || !backingConstraintPresent(tempChild, index) {
 		t.Fatal("retained TEMP descriptors, exclusion attachment, storage or source authority changed")
 	}
 	if source.catalog.state.Get(parent.Address()) != parent || source.catalog.state.Get(child.Address()) != child || child.Inheritance.Parents[0] != parent.Address() || child.Inheritance.Columns[1].Origins[0].Parent != parent.Address() || parent.Columns[0].OriginTable != uint32(parent.Address().ObjectID) || child.Inheritance.NotNull[1].Origins[0].Constraint != 23000 {

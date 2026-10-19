@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
 
@@ -13,8 +14,8 @@ import (
 type truncateSequence struct {
 	ref       ids.ObjectRef
 	relation  *catalog.Relation
-	generator *sequenceGenerator
-	committed *sequenceGenerator
+	generator *storage.SequenceGenerator
+	committed *storage.SequenceGenerator
 }
 
 func truncateOwnsSequence(d *catalog.Relation, selected map[ids.ObjectAddress]int) bool {
@@ -73,11 +74,11 @@ func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
 // Caller holds Engine.mu. Stage fresh bindings with the same catalog candidate
 // as table/index roots. Rollback discards these bindings, not counter mutations
 // made on the original generator before reset.
-func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *CatalogStage) (map[ids.ObjectAddress]*sequenceGenerator, error) {
+func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *CatalogStage) (map[ids.ObjectAddress]*storage.SequenceGenerator, error) {
 	e := s.op.session.Engine()
-	var observed map[ids.ObjectAddress]*sequenceGenerator
+	var observed map[ids.ObjectAddress]*storage.SequenceGenerator
 	if len(s.truncateSequences) != 0 {
-		observed = make(map[ids.ObjectAddress]*sequenceGenerator, len(s.truncateSequences))
+		observed = make(map[ids.ObjectAddress]*storage.SequenceGenerator, len(s.truncateSequences))
 	}
 	for _, sequence := range s.truncateSequences {
 		a := sequence.ref.Address
@@ -99,7 +100,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 		}
 	}
 	if len(s.truncateSequences) != 0 {
-		stage.generators = make(map[ids.ObjectAddress]*sequenceGenerator, len(s.truncateSequences))
+		stage.generators = make(map[ids.ObjectAddress]*storage.SequenceGenerator, len(s.truncateSequences))
 	}
 	for _, sequence := range s.truncateSequences {
 		rev, err := e.catalog.revisionLocked()
@@ -111,7 +112,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 		if err = stage.Replace(&d); err != nil {
 			return nil, err
 		}
-		stage.generators[d.Address()] = &sequenceGenerator{Last: d.Sequence.Start, Generation: rev}
+		stage.generators[d.Address()] = &storage.SequenceGenerator{Last: d.Sequence.Start, Generation: rev}
 	}
 	session := s.op.session
 	if len(s.truncateSequences) != 0 && session.sequences == nil {

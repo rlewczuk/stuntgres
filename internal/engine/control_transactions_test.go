@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 func TestControlTransactionsEndMatrix(t *testing.T) {
@@ -115,7 +116,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 			defer retained.Close()
 			before := target.CatalogRead()
 			ref := catalogRef(t, target, before, "t")
-			owner, storage, frontier := target.catalog.Domain, target.storage.Relations[ref.Address], target.commitSeq
+			owner, stored, frontier := target.catalog.Domain, target.storage.Relations[ref.Address], target.commitSeq
 			stage := target.BeginCatalogStage(before)
 			controlsRequire(t, a, "BEGIN")
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
@@ -127,10 +128,10 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 			// targets installation, not admission or the live-row scan.
 			replacement := source.CatalogRead()
 			sourceRoles, targetRoles := source.Roles(), target.Roles()
-			preparedStorage := make(map[ids.ObjectAddress]*relationStorage)
+			preparedStorage := make(map[ids.ObjectAddress]*storage.Relation)
 			source.mu.Lock()
 			for address, relation := range source.storage.Relations {
-				preparedStorage[address] = &relationStorage{Versions: append([]rowVersion(nil), relation.Versions...)}
+				preparedStorage[address] = &storage.Relation{Versions: append([]storage.RowVersion(nil), relation.Versions...)}
 			}
 			preparedSequences, sequenceErr := copySequenceState(source, replacement)
 			indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage.Relations, source.storage.IndexRoots, source.commitSeq)
@@ -199,7 +200,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				if !errors.Is(err, context.Canceled) {
 					t.Fatal(err)
 				}
-				if target.CatalogRead().State() != before.State() || target.storage.Relations[ref.Address] != storage || target.commitSeq != frontier {
+				if target.CatalogRead().State() != before.State() || target.storage.Relations[ref.Address] != stored || target.commitSeq != frontier {
 					t.Fatal("failed replacement changed state/storage/frontier")
 				}
 				if err = target.ValidateObjectRef(before, ref); err != nil {
@@ -215,7 +216,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				controlsRequire(t, a, "COMMIT")
 				transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 77)
 			}
-			if retained.count != 1 || retained.source.view.read().catalog.State() != before.State() || testExport(storage.Versions[0].Values[0]) != int64(77) {
+			if retained.count != 1 || retained.source.view.read().catalog.State() != before.State() || testExport(stored.Versions[0].Values[0]) != int64(77) {
 				t.Fatal("retained generation changed")
 			}
 		})

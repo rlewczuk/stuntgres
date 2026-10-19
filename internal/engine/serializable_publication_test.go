@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"sync/atomic"
 	"testing"
@@ -19,15 +20,15 @@ import (
 // Structural snapshots complement the shared public SQL schedules: immutable
 // heads, spare append capacity, index entries, generators and catalog authority.
 type serializableStorageSnapshot struct {
-	pointer    *relationStorage
+	pointer    *storage.Relation
 	generation uint64
-	ends       *deletionRoot
-	rows       []rowVersion
-	endRows    map[ids.RowID]rowEnd
+	ends       *storage.DeletionRoot
+	rows       []storage.RowVersion
+	endRows    map[ids.RowID]storage.RowEnd
 }
 type serializableIndexSnapshot struct {
-	pointer *logicalIndexRoot
-	entries []logicalIndexEntry
+	pointer *storage.IndexRoot
+	entries []storage.IndexEntry
 }
 type serializablePublicationSnapshot struct {
 	catalog             *catalog.State
@@ -39,26 +40,26 @@ type serializablePublicationSnapshot struct {
 	order               uint64
 	storage             map[ids.ObjectAddress]serializableStorageSnapshot
 	indexes             map[ids.ObjectAddress]serializableIndexSnapshot
-	sequences           map[ids.ObjectAddress]*sequenceGenerator
-	generators          map[ids.ObjectAddress]sequenceGenerator
+	sequences           map[ids.ObjectAddress]*storage.SequenceGenerator
+	generators          map[ids.ObjectAddress]storage.SequenceGenerator
 	providers           map[ids.OID]reflect.Type
 }
 
 func serializableSnapshotPublication(e *Engine) serializablePublicationSnapshot {
-	s := serializablePublicationSnapshot{catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), namespaceGeneration: e.catalog.state.NamespaceGeneration(), revision: e.catalog.nextRevision, frontier: e.commitSeq, order: e.serializable.order, storage: make(map[ids.ObjectAddress]serializableStorageSnapshot), indexes: make(map[ids.ObjectAddress]serializableIndexSnapshot), sequences: maps.Clone(e.storage.Sequences), generators: make(map[ids.ObjectAddress]sequenceGenerator), providers: make(map[ids.OID]reflect.Type)}
+	s := serializablePublicationSnapshot{catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), namespaceGeneration: e.catalog.state.NamespaceGeneration(), revision: e.catalog.nextRevision, frontier: e.commitSeq, order: e.serializable.order, storage: make(map[ids.ObjectAddress]serializableStorageSnapshot), indexes: make(map[ids.ObjectAddress]serializableIndexSnapshot), sequences: maps.Clone(e.storage.Sequences), generators: make(map[ids.ObjectAddress]storage.SequenceGenerator), providers: make(map[ids.OID]reflect.Type)}
 	for address, store := range e.storage.Relations {
-		rows := append([]rowVersion(nil), store.Versions[:cap(store.Versions)]...)
+		rows := append([]storage.RowVersion(nil), store.Versions[:cap(store.Versions)]...)
 		for i := range rows {
 			rows[i].Values = append([]sqltype.Value(nil), rows[i].Values...)
 		}
-		var ends map[ids.RowID]rowEnd
+		var ends map[ids.RowID]storage.RowEnd
 		if store.Ends != nil {
 			ends = maps.Clone(store.Ends.Rows)
 		}
 		s.storage[address] = serializableStorageSnapshot{store, store.Generation, store.Ends, rows, ends}
 	}
 	for address, root := range e.storage.IndexRoots {
-		entries := append([]logicalIndexEntry(nil), root.Entries...)
+		entries := append([]storage.IndexEntry(nil), root.Entries...)
 		for i := range entries {
 			entries[i].Keys = append([]sqltype.Value(nil), entries[i].Keys...)
 		}

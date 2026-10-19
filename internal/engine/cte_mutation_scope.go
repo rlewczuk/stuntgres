@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
 
@@ -18,7 +19,7 @@ type statementMutation struct {
 	statement             parser.Statement
 	lockedRef             ids.ObjectRef
 	lockedDescriptor      catalog.Descriptor
-	lockedStorage         *relationStorage
+	lockedStorage         *storage.Relation
 	lockedIdentityOnly    bool
 	inheritedTargets      []queryLeaf
 	viewWrite             *viewWrite

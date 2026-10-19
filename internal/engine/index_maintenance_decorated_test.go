@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 func TestIndexMaintenanceMetadataDecorated(t *testing.T) {
@@ -35,7 +36,7 @@ func TestIndexMaintenanceMetadataDecorated(t *testing.T) {
 	}
 	tuples := [][]string{{"-1", "a "}, {"2", "a"}, {"2", "a"}, {"NULL", "NULL"}}
 	expressionWantRoot(t, e, "decorated", tuples)
-	originalEntries := append([]logicalIndexEntry(nil), oldRoot.Entries...)
+	originalEntries := append([]storage.IndexEntry(nil), oldRoot.Entries...)
 	originalTuples := expressionRootTuples(t, oldRoot)
 	run(t, e, "ALTER INDEX decorated RENAME TO renamed")
 	if e.storage.IndexRoots[index.Address()] != oldRoot || e.storage.IndexRoots[plain.Address()] != oldSibling {

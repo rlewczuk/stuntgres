@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -14,9 +15,9 @@ import (
 // admission may reserve its genuine identity after producing the index keys.
 type indexWriteCandidate struct {
 	values                        []sqltype.Value
-	indexes                       map[ids.ObjectAddress]indexRowOutput
-	precheck                      map[ids.ObjectAddress]indexRowOutput
-	exclusion                     *rowVersion
+	indexes                       map[ids.ObjectAddress]storage.IndexOutput
+	precheck                      map[ids.ObjectAddress]storage.IndexOutput
+	exclusion                     *storage.RowVersion
 	sharedIndexes, sharedPrecheck bool
 }
 
@@ -30,8 +31,8 @@ type indexWriteBatch struct {
 }
 
 type indexWriteState struct {
-	indexes, precheck map[ids.ObjectAddress]indexRowOutput
-	exclusion         *rowVersion
+	indexes, precheck map[ids.ObjectAddress]storage.IndexOutput
+	exclusion         *storage.RowVersion
 }
 
 func (b *indexWriteBatch) append(row indexWriteCandidate) {
@@ -80,7 +81,7 @@ func (b indexWriteBatch) slice(first, last int) indexWriteBatch {
 	return b
 }
 
-func indexOutputMatches(r indexRowOutput, index *catalog.Relation) bool {
+func indexOutputMatches(r storage.IndexOutput, index *catalog.Relation) bool {
 	return r.Index != nil && sameIndexKeySemantics(r.Index, index)
 }
 
@@ -117,7 +118,7 @@ func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *Ev
 	if err != nil {
 		return false, nil, err
 	}
-	output := indexRowOutput{Index: index, Member: member}
+	output := storage.IndexOutput{Index: index, Member: member}
 	if member {
 		if index.SQLIndex.Method == catalog.HashMethod {
 			if err := bound.fillKeys(r.values, bound.scratch, evaluation); err != nil {
@@ -132,7 +133,7 @@ func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *Ev
 		}
 	}
 	if *outputs == nil {
-		*outputs = make(map[ids.ObjectAddress]indexRowOutput)
+		*outputs = make(map[ids.ObjectAddress]storage.IndexOutput)
 	} else if *shared {
 		*outputs = maps.Clone(*outputs)
 	}
@@ -152,7 +153,7 @@ func (r *indexWriteCandidate) matchesUnique(bound *uniqueBoundKey, evaluation *E
 	if err != nil || !member {
 		return false, err
 	}
-	cmp, err := bound.ordering.compareKeys(evaluation.Context, logicalIndexEntry{Keys: produced}, logicalIndexEntry{Keys: key})
+	cmp, err := bound.ordering.compareKeys(evaluation.Context, storage.IndexEntry{Keys: produced}, storage.IndexEntry{Keys: key})
 	return cmp == 0, err
 }
 
@@ -193,12 +194,12 @@ func (s *StatementScope) validateIndexCandidates(ref ids.ObjectRef, batch *index
 	return nil
 }
 
-func materializeIndexOutput(evaluation *EvalContext, preparation *indexExecutionPreparation, parent, index *catalog.Relation, ordering *indexOrdering, hash *hashIndexBinding, values []sqltype.Value) (indexRowOutput, error) {
+func materializeIndexOutput(evaluation *EvalContext, preparation *indexExecutionPreparation, parent, index *catalog.Relation, ordering *indexOrdering, hash *storage.HashBinding, values []sqltype.Value) (storage.IndexOutput, error) {
 	if index.SQLIndex.Method != catalog.HashMethod {
 		hash = nil
 	}
 	member, err := preparation.predicateMatches(evaluation, parent, index.SQLIndex, values, ordering, hash)
-	output := indexRowOutput{Index: index, Member: member}
+	output := storage.IndexOutput{Index: index, Member: member}
 	if err != nil || !member {
 		return output, err
 	}
@@ -219,9 +220,9 @@ func materializeIndexOutput(evaluation *EvalContext, preparation *indexExecution
 	return output, err
 }
 
-func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVersion, evaluation *EvalContext, purpose indexProbePurpose) (bool, []sqltype.Value, error) {
+func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row storage.RowVersion, evaluation *EvalContext, purpose indexProbePurpose) (bool, []sqltype.Value, error) {
 	index := bound.index
-	read := func(output indexRowOutput) (bool, []sqltype.Value, error) {
+	read := func(output storage.IndexOutput) (bool, []sqltype.Value, error) {
 		if !indexOutputMatches(output, index) {
 			return false, nil, ids.ErrCatalogReplaced
 		}
@@ -252,7 +253,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 			err := bound.fillKeys(row.Values, bound.scratch, evaluation)
 			return true, bound.scratch, err
 		}
-		output := indexRowOutput{Index: index, Member: member}
+		output := storage.IndexOutput{Index: index, Member: member}
 		if member {
 			if index.SQLIndex.Method == catalog.HashMethod {
 				if err := bound.fillKeys(row.Values, bound.scratch, evaluation); err != nil {
@@ -385,7 +386,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 	return true, bound.scratch, err
 }
 
-func (s *StatementScope) matchesExistingUnique(bound *uniqueBoundKey, row rowVersion, evaluation *EvalContext, key []sqltype.Value, purpose indexProbePurpose) (bool, error) {
+func (s *StatementScope) matchesExistingUnique(bound *uniqueBoundKey, row storage.RowVersion, evaluation *EvalContext, key []sqltype.Value, purpose indexProbePurpose) (bool, error) {
 	if purpose == indexProbeRuntime && !bound.index.SQLIndex.HasRuntimeDomainConversion() && row.IndexOutputs == nil {
 		return bound.matches(evaluation, row.Values, key)
 	}
@@ -393,6 +394,6 @@ func (s *StatementScope) matchesExistingUnique(bound *uniqueBoundKey, row rowVer
 	if err != nil || !member {
 		return false, err
 	}
-	cmp, err := bound.ordering.compareKeys(evaluation.Context, logicalIndexEntry{Keys: produced}, logicalIndexEntry{Keys: key})
+	cmp, err := bound.ordering.compareKeys(evaluation.Context, storage.IndexEntry{Keys: produced}, storage.IndexEntry{Keys: key})
 	return cmp == 0, err
 }

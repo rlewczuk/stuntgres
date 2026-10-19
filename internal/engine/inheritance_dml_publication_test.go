@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -34,16 +35,16 @@ func TestInheritanceDMLAtomicPublication(t *testing.T) {
 				t.Fatal("sole statement view was released")
 			}
 			defer retained.Release()
-			before := make(map[ids.ObjectAddress][]rowVersion)
+			before := make(map[ids.ObjectAddress][]storage.RowVersion)
 			frontier := e.commitSeq
 			for _, ref := range refs {
 				store := s.mutationStorage(ref)
-				before[ref.Address] = append([]rowVersion(nil), store.Versions...)
+				before[ref.Address] = append([]storage.RowVersion(nil), store.Versions...)
 				old := store.Versions[0]
 				if err = s.acquireRow(deleteCandidate{ref: ref, storage: store, row: old.Row, version: old.Version, base: old.Base, ordinal: 0}); err != nil {
 					t.Fatal(err)
 				}
-				if err = s.Writes().replace(ref, []rowVersion{old}, indexWriteBatch{values: [][]sqltype.Value{{inheritanceQueryInt(e, 30)}}}); err != nil {
+				if err = s.Writes().replace(ref, []storage.RowVersion{old}, indexWriteBatch{values: [][]sqltype.Value{{inheritanceQueryInt(e, 30)}}}); err != nil {
 					t.Fatal(err)
 				}
 			}

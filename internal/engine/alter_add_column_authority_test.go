@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 )
 
 // Exercise the real dependency admission before any DEFAULT or CHECK demand.
@@ -88,7 +89,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 				ref := roleTableRef(t, e, "t")
 				seq := roleTableRef(t, e, "s")
 				old := e.catalog.state.MustRelation(ref.Address)
-				storage := e.storage.Relations[ref.Address]
+				stored := e.storage.Relations[ref.Address]
 				generator := e.storage.Sequences[seq.Address]
 				var tx ids.TxRef
 				if explicit {
@@ -120,13 +121,13 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 				}
 				candidate := scope.catalog.descriptors[ref.Address].(*catalog.Relation)
 				shape := scope.catalog.storage[ref.Address]
-				if candidate == old || candidate.ColumnMeta.HighWater != old.ColumnMeta.HighWater+1 || len(candidate.Columns) != 2 || shape.replacement == storage || !shape.rewritten || generator.Last != 6 {
+				if candidate == old || candidate.ColumnMeta.HighWater != old.ColumnMeta.HighWater+1 || len(candidate.Columns) != 2 || shape.replacement == stored || !shape.rewritten || generator.Last != 6 {
 					t.Fatal("complete candidate/backfill missing", candidate, shape, generator.Last)
 				}
-				if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || old.ColumnMeta.HighWater != 1 {
+				if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != stored || old.ColumnMeta.HighWater != 1 {
 					t.Fatal("Execute published private ADD")
 				}
-				for _, row := range storage.Versions {
+				for _, row := range stored.Versions {
 					if len(row.Values) != 1 {
 						t.Fatal("predecessor width changed")
 					}
@@ -137,7 +138,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 				if !held {
 					t.Fatal("provider hold retired before Finish")
 				}
-				var injectedStorage *relationStorage
+				var injectedStorage *storage.Relation
 				switch veto {
 				case "cancel":
 					cancel()
@@ -146,7 +147,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 					worker.authorization.revision++
 					worker.mu.Unlock()
 				case "storage":
-					injectedStorage = &relationStorage{Generation: storage.Generation + 1, Versions: storage.Versions, Ends: storage.Ends}
+					injectedStorage = &storage.Relation{Generation: stored.Generation + 1, Versions: stored.Versions, Ends: stored.Ends}
 					e.mu.Lock()
 					e.storage.Relations[ref.Address] = injectedStorage
 					e.mu.Unlock()
@@ -173,7 +174,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 					}
 				}
 				if veto != "replacement" {
-					wantStorage := storage
+					wantStorage := stored
 					if injectedStorage != nil {
 						wantStorage = injectedStorage
 					}
@@ -185,7 +186,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 					}
 				} else {
 					transactionRows(t, sessionStart(t, e, nil), "SELECT v FROM sentinel", 91)
-					if e.catalog.state.Get(ref.Address) == old || e.storage.Relations[ref.Address] == storage {
+					if e.catalog.state.Get(ref.Address) == old || e.storage.Relations[ref.Address] == stored {
 						t.Fatal("old incarnation resurrected")
 					}
 				}

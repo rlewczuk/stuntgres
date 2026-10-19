@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -21,7 +22,7 @@ type mergeActionRow struct {
 }
 type mergeRows struct {
 	indexWriteBatch
-	predecessors []rowVersion
+	predecessors []storage.RowVersion
 	actions      []mergeActionRow
 	returning    *finalRows
 }
@@ -142,7 +143,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 			deletion.own = true
 			deletion.ordinal -= len(target.committed)
 		}
-		return mergeCandidate{updateCandidate: updateCandidate{rowVersion: old, slot: slot, sourceIndex: source}, class: class, deletion: deletion}
+		return mergeCandidate{updateCandidate: updateCandidate{RowVersion: old, slot: slot, sourceIndex: source}, class: class, deletion: deletion}
 	}
 	for j := range sourceCount {
 		if presenceCount != 0 {
@@ -197,7 +198,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 	if len(b.merge.updateTargets) != 0 || b.merge.hasDelete {
 		accepted = make(map[ids.RowID]bool)
 	}
-	var excluded []rowVersion
+	var excluded []storage.RowVersion
 	for _, candidate := range pairs {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -214,7 +215,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 			evaluation.presence = nil
 			evaluation.queryProvenance = nil
 		}
-		old, class := candidate.rowVersion, candidate.class
+		old, class := candidate.RowVersion, candidate.class
 		setFrame := func() {
 			switch class {
 			case parser.MergeMatched:
@@ -358,7 +359,7 @@ func mergeCardinalityError() error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "21000", Message: "MERGE command cannot affect row a second time", Hint: "Ensure that not more than one source row matches any one target row."}
 }
 
-func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mergeRows, evaluation *EvalContext, schema string, unique bool, arm *boundMergeArm, old rowVersion, deletion deleteCandidate, accepted map[ids.RowID]bool, excluded *[]rowVersion) error {
+func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mergeRows, evaluation *EvalContext, schema string, unique bool, arm *boundMergeArm, old storage.RowVersion, deletion deleteCandidate, accepted map[ids.RowID]bool, excluded *[]storage.RowVersion) error {
 	if arm.action == parser.MergeDeleteAction {
 		if accepted[old.Row] {
 			return mergeCardinalityError()
@@ -419,7 +420,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 	if err := e.validateInsertRow(scope, b, schema, row, &rowContext); err != nil {
 		return err
 	}
-	predecessor := rowVersion{}
+	predecessor := storage.RowVersion{}
 	var actionMode lock.MultiMode
 	if arm.action == parser.MergeUpdateAction {
 		// Demanded projection/constraints precede second-modification arbitration.
@@ -510,18 +511,18 @@ func (s *StatementScope) mergeFollowChainStrong(b binding) (bool, error) {
 
 // MERGE follows a committed update even with a retained RR frontier. Deletion
 // still conflicts; query visibility, not this fetch, owns old+own occurrences.
-func (e *Engine) latestMergeRow(s *StatementScope, ref ids.ObjectRef, candidate updateCandidate) (rowVersion, bool, error) {
+func (e *Engine) latestMergeRow(s *StatementScope, ref ids.ObjectRef, candidate updateCandidate) (storage.RowVersion, bool, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := s.validateLockedRelation(e); err != nil {
-		return rowVersion{}, false, err
+		return storage.RowVersion{}, false, err
 	}
 	if ref.Epoch != e.catalog.state.Epoch() || s.txRef.Epoch() != e.catalog.state.Epoch() {
-		return rowVersion{}, false, ids.ErrCatalogReplaced
+		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
 	}
 	store := e.privateStorageLocked(s.owner.catalog, ref.Address)
 	if store == nil {
-		return rowVersion{}, false, ids.ErrCatalogReplaced
+		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
 	}
 	current, hint := store.Versions, candidate.slot
 	if own, _, found := rowByID(s.ownWrites[ref.Address], candidate.Row, -1); found {
@@ -529,12 +530,12 @@ func (e *Engine) latestMergeRow(s *StatementScope, ref ids.ObjectRef, candidate 
 	}
 	row, _, found := rowByID(current, candidate.Row, hint)
 	if !found {
-		return rowVersion{}, false, errors.New("stuntgres: invalid MERGE predecessor")
+		return storage.RowVersion{}, false, errors.New("stuntgres: invalid MERGE predecessor")
 	}
 	live := liveVersion(row, e.commitSeq, store.Ends, s.ownDeletes[ref.Address])
 	if !live && stableIsolation(s.owner.isolation) && store.Ends != nil {
 		if tombstone, ok := store.Ends.Rows[row.Row]; ok && tombstone.Version == row.Version && tombstone.End > s.owner.frontier {
-			return rowVersion{}, false, sqlError("40001", "could not serialize access due to concurrent delete")
+			return storage.RowVersion{}, false, sqlError("40001", "could not serialize access due to concurrent delete")
 		}
 	}
 	return row, live, nil

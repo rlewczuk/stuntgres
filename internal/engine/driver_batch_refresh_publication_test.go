@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
@@ -37,8 +38,8 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 				target := catalogRef(t, e, view, name)
 				original := e.storage.Relations[target.Address]
 				originalDescriptor := e.catalog.state.Get(target.Address)
-				var root []rowVersion
-				var ends *deletionRoot
+				var root []storage.RowVersion
+				var ends *storage.DeletionRoot
 				var generation uint64
 				if original != nil {
 					root, ends, generation = original.Versions, original.Ends, original.Generation
@@ -46,7 +47,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 				if _, err := m.step(statement(t, "INSERT INTO refresh_source VALUES(2)")); err != nil {
 					t.Fatal(err)
 				}
-				var previous *relationStorage
+				var previous *storage.Relation
 				for _, suffix := range []string{"WITH DATA", "WITH NO DATA", "WITH DATA"} {
 					e.mu.Lock()
 					entry := e.privateStorageLocked(s.transactions.catalog, target.Address)
@@ -157,7 +158,7 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 			case "generation":
 				original.Generation++
 			case "ends":
-				original.Ends = &deletionRoot{}
+				original.Ends = &storage.DeletionRoot{}
 			case "store":
 				copy := *original
 				e.storage.Relations[target.Address] = &copy

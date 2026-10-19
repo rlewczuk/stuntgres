@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
 
@@ -220,7 +221,7 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	}
 	if len(stage.initialTables) > 0 {
 		if scope.stage.rows == nil {
-			scope.stage.rows = make(map[ids.ObjectAddress][]rowVersion, len(stage.initialTables))
+			scope.stage.rows = make(map[ids.ObjectAddress][]storage.RowVersion, len(stage.initialTables))
 		}
 		for a, store := range stage.initialTables {
 			scope.stage.rows[a] = store.Versions
@@ -296,7 +297,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 	for a, d := range stage.Descriptors {
 		e.catalogChangeLocked(changes, a, d)
 		if table, ok := d.(*catalog.Relation); ok && table.RelationKind.Stored() && e.privateStorageLocked(changes, a) == nil {
-			changes.storage[a] = catalogStorageChange{replacement: &relationStorage{}, relation: table}
+			changes.storage[a] = catalogStorageChange{replacement: &storage.Relation{}, relation: table}
 		}
 	}
 	for address, candidate := range stage.indexCandidates {
@@ -304,7 +305,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 			changes.indexCandidates = make(map[ids.ObjectAddress]indexRootCandidate)
 		}
 		if changes.uniqueRoots == nil {
-			changes.uniqueRoots = make(map[ids.ObjectAddress]*logicalIndexRoot)
+			changes.uniqueRoots = make(map[ids.ObjectAddress]*storage.IndexRoot)
 		}
 		changes.indexCandidates[address], changes.uniqueRoots[address] = candidate, candidate.root
 	}
@@ -348,7 +349,7 @@ func (s *StatementScope) discardRemovedWrites(stage *CatalogStage) {
 		rows, deletes = s.stage.rows, s.stage.deletes
 	}
 	s.projectedRoots = true
-	s.stage.rows = make(map[ids.ObjectAddress][]rowVersion, len(rows))
+	s.stage.rows = make(map[ids.ObjectAddress][]storage.RowVersion, len(rows))
 	for a, values := range rows {
 		if _, removed := stage.Removals[a]; !removed {
 			s.stage.rows[a] = values

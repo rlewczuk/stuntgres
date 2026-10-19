@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
 	"unsafe"
@@ -56,7 +57,7 @@ func TestUpdateCoreSparseAllocation(t *testing.T) {
 			t.Fatal("root retention/cardinality")
 		}
 		old := e.storage.Relations[ref.Address].Versions
-		stage := []rowVersion{old[n-1]}
+		stage := []storage.RowVersion{old[n-1]}
 		stage[0].Version++
 		private = allocated(func() {
 			next := mergePrivateRows(old, stage, true)
@@ -68,7 +69,7 @@ func TestUpdateCoreSparseAllocation(t *testing.T) {
 	}
 	zeroSmall, sparseSmall, privateSmall := exercise(small)
 	zeroLarge, sparseLarge, privateLarge := exercise(large)
-	rootGrowth := uint64(large-small) * uint64(unsafe.Sizeof(rowVersion{}))
+	rootGrowth := uint64(large-small) * uint64(unsafe.Sizeof(storage.RowVersion{}))
 	// Broad structural byte envelopes tolerate allocator size classes and fixed
 	// command overhead, but reject a table-sized candidate array or identity map.
 	if zeroLarge > zeroSmall+rootGrowth/8 {
@@ -148,7 +149,7 @@ func BenchmarkUpdateCoreSparse(b *testing.B) {
 }
 
 // Measure actual distinct-target accumulation, not allocation counts: repeatedly
-// copying a growing rowVersion prefix allocates few objects but quadratic bytes.
+// copying a growing storage.RowVersion prefix allocates few objects but quadratic bytes.
 func TestUpdateCoreMultirowAllocation(t *testing.T) {
 	var previous uint64
 	for _, n := range []int{128, 512, 2048} {

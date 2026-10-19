@@ -6,10 +6,11 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 )
 
 // A captured physical position is only a hint; arbitration is by stable RowID.
-func rowByID(rows []rowVersion, id ids.RowID, hint int) (rowVersion, int, bool) {
+func rowByID(rows []storage.RowVersion, id ids.RowID, hint int) (storage.RowVersion, int, bool) {
 	if hint >= 0 && hint < len(rows) && rows[hint].Row == id {
 		return rows[hint], hint, true
 	}
@@ -18,19 +19,19 @@ func rowByID(rows []rowVersion, id ids.RowID, hint int) (rowVersion, int, bool) 
 			return row, i, true
 		}
 	}
-	return rowVersion{}, 0, false
+	return storage.RowVersion{}, 0, false
 }
 
 // A replacement merge never changes a prefix retained by an earlier view.
 // Insert-only commands retain the existing amortized append path.
-func mergePrivateRows(old, stage []rowVersion, replacing bool) []rowVersion {
+func mergePrivateRows(old, stage []storage.RowVersion, replacing bool) []storage.RowVersion {
 	if len(old) == 0 {
 		return stage
 	}
 	if !replacing {
 		return append(old, stage...)
 	}
-	next := make([]rowVersion, len(old), len(old)+len(stage))
+	next := make([]storage.RowVersion, len(old), len(old)+len(stage))
 	copy(next, old)
 	if len(stage) == 1 {
 		for i, row := range old {
@@ -57,22 +58,22 @@ func mergePrivateRows(old, stage []rowVersion, replacing bool) []rowVersion {
 }
 
 // Conflict UPDATE separately proves cardinality through its affected-row set.
-func (w *WriteStage) replaceDistinct(ref ids.ObjectRef, old []rowVersion, rows indexWriteBatch) error {
+func (w *WriteStage) replaceDistinct(ref ids.ObjectRef, old []storage.RowVersion, rows indexWriteBatch) error {
 	return w.replaceRows(ref, old, rows, true, true)
 }
 
-func (w *WriteStage) replace(ref ids.ObjectRef, old []rowVersion, rows indexWriteBatch) error {
+func (w *WriteStage) replace(ref ids.ObjectRef, old []storage.RowVersion, rows indexWriteBatch) error {
 	return w.replaceRows(ref, old, rows, false, false)
 }
 
 // Ordinary UPDATE proves each accepted physical target distinct through its
 // frozen scan / FROM winner gate, and excludes existing staged RowIDs before
 // choosing this append lane. Ordinary target and RI validation still applies.
-func (w *WriteStage) appendUpdateReplacement(ref ids.ObjectRef, old []rowVersion, rows indexWriteBatch) error {
+func (w *WriteStage) appendUpdateReplacement(ref ids.ObjectRef, old []storage.RowVersion, rows indexWriteBatch) error {
 	return w.replaceRows(ref, old, rows, false, true)
 }
 
-func (w *WriteStage) replaceRows(ref ids.ObjectRef, old []rowVersion, batch indexWriteBatch, conflictDistinct, appendOnly bool) (err error) {
+func (w *WriteStage) replaceRows(ref ids.ObjectRef, old []storage.RowVersion, batch indexWriteBatch, conflictDistinct, appendOnly bool) (err error) {
 	rows := batch.values
 	if w == nil || w.self != w || w.scope == nil {
 		return errors.New("stuntgres: foreign or missing write stage")
@@ -195,13 +196,13 @@ retry:
 	if uint64(len(rows)) > ^uint64(0)-e.storage.VersionFrontier() {
 		return errors.New("stuntgres: version identity exhausted")
 	}
-	var versions, distinctRows []rowVersion
+	var versions, distinctRows []storage.RowVersion
 	if appendOnly {
 		prefix := w.rows[ref.Address]
 		distinctRows = slices.Grow(prefix, len(rows))[:len(prefix)+len(rows)]
 		versions = distinctRows[len(prefix):]
 	} else {
-		versions = make([]rowVersion, len(rows))
+		versions = make([]storage.RowVersion, len(rows))
 	}
 	for i, row := range rows {
 		predecessor := old[i]
@@ -216,7 +217,7 @@ retry:
 		if predecessor.Born != 0 {
 			base = predecessor.Version
 		}
-		versions[i] = rowVersion{Row: predecessor.Row, Version: e.storage.AllocateVersionLocked(), Base: base, Values: row, KeyChangedAt: predecessor.KeyChangedAt, PendingKeyChange: predecessor.PendingKeyChange, IndexAdmission: admission}
+		versions[i] = storage.RowVersion{Row: predecessor.Row, Version: e.storage.AllocateVersionLocked(), Base: base, Values: row, KeyChangedAt: predecessor.KeyChangedAt, PendingKeyChange: predecessor.PendingKeyChange, IndexAdmission: admission}
 	}
 	if batch.states != nil {
 		for i := range versions {
@@ -234,7 +235,7 @@ retry:
 	}
 	if len(versions) != 0 {
 		if w.rows == nil {
-			w.rows = make(map[ids.ObjectAddress][]rowVersion)
+			w.rows = make(map[ids.ObjectAddress][]storage.RowVersion)
 		}
 		if appendOnly {
 			w.rows[ref.Address] = distinctRows

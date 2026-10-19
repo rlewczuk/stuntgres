@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -25,16 +26,16 @@ type uniquePublicationFixture struct {
 	descriptors    map[ids.ObjectAddress]catalog.Descriptor
 	names          map[ids.NameKey]ids.ObjectAddress
 	roles          *roleCatalog
-	stores         map[ids.ObjectAddress]*relationStorage
-	storeSnapshots map[ids.ObjectAddress]relationStorage
-	roots          map[ids.ObjectAddress]*logicalIndexRoot
-	entries        map[ids.ObjectAddress][]logicalIndexEntry
+	stores         map[ids.ObjectAddress]*storage.Relation
+	storeSnapshots map[ids.ObjectAddress]storage.Relation
+	roots          map[ids.ObjectAddress]*storage.IndexRoot
+	entries        map[ids.ObjectAddress][]storage.IndexEntry
 	nextRow        uint64
 	nextVersion    uint64
 	frontier       ids.CommitSeq
 }
 
-func uniquePublicationRows(rows []rowVersion) []rowVersion {
+func uniquePublicationRows(rows []storage.RowVersion) []storage.RowVersion {
 	copy := slices.Clone(rows)
 	for i := range copy {
 		copy[i].Values = slices.Clone(copy[i].Values)
@@ -42,11 +43,11 @@ func uniquePublicationRows(rows []rowVersion) []rowVersion {
 	return copy
 }
 
-func uniquePublicationStore(store *relationStorage) relationStorage {
+func uniquePublicationStore(store *storage.Relation) storage.Relation {
 	copy := *store
 	copy.Versions = uniquePublicationRows(store.Versions)
 	if store.Ends != nil {
-		copy.Ends = &deletionRoot{Rows: maps.Clone(store.Ends.Rows)}
+		copy.Ends = &storage.DeletionRoot{Rows: maps.Clone(store.Ends.Rows)}
 	}
 	return copy
 }
@@ -128,7 +129,7 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
 		t.Fatal(err)
 	}
-	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), roles: e.roles.published, stores: maps.Clone(e.storage.Relations), storeSnapshots: make(map[ids.ObjectAddress]relationStorage), roots: maps.Clone(e.storage.IndexRoots), entries: make(map[ids.ObjectAddress][]logicalIndexEntry), nextRow: e.storage.RowFrontier(), nextVersion: e.storage.VersionFrontier(), frontier: e.commitSeq}
+	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), roles: e.roles.published, stores: maps.Clone(e.storage.Relations), storeSnapshots: make(map[ids.ObjectAddress]storage.Relation), roots: maps.Clone(e.storage.IndexRoots), entries: make(map[ids.ObjectAddress][]storage.IndexEntry), nextRow: e.storage.RowFrontier(), nextVersion: e.storage.VersionFrontier(), frontier: e.commitSeq}
 	for address, store := range f.stores {
 		f.storeSnapshots[address] = uniquePublicationStore(store)
 	}
@@ -142,7 +143,7 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 	return f
 }
 
-func (f *uniquePublicationFixture) row(t *testing.T, offset int, a, b string) rowVersion {
+func (f *uniquePublicationFixture) row(t *testing.T, offset int, a, b string) storage.RowVersion {
 	t.Helper()
 	values := make([]sqltype.Value, 3)
 	for i, text := range []string{a, b} {
@@ -157,7 +158,7 @@ func (f *uniquePublicationFixture) row(t *testing.T, offset int, a, b string) ro
 		}
 	}
 	values[2] = sqltype.String(f.parent.Columns[2].Usage.Type, fmt.Sprintf("new%d", offset))
-	return rowVersion{Row: ids.RowID(f.nextRow + uint64(offset)), Version: ids.VersionID(f.nextVersion + uint64(offset)), Values: values}
+	return storage.RowVersion{Row: ids.RowID(f.nextRow + uint64(offset)), Version: ids.VersionID(f.nextVersion + uint64(offset)), Values: values}
 }
 
 func (f *uniquePublicationFixture) unchanged(t *testing.T) {
@@ -180,7 +181,7 @@ func (f *uniquePublicationFixture) unchanged(t *testing.T) {
 	}
 }
 
-func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, store *relationStorage, rebuild, materialize bool, writes []rowVersion, deletion *privateDeletionRoot) (map[ids.ObjectAddress]*logicalIndexRoot, error) {
+func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, store *storage.Relation, rebuild, materialize bool, writes []storage.RowVersion, deletion *privateDeletionRoot) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
 	t.Helper()
 	if store == nil {
 		store = f.stores[f.parent.Address()]
@@ -209,7 +210,7 @@ func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, st
 	return roots, err
 }
 
-func (f *uniquePublicationFixture) duplicate(t *testing.T, roots map[ids.ObjectAddress]*logicalIndexRoot, err error, building bool, detail string) {
+func (f *uniquePublicationFixture) duplicate(t *testing.T, roots map[ids.ObjectAddress]*storage.IndexRoot, err error, building bool, detail string) {
 	t.Helper()
 	if roots != nil {
 		t.Fatal("failed preparation returned installation roots")
@@ -221,7 +222,7 @@ func (f *uniquePublicationFixture) duplicate(t *testing.T, roots map[ids.ObjectA
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: message, Detail: detail, Schema: "public", Table: "ui_t", Constraint: "ui_index"})
 }
 
-func (f *uniquePublicationFixture) membership(t *testing.T, roots map[ids.ObjectAddress]*logicalIndexRoot, materialize bool, rows []rowVersion) {
+func (f *uniquePublicationFixture) membership(t *testing.T, roots map[ids.ObjectAddress]*storage.IndexRoot, materialize bool, rows []storage.RowVersion) {
 	t.Helper()
 	if !materialize {
 		if roots != nil {
@@ -236,7 +237,7 @@ func (f *uniquePublicationFixture) membership(t *testing.T, roots map[ids.Object
 	if root == nil {
 		t.Fatal("completion omitted substantive root")
 	}
-	want := make([]logicalIndexEntry, len(rows))
+	want := make([]storage.IndexEntry, len(rows))
 	nextPosition := len(f.stores[f.parent.Address()].Versions)
 	for i, row := range rows {
 		_, position, found := rowByID(f.stores[f.parent.Address()].Versions, row.Row, -1)
@@ -244,7 +245,7 @@ func (f *uniquePublicationFixture) membership(t *testing.T, roots map[ids.Object
 			position = nextPosition
 			nextPosition++
 		}
-		want[i] = logicalIndexEntry{Row: row.Row, Version: row.Version, Position: position, Keys: slices.Clone(row.Values[:f.keys])}
+		want[i] = storage.IndexEntry{Row: row.Row, Version: row.Version, Position: position, Keys: slices.Clone(row.Values[:f.keys])}
 	}
 	if !reflect.DeepEqual(root.Entries, want) {
 		t.Fatal("wrong completion membership", root.Entries, want)
@@ -284,14 +285,14 @@ func TestUniqueIndexPublicationRebuiltPredecessor(t *testing.T) {
 					// input. The separate delta could hide this if applied first.
 					store.Versions[1].Values = slices.Clone(store.Versions[0].Values)
 					old := store.Versions[1]
-					var writes []rowVersion
+					var writes []storage.RowVersion
 					var deletion *privateDeletionRoot
 					if delta == "delete" {
 						deletion = &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{old.Row: {ref: f.ref, storage: &store, row: old.Row, version: old.Version}}}
 					} else {
 						replacement := f.row(t, 1, "2001-02-05", "3")
 						replacement.Row, replacement.Base = old.Row, old.Version
-						writes = []rowVersion{replacement}
+						writes = []storage.RowVersion{replacement}
 					}
 					roots, err := f.prepare(t, context.Background(), &store, true, materialize, writes, deletion)
 					f.duplicate(t, roots, err, true, "Key (a, b)=(03.02.2001, 1) is duplicated.")
@@ -321,7 +322,7 @@ func TestUniqueIndexPublicationStreaming(t *testing.T) {
 					} {
 						t.Run(fmt.Sprintf("attached=%t/composite=%t/nnd=%t/materialize=%t/%s", attached, composite, nnd, materialize, tc.name), func(t *testing.T) {
 							f := newUniquePublicationFixture(t, attached, composite, nnd, "table", false)
-							writes := []rowVersion{f.row(t, 1, tc.a, tc.b)}
+							writes := []storage.RowVersion{f.row(t, 1, tc.a, tc.b)}
 							if tc.name != "survivor_addition" {
 								writes = append(writes, f.row(t, 2, tc.a, tc.secondB))
 							}
@@ -350,7 +351,7 @@ func TestUniqueIndexPublicationNullSurvivor(t *testing.T) {
 				for _, materialize := range []bool{false, true} {
 					t.Run(fmt.Sprintf("attached=%t/composite=%t/nnd=%t/materialize=%t", attached, composite, nnd, materialize), func(t *testing.T) {
 						f := newUniquePublicationFixture(t, attached, composite, nnd, "table", true)
-						writes := []rowVersion{f.row(t, 1, "", "1")}
+						writes := []storage.RowVersion{f.row(t, 1, "", "1")}
 						roots, err := f.prepare(t, context.Background(), nil, false, materialize, writes, nil)
 						if nnd {
 							f.duplicate(t, roots, err, false, uniquePublicationKey(composite, "", "1")+" already exists.")
@@ -377,7 +378,7 @@ func TestUniqueIndexPublicationReplacementMembership(t *testing.T) {
 				deletion := &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{rows[0].Row: {ref: f.ref, storage: f.stores[f.parent.Address()], row: rows[0].Row, version: rows[0].Version}}}
 				replacement := f.row(t, 1, "2001-02-05", "3")
 				replacement.Row, replacement.Base = rows[1].Row, rows[1].Version
-				writes := []rowVersion{replacement, f.row(t, 2, "2001-02-06", "4")}
+				writes := []storage.RowVersion{replacement, f.row(t, 2, "2001-02-06", "4")}
 				roots, err := f.prepare(t, context.Background(), nil, false, materialize, writes, deletion)
 				if err != nil {
 					t.Fatal(err)
@@ -397,11 +398,11 @@ func TestUniqueIndexPublicationDisclosure(t *testing.T) {
 						f := newUniquePublicationFixture(t, attached, true, false, disclosure, false)
 						store := *f.stores[f.parent.Address()]
 						store.Versions = uniquePublicationRows(store.Versions)
-						var writes []rowVersion
+						var writes []storage.RowVersion
 						if building {
 							store.Versions[1].Values = slices.Clone(store.Versions[0].Values)
 						} else {
-							writes = []rowVersion{f.row(t, 1, "2001-02-03", "1")}
+							writes = []storage.RowVersion{f.row(t, 1, "2001-02-03", "1")}
 						}
 						roots, err := f.prepare(t, context.Background(), &store, building, materialize, writes, nil)
 						detail := ""
@@ -430,7 +431,7 @@ func TestUniqueIndexPublicationCancellation(t *testing.T) {
 					f := newUniquePublicationFixture(t, attached, true, true, "table", false)
 					ctx, cancel := context.WithCancel(context.Background())
 					cancel()
-					roots, err := f.prepare(t, ctx, nil, rebuild, materialize, []rowVersion{f.row(t, 1, "2001-02-05", "3")}, nil)
+					roots, err := f.prepare(t, ctx, nil, rebuild, materialize, []storage.RowVersion{f.row(t, 1, "2001-02-05", "3")}, nil)
 					var diagnostic *sqlstate.Error
 					if roots != nil || !errors.Is(err, context.Canceled) || errors.As(err, &diagnostic) {
 						t.Fatal("canceled preparation returned installation or SQL diagnostic", roots, err)

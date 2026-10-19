@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -117,7 +118,7 @@ func domainAlterGenerationIndexes(t *testing.T) {
 				if newRoot.Hash.Storage != current {
 					t.Fatal("hash storage identity changed")
 				}
-				entries := make(map[indexRowIdentity]hashIndexEntry)
+				entries := make(map[indexRowIdentity]storage.HashEntry)
 				for _, bucket := range newRoot.Hash.Buckets {
 					for _, entry := range bucket {
 						entries[indexRowIdentity{row: entry.Row, version: entry.Version}] = entry

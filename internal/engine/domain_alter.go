@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -238,7 +239,7 @@ func (c *EvalContext) evaluateSelectedDomainCheck(view catalog.Read, selected *c
 	return c.evaluateOwnDomainChecks(view, selected, selected, value, violation)
 }
 
-func (c *EvalContext) validateSelectedDomainRows(view catalog.Read, selected *catalog.Type, use domainValidationUse, frontier ids.CommitSeq, writes []rowVersion, deletes *privateDeletionRoot) error {
+func (c *EvalContext) validateSelectedDomainRows(view catalog.Read, selected *catalog.Type, use domainValidationUse, frontier ids.CommitSeq, writes []storage.RowVersion, deletes *privateDeletionRoot) error {
 	violations := make([]error, len(use.columns))
 	for i, column := range use.columns {
 		violations[i] = domainHistoricalViolation(view, use.relation, column)
@@ -252,7 +253,7 @@ func (c *EvalContext) validateSelectedDomainRows(view catalog.Read, selected *ca
 			replaced[row.Row] = true
 		}
 	}
-	scan := func(rows []rowVersion, committed bool) error {
+	scan := func(rows []storage.RowVersion, committed bool) error {
 		for _, row := range rows {
 			if err := c.Context.Err(); err != nil {
 				return err

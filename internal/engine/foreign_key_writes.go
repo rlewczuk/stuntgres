@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -14,17 +15,17 @@ import (
 // Captured row/version vectors are immutable. Only shadow identities are indexed;
 // values are neither copied nor materialized into an alternate relation.
 type foreignKeyRows struct {
-	storage                      *relationStorage
-	committed, own, staged       []rowVersion
-	ends                         *deletionRoot
+	storage                      *storage.Relation
+	committed, own, staged       []storage.RowVersion
+	ends                         *storage.DeletionRoot
 	priorDeletes, currentDeletes *privateDeletionRoot
 	shadow                       map[ids.RowID]uint8
 	frontier                     ids.CommitSeq
 	index                        ids.ObjectAddress
-	root                         *logicalIndexRoot
+	root                         *storage.IndexRoot
 }
 
-func (r foreignKeyRows) each(visit func(rowVersion) (bool, error)) error {
+func (r foreignKeyRows) each(visit func(storage.RowVersion) (bool, error)) error {
 	for _, v := range r.committed {
 		if r.shadow[v.Row] != 0 || !liveVersion(v, r.frontier, r.ends, r.priorDeletes) || !liveVersion(v, r.frontier, r.ends, r.currentDeletes) {
 			continue
@@ -51,7 +52,7 @@ func (r foreignKeyRows) each(visit func(rowVersion) (bool, error)) error {
 	}
 	return nil
 }
-func (r foreignKeyRows) previous(id ids.RowID) (rowVersion, bool) {
+func (r foreignKeyRows) previous(id ids.RowID) (storage.RowVersion, bool) {
 	for _, v := range r.own {
 		if v.Row == id {
 			return v, true
@@ -62,7 +63,7 @@ func (r foreignKeyRows) previous(id ids.RowID) (rowVersion, bool) {
 			return v, true
 		}
 	}
-	return rowVersion{}, false
+	return storage.RowVersion{}, false
 }
 
 func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.ObjectAddress) (foreignKeyRows, error) {
@@ -107,7 +108,7 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.Obje
 	return r, nil
 }
 
-func (s *StatementScope) foreignKeyGrant(ref ids.ObjectRef, row ids.RowID, mode lock.Mode, storage *relationStorage) error {
+func (s *StatementScope) foreignKeyGrant(ref ids.ObjectRef, row ids.RowID, mode lock.Mode, stored *storage.Relation) error {
 	e := s.op.session.Engine()
 	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
 	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref, Row: row}, mode, policy)
@@ -137,7 +138,7 @@ func (s *StatementScope) foreignKeyGrant(ref ids.ObjectRef, row ids.RowID, mode 
 	if _, ok := e.privateCatalogLocked(changes).Find(ref.Address); !ok {
 		return ids.ErrCatalogReplaced
 	}
-	if storage != nil && e.privateStorageLocked(changes, ref.Address) != storage {
+	if stored != nil && e.privateStorageLocked(changes, ref.Address) != stored {
 		return ids.ErrCatalogReplaced
 	}
 	return s.validateLockedRelation(e)
@@ -327,8 +328,8 @@ func (s *StatementScope) checkForeignKeys() error {
 				return foreignKeyDiagnostic(s.op.Context(), childAuth, job.child, job.parent, f, row.Values, false, false, s.output)
 			}
 		}
-		checkOld := func(old rowVersion) error {
-			return children.each(func(child rowVersion) (bool, error) {
+		checkOld := func(old storage.RowVersion) error {
+			return children.each(func(child storage.RowVersion) (bool, error) {
 				match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, old.Values, s.input)
 				if err != nil || !match {
 					return false, err
@@ -354,7 +355,7 @@ func (s *StatementScope) checkForeignKeys() error {
 			}
 		}
 		if parentRows.currentDeletes != nil {
-			for _, rows := range [][]rowVersion{parentRows.committed, parentRows.own} {
+			for _, rows := range [][]storage.RowVersion{parentRows.committed, parentRows.own} {
 				for _, old := range rows {
 					if _, deleted := parentRows.currentDeletes.rows[old.Row]; !deleted {
 						continue

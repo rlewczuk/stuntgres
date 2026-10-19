@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -91,7 +92,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	}
 	var length int
 	var generation uint64
-	var ends *deletionRoot
+	var ends *storage.DeletionRoot
 	if original != nil {
 		length, generation, ends = len(original.Versions), original.Generation, original.Ends
 	}

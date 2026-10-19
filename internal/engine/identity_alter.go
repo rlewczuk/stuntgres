@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -134,7 +135,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 		replacement.Called = false
 	}
 	if stage.generators == nil {
-		stage.generators = make(map[ids.ObjectAddress]*sequenceGenerator)
+		stage.generators = make(map[ids.ObjectAddress]*storage.SequenceGenerator)
 	}
 	stage.generators[address] = &replacement
 	return nil

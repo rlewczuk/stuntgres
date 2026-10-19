@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -123,7 +124,7 @@ func TestUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 						}
 						expected = &description
 					}
-					original := append([]rowVersion(nil), e.storage.Relations[ref.Address].Versions...)
+					original := append([]storage.RowVersion(nil), e.storage.Relations[ref.Address].Versions...)
 					repeats := 1
 					if prepared {
 						repeats = 2

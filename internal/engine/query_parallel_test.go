@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -117,7 +118,7 @@ func TestQueryParallelPartition(t *testing.T) {
 	}
 	// Logical visibility can select an own version while omitting an older head.
 	_, query, source := queryCoreFixture(t, "SELECT id FROM t")
-	source.own = []rowVersion{source.committed[0]}
+	source.own = []storage.RowVersion{source.committed[0]}
 	source.own[0].Values = append([]sqltype.Value(nil), source.committed[0].Values...)
 	source.own[0].Values[0], _ = sqltype.Integer(source.own[0].Values[0].Type(), 99)
 	source.visible = []int{4, 2, 3}
@@ -346,7 +347,7 @@ func TestQueryParallelEligibility(t *testing.T) {
 	}
 	for _, mutate := range []func(*querySource){
 		func(s *querySource) { s.locks = &queryLockContext{} }, func(s *querySource) { s.lineage = &queryLockLineage{} }, func(s *querySource) { s.inherited.mode = 1 },
-		func(s *querySource) { s.sources = []*querySource{s} }, func(s *querySource) { s.partialMask = &logicalIndexRoot{} }, func(s *querySource) { s.hashIndexes = []capturedHashIndex{} },
+		func(s *querySource) { s.sources = []*querySource{s} }, func(s *querySource) { s.partialMask = &storage.IndexRoot{} }, func(s *querySource) { s.hashIndexes = []capturedHashIndex{} },
 		func(s *querySource) { s.inheritance = []inheritanceQuerySegment{} }, func(s *querySource) { s.anonymous = [][]sqltype.Value{} }, func(s *querySource) { s.singleton = true },
 		func(s *querySource) { s.materialized = true }, func(s *querySource) { s.final = &finalRows{} }, func(s *querySource) { s.input = &querySource{} }, func(s *querySource) { s.nestedRoot = &singletonNode{} },
 		func(s *querySource) { s.window = true }, func(s *querySource) { s.scratch = []sqltype.Value{} }, func(s *querySource) { s.rlsDenied = true }, func(s *querySource) { s.storedRef = s.ref },

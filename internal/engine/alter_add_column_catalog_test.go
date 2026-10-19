@@ -6,6 +6,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -85,10 +86,10 @@ func TestAlterAddColumnPrivateSnapshotEqualWidthProjection(t *testing.T) {
 	}
 	old := &catalog.Relation{Columns: []catalog.Column{{Name: "old", Usage: u}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 	next := &catalog.Relation{Columns: []catalog.Column{{Name: "new", Usage: u}}, Attributes: []int32{2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}}
-	original := &relationStorage{Versions: []rowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{one}}}}
-	historical := []rowVersion{{Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{one}}}
+	original := &storage.Relation{Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{one}}}}
+	historical := []storage.RowVersion{{Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{one}}}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
-	shape := catalogStorageChange{original: original, root: original.Versions, relation: next, replacement: &relationStorage{}, fills: map[int32]sqltype.Value{2: seven}}
+	shape := catalogStorageChange{original: original, root: original.Versions, relation: next, replacement: &storage.Relation{}, fills: map[int32]sqltype.Value{2: seven}}
 	catalog := &catalogChanges{storage: map[ids.ObjectAddress]catalogStorageChange{address: shape}}
 	roots := map[ids.ObjectAddress]transactionRoot{address: {storage: original, relation: old, versions: historical}}
 	projected, err := projectPrivateSnapshotRoots(context.Background(), catalog, roots)

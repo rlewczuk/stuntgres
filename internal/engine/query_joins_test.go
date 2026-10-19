@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -229,9 +230,9 @@ func TestQueryJoinsRejectedPairAllocation(t *testing.T) {
 	})
 	// Repeat immutable input occurrences without changing width or output count.
 	right := source.sources[1]
-	original := append([]rowVersion(nil), right.committed...)
+	original := append([]storage.RowVersion(nil), right.committed...)
 	measure := func(n int) uint64 {
-		right.committed = make([]rowVersion, n)
+		right.committed = make([]storage.RowVersion, n)
 		for i := range right.committed {
 			right.committed[i] = original[i%len(original)]
 		}

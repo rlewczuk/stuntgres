@@ -5,10 +5,11 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
-func (r foreignKeyRows) committedLive(v rowVersion) bool {
+func (r foreignKeyRows) committedLive(v storage.RowVersion) bool {
 	return r.shadow[v.Row] == 0 && liveVersion(v, r.frontier, r.ends, r.priorDeletes) && liveVersion(v, r.frontier, r.ends, r.currentDeletes)
 }
 func prepareForeignKeyChild(ctx context.Context, comparisons []foreignKeyComparison, child, key []sqltype.Value, input sqltype.InputEnvironment) error {
@@ -25,7 +26,7 @@ func prepareForeignKeyChild(ctx context.Context, comparisons []foreignKeyCompari
 // probeForeignKeyIndex borrows the selected logical index's immutable ordered
 // entries. Compare owns the selected family and child input semantics; it need
 // not construct a narrowed parent-width key. Stop is a successful visit result.
-func probeForeignKeyIndex(root *logicalIndexRoot, compare func(logicalIndexEntry) (int, error), visit func(logicalIndexEntry) (bool, error)) error {
+func probeForeignKeyIndex(root *storage.IndexRoot, compare func(storage.IndexEntry) (int, error), visit func(storage.IndexEntry) (bool, error)) error {
 	if root == nil {
 		return fmt.Errorf("stuntgres: ready foreign-key index root is missing")
 	}
@@ -55,7 +56,7 @@ func probeForeignKeyIndex(root *logicalIndexRoot, compare func(logicalIndexEntry
 	return nil
 }
 
-func foreignKeyIndexOrder(ctx context.Context, index *catalog.Relation, comparisons []foreignKeyComparison, entry logicalIndexEntry, child []sqltype.Value, input sqltype.InputEnvironment) (int, error) {
+func foreignKeyIndexOrder(ctx context.Context, index *catalog.Relation, comparisons []foreignKeyComparison, entry storage.IndexEntry, child []sqltype.Value, input sqltype.InputEnvironment) (int, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -82,13 +83,13 @@ func foreignKeyIndexOrder(ctx context.Context, index *catalog.Relation, comparis
 	return 0, nil
 }
 
-func findForeignKeyParent(ctx context.Context, index *catalog.Relation, comparisons []foreignKeyComparison, rows foreignKeyRows, child []sqltype.Value, input sqltype.InputEnvironment) (rowVersion, logicalIndexEntry, error) {
+func findForeignKeyParent(ctx context.Context, index *catalog.Relation, comparisons []foreignKeyComparison, rows foreignKeyRows, child []sqltype.Value, input sqltype.InputEnvironment) (storage.RowVersion, storage.IndexEntry, error) {
 	// Statement-final overlays are not committed index entries. Their shadow
 	// identities hide replaced committed rows and earlier transaction versions.
 	overlay := rows
 	overlay.committed = nil
-	var matching rowVersion
-	if err := overlay.each(func(parent rowVersion) (bool, error) {
+	var matching storage.RowVersion
+	if err := overlay.each(func(parent storage.RowVersion) (bool, error) {
 		match := true
 		var err error
 		for i, comparison := range comparisons {
@@ -108,12 +109,12 @@ func findForeignKeyParent(ctx context.Context, index *catalog.Relation, comparis
 		}
 		return match, err
 	}); err != nil || matching.Row != 0 {
-		return matching, logicalIndexEntry{}, err
+		return matching, storage.IndexEntry{}, err
 	}
-	var locator logicalIndexEntry
-	err := probeForeignKeyIndex(rows.root, func(entry logicalIndexEntry) (int, error) {
+	var locator storage.IndexEntry
+	err := probeForeignKeyIndex(rows.root, func(entry storage.IndexEntry) (int, error) {
 		return foreignKeyIndexOrder(ctx, index, comparisons, entry, child, input)
-	}, func(entry logicalIndexEntry) (bool, error) {
+	}, func(entry storage.IndexEntry) (bool, error) {
 		parent, err := conflictEntryVersion(rows.committed, entry)
 		if err != nil {
 			return false, err

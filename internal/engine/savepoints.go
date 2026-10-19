@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"time"
 )
@@ -15,7 +16,7 @@ import (
 // generator counters or snapshots. The outer block keeps the same ticket.
 type savepointMark struct {
 	name                string
-	writes              map[ids.ObjectAddress][]rowVersion
+	writes              map[ids.ObjectAddress][]storage.RowVersion
 	deletes             map[ids.ObjectAddress]*privateDeletionRoot
 	catalog             *catalogChanges
 	settings            settingsMark

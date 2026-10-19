@@ -8,21 +8,22 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
-func hashCancellationRows(rows []rowVersion) []rowVersion {
-	copy := append([]rowVersion(nil), rows...)
+func hashCancellationRows(rows []storage.RowVersion) []storage.RowVersion {
+	copy := append([]storage.RowVersion(nil), rows...)
 	for i := range copy {
 		copy[i].Values = append([]sqltype.Value(nil), rows[i].Values...)
 	}
 	return copy
 }
 
-func hashCancellationBuckets(root *hashIndexRoot) map[uint64][]hashIndexEntry {
-	copy := make(map[uint64][]hashIndexEntry, len(root.Buckets))
+func hashCancellationBuckets(root *storage.HashRoot) map[uint64][]storage.HashEntry {
+	copy := make(map[uint64][]storage.HashEntry, len(root.Buckets))
 	for hash, bucket := range root.Buckets {
-		copy[hash] = append([]hashIndexEntry(nil), bucket...)
+		copy[hash] = append([]storage.HashEntry(nil), bucket...)
 	}
 	return copy
 }

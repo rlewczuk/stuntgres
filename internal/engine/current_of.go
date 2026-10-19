@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 // The named cursor owns its retained execution. Mutations borrow only a physical
@@ -101,9 +102,9 @@ func cursorSimpleScan(node LogicalNode, inputs *querySource) *querySource {
 
 // Resolve one occurrence directly, without allocating the all-leaf vector used
 // by locking rechecks. Cached effective versions win over DECLARE-era versions.
-func cursorOccurrenceVersion(source *querySource, index, occurrence int, locks *queryLockContext) rowVersion {
+func cursorOccurrenceVersion(source *querySource, index, occurrence int, locks *queryLockContext) storage.RowVersion {
 	if source == nil || index == absentQueryIndex {
-		return rowVersion{}
+		return storage.RowVersion{}
 	}
 	width := len(source.occurrences)
 	if width > 0 && (index+1)*width <= len(source.versions) && (source.versionValid == nil || index < len(source.versionValid) && source.versionValid[index]) {
@@ -112,7 +113,7 @@ func cursorOccurrenceVersion(source *querySource, index, occurrence int, locks *
 				return source.versions[index*width+j]
 			}
 		}
-		return rowVersion{}
+		return storage.RowVersion{}
 	}
 	if source.input != nil {
 		return cursorOccurrenceVersion(source.input, index, occurrence, locks)
@@ -127,18 +128,18 @@ func cursorOccurrenceVersion(source *querySource, index, occurrence int, locks *
 			}
 			visible := source.provenance[index*width+j]
 			if visible == absentQueryIndex {
-				return rowVersion{}
+				return storage.RowVersion{}
 			}
 			leaf := locks.leaves[id].source
 			if leaf.anonymous != nil {
-				return rowVersion{}
+				return storage.RowVersion{}
 			}
 			return leaf.versionAt(leaf.rawIndex(visible))
 		}
-		return rowVersion{}
+		return storage.RowVersion{}
 	}
 	if source.singleton || source.anonymous != nil || source.occurrence != occurrence {
-		return rowVersion{}
+		return storage.RowVersion{}
 	}
 	return source.versionAt(source.rawIndex(index))
 }

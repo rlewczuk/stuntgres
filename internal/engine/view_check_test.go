@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -229,7 +230,7 @@ func TestViewCheckCancellation(t *testing.T) {
 	originals := f.e.storage.Relations[f.base.Address()].Versions
 	row := append([]sqltype.Value(nil), originals[0].Values...)
 	row[1], _ = sqltype.Integer(f.integer, 99)
-	if err := scope.Writes().replace(f.baseRef, []rowVersion{originals[0]}, indexWriteBatch{values: [][]sqltype.Value{row}}); err != nil {
+	if err := scope.Writes().replace(f.baseRef, []storage.RowVersion{originals[0]}, indexWriteBatch{values: [][]sqltype.Value{row}}); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(scope.op.Context())
@@ -286,7 +287,7 @@ func TestViewCheckFinish(t *testing.T) {
 	if err := f.e.checkViewRow(scope, &b, row, &eval); err != nil {
 		t.Fatal(err)
 	}
-	if err := scope.Writes().replace(f.baseRef, []rowVersion{originals[0]}, indexWriteBatch{values: [][]sqltype.Value{row}}); err != nil {
+	if err := scope.Writes().replace(f.baseRef, []storage.RowVersion{originals[0]}, indexWriteBatch{values: [][]sqltype.Value{row}}); err != nil {
 		t.Fatal(err)
 	}
 	cancel()

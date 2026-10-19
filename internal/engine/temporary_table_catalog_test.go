@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -31,7 +32,7 @@ func temporaryCatalogCandidate(t *testing.T, action parser.OnCommitAction) (*Eng
 	e.mu.Lock()
 	e.catalogChangeLocked(c, namespace.Address(), namespace)
 	e.catalogChangeLocked(c, table.Address(), table)
-	c.storage[table.Address()] = catalogStorageChange{replacement: &relationStorage{}, relation: table}
+	c.storage[table.Address()] = catalogStorageChange{replacement: &storage.Relation{}, relation: table}
 	e.mu.Unlock()
 	return e, op, c, table
 }
@@ -51,7 +52,7 @@ func TestCatalogTemporaryStorageAbsence(t *testing.T) {
 	if mark.descriptors[table.Address()] != table || mark.storage[table.Address()].replacement != c.storage[table.Address()].replacement {
 		t.Fatal("savepoint descriptor/action/store rewritten")
 	}
-	e.storage.Relations[table.Address()] = &relationStorage{}
+	e.storage.Relations[table.Address()] = &storage.Relation{}
 	if _, ok := e.catalogPreflightLocked(c).(catalog.Conflict); !ok {
 		t.Fatal("committed absence was not fenced")
 	}
@@ -80,7 +81,7 @@ func TestTemporaryTableProviderAction(t *testing.T) {
 func TestTemporaryTableCommitCandidate(t *testing.T) {
 	for _, action := range []parser.OnCommitAction{parser.OnCommitPreserve, parser.OnCommitDelete, parser.OnCommitDrop} {
 		e, op, c, table := temporaryCatalogCandidate(t, action)
-		writes := map[ids.ObjectAddress][]rowVersion{table.Address(): {{Row: 1, Version: 1, Values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
+		writes := map[ids.ObjectAddress][]storage.RowVersion{table.Address(): {{Row: 1, Version: 1, Values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
 		mark := cloneCatalogChanges(c)
 		nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), writes, nil, c)
 		if err != nil {
@@ -162,7 +163,7 @@ func TestTemporaryTableCanceledPublication(t *testing.T) {
 	cancel()
 	op.ctx = ctx
 	original := e.catalog.state
-	writes := map[ids.ObjectAddress][]rowVersion{table.Address(): {{Row: 1, Version: 1, Values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
+	writes := map[ids.ObjectAddress][]storage.RowVersion{table.Address(): {{Row: 1, Version: 1, Values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
 	err = e.publishRows(op, scope.txRef, writes, nil, c, nil, nil)
 	scope.Finish(err)
 	if !errors.Is(err, context.Canceled) || e.catalog.state != original || e.storage.Relations[table.Address()] != nil || c.descriptors[table.Address()] != table || len(writes[table.Address()]) != 1 {
@@ -198,7 +199,7 @@ func TestTemporaryTableStagedNamespaceAuthority(t *testing.T) {
 
 func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 	e, _, c, table := temporaryCatalogCandidate(t, parser.OnCommitPreserve)
-	options, _, err := bindSequenceOptions(nil, sequenceGenerator{}, nil)
+	options, _, err := bindSequenceOptions(nil, storage.SequenceGenerator{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

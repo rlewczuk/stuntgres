@@ -6,6 +6,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -197,7 +198,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		if store.Generation == ^uint64(0) {
 			return fmt.Errorf("stuntgres: storage generation exhausted")
 		}
-		replacement = &relationStorage{Versions: versions, Ends: store.Ends, Generation: store.Generation + 1}
+		replacement = &storage.Relation{Versions: versions, Ends: store.Ends, Generation: store.Generation + 1}
 	}
 	if err != nil {
 		return err
