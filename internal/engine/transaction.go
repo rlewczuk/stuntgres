@@ -676,7 +676,7 @@ retry:
 	}
 	if e.visibility.relevantSerializableLocked(s.txRef) != nil {
 		for _, row := range versions {
-			event := [1]serializableWrite{{row: row.Row, version: row.Version}}
+			event := [1]serializableWrite{{Row: row.Row, Version: row.Version}}
 			if err := e.serializableWriteLocked(s, ref, event[:]); err != nil {
 				return err
 			}

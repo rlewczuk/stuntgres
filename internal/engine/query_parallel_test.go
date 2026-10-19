@@ -196,7 +196,7 @@ func TestQueryParallelConcurrentExecution(t *testing.T) {
 			if states[0] == states[1] || states[0].source == states[1].source || states[0].source.view == states[1].source.view || states[0].source.view == source.view {
 				t.Fatal("worker state or pin shared")
 			}
-			if states[0].scanStart == states[1].scanStart || states[0].source.view.read() != states[1].source.view.read() {
+			if states[0].scanStart == states[1].scanStart || states[0].source.view.Data() != states[1].source.view.Data() {
 				t.Fatal("ranges/frontiers")
 			}
 			close(release)
@@ -278,7 +278,7 @@ func TestQueryParallelSnapshot(t *testing.T) {
 		}
 	}
 	pins := []*VisibilityView{states[0].source.view, states[1].source.view}
-	if pins[0] == pins[1] || pins[0].read() != source.view.read() || pins[1].read() != source.view.read() {
+	if pins[0] == pins[1] || pins[0].Data() != source.view.Data() || pins[1].Data() != source.view.Data() {
 		t.Fatal("pin/frontier isolation")
 	}
 	run(t, e, "UPDATE t SET id=9 WHERE id=1")
@@ -291,7 +291,7 @@ func TestQueryParallelSnapshot(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("first worker did not complete")
 	}
-	if first.err != nil || pins[0].data.Load() != nil || pins[1].data.Load() == nil {
+	if first.err != nil || pins[0].Load() != nil || pins[1].Load() == nil {
 		t.Fatal("independent worker release", first.err)
 	}
 	close(releases[1])

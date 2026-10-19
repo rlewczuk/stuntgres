@@ -97,12 +97,12 @@ func TestUpdateFromFramesOriginsAndPhysicalTargets(t *testing.T) {
 		sessionSQL(t, a, q)
 	}
 	op, scope, b, target, from := updateFromBoundSources(t, e, a, context.Background(), "UPDATE t AS dst SET a=dst.b,b=dst.a FROM s JOIN r USING(k) WHERE dst.id=k RETURNING dst.*,k,s.k,r.k,s.v,old.a,new.a")
-	data := target.view.read()
-	if len(data.committed) != 3 || len(b.querySources) != 2 || from.sources[0].view.read() != data || from.sources[1].view.read() != data {
+	data := target.view.Data()
+	if len(data.Committed) != 3 || len(b.querySources) != 2 || from.sources[0].view.Data() != data || from.sources[1].view.Data() != data {
 		t.Fatal("incoherent target/source capture", data)
 	}
 	unused := catalogRef(t, e, target.view.Catalog(), "unused")
-	if _, found := data.committed[unused.Address]; found {
+	if _, found := data.Committed[unused.Address]; found {
 		t.Fatal("unrelated relation captured")
 	}
 	metadata := b.returning.schema

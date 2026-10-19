@@ -58,7 +58,7 @@ func TestPreparedSerializableCandidateRetainsAdmittedSnapshot(t *testing.T) {
 				t.Fatal(err)
 			}
 			e.mu.Lock()
-			if node.resolved || len(node.possible) != 1 || reader.owner.snapshotSet || reader.owner.frontier != frontier || reader.owner.roots[relation.Address].storage != original.storage {
+			if node.Resolved || len(node.Possible) != 1 || reader.owner.snapshotSet || reader.owner.frontier != frontier || reader.owner.roots[relation.Address].Storage != original.Storage {
 				e.mu.Unlock()
 				t.Fatal("prepare/origin end prematurely resolved or replaced admitted candidate")
 			}
@@ -75,12 +75,12 @@ func TestPreparedSerializableCandidateRetainsAdmittedSnapshot(t *testing.T) {
 			}
 			reader.owner.mu.Lock()
 			root := reader.owner.roots[relation.Address]
-			if !reader.owner.snapshotSet || reader.owner.frontier != frontier || root.storage != original.storage {
+			if !reader.owner.snapshotSet || reader.owner.frontier != frontier || root.Storage != original.Storage {
 				reader.owner.mu.Unlock()
 				t.Fatal("final outcome replaced admitted snapshot")
 			}
 			reader.owner.mu.Unlock()
-			source, err := selectQuerySource(context.Background(), &querySource{committed: root.versions}, frontier, root.ends, nil)
+			source, err := selectQuerySource(context.Background(), &querySource{committed: root.Versions}, frontier, root.Ends, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

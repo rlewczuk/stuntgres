@@ -191,7 +191,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	if err = selectQuerySources(op.Context(), source); err != nil || source.count() != 3 {
 		t.Fatal(source.count(), err)
 	}
-	if source.view.read() != view.read() || source.inheritance[1].prefix.view.read() != view.read() || &source.inheritance[1].prefix.committed[0] != &e.storage.Relations[c.Address()].Versions[0] {
+	if source.view.Data() != view.Data() || source.inheritance[1].prefix.view.Data() != view.Data() || &source.inheritance[1].prefix.committed[0] != &e.storage.Relations[c.Address()].Versions[0] {
 		t.Fatal("hierarchy acquired a second visibility owner or copied immutable rows")
 	}
 	e.mu.Lock()
@@ -202,7 +202,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	}
 	retained := source.inheritance[1].prefix.view
 	source.close()
-	if retained.data.Load() != nil || view.data.Load() == nil {
+	if retained.Load() != nil || view.Load() == nil {
 		t.Fatal("capture release consumed statement authority")
 	}
 	// Exercise the real capture error path with an actually acquired incomplete
@@ -227,11 +227,11 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 		partial, err = captureInheritanceQueryPrefix(incomplete.Catalog(), incomplete, leaf, failOp.session.token)
 	}
 	e.mu.Unlock()
-	if err == nil || partial != nil || incomplete == nil || incomplete.data.Load() == nil {
+	if err == nil || partial != nil || incomplete == nil || incomplete.Load() == nil {
 		t.Fatal("partial capture leaked a result or consumed sole view", partial, err)
 	}
 	failed.Finish(err)
-	if incomplete.data.Load() != nil {
+	if incomplete.Load() != nil {
 		t.Fatal("failed statement retained snapshot authority")
 	}
 }

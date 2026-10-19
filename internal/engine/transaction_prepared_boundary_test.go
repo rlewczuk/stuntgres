@@ -104,22 +104,22 @@ func preparedBoundaryFixture(t *testing.T) (*Engine, *Session, *preparedTransact
 	preparedUnitStatement(t, e, origin, &parser.Insert{Name: name, Rows: [][]parser.Expr{{preparedBoundaryInteger(7)}}})
 	preparedUnitStatement(t, e, origin, &parser.CreateSequence{Name: preparedBoundaryName("prepared_boundary_sequence"), Options: []parser.SequenceOption{{Name: "start", Value: 41}}})
 	e.mu.Lock()
-	beforeVisibility := e.visibility.entries[origin.transactions.ref]
+	beforeVisibility := e.visibility.Entries[origin.transactions.ref]
 	e.mu.Unlock()
-	if !beforeVisibility.snapshot || beforeVisibility.xid == 0 {
+	if !beforeVisibility.Snapshot || beforeVisibility.XID == 0 {
 		t.Fatal("real modifying Serializable owner did not advertise visibility")
 	}
 	if err := preparedUnitControl(t, e, origin, parser.KindPrepareTransaction, "boundary"); err != nil {
 		t.Fatal(err)
 	}
 	entry := e.prepared["boundary"]
-	if entry == nil || len(entry.writes) == 0 || len(entry.deletes) == 0 || entry.catalog == nil || len(entry.catalog.storage) == 0 || len(entry.catalog.generators) == 0 || e.visibility.serializable.nodes[entry.ref] == nil || len(e.locks.Inspect(entry.ticket).Journals[entry.ticket]) == 0 {
+	if entry == nil || len(entry.writes) == 0 || len(entry.deletes) == 0 || entry.catalog == nil || len(entry.catalog.storage) == 0 || len(entry.catalog.generators) == 0 || e.visibility.Serializable.Nodes[entry.ref] == nil || len(e.locks.Inspect(entry.ticket).Journals[entry.ticket]) == 0 {
 		t.Fatal("fixture did not retain populated row/delete/catalog/generator/SSI/lock roots")
 	}
 	e.mu.Lock()
-	preparedVisibility, retainedVisibility := e.visibility.entries[entry.ref]
+	preparedVisibility, retainedVisibility := e.visibility.Entries[entry.ref]
 	e.mu.Unlock()
-	if !retainedVisibility || preparedVisibility.xid != beforeVisibility.xid || preparedVisibility.snapshot || preparedVisibility.xmin != 0 || preparedVisibility.safeBuilder {
+	if !retainedVisibility || preparedVisibility.XID != beforeVisibility.XID || preparedVisibility.Snapshot || preparedVisibility.Xmin != 0 || preparedVisibility.SafeBuilder {
 		t.Fatal("PREPARE must drop reader snapshot but retain detached writer visibility", preparedVisibility)
 	}
 	var parent ids.ObjectAddress
@@ -166,12 +166,12 @@ func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoun
 	lockState := e.locks.Inspect(entry.ticket)
 	s := preparedBoundarySnapshot{
 		catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()),
-		counters:        [10]uint64{uint64(e.catalog.state.Epoch()), e.catalog.state.NamespaceGeneration(), uint64(e.catalog.nextOID), uint64(e.catalog.nextRevision), e.storage.RowFrontier(), e.storage.VersionFrontier(), uint64(e.visibility.commitSeq), uint64(e.visibility.diagnosticTx), e.visibility.serializable.order, e.roles.nextPrincipal},
+		counters:        [10]uint64{uint64(e.catalog.state.Epoch()), e.catalog.state.NamespaceGeneration(), uint64(e.catalog.nextOID), uint64(e.catalog.nextRevision), e.storage.RowFrontier(), e.storage.VersionFrontier(), uint64(e.visibility.commitSeq), uint64(e.visibility.diagnosticTx), e.visibility.Serializable.order, e.roles.nextPrincipal},
 		storagePointers: maps.Clone(e.storage.Relations), storage: map[ids.ObjectAddress]storage.Relation{},
 		generators: maps.Clone(e.storage.Sequences), generatorValues: map[ids.ObjectAddress]storage.SequenceGenerator{},
 		indexes: maps.Clone(e.storage.IndexRoots), indexValues: map[ids.ObjectAddress][]storage.IndexEntry{},
 		registry: maps.Clone(e.prepared), entries: map[string]preparedTransaction{},
-		ssi: map[ids.TxRef]serializableTransaction{}, creators: maps.Clone(e.visibility.serializable.creators),
+		ssi: map[ids.TxRef]serializableTransaction{}, creators: maps.Clone(e.visibility.Serializable.Creators),
 		owners: lockState.Owners, resources: lockState.Journals[entry.ticket], locks: map[lock.Resource]lock.ResourceState{},
 	}
 	for address, store := range e.storage.Relations {
@@ -204,7 +204,7 @@ func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoun
 		}
 		value.deletes = maps.Clone(prepared.deletes)
 		for address, deletion := range value.deletes {
-			value.deletes[address] = &privateDeletionRoot{rows: maps.Clone(deletion.rows)}
+			value.deletes[address] = &privateDeletionRoot{Rows: maps.Clone(deletion.Rows)}
 		}
 		value.roots = maps.Clone(prepared.roots)
 		if prepared.catalog != nil {
@@ -222,14 +222,14 @@ func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoun
 		}
 		s.entries[gid] = value
 	}
-	for ref, node := range e.visibility.serializable.nodes {
+	for ref, node := range e.visibility.Serializable.Nodes {
 		value := *node
-		value.reads = maps.Clone(node.reads)
-		value.writes = maps.Clone(node.writes)
-		for address, writes := range value.writes {
-			value.writes[address] = maps.Clone(writes)
+		value.Reads = maps.Clone(node.Reads)
+		value.Writes = maps.Clone(node.Writes)
+		for address, writes := range value.Writes {
+			value.Writes[address] = maps.Clone(writes)
 		}
-		value.incoming, value.outgoing, value.possible = maps.Clone(node.incoming), maps.Clone(node.outgoing), maps.Clone(node.possible)
+		value.Incoming, value.Outgoing, value.Possible = maps.Clone(node.Incoming), maps.Clone(node.Outgoing), maps.Clone(node.Possible)
 		s.ssi[ref] = value
 	}
 	for resource, lock := range lockState.Resources {
@@ -564,7 +564,7 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 	if e.locks.TransactionTicket(refs[loser.owner]) != nil || len(e.locks.Inspect(tickets[loser.owner]).Journals[tickets[loser.owner]]) != 0 || e.locks.TransactionTicket(refs[winner.owner]) != entry.ticket {
 		t.Fatal("loser released winner or retained its own holds")
 	}
-	if node := e.visibility.serializable.nodes[refs[loser.owner]]; node != nil && (!node.aborted || !node.ended || node.prepared) {
+	if node := e.visibility.Serializable.Nodes[refs[loser.owner]]; node != nil && (!node.Aborted || !node.Ended || node.Prepared) {
 		t.Fatal("loser SSI incarnation survived")
 	}
 	if err := preparedUnitControl(t, e, owners[loser.owner], parser.KindCommitPrepared, "race"); err != nil {

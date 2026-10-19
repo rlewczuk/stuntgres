@@ -25,8 +25,8 @@ func TestMergeInsertBinding(t *testing.T) {
 	if !reflect.DeepEqual(first.targets, []int{1, 0}) || !reflect.DeepEqual(second.targets, []int{0}) || first.defaults != nil || len(second.defaults) != 3 || second.defaults[1] == nil {
 		t.Fatal("independent arm schedules", first, second)
 	}
-	data := target.view.read()
-	if inputs.view.read() != data || len(data.committed) != 2 {
+	data := target.view.Data()
+	if inputs.view.Data() != data || len(data.Committed) != 2 {
 		t.Fatal("target/source did not share frontier")
 	}
 	r, err := e.executeMerge(op.ctx, scope, b, target, inputs, nil, "public")

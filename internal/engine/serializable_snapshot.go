@@ -32,12 +32,12 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 		}
 		t.roots, t.frontier = roots, e.visibility.commitSeq
 		t.sequenceCatalog = e.catalog.state
-		if !node.readOnly || !node.deferrable || node.resolved {
+		if !node.ReadOnly || !node.Deferrable || node.Resolved {
 			t.snapshotSet = true
 			e.mu.Unlock()
 			return nil
 		}
-		ready := node.ready
+		ready := node.Ready
 		e.mu.Unlock()
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
@@ -54,15 +54,15 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 		e.mu.Lock()
 		s.op.session.mu.Lock()
 		err = publicationOperationLocked(e, s.op)
-		if err == nil && (t.ref != s.txRef || t.ref.Epoch() != e.catalog.state.Epoch() || node.aborted || node.ended) {
+		if err == nil && (t.ref != s.txRef || t.ref.Epoch() != e.catalog.state.Epoch() || node.Aborted || node.Ended) {
 			err = ids.ErrCatalogReplaced
 		}
 		s.op.session.mu.Unlock()
 		if err != nil {
-			node.possible = nil
-			if !node.resolved {
-				node.resolved = true
-				close(node.ready)
+			node.Possible = nil
+			if !node.Resolved {
+				node.Resolved = true
+				close(node.Ready)
 			}
 			t.roots = nil
 			t.sequenceCatalog = nil
@@ -70,7 +70,7 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 			e.mu.Unlock()
 			return err
 		}
-		if node.resolved && !node.unsafe {
+		if node.Resolved && !node.Unsafe {
 			t.snapshotSet = true
 			e.mu.Unlock()
 			return nil
@@ -90,31 +90,31 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 // at once, otherwise it gets a ready channel that resolution closes. Caller
 // holds Engine.mu and has enrolled ref.
 func (reg *visibilityRegistry) captureSerializableLocked(ref ids.TxRef, readOnly, deferrable bool) *serializableTransaction {
-	node := reg.serializable.nodes[ref]
-	node.captured = true
-	node.readOnly = readOnly
-	node.deferrable = deferrable
-	node.frontier = reg.commitSeq
-	node.snapshotOrder = reg.serializable.order
-	node.resolved = false
-	node.unsafe = false
-	node.exempt = false
-	node.possible = nil
-	node.ready = nil
-	if node.readOnly {
-		for _, writer := range reg.serializable.nodes {
-			if writer != node && serializableRelevant(writer) && !serializableReadOnly(writer) && !writer.committed && writer.ref.Epoch() == node.ref.Epoch() {
-				if node.possible == nil {
-					node.possible = make(map[*serializableTransaction]struct{})
+	node := reg.Serializable.Nodes[ref]
+	node.Captured = true
+	node.ReadOnly = readOnly
+	node.Deferrable = deferrable
+	node.Frontier = reg.commitSeq
+	node.SnapshotOrder = reg.Serializable.order
+	node.Resolved = false
+	node.Unsafe = false
+	node.Exempt = false
+	node.Possible = nil
+	node.Ready = nil
+	if node.ReadOnly {
+		for _, writer := range reg.Serializable.Nodes {
+			if writer != node && serializableRelevant(writer) && !serializableReadOnly(writer) && !writer.Committed && writer.Ref.Epoch() == node.Ref.Epoch() {
+				if node.Possible == nil {
+					node.Possible = make(map[*serializableTransaction]struct{})
 				}
-				node.possible[writer] = struct{}{}
+				node.Possible[writer] = struct{}{}
 			}
 		}
-		if len(node.possible) == 0 {
-			node.resolved = true
-			node.exempt = true
+		if len(node.Possible) == 0 {
+			node.Resolved = true
+			node.Exempt = true
 		} else {
-			node.ready = make(chan struct{})
+			node.Ready = make(chan struct{})
 		}
 	}
 	return node

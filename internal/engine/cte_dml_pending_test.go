@@ -85,14 +85,14 @@ func cteDMLPendingBoundary(t *testing.T, replacement bool) {
 	if len(scope.stage.rows[audit.Address]) != 1 || scope.view == nil || scope.ticket == nil || scope.cteInvocation == nil {
 		t.Fatal("wait preceded the required earlier real mutation")
 	}
-	view := scope.view.data.Load()
+	view := scope.view.Load()
 	if view == nil {
 		t.Fatal("pending statement lost its shared view")
 	}
-	if _, ok := view.committed[audit.Address]; !ok {
+	if _, ok := view.Committed[audit.Address]; !ok {
 		t.Fatal("earlier target absent from shared view")
 	}
-	if _, ok := view.committed[ref.Address]; !ok {
+	if _, ok := view.Committed[ref.Address]; !ok {
 		t.Fatal("later target absent from shared view")
 	}
 	transactionRows(t, peer, "SELECT id FROM audit")

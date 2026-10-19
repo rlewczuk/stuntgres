@@ -230,7 +230,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 			}
 		}
 		if p.deletion != nil {
-			if deletion, ok := p.deletion.rows[row.Row]; ok && deletion.version == row.Version {
+			if deletion, ok := p.deletion.Rows[row.Row]; ok && deletion.Version == row.Version {
 				continue
 			}
 		}
@@ -280,12 +280,12 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 		}
 	}
 	if p.deletion != nil && materialize {
-		for id, deletion := range p.deletion.rows {
-			if deletion.own {
+		for id, deletion := range p.deletion.Rows {
+			if deletion.Own {
 				continue
 			}
-			row, _, found := rowByID(p.root, id, deletion.ordinal)
-			if !found || row.Version != deletion.version {
+			row, _, found := rowByID(p.root, id, deletion.Ordinal)
+			if !found || row.Version != deletion.Version {
 				return nil, fmt.Errorf("stuntgres: invalid hash deletion predecessor")
 			}
 			if err := end(row); err != nil {

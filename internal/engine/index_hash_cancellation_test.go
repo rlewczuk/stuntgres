@@ -47,14 +47,14 @@ func TestHashIndexLookupCancellation(t *testing.T) {
 	if scope := source.liveScope(); scope != nil {
 		state.input, state.output = scope.input, scope.output
 	}
-	view, data := source.view, source.view.read()
+	view, data := source.view, source.view.Data()
 	rows, visible := hashCancellationRows(source.committed), append([]int(nil), source.visible...)
 	first := &source.committed[0]
 	buckets := hashCancellationBuckets(root)
 	before := indexMaintenanceCapture(e)
 	unchanged := func() {
 		indexMaintenanceUnchanged(t, e, before)
-		if source.view != view || source.view.read() != data || &source.committed[0] != first || !reflect.DeepEqual(source.committed, rows) || !reflect.DeepEqual(source.visible, visible) || len(source.hashIndexes) != 1 || source.hashIndexes[0].root != root || !reflect.DeepEqual(root.Buckets, buckets) || e.storage.IndexRoots[index.Address()].Hash != root {
+		if source.view != view || source.view.Data() != data || &source.committed[0] != first || !reflect.DeepEqual(source.committed, rows) || !reflect.DeepEqual(source.visible, visible) || len(source.hashIndexes) != 1 || source.hashIndexes[0].root != root || !reflect.DeepEqual(root.Buckets, buckets) || e.storage.IndexRoots[index.Address()].Hash != root {
 			t.Fatal("canceled lookup changed retained source/root authority")
 		}
 	}

@@ -232,23 +232,23 @@ func (s *StatementScope) discardExclusionCandidate(ref ids.ObjectRef, proposal *
 	s.installExclusionProjectionLocked(e, p)
 }
 func (s *StatementScope) projectExclusionDeletionLocked(e *Engine, candidate deleteCandidate) {
-	parent, ok := e.privateCatalogLocked(s.owner.catalog).Relation(candidate.ref.Address)
+	parent, ok := e.privateCatalogLocked(s.owner.catalog).Relation(candidate.Ref.Address)
 	if !ok || len(parent.Constraints.Exclusion) == 0 {
 		return
 	}
 	s.beginExclusionProjectionLocked(e)
 	p := cloneExclusionProjection(e.exclusionPending[s.ticket])
-	ends := maps.Clone(p.ended[candidate.ref.Address])
+	ends := maps.Clone(p.ended[candidate.Ref.Address])
 	if ends == nil {
 		ends = make(map[ids.RowID]ids.VersionID)
 	}
-	ends[candidate.row] = candidate.version
-	p.ended[candidate.ref.Address] = ends
+	ends[candidate.Row] = candidate.Version
+	p.ended[candidate.Ref.Address] = ends
 	for _, c := range parent.Constraints.Exclusion {
 		entries := p.entries[c.Index]
 		next := make([]exclusionEntry, 0, len(entries))
 		for _, entry := range entries {
-			if entry.row.Row != candidate.row {
+			if entry.row.Row != candidate.Row {
 				next = append(next, entry)
 			}
 		}

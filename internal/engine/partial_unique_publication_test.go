@@ -154,7 +154,7 @@ func TestPartialIndexUniquePublicationCombined(t *testing.T) {
 						want = []storage.RowVersion{rows[0], rows[1], replacement}
 					}
 					if mode == "delete" || mode == "empty" {
-						deletion = &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{rows[1].Row: {ref: f.ref, storage: f.stores[f.parent.Address()], row: rows[1].Row, version: rows[1].Version}}}
+						deletion = &privateDeletionRoot{Rows: map[ids.RowID]deleteCandidate{rows[1].Row: {Ref: f.ref, Storage: f.stores[f.parent.Address()], Row: rows[1].Row, Version: rows[1].Version}}}
 						want = nil
 						if mode == "delete" {
 							member := partialUniqueRow(t, f, 2, "2001-02-06", "4", "true")
@@ -188,7 +188,7 @@ func TestPartialIndexUniquePublicationRebuiltBeforeDelta(t *testing.T) {
 					var writes []storage.RowVersion
 					var deletion *privateDeletionRoot
 					if delta == "delete" {
-						deletion = &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{old.Row: {ref: f.ref, storage: &store, row: old.Row, version: old.Version}}}
+						deletion = &privateDeletionRoot{Rows: map[ids.RowID]deleteCandidate{old.Row: {Ref: f.ref, Storage: &store, Row: old.Row, Version: old.Version}}}
 					} else {
 						r := partialUniqueRow(t, f, 1, "2001-02-05", "3", "true")
 						r.Row, r.Base = old.Row, old.Version

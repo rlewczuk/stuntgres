@@ -192,7 +192,7 @@ func TestDeleteCoreStageAuthority(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO t VALUES(1),(1)")
 	scope, b, source := deleteProbeScope(t, s)
 	version := source.committed[0]
-	candidate := deleteCandidate{ref: b.ref, storage: b.storage, row: version.Row, version: version.Version, ordinal: 0}
+	candidate := deleteCandidate{Ref: b.ref, Storage: b.storage, Row: version.Row, Version: version.Version, Ordinal: 0}
 	copiedScope := *scope
 	if err := copiedScope.acquireRow(candidate); err == nil {
 		t.Fatal("copied scope acquired a row")
@@ -211,9 +211,9 @@ func TestDeleteCoreStageAuthority(t *testing.T) {
 	if _, err := copied.Delete(candidate); err == nil {
 		t.Fatal("copied stage accepted")
 	}
-	invalidStorage := *candidate.storage
+	invalidStorage := *candidate.Storage
 	invalid := candidate
-	invalid.storage = &invalidStorage
+	invalid.Storage = &invalidStorage
 	if err := scope.acquireRow(invalid); err == nil {
 		t.Fatal("copied storage acquired a row")
 	}
@@ -221,12 +221,12 @@ func TestDeleteCoreStageAuthority(t *testing.T) {
 		t.Fatal("copied storage accepted")
 	}
 	invalid = candidate
-	invalid.version++
+	invalid.Version++
 	if _, err := scope.Writes().Delete(invalid); err == nil {
 		t.Fatal("wrong version accepted")
 	}
 	invalid = candidate
-	invalid.ordinal = 1
+	invalid.Ordinal = 1
 	if _, err := scope.Writes().Delete(invalid); err == nil {
 		t.Fatal("equal-value row substituted")
 	}
@@ -253,7 +253,7 @@ func TestDeleteCoreStageShapeAuthority(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO t VALUES(1),(2)")
 	scope, b, source := deleteProbeScope(t, s)
 	version := source.committed[0]
-	candidate := deleteCandidate{ref: b.ref, storage: b.storage, row: version.Row, version: version.Version, ordinal: 0}
+	candidate := deleteCandidate{Ref: b.ref, Storage: b.storage, Row: version.Row, Version: version.Version, Ordinal: 0}
 	if err := scope.acquireRow(candidate); err != nil {
 		t.Fatal(err)
 	}
@@ -289,15 +289,15 @@ func TestDeleteCoreCombinedPreflight(t *testing.T) {
 			frontier := e.visibility.commitSeq
 			switch failure {
 			case "wrong_version":
-				for id, candidate := range a.transactions.deletes[target.Address].rows {
-					candidate.version++
-					a.transactions.deletes[target.Address].rows[id] = candidate
+				for id, candidate := range a.transactions.deletes[target.Address].Rows {
+					candidate.Version++
+					a.transactions.deletes[target.Address].Rows[id] = candidate
 				}
 			case "copied_storage":
-				for id, candidate := range a.transactions.deletes[target.Address].rows {
-					copied := *candidate.storage
-					candidate.storage = &copied
-					a.transactions.deletes[target.Address].rows[id] = candidate
+				for id, candidate := range a.transactions.deletes[target.Address].Rows {
+					copied := *candidate.Storage
+					candidate.Storage = &copied
+					a.transactions.deletes[target.Address].Rows[id] = candidate
 				}
 			case "replaced_shape":
 				// Preserve payload and width: only the exact shape generation changes.

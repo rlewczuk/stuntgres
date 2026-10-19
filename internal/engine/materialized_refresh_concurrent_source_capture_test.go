@@ -113,7 +113,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	snapshot := scope.materializedSourceView
 	assertManifest := func() {
 		t.Helper()
-		if scope.materializedSourceView != snapshot || snapshot == nil || snapshot.frontier != frontier || len(snapshot.committed) != 2 {
+		if scope.materializedSourceView != snapshot || snapshot == nil || snapshot.Frontier != frontier || len(snapshot.Committed) != 2 {
 			t.Fatal("physical mixed producer manifest changed", snapshot)
 		}
 		for address, stored := range map[ids.ObjectAddress]*storage.Relation{inner.Address(): innerStorage, gate.Address(): gateStorage} {
@@ -121,19 +121,19 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 			if address == gate.Address() {
 				versions, ends = gateVersions, gateEnds
 			}
-			if snapshot.generationAt(address) != stored || !sameVersionRoot(snapshot.committed[address], versions) ||
-				snapshot.ends[address] != ends || snapshot.frontierAt(address) != frontier {
+			if snapshot.GenerationAt(address) != stored || !sameVersionRoot(snapshot.Committed[address], versions) ||
+				snapshot.Ends[address] != ends || snapshot.FrontierAt(address) != frontier {
 				t.Fatal("physical source did not retain captured storage/versions/ends/frontier", address)
 			}
 		}
-		if innerEnds == nil || len(innerEnds.Rows) != 1 || liveVersion(deleted, frontier, snapshot.ends[inner.Address()], nil) ||
-			!liveVersion(innerVersions[0], frontier, snapshot.ends[inner.Address()], nil) {
+		if innerEnds == nil || len(innerEnds.Rows) != 1 || liveVersion(deleted, frontier, snapshot.Ends[inner.Address()], nil) ||
+			!liveVersion(innerVersions[0], frontier, snapshot.Ends[inner.Address()], nil) {
 			t.Fatal("captured source end root did not distinguish deleted and live versions")
 		}
 		aliases := 0
 		for _, leaf := range viewOf(outer).sources {
 			view, err := scope.AcquireDataView(leaf.ref)
-			if err != nil || view.data.Load() != snapshot {
+			if err != nil || view.Load() != snapshot {
 				t.Fatal("source/alias recaptured separately", leaf.ref, err)
 			}
 			if leaf.ref.Address == inner.Address() {
@@ -186,7 +186,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 		t.Fatal("dedicated source fence not generated", changes.materializedSources)
 	}
 	fence := changes.materializedSources[0]
-	if fence.ref.Address != inner.Address() || fence.relation != snapshot.catalog.Get(inner.Address()) || fence.storage != innerStorage {
+	if fence.ref.Address != inner.Address() || fence.relation != snapshot.Catalog.Get(inner.Address()) || fence.storage != innerStorage {
 		t.Fatal("generated source fence retargeted", fence)
 	}
 	if _, strict := changes.originals[inner.Address()]; strict {

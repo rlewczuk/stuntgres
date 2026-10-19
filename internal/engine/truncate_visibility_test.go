@@ -34,7 +34,7 @@ func TestTruncateSnapshots(t *testing.T) {
 			frontier := reader.transactions.frontier
 			captured := reader.transactions.roots[p.Address]
 			qRoot := reader.transactions.roots[q.Address]
-			if captured.storage != e.storage.Relations[p.Address] || len(captured.versions) != 2 {
+			if captured.Storage != e.storage.Relations[p.Address] || len(captured.Versions) != 2 {
 				t.Fatal("stable snapshot did not capture untouched relation")
 			}
 			switch kind {
@@ -51,14 +51,14 @@ func TestTruncateSnapshots(t *testing.T) {
 			if kind == "truncate" {
 				transactionRows(t, reader, "SELECT id FROM p")
 				live := e.storage.Relations[p.Address]
-				if !captured.storage.SameTruncateLineage(live) || len(live.Versions) != 1 || live.Versions[0].Born <= frontier {
+				if !captured.Storage.SameTruncateLineage(live) || len(live.Versions) != 1 || live.Versions[0].Born <= frontier {
 					t.Fatal("fresh incarnation did not retain ordinary birth frontier filtering")
 				}
 			} else {
 				transactionRows(t, reader, "SELECT id FROM p ORDER BY id", 1, 2)
 			}
 			retained := reader.transactions.roots[p.Address]
-			if retained.storage != captured.storage || !sameVersionRoot(retained.versions, captured.versions) || retained.ends != captured.ends || reader.transactions.frontier != frontier || !sameVersionRoot(reader.transactions.roots[q.Address].versions, qRoot.versions) {
+			if retained.Storage != captured.Storage || !sameVersionRoot(retained.Versions, captured.Versions) || retained.Ends != captured.Ends || reader.transactions.frontier != frontier || !sameVersionRoot(reader.transactions.roots[q.Address].Versions, qRoot.Versions) {
 				t.Fatal("TRUNCATE became a second snapshot/root authority")
 			}
 			transactionEnd(t, reader, tx, false)
@@ -79,7 +79,7 @@ func TestTruncateSnapshotsInherited(t *testing.T) {
 	sessionSQL(t, writer, "TRUNCATE ONLY c")
 	sessionSQL(t, writer, "INSERT INTO c VALUES(9)")
 	transactionRows(t, reader, "SELECT id FROM p ORDER BY id", 1, 2)
-	if !oldChild.storage.SameTruncateLineage(e.storage.Relations[child.Address]) || reader.transactions.frontier != frontier || reader.transactions.roots[p.Address].storage != oldParent.storage || !sameVersionRoot(reader.transactions.roots[p.Address].versions, oldParent.versions) || reader.transactions.roots[child.Address].storage != oldChild.storage {
+	if !oldChild.Storage.SameTruncateLineage(e.storage.Relations[child.Address]) || reader.transactions.frontier != frontier || reader.transactions.roots[p.Address].Storage != oldParent.Storage || !sameVersionRoot(reader.transactions.roots[p.Address].Versions, oldParent.Versions) || reader.transactions.roots[child.Address].Storage != oldChild.Storage {
 		t.Fatal("inherited SELECT replaced the original snapshot authority")
 	}
 	sessionSQL(t, reader, "INSERT INTO c VALUES(4)")
@@ -185,8 +185,8 @@ func TestTruncateSnapshotsBirthFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { result.Rows.Close() })
-	data := scope.view.read()
-	if data.generations == nil || !data.needsBirthFilterAt(p.Address) || data.needsBirthFilterAt(q.Address) || data.frontier != frontier || len(data.committed[p.Address]) != 1 || data.ends[p.Address] != nil || data.deleted[p.Address] != nil || len(data.own[p.Address]) != 0 {
+	data := scope.view.Data()
+	if data.Generations == nil || !data.NeedsBirthFilterAt(p.Address) || data.NeedsBirthFilterAt(q.Address) || data.Frontier != frontier || len(data.Committed[p.Address]) != 1 || data.Ends[p.Address] != nil || data.Deleted[p.Address] != nil || len(data.Own[p.Address]) != 0 {
 		t.Fatal("mixed capture lost per-relation birth provenance or fixture acquired deletion/replacement roots")
 	}
 	for _, test := range []struct {
@@ -202,7 +202,7 @@ func TestTruncateSnapshotsBirthFilter(t *testing.T) {
 			source.close()
 			t.Fatal("source dropped capture birth provenance")
 		}
-		source, err = selectQuerySource(context.Background(), source, data.frontierAt(test.ref.Address), data.ends[test.ref.Address], data.deleted[test.ref.Address])
+		source, err = selectQuerySource(context.Background(), source, data.FrontierAt(test.ref.Address), data.Ends[test.ref.Address], data.Deleted[test.ref.Address])
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -226,8 +226,8 @@ func TestTruncateSnapshotsBirthFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { ownResult.Rows.Close() })
-	ownData := ownScope.view.read()
-	if ownData.generations != nil || !ownData.singleNeedsBirthFilter || ownData.frontier != frontier || ownData.ends[p.Address] != nil || ownData.deleted[p.Address] != nil || len(ownData.own[p.Address]) != 1 || ownData.own[p.Address][0].Base != 0 {
+	ownData := ownScope.view.Data()
+	if ownData.Generations != nil || !ownData.SingleNeedsBirthFilter || ownData.Frontier != frontier || ownData.Ends[p.Address] != nil || ownData.Deleted[p.Address] != nil || len(ownData.Own[p.Address]) != 1 || ownData.Own[p.Address][0].Base != 0 {
 		t.Fatal("single capture/own-insert birth-filter fixture")
 	}
 	if got := tuples(ownResult); !reflect.DeepEqual(got, [][]driver.Value{{int64(3)}}) {

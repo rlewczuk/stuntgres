@@ -123,7 +123,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 			var view *VisibilityView
 			view, err = s.acquireDataViewsLocked(e, physical)
 			if err == nil {
-				s.materializedSourceView = view.data.Load()
+				s.materializedSourceView = view.Load()
 			}
 		}
 	}

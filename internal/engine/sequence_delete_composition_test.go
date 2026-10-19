@@ -41,9 +41,9 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 			case "frontier":
 				e.visibility.commitSeq = ids.CommitSeq(^uint64(0))
 			case "predecessor":
-				for id, candidate := range s.transactions.deletes[table.Address].rows {
-					candidate.version++
-					s.transactions.deletes[table.Address].rows[id] = candidate
+				for id, candidate := range s.transactions.deletes[table.Address].Rows {
+					candidate.Version++
+					s.transactions.deletes[table.Address].Rows[id] = candidate
 					break
 				}
 			case "shape":

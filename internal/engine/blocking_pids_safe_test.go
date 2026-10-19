@@ -38,19 +38,19 @@ func TestBlockingPidsSafeAuthority(t *testing.T) {
 	writer, wt := blockingUnitOwner(t, e)
 	_, second := blockingUnitOwner(t, e)
 	typ := blockingUnitType(e)
-	r := &serializableTransaction{ref: rt.Ref(), captured: true, readOnly: true, deferrable: true, ready: make(chan struct{})}
-	w := &serializableTransaction{ref: wt.Ref(), captured: true}
-	w2 := &serializableTransaction{ref: second.Ref(), captured: true}
-	r.possible = map[*serializableTransaction]struct{}{w: {}, w2: {}}
+	r := &serializableTransaction{Ref: rt.Ref(), Captured: true, ReadOnly: true, Deferrable: true, Ready: make(chan struct{})}
+	w := &serializableTransaction{Ref: wt.Ref(), Captured: true}
+	w2 := &serializableTransaction{Ref: second.Ref(), Captured: true}
+	r.Possible = map[*serializableTransaction]struct{}{w: {}, w2: {}}
 	e.mu.Lock()
-	e.visibility.serializable.nodes = map[ids.TxRef]*serializableTransaction{r.ref: r, w.ref: w, w2.ref: w2}
+	e.visibility.Serializable.Nodes = map[ids.TxRef]*serializableTransaction{r.Ref: r, w.Ref: w, w2.Ref: w2}
 	e.mu.Unlock()
 	blockingUnitSafeWant(t, e, reader.token.ID(), int64(writer.token.ID()), int64(second.Session().ID()))
 	blockingUnitWant(t, e, reader.token.ID()) // SSI must never invent ordinary locks.
 	for _, mutate := range []func(){
-		func() { r.deferrable = false }, func() { r.readOnly = false }, func() { r.captured = false },
-		func() { r.resolved = true }, func() { r.aborted = true }, func() { r.ended = true },
-		func() { r.committed = true }, func() { r.prepared = true }, func() { r.ready = nil },
+		func() { r.Deferrable = false }, func() { r.ReadOnly = false }, func() { r.Captured = false },
+		func() { r.Resolved = true }, func() { r.Aborted = true }, func() { r.Ended = true },
+		func() { r.Committed = true }, func() { r.Prepared = true }, func() { r.Ready = nil },
 	} {
 		e.mu.Lock()
 		original := *r
@@ -64,47 +64,47 @@ func TestBlockingPidsSafeAuthority(t *testing.T) {
 	// Each retained prepared SSI owner is a distinct candidate, even when
 	// both projections are zero. Preparing does not resolve safe acquisition.
 	e.mu.Lock()
-	w.prepared, w2.prepared = true, true
+	w.Prepared, w2.Prepared = true, true
 	e.mu.Unlock()
 	blockingUnitSafeWant(t, e, reader.token.ID(), 0, 0)
 	e.mu.Lock()
-	e.endSerializableLocked(w.ref, false)
+	e.endSerializableLocked(w.Ref, false)
 	e.mu.Unlock()
 	blockingUnitSafeWant(t, e, reader.token.ID(), 0)
 	e.mu.Lock()
-	e.endSerializableLocked(w2.ref, false)
+	e.endSerializableLocked(w2.Ref, false)
 	e.mu.Unlock()
 	blockingUnitSafeWant(t, e, reader.token.ID())
 	select {
-	case <-r.ready:
+	case <-r.Ready:
 	default:
 		t.Fatal("resolved acquisition not woken")
 	}
 	// A retired node retained in a possible map is not a current owner.
 	e.mu.Lock()
-	r.resolved = false
-	r.ready = make(chan struct{})
-	r.possible = map[*serializableTransaction]struct{}{w: {}}
-	e.visibility.serializable.nodes[r.ref] = r
+	r.Resolved = false
+	r.Ready = make(chan struct{})
+	r.Possible = map[*serializableTransaction]struct{}{w: {}}
+	e.visibility.Serializable.Nodes[r.Ref] = r
 	e.mu.Unlock()
 	blockingUnitSafeWant(t, e, reader.token.ID())
 	// Full-width session identity must not alias an int4 target on lookup.
 	e.mu.Lock()
-	delete(e.visibility.serializable.nodes, r.ref)
-	r.ref = withTxSession(r.ref, withSessionID(r.ref.Session(), r.ref.Session().ID()+ids.SessionID(uint64(1)<<32)))
-	e.visibility.serializable.nodes[r.ref] = r
+	delete(e.visibility.Serializable.Nodes, r.Ref)
+	r.Ref = withTxSession(r.Ref, withSessionID(r.Ref.Session(), r.Ref.Session().ID()+ids.SessionID(uint64(1)<<32)))
+	e.visibility.Serializable.Nodes[r.Ref] = r
 	e.mu.Unlock()
 	blockingUnitSafeWant(t, e, reader.token.ID())
 	// Exercise native overflow separately from prepared zero classification.
 	e.mu.Lock()
-	w.aborted, w.ended, w.prepared = false, false, false
-	delete(e.visibility.serializable.nodes, w.ref)
-	w.ref = withTxSession(w.ref, withSessionID(w.ref.Session(), math.MaxInt32+1))
-	e.visibility.serializable.nodes[w.ref] = w
-	delete(e.visibility.serializable.nodes, r.ref)
-	r.ref = withTxSession(r.ref, reader.token)
-	e.visibility.serializable.nodes[r.ref] = r
-	r.possible = map[*serializableTransaction]struct{}{w: {}}
+	w.Aborted, w.Ended, w.Prepared = false, false, false
+	delete(e.visibility.Serializable.Nodes, w.Ref)
+	w.Ref = withTxSession(w.Ref, withSessionID(w.Ref.Session(), math.MaxInt32+1))
+	e.visibility.Serializable.Nodes[w.Ref] = w
+	delete(e.visibility.Serializable.Nodes, r.Ref)
+	r.Ref = withTxSession(r.Ref, reader.token)
+	e.visibility.Serializable.Nodes[r.Ref] = r
+	r.Possible = map[*serializableTransaction]struct{}{w: {}}
 	_, err := e.safeSnapshotBlockingPidsLocked(reader.token.ID(), typ)
 	e.mu.Unlock()
 	if err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {

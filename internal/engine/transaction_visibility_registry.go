@@ -11,13 +11,13 @@ import (
 // association only, not permission to enter manager metadata. Visibility XIDs
 // order incarnations globally; CommitSeq continues to own data views.
 type transactionVisibility struct {
-	xid, xmin             uint64
-	assignedXID           uint32
-	fullXID               uint64
-	ageAnchor             uint32
-	ageDemanded           bool
-	snapshot, safeBuilder bool
-	ticket                *lock.Ticket // assignment mirror only; never take manager.mu under Engine.mu
+	XID, Xmin             uint64
+	AssignedXID           uint32
+	FullXID               uint64
+	AgeAnchor             uint32
+	AgeDemanded           bool
+	Snapshot, SafeBuilder bool
+	Ticket                *lock.Ticket // assignment mirror only; never take manager.mu under Engine.mu
 }
 
 // visibilityRegistry owns transaction identity, commit order, commit
@@ -29,17 +29,17 @@ type visibilityRegistry struct {
 	commitSeq            ids.CommitSeq
 	diagnosticTx         uint32 // Last TxRef diagnostic (virtual transaction) identity.
 	visibilityXID        uint64
-	entries              map[ids.TxRef]transactionVisibility
+	Entries              map[ids.TxRef]transactionVisibility
 	assignedXID          uint64
-	transactionHistory   map[uint64]transactionIdentityRecord
+	History              map[uint64]transactionIdentityRecord
 	transactionHorizon   uint64
-	assignedLowIDs       map[uint32]uint64 // Latest full assignment per low32; constant-time live alias guard.
+	LowIDs               map[uint32]uint64 // Latest full assignment per low32; constant-time live alias guard.
 	trackCommitTimestamp bool
 	commitTimestampBase  uint64
-	commitTimestamps     map[uint64]commitTimestampEntry
+	CommitTimestamps     map[uint64]commitTimestampEntry
 	lastCommittedXID     uint32
 	lastCommitTimestamp  commitTimestampEntry
-	serializable         serializableTracker
+	Serializable         serializableTracker
 }
 
 // newVisibilityRegistry starts canonical assignment after the special XIDs.
@@ -75,13 +75,13 @@ func (e *Engine) registerTransactionLocks(ref ids.TxRef) (*lock.Ticket, error) {
 // canonical assignment onto it. Only ticket atomics are written, never
 // manager metadata. Caller holds Engine.mu.
 func (reg *visibilityRegistry) attachTicketLocked(ref ids.TxRef, ticket *lock.Ticket) {
-	if reg.entries == nil {
-		reg.entries = make(map[ids.TxRef]transactionVisibility)
+	if reg.Entries == nil {
+		reg.Entries = make(map[ids.TxRef]transactionVisibility)
 	}
-	v := reg.entries[ref]
-	v.ticket = ticket
-	ticket.MirrorFullXID(v.fullXID)
-	reg.entries[ref] = v
+	v := reg.Entries[ref]
+	v.Ticket = ticket
+	ticket.MirrorFullXID(v.FullXID)
+	reg.Entries[ref] = v
 }
 
 // visibilityWriteLocked fences ref against this engine's current catalog
@@ -96,19 +96,19 @@ func (e *Engine) visibilityWriteLocked(ref ids.TxRef) error {
 // writeLocked gives ref its visibility XID on first write. Caller holds
 // Engine.mu and has fenced ref.
 func (reg *visibilityRegistry) writeLocked(ref ids.TxRef) error {
-	v := reg.entries[ref]
-	if v.xid != 0 {
+	v := reg.Entries[ref]
+	if v.XID != 0 {
 		return nil
 	}
 	if reg.visibilityXID == ^uint64(0) {
 		return errors.New("stuntgres: visibility identity exhausted")
 	}
 	reg.visibilityXID++
-	v.xid = reg.visibilityXID
-	if reg.entries == nil {
-		reg.entries = make(map[ids.TxRef]transactionVisibility)
+	v.XID = reg.visibilityXID
+	if reg.Entries == nil {
+		reg.Entries = make(map[ids.TxRef]transactionVisibility)
 	}
-	reg.entries[ref] = v
+	reg.Entries[ref] = v
 	return nil
 }
 
@@ -124,33 +124,33 @@ func (e *Engine) visibilitySnapshotLocked(ref ids.TxRef, safeBuilder bool) (uint
 // snapshotLocked advertises ref's snapshot once and returns its xmin, the
 // oldest writer of the same epoch. Caller holds Engine.mu and has fenced ref.
 func (reg *visibilityRegistry) snapshotLocked(ref ids.TxRef, safeBuilder bool) (uint64, error) {
-	v := reg.entries[ref]
-	if v.snapshot {
-		return v.xmin, nil
+	v := reg.Entries[ref]
+	if v.Snapshot {
+		return v.Xmin, nil
 	}
 	if reg.visibilityXID == ^uint64(0) {
 		return 0, errors.New("stuntgres: visibility identity exhausted")
 	}
 	xmin := reg.visibilityXID + 1
-	for other, state := range reg.entries {
-		if other.Epoch() == ref.Epoch() && state.xid != 0 && state.xid < xmin {
-			xmin = state.xid
+	for other, state := range reg.Entries {
+		if other.Epoch() == ref.Epoch() && state.XID != 0 && state.XID < xmin {
+			xmin = state.XID
 		}
 	}
-	v.xmin, v.snapshot, v.safeBuilder = xmin, true, safeBuilder
-	if reg.entries == nil {
-		reg.entries = make(map[ids.TxRef]transactionVisibility)
+	v.Xmin, v.Snapshot, v.SafeBuilder = xmin, true, safeBuilder
+	if reg.Entries == nil {
+		reg.Entries = make(map[ids.TxRef]transactionVisibility)
 	}
-	reg.entries[ref] = v
+	reg.Entries[ref] = v
 	return xmin, nil
 }
 
 // withdrawSnapshotLocked clears ref's snapshot flag so the next
 // snapshotLocked recaptures xmin. Caller holds Engine.mu.
 func (reg *visibilityRegistry) withdrawSnapshotLocked(ref ids.TxRef) {
-	v := reg.entries[ref]
-	v.snapshot = false
-	reg.entries[ref] = v
+	v := reg.Entries[ref]
+	v.Snapshot = false
+	reg.Entries[ref] = v
 }
 
 func (e *Engine) endStatementVisibility(ref ids.TxRef, stable bool) {
@@ -165,12 +165,12 @@ func (e *Engine) endStatementVisibility(ref ids.TxRef, stable bool) {
 // Snapshot advertisement ends independently of writer/completion ownership.
 // Engine.mu is held; PREPARE retains the detached incarnation's assigned XID.
 func (reg *visibilityRegistry) dropSnapshotLocked(ref ids.TxRef) {
-	if v, ok := reg.entries[ref]; ok {
-		v.xmin, v.snapshot, v.safeBuilder = 0, false, false
-		if v.xid == 0 && v.assignedXID == 0 && v.ticket == nil {
-			delete(reg.entries, ref)
+	if v, ok := reg.Entries[ref]; ok {
+		v.Xmin, v.Snapshot, v.SafeBuilder = 0, false, false
+		if v.XID == 0 && v.AssignedXID == 0 && v.Ticket == nil {
+			delete(reg.Entries, ref)
 		} else {
-			reg.entries[ref] = v
+			reg.Entries[ref] = v
 		}
 	}
 }
@@ -179,17 +179,17 @@ func (reg *visibilityRegistry) dropSnapshotLocked(ref ids.TxRef) {
 // Preserve canonical assignment and its exact mirror association for later work.
 // Engine.mu is held; lifecycle end/abort/fence still remove the whole entry.
 func (reg *visibilityRegistry) resetPhaseLocked(ref ids.TxRef) {
-	if v, ok := reg.entries[ref]; ok {
-		if v.ticket != nil {
+	if v, ok := reg.Entries[ref]; ok {
+		if v.Ticket != nil {
 			// These index-only hooks retire a completed internal publication
 			// phase. Final/prepared completion instead keeps manager ownership
 			// through end(), including the publication-to-notification interval.
-			v.ticket.MirrorFullXID(v.fullXID)
+			v.Ticket.MirrorFullXID(v.FullXID)
 		}
-		if v.assignedXID == 0 && v.ticket == nil {
-			delete(reg.entries, ref)
+		if v.AssignedXID == 0 && v.Ticket == nil {
+			delete(reg.Entries, ref)
 		} else {
-			reg.entries[ref] = transactionVisibility{assignedXID: v.assignedXID, fullXID: v.fullXID, ticket: v.ticket}
+			reg.Entries[ref] = transactionVisibility{AssignedXID: v.AssignedXID, FullXID: v.FullXID, Ticket: v.Ticket}
 		}
 	}
 }
@@ -232,7 +232,7 @@ func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, index ids.ObjectAd
 // advertise a non-builder snapshot no newer than xmin. Caller holds Engine.mu.
 func (reg *visibilityRegistry) olderSnapshotsLocked(self ids.TxRef, xmin uint64) []ids.TxRef {
 	var refs []ids.TxRef
-	for ref := range reg.entries {
+	for ref := range reg.Entries {
 		if ref != self && ref.Epoch() == self.Epoch() && reg.snapshotOlderLocked(ref, xmin) {
 			refs = append(refs, ref)
 		}
@@ -243,6 +243,6 @@ func (reg *visibilityRegistry) olderSnapshotsLocked(self ids.TxRef, xmin uint64)
 // snapshotOlderLocked reports whether ref still advertises a non-builder
 // snapshot no newer than xmin. Caller holds Engine.mu.
 func (reg *visibilityRegistry) snapshotOlderLocked(ref ids.TxRef, xmin uint64) bool {
-	v, ok := reg.entries[ref]
-	return ok && v.snapshot && !v.safeBuilder && v.xmin <= xmin
+	v, ok := reg.Entries[ref]
+	return ok && v.Snapshot && !v.SafeBuilder && v.Xmin <= xmin
 }

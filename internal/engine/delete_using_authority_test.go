@@ -17,15 +17,15 @@ func TestDeleteUsingCandidateAuthorityRemainsStrict(t *testing.T) {
 	}
 	op, scope, b, target, inputs := updateFromBoundSources(t, e, session, context.Background(), "DELETE FROM t USING s WHERE id=k")
 	v := target.versionAt(target.rawIndex(0))
-	candidate := deleteCandidate{ref: b.ref, storage: b.storage, row: v.Row, version: v.Version, ordinal: target.rawIndex(0)}
+	candidate := deleteCandidate{Ref: b.ref, Storage: b.storage, Row: v.Row, Version: v.Version, Ordinal: target.rawIndex(0)}
 	if err := scope.acquireRow(candidate); err != nil {
 		t.Fatal(err)
 	}
 	for _, bad := range []deleteCandidate{
-		{ref: b.ref, storage: &storage.Relation{}, row: v.Row, version: v.Version, ordinal: candidate.ordinal},
-		{ref: b.ref, storage: b.storage, row: v.Row, version: v.Version + 1, ordinal: candidate.ordinal},
-		{ref: b.ref, storage: b.storage, row: v.Row, version: v.Version, ordinal: candidate.ordinal + 1},
-		{ref: b.ref, storage: b.storage, row: v.Row, version: v.Version, ordinal: candidate.ordinal, own: true},
+		{Ref: b.ref, Storage: &storage.Relation{}, Row: v.Row, Version: v.Version, Ordinal: candidate.Ordinal},
+		{Ref: b.ref, Storage: b.storage, Row: v.Row, Version: v.Version + 1, Ordinal: candidate.Ordinal},
+		{Ref: b.ref, Storage: b.storage, Row: v.Row, Version: v.Version, Ordinal: candidate.Ordinal + 1},
+		{Ref: b.ref, Storage: b.storage, Row: v.Row, Version: v.Version, Ordinal: candidate.Ordinal, Own: true},
 	} {
 		if deleted, err := scope.Writes().Delete(bad); err == nil || deleted {
 			t.Fatal("invalid captured authority accepted", bad, deleted, err)

@@ -39,7 +39,7 @@ func TestDeleteReturningOutputAtomicity(t *testing.T) {
 			probe := queryProbe(integer.Usage(), func(c *EvalContext) (sqltype.Value, error) {
 				calls++
 				root := scope.stage.deletes[b.ref.Address]
-				if root == nil || len(root.rows) != calls {
+				if root == nil || len(root.Rows) != calls {
 					t.Fatal("output ran before actual stage", calls, root)
 				}
 				if calls == 2 {

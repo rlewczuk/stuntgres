@@ -66,7 +66,7 @@ func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *cata
 			versions := shape.snapshot
 			if !shape.hasSnapshot {
 				if root, ok := scope.owner.roots[a]; ok {
-					versions = root.versions
+					versions = root.Versions
 					shape.hasSnapshot = true
 				}
 			}

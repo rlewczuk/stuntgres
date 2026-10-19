@@ -909,7 +909,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		e.mu.Lock()
 		err = scope.validateLockedRelation(e)
 		if err == nil {
-			event := [1]serializableWrite{{rewrite: true}}
+			event := [1]serializableWrite{{Rewrite: true}}
 			err = e.serializableWriteLocked(scope, ref, event[:])
 		}
 		e.mu.Unlock()

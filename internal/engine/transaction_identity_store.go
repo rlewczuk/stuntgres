@@ -9,8 +9,8 @@ import (
 )
 
 type transactionIdentityRecord struct {
-	state  ids.TxCompletion
-	ticket *lock.Ticket
+	State  ids.TxCompletion
+	Ticket *lock.Ticket
 }
 
 func nextFullTransactionID(last uint64) (uint64, error) {
@@ -44,9 +44,9 @@ func (e *Engine) transactionAgeLocked(ref ids.TxRef, xid uint32) (int32, error) 
 // transactionAgeLocked anchors ref's age() once, at its assigned XID or the
 // next one to be assigned. Caller holds Engine.mu and has fenced ref.
 func (reg *visibilityRegistry) transactionAgeLocked(ref ids.TxRef, xid uint32) (int32, error) {
-	v := reg.entries[ref]
-	if !v.ageDemanded {
-		anchor := v.assignedXID
+	v := reg.Entries[ref]
+	if !v.AgeDemanded {
+		anchor := v.AssignedXID
 		if anchor == 0 {
 			next, err := nextFullTransactionID(reg.assignedXID)
 			if err != nil {
@@ -54,25 +54,25 @@ func (reg *visibilityRegistry) transactionAgeLocked(ref ids.TxRef, xid uint32) (
 			}
 			anchor = uint32(next)
 		}
-		v.ageAnchor, v.ageDemanded = anchor, true
-		if reg.entries == nil {
-			reg.entries = make(map[ids.TxRef]transactionVisibility)
+		v.AgeAnchor, v.AgeDemanded = anchor, true
+		if reg.Entries == nil {
+			reg.Entries = make(map[ids.TxRef]transactionVisibility)
 		}
-		reg.entries[ref] = v
+		reg.Entries[ref] = v
 	}
-	return transactionAge(v.ageAnchor, xid), nil
+	return transactionAge(v.AgeAnchor, xid), nil
 }
 
 // assignedXIDLocked is ref's public low-32 XID, zero when unassigned.
 // Caller holds Engine.mu.
 func (reg *visibilityRegistry) assignedXIDLocked(ref ids.TxRef) uint32 {
-	return reg.entries[ref].assignedXID
+	return reg.Entries[ref].AssignedXID
 }
 
 // fullXIDLocked is ref's canonical full XID, zero when unassigned. Caller
 // holds Engine.mu.
 func (reg *visibilityRegistry) fullXIDLocked(ref ids.TxRef) uint64 {
-	return reg.entries[ref].fullXID
+	return reg.Entries[ref].FullXID
 }
 
 // nextDiagnosticTxLocked allocates the next TxRef diagnostic (virtual
@@ -98,33 +98,33 @@ func (reg *visibilityRegistry) transactionStatusLocked(xid uint64) (string, bool
 	if xid < reg.transactionHorizon {
 		return "", false, nil
 	}
-	r, ok := reg.transactionHistory[xid]
+	r, ok := reg.History[xid]
 	if !ok {
 		return "", false, nil
 	}
-	if r.ticket != nil && !r.ticket.OwnershipEnded() && r.ticket.AssignedFullXID() == xid {
+	if r.Ticket != nil && !r.Ticket.OwnershipEnded() && r.Ticket.AssignedFullXID() == xid {
 		return "in progress", true, nil
 	}
-	if r.state == ids.TxCommitted {
+	if r.State == ids.TxCommitted {
 		return "committed", true, nil
 	}
 	return "aborted", true, nil
 }
 func (reg *visibilityRegistry) endTransactionIdentityLocked(ref ids.TxRef, committed bool) {
-	v := reg.entries[ref]
-	if v.fullXID == 0 {
+	v := reg.Entries[ref]
+	if v.FullXID == 0 {
 		return
 	}
-	r, ok := reg.transactionHistory[v.fullXID]
-	if !ok || r.state != ids.TxInProgress {
+	r, ok := reg.History[v.FullXID]
+	if !ok || r.State != ids.TxInProgress {
 		return
 	}
-	r.state = ids.TxAborted
+	r.State = ids.TxAborted
 	if committed {
-		r.state = ids.TxCommitted
+		r.State = ids.TxCommitted
 	}
-	if r.ticket != nil {
-		r.ticket.MirrorCompletion(r.state)
+	if r.Ticket != nil {
+		r.Ticket.MirrorCompletion(r.State)
 	}
-	reg.transactionHistory[v.fullXID] = r
+	reg.History[v.FullXID] = r
 }

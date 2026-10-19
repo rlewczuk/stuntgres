@@ -61,7 +61,7 @@ func publicationNeedsXID(writes map[ids.ObjectAddress][]storage.RowVersion, dele
 		}
 	}
 	for _, deletion := range deletes {
-		if deletion != nil && len(deletion.rows) != 0 {
+		if deletion != nil && len(deletion.Rows) != 0 {
 			return true
 		}
 	}
@@ -428,8 +428,8 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				p.next[slot] = row
 			}
 			if p.nextEnds != nil {
-				for id, candidate := range p.deletion.rows {
-					p.nextEnds.Rows[id] = storage.RowEnd{Version: candidate.version, End: e.visibility.commitSeq + 1}
+				for id, candidate := range p.deletion.Rows {
+					p.nextEnds.Rows[id] = storage.RowEnd{Version: candidate.Version, End: e.visibility.commitSeq + 1}
 				}
 				p.store.Ends = p.nextEnds
 			}

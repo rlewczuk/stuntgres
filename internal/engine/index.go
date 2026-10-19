@@ -340,7 +340,7 @@ func mergeIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation, ol
 	}
 	endedCount := len(p.writes)
 	if p.deletion != nil {
-		endedCount += len(p.deletion.rows)
+		endedCount += len(p.deletion.Rows)
 	}
 	ended := make(map[ids.RowID]ids.VersionID, endedCount)
 	added := make([]storage.IndexEntry, 0, len(p.writes))
@@ -353,7 +353,7 @@ func mergeIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation, ol
 			ended[row.Row] = row.Base
 		}
 		if p.deletion != nil {
-			if end, ok := p.deletion.rows[row.Row]; ok && end.version == row.Version {
+			if end, ok := p.deletion.Rows[row.Row]; ok && end.Version == row.Version {
 				continue
 			}
 		}
@@ -391,9 +391,9 @@ func mergeIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation, ol
 		added = append(added, entry)
 	}
 	if p.deletion != nil {
-		for id, end := range p.deletion.rows {
-			if !end.own {
-				ended[id] = end.version
+		for id, end := range p.deletion.Rows {
+			if !end.Own {
+				ended[id] = end.Version
 			}
 		}
 	}

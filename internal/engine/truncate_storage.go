@@ -161,7 +161,7 @@ func (s *StatementScope) stageTruncate() error {
 		shape.fills = nil
 		changes.storage[ref.Address] = shape
 		e.fenceEmptyIndexStorageLocked(auth.Catalog.State(), changes, ref.Address)
-		if err = e.serializableWriteLocked(s, ref, []serializableWrite{{rewrite: true}}); err != nil {
+		if err = e.serializableWriteLocked(s, ref, []serializableWrite{{Rewrite: true}}); err != nil {
 			break
 		}
 	}

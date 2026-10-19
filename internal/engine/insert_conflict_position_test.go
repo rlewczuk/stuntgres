@@ -79,7 +79,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 					if !ok {
 						t.Fatal("missing deletion", deleted)
 					}
-					p.deletion = &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{deleted: {ref: ref, storage: f.store, row: deleted, version: old.Version, ordinal: position}}}
+					p.deletion = &privateDeletionRoot{Rows: map[ids.RowID]deleteCandidate{deleted: {Ref: ref, Storage: f.store, Row: deleted, Version: old.Version, Ordinal: position}}}
 				}
 				if err := f.e.prepareRowPublication(&p, scope.txRef, true); err != nil {
 					t.Fatal(err)

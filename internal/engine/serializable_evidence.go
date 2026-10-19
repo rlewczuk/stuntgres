@@ -37,7 +37,7 @@ func (e *Engine) serializableReadLocked(s *StatementScope, ref ids.ObjectRef) er
 // relevantSerializableLocked returns ref's captured, live, non-exempt tracker
 // node, or nil. Caller holds Engine.mu.
 func (reg *visibilityRegistry) relevantSerializableLocked(ref ids.TxRef) *serializableTransaction {
-	if node := reg.serializable.nodes[ref]; serializableRelevant(node) {
+	if node := reg.Serializable.Nodes[ref]; serializableRelevant(node) {
 		return node
 	}
 	return nil
@@ -46,30 +46,30 @@ func (reg *visibilityRegistry) relevantSerializableLocked(ref ids.TxRef) *serial
 // serializableCreatorLocked is the serializable transaction that created
 // version, or the zero ref. Caller holds Engine.mu.
 func (reg *visibilityRegistry) serializableCreatorLocked(version ids.VersionID) ids.TxRef {
-	return reg.serializable.creators[version]
+	return reg.Serializable.Creators[version]
 }
 
 // serializableReadLocked records node's read of an eligible relation and its
 // rw-conflicts out to overlapping writers. Caller holds Engine.mu and has
 // checked authority, epoch and eligibility.
 func (reg *visibilityRegistry) serializableReadLocked(node *serializableTransaction, address ids.ObjectAddress) error {
-	if node.doomed {
+	if node.Doomed {
 		return serializableError("Canceled on identification as a pivot, during conflict out checking.")
 	}
-	node.reads[address] = struct{}{}
-	for _, writer := range reg.serializable.nodes {
+	node.Reads[address] = struct{}{}
+	for _, writer := range reg.Serializable.Nodes {
 		if !serializableOverlap(node, writer) {
 			continue
 		}
-		for _, event := range writer.writes[address] {
-			if event.deletion && event.baseBorn == 0 && event.creator == writer.ref {
+		for _, event := range writer.Writes[address] {
+			if event.Deletion && event.BaseBorn == 0 && event.Creator == writer.Ref {
 				continue
 			}
 			selected := writer
 			// For an invisible inserted predecessor, only its creator can be
 			// the visibility conflict, even if another participant ended it.
-			if event.base != 0 && event.baseBorn > node.frontier {
-				selected = reg.serializable.nodes[event.creator]
+			if event.Base != 0 && event.BaseBorn > node.Frontier {
+				selected = reg.Serializable.Nodes[event.Creator]
 			}
 			if err := reg.serializableEdgeLocked(node, node, selected); err != nil {
 				return err
@@ -87,7 +87,7 @@ func (e *Engine) serializableWriteLocked(s *StatementScope, ref ids.ObjectRef, e
 		return ids.ErrCatalogReplaced
 	}
 	for _, event := range events {
-		if !event.rewrite && (event.row == 0 || event.version == 0 || event.deletion && event.base != event.version) {
+		if !event.Rewrite && (event.Row == 0 || event.Version == 0 || event.Deletion && event.Base != event.Version) {
 			return errors.New("stuntgres: invalid SSI write identity")
 		}
 	}
@@ -106,29 +106,29 @@ func (e *Engine) serializableWriteLocked(s *StatementScope, ref ids.ObjectRef, e
 // as the creator of each inserted version. Caller holds Engine.mu and has checked
 // authority, epoch, event identities and eligibility.
 func (reg *visibilityRegistry) serializableWriteLocked(node *serializableTransaction, writer ids.TxRef, address ids.ObjectAddress, events []serializableWrite) error {
-	if node.doomed {
+	if node.Doomed {
 		return serializableError("Canceled on identification as a pivot, during conflict in checking.")
 	}
 	if len(events) == 0 {
 		return nil
 	}
-	node.didWrite = true
-	for _, reader := range reg.serializable.nodes {
-		if _, read := reader.reads[address]; read {
+	node.DidWrite = true
+	for _, reader := range reg.Serializable.Nodes {
+		if _, read := reader.Reads[address]; read {
 			if err := reg.serializableEdgeLocked(node, reader, node); err != nil {
 				return err
 			}
 		}
 	}
-	writes := node.writes[address]
+	writes := node.Writes[address]
 	if writes == nil {
 		writes = make(map[serializableWriteKey]serializableWrite, len(events))
-		node.writes[address] = writes
+		node.Writes[address] = writes
 	}
 	for _, event := range events {
-		writes[serializableWriteKey{version: event.version, deletion: event.deletion}] = event
-		if !event.deletion && !event.rewrite {
-			reg.serializable.creators[event.version] = writer
+		writes[serializableWriteKey{Version: event.Version, Deletion: event.Deletion}] = event
+		if !event.Deletion && !event.Rewrite {
+			reg.Serializable.Creators[event.Version] = writer
 		}
 	}
 	return nil
@@ -138,19 +138,19 @@ func (reg *visibilityRegistry) serializableWriteLocked(node *serializableTransac
 // predicates, doom or attempted-write history. Engine.mu and owner.mu held.
 func (e *Engine) reconcileSerializableWritesLocked(t *transactionOwner) {
 	e.visibility.reconcileSerializableWritesLocked(t.ref, func(address ids.ObjectAddress, event serializableWrite) bool {
-		if event.rewrite {
+		if event.Rewrite {
 			return t.catalog != nil && t.catalog.storage[address].rewritten
 		}
-		if event.deletion {
+		if event.Deletion {
 			root := t.deletes[address]
 			if root == nil {
 				return false
 			}
-			candidate, ok := root.rows[event.row]
-			return ok && candidate.version == event.base
+			candidate, ok := root.Rows[event.Row]
+			return ok && candidate.Version == event.Base
 		}
 		for _, row := range t.writes[address] {
-			if row.Version == event.version {
+			if row.Version == event.Version {
 				return true
 			}
 		}
@@ -163,21 +163,21 @@ func (e *Engine) reconcileSerializableWritesLocked(t *transactionOwner) {
 // the caller's transaction state: it takes no lock and never calls back into
 // the registry. Caller holds Engine.mu.
 func (reg *visibilityRegistry) reconcileSerializableWritesLocked(ref ids.TxRef, keep func(ids.ObjectAddress, serializableWrite) bool) {
-	node := reg.serializable.nodes[ref]
+	node := reg.Serializable.Nodes[ref]
 	if node == nil {
 		return
 	}
-	for address, events := range node.writes {
+	for address, events := range node.Writes {
 		for id, event := range events {
 			if !keep(address, event) {
 				delete(events, id)
-				if !event.deletion && !event.rewrite && reg.serializable.creators[event.version] == ref {
-					delete(reg.serializable.creators, event.version)
+				if !event.Deletion && !event.Rewrite && reg.Serializable.Creators[event.Version] == ref {
+					delete(reg.Serializable.Creators, event.Version)
 				}
 			}
 		}
 		if len(events) == 0 {
-			delete(node.writes, address)
+			delete(node.Writes, address)
 		}
 	}
 }

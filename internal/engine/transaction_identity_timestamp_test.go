@@ -17,17 +17,17 @@ func identityUnitTimestampWrap(t *testing.T) {
 		if err := e.assignTransactionXIDLocked(b.Ref()); err != nil {
 			t.Fatal(err)
 		}
-		if e.visibility.entries[a.Ref()].fullXID != 4294967295 || e.visibility.entries[b.Ref()].fullXID != 4294967299 || len(e.visibility.commitTimestamps) != 2 {
+		if e.visibility.Entries[a.Ref()].FullXID != 4294967295 || e.visibility.Entries[b.Ref()].FullXID != 4294967299 || len(e.visibility.CommitTimestamps) != 2 {
 			t.Fatal("sparse wrap reservations")
 		}
-		if e.visibility.commitTimestamps[4294967295].present || e.visibility.commitTimestamps[4294967299].present {
+		if e.visibility.CommitTimestamps[4294967295].Present || e.visibility.CommitTimestamps[4294967299].Present {
 			t.Fatal("assignment fabricated completion")
 		}
 		e.visibility.recordCommitTimestampLocked(b.Ref())
 		newer := e.visibility.lookupCommitTimestampLocked(3)
 		e.visibility.recordCommitTimestampLocked(a.Ref())
 		older := e.visibility.lookupCommitTimestampLocked(4294967295)
-		if !older.present || !newer.present || e.visibility.lastCommittedXID != 4294967295 || len(e.visibility.commitTimestamps) != 2 {
+		if !older.Present || !newer.Present || e.visibility.lastCommittedXID != 4294967295 || len(e.visibility.CommitTimestamps) != 2 {
 			t.Fatal("old-epoch active completion lost sparse slot")
 		}
 		last := e.visibility.lastCommitTimestamp
@@ -45,7 +45,7 @@ func identityUnitTimestampWrap(t *testing.T) {
 		e.visibility.recordCommitTimestampLocked(a.Ref())
 		old := e.visibility.lookupCommitTimestampLocked(3)
 		e.mu.Unlock()
-		if !old.present {
+		if !old.Present {
 			t.Fatal("missing original actual completion")
 		}
 		e.endLockOwner(a)
@@ -55,11 +55,11 @@ func identityUnitTimestampWrap(t *testing.T) {
 		if err := e.assignTransactionXIDLocked(b.Ref()); err != nil {
 			t.Fatal(err)
 		}
-		if _, retained := e.visibility.commitTimestamps[3]; retained || len(e.visibility.commitTimestamps) != 1 {
+		if _, retained := e.visibility.CommitTimestamps[3]; retained || len(e.visibility.CommitTimestamps) != 1 {
 			t.Fatal("reused low32 retained incompatible timestamp")
 		}
 		e.endSerializableLocked(b.Ref(), false)
-		if e.visibility.lookupCommitTimestampLocked(3).present {
+		if e.visibility.lookupCommitTimestampLocked(3).Present {
 			t.Fatal("aborted newest identity fell back to old-epoch completion")
 		}
 	})

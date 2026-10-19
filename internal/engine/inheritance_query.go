@@ -50,7 +50,7 @@ func captureInheritanceQueryPrefix(catalogView catalog.Read, view *VisibilityVie
 	err := inheritanceQueryClosure(catalogView, leaf.relation, token, func(physical *catalog.Relation) error {
 		child := leaf
 		child.ref.Address, child.relation = physical.Address(), physical
-		child.storage = view.read().generationAt(physical.Address())
+		child.storage = view.Data().GenerationAt(physical.Address())
 		layout, err := inheritanceQueryLayout(leaf.relation, physical)
 		if err != nil {
 			return err
@@ -89,8 +89,8 @@ func captureInheritanceQueryPrefix(catalogView catalog.Read, view *VisibilityVie
 func (s *querySource) selectInheritancePrefixes(ctx context.Context) error {
 	total := 0
 	for i, segment := range s.inheritance {
-		data := segment.prefix.view.read()
-		if _, err := selectQuerySource(ctx, segment.prefix, data.frontierAt(segment.leaf.ref.Address), data.ends[segment.leaf.ref.Address], data.deleted[segment.leaf.ref.Address]); err != nil {
+		data := segment.prefix.view.Data()
+		if _, err := selectQuerySource(ctx, segment.prefix, data.FrontierAt(segment.leaf.ref.Address), data.Ends[segment.leaf.ref.Address], data.Deleted[segment.leaf.ref.Address]); err != nil {
 			return err
 		}
 		total += segment.prefix.count()

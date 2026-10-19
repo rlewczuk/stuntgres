@@ -12,10 +12,10 @@ import (
 )
 
 type transactionRoot struct {
-	versions []storage.RowVersion
-	ends     *storage.DeletionRoot
-	storage  *storage.Relation
-	relation *catalog.Relation
+	Versions []storage.RowVersion
+	Ends     *storage.DeletionRoot
+	Storage  *storage.Relation
+	Relation *catalog.Relation
 }
 
 func isolationFromText(text string) Isolation {
@@ -206,7 +206,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 			return false
 		}
 		for address, shape := range t.catalog.storage {
-			if root, exists := roots[address]; exists && !shape.hasSnapshot && !slices.Equal(root.relation.Attributes, shape.relation.Attributes) {
+			if root, exists := roots[address]; exists && !shape.hasSnapshot && !slices.Equal(root.Relation.Attributes, shape.relation.Attributes) {
 				return true
 			}
 		}

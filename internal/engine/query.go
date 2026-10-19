@@ -1062,8 +1062,8 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 			if source.view == nil {
 				return indexedStage{}, fmt.Errorf("stuntgres: missing query source")
 			}
-			data := source.view.read()
-			if source.ref.Domain() != data.catalog.Owner().Domain || source.ref.Epoch != data.catalog.Epoch() {
+			data := source.view.Data()
+			if source.ref.Domain() != data.Catalog.Owner().Domain || source.ref.Epoch != data.Catalog.Epoch() {
 				return indexedStage{}, fmt.Errorf("stuntgres: invalid query source target")
 			}
 		}

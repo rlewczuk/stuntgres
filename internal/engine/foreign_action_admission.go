@@ -179,9 +179,9 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 		return nil
 	}
 	stored := s.foreignActionAdmissions[ref.Address].storage
-	candidate := deleteCandidate{ref: ref, storage: stored, row: old.Row, version: old.Version, base: old.Base, own: old.Born == 0}
+	candidate := deleteCandidate{Ref: ref, Storage: stored, Row: old.Row, Version: old.Version, Base: old.Base, Own: old.Born == 0}
 	if old.Born != 0 {
-		candidate.base = old.Version
+		candidate.Base = old.Version
 	}
 	if err := w.stageDeletionLocked(e, candidate, old); err != nil {
 		return err
@@ -230,11 +230,11 @@ func (s *StatementScope) captureForeignActionRows(ref ids.ObjectRef) (foreignKey
 	var retained foreignKeyRows
 	if stableIsolation(s.owner.isolation) && s.owner.snapshotSet {
 		if root, exists := s.owner.roots[ref.Address]; exists {
-			if root.storage != rows.storage {
+			if root.Storage != rows.storage {
 				return foreignKeyRows{}, retained, ids.ErrCatalogReplaced
 			}
 			retained = rows
-			retained.committed, retained.ends, retained.frontier = root.versions, root.ends, s.owner.frontier
+			retained.committed, retained.ends, retained.frontier = root.Versions, root.Ends, s.owner.frontier
 		}
 	}
 	return rows, retained, nil

@@ -69,8 +69,8 @@ func TestPGSequenceSerializableCandidateEpochFence(t *testing.T) {
 	e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
 	// Wake the candidate as an ordinary resolved safe candidate: admission
 	// must still reject its old epoch and discard the retained catalog pointer.
-	node.resolved = true
-	close(node.ready)
+	node.Resolved = true
+	close(node.Ready)
 	e.mu.Unlock()
 	if retained != old {
 		t.Fatal("candidate catalog was not captured")

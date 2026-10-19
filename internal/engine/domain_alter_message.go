@@ -100,7 +100,7 @@ func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes
 			snapshot, exists := scope.owner.roots[address]
 			scope.owner.mu.Unlock()
 			if exists {
-				shape.snapshot, shape.hasSnapshot = snapshot.versions, true
+				shape.snapshot, shape.hasSnapshot = snapshot.Versions, true
 			}
 		}
 		if shape.hasSnapshot {

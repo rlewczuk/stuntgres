@@ -19,8 +19,8 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 		sessionSQL(t, s, q)
 	}
 	op, scope, b, target, inputs := updateFromBoundSources(t, e, s, context.Background(), "DELETE FROM t d USING s x WHERE d.id=x.k RETURNING d.id,d.v,x.label,new.id")
-	data := target.view.read()
-	if len(b.querySources) != 1 || inputs == nil || inputs.view == nil || inputs.view.read() != data {
+	data := target.view.Data()
+	if len(b.querySources) != 1 || inputs == nil || inputs.view == nil || inputs.view.Data() != data {
 		t.Fatal("incoherent command capture")
 	}
 	original := append([]storage.RowVersion(nil), target.committed...)
@@ -31,7 +31,7 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 	out := b.returning.expressions[0]
 	b.returning.expressions[0] = queryProbe(out.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 		calls++
-		if root := scope.stage.deletes[b.ref.Address]; root == nil || len(root.rows) != calls {
+		if root := scope.stage.deletes[b.ref.Address]; root == nil || len(root.Rows) != calls {
 			t.Fatal("output precedes actual unique staging", calls, root)
 		}
 		return out.Eval(c)
@@ -50,8 +50,8 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 	}
 	root := scope.stage.deletes[b.ref.Address]
 	for _, v := range original {
-		candidate, ok := root.rows[v.Row]
-		if !ok || candidate.storage != b.storage || candidate.ref != b.ref || candidate.version != v.Version {
+		candidate, ok := root.Rows[v.Row]
+		if !ok || candidate.Storage != b.storage || candidate.Ref != b.ref || candidate.Version != v.Version {
 			t.Fatal("lost deletion authority", candidate, v)
 		}
 	}
@@ -118,7 +118,7 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 					out := b.returning.expressions[0]
 					b.returning.expressions[0] = queryProbe(out.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 						calls++
-						if len(scope.stage.deletes[b.ref.Address].rows) != calls {
+						if len(scope.stage.deletes[b.ref.Address].Rows) != calls {
 							t.Fatal("output before stage")
 						}
 						if calls == 2 {

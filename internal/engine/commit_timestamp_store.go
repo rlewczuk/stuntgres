@@ -10,9 +10,9 @@ import (
 // Engine.mu owns identities, reserved history slots and the last-completion cache.
 // A reserved slot is absent until the row/catalog publisher installs its commit.
 type commitTimestampEntry struct {
-	stamp   time.Time
-	origin  uint32
-	present bool
+	Stamp   time.Time
+	Origin  uint32
+	Present bool
 }
 
 // assignTransactionXIDLocked fences ref against the current catalog epoch.
@@ -26,8 +26,8 @@ func (e *Engine) assignTransactionXIDLocked(ref ids.TxRef) error {
 // assignTransactionXIDLocked gives ref its canonical full XID once, reserving
 // its commit timestamp slot. Caller holds Engine.mu and has fenced ref.
 func (reg *visibilityRegistry) assignTransactionXIDLocked(ref ids.TxRef) error {
-	v := reg.entries[ref]
-	if v.assignedXID != 0 {
+	v := reg.Entries[ref]
+	if v.AssignedXID != 0 {
 		return nil
 	}
 	full, err := nextFullTransactionID(reg.assignedXID)
@@ -35,45 +35,45 @@ func (reg *visibilityRegistry) assignTransactionXIDLocked(ref ids.TxRef) error {
 		return err
 	}
 	xid := uint32(full)
-	if prior, ok := reg.assignedLowIDs[xid]; ok {
-		record := reg.transactionHistory[prior]
-		live := record.ticket == nil && record.state == ids.TxInProgress
-		if record.ticket != nil {
-			live = !record.ticket.OwnershipEnded() && record.ticket.AssignedFullXID() == prior
+	if prior, ok := reg.LowIDs[xid]; ok {
+		record := reg.History[prior]
+		live := record.Ticket == nil && record.State == ids.TxInProgress
+		if record.Ticket != nil {
+			live = !record.Ticket.OwnershipEnded() && record.Ticket.AssignedFullXID() == prior
 		}
 		if live {
 			return errors.New("stuntgres: live transaction identity collision")
 		}
 	}
 	if reg.trackCommitTimestamp {
-		if reg.commitTimestamps == nil {
-			reg.commitTimestamps = make(map[uint64]commitTimestampEntry)
+		if reg.CommitTimestamps == nil {
+			reg.CommitTimestamps = make(map[uint64]commitTimestampEntry)
 		}
 		if full > 0xffffffff {
-			delete(reg.commitTimestamps, full-(1<<32))
+			delete(reg.CommitTimestamps, full-(1<<32))
 		}
-		reg.commitTimestamps[full] = commitTimestampEntry{}
+		reg.CommitTimestamps[full] = commitTimestampEntry{}
 	}
-	if reg.entries == nil {
-		reg.entries = make(map[ids.TxRef]transactionVisibility)
+	if reg.Entries == nil {
+		reg.Entries = make(map[ids.TxRef]transactionVisibility)
 	}
-	if reg.transactionHistory == nil {
-		reg.transactionHistory = make(map[uint64]transactionIdentityRecord)
+	if reg.History == nil {
+		reg.History = make(map[uint64]transactionIdentityRecord)
 	}
-	reg.transactionHistory[full] = transactionIdentityRecord{ticket: v.ticket}
-	if reg.assignedLowIDs == nil {
-		reg.assignedLowIDs = make(map[uint32]uint64)
+	reg.History[full] = transactionIdentityRecord{Ticket: v.Ticket}
+	if reg.LowIDs == nil {
+		reg.LowIDs = make(map[uint32]uint64)
 	}
-	reg.assignedLowIDs[xid] = full
+	reg.LowIDs[xid] = full
 	reg.assignedXID = full
-	v.assignedXID, v.fullXID = xid, full
-	if v.ticket != nil {
-		v.ticket.MirrorFullXID(full)
-		v.ticket.MirrorCompletion(ids.TxInProgress)
+	v.AssignedXID, v.FullXID = xid, full
+	if v.Ticket != nil {
+		v.Ticket.MirrorFullXID(full)
+		v.Ticket.MirrorCompletion(ids.TxInProgress)
 	}
-	reg.entries[ref] = v
-	if node := reg.serializable.nodes[ref]; node != nil {
-		node.assignedXID = xid
+	reg.Entries[ref] = v
+	if node := reg.Serializable.Nodes[ref]; node != nil {
+		node.AssignedXID = xid
 	}
 	return nil
 }
@@ -81,27 +81,27 @@ func (reg *visibilityRegistry) assignTransactionXIDLocked(ref ids.TxRef) error {
 // All storage is reserved before the publisher's final no-failure region.
 // Consume completion ownership so an already-published utility cannot record twice.
 func (reg *visibilityRegistry) recordCommitTimestampLocked(ref ids.TxRef) {
-	v := reg.entries[ref]
-	if v.assignedXID == 0 {
+	v := reg.Entries[ref]
+	if v.AssignedXID == 0 {
 		return
 	}
 	reg.endTransactionIdentityLocked(ref, true)
 	if reg.trackCommitTimestamp {
-		entry := commitTimestampEntry{stamp: time.Now().UTC().Truncate(time.Microsecond), present: true}
-		reg.commitTimestamps[v.fullXID] = entry
-		reg.lastCommittedXID, reg.lastCommitTimestamp = v.assignedXID, entry
+		entry := commitTimestampEntry{Stamp: time.Now().UTC().Truncate(time.Microsecond), Present: true}
+		reg.CommitTimestamps[v.FullXID] = entry
+		reg.lastCommittedXID, reg.lastCommitTimestamp = v.AssignedXID, entry
 	}
-	v.assignedXID = 0
-	v.fullXID = 0
-	reg.entries[ref] = v
+	v.AssignedXID = 0
+	v.FullXID = 0
+	reg.Entries[ref] = v
 }
 
 func (reg *visibilityRegistry) retireCommitTimestampsLocked() {
-	reg.commitTimestamps = nil
+	reg.CommitTimestamps = nil
 	reg.commitTimestampBase = uint64(reg.assignedXID) + 1
 	reg.lastCommittedXID, reg.lastCommitTimestamp = 0, commitTimestampEntry{}
-	clear(reg.transactionHistory)
-	clear(reg.assignedLowIDs)
+	clear(reg.History)
+	clear(reg.LowIDs)
 	reg.transactionHorizon, _ = nextFullTransactionID(reg.assignedXID)
 }
 
@@ -127,5 +127,5 @@ func (reg *visibilityRegistry) lookupCommitTimestampLocked(xid uint32) commitTim
 	if full < reg.commitTimestampBase {
 		return commitTimestampEntry{}
 	}
-	return reg.commitTimestamps[full]
+	return reg.CommitTimestamps[full]
 }

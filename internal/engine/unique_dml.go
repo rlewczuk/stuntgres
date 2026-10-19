@@ -296,7 +296,7 @@ func uniqueRowExcluded(id ids.RowID, excluded []storage.RowVersion) bool {
 func uniqueRowDeleted(id ids.RowID, roots ...*privateDeletionRoot) bool {
 	for _, root := range roots {
 		if root != nil {
-			if _, ok := root.rows[id]; ok {
+			if _, ok := root.Rows[id]; ok {
 				return true
 			}
 		}

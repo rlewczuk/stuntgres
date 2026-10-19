@@ -11,21 +11,21 @@ import (
 )
 
 type deleteCandidate struct {
-	ref     ids.ObjectRef
-	storage *storage.Relation
-	row     ids.RowID
-	version ids.VersionID
-	base    ids.VersionID
-	ordinal int
-	own     bool
+	Ref     ids.ObjectRef
+	Storage *storage.Relation
+	Row     ids.RowID
+	Version ids.VersionID
+	Base    ids.VersionID
+	Ordinal int
+	Own     bool
 }
-type privateDeletionRoot struct{ rows map[ids.RowID]deleteCandidate }
+type privateDeletionRoot struct{ Rows map[ids.RowID]deleteCandidate }
 
 // A private replacement and an older retained snapshot may share RowID without
 // sharing lineage. End only the deleted version and its actual replacement base.
 func liveVersion(v storage.RowVersion, frontier ids.CommitSeq, ends *storage.DeletionRoot, own *privateDeletionRoot) bool {
 	if own != nil {
-		if deleted, ok := own.rows[v.Row]; ok && (v.Version == deleted.version || deleted.base != 0 && v.Version == deleted.base) {
+		if deleted, ok := own.Rows[v.Row]; ok && (v.Version == deleted.Version || deleted.Base != 0 && v.Version == deleted.Base) {
 			return false
 		}
 	}
@@ -57,14 +57,14 @@ func mergeDeletions(previous, staged map[ids.ObjectAddress]*privateDeletionRoot)
 			next[a] = root
 			continue
 		}
-		rows := make(map[ids.RowID]deleteCandidate, len(old.rows)+len(root.rows))
-		for id, candidate := range old.rows {
+		rows := make(map[ids.RowID]deleteCandidate, len(old.Rows)+len(root.Rows))
+		for id, candidate := range old.Rows {
 			rows[id] = candidate
 		}
-		for id, candidate := range root.rows {
+		for id, candidate := range root.Rows {
 			rows[id] = candidate
 		}
-		next[a] = &privateDeletionRoot{rows: rows}
+		next[a] = &privateDeletionRoot{Rows: rows}
 	}
 	return next
 }
@@ -73,12 +73,12 @@ func (s *StatementScope) acquireRow(candidate deleteCandidate) error {
 	if err := s.active(); err != nil {
 		return err
 	}
-	if s.ticket == nil || s.ticket.Ref() != s.txRef || txOwnerOf(s.txRef) != s.owner || s.txRef.Session() != s.op.session.token || candidate.storage == nil || candidate.storage != s.mutationStorage(candidate.ref) || candidate.row == 0 || candidate.version == 0 || candidate.ordinal < 0 {
+	if s.ticket == nil || s.ticket.Ref() != s.txRef || txOwnerOf(s.txRef) != s.owner || s.txRef.Session() != s.op.session.token || candidate.Storage == nil || candidate.Storage != s.mutationStorage(candidate.Ref) || candidate.Row == 0 || candidate.Version == 0 || candidate.Ordinal < 0 {
 		return errors.New("stuntgres: invalid row acquisition authority")
 	}
 	e := s.op.session.Engine()
 	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: candidate.ref, Row: candidate.row}, lock.ForUpdate, policy)
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: candidate.Ref, Row: candidate.Row}, lock.ForUpdate, policy)
 	if err != nil {
 		return err
 	}
@@ -100,7 +100,7 @@ func (s *StatementScope) acquireRow(candidate deleteCandidate) error {
 	if err = s.validateLockedRelation(e); err != nil {
 		return err
 	}
-	if candidate.ref.Domain() != e.catalog.Domain || candidate.ref.Epoch != e.catalog.state.Epoch() || candidate.storage != e.privateStorageLocked(s.owner.catalog, candidate.ref.Address) {
+	if candidate.Ref.Domain() != e.catalog.Domain || candidate.Ref.Epoch != e.catalog.state.Epoch() || candidate.Storage != e.privateStorageLocked(s.owner.catalog, candidate.Ref.Address) {
 		return ids.ErrCatalogReplaced
 	}
 	return nil
@@ -123,7 +123,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 	if err := s.active(); err != nil {
 		return false, err
 	}
-	if !s.op.session.Engine().locks.Holds(s.ticket, lock.Resource{ObjectRef: candidate.ref, Row: candidate.row}, lock.ForUpdate) {
+	if !s.op.session.Engine().locks.Holds(s.ticket, lock.Resource{ObjectRef: candidate.Ref, Row: candidate.Row}, lock.ForUpdate) {
 		return false, errors.New("stuntgres: deletion requires its row grant")
 	}
 	s.owner.mu.Lock()
@@ -134,49 +134,49 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if candidate.ref.Domain() != e.catalog.Domain || candidate.ref.Address.SubID != 0 || candidate.row == 0 || candidate.version == 0 {
+	if candidate.Ref.Domain() != e.catalog.Domain || candidate.Ref.Address.SubID != 0 || candidate.Row == 0 || candidate.Version == 0 {
 		return false, errors.New("stuntgres: invalid deletion identity")
 	}
-	if candidate.ref.Epoch != e.catalog.state.Epoch() || candidate.ref.Epoch != s.txRef.Epoch() || candidate.storage == nil || candidate.storage != e.privateStorageLocked(s.owner.catalog, candidate.ref.Address) {
+	if candidate.Ref.Epoch != e.catalog.state.Epoch() || candidate.Ref.Epoch != s.txRef.Epoch() || candidate.Storage == nil || candidate.Storage != e.privateStorageLocked(s.owner.catalog, candidate.Ref.Address) {
 		return false, ids.ErrCatalogReplaced
 	}
 	if s.view == nil {
 		return false, errors.New("stuntgres: deletion requires its candidate view")
 	}
-	data := s.view.read()
-	if candidate.storage != s.mutationStorage(candidate.ref) || candidate.storage != data.generationAt(candidate.ref.Address) {
+	data := s.view.Data()
+	if candidate.Storage != s.mutationStorage(candidate.Ref) || candidate.Storage != data.GenerationAt(candidate.Ref.Address) {
 		return false, errors.New("stuntgres: deletion is outside its candidate shape")
 	}
-	captured := data.committed[candidate.ref.Address]
-	if candidate.own {
-		captured = data.own[candidate.ref.Address]
+	captured := data.Committed[candidate.Ref.Address]
+	if candidate.Own {
+		captured = data.Own[candidate.Ref.Address]
 	}
-	if candidate.ordinal < 0 || candidate.ordinal >= len(captured) || captured[candidate.ordinal].Row != candidate.row || captured[candidate.ordinal].Version != candidate.version {
+	if candidate.Ordinal < 0 || candidate.Ordinal >= len(captured) || captured[candidate.Ordinal].Row != candidate.Row || captured[candidate.Ordinal].Version != candidate.Version {
 		return false, errors.New("stuntgres: deletion is outside its candidate view")
 	}
-	rows := s.ownWrites[candidate.ref.Address]
-	storage := e.privateStorageLocked(s.owner.catalog, candidate.ref.Address)
+	rows := s.ownWrites[candidate.Ref.Address]
+	storage := e.privateStorageLocked(s.owner.catalog, candidate.Ref.Address)
 	if storage == nil {
 		return false, errors.New("stuntgres: relation storage is missing")
 	}
-	if !candidate.own {
+	if !candidate.Own {
 		rows = storage.Versions
 	}
-	original, slot, found := rowByID(rows, candidate.row, candidate.ordinal)
-	relation, ok := e.privateCatalogLocked(s.owner.catalog).Relation(candidate.ref.Address)
+	original, slot, found := rowByID(rows, candidate.Row, candidate.Ordinal)
+	relation, ok := e.privateCatalogLocked(s.owner.catalog).Relation(candidate.Ref.Address)
 	if !found || !ok || len(original.Values) != len(relation.Columns) {
 		return false, errors.New("stuntgres: invalid deletion predecessor")
 	}
-	if !liveVersion(original, e.visibility.commitSeq, storage.Ends, s.ownDeletes[candidate.ref.Address]) {
+	if !liveVersion(original, e.visibility.commitSeq, storage.Ends, s.ownDeletes[candidate.Ref.Address]) {
 		return false, nil
 	}
-	candidate.version, candidate.ordinal = original.Version, slot
-	if candidate.own {
-		candidate.base = original.Base
+	candidate.Version, candidate.Ordinal = original.Version, slot
+	if candidate.Own {
+		candidate.Base = original.Base
 	}
-	root := w.deletes[candidate.ref.Address]
+	root := w.deletes[candidate.Ref.Address]
 	if root != nil {
-		if _, duplicate := root.rows[candidate.row]; duplicate {
+		if _, duplicate := root.Rows[candidate.Row]; duplicate {
 			return false, errors.New("stuntgres: duplicate staged deletion")
 		}
 	}
@@ -190,21 +190,21 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 // SSI evidence and exclusion projection after validating their own authority.
 func (w *WriteStage) stageDeletionLocked(e *Engine, candidate deleteCandidate, original storage.RowVersion) error {
 	s := w.scope
-	event := [1]serializableWrite{{row: candidate.row, version: candidate.version, base: original.Version, baseBorn: original.Born, creator: e.visibility.serializableCreatorLocked(original.Version), deletion: true}}
-	if err := e.serializableWriteLocked(s, candidate.ref, event[:]); err != nil {
+	event := [1]serializableWrite{{Row: candidate.Row, Version: candidate.Version, Base: original.Version, BaseBorn: original.Born, Creator: e.visibility.serializableCreatorLocked(original.Version), Deletion: true}}
+	if err := e.serializableWriteLocked(s, candidate.Ref, event[:]); err != nil {
 		return err
 	}
 	if w.deletes == nil {
 		w.deletes = make(map[ids.ObjectAddress]*privateDeletionRoot)
 	}
-	root := w.deletes[candidate.ref.Address]
+	root := w.deletes[candidate.Ref.Address]
 	if root == nil {
-		root = &privateDeletionRoot{rows: make(map[ids.RowID]deleteCandidate)}
-		w.deletes[candidate.ref.Address] = root
+		root = &privateDeletionRoot{Rows: make(map[ids.RowID]deleteCandidate)}
+		w.deletes[candidate.Ref.Address] = root
 	}
-	root.rows[candidate.row] = candidate
+	root.Rows[candidate.Row] = candidate
 	s.projectExclusionDeletionLocked(e, candidate)
-	s.multiEvents = append(s.multiEvents, lock.MultiEvent{Tuple: lock.MultiTuple{lock.Resource{ObjectRef: candidate.ref, Row: original.Row}, original.Version}, Mode: lock.MultiUpdateAction})
+	s.multiEvents = append(s.multiEvents, lock.MultiEvent{Tuple: lock.MultiTuple{lock.Resource{ObjectRef: candidate.Ref, Row: original.Row}, original.Version}, Mode: lock.MultiUpdateAction})
 	return nil
 }
 
@@ -222,7 +222,7 @@ func (s *StatementScope) executeDelete(b binding, view *VisibilityView, inputs *
 }
 
 func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, parameters []sqltype.Value) (Result, error) {
-	if b.storage == nil || b.storage != s.lockedStorage || b.storage != source.view.read().generationAt(b.ref.Address) {
+	if b.storage == nil || b.storage != s.lockedStorage || b.storage != source.view.Data().GenerationAt(b.ref.Address) {
 		if inputs != nil {
 			inputs.close()
 		}
@@ -304,12 +304,12 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		if !live {
 			continue
 		}
-		if current.Version != candidate.version {
-			if err := s.physicalRowEvent(candidate.ref, current, lock.MultiUpdateLock, 0); err != nil {
+		if current.Version != candidate.Version {
+			if err := s.physicalRowEvent(candidate.Ref, current, lock.MultiUpdateLock, 0); err != nil {
 				return Result{}, err
 			}
 		}
-		if current.Version != candidate.version && b.predicate != nil {
+		if current.Version != candidate.Version && b.predicate != nil {
 			evaluation.Row = physical.values(current)
 			value, err := b.predicate.Eval(&evaluation)
 			if err != nil {
@@ -323,7 +323,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 				continue
 			}
 		}
-		if err := s.claimUniqueRow(candidate.ref, current); err != nil {
+		if err := s.claimUniqueRow(candidate.Ref, current); err != nil {
 			return Result{}, err
 		}
 		deleted, err := s.Writes().Delete(candidate)
@@ -371,22 +371,22 @@ func (s *StatementScope) latestDeleteRow(candidate deleteCandidate) (storage.Row
 	if err := s.validateLockedRelation(e); err != nil {
 		return storage.RowVersion{}, false, err
 	}
-	store := e.privateStorageLocked(s.owner.catalog, candidate.ref.Address)
-	if store == nil || store != candidate.storage {
+	store := e.privateStorageLocked(s.owner.catalog, candidate.Ref.Address)
+	if store == nil || store != candidate.Storage {
 		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
 	}
 	rows := store.Versions
-	if candidate.own {
-		rows = s.ownWrites[candidate.ref.Address]
+	if candidate.Own {
+		rows = s.ownWrites[candidate.Ref.Address]
 	}
-	row, _, found := rowByID(rows, candidate.row, candidate.ordinal)
+	row, _, found := rowByID(rows, candidate.Row, candidate.Ordinal)
 	if !found {
 		return storage.RowVersion{}, false, errors.New("stuntgres: invalid deletion predecessor")
 	}
 	if err := s.repeatableConflict(row, store.Ends); err != nil {
 		return storage.RowVersion{}, false, err
 	}
-	return row, liveVersion(row, e.visibility.commitSeq, store.Ends, s.ownDeletes[candidate.ref.Address]), nil
+	return row, liveVersion(row, e.visibility.commitSeq, store.Ends, s.ownDeletes[candidate.Ref.Address]), nil
 }
 
 // The nil selection path remains allocation-free for undeleted prefixes.
@@ -395,8 +395,8 @@ func captureQuerySource(ctx context.Context, view *VisibilityView, ref ids.Objec
 	if err != nil {
 		return nil, err
 	}
-	data := source.view.read()
-	return selectQuerySource(ctx, source, data.frontierAt(ref.Address), data.ends[ref.Address], data.deleted[ref.Address])
+	data := source.view.Data()
+	return selectQuerySource(ctx, source, data.FrontierAt(ref.Address), data.Ends[ref.Address], data.Deleted[ref.Address])
 }
 
 func captureQueryPrefix(view *VisibilityView, ref ids.ObjectRef) (*querySource, error) {
@@ -404,16 +404,16 @@ func captureQueryPrefix(view *VisibilityView, ref ids.ObjectRef) (*querySource, 
 	if pin == nil {
 		return nil, errors.New("stuntgres: visibility view is released")
 	}
-	data := pin.read()
-	if data.catalog.Owner() == nil {
+	data := pin.Data()
+	if data.Catalog.Owner() == nil {
 		pin.Release()
 		return nil, errors.New("stuntgres: invalid visibility catalog")
 	}
-	if _, ok := data.committed[ref.Address]; !ok || ref.Domain() != data.catalog.Owner().Domain || ref.Epoch != data.catalog.Epoch() {
+	if _, ok := data.Committed[ref.Address]; !ok || ref.Domain() != data.Catalog.Owner().Domain || ref.Epoch != data.Catalog.Epoch() {
 		pin.Release()
 		return nil, errors.New("stuntgres: invalid visibility target")
 	}
-	return &querySource{view: pin, ref: ref, committed: data.committed[ref.Address], own: data.own[ref.Address], needsBirthFilter: data.needsBirthFilterAt(ref.Address)}, nil
+	return &querySource{view: pin, ref: ref, committed: data.Committed[ref.Address], own: data.Own[ref.Address], needsBirthFilter: data.NeedsBirthFilterAt(ref.Address)}, nil
 }
 
 // Query and catalog replacement share one physical-to-live head selection.

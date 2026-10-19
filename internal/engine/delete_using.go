@@ -89,7 +89,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 			return Result{}, err
 		}
 		candidate := pair.deleteCandidate
-		identity := mutationRowIdentity{candidate.ref, candidate.row}
+		identity := mutationRowIdentity{candidate.Ref, candidate.Row}
 		if deletedIDs[identity] {
 			continue
 		}
@@ -107,9 +107,9 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 		copy(frame[len(b.relation.Columns):], stage.source.row(stage.index(pair.sourceIndex)))
 		evaluation.Row = frame
 		evaluation.bindQueryIdentity(stage.source, stage.index(pair.sourceIndex))
-		evaluation.physicalTable = candidate.ref
-		if current.Version != candidate.version {
-			if err := s.physicalRowEvent(candidate.ref, current, lock.MultiUpdateLock, 0); err != nil {
+		evaluation.physicalTable = candidate.Ref
+		if current.Version != candidate.Version {
+			if err := s.physicalRowEvent(candidate.Ref, current, lock.MultiUpdateLock, 0); err != nil {
 				return Result{}, err
 			}
 			matches, err := updateMatches(evaluation, b.predicate)
@@ -120,7 +120,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 				continue
 			}
 		}
-		if err := s.claimUniqueRow(candidate.ref, current); err != nil {
+		if err := s.claimUniqueRow(candidate.Ref, current); err != nil {
 			return Result{}, err
 		}
 		deleted, err := s.Writes().Delete(candidate)

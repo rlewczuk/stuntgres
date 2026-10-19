@@ -12,44 +12,44 @@ import (
 // No graph operation takes a peer transaction's mutex. Records outlive their
 // session while overlapping owners remain; visibility roots stay TX-owned.
 type serializableTracker struct {
-	nodes    map[ids.TxRef]*serializableTransaction
-	creators map[ids.VersionID]ids.TxRef
+	Nodes    map[ids.TxRef]*serializableTransaction
+	Creators map[ids.VersionID]ids.TxRef
 	order    uint64
 }
 
 type serializableTransaction struct {
-	ref                                                 ids.TxRef
-	assignedXID                                         uint32 // Retained canonical public identity, including after completion.
-	captured, readOnly, deferrable                      bool
-	frontier                                            ids.CommitSeq
-	snapshotOrder, order                                uint64
-	commitFrontier                                      ids.CommitSeq
-	commitOrder                                         uint64
-	didWrite, doomed, committed, ended, aborted, exempt bool
-	finalized, prepared                                 bool
-	reads                                               map[ids.ObjectAddress]struct{}
-	writes                                              map[ids.ObjectAddress]map[serializableWriteKey]serializableWrite
-	incoming, outgoing                                  map[*serializableTransaction]struct{}
-	possible                                            map[*serializableTransaction]struct{}
-	ready                                               chan struct{}
-	resolved, unsafe                                    bool
+	Ref                                                 ids.TxRef
+	AssignedXID                                         uint32 // Retained canonical public identity, including after completion.
+	Captured, ReadOnly, Deferrable                      bool
+	Frontier                                            ids.CommitSeq
+	SnapshotOrder, Order                                uint64
+	CommitFrontier                                      ids.CommitSeq
+	CommitOrder                                         uint64
+	DidWrite, Doomed, Committed, Ended, Aborted, Exempt bool
+	Finalized, Prepared                                 bool
+	Reads                                               map[ids.ObjectAddress]struct{}
+	Writes                                              map[ids.ObjectAddress]map[serializableWriteKey]serializableWrite
+	Incoming, Outgoing                                  map[*serializableTransaction]struct{}
+	Possible                                            map[*serializableTransaction]struct{}
+	Ready                                               chan struct{}
+	Resolved, Unsafe                                    bool
 }
 
 // A retained event contains identities, never row values. baseBorn and creator
 // select the invisible creator rather than an ender of that invisible version.
 type serializableWrite struct {
-	row               ids.RowID
-	version, base     ids.VersionID
-	baseBorn          ids.CommitSeq
-	creator           ids.TxRef
-	deletion, rewrite bool
+	Row               ids.RowID
+	Version, Base     ids.VersionID
+	BaseBorn          ids.CommitSeq
+	Creator           ids.TxRef
+	Deletion, Rewrite bool
 }
 
 // Creation and ending of the same version survive/reconcile independently.
 // The zero version is reserved for the relation-wide rewrite event.
 type serializableWriteKey struct {
-	version  ids.VersionID
-	deletion bool
+	Version  ids.VersionID
+	Deletion bool
 }
 
 func stableIsolation(level Isolation) bool { return level == RepeatableRead || level == Serializable }
@@ -71,59 +71,59 @@ func (e *Engine) enrollSerializableLocked(ref ids.TxRef, isolation Isolation) {
 // transaction and drops an uncaptured one otherwise. A captured node keeps
 // its snapshot's mode. Caller holds Engine.mu and has fenced ref.
 func (reg *visibilityRegistry) enrollSerializableLocked(ref ids.TxRef, serializable bool) {
-	node := reg.serializable.nodes[ref]
-	if node != nil && node.captured {
+	node := reg.Serializable.Nodes[ref]
+	if node != nil && node.Captured {
 		return
 	}
 	if !serializable {
-		delete(reg.serializable.nodes, ref)
+		delete(reg.Serializable.Nodes, ref)
 		return
 	}
 	if node == nil {
-		if reg.serializable.nodes == nil {
-			reg.serializable.nodes = make(map[ids.TxRef]*serializableTransaction)
+		if reg.Serializable.Nodes == nil {
+			reg.Serializable.Nodes = make(map[ids.TxRef]*serializableTransaction)
 		}
-		if reg.serializable.creators == nil {
-			reg.serializable.creators = make(map[ids.VersionID]ids.TxRef)
+		if reg.Serializable.Creators == nil {
+			reg.Serializable.Creators = make(map[ids.VersionID]ids.TxRef)
 		}
-		reg.serializable.nodes[ref] = &serializableTransaction{ref: ref, assignedXID: reg.entries[ref].assignedXID, reads: make(map[ids.ObjectAddress]struct{}), writes: make(map[ids.ObjectAddress]map[serializableWriteKey]serializableWrite), incoming: make(map[*serializableTransaction]struct{}), outgoing: make(map[*serializableTransaction]struct{})}
+		reg.Serializable.Nodes[ref] = &serializableTransaction{Ref: ref, AssignedXID: reg.Entries[ref].AssignedXID, Reads: make(map[ids.ObjectAddress]struct{}), Writes: make(map[ids.ObjectAddress]map[serializableWriteKey]serializableWrite), Incoming: make(map[*serializableTransaction]struct{}), Outgoing: make(map[*serializableTransaction]struct{})}
 	}
 }
 
 func serializableRelevant(node *serializableTransaction) bool {
-	return node != nil && node.captured && !node.aborted && !node.exempt
+	return node != nil && node.Captured && !node.Aborted && !node.Exempt
 }
 func serializableReadOnly(node *serializableTransaction) bool {
-	return !node.didWrite && (node.readOnly || node.finalized)
+	return !node.DidWrite && (node.ReadOnly || node.Finalized)
 }
 func serializableOverlap(a, b *serializableTransaction) bool {
 	// Preparation orders dangerous structures but does not end overlap. A
 	// snapshot taken while an entry is prepared still overlaps its later commit.
-	return serializableRelevant(a) && serializableRelevant(b) && a != b && a.ref.Epoch() == b.ref.Epoch() && (!a.committed || a.commitOrder > b.snapshotOrder) && (!b.committed || b.commitOrder > a.snapshotOrder)
+	return serializableRelevant(a) && serializableRelevant(b) && a != b && a.Ref.Epoch() == b.Ref.Epoch() && (!a.Committed || a.CommitOrder > b.SnapshotOrder) && (!b.Committed || b.CommitOrder > a.SnapshotOrder)
 }
 
 // REL_18_0 OnConflict_CheckForSerializationFailure. Finalized nodes are immune;
 // prepared finalization orders conflicts without resolving committed outcome.
 func (reg *visibilityRegistry) serializableEdgeLocked(current, reader, writer *serializableTransaction) error {
-	if !serializableOverlap(reader, writer) || reader.doomed || writer.doomed {
+	if !serializableOverlap(reader, writer) || reader.Doomed || writer.Doomed {
 		return nil
 	}
-	if _, exists := reader.outgoing[writer]; exists {
+	if _, exists := reader.Outgoing[writer]; exists {
 		return nil
 	}
 	failure := false
-	for out := range writer.outgoing {
-		if !serializableRelevant(out) || out.doomed {
+	for out := range writer.Outgoing {
+		if !serializableRelevant(out) || out.Doomed {
 			continue
 		}
-		if out.finalized && (!reader.finalized || out.order <= reader.order) && (!writer.finalized || out.order <= writer.order) && (!serializableReadOnly(reader) || out.order <= reader.snapshotOrder) {
+		if out.Finalized && (!reader.Finalized || out.Order <= reader.Order) && (!writer.Finalized || out.Order <= writer.Order) && (!serializableReadOnly(reader) || out.Order <= reader.SnapshotOrder) {
 			failure = true
 			break
 		}
 	}
-	if !failure && writer.finalized && !serializableReadOnly(reader) {
-		for in := range reader.incoming {
-			if serializableRelevant(in) && !in.doomed && (!in.finalized || in.order >= writer.order) && (!serializableReadOnly(in) || in.snapshotOrder >= writer.order) {
+	if !failure && writer.Finalized && !serializableReadOnly(reader) {
+		for in := range reader.Incoming {
+			if serializableRelevant(in) && !in.Doomed && (!in.Finalized || in.Order >= writer.Order) && (!serializableReadOnly(in) || in.SnapshotOrder >= writer.Order) {
 				failure = true
 				break
 			}
@@ -131,51 +131,51 @@ func (reg *visibilityRegistry) serializableEdgeLocked(current, reader, writer *s
 	}
 	if failure {
 		if current == writer {
-			writer.doomed = true
+			writer.Doomed = true
 			return serializableError("Canceled on identification as a pivot, during write.")
 		}
-		if writer.finalized {
-			return serializableError(fmt.Sprintf("Canceled on conflict out to pivot %d, during read.", writer.assignedXID))
+		if writer.Finalized {
+			return serializableError(fmt.Sprintf("Canceled on conflict out to pivot %d, during read.", writer.AssignedXID))
 		}
-		writer.doomed = true
+		writer.Doomed = true
 	}
-	reader.outgoing[writer] = struct{}{}
-	writer.incoming[reader] = struct{}{}
+	reader.Outgoing[writer] = struct{}{}
+	writer.Incoming[reader] = struct{}{}
 	return nil
 }
 
 func (reg *visibilityRegistry) serializablePrecommitLocked(ref ids.TxRef) error {
-	node := reg.serializable.nodes[ref]
+	node := reg.Serializable.Nodes[ref]
 	if !serializableRelevant(node) {
 		return nil
 	}
-	if node.doomed {
+	if node.Doomed {
 		return serializableError("Canceled on identification as a pivot, during commit attempt.")
 	}
-	if reg.serializable.order == ^uint64(0) {
+	if reg.Serializable.order == ^uint64(0) {
 		return errors.New("stuntgres: serialization finalization order exhausted")
 	}
-	if node.finalized {
+	if node.Finalized {
 		return nil
 	}
-	for pivot := range node.incoming {
-		if !serializableRelevant(pivot) || !pivot.prepared || pivot.doomed {
+	for pivot := range node.Incoming {
+		if !serializableRelevant(pivot) || !pivot.Prepared || pivot.Doomed {
 			continue
 		}
-		for in := range pivot.incoming {
-			if in == node || serializableRelevant(in) && !in.finalized && !serializableReadOnly(in) && !in.doomed {
+		for in := range pivot.Incoming {
+			if in == node || serializableRelevant(in) && !in.Finalized && !serializableReadOnly(in) && !in.Doomed {
 				return serializableError("Canceled on commit attempt with conflict in from prepared pivot.")
 			}
 		}
 	}
 	// Validate all potential vetoes before selecting any peer victim.
-	for pivot := range node.incoming {
-		if !serializableRelevant(pivot) || pivot.finalized || pivot.doomed {
+	for pivot := range node.Incoming {
+		if !serializableRelevant(pivot) || pivot.Finalized || pivot.Doomed {
 			continue
 		}
-		for in := range pivot.incoming {
-			if in == node || serializableRelevant(in) && !in.finalized && !serializableReadOnly(in) && !in.doomed {
-				pivot.doomed = true
+		for in := range pivot.Incoming {
+			if in == node || serializableRelevant(in) && !in.Finalized && !serializableReadOnly(in) && !in.Doomed {
+				pivot.Doomed = true
 				break
 			}
 		}
@@ -185,55 +185,55 @@ func (reg *visibilityRegistry) serializablePrecommitLocked(ref ids.TxRef) error 
 
 // Called only at the callback-free installation boundary, Engine.mu held.
 func (reg *visibilityRegistry) serializableCommittedLocked(ref ids.TxRef, frontier ids.CommitSeq) {
-	node := reg.serializable.nodes[ref]
+	node := reg.Serializable.Nodes[ref]
 	if !serializableRelevant(node) {
 		return
 	}
-	reg.serializable.order++
-	node.commitOrder = reg.serializable.order
-	if !node.finalized {
-		node.order = node.commitOrder
-		node.finalized = true
+	reg.Serializable.order++
+	node.CommitOrder = reg.Serializable.order
+	if !node.Finalized {
+		node.Order = node.CommitOrder
+		node.Finalized = true
 	}
-	node.commitFrontier = frontier
-	node.committed = true
+	node.CommitFrontier = frontier
+	node.Committed = true
 	reg.resolveSerializableCandidatesLocked(node)
 }
 
 func (reg *visibilityRegistry) serializablePreparedLocked(ref ids.TxRef) {
-	node := reg.serializable.nodes[ref]
+	node := reg.Serializable.Nodes[ref]
 	if !serializableRelevant(node) {
 		return
 	}
-	reg.serializable.order++
-	node.order = reg.serializable.order
-	node.finalized, node.prepared = true, true
+	reg.Serializable.order++
+	node.Order = reg.Serializable.order
+	node.Finalized, node.Prepared = true, true
 }
 
 func (reg *visibilityRegistry) resolveSerializableCandidatesLocked(writer *serializableTransaction) {
-	for _, candidate := range reg.serializable.nodes {
-		if candidate.resolved {
+	for _, candidate := range reg.Serializable.Nodes {
+		if candidate.Resolved {
 			continue
 		}
-		if _, possible := candidate.possible[writer]; !possible {
+		if _, possible := candidate.Possible[writer]; !possible {
 			continue
 		}
-		delete(candidate.possible, writer)
-		if writer.committed && writer.didWrite {
-			for out := range writer.outgoing {
-				if serializableRelevant(out) && out.committed && out.order <= candidate.snapshotOrder {
-					candidate.unsafe = true
+		delete(candidate.Possible, writer)
+		if writer.Committed && writer.DidWrite {
+			for out := range writer.Outgoing {
+				if serializableRelevant(out) && out.Committed && out.Order <= candidate.SnapshotOrder {
+					candidate.Unsafe = true
 					break
 				}
 			}
 		}
-		if candidate.unsafe || len(candidate.possible) == 0 {
-			candidate.resolved = true
-			if !candidate.unsafe {
-				candidate.exempt = true
+		if candidate.Unsafe || len(candidate.Possible) == 0 {
+			candidate.Resolved = true
+			if !candidate.Unsafe {
+				candidate.Exempt = true
 			}
-			if candidate.ready != nil {
-				close(candidate.ready)
+			if candidate.Ready != nil {
+				close(candidate.Ready)
 			}
 		}
 	}
@@ -261,27 +261,27 @@ func (e *Engine) endSerializableLocked(ref ids.TxRef, committed bool) {
 // is cleared once no live participant remains. Caller holds Engine.mu.
 func (reg *visibilityRegistry) endTransactionLocked(ref ids.TxRef, committed bool) {
 	reg.endTransactionIdentityLocked(ref, committed)
-	delete(reg.entries, ref)
-	node := reg.serializable.nodes[ref]
-	if node == nil || node.ended {
+	delete(reg.Entries, ref)
+	node := reg.Serializable.Nodes[ref]
+	if node == nil || node.Ended {
 		return
 	}
-	node.ended = true
+	node.Ended = true
 	if !committed {
-		node.aborted = true
+		node.Aborted = true
 		reg.resolveSerializableCandidatesLocked(node)
 	}
-	if node.ready != nil && !node.resolved {
-		node.resolved = true
-		close(node.ready)
+	if node.Ready != nil && !node.Resolved {
+		node.Resolved = true
+		close(node.Ready)
 	}
-	for _, active := range reg.serializable.nodes {
-		if !active.ended && !active.exempt && !active.aborted {
+	for _, active := range reg.Serializable.Nodes {
+		if !active.Ended && !active.Exempt && !active.Aborted {
 			return
 		}
 	}
-	clear(reg.serializable.nodes)
-	clear(reg.serializable.creators)
+	clear(reg.Serializable.Nodes)
+	clear(reg.Serializable.Creators)
 }
 
 // Epoch replacement wakes every unresolved acquisition. Operation/ref epoch
@@ -294,14 +294,14 @@ func (e *Engine) fenceSerializableLocked() {
 // fenceLocked drops every visibility entry and aborts every tracker node,
 // waking unresolved acquisitions. Caller holds Engine.mu.
 func (reg *visibilityRegistry) fenceLocked() {
-	clear(reg.entries)
-	for _, node := range reg.serializable.nodes {
-		node.aborted = true
-		if node.ready != nil && !node.resolved {
-			node.resolved = true
-			close(node.ready)
+	clear(reg.Entries)
+	for _, node := range reg.Serializable.Nodes {
+		node.Aborted = true
+		if node.Ready != nil && !node.Resolved {
+			node.Resolved = true
+			close(node.Ready)
 		}
 	}
-	clear(reg.serializable.nodes)
-	clear(reg.serializable.creators)
+	clear(reg.Serializable.Nodes)
+	clear(reg.Serializable.Creators)
 }

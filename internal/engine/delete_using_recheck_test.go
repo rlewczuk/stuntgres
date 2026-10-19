@@ -24,7 +24,7 @@ func TestDeleteUsingLateRecheckFailureDiscardsStage(t *testing.T) {
 	b.predicate = queryProbe(predicate.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 		if testExport(c.Row[1]) == int64(21) {
 			root := scope.stage.deletes[b.ref.Address]
-			if root == nil || len(root.rows) != 1 {
+			if root == nil || len(root.Rows) != 1 {
 				t.Fatal("recheck did not follow a staged earlier target", root)
 			}
 			failed = true

@@ -462,8 +462,8 @@ func selectQuerySources(ctx context.Context, source *querySource) error {
 		if source.view == nil {
 			return ctx.Err()
 		}
-		data := source.view.read()
-		_, err := selectQuerySource(ctx, source, data.frontierAt(source.ref.Address), data.ends[source.ref.Address], data.deleted[source.ref.Address])
+		data := source.view.Data()
+		_, err := selectQuerySource(ctx, source, data.FrontierAt(source.ref.Address), data.Ends[source.ref.Address], data.Deleted[source.ref.Address])
 		return err
 	}
 	if source.sources == nil {

@@ -197,7 +197,7 @@ func (e *Engine) safeSnapshotBlockingPidsLocked(pid ids.SessionID, typ *sqltype.
 	var values []sqltype.Value
 	for _, writer := range e.visibility.safeSnapshotBlockersLocked(e.catalog.Domain, e.catalog.state.Epoch(), e.catalog.Domain.Session(pid)) {
 		var err error
-		values, err = appendBlockingPid(values, typ, writer.session, writer.prepared, e.catalog.Domain)
+		values, err = appendBlockingPid(values, typ, writer.Session, writer.Prepared, e.catalog.Domain)
 		if err != nil {
 			return nil, err
 		}
@@ -208,24 +208,24 @@ func (e *Engine) safeSnapshotBlockingPidsLocked(pid ids.SessionID, typ *sqltype.
 // safeSnapshotBlocker is a live read-write transaction that a DEFERRABLE
 // safe-snapshot acquisition still waits out.
 type safeSnapshotBlocker struct {
-	session  ids.SessionToken
-	prepared bool
+	Session  ids.SessionToken
+	Prepared bool
 }
 
 // safeSnapshotBlockersLocked lists the writers blocking session's unresolved
 // DEFERRABLE acquisition in domain and epoch, or nil when it has none.
 // Caller holds Engine.mu.
 func (reg *visibilityRegistry) safeSnapshotBlockersLocked(domain *ids.Domain, epoch ids.CatalogEpoch, session ids.SessionToken) []safeSnapshotBlocker {
-	for ref, node := range reg.serializable.nodes {
-		if ref.Domain() != domain || ref.Epoch() != epoch || ref.Session() != session || node.prepared || !node.captured || !node.readOnly || !node.deferrable || node.aborted || node.ended || node.committed || node.resolved || node.ready == nil {
+	for ref, node := range reg.Serializable.Nodes {
+		if ref.Domain() != domain || ref.Epoch() != epoch || ref.Session() != session || node.Prepared || !node.Captured || !node.ReadOnly || !node.Deferrable || node.Aborted || node.Ended || node.Committed || node.Resolved || node.Ready == nil {
 			continue
 		}
 		var blockers []safeSnapshotBlocker
-		for writer := range node.possible {
-			if writer.ref.Domain() != domain || writer.ref.Epoch() != ref.Epoch() || reg.serializable.nodes[writer.ref] != writer || writer.aborted || writer.ended || writer.committed {
+		for writer := range node.Possible {
+			if writer.Ref.Domain() != domain || writer.Ref.Epoch() != ref.Epoch() || reg.Serializable.Nodes[writer.Ref] != writer || writer.Aborted || writer.Ended || writer.Committed {
 				continue
 			}
-			blockers = append(blockers, safeSnapshotBlocker{session: writer.ref.Session(), prepared: writer.prepared})
+			blockers = append(blockers, safeSnapshotBlocker{Session: writer.Ref.Session(), Prepared: writer.Prepared})
 		}
 		return blockers
 	}

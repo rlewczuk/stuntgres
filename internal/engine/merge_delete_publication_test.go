@@ -115,23 +115,23 @@ func TestMergeDeleteLineage(t *testing.T) {
 			}
 			var candidate deleteCandidate
 			for _, root := range scope.stage.deletes {
-				for _, c := range root.rows {
+				for _, c := range root.Rows {
 					candidate = c
 				}
 			}
-			if candidate.row == 0 {
+			if candidate.Row == 0 {
 				scope.Finish(errors.New("missing candidate"))
 				t.Fatal("no actual deletion candidate")
 			}
 			switch fault {
 			case "ordinal":
-				candidate.ordinal++
+				candidate.Ordinal++
 			case "version":
-				candidate.version++
+				candidate.Version++
 			case "storage":
-				candidate.storage = &storage.Relation{}
+				candidate.Storage = &storage.Relation{}
 			case "ref":
-				candidate.ref.Epoch++
+				candidate.Ref.Epoch++
 			case "copiedStage":
 			}
 			if fault == "copiedStage" {

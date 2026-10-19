@@ -277,7 +277,7 @@ func materializedSourceCurrent(snapshot *visibilityData, observed catalog.Descri
 	if current.Get(observed.Address()) == observed {
 		return true
 	}
-	if snapshot == nil || snapshot.catalog.Epoch() != current.Epoch() || snapshot.catalog.Get(observed.Address()) != observed {
+	if snapshot == nil || snapshot.Catalog.Epoch() != current.Epoch() || snapshot.Catalog.Get(observed.Address()) != observed {
 		return false
 	}
 	old, ok := observed.(*catalog.Relation)
@@ -285,7 +285,7 @@ func materializedSourceCurrent(snapshot *visibilityData, observed catalog.Descri
 		return false
 	}
 	live, _ := current.Relation(observed.Address())
-	return sameMaterializedLineage(old, live, snapshot.generationAt(observed.Address()), store)
+	return sameMaterializedLineage(old, live, snapshot.GenerationAt(observed.Address()), store)
 }
 
 type materializedSourceFence struct {

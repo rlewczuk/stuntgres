@@ -145,7 +145,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer source.close()
-	if len(refs) != 3 || view != scope.view || source.view.read() != view.read() {
+	if len(refs) != 3 || view != scope.view || source.view.Data() != view.Data() {
 		t.Fatal("growth did not use sole complete statement snapshot", refs)
 	}
 	if err = selectQuerySources(op.Context(), source); err != nil {
@@ -163,7 +163,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 		t.Fatal("wait reconciliation omitted late committed row", got)
 	}
 	for _, segment := range source.inheritance {
-		if segment.prefix.view.read() != view.read() || &segment.prefix.committed[0] != &e.storage.Relations[segment.leaf.ref.Address].Versions[0] {
+		if segment.prefix.view.Data() != view.Data() || &segment.prefix.committed[0] != &e.storage.Relations[segment.leaf.ref.Address].Versions[0] {
 			t.Fatal("capture copied roots or minted another snapshot")
 		}
 	}

@@ -38,19 +38,19 @@ func (e *Engine) capturePartialMaskLocked(scope *StatementScope, leaf queryLeaf,
 	if candidate == nil || view == nil || scope.owner.catalog != nil || stableIsolation(scope.owner.isolation) || scope.queryLocks != nil || mark.mode != 0 {
 		return nil
 	}
-	data := view.read()
-	if data == nil || data.catalog.State() != e.catalog.state || data.catalog.Owner() != e.catalog.owner() || leaf.ref.Domain() != e.catalog.Domain || leaf.ref.Epoch != e.catalog.state.Epoch() {
+	data := view.Data()
+	if data == nil || data.Catalog.State() != e.catalog.state || data.Catalog.Owner() != e.catalog.owner() || leaf.ref.Domain() != e.catalog.Domain || leaf.ref.Epoch != e.catalog.state.Epoch() {
 		return nil
 	}
 	parent := leaf.ref.Address
-	if len(data.own[parent]) != 0 || data.deleted[parent] != nil || len(data.rewrittenFrontiers) != 0 || data.frontierAt(parent) != e.visibility.commitSeq {
+	if len(data.Own[parent]) != 0 || data.Deleted[parent] != nil || len(data.RewrittenFrontiers) != 0 || data.FrontierAt(parent) != e.visibility.commitSeq {
 		return nil
 	}
 	store := e.storage.Relations[parent]
-	if store == nil || data.generationAt(parent) != store || leaf.storage != store || len(data.committed[parent]) != len(store.Versions) || data.ends[parent] != store.Ends {
+	if store == nil || data.GenerationAt(parent) != store || leaf.storage != store || len(data.Committed[parent]) != len(store.Versions) || data.Ends[parent] != store.Ends {
 		return nil
 	}
-	prefix := data.committed[parent]
+	prefix := data.Committed[parent]
 	if len(prefix) != 0 && &prefix[0] != &store.Versions[0] {
 		return nil
 	}

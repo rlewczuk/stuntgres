@@ -14,8 +14,8 @@ import (
 func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	f, _, _, view := partialMaskFixture(t)
 	ctx := context.Background()
-	capture := view.read().catalog
-	rows := view.read().committed[f.parent.Address()]
+	capture := view.Data().Catalog
+	rows := view.Data().Committed[f.parent.Address()]
 	oldRoot := f.e.storage.IndexRoots[f.index.Address()]
 	ref := f.e.catalog.Domain.Ref(capture.Epoch(), f.index.Address())
 	retained, _, err := projectIndexMetadata(ctx, capture, ref)

@@ -138,10 +138,10 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 	capture := func(i int, class parser.MergeMatch, source int) mergeCandidate {
 		slot := target.rawIndex(i)
 		old := target.versionAt(slot)
-		deletion := deleteCandidate{ref: b.ref, storage: b.storage, row: old.Row, version: old.Version, ordinal: slot}
+		deletion := deleteCandidate{Ref: b.ref, Storage: b.storage, Row: old.Row, Version: old.Version, Ordinal: slot}
 		if slot >= len(target.committed) {
-			deletion.own = true
-			deletion.ordinal -= len(target.committed)
+			deletion.Own = true
+			deletion.Ordinal -= len(target.committed)
 		}
 		return mergeCandidate{updateCandidate: updateCandidate{RowVersion: old, slot: slot, sourceIndex: source}, class: class, deletion: deletion}
 	}
@@ -376,7 +376,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 		// Retire exclusion authority in actual action order before later admission.
 		// Canonical Delete still validates the original captured provenance at stage.
 		projected := deletion
-		projected.version = old.Version
+		projected.Version = old.Version
 		e.mu.Lock()
 		scope.projectExclusionDeletionLocked(e, projected)
 		e.mu.Unlock()

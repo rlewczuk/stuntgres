@@ -169,7 +169,7 @@ func TestUpdateCoreMultirowAllocation(t *testing.T) {
 		sessionSQL(t, s, q.String())
 		op, scope, bound, source := updateBoundSource(t, e, s, context.Background(), "UPDATE t SET v=v+1")
 		retained := source.view.Retain()
-		old := retained.read().committed[bound.ref.Address]
+		old := retained.Data().Committed[bound.ref.Address]
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
 		result, err := e.executeUpdate(op.Context(), scope, bound, source, nil, nil, "public")

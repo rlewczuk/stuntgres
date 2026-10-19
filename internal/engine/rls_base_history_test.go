@@ -59,14 +59,14 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data := view.read()
+	data := view.Data()
 	address := leaf.ref.Address
-	committedEnd, privateEnd := data.ends[address], data.deleted[address]
-	if len(data.committed[address]) < 4 || committedEnd == nil || len(committedEnd.Rows) == 0 || privateEnd == nil || len(privateEnd.rows) == 0 {
+	committedEnd, privateEnd := data.Ends[address], data.Deleted[address]
+	if len(data.Committed[address]) < 4 || committedEnd == nil || len(committedEnd.Rows) == 0 || privateEnd == nil || len(privateEnd.Rows) == 0 {
 		t.Fatal("fixture lacks actual committed/private deletion history")
 	}
 	replacements := 0
-	for _, row := range data.own[address] {
+	for _, row := range data.Own[address] {
 		if row.Base != 0 {
 			replacements++
 		}
@@ -74,11 +74,11 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 	if replacements < 2 {
 		t.Fatal("fixture lacks actual multiple private replacement versions", replacements)
 	}
-	generation := data.generationAt(address)
-	if generation == nil || generation != leaf.storage || data.catalog.Epoch() != leaf.ref.Epoch {
+	generation := data.GenerationAt(address)
+	if generation == nil || generation != leaf.storage || data.Catalog.Epoch() != leaf.ref.Epoch {
 		t.Fatal("fixture lost actual storage/catalog generation")
 	}
-	descriptor := data.catalog.MustRelation(address)
+	descriptor := data.Catalog.MustRelation(address)
 	if !descriptor.Security.RLSEnabled || !descriptor.Security.RLSForced {
 		t.Fatal("fixture lacks actual published RLS flags")
 	}
@@ -95,13 +95,13 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 		func() {
 			defer source.close()
 			source.borrowAuthority(scope)
-			if !source.rlsDenied || source.ref != leaf.ref || source.view == nil || source.view.read() != data || source.view.read().generationAt(address) != generation {
+			if !source.rlsDenied || source.ref != leaf.ref || source.view == nil || source.view.Data() != data || source.view.Data().GenerationAt(address) != generation {
 				t.Fatal("denied target lost retained identity/ownership/generation")
 			}
 			if source.committed != nil || source.own != nil || source.visible != nil || source.hashIndexes != nil || source.partialMask != nil {
 				t.Fatal("denied target captured physical prefixes or live selection")
 			}
-			selected, err := selectQuerySource(op.ctx, source, data.frontierAt(address), committedEnd, privateEnd)
+			selected, err := selectQuerySource(op.ctx, source, data.FrontierAt(address), committedEnd, privateEnd)
 			if err != nil || selected != source || source.visible != nil || source.committed != nil || source.own != nil {
 				t.Fatal("hidden history revived denied target", err)
 			}
@@ -112,10 +112,10 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 				t.Fatal("denied target lost typed stage ownership", err)
 			}
 		}()
-		if pin.data.Load() != nil {
+		if pin.Load() != nil {
 			t.Fatal("closing denied target retained its visibility pin")
 		}
-		if view.read() != data || data.ends[address] != committedEnd || data.deleted[address] != privateEnd || data.generationAt(address) != generation {
+		if view.Data() != data || data.Ends[address] != committedEnd || data.Deleted[address] != privateEnd || data.GenerationAt(address) != generation {
 			t.Fatal("denied close changed shared roots/generation")
 		}
 	}

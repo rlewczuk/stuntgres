@@ -149,11 +149,11 @@ func logicalColumnValue(d *catalog.Relation, slot int, row []sqltype.Value, c *E
 // Rechecks borrow the complete latest logical tuple without rereading a source
 // whose inheritance mapping scratch may still hold that same tuple.
 func (e columnExpression) capturedGeneration(source *querySource, index int, current []sqltype.Value, c *EvalContext) (expr.Expr, []sqltype.Value, error) {
-	data := source.view.data.Load()
+	data := source.view.Load()
 	if data == nil {
 		return nil, nil, fmt.Errorf("stuntgres: virtual source snapshot is released")
 	}
-	logical, ok := data.catalog.Relation(source.ref.Address)
+	logical, ok := data.Catalog.Relation(source.ref.Address)
 	if !ok {
 		return nil, nil, fmt.Errorf("stuntgres: missing virtual source descriptor")
 	}

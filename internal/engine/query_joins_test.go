@@ -122,11 +122,11 @@ func TestQueryJoinsMergedMetadataAndFrames(t *testing.T) {
 	if len(join.Schema()) != 6 || len(query.Root.Schema()) != 3 {
 		t.Fatal(join.Schema(), query.Root.Schema())
 	}
-	if source.sources[0].view.read() != source.sources[1].view.read() || len(source.view.read().committed) != 2 {
+	if source.sources[0].view.Data() != source.sources[1].view.Data() || len(source.view.Data().Committed) != 2 {
 		t.Fatal("not one selected multi-table view")
 	}
 	unused := catalogRef(t, e, source.view.Catalog(), "unused")
-	if _, ok := source.view.read().committed[unused.Address]; ok {
+	if _, ok := source.view.Data().Committed[unused.Address]; ok {
 		t.Fatal("unrelated root captured")
 	}
 	project := query.Root.(*projectNode)
@@ -394,17 +394,17 @@ func TestQueryJoinsEmptyOperandStillPreflightsOtherChild(t *testing.T) {
 func TestQueryJoinsVisibilityReleaseAuthority(t *testing.T) {
 	_, query, source := queryJoinsFixture(t, "SELECT a.k FROM a JOIN b USING(k)")
 	for _, child := range source.sources {
-		data := child.view.read()
+		data := child.view.Data()
 		forged := VisibilityView{self: child.view}
 		forged.data.Store(data)
 		forged.Release()
-		if forged.Retain() != nil || child.view.read() != data {
+		if forged.Retain() != nil || child.view.Data() != data {
 			t.Fatal("forged view acquired release authority")
 		}
 		retained := child.view.Retain()
 		retained.Release()
 		retained.Release()
-		if child.view.read() != data {
+		if child.view.Data() != data {
 			t.Fatal("independent release invalidated source capture")
 		}
 	}

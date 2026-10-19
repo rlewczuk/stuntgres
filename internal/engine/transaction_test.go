@@ -138,7 +138,7 @@ func TestTransactionScopeFinishAndViewOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(view.read().own) != 0 {
+	if len(view.Data().Own) != 0 {
 		t.Fatal("same-command writes became visible")
 	}
 	retained := view.Retain()
@@ -499,14 +499,14 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				if sameRoot != (!published || i == 0) {
 					t.Fatalf("relation %d used wrong spare/growth root", i)
 				}
-				data := retained[i].source.view.read()
-				if data.frontier != retainedFrontier || data.catalog.State() != retainedCatalog || data.catalog.Epoch() != retainedEpoch {
+				data := retained[i].source.view.Data()
+				if data.Frontier != retainedFrontier || data.Catalog.State() != retainedCatalog || data.Catalog.Epoch() != retainedEpoch {
 					t.Fatal("retained frontier/catalog metadata changed")
 				}
 				if retained[i].count != len(root) {
 					t.Fatal("retained result length changed")
 				}
-				if len(data.committed) != 1 || !reflect.DeepEqual(data.committed[addresses[i]], records[i]) || !reflect.DeepEqual(current[:len(root)], records[i]) {
+				if len(data.Committed) != 1 || !reflect.DeepEqual(data.Committed[addresses[i]], records[i]) || !reflect.DeepEqual(current[:len(root)], records[i]) {
 					t.Fatal("retained or live prefix identities/birth/payload changed")
 				}
 				if published {

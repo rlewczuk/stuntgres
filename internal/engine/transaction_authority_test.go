@@ -60,10 +60,10 @@ func TestTransactionCopiedScopeStageViewAndSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data := scope.view.read()
+	data := scope.view.Data()
 	var relation ids.ObjectRef
-	for a := range data.committed {
-		relation = e.catalog.Domain.Ref(data.catalog.Epoch(), a)
+	for a := range data.Committed {
+		relation = e.catalog.Domain.Ref(data.Catalog.Epoch(), a)
 	}
 	stage := *scope.Writes()
 	before := e.storage.RowFrontier()

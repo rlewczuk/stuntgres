@@ -285,7 +285,7 @@ func (s *StatementScope) checkForeignKeys() error {
 		// Child checks only newly written final rows, not unaffected old rows.
 		for _, row := range s.stage.rows[childRef.Address] {
 			if root := s.stage.deletes[childRef.Address]; root != nil {
-				if _, deleted := root.rows[row.Row]; deleted {
+				if _, deleted := root.Rows[row.Row]; deleted {
 					continue
 				}
 			}
@@ -357,7 +357,7 @@ func (s *StatementScope) checkForeignKeys() error {
 		if parentRows.currentDeletes != nil {
 			for _, rows := range [][]storage.RowVersion{parentRows.committed, parentRows.own} {
 				for _, old := range rows {
-					if _, deleted := parentRows.currentDeletes.rows[old.Row]; !deleted {
+					if _, deleted := parentRows.currentDeletes.Rows[old.Row]; !deleted {
 						continue
 					}
 					previous, ok := parentRows.previous(old.Row)

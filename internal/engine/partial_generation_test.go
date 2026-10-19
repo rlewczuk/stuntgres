@@ -131,7 +131,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			if f.e.catalog.state != oldCatalog || oldCatalog.Get(f.parent.Address()) != f.parent || oldCatalog.Get(f.index.Address()) != f.index || f.e.storage.IndexRoots[f.index.Address()] != oldRoot || f.index.SQLIndex.Predicate != oldPredicate || predicate.Definition != beforeDefinition || predicate.Execution != beforeExecution || !reflect.DeepEqual(predicate.Dependencies, beforeDependencies) || !reflect.DeepEqual(f.store.Versions, oldRows) {
 				t.Fatal("type-only reownership mutated a retained catalog, predicate, row or root")
 			}
-			for i, row := range view.data.Load().committed[f.parent.Address()] {
+			for i, row := range view.Load().Committed[f.parent.Address()] {
 				if row.Values[1].Type() != oldUsage.Type || partialMaskContains(mask, row) != (i == 0 || i == 3 || i == 4) {
 					t.Fatal("retained scope lost its old row generation or membership", i)
 				}

@@ -234,8 +234,8 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				if !reflect.DeepEqual(root, prefixes[i]) {
 					t.Fatal("immutable prefix changed", i)
 				}
-				data := retained[i].source.view.read()
-				if retained[i].count != len(root) || data.frontier != retainedFrontier || data.catalog.State() != retainedCatalog || data.catalog.Epoch() != retainedEpoch || !reflect.DeepEqual(data.committed[addresses[i]], prefixes[i]) {
+				data := retained[i].source.view.Data()
+				if retained[i].count != len(root) || data.Frontier != retainedFrontier || data.Catalog.State() != retainedCatalog || data.Catalog.Epoch() != retainedEpoch || !reflect.DeepEqual(data.Committed[addresses[i]], prefixes[i]) {
 					t.Fatal("retained rows/types/frontier changed", i)
 				}
 				if success {
@@ -297,9 +297,9 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			// A real peer SELECT completes before control Finish: the old AX
 			// hold is gone and both typed rows have already been published.
 			retained := transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 7)
-			data := retained.source.view.read()
-			catalog, epoch := data.catalog.State(), data.catalog.Epoch()
-			versions := append([]storage.RowVersion(nil), data.committed[address]...)
+			data := retained.source.view.Data()
+			catalog, epoch := data.Catalog.State(), data.Catalog.Epoch()
+			versions := append([]storage.RowVersion(nil), data.Committed[address]...)
 			for i := range versions {
 				versions[i].Values = append([]sqltype.Value(nil), versions[i].Values...)
 			}
@@ -344,7 +344,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			}
 			assertRetained := func() {
 				t.Helper()
-				view := retained.source.view.read()
+				view := retained.source.view.Data()
 				values := make([]sqltype.Value, 1)
 				cursor := independentFinalRows(retained)
 				defer cursor.Close()
@@ -353,8 +353,8 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 						t.Fatal("accepted retained typed row changed", i, present, err, values)
 					}
 				}
-				if retained.count != 2 || view.frontier != frontier+1 || view.catalog.State() != catalog ||
-					view.catalog.Epoch() != epoch || !reflect.DeepEqual(view.committed[address], versions) {
+				if retained.count != 2 || view.Frontier != frontier+1 || view.Catalog.State() != catalog ||
+					view.Catalog.Epoch() != epoch || !reflect.DeepEqual(view.Committed[address], versions) {
 					t.Fatal("lifecycle boundary changed retained committed rows/metadata/frontier")
 				}
 			}
