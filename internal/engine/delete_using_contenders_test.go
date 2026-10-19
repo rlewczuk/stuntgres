@@ -35,7 +35,7 @@ func TestDeleteUsingQueuedContenderRecheck(t *testing.T) {
 				expected = &description
 			}
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			original := e.storage.relations[ref.Address].versions[0]
+			original := e.storage.Relations[ref.Address].Versions[0]
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "UPDATE t SET v=20 WHERE id=1")
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -65,7 +65,7 @@ func TestDeleteUsingQueuedContenderRecheck(t *testing.T) {
 			await := deleteUsingJoin(t, cancel, done)
 			lockPending(t, e, 1)
 			lockState := e.locks.Inspect()
-			entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: original.row}]
+			entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: original.Row}]
 			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.ForUpdate && entry.Holders[holder.transactions.ticket].Mode == lock.ForNoKeyUpdate
 			if !queued {
 				t.Fatal("not an actual DELETE rowUpdate queue")
@@ -89,7 +89,7 @@ func TestDeleteUsingQueuedContenderRecheck(t *testing.T) {
 			if finishedScope == nil || len(finishedScope.querySources) != 0 {
 				t.Fatal("admission leaked")
 			}
-			if testExport(original.values[1]) != int64(10) {
+			if testExport(original.Values[1]) != int64(10) {
 				t.Fatal("captured predecessor mutated")
 			}
 			transactionRows(t, peer, "SELECT v FROM t ORDER BY v", 5, 30)

@@ -24,7 +24,8 @@ func TestInsertConflictAuthorizationAfterWait(t *testing.T) {
 func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	t.Helper()
 	f := insertConflictUniqueFixture(t)
-	f.e.storage.nextRow, f.e.storage.nextVersion, f.e.commitSeq = 1, 1, 1
+	f.e.storage.SetFrontierLocked(1, 1)
+	f.e.commitSeq = 1
 	definition := *f.index.SQLIndex
 	definition.Predicate = nil
 	f.index.SQLIndex = &definition
@@ -32,7 +33,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	if buildErr != nil {
 		t.Fatal(buildErr)
 	}
-	f.e.storage.indexRoots[f.index.Address()] = root
+	f.e.storage.IndexRoots[f.index.Address()] = root
 	admin, adminDone := roleOperation(t, f.e, "postgres")
 	defer adminDone()
 	if _, err := f.e.Execute(admin, &parser.CreateRole{Name: parser.Identifier{Text: "conflict_waiter"}, Options: parser.RoleOptions{Present: parser.RoleLogin, Login: true}}, 0, nil); err != nil {
@@ -215,8 +216,8 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	if err := scope.Finish(result.err); !errors.Is(err, result.err) {
 		t.Fatal(err)
 	}
-	retained := f.e.storage.relations[f.parent.Address()].versions
-	if len(retained) != 1 || retained[0].row != 1 || retained[0].version != 1 || retained[0].born != 1 || !reflect.DeepEqual(retained[0].values, insertConflictUnitRow(t, f, 10)) {
+	retained := f.e.storage.Relations[f.parent.Address()].Versions
+	if len(retained) != 1 || retained[0].Row != 1 || retained[0].Version != 1 || retained[0].Born != 1 || !reflect.DeepEqual(retained[0].Values, insertConflictUnitRow(t, f, 10)) {
 		t.Fatal("failed admission changed exact committed sentinel identity or values", retained)
 	}
 	manager := f.e.locks
@@ -270,8 +271,8 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal(err)
 	}
-	stored := f.e.storage.relations[f.parent.Address()].versions
-	if len(stored) != 3 || !reflect.DeepEqual(stored[1].values, prefix) || !reflect.DeepEqual(stored[2].values, proposal) {
+	stored := f.e.storage.Relations[f.parent.Address()].Versions
+	if len(stored) != 3 || !reflect.DeepEqual(stored[1].Values, prefix) || !reflect.DeepEqual(stored[2].Values, proposal) {
 		t.Fatal("postfailure healthy insert did not publish exact accepted rows", stored)
 	}
 	lockEmpty(t, f.e)

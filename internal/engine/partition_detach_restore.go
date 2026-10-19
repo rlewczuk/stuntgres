@@ -39,8 +39,8 @@ func (e *Engine) capturePartitionReplayTeardown(op *Operation, s *parser.AlterTa
 	if p.Partition == nil || len(p.Partition.Children) != 1 || c.Partition != nil || c.Membership == nil || !c.Membership.DefaultBound || c.Membership.Parent != p.Address() {
 		return partitionReplayTeardown{}, nil
 	}
-	store := e.storage.relations[child.Address]
-	if store == nil || len(store.versions) != 0 {
+	store := e.storage.Relations[child.Address]
+	if store == nil || len(store.Versions) != 0 {
 		return partitionReplayTeardown{}, nil
 	}
 	return partitionReplayTeardown{child: child, parent: parent}, nil
@@ -66,8 +66,8 @@ func (e *Engine) validatePartitionReplayTeardown(op *Operation, name parser.Obje
 	if !ok || !live || record.parent.Epoch != auth.catalog.Epoch() || child.Membership != nil || child.Partition != nil || parent.Partition == nil || len(parent.Partition.Children) != 0 {
 		return sqlError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
-	store := e.storage.relations[ref.Address]
-	if store == nil || len(store.versions) != 0 {
+	store := e.storage.Relations[ref.Address]
+	if store == nil || len(store.Versions) != 0 {
 		return sqlError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
 	for _, descriptor := range auth.catalog.Descriptors() {

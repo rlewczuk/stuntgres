@@ -86,7 +86,7 @@ func TestDriverBatchSequenceCascadePrivateConsumers(t *testing.T) {
 			s := sessionStart(t, e, nil)
 			sessionSQL(t, s, "CREATE SEQUENCE s START 5 CACHE 1")
 			seq := catalogRef(t, e, e.CatalogRead(), "s")
-			generator := e.storage.sequences[seq.Address]
+			generator := e.storage.Sequences[seq.Address]
 			before, frontier := e.catalog.state, e.commitSeq
 			m := batchUnitStart(t, s, context.Background())
 			defer m.end(context.Canceled)
@@ -103,14 +103,14 @@ func TestDriverBatchSequenceCascadePrivateConsumers(t *testing.T) {
 			if got := tuples(result); !reflect.DeepEqual(got, [][]driver.Value{{int64(5), int64(1)}, {nil, int64(2)}}) {
 				t.Fatal("private dependent default consumer", got)
 			}
-			if generator.last != 5 || e.storage.sequences[seq.Address] != generator || e.catalog.state != before || e.commitSeq != frontier {
+			if generator.Last != 5 || e.storage.Sequences[seq.Address] != generator || e.catalog.state != before || e.commitSeq != frontier {
 				t.Fatal("draw or pending sequence disposition")
 			}
 			if commit {
 				if err = m.end(nil); err != nil {
 					t.Fatal(err)
 				}
-				if e.storage.sequences[seq.Address] != nil {
+				if e.storage.Sequences[seq.Address] != nil {
 					t.Fatal("sequence retirement not committed")
 				}
 			} else {
@@ -121,7 +121,7 @@ func TestDriverBatchSequenceCascadePrivateConsumers(t *testing.T) {
 				if end := m.end(err); end != err {
 					t.Fatal(end)
 				}
-				if e.catalog.state != before || e.commitSeq != frontier || e.storage.sequences[seq.Address] != generator {
+				if e.catalog.state != before || e.commitSeq != frontier || e.storage.Sequences[seq.Address] != generator {
 					t.Fatal("sequence/default graph rollback")
 				}
 				transactionRows(t, s, "SELECT nextval('s')", 6)
@@ -163,7 +163,7 @@ func TestDriverBatchOwnerCounterExhaustion(t *testing.T) {
 			if counter == "tx" && s.transactions.next != ids.TxID(^uint64(0)) || counter == "diagnostic" && e.diagnosticTx != ^uint32(0) {
 				t.Fatal("identity counter wrapped")
 			}
-			if got := len(e.storage.relations[catalogRef(t, e, e.CatalogRead(), "t").Address].versions); got != 0 {
+			if got := len(e.storage.Relations[catalogRef(t, e, e.CatalogRead(), "t").Address].Versions); got != 0 {
 				t.Fatal("counter failed message left prefix", got)
 			}
 			lockEmpty(t, e)

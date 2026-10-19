@@ -684,7 +684,7 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 					continue
 				}
 				candidate := locator.version
-				acquired, err := scope.acquireQueryRow(locator.leaf, candidate.row, mark)
+				acquired, err := scope.acquireQueryRow(locator.leaf, candidate.Row, mark)
 				if err != nil {
 					return false, err
 				}
@@ -697,10 +697,10 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 					return false, err
 				}
 				live = live && present
-				changed = changed || current.version != candidate.version
+				changed = changed || current.Version != candidate.Version
 				currentRows[occurrence] = locator.values(current)
 				versions[j] = current
-				locks.leaves[occurrence].changed = current.version != candidate.version
+				locks.leaves[occurrence].changed = current.Version != candidate.Version
 			}
 			if !live {
 				continue

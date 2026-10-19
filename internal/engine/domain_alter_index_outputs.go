@@ -11,35 +11,35 @@ import (
 
 func reownDomainIndexOutputs(ctx context.Context, base, next *catalog.State, original, store *relationStorage) (*relationStorage, error) {
 	var versions []rowVersion
-	for i, row := range original.versions {
+	for i, row := range original.Versions {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if len(row.indexOutputs) == 0 {
+		if len(row.IndexOutputs) == 0 {
 			continue
 		}
 		var outputs map[ids.ObjectAddress]indexRowOutput
-		for address, output := range row.indexOutputs {
+		for address, output := range row.IndexOutputs {
 			old, ok := base.Relation(address)
 			index, present := next.Relation(address)
-			if !ok || !present || !output.matches(old) {
+			if !ok || !present || !indexOutputMatches(output, old) {
 				continue
 			}
 			parent := next.MustRelation(index.SQLIndex.Parent)
 			mapped := output
-			mapped.index = index
+			mapped.Index = index
 			keysChanged := false
-			if output.key.Type() != nil {
+			if output.Key.Type() != nil {
 				usage, err := indexKeyUsage(parent, index.SQLIndex.Keys[0])
 				if err != nil {
 					return nil, err
 				}
-				mapped.key, err = reownDomainDatum(output.key, usage.Type, nil, next.ScalarImports(), next.ACLItemImport())
+				mapped.Key, err = reownDomainDatum(output.Key, usage.Type, nil, next.ScalarImports(), next.ACLItemImport())
 				if err != nil {
 					return nil, err
 				}
 			}
-			for key, value := range output.keys {
+			for key, value := range output.Keys {
 				usage, err := indexKeyUsage(parent, index.SQLIndex.Keys[key])
 				if err != nil {
 					return nil, err
@@ -49,37 +49,37 @@ func reownDomainIndexOutputs(ctx context.Context, base, next *catalog.State, ori
 					return nil, err
 				}
 				if rebound != value {
-					if len(mapped.keys) != 0 && &mapped.keys[0] == &output.keys[0] {
-						mapped.keys = slices.Clone(output.keys)
+					if len(mapped.Keys) != 0 && &mapped.Keys[0] == &output.Keys[0] {
+						mapped.Keys = slices.Clone(output.Keys)
 					}
-					mapped.keys[key] = rebound
+					mapped.Keys[key] = rebound
 					keysChanged = true
 				}
 			}
-			if mapped.index == output.index && mapped.key == output.key && !keysChanged {
+			if mapped.Index == output.Index && mapped.Key == output.Key && !keysChanged {
 				continue
 			}
 			if outputs == nil {
-				outputs = maps.Clone(row.indexOutputs)
+				outputs = maps.Clone(row.IndexOutputs)
 			}
 			outputs[address] = mapped
 		}
 		// Retain genuinely stale outputs as stale; never certify/re-execute them.
 		if outputs == nil {
-			if store.versions[i].indexOutputs != nil {
+			if store.Versions[i].IndexOutputs != nil {
 				continue
 			}
-			outputs = row.indexOutputs
+			outputs = row.IndexOutputs
 		}
 		if versions == nil {
-			versions = slices.Clone(store.versions)
+			versions = slices.Clone(store.Versions)
 		}
-		versions[i].indexOutputs = outputs
+		versions[i].IndexOutputs = outputs
 	}
 	if versions == nil {
 		return store, nil
 	}
 	nextStore := *store
-	nextStore.versions = versions
+	nextStore.Versions = versions
 	return &nextStore, nil
 }

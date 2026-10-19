@@ -15,7 +15,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	ctx := context.Background()
 	capture := view.read().catalog
 	rows := view.read().committed[f.parent.Address()]
-	oldRoot := f.e.storage.indexRoots[f.index.Address()]
+	oldRoot := f.e.storage.IndexRoots[f.index.Address()]
 	ref := f.e.catalog.Domain.Ref(capture.Epoch(), f.index.Address())
 	retained, _, err := projectIndexMetadata(ctx, capture, ref)
 	if err != nil {
@@ -28,16 +28,16 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 		}
 		gotMembership := make(map[ids.RowID]ids.VersionID)
 		for i, row := range rows {
-			value, err := metadata.Predicate.Eval(&EvalContext{Context: ctx, Scope: 1, Frame: 1, Row: row.values})
+			value, err := metadata.Predicate.Eval(&EvalContext{Context: ctx, Scope: 1, Frame: 1, Row: row.Values})
 			if err != nil {
-				t.Fatalf("%s row %d: %v", label, row.row, err)
+				t.Fatalf("%s row %d: %v", label, row.Row, err)
 			}
 			truth, err := TruthOf(value)
 			if err != nil || truth != want[i] {
-				t.Fatalf("%s row %d: truth=%v want=%v error=%v", label, row.row, truth, want[i], err)
+				t.Fatalf("%s row %d: truth=%v want=%v error=%v", label, row.Row, truth, want[i], err)
 			}
 			if truth == True {
-				gotMembership[row.row] = row.version
+				gotMembership[row.Row] = row.Version
 			}
 		}
 		if !reflect.DeepEqual(gotMembership, membership) {
@@ -78,7 +78,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	}
 	f.e.mu.Lock()
 	f.e.catalog.state = next
-	f.e.storage.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.Address(): root}
+	f.e.storage.IndexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.Address(): root}
 	f.e.mu.Unlock()
 	current, _, err := projectIndexMetadata(ctx, f.e.CatalogRead(), ref)
 	if err != nil {
@@ -144,19 +144,19 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 		t.Fatalf("original predicate relation dependencies=%v want attribute reference=%v", attributes, wantRef)
 	}
 	var preparation indexExecutionPreparation
-	for _, row := range f.store.versions {
-		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Row: row.values}
+	for _, row := range f.store.Versions {
+		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Row: row.Values}
 		value, err := metadata.Predicate.Eval(&evaluation)
 		if err != nil {
-			t.Fatalf("row %d: %v", row.row, err)
+			t.Fatalf("row %d: %v", row.Row, err)
 		}
 		truth, err := TruthOf(value)
 		if err != nil || truth != False {
-			t.Fatalf("row %d: original FALSE AND active truth=%v error=%v", row.row, truth, err)
+			t.Fatalf("row %d: original FALSE AND active truth=%v error=%v", row.Row, truth, err)
 		}
-		matched, err := preparation.predicateMatches(&evaluation, f.parent, &catalog.IndexDefinition{Predicate: predicate}, row.values, nil, nil)
+		matched, err := preparation.predicateMatches(&evaluation, f.parent, &catalog.IndexDefinition{Predicate: predicate}, row.Values, nil, nil)
 		if err != nil || matched {
-			t.Fatalf("row %d: simplified execution admitted a member: %v %v", row.row, matched, err)
+			t.Fatalf("row %d: simplified execution admitted a member: %v %v", row.Row, matched, err)
 		}
 	}
 }

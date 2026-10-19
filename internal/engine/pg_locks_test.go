@@ -305,7 +305,7 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 	scope.owner.mu.Unlock()
 	scope.worked = true
 	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
-	store := e.storage.relations[d.Address()]
+	store := e.storage.Relations[d.Address()]
 	scope.lockedRef, scope.lockedStorage, scope.lockedDescriptor = ref, store, d
 	before := e.assignedXID
 	switch route {

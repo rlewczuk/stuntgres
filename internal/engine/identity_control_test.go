@@ -34,7 +34,7 @@ func TestIdentityControlsTemporaryCollision(t *testing.T) {
 			if !originalSequence.Sequence.Identity || originalSequence.Sequence.Owned != originalOwned {
 				t.Fatal("source identity lacks reciprocal ownership")
 			}
-			tempDefinition, tempGenerator, tempMemory := dest.catalog.state.Get(tempRef), dest.storage.sequences[tempRef], b.sequences[tempRef]
+			tempDefinition, tempGenerator, tempMemory := dest.catalog.state.Get(tempRef), dest.storage.Sequences[tempRef], b.sequences[tempRef]
 			generatorState, memoryState := *tempGenerator, *tempMemory
 			if mode == "Restore" {
 				var dump bytes.Buffer
@@ -49,7 +49,7 @@ func TestIdentityControlsTemporaryCollision(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if dest.catalog.state.Get(tempRef) != tempDefinition || dest.storage.sequences[tempRef] != tempGenerator || b.sequences[tempRef] != tempMemory || *tempGenerator != generatorState || *tempMemory != memoryState {
+			if dest.catalog.state.Get(tempRef) != tempDefinition || dest.storage.Sequences[tempRef] != tempGenerator || b.sequences[tempRef] != tempMemory || *tempGenerator != generatorState || *tempMemory != memoryState {
 				t.Fatal("retained TEMP authority changed")
 			}
 			ref := roleTableRef(t, dest, "portable.i").Address
@@ -73,7 +73,7 @@ func TestIdentityControlsTemporaryCollision(t *testing.T) {
 			}
 			sequenceScalar(t, b, `SELECT nextval('kept')`, 31)
 			sessionSQL(t, b, `DROP TABLE portable.i`)
-			if dest.catalog.state.Get(identity.Sequence) != nil || dest.storage.sequences[identity.Sequence] != nil {
+			if dest.catalog.state.Get(identity.Sequence) != nil || dest.storage.Sequences[identity.Sequence] != nil {
 				t.Fatal("remapped dependency closure failed")
 			}
 			if source.catalog.state.Get(sourceRef) != original || original.ColumnMeta.Identities[original.Attributes[0]] != originalIdentity {

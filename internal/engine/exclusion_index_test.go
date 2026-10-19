@@ -17,7 +17,7 @@ func TestExclusionIndexRoots(t *testing.T) {
 			parent := e.catalog.state.MustRelation(roleTableRef(t, e, "public.t").Address)
 			constraint := parent.Constraints.Exclusion[0]
 			index := e.catalog.state.MustRelation(constraint.Index)
-			root := e.storage.indexRoots[constraint.Index]
+			root := e.storage.IndexRoots[constraint.Index]
 			if root == nil || index.SQLIndex.Unique || !index.SQLIndex.IsExclusion() || !backingConstraintPresent(parent, index) {
 				t.Fatal("exclusion does not own a real nonunique enforcement root")
 			}
@@ -25,30 +25,30 @@ func TestExclusionIndexRoots(t *testing.T) {
 			if err != nil || !metadata.IndIsExclusion || metadata.IndIsUnique || !metadata.IndImmediate || !metadata.IndIsReady || !metadata.IndIsValid || !metadata.IndIsLive || len(metadata.IndKey) != 1 || metadata.IndKey[0] != 0 {
 				t.Fatal("incorrect native exclusion index metadata", metadata, err)
 			}
-			if method == "btree" && len(root.membership) != 3 {
-				t.Fatal("B-tree predicate membership must include qualifying NULL rows", root.membership)
+			if method == "btree" && len(root.Membership) != 3 {
+				t.Fatal("B-tree predicate membership must include qualifying NULL rows", root.Membership)
 			}
 			if method == "btree" {
-				if root.hash != nil || len(root.entries) != 3 {
+				if root.Hash != nil || len(root.Entries) != 3 {
 					t.Fatal("wrong B-tree root", root)
 				}
 			} else {
-				if root.hash == nil || len(root.entries) != 0 {
+				if root.Hash == nil || len(root.Entries) != 0 {
 					t.Fatal("wrong HASH root", root)
 				}
 				entries := 0
-				for _, bucket := range root.hash.buckets {
+				for _, bucket := range root.Hash.Buckets {
 					entries += len(bucket)
 				}
 				if entries != 2 {
 					t.Fatal("HASH must omit NULL keys", entries)
 				}
-				if root.membership != nil {
+				if root.Membership != nil {
 					t.Fatal("HASH must retain its existing fallback membership authority")
 				}
 			}
-			for _, entry := range root.entries {
-				if entry.row == 0 || entry.version == 0 {
+			for _, entry := range root.Entries {
+				if entry.Row == 0 || entry.Version == 0 {
 					t.Fatal("unminted root identity", entry)
 				}
 			}
@@ -71,7 +71,7 @@ func TestExclusionCatalogLifecycle(t *testing.T) {
 	ref := roleTableRef(t, e, "public.t")
 	original := e.catalog.state.MustRelation(ref.Address)
 	old := original.Constraints.Exclusion[0]
-	oldRoot := e.storage.indexRoots[old.Index]
+	oldRoot := e.storage.IndexRoots[old.Index]
 	metadata, _, err := projectIndexMetadata(context.Background(), e.CatalogRead(), e.catalog.Domain.Ref(e.catalog.state.Epoch(), old.Index))
 	if err != nil || !metadata.IndIsExclusion || metadata.IndIsUnique || metadata.IndImmediate || len(metadata.IndKey) != 2 || metadata.IndKey[0] != 0 || metadata.IndKey[1] != int16(original.Attributes[2]) {
 		t.Fatal("incorrect deferred definition/INCLUDE metadata", metadata, err)
@@ -82,18 +82,18 @@ func TestExclusionCatalogLifecycle(t *testing.T) {
 	if current.OID == old.OID || current.Index == old.Index || original.Constraints.Exclusion[0].OID != old.OID {
 		t.Fatal("TYPE must remint the exclusion closure without mutating its old generation")
 	}
-	if e.catalog.state.Get(old.Index) != nil || e.storage.indexRoots[old.Index] != nil || e.storage.indexRoots[current.Index] == oldRoot {
+	if e.catalog.state.Get(old.Index) != nil || e.storage.IndexRoots[old.Index] != nil || e.storage.IndexRoots[current.Index] == oldRoot {
 		t.Fatal("TYPE retained the retired physical index")
 	}
 	index := e.catalog.state.MustRelation(current.Index)
 	if !backingConstraintPresent(parent, index) {
 		t.Fatal("TYPE broke reciprocal ownership")
 	}
-	root := e.storage.indexRoots[current.Index]
+	root := e.storage.IndexRoots[current.Index]
 	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT ex TO renamed")
 	parent = e.catalog.state.MustRelation(ref.Address)
 	renamed := parent.Constraints.Exclusion[0]
-	if renamed.OID != current.OID || renamed.Index != current.Index || renamed.Name != "renamed" || e.storage.indexRoots[current.Index] != root {
+	if renamed.OID != current.OID || renamed.Index != current.Index || renamed.Name != "renamed" || e.storage.IndexRoots[current.Index] != root {
 		t.Fatal("rename changed constraint identity or the integrity root")
 	}
 	index = e.catalog.state.MustRelation(current.Index)
@@ -108,7 +108,7 @@ func TestExclusionCatalogLifecycle(t *testing.T) {
 	}
 	sessionSQL(t, s, "ALTER TABLE t DROP CONSTRAINT renamed")
 	parent = e.catalog.state.MustRelation(ref.Address)
-	if len(parent.Constraints.Exclusion) != 0 || len(parent.Constraints.Unique) != 1 || e.catalog.state.Get(current.Index) != nil || e.storage.indexRoots[current.Index] != nil {
+	if len(parent.Constraints.Exclusion) != 0 || len(parent.Constraints.Unique) != 1 || e.catalog.state.Get(current.Index) != nil || e.storage.IndexRoots[current.Index] != nil {
 		t.Fatal("DROP did not retire exactly the exclusion attachment")
 	}
 	uniqueClaimsEmpty(t, e)
@@ -150,9 +150,9 @@ func TestExclusionAlterFirstIndexPublication(t *testing.T) {
 			sessionSQL(t, s, "INSERT INTO t VALUES(1)")
 			ref := roleTableRef(t, e, "public.t")
 			original := e.catalog.state.MustRelation(ref.Address)
-			store := e.storage.relations[ref.Address]
-			row := store.versions[0]
-			if len(e.storage.indexRoots) != 0 {
+			store := e.storage.Relations[ref.Address]
+			row := store.Versions[0]
+			if len(e.storage.IndexRoots) != 0 {
 				t.Fatal("fixture must add the first actual index")
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -167,28 +167,28 @@ func TestExclusionAlterFirstIndexPublication(t *testing.T) {
 				t.Fatal("first-index publication failed", result, err)
 			}
 			parent := e.catalog.state.MustRelation(ref.Address)
-			if len(parent.Constraints.Exclusion) != 1 || !parent.History.HasIndexes || len(original.Constraints.Exclusion) != 0 || store.versions[0].row != row.row || store.versions[0].version != row.version {
+			if len(parent.Constraints.Exclusion) != 1 || !parent.History.HasIndexes || len(original.Constraints.Exclusion) != 0 || store.Versions[0].Row != row.Row || store.Versions[0].Version != row.Version {
 				t.Fatal("ALTER did not preserve its immutable predecessor and actual attachment")
 			}
 			constraint := parent.Constraints.Exclusion[0]
 			index := e.catalog.state.MustRelation(constraint.Index)
-			root := e.storage.indexRoots[constraint.Index]
+			root := e.storage.IndexRoots[constraint.Index]
 			if !backingConstraintPresent(parent, index) || root == nil {
 				t.Fatal("missing actual first exclusion root")
 			}
 			if method == "btree" {
-				if len(root.entries) != 1 || root.entries[0].row != row.row || root.entries[0].version != row.version {
+				if len(root.Entries) != 1 || root.Entries[0].Row != row.Row || root.Entries[0].Version != row.Version {
 					t.Fatal("B-tree lost predecessor row/version")
 				}
 			} else {
-				if root.hash == nil {
+				if root.Hash == nil {
 					t.Fatal("missing HASH provider root")
 				}
 				count := 0
-				for _, bucket := range root.hash.buckets {
+				for _, bucket := range root.Hash.Buckets {
 					for _, entry := range bucket {
 						count++
-						if entry.row != row.row || entry.version != row.version {
+						if entry.Row != row.Row || entry.Version != row.Version {
 							t.Fatal("HASH lost predecessor row/version")
 						}
 					}

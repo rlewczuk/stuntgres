@@ -9,7 +9,7 @@ import (
 )
 
 func (r foreignKeyRows) committedLive(v rowVersion) bool {
-	return r.shadow[v.row] == 0 && liveVersion(v, r.frontier, r.ends, r.priorDeletes) && liveVersion(v, r.frontier, r.ends, r.currentDeletes)
+	return r.shadow[v.Row] == 0 && liveVersion(v, r.frontier, r.ends, r.priorDeletes) && liveVersion(v, r.frontier, r.ends, r.currentDeletes)
 }
 func prepareForeignKeyChild(ctx context.Context, comparisons []foreignKeyComparison, child, key []sqltype.Value, input sqltype.InputEnvironment) error {
 	for i, comparison := range comparisons {
@@ -29,10 +29,10 @@ func probeForeignKeyIndex(root *logicalIndexRoot, compare func(logicalIndexEntry
 	if root == nil {
 		return fmt.Errorf("stuntgres: ready foreign-key index root is missing")
 	}
-	lo, hi := 0, len(root.entries)
+	lo, hi := 0, len(root.Entries)
 	for lo < hi {
 		mid := lo + (hi-lo)/2
-		order, err := compare(root.entries[mid])
+		order, err := compare(root.Entries[mid])
 		if err != nil {
 			return err
 		}
@@ -42,8 +42,8 @@ func probeForeignKeyIndex(root *logicalIndexRoot, compare func(logicalIndexEntry
 			hi = mid
 		}
 	}
-	for at := lo; at < len(root.entries); at++ {
-		entry := root.entries[at]
+	for at := lo; at < len(root.Entries); at++ {
+		entry := root.Entries[at]
 		order, err := compare(entry)
 		if err != nil || order != 0 {
 			return err
@@ -61,7 +61,7 @@ func foreignKeyIndexOrder(ctx context.Context, index *catalog.Relation, comparis
 	}
 	for i, comparison := range comparisons {
 		key := index.SQLIndex.Keys[i]
-		parent := entry.keys[i]
+		parent := entry.Keys[i]
 		if parent.IsNull() {
 			if key.NullsFirst {
 				return -1, nil
@@ -92,12 +92,12 @@ func findForeignKeyParent(ctx context.Context, index *catalog.Relation, comparis
 		match := true
 		var err error
 		for i, comparison := range comparisons {
-			if parent.values[comparison.parent].IsNull() {
+			if parent.Values[comparison.parent].IsNull() {
 				match = false
 				break
 			}
 			var order int
-			order, err = comparison.comparison.ComparePrepared(ctx, parent.values[comparison.parent], child[i], input)
+			order, err = comparison.comparison.ComparePrepared(ctx, parent.Values[comparison.parent], child[i], input)
 			if err != nil || order != 0 {
 				match = false
 				break
@@ -107,7 +107,7 @@ func findForeignKeyParent(ctx context.Context, index *catalog.Relation, comparis
 			matching = parent
 		}
 		return match, err
-	}); err != nil || matching.row != 0 {
+	}); err != nil || matching.Row != 0 {
 		return matching, logicalIndexEntry{}, err
 	}
 	var locator logicalIndexEntry

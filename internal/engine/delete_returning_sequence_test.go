@@ -17,9 +17,9 @@ func TestDeleteReturningSequenceDemand(t *testing.T) {
 	check := func(last int64, called bool) {
 		t.Helper()
 		e.mu.Lock()
-		generator := *e.storage.sequences[ref.Address]
+		generator := *e.storage.Sequences[ref.Address]
 		e.mu.Unlock()
-		if generator.last != last || generator.called != called {
+		if generator.Last != last || generator.Called != called {
 			t.Fatal(generator, last, called)
 		}
 	}

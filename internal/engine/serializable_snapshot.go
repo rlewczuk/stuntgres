@@ -34,10 +34,10 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 		node.exempt = false
 		node.possible = nil
 		node.ready = nil
-		roots := make(map[ids.ObjectAddress]transactionRoot, len(e.storage.relations))
-		for address, storage := range e.storage.relations {
+		roots := make(map[ids.ObjectAddress]transactionRoot, len(e.storage.Relations))
+		for address, storage := range e.storage.Relations {
 			if relation, ok := e.catalog.state.Relation(address); ok {
-				roots[address] = transactionRoot{storage.versions, storage.ends, storage, relation}
+				roots[address] = transactionRoot{storage.Versions, storage.Ends, storage, relation}
 			}
 		}
 		t.roots, t.frontier = roots, e.commitSeq

@@ -283,7 +283,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if restart != nil {
 			initial = *restart
 		}
-		changes.generators[d.Address()] = &sequenceGenerator{last: initial, generation: rev}
+		changes.generators[d.Address()] = &sequenceGenerator{Last: initial, Generation: rev}
 		scope.catalog = changes
 		e.mu.Unlock()
 		return Result{}, nil
@@ -460,9 +460,9 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		e.catalogChangeLocked(changes, d.Address(), &d)
 		if rewrite || persistenceChanged {
 			replacement := *state
-			replacement.generation = rev
+			replacement.Generation = rev
 			if restart != nil {
-				replacement.last, replacement.called = *restart, false
+				replacement.Last, replacement.Called = *restart, false
 			}
 			changes.generators[d.Address()] = &replacement
 		}

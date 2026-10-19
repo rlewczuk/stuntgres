@@ -74,7 +74,7 @@ func TestUpdateCoreRowResourceLifetime(t *testing.T) {
 	oldCtx, oldCancel := context.WithCancel(context.Background())
 	defer oldCancel()
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	resource := lock.Resource{ObjectRef: ref, Row: e.storage.relations[ref.Address].versions[0].row}
+	resource := lock.Resource{ObjectRef: ref, Row: e.storage.Relations[ref.Address].Versions[0].Row}
 	request, err := e.locks.StartAcquire(oldCtx, oldTicket, resource, lock.ForNoKeyUpdate, lock.Policy{})
 	if err != nil || request == nil {
 		t.Fatal(request, err)
@@ -91,7 +91,7 @@ func TestUpdateCoreRowResourceLifetime(t *testing.T) {
 	sessionSQL(t, c, "UPDATE t SET v=10")
 	newTicket := c.transactions.ticket
 	newRef := catalogRef(t, e, e.CatalogRead(), "t")
-	newResource := lock.Resource{ObjectRef: newRef, Row: e.storage.relations[newRef.Address].versions[0].row}
+	newResource := lock.Resource{ObjectRef: newRef, Row: e.storage.Relations[newRef.Address].Versions[0].Row}
 	oldCancel()
 	e.endLockOwner(oldTicket)
 	e.locks.Fence(ref.Epoch)
@@ -123,7 +123,7 @@ func TestUpdateCoreRestoreRowWaitLifecycle(t *testing.T) {
 			sessionSQL(t, peer, "CREATE TABLE t(v INT)")
 			sessionSQL(t, peer, "INSERT INTO t VALUES(1)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			saved := e.storage.relations[ref.Address].versions
+			saved := e.storage.Relations[ref.Address].Versions
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, "UPDATE t SET v=2")
 			oldTicket := a.transactions.ticket
@@ -180,7 +180,7 @@ func TestUpdateCoreRestoreRowWaitLifecycle(t *testing.T) {
 			case <-time.After(5 * time.Second):
 				t.Fatal("Restore did not finish")
 			}
-			if testExport(saved[0].values[0]) != int64(1) {
+			if testExport(saved[0].Values[0]) != int64(1) {
 				t.Fatal("Restore mutated retained old root")
 			}
 			if outcome == "success" {

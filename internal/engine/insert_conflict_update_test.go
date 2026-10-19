@@ -222,7 +222,7 @@ func TestInsertConflictUpdateDuplicateIdentity(t *testing.T) {
 			sessionSQL(t, s, "CREATE TABLE t(k INT UNIQUE,v INT)")
 			sessionSQL(t, s, "INSERT INTO t VALUES(1,10)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			old := e.storage.relations[ref.Address].versions[0]
+			old := e.storage.Relations[ref.Address].Versions[0]
 			op, err := s.Acquire(context.Background())
 			if err != nil {
 				t.Fatal(err)
@@ -239,8 +239,8 @@ func TestInsertConflictUpdateDuplicateIdentity(t *testing.T) {
 				want = 1
 			}
 			transactionRows(t, s, "SELECT v FROM t", want)
-			head := e.storage.relations[ref.Address].versions[0]
-			if head.row != old.row || (tc.count == 0 && head.version != old.version) || testExport(old.values[1]) != int64(10) {
+			head := e.storage.Relations[ref.Address].Versions[0]
+			if head.Row != old.Row || (tc.count == 0 && head.Version != old.Version) || testExport(old.Values[1]) != int64(10) {
 				t.Fatal("false filtering or failure replaced original identity", head, old)
 			}
 			lockEmpty(t, e)
@@ -251,9 +251,9 @@ func TestInsertConflictUpdateDuplicateIdentity(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(k INT UNIQUE,v INT)")
 	sessionSQL(t, s, "INSERT INTO t VALUES(1,10)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	original := e.storage.relations[ref.Address].versions[0]
+	original := e.storage.Relations[ref.Address].Versions[0]
 	r := sessionSQL(t, s, "INSERT INTO t VALUES(1,0),(1,11) ON CONFLICT(k) DO UPDATE SET v=excluded.v WHERE excluded.v>0")
-	if r.Count != 1 || e.storage.relations[ref.Address].versions[0].row != original.row {
+	if r.Count != 1 || e.storage.Relations[ref.Address].Versions[0].Row != original.Row {
 		t.Fatal("false then true identity", r)
 	}
 	for _, q := range []string{
@@ -271,7 +271,7 @@ func TestInsertConflictUpdateDuplicateIdentity(t *testing.T) {
 			t.Fatal("actual affected RowID cardinality", q, result, err)
 		}
 		transactionRows(t, s, "SELECT v FROM t", 11)
-		if e.storage.relations[ref.Address].versions[0].row != original.row {
+		if e.storage.Relations[ref.Address].Versions[0].Row != original.Row {
 			t.Fatal("identity changed on failure")
 		}
 	}
@@ -280,7 +280,7 @@ func TestInsertConflictUpdateDuplicateIdentity(t *testing.T) {
 		t.Fatal("same source key can admit a genuinely different RowID after key move", moved)
 	}
 	transactionRows(t, s, "SELECT v FROM t ORDER BY k", 2, 1)
-	if e.storage.relations[ref.Address].versions[0].row != original.row {
+	if e.storage.Relations[ref.Address].Versions[0].Row != original.Row {
 		t.Fatal("moved target lost stable identity")
 	}
 	lockEmpty(t, e)

@@ -14,8 +14,8 @@ func TestAlterRenameIdentity(t *testing.T) {
 	run(t, e, "ALTER TABLE t DROP b")
 	ref := roleTableRef(t, e, "t")
 	old := e.catalog.state.MustRelation(ref.Address)
-	storage := e.storage.relations[ref.Address]
-	backing := &storage.versions[0].values[0]
+	storage := e.storage.Relations[ref.Address]
+	backing := &storage.Versions[0].Values[0]
 	held := run(t, e, "SELECT * FROM t")
 	run(t, e, "ALTER TABLE t RENAME COLUMN c TO renamed")
 	middle := e.catalog.state.MustRelation(ref.Address)
@@ -24,7 +24,7 @@ func TestAlterRenameIdentity(t *testing.T) {
 	if roleTableRef(t, e, "newtable") != ref || next.Address() != old.Address() || next.Namespace() != old.Namespace() || next.Owner != old.Owner || next.Revision() != old.Revision()+2 || middle.Revision() != old.Revision()+1 {
 		t.Fatal("rename changed identity", old, middle, next)
 	}
-	if e.storage.relations[ref.Address] != storage || &storage.versions[0].values[0] != backing || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.Constraints.NotNull, old.Constraints.NotNull) || !reflect.DeepEqual(next.ColumnMeta.Comments, old.ColumnMeta.Comments) || !reflect.DeepEqual(next.Security.ColumnACL, old.Security.ColumnACL) || !reflect.DeepEqual(next.Security.ACL, old.Security.ACL) {
+	if e.storage.Relations[ref.Address] != storage || &storage.Versions[0].Values[0] != backing || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.Constraints.NotNull, old.Constraints.NotNull) || !reflect.DeepEqual(next.ColumnMeta.Comments, old.ColumnMeta.Comments) || !reflect.DeepEqual(next.Security.ColumnACL, old.Security.ColumnACL) || !reflect.DeepEqual(next.Security.ACL, old.Security.ACL) {
 		t.Fatal("rename changed storage/dependencies", old, next)
 	}
 	if next.Columns[1].Name != "renamed" || next.Columns[1].OriginAttribute != 3 || next.ColumnMeta.Comments[3] != "survivor" || old.Columns[1].Name != "c" {

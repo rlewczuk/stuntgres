@@ -17,7 +17,7 @@ func TestMergeDeleteRepeatableReadLineage(t *testing.T) {
 			sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
 			sessionSQL(t, peer, "INSERT INTO t VALUES(1,10),(2,20)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			original := e.storage.relations[ref.Address].versions[0]
+			original := e.storage.Relations[ref.Address].Versions[0]
 			sessionSQL(t, worker, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 			transactionRows(t, worker, "SELECT v FROM t WHERE id=1", 10)
 			frontier := worker.transactions.frontier
@@ -25,7 +25,7 @@ func TestMergeDeleteRepeatableReadLineage(t *testing.T) {
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "UPDATE t SET v=11 WHERE id=1")
 			done := mergeUpdatePendingExecute(t, worker, "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED THEN UPDATE SET v=100")
-			mergeUpdatePendingRow(t, e, ref, original.row, worker, holder.transactions.ticket, lock.ForNoKeyUpdate)
+			mergeUpdatePendingRow(t, e, ref, original.Row, worker, holder.transactions.ticket, lock.ForNoKeyUpdate)
 			transactionEnd(t, holder, tx, true)
 			mergeUpdatePendingOutcome(t, done, 1, nil)
 			transactionRows(t, worker, "SELECT v FROM t ORDER BY id,v", 10, 100, 21)
@@ -70,7 +70,7 @@ func TestMergeDeleteRepeatableReadLineage(t *testing.T) {
 			sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
 			sessionSQL(t, peer, "INSERT INTO t VALUES(1,10)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			row := e.storage.relations[ref.Address].versions[0].row
+			row := e.storage.Relations[ref.Address].Versions[0].Row
 			sessionSQL(t, worker, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 			transactionRows(t, worker, "SELECT v FROM t", 10)
 			tx := transactionBegin(t, holder)

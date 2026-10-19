@@ -23,8 +23,8 @@ func TestAlterAddColumnProviderAdmissionBeforeDemand(t *testing.T) {
 			sessionSQL(t, holder, "INSERT INTO t VALUES(1),(2),(2)")
 			ref := roleTableRef(t, e, "t")
 			seq := roleTableRef(t, e, "s")
-			old, storage := e.catalog.state.Get(ref.Address), e.storage.relations[ref.Address]
-			generator := e.storage.sequences[seq.Address]
+			old, storage := e.catalog.state.Get(ref.Address), e.storage.Relations[ref.Address]
+			generator := e.storage.Sequences[seq.Address]
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "DROP SEQUENCE s")
 			q := "ALTER TABLE t ADD b BIGINT DEFAULT 7 CHECK(nextval('s')>0)"
@@ -42,7 +42,7 @@ func TestAlterAddColumnProviderAdmissionBeforeDemand(t *testing.T) {
 				t.Fatal("ADD did not queue AS against exact provider")
 			}
 			e.mu.Lock()
-			untouched := !generator.called && e.catalog.state.Get(ref.Address) == old && e.storage.relations[ref.Address] == storage
+			untouched := !generator.Called && e.catalog.state.Get(ref.Address) == old && e.storage.Relations[ref.Address] == storage
 			e.mu.Unlock()
 			if !untouched {
 				t.Fatal("ADD demanded or published before provider admission")
@@ -51,7 +51,7 @@ func TestAlterAddColumnProviderAdmissionBeforeDemand(t *testing.T) {
 			lockAwait(t, waiting, context.Canceled)
 			transactionEnd(t, holder, tx, false)
 			lockEmpty(t, e)
-			if generator.called || e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage {
+			if generator.Called || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage {
 				t.Fatal("canceled admission changed original candidate/root")
 			}
 			sessionSQL(t, worker, q)
@@ -59,8 +59,8 @@ func TestAlterAddColumnProviderAdmissionBeforeDemand(t *testing.T) {
 			if withDefault {
 				want = 6
 			}
-			if generator.last != want || !generator.called {
-				t.Fatal("admitted ADD DEFAULT/CHECK demand", generator.last, want)
+			if generator.Last != want || !generator.Called {
+				t.Fatal("admitted ADD DEFAULT/CHECK demand", generator.Last, want)
 			}
 			checkReviewDependencyValid(t, e)
 			lockEmpty(t, e)
@@ -88,8 +88,8 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 				ref := roleTableRef(t, e, "t")
 				seq := roleTableRef(t, e, "s")
 				old := e.catalog.state.MustRelation(ref.Address)
-				storage := e.storage.relations[ref.Address]
-				generator := e.storage.sequences[seq.Address]
+				storage := e.storage.Relations[ref.Address]
+				generator := e.storage.Sequences[seq.Address]
 				var tx ids.TxRef
 				if explicit {
 					tx = transactionBegin(t, worker)
@@ -120,14 +120,14 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 				}
 				candidate := scope.catalog.descriptors[ref.Address].(*catalog.Relation)
 				shape := scope.catalog.storage[ref.Address]
-				if candidate == old || candidate.ColumnMeta.HighWater != old.ColumnMeta.HighWater+1 || len(candidate.Columns) != 2 || shape.replacement == storage || !shape.rewritten || generator.last != 6 {
-					t.Fatal("complete candidate/backfill missing", candidate, shape, generator.last)
+				if candidate == old || candidate.ColumnMeta.HighWater != old.ColumnMeta.HighWater+1 || len(candidate.Columns) != 2 || shape.replacement == storage || !shape.rewritten || generator.Last != 6 {
+					t.Fatal("complete candidate/backfill missing", candidate, shape, generator.Last)
 				}
-				if e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage || old.ColumnMeta.HighWater != 1 {
+				if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || old.ColumnMeta.HighWater != 1 {
 					t.Fatal("Execute published private ADD")
 				}
-				for _, row := range storage.versions {
-					if len(row.values) != 1 {
+				for _, row := range storage.Versions {
+					if len(row.Values) != 1 {
 						t.Fatal("predecessor width changed")
 					}
 				}
@@ -146,9 +146,9 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 					worker.authorization.revision++
 					worker.mu.Unlock()
 				case "storage":
-					injectedStorage = &relationStorage{generation: storage.generation + 1, versions: storage.versions, ends: storage.ends}
+					injectedStorage = &relationStorage{Generation: storage.Generation + 1, Versions: storage.Versions, Ends: storage.Ends}
 					e.mu.Lock()
-					e.storage.relations[ref.Address] = injectedStorage
+					e.storage.Relations[ref.Address] = injectedStorage
 					e.mu.Unlock()
 				case "replacement":
 					if err = e.Restore(context.Background(), strings.NewReader("CREATE TABLE sentinel(v INT);INSERT INTO sentinel VALUES(91)")); err != nil {
@@ -177,7 +177,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 					if injectedStorage != nil {
 						wantStorage = injectedStorage
 					}
-					if e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != wantStorage || old.ColumnMeta.HighWater != 1 || len(old.Columns) != 1 || generator.last != 6 {
+					if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != wantStorage || old.ColumnMeta.HighWater != 1 || len(old.Columns) != 1 || generator.Last != 6 {
 						t.Fatal("veto published ADD or rewound sequence")
 					}
 					if explicit && (!sameVersionRoot(worker.transactions.writes[ref.Address], priorWrites) || worker.transactions.deletes[ref.Address] != priorDeletes || worker.transactions.catalog != priorCatalog) {
@@ -185,7 +185,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 					}
 				} else {
 					transactionRows(t, sessionStart(t, e, nil), "SELECT v FROM sentinel", 91)
-					if e.catalog.state.Get(ref.Address) == old || e.storage.relations[ref.Address] == storage {
+					if e.catalog.state.Get(ref.Address) == old || e.storage.Relations[ref.Address] == storage {
 						t.Fatal("old incarnation resurrected")
 					}
 				}

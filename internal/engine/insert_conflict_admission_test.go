@@ -24,13 +24,13 @@ func insertConflictUniqueFixture(t testing.TB) partialIndexFixture {
 	definition := *f.index.SQLIndex
 	definition.Unique = true
 	f.index.SQLIndex = &definition
-	f.store.versions = f.store.versions[:1]
-	f.store.versions[0].born = 1
+	f.store.Versions = f.store.Versions[:1]
+	f.store.Versions[0].Born = 1
 	root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &definition, f.store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.e.storage.indexRoots[f.index.Address()] = root
+	f.e.storage.IndexRoots[f.index.Address()] = root
 	return f
 }
 func insertConflictUnitScope(t *testing.T, f partialIndexFixture) (*StatementScope, ids.ObjectRef) {
@@ -86,7 +86,7 @@ func TestInsertConflictExistingOutputPreservesProposalKey(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			own := rowVersion{row: 200, version: 200, values: insertConflictUnitRow(t, f, 10)}
+			own := rowVersion{Row: 200, Version: 200, Values: insertConflictUnitRow(t, f, 10)}
 			member, existing, err := scope.existingUniqueOutput(bound, own, &evaluation, purpose)
 			if err != nil || !member {
 				t.Fatal("existing row lost membership", member, err)
@@ -97,9 +97,9 @@ func TestInsertConflictExistingOutputPreservesProposalKey(t *testing.T) {
 				want sqltype.Value
 			}{
 				{"proposal", key, proposal[0]},
-				{"existing", existing, own.values[0]},
+				{"existing", existing, own.Values[0]},
 			} {
-				cmp, err := bound.ordering.compareKeys(evaluation.Context, logicalIndexEntry{keys: comparison.got}, logicalIndexEntry{keys: []sqltype.Value{comparison.want}})
+				cmp, err := bound.ordering.compareKeys(evaluation.Context, logicalIndexEntry{Keys: comparison.got}, logicalIndexEntry{Keys: []sqltype.Value{comparison.want}})
 				if err != nil || cmp != 0 {
 					t.Fatal(comparison.name+" key was overwritten", cmp, err)
 				}
@@ -164,10 +164,10 @@ func TestInsertConflictCommittedVisibility(t *testing.T) {
 				t.Fatal("post-frontier tuple", admitted, err)
 			}
 		}
-		if err := scope.insertConflictVisible(rowVersion{born: 10}, false); err != nil {
+		if err := scope.insertConflictVisible(rowVersion{Born: 10}, false); err != nil {
 			t.Fatal("own proposal is visible", err)
 		}
-		if err := scope.insertConflictVisible(rowVersion{born: 0}, true); err != nil {
+		if err := scope.insertConflictVisible(rowVersion{Born: 0}, true); err != nil {
 			t.Fatal("frontier tuple is visible", err)
 		}
 	}
@@ -190,7 +190,7 @@ func TestInsertConflictSelectedFirstAndOrdinaryErrors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.e.storage.indexRoots[second.Address()] = root
+	f.e.storage.IndexRoots[second.Address()] = root
 	scope.uniqueBinding = nil
 	scope.insertConflict.catalog = nil
 	admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 10)}, indexWriteBatch{}, nil)
@@ -249,7 +249,7 @@ func TestInsertConflictInferenceMixedExpressionsAndAllProviders(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		f.e.storage.indexRoots[index.Address()] = root
+		f.e.storage.IndexRoots[index.Address()] = root
 	}
 	action := &boundInsertConflict{keys: []conflictKey{{attribute: 10}, {expression: expression}, {expression: expression}}, predicate: f.predicate}
 	ctx := EvalContext{Context: context.Background(), Scope: 1, Frame: 1}

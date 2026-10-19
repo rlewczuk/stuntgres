@@ -75,11 +75,11 @@ func materializedNewEntries(ctx context.Context, ordering indexOrdering, rows []
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		entry, err := ordering.entry(rowVersion{values: values, row: ids.RowID(i + 1), version: ids.VersionID(i + 1)}, &evaluation)
+		entry, err := ordering.entry(rowVersion{Values: values, Row: ids.RowID(i + 1), Version: ids.VersionID(i + 1)}, &evaluation)
 		if err != nil {
 			return nil, err
 		}
-		entry.position = i
+		entry.Position = i
 		entries[i] = entry
 	}
 	if err := ordering.sort(ctx, entries); err != nil {
@@ -111,7 +111,7 @@ func materializedDuplicatePreflight(ctx context.Context, view catalog.Read, pare
 			return err
 		}
 		for i := start; i < end && duplicate != 0; i++ {
-			a := entries[i].position
+			a := entries[i].Position
 			if uniqueHasNull(rows[a]) {
 				continue
 			}
@@ -119,7 +119,7 @@ func materializedDuplicatePreflight(ctx context.Context, view catalog.Read, pare
 				if err := ctx.Err(); err != nil {
 					return err
 				}
-				b := entries[j].position
+				b := entries[j].Position
 				candidate := min(a, b)
 				if candidate < duplicate && materializedSameRow(rows[a], rows[b]) {
 					duplicate = candidate
@@ -192,7 +192,7 @@ func materializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 	if err := materializedDuplicatePreflight(ctx, view, parent, ordering, entries, rows, output); err != nil {
 		return nil, err
 	}
-	if len(rows) == 0 || len(previous.versions) == 0 {
+	if len(rows) == 0 || len(previous.Versions) == 0 {
 		return rows, nil
 	}
 	var matched []bool
@@ -221,21 +221,21 @@ func materializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 		// SQL key equality never matches NULL, even for NULLS NOT DISTINCT.
 		// Equal selected-key groups share their NULL positions, so every old
 		// occurrence is deleted and every producer occurrence stays unmatched.
-		if uniqueHasNull(entries[newAt].keys) {
+		if uniqueHasNull(entries[newAt].Keys) {
 			oldAt, newAt = oldEnd, newEnd
 			continue
 		}
 		for i := oldAt; i < oldEnd; i++ {
-			if !liveVersion(previous.versions[oldEntries[i].position], frontier, previous.ends, nil) {
+			if !liveVersion(previous.Versions[oldEntries[i].Position], frontier, previous.Ends, nil) {
 				continue
 			}
-			values := previous.versions[oldEntries[i].position].values
+			values := previous.Versions[oldEntries[i].Position].Values
 			survives := false
 			for j := newAt; j < newEnd; j++ {
 				if err := ctx.Err(); err != nil {
 					return nil, err
 				}
-				at := entries[j].position
+				at := entries[j].Position
 				match, err := materializedRowsMatch(ctx, orderings, values, rows[at])
 				if err != nil {
 					return nil, err
@@ -271,7 +271,7 @@ func materializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 type materializedLineage struct{ marker byte }
 
 func sameMaterializedLineage(old, current *catalog.Relation, a, b *relationStorage) bool {
-	return old != nil && current != nil && old.RelationKind == catalog.MaterializedViewRelation && current.RelationKind == catalog.MaterializedViewRelation && old.Populated && current.Populated && a != nil && b != nil && a.materializedLineage != nil && a.materializedLineage == b.materializedLineage && relationDefiningAuthorityCompatible(old, current)
+	return old != nil && current != nil && old.RelationKind == catalog.MaterializedViewRelation && current.RelationKind == catalog.MaterializedViewRelation && old.Populated && current.Populated && a != nil && b != nil && a.MaterializedLineage != nil && a.MaterializedLineage == b.MaterializedLineage && relationDefiningAuthorityCompatible(old, current)
 }
 
 // A producer snapshot may outlive a compatible source publication, never a
@@ -302,6 +302,6 @@ func (e *Engine) materializedSourceFenceCurrent(f materializedSourceFence) bool 
 		return false
 	}
 	current, _ := e.catalog.state.Relation(f.ref.Address)
-	store := e.storage.relations[f.ref.Address]
+	store := e.storage.Relations[f.ref.Address]
 	return current == f.relation && store == f.storage || sameMaterializedLineage(f.relation, current, f.storage, store)
 }

@@ -10,12 +10,12 @@ func TestMaterializedRefreshConcurrentRetainedProvenance(t *testing.T) {
 	for _, sequence := range [][]bool{{true, true}, {true, false, true}, {false, true}} {
 		e := New()
 		d := concurrentUnitRelation(t, e)
-		original := e.storage.relations[d.Address()]
+		original := e.storage.Relations[d.Address()]
 		changes := newCatalogChanges()
 		previous := original
 		for i, concurrent := range sequence {
-			replacement := &relationStorage{generation: previous.generation + 1}
-			stage := &CatalogStage{materializedReplacement: &materializedReplacement{original: d, descriptor: d, predecessor: previous, storage: replacement, generation: previous.generation, ends: previous.ends, concurrent: concurrent}}
+			replacement := &relationStorage{Generation: previous.Generation + 1}
+			stage := &CatalogStage{materializedReplacement: &materializedReplacement{original: d, descriptor: d, predecessor: previous, storage: replacement, generation: previous.Generation, ends: previous.Ends, concurrent: concurrent}}
 			e.mu.Lock()
 			e.stageCatalogChangesLocked(stage, changes)
 			e.mu.Unlock()
@@ -27,7 +27,7 @@ func TestMaterializedRefreshConcurrentRetainedProvenance(t *testing.T) {
 			if shape.original != original || shape.replacement != replacement || shape.materializedConcurrent != concurrent || shape.materializedContinuous != continuous {
 				t.Fatal("lost first predecessor or interrupted provenance", sequence, i, shape)
 			}
-			if original.materializedLineage != nil || replacement.materializedLineage != nil {
+			if original.MaterializedLineage != nil || replacement.MaterializedLineage != nil {
 				t.Fatal("private stage stamped committed lineage")
 			}
 			previous = replacement
@@ -54,12 +54,12 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 	old = e.catalog.state.MustRelation(old.Address())
 	old = concurrentUnitReplace(t, e, old, refreshUnitRows(t, old, 1), false, true)
 	catalog := e.CatalogRead()
-	storage := e.storage.relations[old.Address()]
-	snapshot := &visibilityData{catalog: catalog, committed: map[ids.ObjectAddress][]rowVersion{old.Address(): storage.versions}, singleGeneration: storage}
+	storage := e.storage.Relations[old.Address()]
+	snapshot := &visibilityData{catalog: catalog, committed: map[ids.ObjectAddress][]rowVersion{old.Address(): storage.Versions}, singleGeneration: storage}
 	fence := materializedSourceFence{ref: e.catalog.Domain.Ref(catalog.Epoch(), old.Address()), relation: old, storage: storage}
 	current := concurrentUnitReplace(t, e, old, refreshUnitRows(t, old, 2), true, true)
 	e.mu.Lock()
-	if !materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage.relations[old.Address()]) || !e.materializedSourceFenceCurrent(fence) {
+	if !materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage.Relations[old.Address()]) || !e.materializedSourceFenceCurrent(fence) {
 		t.Fatal("compatible publication rejected captured source")
 	}
 	changes := newCatalogChanges()
@@ -75,14 +75,14 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 	changed := *current
 	changed.ObjectName = "renamed"
 	e.catalog.state.SetDescriptor(current.Address(), &changed)
-	if e.materializedSourceFenceCurrent(fence) || materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage.relations[old.Address()]) {
+	if e.materializedSourceFenceCurrent(fence) || materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage.Relations[old.Address()]) {
 		t.Fatal("source definition retargeted")
 	}
 	e.catalog.state.SetDescriptor(current.Address(), current)
 	e.mu.Unlock()
 	current = concurrentUnitReplace(t, e, current, refreshUnitRows(t, current, 3), false, true)
 	e.mu.Lock()
-	if e.materializedSourceFenceCurrent(fence) || materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage.relations[current.Address()]) {
+	if e.materializedSourceFenceCurrent(fence) || materializedSourceCurrent(snapshot, old, e.catalog.state, e.storage.Relations[current.Address()]) {
 		t.Fatal("plain rewrite bridged active source snapshot")
 	}
 	e.mu.Unlock()

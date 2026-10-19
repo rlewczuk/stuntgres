@@ -90,7 +90,7 @@ func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogSta
 		if storage == nil {
 			return ids.ErrCatalogReplaced
 		}
-		stage.partitionReads = append(stage.partitionReads, partitionReadFence{address: d.Address(), storage: storage, length: len(storage.versions), ends: storage.ends, generation: storage.generation})
+		stage.partitionReads = append(stage.partitionReads, partitionReadFence{address: d.Address(), storage: storage, length: len(storage.Versions), ends: storage.Ends, generation: storage.Generation})
 		return nil
 	}
 	if err := partitionPhysicalDescendants(view, candidate, capture); err != nil {

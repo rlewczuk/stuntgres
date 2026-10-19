@@ -7,10 +7,10 @@ import (
 )
 
 func validateExclusionPair(ctx context.Context, parent, index *catalog.Relation, previous, current logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool) error {
-	if previous.row == current.row || uniqueHasNull(previous.keys) || uniqueHasNull(current.keys) {
+	if previous.Row == current.Row || uniqueHasNull(previous.Keys) || uniqueHasNull(current.Keys) {
 		return nil
 	}
-	match, err := exclusionKeysMatch(ctx, index.SQLIndex, previous.keys, current.keys)
+	match, err := exclusionKeysMatch(ctx, index.SQLIndex, previous.Keys, current.Keys)
 	if err != nil || !match {
 		return err
 	}
@@ -26,9 +26,9 @@ func validateExclusionPair(ctx context.Context, parent, index *catalog.Relation,
 			}
 		}
 	}
-	key, existing := current.keys, previous.keys
+	key, existing := current.Keys, previous.Keys
 	if building {
-		key, existing = previous.keys, current.keys
+		key, existing = previous.Keys, current.Keys
 	}
 	return exclusionDiagnostic(ctx, parent, index, key, existing, schema, output, allowed, building, catalog)
 }
@@ -36,17 +36,17 @@ func validateExclusionRoot(ctx context.Context, parent, index *catalog.Relation,
 	if root == nil {
 		return ctx.Err()
 	}
-	if root.hash == nil {
-		return validateExclusionEntries(ctx, parent, index, root.entries, schema, output, auth, building)
+	if root.Hash == nil {
+		return validateExclusionEntries(ctx, parent, index, root.Entries, schema, output, auth, building)
 	}
 	var leftKey, rightKey [1]sqltype.Value
-	for _, bucket := range root.hash.buckets {
+	for _, bucket := range root.Hash.Buckets {
 		for i, entry := range bucket {
-			leftKey[0] = entry.key
-			left := logicalIndexEntry{row: entry.row, version: entry.version, keys: leftKey[:]}
+			leftKey[0] = entry.Key
+			left := logicalIndexEntry{Row: entry.Row, Version: entry.Version, Keys: leftKey[:]}
 			for _, prior := range bucket[:i] {
-				rightKey[0] = prior.key
-				right := logicalIndexEntry{row: prior.row, version: prior.version, keys: rightKey[:]}
+				rightKey[0] = prior.Key
+				right := logicalIndexEntry{Row: prior.Row, Version: prior.Version, Keys: rightKey[:]}
 				if err := validateExclusionPair(ctx, parent, index, right, left, schema, output, auth, building); err != nil {
 					return err
 				}

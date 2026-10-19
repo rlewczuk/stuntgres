@@ -58,9 +58,9 @@ func TestExclusionDisclosure(t *testing.T) {
 				}
 				parent := e.catalog.state.MustRelation(ref.Address)
 				index, root := btreeRoot(t, e, "public.ex")
-				previous := root.entries[0]
+				previous := root.Entries[0]
 				current := previous
-				current.row, current.version = ids.RowID(e.storage.nextRow+1), ids.VersionID(e.storage.nextVersion+1)
+				current.Row, current.Version = ids.RowID(e.storage.RowFrontier()+1), ids.VersionID(e.storage.VersionFrontier()+1)
 				visible := disclosure == "table" || disclosure == "columns" && !expression
 				for _, building := range []bool{false, true} {
 					detail := "Key conflicts with existing key."

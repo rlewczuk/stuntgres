@@ -20,9 +20,9 @@ import (
 // state here is distinct from transactional sequence metadata in the
 // catalog.
 type storageStore struct {
-	relations   map[ids.ObjectAddress]*relationStorage
-	sequences   map[ids.ObjectAddress]*sequenceGenerator
-	indexRoots  map[ids.ObjectAddress]*logicalIndexRoot
+	Relations   map[ids.ObjectAddress]*relationStorage
+	Sequences   map[ids.ObjectAddress]*sequenceGenerator
+	IndexRoots  map[ids.ObjectAddress]*logicalIndexRoot
 	nextRow     uint64
 	nextVersion uint64
 }
@@ -30,7 +30,7 @@ type storageStore struct {
 // allocateRowVersionsLocked reserves one new row and version identity per
 // row, in order. Ordinary writes and initial catalog data both reserve
 // globally nonreused identities; failed work may leave gaps.
-func (s *storageStore) allocateRowVersionsLocked(rows [][]sqltype.Value, admission *catalog.State) ([]rowVersion, error) {
+func (s *storageStore) AllocateRowVersionsLocked(rows [][]sqltype.Value, admission *catalog.State) ([]rowVersion, error) {
 	n := uint64(len(rows))
 	if n > ^uint64(0)-s.nextRow {
 		return nil, errors.New("stuntgres: row identity exhausted")
@@ -42,18 +42,44 @@ func (s *storageStore) allocateRowVersionsLocked(rows [][]sqltype.Value, admissi
 	for i, row := range rows {
 		s.nextRow++
 		s.nextVersion++
-		versions[i] = rowVersion{row: ids.RowID(s.nextRow), version: ids.VersionID(s.nextVersion), values: row, indexAdmission: admission}
+		versions[i] = rowVersion{Row: ids.RowID(s.nextRow), Version: ids.VersionID(s.nextVersion), Values: row, IndexAdmission: admission}
 	}
 	return versions, nil
 }
 
 // indexRootsCurrent reports whether every captured root is still the
 // published index root at its address. The caller holds Engine.mu.
-func (s *storageStore) indexRootsCurrent(roots map[ids.ObjectAddress]*logicalIndexRoot) bool {
+func (s *storageStore) IndexRootsCurrent(roots map[ids.ObjectAddress]*logicalIndexRoot) bool {
 	for address, root := range roots {
-		if s.indexRoots[address] != root {
+		if s.IndexRoots[address] != root {
 			return false
 		}
 	}
 	return true
+}
+
+// RowFrontier is the last allocated row identity.
+func (s *storageStore) RowFrontier() uint64 { return s.nextRow }
+
+// VersionFrontier is the last allocated version identity.
+func (s *storageStore) VersionFrontier() uint64 { return s.nextVersion }
+
+// AllocateRowLocked reserves the next row identity. The caller holds
+// Engine.mu and has already checked exhaustion with its own diagnostic.
+func (s *storageStore) AllocateRowLocked() ids.RowID {
+	s.nextRow++
+	return ids.RowID(s.nextRow)
+}
+
+// AllocateVersionLocked reserves the next version identity. The caller holds
+// Engine.mu and has already checked exhaustion with its own diagnostic.
+func (s *storageStore) AllocateVersionLocked() ids.VersionID {
+	s.nextVersion++
+	return ids.VersionID(s.nextVersion)
+}
+
+// SetFrontierLocked installs both allocator frontiers, for Restore and
+// foreign replacement after reminting succeeded. The caller holds Engine.mu.
+func (s *storageStore) SetFrontierLocked(row, version uint64) {
+	s.nextRow, s.nextVersion = row, version
 }

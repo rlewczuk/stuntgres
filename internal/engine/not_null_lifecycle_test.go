@@ -28,8 +28,8 @@ func TestNotNullAXWaitCancellationAndEnd(t *testing.T) {
 				}
 				sessionSQL(t, a, "INSERT INTO t VALUES(7,8)")
 				ref := roleTableRef(t, e, "t")
-				old, storage := e.catalog.state.Get(ref.Address), e.storage.relations[ref.Address]
-				ends, generation := storage.ends, storage.generation
+				old, storage := e.catalog.state.Get(ref.Address), e.storage.Relations[ref.Address]
+				ends, generation := storage.Ends, storage.Generation
 				tx := transactionBegin(t, a)
 				sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 				ctx, cancel := context.WithCancel(context.Background())
@@ -43,7 +43,7 @@ func TestNotNullAXWaitCancellationAndEnd(t *testing.T) {
 				}
 				lockAwait(t, done, context.Canceled)
 				lockPending(t, e, 0)
-				if e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage || storage.ends != ends || storage.generation != generation || len(storage.versions) != 1 {
+				if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || storage.Ends != ends || storage.Generation != generation || len(storage.Versions) != 1 {
 					t.Fatal("canceled waiter changed schema/storage")
 				}
 				transactionEnd(t, a, tx, false)
@@ -167,7 +167,7 @@ func TestNotNullCancellationDuringScanAndRevisionExhaustion(t *testing.T) {
 	run(t, e, "INSERT INTO t VALUES"+strings.TrimSuffix(values, ","))
 	ref := roleTableRef(t, e, "t")
 	old := e.catalog.state.Get(ref.Address)
-	storage := e.storage.relations[ref.Address]
+	storage := e.storage.Relations[ref.Address]
 	ctx, cancel := context.WithCancel(context.Background())
 	op, done, err := testOperation(e, ctx)
 	if err != nil {
@@ -177,7 +177,7 @@ func TestNotNullCancellationDuringScanAndRevisionExhaustion(t *testing.T) {
 	defer cancel()
 	op.ctx = &cancelAtErrCheck{Context: op.Context(), cancel: cancel, at: 25}
 	_, err = e.Execute(op, statement(t, "ALTER TABLE t ALTER a SET NOT NULL"), 0, nil)
-	if !errors.Is(err, context.Canceled) || e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage {
+	if !errors.Is(err, context.Canceled) || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage {
 		t.Fatal(err)
 	}
 	maximum := *old.(*catalog.Relation)
@@ -194,7 +194,7 @@ func TestNotNullCancellationDuringScanAndRevisionExhaustion(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = testExecute(e, context.Background(), statement(t, "ALTER TABLE t ALTER a SET NOT NULL"), nil)
-	if err == nil || err.Error() != "stuntgres: definition revision exhausted" || e.catalog.state.Get(ref.Address) != &maximum || e.storage.relations[ref.Address] != storage {
+	if err == nil || err.Error() != "stuntgres: definition revision exhausted" || e.catalog.state.Get(ref.Address) != &maximum || e.storage.Relations[ref.Address] != storage {
 		t.Fatal(err)
 	}
 }
@@ -267,8 +267,8 @@ func TestNotNullIntegratedAXLockTimeout(t *testing.T) {
 			sessionSQL(t, b, "SET lock_timeout='80ms'")
 			ref := roleTableRef(t, e, "t")
 			old := e.catalog.state.Get(ref.Address)
-			storage := e.storage.relations[ref.Address]
-			ends, generation := storage.ends, storage.generation
+			storage := e.storage.Relations[ref.Address]
+			ends, generation := storage.Ends, storage.Generation
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 			done := waitsCommandAsync(e, b, context.Background(), q, false)
@@ -280,7 +280,7 @@ func TestNotNullIntegratedAXLockTimeout(t *testing.T) {
 				t.Fatal("NOT NULL AX waiter did not time out")
 			}
 			lockPending(t, e, 0)
-			if e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage || storage.ends != ends || storage.generation != generation || len(storage.versions) != 1 {
+			if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || storage.Ends != ends || storage.Generation != generation || len(storage.Versions) != 1 {
 				t.Fatal("timed-out utility mutated descriptor/storage")
 			}
 			transactionEnd(t, a, tx, false)

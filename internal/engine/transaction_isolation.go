@@ -239,10 +239,10 @@ func (s *StatementScope) snapshotDataPhase() error {
 			e.mu.Unlock()
 			return err
 		}
-		roots = make(map[ids.ObjectAddress]transactionRoot, len(e.storage.relations))
-		for address, storage := range e.storage.relations {
+		roots = make(map[ids.ObjectAddress]transactionRoot, len(e.storage.Relations))
+		for address, storage := range e.storage.Relations {
 			if relation, ok := e.catalog.state.Relation(address); ok {
-				roots[address] = transactionRoot{storage.versions, storage.ends, storage, relation}
+				roots[address] = transactionRoot{storage.Versions, storage.Ends, storage, relation}
 			}
 		}
 		frontier = e.commitSeq
@@ -518,16 +518,16 @@ func explicitUtility(stmt parser.Statement) bool {
 	return false
 }
 func (s *StatementScope) repeatableConflict(head rowVersion, end *deletionRoot) error {
-	if !stableIsolation(s.owner.isolation) || head.born == 0 {
+	if !stableIsolation(s.owner.isolation) || head.Born == 0 {
 		return nil
 	}
 	// The snapshot's predecessor was replaced before its successor was deleted.
 	// PostgreSQL reports that first update, rather than the successor's tombstone.
-	if head.born > s.owner.frontier {
+	if head.Born > s.owner.frontier {
 		return sqlError("40001", "could not serialize access due to concurrent update")
 	}
 	if end != nil {
-		if tombstone, ok := end.rows[head.row]; ok && tombstone.version == head.version && tombstone.end > s.owner.frontier {
+		if tombstone, ok := end.Rows[head.Row]; ok && tombstone.Version == head.Version && tombstone.End > s.owner.frontier {
 			return sqlError("40001", "could not serialize access due to concurrent delete")
 		}
 	}

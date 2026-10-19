@@ -102,7 +102,7 @@ func TestMergeUpdateReadCommittedPending(t *testing.T) {
 				sessionSQL(t, peer, "CREATE TABLE source(id INT,x INT)")
 				sessionSQL(t, peer, "INSERT INTO source VALUES(1,7)")
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				row := e.storage.relations[ref.Address].versions[0].row
+				row := e.storage.Relations[ref.Address].Versions[0].Row
 				tx := transactionBegin(t, holder)
 				hold := "UPDATE t SET v=20 WHERE id=1"
 				if lane == "keyChange" || lane == "keyChangeNoInsert" {
@@ -200,7 +200,7 @@ func mergeUpdateRepeatableReadPending(t *testing.T, targetOnly bool) {
 				sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
 				sessionSQL(t, peer, "INSERT INTO t VALUES(1,10),(2,20),(3,30)")
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				original := e.storage.relations[ref.Address].versions[0]
+				original := e.storage.Relations[ref.Address].Versions[0]
 				sessionSQL(t, worker, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 				transactionRows(t, worker, "SELECT v FROM t WHERE id=1", 10)
 				worker.transactions.mu.Lock()
@@ -231,7 +231,7 @@ func mergeUpdateRepeatableReadPending(t *testing.T, targetOnly bool) {
 					q = "MERGE INTO t USING (SELECT 9 AS id WHERE FALSE) s ON t.id=s.id WHEN NOT MATCHED BY SOURCE AND t.id=1 THEN UPDATE SET v=100 WHEN NOT MATCHED THEN INSERT VALUES(s.id,99)"
 				}
 				done := mergeUpdatePendingExecute(t, worker, q)
-				mergeUpdatePendingRow(t, e, ref, original.row, worker, holder.transactions.ticket, 0)
+				mergeUpdatePendingRow(t, e, ref, original.Row, worker, holder.transactions.ticket, 0)
 				transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20, 30)
 				transactionEnd(t, holder, tx, commit)
 				if commit && deleted {
@@ -277,18 +277,18 @@ func mergeUpdateRepeatableReadPending(t *testing.T, targetOnly bool) {
 					worker.transactions.mu.Lock()
 					var own rowVersion
 					for _, v := range worker.transactions.writes[ref.Address] {
-						if v.row == original.row {
+						if v.Row == original.Row {
 							own = v
 						}
 					}
 					worker.transactions.mu.Unlock()
-					if own.row != original.row || own.version == original.version || own.base == 0 {
+					if own.Row != original.Row || own.Version == original.Version || own.Base == 0 {
 						t.Fatal("lost replacement identity/predecessor", own, original)
 					}
-					if commit && own.base == original.version {
+					if commit && own.Base == original.Version {
 						t.Fatal("replacement incorrectly based on old RR snapshot", own)
 					}
-					if !commit && own.base != original.version {
+					if !commit && own.Base != original.Version {
 						t.Fatal("rollback failed to retain original predecessor", own)
 					}
 					if targetOnly {
@@ -339,7 +339,7 @@ func mergeUpdateFollowChainPending(t *testing.T, targetOnly bool) {
 			sessionSQL(t, peer, "CREATE TABLE t(id INT NOT NULL UNIQUE,v INT)")
 			sessionSQL(t, peer, "INSERT INTO t VALUES(1,10)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			row := e.storage.relations[ref.Address].versions[0].row
+			row := e.storage.Relations[ref.Address].Versions[0].Row
 			a := transactionBegin(t, holder)
 			r := sessionSQL(t, holder, "SELECT id FROM t FOR KEY SHARE")
 			r.Rows.Close()

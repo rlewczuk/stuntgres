@@ -61,7 +61,7 @@ func rowLockViewGrants(t *testing.T, e *Engine, ticket *lock.Ticket, table strin
 	e.mu.Lock()
 	want := make(map[lock.Resource]bool, len(ids))
 	for _, id := range ids {
-		want[lock.Resource{ObjectRef: ref, Row: e.storage.relations[ref.Address].versions[id-1].row}] = true
+		want[lock.Resource{ObjectRef: ref, Row: e.storage.Relations[ref.Address].Versions[id-1].Row}] = true
 	}
 	e.mu.Unlock()
 	lockState := e.locks.Inspect()

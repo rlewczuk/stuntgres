@@ -173,27 +173,27 @@ func (s *StatementScope) latestQueryRow(leaf queryLeaf, candidate rowVersion, hi
 		return rowVersion{}, false, err
 	}
 	store := leaf.storage
-	rows := store.versions
-	if candidate.born == 0 {
+	rows := store.Versions
+	if candidate.Born == 0 {
 		rows = s.ownWrites[leaf.ref.Address]
 	}
-	current, _, found := rowByID(rows, candidate.row, hint)
+	current, _, found := rowByID(rows, candidate.Row, hint)
 	if !found {
 		return rowVersion{}, false, fmt.Errorf("stuntgres: invalid query row predecessor")
 	}
 	physical = current
-	present = liveVersion(current, e.commitSeq, store.ends, s.ownDeletes[leaf.ref.Address])
-	if stableIsolation(s.owner.isolation) && current.born != 0 {
-		changed := current.born > s.owner.frontier
-		if store.ends != nil {
-			end, ok := store.ends.rows[current.row]
-			changed = changed || ok && end.version == current.version && end.end > s.owner.frontier
+	present = liveVersion(current, e.commitSeq, store.Ends, s.ownDeletes[leaf.ref.Address])
+	if stableIsolation(s.owner.isolation) && current.Born != 0 {
+		changed := current.Born > s.owner.frontier
+		if store.Ends != nil {
+			end, ok := store.Ends.Rows[current.Row]
+			changed = changed || ok && end.Version == current.Version && end.End > s.owner.frontier
 		}
 		if changed {
 			// KEY SHARE retains RR values only across compatible replacements.
 			// A key transition after the frontier remains incompatible even if
 			// later updates restore the key or change only payload.
-			if mode == lock.ForKeyShare && present && current.version != candidate.version && current.keyChangedAt <= s.owner.frontier {
+			if mode == lock.ForKeyShare && present && current.Version != candidate.Version && current.KeyChangedAt <= s.owner.frontier {
 				return candidate, true, nil
 			}
 			return rowVersion{}, false, sqlError("40001", "could not serialize access due to concurrent update")

@@ -82,7 +82,7 @@ func TestDeleteCoreAtomicity(t *testing.T) {
 			if !errors.Is(err, want) || result.Count != 0 || result.Rows != nil {
 				t.Fatal(result, err, want)
 			}
-			if e.commitSeq != originalFrontier || e.storage.relations[b.ref.Address].ends != nil {
+			if e.commitSeq != originalFrontier || e.storage.Relations[b.ref.Address].Ends != nil {
 				t.Fatal("partial publication")
 			}
 			transactionRows(t, s, "SELECT v FROM t ORDER BY v", 1, 2, 3)
@@ -192,7 +192,7 @@ func TestDeleteCoreStageAuthority(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO t VALUES(1),(1)")
 	scope, b, source := deleteProbeScope(t, s)
 	version := source.committed[0]
-	candidate := deleteCandidate{ref: b.ref, storage: b.storage, row: version.row, version: version.version, ordinal: 0}
+	candidate := deleteCandidate{ref: b.ref, storage: b.storage, row: version.Row, version: version.Version, ordinal: 0}
 	copiedScope := *scope
 	if err := copiedScope.acquireRow(candidate); err == nil {
 		t.Fatal("copied scope acquired a row")
@@ -253,13 +253,13 @@ func TestDeleteCoreStageShapeAuthority(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO t VALUES(1),(2)")
 	scope, b, source := deleteProbeScope(t, s)
 	version := source.committed[0]
-	candidate := deleteCandidate{ref: b.ref, storage: b.storage, row: version.row, version: version.version, ordinal: 0}
+	candidate := deleteCandidate{ref: b.ref, storage: b.storage, row: version.Row, version: version.Version, ordinal: 0}
 	if err := scope.acquireRow(candidate); err != nil {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
 	replacement := *b.storage
-	e.storage.relations[b.ref.Address] = &replacement
+	e.storage.Relations[b.ref.Address] = &replacement
 	e.mu.Unlock()
 	if _, err := scope.Writes().Delete(candidate); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("changed shape admitted staged deletion", err)
@@ -301,8 +301,8 @@ func TestDeleteCoreCombinedPreflight(t *testing.T) {
 				}
 			case "replaced_shape":
 				// Preserve payload and width: only the exact shape generation changes.
-				replacement := *e.storage.relations[target.Address]
-				e.storage.relations[target.Address] = &replacement
+				replacement := *e.storage.Relations[target.Address]
+				e.storage.Relations[target.Address] = &replacement
 			case "exhausted_frontier":
 				e.commitSeq = ids.CommitSeq(^uint64(0))
 				frontier = e.commitSeq
@@ -313,7 +313,7 @@ func TestDeleteCoreCombinedPreflight(t *testing.T) {
 			op := transactionOperation(t, a)
 			_, err := e.Commit(op, ref)
 			op.Done()
-			if err == nil || e.commitSeq != frontier || e.storage.relations[target.Address].ends != nil {
+			if err == nil || e.commitSeq != frontier || e.storage.Relations[target.Address].Ends != nil {
 				t.Fatal("failed combined batch published", err)
 			}
 			// Restore only the deliberately exhausted test frontier to permit read witnesses.
@@ -351,7 +351,7 @@ func TestDeleteCoreDeletedScanCancellation(t *testing.T) {
 	defer cancel()
 	ctx := &cancelAtErrCheck{Context: base, cancel: cancel, at: 2}
 	scope.op.ctx = ctx
-	root := e.storage.relations[scope.lockedRef.Address].ends
+	root := e.storage.Relations[scope.lockedRef.Address].Ends
 	target := scope.lockedRef // Finish retires admission; retain the exact witness.
 	frontier := e.commitSeq
 	source, err := captureQuerySource(ctx, view, scope.lockedRef)
@@ -359,7 +359,7 @@ func TestDeleteCoreDeletedScanCancellation(t *testing.T) {
 		_ = scope.Finish(err)
 		t.Fatal(source, err, ctx.checks.Load())
 	}
-	if err = scope.Finish(err); !errors.Is(err, context.Canceled) || e.storage.relations[target.Address].ends != root || e.commitSeq != frontier {
+	if err = scope.Finish(err); !errors.Is(err, context.Canceled) || e.storage.Relations[target.Address].Ends != root || e.commitSeq != frontier {
 		t.Fatal(err, "deleted scan changed state")
 	}
 	transactionRows(t, s, "SELECT v FROM t ORDER BY v")

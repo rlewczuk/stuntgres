@@ -13,7 +13,7 @@ func (e *Engine) serializableEligibleLocked(ref ids.ObjectRef, changes *catalogC
 		return false
 	}
 	ns, ok := e.privateCatalogLocked(changes).Namespace(d.Namespace())
-	return ok && ns.Temporary == (ids.SessionToken{}) && d.Namespace().ObjectID != ids.PGCatalogNamespaceOID && e.storage.relations[ref.Address] != nil
+	return ok && ns.Temporary == (ids.SessionToken{}) && d.Namespace().ObjectID != ids.PGCatalogNamespaceOID && e.storage.Relations[ref.Address] != nil
 }
 
 func (e *Engine) serializableReadLocked(s *StatementScope, ref ids.ObjectRef) error {
@@ -123,7 +123,7 @@ func (e *Engine) reconcileSerializableWritesLocked(t *transactionOwner) {
 				}
 			} else {
 				for _, row := range t.writes[address] {
-					if row.version == event.version {
+					if row.Version == event.version {
 						keep = true
 						break
 					}

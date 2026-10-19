@@ -89,8 +89,8 @@ func TestDeleteCoreReplacementImmediateAdmission(t *testing.T) {
 	go func() {
 		e.replacementMu.Lock()
 		e.mu.Lock()
-		root := e.storage.relations[ref.Address].ends
-		published := root != nil && len(root.rows) == 2 && e.commitSeq == frontier+1
+		root := e.storage.Relations[ref.Address].Ends
+		published := root != nil && len(root.Rows) == 2 && e.commitSeq == frontier+1
 		e.mu.Unlock()
 		e.replacementMu.Unlock()
 		writer <- published
@@ -235,8 +235,8 @@ func TestDeleteCoreReplacementWaitingPhases(t *testing.T) {
 				sessionSQL(t, peer, "CREATE TABLE t(v INT)")
 				sessionSQL(t, peer, "INSERT INTO t VALUES(1),(2),(3)")
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				oldStorage := e.storage.relations[ref.Address]
-				resource := lock.Resource{ObjectRef: ref, Row: oldStorage.versions[1].row}
+				oldStorage := e.storage.Relations[ref.Address]
+				resource := lock.Resource{ObjectRef: ref, Row: oldStorage.Versions[1].Row}
 				hr := transactionBegin(t, holder)
 				deleteCount(t, holder, "DELETE FROM t WHERE v=2", 1)
 				var wr ids.TxRef
@@ -248,7 +248,7 @@ func TestDeleteCoreReplacementWaitingPhases(t *testing.T) {
 				scope, ticket, done := deleteReplacementScope(t, e, waiter)
 				request := deleteReplacementQueued(t, e, resource, holder.transactions.ticket, ticket)
 				root := scope.stage.deletes[ref.Address]
-				first := oldStorage.versions[0].row
+				first := oldStorage.Versions[0].Row
 				if root == nil || len(root.rows) != 1 || root.rows[first].row != first {
 					t.Fatal("earlier matching row was not privately staged before wait")
 				}
@@ -274,7 +274,7 @@ func TestDeleteCoreReplacementWaitingPhases(t *testing.T) {
 				}
 				deleteReplacementReject(t, scope, done)
 				fenced := request.Terminal() && errors.Is(request.Err(), ids.ErrCatalogReplaced)
-				if !fenced || oldStorage.ends != nil {
+				if !fenced || oldStorage.Ends != nil {
 					t.Fatal("queued request not fenced or private deletion published")
 				}
 				if explicit {
@@ -304,8 +304,8 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	sessionSQL(t, peer, "CREATE TABLE t(v INT)")
 	sessionSQL(t, peer, "INSERT INTO t VALUES(1),(2),(3)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	oldStorage := e.storage.relations[ref.Address]
-	first, blocked := oldStorage.versions[0].row, oldStorage.versions[1].row
+	oldStorage := e.storage.Relations[ref.Address]
+	first, blocked := oldStorage.Versions[0].Row, oldStorage.Versions[1].Row
 	resource := lock.Resource{ObjectRef: ref, Row: blocked}
 	hr := transactionBegin(t, holder)
 	deleteCount(t, holder, "DELETE FROM t WHERE v=2", 1)
@@ -321,11 +321,11 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	sourceRoles, targetRoles := source.Roles(), e.Roles()
 	storage := make(map[ids.ObjectAddress]*relationStorage)
 	source.mu.Lock()
-	for address, relation := range source.storage.relations {
-		storage[address] = &relationStorage{versions: append([]rowVersion(nil), relation.versions...)}
+	for address, relation := range source.storage.Relations {
+		storage[address] = &relationStorage{Versions: append([]rowVersion(nil), relation.Versions...)}
 	}
 	sequences, sequenceErr := copySequenceState(source, replacement)
-	indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage.relations, source.storage.indexRoots, source.commitSeq)
+	indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage.Relations, source.storage.IndexRoots, source.commitSeq)
 	source.mu.Unlock()
 	if sequenceErr != nil {
 		t.Fatal(sequenceErr)
@@ -359,7 +359,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	// The writer excludes implicit readmission: row one was staged before the
 	// wait, but the newly granted row two must not reach the stage/publication.
 	root := scope.stage.deletes[ref.Address]
-	if root == nil || len(root.rows) != 1 || root.rows[first].row != first || oldStorage.ends != nil {
+	if root == nil || len(root.rows) != 1 || root.rows[first].row != first || oldStorage.Ends != nil {
 		t.Fatal("DELETE advanced past readmission or failed to stage earlier private row")
 	}
 	select {
@@ -396,7 +396,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	e.replacementMu.Unlock()
 	writerHeld = false
 	deleteReplacementReject(t, scope, done)
-	if epoch != ref.Epoch+1 || oldStorage.ends != nil || waiter.TransactionState() != TxIdle {
+	if epoch != ref.Epoch+1 || oldStorage.Ends != nil || waiter.TransactionState() != TxIdle {
 		t.Fatal("stale granted DELETE published or retained implicit work")
 	}
 	lockEmpty(t, e)

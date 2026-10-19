@@ -103,7 +103,7 @@ func TestExclusionPeerCompletion(t *testing.T) {
 	event := b.transactions.exclusionModes.events[0]
 	projection := e.exclusionPending[bt]
 	entries := projection.entries[event.index.Address]
-	if len(entries) != 1 || event.row != entries[0].row.row || event.version != entries[0].row.version {
+	if len(entries) != 1 || event.row != entries[0].row.Row || event.version != entries[0].row.Version {
 		t.Fatal("deferred event is not an exact admitted version", event)
 	}
 	done := exclusionCommitWorker(t, b, br)

@@ -173,13 +173,13 @@ func retiredResourceCounts(e *Engine) [7]int {
 func retiredReject(t *testing.T, e *Engine, op *Operation, q string, a *restoredHistoryAuthority) {
 	t.Helper()
 	before := e.catalog.state
-	stores := maps.Clone(e.storage.relations)
+	stores := maps.Clone(e.storage.Relations)
 	capture := retiredAuthorityClone(a)
 	resources := retiredResourceCounts(e)
 	if err := e.restoreRetiredConstraint(op, retiredRaw(t, q), a); err == nil {
 		t.Fatal("forged repair gained authority", q)
 	}
-	if e.catalog.state != before || !reflect.DeepEqual(stores, e.storage.relations) || !retiredAuthorityEqual(a, capture) || retiredResourceCounts(e) != resources {
+	if e.catalog.state != before || !reflect.DeepEqual(stores, e.storage.Relations) || !retiredAuthorityEqual(a, capture) || retiredResourceCounts(e) != resources {
 		t.Fatal("rejected repair changed catalog/store/authority/resources")
 	}
 }
@@ -348,11 +348,11 @@ func TestRestoreConstraintHistoryAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := e.catalog.state
-	stores := maps.Clone(e.storage.relations)
+	stores := maps.Clone(e.storage.Relations)
 	rows := make(map[ids.ObjectAddress][]rowVersion)
 	resources := retiredResourceCounts(e)
 	for address, store := range stores {
-		rows[address] = slices.Clone(store.versions)
+		rows[address] = slices.Clone(store.Versions)
 	}
 	for name, stream := range map[string]string{
 		"late_missing_relation": dump.String() + "; CREATE TABLE impossible() INHERITS(missing)",
@@ -362,11 +362,11 @@ func TestRestoreConstraintHistoryAtomicity(t *testing.T) {
 			if err := e.Restore(context.Background(), strings.NewReader(stream)); err == nil {
 				t.Fatal("late invalid import succeeded")
 			}
-			if e.catalog.state != before || !reflect.DeepEqual(stores, e.storage.relations) || retiredResourceCounts(e) != resources {
+			if e.catalog.state != before || !reflect.DeepEqual(stores, e.storage.Relations) || retiredResourceCounts(e) != resources {
 				t.Fatal("failed import replaced original catalog/store/resources")
 			}
 			for address, store := range stores {
-				if !reflect.DeepEqual(rows[address], store.versions) {
+				if !reflect.DeepEqual(rows[address], store.Versions) {
 					t.Fatal("failed import changed eager physical rows")
 				}
 			}

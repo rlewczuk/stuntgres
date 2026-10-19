@@ -165,12 +165,12 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 			if err != nil {
 				return err
 			}
-			childStore, parentStore := e.storage.relations[child.Address()], e.storage.relations[parent.Address()]
+			childStore, parentStore := e.storage.Relations[child.Address()], e.storage.Relations[parent.Address()]
 			if childStore == nil || parentStore == nil {
 				return ids.ErrCatalogReplaced
 			}
-			children := foreignKeyRows{storage: childStore, committed: childStore.versions, ends: childStore.ends, frontier: e.commitSeq}
-			parents := foreignKeyRows{storage: parentStore, committed: parentStore.versions, ends: parentStore.ends, frontier: e.commitSeq, index: f.Index, root: e.storage.indexRoots[f.Index]}
+			children := foreignKeyRows{storage: childStore, committed: childStore.Versions, ends: childStore.Ends, frontier: e.commitSeq}
+			parents := foreignKeyRows{storage: parentStore, committed: parentStore.Versions, ends: parentStore.Ends, frontier: e.commitSeq, index: f.Index, root: e.storage.IndexRoots[f.Index]}
 			if err := validateForeignKeyData(ctx, auth, child, parent, f, comparisons, children, parents, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}); err != nil {
 				return err
 			}
@@ -194,23 +194,23 @@ func validateForeignKeyData(ctx context.Context, auth AuthorizationView, child, 
 		if err := ctx.Err(); err != nil {
 			return false, err
 		}
-		any, all := foreignKeyNullState(comparisons, row.values)
+		any, all := foreignKeyNullState(comparisons, row.Values)
 		if any {
 			if f.Full && !all {
-				return false, foreignKeyDiagnostic(ctx, auth, child, parent, f, row.values, false, true, output)
+				return false, foreignKeyDiagnostic(ctx, auth, child, parent, f, row.Values, false, true, output)
 			}
 			return false, nil
 		}
-		if err := prepareForeignKeyChild(ctx, comparisons, row.values, key, input); err != nil {
+		if err := prepareForeignKeyChild(ctx, comparisons, row.Values, key, input); err != nil {
 			return false, err
 		}
 		matching, _, err := findForeignKeyParent(ctx, index, comparisons, parents, key, input)
 		if err != nil {
 			return false, err
 		}
-		found := matching.row != 0
+		found := matching.Row != 0
 		if !found {
-			return false, foreignKeyDiagnostic(ctx, auth, child, parent, f, row.values, false, false, output)
+			return false, foreignKeyDiagnostic(ctx, auth, child, parent, f, row.Values, false, false, output)
 		}
 		return false, nil
 	})

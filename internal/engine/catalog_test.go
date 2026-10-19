@@ -51,7 +51,7 @@ func TestCatalogIdentityAndReplacement(t *testing.T) {
 	e.mu.Lock()
 	ref, err := e.resolveReference(catalogAuthorization(e, view), name)
 	d, _ := view.Relation(ref.Address)
-	storage := e.storage.relations[ref.Address]
+	storage := e.storage.Relations[ref.Address]
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -813,7 +813,7 @@ func TestCatalogSelfReplacementCanceledDuringPreparation(t *testing.T) {
 	before := e.CatalogRead()
 	ref := catalogRef(t, e, before, "t")
 	owner := e.catalog.Domain
-	storage := e.storage.relations[ref.Address]
+	storage := e.storage.Relations[ref.Address]
 	stage := e.BeginCatalogStage(before)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -825,7 +825,7 @@ func TestCatalogSelfReplacementCanceledDuringPreparation(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || len(changes.Definitions) != 0 || len(changes.Statistics) != 0 || len(changes.Namespaces) != 0 || changes.Replacement {
 		t.Fatalf("canceled self-replacement: changes=%#v error=%v", changes, err)
 	}
-	if e.catalog.Domain != owner || e.CatalogRead().State() != before.State() || e.CatalogRead().Epoch() != before.Epoch() || e.storage.relations[ref.Address] != storage {
+	if e.catalog.Domain != owner || e.CatalogRead().State() != before.State() || e.CatalogRead().Epoch() != before.Epoch() || e.storage.Relations[ref.Address] != storage {
 		t.Fatal("canceled self-replacement changed owner/state/epoch/storage")
 	}
 	if err := e.ValidateObjectRef(before, ref); err != nil {
@@ -871,12 +871,12 @@ func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
 			before := e.CatalogRead()
 			sentinel := catalogRef(t, e, before, "sentinel")
 			owner := e.catalog.Domain
-			sentinelStorage := e.storage.relations[sentinel.Address]
-			publishedStorage := e.storage.relations[d.Address()]
-			storageCount := len(e.storage.relations)
+			sentinelStorage := e.storage.Relations[sentinel.Address]
+			publishedStorage := e.storage.Relations[d.Address()]
+			storageCount := len(e.storage.Relations)
 			assertUnchanged := func() {
 				t.Helper()
-				if e.catalog.Domain != owner || e.CatalogRead().State() != before.State() || e.CatalogRead().Epoch() != before.Epoch() || len(e.storage.relations) != storageCount || e.storage.relations[sentinel.Address] != sentinelStorage || e.storage.relations[d.Address()] != publishedStorage {
+				if e.catalog.Domain != owner || e.CatalogRead().State() != before.State() || e.CatalogRead().Epoch() != before.Epoch() || len(e.storage.Relations) != storageCount || e.storage.Relations[sentinel.Address] != sentinelStorage || e.storage.Relations[d.Address()] != publishedStorage {
 					t.Fatal("lifecycle operation changed committed authority/storage")
 				}
 				rows := tuples(run(t, e, "SELECT id FROM public.sentinel"))

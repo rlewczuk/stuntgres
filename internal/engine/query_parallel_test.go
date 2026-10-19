@@ -118,8 +118,8 @@ func TestQueryParallelPartition(t *testing.T) {
 	// Logical visibility can select an own version while omitting an older head.
 	_, query, source := queryCoreFixture(t, "SELECT id FROM t")
 	source.own = []rowVersion{source.committed[0]}
-	source.own[0].values = append([]sqltype.Value(nil), source.committed[0].values...)
-	source.own[0].values[0], _ = sqltype.Integer(source.own[0].values[0].Type(), 99)
+	source.own[0].Values = append([]sqltype.Value(nil), source.committed[0].Values...)
+	source.own[0].Values[0], _ = sqltype.Integer(source.own[0].Values[0].Type(), 99)
 	source.visible = []int{4, 2, 3}
 	rows, count, err := finalizeSelectQuery(context.Background(), query.Root, source, nil, 2)
 	if err != nil || count != 3 {

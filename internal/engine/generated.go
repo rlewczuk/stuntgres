@@ -519,11 +519,11 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, stor
 				comparisons[slot] = comparison
 			}
 		}
-		for i := range rows.versions {
+		for i := range rows.Versions {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			row := append([]sqltype.Value(nil), rows.versions[i].values...)
+			row := append([]sqltype.Value(nil), rows.Versions[i].Values...)
 			if err := evaluateGenerations(ctx, &filtered, row, &eval); err != nil {
 				return err
 			}
@@ -549,7 +549,7 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, stor
 				return checkDetailError(schema, descriptor.Name(), constraint.Name, "")
 			}
 			for slot, comparison := range comparisons {
-				before := rows.versions[i].values[slot]
+				before := rows.Versions[i].Values[slot]
 				if before == row[slot] {
 					continue
 				}
@@ -564,8 +564,8 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, stor
 					changed[target][descriptor.Attributes[slot]] = true
 				}
 			}
-			rows.versions[i].values = row
-			rows.versions[i].indexOutputs = nil
+			rows.Versions[i].Values = row
+			rows.Versions[i].IndexOutputs = nil
 		}
 	}
 	return ctx.Err()

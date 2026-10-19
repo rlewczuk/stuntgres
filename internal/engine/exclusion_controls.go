@@ -54,7 +54,7 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]boo
 		if bound == nil {
 			continue
 		}
-		conflict, _, err := s.probeExclusion(event.parent, binding, bound, rowVersion{row: event.row, version: event.version}, true, indexProbeRuntime)
+		conflict, _, err := s.probeExclusion(event.parent, binding, bound, rowVersion{Row: event.row, Version: event.version}, true, indexProbeRuntime)
 		if err != nil {
 			return err
 		}

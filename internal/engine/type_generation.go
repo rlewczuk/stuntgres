@@ -118,7 +118,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 			continue
 		}
 		original := e.stageStorageLocked(stage, address)
-		stage.rowShapes[address] = catalogRowShape{original: original, root: original.versions, replacement: replacement, observedLength: len(original.versions), observedEnds: original.ends, generation: original.generation}
+		stage.rowShapes[address] = catalogRowShape{original: original, root: original.Versions, replacement: replacement, observedLength: len(original.Versions), observedEnds: original.Ends, generation: original.Generation}
 	}
 	return nil
 }

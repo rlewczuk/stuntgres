@@ -11,9 +11,9 @@ import (
 )
 
 type sequenceGenerator struct {
-	last       int64
-	called     bool
-	generation ids.DefinitionRevision
+	Last       int64
+	Called     bool
+	Generation ids.DefinitionRevision
 }
 type sequenceMemory struct {
 	value      int64
@@ -149,7 +149,7 @@ func bindSequenceOptions(old *catalog.SequenceOptions, state sequenceGenerator, 
 		}
 	}
 	if old != nil && restart == nil {
-		if err := sequenceBoundOption("RESTART", state.last, o); err != nil {
+		if err := sequenceBoundOption("RESTART", state.Last, o); err != nil {
 			return o, nil, err
 		}
 	}
@@ -184,8 +184,8 @@ func sequenceStep(o catalog.SequenceOptions, v int64) (int64, bool) {
 	return v + o.Increment, true
 }
 func reserveSequence(o catalog.SequenceOptions, g *sequenceGenerator, name string) (int64, uint64, error) {
-	first := g.last
-	if g.called {
+	first := g.Last
+	if g.Called {
 		v, ok := sequenceStep(o, first)
 		if !ok && !o.Cycle {
 			which, bound := "maximum", o.Max
@@ -213,6 +213,6 @@ func reserveSequence(o catalog.SequenceOptions, g *sequenceGenerator, name strin
 	if o.Increment < 0 {
 		last = int64(uint64(first) - delta)
 	}
-	g.last, g.called = last, true
+	g.Last, g.Called = last, true
 	return first, count, nil
 }

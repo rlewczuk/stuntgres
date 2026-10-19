@@ -186,8 +186,8 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		root, err := buildIndexRoot(&EvalContext{Context: context.Background()}, parent, index.SQLIndex, &relationStorage{versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{value}}}}, nil)
-		if err != nil || root == nil || (root.hash != nil) != (tc.method == catalog.HashMethod) {
+		root, err := buildIndexRoot(&EvalContext{Context: context.Background()}, parent, index.SQLIndex, &relationStorage{Versions: []rowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value}}}}, nil)
+		if err != nil || root == nil || (root.Hash != nil) != (tc.method == catalog.HashMethod) {
 			t.Fatal("real root", tc, root, err)
 		}
 		view := e.CatalogRead()

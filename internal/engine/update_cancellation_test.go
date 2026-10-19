@@ -63,7 +63,7 @@ func TestUpdateCoreMidExecutionCancellation(t *testing.T) {
 				sessionSQL(t, peer, "CREATE TABLE t(v INT)")
 				sessionSQL(t, peer, "INSERT INTO t VALUES(1),(2)")
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				saved := e.storage.relations[ref.Address].versions
+				saved := e.storage.Relations[ref.Address].Versions
 				var tx ids.TxRef
 				if explicit {
 					tx = transactionBegin(t, a)
@@ -105,7 +105,7 @@ func TestUpdateCoreMidExecutionCancellation(t *testing.T) {
 					t.Fatal("lost original error", got)
 				}
 				op.Done()
-				if testExport(saved[0].values[0]) != int64(1) || testExport(saved[1].values[0]) != int64(2) {
+				if testExport(saved[0].Values[0]) != int64(1) || testExport(saved[1].Values[0]) != int64(2) {
 					t.Fatal("retained root changed")
 				}
 				if explicit {

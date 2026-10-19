@@ -45,9 +45,9 @@ func TestSequenceDeleteUndemandedLocks(t *testing.T) {
 					t.Fatal("wrong live transaction grants", sequenceHeld, sequenceJournaled, targetHeld)
 				}
 				e.mu.Lock()
-				generator := *e.storage.sequences[sequence.Address]
+				generator := *e.storage.Sequences[sequence.Address]
 				e.mu.Unlock()
-				if generator.last != 31 || generator.called {
+				if generator.Last != 31 || generator.Called {
 					t.Fatal("undemanded DELETE allocated", generator)
 				}
 				// The state check is after lock observation so it cannot create AS
@@ -93,9 +93,9 @@ func TestSequenceDeleteDecisiveFalseDemand(t *testing.T) {
 		}
 		want := int64(103 + i*3)
 		e.mu.Lock()
-		generator := *e.storage.sequences[ref.Address]
+		generator := *e.storage.Sequences[ref.Address]
 		e.mu.Unlock()
-		if generator.last != want || !generator.called {
+		if generator.Last != want || !generator.Called {
 			t.Fatal("per-row allocation count", generator, want)
 		}
 		transactionRows(t, a, "SELECT currval('s')", want)

@@ -19,11 +19,11 @@ type indexRootCandidate struct {
 }
 
 func (c indexRootCandidate) matches(store *relationStorage) bool {
-	return store == c.storage && store != nil && store.generation == c.generation && store.ends == c.ends && len(store.versions) == c.length
+	return store == c.storage && store != nil && store.Generation == c.generation && store.Ends == c.ends && len(store.Versions) == c.length
 }
 
 func (c indexRootCandidate) matchesIndex(index *catalog.Relation, store *relationStorage) bool {
-	return store != nil && c.index != nil && sameIndexKeySemantics(c.index, index) && c.matches(indexStorageIdentity(store))
+	return store != nil && c.index != nil && sameIndexKeySemantics(c.index, index) && c.matches(store.IndexIdentity())
 }
 
 func simpleConcurrentIndex(parent *catalog.Relation, definition *catalog.IndexDefinition) (bool, error) {
@@ -118,7 +118,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 			e.mu.Unlock()
 			return 0, err
 		}
-		store := e.storage.relations[parent.Address()]
+		store := e.storage.Relations[parent.Address()]
 		if store == nil {
 			e.mu.Unlock()
 			return 0, ids.ErrCatalogReplaced
@@ -147,7 +147,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 			e.DiscardCatalogStage(stage)
 			return 0, err
 		}
-		stage.indexCandidates = map[ids.ObjectAddress]indexRootCandidate{address: {root: root, index: &next, storage: store, generation: snapshot.generation, ends: snapshot.ends, length: len(snapshot.versions)}}
+		stage.indexCandidates = map[ids.ObjectAddress]indexRootCandidate{address: {root: root, index: &next, storage: store, generation: snapshot.Generation, ends: snapshot.Ends, length: len(snapshot.Versions)}}
 		err = stage.Replace(&next)
 		if err == nil {
 			var prepared *PreparedCatalogPublication
@@ -183,7 +183,7 @@ func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *pars
 			e.mu.Unlock()
 			return err
 		}
-		if !index.SQLIndex.Ready || !index.SQLIndex.Live || index.SQLIndex.Valid || e.storage.indexRoots[address] == nil {
+		if !index.SQLIndex.Ready || !index.SQLIndex.Live || index.SQLIndex.Valid || e.storage.IndexRoots[address] == nil {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: invalid concurrent index validity phase")
 		}

@@ -15,22 +15,22 @@ import (
 
 func insertConflictWantHints(t *testing.T, root *logicalIndexRoot, store *relationStorage, want map[ids.RowID]int) {
 	t.Helper()
-	if root == nil || len(root.entries) != len(want) {
+	if root == nil || len(root.Entries) != len(want) {
 		t.Fatal("wrong hint membership", root, want)
 	}
-	for _, entry := range root.entries {
-		position, ok := want[entry.row]
-		if !ok || entry.position != position {
+	for _, entry := range root.Entries {
+		position, ok := want[entry.Row]
+		if !ok || entry.Position != position {
 			t.Fatal("wrong actual physical slot", entry, want)
 		}
-		row, err := conflictEntryVersion(store.versions, entry)
-		if err != nil || row.row != entry.row || row.version != entry.version {
+		row, err := conflictEntryVersion(store.Versions, entry)
+		if err != nil || row.Row != entry.Row || row.Version != entry.Version {
 			t.Fatal("invalid immutable root/storage pair", entry, err)
 		}
-		if len(row.values) != 0 && &row.values[0] != &store.versions[position].values[0] {
+		if len(row.Values) != 0 && &row.Values[0] != &store.Versions[position].Values[0] {
 			t.Fatal("version recovery copied values")
 		}
-		if root.membership != nil && root.membership[entry.row] != entry.version {
+		if root.Membership != nil && root.Membership[entry.Row] != entry.Version {
 			t.Fatal("partial membership lost identity", entry)
 		}
 	}
@@ -52,14 +52,15 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 				} else {
 					values[1] = sqltype.Null(f.parent.Columns[1].Usage.Type)
 				}
-				f.store.versions = append(f.store.versions, rowVersion{row: ids.RowID(i + 2), version: ids.VersionID(i + 2), born: 1, values: values})
+				f.store.Versions = append(f.store.Versions, rowVersion{Row: ids.RowID(i + 2), Version: ids.VersionID(i + 2), Born: 1, Values: values})
 			}
-			f.e.storage.nextRow, f.e.storage.nextVersion, f.e.commitSeq = 3, 3, 1
+			f.e.storage.SetFrontierLocked(3, 3)
+			f.e.commitSeq = 1
 			root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &definition, f.store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
-			f.e.storage.indexRoots[f.index.Address()] = root
+			f.e.storage.IndexRoots[f.index.Address()] = root
 			want := map[ids.RowID]int{1: 0}
 			if !partial {
 				want[2] = 1
@@ -71,18 +72,18 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			// independently stated physical positions below cannot be sorted ordinals.
 			publish := func(writes []rowVersion, deleted ids.RowID) {
 				t.Helper()
-				p := rowPublication{address: f.parent.Address(), relation: f.parent, store: f.store, root: f.store.versions, ends: f.store.ends, writes: writes, singleSlot: -1}
+				p := rowPublication{address: f.parent.Address(), relation: f.parent, store: f.store, root: f.store.Versions, ends: f.store.Ends, writes: writes, singleSlot: -1}
 				if deleted != 0 {
 					old, position, ok := rowByID(p.root, deleted, -1)
 					if !ok {
 						t.Fatal("missing deletion", deleted)
 					}
-					p.deletion = &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{deleted: {ref: ref, storage: f.store, row: deleted, version: old.version, ordinal: position}}}
+					p.deletion = &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{deleted: {ref: ref, storage: f.store, row: deleted, version: old.Version, ordinal: position}}}
 				}
 				if err := f.e.prepareRowPublication(&p, scope.txRef, true); err != nil {
 					t.Fatal(err)
 				}
-				next, err := mergeIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, f.index, root.entries, &p, false, true, false, "public", scope.output, nil)
+				next, err := mergeIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, f.index, root.Entries, &p, false, true, false, "public", scope.output, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -90,33 +91,32 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 					root = next
 				}
 				for i, row := range writes {
-					row.born = 2
-					row.base = 0
+					row.Born = 2
+					row.Base = 0
 					p.next[publicationSlot(&p, i)] = row
-					f.e.storage.nextRow = max(f.e.storage.nextRow, uint64(row.row))
-					f.e.storage.nextVersion = max(f.e.storage.nextVersion, uint64(row.version))
+					f.e.storage.SetFrontierLocked(max(f.e.storage.RowFrontier(), uint64(row.Row)), max(f.e.storage.VersionFrontier(), uint64(row.Version)))
 				}
 				f.e.commitSeq = 2
-				f.store = &relationStorage{versions: p.next, ends: p.nextEnds}
+				f.store = &relationStorage{Versions: p.next, Ends: p.nextEnds}
 				if p.nextEnds == nil {
-					f.store.ends = p.ends
+					f.store.Ends = p.ends
 				}
-				f.e.storage.relations[f.parent.Address()] = f.store
-				f.e.storage.indexRoots[f.index.Address()] = root
+				f.e.storage.Relations[f.parent.Address()] = f.store
+				f.e.storage.IndexRoots[f.index.Address()] = root
 				insertConflictWantHints(t, root, f.store, want)
 			}
 			want[4] = 3
-			publish([]rowVersion{{row: 4, version: 4, values: insertConflictUnitRow(t, f, 5)}}, 0)
+			publish([]rowVersion{{Row: 4, Version: 4, Values: insertConflictUnitRow(t, f, 5)}}, 0)
 			want[2] = 1
-			publish([]rowVersion{{row: 2, version: 5, base: 2, values: insertConflictUnitRow(t, f, 20)}}, 0)
+			publish([]rowVersion{{Row: 2, Version: 5, Base: 2, Values: insertConflictUnitRow(t, f, 20)}}, 0)
 			want[3] = 2
-			publish([]rowVersion{{row: 3, version: 6, base: 3, values: insertConflictUnitRow(t, f, 7)}}, 0)
+			publish([]rowVersion{{Row: 3, Version: 6, Base: 3, Values: insertConflictUnitRow(t, f, 7)}}, 0)
 			values := insertConflictUnitRow(t, f, 10)
 			values[1] = sqltype.Boolean(f.parent.Columns[1].Usage.Type, false)
 			if partial {
 				delete(want, 1)
 			}
-			publish([]rowVersion{{row: 1, version: 7, base: 1, values: values}}, 0)
+			publish([]rowVersion{{Row: 1, Version: 7, Base: 1, Values: values}}, 0)
 			delete(want, 2)
 			publish(nil, 2)
 			rebuilt, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &definition, f.store, nil)
@@ -133,9 +133,9 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			parent.Index = maps.Clone(parent.Index)
 			parent.Index["payload"] = 2
 			shaped := *f.store
-			shaped.versions = slices.Clone(f.store.versions)
-			for i := range shaped.versions {
-				shaped.versions[i].values = append(slices.Clone(shaped.versions[i].values), sqltype.Null(parent.Columns[2].Usage.Type))
+			shaped.Versions = slices.Clone(f.store.Versions)
+			for i := range shaped.Versions {
+				shaped.Versions[i].Values = append(slices.Clone(shaped.Versions[i].Values), sqltype.Null(parent.Columns[2].Usage.Type))
 			}
 			index := *f.index
 			index.ObjectRevision++
@@ -150,9 +150,9 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			nextCatalog.CloneDescriptors()
 			nextCatalog.SetDescriptor(parent.Address(), &parent)
 			nextCatalog.SetDescriptor(index.Address(), &index)
-			stores := maps.Clone(f.e.storage.relations)
+			stores := maps.Clone(f.e.storage.Relations)
 			stores[parent.Address()] = &shaped
-			prepared, err := f.e.prepareIndexCatalog(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.e.catalog.state, &nextCatalog, stores, f.e.storage.indexRoots, map[ids.ObjectAddress]bool{parent.Address(): true}, nil, scope.output, nil, nil, nil)
+			prepared, err := f.e.prepareIndexCatalog(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.e.catalog.state, &nextCatalog, stores, f.e.storage.IndexRoots, map[ids.ObjectAddress]bool{parent.Address(): true}, nil, scope.output, nil, nil, nil)
 			if err != nil {
 				t.Fatal("trusted shape reconstruction", err)
 			}
@@ -173,10 +173,10 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 			scope, ref := insertConflictUnitScope(t, f)
 			scope.owner.isolation = isolation
 			scope.owner.frontier = 1
-			root := *f.e.storage.indexRoots[f.index.Address()]
-			root.entries = slices.Clone(root.entries)
-			root.entries[0].position = -1
-			f.e.storage.indexRoots[f.index.Address()] = &root
+			root := *f.e.storage.IndexRoots[f.index.Address()]
+			root.Entries = slices.Clone(root.Entries)
+			root.Entries[0].Position = -1
+			f.e.storage.IndexRoots[f.index.Address()] = &root
 			admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 10)}, indexWriteBatch{}, nil)
 			if stableIsolation(isolation) {
 				if admitted || !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -194,11 +194,11 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 		})
 	}
 	f := insertConflictUniqueFixture(t)
-	entry := f.e.storage.indexRoots[f.index.Address()].entries[0]
-	for _, change := range []func(*logicalIndexEntry){func(e *logicalIndexEntry) { e.position = -1 }, func(e *logicalIndexEntry) { e.position = len(f.store.versions) }, func(e *logicalIndexEntry) { e.row++ }, func(e *logicalIndexEntry) { e.version++ }} {
+	entry := f.e.storage.IndexRoots[f.index.Address()].Entries[0]
+	for _, change := range []func(*logicalIndexEntry){func(e *logicalIndexEntry) { e.Position = -1 }, func(e *logicalIndexEntry) { e.Position = len(f.store.Versions) }, func(e *logicalIndexEntry) { e.Row++ }, func(e *logicalIndexEntry) { e.Version++ }} {
 		bad := entry
 		change(&bad)
-		if _, err := conflictEntryVersion(f.store.versions, bad); !errors.Is(err, ids.ErrCatalogReplaced) {
+		if _, err := conflictEntryVersion(f.store.Versions, bad); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal("invalid hint silently recovered", bad, err)
 		}
 	}
@@ -206,9 +206,10 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 
 func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
-	f.store.versions = append(f.store.versions, rowVersion{row: 2, version: 2, born: 2, values: insertConflictUnitRow(t, f, 20)})
-	f.store.ends = &deletionRoot{rows: map[ids.RowID]rowEnd{1: {version: 1}}}
-	f.e.storage.nextRow, f.e.storage.nextVersion, f.e.commitSeq = 2, 2, 2
+	f.store.Versions = append(f.store.Versions, rowVersion{Row: 2, Version: 2, Born: 2, Values: insertConflictUnitRow(t, f, 20)})
+	f.store.Ends = &deletionRoot{Rows: map[ids.RowID]rowEnd{1: {Version: 1}}}
+	f.e.storage.SetFrontierLocked(2, 2)
+	f.e.commitSeq = 2
 	authOp, done := roleOperation(t, f.e, "postgres")
 	defer done()
 	auth, err := authOp.Authorization()
@@ -245,8 +246,8 @@ func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 		t.Fatal("reused root lost actual post-frontier born", admitted, visibilityErr)
 	}
 	// Root/slice and keys retain their immutable data through retrieval.
-	row, err := conflictEntryVersion(f.store.versions, root.entries[0])
-	if err != nil || row.born != 2 || !reflect.DeepEqual(row.values, insertConflictUnitRow(t, f, 20)) {
+	row, err := conflictEntryVersion(f.store.Versions, root.Entries[0])
+	if err != nil || row.Born != 2 || !reflect.DeepEqual(row.Values, insertConflictUnitRow(t, f, 20)) {
 		t.Fatal("wrong born or data from reused root", row, err)
 	}
 }

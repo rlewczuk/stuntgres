@@ -22,15 +22,15 @@ func TestSequenceLatestMixedUpdatePublication(t *testing.T) {
 	if _, err := e.Commit(transactionOperation(t, s), ref); err != nil {
 		t.Fatal(err)
 	}
-	store := e.storage.relations[table.Address]
-	if e.commitSeq != frontier+1 || len(store.versions) != 3 {
-		t.Fatal("mixed publication frontier or duplicate replacement", e.commitSeq, frontier, len(store.versions))
+	store := e.storage.Relations[table.Address]
+	if e.commitSeq != frontier+1 || len(store.Versions) != 3 {
+		t.Fatal("mixed publication frontier or duplicate replacement", e.commitSeq, frontier, len(store.Versions))
 	}
-	if store.versions[0].born != frontier+1 || store.versions[0].base != 0 || store.versions[2].born != frontier+1 {
-		t.Fatal("replacement/insert frontier", store.versions)
+	if store.Versions[0].Born != frontier+1 || store.Versions[0].Base != 0 || store.Versions[2].Born != frontier+1 {
+		t.Fatal("replacement/insert frontier", store.Versions)
 	}
-	if store.ends == nil || store.ends.rows[store.versions[1].row].end != frontier+1 {
-		t.Fatal("delete frontier", store.ends)
+	if store.Ends == nil || store.Ends.Rows[store.Versions[1].Row].End != frontier+1 {
+		t.Fatal("delete frontier", store.Ends)
 	}
 	peer := sessionStart(t, e, nil)
 	transactionRows(t, peer, "SELECT v FROM t ORDER BY v", 7, 100)

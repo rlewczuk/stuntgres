@@ -70,7 +70,7 @@ func TestInheritanceUsingIndexPreparedDiagnostics(t *testing.T) {
 				}
 				before := e.catalog.state
 				parent, index := retiredUnitTable(t, e, "p"), retiredUnitTable(t, e, "original")
-				parentStore, indexRoot := e.storage.relations[parent.Address()], e.storage.indexRoots[index.Address()]
+				parentStore, indexRoot := e.storage.Relations[parent.Address()], e.storage.IndexRoots[index.Address()]
 				waiter := sessionStart(t, e, nil)
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
@@ -129,7 +129,7 @@ func TestInheritanceUsingIndexPreparedDiagnostics(t *testing.T) {
 						t.Fatal("provider notice/error ordering changed", notices, expected)
 					}
 				}
-				if e.catalog.state != before || e.storage.relations[parent.Address()] != parentStore || e.storage.indexRoots[index.Address()] != indexRoot || retiredUnitTable(t, e, "original") != index || retiredUnitTable(t, e, "p") != parent {
+				if e.catalog.state != before || e.storage.Relations[parent.Address()] != parentStore || e.storage.IndexRoots[index.Address()] != indexRoot || retiredUnitTable(t, e, "original") != index || retiredUnitTable(t, e, "p") != parent {
 					t.Fatal("failed/canceled prepared attachment published metadata or rows")
 				}
 				lockEmpty(t, e)

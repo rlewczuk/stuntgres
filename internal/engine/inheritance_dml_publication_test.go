@@ -38,9 +38,9 @@ func TestInheritanceDMLAtomicPublication(t *testing.T) {
 			frontier := e.commitSeq
 			for _, ref := range refs {
 				store := s.mutationStorage(ref)
-				before[ref.Address] = append([]rowVersion(nil), store.versions...)
-				old := store.versions[0]
-				if err = s.acquireRow(deleteCandidate{ref: ref, storage: store, row: old.row, version: old.version, base: old.base, ordinal: 0}); err != nil {
+				before[ref.Address] = append([]rowVersion(nil), store.Versions...)
+				old := store.Versions[0]
+				if err = s.acquireRow(deleteCandidate{ref: ref, storage: store, row: old.Row, version: old.Version, base: old.Base, ordinal: 0}); err != nil {
 					t.Fatal(err)
 				}
 				if err = s.Writes().replace(ref, []rowVersion{old}, indexWriteBatch{values: [][]sqltype.Value{{inheritanceQueryInt(e, 30)}}}); err != nil {
@@ -48,7 +48,7 @@ func TestInheritanceDMLAtomicPublication(t *testing.T) {
 				}
 			}
 			for _, ref := range refs {
-				if !reflect.DeepEqual(e.storage.relations[ref.Address].versions, before[ref.Address]) {
+				if !reflect.DeepEqual(e.storage.Relations[ref.Address].Versions, before[ref.Address]) {
 					t.Fatal("staging published one physical store", ref)
 				}
 			}
@@ -56,7 +56,7 @@ func TestInheritanceDMLAtomicPublication(t *testing.T) {
 				// Private test-owned provenance is invalidated after both real producers
 				// staged data, selecting the final all-store veto rather than an early row
 				// validation failure. No manager prevention is bypassed in public tests.
-				s.stage.rows[c.Address()][0].base++
+				s.stage.rows[c.Address()][0].Base++
 			}
 			err = s.Finish(nil)
 			if reject {
@@ -67,7 +67,7 @@ func TestInheritanceDMLAtomicPublication(t *testing.T) {
 					t.Fatal("failed publication consumed a frontier")
 				}
 				for _, ref := range refs {
-					if !reflect.DeepEqual(e.storage.relations[ref.Address].versions, before[ref.Address]) {
+					if !reflect.DeepEqual(e.storage.Relations[ref.Address].Versions, before[ref.Address]) {
 						t.Fatal("later child veto partially published", ref)
 					}
 				}
@@ -79,13 +79,13 @@ func TestInheritanceDMLAtomicPublication(t *testing.T) {
 					t.Fatal("one statement published multiple frontiers", e.commitSeq, frontier)
 				}
 				for _, ref := range refs {
-					current := e.storage.relations[ref.Address].versions[0]
-					if current.born != e.commitSeq || !reflect.DeepEqual(current.values, []sqltype.Value{inheritanceQueryInt(e, 30)}) {
+					current := e.storage.Relations[ref.Address].Versions[0]
+					if current.Born != e.commitSeq || !reflect.DeepEqual(current.Values, []sqltype.Value{inheritanceQueryInt(e, 30)}) {
 						t.Fatal("physical replacement missed shared frontier", current)
 					}
 				}
 			}
-			if before[p.Address()][0].values[0] != inheritanceQueryInt(e, 10) || before[c.Address()][0].values[0] != inheritanceQueryInt(e, 20) {
+			if before[p.Address()][0].Values[0] != inheritanceQueryInt(e, 10) || before[c.Address()][0].Values[0] != inheritanceQueryInt(e, 20) {
 				t.Fatal("immutable predecessor payload changed")
 			}
 			lockEmpty(t, e)

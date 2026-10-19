@@ -113,31 +113,31 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 func TestInheritanceAlterAtomicity(t *testing.T) {
 	e, p, c := inheritanceDMLPublishedGraph(t)
 	before := e.CatalogRead()
-	parentStore, childStore := e.storage.relations[p.Address()], e.storage.relations[c.Address()]
-	parentRows := append([]rowVersion(nil), parentStore.versions...)
-	childRows := append([]rowVersion(nil), childStore.versions...)
+	parentStore, childStore := e.storage.Relations[p.Address()], e.storage.Relations[c.Address()]
+	parentRows := append([]rowVersion(nil), parentStore.Versions...)
+	childRows := append([]rowVersion(nil), childStore.Versions...)
 	stage := e.BeginCatalogStage(before)
 	defer e.DiscardCatalogStage(stage)
 	for _, old := range []*catalog.Relation{p, c} {
 		next := *old
 		next.ObjectRevision++
 		next.Comment = "candidate"
-		store := e.storage.relations[old.Address()]
+		store := e.storage.Relations[old.Address()]
 		ref := e.catalog.Domain.Ref(before.Epoch(), old.Address())
-		if err := stage.alterRelation(context.Background(), ref, &next, store, store, len(store.versions), store.generation, store.ends); err != nil {
+		if err := stage.alterRelation(context.Background(), ref, &next, store, store, len(store.Versions), store.Generation, store.Ends); err != nil {
 			t.Fatal(err)
 		}
 	}
 	// A real later physical store observation changes after both descriptor
 	// candidates were admitted. Final validation must reject the entire graph.
-	childStore.generation++
+	childStore.Generation++
 	if _, err := e.ValidateCatalogStage(context.Background(), stage); err == nil {
 		t.Fatal("stale later child observation validated")
 	}
-	if e.CatalogRead().State() != before.State() || e.storage.relations[p.Address()] != parentStore || e.storage.relations[c.Address()] != childStore {
+	if e.CatalogRead().State() != before.State() || e.storage.Relations[p.Address()] != parentStore || e.storage.Relations[c.Address()] != childStore {
 		t.Fatal("late child veto partially published catalog/store identities")
 	}
-	if !reflect.DeepEqual(parentRows, parentStore.versions) || !reflect.DeepEqual(childRows, childStore.versions) {
+	if !reflect.DeepEqual(parentRows, parentStore.Versions) || !reflect.DeepEqual(childRows, childStore.Versions) {
 		t.Fatal("late child veto changed physical rows")
 	}
 }

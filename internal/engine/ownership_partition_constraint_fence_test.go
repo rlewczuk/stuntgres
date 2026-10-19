@@ -95,9 +95,9 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 				oldRoles, sessionRevision, epoch := e.roles, session.authorization.revision, e.catalog.state.Epoch()
 				before := indexMaintenanceCapture(e)
 				leaf := roleTableRef(t, e, "leaf").Address
-				rows := append([]rowVersion(nil), e.storage.relations[leaf].versions...)
+				rows := append([]rowVersion(nil), e.storage.Relations[leaf].Versions...)
 				for i := range rows {
-					rows[i].values = append([]sqltype.Value(nil), rows[i].values...)
+					rows[i].Values = append([]sqltype.Value(nil), rows[i].Values...)
 				}
 				if len(rows) != 1 || len(table.Constraints.Unique) != 1 || len(e.catalog.state.MustRelation(leaf).Constraints.Unique) != 2 {
 					t.Fatal("fixture lacks actual rows or recursive/local keys")
@@ -172,7 +172,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					if err != nil {
 						t.Fatal("unchanged committed predecessor rejected selected authority", err)
 					}
-					if len(e.catalog.state.MustRelation(root.Address).Constraints.Unique) != 0 || len(e.catalog.state.MustRelation(leaf).Constraints.Unique) != 1 || !reflect.DeepEqual(e.storage.relations[leaf].versions, rows) {
+					if len(e.catalog.state.MustRelation(root.Address).Constraints.Unique) != 0 || len(e.catalog.state.MustRelation(leaf).Constraints.Unique) != 1 || !reflect.DeepEqual(e.storage.Relations[leaf].Versions, rows) {
 						t.Fatal("healthy drop changed rows or retained selected keys")
 					}
 					for address, descriptor := range before.catalog.Descriptors() {
@@ -195,7 +195,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					t.Fatal("missing partition constraint DB predecessor veto", err)
 				}
 				indexMaintenanceUnchanged(t, e, before)
-				if e.roles != oldRoles || !reflect.DeepEqual(e.storage.relations[leaf].versions, rows) || len(table.Constraints.Unique) != 1 || auth.databasePredecessor != committed || auth.catalog.Get(root.Address) != table || len(auth.catalog.MustRelation(leaf).Constraints.Unique) != 2 {
+				if e.roles != oldRoles || !reflect.DeepEqual(e.storage.Relations[leaf].Versions, rows) || len(table.Constraints.Unique) != 1 || auth.databasePredecessor != committed || auth.catalog.Get(root.Address) != table || len(auth.catalog.MustRelation(leaf).Constraints.Unique) != 2 {
 					t.Fatal("veto mutated retained roles, constraints or storage")
 				}
 			})

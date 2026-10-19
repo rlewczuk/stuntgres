@@ -44,13 +44,13 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	}
 	leaf.Constraints.Check = []catalog.CheckConstraint{makeCheck(26000, "old_payload", 1, sqltype.CompareNotEqual, 0), makeCheck(26001, "changed_key", 0, sqltype.CompareEqual, 1)}
 	oldValues := []sqltype.Value{integer(1), integer(0)}
-	dead := rowVersion{row: 1, version: 1, born: 1, values: []sqltype.Value{integer(99), integer(99)}}
-	live := rowVersion{row: 2, version: 2, born: 3, values: oldValues}
-	store := &relationStorage{versions: []rowVersion{dead, live}, ends: &deletionRoot{rows: map[ids.RowID]rowEnd{1: {version: 1, end: 2}}}}
+	dead := rowVersion{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{integer(99), integer(99)}}
+	live := rowVersion{Row: 2, Version: 2, Born: 3, Values: oldValues}
+	store := &relationStorage{Versions: []rowVersion{dead, live}, Ends: &deletionRoot{Rows: map[ids.RowID]rowEnd{1: {Version: 1, End: 2}}}}
 	e.catalog.state = view.State()
 	e.commitSeq = 3
-	e.storage.relations = map[ids.ObjectAddress]*relationStorage{leaf.Address(): store}
-	snapshot, err := e.captureIndexSnapshot(context.Background(), view, e.storage.relations, nil, 3)
+	e.storage.Relations = map[ids.ObjectAddress]*relationStorage{leaf.Address(): store}
+	snapshot, err := e.captureIndexSnapshot(context.Background(), view, e.storage.Relations, nil, 3)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 		t.Fatal("unindexed CHECK history was not captured", snapshot)
 	}
 	history := snapshot.partitionRows[leaf.Address()]
-	if &history.store.versions[0] != &store.versions[0] {
+	if &history.store.Versions[0] != &store.Versions[0] {
 		t.Fatal("original immutable versions were needlessly copied")
 	}
 	position := 0
@@ -67,7 +67,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 		t.Fatal("deleted source version changed old-row matching", position, before, err)
 	}
 	position = 0
-	if _, err := history.nextRow(context.Background(), &position, rowVersion{row: 9, version: 9}); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := history.nextRow(context.Background(), &position, rowVersion{Row: 9, Version: 9}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("mismatched source identity accepted", err)
 	}
 	evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: view}

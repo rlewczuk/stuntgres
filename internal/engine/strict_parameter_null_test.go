@@ -120,7 +120,7 @@ func TestStrictParameterNullPlanning(t *testing.T) {
 				t.Fatal(value, err)
 			}
 			e.mu.Lock()
-			called := e.storage.sequences[sequence.Address].called
+			called := e.storage.Sequences[sequence.Address].Called
 			e.mu.Unlock()
 			if called {
 				t.Fatal("NULL proof evaluated a genuine volatile provider")

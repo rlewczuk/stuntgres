@@ -57,7 +57,7 @@ func queryCreateAssertTypes(t *testing.T, e *Engine, want map[ids.ObjectAddress]
 func queryCreateAssertAbsent(t *testing.T, e *Engine, d *catalog.Relation) {
 	t.Helper()
 	view := e.CatalogRead()
-	if _, ok := view.Descriptor(d.Address()); ok || e.storage.relations[d.Address()] != nil {
+	if _, ok := view.Descriptor(d.Address()); ok || e.storage.Relations[d.Address()] != nil {
 		t.Fatal("partial descriptor/storage publication")
 	}
 	for _, class := range []ids.OID{ids.RelationClassID, ids.TypeClassID} {
@@ -109,26 +109,26 @@ func TestQueryTableCreateInitialPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			descriptor, ok := e.CatalogRead().Descriptor(d.Address())
-			storage := e.storage.relations[d.Address()]
-			if !ok || descriptor != d || storage == nil || len(storage.versions) != tc.count {
+			storage := e.storage.Relations[d.Address()]
+			if !ok || descriptor != d || storage == nil || len(storage.Versions) != tc.count {
 				t.Fatal(descriptor, storage)
 			}
 			wantFrontier := before
 			if tc.count != 0 {
 				wantFrontier++
 			}
-			if e.commitSeq != wantFrontier || e.storage.nextRow != uint64(tc.count) || e.storage.nextVersion != uint64(tc.count) {
-				t.Fatal("frontier or shared counters", e.commitSeq, e.storage.nextRow, e.storage.nextVersion)
+			if e.commitSeq != wantFrontier || e.storage.RowFrontier() != uint64(tc.count) || e.storage.VersionFrontier() != uint64(tc.count) {
+				t.Fatal("frontier or shared counters", e.commitSeq, e.storage.RowFrontier(), e.storage.VersionFrontier())
 			}
-			if tc.count != 0 && storage.generation != 1 {
-				t.Fatal(storage.generation)
+			if tc.count != 0 && storage.Generation != 1 {
+				t.Fatal(storage.Generation)
 			}
-			for i, row := range storage.versions {
-				if row.row != ids.RowID(i+1) || row.version != ids.VersionID(i+1) || row.born != wantFrontier || len(row.values) != tc.width {
+			for i, row := range storage.Versions {
+				if row.Row != ids.RowID(i+1) || row.Version != ids.VersionID(i+1) || row.Born != wantFrontier || len(row.Values) != tc.width {
 					t.Fatal(row)
 				}
-				if tc.width != 0 && !sqltype.SameDatum(row.values[0], rows[i][0]) {
-					t.Fatal(row.values, rows[i])
+				if tc.width != 0 && !sqltype.SameDatum(row.Values[0], rows[i][0]) {
+					t.Fatal(row.Values, rows[i])
 				}
 			}
 			queryCreateAssertTypes(t, e, registry)
@@ -149,20 +149,20 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 			value, _ := sqltype.Integer(d.Columns[0].Usage.Type, 7)
 			rows := [][]sqltype.Value{{value}}
 			if phase == "row_identity" {
-				e.storage.nextRow = math.MaxUint64
+				e.storage.SetFrontierLocked(math.MaxUint64, e.storage.VersionFrontier())
 			}
 			if phase == "version_identity" {
-				e.storage.nextVersion = math.MaxUint64
+				e.storage.SetFrontierLocked(e.storage.RowFrontier(), math.MaxUint64)
 			}
-			beforeRow, beforeVersion := e.storage.nextRow, e.storage.nextVersion
+			beforeRow, beforeVersion := e.storage.RowFrontier(), e.storage.VersionFrontier()
 			err := e.stageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{})
 			if phase == "row_identity" || phase == "version_identity" {
 				want := "stuntgres: row identity exhausted"
 				if phase == "version_identity" {
 					want = "stuntgres: version identity exhausted"
 				}
-				if err == nil || err.Error() != want || e.storage.nextRow != beforeRow || e.storage.nextVersion != beforeVersion {
-					t.Fatal(err, e.storage.nextRow, e.storage.nextVersion)
+				if err == nil || err.Error() != want || e.storage.RowFrontier() != beforeRow || e.storage.VersionFrontier() != beforeVersion {
+					t.Fatal(err, e.storage.RowFrontier(), e.storage.VersionFrontier())
 				}
 				queryCreateAssertAbsent(t, e, d)
 				queryCreateAssertTypes(t, e, registry)
@@ -178,10 +178,10 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 				e.catalog.Providers[ids.RelationClassID] = queryCreateProbeProvider{Provider: e.catalog.Providers[ids.RelationClassID], e: e, t: t, check: func() error { return sentinel }}
 			}
 			if phase == "invalid_width" {
-				stage.initialTables[d.Address()].versions[0].values = nil
+				stage.initialTables[d.Address()].Versions[0].Values = nil
 			}
 			if phase == "invalid_type" {
-				stage.initialTables[d.Address()].versions[0].values = []sqltype.Value{sqltype.Null(testUsage(e, sqltype.Text).Type)}
+				stage.initialTables[d.Address()].Versions[0].Values = []sqltype.Value{sqltype.Null(testUsage(e, sqltype.Text).Type)}
 			}
 			prepared, err := e.ValidateCatalogStage(ctx, stage)
 			if phase == "provider" || phase == "invalid_width" || phase == "invalid_type" {
@@ -278,7 +278,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 				}
 			}
 			if phase == "name" {
-				if _, ok := e.CatalogRead().Descriptor(d.Address()); ok || e.storage.relations[d.Address()] != nil {
+				if _, ok := e.CatalogRead().Descriptor(d.Address()); ok || e.storage.Relations[d.Address()] != nil {
 					t.Fatal("loser published")
 				}
 			} else {
@@ -287,7 +287,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 			if phase != "epoch" {
 				queryCreateAssertTypes(t, e, registry)
 			}
-			if e.commitSeq != before || stage.initialTables[d.Address()].versions[0].born != 0 {
+			if e.commitSeq != before || stage.initialTables[d.Address()].Versions[0].Born != 0 {
 				t.Fatal("failed birth/frontier", e.commitSeq)
 			}
 		})
@@ -328,7 +328,7 @@ func TestQueryTableCreateUnrelatedRefresh(t *testing.T) {
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	if e.storage.nextRow != 1 || e.storage.nextVersion != 1 || e.commitSeq != 1 || len(e.storage.relations[d.Address()].versions) != 1 || !sqltype.SameDatum(e.storage.relations[d.Address()].versions[0].values[0], value) {
+	if e.storage.RowFrontier() != 1 || e.storage.VersionFrontier() != 1 || e.commitSeq != 1 || len(e.storage.Relations[d.Address()].Versions) != 1 || !sqltype.SameDatum(e.storage.Relations[d.Address()].Versions[0].Values[0], value) {
 		t.Fatal("refresh replayed or lost data")
 	}
 }
@@ -342,7 +342,7 @@ func TestQueryTableCreateSharedRowIdentities(t *testing.T) {
 	if err := e.stageQueryTableRows(context.Background(), discarded, d, [][]sqltype.Value{{value}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
-	reserved := discarded.initialTables[d.Address()].versions[0]
+	reserved := discarded.initialTables[d.Address()].Versions[0]
 	e.DiscardCatalogStage(discarded)
 	queryCreateAssertAbsent(t, e, d)
 	session := sessionStart(t, e, nil)
@@ -361,14 +361,14 @@ func TestQueryTableCreateSharedRowIdentities(t *testing.T) {
 		t.Fatal(outcome)
 	}
 	staged := scope.stage.rows[ref.Address][0]
-	if staged.row != reserved.row+1 || staged.version != reserved.version+1 || staged.born != 0 {
+	if staged.Row != reserved.Row+1 || staged.Version != reserved.Version+1 || staged.Born != 0 {
 		t.Fatal("ordinary stage reused a discarded initial identity")
 	}
 	if outcome = scope.Finish(nil); outcome != nil {
 		t.Fatal(outcome)
 	}
-	stored := e.storage.relations[ref.Address].versions[0]
-	if stored.row != staged.row || stored.version != staged.version || stored.born != e.commitSeq {
+	stored := e.storage.Relations[ref.Address].Versions[0]
+	if stored.Row != staged.Row || stored.Version != staged.Version || stored.Born != e.commitSeq {
 		t.Fatal("ordinary publication changed staged identity")
 	}
 	before := e.commitSeq
@@ -377,8 +377,8 @@ func TestQueryTableCreateSharedRowIdentities(t *testing.T) {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, nextStage)
-	copied := e.storage.relations[next.Address()].versions[0]
-	if copied.row != stored.row+1 || copied.version != stored.version+1 || copied.born != before+1 || e.commitSeq != before+1 || reserved.born != 0 {
+	copied := e.storage.Relations[next.Address()].Versions[0]
+	if copied.Row != stored.Row+1 || copied.Version != stored.Version+1 || copied.Born != before+1 || e.commitSeq != before+1 || reserved.Born != 0 {
 		t.Fatal("initial storage did not share the ordinary non-reusing identity/frontier owner")
 	}
 }

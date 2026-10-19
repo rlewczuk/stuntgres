@@ -30,7 +30,7 @@ func TestInheritanceControlsTemporaryReplacementRejection(t *testing.T) {
 	p := inheritanceLifecycleTable(e, 20000, "p")
 	inheritanceLifecycleInstall(e, p)
 	temp := inheritanceControlsTemporary(e, 20001, "tc", p.Address())
-	state, oid, revision, epoch, storage := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision, e.catalog.state.Epoch(), e.storage.relations[temp.Address()]
+	state, oid, revision, epoch, storage := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision, e.catalog.state.Epoch(), e.storage.Relations[temp.Address()]
 	next := catalog.CloneState(New().catalog.state)
 	e.mu.Lock()
 	err := e.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*relationStorage{}, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
@@ -38,14 +38,14 @@ func TestInheritanceControlsTemporaryReplacementRejection(t *testing.T) {
 	if err == nil || err.Error() != temporaryInheritanceReplacementError {
 		t.Fatal(err)
 	}
-	if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.catalog.state.Epoch() != epoch || e.storage.relations[temp.Address()] != storage {
+	if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.catalog.state.Epoch() != epoch || e.storage.Relations[temp.Address()] != storage {
 		t.Fatal("rejection changed target/allocator")
 	}
 	// Reset uses the same final replacement fence, not just a helper-only guard.
 	if err = e.Reset(context.Background()); err == nil || err.Error() != temporaryInheritanceReplacementError {
 		t.Fatal(err)
 	}
-	if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.relations[temp.Address()] != storage {
+	if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[temp.Address()] != storage {
 		t.Fatal("Reset rejection changed state")
 	}
 }
@@ -54,7 +54,7 @@ func TestInheritanceControlsRetainedTemporaryCollision(t *testing.T) {
 	e := New()
 	temp := inheritanceControlsTemporary(e, 20000, "tp")
 	tempChild := inheritanceControlsTemporary(e, 20004, "tc", temp.Address())
-	retainedStorage := e.storage.relations[temp.Address()]
+	retainedStorage := e.storage.Relations[temp.Address()]
 	source := New()
 	parent := inheritanceLifecycleTable(source, 20000, "p")
 	child := inheritanceLifecycleTable(source, 20001, "c", parent.Address())
@@ -173,7 +173,7 @@ func TestInheritanceControlsRetainedChecksAndConstraintCollisions(t *testing.T) 
 	inheritanceLifecycleInstall(source, parent, child)
 	next := catalog.CloneState(source.catalog.state)
 	storage := map[ids.ObjectAddress]*relationStorage{parent.Address(): {}, child.Address(): {}}
-	retainedStorage := e.storage.relations[tempChild.Address()]
+	retainedStorage := e.storage.Relations[tempChild.Address()]
 	e.mu.Lock()
 	err := e.preserveTemporaryLocked(context.Background(), next, storage, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
@@ -252,7 +252,7 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 		t.Fatal("invalid real exclusion fixture", err)
 	}
 	before := e.catalog.state
-	retainedParentStorage, retainedChildStorage := e.storage.relations[temp.Address()], e.storage.relations[tempChild.Address()]
+	retainedParentStorage, retainedChildStorage := e.storage.Relations[temp.Address()], e.storage.Relations[tempChild.Address()]
 	originalIndex := index.SQLIndex
 	next := catalog.CloneState(source.catalog.state)
 	parentStorage, childStorage := &relationStorage{}, &relationStorage{}

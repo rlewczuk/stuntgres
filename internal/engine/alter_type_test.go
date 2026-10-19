@@ -42,13 +42,13 @@ func TestAlterTypeMetadataAndAtomicity(t *testing.T) {
 	run(t, e, "CREATE TABLE bad(c TEXT)")
 	run(t, e, "INSERT INTO bad VALUES('41'),('oops')")
 	bad := roleTableRef(t, e, "bad")
-	descriptor, storage := e.catalog.state.Get(bad.Address), e.storage.relations[bad.Address]
+	descriptor, storage := e.catalog.state.Get(bad.Address), e.storage.Relations[bad.Address]
 	_, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE bad ALTER c TYPE INT USING c::int"), nil)
 	var got *sqlstate.Error
 	if !errors.As(err, &got) || got.Code != "22P02" || got.Message != `invalid input syntax for type integer: "oops"` {
 		t.Fatal(err)
 	}
-	if e.catalog.state.Get(bad.Address) != descriptor || e.storage.relations[bad.Address] != storage {
+	if e.catalog.state.Get(bad.Address) != descriptor || e.storage.Relations[bad.Address] != storage {
 		t.Fatal("published failed conversion")
 	}
 	if rows := tuples(run(t, e, "SELECT * FROM bad")); !reflect.DeepEqual(rows, [][]driver.Value{{"41"}, {"oops"}}) {
@@ -67,12 +67,12 @@ func TestAlterTypeOrderedTransformsAtomicity(t *testing.T) {
 			run(t, e, "CREATE TABLE t("+tc.declaration+")")
 			run(t, e, "INSERT INTO t VALUES"+tc.seed)
 			ref := roleTableRef(t, e, "t")
-			old, store := e.catalog.state.Get(ref.Address), e.storage.relations[ref.Address]
+			old, store := e.catalog.state.Get(ref.Address), e.storage.Relations[ref.Address]
 			wantRows := tuples(run(t, e, "SELECT * FROM t"))
 			_, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE t "+tc.action), nil)
 			var got *sqlstate.Error
 			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message}
-			if !errors.As(err, &got) || !reflect.DeepEqual(got, want) || e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != store {
+			if !errors.As(err, &got) || !reflect.DeepEqual(got, want) || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != store {
 				t.Fatal(got, err, "failed ordered list published descriptor/storage")
 			}
 			if rows := tuples(run(t, e, "SELECT * FROM t")); !reflect.DeepEqual(rows, wantRows) {
@@ -91,11 +91,11 @@ func TestAlterTypeCommittedOwnDMLProvenance(t *testing.T) {
 	tx := transactionBegin(t, s)
 	sessionSQL(t, s, "UPDATE t SET c='7' WHERE id=1")
 	sessionSQL(t, s, "DELETE FROM t WHERE id=2")
-	if rows := s.transactions.writes[ref.Address]; len(rows) != 1 || rows[0].base == 0 || s.transactions.deletes[ref.Address] == nil {
+	if rows := s.transactions.writes[ref.Address]; len(rows) != 1 || rows[0].Base == 0 || s.transactions.deletes[ref.Address] == nil {
 		t.Fatal("fixture missed committed update/delete provenance", rows)
 	}
 	sessionSQL(t, s, "ALTER TABLE t ALTER c TYPE INT USING c::int")
-	if rows := s.transactions.writes[ref.Address]; len(rows) != 1 || rows[0].base != 0 || s.transactions.deletes[ref.Address] != nil {
+	if rows := s.transactions.writes[ref.Address]; len(rows) != 1 || rows[0].Base != 0 || s.transactions.deletes[ref.Address] != nil {
 		t.Fatal("rewrite retained omitted committed predecessor", rows)
 	}
 	transactionEnd(t, s, tx, true)
@@ -154,7 +154,7 @@ func TestAlterTypeCollationSchemaAuthorization(t *testing.T) {
 	})
 	sessionSQL(t, s, "INSERT INTO t VALUES('keep')")
 	ref := roleTableRef(t, e, "t")
-	old, storage := e.catalog.state.Get(ref.Address), e.storage.relations[ref.Address]
+	old, storage := e.catalog.state.Get(ref.Address), e.storage.Relations[ref.Address]
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -163,7 +163,7 @@ func TestAlterTypeCollationSchemaAuthorization(t *testing.T) {
 	var got *sqlstate.Error
 	op.Done()
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied for schema denied", Position: "33"}
-	if !errors.As(err, &got) || !reflect.DeepEqual(got, want) || e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage {
+	if !errors.As(err, &got) || !reflect.DeepEqual(got, want) || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage {
 		t.Fatal(got, err)
 	}
 	if rows := tuples(sessionSQL(t, s, "SELECT c FROM t")); !reflect.DeepEqual(rows, [][]driver.Value{{"keep"}}) {

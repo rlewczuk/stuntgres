@@ -101,7 +101,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 			e.mu.Unlock()
 			return nil, false, ids.ErrCatalogReplaced
 		}
-		root := e.storage.indexRoots[address]
+		root := e.storage.IndexRoots[address]
 		if private := changes.uniqueRoots[address]; private != nil {
 			candidate, pinned := changes.indexCandidates[address]
 			if pinned {
@@ -119,14 +119,14 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 			root = private
 		} else {
 			source, ok := e.catalog.state.Relation(address)
-			current := e.storage.relations[parent.Address()]
+			current := e.storage.Relations[parent.Address()]
 			for edge := &lineage; edge != nil; edge = edge.previous {
 				if ok && sameIndexKeySemantics(source, edge.source) {
 					lineage.source, lineage.sourceParent = edge.source, edge.sourceParent
 					break
 				}
 			}
-			if !ok || !sameIndexKeySemantics(source, lineage.source) || sourceStore == nil || current != indexStorageIdentity(sourceStore) || current.generation != sourceStore.generation || current.ends != sourceStore.ends || len(current.versions) != len(sourceStore.versions) {
+			if !ok || !sameIndexKeySemantics(source, lineage.source) || sourceStore == nil || current != sourceStore.IndexIdentity() || current.Generation != sourceStore.Generation || current.Ends != sourceStore.Ends || len(current.Versions) != len(sourceStore.Versions) {
 				e.mu.Unlock()
 				return nil, false, ids.ErrCatalogReplaced
 			}
@@ -141,15 +141,15 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 	if len(captures) == 0 {
 		return writes, false, nil
 	}
-	if sourceStore == nil || targetStore == nil || len(sourceStore.versions) != len(targetStore.versions) {
+	if sourceStore == nil || targetStore == nil || len(sourceStore.Versions) != len(targetStore.Versions) {
 		return nil, false, ids.ErrCatalogReplaced
 	}
-	for i, row := range sourceStore.versions {
+	for i, row := range sourceStore.Versions {
 		if err := evaluation.Context.Err(); err != nil {
 			return nil, false, err
 		}
-		next := targetStore.versions[i]
-		if row.row != next.row || row.version != next.version {
+		next := targetStore.Versions[i]
+		if row.Row != next.Row || row.Version != next.Version {
 			return nil, false, ids.ErrCatalogReplaced
 		}
 	}
@@ -158,21 +158,21 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 		if sourceStore == targetStore && sameIndexKeySemantics(lineage.source, lineage.target) {
 			continue
 		}
-		if root.hash != nil && sameIndexKeySemantics(lineage.source, lineage.target) && root.hash.storage == indexStorageIdentity(targetStore) && root.hash.generation == targetStore.generation && root.hash.ends == targetStore.ends && root.hash.prefix == len(targetStore.versions) {
+		if root.Hash != nil && sameIndexKeySemantics(lineage.source, lineage.target) && root.Hash.Storage == targetStore.IndexIdentity() && root.Hash.Generation == targetStore.Generation && root.Hash.Ends == targetStore.Ends && root.Hash.Prefix == len(targetStore.Versions) {
 			retainIndexBuild(changes, lineage.target, targetStore, root)
 			continue
 		}
-		if root.hash != nil {
-			for _, bucket := range root.hash.buckets {
+		if root.Hash != nil {
+			for _, bucket := range root.Hash.Buckets {
 				for _, entry := range bucket {
 					if err := evaluation.Context.Err(); err != nil {
 						return nil, false, err
 					}
-					if entry.position < 0 || entry.position >= len(sourceStore.versions) {
+					if entry.Position < 0 || entry.Position >= len(sourceStore.Versions) {
 						return nil, false, ids.ErrCatalogReplaced
 					}
-					row := sourceStore.versions[entry.position]
-					if row.row != entry.row || row.version != entry.version {
+					row := sourceStore.Versions[entry.Position]
+					if row.Row != entry.Row || row.Version != entry.Version {
 						return nil, false, ids.ErrCatalogReplaced
 					}
 				}
@@ -181,28 +181,28 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 			if err != nil {
 				return nil, false, err
 			}
-			next := *root.hash
-			next.binding, next.storage, next.generation = binding, indexStorageIdentity(targetStore), targetStore.generation
-			next.prefix, next.ends = len(targetStore.versions), targetStore.ends
-			if err := next.captureRowEntries(evaluation.Context, lineage.target.SQLIndex); err != nil {
+			next := *root.Hash
+			next.Binding, next.Storage, next.Generation = binding, targetStore.IndexIdentity(), targetStore.Generation
+			next.Prefix, next.Ends = len(targetStore.Versions), targetStore.Ends
+			if err := next.CaptureRowEntries(evaluation.Context, lineage.target.SQLIndex); err != nil {
 				return nil, false, err
 			}
-			root = &logicalIndexRoot{hash: &next}
+			root = &logicalIndexRoot{Hash: &next}
 		} else {
-			for _, entry := range root.entries {
+			for _, entry := range root.Entries {
 				if err := evaluation.Context.Err(); err != nil {
 					return nil, false, err
 				}
-				if entry.position < 0 || entry.position >= len(sourceStore.versions) {
+				if entry.Position < 0 || entry.Position >= len(sourceStore.Versions) {
 					return nil, false, ids.ErrCatalogReplaced
 				}
-				row := sourceStore.versions[entry.position]
-				if row.row != entry.row || row.version != entry.version {
+				row := sourceStore.Versions[entry.Position]
+				if row.Row != entry.Row || row.Version != entry.Version {
 					return nil, false, ids.ErrCatalogReplaced
 				}
 			}
 			if !indexLayoutSlotsUnchanged(lineage.source, lineage.sourceParent, lineage.targetParent) {
-				root = newLogicalIndexRoot(lineage.target.SQLIndex, root.entries)
+				root = newLogicalIndexRoot(lineage.target.SQLIndex, root.Entries)
 			}
 		}
 		retainIndexBuild(changes, lineage.target, targetStore, root)
@@ -215,41 +215,41 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 		pending = pending || captured.lineage.target.SQLIndex.HasRuntimeDomainConversion()
 	}
 	for _, row := range sourceWrites {
-		pending = pending || len(row.indexOutputs) != 0
+		pending = pending || len(row.IndexOutputs) != 0
 	}
 	if !pending {
 		return writes, false, nil
 	}
 	positions := make(map[indexRowIdentity]int, len(sourceWrites))
 	for i, row := range sourceWrites {
-		positions[indexRowIdentity{row: row.row, version: row.version}] = i
+		positions[indexRowIdentity{row: row.Row, version: row.Version}] = i
 	}
 	copied := false
 	for i, row := range writes {
 		if err := evaluation.Context.Err(); err != nil {
 			return nil, false, err
 		}
-		position, ok := positions[indexRowIdentity{row: row.row, version: row.version}]
+		position, ok := positions[indexRowIdentity{row: row.Row, version: row.Version}]
 		if !ok {
 			return nil, false, ids.ErrCatalogReplaced
 		}
 		var outputs map[ids.ObjectAddress]indexRowOutput
 		for _, captured := range captures {
 			lineage := captured.lineage
-			output, ok := sourceWrites[position].indexOutputs[lineage.source.Address()]
+			output, ok := sourceWrites[position].IndexOutputs[lineage.source.Address()]
 			if !ok && !lineage.target.SQLIndex.HasRuntimeDomainConversion() {
 				continue
 			}
-			if !ok || (!output.matches(lineage.source) && !output.matches(lineage.target)) {
+			if !ok || (!indexOutputMatches(output, lineage.source) && !indexOutputMatches(output, lineage.target)) {
 				return nil, false, fmt.Errorf("stuntgres: layout projection is missing produced private index data")
 			}
 			if outputs == nil {
-				outputs = maps.Clone(row.indexOutputs)
+				outputs = maps.Clone(row.IndexOutputs)
 				if outputs == nil {
 					outputs = make(map[ids.ObjectAddress]indexRowOutput)
 				}
 			}
-			output.index = lineage.target
+			output.Index = lineage.target
 			outputs[lineage.target.Address()] = output
 		}
 		if outputs != nil {
@@ -257,7 +257,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 				writes = slices.Clone(writes)
 				copied = true
 			}
-			writes[i].indexOutputs = outputs
+			writes[i].IndexOutputs = outputs
 		}
 	}
 	return writes, copied, nil
@@ -282,7 +282,7 @@ func (e *Engine) fenceEmptyIndexStorageLocked(snapshot *catalog.State, changes *
 // evaluating declarations during publication.
 func transportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, changes *catalogChanges, stage *CatalogStage, address ids.ObjectAddress, store *relationStorage) error {
 	parent, ok := snapshot.Relation(address)
-	if !ok || store == nil || len(store.versions) != 0 {
+	if !ok || store == nil || len(store.Versions) != 0 {
 		return ids.ErrCatalogReplaced
 	}
 	for _, descriptor := range snapshot.Descriptors() {
@@ -304,7 +304,7 @@ func transportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, ch
 			if err != nil {
 				return err
 			}
-			root = &logicalIndexRoot{hash: &hashIndexRoot{buckets: make(map[uint64][]hashIndexEntry), binding: binding, storage: indexStorageIdentity(store), generation: store.generation, ends: store.ends}}
+			root = &logicalIndexRoot{Hash: &hashIndexRoot{Buckets: make(map[uint64][]hashIndexEntry), Binding: binding, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends}}
 		} else {
 			if err := bindIndexProvider(parent, index.SQLIndex); err != nil {
 				return err

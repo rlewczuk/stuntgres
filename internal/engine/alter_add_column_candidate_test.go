@@ -126,13 +126,13 @@ func TestAlterAddColumnVolatileEffectiveLiveRewrite(t *testing.T) {
 	if err != nil || !volatile || calls != 0 || len(fills) != 0 {
 		t.Fatal(fills, volatile, calls, err)
 	}
-	store := &relationStorage{generation: 1, versions: []rowVersion{
-		{row: 1, version: 1, born: 1, values: []sqltype.Value{one}},
-		{row: 2, version: 2, born: 1, values: []sqltype.Value{one}},
-		{row: 3, version: 3, born: 1, values: []sqltype.Value{one}},
-		{row: 4, version: 4, born: 1, values: []sqltype.Value{one}},
-	}, ends: &deletionRoot{rows: map[ids.RowID]rowEnd{2: {version: 2, end: 2}}}}
-	scope.ownWrites = map[ids.ObjectAddress][]rowVersion{old.Address(): {{row: 3, version: 5, base: 3, values: []sqltype.Value{one}}, {row: 5, version: 6, values: []sqltype.Value{one}}}}
+	store := &relationStorage{Generation: 1, Versions: []rowVersion{
+		{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{one}},
+		{Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{one}},
+		{Row: 3, Version: 3, Born: 1, Values: []sqltype.Value{one}},
+		{Row: 4, Version: 4, Born: 1, Values: []sqltype.Value{one}},
+	}, Ends: &deletionRoot{Rows: map[ids.RowID]rowEnd{2: {Version: 2, End: 2}}}}
+	scope.ownWrites = map[ids.ObjectAddress][]rowVersion{old.Address(): {{Row: 3, Version: 5, Base: 3, Values: []sqltype.Value{one}}, {Row: 5, Version: 6, Values: []sqltype.Value{one}}}}
 	scope.ownDeletes = map[ids.ObjectAddress]*privateDeletionRoot{old.Address(): {rows: map[ids.RowID]deleteCandidate{4: {row: 4, version: 4}}}}
 	transformCalls := 0
 	transformed, err := sqltype.Integer(u.Type, 31)
@@ -148,31 +148,31 @@ func TestAlterAddColumnVolatileEffectiveLiveRewrite(t *testing.T) {
 	}}
 	transforms := []columnTransformation{{attribute: 1, expression: transform, rewrite: true}}
 	replacement, own, deleted, err := rewriteTypeRows(scope, scope.op, old, &next, store, 2, transforms, additions, nil, newAlterRowValidator(&next, ""))
-	if err != nil || calls != 3 || len(replacement.versions) != 1 || len(own) != 2 || deleted != nil {
+	if err != nil || calls != 3 || len(replacement.Versions) != 1 || len(own) != 2 || deleted != nil {
 		t.Fatal(replacement, own, calls, err)
 	}
-	if replacement.versions[0].row != 1 || own[0].row != 3 || own[0].base != 0 || own[1].row != 5 || len(store.versions) != 4 || len(store.versions[0].values) != 1 || replacement.generation != 2 {
+	if replacement.Versions[0].Row != 1 || own[0].Row != 3 || own[0].Base != 0 || own[1].Row != 5 || len(store.Versions) != 4 || len(store.Versions[0].Values) != 1 || replacement.Generation != 2 {
 		t.Fatal("identity/source rewrite invariant", replacement, own, store)
 	}
 	if transformCalls != 3 {
 		t.Fatal("TYPE effective demand", transformCalls)
 	}
-	for i, row := range append(append([]rowVersion(nil), replacement.versions...), own...) {
+	for i, row := range append(append([]rowVersion(nil), replacement.Versions...), own...) {
 		expectedDraw, drawErr := sqltype.Integer(u.Type, int64(i+1))
 		if drawErr != nil {
 			t.Fatal(drawErr)
 		}
-		if len(row.values) != 2 || row.values[0] != transformed || row.values[1] != expectedDraw {
-			t.Fatal("complete transformed/add frame", row.values)
+		if len(row.Values) != 2 || row.Values[0] != transformed || row.Values[1] != expectedDraw {
+			t.Fatal("complete transformed/add frame", row.Values)
 		}
 	}
-	for _, row := range store.versions {
-		if len(row.values) != 1 || row.values[0] != one {
+	for _, row := range store.Versions {
+		if len(row.Values) != 1 || row.Values[0] != one {
 			t.Fatal("committed predecessor mutated", row)
 		}
 	}
 	for _, row := range scope.ownWrites[old.Address()] {
-		if len(row.values) != 1 || row.values[0] != one {
+		if len(row.Values) != 1 || row.Values[0] != one {
 			t.Fatal("private predecessor mutated", row)
 		}
 	}

@@ -50,25 +50,25 @@ func TestTypedPublicationStorageGenerationConflict(t *testing.T) {
 	stage := typedRenameStage(t, e, source, table)
 	defer e.DiscardCatalogStage(stage)
 	e.mu.Lock()
-	store := e.storage.relations[table.Address()]
+	store := e.storage.Relations[table.Address()]
 	e.mu.Unlock()
 	if store == nil {
 		t.Fatal("unit fixture missing physical table")
 	}
-	stage.rowShapes = map[ids.ObjectAddress]catalogRowShape{table.Address(): {original: store, replacement: &relationStorage{generation: store.generation + 1}, observedLength: len(store.versions), observedEnds: store.ends, generation: store.generation}}
+	stage.rowShapes = map[ids.ObjectAddress]catalogRowShape{table.Address(): {original: store, replacement: &relationStorage{Generation: store.Generation + 1}, observedLength: len(store.Versions), observedEnds: store.Ends, generation: store.Generation}}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
 	concurrent := *store
-	concurrent.generation++
-	e.storage.relations[table.Address()] = &concurrent
+	concurrent.Generation++
+	e.storage.Relations[table.Address()] = &concurrent
 	e.mu.Unlock()
 	before := e.CatalogRead()
 	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()})
 	var conflict catalog.Conflict
-	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() || e.storage.relations[table.Address()] != &concurrent {
+	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() || e.storage.Relations[table.Address()] != &concurrent {
 		t.Fatal("storage conflict was not atomic", changes, err)
 	}
 }

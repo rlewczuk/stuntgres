@@ -93,7 +93,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	var generation uint64
 	var ends *deletionRoot
 	if original != nil {
-		length, generation, ends = len(original.versions), original.generation, original.ends
+		length, generation, ends = len(original.Versions), original.Generation, original.Ends
 	}
 	next := *old
 	next.ObjectRevision++

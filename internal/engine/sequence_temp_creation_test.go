@@ -94,8 +94,8 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 				r.Rows.Close()
 				catalogSnapshot, namespace, cell := e.catalog.state, a.temporaryNamespace, held.sequences
 				retained := catalog.CloneState(catalogSnapshot)
-				generators := make(map[ids.ObjectAddress]sequenceGenerator, len(e.storage.sequences))
-				for address, g := range e.storage.sequences {
+				generators := make(map[ids.ObjectAddress]sequenceGenerator, len(e.storage.Sequences))
+				for address, g := range e.storage.Sequences {
 					generators[address] = *g
 				}
 				memories := make(map[ids.ObjectAddress]sequenceMemory, len(a.sequences))
@@ -108,11 +108,11 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 				err = sequenceTempMoveCommand(t, e, a, query, prepared)
 				if !success {
 					sequenceOwnerDiagnostic(t, err, code, message, "")
-					if e.catalog.state != catalogSnapshot || !reflect.DeepEqual(catalogSnapshot, retained) || a.temporaryNamespace != namespace || b.temporaryNamespace != peerNamespace || a.lastSequence != last || b.lastSequence != peerLast || held.sequences != cell || len(e.storage.sequences) != len(generators) || len(a.sequences) != len(memories) {
+					if e.catalog.state != catalogSnapshot || !reflect.DeepEqual(catalogSnapshot, retained) || a.temporaryNamespace != namespace || b.temporaryNamespace != peerNamespace || a.lastSequence != last || b.lastSequence != peerLast || held.sequences != cell || len(e.storage.Sequences) != len(generators) || len(a.sequences) != len(memories) {
 						t.Fatal("creation rejection published catalog, namespace event, generator, memory or held analysis")
 					}
 					for address, want := range generators {
-						if e.storage.sequences[address] == nil || *e.storage.sequences[address] != want {
+						if e.storage.Sequences[address] == nil || *e.storage.Sequences[address] != want {
 							t.Fatal("creation rejection changed generator", address)
 						}
 					}
@@ -133,8 +133,8 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 					address := NameAddressForTempMove(t, e, ns.Address(), "created")
 					d := e.catalog.state.MustRelation(address)
 					want := catalog.SequenceOptions{SQLType: sqltype.Int8, Increment: 1, Min: 1, Max: 9223372036854775807, Start: 60, Cache: 3, Persistence: "temporary"}
-					g := e.storage.sequences[address]
-					if d.Namespace() != ns.Address() || d.Owner != e.Roles().LookupRef("postgres") || d.RelationKind != catalog.SequenceRelation || d.Address() == last || !reflect.DeepEqual(*d.Sequence, want) || g.last != 60 || g.called || g.generation == 0 || g.generation != d.Revision() || d.SequencePlanStamp != d.Revision() {
+					g := e.storage.Sequences[address]
+					if d.Namespace() != ns.Address() || d.Owner != e.Roles().LookupRef("postgres") || d.RelationKind != catalog.SequenceRelation || d.Address() == last || !reflect.DeepEqual(*d.Sequence, want) || g.Last != 60 || g.Called || g.Generation == 0 || g.Generation != d.Revision() || d.SequencePlanStamp != d.Revision() {
 						t.Fatal("creation identity/options/generator mismatch", d, g)
 					}
 					wantGeneration := catalogSnapshot.NamespaceGeneration()
@@ -196,14 +196,14 @@ func TestSequenceTemporaryCreationPermissionPrecedence(t *testing.T) {
 				_, held := sequencePreparedDescription(t, e, s, "SELECT nextval('own_temp')")
 				ref := held.sequences.constants[0].ref
 				catalog, namespace, cell := e.catalog.state, s.temporaryNamespace, held.sequences
-				generator, memory := *e.storage.sequences[ref.Address], *s.sequences[ref.Address]
+				generator, memory := *e.storage.Sequences[ref.Address], *s.sequences[ref.Address]
 				query := "CREATE TEMP SEQUENCE denied.created"
 				if existing {
 					query = "CREATE TEMP SEQUENCE IF NOT EXISTS denied.seed"
 				}
 				err := sequenceTempMoveCommand(t, e, s, query, prepared)
 				sequenceOwnerDiagnostic(t, err, "42501", "permission denied for schema denied", "")
-				if e.catalog.state != catalog || s.temporaryNamespace != namespace || held.sequences != cell || *e.storage.sequences[ref.Address] != generator || *s.sequences[ref.Address] != memory {
+				if e.catalog.state != catalog || s.temporaryNamespace != namespace || held.sequences != cell || *e.storage.Sequences[ref.Address] != generator || *s.sequences[ref.Address] != memory {
 					t.Fatal("CREATE permission rejection changed authority/state")
 				}
 				sequenceScalar(t, s, "SELECT nextval('own_temp')", 2)

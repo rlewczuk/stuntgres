@@ -32,7 +32,7 @@ func TestUpdateFromQueuedContenderRecheck(t *testing.T) {
 				expected = &description
 			}
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			original := e.storage.relations[ref.Address].versions[0]
+			original := e.storage.Relations[ref.Address].Versions[0]
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "UPDATE t SET v=20 WHERE id=1")
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -69,7 +69,7 @@ func TestUpdateFromQueuedContenderRecheck(t *testing.T) {
 			}()
 			lockPending(t, e, 1)
 			lockState := e.locks.Inspect()
-			entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: original.row}]
+			entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: original.Row}]
 			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.ForNoKeyUpdate && entry.Holders[holder.transactions.ticket].Mode == lock.ForNoKeyUpdate
 			if !queued {
 				t.Fatal("not a genuine same-RowID UPDATE queue")
@@ -91,9 +91,9 @@ func TestUpdateFromQueuedContenderRecheck(t *testing.T) {
 			if got.scope == nil || len(got.scope.querySources) != 0 {
 				t.Fatal("statement source admission leaked")
 			}
-			store := e.storage.relations[ref.Address]
-			if len(store.versions) != 1 || store.versions[0].row != original.row || store.versions[0].version == original.version || testExport(original.values[1]) != int64(10) {
-				t.Fatal("physical target identity or captured predecessor changed", store.versions, original)
+			store := e.storage.Relations[ref.Address]
+			if len(store.Versions) != 1 || store.Versions[0].Row != original.Row || store.Versions[0].Version == original.Version || testExport(original.Values[1]) != int64(10) {
+				t.Fatal("physical target identity or captured predecessor changed", store.Versions, original)
 			}
 			transactionRows(t, peer, "SELECT v FROM t", 222)
 			lockEmpty(t, e)

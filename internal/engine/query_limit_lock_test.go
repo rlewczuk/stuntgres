@@ -155,7 +155,7 @@ func queryLimitGrants(t *testing.T, e *Engine, ticket *lock.Ticket, tables map[s
 		ref := roleTableRef(t, e, table)
 		e.mu.Lock()
 		for _, id := range ids {
-			want[lock.Resource{ObjectRef: ref, Row: e.storage.relations[ref.Address].versions[id-1].row}] = true
+			want[lock.Resource{ObjectRef: ref, Row: e.storage.Relations[ref.Address].Versions[id-1].Row}] = true
 		}
 		e.mu.Unlock()
 	}

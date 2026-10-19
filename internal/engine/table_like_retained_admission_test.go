@@ -154,7 +154,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 					if err := change.Create(&replacement); err != nil {
 						t.Fatal(err)
 					}
-					change.generators = map[ids.ObjectAddress]*sequenceGenerator{replacement.Address(): {last: replacement.Sequence.Start, generation: replacement.Revision()}}
+					change.generators = map[ids.ObjectAddress]*sequenceGenerator{replacement.Address(): {Last: replacement.Sequence.Start, Generation: replacement.Revision()}}
 					queryCreatePublish(t, e, change)
 					if replacement.Address() == provider.Address() {
 						t.Fatal("recreated provider reused old identity")
@@ -200,7 +200,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 					assertHold()
 				} else {
 					err = context.Canceled
-					if e.CatalogRead().Get(destination.Address()) != nil || e.storage.relations[destination.Address()] != nil {
+					if e.CatalogRead().Get(destination.Address()) != nil || e.storage.Relations[destination.Address()] != nil {
 						t.Fatal("rolled back candidate published")
 					}
 				}
@@ -214,7 +214,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 				if outcome == "pointer" && err.Error() != "stuntgres: definition provider disappeared before publication" {
 					t.Fatal("retained pointer fence not exercised", err)
 				}
-				if e.CatalogRead().Get(destination.Address()) != nil || e.storage.relations[destination.Address()] != nil || e.storage.indexRoots[destination.Address()] != nil {
+				if e.CatalogRead().Get(destination.Address()) != nil || e.storage.Relations[destination.Address()] != nil || e.storage.IndexRoots[destination.Address()] != nil {
 					t.Fatal("failed admission published candidate fragments")
 				}
 			}

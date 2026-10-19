@@ -20,7 +20,7 @@ func TestMergeSourceUpdateCapture(t *testing.T) {
 	}
 	first := target.versionAt(target.rawIndex(1))
 	second := target.versionAt(target.rawIndex(2))
-	if first.row == second.row {
+	if first.Row == second.Row {
 		scope.Finish(context.Canceled)
 		t.Fatal("distinct equal targets lost identity")
 	}

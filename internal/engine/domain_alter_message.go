@@ -28,12 +28,12 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 		committed.allowContainers = true
 		for i := range committed.uses {
 			use := &committed.uses[i]
-			use.storage = e.storage.relations[use.relation.Address()]
+			use.storage = e.storage.Relations[use.relation.Address()]
 			if use.storage == nil {
 				return catalog.Conflict{}
 			}
-			use.versions = use.storage.versions[:len(use.storage.versions):len(use.storage.versions)]
-			use.ends, use.generation = use.storage.ends, use.storage.generation
+			use.versions = use.storage.Versions[:len(use.storage.Versions):len(use.storage.Versions)]
+			use.ends, use.generation = use.storage.Ends, use.storage.Generation
 		}
 		changes.domainValidations = append(changes.domainValidations, committed)
 	}
@@ -46,7 +46,7 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 			if e.domainStageIndexRootLocked(stage, address) != root {
 				return catalog.Conflict{}
 			}
-			changes.domainIndexRoots[address] = e.storage.indexRoots[address]
+			changes.domainIndexRoots[address] = e.storage.IndexRoots[address]
 		}
 	}
 	return nil
@@ -60,7 +60,7 @@ func (e *Engine) domainStageIndexRootLocked(stage *CatalogStage, address ids.Obj
 			}
 		}
 	}
-	return e.storage.indexRoots[address]
+	return e.storage.IndexRoots[address]
 }
 
 func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes *catalogChanges) error {
@@ -77,12 +77,12 @@ func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes
 		if err != nil {
 			return err
 		}
-		original, target := relationStorage{versions: writes}, relationStorage{versions: mapped}
+		original, target := relationStorage{Versions: writes}, relationStorage{Versions: mapped}
 		rebound, err := reownDomainIndexOutputs(scope.op.Context(), stage.Base.State(), next, &original, &target)
 		if err != nil {
 			return err
 		}
-		scope.stageProjectedColumnRoots(address, rebound.versions, projectDeletions(deletes, rowShape.replacement))
+		scope.stageProjectedColumnRoots(address, rebound.Versions, projectDeletions(deletes, rowShape.replacement))
 		shape := changes.storage[address]
 		if len(shape.fills) != 0 {
 			shape.fills = maps.Clone(shape.fills)

@@ -122,7 +122,7 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 	}
 	identity := destination.ColumnMeta.Identities[4]
 	sequence := stage.Descriptors[identity.Sequence].(*catalog.Relation)
-	if identity.Sequence == source.ColumnMeta.Identities[3].Sequence || sequence.Sequence.Owned != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.Address().ObjectID, SubID: 4}) || sequence.Owner != destination.Owner || sequence.Sequence.Persistence != "logged" || stage.generators[identity.Sequence].called {
+	if identity.Sequence == source.ColumnMeta.Identities[3].Sequence || sequence.Sequence.Owned != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.Address().ObjectID, SubID: 4}) || sequence.Owner != destination.Owner || sequence.Sequence.Persistence != "logged" || stage.generators[identity.Sequence].Called {
 		t.Fatal("identity copy authority/state", sequence)
 	}
 	for _, ref := range destination.ColumnMeta.Generations[5].Dependencies {
@@ -145,7 +145,7 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	if len(e.storage.relations[destination.Address()].versions) != 0 {
+	if len(e.storage.Relations[destination.Address()].Versions) != 0 {
 		t.Fatal("source rows imported")
 	}
 }
@@ -156,14 +156,14 @@ func TestTableLikeStageAtomicity(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	before := e.CatalogRead()
-	stores, generators := len(e.storage.relations), len(e.storage.sequences)
+	stores, generators := len(e.storage.Relations), len(e.storage.Sequences)
 	for _, query := range []string{"CREATE TABLE bad(LIKE src INCLUDING ALL,a TEXT)", "CREATE TABLE bad(LIKE src INCLUDING ALL,CONSTRAINT positive CHECK(a>0))"} {
 		stage, _, err := tableLikeBuild(t, e, op, query)
 		if err == nil {
 			t.Fatal("invalid candidate accepted")
 		}
 		e.DiscardCatalogStage(stage)
-		if e.catalog.state != before.State() || len(e.storage.relations) != stores || len(e.storage.sequences) != generators {
+		if e.catalog.state != before.State() || len(e.storage.Relations) != stores || len(e.storage.Sequences) != generators {
 			t.Fatal("failed candidate leaked publication")
 		}
 	}
@@ -178,7 +178,7 @@ func TestTableLikeStageAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.DiscardCatalogStage(stage)
-	if e.catalog.state != before.State() || len(e.storage.relations) != stores || len(e.storage.sequences) != generators {
+	if e.catalog.state != before.State() || len(e.storage.Relations) != stores || len(e.storage.Sequences) != generators {
 		t.Fatal("canceled candidate leaked publication")
 	}
 }

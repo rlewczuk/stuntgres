@@ -15,7 +15,7 @@ func TestAlterSchemaSourceAuthorityPublicationFence(t *testing.T) {
 	sessionSQL(t, owner, "CREATE SEQUENCE protected.q OWNED BY protected.t.a")
 	ref := roleTableRef(t, e, "protected.t")
 	q := NameAddressForTempMove(t, e, ns.Address, "q")
-	old, sequence, storage := e.catalog.state.Get(ref.Address), e.catalog.state.Get(q), e.storage.relations[ref.Address]
+	old, sequence, storage := e.catalog.state.Get(ref.Address), e.catalog.state.Get(q), e.storage.Relations[ref.Address]
 	stmt := statement(t, "ALTER TABLE protected.t SET SCHEMA s2")
 	acl.Entries[0].Privileges = authorization.CreatePrivilege
 	var once sync.Once
@@ -41,7 +41,7 @@ func TestAlterSchemaSourceAuthorityPublicationFence(t *testing.T) {
 	if err != (catalog.Conflict{}) {
 		t.Fatalf("source namespace authorization fence: %T %v", err, err)
 	}
-	if e.catalog.state.Get(ref.Address) != old || e.catalog.state.Get(q) != sequence || e.storage.relations[ref.Address] != storage || e.catalog.nextRevision != frontier {
+	if e.catalog.state.Get(ref.Address) != old || e.catalog.state.Get(q) != sequence || e.storage.Relations[ref.Address] != storage || e.catalog.nextRevision != frontier {
 		t.Fatal("source revocation allowed partial publication")
 	}
 	op, err = owner.Acquire(context.Background())

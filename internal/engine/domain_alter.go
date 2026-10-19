@@ -201,8 +201,8 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 					graphErr = catalog.Conflict{}
 					break
 				}
-				use.versions = use.storage.versions[:len(use.storage.versions):len(use.storage.versions)]
-				use.ends, use.generation = use.storage.ends, use.storage.generation
+				use.versions = use.storage.Versions[:len(use.storage.Versions):len(use.storage.Versions)]
+				use.ends, use.generation = use.storage.Ends, use.storage.Generation
 			}
 		}
 		e.mu.Unlock()
@@ -245,11 +245,11 @@ func (c *EvalContext) validateSelectedDomainRows(view catalog.Read, selected *ca
 	}
 	var replaced map[ids.RowID]bool
 	for _, row := range writes {
-		if row.base != 0 {
+		if row.Base != 0 {
 			if replaced == nil {
 				replaced = make(map[ids.RowID]bool)
 			}
-			replaced[row.row] = true
+			replaced[row.Row] = true
 		}
 	}
 	scan := func(rows []rowVersion, committed bool) error {
@@ -257,11 +257,11 @@ func (c *EvalContext) validateSelectedDomainRows(view catalog.Read, selected *ca
 			if err := c.Context.Err(); err != nil {
 				return err
 			}
-			if committed && replaced[row.row] || !liveVersion(row, frontier, use.ends, deletes) {
+			if committed && replaced[row.Row] || !liveVersion(row, frontier, use.ends, deletes) {
 				continue
 			}
 			for i, column := range use.columns {
-				if err := c.evaluateSelectedDomainCheck(view, selected, row.values[column], violations[i]); err != nil {
+				if err := c.evaluateSelectedDomainCheck(view, selected, row.Values[column], violations[i]); err != nil {
 					return err
 				}
 			}

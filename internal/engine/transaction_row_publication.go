@@ -11,10 +11,10 @@ import (
 func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materialize bool) error {
 	inserts, replacements := 0, 0
 	for _, row := range p.writes {
-		if row.row == 0 || row.version == 0 || row.born != 0 || len(row.values) != len(p.relation.Columns) {
+		if row.Row == 0 || row.Version == 0 || row.Born != 0 || len(row.Values) != len(p.relation.Columns) {
 			return errors.New("stuntgres: invalid private row version")
 		}
-		if row.base == 0 {
+		if row.Base == 0 {
 			inserts++
 		} else {
 			replacements++
@@ -38,7 +38,7 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materia
 		if replacements > 1 {
 			index = make(map[ids.RowID]int, len(p.root))
 			for slot, row := range p.root {
-				index[row.row] = slot
+				index[row.Row] = slot
 			}
 		}
 		if materialize && len(p.writes) > 1 {
@@ -46,7 +46,7 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materia
 		}
 		tail := len(p.root)
 		for j, row := range p.writes {
-			if row.base == 0 {
+			if row.Base == 0 {
 				if materialize {
 					p.slots[j] = tail
 				}
@@ -57,14 +57,14 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materia
 			var slot int
 			var found bool
 			if index != nil {
-				slot, found = index[row.row]
+				slot, found = index[row.Row]
 				if found {
 					predecessor = p.root[slot]
 				}
 			} else {
-				predecessor, slot, found = rowByID(p.root, row.row, -1)
+				predecessor, slot, found = rowByID(p.root, row.Row, -1)
 			}
-			if !found || predecessor.version != row.base || !liveVersion(predecessor, ids.CommitSeq(^uint64(0)), p.ends, nil) {
+			if !found || predecessor.Version != row.Base || !liveVersion(predecessor, ids.CommitSeq(^uint64(0)), p.ends, nil) {
 				return errors.New("stuntgres: stale update predecessor")
 			}
 			if materialize {
@@ -80,12 +80,12 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materia
 		if materialize {
 			count := len(p.deletion.rows)
 			if p.ends != nil {
-				count += len(p.ends.rows)
+				count += len(p.ends.Rows)
 			}
-			p.nextEnds = &deletionRoot{rows: make(map[ids.RowID]rowEnd, count)}
+			p.nextEnds = &deletionRoot{Rows: make(map[ids.RowID]rowEnd, count)}
 			if p.ends != nil {
-				for id, end := range p.ends.rows {
-					p.nextEnds.rows[id] = end
+				for id, end := range p.ends.Rows {
+					p.nextEnds.Rows[id] = end
 				}
 			}
 		}
@@ -98,14 +98,14 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materia
 				predecessors = p.writes
 			}
 			predecessor, _, found := rowByID(predecessors, id, candidate.ordinal)
-			if !found || predecessor.version != candidate.version || candidate.own && predecessor.base != candidate.base || len(predecessor.values) != len(p.relation.Columns) {
+			if !found || predecessor.Version != candidate.version || candidate.own && predecessor.Base != candidate.base || len(predecessor.Values) != len(p.relation.Columns) {
 				return errors.New("stuntgres: invalid deletion predecessor")
 			}
 			if !candidate.own && !liveVersion(predecessor, ids.CommitSeq(^uint64(0)), p.ends, nil) {
 				return errors.New("stuntgres: deletion predecessor already ended")
 			}
 			if materialize {
-				p.nextEnds.rows[id] = rowEnd{version: candidate.version}
+				p.nextEnds.Rows[id] = rowEnd{Version: candidate.version}
 			}
 		}
 	}

@@ -71,7 +71,7 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 			e.mu.Unlock()
 			return Result{}, ids.ErrCatalogReplaced
 		}
-		length, generation, ends := len(store.versions), store.generation, store.ends
+		length, generation, ends := len(store.Versions), store.Generation, store.Ends
 		e.mu.Unlock()
 		if err := stage.alterRelation(op.Context(), ref, &next, store, store, length, generation, ends); err != nil {
 			return Result{}, err

@@ -231,7 +231,7 @@ func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, c
 			named = true
 		}
 		if index.SQLIndex.HasRuntimeDomainConversion() || len(writes) != 0 {
-			capture = &indexBuildCapture{index: index, outputs: make([]indexRowOutput, len(validationStore.versions))}
+			capture = &indexBuildCapture{index: index, outputs: make([]indexRowOutput, len(validationStore.Versions))}
 		}
 		root, err := buildIndexRoot(evaluation, parent, index.SQLIndex, validationStore, capture)
 		if err != nil {

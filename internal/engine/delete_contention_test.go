@@ -59,7 +59,7 @@ func TestDeleteCoreContention(t *testing.T) {
 			lockPending(t, e, 1)
 			target := catalogRef(t, e, e.CatalogRead(), "t")
 			e.mu.Lock()
-			row := e.storage.relations[target.Address].versions[0].row
+			row := e.storage.Relations[target.Address].Versions[0].Row
 			e.mu.Unlock()
 			lockState := e.locks.Inspect()
 			entry := lockState.Resources[lock.Resource{ObjectRef: target, Row: row}]

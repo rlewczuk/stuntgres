@@ -45,12 +45,12 @@ func (e *Engine) capturePartialMaskLocked(scope *StatementScope, leaf queryLeaf,
 	if len(data.own[parent]) != 0 || data.deleted[parent] != nil || len(data.rewrittenFrontiers) != 0 || data.frontierAt(parent) != e.commitSeq {
 		return nil
 	}
-	store := e.storage.relations[parent]
-	if store == nil || data.generationAt(parent) != store || leaf.storage != store || len(data.committed[parent]) != len(store.versions) || data.ends[parent] != store.ends {
+	store := e.storage.Relations[parent]
+	if store == nil || data.generationAt(parent) != store || leaf.storage != store || len(data.committed[parent]) != len(store.Versions) || data.ends[parent] != store.Ends {
 		return nil
 	}
 	prefix := data.committed[parent]
-	if len(prefix) != 0 && &prefix[0] != &store.versions[0] {
+	if len(prefix) != 0 && &prefix[0] != &store.Versions[0] {
 		return nil
 	}
 	current, ok := e.catalog.state.Relation(parent)
@@ -60,14 +60,14 @@ func (e *Engine) capturePartialMaskLocked(scope *StatementScope, leaf queryLeaf,
 	if e.catalog.state.Get(candidate.Address()) != candidate || candidate.SQLIndex.Parent != parent {
 		return nil
 	}
-	root := e.storage.indexRoots[candidate.Address()]
-	if root == nil || root.membership == nil {
+	root := e.storage.IndexRoots[candidate.Address()]
+	if root == nil || root.Membership == nil {
 		return nil
 	}
 	return root
 }
 
 func partialMaskContains(root *logicalIndexRoot, row rowVersion) bool {
-	version, ok := root.membership[row.row]
-	return ok && version == row.version
+	version, ok := root.Membership[row.Row]
+	return ok && version == row.Version
 }

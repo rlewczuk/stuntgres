@@ -30,9 +30,9 @@ func domainAlterGenerationIndexes(t *testing.T) {
 			sequence := roleTableRef(t, e, "steps").Address
 			parent := roleTableRef(t, e, "subject").Address
 			index := roleTableRef(t, e, "checked_idx").Address
-			store, root := e.storage.relations[parent], e.storage.indexRoots[index]
-			beforeRows := slices.Clone(store.versions)
-			beforeCount := e.storage.sequences[sequence].last
+			store, root := e.storage.Relations[parent], e.storage.IndexRoots[index]
+			beforeRows := slices.Clone(store.Versions)
+			beforeCount := e.storage.Sequences[sequence].Last
 			if beforeCount != 2 {
 				t.Fatal("setup did not produce exactly two CHECK events", beforeCount)
 			}
@@ -61,11 +61,11 @@ func domainAlterGenerationIndexes(t *testing.T) {
 				t.Fatal(err)
 			}
 			domainUnitPublish(t, e, stage)
-			if e.storage.sequences[sequence].last != beforeCount {
+			if e.storage.Sequences[sequence].Last != beforeCount {
 				t.Fatal("generation remap replayed SQL truth")
 			}
-			current := e.storage.relations[parent]
-			if len(current.versions) != len(beforeRows) || current.ends != store.ends || current.generation != store.generation {
+			current := e.storage.Relations[parent]
+			if len(current.Versions) != len(beforeRows) || current.Ends != store.Ends || current.Generation != store.Generation {
 				t.Fatal("transport lost all-version storage lineage")
 			}
 			if definition.name == "domain_key" && current == store {
@@ -75,10 +75,10 @@ func domainAlterGenerationIndexes(t *testing.T) {
 			// An expression-only integer parent can share its unchanged immutable
 			// row storage; forcing a wrapper allocation would prove nothing.
 			for i, row := range beforeRows {
-				if row.row != store.versions[i].row || row.version != store.versions[i].version || row.values[0] != store.versions[i].values[0] {
+				if row.Row != store.Versions[i].Row || row.Version != store.Versions[i].Version || row.Values[0] != store.Versions[i].Values[0] {
 					t.Fatal("source row mutated")
 				}
-				if current.versions[i].row != row.row || current.versions[i].version != row.version || current.versions[i].born != row.born {
+				if current.Versions[i].Row != row.Row || current.Versions[i].Version != row.Version || current.Versions[i].Born != row.Born {
 					t.Fatal("physical version identity/order changed")
 				}
 			}
@@ -99,38 +99,38 @@ func domainAlterGenerationIndexes(t *testing.T) {
 					t.Fatal("index key retained stale logical conversion authority", err)
 				}
 			}
-			newRoot := e.storage.indexRoots[index]
-			if root.hash == nil {
-				if len(newRoot.entries) != len(root.entries) {
+			newRoot := e.storage.IndexRoots[index]
+			if root.Hash == nil {
+				if len(newRoot.Entries) != len(root.Entries) {
 					t.Fatal("B-tree membership changed")
 				}
-				for i, entry := range root.entries {
-					next := newRoot.entries[i]
-					if entry.row != next.row || entry.version != next.version || entry.position != next.position || len(entry.keys) != len(next.keys) {
+				for i, entry := range root.Entries {
+					next := newRoot.Entries[i]
+					if entry.Row != next.Row || entry.Version != next.Version || entry.Position != next.Position || len(entry.Keys) != len(next.Keys) {
 						t.Fatal("B-tree row identities changed")
 					}
-					for key, value := range entry.keys {
-						sameKey(value, next.keys[key], key)
+					for key, value := range entry.Keys {
+						sameKey(value, next.Keys[key], key)
 					}
 				}
 			} else {
-				if newRoot.hash.storage != current {
+				if newRoot.Hash.Storage != current {
 					t.Fatal("hash storage identity changed")
 				}
 				entries := make(map[indexRowIdentity]hashIndexEntry)
-				for _, bucket := range newRoot.hash.buckets {
+				for _, bucket := range newRoot.Hash.Buckets {
 					for _, entry := range bucket {
-						entries[indexRowIdentity{row: entry.row, version: entry.version}] = entry
+						entries[indexRowIdentity{row: entry.Row, version: entry.Version}] = entry
 					}
 				}
 				count := 0
-				for _, bucket := range root.hash.buckets {
+				for _, bucket := range root.Hash.Buckets {
 					for _, entry := range bucket {
-						next, ok := entries[indexRowIdentity{row: entry.row, version: entry.version}]
-						if !ok || next.position != entry.position {
+						next, ok := entries[indexRowIdentity{row: entry.Row, version: entry.Version}]
+						if !ok || next.Position != entry.Position {
 							t.Fatal("hash row membership changed")
 						}
-						sameKey(entry.key, next.key, 0)
+						sameKey(entry.Key, next.Key, 0)
 						count++
 					}
 				}

@@ -164,17 +164,17 @@ func TestGeneratedVirtualReplacementDoesNotMaterializeOwner(t *testing.T) {
 	node := tableOIDExpression{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, owner: ref}
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: node, Planned: node}}
 	base, _ := sqltype.Integer(d.Columns[0].Usage.Type, 2)
-	store := &relationStorage{versions: []rowVersion{{values: []sqltype.Value{base, sqltype.Null(oid)}}}}
+	store := &relationStorage{Versions: []rowVersion{{Values: []sqltype.Value{base, sqltype.Null(oid)}}}}
 	next := catalog.CloneState(view.State())
 	next.SetEpoch(next.Epoch() + 1)
 	next.SetDescriptor(d.Address(), d)
 	if err := recomputeRemappedGenerations(context.Background(), next, map[ids.ObjectAddress]*relationStorage{d.Address(): store}, map[ids.ObjectAddress]ids.ObjectAddress{original: d.Address()}, EvalContext{}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if !store.versions[0].values[1].IsNull() {
+	if !store.Versions[0].Values[1].IsNull() {
 		t.Fatal("virtual owner was materialized")
 	}
-	eval := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: store.versions[0].values}
+	eval := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: store.Versions[0].Values}
 	v, err := logicalColumnValue(d, 1, eval.Row, &eval)
 	if owner, e := v.OID(); err != nil || e != nil || ids.OID(owner) != d.Address().ObjectID {
 		t.Fatal(v, err, e)

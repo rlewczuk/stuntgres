@@ -415,9 +415,9 @@ func reownCatalogScalarTypes(next *catalog.State, storage map[ids.ObjectAddress]
 	}
 	for address, relation := range storage {
 		var versions []rowVersion
-		for i, row := range relation.versions {
+		for i, row := range relation.Versions {
 			var values []sqltype.Value
-			for j, value := range row.values {
+			for j, value := range row.Values {
 				target := typ(value.Type())
 				if target == nil {
 					return fmt.Errorf("stuntgres: missing imported datum type")
@@ -499,22 +499,22 @@ func reownCatalogScalarTypes(next *catalog.State, storage map[ids.ObjectAddress]
 				}
 				if changed {
 					if values == nil {
-						values = append([]sqltype.Value(nil), row.values...)
+						values = append([]sqltype.Value(nil), row.Values...)
 					}
 					values[j] = rebound
 				}
 			}
 			if values != nil {
 				if versions == nil {
-					versions = append([]rowVersion(nil), relation.versions...)
+					versions = append([]rowVersion(nil), relation.Versions...)
 				}
-				versions[i].values = values
-				versions[i].indexOutputs = nil
+				versions[i].Values = values
+				versions[i].IndexOutputs = nil
 			}
 		}
 		if versions != nil {
 			copy := *relation
-			copy.versions = versions
+			copy.Versions = versions
 			storage[address] = &copy
 		}
 	}

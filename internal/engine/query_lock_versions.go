@@ -34,7 +34,7 @@ func appendQueryVersions(dst []rowVersion, source *querySource, index int, locks
 				continue
 			}
 			if leaf.anonymous != nil {
-				dst = append(dst, rowVersion{values: leaf.row(visible)})
+				dst = append(dst, rowVersion{Values: leaf.row(visible)})
 			} else {
 				dst = append(dst, leaf.versionAt(leaf.rawIndex(visible)))
 			}
@@ -42,7 +42,7 @@ func appendQueryVersions(dst []rowVersion, source *querySource, index int, locks
 		return dst
 	}
 	if source.anonymous != nil {
-		return append(dst, rowVersion{values: source.row(index)})
+		return append(dst, rowVersion{Values: source.row(index)})
 	}
 	return append(dst, source.versionAt(source.rawIndex(index)))
 }

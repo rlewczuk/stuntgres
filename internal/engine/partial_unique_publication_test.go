@@ -76,17 +76,17 @@ func newPartialUniquePublication(t *testing.T, composite, nnd bool, disclosure s
 	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
 		t.Fatal(err)
 	}
-	if len(root.entries) != 2 || !maps.Equal(root.membership, map[ids.RowID]ids.VersionID{e.storage.relations[ref.Address].versions[0].row: e.storage.relations[ref.Address].versions[0].version, e.storage.relations[ref.Address].versions[1].row: e.storage.relations[ref.Address].versions[1].version}) {
+	if len(root.Entries) != 2 || !maps.Equal(root.Membership, map[ids.RowID]ids.VersionID{e.storage.Relations[ref.Address].Versions[0].Row: e.storage.Relations[ref.Address].Versions[0].Version, e.storage.Relations[ref.Address].Versions[1].Row: e.storage.Relations[ref.Address].Versions[1].Version}) {
 		t.Fatal("seed membership", root)
 	}
-	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), roles: e.roles, stores: maps.Clone(e.storage.relations), storeSnapshots: make(map[ids.ObjectAddress]relationStorage), roots: maps.Clone(e.storage.indexRoots), entries: make(map[ids.ObjectAddress][]logicalIndexEntry), nextRow: e.storage.nextRow, nextVersion: e.storage.nextVersion, frontier: e.commitSeq}
+	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), roles: e.roles, stores: maps.Clone(e.storage.Relations), storeSnapshots: make(map[ids.ObjectAddress]relationStorage), roots: maps.Clone(e.storage.IndexRoots), entries: make(map[ids.ObjectAddress][]logicalIndexEntry), nextRow: e.storage.RowFrontier(), nextVersion: e.storage.VersionFrontier(), frontier: e.commitSeq}
 	for a, s := range f.stores {
 		f.storeSnapshots[a] = uniquePublicationStore(s)
 	}
 	for a, r := range f.roots {
-		entries := slices.Clone(r.entries)
+		entries := slices.Clone(r.Entries)
 		for i := range entries {
-			entries[i].keys = slices.Clone(entries[i].keys)
+			entries[i].Keys = slices.Clone(entries[i].Keys)
 		}
 		f.entries[a] = entries
 	}
@@ -105,7 +105,7 @@ func partialUniqueRow(t *testing.T, f *uniquePublicationFixture, offset int, a, 
 			t.Fatal(err)
 		}
 	}
-	r.values = append(r.values, v)
+	r.Values = append(r.Values, v)
 	return r
 }
 
@@ -117,18 +117,18 @@ func partialUniqueMembership(t *testing.T, f *uniquePublicationFixture, roots ma
 	}
 	want := make(map[ids.RowID]ids.VersionID, len(rows))
 	for _, r := range rows {
-		want[r.row] = r.version
+		want[r.Row] = r.Version
 	}
-	got := roots[f.index.Address()].membership
+	got := roots[f.index.Address()].Membership
 	if got == nil || !maps.Equal(got, want) {
 		t.Fatal("exact partial membership", got, want)
 	}
 	for a, r := range f.roots {
 		wantOld := make(map[ids.RowID]ids.VersionID)
 		for _, entry := range f.entries[a] {
-			wantOld[entry.row] = entry.version
+			wantOld[entry.Row] = entry.Version
 		}
-		if r.membership != nil && !maps.Equal(r.membership, wantOld) {
+		if r.Membership != nil && !maps.Equal(r.Membership, wantOld) {
 			t.Fatal("retained membership mutated")
 		}
 	}
@@ -140,20 +140,20 @@ func TestPartialIndexUniquePublicationCombined(t *testing.T) {
 			for _, mode := range []string{"leave", "enter", "delete", "empty"} {
 				t.Run(fmt.Sprintf("materialize=%t/rebuild=%t/%s", materialize, rebuild, mode), func(t *testing.T) {
 					f := newPartialUniquePublication(t, true, true, "table")
-					rows := f.stores[f.parent.Address()].versions
+					rows := f.stores[f.parent.Address()].Versions
 					replacement := partialUniqueRow(t, f, 1, "2001-02-05", "3", "false")
-					replacement.row, replacement.base = rows[0].row, rows[0].version
+					replacement.Row, replacement.Base = rows[0].Row, rows[0].Version
 					var deletion *privateDeletionRoot
 					writes := []rowVersion{replacement}
 					want := []rowVersion{rows[1]}
 					if mode == "enter" {
 						replacement = partialUniqueRow(t, f, 1, "2001-02-05", "3", "true")
-						replacement.row, replacement.base = rows[2].row, rows[2].version
+						replacement.Row, replacement.Base = rows[2].Row, rows[2].Version
 						writes = []rowVersion{replacement}
 						want = []rowVersion{rows[0], rows[1], replacement}
 					}
 					if mode == "delete" || mode == "empty" {
-						deletion = &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{rows[1].row: {ref: f.ref, storage: f.stores[f.parent.Address()], row: rows[1].row, version: rows[1].version}}}
+						deletion = &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{rows[1].Row: {ref: f.ref, storage: f.stores[f.parent.Address()], row: rows[1].Row, version: rows[1].Version}}}
 						want = nil
 						if mode == "delete" {
 							member := partialUniqueRow(t, f, 2, "2001-02-06", "4", "true")
@@ -179,18 +179,18 @@ func TestPartialIndexUniquePublicationRebuiltBeforeDelta(t *testing.T) {
 				t.Run(fmt.Sprintf("materialize=%t/outside=%t/%s", materialize, outside, delta), func(t *testing.T) {
 					f := newPartialUniquePublication(t, true, false, "table")
 					store := uniquePublicationStore(f.stores[f.parent.Address()])
-					store.versions[1].values = slices.Clone(store.versions[0].values)
+					store.Versions[1].Values = slices.Clone(store.Versions[0].Values)
 					if outside {
-						store.versions[1].values[3] = store.versions[2].values[3]
+						store.Versions[1].Values[3] = store.Versions[2].Values[3]
 					}
-					old := store.versions[1]
+					old := store.Versions[1]
 					var writes []rowVersion
 					var deletion *privateDeletionRoot
 					if delta == "delete" {
-						deletion = &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{old.row: {ref: f.ref, storage: &store, row: old.row, version: old.version}}}
+						deletion = &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{old.Row: {ref: f.ref, storage: &store, row: old.Row, version: old.Version}}}
 					} else {
 						r := partialUniqueRow(t, f, 1, "2001-02-05", "3", "true")
-						r.row, r.base = old.row, old.version
+						r.Row, r.Base = old.Row, old.Version
 						writes = []rowVersion{r}
 					}
 					roots, err := f.prepare(t, context.Background(), &store, true, materialize, writes, deletion)
@@ -201,7 +201,7 @@ func TestPartialIndexUniquePublicationRebuiltBeforeDelta(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					want := append([]rowVersion{store.versions[0]}, writes...)
+					want := append([]rowVersion{store.Versions[0]}, writes...)
 					partialUniqueMembership(t, f, roots, materialize, want)
 				})
 			}
@@ -236,7 +236,7 @@ func TestPartialIndexUniquePublicationAdmissionMatrix(t *testing.T) {
 							if err != nil {
 								t.Fatal(err)
 							}
-							want := uniquePublicationRows(f.stores[f.parent.Address()].versions[:2])
+							want := uniquePublicationRows(f.stores[f.parent.Address()].Versions[:2])
 							if tc.active == "true" {
 								want = append(want, writes...)
 							}
@@ -258,7 +258,7 @@ func TestPartialIndexUniquePublicationDisclosureCancellation(t *testing.T) {
 					store := uniquePublicationStore(f.stores[f.parent.Address()])
 					var writes []rowVersion
 					if building {
-						store.versions[1].values = slices.Clone(store.versions[0].values)
+						store.Versions[1].Values = slices.Clone(store.Versions[0].Values)
 					} else {
 						writes = []rowVersion{partialUniqueRow(t, f, 1, "2001-02-03", "1", "true")}
 					}
@@ -321,11 +321,11 @@ func TestPartialIndexUniquePublicationRebuildOnlyIdentity(t *testing.T) {
 			definition.Predicate = &predicate
 			index.SQLIndex = &definition
 			next.SetDescriptor(index.Address(), &index)
-			roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.catalog, &next, captureIndexStores(f.e.storage.relations, f.catalog), f.roots, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, &f.auth, nil, nil)
+			roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.catalog, &next, captureIndexStores(f.e.storage.Relations, f.catalog), f.roots, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, &f.auth, nil, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
-			partialUniqueMembership(t, f, roots, materialize, f.stores[f.parent.Address()].versions[:2])
+			partialUniqueMembership(t, f, roots, materialize, f.stores[f.parent.Address()].Versions[:2])
 			f.unchanged(t)
 		})
 	}

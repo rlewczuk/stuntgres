@@ -31,7 +31,7 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 			sessionSQL(t, s, "CREATE TABLE t(k INT UNIQUE,v INT)")
 			sessionSQL(t, s, "INSERT INTO t VALUES"+conflictUpdateBatchValues(size, 10))
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			committed := e.storage.relations[ref.Address].versions
+			committed := e.storage.Relations[ref.Address].Versions
 			frontier := e.commitSeq
 			tx := transactionBegin(t, s)
 			sessionSQL(t, s, "UPDATE t SET v=11 WHERE k<=64")
@@ -52,7 +52,7 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 					t.Fatal("distinct mixed effect", k, admitted, err)
 				}
 				stage := scope.stage.rows[ref.Address]
-				if len(stage) != k || b.conflict.affected != k || len(b.conflict.affectedRows) != k || b.conflict.affectedRows[stage[k-1].row] != k-1 {
+				if len(stage) != k || b.conflict.affected != k || len(b.conflict.affectedRows) != k || b.conflict.affectedRows[stage[k-1].Row] != k-1 {
 					t.Fatal("append order/identity lookup/count", k, len(stage), b.conflict.affected)
 				}
 				if k == 1 {
@@ -66,27 +66,27 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 						want = 12
 					}
 					base := committed[k-1]
-					if row.row != base.row || row.base != base.version || row.version == base.version {
+					if row.Row != base.Row || row.Base != base.Version || row.Version == base.Version {
 						t.Fatal("original committed base through prior own", k, row, base)
 					}
-				} else if row.base != 0 {
+				} else if row.Base != 0 {
 					t.Fatal("fresh identity base", row)
 				}
-				if testExport(row.values[1]) != want {
+				if testExport(row.Values[1]) != want {
 					t.Fatal("exact replacement payload", k, row)
 				}
 			}
 			stage := scope.stage.rows[ref.Address]
-			if pinned[0].version != stage[0].version || testExport(pinned[0].values[1]) != int64(12) {
+			if pinned[0].Version != stage[0].Version || testExport(pinned[0].Values[1]) != int64(12) {
 				t.Fatal("retained current-command prefix mutated", pinned)
 			}
 			for _, row := range prior {
-				if testExport(row.values[1]) != int64(11) {
+				if testExport(row.Values[1]) != int64(11) {
 					t.Fatal("retained prior-own root mutated", row)
 				}
 			}
 			for _, row := range committed {
-				if testExport(row.values[1]) != int64(10) {
+				if testExport(row.Values[1]) != int64(10) {
 					t.Fatal("retained committed root mutated", row)
 				}
 			}

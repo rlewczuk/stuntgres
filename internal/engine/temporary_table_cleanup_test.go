@@ -30,37 +30,37 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 	}
 	e.catalog.state = e.privateCatalogLocked(c).State()
 	op.session.temporaryNamespace = table.Namespace()
-	rows := []rowVersion{{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}
-	store := &relationStorage{versions: rows}
+	rows := []rowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}
+	store := &relationStorage{Versions: rows}
 	peerStore := &relationStorage{}
-	e.storage.relations[table.Address()], e.storage.relations[peerTable.Address()] = store, peerStore
-	generator := &sequenceGenerator{last: options.Start, generation: 1}
-	e.storage.sequences[sequence.Address()] = generator
+	e.storage.Relations[table.Address()], e.storage.Relations[peerTable.Address()] = store, peerStore
+	generator := &sequenceGenerator{Last: options.Start, Generation: 1}
+	e.storage.Sequences[sequence.Address()] = generator
 	root := &logicalIndexRoot{}
-	e.storage.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{}
-	e.storage.indexRoots[index.Address()] = root
+	e.storage.IndexRoots = map[ids.ObjectAddress]*logicalIndexRoot{}
+	e.storage.IndexRoots[index.Address()] = root
 	epoch := e.catalog.state.Epoch()
 	if err := e.endTemporarySession(op.session); err != nil {
 		t.Fatal(err)
 	}
 	for _, a := range []ids.ObjectAddress{table.Address(), sequence.Address(), index.Address()} {
-		if e.catalog.state.Get(a) != nil || e.storage.relations[a] != nil || e.storage.sequences[a] != nil || e.storage.indexRoots[a] != nil {
+		if e.catalog.state.Get(a) != nil || e.storage.Relations[a] != nil || e.storage.Sequences[a] != nil || e.storage.IndexRoots[a] != nil {
 			t.Fatal("orphan owner dependency", a)
 		}
 	}
 	if ns, ok := e.catalog.state.Namespace(table.Namespace()); !ok || ns.Temporary != op.session.token {
 		t.Fatal("cleanup lost retained namespace identity")
 	}
-	if e.catalog.state.Get(peerTable.Address()) != &peerTable || e.storage.relations[peerTable.Address()] != peerStore || e.catalog.state.Epoch() != epoch {
+	if e.catalog.state.Get(peerTable.Address()) != &peerTable || e.storage.Relations[peerTable.Address()] != peerStore || e.catalog.state.Epoch() != epoch {
 		t.Fatal("peer or epoch changed")
 	}
-	if len(store.versions) != 1 || &store.versions[0] != &rows[0] {
+	if len(store.Versions) != 1 || &store.Versions[0] != &rows[0] {
 		t.Fatal("retained row snapshot changed")
 	}
 	if err := e.endTemporarySession(op.session); err != nil {
 		t.Fatal(err)
 	}
-	if e.storage.relations[peerTable.Address()] != peerStore {
+	if e.storage.Relations[peerTable.Address()] != peerStore {
 		t.Fatal("repeat cleanup changed peer")
 	}
 }
@@ -112,7 +112,7 @@ func TestTemporaryTableCleanupPublication(t *testing.T) {
 		e.mu.Lock()
 		installed, err := e.installTemporarySessionStageLocked(op.session, stage, []ids.ObjectAddress{owner.Namespace()}, nil)
 		e.mu.Unlock()
-		if err != nil || installed || e.catalog.state != current || e.catalog.state.Get(survivor.Address()) != survivor || e.storage.sequences[sequence.Address()] == nil || op.session.temporaryNamespace != owner.Namespace() {
+		if err != nil || installed || e.catalog.state != current || e.catalog.state.Get(survivor.Address()) != survivor || e.storage.Sequences[sequence.Address()] == nil || op.session.temporaryNamespace != owner.Namespace() {
 			t.Fatal("stale preparation installed", installed, err)
 		}
 		e.DiscardCatalogStage(stage)
@@ -141,19 +141,19 @@ func TestTemporaryTableCleanupPublication(t *testing.T) {
 		captured := e.catalog.state
 		// A real row publication replaces storage/index heads, not the catalog.
 		roleExecute(t, e, op, "INSERT INTO public.cleanup_survivor VALUES(7)")
-		currentStore, currentRoot, currentGenerator := e.storage.relations[survivor.Address()], e.storage.indexRoots[index], e.storage.sequences[unrelated]
-		if e.catalog.state != captured || currentStore == nil || len(currentStore.versions) != 1 || currentRoot == nil || currentGenerator == nil {
+		currentStore, currentRoot, currentGenerator := e.storage.Relations[survivor.Address()], e.storage.IndexRoots[index], e.storage.Sequences[unrelated]
+		if e.catalog.state != captured || currentStore == nil || len(currentStore.Versions) != 1 || currentRoot == nil || currentGenerator == nil {
 			t.Fatal("missing genuine row/index/generator fixture")
 		}
 		epoch, generation := e.catalog.state.Epoch(), e.catalog.state.NamespaceGeneration()
 		e.mu.Lock()
 		installed, err := e.installTemporarySessionStageLocked(op.session, stage, []ids.ObjectAddress{owner.Namespace()}, nil)
 		e.mu.Unlock()
-		if err != nil || !installed || e.storage.relations[survivor.Address()] != currentStore || e.storage.indexRoots[index] != currentRoot || e.storage.sequences[unrelated] != currentGenerator || e.catalog.state.Epoch() != epoch || e.catalog.state.NamespaceGeneration() != generation {
+		if err != nil || !installed || e.storage.Relations[survivor.Address()] != currentStore || e.storage.IndexRoots[index] != currentRoot || e.storage.Sequences[unrelated] != currentGenerator || e.catalog.state.Epoch() != epoch || e.catalog.state.NamespaceGeneration() != generation {
 			t.Fatal("current DML or unrelated roots lost", installed, err)
 		}
 		assertTemporaryNamespacePair(t, e, op.session.token, owner.Namespace())
-		if len(survivor.Constraints.Check) != 1 || len(e.catalog.state.MustRelation(survivor.Address()).Constraints.Check) != 0 || e.storage.relations[owner.Address()] != nil || e.storage.sequences[sequence.Address()] != nil {
+		if len(survivor.Constraints.Check) != 1 || len(e.catalog.state.MustRelation(survivor.Address()).Constraints.Check) != 0 || e.storage.Relations[owner.Address()] != nil || e.storage.Sequences[sequence.Address()] != nil {
 			t.Fatal("incomplete terminal stage")
 		}
 		e.DiscardCatalogStage(stage)
@@ -187,10 +187,10 @@ func TestTemporaryTableTerminalMaximumPublication(t *testing.T) {
 	roleExecute(t, e, op, "CREATE INDEX cleanup_survivor_v_idx ON public.cleanup_survivor(v)")
 	roleExecute(t, e, op, "INSERT INTO public.cleanup_survivor VALUES(7)")
 	index := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.Namespace(), Name: "cleanup_survivor_v_idx"})
-	store, root := e.storage.relations[survivor.Address()], e.storage.indexRoots[index]
+	store, root := e.storage.Relations[survivor.Address()], e.storage.IndexRoots[index]
 	// The storage object owns mutable publication heads; views retain the
 	// immutable vector/header and end root, not that object's later slice header.
-	retained, retainedEnds := store.versions, store.ends
+	retained, retainedEnds := store.Versions, store.Ends
 	original := e.catalog.state
 	maximum := *survivor
 	maximum.ObjectRevision = ids.DefinitionRevision(^uint64(0))
@@ -220,21 +220,21 @@ func TestTemporaryTableTerminalMaximumPublication(t *testing.T) {
 		t.Fatal("saturated replacement identity/frontier")
 	}
 	assertTemporaryNamespacePair(t, e, op.session.token, owner.Namespace())
-	if e.storage.relations[survivor.Address()] != store || e.storage.indexRoots[index] != root || e.catalog.state.Epoch() != epoch || e.catalog.state.NamespaceGeneration() != generation || e.storage.sequences[sequence.Address()] != nil {
+	if e.storage.Relations[survivor.Address()] != store || e.storage.IndexRoots[index] != root || e.catalog.state.Epoch() != epoch || e.catalog.state.NamespaceGeneration() != generation || e.storage.Sequences[sequence.Address()] != nil {
 		t.Fatal("maximum cleanup changed rows/roots/peer analysis or kept provider")
 	}
 	result, err := e.Execute(peerOp, held, 0, nil)
-	current := e.storage.relations[survivor.Address()]
-	if err != nil || result.Count != 1 || len(current.versions) != 2 || len(retained) != 1 || current.ends != retainedEnds {
+	current := e.storage.Relations[survivor.Address()]
+	if err != nil || result.Count != 1 || len(current.Versions) != 2 || len(retained) != 1 || current.Ends != retainedEnds {
 		t.Fatal("held AST did not rebind current saturated descriptor", result.Count, err)
 	}
 	for i, want := range []int64{7, 9} {
-		value, err := current.versions[i].values[0].Integer()
+		value, err := current.Versions[i].Values[0].Integer()
 		if err != nil || value != want {
 			t.Fatal("committed row changed", i, value, want, err)
 		}
 	}
-	value, err := retained[0].values[0].Integer()
+	value, err := retained[0].Values[0].Integer()
 	if err != nil || value != 7 {
 		t.Fatal("retained immutable row changed", value, err)
 	}

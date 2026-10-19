@@ -98,7 +98,7 @@ func TestAlterDefaultProviderDropFences(t *testing.T) {
 			run(t, e, "INSERT INTO t DEFAULT VALUES")
 			ref := roleTableRef(t, e, "t")
 			old := e.catalog.state.MustRelation(ref.Address)
-			storage := e.storage.relations[ref.Address]
+			storage := e.storage.Relations[ref.Address]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			provider := e.catalog.Providers[ids.RelationClassID]
@@ -130,10 +130,10 @@ func TestAlterDefaultProviderDropFences(t *testing.T) {
 					}
 				case "insert":
 					e.mu.Lock()
-					row := storage.versions[0]
-					row.row = 99
-					row.version = 99
-					storage.versions = append(storage.versions, row)
+					row := storage.Versions[0]
+					row.Row = 99
+					row.Version = 99
+					storage.Versions = append(storage.Versions, row)
 					e.mu.Unlock()
 				}
 			}}
@@ -142,7 +142,7 @@ func TestAlterDefaultProviderDropFences(t *testing.T) {
 				t.Fatal("stale DROP published")
 			}
 			current := e.catalog.state.MustRelation(ref.Address)
-			if current.ColumnMeta.Defaults[current.Attributes[0]].Expression != old.ColumnMeta.Defaults[old.Attributes[0]].Expression || e.storage.relations[ref.Address] != storage {
+			if current.ColumnMeta.Defaults[current.Attributes[0]].Expression != old.ColumnMeta.Defaults[old.Attributes[0]].Expression || e.storage.Relations[ref.Address] != storage {
 				t.Fatal("failed DROP removed definition")
 			}
 			lockEmpty(t, e)

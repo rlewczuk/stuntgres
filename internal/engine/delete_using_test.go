@@ -23,7 +23,7 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 		t.Fatal("incoherent command capture")
 	}
 	original := append([]rowVersion(nil), target.committed...)
-	if original[0].row == original[1].row {
+	if original[0].Row == original[1].Row {
 		t.Fatal("equal values lack distinct physical identities")
 	}
 	calls := 0
@@ -49,8 +49,8 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 	}
 	root := scope.stage.deletes[b.ref.Address]
 	for _, v := range original {
-		candidate, ok := root.rows[v.row]
-		if !ok || candidate.storage != b.storage || candidate.ref != b.ref || candidate.version != v.version {
+		candidate, ok := root.rows[v.Row]
+		if !ok || candidate.storage != b.storage || candidate.ref != b.ref || candidate.version != v.Version {
 			t.Fatal("lost deletion authority", candidate, v)
 		}
 	}
@@ -63,7 +63,7 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 		t.Fatal("capture leaked")
 	}
 	for i, v := range original {
-		if testExport(v.values[1]) != testExport(e.storage.relations[b.ref.Address].versions[i].values[1]) {
+		if testExport(v.Values[1]) != testExport(e.storage.Relations[b.ref.Address].Versions[i].Values[1]) {
 			t.Fatal("immutable predecessor changed")
 		}
 	}

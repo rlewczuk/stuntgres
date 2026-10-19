@@ -68,7 +68,7 @@ func TestBtreeIndexExplicitExclusionBeforeTargets(t *testing.T) {
 							t.Error("unsupported explicit CREATE INDEX requested Share")
 						}
 						waitsDiagnostic(t, err, "0A000", "statement is unsupported in an explicit transaction", "")
-						if len(e.storage.indexRoots) != 0 {
+						if len(e.storage.IndexRoots) != 0 {
 							t.Fatal("excluded utility published index roots")
 						}
 						return
@@ -130,7 +130,7 @@ func TestBtreeIndexOwnerBeforeWriterWait(t *testing.T) {
 						t.Error("nonowner requested Share before ownership rejection")
 					}
 					waitsDiagnostic(t, err, "42501", "must be owner of table t", "")
-					if len(e.storage.indexRoots) != 0 {
+					if len(e.storage.IndexRoots) != 0 {
 						t.Fatal("owner rejection published an index")
 					}
 					return

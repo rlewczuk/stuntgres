@@ -21,7 +21,7 @@ func TestQueryLockConditionalRowManager(t *testing.T) {
 				t.Cleanup(func() { transactionEnd(t, b, rb, false) })
 				ref := roleTableRef(t, e, "t")
 				e.mu.Lock()
-				row := e.storage.relations[ref.Address].versions[0].row
+				row := e.storage.Relations[ref.Address].Versions[0].Row
 				e.mu.Unlock()
 				resource := lock.Resource{ObjectRef: ref, Row: row}
 				if err := e.locks.Acquire(context.Background(), a.transactions.ticket, resource, held); err != nil {
@@ -59,7 +59,7 @@ func TestQueryLockConditionalQueueAndSelfReentry(t *testing.T) {
 	t.Cleanup(func() { transactionEnd(t, c, rc, false) })
 	ref := roleTableRef(t, e, "t")
 	e.mu.Lock()
-	row := e.storage.relations[ref.Address].versions[0].row
+	row := e.storage.Relations[ref.Address].Versions[0].Row
 	e.mu.Unlock()
 	resource := lock.Resource{ObjectRef: ref, Row: row}
 	if err := e.locks.Acquire(context.Background(), a.transactions.ticket, resource, lock.ForKeyShare); err != nil {

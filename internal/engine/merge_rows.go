@@ -137,7 +137,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 	capture := func(i int, class parser.MergeMatch, source int) mergeCandidate {
 		slot := target.rawIndex(i)
 		old := target.versionAt(slot)
-		deletion := deleteCandidate{ref: b.ref, storage: b.storage, row: old.row, version: old.version, ordinal: slot}
+		deletion := deleteCandidate{ref: b.ref, storage: b.storage, row: old.Row, version: old.Version, ordinal: slot}
 		if slot >= len(target.committed) {
 			deletion.own = true
 			deletion.ordinal -= len(target.committed)
@@ -153,7 +153,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 		matched := false
 		for i := range target.count() {
 			old := target.versionAt(target.rawIndex(i))
-			copy(frame, old.values)
+			copy(frame, old.Values)
 			truth, err := mergeMatches(&evaluation, b.merge.on)
 			if err != nil {
 				return nil, err
@@ -218,10 +218,10 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 		setFrame := func() {
 			switch class {
 			case parser.MergeMatched:
-				copy(frame, old.values)
+				copy(frame, old.Values)
 				evaluation.Row = frame
 			case parser.MergeNotMatchedBySource:
-				evaluation.Row = old.values
+				evaluation.Row = old.Values
 			case parser.MergeNotMatched:
 				evaluation.Row = source
 			}
@@ -252,7 +252,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 			if arm.action == parser.MergeDeleteAction {
 				err = scope.acquireRow(candidate.deletion)
 			} else {
-				err = scope.acquireUpdateRow(b.ref, old.row)
+				err = scope.acquireUpdateRow(b.ref, old.Row)
 			}
 			if err != nil {
 				return nil, err
@@ -261,13 +261,13 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 			if err != nil {
 				return nil, err
 			}
-			if latest.version != old.version && live {
+			if latest.Version != old.Version && live {
 				strong, err := scope.mergeFollowChainStrong(b)
 				if err != nil {
 					return nil, err
 				}
 				if strong && arm.action != parser.MergeDeleteAction {
-					if err := scope.acquireUpdateRowMode(b.ref, old.row, lock.ForUpdate); err != nil {
+					if err := scope.acquireUpdateRowMode(b.ref, old.Row, lock.ForUpdate); err != nil {
 						return nil, err
 					}
 					latest, live, err = e.latestMergeRow(scope, b.ref, candidate.updateCandidate)
@@ -288,7 +288,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 					continue
 				}
 				class = parser.MergeNotMatched
-			} else if latest.version != old.version {
+			} else if latest.Version != old.Version {
 				old = latest
 				setFrame()
 				if class == parser.MergeMatched {
@@ -305,7 +305,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 					}
 				}
 			}
-			if !live || latest.version != candidate.version {
+			if !live || latest.Version != candidate.Version {
 				setFrame()
 				arm, err = b.merge.selectArm(&evaluation, class)
 				if err != nil {
@@ -322,7 +322,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 					return nil, err
 				}
 				if output != nil {
-					actualOld := old.values
+					actualOld := old.Values
 					var row []sqltype.Value
 					if arm.action != parser.MergeDeleteAction {
 						row = result.values[len(result.values)-1]
@@ -360,7 +360,7 @@ func mergeCardinalityError() error {
 
 func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mergeRows, evaluation *EvalContext, schema string, unique bool, arm *boundMergeArm, old rowVersion, deletion deleteCandidate, accepted map[ids.RowID]bool, excluded *[]rowVersion) error {
 	if arm.action == parser.MergeDeleteAction {
-		if accepted[old.row] {
+		if accepted[old.Row] {
 			return mergeCardinalityError()
 		}
 		// Initial DELETE owns rowUpdate before following a predecessor; an
@@ -375,17 +375,17 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 		// Retire exclusion authority in actual action order before later admission.
 		// Canonical Delete still validates the original captured provenance at stage.
 		projected := deletion
-		projected.version = old.version
+		projected.version = old.Version
 		e.mu.Lock()
 		scope.projectExclusionDeletionLocked(e, projected)
 		e.mu.Unlock()
-		accepted[old.row] = true
+		accepted[old.Row] = true
 		result.actions = append(result.actions, mergeActionRow{action: arm.action, deletion: deletion})
 		return nil
 	}
 	row := make([]sqltype.Value, len(b.relation.Columns))
 	if arm.action == parser.MergeUpdateAction {
-		copy(row, old.values)
+		copy(row, old.Values)
 		for i, expression := range arm.input.update.assignments {
 			if expression == nil {
 				continue
@@ -423,22 +423,22 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 	var actionMode lock.MultiMode
 	if arm.action == parser.MergeUpdateAction {
 		// Demanded projection/constraints precede second-modification arbitration.
-		if accepted[old.row] {
+		if accepted[old.Row] {
 			return mergeCardinalityError()
 		}
-		keyChanged, err := scope.uniqueKeyChanged(b.ref, old.values, row)
+		keyChanged, err := scope.uniqueKeyChanged(b.ref, old.Values, row)
 		if err != nil {
 			return err
 		}
 		if keyChanged {
-			if err := scope.acquireUpdateRowMode(b.ref, old.row, lock.ForUpdate); err != nil {
+			if err := scope.acquireUpdateRowMode(b.ref, old.Row, lock.ForUpdate); err != nil {
 				return err
 			}
 		}
 		if err := scope.claimUniqueRow(b.ref, old); err != nil {
 			return err
 		}
-		old.pendingKeyChange = old.pendingKeyChange || keyChanged
+		old.PendingKeyChange = old.PendingKeyChange || keyChanged
 		actionMode = lock.MultiNoKeyAction
 		if keyChanged {
 			actionMode = lock.MultiUpdateAction
@@ -456,7 +456,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 		}
 	}
 	if arm.action == parser.MergeUpdateAction {
-		accepted[old.row] = true
+		accepted[old.Row] = true
 	}
 	result.actions = append(result.actions, mergeActionRow{action: arm.action, payload: len(result.values), updateMode: actionMode})
 	result.predecessors = append(result.predecessors, predecessor)
@@ -523,17 +523,17 @@ func (e *Engine) latestMergeRow(s *StatementScope, ref ids.ObjectRef, candidate 
 	if store == nil {
 		return rowVersion{}, false, ids.ErrCatalogReplaced
 	}
-	current, hint := store.versions, candidate.slot
-	if own, _, found := rowByID(s.ownWrites[ref.Address], candidate.row, -1); found {
-		return own, liveVersion(own, e.commitSeq, store.ends, s.ownDeletes[ref.Address]), nil
+	current, hint := store.Versions, candidate.slot
+	if own, _, found := rowByID(s.ownWrites[ref.Address], candidate.Row, -1); found {
+		return own, liveVersion(own, e.commitSeq, store.Ends, s.ownDeletes[ref.Address]), nil
 	}
-	row, _, found := rowByID(current, candidate.row, hint)
+	row, _, found := rowByID(current, candidate.Row, hint)
 	if !found {
 		return rowVersion{}, false, errors.New("stuntgres: invalid MERGE predecessor")
 	}
-	live := liveVersion(row, e.commitSeq, store.ends, s.ownDeletes[ref.Address])
-	if !live && stableIsolation(s.owner.isolation) && store.ends != nil {
-		if tombstone, ok := store.ends.rows[row.row]; ok && tombstone.version == row.version && tombstone.end > s.owner.frontier {
+	live := liveVersion(row, e.commitSeq, store.Ends, s.ownDeletes[ref.Address])
+	if !live && stableIsolation(s.owner.isolation) && store.Ends != nil {
+		if tombstone, ok := store.Ends.Rows[row.Row]; ok && tombstone.Version == row.Version && tombstone.End > s.owner.frontier {
 			return rowVersion{}, false, sqlError("40001", "could not serialize access due to concurrent delete")
 		}
 	}

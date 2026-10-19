@@ -70,13 +70,13 @@ func TestAlterTablespaceAdmittedTypePrefix(t *testing.T) {
 	c := tablespacePrefixScope(t, tablespacePrefixDeclaration, "ALTER a TYPE BIGINT, ALTER c TYPE BIGINT, SET TABLESPACE pg_default, ALTER a TYPE SMALLINT USING a::text, ALTER b TYPE TEXT USING b::text, ALTER absent TYPE BIGINT")
 	e, scope := c.e, c.scope
 	old := scope.lockedDescriptor.(*catalog.Relation)
-	before, storage := e.catalog.state, e.storage.relations[old.Address()]
+	before, storage := e.catalog.state, e.storage.Relations[old.Address()]
 	a := old.ColumnMeta.Identities[old.Attributes[0]].Sequence
 	b := old.ColumnMeta.Identities[old.Attributes[1]].Sequence
 	third := old.ColumnMeta.Identities[old.Attributes[2]].Sequence
-	generatorC := e.storage.sequences[third]
+	generatorC := e.storage.Sequences[third]
 	valueC, cacheC := *generatorC, *c.op.session.sequences[third]
-	generatorA, generatorB := e.storage.sequences[a], e.storage.sequences[b]
+	generatorA, generatorB := e.storage.Sequences[a], e.storage.Sequences[b]
 	valueA, valueB := *generatorA, *generatorB
 	memoryA, memoryB := c.op.session.sequences[a], c.op.session.sequences[b]
 	cacheB := *memoryB
@@ -97,17 +97,17 @@ func TestAlterTablespaceAdmittedTypePrefix(t *testing.T) {
 	// AS descriptor must reflect the second occurrence, not the first; its
 	// generator must be the replacement belonging to that final descriptor.
 	sequence := stage.Descriptors[a].(*catalog.Relation)
-	if sequence.Sequence.SQLType != sqltype.Int2 || stage.generators[a] == nil || stage.generators[a].generation != sequence.Revision() || stage.generators[a].last != valueA.last || stage.generators[a].called != valueA.called {
+	if sequence.Sequence.SQLType != sqltype.Int2 || stage.generators[a] == nil || stage.generators[a].Generation != sequence.Revision() || stage.generators[a].Last != valueA.Last || stage.generators[a].Called != valueA.Called {
 		t.Fatal("AS occurrence order/failing occurrence was lost", sequence.Sequence, stage.generators[a])
 	}
 	prior := stage.Descriptors[third].(*catalog.Relation)
-	if prior.Sequence.SQLType != sqltype.Int8 || prior.Revision() >= sequence.Revision() || stage.generators[third] == nil || stage.generators[third].generation != prior.Revision() || cacheC.remaining != 4 || c.op.session.sequences[third].remaining != 0 {
+	if prior.Sequence.SQLType != sqltype.Int8 || prior.Revision() >= sequence.Revision() || stage.generators[third] == nil || stage.generators[third].Generation != prior.Revision() || cacheC.remaining != 4 || c.op.session.sequences[third].remaining != 0 {
 		t.Fatal("distinct identity AS order/cache effects were lost", prior, sequence, stage.generators[third])
 	}
 	if stage.Descriptors[b] != nil || stage.generators[b] != nil || memoryA.remaining != 0 || !reflect.DeepEqual(*memoryB, cacheB) {
 		t.Fatal("later unadmitted identity had effects", memoryA, memoryB, stage.generators)
 	}
-	if e.catalog.state != before || e.storage.relations[old.Address()] != storage || e.storage.sequences[a] != generatorA || e.storage.sequences[b] != generatorB || *generatorA != valueA || *generatorB != valueB || e.storage.sequences[third] != generatorC || *generatorC != valueC {
+	if e.catalog.state != before || e.storage.Relations[old.Address()] != storage || e.storage.Sequences[a] != generatorA || e.storage.Sequences[b] != generatorB || *generatorA != valueA || *generatorB != valueB || e.storage.Sequences[third] != generatorC || *generatorC != valueC {
 		t.Fatal("private AS published catalog/storage/generator state")
 	}
 	e.DiscardCatalogStage(stage)
@@ -117,7 +117,7 @@ func TestAlterTablespaceAdmittedTypePrefix(t *testing.T) {
 	if err := scope.Finish(completionErr); err == nil {
 		t.Fatal("Finish lost completion failure")
 	}
-	if e.catalog.state != before || e.storage.relations[old.Address()] != storage || *generatorA != valueA || *generatorB != valueB || *generatorC != valueC {
+	if e.catalog.state != before || e.storage.Relations[old.Address()] != storage || *generatorA != valueA || *generatorB != valueB || *generatorC != valueC {
 		t.Fatal("failed Finish published a prefix")
 	}
 	lockEmpty(t, e)
@@ -148,14 +148,14 @@ func TestAlterTablespaceAdmissionFailureNoPrefix(t *testing.T) {
 			before := c.e.catalog.state
 			a := original.ColumnMeta.Identities[original.Attributes[0]].Sequence
 			memory := *c.op.session.sequences[a]
-			generator := *c.e.storage.sequences[a]
+			generator := *c.e.storage.Sequences[a]
 			prepared, err := tablespacePrefixPrepare(c, old, c.raw.Actions)
 			tablespacePrefixCode(t, err, tc.code)
 			if len(prepared.types) != 0 {
 				t.Fatal("admission failure exposed a stageable prefix", prepared.types)
 			}
 			stage, stageErr := c.e.stageAlterIdentityTypes(c.scope, c.op, c.auth, original, c.raw.Actions, prepared.types)
-			if stage != nil || stageErr != nil || *c.op.session.sequences[a] != memory || *c.e.storage.sequences[a] != generator || c.e.catalog.state != before {
+			if stage != nil || stageErr != nil || *c.op.session.sequences[a] != memory || *c.e.storage.Sequences[a] != generator || c.e.catalog.state != before {
 				t.Fatal("failed admission staged AS", stage, stageErr)
 			}
 			c.scope.Finish(err)
@@ -182,10 +182,10 @@ func TestAlterTablespacePrefixErrorOwnership(t *testing.T) {
 				c := tablespacePrefixScope(t, declaration, "ALTER a TYPE SMALLINT USING a::text, ALTER b TYPE TEXT USING b::text")
 				e, scope := c.e, c.scope
 				old := scope.lockedDescriptor.(*catalog.Relation)
-				before, storage := e.catalog.state, e.storage.relations[old.Address()]
+				before, storage := e.catalog.state, e.storage.Relations[old.Address()]
 				a := old.ColumnMeta.Identities[old.Attributes[0]].Sequence
 				b := old.ColumnMeta.Identities[old.Attributes[1]].Sequence
-				generatorA, generatorB := e.storage.sequences[a], e.storage.sequences[b]
+				generatorA, generatorB := e.storage.Sequences[a], e.storage.Sequences[b]
 				valueA, valueB := *generatorA, *generatorB
 				memoryA, memoryB := c.op.session.sequences[a], c.op.session.sequences[b]
 				cacheA, cacheB := *memoryA, *memoryB
@@ -213,7 +213,7 @@ func TestAlterTablespacePrefixErrorOwnership(t *testing.T) {
 						t.Fatal("saved completion error/cache disposal lost", diagnostic, memoryA)
 					}
 				}
-				if *memoryB != cacheB || e.catalog.state != before || e.storage.relations[old.Address()] != storage || e.storage.sequences[a] != generatorA || e.storage.sequences[b] != generatorB || *generatorA != valueA || *generatorB != valueB || scope.catalog != nil || scope.owner.catalog != nil {
+				if *memoryB != cacheB || e.catalog.state != before || e.storage.Relations[old.Address()] != storage || e.storage.Sequences[a] != generatorA || e.storage.Sequences[b] != generatorB || *generatorA != valueA || *generatorB != valueB || scope.catalog != nil || scope.owner.catalog != nil {
 					t.Fatal("failed controller published a prefix or visited later TYPE")
 				}
 				if shared {

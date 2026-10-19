@@ -29,7 +29,7 @@ func TestMergeDeleteConcurrentClasses(t *testing.T) {
 				}
 				sessionSQL(t, peer, seed)
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				row := e.storage.relations[ref.Address].versions[0].row
+				row := e.storage.Relations[ref.Address].Versions[0].Row
 				tx := transactionBegin(t, holder)
 				sessionSQL(t, holder, hold)
 				q := "MERGE INTO t USING source s ON t.id=s.id AND t.v=s.v WHEN MATCHED THEN DELETE WHEN NOT MATCHED BY SOURCE THEN DELETE WHEN NOT MATCHED BY TARGET THEN INSERT VALUES(s.id,s.v+60)"
@@ -88,7 +88,7 @@ func TestMergeDeleteMixedPendingCancellation(t *testing.T) {
 	sessionSQL(t, peer, "CREATE TABLE source(ord INT,id INT)")
 	sessionSQL(t, peer, "INSERT INTO source VALUES(1,1),(2,2),(3,4),(4,3)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	row := e.storage.relations[ref.Address].versions[2].row
+	row := e.storage.Relations[ref.Address].Versions[2].Row
 	tx := transactionBegin(t, holder)
 	sessionSQL(t, holder, "UPDATE t SET v=99 WHERE id=3")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -155,7 +155,7 @@ func TestMergeDeleteRowLocks(t *testing.T) {
 	sessionSQL(t, peer, "CREATE TABLE t(id INT NOT NULL UNIQUE,v INT)")
 	sessionSQL(t, peer, "INSERT INTO t VALUES(1,10)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	row := e.storage.relations[ref.Address].versions[0].row
+	row := e.storage.Relations[ref.Address].Versions[0].Row
 	tx := transactionBegin(t, holder)
 	sessionSQL(t, holder, "SELECT id FROM t FOR KEY SHARE")
 	done := mergeUpdatePendingExecute(t, worker, "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED THEN DELETE")
@@ -178,7 +178,7 @@ func TestMergeDeleteRestartRowLocks(t *testing.T) {
 			sessionSQL(t, peer, "CREATE TABLE t(id INT NOT NULL UNIQUE,v INT)")
 			sessionSQL(t, peer, "INSERT INTO t VALUES(1,10)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			row := e.storage.relations[ref.Address].versions[0].row
+			row := e.storage.Relations[ref.Address].Versions[0].Row
 			a := transactionBegin(t, holder)
 			locked := sessionSQL(t, holder, "SELECT id FROM t FOR KEY SHARE")
 			locked.Rows.Close()

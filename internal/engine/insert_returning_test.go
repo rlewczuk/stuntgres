@@ -300,7 +300,7 @@ func TestInsertReturningRowRecheck(t *testing.T) {
 				sessionSQL(t, observer, "CREATE TABLE t(k INT UNIQUE,v INT)")
 				sessionSQL(t, observer, "INSERT INTO t VALUES(1,10)")
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				id := e.storage.relations[ref.Address].versions[0].row
+				id := e.storage.Relations[ref.Address].Versions[0].Row
 				holderTx := transactionBegin(t, holder)
 				transactionRows(t, holder, "SELECT v FROM t FOR UPDATE", 10)
 				query := "INSERT INTO t VALUES(1,20) ON CONFLICT(k) DO UPDATE SET v=t.v+excluded.v"
@@ -379,7 +379,7 @@ func TestInsertReturningAuthorizationAfterWait(t *testing.T) {
 				}
 				running := conflictUpdateStartWorker(t, e, worker, q)
 				if conflict {
-					id := e.storage.relations[ref.Address].versions[0].row
+					id := e.storage.Relations[ref.Address].Versions[0].Row
 					ticket, mode := conflictUpdatePendingRow(t, e, ref, id)
 					if ticket == nil || mode != lock.ForNoKeyUpdate {
 						t.Fatal("not exact pending output worker", ticket, mode)

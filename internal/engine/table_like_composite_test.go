@@ -118,7 +118,7 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 	if !errors.As(err, &conflict) {
 		t.Fatal("changed reciprocal type authority was not fenced", err)
 	}
-	if e.CatalogRead().Get(destination.Address()) != nil || e.storage.relations[destination.Address()] != nil {
+	if e.CatalogRead().Get(destination.Address()) != nil || e.storage.Relations[destination.Address()] != nil {
 		t.Fatal("type-incarnation conflict published destination fragments")
 	}
 }

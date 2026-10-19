@@ -115,7 +115,7 @@ func TestUpdateCoreImmediateGrantRecheck(t *testing.T) {
 				t.Fatal(err)
 			}
 			op.Done()
-			if testExport(original.values[1]) != int64(10) {
+			if testExport(original.Values[1]) != int64(10) {
 				t.Fatal("snapshot rewritten")
 			}
 			if predicateChanged {

@@ -88,13 +88,13 @@ func TestPreparedSerializableCandidateRetainsAdmittedSnapshot(t *testing.T) {
 			if source.count() != 1 {
 				t.Fatal("admitted snapshot row count", source.count())
 			}
-			value, err := source.versionAt(source.rawIndex(0)).values[0].Integer()
+			value, err := source.versionAt(source.rawIndex(0)).Values[0].Integer()
 			if err != nil || value != 0 {
 				t.Fatal("admitted snapshot did not retain predecessor0", value, err)
 			}
 			e.mu.Lock()
-			current := e.storage.relations[relation.Address]
-			published, err := selectQuerySource(context.Background(), &querySource{committed: current.versions}, e.commitSeq, current.ends, nil)
+			current := e.storage.Relations[relation.Address]
+			published, err := selectQuerySource(context.Background(), &querySource{committed: current.Versions}, e.commitSeq, current.Ends, nil)
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
@@ -104,7 +104,7 @@ func TestPreparedSerializableCandidateRetainsAdmittedSnapshot(t *testing.T) {
 			if commit {
 				expected = 1
 			}
-			value, err = published.versionAt(published.rawIndex(0)).values[0].Integer()
+			value, err = published.versionAt(published.rawIndex(0)).Values[0].Integer()
 			if err != nil || value != expected {
 				t.Fatal("actual prepared outcome", value, expected, err)
 			}

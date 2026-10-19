@@ -128,7 +128,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 		if err == nil {
 			d, _ = auth.catalog.Relation(ref.Address)
 			current := e.privateStorageLocked(s.owner.catalog, ref.Address)
-			if ref.Epoch != e.catalog.state.Epoch() || s.txRef.Epoch() != ref.Epoch || d == nil || before.Namespace() != d.Namespace() || !sameRelationRowShape(before, d) || store != current && !sameTruncateLineage(store, current) {
+			if ref.Epoch != e.catalog.state.Epoch() || s.txRef.Epoch() != ref.Epoch || d == nil || before.Namespace() != d.Namespace() || !sameRelationRowShape(before, d) || store != current && !store.SameTruncateLineage(current) {
 				err = ids.ErrCatalogReplaced
 			} else if name != nil {
 				err = e.truncateNameCurrent(auth, *name)

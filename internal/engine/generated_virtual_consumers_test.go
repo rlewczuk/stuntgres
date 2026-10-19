@@ -68,7 +68,7 @@ func TestGeneratedVirtualWindowInputIdentityAdapter(t *testing.T) {
 		t.Fatal("provenance used a different input row", got)
 	}
 	versions := appendQueryVersions(nil, window, 0, nil)
-	if len(versions) != 1 || !reflect.DeepEqual(versions[0].values, leaf.row(1)) {
+	if len(versions) != 1 || !reflect.DeepEqual(versions[0].Values, leaf.row(1)) {
 		t.Fatal("versions used a different input row", versions)
 	}
 	setQueryLineage(window, 0)

@@ -20,7 +20,7 @@ func TestQueryLockArbiterSkipRetainsAcquiredContributor(t *testing.T) {
 	t.Cleanup(func() { transactionEnd(t, b, rb, false) })
 	tRef, uRef := roleTableRef(t, e, "t"), roleTableRef(t, e, "u")
 	e.mu.Lock()
-	tRow, uRow := e.storage.relations[tRef.Address].versions[0].row, e.storage.relations[uRef.Address].versions[0].row
+	tRow, uRow := e.storage.Relations[tRef.Address].Versions[0].Row, e.storage.Relations[uRef.Address].Versions[0].Row
 	e.mu.Unlock()
 	if err := e.locks.Acquire(context.Background(), a.transactions.ticket, lock.Resource{ObjectRef: uRef, Row: uRow}, lock.ForUpdate); err != nil {
 		t.Fatal(err)

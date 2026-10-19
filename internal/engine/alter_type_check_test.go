@@ -83,14 +83,14 @@ func TestAlterTypeCheckAtomicity(t *testing.T) {
 			run(t, e, "CREATE TABLE t("+tc.declaration+")")
 			run(t, e, "INSERT INTO t VALUES"+tc.seed)
 			ref := roleTableRef(t, e, "t")
-			old, storage := e.catalog.state.Get(ref.Address), e.storage.relations[ref.Address]
+			old, storage := e.catalog.state.Get(ref.Address), e.storage.Relations[ref.Address]
 			rows := tuples(run(t, e, "SELECT * FROM t"))
 			_, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE t "+tc.action), nil)
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, tc.want) {
 				t.Fatal(diagnostic, err, tc.want)
 			}
-			if e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage || !reflect.DeepEqual(tuples(run(t, e, "SELECT * FROM t")), rows) {
+			if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || !reflect.DeepEqual(tuples(run(t, e, "SELECT * FROM t")), rows) {
 				t.Fatal("published failed CHECK/NN candidate")
 			}
 			if err := validateChecks(e.CatalogRead(), old.(*catalog.Relation), map[string]bool{}); err != nil {

@@ -152,12 +152,12 @@ func TestDeleteCoreCombinedCommit(t *testing.T) {
 	}
 	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 2, 3, 4)
 	transactionRows(t, b, "SELECT v FROM u ORDER BY v", 8)
-	for _, store := range e.storage.relations {
-		if store.ends == nil {
+	for _, store := range e.storage.Relations {
+		if store.Ends == nil {
 			continue
 		}
-		for _, end := range store.ends.rows {
-			if end.end != e.commitSeq {
+		for _, end := range store.Ends.Rows {
+			if end.End != e.commitSeq {
 				t.Fatal("mixed deletion frontier", end)
 			}
 		}

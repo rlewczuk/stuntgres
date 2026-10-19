@@ -557,9 +557,9 @@ func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ids.Obje
 		return nil, fmt.Errorf("stuntgres: sequence state missing")
 	}
 	i := relation.Columns[0].Usage.Type
-	last, _ := sqltype.Integer(i, g.last)
+	last, _ := sqltype.Integer(i, g.Last)
 	log, _ := sqltype.Integer(i, 0)
-	return &querySource{ref: ref, anonymous: [][]sqltype.Value{{last, log, sqltype.Boolean(relation.Columns[2].Usage.Type, g.called)}}}, nil
+	return &querySource{ref: ref, anonymous: [][]sqltype.Value{{last, log, sqltype.Boolean(relation.Columns[2].Usage.Type, g.Called)}}}, nil
 }
 func (s *querySource) count() int {
 	if s.window {
@@ -645,7 +645,7 @@ func (s *querySource) row(i int) []sqltype.Value {
 		segment, index := s.inheritanceSegment(i)
 		return segment.mapValues(segment.prefix.row(index))
 	}
-	return s.versionAt(s.rawIndex(i)).values
+	return s.versionAt(s.rawIndex(i)).Values
 }
 func (s *querySource) rawIndex(i int) int {
 	if i == absentQueryIndex {

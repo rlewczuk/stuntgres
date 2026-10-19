@@ -81,14 +81,14 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			}
 		}
 		snapshot := *store
-		snapshot.indexSource = indexStorageIdentity(store)
+		snapshot.IndexSource = store.IndexIdentity()
 		captures = append(captures, catalogOverlayIndex{index: index, parent: parent, store: snapshot})
-		committed := e.storage.relations[parent.Address()]
+		committed := e.storage.Relations[parent.Address()]
 		fence := partitionReadFence{address: parent.Address(), storage: committed}
 		if committed != nil {
-			fence.length = len(committed.versions)
-			fence.ends = committed.ends
-			fence.generation = committed.generation
+			fence.length = len(committed.Versions)
+			fence.ends = committed.Ends
+			fence.generation = committed.Generation
 		}
 		c.readFences = append(c.readFences, fence)
 	}
@@ -127,7 +127,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			outputs = &indexBuildCapture{index: index}
 		}
 		if outputs != nil {
-			outputs.outputs = make([]indexRowOutput, len(visible.versions))
+			outputs.outputs = make([]indexRowOutput, len(visible.Versions))
 		}
 		full, err := buildIndexRoot(&evaluation, parent, index.SQLIndex, visible, outputs)
 		if err != nil {

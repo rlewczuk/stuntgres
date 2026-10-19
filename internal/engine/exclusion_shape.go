@@ -25,28 +25,28 @@ func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relatio
 		}
 		var preparation indexExecutionPreparation
 		for _, row := range writes {
-			if uniqueRowDeleted(row.row, deletes) {
+			if uniqueRowDeleted(row.Row, deletes) {
 				continue
 			}
 			var keys []sqltype.Value
 			if index.SQLIndex.RequiresInsertionOutput() {
-				output, ok := row.indexOutputs[index.Address()]
-				if !ok || !output.matches(index) {
+				output, ok := row.IndexOutputs[index.Address()]
+				if !ok || !indexOutputMatches(output, index) {
 					return fmt.Errorf("stuntgres: exclusion shape lost produced index output")
 				}
-				if !output.member {
+				if !output.Member {
 					continue
 				}
 				if index.SQLIndex.Method == catalog.HashMethod {
-					if output.key.IsNull() {
+					if output.Key.IsNull() {
 						continue
 					}
-					keys = []sqltype.Value{output.key}
+					keys = []sqltype.Value{output.Key}
 				} else {
-					keys = output.keys
+					keys = output.Keys
 				}
 			} else {
-				matches, err := preparation.predicateMatches(&evaluation, parent, index.SQLIndex, row.values, &ordering, nil)
+				matches, err := preparation.predicateMatches(&evaluation, parent, index.SQLIndex, row.Values, &ordering, nil)
 				if err != nil {
 					return err
 				}
@@ -57,7 +57,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relatio
 					return err
 				}
 				keys = make([]sqltype.Value, len(index.SQLIndex.Keys))
-				if err := ordering.fillKeys(row.values, keys, &evaluation); err != nil {
+				if err := ordering.fillKeys(row.Values, keys, &evaluation); err != nil {
 					return err
 				}
 			}
@@ -86,8 +86,8 @@ func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relatio
 		ends = make(map[ids.RowID]ids.VersionID)
 	}
 	for _, row := range writes {
-		if row.base != 0 {
-			ends[row.row] = row.base
+		if row.Base != 0 {
+			ends[row.Row] = row.Base
 		}
 	}
 	if deletes != nil {

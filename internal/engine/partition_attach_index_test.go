@@ -60,22 +60,22 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			if duplicate {
 				second = 1
 			}
-			store := &relationStorage{generation: 4, versions: []rowVersion{
-				{row: 1, version: 1, born: 1, values: []sqltype.Value{integer(0, 7), integer(1, 1), sqltype.String(f.leaf.Columns[2].Usage.Type, "first")}},
-				{row: 2, version: 2, born: 1, values: []sqltype.Value{integer(0, 7), integer(1, second), sqltype.String(f.leaf.Columns[2].Usage.Type, "different included payload")}},
+			store := &relationStorage{Generation: 4, Versions: []rowVersion{
+				{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{integer(0, 7), integer(1, 1), sqltype.String(f.leaf.Columns[2].Usage.Type, "first")}},
+				{Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{integer(0, 7), integer(1, second), sqltype.String(f.leaf.Columns[2].Usage.Type, "different included payload")}},
 			}}
-			f.e.storage.relations[f.leaf.Address()] = store
+			f.e.storage.Relations[f.leaf.Address()] = store
 			oldRoot, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.leaf, local.SQLIndex, store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
-			f.e.storage.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{local.Address(): oldRoot}
+			f.e.storage.IndexRoots = map[ids.ObjectAddress]*logicalIndexRoot{local.Address(): oldRoot}
 			beforeStore := uniquePublicationStore(store)
-			beforeEntries := slices.Clone(oldRoot.entries)
-			beforeCatalog, beforeRoots := f.e.catalog.state, maps.Clone(f.e.storage.indexRoots)
-			captured := captureIndexStores(f.e.storage.relations, next)
-			roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, current, next, captured, f.e.storage.indexRoots, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
-			if f.e.catalog.state != beforeCatalog || !maps.Equal(f.e.storage.indexRoots, beforeRoots) || !reflect.DeepEqual(*store, beforeStore) || !reflect.DeepEqual(oldRoot.entries, beforeEntries) {
+			beforeEntries := slices.Clone(oldRoot.Entries)
+			beforeCatalog, beforeRoots := f.e.catalog.state, maps.Clone(f.e.storage.IndexRoots)
+			captured := captureIndexStores(f.e.storage.Relations, next)
+			roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, current, next, captured, f.e.storage.IndexRoots, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
+			if f.e.catalog.state != beforeCatalog || !maps.Equal(f.e.storage.IndexRoots, beforeRoots) || !reflect.DeepEqual(*store, beforeStore) || !reflect.DeepEqual(oldRoot.Entries, beforeEntries) {
 				t.Fatal("private index build mutated original catalog/store/backing")
 			}
 			if duplicate {
@@ -92,19 +92,19 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 				t.Fatal(err)
 			}
 			built := roots[backing.Address()]
-			if built == nil || roots[local.Address()] != oldRoot || roots[f.parent.Address()] != nil || len(built.entries) != 2 {
+			if built == nil || roots[local.Address()] != oldRoot || roots[f.parent.Address()] != nil || len(built.Entries) != 2 {
 				t.Fatal("backing omitted real populated rows, replaced local index, or materialized virtual root", roots)
 			}
-			for i, entry := range built.entries {
-				first, err := entry.keys[0].Integer()
+			for i, entry := range built.Entries {
+				first, err := entry.Keys[0].Integer()
 				if err != nil {
 					t.Fatal(err)
 				}
-				second, err := entry.keys[1].Integer()
+				second, err := entry.Keys[1].Integer()
 				if err != nil {
 					t.Fatal(err)
 				}
-				if entry.row != ids.RowID(i+1) || entry.version != ids.VersionID(i+1) || first != int64(i+1) || second != 7 || len(entry.keys) != 2 {
+				if entry.Row != ids.RowID(i+1) || entry.Version != ids.VersionID(i+1) || first != int64(i+1) || second != 7 || len(entry.Keys) != 2 {
 					t.Fatal("physical attribute mapping or INCLUDE uniqueness changed", entry)
 				}
 			}

@@ -16,16 +16,17 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 		for _, size := range []int{128, 4096, 65536} {
 			b.Run(fmt.Sprintf("isolation=%d/rows=%d", isolation, size), func(b *testing.B) {
 				f := insertConflictUniqueFixture(b)
-				f.store.versions = make([]rowVersion, size)
-				for i := range f.store.versions {
-					f.store.versions[i] = rowVersion{row: ids.RowID(i + 1), version: ids.VersionID(i + 1), born: 1, values: insertConflictUnitRow(b, f, int64(size-i))}
+				f.store.Versions = make([]rowVersion, size)
+				for i := range f.store.Versions {
+					f.store.Versions[i] = rowVersion{Row: ids.RowID(i + 1), Version: ids.VersionID(i + 1), Born: 1, Values: insertConflictUnitRow(b, f, int64(size-i))}
 				}
-				f.e.storage.nextRow, f.e.storage.nextVersion, f.e.commitSeq = uint64(size), uint64(size), 1
+				f.e.storage.SetFrontierLocked(uint64(size), uint64(size))
+				f.e.commitSeq = 1
 				root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, f.index.SQLIndex, f.store, nil)
 				if err != nil {
 					b.Fatal(err)
 				}
-				f.e.storage.indexRoots[f.index.Address()] = root
+				f.e.storage.IndexRoots[f.index.Address()] = root
 				session, err := f.e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: f.parent.Owner})
 				if err != nil {
 					b.Fatal(err)
@@ -62,14 +63,14 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 					b.Fatal(err)
 				}
 				scope.insertConflict = action
-				if admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: f.store.versions[0].values}, indexWriteBatch{}, nil); admitted || err != nil {
+				if admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: f.store.Versions[0].Values}, indexWriteBatch{}, nil); admitted || err != nil {
 					b.Fatal("warmup", admitted, err)
 				}
 				b.ReportAllocs()
 				b.ResetTimer()
 				for range b.N {
-					for i := range f.store.versions {
-						if admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: f.store.versions[i].values}, indexWriteBatch{}, nil); admitted || err != nil {
+					for i := range f.store.Versions {
+						if admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: f.store.Versions[i].Values}, indexWriteBatch{}, nil); admitted || err != nil {
 							b.Fatal("committed omission", admitted, err)
 						}
 					}

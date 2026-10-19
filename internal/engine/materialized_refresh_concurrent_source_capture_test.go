@@ -54,16 +54,16 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	outer := concurrentSourceOuter(t, e)
 	index := materializedConcurrentUnitIndex(t, e, outer, "outer_u", "i", "")
 	outer = e.catalog.state.MustRelation(outer.Address())
-	innerStorage, gateStorage := e.storage.relations[inner.Address()], e.storage.relations[gate.Address()]
+	innerStorage, gateStorage := e.storage.Relations[inner.Address()], e.storage.Relations[gate.Address()]
 	// A real end marker must affect visibility, rather than merely exercising
 	// preservation of a non-nil but empty root.
-	deleted := innerStorage.versions[2]
-	innerStorage.ends = &deletionRoot{rows: map[ids.RowID]rowEnd{
-		deleted.row: {version: deleted.version, end: e.commitSeq},
+	deleted := innerStorage.Versions[2]
+	innerStorage.Ends = &deletionRoot{Rows: map[ids.RowID]rowEnd{
+		deleted.Row: {Version: deleted.Version, End: e.commitSeq},
 	}}
 	frontier := e.commitSeq
-	innerVersions, gateVersions := innerStorage.versions, gateStorage.versions
-	innerEnds, gateEnds := innerStorage.ends, gateStorage.ends
+	innerVersions, gateVersions := innerStorage.Versions, gateStorage.Versions
+	innerEnds, gateEnds := innerStorage.Ends, gateStorage.Ends
 	holder := sessionStart(t, e, nil)
 	holderTx := transactionBegin(t, holder)
 	gateRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), gate.Address())
@@ -125,7 +125,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 				t.Fatal("physical source did not retain captured storage/versions/ends/frontier", address)
 			}
 		}
-		if innerEnds == nil || len(innerEnds.rows) != 1 || liveVersion(deleted, frontier, snapshot.ends[inner.Address()], nil) ||
+		if innerEnds == nil || len(innerEnds.Rows) != 1 || liveVersion(deleted, frontier, snapshot.ends[inner.Address()], nil) ||
 			!liveVersion(innerVersions[0], frontier, snapshot.ends[inner.Address()], nil) {
 			t.Fatal("captured source end root did not distinguish deleted and live versions")
 		}
@@ -145,7 +145,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	}
 	assertManifest()
 	inner = concurrentUnitReplace(t, e, inner, refreshUnitRows(t, inner, 1), true, true)
-	if e.storage.relations[inner.Address()] == innerStorage || e.commitSeq <= frontier {
+	if e.storage.Relations[inner.Address()] == innerStorage || e.commitSeq <= frontier {
 		t.Fatal("peer did not publish a new committed source incarnation")
 	}
 	assertSourceWait()
@@ -171,7 +171,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 		t.Fatal("missing target rowtype provider")
 	}
 	stage.domainBases = []catalog.Descriptor{provider}
-	if err := e.stageMaterializedRows(context.Background(), stage, outer, e.storage.relations[outer.Address()], refreshUnitRows(t, outer, 3), true, ids.TxRef{}); err != nil {
+	if err := e.stageMaterializedRows(context.Background(), stage, outer, e.storage.Relations[outer.Address()], refreshUnitRows(t, outer, 3), true, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	stage.materializedReplacement.concurrent = true

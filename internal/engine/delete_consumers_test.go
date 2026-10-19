@@ -70,20 +70,20 @@ func TestDeleteCoreConsumers(t *testing.T) {
 		sessionSQL(t, s, "CREATE TABLE t(a INT,b TEXT,c BOOL)")
 		sessionSQL(t, s, "INSERT INTO t VALUES(NULL,'gone',TRUE),(7,'keep',FALSE)")
 		ref := catalogRef(t, e, e.CatalogRead(), "t")
-		old := e.storage.relations[ref.Address]
+		old := e.storage.Relations[ref.Address]
 		retained := sessionSQL(t, s, "SELECT * FROM t")
 		defer retained.Rows.Close()
 		deleteCount(t, s, "DELETE FROM t WHERE b='gone'", 1)
-		ends := old.ends
+		ends := old.Ends
 		sessionSQL(t, s, "ALTER TABLE t ALTER a SET NOT NULL")
 		sessionSQL(t, s, "ALTER TABLE t DROP COLUMN b")
-		current := e.storage.relations[ref.Address]
-		if current == old || current.ends != ends || len(current.versions) != 2 || len(old.versions[0].values) != 3 {
+		current := e.storage.Relations[ref.Address]
+		if current == old || current.Ends != ends || len(current.Versions) != 2 || len(old.Versions[0].Values) != 3 {
 			t.Fatal("shape lost history/end authority")
 		}
-		for i, version := range current.versions {
-			before := old.versions[i]
-			if version.row != before.row || version.version != before.version || version.born != before.born {
+		for i, version := range current.Versions {
+			before := old.Versions[i]
+			if version.Row != before.Row || version.Version != before.Version || version.Born != before.Born {
 				t.Fatal("shape remapped history")
 			}
 		}
@@ -111,7 +111,7 @@ func TestDeleteCoreConsumers(t *testing.T) {
 			t.Fatal("zero-width live Restore", err)
 		}
 		deleteCount(t, s, "DELETE FROM t", 1)
-		if len(ends.rows) != 1 || e.storage.relations[ref.Address].ends == ends || len(e.storage.relations[ref.Address].ends.rows) != 2 {
+		if len(ends.Rows) != 1 || e.storage.Relations[ref.Address].Ends == ends || len(e.storage.Relations[ref.Address].Ends.Rows) != 2 {
 			t.Fatal("committed deletion root mutated/reused")
 		}
 		deleteCount(t, s, "DELETE FROM t", 0)
@@ -173,13 +173,13 @@ func TestDeleteCoreCatalogReplacement(t *testing.T) {
 	retained := run(t, source, "SELECT v FROM t ORDER BY v")
 	run(t, source, "DELETE FROM t WHERE v=1")
 	ref := catalogRef(t, source, source.CatalogRead(), "t")
-	oldStore := source.storage.relations[ref.Address]
-	oldLive := oldStore.versions[2]
+	oldStore := source.storage.Relations[ref.Address]
+	oldLive := oldStore.Versions[2]
 	if _, err := source.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	self := source.storage.relations[ref.Address]
-	if self == oldStore || len(self.versions) != 1 || self.ends != nil || self.versions[0].row == oldLive.row || self.versions[0].version == oldLive.version || self.versions[0].born != source.commitSeq {
+	self := source.storage.Relations[ref.Address]
+	if self == oldStore || len(self.Versions) != 1 || self.Ends != nil || self.Versions[0].Row == oldLive.Row || self.Versions[0].Version == oldLive.Version || self.Versions[0].Born != source.commitSeq {
 		t.Fatal("self replacement did not detach/remint live heads")
 	}
 	if got := tuples(run(t, source, "SELECT v FROM t ORDER BY v")); !reflect.DeepEqual(got, [][]driver.Value{{int64(2)}}) {
@@ -192,8 +192,8 @@ func TestDeleteCoreCatalogReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	imported := catalogRef(t, target, target.CatalogRead(), "t")
-	store := target.storage.relations[imported.Address]
-	if len(store.versions) != 1 || store.ends != nil || store.versions[0].row == 0 || store.versions[0].version == 0 || store.versions[0].born != target.commitSeq {
+	store := target.storage.Relations[imported.Address]
+	if len(store.Versions) != 1 || store.Ends != nil || store.Versions[0].Row == 0 || store.Versions[0].Version == 0 || store.Versions[0].Born != target.commitSeq {
 		t.Fatal("foreign replacement imported history", store)
 	}
 	run(t, target, "INSERT INTO t VALUES(3)")
@@ -232,7 +232,7 @@ func TestDeleteCoreFailedReplacement(t *testing.T) {
 	sessionSQL(t, a, "INSERT INTO t VALUES(7)")
 	deleteCount(t, a, "DELETE FROM t WHERE v=2", 1)
 	target := catalogRef(t, e, e.CatalogRead(), "t")
-	epoch, frontier, ends := e.CatalogRead().Epoch(), e.commitSeq, e.storage.relations[target.Address].ends
+	epoch, frontier, ends := e.CatalogRead().Epoch(), e.commitSeq, e.storage.Relations[target.Address].Ends
 	own := a.transactions.deletes[target.Address]
 	sentinel := errors.New("late replacement reader")
 	if err := e.Restore(context.Background(), &deleteFailingReader{text: "CREATE TABLE fresh(v INT); INSERT INTO fresh VALUES(99);", err: sentinel}); !errors.Is(err, sentinel) {
@@ -251,7 +251,7 @@ func TestDeleteCoreFailedReplacement(t *testing.T) {
 	if err := e.Restore(ctx, strings.NewReader("CREATE TABLE fresh(v INT)")); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if e.CatalogRead().Epoch() != epoch || e.commitSeq != frontier || e.storage.relations[target.Address].ends != ends || a.TransactionState() != TxActive || a.transactions.deletes[target.Address] != own {
+	if e.CatalogRead().Epoch() != epoch || e.commitSeq != frontier || e.storage.Relations[target.Address].Ends != ends || a.TransactionState() != TxActive || a.transactions.deletes[target.Address] != own {
 		t.Fatal("failed replacement changed committed/private authority")
 	}
 	transactionRows(t, a, "SELECT v FROM t ORDER BY v", 7)

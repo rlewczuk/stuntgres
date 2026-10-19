@@ -72,13 +72,13 @@ func ownershipManualCapture(e *Engine, session *Session, sequence ids.ObjectRef)
 		rows: make(map[ids.ObjectAddress][]rowVersion),
 	}
 	snapshot.memoryValue = *snapshot.memory
-	for address, generator := range e.storage.sequences {
+	for address, generator := range e.storage.Sequences {
 		snapshot.generators[address], snapshot.generatorValues[address] = generator, *generator
 	}
-	for address, storage := range e.storage.relations {
-		rows := append([]rowVersion(nil), storage.versions...)
+	for address, storage := range e.storage.Relations {
+		rows := append([]rowVersion(nil), storage.Versions...)
 		for i := range rows {
-			rows[i].values = append([]sqltype.Value(nil), rows[i].values...)
+			rows[i].Values = append([]sqltype.Value(nil), rows[i].Values...)
 		}
 		snapshot.rows[address] = rows
 	}
@@ -106,7 +106,7 @@ func ownershipManualStart(t *testing.T, e *Engine, session *Session, sequence id
 	}
 	values := tuples(result)
 	result.Rows.Close()
-	if !reflect.DeepEqual(values, [][]driver.Value{{int64(40)}}) || e.storage.sequences[sequence.Address].last != 42 || session.sequences[sequence.Address].remaining != 2 {
+	if !reflect.DeepEqual(values, [][]driver.Value{{int64(40)}}) || e.storage.Sequences[sequence.Address].Last != 42 || session.sequences[sequence.Address].remaining != 2 {
 		t.Fatal("fixture did not consume actual nontransactional CACHE3 sequence", values)
 	}
 	if _, err := message.step(statement(t, "INSERT INTO ownership_fence_sentinel VALUES(9)")); err != nil {
@@ -143,17 +143,17 @@ func ownershipManualReplaceDatabase(t *testing.T, e *Engine, session *Session, b
 		}
 	}
 	for address, generator := range before.generators {
-		if e.storage.sequences[address] != generator || *generator != before.generatorValues[address] {
+		if e.storage.Sequences[address] != generator || *generator != before.generatorValues[address] {
 			t.Fatal("database replacement changed actual generator", address)
 		}
 	}
 	for address, root := range before.roots.roots {
-		if e.storage.indexRoots[address] != root {
+		if e.storage.IndexRoots[address] != root {
 			t.Fatal("database replacement changed index root")
 		}
 	}
 	for address, storage := range before.roots.stores {
-		if e.storage.relations[address] != storage || !reflect.DeepEqual(storage.versions, before.rows[address]) {
+		if e.storage.Relations[address] != storage || !reflect.DeepEqual(storage.Versions, before.rows[address]) {
 			t.Fatal("database replacement changed storage/rows")
 		}
 	}
@@ -170,12 +170,12 @@ func ownershipManualRetainedUnchanged(t *testing.T, e *Engine, session *Session,
 	}
 	for address, generator := range before.generators {
 		if dropped && address == sequence.Address {
-			if e.storage.sequences[address] != nil || *generator != before.generatorValues[address] {
+			if e.storage.Sequences[address] != nil || *generator != before.generatorValues[address] {
 				t.Fatal("healthy DROP retained generator or mutated old generator")
 			}
 			continue
 		}
-		if e.storage.sequences[address] != generator || *generator != before.generatorValues[address] {
+		if e.storage.Sequences[address] != generator || *generator != before.generatorValues[address] {
 			t.Fatal("manual utility changed retained/unrelated generator")
 		}
 	}
@@ -243,7 +243,7 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 							t.Fatal("CREATE did not stage actual options/owner/default ACL")
 						}
 						g := candidate.generators[created.Address()]
-						if g == nil || g.last != 51 || g.called || g.generation != created.Revision() {
+						if g == nil || g.Last != 51 || g.Called || g.Generation != created.Revision() {
 							t.Fatal("CREATE did not stage actual uncalled generator")
 						}
 					case "drop-sequence":
@@ -297,20 +297,20 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 						}
 						indexMaintenanceUnchanged(t, e, before.roots)
 						for address, rows := range before.rows {
-							if !reflect.DeepEqual(e.storage.relations[address].versions, rows) {
+							if !reflect.DeepEqual(e.storage.Relations[address].Versions, rows) {
 								t.Fatal("veto installed retained row prefix")
 							}
 						}
-						if len(e.storage.sequences) != len(before.generators) || !reflect.DeepEqual(maps.Collect(e.catalog.state.Names()), maps.Collect(before.roots.catalog.Names())) {
+						if len(e.storage.Sequences) != len(before.generators) || !reflect.DeepEqual(maps.Collect(e.catalog.state.Names()), maps.Collect(before.roots.catalog.Names())) {
 							t.Fatal("veto installed sequence generator/name prefix")
 						}
 					} else {
-						if err != nil || len(e.storage.relations[roleTableRef(t, e, "ownership_fence_sentinel").Address].versions) != 2 {
+						if err != nil || len(e.storage.Relations[roleTableRef(t, e, "ownership_fence_sentinel").Address].Versions) != 2 {
 							t.Fatal("healthy utility failed actual publication", err)
 						}
 						switch utility {
 						case "create-sequence":
-							if e.catalog.state.Get(created.Address()) != created || e.catalog.state.NameAddress(catalog.DescriptorNameKey(created)) != created.Address() || e.storage.sequences[created.Address()] != candidate.generators[created.Address()] {
+							if e.catalog.state.Get(created.Address()) != created || e.catalog.state.NameAddress(catalog.DescriptorNameKey(created)) != created.Address() || e.storage.Sequences[created.Address()] != candidate.generators[created.Address()] {
 								t.Fatal("healthy CREATE lost installed descriptor/name/generator")
 							}
 						case "drop-sequence":
@@ -447,7 +447,7 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 				}
 				owned := table.Address
 				owned.SubID = auth.catalog.MustRelation(table.Address).Attributes[0]
-				if created == nil || created.Owner != auth.state.CurrentUser || created.Namespace() != ns || created.Sequence.Owned != owned || created.Sequence.Start != 71 || candidate.generators[created.Address()] == nil || candidate.generators[created.Address()].called || candidate.generators[created.Address()].last != 71 || e.catalog.state != before.roots.catalog {
+				if created == nil || created.Owner != auth.state.CurrentUser || created.Namespace() != ns || created.Sequence.Owned != owned || created.Sequence.Start != 71 || candidate.generators[created.Address()] == nil || candidate.generators[created.Address()].Called || candidate.generators[created.Address()].Last != 71 || e.catalog.state != before.roots.catalog {
 					t.Fatal("real OWNED helper did not stage otherwise-valid associated sequence without prefix")
 				}
 				finishErr := message.scope.Finish(nil)
@@ -458,15 +458,15 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 						t.Fatal("missing original pre-OWNED-wait CREATE authority veto", err)
 					}
 					indexMaintenanceUnchanged(t, e, before.roots)
-					if e.catalog.state.NameAddress(catalog.DescriptorNameKey(created)) != (ids.ObjectAddress{}) || e.storage.sequences[created.Address()] != nil || len(e.storage.sequences) != len(before.generators) {
+					if e.catalog.state.NameAddress(catalog.DescriptorNameKey(created)) != (ids.ObjectAddress{}) || e.storage.Sequences[created.Address()] != nil || len(e.storage.Sequences) != len(before.generators) {
 						t.Fatal("OWNED veto installed name/generator prefix")
 					}
 					for address, rows := range before.rows {
-						if !reflect.DeepEqual(e.storage.relations[address].versions, rows) {
+						if !reflect.DeepEqual(e.storage.Relations[address].Versions, rows) {
 							t.Fatal("OWNED veto installed retained INSERT prefix")
 						}
 					}
-				} else if err != nil || e.catalog.state.Get(created.Address()) != created || e.catalog.state.NameAddress(catalog.DescriptorNameKey(created)) != created.Address() || e.storage.sequences[created.Address()] != candidate.generators[created.Address()] || len(e.storage.relations[roleTableRef(t, e, "ownership_fence_sentinel").Address].versions) != 2 {
+				} else if err != nil || e.catalog.state.Get(created.Address()) != created || e.catalog.state.NameAddress(catalog.DescriptorNameKey(created)) != created.Address() || e.storage.Sequences[created.Address()] != candidate.generators[created.Address()] || len(e.storage.Relations[roleTableRef(t, e, "ownership_fence_sentinel").Address].Versions) != 2 {
 					t.Fatal("healthy actual OWNED wait did not publish association/counter/prefix", err)
 				}
 				retainedACL := authorization.ACLValue{Explicit: old.Security.ACL.Explicit, Entries: append([]authorization.ACLEntry(nil), old.Security.ACL.Entries...)}

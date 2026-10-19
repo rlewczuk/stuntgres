@@ -67,7 +67,7 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 			mv := private.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "mv"})
 			seq := private.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "batch_s"})
 			index := private.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ci"})
-			if c == nil || ct == (ids.ObjectAddress{}) || mv == (ids.ObjectAddress{}) || seq == (ids.ObjectAddress{}) || index == (ids.ObjectAddress{}) || c.generators[seq] == nil || c.storage[ct].original != nil || c.storage[mv].original != nil || len(c.storage[ct].replacement.versions) != 0 || len(c.storage[mv].replacement.versions) != 0 || len(writes[ct]) != 1 || len(writes[mv]) != 1 || len(c.uniqueRoots[index].entries) != 0 || calls == 0 {
+			if c == nil || ct == (ids.ObjectAddress{}) || mv == (ids.ObjectAddress{}) || seq == (ids.ObjectAddress{}) || index == (ids.ObjectAddress{}) || c.generators[seq] == nil || c.storage[ct].original != nil || c.storage[mv].original != nil || len(c.storage[ct].replacement.Versions) != 0 || len(c.storage[mv].replacement.Versions) != 0 || len(writes[ct]) != 1 || len(writes[mv]) != 1 || len(c.uniqueRoots[index].Entries) != 0 || calls == 0 {
 				t.Fatalf("catalog stage fields or initial rows omitted: ct=%v mv=%v sequence=%v index=%v generator=%v ctShape=%+v mvShape=%+v ctWrites=%d mvWrites=%d indexRoot=%v calls=%d", ct, mv, seq, index, c.generators[seq], c.storage[ct], c.storage[mv], len(writes[ct]), len(writes[mv]), c.uniqueRoots[index], calls)
 			}
 			// CREATE of one index on a private parent captures committed storage
@@ -81,7 +81,7 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 			if !absence {
 				t.Fatal("new-index committed source-absence fence omitted")
 			}
-			if e.catalog.state != before || e.commitSeq != frontier || e.storage.relations[ct] != nil || e.storage.relations[mv] != nil || e.storage.sequences[seq] != nil {
+			if e.catalog.state != before || e.commitSeq != frontier || e.storage.Relations[ct] != nil || e.storage.Relations[mv] != nil || e.storage.Sequences[seq] != nil {
 				t.Fatal("initial data or generators published before end")
 			}
 			if commit {
@@ -102,13 +102,13 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 				t.Fatal("private initial rows and row-shape result", got)
 			}
 			if commit {
-				if e.commitSeq != frontier+1 || len(e.storage.relations[ct].versions) != 1 || len(e.storage.relations[mv].versions) != 1 || e.storage.sequences[seq] == nil || len(e.storage.indexRoots[index].entries) != 1 {
+				if e.commitSeq != frontier+1 || len(e.storage.Relations[ct].Versions) != 1 || len(e.storage.Relations[mv].Versions) != 1 || e.storage.Sequences[seq] == nil || len(e.storage.IndexRoots[index].Entries) != 1 {
 					t.Fatal("joint initial rows/shape/sequence/index installation")
 				}
 				transactionRows(t, s, "SELECT x FROM ct", 5)
 				transactionRows(t, s, "SELECT x FROM mv", 5)
 			} else {
-				if e.catalog.state != before || e.commitSeq != frontier || e.storage.relations[ct] != nil || e.storage.relations[mv] != nil || e.storage.sequences[seq] != nil || e.storage.indexRoots[index] != nil {
+				if e.catalog.state != before || e.commitSeq != frontier || e.storage.Relations[ct] != nil || e.storage.Relations[mv] != nil || e.storage.Sequences[seq] != nil || e.storage.IndexRoots[index] != nil {
 					t.Fatal("initial table or provider result escaped rollback")
 				}
 			}

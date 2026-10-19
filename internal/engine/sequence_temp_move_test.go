@@ -68,12 +68,12 @@ func TestSequenceTemporaryMoveAuthority(t *testing.T) {
 				snapshot := sessionSQL(t, a, "SELECT last_value FROM "+source)
 				catalog := e.catalog.state
 				descriptor := catalog.MustRelation(ref.Address)
-				generator := *e.storage.sequences[ref.Address]
+				generator := *e.storage.Sequences[ref.Address]
 				memory := *a.sequences[ref.Address]
 				last, namespace, peerNamespace := a.lastSequence, a.temporaryNamespace, b.temporaryNamespace
 				cell := held.sequences
 				peerDescriptor := catalog.Get(peerNamespace)
-				peerGenerator := *e.storage.sequences[NameAddressForTempMove(t, e, peerNamespace, "peer_temp")]
+				peerGenerator := *e.storage.Sequences[NameAddressForTempMove(t, e, peerNamespace, "peer_temp")]
 				query := "ALTER SEQUENCE " + source + " SET SCHEMA " + target
 				if destination == "PeerCreate" {
 					query = "CREATE SEQUENCE " + target + ".forbidden_new"
@@ -84,10 +84,10 @@ func TestSequenceTemporaryMoveAuthority(t *testing.T) {
 				} else {
 					sequenceOwnerDiagnostic(t, err, "0A000", "cannot move objects into or out of temporary schemas", "")
 				}
-				if e.catalog.state != catalog || e.catalog.state.Get(ref.Address) != descriptor || *e.storage.sequences[ref.Address] != generator || *a.sequences[ref.Address] != memory || a.lastSequence != last || a.temporaryNamespace != namespace || b.temporaryNamespace != peerNamespace || held.sequences != cell {
+				if e.catalog.state != catalog || e.catalog.state.Get(ref.Address) != descriptor || *e.storage.Sequences[ref.Address] != generator || *a.sequences[ref.Address] != memory || a.lastSequence != last || a.temporaryNamespace != namespace || b.temporaryNamespace != peerNamespace || held.sequences != cell {
 					t.Fatal("rejected move changed catalog, identity, stamp, generator, cache, held binding or session ownership")
 				}
-				if e.catalog.state.Get(peerNamespace) != peerDescriptor || *e.storage.sequences[NameAddressForTempMove(t, e, peerNamespace, "peer_temp")] != peerGenerator {
+				if e.catalog.state.Get(peerNamespace) != peerDescriptor || *e.storage.Sequences[NameAddressForTempMove(t, e, peerNamespace, "peer_temp")] != peerGenerator {
 					t.Fatal("rejected move changed peer ownership or generator")
 				}
 				r, err = sequencePreparedExecute(e, a, ast, &held)
@@ -106,7 +106,7 @@ func TestSequenceTemporaryMoveAuthority(t *testing.T) {
 				if namespace != (ids.ObjectAddress{}) {
 					assertTemporaryNamespacePair(t, e, a.token, namespace)
 					for address, d := range catalog.Descriptors() {
-						if d.Namespace() == namespace && (e.catalog.state.Get(address) != nil || e.storage.sequences[address] != nil || e.storage.relations[address] != nil) {
+						if d.Namespace() == namespace && (e.catalog.state.Get(address) != nil || e.storage.Sequences[address] != nil || e.storage.Relations[address] != nil) {
 							t.Fatal("physical end leaked owned temporary object", address)
 						}
 					}
@@ -161,12 +161,12 @@ func TestSequenceTemporaryMovePrecedenceAndPersistentMove(t *testing.T) {
 			ref := held.sequences.constants[0].ref
 			sequenceScalar(t, s, "SELECT nextval('persistent')", 1)
 			before := e.catalog.state.MustRelation(ref.Address)
-			generator, memory := *e.storage.sequences[ref.Address], *s.sequences[ref.Address]
+			generator, memory := *e.storage.Sequences[ref.Address], *s.sequences[ref.Address]
 			if err := sequenceTempMoveCommand(t, e, s, "ALTER SEQUENCE persistent SET SCHEMA moved", prepared); err != nil {
 				t.Fatal("ordinary persistent move", err)
 			}
 			after := e.catalog.state.MustRelation(ref.Address)
-			if after.Address() != before.Address() || after.Namespace() == before.Namespace() || after.SequencePlanStamp == before.SequencePlanStamp || !reflect.DeepEqual(after.Sequence, before.Sequence) || *e.storage.sequences[ref.Address] != generator || *s.sequences[ref.Address] != memory {
+			if after.Address() != before.Address() || after.Namespace() == before.Namespace() || after.SequencePlanStamp == before.SequencePlanStamp || !reflect.DeepEqual(after.Sequence, before.Sequence) || *e.storage.Sequences[ref.Address] != generator || *s.sequences[ref.Address] != memory {
 				t.Fatal("persistent move changed identity/options/cache or failed to invalidate")
 			}
 			_, err = sequencePreparedExecute(e, s, ast, &held)
@@ -193,10 +193,10 @@ func TestSequenceTemporaryMoveCreatePermissionPrecedence(t *testing.T) {
 			_, held := sequencePreparedDescription(t, e, s, "SELECT nextval('own_temp')")
 			ref := held.sequences.constants[0].ref
 			catalog, namespace := e.catalog.state, s.temporaryNamespace
-			generator, memory := *e.storage.sequences[ref.Address], *s.sequences[ref.Address]
+			generator, memory := *e.storage.Sequences[ref.Address], *s.sequences[ref.Address]
 			err := sequenceTempMoveCommand(t, e, s, "ALTER SEQUENCE own_temp SET SCHEMA denied", prepared)
 			sequenceOwnerDiagnostic(t, err, "42501", "permission denied for schema denied", "")
-			if e.catalog.state != catalog || s.temporaryNamespace != namespace || *e.storage.sequences[ref.Address] != generator || *s.sequences[ref.Address] != memory {
+			if e.catalog.state != catalog || s.temporaryNamespace != namespace || *e.storage.Sequences[ref.Address] != generator || *s.sequences[ref.Address] != memory {
 				t.Fatal("destination permission rejection published effects")
 			}
 			sequenceScalar(t, s, "SELECT nextval('own_temp')", 2)

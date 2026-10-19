@@ -60,7 +60,7 @@ func TestCatalogDropPublicationAndRetainedReads(t *testing.T) {
 	if now.Epoch() != base.Epoch() {
 		t.Fatal("drop advanced epoch")
 	}
-	if _, ok := now.Descriptor(a.Address); ok || e.storage.relations[a.Address] != nil {
+	if _, ok := now.Descriptor(a.Address); ok || e.storage.Relations[a.Address] != nil {
 		t.Fatal("drop retained definition/storage")
 	}
 	for _, typ := range []*catalog.Type{row, array} {

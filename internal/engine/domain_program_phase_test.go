@@ -91,7 +91,7 @@ func TestDomainProgramInvokerAndRIOwnerPhases(t *testing.T) {
 			nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function int4gt"})
 			sequence := catalogRef(t, e, view, "phase_steps")
 			e.mu.Lock()
-			last := e.storage.sequences[sequence.Address].last
+			last := e.storage.Sequences[sequence.Address].Last
 			e.mu.Unlock()
 			if last != 1 {
 				t.Fatal("phase admission replayed CHECK truth", last)
@@ -110,7 +110,7 @@ func TestDomainProgramInvokerAndRIOwnerPhases(t *testing.T) {
 			}
 			nullCountUnitDiagnostic(t, scope.readmitPreparedPrograms(current), sqlstate.Error{Code: "42501", Message: "permission denied for function int4gt"})
 			e.mu.Lock()
-			last = e.storage.sequences[sequence.Address].last
+			last = e.storage.Sequences[sequence.Address].Last
 			e.mu.Unlock()
 			if last != 1 {
 				t.Fatal("publication repeated volatile CHECK", last)

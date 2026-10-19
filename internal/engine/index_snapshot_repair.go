@@ -110,7 +110,7 @@ func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalConte
 		captured, exists := repairedStores[parentAddress]
 		if !exists {
 			captured = *store
-			captured.versions = slices.Clone(store.versions)
+			captured.Versions = slices.Clone(store.Versions)
 			if repairedStores == nil {
 				repairedStores = make(map[ids.ObjectAddress]relationStorage)
 			}

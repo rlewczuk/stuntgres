@@ -57,9 +57,9 @@ func TestAlterDropColumnCommentsStableAttributes(t *testing.T) {
 	if e.catalog.state.Get(ref.Address) != next {
 		t.Fatal("invalid stage changed metadata")
 	}
-	root := e.storage.relations[ref.Address]
+	root := e.storage.Relations[ref.Address]
 	run(t, e, "ALTER TABLE t DROP IF EXISTS missing")
-	if e.catalog.state.Get(ref.Address) != next || e.storage.relations[ref.Address] != root || !reflect.DeepEqual(next.ColumnMeta.Comments, map[int32]string{3: "survivor comment"}) {
+	if e.catalog.state.Get(ref.Address) != next || e.storage.Relations[ref.Address] != root || !reflect.DeepEqual(next.ColumnMeta.Comments, map[int32]string{3: "survivor comment"}) {
 		t.Fatal("missing skip changed comments, descriptor or rows")
 	}
 	run(t, e, "ALTER TABLE t DROP a")
@@ -137,11 +137,11 @@ func TestAlterDropColumnRevisionFrontierFailures(t *testing.T) {
 	run(t, e, "CREATE TABLE t(a INT,b INT)")
 	ref := roleTableRef(t, e, "t")
 	old := e.catalog.state.Get(ref.Address)
-	root := e.storage.relations[ref.Address]
+	root := e.storage.Relations[ref.Address]
 	frontier := e.catalog.nextRevision
 	unchanged := func() {
 		t.Helper()
-		if e.catalog.nextRevision != frontier || e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != root {
+		if e.catalog.nextRevision != frontier || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != root {
 			t.Fatal("failed/canceled/skip changed frontier or publication")
 		}
 	}
@@ -203,7 +203,7 @@ func TestAlterDropColumnRevisionFrontierTerminal(t *testing.T) {
 	}
 	run(t, e, "ALTER TABLE t DROP b")
 	maximum := e.catalog.state.MustRelation(ref.Address)
-	root := e.storage.relations[ref.Address]
+	root := e.storage.Relations[ref.Address]
 	limit := ids.DefinitionRevision(^uint64(0))
 	if maximum.Revision() != limit || e.catalog.nextRevision != limit {
 		t.Errorf("terminal publication revision=%d allocator=%d want=%d", maximum.Revision(), e.catalog.nextRevision, limit)
@@ -213,7 +213,7 @@ func TestAlterDropColumnRevisionFrontierTerminal(t *testing.T) {
 		if err == nil || err.Error() != tc.message {
 			t.Errorf("%s: got %v want %s", tc.q, err, tc.message)
 		}
-		if e.catalog.state.Get(ref.Address) != maximum || e.storage.relations[ref.Address] != root || e.catalog.nextRevision != limit {
+		if e.catalog.state.Get(ref.Address) != maximum || e.storage.Relations[ref.Address] != root || e.catalog.nextRevision != limit {
 			t.Errorf("%s changed terminal state", tc.q)
 		}
 	}

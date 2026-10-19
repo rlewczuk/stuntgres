@@ -45,26 +45,26 @@ type serializablePublicationSnapshot struct {
 }
 
 func serializableSnapshotPublication(e *Engine) serializablePublicationSnapshot {
-	s := serializablePublicationSnapshot{catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), namespaceGeneration: e.catalog.state.NamespaceGeneration(), revision: e.catalog.nextRevision, frontier: e.commitSeq, order: e.serializable.order, storage: make(map[ids.ObjectAddress]serializableStorageSnapshot), indexes: make(map[ids.ObjectAddress]serializableIndexSnapshot), sequences: maps.Clone(e.storage.sequences), generators: make(map[ids.ObjectAddress]sequenceGenerator), providers: make(map[ids.OID]reflect.Type)}
-	for address, store := range e.storage.relations {
-		rows := append([]rowVersion(nil), store.versions[:cap(store.versions)]...)
+	s := serializablePublicationSnapshot{catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), namespaceGeneration: e.catalog.state.NamespaceGeneration(), revision: e.catalog.nextRevision, frontier: e.commitSeq, order: e.serializable.order, storage: make(map[ids.ObjectAddress]serializableStorageSnapshot), indexes: make(map[ids.ObjectAddress]serializableIndexSnapshot), sequences: maps.Clone(e.storage.Sequences), generators: make(map[ids.ObjectAddress]sequenceGenerator), providers: make(map[ids.OID]reflect.Type)}
+	for address, store := range e.storage.Relations {
+		rows := append([]rowVersion(nil), store.Versions[:cap(store.Versions)]...)
 		for i := range rows {
-			rows[i].values = append([]sqltype.Value(nil), rows[i].values...)
+			rows[i].Values = append([]sqltype.Value(nil), rows[i].Values...)
 		}
 		var ends map[ids.RowID]rowEnd
-		if store.ends != nil {
-			ends = maps.Clone(store.ends.rows)
+		if store.Ends != nil {
+			ends = maps.Clone(store.Ends.Rows)
 		}
-		s.storage[address] = serializableStorageSnapshot{store, store.generation, store.ends, rows, ends}
+		s.storage[address] = serializableStorageSnapshot{store, store.Generation, store.Ends, rows, ends}
 	}
-	for address, root := range e.storage.indexRoots {
-		entries := append([]logicalIndexEntry(nil), root.entries...)
+	for address, root := range e.storage.IndexRoots {
+		entries := append([]logicalIndexEntry(nil), root.Entries...)
 		for i := range entries {
-			entries[i].keys = append([]sqltype.Value(nil), entries[i].keys...)
+			entries[i].Keys = append([]sqltype.Value(nil), entries[i].Keys...)
 		}
 		s.indexes[address] = serializableIndexSnapshot{root, entries}
 	}
-	for address, generator := range e.storage.sequences {
+	for address, generator := range e.storage.Sequences {
 		s.generators[address] = *generator
 	}
 	for class, provider := range e.catalog.Providers {
@@ -75,16 +75,16 @@ func serializableSnapshotPublication(e *Engine) serializablePublicationSnapshot 
 func serializableRequirePublicationUnchanged(t *testing.T, e *Engine, before serializablePublicationSnapshot) {
 	t.Helper()
 	after := serializableSnapshotPublication(e)
-	if e.catalog.state != before.catalog || !maps.Equal(e.storage.sequences, before.sequences) {
+	if e.catalog.state != before.catalog || !maps.Equal(e.storage.Sequences, before.sequences) {
 		t.Fatal("failed publication replaced catalog/generator identities")
 	}
 	for address, store := range before.storage {
-		if e.storage.relations[address] != store.pointer || e.storage.relations[address].ends != store.ends {
+		if e.storage.Relations[address] != store.pointer || e.storage.Relations[address].Ends != store.ends {
 			t.Fatal("failed publication replaced storage/end root")
 		}
 	}
 	for address, index := range before.indexes {
-		if e.storage.indexRoots[address] != index.pointer {
+		if e.storage.IndexRoots[address] != index.pointer {
 			t.Fatal("failed publication replaced index root")
 		}
 	}
@@ -162,7 +162,7 @@ func TestSerializablePublicationNonemptyLateOrdinaryFailureCannotDoomPeer(t *tes
 	peer := serializableUnitCycle(t, e, node)
 	address := catalogRef(t, e, e.CatalogRead(), "indexed").Address
 	e.mu.Lock()
-	e.storage.relations[address].generation = ^uint64(0)
+	e.storage.Relations[address].Generation = ^uint64(0)
 	before := serializableSnapshotPublication(e)
 	e.mu.Unlock()
 	op := transactionOperation(t, a)
@@ -312,17 +312,17 @@ func TestSerializablePublicationRealChangedPredecessorRetry(t *testing.T) {
 				if !node.committed || !peer.doomed || e.commitSeq != afterPeer.frontier+1 || e.serializable.order != afterPeer.order+1 {
 					t.Fatal("retry did not finalize exactly once")
 				}
-				rows := e.storage.relations[address].versions
+				rows := e.storage.Relations[address].Versions
 				if len(rows) != 3 {
 					t.Fatal("retry lost peer/current row multiplicity", len(rows))
 				}
 				for i, want := range []int64{0, 9, 7} {
-					value, err := rows[i].values[0].Integer()
+					value, err := rows[i].Values[0].Integer()
 					if err != nil || value != want {
 						t.Fatal("retry lost peer/current rows", i, value, want, err)
 					}
 				}
-				if len(e.storage.indexRoots[index].entries) != 3 {
+				if len(e.storage.IndexRoots[index].Entries) != 3 {
 					t.Fatal("retry lost index multiplicity")
 				}
 			}

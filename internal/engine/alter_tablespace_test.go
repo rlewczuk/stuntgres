@@ -84,13 +84,13 @@ func TestAlterTablespacePreparation(t *testing.T) {
 
 func TestAlterTablespaceNoop(t *testing.T) {
 	e, candidateScope, auth, old := alterAddUnitScope(t)
-	before, roles, store, revision, epoch := e.catalog.state, e.roles, e.storage.relations[old.Address()], old.Revision(), e.catalog.state.Epoch()
+	before, roles, store, revision, epoch := e.catalog.state, e.roles, e.storage.Relations[old.Address()], old.Revision(), e.catalog.state.Epoch()
 	actions := []parser.AlterTableAction{{Action: parser.SetTablespace, Tablespace: parser.Identifier{Text: "pg_default"}}}
 	e.mu.Lock()
 	prepared, err := e.prepareAlterTableActions(candidateScope, candidateScope.op, auth, old, e.catalog.Domain.Ref(auth.catalog.Epoch(), old.Address()), actions)
 	e.mu.Unlock()
 	work, destination := prepared.actions, prepared.destination
-	if err != nil || len(work) != 0 || e.catalog.state != before || e.roles != roles || e.storage.relations[old.Address()] != store || old.Revision() != revision || e.catalog.state.Epoch() != epoch {
+	if err != nil || len(work) != 0 || e.catalog.state != before || e.roles != roles || e.storage.Relations[old.Address()] != store || old.Revision() != revision || e.catalog.state.Epoch() != epoch {
 		t.Fatal("default preparation changed authority/storage", work, err)
 	}
 	if err := validateAlterTablespaceMove(destination); err != nil {
@@ -229,10 +229,10 @@ func TestAlterTablespaceInheritanceTypeCapture(t *testing.T) {
 		want int64
 	}{{parent, 11}, {child, 21}} {
 		current := e.CatalogRead().MustRelation(pair.old.Address())
-		if current.Columns[0].Usage.Type.ID() != sqltype.Int8 || len(e.storage.relations[current.Address()].versions) != 1 {
+		if current.Columns[0].Usage.Type.ID() != sqltype.Int8 || len(e.storage.Relations[current.Address()].Versions) != 1 {
 			t.Fatal("TYPE capture did not reach physical candidate", current)
 		}
-		value, err := e.storage.relations[current.Address()].versions[0].values[0].Integer()
+		value, err := e.storage.Relations[current.Address()].Versions[0].Values[0].Integer()
 		if err != nil || value != pair.want {
 			t.Fatal("descendant did not use its original row", current.Name(), value, err)
 		}

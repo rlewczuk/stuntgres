@@ -85,7 +85,7 @@ func TestErrorFieldsExecutePublicationConflict(t *testing.T) {
 	if winnerView.State() == nil || after.State() != winnerView.State() {
 		t.Fatal("losing Execute replaced the winning catalog")
 	}
-	if _, ok := after.Descriptor(loser); ok || e.storage.relations[loser] != nil {
+	if _, ok := after.Descriptor(loser); ok || e.storage.Relations[loser] != nil {
 		t.Fatal("losing Execute installed its descriptor or storage")
 	}
 	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "conflict_rows"}

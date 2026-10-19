@@ -82,7 +82,7 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 		t.Fatal("source table decorations inherited", d)
 	}
 	queryCreatePublish(t, e, stage)
-	if len(e.storage.relations[d.Address()].versions) != 0 {
+	if len(e.storage.Relations[d.Address()].Versions) != 0 {
 		t.Fatal("descriptor-only phase demanded rows")
 	}
 	// The actual dependency closure records the destination's stable attribute.
@@ -261,7 +261,7 @@ func TestQueryTableCreateStructuralDescriptorAdmission(t *testing.T) {
 		project := &projectNode{querySchema: querySchema{{Name: "tree", Usage: usage}}, expressions: []expr.Expr{probe}}
 		syntax := &parser.CreateQueryTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "copy"}}}, Query: &parser.Select{}, NoData: noData}
 		registry := queryCreateTypes(e)
-		beforeRow, beforeVersion, beforeFrontier := e.storage.nextRow, e.storage.nextVersion, e.commitSeq
+		beforeRow, beforeVersion, beforeFrontier := e.storage.RowFrontier(), e.storage.VersionFrontier(), e.commitSeq
 		e.mu.Lock()
 		auth, err := e.authorizationLocked(op)
 		var stage *CatalogStage
@@ -276,7 +276,7 @@ func TestQueryTableCreateStructuralDescriptorAdmission(t *testing.T) {
 			t.Fatal("structural DATA/NO DATA admission reached runtime or stage", noData, stage, err, calls)
 		}
 		queryCreateAssertTypes(t, e, registry)
-		if e.storage.nextRow != beforeRow || e.storage.nextVersion != beforeVersion || e.commitSeq != beforeFrontier {
+		if e.storage.RowFrontier() != beforeRow || e.storage.VersionFrontier() != beforeVersion || e.commitSeq != beforeFrontier {
 			done()
 			t.Fatal("structural admission reserved rows/frontier")
 		}

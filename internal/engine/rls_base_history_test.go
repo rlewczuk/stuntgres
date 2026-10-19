@@ -61,12 +61,12 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 	data := view.read()
 	address := leaf.ref.Address
 	committedEnd, privateEnd := data.ends[address], data.deleted[address]
-	if len(data.committed[address]) < 4 || committedEnd == nil || len(committedEnd.rows) == 0 || privateEnd == nil || len(privateEnd.rows) == 0 {
+	if len(data.committed[address]) < 4 || committedEnd == nil || len(committedEnd.Rows) == 0 || privateEnd == nil || len(privateEnd.rows) == 0 {
 		t.Fatal("fixture lacks actual committed/private deletion history")
 	}
 	replacements := 0
 	for _, row := range data.own[address] {
-		if row.base != 0 {
+		if row.Base != 0 {
 			replacements++
 		}
 	}

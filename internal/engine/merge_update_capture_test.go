@@ -22,7 +22,7 @@ func TestMergeUpdateCaptureBaseOverlay(t *testing.T) {
 				name += "MatchingControl"
 			}
 			t.Run(name, func(t *testing.T) {
-				captured := []rowVersion{{row: 1, version: 10, born: 1}, {row: 2, version: 20, born: 1}}
+				captured := []rowVersion{{Row: 1, Version: 10, Born: 1}, {Row: 2, Version: 20, Born: 1}}
 				before := append([]rowVersion(nil), captured...)
 				retained, err := selectQuerySource(context.Background(), &querySource{committed: captured}, 1, nil, nil)
 				if err != nil {
@@ -33,12 +33,12 @@ func TestMergeUpdateCaptureBaseOverlay(t *testing.T) {
 				if matching {
 					base = 10
 				}
-				own := []rowVersion{{row: 1, version: 100, base: base}}
+				own := []rowVersion{{Row: 1, Version: 100, Base: base}}
 				if multiple {
-					own = append(own, rowVersion{row: 2, version: 200, base: 20})
+					own = append(own, rowVersion{Row: 2, Version: 200, Base: 20})
 				}
-				own = append(own, rowVersion{row: 3, version: 300})
-				selected, err := selectQuerySource(context.Background(), &querySource{committed: captured, own: own}, 1, &deletionRoot{rows: map[ids.RowID]rowEnd{1: {version: 10, end: 2}}}, nil)
+				own = append(own, rowVersion{Row: 3, Version: 300})
+				selected, err := selectQuerySource(context.Background(), &querySource{committed: captured, own: own}, 1, &deletionRoot{Rows: map[ids.RowID]rowEnd{1: {Version: 10, End: 2}}}, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -47,8 +47,8 @@ func TestMergeUpdateCaptureBaseOverlay(t *testing.T) {
 				var identity []ids.RowID
 				for i := range selected.count() {
 					v := selected.versionAt(selected.rawIndex(i))
-					got = append(got, v.version)
-					identity = append(identity, v.row)
+					got = append(got, v.Version)
+					identity = append(identity, v.Row)
 				}
 				second := ids.VersionID(20)
 				if multiple {
@@ -61,10 +61,10 @@ func TestMergeUpdateCaptureBaseOverlay(t *testing.T) {
 				if !reflect.DeepEqual(got, want) {
 					t.Fatal("canonical version bag", got, want, identity)
 				}
-				if !matching && (identity[0] != 1 || identity[2] != 1 || own[0].base != 11) {
+				if !matching && (identity[0] != 1 || identity[2] != 1 || own[0].Base != 11) {
 					t.Fatal("base mismatch lost logical identity", identity, own)
 				}
-				if !reflect.DeepEqual(captured, before) || retained.count() != 2 || retained.versionAt(retained.rawIndex(0)).version != 10 {
+				if !reflect.DeepEqual(captured, before) || retained.count() != 2 || retained.versionAt(retained.rawIndex(0)).Version != 10 {
 					t.Fatal("mutated retained prefix", captured, retained)
 				}
 			})
@@ -75,7 +75,7 @@ func TestMergeUpdateCaptureBaseOverlay(t *testing.T) {
 func TestMergeUpdateCaptureCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	source, err := selectQuerySource(ctx, &querySource{committed: []rowVersion{{row: 1, version: 10, born: 1}}, own: []rowVersion{{row: 1, version: 100, base: 11}}}, 1, nil, nil)
+	source, err := selectQuerySource(ctx, &querySource{committed: []rowVersion{{Row: 1, Version: 10, Born: 1}}, own: []rowVersion{{Row: 1, Version: 100, Base: 11}}}, 1, nil, nil)
 	if source != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("capture escaped cancellation", source, err)
 	}

@@ -20,14 +20,14 @@ func TestUpdateCurrentOfIdentity(t *testing.T) {
 	ref := catalogRef(t, s.Engine(), s.Engine().CatalogRead(), "unit_rows")
 	identity := cursorOccurrenceVersion(source, index, 0, c.locks)
 	s.Engine().mu.Lock()
-	want := s.Engine().storage.relations[ref.Address].versions[1].row
+	want := s.Engine().storage.Relations[ref.Address].Versions[1].Row
 	s.Engine().mu.Unlock()
-	if identity.row != want {
-		t.Fatal("wrong original RowID", identity.row, want)
+	if identity.Row != want {
+		t.Fatal("wrong original RowID", identity.Row, want)
 	}
 	deleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
 	deleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
-	if c.currentSource != source || c.currentIndex != index || c.root != root || c.position != cursorOn || c.authority.scope != nil || cursorOccurrenceVersion(source, index, 0, c.locks).row != want {
+	if c.currentSource != source || c.currentIndex != index || c.root != root || c.position != cursorOn || c.authority.scope != nil || cursorOccurrenceVersion(source, index, 0, c.locks).Row != want {
 		t.Fatal("UPDATE consumed or replaced borrowed cursor authority")
 	}
 	transactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 1, 3, 22)
@@ -70,7 +70,7 @@ func TestUpdateCurrentOfPublication(t *testing.T) {
 	staged := false
 	for _, rows := range scope.stage.rows {
 		for _, row := range rows {
-			if row.row == identity.row && row.version != identity.version && len(row.values) == 1 && testExport(row.values[0]) == int64(11) {
+			if row.Row == identity.Row && row.Version != identity.Version && len(row.Values) == 1 && testExport(row.Values[0]) == int64(11) {
 				staged = true
 			}
 		}
@@ -82,7 +82,7 @@ func TestUpdateCurrentOfPublication(t *testing.T) {
 	}
 	for _, rows := range s.transactions.writes {
 		for _, row := range rows {
-			if row.row == identity.row {
+			if row.Row == identity.Row {
 				scope.Finish(context.Canceled)
 				op.Done()
 				t.Fatal("Execute prematurely merged replacement into transaction roots")
@@ -102,7 +102,7 @@ func TestUpdateCurrentOfPublication(t *testing.T) {
 	}
 	for _, rows := range s.transactions.writes {
 		for _, row := range rows {
-			if row.row == identity.row {
+			if row.Row == identity.Row {
 				t.Fatal("canceled Finish merged replacement into transaction roots")
 			}
 		}
@@ -130,14 +130,14 @@ func TestUpdateCurrentOfArbitration(t *testing.T) {
 		ref := catalogRef(t, e, e.CatalogRead(), "keyed")
 		deleteCount(t, s, "UPDATE keyed SET v=v+1 WHERE CURRENT OF c", 1)
 		lockState := e.locks.Inspect()
-		entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: identity.row}]
+		entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: identity.Row}]
 		ordinary := entry != nil && entry.Holders[s.transactions.ticket].Mode&lock.ForNoKeyUpdate != 0
 		if !ordinary {
 			t.Fatal("FETCH key-share skipped automatic UPDATE grant")
 		}
 		deleteCount(t, s, "UPDATE keyed SET id=3 WHERE CURRENT OF c", 1)
 		lockState = e.locks.Inspect()
-		entry = lockState.Resources[lock.Resource{ObjectRef: ref, Row: identity.row}]
+		entry = lockState.Resources[lock.Resource{ObjectRef: ref, Row: identity.Row}]
 		escalated := entry != nil && entry.Holders[s.transactions.ticket].Mode&lock.ForUpdate != 0
 		if !escalated {
 			t.Fatal("positioned unique-key change skipped rowUpdate escalation")
@@ -173,7 +173,7 @@ func TestUpdateCurrentOfArbitration(t *testing.T) {
 	lockPending(t, e, 1)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	lockState := e.locks.Inspect()
-	entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: identity.row}]
+	entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: identity.Row}]
 	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == worker.transactions.ticket && entry.Pending[0].Mode == lock.ForNoKeyUpdate
 	if !queued {
 		t.Fatal("UPDATE did not request original duplicate RowID with automatic mode")

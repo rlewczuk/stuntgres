@@ -10,11 +10,11 @@ import (
 func (s *StatementScope) validateAddedConstraintRows(validator alterRowValidator, versions []rowVersion, ends *deletionRoot, frontier ids.CommitSeq, writes []rowVersion, deletes *privateDeletionRoot) error {
 	var replaced map[ids.RowID]bool
 	for _, row := range writes {
-		if row.base != 0 {
+		if row.Base != 0 {
 			if replaced == nil {
 				replaced = make(map[ids.RowID]bool)
 			}
-			replaced[row.row] = true
+			replaced[row.Row] = true
 		}
 	}
 	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, statementScope: s, Input: s.input, Output: s.output}
@@ -23,10 +23,10 @@ func (s *StatementScope) validateAddedConstraintRows(validator alterRowValidator
 			if err := s.op.Context().Err(); err != nil {
 				return err
 			}
-			if committed && replaced[row.row] || !liveVersion(row, frontier, ends, deletes) {
+			if committed && replaced[row.Row] || !liveVersion(row, frontier, ends, deletes) {
 				continue
 			}
-			if err := validator.validate(row.values, &evaluation); err != nil {
+			if err := validator.validate(row.Values, &evaluation); err != nil {
 				return err
 			}
 		}

@@ -149,7 +149,7 @@ func TestViewCheckMapping(t *testing.T) {
 	if !ok || mapped.slot != 0 || !sameViewRelation(mapped.origin, f.baseRef) {
 		t.Fatal(mapped, ok)
 	}
-	old := f.e.storage.relations[f.base.Address()].versions[0].values
+	old := f.e.storage.Relations[f.base.Address()].Versions[0].Values
 	ctx := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, Row: []sqltype.Value{old[1], old[0], old[2]}}
 	got, err := mapped.Eval(&ctx)
 	if err != nil || got != old[1] {
@@ -160,7 +160,7 @@ func TestViewCheckMapping(t *testing.T) {
 func TestViewCheckPredicate(t *testing.T) {
 	f := viewWriteMechanics(t)
 	scope, _ := f.scope(t)
-	row := f.e.storage.relations[f.base.Address()].versions[0].values
+	row := f.e.storage.Relations[f.base.Address()].Versions[0].Values
 	old := []sqltype.Value{sqltype.Null(f.integer)}
 	calls := 0
 	pass := queryProbe(f.boolean.Usage(), func(c *EvalContext) (sqltype.Value, error) {
@@ -197,8 +197,8 @@ func TestViewCheckAdmission(t *testing.T) {
 			return sqltype.Boolean(f.boolean, closeFailure || calls == 1), nil
 		})
 		b := binding{relation: f.base, ref: f.baseRef, targets: []int{0, 1, 2}, viewWrite: &viewWrite{checks: []viewCheckGroup{{relation: f.view, predicates: []expr.Expr{guard}}}}}
-		originals := f.e.storage.relations[f.base.Address()].versions
-		cursor := &insertConflictInputCursor{schema: f.base.Columns, rows: [][]sqltype.Value{originals[0].values, originals[1].values}}
+		originals := f.e.storage.Relations[f.base.Address()].Versions
+		cursor := &insertConflictInputCursor{schema: f.base.Columns, rows: [][]sqltype.Value{originals[0].Values, originals[1].Values}}
 		if closeFailure {
 			cursor.closeError = failure
 		}
@@ -226,8 +226,8 @@ func TestViewCheckAdmission(t *testing.T) {
 func TestViewCheckCancellation(t *testing.T) {
 	f := viewWriteMechanics(t)
 	scope, _ := f.scope(t)
-	originals := f.e.storage.relations[f.base.Address()].versions
-	row := append([]sqltype.Value(nil), originals[0].values...)
+	originals := f.e.storage.Relations[f.base.Address()].Versions
+	row := append([]sqltype.Value(nil), originals[0].Values...)
 	row[1], _ = sqltype.Integer(f.integer, 99)
 	if err := scope.Writes().replace(f.baseRef, []rowVersion{originals[0]}, indexWriteBatch{values: [][]sqltype.Value{row}}); err != nil {
 		t.Fatal(err)
@@ -244,7 +244,7 @@ func TestViewCheckCancellation(t *testing.T) {
 	if err := scope.Finish(err); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(originals, f.e.storage.relations[f.base.Address()].versions) || len(scope.stage.rows) != 0 || scope.viewWrite != nil || f.e.commitSeq != 1 {
+	if !reflect.DeepEqual(originals, f.e.storage.Relations[f.base.Address()].Versions) || len(scope.stage.rows) != 0 || scope.viewWrite != nil || f.e.commitSeq != 1 {
 		t.Fatal("cancelled check installed stage")
 	}
 	lockEmpty(t, f.e)
@@ -277,8 +277,8 @@ func TestViewCheckFinish(t *testing.T) {
 			_ = scope.Finish(errors.New("test cleanup"))
 		}
 	})
-	originals := f.e.storage.relations[f.base.Address()].versions
-	row := append([]sqltype.Value(nil), originals[0].values...)
+	originals := f.e.storage.Relations[f.base.Address()].Versions
+	row := append([]sqltype.Value(nil), originals[0].Values...)
 	row[1], _ = sqltype.Integer(f.integer, 99)
 	w.checks = []viewCheckGroup{{relation: f.view, predicates: []expr.Expr{literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, value: sqltype.Boolean(f.boolean, true)}}}}
 	b := binding{relation: f.base, ref: f.baseRef, viewWrite: w}
@@ -293,7 +293,7 @@ func TestViewCheckFinish(t *testing.T) {
 	if err := scope.Finish(nil); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(originals, f.e.storage.relations[f.base.Address()].versions) || len(scope.stage.rows) != 0 || scope.viewWrite != nil || f.e.commitSeq != 1 {
+	if !reflect.DeepEqual(originals, f.e.storage.Relations[f.base.Address()].Versions) || len(scope.stage.rows) != 0 || scope.viewWrite != nil || f.e.commitSeq != 1 {
 		t.Fatal("Finish veto installed checked row")
 	}
 	lockEmpty(t, f.e)

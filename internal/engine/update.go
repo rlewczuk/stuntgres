@@ -234,19 +234,19 @@ func (e *Engine) latestUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate
 	if store == nil {
 		return rowVersion{}, false, ids.ErrCatalogReplaced
 	}
-	current := store.versions
+	current := store.Versions
 	hint := candidate.slot
-	if candidate.born == 0 {
+	if candidate.Born == 0 {
 		current = s.ownWrites[ref.Address]
 	}
-	row, _, found := rowByID(current, candidate.row, hint)
+	row, _, found := rowByID(current, candidate.Row, hint)
 	if !found {
 		return rowVersion{}, false, errors.New("stuntgres: invalid update predecessor")
 	}
-	if err := s.repeatableConflict(row, store.ends); err != nil {
+	if err := s.repeatableConflict(row, store.Ends); err != nil {
 		return rowVersion{}, false, err
 	}
-	return row, liveVersion(row, e.commitSeq, store.ends, s.ownDeletes[ref.Address]), nil
+	return row, liveVersion(row, e.commitSeq, store.Ends, s.ownDeletes[ref.Address]), nil
 }
 
 func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding, source, from *querySource, parameters []sqltype.Value, schema string) (Result, error) {
@@ -336,7 +336,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	for i := range source.count() {
 		physical := mutationPhysicalRow(source, i, b)
 		old := physical.version
-		if b.currentOf != "" && (positioned.ref != physical.leaf.ref || old.row != positioned.row) {
+		if b.currentOf != "" && (positioned.ref != physical.leaf.ref || old.Row != positioned.row) {
 			continue
 		}
 		for j := range sourceCount {
@@ -393,7 +393,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			return Result{}, err
 		}
 		ref := candidate.physical.leaf.ref
-		if err := s.acquireUpdateRow(ref, candidate.row); err != nil {
+		if err := s.acquireUpdateRow(ref, candidate.Row); err != nil {
 			return Result{}, err
 		}
 		old, live, err := e.latestUpdateRow(s, ref, candidate)
@@ -413,7 +413,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			eval.Row = frame
 			eval.bindQueryIdentity(stage.source, stage.index(candidate.sourceIndex))
 		}
-		if old.version != candidate.version {
+		if old.Version != candidate.Version {
 			if err := s.physicalRowEvent(ref, old, lock.MultiNoKeyLock, 0); err != nil {
 				return Result{}, err
 			}
@@ -431,7 +431,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		if err != nil {
 			return Result{}, err
 		}
-		identity := mutationRowIdentity{ref, candidate.row}
+		identity := mutationRowIdentity{ref, candidate.Row}
 		if b.update.from != nil && updated[identity] {
 			continue
 		}
@@ -439,12 +439,12 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		if err := e.validateInheritedMutationRow(s, b, candidate.physical, schema, physicalRow, &eval); err != nil {
 			return Result{}, err
 		}
-		keyChanged, err := s.uniqueKeyChanged(ref, old.values, physicalRow)
+		keyChanged, err := s.uniqueKeyChanged(ref, old.Values, physicalRow)
 		if err != nil {
 			return Result{}, err
 		}
 		if keyChanged {
-			if err := s.acquireUpdateRowMode(ref, old.row, lock.ForUpdate); err != nil {
+			if err := s.acquireUpdateRowMode(ref, old.Row, lock.ForUpdate); err != nil {
 				return Result{}, err
 			}
 			if _, live, err := e.latestUpdateRow(s, ref, candidate); err != nil {
@@ -456,7 +456,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		if err := s.claimUniqueRow(ref, old); err != nil {
 			return Result{}, err
 		}
-		old.pendingKeyChange = old.pendingKeyChange || keyChanged
+		old.PendingKeyChange = old.PendingKeyChange || keyChanged
 		batch := &single
 		for i := range batches {
 			if batches[i].ref == ref {
@@ -498,9 +498,9 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			if batch.prior == nil {
 				batch.prior = make(map[ids.RowID]struct{})
 			}
-			batch.prior[predecessor.row] = struct{}{}
+			batch.prior[predecessor.Row] = struct{}{}
 		}
-		_, overlap := batch.prior[old.row]
+		_, overlap := batch.prior[old.Row]
 		if overlap {
 			err = s.Writes().replace(ref, batch.old[len(batch.old)-1:], one)
 		} else {

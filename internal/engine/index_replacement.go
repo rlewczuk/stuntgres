@@ -20,7 +20,7 @@ type remintedIndexStorage struct {
 }
 
 func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, snapshot *indexSnapshot) (remintedIndexStorage, error) {
-	prepared := remintedIndexStorage{catalog: next, baseCatalog: e.catalog.state, baseRow: e.storage.nextRow, baseVersion: e.storage.nextVersion, frontier: e.commitSeq}
+	prepared := remintedIndexStorage{catalog: next, baseCatalog: e.catalog.state, baseRow: e.storage.RowFrontier(), baseVersion: e.storage.VersionFrontier(), frontier: e.commitSeq}
 	var err error
 	prepared.roots, prepared.nextRow, prepared.nextVersion, err = e.prepareRemintedStorage(ctx, next, storage, snapshot)
 	if err == nil {
@@ -48,36 +48,36 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalog.State
 			return nil, 0, 0, fmt.Errorf("stuntgres: replacement cannot import invalid index %s", quoteIdentifier(index.Name()))
 		}
 	}
-	rowID, versionID := e.storage.nextRow, e.storage.nextVersion
+	rowID, versionID := e.storage.RowFrontier(), e.storage.VersionFrontier()
 	if snapshot == nil {
 		return nil, 0, 0, ids.ErrCatalogReplaced
 	}
 	positions := make(map[ids.ObjectAddress]map[indexRowIdentity]int, len(storage))
 	for address, relation := range storage {
-		if descriptor := next.Get(address); descriptor != nil && e.storage.relations[address] == relation {
+		if descriptor := next.Get(address); descriptor != nil && e.storage.Relations[address] == relation {
 			if namespace, ok := next.Namespace(descriptor.Namespace()); ok && namespace.Temporary != (ids.SessionToken{}) {
 				continue
 			}
 		}
-		selected := make(map[indexRowIdentity]int, len(relation.versions))
+		selected := make(map[indexRowIdentity]int, len(relation.Versions))
 		positions[address] = selected
-		for i := range relation.versions {
+		for i := range relation.Versions {
 			rowID++
 			versionID++
-			row := &relation.versions[i]
+			row := &relation.Versions[i]
 			if err := ctx.Err(); err != nil {
 				return nil, 0, 0, err
 			}
-			identity := indexRowIdentity{row: row.row, version: row.version}
+			identity := indexRowIdentity{row: row.Row, version: row.Version}
 			if _, duplicate := selected[identity]; duplicate {
 				return nil, 0, 0, ids.ErrCatalogReplaced
 			}
 			selected[identity] = i
-			row.row, row.version = ids.RowID(rowID), ids.VersionID(versionID)
-			row.base, row.born = 0, e.commitSeq+1
-			row.keyChangedAt, row.pendingKeyChange = 0, false
-			row.indexAdmission = nil
-			row.indexOutputs = nil
+			row.Row, row.Version = ids.RowID(rowID), ids.VersionID(versionID)
+			row.Base, row.Born = 0, e.commitSeq+1
+			row.KeyChangedAt, row.PendingKeyChange = 0, false
+			row.IndexAdmission = nil
+			row.IndexOutputs = nil
 		}
 	}
 	roots, err := snapshot.transport(ctx, next, storage, positions)
@@ -97,7 +97,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalog.State
 			continue
 		}
 		if retained.Get(address) != nil {
-			root := e.storage.indexRoots[address]
+			root := e.storage.IndexRoots[address]
 			if root == nil {
 				return nil, 0, 0, ids.ErrCatalogReplaced
 			}

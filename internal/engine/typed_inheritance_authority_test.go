@@ -122,7 +122,7 @@ func TestTypedSameUsageTypePreservesPhysicalRoot(t *testing.T) {
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
-	store := e.storage.relations[table.Address()]
+	store := e.storage.Relations[table.Address()]
 	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), table.Address())
 	ref.Address.SubID = 1
 	node := columnExpression{Info: expr.Info{Usage: table.Columns[0].Usage}, origin: ref, scope: 1, frame: 1, slot: 0}
@@ -130,7 +130,7 @@ func TestTypedSameUsageTypePreservesPhysicalRoot(t *testing.T) {
 	if err := e.stageTypedRows(scope, auth, stage, mutation); err != nil {
 		t.Fatal(err)
 	}
-	if len(stage.rowShapes) != 0 || e.storage.relations[table.Address()] != store {
+	if len(stage.rowShapes) != 0 || e.storage.Relations[table.Address()] != store {
 		t.Fatal("binary-identical TYPE copied physical rows")
 	}
 }

@@ -99,14 +99,14 @@ func (e *Engine) privateStorageLocked(c *catalogChanges, a ids.ObjectAddress) *r
 			return shape.replacement
 		}
 	}
-	return e.storage.relations[a]
+	return e.storage.Relations[a]
 }
 
 func (e *Engine) authorizationStorageLocked(auth AuthorizationView, a ids.ObjectAddress) *relationStorage {
 	if auth.session != nil && auth.session.transactions != nil {
 		return e.privateStorageLocked(auth.session.transactions.catalog, a)
 	}
-	return e.storage.relations[a]
+	return e.storage.Relations[a]
 }
 
 type columnProjection struct {
@@ -160,19 +160,19 @@ func (p columnProjection) versions(ctx context.Context, rows []rowVersion) ([]ro
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if len(row.values) != p.width {
+		if len(row.Values) != p.width {
 			return nil, fmt.Errorf("stuntgres: invalid original row width")
 		}
 		values := make([]sqltype.Value, len(p.slots))
 		for j, slot := range p.slots {
 			if slot >= 0 {
-				values[j] = row.values[slot]
+				values[j] = row.Values[slot]
 			} else {
 				values[j] = p.fills[j]
 			}
 		}
-		row.values = values
-		row.indexOutputs = nil
+		row.Values = values
+		row.IndexOutputs = nil
 		projected[i] = row
 	}
 	return projected, nil
@@ -199,7 +199,7 @@ func projectPrivateSnapshotRoots(ctx context.Context, catalog *catalogChanges, r
 		if !exists || shape.rewritten || shape.hasSnapshot || slices.Equal(root.relation.Attributes, shape.relation.Attributes) {
 			continue
 		}
-		versions := shape.replacement.versions
+		versions := shape.replacement.Versions
 		if root.storage != shape.original || root.ends != shape.ends || !sameVersionRoot(root.versions, shape.root) {
 			var err error
 			versions, err = projectVersions(ctx, root.versions, root.relation, shape.relation, shape.fills)

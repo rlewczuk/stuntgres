@@ -48,8 +48,8 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 				}
 			case "shape":
 				// Preserve every row and its width; only shape authority changes.
-				replacement := *e.storage.relations[table.Address]
-				e.storage.relations[table.Address] = &replacement
+				replacement := *e.storage.Relations[table.Address]
+				e.storage.Relations[table.Address] = &replacement
 			}
 			assertSequenceDeletePrivateBatch(t, s, table.Address, sequence.Address, phase == "namespace")
 			before := captureSequenceDeletePublication(e, s, table.Address)
@@ -154,18 +154,18 @@ func TestSequenceDeleteCompositionSingleFrontier(t *testing.T) {
 	if _, err := e.Commit(op, ref); err != nil {
 		t.Fatal(err)
 	}
-	store := e.storage.relations[table.Address]
-	if e.commitSeq != frontier+1 || len(store.versions) != 5 || store.ends == nil || len(store.ends.rows) != 3 {
-		t.Fatal("mixed publication did not install one frontier", e.commitSeq, frontier, len(store.versions), store.ends)
+	store := e.storage.Relations[table.Address]
+	if e.commitSeq != frontier+1 || len(store.Versions) != 5 || store.Ends == nil || len(store.Ends.Rows) != 3 {
+		t.Fatal("mixed publication did not install one frontier", e.commitSeq, frontier, len(store.Versions), store.Ends)
 	}
-	for _, version := range store.versions[3:] {
-		if version.born != frontier+1 {
-			t.Fatal("append frontier", version.born)
+	for _, version := range store.Versions[3:] {
+		if version.Born != frontier+1 {
+			t.Fatal("append frontier", version.Born)
 		}
 	}
-	for _, end := range store.ends.rows {
-		if end.end != frontier+1 {
-			t.Fatal("deletion frontier", end.end)
+	for _, end := range store.Ends.Rows {
+		if end.End != frontier+1 {
+			t.Fatal("deletion frontier", end.End)
 		}
 	}
 	peer := sessionStart(t, e, nil)

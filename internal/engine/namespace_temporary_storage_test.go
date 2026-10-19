@@ -148,8 +148,8 @@ func TestPGNamespaceForeignTemporaryStorageExecution(t *testing.T) {
 func TestPGNamespaceForeignTemporaryStorageTargets(t *testing.T) {
 	e, owner, peer, foreign, _, _ := namespaceTemporaryStorageFixture(t)
 	name := e.CatalogRead().Get(foreign.Namespace()).Name()
-	store := e.storage.relations[foreign.Address()]
-	root, ends := store.versions, store.ends
+	store := e.storage.Relations[foreign.Address()]
+	root, ends := store.Versions, store.Ends
 	queries := []string{
 		"INSERT INTO " + name + ".storage_foreign VALUES(100)",
 		"UPDATE " + name + ".storage_foreign SET v=100",
@@ -179,7 +179,7 @@ func TestPGNamespaceForeignTemporaryStorageTargets(t *testing.T) {
 			}
 			var diagnostic *sqlstate.Error
 			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot access temporary tables of other sessions"}
-			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.catalog.state != before || e.commitSeq != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.relations[foreign.Address()] != store || !sameVersionRoot(store.versions, root) || store.ends != ends || peer.transactions.accessedTemporary {
+			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.catalog.state != before || e.commitSeq != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[foreign.Address()] != store || !sameVersionRoot(store.Versions, root) || store.Ends != ends || peer.transactions.accessedTemporary {
 				t.Fatal("foreign target changed owner state or rejection boundary", query, prepared, err)
 			}
 		}
@@ -201,7 +201,7 @@ func TestPGNamespaceForeignTemporaryStorageTargets(t *testing.T) {
 		op.Done()
 		var diagnostic *sqlstate.Error
 		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot access temporary tables of other sessions"}
-		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || count != 0 || output.Len() != 0 || e.catalog.state != before || e.commitSeq != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.relations[foreign.Address()] != store || !sameVersionRoot(store.versions, root) || store.ends != ends || peer.transactions.accessedTemporary {
+		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || count != 0 || output.Len() != 0 || e.catalog.state != before || e.commitSeq != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[foreign.Address()] != store || !sameVersionRoot(store.Versions, root) || store.Ends != ends || peer.transactions.accessedTemporary {
 			t.Fatal("foreign COPY changed owner state or emitted rows", query, count, err)
 		}
 	}

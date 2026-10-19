@@ -63,11 +63,11 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 		}
 		historyPosition := 0
 		var retainedChecks partitionRetainedChecks
-		for i, version := range store.versions {
+		for i, version := range store.Versions {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			if !liveVersion(version, ^ids.CommitSeq(0), store.ends, nil) {
+			if !liveVersion(version, ^ids.CommitSeq(0), store.Ends, nil) {
 				continue
 			}
 			var original []sqltype.Value
@@ -81,7 +81,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 			destination := root
 			for destination.Partition != nil {
 				var buffer [32]catalog.PartitionDatum
-				key, err := partitionRowKey(destination, partitionReplacementRow(source, destination, version.values), evaluation, buffer[:])
+				key, err := partitionRowKey(destination, partitionReplacementRow(source, destination, version.Values), evaluation, buffer[:])
 				if err != nil {
 					return nil, err
 				}
@@ -109,7 +109,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 				}
 				destination = selected
 			}
-			values := partitionReplacementRow(source, destination, version.values)
+			values := partitionReplacementRow(source, destination, version.Values)
 			validation := destination
 			if destination.Address() == address && history.relation != nil {
 				var err error
@@ -128,7 +128,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 			child := destination
 			for child.Membership != nil {
 				parent := view.MustRelation(child.Membership.Parent)
-				allowed, err := partitionAccepts(view, parent, child, partitionReplacementRow(source, parent, version.values), evaluation)
+				allowed, err := partitionAccepts(view, parent, child, partitionReplacementRow(source, parent, version.Values), evaluation)
 				if err != nil {
 					return nil, err
 				}
@@ -149,7 +149,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 				removed[address] = make(map[int]bool)
 			}
 			removed[address][i] = true
-			version.values = values
+			version.Values = values
 			incoming[destination.Address()] = append(incoming[destination.Address()], version)
 			dirty[address], dirty[destination.Address()] = true, true
 		}
@@ -160,14 +160,14 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 			return nil, ids.ErrCatalogReplaced
 		}
 		next := *original
-		next.versions = make([]rowVersion, 0, len(original.versions)-len(removed[address])+len(incoming[address]))
-		for i, version := range original.versions {
+		next.Versions = make([]rowVersion, 0, len(original.Versions)-len(removed[address])+len(incoming[address]))
+		for i, version := range original.Versions {
 			if !removed[address][i] {
-				next.versions = append(next.versions, version)
+				next.Versions = append(next.Versions, version)
 			}
 		}
-		next.versions = append(next.versions, incoming[address]...)
-		next.generation++
+		next.Versions = append(next.Versions, incoming[address]...)
+		next.Generation++
 		storage[address] = &next
 	}
 	return dirty, ctx.Err()

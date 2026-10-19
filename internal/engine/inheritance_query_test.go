@@ -109,8 +109,8 @@ func TestInheritanceQueryLocator(t *testing.T) {
 	ref := func(d *catalog.Relation) ids.ObjectRef {
 		return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 	}
-	one := rowVersion{row: 1, version: 1, values: []sqltype.Value{inheritanceQueryInt(e, 1)}}
-	two := rowVersion{row: 1, version: 2, values: []sqltype.Value{inheritanceQueryInt(e, 9), inheritanceQueryInt(e, 2)}}
+	one := rowVersion{Row: 1, Version: 1, Values: []sqltype.Value{inheritanceQueryInt(e, 1)}}
+	two := rowVersion{Row: 1, Version: 2, Values: []sqltype.Value{inheritanceQueryInt(e, 9), inheritanceQueryInt(e, 2)}}
 	ps, cs := &relationStorage{}, &relationStorage{}
 	parent := queryLeaf{ref: ref(p), relation: p, storage: ps}
 	child := queryLeaf{ref: ref(c), relation: c, storage: cs}
@@ -120,19 +120,19 @@ func TestInheritanceQueryLocator(t *testing.T) {
 	}, inheritanceEnds: []int{1, 2}}
 	first := source.physicalRow(0, parent, one)
 	second := source.physicalRow(1, parent, two)
-	if first.leaf.ref == second.leaf.ref || first.version.row != second.version.row || second.leaf.storage != cs || second.hint != 1 {
+	if first.leaf.ref == second.leaf.ref || first.version.Row != second.version.Row || second.leaf.storage != cs || second.hint != 1 {
 		t.Fatal(first, second)
 	}
-	if lockResourceForFirst, lockResourceForSecond := (lock.Resource{ObjectRef: first.leaf.ref, Row: first.version.row}), (lock.Resource{ObjectRef: second.leaf.ref, Row: second.version.row}); lockResourceForFirst == lockResourceForSecond {
+	if lockResourceForFirst, lockResourceForSecond := (lock.Resource{ObjectRef: first.leaf.ref, Row: first.version.Row}), (lock.Resource{ObjectRef: second.leaf.ref, Row: second.version.Row}); lockResourceForFirst == lockResourceForSecond {
 		t.Fatal("equal RowID aliased physical resources")
 	}
 	latest := two
-	latest.version = 3
-	latest.values = []sqltype.Value{inheritanceQueryInt(e, 9), inheritanceQueryInt(e, 4)}
-	if values := second.values(latest); len(values) != 1 || !reflect.DeepEqual(values, latest.values[1:]) {
+	latest.Version = 3
+	latest.Values = []sqltype.Value{inheritanceQueryInt(e, 9), inheritanceQueryInt(e, 4)}
+	if values := second.values(latest); len(values) != 1 || !reflect.DeepEqual(values, latest.Values[1:]) {
 		t.Fatal(values)
 	}
-	if source.versionAt(1).version != 2 || source.physicalRef(1) != child.ref || source.row(absentQueryIndex) != nil {
+	if source.versionAt(1).Version != 2 || source.physicalRef(1) != child.ref || source.row(absentQueryIndex) != nil {
 		t.Fatal("physical/absent provenance lost")
 	}
 }
@@ -143,8 +143,8 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	c := inheritanceLifecycleTable(e, 20001, "c", p.Address())
 	inheritanceLifecycleInstall(e, p, c)
 	e.commitSeq = 1
-	e.storage.relations[p.Address()].versions = []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{}}}
-	e.storage.relations[c.Address()].versions = []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{}}, {row: 2, version: 2, born: 1, values: []sqltype.Value{}}}
+	e.storage.Relations[p.Address()].Versions = []rowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{}}}
+	e.storage.Relations[c.Address()].Versions = []rowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{}}}
 	op, done, err := testOperation(e, context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -159,7 +159,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
-	leaf := queryLeaf{ref: ref, relation: p, storage: e.storage.relations[p.Address()]}
+	leaf := queryLeaf{ref: ref, relation: p, storage: e.storage.Relations[p.Address()]}
 	scope.querySources = []queryLeaf{leaf}
 	if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
@@ -190,7 +190,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	if err = selectQuerySources(op.Context(), source); err != nil || source.count() != 3 {
 		t.Fatal(source.count(), err)
 	}
-	if source.view.read() != view.read() || source.inheritance[1].prefix.view.read() != view.read() || &source.inheritance[1].prefix.committed[0] != &e.storage.relations[c.Address()].versions[0] {
+	if source.view.read() != view.read() || source.inheritance[1].prefix.view.read() != view.read() || &source.inheritance[1].prefix.committed[0] != &e.storage.Relations[c.Address()].Versions[0] {
 		t.Fatal("hierarchy acquired a second visibility owner or copied immutable rows")
 	}
 	e.mu.Lock()

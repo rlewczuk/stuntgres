@@ -18,48 +18,48 @@ func TestDomainCheckIndexPrivateLayoutTransport(t *testing.T) {
 				run(t, e, query)
 			}
 			sequence := roleTableRef(t, e, "steps").Address
-			if e.storage.sequences[sequence].last != 2 {
-				t.Fatal("initial index insertion events", e.storage.sequences[sequence].last)
+			if e.storage.Sequences[sequence].Last != 2 {
+				t.Fatal("initial index insertion events", e.storage.Sequences[sequence].Last)
 			}
 			session := sessionStart(t, e, nil)
 			sessionSQL(t, session, "BEGIN")
 			sessionSQL(t, session, "UPDATE subject SET id=3 WHERE id=1")
-			if e.storage.sequences[sequence].last != 3 {
-				t.Fatal("UPDATE replayed predecessor or omitted successor", e.storage.sequences[sequence].last)
+			if e.storage.Sequences[sequence].Last != 3 {
+				t.Fatal("UPDATE replayed predecessor or omitted successor", e.storage.Sequences[sequence].Last)
 			}
 			sessionSQL(t, session, "ALTER TABLE subject DROP COLUMN unused")
-			if e.storage.sequences[sequence].last != 3 {
-				t.Fatal("slot projection replayed CHECK", e.storage.sequences[sequence].last)
+			if e.storage.Sequences[sequence].Last != 3 {
+				t.Fatal("slot projection replayed CHECK", e.storage.Sequences[sequence].Last)
 			}
 			sessionSQL(t, session, "COMMIT")
-			if e.storage.sequences[sequence].last != 3 {
-				t.Fatal("publication replayed projected CHECK", e.storage.sequences[sequence].last)
+			if e.storage.Sequences[sequence].Last != 3 {
+				t.Fatal("publication replayed projected CHECK", e.storage.Sequences[sequence].Last)
 			}
 			parent := roleTableRef(t, e, "subject").Address
-			root := e.storage.indexRoots[roleTableRef(t, e, "checked_idx").Address]
-			store := e.storage.relations[parent]
+			root := e.storage.IndexRoots[roleTableRef(t, e, "checked_idx").Address]
+			store := e.storage.Relations[parent]
 			check := func(row ids.RowID, version ids.VersionID, position int) {
-				if position < 0 || position >= len(store.versions) || store.versions[position].row != row || store.versions[position].version != version {
+				if position < 0 || position >= len(store.Versions) || store.Versions[position].Row != row || store.Versions[position].Version != version {
 					t.Fatal("projected entry lost actual heap identity/position")
 				}
 			}
-			if root.hash != nil {
+			if root.Hash != nil {
 				count := 0
-				for _, bucket := range root.hash.buckets {
+				for _, bucket := range root.Hash.Buckets {
 					for _, entry := range bucket {
 						count++
-						check(entry.row, entry.version, entry.position)
+						check(entry.Row, entry.Version, entry.Position)
 					}
 				}
-				if count != 2 || root.hash.storage != store {
+				if count != 2 || root.Hash.Storage != store {
 					t.Fatal("projected hash root coverage/storage")
 				}
 			} else {
-				if len(root.entries) != 2 {
-					t.Fatal("projected btree coverage", len(root.entries))
+				if len(root.Entries) != 2 {
+					t.Fatal("projected btree coverage", len(root.Entries))
 				}
-				for _, entry := range root.entries {
-					check(entry.row, entry.version, entry.position)
+				for _, entry := range root.Entries {
+					check(entry.Row, entry.Version, entry.Position)
 				}
 			}
 		})
@@ -72,16 +72,16 @@ func TestDomainCheckIndexAutocommitReindexEvents(t *testing.T) {
 		run(t, e, query)
 	}
 	sequence := roleTableRef(t, e, "steps").Address
-	if e.storage.sequences[sequence].last != 2 {
+	if e.storage.Sequences[sequence].Last != 2 {
 		t.Fatal("initial insertion events")
 	}
 	session := sessionStart(t, e, nil)
 	sessionSQL(t, session, "REINDEX INDEX checked_idx")
-	if e.storage.sequences[sequence].last != 4 {
-		t.Fatal("first real REINDEX build", e.storage.sequences[sequence].last)
+	if e.storage.Sequences[sequence].Last != 4 {
+		t.Fatal("first real REINDEX build", e.storage.Sequences[sequence].Last)
 	}
 	sessionSQL(t, session, "REINDEX INDEX checked_idx")
-	if e.storage.sequences[sequence].last != 6 {
-		t.Fatal("earlier build suppressed new REINDEX", e.storage.sequences[sequence].last)
+	if e.storage.Sequences[sequence].Last != 6 {
+		t.Fatal("earlier build suppressed new REINDEX", e.storage.Sequences[sequence].Last)
 	}
 }

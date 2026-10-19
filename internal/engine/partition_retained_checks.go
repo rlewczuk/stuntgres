@@ -30,19 +30,19 @@ func partitionNeedsRowHistory(catalog catalog.Read, d *catalog.Relation) bool {
 }
 
 func (h partitionRowHistory) nextRow(ctx context.Context, position *int, candidate rowVersion) ([]sqltype.Value, error) {
-	for *position < len(h.store.versions) {
+	for *position < len(h.store.Versions) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		original := h.store.versions[*position]
+		original := h.store.Versions[*position]
 		*position = *position + 1
-		if !liveVersion(original, h.frontier, h.store.ends, nil) {
+		if !liveVersion(original, h.frontier, h.store.Ends, nil) {
 			continue
 		}
-		if original.row != candidate.row || original.version != candidate.version {
+		if original.Row != candidate.Row || original.Version != candidate.Version {
 			return nil, ids.ErrCatalogReplaced
 		}
-		return original.values, nil
+		return original.Values, nil
 	}
 	return nil, ids.ErrCatalogReplaced
 }

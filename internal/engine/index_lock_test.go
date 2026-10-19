@@ -77,7 +77,7 @@ func TestBtreeIndexWaitingCancellationAndEpochFence(t *testing.T) {
 				lockAwait(t, done, context.Canceled)
 			}
 			transactionEnd(t, writer, tx, false)
-			if len(e.storage.indexRoots) != 0 {
+			if len(e.storage.IndexRoots) != 0 {
 				t.Fatal("canceled/fenced build leaked roots")
 			}
 			lockEmpty(t, e)
@@ -99,7 +99,7 @@ func TestBtreeIndexBuildTimeout(t *testing.T) {
 		t.Fatal("timeout did not terminate")
 	}
 	transactionEnd(t, writer, tx, false)
-	if len(e.storage.indexRoots) != 0 {
+	if len(e.storage.IndexRoots) != 0 {
 		t.Fatal("timeout published root")
 	}
 	lockEmpty(t, e)
@@ -175,8 +175,8 @@ func TestBtreeIndexIndependentParentPublications(t *testing.T) {
 	}
 	_, left := btreeRoot(t, e, "ai")
 	_, right := btreeRoot(t, e, "bi")
-	if len(left.entries) != 32 || len(right.entries) != 32 {
-		t.Fatal(len(left.entries), len(right.entries))
+	if len(left.Entries) != 32 || len(right.Entries) != 32 {
+		t.Fatal(len(left.Entries), len(right.Entries))
 	}
 	for _, key := range btreeKeys(t, left) {
 		if key != "1" {

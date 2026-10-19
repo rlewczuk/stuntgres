@@ -32,7 +32,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	}
 	queryCreatePublish(t, e, childStage)
 	oldRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), c.Address())
-	oldStorage := e.storage.relations[c.Address()]
+	oldStorage := e.storage.Relations[c.Address()]
 	holderOp, holderDone, err := testOperation(e, context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -64,7 +64,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	parentRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
-	parent := queryLeaf{ref: parentRef, relation: p, storage: e.storage.relations[p.Address()]}
+	parent := queryLeaf{ref: parentRef, relation: p, storage: e.storage.Relations[p.Address()]}
 	scope.querySources = []queryLeaf{parent}
 	if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: parentRef}, lock.AccessShare); err != nil {
 		t.Fatal(err)
@@ -102,7 +102,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, replacementStage)
-	if replacement.Address() == c.Address() || e.storage.relations[replacement.Address()] == oldStorage || e.storage.relations[c.Address()] != nil {
+	if replacement.Address() == c.Address() || e.storage.Relations[replacement.Address()] == oldStorage || e.storage.Relations[c.Address()] != nil {
 		t.Fatal("replacement did not change physical identity and storage")
 	}
 	if children := inheritanceChildren(e.CatalogRead(), p.Address()); len(children) != 1 || children[0] != replacement {
