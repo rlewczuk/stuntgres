@@ -105,6 +105,16 @@ func rowLockViewAsync(t *testing.T, s *Session, parent context.Context, q string
 	return done
 }
 
+// Capture the physical target before launching a waiter; queue assertions must
+// identify the source row, including after native layout remapping.
+func rowLockViewFirstResource(t *testing.T, e *Engine, table string) lock.Resource {
+	t.Helper()
+	ref := roleTableRef(t, e, table)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return lock.Resource{ObjectRef: ref, Row: e.storage.Relations[ref.Address].Versions[0].Row}
+}
+
 func rowLockViewFixture(t *testing.T) (*Engine, *Session, *Session, *Session) {
 	e, a, b, c := rowLockEngineFixture(t)
 	sessionSQL(t, c, "INSERT INTO t VALUES(3,30)")
@@ -121,6 +131,7 @@ func TestRowLockViews(t *testing.T) {
 				ar := transactionBegin(t, a)
 				rowLockViewRows(t, e, a, "SELECT val FROM w WHERE id=1 "+clause, prepared, 11)
 				rowLockViewGrants(t, e, a.transactions.ticket, "t", 1)
+				resource := rowLockViewFirstResource(t, e, "t")
 				transactionRows(t, b, "SELECT v FROM t WHERE id=1", 10)
 				for _, id := range []string{"2", "3"} {
 					if result := sessionSQL(t, b, "UPDATE t SET v=v+1 WHERE id="+id); result.Count != 1 {
@@ -130,16 +141,18 @@ func TestRowLockViews(t *testing.T) {
 				if clause == "FOR KEY SHARE" {
 					sessionSQL(t, b, "UPDATE t SET v=40 WHERE id=1")
 				} else {
-					ctx, cancel := lockWaitCaller(t, true)
+					ctx := lockObservedDeadline(t)
 					done := rowLockViewAsync(t, b, ctx, "UPDATE t SET v=40 WHERE id=1")
 					rowLockQueued(t, e, a.transactions.ticket, lock.ForNoKeyUpdate)
-					cancel()
+					lockObservedRequest(t, e, b, resource, lock.ForNoKeyUpdate)
+					ctx.arm(50 * time.Millisecond)
 					deleteAwait(t, done, 0, context.DeadlineExceeded)
 				}
-				ctx, cancel := lockWaitCaller(t, true)
+				ctx := lockObservedDeadline(t)
 				done := rowLockViewAsync(t, b, ctx, "DELETE FROM t WHERE id=1")
 				rowLockQueued(t, e, a.transactions.ticket, lock.ForUpdate)
-				cancel()
+				lockObservedRequest(t, e, b, resource, lock.ForUpdate)
+				ctx.arm(50 * time.Millisecond)
 				deleteAwait(t, done, 0, context.DeadlineExceeded)
 				transactionEnd(t, a, ar, false)
 				lockEmpty(t, e)
@@ -172,11 +185,13 @@ func TestRowLockViewProvenance(t *testing.T) {
 		sessionSQL(t, b, "CREATE VIEW j AS SELECT t.v FROM t JOIN u ON t.id=u.id")
 		ar := transactionBegin(t, a)
 		transactionRows(t, a, "SELECT v FROM j FOR SHARE", 10, 10)
-		for _, query := range []string{"DELETE FROM t WHERE id=1", "DELETE FROM u WHERE id=1"} {
-			ctx, cancel := lockWaitCaller(t, true)
-			done := rowLockViewAsync(t, b, ctx, query)
+		for _, table := range []string{"t", "u"} {
+			resource := rowLockViewFirstResource(t, e, table)
+			ctx := lockObservedDeadline(t)
+			done := rowLockViewAsync(t, b, ctx, "DELETE FROM "+table+" WHERE id=1")
 			rowLockQueued(t, e, a.transactions.ticket, lock.ForUpdate)
-			cancel()
+			lockObservedRequest(t, e, b, resource, lock.ForUpdate)
+			ctx.arm(50 * time.Millisecond)
 			deleteAwait(t, done, 0, context.DeadlineExceeded)
 		}
 		sessionSQL(t, b, "UPDATE u SET id=4 WHERE id=3")
@@ -285,10 +300,12 @@ func TestRowLockViewStored(t *testing.T) {
 		ar = transactionBegin(t, a)
 		transactionRows(t, a, "SELECT v FROM stored WHERE id=1 FOR NO KEY UPDATE", 10)
 		transactionRows(t, b, "SELECT v FROM t WHERE id=1 FOR KEY SHARE", 10)
-		ctx, cancel := lockWaitCaller(t, true)
+		resource := rowLockViewFirstResource(t, e, "t")
+		ctx := lockObservedDeadline(t)
 		done := rowLockViewAsync(t, b, ctx, "SELECT v FROM t WHERE id=1 FOR SHARE")
 		rowLockQueued(t, e, a.transactions.ticket, lock.ForShare)
-		cancel()
+		lockObservedRequest(t, e, b, resource, lock.ForShare)
+		ctx.arm(50 * time.Millisecond)
 		deleteAwait(t, done, 0, context.DeadlineExceeded)
 		transactionEnd(t, a, ar, false)
 		lockEmpty(t, e)
@@ -326,10 +343,12 @@ func TestRowLockViewStored(t *testing.T) {
 		}
 		ar := transactionBegin(t, a)
 		transactionRows(t, a, "SELECT v FROM stored FOR KEY SHARE", 10, 20)
-		ctx, cancel := lockWaitCaller(t, true)
+		resource := rowLockViewFirstResource(t, e, "t")
+		ctx := lockObservedDeadline(t)
 		done := rowLockViewAsync(t, b, ctx, "SELECT val FROM t WHERE val=10 FOR KEY SHARE")
 		rowLockQueued(t, e, a.transactions.ticket, lock.ForKeyShare)
-		cancel()
+		lockObservedRequest(t, e, b, resource, lock.ForKeyShare)
+		ctx.arm(50 * time.Millisecond)
 		deleteAwait(t, done, 0, context.DeadlineExceeded)
 		transactionEnd(t, a, ar, false)
 		lockEmpty(t, e)

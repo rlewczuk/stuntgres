@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
+	"time"
 )
 
 func TestReferenceJSONPathNavigateCancellation(t *testing.T) {
@@ -18,7 +19,11 @@ func TestReferenceJSONPathNavigateCancellation(t *testing.T) {
 				run(fixture.Exec(`CREATE TABLE jpn_cancel_out(id int,v jsonb)`, 0))
 				run(fixture.Exec(`INSERT INTO jpn_active VALUES(1,'[0]','$'),(2,'[0]','$'),(3,'[0]','$'),(4,'[0]','$'),(5,'[0]','$')`, 5))
 				run(fixture.Exec(`INSERT INTO jpn_cancel_out VALUES(0,'99')`, 1))
-				large := `["` + strings.Repeat("x", 32<<20) + `",` + strings.Repeat("0,", 1<<16) + `0]`
+				// Keep the encoded payload below 32MiB with 8192 bounded strings.
+				// Provider traversal/output checks cancellation between 4KiB chunks;
+				// a single giant runtime string copy is not an admission barrier.
+				element := `"` + strings.Repeat("x", 4092) + `"`
+				large := `[` + strings.Repeat(element+",", 8191) + element + `]`
 				readSQL := `SELECT sum(length(jsonb_path_query_array(v,p)::text)) AS n FROM jpn_active`
 				writeSQL := `INSERT INTO jpn_cancel_out SELECT id,jsonb_path_query_array(v,p) FROM jpn_active ORDER BY id`
 				read, err := c.PrepareContext(p.Ctx, readSQL)
@@ -47,6 +52,18 @@ func TestReferenceJSONPathNavigateCancellation(t *testing.T) {
 					fixture.LexicalOrdinary(t, err, context.Canceled)
 				}
 				provider := "sqltype.JSONBPathQueryArrayPlan.Evaluate"
+				defer func() {
+					ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+					defer cancel()
+					for _, query := range []string{
+						"DELETE FROM jpn_cancel_out WHERE id>0",
+						`UPDATE jpn_active SET v='[0]',p='$' WHERE id>1`,
+					} {
+						if _, err := c.ExecContext(ctx, query); err != nil {
+							t.Error("restore active cancellation child:", query, err)
+						}
+					}
+				}()
 				// Import typed data first: admission must observe evaluator work, not input.
 				run(fixture.Prepared(fixture.Exec(`UPDATE jpn_active SET v=$1,p=$2 WHERE id>1`, 4, large, path)))
 				fixture.BinaryConversionActiveCancel(t, p, b, c, readSQL, provider, func(ctx context.Context) fixture.RelationOutcome {

@@ -532,6 +532,18 @@ func visitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 				return err
 			}
 			for _, assignment := range s.Assignments {
+				for _, target := range assignment.Targets {
+					for _, step := range target.Steps {
+						if step.Subscript != nil {
+							if err := expression(step.Subscript.Lower); err != nil {
+								return err
+							}
+							if err := expression(step.Subscript.Upper); err != nil {
+								return err
+							}
+						}
+					}
+				}
 				for _, step := range assignment.Steps {
 					if step.Subscript == nil {
 						continue

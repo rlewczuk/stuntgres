@@ -6,6 +6,15 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+`LockWaitBehind` normally requires the exact waiter/holder/relation/mode queue
+witness. Its optional actual-operation completion channel is only for self-timing
+SQL: return then means either that exact wait was observed or that the operation
+completed before observation. Callers must still join and independently validate
+the real outcome, including errors, result ownership and side effects. Query
+errors and observer-context expiration remain failures unless that completion
+signal is already closed. External user-cancellation admission barriers omit the
+channel and retain mandatory queue observation.
+
 ### PostgreSQL oracle policy and provenance
 
 The current external oracle is PostgreSQL18.6, pinned to the verified OCI index:

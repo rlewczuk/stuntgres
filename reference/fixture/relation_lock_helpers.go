@@ -47,18 +47,37 @@ func LockOID(t *testing.T, ctx context.Context, name string) int64 {
 	return oid
 }
 
-func LockWaitBehind(t *testing.T, ctx context.Context, waiter, holder int, relation int64, mode string) {
+// LockWaitBehind returns after observing the exact queued lock, or after the
+// optional actual-operation completion signal closes. A self-timing SQL command
+// can finish before its transient wait is observed; its caller must still join
+// and validate the real outcome. Without a signal, queue observation is required.
+// External-cancellation admission barriers must retain that strict form.
+func LockWaitBehind(t *testing.T, ctx context.Context, waiter, holder int, relation int64, mode string, completed ...<-chan struct{}) {
 	t.Helper()
 	if waiter <= 0 || holder <= 0 || waiter == holder {
 		t.Fatal("invalid blocker identities", waiter, holder)
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
+	var done <-chan struct{}
+	if len(completed) != 0 {
+		done = completed[0]
+	}
 	for {
+		select {
+		case <-done:
+			return
+		default:
+		}
 		var waiting bool
 		err := Admin.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND locktype='relation' AND relation=$4 AND mode=$3 AND NOT granted) AND $2 = ANY(pg_blocking_pids($1))`, waiter, holder, mode, relation).Scan(&waiting)
 		if err != nil {
-			t.Fatal(err)
+			select {
+			case <-done:
+				return
+			default:
+				t.Fatal(err)
+			}
 		}
 		if waiting {
 			return

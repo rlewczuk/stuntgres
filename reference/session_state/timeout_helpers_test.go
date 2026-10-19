@@ -105,10 +105,42 @@ func timeoutReferenceIdle(t *testing.T, ctx context.Context, delay time.Duration
 	}
 }
 
+// Every caller expects an expired owner, not a live-owner timing probe. Observe
+// the asynchronous terminal transition before issuing the first fatal SQL.
 func (f timeoutReferenceFixture) fatalProbe(code string) {
 	f.t.Helper()
+	f.awaitFatal(code)
 	f.fatalQuery(code)
 	f.dead()
+}
+
+// Elapsed timeout budget does not prove its asynchronous callback has run.
+// Observe termination without owner SQL, preserving the first FATAL response for
+// fatalProbe. PostgreSQL's exact log witness and native's public Validator report
+// the actual physical owner's state; the fixture context bounds a broken timer.
+func (f timeoutReferenceFixture) awaitFatal(code string) {
+	f.t.Helper()
+	if f.b.PG {
+		f.serverFatal(code)
+		return
+	}
+	for {
+		var valid bool
+		if err := f.owner.Raw(func(raw any) error {
+			validator, ok := raw.(driver.Validator)
+			if !ok {
+				f.t.Fatal("timeout owner has no public Validator")
+			}
+			valid = validator.IsValid()
+			return nil
+		}); err != nil {
+			f.t.Fatal("observing timeout owner", err)
+		}
+		if !valid {
+			return
+		}
+		timeoutReferenceIdle(f.t, f.p.Ctx, 10*time.Millisecond)
+	}
 }
 
 // A probe can restart the owner's idle timer before a delayed timeout callback
@@ -243,7 +275,9 @@ func (f timeoutReferenceFixture) blocked(phase, query string, held *sql.Stmt, ex
 	if len(executors) != 0 {
 		executor = executors[0]
 	}
+	completed := make(chan struct{})
 	await := fixture.LockOperation(f.t, f.p.Ctx, func(ctx context.Context) fixture.RelationOutcome {
+		defer close(completed)
 		switch phase {
 		case "prepare":
 			s, err := executor.PrepareContext(ctx, query)
@@ -270,7 +304,9 @@ func (f timeoutReferenceFixture) blocked(phase, query string, held *sql.Stmt, ex
 		if phase == "utility" {
 			mode = "AccessExclusiveLock"
 		}
-		fixture.LockWaitBehind(f.t, f.p.Ctx, f.ownerPID, f.peerPID, f.blockedOID, mode)
+		// SQL owns these timers: completion can retire the request before an
+		// observer sees it. Always join and validate that actual outcome below.
+		fixture.LockWaitBehind(f.t, f.p.Ctx, f.ownerPID, f.peerPID, f.blockedOID, mode, completed)
 	}
 	o := await()
 	if o.Result != nil {

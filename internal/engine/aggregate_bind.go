@@ -84,9 +84,12 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			}
 		}
 		return true
+	case updateOutputExpression:
+		o, ok := other.(updateOutputExpression)
+		return ok && e.index == o.index && e.group == o.group
 	case subqueryExpression:
 		o, ok := other.(subqueryExpression)
-		if !ok || e.kind != o.kind || e.operator != o.operator || e.negate != o.negate || len(e.membership) != len(o.membership) || (comparison != nil && e.presenceOnly != o.presenceOnly) || len(e.comparisons) != len(o.comparisons) {
+		if !ok || e.updateWidth != o.updateWidth || e.kind != o.kind || e.operator != o.operator || e.negate != o.negate || len(e.membership) != len(o.membership) || (comparison != nil && e.presenceOnly != o.presenceOnly) || len(e.comparisons) != len(o.comparisons) {
 			return false
 		}
 		if (e.jsonArray == nil) != (o.jsonArray == nil) {

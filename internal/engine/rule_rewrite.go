@@ -482,6 +482,11 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 				}
 			}
 			recipe := recipes[slot]
+			if column.frame == 2 {
+				if err := validateRuleNewUpdateOutput(recipe); err != nil {
+					return nil, false, err
+				}
+			}
 			if targetOffset != 0 {
 				var err error
 				recipe, _, err = rewriteViewExpression(catalog, recipe, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
@@ -940,6 +945,11 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 					return nil, false, ids.ErrCatalogReplaced
 				}
 				recipe := recipes[slot]
+				if column.frame == 2 {
+					if err := validateRuleNewUpdateOutput(recipe); err != nil {
+						return nil, false, err
+					}
+				}
 				return recipe, true, nil
 			}
 			return expr, false, nil

@@ -216,6 +216,30 @@ are selected together below; `settingsTimeoutWorkload` is shared with the
 existing CPU scenarios, and lock workers use `fixture.LockOperation` plus the
 PostgreSQL external queue barrier. No new delay SQL is needed.
 
+The timeout helper supplies actual SQL completion to `fixture.LockWaitBehind`.
+A short SQL-owned statement/lock/transaction timer can retire its queued request
+before the observer samples it. Observation therefore requires the exact
+PID/holder/relation/mode wait while work remains active, or actual operation
+completion; afterward the helper always joins the worker and checks the original
+no-result/no-Rows/no-Prepare-handle assertions. Every caller still independently
+requires its full expected diagnostic, side effects and owner lifecycle.
+Observer SQL errors/deadlines are not substitutes for those outcomes. This is
+not an external user-cancellation barrier, whose queue observation remains strict.
+
+Selected proof for the shared timeout-helper consumers (external 900 seconds per
+command; each identical definition must pass both modes):
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceTimeout(TransactionBoundaries|TransactionAbortRestore)$'
+make check RUN='^TestReferenceTimeout(TransactionBoundaries|TransactionAbortRestore)$'
+make check REFERENCE=1 RUN='^TestReferenceTimeout(IdleBoundaries|Precedence|PoolNoReplay)$'
+make check RUN='^TestReferenceTimeout(IdleBoundaries|Precedence|PoolNoReplay)$'
+make check REFERENCE=1 RUN='^TestReferenceTimeoutFeatureSmoke$'
+make check RUN='^TestReferenceTimeoutFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceDriverBatchClockSettingsTimeouts$'
+make check RUN='^TestReferenceDriverBatchClockSettingsTimeouts$'
+```
+
 ```sh
 timeout 900s make check REFERENCE=1 RUN='^TestReferenceTimeout(Settings|TransactionBoundaries|TransactionAssignments|TransactionAbortRestore|IdleBoundaries|Precedence|ChainPrepared|FatalCleanup|PoolNoReplay|FeatureSmoke)$'
 timeout 900s make check RUN='^TestReferenceTimeout(Settings|TransactionBoundaries|TransactionAssignments|TransactionAbortRestore|IdleBoundaries|Precedence|ChainPrepared|FatalCleanup|PoolNoReplay|FeatureSmoke)$'
@@ -264,10 +288,56 @@ statement/lock ERROR before transaction FATAL; the private pending-order mechani
 retain that separate contract. This witness tests owner-first residual expiry,
 not simultaneous-pending active-work deadline arbitration.
 
+The shared `fatalProbe` requires actual terminal state before its first owner SQL:
+every caller expects an expired owner rather than testing immediate live-owner
+admission. This covers `TestReferenceTimeoutTransactionAssignments`,
+`TestReferenceTimeoutTransactionAbortRestore`, `TestReferenceTimeoutChainPrepared`,
+`TestReferenceTimeoutFatalCleanup`, and the fatal paths in
+`TestReferenceTimeoutIdleBoundaries` and `TestReferenceTimeoutPrecedence`.
+Native observation uses the public physical `driver.Validator`; PostgreSQL uses
+the existing exact PID/incarnation FATAL log witness. A completed sleep alone
+cannot prove an asynchronous timeout callback has run under scheduling load.
+Observation issues no owner SQL, does not restart timers or consume the first
+FATAL, and is bounded by the existing fixture/oracle contexts. Existing idle
+stimuli, settings transitions, live-survival checks, full diagnostics, no-result
+assertions, dead-handle rejection and peer effects remain mandatory.
+Positive-assignment timing uses the canonical adaptive `positiveAssignment` /
+`originalExpiry` contract described below; it does not add a fixed observer
+deadline. Retained-Rows tests explicitly observe termination before `fatalQuery`,
+preserving row inspection/closure before the dead-handle probe. Run each small
+cohort in both modes:
+
 ```sh
-make check RUN='^TestReferenceTimeout(IdleBoundaries|ChainPrepared|TransactionAssignments|Precedence)$' REFERENCE=1
-make check RUN='^TestReferenceTimeout(IdleBoundaries|ChainPrepared|TransactionAssignments|Precedence)$'
+make check REFERENCE=1 RUN='^TestReferenceTimeout(TransactionAssignments|TransactionAbortRestore|ChainPrepared)$'
+make check RUN='^TestReferenceTimeout(TransactionAssignments|TransactionAbortRestore|ChainPrepared)$'
+make check REFERENCE=1 RUN='^TestReferenceTimeout(IdleBoundaries|Precedence|FatalCleanup)$'
+make check RUN='^TestReferenceTimeout(IdleBoundaries|Precedence|FatalCleanup)$'
 ```
+
+The former public `old-transaction-beats-shorter-statement` subtest assumed
+wall-clock callback order: a transaction deadline at 500ms must run before an
+active statement deadline at 675ms. Under load both deadlines can be pending;
+already-pending statement ERROR deliberately wins, so public SQL cannot guarantee
+that callback-order premise. Its deterministic internal counterpart,
+`TestSessionTimeoutResidualBeforeStatement` in
+`internal/engine/session_timeout_pending_test.go`, creates the actual engine,
+transaction, command timer and blocked mutation inside a `synctest` bubble. It
+requires the exact live request through 499ms, full FATAL25P04 at 500ms before
+the 675ms statement deadline, no mutation effects, physical-end/lock cleanup and
+healthy-peer recovery. Existing pending-order mechanisms retain their opposite
+57014 assertion; remaining public precedence cases retain their exact outcomes.
+
+The former public `old-transaction-residual` idle subtest had the same callback
+dispatch assumption: transaction500ms aged300ms must fire before a newly armed
+idle375ms deadline at BEGIN+675ms. If both flags are already due, idle25P03 has
+intentional priority instead. `TestSessionTimeoutResidualBeforeIdle` in the same
+internal file now establishes the transaction-first interval inside `synctest`:
+actual setting publication and the ready boundary arm idle675ms without moving
+transaction500ms; a private INSERT and peer's exact queued lock remain through
+499ms, then full25P04 at500ms rolls back the write, releases the peer and cleans
+physical ownership/locks. `TestSessionTimeoutPendingOrderMechanics` retains its
+strict both-already-pending25P03 assertion. The stable shared public
+`residual-expiry-before-command` witness and all nominal precedence cases remain.
 
 A suite-owned Docker client reads each raw response synchronously, closes it
 on every exit, and validates complete eight-byte frame headers and bodies under
@@ -315,6 +385,24 @@ workaround. PostgreSQL's streaming Rows are still drained before transport reuse
 Detached prepared-entry lifetime compares exact identifiers/owner/database,
 time.Time.Equal instant and zone name/offset, never time.Location pointer identity.
 
+`TestReferenceTimeoutPoolNoReplay/returned-idle` creates a native owner TEMP
+relation and independently asserts its `pg_class` presence from the peer before
+arming the timer and returning the owner to the pool. After the original idle
+stimulus, the existing `tempAbsent` peer-SQL witness requires actual physical
+TEMP disposal before any new pool borrow. PostgreSQL instead supplies its exact
+57P05 server-log witness before that borrow. Neither path reacquires the expired
+owner or issues owner SQL, and no driver object escapes a `Conn.Raw` callback.
+Existing fixture/helper contexts bound observation; a sleep alone does not prove
+asynchronous termination. The single pooled INSERT99 then requires safe
+replacement and exact effects. Accepted-insert no-replay, healthy-statement
+survival, pool-slot limits and fresh identity/defaults remain unchanged.
+Selected proof, each with an external900-second deadline:
+
+```sh
+make check REFERENCE=1 RUN='^TestReferenceTimeoutPoolNoReplay$'
+make check RUN='^TestReferenceTimeoutPoolNoReplay$'
+```
+
 The first pooled INSERT99 after idle expiry succeeds through safe pre-work
 replacement on pq; assert affected1 and exactly7,99, then remove99 and verify
 new physical identity/default0. This is distinct from accepted blocked INSERT8,
@@ -353,15 +441,18 @@ make check RUN='^TestReferenceTimeoutTransactionAssignments$' RACE=1
 
 Run each selected command with an external900-second deadline.
 
-The old500ms budget after300ms has200ms residual in the separate precedence
-witness, beating a newly configured375ms limit. Abort recovery waits1100ms beyond
-suppressed1s idle and600ms beyond restored500ms. Active-idle limits remain100ms
-while actual lock work lasts250ms; CPU parse witnesses retain1ms. Transaction
-terminal probes use repeated short condition checks without restarting the
-transaction deadline. Fatal cleanup awaits the peer's successful read as proof
-of actual lock release before probing the terminated owner. Diagnostic, state
-and atomicity assertions remain exact. The separate public executable retains
-its independently specified100ms/300ms budgets and650ms idle stimuli.
+The deterministic residual mechanisms retain500ms transaction budgets aged300ms,
+with newly armed375ms deadlines at BEGIN+675ms; their strict ordering is proved
+internally, not assumed from public callback dispatch. Abort recovery waits1100ms
+beyond suppressed1s idle and600ms beyond restored500ms. Active-idle limits
+remain100ms while actual lock work lasts250ms; CPU parse witnesses retain1ms.
+Transaction terminal probes use repeated short condition checks without
+restarting the transaction deadline, bounded by the existing fixture context.
+Fatal cleanup awaits the peer's successful read as proof of actual lock release
+before probing the terminated owner. Registry normalization/range inputs,
+observer polls, asynchronous joins and diagnostic/state/atomicity assertions
+remain unchanged. The separate public executable retains its independently
+specified100ms/300ms budgets and650ms idle stimuli.
 
 `TestReferenceTimeoutChainPrepared/detached-survives-origin-idle` allows eight
 500ms idle intervals with a lock-free `SELECT 1` probe after each interval.

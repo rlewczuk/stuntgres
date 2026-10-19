@@ -497,6 +497,9 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		n.args = children(n.args)
 		n.Info = info
 		rebound = n
+	case updateOutputExpression:
+		n.Info = info
+		rebound = n
 	case parameterExpression:
 		if !changed {
 			return node, false, nil

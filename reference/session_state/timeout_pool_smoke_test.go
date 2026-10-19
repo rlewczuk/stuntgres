@@ -22,18 +22,29 @@ func TestReferenceTimeoutPoolNoReplay(t *testing.T) {
 				identity := fixture.SettingsPhysical(t, f.owner)
 				switch kind {
 				case "returned-idle":
+					if !b.PG {
+						// TEMP disposal is a public peer-visible witness of this
+						// physical owner's end, even after it returns to the pool.
+						f.exec(f.owner, "CREATE TEMP TABLE timeout_owner_temp(v INT)", 0)
+						fixture.RunStep(t, p.Ctx, f.peer, b.Recorder, fixture.Select("SELECT relname FROM pg_class WHERE relname='timeout_owner_temp'", []string{"relname"}, []string{"NAME"}, [][]any{{"timeout_owner_temp"}}))
+					}
 					f.set("idle_session_timeout", "250ms")
 					if err := f.owner.Close(); err != nil {
 						t.Fatal(err)
 					}
 					timeoutReferenceIdle(t, p.Ctx, 350*time.Millisecond)
+					// The owner is already back in the pool. Observe its actual
+					// termination without reacquiring it or restarting activity;
+					// elapsed idle time alone does not prove callback delivery.
+					if b.PG {
+						f.serverFatal("57P05")
+					} else {
+						f.tempAbsent()
+					}
 					// Real pinned oracle: pq's FATAL sentinel permits safe
 					// database/sql retry before new work. The new INSERT must
 					// publish exactly once, independently of the expired owner.
 					f.exec(b.DB, "INSERT INTO timeout_sentinel VALUES(99)", 1)
-					if b.PG {
-						f.serverFatal("57P05")
-					}
 					f.rows(f.peer, 7, 99)
 					f.exec(f.peer, "DELETE FROM timeout_sentinel WHERE v=99", 1)
 				case "accepted-insert":

@@ -290,6 +290,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
+	// Preserve the raw caller's capture group before attaching stored recipes.
+	// Rewrite metadata must not become caller-owned native lifetime provenance.
+	callerSequences, callerRegtypes := b.sequenceConstants, b.regtypeConstants
 	if b.viewWrite != nil {
 		e.mu.Unlock()
 		if b.viewWrite.base.RelationKind != catalog.ViewRelation {
@@ -376,17 +379,17 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		if err = e.pinSequenceReplacementLocked(auth, scope.Expected.sequences, b.sequenceConstants); err != nil {
+		if err = e.pinSequenceReplacementLocked(auth, scope.Expected.sequences, callerSequences); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
 		if !valid || scope.Expected.regtypes != nil && candidate.regtypes == nil {
-			analysis, er := e.sequenceAnalysisLocked(auth, b.sequenceConstants)
+			analysis, er := e.sequenceAnalysisLocked(auth, callerSequences)
 			if er != nil {
 				e.mu.Unlock()
 				return Result{}, er
 			}
-			regtypes, er := e.regtypeAnalysisLocked(auth, b.regtypeConstants)
+			regtypes, er := e.regtypeAnalysisLocked(auth, callerRegtypes)
 			if er != nil {
 				e.mu.Unlock()
 				return Result{}, er

@@ -53,6 +53,25 @@ provenance rules. ALTER EXTENSION and arbitrary module loading remain outside
 the native boundary.
 See [removal proof](../reference/catalogs/README.md#extension-removal).
 
+## UPDATE assignment-group boundaries
+
+Row constructors and multi-output subqueries are admitted for ordinary UPDATE,
+not MERGE or ON CONFLICT actions. These adjacent native actions retain their
+explicit row-assignment capability error, including groups after scalar SET items.
+Non-domain ordinary UPDATE DEFAULT retains its missing-provider boundary even
+inside a constructor group. Domain-target DEFAULT uses the existing column
+override, domain fallback or fresh domain NULL input; an explicit column DEFAULT
+NULL masks a domain recipe, while supplied NULL requests no recipe.
+Generated-column DEFAULT keeps its existing admission. DEFAULT does not become
+an ordinary scalar/ROW value.
+
+As in PostgreSQL, actual rule NEW substitution cannot consume a current-level
+grouped-subquery output. This is not a blanket rejection of grouped UPDATE when
+a rule exists: constructor NEW recipes, OLD and unaffected NEW columns remain
+ordinary recipes, and a stored rule action may itself perform a grouped UPDATE.
+Native dumps persist live resulting rows and stored grouped rule definitions,
+not assignment history or execution scratch. See [selected contracts](../reference/dml/README.md#row-valued-update-assignments).
+
 ## Comparison resolution and predicates
 
 Executable type/shape admission is separate from operator admission. Comparison

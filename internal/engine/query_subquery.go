@@ -24,6 +24,7 @@ type subqueryExpression struct {
 	leftExpansions  map[int]compositeExpansionBinding // Analysis-only source associations.
 	leftConstructor expr.Expr                         // Analysis-only normalized constructor; never evaluated or a dependency child.
 	erasedLeftType  sqltype.ID                        // Original outer identity, only for pruning frozen presentation dependencies.
+	updateWidth     int                               // Nonzero only for the first recipe of an UPDATE tuple source.
 }
 
 func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, error) {
@@ -178,6 +179,9 @@ func (e subqueryExpression) Eval(ctx expr.Context) (value sqltype.Value, err err
 	}
 	if c.query == nil || c.query.source == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing subquery statement capture")
+	}
+	if e.updateWidth != 0 {
+		return e.evalUpdateOutputs(c)
 	}
 	if len(e.membership) != 0 {
 		return e.hashMembership(c)

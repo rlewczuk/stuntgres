@@ -404,6 +404,9 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err != nil {
 		return StatementDescription{}, err
 	}
+	// Literal lifetimes belong to the caller's raw SQL, including its CTEs.
+	// Stored rule/view recipes carry their own captures and invalidation events.
+	callerSequences, callerRegtypes := b.sequenceConstants, b.regtypeConstants
 	if b.viewWrite != nil {
 		if err := e.attachViewWriteSourcesLocked(scope, &b); err != nil {
 			return StatementDescription{}, err
@@ -438,8 +441,6 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 				b.dependencies = append(b.dependencies, catalog.ExpressionDependency{Ref: command.binding.ref, Revision: command.binding.relation.Revision()})
 			}
 			b.dependencies = append(b.dependencies, command.binding.dependencies...)
-			b.sequenceConstants = append(b.sequenceConstants, command.binding.sequenceConstants...)
-			b.regtypeConstants = append(b.regtypeConstants, command.binding.regtypeConstants...)
 		}
 	} else if err := checkRowSecurityBinding(scope, auth, b); err != nil {
 		return StatementDescription{}, err
@@ -451,7 +452,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if b.returning != nil {
 		results = b.returning.schema
 	}
-	analysis, err := e.sequenceAnalysisLocked(auth, b.sequenceConstants)
+	analysis, err := e.sequenceAnalysisLocked(auth, callerSequences)
 	if err != nil {
 		return StatementDescription{}, err
 	}
@@ -459,7 +460,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if len(analysis.constants) != 0 {
 		cell = &analysis
 	}
-	regtypes, err := e.regtypeAnalysisLocked(auth, b.regtypeConstants)
+	regtypes, err := e.regtypeAnalysisLocked(auth, callerRegtypes)
 	if err != nil {
 		return StatementDescription{}, err
 	}

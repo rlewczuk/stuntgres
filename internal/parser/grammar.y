@@ -505,8 +505,8 @@ package parser
 %type <row> query_row query_cells
 %type <expr> query_cell
 %type <stmt> update
-%type <assignments> update_assignments
-%type <assignment> update_assignment
+%type <assignments> update_assignments update_row_assignments
+%type <assignment> update_assignment update_row_assignment
 %type <col> column
 %type <elements> elements optional_elements
 %type <element> element
@@ -1812,12 +1812,16 @@ column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
 nn_modifier: KW_U { if $1.text!="valid" && $1.text!="enforced" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 nn_inherit: INHERIT { $$=$1 } ;
 column_suffix: LIKE | KW_T | KW_R | RETURNING | HAVING | INTO | ALL | ON | GROUP | WITH | USER | IN | IS | AND ;
-update: UPDATE alter_target update_alias SET update_assignments update_from mutation_where returning { $$=&Update{Name:$2.Name,Only:$2.Only,Star:$2.Star,Alias:Identifier{Text:$3.text,Pos:$3.pos},Assignments:$5,From:$6,Where:$7.Where,CurrentOf:$7.CurrentOf,Returning:$8,Pos:$1.pos} }
- | UPDATE alter_target update_alias SET update_assignments update_from mutation_where suffix { sqllex.(*lexer).capability($8,unsupportedSuffixes,"UPDATE suffix is unsupported"); return 1 }
- | UPDATE alter_target update_alias SET '(' { sqllex.(*lexer).failAt("0A000","row assignments are unsupported",$5.pos.Offset);return 1 } ;
+update: UPDATE alter_target update_alias SET update_row_assignments update_from mutation_where returning { $$=&Update{Name:$2.Name,Only:$2.Only,Star:$2.Star,Alias:Identifier{Text:$3.text,Pos:$3.pos},Assignments:$5,From:$6,Where:$7.Where,CurrentOf:$7.CurrentOf,Returning:$8,Pos:$1.pos} }
+ | UPDATE alter_target update_alias SET update_row_assignments update_from mutation_where suffix { sqllex.(*lexer).capability($8,unsupportedSuffixes,"UPDATE suffix is unsupported"); return 1 } ;
 update_alias: /* empty */ %prec '=' { $$=lexeme{} } | name { $$=$1 } | AS name { $$=$2 } ;
 update_from: /* empty */ { $$=nil } | FROM from_list { $$=$2 } ;
-update_assignments: update_assignment { $$=[]UpdateAssignment{$1} } | update_assignments ',' update_assignment { $$=append($1,$3) } ;
+update_assignments: update_assignment { $$=[]UpdateAssignment{$1} } | update_assignments ',' update_assignment { $$=append($1,$3) }
+ | '(' { sqllex.(*lexer).failAt("0A000","row assignments are unsupported",$1.pos.Offset);return 1 }
+ | update_assignments ',' '(' { sqllex.(*lexer).failAt("0A000","row assignments are unsupported",$3.pos.Offset);return 1 } ;
+update_row_assignments: update_row_assignment { $$=[]UpdateAssignment{$1} } | update_row_assignments ',' update_row_assignment { $$=append($1,$3) } ;
+update_row_assignment: update_assignment { $$=$1 }
+ | '(' insert_targets ')' '=' scalar_projection { $$=UpdateAssignment{Targets:$2,Value:$5,Pos:$1.pos} } ;
 update_assignment: name '=' scalar_projection { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Value:$3} }
  | name target_steps '=' scalar_projection { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Steps:$2,Value:$4} }
  | name target_steps '=' DEFAULT { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Steps:$2,Value:DefaultExpr{Pos:$4.pos}} }
@@ -1855,12 +1859,10 @@ merge_condition: /* empty */ { $$=nil } | AND target_or { $$=$2 } ;
 merge_arm: WHEN NOT MATCHED merge_target_class merge_condition THEN merge_insert { $$=$7;$$.Condition=$5;$$.Pos=$1.pos }
  | WHEN NOT MATCHED merge_target_class merge_condition THEN DO NOTHING { $$=MergeArm{Match:MergeNotMatched,Action:MergeNothingAction,Condition:$5,Pos:$1.pos,ActionPos:$7.pos} }
  | WHEN MATCHED merge_condition THEN UPDATE SET update_assignments { $$=MergeArm{Match:MergeMatched,Action:MergeUpdateAction,Condition:$3,Assignments:$7,Pos:$1.pos,ActionPos:$5.pos} }
- | WHEN MATCHED merge_condition THEN UPDATE SET '(' { sqllex.(*lexer).failAt("0A000","row assignments are unsupported",$7.pos.Offset);return 1 }
  | WHEN MATCHED merge_condition THEN DELETE { $$=MergeArm{Match:MergeMatched,Action:MergeDeleteAction,Condition:$3,Pos:$1.pos,ActionPos:$5.pos} }
  | WHEN MATCHED merge_condition THEN DO NOTHING { $$=MergeArm{Match:MergeMatched,Action:MergeNothingAction,Condition:$3,Pos:$1.pos,ActionPos:$5.pos} }
  | WHEN NOT MATCHED BY SOURCE merge_condition THEN DELETE { $$=MergeArm{Match:MergeNotMatchedBySource,Action:MergeDeleteAction,Condition:$6,Pos:$1.pos,ActionPos:$8.pos} }
  | WHEN NOT MATCHED BY SOURCE merge_condition THEN UPDATE SET update_assignments { $$=MergeArm{Match:MergeNotMatchedBySource,Action:MergeUpdateAction,Condition:$6,Assignments:$10,Pos:$1.pos,ActionPos:$8.pos} }
- | WHEN NOT MATCHED BY SOURCE merge_condition THEN UPDATE SET '(' { sqllex.(*lexer).failAt("0A000","row assignments are unsupported",$10.pos.Offset);return 1 }
  | WHEN NOT MATCHED BY SOURCE merge_condition THEN DO NOTHING { $$=MergeArm{Match:MergeNotMatchedBySource,Action:MergeNothingAction,Condition:$6,Pos:$1.pos,ActionPos:$8.pos} } ;
 merge_insert: INSERT VALUES '(' query_cells ')' { $$=MergeArm{Values:$4,ActionPos:$1.pos} }
  | INSERT '(' insert_targets ')' VALUES '(' query_cells ')' { $$=MergeArm{Targets:$3,Values:$7,ActionPos:$1.pos} }
@@ -1971,7 +1973,8 @@ relation_star: name '.' '*' { $$=StarExpr{Qualifier:ObjectName{Parts:[]Identifie
  | name '.' col_label '.' '*' { $$=StarExpr{Qualifier:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos,QualificationPos:$2.pos} } ;
 overlaps_row: ROW '(' ')' { $$=RowExpr{Explicit:true,Pos:$1.pos} }
  | ROW '(' row_fields ')' { $$=RowExpr{Fields:$3,Explicit:true,Pos:$1.pos} }
- | '(' scalar_projection ',' row_fields ')' { $$=RowExpr{Fields:append([]Expr{$2},$4...),Pos:$1.pos} } ;
+ | '(' scalar_projection ',' row_fields ')' { $$=RowExpr{Fields:append([]Expr{$2},$4...),Pos:$1.pos} }
+ | '(' DEFAULT ',' row_fields ')' { $$=RowExpr{Fields:append([]Expr{DefaultExpr{Pos:$2.pos}},$4...),Pos:$1.pos} } ;
 scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | grouped_primary { $$=$1.Expr }
  | grouped_primary array_subscripts { $$=SubscriptExpr{Base:$1.Expr,Subscripts:$2,Pos:$1.Pos} }
@@ -2180,7 +2183,8 @@ window_parent: /* empty */ %prec NAME_LIST { $$=nil } | window_name { $$=&Identi
 window_partition: /* empty */ %prec NAME_LIST { $$=nil } | PARTITION BY row_fields { $$=$3 } ;
 window_order: /* empty */ %prec NAME_LIST { $$=nil } | ORDER BY order_keys { $$=$3 } ;
 optional_from: /* empty */ %prec NAME_LIST { $$=nil } | FROM from_list { $$=$2 } ;
-row_fields: scalar_projection { $$=[]Expr{$1} } | row_fields ',' scalar_projection { $$=append($1,$3) } ;
+row_fields: scalar_projection { $$=[]Expr{$1} } | DEFAULT { $$=[]Expr{DefaultExpr{Pos:$1.pos}} }
+ | row_fields ',' scalar_projection { $$=append($1,$3) } | row_fields ',' DEFAULT { $$=append($1,DefaultExpr{Pos:$3.pos}) } ;
 quantifier: ANY | SOME | ALL ;
 call_args: /* empty */ { $$=nil } | values { $$=$1 } ;
 sequence_args: /* empty */ { $$=nil } | sequence_values { $$=$1 } ;
@@ -2252,7 +2256,8 @@ target_or: target_and { $$=$1 }
  | target_or OR target_and { $$=LogicalExpr{Op:LogicalOr,Left:$1,Right:$3,Pos:$2.pos} } ;
 scalar_projection: target_or { $$=$1 } ;
 projection_target: scalar_projection %prec NAME_LIST { $$=$1 }
- | '*' { $$=StarExpr{Pos:$1.pos} } ;
+ | '*' { $$=StarExpr{Pos:$1.pos} }
+ | DEFAULT { sqllex.(*lexer).failAt("42601","DEFAULT is not allowed in this context",$1.pos.Offset);return 1 } ;
 /* Every call argument shares the scalar operand grammar. */
 function_argument: operand { if !scalarGrammarOperand($1) {sqllex.(*lexer).syntax(sqllex.(*lexer).current);return 1};$$=$1 } ;
 function: SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,Pos:$1.pos} }

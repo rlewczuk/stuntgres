@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"stuntgres/internal/engine/ids"
@@ -67,6 +68,11 @@ func timeoutPendingControl(t *testing.T, s *Session, kind parser.SavepointContro
 
 func timeoutPendingFixture(t *testing.T, child bool) (*Session, *Session, ids.TxRef, *parser.LockTable) {
 	t.Helper()
+	return timeoutPendingFixtureWithBudget(t, child, 3*time.Hour)
+}
+
+func timeoutPendingFixtureWithBudget(t *testing.T, child bool, transactionBudget time.Duration) (*Session, *Session, ids.TxRef, *parser.LockTable) {
+	t.Helper()
 	e := New()
 	s, holder := timeoutPendingSession(t, e, 1), timeoutPendingSession(t, e, 2)
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: "pending_timeout_data"}}}
@@ -76,9 +82,9 @@ func timeoutPendingFixture(t *testing.T, child bool) (*Session, *Session, ids.Tx
 	if err != nil {
 		t.Fatal("mechanics relation fixture", err)
 	}
-	timeoutMechanicsSettings(s, 3*time.Hour, 0, 0, false, time.Now())
+	timeoutMechanicsSettings(s, transactionBudget, 0, 0, false, time.Now())
 	s.settings.mu.Lock()
-	s.settings.values["transaction_timeout"] = "3h"
+	s.settings.values["transaction_timeout"] = transactionBudget.String()
 	s.settings.mu.Unlock()
 	begin := timeoutPendingOperation(t, s)
 	ref, err := e.Begin(begin, TxOptions{})
@@ -424,4 +430,276 @@ func TestSessionTimeoutPendingCompletedLifecycle(t *testing.T) {
 			op.Done()
 		})
 	}
+}
+
+// Callback ordering is a mechanism contract, not a portable wall-clock SQL
+// assumption: if both timers become pending, statement ERROR has priority.
+// Keep the transaction-first case in a bubble with actual timers and owners.
+func TestSessionTimeoutResidualBeforeStatement(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s, holder, ref, _ := timeoutPendingFixtureWithBudget(t, false, 500*time.Millisecond)
+		e := s.Engine()
+		start := time.Now()
+		time.Sleep(300 * time.Millisecond)
+		s.settings.mu.Lock()
+		s.settings.typed["statement_timeout"] = settingValue{number: 375}
+		s.settings.values["statement_timeout"] = "375ms"
+		s.settings.mu.Unlock()
+		op, _, err := s.AcquireCommand(context.Background())
+		if err != nil {
+			t.Fatal("admitting residual-timeout command", err)
+		}
+		t.Cleanup(op.Done)
+		scope := timeoutPendingScope(t, op)
+		if got := op.statementDeadline.Sub(start); got != 675*time.Millisecond {
+			t.Fatalf("statement deadline = %v after BEGIN, want 675ms", got)
+		}
+		s.mu.Lock()
+		transactionDeadline := s.timeouts.transaction.deadline
+		s.mu.Unlock()
+		if got := transactionDeadline.Sub(start); got != 500*time.Millisecond {
+			t.Fatalf("transaction deadline = %v after BEGIN, want 500ms", got)
+		}
+		type outcome struct {
+			result Result
+			err    error
+		}
+		finished := make(chan outcome, 1)
+		done := make(chan struct{})
+		insert := statement(t, "INSERT INTO pending_timeout_data VALUES(8)")
+		go func() {
+			defer close(done)
+			result, err := scope.Execute(insert, 0, nil)
+			err = scope.Finish(err)
+			err = op.CommandError(err)
+			op.Done()
+			finished <- outcome{result, err}
+		}()
+		t.Cleanup(func() {
+			op.cancel(nil)
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Error("residual-timeout worker failed bounded join")
+			}
+		})
+		synctest.Wait()
+		select {
+		case got := <-finished:
+			t.Fatalf("mutation ended before queue observation: %+v", got)
+		default:
+		}
+		request := op.lockWait.Request()
+		if request == nil {
+			t.Fatal("timed mutation did not publish its exact queued request")
+		}
+		resource := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "pending_timeout_data")}
+		state := e.locks.Inspect().Resources[resource]
+		if state == nil || len(state.Pending) != 1 {
+			t.Fatalf("active mutation did not queue behind peer: %#v", state)
+		}
+		waiter := state.Pending[0]
+		if waiter.Request != request || waiter.Ticket != s.transactions.ticket || waiter.Mode != lock.RowExclusive ||
+			waiter.Terminal || state.Holders[holder.transactions.ticket].Mode != lock.AccessExclusive ||
+			op.lockWait.Request() != request {
+			t.Fatalf("active mutation lost exact queue/owner/mode: %#v", state)
+		}
+		if scope.timeoutRef != ref || scope.txRef != ref {
+			t.Fatal("queued mutation lost original transaction incarnation")
+		}
+		time.Sleep(199 * time.Millisecond)
+		synctest.Wait()
+		select {
+		case got := <-finished:
+			t.Fatalf("mutation ended before transaction deadline: %+v", got)
+		default:
+		}
+		if op.lockWait.Request() != request || request.Terminal() {
+			t.Fatal("mutation did not remain queued through BEGIN+499ms")
+		}
+		time.Sleep(time.Millisecond)
+		synctest.Wait()
+		var got outcome
+		select {
+		case got = <-finished:
+		case <-time.After(5 * time.Second):
+			t.Fatal("transaction deadline did not finish blocked mutation")
+		}
+		want := *timeoutFatal("25P04")
+		want.Position = "13" // The INSERT target starts at character 13.
+		var diagnostic *sqlstate.Error
+		if !errors.As(got.err, &diagnostic) || *diagnostic != want {
+			t.Fatalf("residual transaction diagnostic = %#v, want %#v", diagnostic, want)
+		}
+		if got.result.Rows != nil || got.result.Count != 0 {
+			t.Fatal("fatal mutation published a result", got.result)
+		}
+		if elapsed := time.Since(start); elapsed != 500*time.Millisecond {
+			t.Fatalf("transaction fired after %v, want 500ms before statement deadline 675ms", elapsed)
+		}
+		if err := s.WaitEnd(context.Background()); err != nil {
+			t.Fatal("joining physical transaction owner", err)
+		}
+		if s.IsLive() || !holder.IsLive() || !request.Terminal() || op.lockWait.Request() != nil {
+			t.Fatal("fatal callback did not terminate owner and clear its queued request independently of peer")
+		}
+		peer := timeoutPendingOperation(t, holder)
+		if _, err := e.Rollback(peer, holder.transactions.ref); err != nil {
+			t.Fatal("releasing healthy peer", err)
+		}
+		peer.Done()
+		lockEmpty(t, e)
+		if rows := tuples(sessionSQL(t, holder, "SELECT v FROM pending_timeout_data")); len(rows) != 0 {
+			t.Fatal("fatal mutation published rows", rows)
+		}
+		if result := sessionSQL(t, holder, "INSERT INTO pending_timeout_data VALUES(9)"); result.Count != 1 {
+			t.Fatal("healthy peer could not publish its own mutation", result)
+		}
+		rows := tuples(sessionSQL(t, holder, "SELECT v FROM pending_timeout_data"))
+		if len(rows) != 1 || len(rows[0]) != 1 || rows[0][0] != int64(9) {
+			t.Fatal("healthy peer readback includes fatal mutation or lost its own write", rows)
+		}
+		lockEmpty(t, e)
+	})
+}
+
+// A later idle deadline may legitimately win once both flags are pending.
+// Exercise the transaction-first residual interval with actual timers instead
+// of assuming a busy wall-clock runner dispatches the first callback promptly.
+func TestSessionTimeoutResidualBeforeIdle(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s, holder, _, lockStatement := timeoutPendingFixtureWithBudget(t, false, 500*time.Millisecond)
+		e := s.Engine()
+		start := time.Now()
+		release := timeoutPendingOperation(t, holder)
+		if _, err := e.Rollback(release, holder.transactions.ref); err != nil {
+			t.Fatal("releasing initial peer holder", err)
+		}
+		release.Done()
+		if result := sessionSQL(t, s, "INSERT INTO pending_timeout_data VALUES(8)"); result.Count != 1 {
+			t.Fatal("staging owner mutation", result)
+		}
+		if rows := tuples(sessionSQL(t, holder, "SELECT v FROM pending_timeout_data")); len(rows) != 0 {
+			t.Fatal("private owner mutation was visible before timeout", rows)
+		}
+		time.Sleep(300 * time.Millisecond)
+		assignment := timeoutPendingOperation(t, s)
+		idle := "375ms"
+		_, err := e.applySetting(assignment, s.settings, e.settingsDefinitions["idle_in_transaction_session_timeout"], &idle, false)
+		assignment.Done() // The actual ready boundary arms the idle timer.
+		if err != nil {
+			t.Fatal("assigning residual idle budget", err)
+		}
+		s.mu.Lock()
+		transactionDeadline, idleDeadline := s.timeouts.transaction.deadline, s.timeouts.idle.deadline
+		s.mu.Unlock()
+		if transactionDeadline.Sub(start) != 500*time.Millisecond || idleDeadline.Sub(start) != 675*time.Millisecond {
+			t.Fatalf("residual deadlines: transaction=%v idle=%v, want BEGIN+500ms and BEGIN+675ms", transactionDeadline.Sub(start), idleDeadline.Sub(start))
+		}
+		beginPeer := timeoutPendingOperation(t, holder)
+		peerRef, err := e.Begin(beginPeer, TxOptions{})
+		beginPeer.Done()
+		if err != nil {
+			t.Fatal("beginning explicit peer lock owner", err)
+		}
+		peer := timeoutPendingOperation(t, holder)
+		scope := timeoutPendingScope(t, peer)
+		s.transactions.mu.Lock()
+		ownerTicket := s.transactions.ticket
+		s.transactions.mu.Unlock()
+		holder.transactions.mu.Lock()
+		peerTicket := holder.transactions.ticket
+		holder.transactions.mu.Unlock()
+		t.Cleanup(peer.Done)
+		lockStatement.Mode = parser.LockAccessExclusive
+		finished := make(chan error, 1)
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			_, err := scope.Execute(lockStatement, 0, nil)
+			err = scope.Finish(err)
+			peer.Done()
+			finished <- err
+		}()
+		t.Cleanup(func() {
+			peer.cancel(nil)
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Error("idle residual peer failed bounded join")
+			}
+		})
+		synctest.Wait()
+		select {
+		case err := <-finished:
+			t.Fatalf("peer ended before queue observation: %v", err)
+		default:
+		}
+		resource := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "pending_timeout_data")}
+		state := e.locks.Inspect().Resources[resource]
+		if state == nil || len(state.Pending) != 1 {
+			t.Fatalf("peer did not queue behind private owner mutation: %#v", state)
+		}
+		waiter := state.Pending[0]
+		request := waiter.Request
+		// With no peer SQL timeout, the manager owns the pending request;
+		// no operation timeout-slot projection is published.
+		if request == nil || waiter.Ticket != peerTicket || waiter.Ticket.Ref() != peerRef ||
+			waiter.Mode != lock.AccessExclusive || waiter.Terminal ||
+			state.Holders[ownerTicket].Mode != lock.RowExclusive {
+			t.Fatalf("idle owner/peer lock authority changed: %#v", state)
+		}
+		time.Sleep(199 * time.Millisecond)
+		synctest.Wait()
+		select {
+		case err := <-finished:
+			t.Fatalf("peer ended before transaction deadline: %v", err)
+		default:
+		}
+		state = e.locks.Inspect().Resources[resource]
+		if !s.IsLive() || request.Terminal() || state == nil || len(state.Pending) != 1 ||
+			state.Pending[0].Request != request || state.Pending[0].Ticket != peerTicket ||
+			state.Pending[0].Mode != lock.AccessExclusive || state.Pending[0].Terminal ||
+			state.Holders[ownerTicket].Mode != lock.RowExclusive {
+			t.Fatal("idle owner did not retain its private mutation and lock through BEGIN+499ms")
+		}
+		time.Sleep(time.Millisecond)
+		synctest.Wait()
+		if err := s.WaitEnd(context.Background()); err != nil {
+			t.Fatal("joining idle physical owner", err)
+		}
+		timeoutPendingDiagnostic(t, s.Check(context.Background()), "25P04")
+		if elapsed := time.Since(start); elapsed != 500*time.Millisecond {
+			t.Fatalf("idle owner terminated after %v, want 500ms before idle deadline 675ms", elapsed)
+		}
+		select {
+		case err := <-finished:
+			if err != nil {
+				t.Fatal("owner rollback did not release healthy peer", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("owner rollback did not finish blocked peer")
+		}
+		if s.IsLive() || !holder.IsLive() || !request.Terminal() || peer.lockWait.Request() != nil {
+			t.Fatal("idle fatal did not cleanly retire owner independently of peer")
+		}
+		endPeer := timeoutPendingOperation(t, holder)
+		_, err = e.Rollback(endPeer, peerRef)
+		endPeer.Done()
+		if err != nil {
+			t.Fatal("ending explicit peer after lock grant", err)
+		}
+		lockEmpty(t, e)
+		if rows := tuples(sessionSQL(t, holder, "SELECT v FROM pending_timeout_data")); len(rows) != 0 {
+			t.Fatal("idle owner timeout published its private mutation", rows)
+		}
+		if result := sessionSQL(t, holder, "INSERT INTO pending_timeout_data VALUES(9)"); result.Count != 1 {
+			t.Fatal("healthy peer could not publish after idle owner timeout", result)
+		}
+		rows := tuples(sessionSQL(t, holder, "SELECT v FROM pending_timeout_data"))
+		if len(rows) != 1 || len(rows[0]) != 1 || rows[0][0] != int64(9) {
+			t.Fatal("idle timeout lost peer write or retained rolled-back owner write", rows)
+		}
+		lockEmpty(t, e)
+	})
 }

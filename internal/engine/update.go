@@ -17,9 +17,13 @@ type boundUpdate struct {
 	assignments    []expr.Expr
 	defaultOrigins []defaultOrigin
 	arrayTargets   []*arrayAssignmentTarget
-	predicate      expr.Expr
-	from           LogicalNode
-	sourceWidth    int
+	// Group query graphs are owned by their first assignment recipe.
+	groups      []updateAssignmentGroup
+	origins     []parser.Position // Flat origins, including DEFAULT after group expansion.
+	outputWidth int
+	predicate   expr.Expr
+	from        LogicalNode
+	sourceWidth int
 }
 
 // Reuse the shared coercion traversal; only changed execution branches are
@@ -128,7 +132,7 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 		binder.updateParameters = false
 		binder.updateInputParameters = nil
 	}()
-	u := &boundUpdate{assignments: make([]expr.Expr, len(s.Assignments))}
+	u := &boundUpdate{}
 	var err error
 	target := binder.mutationTargetNamespace()
 	binder.queryHidden = append(binder.queryHidden, target.qualifiers[0])
@@ -293,6 +297,14 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	state := queryState{source: inputs, parameters: parameters, input: s.input, output: s.output, locking: inputs.locks != nil}
 	defer state.releaseMemberships()
 	eval := state.evaluation(ctx)
+	var smallUpdateOutputs [4]sqltype.Value
+	if b.update.outputWidth != 0 {
+		if b.update.outputWidth <= len(smallUpdateOutputs) {
+			eval.updateOutputScratch = smallUpdateOutputs[:b.update.outputWidth]
+		} else {
+			eval.updateOutputScratch = make([]sqltype.Value, b.update.outputWidth)
+		}
+	}
 	var stage indexedStage
 	var frame []sqltype.Value
 	var updated map[mutationRowIdentity]bool

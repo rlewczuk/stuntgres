@@ -376,8 +376,13 @@ consumer. Active SELECT/INSERT cases use stored operands and wait for actual
 concat/deletion-provider admission (server admission on PostgreSQL), then join
 workers, assert no partial write and reuse the same held statements successfully.
 One early small row and one heavy row preserve the partial-write boundary.
-The 32MiB operand is parsed/stored once and reused by column assignment between
-phases, avoiding redundant large binds and duplicate heavy rows.
+The operand contains8192 strings of4092 bytes each, below the original32MiB
+encoded-byte budget. It is parsed/stored once and reused by column assignment
+between phases, avoiding redundant large binds and duplicate heavy rows.
+Bounded elements exercise real provider traversal/output cancellation checks;
+a giant scalar's runtime copy is not a reliable observable admission window.
+Each child owns its assertion closure and bounded failure cleanup, so a failed
+admission cannot leave a sentinel or large input behind for the next child.
 The provider/server admission checks and cancellation deadlines remain unchanged.
 Private units additionally cover descriptor authority, strictness, immutable
 sharing/no-op identity, integer endpoints and deterministic merge/filter/render
@@ -2019,6 +2024,12 @@ Predicate structural failures become unknown; missing variables, nonobject vars,
 ordinary SQL errors and cancellation are not silenced. CapabilityBoundary
 asserts genuine PostgreSQL arithmetic/method results and native demanded
 `0A000`, including predicate/exists/silent contexts and unreachable branches.
+
+Cancellation uses the same bounded8192-by-4092-byte string shape below32MiB,
+retaining all wildcard, strict recursive, comparison, regex and root paths.
+The existing complete live-stack provider-plus-worker gate is unchanged, as
+are PostgreSQL admission/full57014, joined workers, sentinel atomicity and
+SAME-held recovery. Each child restores its input/output on assertion failure.
 
 Subscripts pins complete operand demand before cardinality/type validation:
 late missing variables and structural errors retain their diagnostic precedence

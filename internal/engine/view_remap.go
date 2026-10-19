@@ -116,6 +116,8 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 			n.leftConstructor = child(n.leftConstructor)
 		}
 		next = n
+	case updateOutputExpression:
+		next = n
 	case domainValueExpression, identityExpression:
 		next = n
 	case literalExpression:

@@ -21,6 +21,8 @@ func boundExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
 	switch e := node.(type) {
 	case selectedOperatorExpression:
 		walk(e.provider)
+	case updateOutputExpression:
+		// The first assignment owns the query; later tuple outputs are leaves.
 	case domainValueExpression:
 		// Conversion-local VALUE is a lexical leaf, never a query column.
 	case assignmentValueExpression:

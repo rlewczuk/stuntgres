@@ -87,6 +87,24 @@ precision. Arrays, binary codecs and advanced cube operations remain excluded.
 See [cube limits](docs/DIALECT.md#cube-extension-type) and
 [selected proof](reference/types/README.md#cube-scalar-oracle-first-contract).
 
+## Row-valued UPDATE assignments — change note
+
+Ordinary UPDATE accepts constructor and subquery assignment groups. All members
+read the old target row; a correlated source SELECT supplies its complete tuple
+once per target occurrence. Zero source rows assign NULL to every member;
+multiple source rows fail with SQLSTATE21000 without partial writes or RETURNING.
+Constructor literals/parameters use destination contexts, whereas SELECT outputs
+are typed independently. Prepared reuse, writable views, stored grouped rule
+actions and native live-row Dump/Restore retain their normal ownership contracts.
+PostgreSQL's restriction on substituting grouped-subquery outputs into rule NEW
+consumers is preserved; constructors, OLD and unaffected NEW columns are distinct.
+Native MERGE/ON CONFLICT row assignment and non-domain ordinary UPDATE DEFAULT
+remain excluded. Domain-target DEFAULT uses the existing column override,
+domain fallback or fresh domain NULL input, including constructor groups after
+scalar SET items; supplied NULL does not request a default. Generated-column
+DEFAULT admission is unchanged.
+See [row UPDATE contracts and selected proof](reference/dml/README.md#row-valued-update-assignments).
+
 ## IP address formatting, masks and networks — change note
 
 `abbrev(inet/cidr)`, `host`, `text(inet)`, `family`, `masklen`,

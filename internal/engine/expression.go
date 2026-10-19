@@ -26,15 +26,19 @@ type EvalContext struct {
 	mergeAction                        parser.MergeAction
 	Parameters                         []sqltype.Value
 	orderValues                        []sqltype.Value
-	statementScope                     *StatementScope
-	Input                              sqltype.InputEnvironment
-	Output                             sqltype.OutputEnvironment
-	Outer                              *EvalContext
-	query                              *queryState
-	catalog                            catalog.Read // Current imported request/view authority for local lowering.
-	queryOccurrences                   []int
-	queryProvenance                    []int
-	queryRowSource                     *querySource
+	// Reused by the current UPDATE execution; nested owners save/restore it.
+	updateOutputScratch []sqltype.Value
+	updateOutputs       []sqltype.Value
+	updateOutputsReady  bool
+	statementScope      *StatementScope
+	Input               sqltype.InputEnvironment
+	Output              sqltype.OutputEnvironment
+	Outer               *EvalContext
+	query               *queryState
+	catalog             catalog.Read // Current imported request/view authority for local lowering.
+	queryOccurrences    []int
+	queryProvenance     []int
+	queryRowSource      *querySource
 	// Borrowed full logical tuples only while rechecking locked occurrences.
 	queryCurrentRows [][]sqltype.Value
 	physicalTable    ids.ObjectRef // Existing generated recipe's containing physical row.

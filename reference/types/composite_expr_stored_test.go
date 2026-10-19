@@ -204,6 +204,31 @@ func TestReferenceCompositeExprBoundaries(t *testing.T) {
 		compositeExprBoth(t, p, b, c, `SELECT ROW(1,'x')::pair=ROW(1,'x')::pair AS same`, []string{"same"}, []string{"BOOL"}, [][]any{{true}})
 		compositeExprBoth(t, p, b, c, `SELECT NULL::pair=NULL::pair AS same`, []string{"same"}, []string{"BOOL"}, [][]any{{nil}})
 		compositeExprBoth(t, p, b, c, `SELECT ROW(1,'x')::domain_pair=ROW(1,'x')::domain_pair AS same`, []string{"same"}, []string{"BOOL"}, [][]any{{true}})
+		// Ordinary UPDATE groups accept a named-composite member. Reset before
+		// every route so success must replace a different value, not inherit it.
+		for _, route := range []struct {
+			name     string
+			prepared bool
+			query    bool
+		}{
+			{"direct_exec", false, false},
+			{"direct_query", false, true},
+			{"prepared_exec", true, false},
+			{"prepared_query", true, true},
+		} {
+			t.Run("row_update/"+route.name, func(t *testing.T) {
+				fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(`UPDATE holder SET v=ROW(3,'before')::pair WHERE k=1`, 1))
+				const q = `UPDATE holder SET (k,v)=(1,ROW(7,'z')::pair) WHERE k=1`
+				step := fixture.Exec(q, 1)
+				if route.query {
+					step = fixture.Select(q, nil, nil, nil)
+				}
+				step.Prepared = route.prepared
+				fixture.RunStep(t, p.Ctx, c, b.Recorder, step)
+				compositeExprBoth(t, p, b, c, `SELECT k,v,w FROM holder ORDER BY k`, []string{"k", "v", "w"}, []string{"INT4", "", ""}, [][]any{{int64(1), "(7,z)", nil}})
+				compositeExprBoth(t, p, b, c, `SELECT k,(v).* FROM holder ORDER BY k`, []string{"k", "i", "t"}, []string{"INT4", "INT4", "TEXT"}, [][]any{{int64(1), int64(7), "z"}})
+			})
+		}
 		for _, x := range []struct {
 			q      string
 			pg     fixture.Step
@@ -212,7 +237,6 @@ func TestReferenceCompositeExprBoundaries(t *testing.T) {
 		}{
 			{`SELECT ARRAY[ROW(1,2)]::text AS v`, fixture.Select(`SELECT ARRAY[ROW(1,2)]::text AS v`, []string{"v"}, []string{"TEXT"}, [][]any{{`{"(1,2)"}`}}), fixture.CompositeReferenceDiagnostic("0A000", "unsupported array element type"), "ARRAY"},
 			{`MERGE INTO holder h USING (VALUES(3,30)) s(k,i) ON h.k=s.k WHEN NOT MATCHED THEN INSERT(k,v.i) VALUES(s.k,s.i)`, fixture.Exec(`MERGE INTO holder h USING (VALUES(3,30)) s(k,i) ON h.k=s.k WHEN NOT MATCHED THEN INSERT(k,v.i) VALUES(s.k,s.i)`, 0), fixture.CompositeReferenceDiagnostic("0A000", "MERGE partial insertion targets are unsupported"), "v.i"},
-			{`UPDATE holder SET (k,v)=(1,ROW(7,'z')::pair) WHERE k=1`, fixture.Exec(`UPDATE holder SET (k,v)=(1,ROW(7,'z')::pair) WHERE k=1`, 1), fixture.CompositeReferenceDiagnostic("0A000", "row assignments are unsupported"), "(k"},
 		} {
 			t.Run(x.q, func(t *testing.T) {
 				if b.PG {

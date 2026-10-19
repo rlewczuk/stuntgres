@@ -171,6 +171,9 @@ func (b *expressionBinder) bindRow(raw parser.RowExpr, target sqltype.Usage, mod
 	}
 	fields := make([]expr.Expr, len(list.raw))
 	for i, child := range list.raw {
+		if _, requested := child.(parser.DefaultExpr); requested {
+			return nil, expr.ErrorAt("42601", "DEFAULT is not allowed in this context", child.SourcePosition())
+		}
 		if list.nodes != nil && list.nodes[i] != nil {
 			fields[i] = list.nodes[i]
 			continue

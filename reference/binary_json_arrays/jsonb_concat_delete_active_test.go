@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"strings"
 	"testing"
+	"time"
 
 	"stuntgres/reference/fixture"
 )
@@ -17,17 +18,34 @@ func jsonbConcatDeleteActiveCancel(t *testing.T, p *fixture.Pair, b fixture.Back
 	for id := 1; id <= 2; id++ {
 		run(fixture.Exec(`INSERT INTO jbcd_active_input(id,doc,rhs,key,idx) VALUES($1,'["drop",1]','[2]','drop',0)`, 1, id))
 	}
-	// Parse one substantial immutable operand once, then reuse stored values.
-	// Avoid repeated large binds and redundant heavy rows in each phase.
+	// Store 8192 bounded strings: encoded bytes stay below the former 32MiB
+	// scalar, while real provider traversal/output reaches cancellation checks
+	// between 4KiB chunks rather than depending on one long runtime copy.
 	// Row 1 remains an early valid write; row 2 supplies the admission window.
-	run(fixture.Prepared(fixture.Exec("UPDATE jbcd_active_input SET saved=$1 WHERE id=2", 1,
-		`["drop","`+strings.Repeat("x", 32<<20)+`"]`)))
+	element := `"` + strings.Repeat("x", 4092) + `"`
+	large := `["drop",` + strings.Repeat(element+",", 8191) + element + `]`
+	run(fixture.Prepared(fixture.Exec("UPDATE jbcd_active_input SET saved=$1 WHERE id=2", 1, large)))
 	for _, tc := range []struct{ name, expression, provider, want string }{
 		{"concat", "doc || rhs", "sqltype.BinaryPlan.jsonbConcat", `["drop", 1, 2]`},
 		{"text", "doc - key", "sqltype.BinaryPlan.jsonbDelete", `[1]`},
 		{"integer", "doc - idx", "sqltype.BinaryPlan.jsonbDelete", `[1]`},
 	} {
 		t.Run("active_"+tc.name, func(t *testing.T) {
+			// Each child owns its assertions and restores shared input/output even
+			// after FailNow. The cancellation helper joins its worker before return.
+			run := func(s fixture.Step) { jsonTypeRun(t, p, b, c, s) }
+			t.Cleanup(func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+				defer cancel()
+				for _, query := range []string{
+					"DELETE FROM jbcd_active_out",
+					`UPDATE jbcd_active_input SET doc='["drop",1]' WHERE id=2`,
+				} {
+					if _, err := c.ExecContext(ctx, query); err != nil {
+						t.Error("restore active cancellation child:", query, err)
+					}
+				}
+			})
 			run(fixture.Exec("INSERT INTO jbcd_active_out VALUES(0,'99')", 1))
 			readSQL := "SELECT sum(length((" + tc.expression + ")::text)) AS n FROM jbcd_active_input"
 			writeSQL := "INSERT INTO jbcd_active_out SELECT id," + tc.expression + " FROM jbcd_active_input ORDER BY id"

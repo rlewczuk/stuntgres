@@ -1135,7 +1135,11 @@ type Update struct {
 type UpdateAssignment struct {
 	Target Identifier
 	Steps  []TargetStep
-	Value  Expr
+	// Targets is nonempty only for an ordinary UPDATE assignment group.
+	// Value remains its single, positioned constructor or subquery source.
+	Targets []InsertTarget
+	Pos     Position
+	Value   Expr
 }
 
 func (*Update) statement() {}

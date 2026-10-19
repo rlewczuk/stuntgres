@@ -548,6 +548,31 @@ with55000. FailedPortalIdentity keeps an older failed name after rollback-to,
 while disposing its executor:55000 on reuse,42P03 on duplicate Bind, then explicit
 Close permits the name again. WrappedPortalCounts asserts completing-fetch and
 exhausted-zero counts from actual SQL EXECUTE results, not saved store totals.
+FailedPortalIdentity's active COPY cancellation fills the existing1000-tuple
+insertion batch with valid integer fields, then observes an ungranted transactionid
+ShareLock on the known peer writer's exact captured XID and continued ownership.
+PostgreSQL additionally requires its `pg_blocking_pids` edge. Native cancellation
+keys are not logical lock PIDs: the sole writer's public XID/owner is captured
+before COPY starts, without calling the unsupported wire `pg_backend_pid()`.
+The first unique claim remains blocked, so later duplicate inputs cannot execute
+before cancellation. Both require the exact insertion-stage COPY context line
+`COPY server_failed_identity, line 1`, not assumed consumed-record bytes.
+PostgreSQL also requires the exact `while inserting index tuple (block,offset)`
+prefix and index relation name `server_failed_identity_v_key`; its dynamic
+physical address must contain a nonnegative block and positive offset, not a
+pinned allocator slot. Native has no physical index-tuple prefix and must expose
+only the exact COPY line. Every remaining diagnostic field stays exact.
+Native insertion-flush errors normalize SQL-owned wire cancellation before the
+saved candidate line is attached. This preserves the blocked insertion's line1
+instead of attributing its failure to the last decoded buffered record1000.
+Ordinary embedded context errors retain their identity; the existing command
+mapping still owns timeout and fatal precedence. No COPY batch or provider changes.
+The real57014 ErrorResponse precedes late CopyDone/Sync and blocker rollback;
+rollback-to still preserves only the older failed name, releases the COPY lock,
+and leaves the committed table containing only0. This definition requires
+oracle-first selected proof with `make check RUN='^TestReferenceServerFailedPortalIdentity$' REFERENCE=1`,
+then the same selector without `REFERENCE=1` (and with `RACE=1` for selected race proof).
+
 UnnamedCreationFastPaths uses retained implicit work to pin CTAS WITH NO DATA
 and existing-destination skips, no producer demand, named sibling preservation
 and separate error/commit publication arms.

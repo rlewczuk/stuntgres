@@ -6,6 +6,81 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Row-valued UPDATE assignments
+
+The untagged `update_row_*_test.go` definitions share public SQL/API bodies in
+native and pinned PostgreSQL18.6 modes. Independent expectations cover old-row
+swaps, constructor expansion/partial targets, multiple groups, correlated complete
+tuples, zero-row NULLs, cardinality/coercion atomicity, direct/SAME-held inputs,
+raw RETURNING names/types/typmods including empty output, and full diagnostics.
+The correlated MATERIALIZED CTE sequence witness draws once per matched target,
+not once per output; it does not promise volatile expression evaluation order or
+per-target execution of every uncorrelated SELECT.
+Its CTE definition resolves correlations to the actual old-row owner, not an
+empty intermediate SELECT namespace before FROM binding. Coercion failures use
+the existing captured destination diagnostic names, including visible domains.
+The SMALLINT overflow witness reads stored INT2 values directly; it does not
+depend on an unrelated explicit SMALLINT-to-TEXT cast provider.
+
+Constructor unknown inputs use destination types; independent SELECT unknown
+outputs resolve as normal SELECT outputs rather than inheriting destination types.
+Rule NEW substitution rejects current-level grouped-subquery outputs with the
+actual PostgreSQL0A000 restriction, while constructor NEW, OLD and unaffected NEW
+controls remain positive. Stored grouped UPDATE actions, writable views, enclosing
+CTEs and real native Dump/Reset/Restore exercise their existing execution owners.
+Native controls preserve retained rows/metadata, full catalog state on failed or
+canceled Restore, and fresh SAME-held execution after replacement.
+Stored query rendering imports only referenced outer mutation namespace slots
+into request-local render state. Target names and FROM/USING offsets use the same
+rule-expression authority, including renamed attributes and sparse layouts after
+unreferenced-column drops; frozen definitions and OLD/NEW captures stay unchanged.
+Each render selects the retained presentation query by syntax identity: slot
+caches and frame lookups never mix independently remapped executable and frozen
+graphs. Stored proof includes canonical redump after repeated replacement and
+target-column rename, followed by actual reuse of the same held rule consumer.
+Prepared literal capture cells belong only to the caller's raw SQL (including its
+own modifying CTEs). Borrowed rule action/condition captures remain recipe-owned;
+normal dependency invalidation imports current stored recipes. Direct caller
+sequence literals retain their existing native replacement/provenance fence,
+including mixed statements that also invoke stored rules.
+Native non-domain ordinary DEFAULT and MERGE/conflict row-assignment boundaries
+remain explicit; PostgreSQL independently supplies its actual effects.
+Generated-column DEFAULT admission is unchanged. lib/pq exposes MERGE RowsAffected0.
+
+`TestReferenceUpdateRowDomainDefaults` consumes the existing domain DEFAULT
+provider without expanding it: a leading scalar SET item precedes two groups,
+whose four DEFAULT destinations independently yield column44, domain22, explicit
+column NULL mask and fresh nullable-domain NULL. Direct execution and actual
+SAME-held reuse with fresh arguments assert complete INT4 rows and exact affected
+counts; supplied NULL independently bypasses both default recipes. Later
+required-domain NULL23502 and row-dependent domain-check23514 failures with
+RETURNING assert complete English diagnostics, no published output and unchanged
+whole-table state. The public witness does not promise a physical target scan
+order. Existing scalar/view `TestReferenceDomainDefaultCallers` stays unchanged;
+ALTER DOMAIN default mutation remains outside the existing provider.
+
+Selected proof, each with an external900-second deadline; run every public
+selector both as written and with `REFERENCE=1`:
+
+```sh
+make check RUN='^TestReferenceUpdateRow(Constructors|Subqueries|Targets|Demand)$'
+make check RUN='^TestReferenceUpdateRow(Typing|Diagnostics|DestinationDiagnostics|Metadata|Prepared)$'
+make check RUN='^TestReferenceUpdateRow(Atomicity|CoercionAtomicity|Cancellation|Controls)$'
+make check RUN='^TestReferenceUpdateRow(Stored|Boundaries|FeatureSmoke)$'
+make check RUN='^TestReferenceUpdateRowDomainDefaults$'
+make check RUN='^TestUpdateRow(Parser|Binding|Evaluation|Visitors|RuleRestriction|CorrelatedCTEFrames|RuleReplay|PreparedRecipeCaptures|CancellationBeforeFinish)$'
+make check RACE=1 RUN='^TestUpdateRow(Evaluation|RuleRestriction|CorrelatedCTEFrames|RuleReplay|PreparedRecipeCaptures|CancellationBeforeFinish)$'
+make check RACE=1 RUN='^TestReferenceUpdateRow(Prepared|Atomicity|Cancellation|Controls)$'
+```
+
+Feature smoke: `make check RUN='^TestReferenceUpdateRowFeatureSmoke$'` and the
+same with `REFERENCE=1`. Expected observations are swap20/10 and40/30; actual
+same-held calls7/13 then NULL/17; correlated100/200 and300/400; missing-source
+NULL/NULL; then21000 with unchanged complete target state.
+Internal tests exercise immutable source ownership/mapping and execution-local
+tuple lifetimes, a truly later failure after private staging, source cancellation
+and Finish veto. They supplement, rather than duplicate, public API scenarios.
+
 ### Installed uuid-ossp binary COPY
 
 `TestReferenceUUIDOsspCopyBinary` uses the existing public pinned COPY transport

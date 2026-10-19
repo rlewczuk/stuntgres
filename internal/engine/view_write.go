@@ -626,8 +626,13 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 			}
 			for i, target := range b.targets {
 				if target == slot && b.update.assignments[i] == nil {
-					assignment := stmt.(*parser.Update).Assignments[i]
-					return expr.ErrorAt("0A000", "UPDATE DEFAULT is unsupported", assignment.Value.SourcePosition())
+					pos := parser.Position{}
+					if len(b.update.origins) != 0 {
+						pos = b.update.origins[i]
+					} else {
+						pos = stmt.(*parser.Update).Assignments[i].Value.SourcePosition()
+					}
+					return expr.ErrorAt("0A000", "UPDATE DEFAULT is unsupported", pos)
 				}
 			}
 		}

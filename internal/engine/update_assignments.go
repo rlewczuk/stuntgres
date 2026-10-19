@@ -21,50 +21,9 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 		binder.updateInputParameters = nil
 	}()
 	var err error
-	for i, a := range assignments {
-		if len(a.Steps) != 0 {
-			if _, requested := a.Value.(parser.DefaultExpr); requested {
-				return expr.ErrorAt("0A000", "cannot set an array element to DEFAULT", a.Target.Pos)
-			}
-		}
-		if slot, exists := b.relation.Index[a.Target.Text]; exists {
-			if _, generated := b.relation.ColumnMeta.Generations[b.relation.Attributes[slot]]; generated {
-				if _, requested := a.Value.(parser.DefaultExpr); !requested {
-					return generationWriteError(a.Target.Text, true)
-				}
-				continue
-			}
-		}
-		if _, requested := a.Value.(parser.DefaultExpr); requested {
-			if slot, ok := b.relation.Index[a.Target.Text]; ok && b.relation.Columns[slot].Usage.Type.IsDomain() {
-				node, origin := columnDefault(binder.bindingCatalog(), b.relation, slot)
-				if node == nil {
-					node = domainNullInputExpression(b.relation.Columns[slot].Usage)
-				}
-				u.assignments[i] = node
-				if u.defaultOrigins == nil {
-					u.defaultOrigins = make([]defaultOrigin, len(assignments))
-				}
-				origin.requested = true
-				u.defaultOrigins[i] = origin
-				continue
-			}
-			if b.relation.RelationKind == catalog.ViewRelation {
-				continue // Rewrite diagnoses computed/generated destinations.
-			}
-			return expr.ErrorAt("0A000", "UPDATE DEFAULT is unsupported", a.Value.SourcePosition())
-		}
-		expected := sqltype.Usage{}
-		if slot, ok := b.relation.Index[a.Target.Text]; ok {
-			expected = b.relation.Columns[slot].Usage
-			if len(a.Steps) != 0 {
-				expected = targetUsage(expected, a.Steps)
-			}
-		}
-		u.assignments[i], err = binder.bind(a.Value, expressionPolicy{context: projectionContext, expected: expected, mode: sqltype.Assignment})
-		if err != nil {
-			return err
-		}
+	assignments, err = e.prepareUpdateAssignments(b, binder, assignments, u)
+	if err != nil {
+		return err
 	}
 	seen := make(map[int]bool, len(assignments))
 	for i, a := range assignments {
@@ -101,6 +60,10 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 		}
 		b.targets = append(b.targets, slot)
 		source := u.assignments[i]
+		sourcePos, diagnosticPos := a.Value.SourcePosition(), parser.ExpressionStart(a.Value)
+		if len(u.origins) != 0 {
+			sourcePos, diagnosticPos = u.origins[i], u.origins[i]
+		}
 		dest := b.relation.Columns[slot]
 		if source == nil && b.relation.RelationKind == catalog.ViewRelation {
 			continue
@@ -118,8 +81,13 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 			dest = target.column(dest)
 		}
 		if source.ResultUsage() != dest.Usage {
+			// Prebound tuple outputs bypass scalar source binding, but still need
+			// the same captured destination diagnostic-name authority.
+			if err := binder.captureTypeDiagnosticInput(dest.Usage.Type); err != nil {
+				return err
+			}
 			if row, ok := source.(rowExpression); ok && row.Usage.Type.ID() == 2249 && dest.Usage.Type.BaseType().IsComposite() {
-				source, err = binder.assignCompositeMember(row, dest.Usage, sqltype.Assignment, a.Value.SourcePosition())
+				source, err = binder.assignCompositeMember(row, dest.Usage, sqltype.Assignment, sourcePos)
 				if err != nil {
 					return err
 				}
@@ -127,7 +95,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 				continue
 			}
 			input, annotations := domainCoercionInput(source, dest.Usage)
-			info, err := storageCoercionInfo(binder.bindingCatalog(), binder.info(dest.Usage, a.Value.SourcePosition(), input.Properties()), input)
+			info, err := storageCoercionInfo(binder.bindingCatalog(), binder.info(dest.Usage, sourcePos, input.Properties()), input)
 			if err != nil {
 				return err
 			}
@@ -138,7 +106,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 				}
 				var d *sqlstate.Error
 				if errors.As(err, &d) && d.Code == "42804" {
-					pos := parser.ExpressionStart(a.Value)
+					pos := diagnosticPos
 					if source.ResultUsage().Type.BaseType().IsComposite() {
 						pos = source.SourcePosition()
 					}
@@ -170,7 +138,31 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 func evaluateUpdateAssignments(eval *EvalContext, action *boundUpdate, targets []int, old []sqltype.Value) ([]sqltype.Value, error) {
 	row := make([]sqltype.Value, len(old))
 	copy(row, old)
+	oldOutputs, oldReady := eval.updateOutputs, eval.updateOutputsReady
+	if action.outputWidth != 0 {
+		if oldOutputs != nil {
+			// A nested mutation owner must not overwrite the caller's live tuple.
+			previousScratch := eval.updateOutputScratch
+			var small [4]sqltype.Value
+			if action.outputWidth <= len(small) {
+				eval.updateOutputScratch = small[:action.outputWidth]
+			} else {
+				eval.updateOutputScratch = make([]sqltype.Value, action.outputWidth)
+			}
+			defer func() { eval.updateOutputScratch = previousScratch }()
+		}
+		if cap(eval.updateOutputScratch) < action.outputWidth {
+			eval.updateOutputScratch = make([]sqltype.Value, action.outputWidth)
+		}
+		defer func() { eval.updateOutputs, eval.updateOutputsReady = oldOutputs, oldReady }()
+	}
+	group := 0
 	for i, expr := range action.assignments {
+		if group < len(action.groups) && action.groups[group].start == i {
+			eval.updateOutputs = eval.updateOutputScratch[:action.groups[group].width]
+			eval.updateOutputsReady = false
+			group++
+		}
 		if expr == nil {
 			continue
 		}

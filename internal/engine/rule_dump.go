@@ -87,6 +87,16 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 			return "", true, fmt.Errorf("stuntgres: missing rule subquery syntax")
 		}
 		renderer := newViewRenderer(action.presentation)
+		// Replacement remaps executable and frozen graphs independently.
+		// Every slot cache and frame lookup in this render must use the
+		// retained presentation graph, selected by immutable syntax identity.
+		project = renderer.queries[project.syntax]
+		if project == nil {
+			return "", true, fmt.Errorf("stuntgres: missing retained rule subquery presentation")
+		}
+		if err := seedRuleMutationSlots(renderer, action, project, r.columnSQL); err != nil {
+			return "", true, err
+		}
 		text, err := renderer.selectQuerySQL(ctx, view, project.syntax, project)
 		if err != nil {
 			return "", true, err
@@ -128,6 +138,47 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 		return "", err
 	}
 	return r.sql(ctx, node, pgRenderParent{})
+}
+
+// A mutation's target/FROM frame is not emitted by SELECT rendering. Seed only
+// actual correlated recipes under that frozen outer root, using the same target
+// and source-offset authority as ordinary rule expressions. Unreferenced retired
+// columns are never rendered, and the frozen presentation remains immutable.
+func seedRuleMutationSlots(renderer *viewRenderer, action ruleAction, query LogicalNode, columnSQL func(columnExpression) (string, error)) error {
+	switch action.syntax.(type) {
+	case *parser.Update, *parser.Delete:
+	default:
+		return nil
+	}
+	owner := renderer.frames[1]
+	if owner == nil {
+		return fmt.Errorf("stuntgres: missing rule mutation presentation frame")
+	}
+	root := viewFromRoot(owner)
+	slots := renderer.slots[root]
+	var failure error
+	visitCTEQuery(query, func(LogicalNode) {}, func(bound expr.Expr) {
+		walkBoundExpression(bound, func(node expr.Expr) {
+			column, ok := node.(columnExpression)
+			if failure != nil || !ok || column.scope != 1 || column.frame != 1 {
+				return
+			}
+			if _, exists := slots[column.slot]; exists {
+				return
+			}
+			text, err := columnSQL(column)
+			if err != nil {
+				failure = err
+				return
+			}
+			if slots == nil {
+				slots = make(map[int]string)
+				renderer.slots[root] = slots
+			}
+			slots[column.slot] = text
+		})
+	}, true)
+	return failure
 }
 
 func ruleFromSQL(ctx context.Context, view catalog.Read, root LogicalNode, action ruleAction) (string, error) {
@@ -176,6 +227,15 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root LogicalNode, actio
 			return "", fmt.Errorf("stuntgres: missing rule derived-query presentation")
 		}
 		renderer := newViewRenderer(action.presentation)
+		project = renderer.queries[project.syntax]
+		if project == nil {
+			return "", fmt.Errorf("stuntgres: missing retained rule derived-query presentation")
+		}
+		if err := seedRuleMutationSlots(renderer, action, project, func(column columnExpression) (string, error) {
+			return ruleExpressionSQL(ctx, view, column, action)
+		}); err != nil {
+			return "", err
+		}
 		text, err := renderer.selectQuerySQL(ctx, view, project.syntax, project)
 		if err != nil {
 			return "", err
@@ -389,26 +449,11 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 		}
 	case *parser.Update:
 		sql.WriteString("UPDATE " + name + " SET ")
-		for i, expr := range b.update.assignments {
-			if i != 0 {
-				sql.WriteString(", ")
-			}
-			column, err := deparseAttribute(d, b.relation.Attributes[b.targets[i]])
-			if err != nil {
-				return "", err
-			}
-			if len(b.update.arrayTargets) > i {
-				column, err = ruleAssignmentSQL(ctx, view, column, b.update.arrayTargets[i], action)
-				if err != nil {
-					return "", err
-				}
-			}
-			text, err := ruleExpressionSQL(ctx, view, expr, action)
-			if err != nil {
-				return "", err
-			}
-			sql.WriteString(column + " = " + text)
+		assignments, err := ruleUpdateAssignmentsSQL(ctx, view, &b, action)
+		if err != nil {
+			return "", err
 		}
+		sql.WriteString(assignments)
 		if b.update.from != nil {
 			text, err := ruleFromSQL(ctx, view, b.update.from, action)
 			if err != nil {

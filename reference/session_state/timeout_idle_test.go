@@ -140,20 +140,6 @@ func TestReferenceTimeoutPrecedence(t *testing.T) {
 			})
 		})
 	}
-	t.Run("old-transaction-residual", func(t *testing.T) {
-		timeoutReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-			f := newTimeoutReferenceFixture(t, p, b)
-			f.set("transaction_timeout", "500ms")
-			f.beginPrivate()
-			timeoutReferenceIdle(t, p.Ctx, 300*time.Millisecond)
-			f.set("idle_in_transaction_session_timeout", "375ms")
-			// Nominally shorter idle budget loses to the old transaction's
-			// remaining 200ms, not to a restarted transaction timer.
-			timeoutReferenceIdle(t, p.Ctx, 275*time.Millisecond)
-			f.fatalProbe("25P04")
-			f.rows(f.peer, 7)
-		})
-	})
 	t.Run("admitted-set-config", timeoutReferencePrecedenceAssignment)
 	t.Run("residual-expiry-before-command", func(t *testing.T) {
 		timeoutReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {

@@ -54,6 +54,40 @@ make check RUN='^(TestCatalogDrop(PublicationAndRetainedReads|ReferenceAndConfli
 make check RACE=1 RUN='^(TestExtensionDropPublication(Candidate)?|TestPGDependDomainCheckDependencies|TestReferenceExtensionDropTransactions|TestReferenceExtensionTransactions)$'
 ```
 
+Transaction-versus-statement callback ordering is exercised by
+`TestSessionTimeoutResidualBeforeStatement`: the actual engine, transaction,
+command timer and blocked mutation live inside a `synctest` bubble. A 500ms
+transaction aged 300ms must terminate the actual request at 500ms, before its
+375ms statement budget reaches 675ms. Exact FATAL25P04, no effects, physical-end
+and lock cleanup, and healthy peer mutation/readback are mandatory. This replaces
+a public wall-clock callback-order assumption, not the intentional opposite case:
+`TestSessionTimeoutPendingOrderMechanics` and `TestSessionTimeoutPendingLifecycle`
+still require already-pending statement ERROR57014 priority.
+
+`TestSessionTimeoutResidualBeforeIdle` covers the idle counterpart with actual
+setting publication and ready-boundary arming: transaction500ms is unchanged
+when idle375ms starts after300ms, so idle is due at675ms. A private INSERT and
+the peer's exact queued lock remain through499ms; full location-free25P04 at500ms
+must roll back the write, release the peer, end physical ownership and empty
+locks before healthy-peer write/readback. The public wall-clock counterpart is
+removed because both-already-due idle25P03 intentionally wins; that opposite
+outcome remains strict in `TestSessionTimeoutPendingOrderMechanics`.
+
+Both residual bubbles inspect settled state after `synctest.Wait` and fail
+immediately on unexpected worker completion or a missing exact request; they
+never spin while waiting for fake time to advance. The idle counterpart begins
+a real explicit peer transaction for `LOCK TABLE`, observes the canonical
+manager request (an untimed peer has no operation timeout-slot projection), and
+rolls back that peer after the owner's timeout grants its lock.
+
+```sh
+make check RUN='^TestSessionTimeout(ResidualBefore(Statement|Idle)|PendingOrderMechanics|PendingLifecycle|PendingCompletedLifecycle)$'
+make check RACE=1 RUN='^TestSessionTimeout(ResidualBefore(Statement|Idle)|PendingOrderMechanics|PendingLifecycle|PendingCompletedLifecycle)$'
+```
+
+Each selected invocation needs an external 900-second deadline. Public portable
+timeout contracts remain dual-mode tests in `reference/session_state`.
+
 ### Relation lock timeout mechanics
 
 Relation-lock timeout units observe completion and lock state together in short
