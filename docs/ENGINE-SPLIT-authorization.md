@@ -194,7 +194,10 @@ Added when the later waves were planned. The binding walkers stayed in the
 engine because they read `binding`, `queryLeaf`, `queryRowMark` and lock
 modes: `AuthorizationView.checkBinding`, `checkQuerySources`,
 `checkColumns`, `checkViewWrite`, `checkViewRowMarks` and
-`checkViewRowMarksExpanded` (all in `authorization.go`). Once step 12d has
+`checkViewRowMarksExpanded` (all in `authorization.go`), and the
+`row_security` walkers added at `2205fe385` (`checkRowSecurityBinding`,
+`checkRowSecurityRuleProgram`, `checkRowSecuritySource` in
+`row_security_setting.go`). Once step 12d has
 moved `binding` into `analyze` and step 10c the row marks into `plan`:
 
 1. Re-measure the walkers' reach with the appendix tool.

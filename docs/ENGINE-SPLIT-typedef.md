@@ -23,9 +23,11 @@ dump and remap helpers (Part A), then its DDL handlers (Part B). The name
 
 47 files, about 9.5k lines (`domain*`, `enum*`, `composite*`, `range_*`,
 `collation*`, `conversion*`, `typed_*`, `type_*`, `types.go`); 2,796 of
-8,574 declaration lines are clean. `PG18-DDL-DOMAIN-DEFAULT` landed on
-`master` right after this measurement and changes the domain files:
-re-measure first.
+8,574 declaration lines are clean. `PG18-DDL-DOMAIN-DEFAULT` (`f4fbfb978`)
+landed on `master` right after this measurement: it adds
+`domain_default.go` (219 lines) and `domain_default_restore.go` (608) and
+changes the domain files. Re-measure first; the restore half is a Dump/Restore
+helper (Part A if clean, otherwise `control`).
 
 **Clean files:** `collation_dump.go` (72), `collation_remap.go` (35),
 `collation_validation.go` (61), `conversion_descriptions.go` (130),

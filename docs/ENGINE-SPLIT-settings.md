@@ -23,7 +23,9 @@ per-session store and SET/SHOW execution stay in the engine for step 13.
 ## Inventory (measured at `75fe0d710`)
 
 Re-measure first: `master` moves fast, and `PG18-ADMIN-SETTINGS-*` parts add
-builtin settings.
+builtin settings (`row_security` landed at `2205fe385`, together with the
+`pg_settings` producer in `pg_settings.go`, which reads `sessionSettings` and
+belongs to step 9).
 
 | File | Lines | Content | Clean (§2.6) |
 |---|---:|---|---|

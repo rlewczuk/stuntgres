@@ -53,7 +53,9 @@ first dispatcher), `table_view_summary.go` (287, `pg_views`, `pg_tables`,
      foreign catalogs and `pgUserMappingsOID` (need `AuthorizationView`),
      `pgCursorsOID` (session cursors), 12081/12085 (available extensions),
      12048 (`pg_sequences`, lazy completion through the scope), 12004/12005
-     (timezones, statement input), 12014/12007/12008 (`pg_user`, `pg_roles`,
+     (timezones, statement input), `pgSettingsOID` 16202 (`pg_settings`,
+     reads the session's `sessionSettings`; added by `PG18-ADMIN-SETTINGS-
+     ROW-SECURITY` right after this measurement, in `pg_settings.go`), 12014/12007/12008 (`pg_user`, `pg_roles`,
      `pg_group`), `tablePrivilegesOID` and `dataTypePrivilegesOID` (comment
      catalog, `deparseAuth`, database name);
    - then 2396 (`pg_shdescription`, comment roles), 2224 (`pg_sequence`, with
@@ -130,6 +132,9 @@ through `*querySource`, which holds `scope *StatementScope`. With
    call (not by `*Engine` itself):
    - `Cursors() []cursorRow` for `pg_cursors` (plain data, built under the
      session's cursor registry);
+   - `SessionSettings()` for `pg_settings` (plain rows built under the
+     session settings mutex; the store itself stays in the engine until step
+     13);
    - `PreparedTransactions()` for `pg_prepared_xacts` (plain data built from
      `e.prepared`, `AssignedXIDLocked` and the published roles);
    - `TimezoneInput() sqltype.InputEnvironment`;
@@ -258,8 +263,8 @@ Outstanding aliases: none yet.
 
 Notes for later steps:
 
-- `pg_settings`, `pg_stat_activity` and `pg_prepared_statements` are not
-  implemented; adding them is feature work, not part of the split. Once
-  `pgcatalog` exists, new producers go there.
+- `pg_stat_activity` and `pg_prepared_statements` are not implemented;
+  adding them is feature work, not part of the split. Once `pgcatalog`
+  exists, new producers go there. (`pg_settings` landed at `2205fe385`.)
 - Step 11 (`exec`): `querySource.anonymous` remains the row carrier for
   catalog relations; the executor sees no change.
