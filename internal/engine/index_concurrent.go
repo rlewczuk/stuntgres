@@ -106,9 +106,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 			return 0, err
 		}
 		// Every retry captures snapshot ownership with the actual immutable row root.
-		visibility := e.visibility[scope.txRef]
-		visibility.snapshot = false
-		e.visibility[scope.txRef] = visibility
+		e.visibility.withdrawSnapshotLocked(scope.txRef)
 		safe, err := simpleConcurrentIndex(parent, index.SQLIndex)
 		if err != nil {
 			e.mu.Unlock()
@@ -169,7 +167,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 		}
 		if first {
 			e.mu.Lock()
-			e.resetVisibilityPhaseLocked(scope.txRef)
+			e.visibility.resetPhaseLocked(scope.txRef)
 			e.mu.Unlock()
 		}
 		return xmin, nil
@@ -221,7 +219,7 @@ func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *pars
 		}
 		if err == nil {
 			e.mu.Lock()
-			e.resetVisibilityPhaseLocked(scope.txRef)
+			e.visibility.resetPhaseLocked(scope.txRef)
 			e.mu.Unlock()
 		}
 		return err

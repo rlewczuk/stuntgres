@@ -952,7 +952,7 @@ func TestPartitionConstraintsIncompleteReplacementAdmission(t *testing.T) {
 		return out
 	}
 	before := indexMaintenanceCapture(e)
-	snapshot, err := e.captureIndexSnapshot(context.Background(), e.CatalogRead(), e.storage.Relations, e.storage.IndexRoots, e.commitSeq)
+	snapshot, err := e.captureIndexSnapshot(context.Background(), e.CatalogRead(), e.storage.Relations, e.storage.IndexRoots, e.visibility.commitSeq)
 	if err != nil {
 		t.Fatal(err)
 	}

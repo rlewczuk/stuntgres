@@ -101,7 +101,7 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 				e.storage.Relations[table.Address] = &store
 				fail = true
 			}
-			before, stores, roots, frontier := e.catalog.state, maps.Clone(e.storage.Relations), maps.Clone(e.storage.IndexRoots), e.commitSeq
+			before, stores, roots, frontier := e.catalog.state, maps.Clone(e.storage.Relations), maps.Clone(e.storage.IndexRoots), e.visibility.commitSeq
 			var err error
 			if kind == "cancel_before" || kind == "cancel_after" {
 				barrier := &batchPublicationContext{Context: message.op.ctx, e: e, s: s, entered: make(chan struct{}), release: make(chan struct{})}
@@ -150,7 +150,7 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 				err = message.end(nil)
 			}
 			if fail {
-				if err == nil || e.catalog.state != before || !maps.Equal(e.storage.Relations, stores) || !maps.Equal(e.storage.IndexRoots, roots) || e.commitSeq != frontier {
+				if err == nil || e.catalog.state != before || !maps.Equal(e.storage.Relations, stores) || !maps.Equal(e.storage.IndexRoots, roots) || e.visibility.commitSeq != frontier {
 					t.Fatal("message veto installed partial roots", err)
 				}
 				if kind == "cancel_before" && !errors.Is(err, context.Canceled) {

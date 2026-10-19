@@ -70,7 +70,7 @@ func TestPGEnumImportMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := catalogRef(t, source, original, "saved")
-	source.commitSeq = 1
+	source.visibility.commitSeq = 1
 	source.storage.Relations[ref.Address] = &storage.Relation{Versions: []storage.RowVersion{{Row: 7, Version: 11, Born: 1, Values: []sqltype.Value{v, d, c}}}}
 	targetOp, targetDone := roleOperation(t, target, "postgres")
 	domainUnitPublish(t, target, domainUnitStage(t, target, targetOp, "CREATE TYPE reserved AS ENUM ('a','b','c')"))

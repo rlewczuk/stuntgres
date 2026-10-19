@@ -41,22 +41,41 @@ func virtualTransaction(owner lock.RecordOwner) string {
 // association even after commit; no session lookup or live ticket is needed.
 func (e *Engine) capturePGPredicateLocksLocked() ([]lock.Record, error) {
 	var records []lock.Record
-	for ref, node := range e.serializable.nodes {
-		if ref.Epoch() != e.catalog.state.Epoch() || node.ref != ref || !serializableRelevant(node) {
-			continue
-		}
-		owner, visible, err := lock.PublicOwner(e.catalog.Domain, ref, node.prepared)
+	for _, holder := range e.visibility.predicateLocksLocked(e.catalog.state.Epoch()) {
+		owner, visible, err := lock.PublicOwner(e.catalog.Domain, holder.ref, holder.prepared)
 		if err != nil {
 			return nil, err
 		}
 		if !visible {
 			continue
 		}
-		for address := range node.reads {
+		for address := range holder.reads {
 			records = append(records, lock.Record{Kind: lock.PredicateRecord, Owner: owner, Object: uint32(address.ObjectID)})
 		}
 	}
 	return records, nil
+}
+
+// predicateLockHolder is a relevant serializable transaction and the
+// relations it has read (SIRead locks). reads is the tracker's live set: read
+// it only while Engine.mu is still held.
+type predicateLockHolder struct {
+	ref      ids.TxRef
+	prepared bool
+	reads    map[ids.ObjectAddress]struct{}
+}
+
+// predicateLocksLocked lists the relevant serializable transactions of epoch
+// with their read sets. Caller holds Engine.mu.
+func (reg *visibilityRegistry) predicateLocksLocked(epoch ids.CatalogEpoch) []predicateLockHolder {
+	var holders []predicateLockHolder
+	for ref, node := range reg.serializable.nodes {
+		if ref.Epoch() != epoch || node.ref != ref || !serializableRelevant(node) {
+			continue
+		}
+		holders = append(holders, predicateLockHolder{ref: ref, prepared: node.prepared, reads: node.reads})
+	}
+	return holders
 }
 
 // Consumes Engine.mu. Only scalar SSI/database facts are captured before the

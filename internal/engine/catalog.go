@@ -1207,11 +1207,11 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				err = next.AdvanceNamespaceGeneration()
 			}
 		}
-		if err == nil && (len(s.initialTables) != 0 || s.materializedReplacement != nil) && e.commitSeq == ids.CommitSeq(math.MaxUint64) {
+		if err == nil && (len(s.initialTables) != 0 || s.materializedReplacement != nil) && e.visibility.commitSeq == ids.CommitSeq(math.MaxUint64) {
 			err = fmt.Errorf("stuntgres: commit sequence exhausted")
 		}
 		if err == nil && s.initialTx != (ids.TxRef{}) {
-			err = e.serializablePrecommitLocked(s.initialTx)
+			err = e.visibility.serializablePrecommitLocked(s.initialTx)
 		}
 		commitRef := s.initialTx
 		if scope != nil {
@@ -1233,7 +1233,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				}
 			}
 			if len(s.initialTables) != 0 || s.materializedReplacement != nil {
-				frontier := e.commitSeq + 1
+				frontier := e.visibility.commitSeq + 1
 				for _, initial := range s.initialTables {
 					for i := range initial.Versions {
 						initial.Versions[i].Born = frontier
@@ -1253,10 +1253,10 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 						replacement.storage.MaterializedLineage = lineage
 					}
 				}
-				e.commitSeq = frontier
+				e.visibility.commitSeq = frontier
 			}
 			if s.initialTx != (ids.TxRef{}) {
-				e.serializableCommittedLocked(s.initialTx, e.commitSeq)
+				e.visibility.serializableCommittedLocked(s.initialTx, e.visibility.commitSeq)
 			}
 			e.catalog.state = next
 			e.storage.Relations = relations
@@ -1273,7 +1273,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				e.roles.published = s.roleCandidate
 			}
 			if commitRef != (ids.TxRef{}) {
-				e.recordCommitTimestampLocked(commitRef)
+				e.visibility.recordCommitTimestampLocked(commitRef)
 			}
 			s.lifecycle = catalogPublished
 		}
@@ -1357,7 +1357,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	var sequences map[ids.ObjectAddress]*storage.SequenceGenerator
 	var indexes *indexSnapshot
 	copyRows := func(owner *Engine) error {
-		source, frontier := owner.storage.Relations, owner.commitSeq
+		source, frontier := owner.storage.Relations, owner.visibility.commitSeq
 		for _, a := range relationAddresses {
 			if source[a] == nil {
 				return fmt.Errorf("stuntgres: relation storage is missing")
@@ -1434,7 +1434,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		if imported > ^uint64(0)-e.storage.VersionFrontier() {
 			return ChangeSet{}, fmt.Errorf("stuntgres: version identity exhausted")
 		}
-		if e.commitSeq == ids.CommitSeq(^uint64(0)) {
+		if e.visibility.commitSeq == ids.CommitSeq(^uint64(0)) {
 			return ChangeSet{}, fmt.Errorf("stuntgres: commit sequence exhausted")
 		}
 		if hasHierarchy {
@@ -1456,7 +1456,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		}
 		e.storage.SetFrontierLocked(nextRow, nextVersion)
 		e.storage.IndexRoots = roots
-		e.commitSeq++
+		e.visibility.commitSeq++
 		next.SetEpoch(e.catalog.state.Epoch() + 1)
 		e.catalog.state = next
 		e.storage.Relations = relations
@@ -1466,7 +1466,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		e.clearPersistentSequenceMemoryLocked()
 		e.catalog.nextRevision = nextRevision
 		e.fenceSerializableLocked()
-		e.retireCommitTimestampsLocked()
+		e.visibility.retireCommitTimestampsLocked()
 		installed = next.Epoch()
 		return ChangeSet{Replacement: true}, nil
 	}
@@ -1511,7 +1511,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	if imported > ^uint64(0)-e.storage.VersionFrontier() {
 		return ChangeSet{}, fmt.Errorf("stuntgres: version identity exhausted")
 	}
-	if e.commitSeq == ids.CommitSeq(^uint64(0)) {
+	if e.visibility.commitSeq == ids.CommitSeq(^uint64(0)) {
 		return ChangeSet{}, fmt.Errorf("stuntgres: commit sequence exhausted")
 	}
 	replacement.State().SetACLItemImport(e.aclItemImporter(source, sourceRoles, targetRoles, source.importTargets))
@@ -1556,7 +1556,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 // Storage vectors and sequence generator scalars are private copies; payload
 // values remain immutable. All prepared containers publish at the same boundary.
 func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared remintedIndexStorage) error {
-	if prepared.catalog != next || prepared.baseCatalog != e.catalog.state || prepared.baseRow != e.storage.RowFrontier() || prepared.baseVersion != e.storage.VersionFrontier() || prepared.frontier != e.commitSeq {
+	if prepared.catalog != next || prepared.baseCatalog != e.catalog.state || prepared.baseRow != e.storage.RowFrontier() || prepared.baseVersion != e.storage.VersionFrontier() || prepared.frontier != e.visibility.commitSeq {
 		return ids.ErrCatalogReplaced
 	}
 	if err := ctx.Err(); err != nil {
@@ -1564,7 +1564,7 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.
 	}
 	e.storage.SetFrontierLocked(prepared.nextRow, prepared.nextVersion)
 	e.storage.IndexRoots = prepared.roots
-	e.commitSeq++
+	e.visibility.commitSeq++
 	next.SetEpoch(e.catalog.state.Epoch() + 1)
 	e.catalog.state = next
 	e.storage.Relations = relations
@@ -1574,7 +1574,7 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.
 	e.clearPersistentSequenceMemoryLocked()
 	e.catalog.nextRevision = nextRevision
 	e.fenceSerializableLocked()
-	e.retireCommitTimestampsLocked()
+	e.visibility.retireCommitTimestampsLocked()
 	return nil
 }
 

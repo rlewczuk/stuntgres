@@ -104,7 +104,7 @@ func preparedBoundaryFixture(t *testing.T) (*Engine, *Session, *preparedTransact
 	preparedUnitStatement(t, e, origin, &parser.Insert{Name: name, Rows: [][]parser.Expr{{preparedBoundaryInteger(7)}}})
 	preparedUnitStatement(t, e, origin, &parser.CreateSequence{Name: preparedBoundaryName("prepared_boundary_sequence"), Options: []parser.SequenceOption{{Name: "start", Value: 41}}})
 	e.mu.Lock()
-	beforeVisibility := e.visibility[origin.transactions.ref]
+	beforeVisibility := e.visibility.entries[origin.transactions.ref]
 	e.mu.Unlock()
 	if !beforeVisibility.snapshot || beforeVisibility.xid == 0 {
 		t.Fatal("real modifying Serializable owner did not advertise visibility")
@@ -113,11 +113,11 @@ func preparedBoundaryFixture(t *testing.T) (*Engine, *Session, *preparedTransact
 		t.Fatal(err)
 	}
 	entry := e.prepared["boundary"]
-	if entry == nil || len(entry.writes) == 0 || len(entry.deletes) == 0 || entry.catalog == nil || len(entry.catalog.storage) == 0 || len(entry.catalog.generators) == 0 || e.serializable.nodes[entry.ref] == nil || len(e.locks.Inspect(entry.ticket).Journals[entry.ticket]) == 0 {
+	if entry == nil || len(entry.writes) == 0 || len(entry.deletes) == 0 || entry.catalog == nil || len(entry.catalog.storage) == 0 || len(entry.catalog.generators) == 0 || e.visibility.serializable.nodes[entry.ref] == nil || len(e.locks.Inspect(entry.ticket).Journals[entry.ticket]) == 0 {
 		t.Fatal("fixture did not retain populated row/delete/catalog/generator/SSI/lock roots")
 	}
 	e.mu.Lock()
-	preparedVisibility, retainedVisibility := e.visibility[entry.ref]
+	preparedVisibility, retainedVisibility := e.visibility.entries[entry.ref]
 	e.mu.Unlock()
 	if !retainedVisibility || preparedVisibility.xid != beforeVisibility.xid || preparedVisibility.snapshot || preparedVisibility.xmin != 0 || preparedVisibility.safeBuilder {
 		t.Fatal("PREPARE must drop reader snapshot but retain detached writer visibility", preparedVisibility)
@@ -166,12 +166,12 @@ func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoun
 	lockState := e.locks.Inspect(entry.ticket)
 	s := preparedBoundarySnapshot{
 		catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()),
-		counters:        [10]uint64{uint64(e.catalog.state.Epoch()), e.catalog.state.NamespaceGeneration(), uint64(e.catalog.nextOID), uint64(e.catalog.nextRevision), e.storage.RowFrontier(), e.storage.VersionFrontier(), uint64(e.commitSeq), uint64(e.diagnosticTx), e.serializable.order, e.roles.nextPrincipal},
+		counters:        [10]uint64{uint64(e.catalog.state.Epoch()), e.catalog.state.NamespaceGeneration(), uint64(e.catalog.nextOID), uint64(e.catalog.nextRevision), e.storage.RowFrontier(), e.storage.VersionFrontier(), uint64(e.visibility.commitSeq), uint64(e.visibility.diagnosticTx), e.visibility.serializable.order, e.roles.nextPrincipal},
 		storagePointers: maps.Clone(e.storage.Relations), storage: map[ids.ObjectAddress]storage.Relation{},
 		generators: maps.Clone(e.storage.Sequences), generatorValues: map[ids.ObjectAddress]storage.SequenceGenerator{},
 		indexes: maps.Clone(e.storage.IndexRoots), indexValues: map[ids.ObjectAddress][]storage.IndexEntry{},
 		registry: maps.Clone(e.prepared), entries: map[string]preparedTransaction{},
-		ssi: map[ids.TxRef]serializableTransaction{}, creators: maps.Clone(e.serializable.creators),
+		ssi: map[ids.TxRef]serializableTransaction{}, creators: maps.Clone(e.visibility.serializable.creators),
 		owners: lockState.Owners, resources: lockState.Journals[entry.ticket], locks: map[lock.Resource]lock.ResourceState{},
 	}
 	for address, store := range e.storage.Relations {
@@ -222,7 +222,7 @@ func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoun
 		}
 		s.entries[gid] = value
 	}
-	for ref, node := range e.serializable.nodes {
+	for ref, node := range e.visibility.serializable.nodes {
 		value := *node
 		value.reads = maps.Clone(node.reads)
 		value.writes = maps.Clone(node.writes)
@@ -332,7 +332,7 @@ func TestPreparedPopulatedCompetingCompletionAndRetry(t *testing.T) {
 			arrived, release := preparedBoundaryBarrier(t, e, origin, finisher, entry)
 			if veto == "counter" {
 				e.mu.Lock()
-				e.commitSeq = ids.CommitSeq(math.MaxUint64)
+				e.visibility.commitSeq = ids.CommitSeq(math.MaxUint64)
 				e.mu.Unlock()
 			}
 			before := preparedBoundaryCapture(e, entry)
@@ -383,7 +383,7 @@ func TestPreparedPopulatedCompetingCompletionAndRetry(t *testing.T) {
 			}
 			if veto == "counter" {
 				e.mu.Lock()
-				e.commitSeq = entry.frontier
+				e.visibility.commitSeq = entry.frontier
 				e.mu.Unlock()
 			}
 			if err := preparedUnitControl(t, e, finisher, parser.KindCommitPrepared, "boundary"); err != nil {
@@ -404,7 +404,7 @@ func preparedBoundaryPublished(t *testing.T, e *Engine, entry *preparedTransacti
 	t.Helper()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.prepared[entry.gid] != nil || e.commitSeq != entry.frontier+1 {
+	if e.prepared[entry.gid] != nil || e.visibility.commitSeq != entry.frontier+1 {
 		t.Fatal("completion did not publish exactly once")
 	}
 	relation := e.catalog.state.MustRelation(parent)
@@ -412,7 +412,7 @@ func preparedBoundaryPublished(t *testing.T, e *Engine, entry *preparedTransacti
 		t.Fatal("catalogue shape did not publish")
 	}
 	store := e.storage.Relations[parent]
-	selected, err := selectQuerySource(context.Background(), &querySource{committed: store.Versions}, e.commitSeq, store.Ends, nil)
+	selected, err := selectQuerySource(context.Background(), &querySource{committed: store.Versions}, e.visibility.commitSeq, store.Ends, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -428,7 +428,7 @@ func preparedBoundaryPublished(t *testing.T, e *Engine, entry *preparedTransacti
 		}
 		if i == 0 {
 			_, update := preparedBoundaryUpdate(t, entry, parent)
-			if row.Row != update.Row || row.Version != update.Version || row.Base != 0 || row.Born != e.commitSeq {
+			if row.Row != update.Row || row.Version != update.Version || row.Base != 0 || row.Born != e.visibility.commitSeq {
 				t.Fatal("surviving UPDATE did not publish its retained identity exactly once")
 			}
 		}
@@ -564,7 +564,7 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 	if e.locks.TransactionTicket(refs[loser.owner]) != nil || len(e.locks.Inspect(tickets[loser.owner]).Journals[tickets[loser.owner]]) != 0 || e.locks.TransactionTicket(refs[winner.owner]) != entry.ticket {
 		t.Fatal("loser released winner or retained its own holds")
 	}
-	if node := e.serializable.nodes[refs[loser.owner]]; node != nil && (!node.aborted || !node.ended || node.prepared) {
+	if node := e.visibility.serializable.nodes[refs[loser.owner]]; node != nil && (!node.aborted || !node.ended || node.prepared) {
 		t.Fatal("loser SSI incarnation survived")
 	}
 	if err := preparedUnitControl(t, e, owners[loser.owner], parser.KindCommitPrepared, "race"); err != nil {
@@ -575,7 +575,7 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 	}
 	for address := range entry.writes {
 		store := e.storage.Relations[address]
-		selected, err := selectQuerySource(context.Background(), &querySource{committed: store.Versions}, e.commitSeq, store.Ends, nil)
+		selected, err := selectQuerySource(context.Background(), &querySource{committed: store.Versions}, e.visibility.commitSeq, store.Ends, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

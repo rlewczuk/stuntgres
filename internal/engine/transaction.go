@@ -167,12 +167,12 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState, 
 	if err := publicationOperationLocked(e, op); err != nil {
 		return err
 	}
-	if e.diagnosticTx == ^uint32(0) {
-		return errors.New("stuntgres: transaction diagnostic identity exhausted")
+	diagnostic, err := e.visibility.nextDiagnosticTxLocked()
+	if err != nil {
+		return err
 	}
-	e.diagnosticTx++
 	t.next++
-	t.ref = e.catalog.Domain.Tx(t.session.token, t.next, e.catalog.state.Epoch(), t, e.diagnosticTx)
+	t.ref = e.catalog.Domain.Tx(t.session.token, t.next, e.catalog.state.Epoch(), t, diagnostic)
 	t.state = state
 	session.notifications.busy = true
 	t.isolation = isolationFromText(settings.value("default_transaction_isolation"))
@@ -674,7 +674,7 @@ retry:
 			versions[i].IndexOutputs = batch.states[i].indexes
 		}
 	}
-	if serializableRelevant(e.serializable.nodes[s.txRef]) {
+	if e.visibility.relevantSerializableLocked(s.txRef) != nil {
 		for _, row := range versions {
 			event := [1]serializableWrite{{row: row.Row, version: row.Version}}
 			if err := e.serializableWriteLocked(s, ref, event[:]); err != nil {

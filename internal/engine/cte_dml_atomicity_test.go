@@ -99,7 +99,7 @@ func TestCTEDMLAtomicPublication(t *testing.T) {
 		t.Fatal(result, err)
 	}
 	defer result.Rows.Close()
-	before := e.commitSeq
+	before := e.visibility.commitSeq
 	transactionRows(t, observer, "SELECT id FROM a ORDER BY id", 1, 2)
 	transactionRows(t, observer, "SELECT id FROM b")
 	if scope.completed {
@@ -109,8 +109,8 @@ func TestCTEDMLAtomicPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	op.Done()
-	if e.commitSeq != before+1 {
-		t.Fatal("more than one publication frontier", before, e.commitSeq)
+	if e.visibility.commitSeq != before+1 {
+		t.Fatal("more than one publication frontier", before, e.visibility.commitSeq)
 	}
 	transactionRows(t, observer, "SELECT id FROM a")
 	transactionRows(t, observer, "SELECT id FROM b ORDER BY id", 1, 2)

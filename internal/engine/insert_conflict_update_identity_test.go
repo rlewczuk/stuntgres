@@ -20,7 +20,7 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 		sessionSQL(t, s, "DELETE FROM t WHERE k=9")
 		op, scope, b := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t VALUES(1,2) ON CONFLICT(k) DO UPDATE SET v=excluded.v")
 		scope.owner.isolation = isolation
-		scope.owner.frontier = e.commitSeq
+		scope.owner.frontier = e.visibility.commitSeq
 		integer := func(n int64) sqltype.Value {
 			v, err := sqltype.Integer(b.relation.Columns[0].Usage.Type, n)
 			if err != nil {

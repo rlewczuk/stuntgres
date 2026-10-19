@@ -23,41 +23,15 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 			return err
 		}
 		e.enrollSerializableLocked(t.ref, t.isolation)
-		node := e.serializable.nodes[t.ref]
-		node.captured = true
-		node.readOnly = t.readOnly
-		node.deferrable = t.deferrable
-		node.frontier = e.commitSeq
-		node.snapshotOrder = e.serializable.order
-		node.resolved = false
-		node.unsafe = false
-		node.exempt = false
-		node.possible = nil
-		node.ready = nil
+		node := e.visibility.captureSerializableLocked(t.ref, t.readOnly, t.deferrable)
 		roots := make(map[ids.ObjectAddress]transactionRoot, len(e.storage.Relations))
 		for address, storage := range e.storage.Relations {
 			if relation, ok := e.catalog.state.Relation(address); ok {
 				roots[address] = transactionRoot{storage.Versions, storage.Ends, storage, relation}
 			}
 		}
-		t.roots, t.frontier = roots, e.commitSeq
+		t.roots, t.frontier = roots, e.visibility.commitSeq
 		t.sequenceCatalog = e.catalog.state
-		if node.readOnly {
-			for _, writer := range e.serializable.nodes {
-				if writer != node && serializableRelevant(writer) && !serializableReadOnly(writer) && !writer.committed && writer.ref.Epoch() == node.ref.Epoch() {
-					if node.possible == nil {
-						node.possible = make(map[*serializableTransaction]struct{})
-					}
-					node.possible[writer] = struct{}{}
-				}
-			}
-			if len(node.possible) == 0 {
-				node.resolved = true
-				node.exempt = true
-			} else {
-				node.ready = make(chan struct{})
-			}
-		}
 		if !node.readOnly || !node.deferrable || node.resolved {
 			t.snapshotSet = true
 			e.mu.Unlock()
@@ -108,4 +82,40 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 		t.frontier = 0
 		e.mu.Unlock()
 	}
+}
+
+// captureSerializableLocked marks ref's enrolled node captured at the current
+// commit frontier and finalization order. A read-only node collects the
+// overlapping read-write writers it must wait out; with none it is exempt
+// at once, otherwise it gets a ready channel that resolution closes. Caller
+// holds Engine.mu and has enrolled ref.
+func (reg *visibilityRegistry) captureSerializableLocked(ref ids.TxRef, readOnly, deferrable bool) *serializableTransaction {
+	node := reg.serializable.nodes[ref]
+	node.captured = true
+	node.readOnly = readOnly
+	node.deferrable = deferrable
+	node.frontier = reg.commitSeq
+	node.snapshotOrder = reg.serializable.order
+	node.resolved = false
+	node.unsafe = false
+	node.exempt = false
+	node.possible = nil
+	node.ready = nil
+	if node.readOnly {
+		for _, writer := range reg.serializable.nodes {
+			if writer != node && serializableRelevant(writer) && !serializableReadOnly(writer) && !writer.committed && writer.ref.Epoch() == node.ref.Epoch() {
+				if node.possible == nil {
+					node.possible = make(map[*serializableTransaction]struct{})
+				}
+				node.possible[writer] = struct{}{}
+			}
+		}
+		if len(node.possible) == 0 {
+			node.resolved = true
+			node.exempt = true
+		} else {
+			node.ready = make(chan struct{})
+		}
+	}
+	return node
 }

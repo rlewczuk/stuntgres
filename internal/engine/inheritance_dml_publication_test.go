@@ -36,7 +36,7 @@ func TestInheritanceDMLAtomicPublication(t *testing.T) {
 			}
 			defer retained.Release()
 			before := make(map[ids.ObjectAddress][]storage.RowVersion)
-			frontier := e.commitSeq
+			frontier := e.visibility.commitSeq
 			for _, ref := range refs {
 				store := s.mutationStorage(ref)
 				before[ref.Address] = append([]storage.RowVersion(nil), store.Versions...)
@@ -64,7 +64,7 @@ func TestInheritanceDMLAtomicPublication(t *testing.T) {
 				if err == nil {
 					t.Fatal("stale later child predecessor published")
 				}
-				if e.commitSeq != frontier {
+				if e.visibility.commitSeq != frontier {
 					t.Fatal("failed publication consumed a frontier")
 				}
 				for _, ref := range refs {
@@ -76,12 +76,12 @@ func TestInheritanceDMLAtomicPublication(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if e.commitSeq != frontier+1 {
-					t.Fatal("one statement published multiple frontiers", e.commitSeq, frontier)
+				if e.visibility.commitSeq != frontier+1 {
+					t.Fatal("one statement published multiple frontiers", e.visibility.commitSeq, frontier)
 				}
 				for _, ref := range refs {
 					current := e.storage.Relations[ref.Address].Versions[0]
-					if current.Born != e.commitSeq || !reflect.DeepEqual(current.Values, []sqltype.Value{inheritanceQueryInt(e, 30)}) {
+					if current.Born != e.visibility.commitSeq || !reflect.DeepEqual(current.Values, []sqltype.Value{inheritanceQueryInt(e, 30)}) {
 						t.Fatal("physical replacement missed shared frontier", current)
 					}
 				}

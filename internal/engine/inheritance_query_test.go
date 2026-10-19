@@ -143,7 +143,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	p := inheritanceLifecycleTable(e, 20000, "p")
 	c := inheritanceLifecycleTable(e, 20001, "c", p.Address())
 	inheritanceLifecycleInstall(e, p, c)
-	e.commitSeq = 1
+	e.visibility.commitSeq = 1
 	e.storage.Relations[p.Address()].Versions = []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{}}}
 	e.storage.Relations[c.Address()].Versions = []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{}}}
 	op, done, err := testOperation(e, context.Background())

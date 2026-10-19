@@ -15,7 +15,7 @@ func TestDriverBatchDependencyCascadesProjectOwnRows(t *testing.T) {
 		t.Run(map[bool]string{false: "rollback", true: "commit"}[commit], func(t *testing.T) {
 			e := New()
 			s := sessionStart(t, e, nil)
-			before, frontier := e.catalog.state, e.commitSeq
+			before, frontier := e.catalog.state, e.visibility.commitSeq
 			m := batchUnitStart(t, s, context.Background())
 			defer m.end(context.Canceled)
 			for _, q := range []string{"CREATE DOMAIN d AS INT", "CREATE TABLE t(v d,x INT)", "INSERT INTO t VALUES(1,4)"} {
@@ -52,7 +52,7 @@ func TestDriverBatchDependencyCascadesProjectOwnRows(t *testing.T) {
 				if end := m.end(err); end != err {
 					t.Fatal(end)
 				}
-				if e.catalog.state != before || e.commitSeq != frontier {
+				if e.catalog.state != before || e.visibility.commitSeq != frontier {
 					t.Fatal("dependency utility prefix escaped rollback")
 				}
 			}
@@ -87,7 +87,7 @@ func TestDriverBatchSequenceCascadePrivateConsumers(t *testing.T) {
 			sessionSQL(t, s, "CREATE SEQUENCE s START 5 CACHE 1")
 			seq := catalogRef(t, e, e.CatalogRead(), "s")
 			generator := e.storage.Sequences[seq.Address]
-			before, frontier := e.catalog.state, e.commitSeq
+			before, frontier := e.catalog.state, e.visibility.commitSeq
 			m := batchUnitStart(t, s, context.Background())
 			defer m.end(context.Canceled)
 			for _, q := range []string{"CREATE TABLE t(v INT DEFAULT nextval('s'),x INT)", "INSERT INTO t(x) VALUES(1)", "DROP SEQUENCE s CASCADE", "INSERT INTO t(x) VALUES(2)"} {
@@ -103,7 +103,7 @@ func TestDriverBatchSequenceCascadePrivateConsumers(t *testing.T) {
 			if got := tuples(result); !reflect.DeepEqual(got, [][]driver.Value{{int64(5), int64(1)}, {nil, int64(2)}}) {
 				t.Fatal("private dependent default consumer", got)
 			}
-			if generator.Last != 5 || e.storage.Sequences[seq.Address] != generator || e.catalog.state != before || e.commitSeq != frontier {
+			if generator.Last != 5 || e.storage.Sequences[seq.Address] != generator || e.catalog.state != before || e.visibility.commitSeq != frontier {
 				t.Fatal("draw or pending sequence disposition")
 			}
 			if commit {
@@ -121,7 +121,7 @@ func TestDriverBatchSequenceCascadePrivateConsumers(t *testing.T) {
 				if end := m.end(err); end != err {
 					t.Fatal(end)
 				}
-				if e.catalog.state != before || e.commitSeq != frontier || e.storage.Sequences[seq.Address] != generator {
+				if e.catalog.state != before || e.visibility.commitSeq != frontier || e.storage.Sequences[seq.Address] != generator {
 					t.Fatal("sequence/default graph rollback")
 				}
 				transactionRows(t, s, "SELECT nextval('s')", 6)
@@ -135,7 +135,7 @@ func TestDriverBatchOwnerCounterExhaustion(t *testing.T) {
 			e := New()
 			s := sessionStart(t, e, nil)
 			sessionSQL(t, s, "CREATE TABLE t(v INT)")
-			frontier := e.commitSeq
+			frontier := e.visibility.commitSeq
 			m := batchUnitStart(t, s, context.Background())
 			defer m.end(context.Canceled)
 			if counter == "command" {
@@ -146,7 +146,7 @@ func TestDriverBatchOwnerCounterExhaustion(t *testing.T) {
 			} else if counter == "tx" {
 				s.transactions.next = ids.TxID(^uint64(0))
 			} else {
-				e.diagnosticTx = ^uint32(0)
+				e.visibility.diagnosticTx = ^uint32(0)
 			}
 			_, err := m.step(statement(t, "INSERT INTO t VALUES(2)"))
 			var diagnostic interface{ SQLState() string }
@@ -157,10 +157,10 @@ func TestDriverBatchOwnerCounterExhaustion(t *testing.T) {
 			if end := m.end(err); end != err {
 				t.Fatal("counter primary replaced", end)
 			}
-			if e.commitSeq != frontier || s.TransactionState() != TxIdle || s.transactions.ticket != nil || s.transactions.retainedMessage {
+			if e.visibility.commitSeq != frontier || s.TransactionState() != TxIdle || s.transactions.ticket != nil || s.transactions.retainedMessage {
 				t.Fatal("counter failure published or retained admission")
 			}
-			if counter == "tx" && s.transactions.next != ids.TxID(^uint64(0)) || counter == "diagnostic" && e.diagnosticTx != ^uint32(0) {
+			if counter == "tx" && s.transactions.next != ids.TxID(^uint64(0)) || counter == "diagnostic" && e.visibility.diagnosticTx != ^uint32(0) {
 				t.Fatal("identity counter wrapped")
 			}
 			if got := len(e.storage.Relations[catalogRef(t, e, e.CatalogRead(), "t").Address].Versions); got != 0 {

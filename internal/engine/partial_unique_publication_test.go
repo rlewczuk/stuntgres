@@ -80,7 +80,7 @@ func newPartialUniquePublication(t *testing.T, composite, nnd bool, disclosure s
 	if len(root.Entries) != 2 || !maps.Equal(root.Membership, map[ids.RowID]ids.VersionID{e.storage.Relations[ref.Address].Versions[0].Row: e.storage.Relations[ref.Address].Versions[0].Version, e.storage.Relations[ref.Address].Versions[1].Row: e.storage.Relations[ref.Address].Versions[1].Version}) {
 		t.Fatal("seed membership", root)
 	}
-	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), roles: e.roles.published, stores: maps.Clone(e.storage.Relations), storeSnapshots: make(map[ids.ObjectAddress]storage.Relation), roots: maps.Clone(e.storage.IndexRoots), entries: make(map[ids.ObjectAddress][]storage.IndexEntry), nextRow: e.storage.RowFrontier(), nextVersion: e.storage.VersionFrontier(), frontier: e.commitSeq}
+	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), roles: e.roles.published, stores: maps.Clone(e.storage.Relations), storeSnapshots: make(map[ids.ObjectAddress]storage.Relation), roots: maps.Clone(e.storage.IndexRoots), entries: make(map[ids.ObjectAddress][]storage.IndexEntry), nextRow: e.storage.RowFrontier(), nextVersion: e.storage.VersionFrontier(), frontier: e.visibility.commitSeq}
 	for a, s := range f.stores {
 		f.storeSnapshots[a] = uniquePublicationStore(s)
 	}

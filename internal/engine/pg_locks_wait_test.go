@@ -227,7 +227,7 @@ func TestPGLocksWaitDependencies(t *testing.T) {
 		// Real completion publication can precede atomic manager release.
 		// A still-journaled prepared wait must retain its genuine target here.
 		e.mu.Lock()
-		e.recordCommitTimestampLocked(holder.Ref())
+		e.visibility.recordCommitTimestampLocked(holder.Ref())
 		e.mu.Unlock()
 		if gap := pgLocksUnitWait(t, e, waiter); gap != after {
 			t.Fatal("prepared publication-to-manager-end gap changed dependency", after, gap)

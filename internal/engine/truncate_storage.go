@@ -156,7 +156,7 @@ func (s *StatementScope) stageTruncate() error {
 		}
 		shape.replacement = &storage.Relation{Generation: store.Generation + 1, TruncateLineage: lineage}
 		shape.relation = d
-		shape.rewritten, shape.frontier = true, e.commitSeq
+		shape.rewritten, shape.frontier = true, e.visibility.commitSeq
 		shape.snapshot, shape.hasSnapshot = nil, false
 		shape.fills = nil
 		changes.storage[ref.Address] = shape

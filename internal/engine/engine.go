@@ -31,23 +31,10 @@ type Engine struct {
 	sessionMu            sync.Mutex
 	sessions             map[ids.SessionToken]*Session
 	settingsDefinitions  map[string]SettingDefinition
-	commitSeq            ids.CommitSeq
-	diagnosticTx         uint32
-	visibilityXID        uint64
-	visibility           map[ids.TxRef]transactionVisibility
-	assignedXID          uint64
-	transactionHistory   map[uint64]transactionIdentityRecord
-	transactionHorizon   uint64
-	assignedLowIDs       map[uint32]uint64 // Latest full assignment per low32; constant-time live alias guard.
-	trackCommitTimestamp bool
-	commitTimestampBase  uint64
-	commitTimestamps     map[uint64]commitTimestampEntry
-	lastCommittedXID     uint32
-	lastCommitTimestamp  commitTimestampEntry
+	visibility           visibilityRegistry
 	indexBuildWaits      map[ids.ObjectAddress]indexBuildWait
 	exclusionPending     map[*lock.Ticket]*exclusionProjection
 	exclusionGeneration  uint64
-	serializable         serializableTracker
 	prepared             map[string]*preparedTransaction
 	roles                roleStore
 	importTargets        map[authorization.PrincipalRef]authorization.PrincipalRef
@@ -167,8 +154,7 @@ func newEngine(providers []catalog.Provider, definitions []SettingDefinition, da
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
 	e := &Engine{catalog: catalogStore{Owner: catalog.Owner{Domain: &ids.Domain{}, Providers: map[ids.OID]catalog.Provider{}}, nextOID: 16384, nextRevision: 2}, storage: storage.Store{Relations: map[ids.ObjectAddress]*storage.Relation{}}}
 	e.catalog.Principals, e.catalog.ACLAuthority = &e.roles.domain, &e.roles.aclAuthority
-	e.trackCommitTimestamp = trackCommitTimestamp
-	e.assignedXID, e.commitTimestampBase = 2, 3
+	e.visibility = newVisibilityRegistry(trackCommitTimestamp)
 	e.locks = lock.New(e.catalog.Domain)
 	e.storage.Sequences = make(map[ids.ObjectAddress]*storage.SequenceGenerator)
 	e.roles.initialize()

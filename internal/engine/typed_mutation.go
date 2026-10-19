@@ -136,7 +136,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 	}
 	e.mu.Lock()
 	store := e.storage.Relations[old.Address()]
-	frontier := e.commitSeq
+	frontier := e.visibility.commitSeq
 	e.mu.Unlock()
 	if store == nil {
 		return fmt.Errorf("stuntgres: relation storage is missing")

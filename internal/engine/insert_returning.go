@@ -161,7 +161,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 	}
 	version.IndexAdmission = catalog.State()
 	version.IndexOutputs = candidate.indexes
-	if serializableRelevant(e.serializable.nodes[s.txRef]) {
+	if e.visibility.relevantSerializableLocked(s.txRef) != nil {
 		events := [1]serializableWrite{{row: version.Row, version: version.Version}}
 		if err = e.serializableWriteLocked(s, ref, events[:]); err != nil {
 			return false, false, err

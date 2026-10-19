@@ -101,7 +101,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				err = e.discardResetPreflightLocked(op)
 			}
 			if err == nil {
-				err = e.serializablePrecommitLocked(ref)
+				err = e.visibility.serializablePrecommitLocked(ref)
 			}
 			if err != nil {
 				op.session.mu.Unlock()
@@ -118,8 +118,8 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				e.installPreparedLocked(phase)
 			} else {
 				e.installNotificationsLocked(notifications)
-				e.serializableCommittedLocked(ref, e.commitSeq)
-				e.recordCommitTimestampLocked(ref)
+				e.visibility.serializableCommittedLocked(ref, e.visibility.commitSeq)
+				e.visibility.recordCommitTimestampLocked(ref)
 				e.finishPreparedLocked(phase)
 				e.finishDiscardRoleResetLocked(op)
 			}
@@ -148,7 +148,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			e.mu.Unlock()
 			return ids.ErrCatalogReplaced
 		}
-		current, frontier := e.catalog.state, e.commitSeq
+		current, frontier := e.catalog.state, e.visibility.commitSeq
 		var indexStores map[ids.ObjectAddress]*storage.Relation
 		if len(e.storage.IndexRoots) != 0 || c != nil {
 			captureCatalog := current
@@ -332,10 +332,10 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		if err == nil && ref.Epoch() != e.catalog.state.Epoch() {
 			err = ids.ErrCatalogReplaced
 		}
-		if err == nil && e.commitSeq == ids.CommitSeq(^uint64(0)) {
+		if err == nil && e.visibility.commitSeq == ids.CommitSeq(^uint64(0)) {
 			err = errors.New("stuntgres: commit sequence exhausted")
 		}
-		changed := !e.notificationPublicationUnchangedLocked(notifications) || e.catalog.state != current || c != nil && e.commitSeq != frontier || !indexStoresUnchanged(e.storage.Relations, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
+		changed := !e.notificationPublicationUnchangedLocked(notifications) || e.catalog.state != current || c != nil && e.visibility.commitSeq != frontier || !indexStoresUnchanged(e.storage.Relations, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
 		if err == nil {
 			for _, p := range prepared {
 				if e.storage.Relations[p.address] != p.original || p.store.Generation != p.generation || p.store.Ends != p.ends || len(p.store.Versions) != len(p.root) {
@@ -396,7 +396,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				}
 			}
 		}
-		if err := e.serializablePrecommitLocked(ref); err != nil {
+		if err := e.visibility.serializablePrecommitLocked(ref); err != nil {
 			session.mu.Unlock()
 			e.mu.Unlock()
 			return err
@@ -418,7 +418,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				if p.singleSlot >= 0 {
 					slot = p.singleSlot
 				}
-				row.Born, row.Base = e.commitSeq+1, 0
+				row.Born, row.Base = e.visibility.commitSeq+1, 0
 				row.IndexAdmission = nil
 				row.IndexOutputs = nil
 				if row.PendingKeyChange {
@@ -429,7 +429,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			}
 			if p.nextEnds != nil {
 				for id, candidate := range p.deletion.rows {
-					p.nextEnds.Rows[id] = storage.RowEnd{Version: candidate.version, End: e.commitSeq + 1}
+					p.nextEnds.Rows[id] = storage.RowEnd{Version: candidate.version, End: e.visibility.commitSeq + 1}
 				}
 				p.store.Ends = p.nextEnds
 			}
@@ -447,7 +447,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				}
 				if shape.rewritten && shape.relation.RelationKind == catalog.MaterializedViewRelation {
 					for i := range shape.replacement.Versions {
-						shape.replacement.Versions[i].Born = e.commitSeq + 1
+						shape.replacement.Versions[i].Born = e.visibility.commitSeq + 1
 					}
 				}
 			}
@@ -466,9 +466,9 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		}
 		preserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.storage.IndexRoots)
 		e.storage.IndexRoots = indexRoots
-		e.commitSeq++
-		e.recordCommitTimestampLocked(ref)
-		e.serializableCommittedLocked(ref, e.commitSeq)
+		e.visibility.commitSeq++
+		e.visibility.recordCommitTimestampLocked(ref)
+		e.visibility.serializableCommittedLocked(ref, e.visibility.commitSeq)
 		e.finishPreparedLocked(phase)
 		e.finishDiscardRoleResetLocked(op)
 		session.mu.Unlock()

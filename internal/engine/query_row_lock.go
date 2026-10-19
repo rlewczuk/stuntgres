@@ -183,7 +183,7 @@ func (s *StatementScope) latestQueryRow(leaf queryLeaf, candidate storage.RowVer
 		return storage.RowVersion{}, false, fmt.Errorf("stuntgres: invalid query row predecessor")
 	}
 	physical = current
-	present = liveVersion(current, e.commitSeq, store.Ends, s.ownDeletes[leaf.ref.Address])
+	present = liveVersion(current, e.visibility.commitSeq, store.Ends, s.ownDeletes[leaf.ref.Address])
 	if stableIsolation(s.owner.isolation) && current.Born != 0 {
 		changed := current.Born > s.owner.frontier
 		if store.Ends != nil {
