@@ -151,7 +151,7 @@ func (state *inheritanceAlterState) definitionRelation(view catalog.Read, addres
 	return relation
 }
 func inheritanceMarkerPublication(old, current *catalog.Relation) bool {
-	return old == current || current != nil && old != nil && !old.HasSubclasses && current.HasSubclasses && current.SubclassPredecessor == old && current.Revision() == current.SubclassPublication
+	return old == current || current != nil && old != nil && !old.History.HasSubclasses && current.History.HasSubclasses && current.History.SubclassPredecessor == old && current.Revision() == current.History.SubclassPublication
 }
 
 func (r inheritanceDefinitionReader) discoveryReader() definitionReader {

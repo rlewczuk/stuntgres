@@ -93,7 +93,7 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	d, ref := pgOperatorUnitSource(t, e)
-	if d.RowType != 10009 || !d.HasIndexes || d.AttributeHighWater != 15 || d.Namespace().ObjectID != 11 || len(d.Columns) != 15 {
+	if d.RowType != 10009 || !d.History.HasIndexes || d.AttributeHighWater != 15 || d.Namespace().ObjectID != 11 || len(d.Columns) != 15 {
 		t.Fatal("relation facts", d)
 	}
 	for i, name := range []string{"oid", "oprname", "oprnamespace", "oprowner", "oprkind", "oprcanmerge", "oprcanhash", "oprleft", "oprright", "oprresult", "oprcom", "oprnegate", "oprcode", "oprrest", "oprjoin"} {

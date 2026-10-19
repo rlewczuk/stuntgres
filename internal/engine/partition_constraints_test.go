@@ -560,7 +560,7 @@ func TestPartitionConstraintsVirtualIndexHistory(t *testing.T) {
 	}
 	candidate := f.e.stageRead(stage)
 	root := candidate.MustRelation(f.root.Address())
-	if !root.HasIndexes || root == f.root || f.root.HasIndexes || candidate.MustRelation(f.parent.Address()).SQLIndex.Valid {
+	if !root.History.HasIndexes || root == f.root || f.root.History.HasIndexes || candidate.MustRelation(f.parent.Address()).SQLIndex.Valid {
 		t.Fatal("virtual history changed validity or live predecessor")
 	}
 	replacement := *f.view.State()
@@ -571,7 +571,7 @@ func TestPartitionConstraintsVirtualIndexHistory(t *testing.T) {
 	if err := normalizeReplacementIndexHistory(context.Background(), f.e.catalog.read(&replacement)); err != nil {
 		t.Fatal(err)
 	}
-	if !replacement.MustRelation(f.root.Address()).HasIndexes || !replacement.MustRelation(f.leaf.Address()).HasIndexes || f.root.HasIndexes || f.leaf.HasIndexes {
+	if !replacement.MustRelation(f.root.Address()).History.HasIndexes || !replacement.MustRelation(f.leaf.Address()).History.HasIndexes || f.root.History.HasIndexes || f.leaf.History.HasIndexes {
 		t.Fatal("replacement history mutates retained snapshots")
 	}
 }

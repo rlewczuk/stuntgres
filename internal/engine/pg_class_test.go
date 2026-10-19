@@ -29,7 +29,7 @@ func TestPgClassProjection(t *testing.T) {
 			t.Fatal("descriptor", i, column)
 		}
 	}
-	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200001}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "projection", Owner: e.authorizationDomain.Principal(10), RowType: 200002, OfType: ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 200003}, AttributeHighWater: 2, HasIndexes: true, HasSubclasses: true, RLSEnabled: true, RLSForced: true, CheckConstraints: make([]catalog.CheckConstraint, 2)}
+	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200001}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "projection", Owner: e.authorizationDomain.Principal(10), RowType: 200002, OfType: ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 200003}, AttributeHighWater: 2, History: catalog.PublicationHistory{HasIndexes: true, HasSubclasses: true}, RLSEnabled: true, RLSForced: true, CheckConstraints: make([]catalog.CheckConstraint, 2)}
 	row, err := e.pgClassRow(context.Background(), view, e.Roles(), source, relation)
 	if err != nil || len(row) != 34 {
 		t.Fatal(row, err)

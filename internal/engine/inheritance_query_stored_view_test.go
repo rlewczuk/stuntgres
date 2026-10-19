@@ -50,7 +50,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				queryCreatePublish(t, e, childStage)
 				child = d
 				parent = e.CatalogRead().MustRelation(predecessor.Address())
-				if parent == predecessor || !parent.HasSubclasses || predecessor.HasSubclasses || parent.Address() != predecessor.Address() || parent.RowType != predecessor.RowType || parent.Revision() == predecessor.Revision() || before.Get(predecessor.Address()) != predecessor || e.storage.relations[parent.Address()] != storage {
+				if parent == predecessor || !parent.History.HasSubclasses || predecessor.History.HasSubclasses || parent.Address() != predecessor.Address() || parent.RowType != predecessor.RowType || parent.Revision() == predecessor.Revision() || before.Get(predecessor.Address()) != predecessor || e.storage.relations[parent.Address()] != storage {
 					t.Fatal("successful child publication did not preserve immutable parent identity/storage and transition subclass history")
 				}
 			}

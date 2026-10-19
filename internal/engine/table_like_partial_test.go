@@ -336,7 +336,7 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 	}
 	queryCreatePublish(t, e, stage)
 	current := e.CatalogRead().MustRelation(source.Address())
-	if !current.HasIndexes || current.Revision() != source.Revision() || current == source {
+	if !current.History.HasIndexes || current.Revision() != source.Revision() || current == source {
 		t.Fatal("private normalization invariant", current)
 	}
 	if e.storage.indexRoots[index.Address()] == nil {

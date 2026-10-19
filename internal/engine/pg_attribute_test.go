@@ -65,7 +65,7 @@ func TestPGAttributeShape(t *testing.T) {
 	d, _ := pgAttributeUnitSource(t, e, view)
 	names := []string{"attrelid", "attname", "atttypid", "attlen", "attnum", "atttypmod", "attndims", "attbyval", "attalign", "attstorage", "attcompression", "attnotnull", "atthasdef", "atthasmissing", "attidentity", "attgenerated", "attisdropped", "attislocal", "attinhcount", "attcollation", "attstattarget", "attacl", "attoptions", "attfdwoptions", "attmissingval"}
 	typeIDs := []sqltype.ID{26, 19, 26, 21, 21, 23, 21, 16, 18, 18, 18, 16, 16, 16, 18, 18, 16, 16, 21, 26, 21, 1034, 1009, 1009, 2277}
-	if d.RowType != 75 || d.AttributeHighWater != 25 || len(d.Columns) != 25 || !d.HasIndexes || d.VirtualView {
+	if d.RowType != 75 || d.AttributeHighWater != 25 || len(d.Columns) != 25 || !d.History.HasIndexes || d.VirtualView {
 		t.Fatal("released identity", d)
 	}
 	for i, c := range d.Columns {

@@ -70,10 +70,7 @@ type Relation struct {
 	Identities                     map[int32]ColumnIdentity
 	Inheritance                    *TableInheritance
 	RelationKind                   RelationKind
-	HasIndexes                     bool      // Sticky publication history; removing an index does not clear it.
-	HasSubclasses                  bool      // Sticky inheritance/table/index partition publication history.
-	SubclassPredecessor            *Relation // Exact first-subclass marker publication only.
-	SubclassPublication            ids.DefinitionRevision
+	History                        PublicationHistory
 	OnCommit                       parser.OnCommitAction
 	Sequence                       *SequenceOptions
 	View                           ViewPayload
@@ -86,6 +83,15 @@ type Relation struct {
 	RowType                        sqltype.ID
 	OfType                         ids.ObjectAddress
 	Foreign                        *ForeignTableDefinition
+}
+
+// PublicationHistory records sticky facts about a relation's earlier
+// publications. Replacement may set them but never clear them.
+type PublicationHistory struct {
+	HasIndexes          bool      // Removing an index does not clear it.
+	HasSubclasses       bool      // Inheritance, table or index partition publication.
+	SubclassPredecessor *Relation // Exact first-subclass marker publication only.
+	SubclassPublication ids.DefinitionRevision
 }
 
 func (d *Relation) Address() ids.ObjectAddress { return d.ObjectAddress }

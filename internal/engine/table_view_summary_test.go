@@ -16,24 +16,24 @@ func TestTableSummaryImmutablePublication(t *testing.T) {
 	address := roleTableRef(t, e, "summary_parent").Address
 	before := e.CatalogRead()
 	predecessor := before.MustRelation(address)
-	if predecessor.HasIndexes {
+	if predecessor.History.HasIndexes {
 		t.Fatal("new table has history")
 	}
 	run(t, e, "CREATE INDEX summary_index ON summary_parent(n)")
 	successor := e.CatalogRead().MustRelation(address)
-	if successor == predecessor || !successor.HasIndexes || predecessor.HasIndexes || successor.Revision() == predecessor.Revision() {
+	if successor == predecessor || !successor.History.HasIndexes || predecessor.History.HasIndexes || successor.Revision() == predecessor.Revision() {
 		t.Fatal("history was not immutable same-identity publication")
 	}
 	run(t, e, "DROP INDEX summary_index")
-	if !e.CatalogRead().MustRelation(address).HasIndexes || predecessor.HasIndexes {
+	if !e.CatalogRead().MustRelation(address).History.HasIndexes || predecessor.History.HasIndexes {
 		t.Fatal("DROP cleared history or changed predecessor")
 	}
 	run(t, e, "ALTER TABLE summary_parent RENAME COLUMN n TO renamed")
-	if !e.CatalogRead().MustRelation(address).HasIndexes {
+	if !e.CatalogRead().MustRelation(address).History.HasIndexes {
 		t.Fatal("unrelated clone lost history")
 	}
 	run(t, e, "CREATE TABLE summary_unique(n INT UNIQUE)")
-	if !e.CatalogRead().MustRelation(roleTableRef(t, e, "summary_unique").Address).HasIndexes {
+	if !e.CatalogRead().MustRelation(roleTableRef(t, e, "summary_unique").Address).History.HasIndexes {
 		t.Fatal("same-stage UNIQUE parent lost history")
 	}
 }
@@ -49,10 +49,10 @@ func TestTableSummaryReplacementHistory(t *testing.T) {
 			t.Fatal(err)
 		}
 		parent := target.CatalogRead().MustRelation(roleTableRef(t, target, "summary_former").Address)
-		if !parent.HasIndexes {
+		if !parent.History.HasIndexes {
 			t.Fatal("real descriptor replacement normalized history")
 		}
-		if !before.MustRelation(roleTableRef(t, source, "summary_former").Address).HasIndexes {
+		if !before.MustRelation(roleTableRef(t, source, "summary_former").Address).History.HasIndexes {
 			t.Fatal("retained source mutated")
 		}
 	}
@@ -72,7 +72,7 @@ func TestTableSummaryReplacementNormalizesIndexHistory(t *testing.T) {
 			address := roleTableRef(t, e, "summary_active").Address
 			historyAddress := roleTableRef(t, e, "summary_history").Address
 			parent := *state.MustRelation(address)
-			parent.HasIndexes = false
+			parent.History.HasIndexes = false
 			state.SetDescriptor(address, &parent)
 			stage := e.BeginCatalogStage(base)
 			if err := stage.Replace(&parent); err == nil {
@@ -88,10 +88,10 @@ func TestTableSummaryReplacementNormalizesIndexHistory(t *testing.T) {
 			current := target.CatalogRead()
 			active := current.MustRelation(roleTableRef(t, target, "summary_active").Address)
 			history := current.MustRelation(roleTableRef(t, target, "summary_history").Address)
-			if !active.HasIndexes || !history.HasIndexes {
+			if !active.History.HasIndexes || !history.History.HasIndexes {
 				t.Fatal("replacement failed to normalize active index or cleared history-only true")
 			}
-			if parent.HasIndexes || state.Get(address) != &parent || !base.MustRelation(address).HasIndexes || !base.MustRelation(historyAddress).HasIndexes {
+			if parent.History.HasIndexes || state.Get(address) != &parent || !base.MustRelation(address).History.HasIndexes || !base.MustRelation(historyAddress).History.HasIndexes {
 				t.Fatal("normalization mutated supplied descriptors or retained roots")
 			}
 		})
@@ -130,7 +130,7 @@ func TestTableSummaryStagedParentAndCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	staged := stage.Descriptors[address].(*catalog.Relation)
-	if staged.Name() != "summary_renamed" || !staged.HasIndexes || staged == &next || next.HasIndexes || parent.HasIndexes {
+	if staged.Name() != "summary_renamed" || !staged.History.HasIndexes || staged == &next || next.History.HasIndexes || parent.History.HasIndexes {
 		t.Fatal("staged parent changes lost or mutated")
 	}
 	if e.CatalogRead().State() != base.State() {
@@ -317,12 +317,12 @@ func TestTableSummaryOwnerReplacement(t *testing.T) {
 		t.Fatal("current summary owner", owner, err)
 	}
 	retainedOwner, err := oldRow[2].Text()
-	if err != nil || retainedOwner != "postgres" || previous.Owner == newOwner.Ref || !previous.HasIndexes {
+	if err != nil || retainedOwner != "postgres" || previous.Owner == newOwner.Ref || !previous.History.HasIndexes {
 		t.Fatal("retained owner/history mutated", retainedOwner, err)
 	}
 	parent := current.MustRelation(address)
 	index := current.MustRelation(roleTableRef(t, e, "summary_owned_index").Address)
-	if !parent.HasIndexes || parent.Owner != newOwner.Ref || index.Owner != newOwner.Ref {
+	if !parent.History.HasIndexes || parent.Owner != newOwner.Ref || index.Owner != newOwner.Ref {
 		t.Fatal("owner replacement lost history or dependent owner")
 	}
 }

@@ -212,7 +212,7 @@ func inheritanceAlterGrandchild(t *testing.T, e *Engine, c *catalog.Relation) *c
 
 func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 	e, p, c := inheritanceDMLPublishedGraph(t)
-	if c.HasSubclasses {
+	if c.History.HasSubclasses {
 		t.Fatal("fixture already has a grandchild")
 	}
 	holder := inheritanceAlterAXHolder(t, e, c)
@@ -226,7 +226,7 @@ func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 	g := inheritanceAlterGrandchild(t, e, c)
 	grown := e.CatalogRead()
 	currentChild := grown.MustRelation(c.Address())
-	if currentChild == c || !currentChild.HasSubclasses || currentChild.SubclassPredecessor != c || currentChild.Revision() != currentChild.SubclassPublication || !inheritanceMarkerPublication(c, currentChild) {
+	if currentChild == c || !currentChild.History.HasSubclasses || currentChild.History.SubclassPredecessor != c || currentChild.Revision() != currentChild.History.SubclassPublication || !inheritanceMarkerPublication(c, currentChild) {
 		t.Fatal("first-grandchild publication was not the actual narrow marker copy")
 	}
 	if grown.Epoch() != beforeGrowth.Epoch() {

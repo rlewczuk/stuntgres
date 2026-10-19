@@ -64,7 +64,7 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 	d, ref := pgAMUnitSource(t, e)
 	checkDescriptor := func(view catalog.Read, d *catalog.Relation) {
 		t.Helper()
-		if d.Name() != "pg_am" || d.Namespace().ObjectID != 11 || d.RowType != 10015 || !d.HasIndexes || d.VirtualView || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 4 || len(d.Columns) != 4 || len(d.CatalogAttributes) != 4 {
+		if d.Name() != "pg_am" || d.Namespace().ObjectID != 11 || d.RowType != 10015 || !d.History.HasIndexes || d.VirtualView || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 4 || len(d.Columns) != 4 || len(d.CatalogAttributes) != 4 {
 			t.Fatal("descriptor", d)
 		}
 		for i, name := range []string{"oid", "amname", "amhandler", "amtype"} {

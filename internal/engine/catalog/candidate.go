@@ -99,13 +99,13 @@ func (c *Candidate) Replace(d Descriptor) error {
 	if !ok {
 		return Conflict{}
 	}
-	if previous, ok := old.(*Relation); ok && previous.HasIndexes {
-		if next, ok := d.(*Relation); !ok || !next.HasIndexes {
+	if previous, ok := old.(*Relation); ok && previous.History.HasIndexes {
+		if next, ok := d.(*Relation); !ok || !next.History.HasIndexes {
 			return fmt.Errorf("stuntgres: relation replacement clears index publication history")
 		}
 	}
-	if previous, ok := old.(*Relation); ok && previous.HasSubclasses {
-		if next, ok := d.(*Relation); !ok || !next.HasSubclasses {
+	if previous, ok := old.(*Relation); ok && previous.History.HasSubclasses {
+		if next, ok := d.(*Relation); !ok || !next.History.HasSubclasses {
 			return fmt.Errorf("stuntgres: relation replacement clears subclass publication history")
 		}
 	}

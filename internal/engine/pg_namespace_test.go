@@ -58,7 +58,7 @@ func TestPGNamespaceShape(t *testing.T) {
 	e := New()
 	c := e.CatalogRead()
 	d, _ := namespaceUnitSource(t, e, c)
-	if d.Name() != "pg_namespace" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || !d.HasIndexes || d.RowType != 10047 || len(d.Columns) != 4 || d.AttributeHighWater != 4 {
+	if d.Name() != "pg_namespace" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || !d.History.HasIndexes || d.RowType != 10047 || len(d.Columns) != 4 || d.AttributeHighWater != 4 {
 		t.Fatal("namespace relation shape", d)
 	}
 	names := [...]string{"oid", "nspname", "nspowner", "nspacl"}

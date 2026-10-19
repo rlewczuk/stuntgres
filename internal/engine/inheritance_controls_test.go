@@ -244,7 +244,7 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 	index.RelationKind = catalog.IndexRelation
 	constraint := catalog.ExclusionConstraint{OID: parent.Address().ObjectID, Name: index.Name(), Index: index.Address(), Operators: []sqltype.ExclusionOperator{operator}}
 	tempChild.ExclusionConstraints = []catalog.ExclusionConstraint{constraint}
-	tempChild.HasIndexes = true
+	tempChild.History.HasIndexes = true
 	index.SQLIndex = &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: tempChild.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Constraint: exclusionBacking(&constraint), Exclusion: constraint.Operators, Ready: true, Valid: true, Live: true}
 	inheritanceLifecycleInstall(e, index)
 	inheritanceLifecycleInstall(source, parent, child)

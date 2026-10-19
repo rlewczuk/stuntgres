@@ -98,7 +98,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	catalogView := e.CatalogRead()
 	d, ref := pgTypeUnitSource(t, e)
 	roles := e.roleRead(catalogView, e.roles)
-	if len(d.Columns) != 32 || d.RowType != 71 || !d.HasIndexes {
+	if len(d.Columns) != 32 || d.RowType != 71 || !d.History.HasIndexes {
 		t.Fatal("source definition", d)
 	}
 	for i, c := range d.Columns {

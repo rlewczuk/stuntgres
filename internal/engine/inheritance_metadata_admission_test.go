@@ -243,7 +243,7 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 					inheritanceMetadataChild(t, e, child, "initial_grandchild", 30, child.Owner)
 					child = e.CatalogRead().MustRelation(child.Address())
 				}
-				if child.HasSubclasses != sticky {
+				if child.History.HasSubclasses != sticky {
 					t.Fatal("fixture has wrong authentic sticky subclass state")
 				}
 				holder := inheritanceAlterAXHolder(t, e, child)
@@ -253,7 +253,7 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 				late := inheritanceMetadataChild(t, e, child, "late_grandchild", 40, child.Owner)
 				grown := e.CatalogRead()
 				currentChild := grown.MustRelation(child.Address())
-				if grown.Epoch() != before.Epoch() || (!sticky && (currentChild == child || !inheritanceMarkerPublication(child, currentChild) || currentChild.SubclassPredecessor != child || currentChild.Revision() != currentChild.SubclassPublication)) || sticky && currentChild != child {
+				if grown.Epoch() != before.Epoch() || (!sticky && (currentChild == child || !inheritanceMarkerPublication(child, currentChild) || currentChild.History.SubclassPredecessor != child || currentChild.Revision() != currentChild.History.SubclassPublication)) || sticky && currentChild != child {
 					t.Fatal("fixture did not publish genuine additive growth/marker identity")
 				}
 				originals := inheritanceAlterOrder(grown, grown.MustRelation(command.scope.lockedRef.Address))

@@ -23,7 +23,7 @@ func partitionUniqueReplayUnit(t *testing.T, primary bool) (*Engine, *catalog.Re
 	for _, table := range [3]*catalog.Relation{root, mid, leaf} {
 		table.Columns[0].Nullable = false
 		table.NotNullConstraints = []catalog.NotNullConstraint{{Name: table.Name() + "_nn", Attribute: 1}}
-		table.HasIndexes = true
+		table.History.HasIndexes = true
 		// Stored NOT NULL facts need real catalog identities before validation,
 		// just as the canonical CREATE producer assigns them.
 		if err := e.assignDefinitionOIDsLocked(table); err != nil {

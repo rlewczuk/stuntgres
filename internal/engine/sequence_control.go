@@ -772,7 +772,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalog.State, tempora
 				return fail()
 			}
 			candidate, ok := next.Relation(address)
-			if !ok || candidate.RelationKind != old.RelationKind || candidate.Namespace() != old.Namespace() || candidate.Name() != old.Name() || candidate.Owner != old.Owner || candidate.VirtualView != old.VirtualView || candidate.HasIndexes != old.HasIndexes || candidate.HasSubclasses != old.HasSubclasses || candidate.AttributeHighWater != old.AttributeHighWater || !slices.Equal(candidate.Attributes, old.Attributes) || len(candidate.Columns) != len(old.Columns) || candidate.ACL.Explicit != old.ACL.Explicit || !slices.Equal(candidate.ACL.Entries, old.ACL.Entries) || len(candidate.ColumnACL) != len(old.ColumnACL) {
+			if !ok || candidate.RelationKind != old.RelationKind || candidate.Namespace() != old.Namespace() || candidate.Name() != old.Name() || candidate.Owner != old.Owner || candidate.VirtualView != old.VirtualView || candidate.History.HasIndexes != old.History.HasIndexes || candidate.History.HasSubclasses != old.History.HasSubclasses || candidate.AttributeHighWater != old.AttributeHighWater || !slices.Equal(candidate.Attributes, old.Attributes) || len(candidate.Columns) != len(old.Columns) || candidate.ACL.Explicit != old.ACL.Explicit || !slices.Equal(candidate.ACL.Entries, old.ACL.Entries) || len(candidate.ColumnACL) != len(old.ColumnACL) {
 				return fail()
 			}
 			for attribute, acl := range old.ColumnACL {

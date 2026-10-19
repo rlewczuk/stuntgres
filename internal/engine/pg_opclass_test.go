@@ -63,7 +63,7 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	d, ref := pgOpclassUnitSource(t, e)
-	if d.Name() != "pg_opclass" || d.Namespace().ObjectID != 11 || d.RowType != 10013 || !d.HasIndexes || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 9 || len(d.Columns) != 9 {
+	if d.Name() != "pg_opclass" || d.Namespace().ObjectID != 11 || d.RowType != 10013 || !d.History.HasIndexes || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 9 || len(d.Columns) != 9 {
 		t.Fatal("descriptor", d)
 	}
 	for i, name := range []string{"oid", "opcmethod", "opcname", "opcnamespace", "opcowner", "opcfamily", "opcintype", "opcdefault", "opckeytype"} {

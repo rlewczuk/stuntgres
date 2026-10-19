@@ -167,7 +167,7 @@ func TestExclusionAlterFirstIndexPublication(t *testing.T) {
 				t.Fatal("first-index publication failed", result, err)
 			}
 			parent := e.catalog.state.MustRelation(ref.Address)
-			if len(parent.ExclusionConstraints) != 1 || !parent.HasIndexes || len(original.ExclusionConstraints) != 0 || store.versions[0].row != row.row || store.versions[0].version != row.version {
+			if len(parent.ExclusionConstraints) != 1 || !parent.History.HasIndexes || len(original.ExclusionConstraints) != 0 || store.versions[0].row != row.row || store.versions[0].version != row.version {
 				t.Fatal("ALTER did not preserve its immutable predecessor and actual attachment")
 			}
 			constraint := parent.ExclusionConstraints[0]

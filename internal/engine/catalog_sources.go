@@ -253,7 +253,7 @@ func (e *Engine) initializeCatalogSources() error {
 		}{{"schemaname", sqltype.Name}, {"matviewname", sqltype.Name}, {"matviewowner", sqltype.Name}, {"tablespace", sqltype.Name}, {"hasindexes", sqltype.Bool}, {"ispopulated", sqltype.Bool}, {"definition", sqltype.Text}}},
 	} {
 		d := e.catalogSourceDescriptor(spec.oid, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, spec.name, len(spec.columns))
-		d.HasIndexes = representedCatalogHasIndexes(spec.oid)
+		d.History.HasIndexes = representedCatalogHasIndexes(spec.oid)
 		if spec.oid == 1213 || spec.oid == ids.ParameterClassID {
 			d.Owner = e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
 			d.ACL.Entries[0].Grantor = d.Owner

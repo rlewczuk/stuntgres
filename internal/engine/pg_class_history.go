@@ -46,11 +46,11 @@ func (e *Engine) markStageSubclassHistoryLocked(stage *CatalogStage) error {
 			if !ok {
 				return fmt.Errorf("stuntgres: invalid subclass parent")
 			}
-			if parent.HasSubclasses {
+			if parent.History.HasSubclasses {
 				return nil
 			}
 			next := *parent
-			next.HasSubclasses = true
+			next.History.HasSubclasses = true
 			if staged {
 				stage.Descriptors[address] = &next
 				return nil
@@ -60,7 +60,7 @@ func (e *Engine) markStageSubclassHistoryLocked(stage *CatalogStage) error {
 				return err
 			}
 			next.ObjectRevision = revision
-			next.SubclassPredecessor, next.SubclassPublication = parent, revision
+			next.History.SubclassPredecessor, next.History.SubclassPublication = parent, revision
 			return stage.Replace(&next)
 		}); err != nil {
 			return err
@@ -85,9 +85,9 @@ func normalizeReplacementSubclassHistory(ctx context.Context, view catalog.Read)
 			if !ok {
 				return fmt.Errorf("stuntgres: invalid subclass parent")
 			}
-			if !parent.HasSubclasses {
+			if !parent.History.HasSubclasses {
 				next := *parent
-				next.HasSubclasses = true
+				next.History.HasSubclasses = true
 				view.State().SetDescriptor(address, &next)
 			}
 			return nil

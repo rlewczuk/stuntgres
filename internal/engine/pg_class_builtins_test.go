@@ -39,8 +39,8 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 				t.Fatal(d.Name(), err)
 			}
 			indexed, err := row[14].Boolean()
-			if err != nil || indexed != want || d.HasIndexes != want {
-				t.Fatal("owned index metadata/projection", d.Name(), d.HasIndexes, indexed, want, err)
+			if err != nil || indexed != want || d.History.HasIndexes != want {
+				t.Fatal("owned index metadata/projection", d.Name(), d.History.HasIndexes, indexed, want, err)
 			}
 		}
 		for _, fact := range tables {
