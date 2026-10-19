@@ -75,7 +75,8 @@ SQL behavior and native limits are described in
   their keys, and typed projections such as `pg_roles`, `pg_group` and
   `relacl`.
 - **Enforcement:** `AuthorizationView`, privilege and ownership checks on
-  catalog objects, default-privilege resolution and RLS policy selection.
+  catalog objects and RLS policy selection. Default-privilege resolution
+  lives in `catalog` (`CreationDefaultACL`).
 - **Statements:** GRANT, REVOKE, ALTER DEFAULT PRIVILEGES, role DDL, SET ROLE
   and session startup.
 - **ACL SQL functions** (`aclexplode`, `acldefault`, `makeaclitem`, `aclitem`

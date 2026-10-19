@@ -190,7 +190,10 @@ F1 replaced the `functions` generic constraints with it.
 
 Engine-side authorization (~6k lines) is blocked the same way. Its main
 dependency is the catalog (381 references to `catalog.go` alone), so it cannot
-leave the root package until the catalog does.
+leave the root package until the catalog does. B0 corrected the size: only
+about 750 of those lines are enforcement; the rest is orchestration, ACL SQL
+functions, `pg_*` projections, Dump/Restore and policy DDL
+([ENGINE-SPLIT-authorization.md](ENGINE-SPLIT-authorization.md), B0 outcome).
 
 ## 3. Target architecture
 
@@ -683,7 +686,7 @@ entry points, which stay in the engine.
 
 | Package | Content | Needs | Why this order |
 |---|---|---|---|
-| `access` | Authorization enforcement on catalog objects: `AuthorizationView` capture, privilege checks, default privileges, RLS policy selection (~6k lines) | `catalog`, `authorization` | Unblocked as soon as step 5 lands |
+| `access` | Authorization enforcement on catalog objects (~750 lines): the captured view (`access.View`, plus an `Environment` capability for the TEMP namespace and search path), privilege and ownership checks, RLS policy selection and role dependency scans. Capture, role publication, GRANT/REVOKE and the binding walkers stay in the engine; default-privilege resolution already lives in `catalog` | `catalog`, `authorization` | Refined in B0; B1–B4 in [the prompt file](ENGINE-SPLIT-authorization.md) |
 | `pgcatalog` | System relations `pg_*` (34 files, ~4k lines) | `catalog`, a row-producer contract | Leaf consumers of the catalog |
 | `settings` | GUC definitions, typed values, validation, formatting (~1.4k lines); session storage stays with sessions | `catalog` (types) | Nearly independent |
 | `plan`, `exec` | Logical plan IR (`BoundQuery`, `LogicalNode` and nodes), executor (`query_*`, CTE, sets, windows), concrete engine expression nodes | `expr`, `catalog`, `storage`, `visibility`; `EvalContext` split | Removes the second-largest knot |
@@ -732,7 +735,7 @@ package-specific scope. This section holds the rules every session follows.
 | 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | done (5a–5g) |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | 6a, 6b done; 6c next |
 | 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | not started |
-| A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | A1 done; B0 waits for step 5 |
+| A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | A1 and B0 done; B1 next |
 
 Tracks may run in parallel only on separate branches. Do not run two broad
 mechanical rewrites at the same time (F1, F2, 5b, 5d, or any alias removal):
