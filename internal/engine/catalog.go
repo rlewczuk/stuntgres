@@ -1186,7 +1186,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Lock()
 			}
-			auth := AuthorizationView{engine: e, pairedCatalog: e.catalog.read(e.catalog.state), roleRecord: e.roles.published, catalog: e.catalog.read(e.catalog.state), roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), state: s.authSession.authorization.state}
+			auth := AuthorizationView{accessView: accessView{owner: e.catalog.owner(), pairedCatalog: e.catalog.read(e.catalog.state), roleRecord: e.roles.published, catalog: e.catalog.read(e.catalog.state), roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), state: s.authSession.authorization.state}, engine: e}
 			err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(e.catalog.state.Epoch(), s.materializedReplacement.original.Address()), Privileges: authorization.MaintainPrivilege})
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Unlock()

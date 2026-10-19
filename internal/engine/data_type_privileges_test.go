@@ -20,7 +20,7 @@ func dtpUnitAuthority(t *testing.T, f defaultUnitFixture, catalog catalog.Read) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth.recaptureCatalog(catalog)
+	auth.Recapture(catalog)
 	return auth
 }
 
@@ -55,7 +55,7 @@ func TestDataTypePrivilegesCapture(t *testing.T) {
 		}
 	}
 	for _, change := range []func(*AuthorizationView){
-		func(a *AuthorizationView) { a.engine = New() },
+		func(a *AuthorizationView) { a.owner = New().catalog.owner() },
 		func(a *AuthorizationView) { a.roleRecord = nil },
 		func(a *AuthorizationView) { a.pairedCatalog = catalog.Read{} },
 		func(a *AuthorizationView) { a.roles = New().roles.published.root.Read(authorization.PrincipalRef{}) },
@@ -134,7 +134,7 @@ func TestDataTypePrivilegesVisibility(t *testing.T) {
 	revoked := *relation
 	revoked.Security.ColumnACL = nil
 	changed.SetDescriptor(relation.Address(), &revoked)
-	auth.recaptureCatalog(f.e.catalog.read(changed))
+	auth.Recapture(f.e.catalog.read(changed))
 	fresh, err := dtpUnitCapture(context.Background(), auth.catalog, auth)
 	if err != nil || len(selectIDs(fresh)) != 0 || !reflect.DeepEqual(before, held.anonymous) {
 		t.Fatal("capture lifetime", err)

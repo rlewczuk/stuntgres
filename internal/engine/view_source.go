@@ -117,7 +117,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 				return nil, err
 			}
 			auth.catalog = catalog
-			auth.recaptureCatalog(auth.catalog)
+			auth.Recapture(auth.catalog)
 			source, err := capturePGIndexes(ctx, catalog, auth, ref, d)
 			e.mu.Unlock()
 			return source, err
@@ -184,7 +184,7 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ids.Object
 		return AuthorizationView{}, err
 	}
 	auth.catalog = e.privateCatalogLocked(scope.owner.catalog)
-	auth.recaptureCatalog(auth.catalog)
+	auth.Recapture(auth.catalog)
 	return auth, authorizeViewSourceSnapshot(auth, ref, definition, invoker, mark)
 }
 
@@ -192,7 +192,7 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ids.Object
 // checks; neither substitutes a live role/catalog sample during recursion.
 func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark queryRowMark) error {
 	d, ok := auth.catalog.Relation(ref.Address)
-	if !ok || ref.Domain() != auth.engine.catalog.Domain || ref.Epoch != auth.catalog.Epoch() || viewOf(d) != definition {
+	if !ok || ref.Domain() != auth.owner.Domain || ref.Epoch != auth.catalog.Epoch() || viewOf(d) != definition {
 		return ids.ErrCatalogReplaced
 	}
 	principal := d.Owner

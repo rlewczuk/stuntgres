@@ -47,7 +47,7 @@ func captureTablePrivileges(ctx context.Context, view catalog.Read, auth Authori
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if view.Owner() == nil || view.State() == nil || auth.engine.catalog.owner() != view.Owner() || auth.catalog.State() != view.State() || auth.roleRecord == nil || ref.Domain() != view.Owner().Domain || ref.Epoch != view.Epoch() || source == nil || source.Address() != ref.Address || source.Address().ObjectID != tablePrivilegesOID || view.Get(ref.Address) != source {
+	if view.Owner() == nil || view.State() == nil || auth.owner != view.Owner() || auth.catalog.State() != view.State() || auth.roleRecord == nil || ref.Domain() != view.Owner().Domain || ref.Epoch != view.Epoch() || source == nil || source.Address() != ref.Address || source.Address().ObjectID != tablePrivilegesOID || view.Get(ref.Address) != source {
 		return nil, fmt.Errorf("stuntgres: invalid table_privileges capture")
 	}
 	if err := auth.roles.ValidatePrincipal(auth.state.CurrentUser); err != nil {

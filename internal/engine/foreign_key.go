@@ -134,7 +134,7 @@ func bindForeignKeyComparison(view catalog.Read, child, parent, index *catalog.R
 }
 
 func foreignKeyReferencesAllowed(auth AuthorizationView, parent *catalog.Relation, attributes []int32) error {
-	ref := auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), parent.Address())
+	ref := auth.Ref(parent.Address())
 	rights, err := auth.Effective(ref, false)
 	if err != nil {
 		return err
@@ -159,7 +159,7 @@ func foreignKeyReferencesAllowed(auth AuthorizationView, parent *catalog.Relatio
 func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, child *catalog.Relation, raw parser.ForeignKeyConstraint, target, supporting ids.ObjectAddress) error {
 	view := e.stageRead(stage)
 	auth.catalog = view
-	auth.recaptureCatalog(auth.catalog)
+	auth.Recapture(auth.catalog)
 	ref := e.catalog.Domain.Ref(view.Epoch(), target)
 	var err error
 	if target == (ids.ObjectAddress{}) {
@@ -298,7 +298,7 @@ func (e *Engine) stageCreateForeignKeys(auth AuthorizationView, stage *CatalogSt
 		var target ids.ObjectAddress
 		if len(targets) != 0 {
 			auth.catalog = e.stageRead(stage)
-			auth.recaptureCatalog(auth.catalog)
+			auth.Recapture(auth.catalog)
 			current, err := e.resolveReference(auth, raw.Target)
 			if err != nil {
 				return err
@@ -396,7 +396,7 @@ func foreignKeyDiagnostic(ctx context.Context, auth AuthorizationView, child, pa
 		d.Message = fmt.Sprintf(`update or delete on table "%s" violates foreign key constraint "%s" on table "%s"`, parent.Name(), f.Name, child.Name())
 		violating, attributes, suffix = parent, f.Referenced, fmt.Sprintf(` is still referenced from table "%s".`, child.Name())
 	}
-	disposition, err := rowSecurityDecision(auth, violating, auth.state.CurrentUser, catalog.PolicySelect, false)
+	disposition, err := rowSecurityDecision(auth.roles, violating, auth.state.CurrentUser, catalog.PolicySelect, false)
 	if err != nil {
 		return err
 	}
@@ -408,7 +408,7 @@ func foreignKeyDiagnostic(ctx context.Context, auth AuthorizationView, child, pa
 	for i, a := range attributes {
 		keys[i].Attribute = a
 	}
-	allowed, err := uniqueKeyDetailAllowed(auth, auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), violating.Address()), keys)
+	allowed, err := uniqueKeyDetailAllowed(auth, auth.Ref(violating.Address()), keys)
 	if err != nil {
 		return err
 	}

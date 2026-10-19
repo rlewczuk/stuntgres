@@ -261,7 +261,7 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	oldSource := []queryColumn{column("x", 5, first.Usage), column("y", 6, second.Usage)}
 	oldColumns := []queryColumn{left, oldSource[0], oldSource[1], column("n", 7, first.Usage)}
 	star := parser.StarExpr{Pos: parser.Position{Offset: 7}}
-	b := expressionBinder{engine: e, queryAuth: &AuthorizationView{catalog: view}}
+	b := expressionBinder{engine: e, queryAuth: &AuthorizationView{accessView: accessView{catalog: view}}}
 	out, err := b.jsonbRecordCallStar(oldColumns, oldSource, star, callFor(original))
 	if err != nil || len(out) != 4 {
 		t.Fatal("initial star", out, err)

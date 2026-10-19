@@ -30,7 +30,7 @@ func TestRoleOwnershipDatabasePreparedPathIdentity(t *testing.T) {
 	namespace.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: namespace.Owner, Grantee: authorization.ACLGrantee{Role: namespace.Owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
 	before.SetDescriptor(address, &namespace)
 	auth.roleRecord = roles
-	auth.recaptureCatalog(e.catalog.read(before))
+	auth.Recapture(e.catalog.read(before))
 	warm, err := e.sequenceEnvironmentLocked(auth)
 	if err != nil || !slices.Contains(warm.namespaces, address) {
 		t.Fatal("owner did not warm public namespace", warm, err)
@@ -42,7 +42,7 @@ func TestRoleOwnershipDatabasePreparedPathIdentity(t *testing.T) {
 	after.SetDescriptor(catalog.CurrentDatabaseAddress, &database)
 	fresh := auth
 	fresh.catalog = e.catalog.read(after)
-	fresh.recaptureCatalog(fresh.catalog)
+	fresh.Recapture(fresh.catalog)
 	revoked, err := e.sequenceEnvironmentLocked(fresh)
 	if err != nil || slices.Contains(revoked.namespaces, address) {
 		t.Fatal("warm path retained former database-owner authority", revoked, err)

@@ -23,24 +23,6 @@ func schemaReserved(name string) error {
 func schemaNotice(op *Operation, code, message string) {
 	op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: code, Message: message})
 }
-func schemaOwner(auth AuthorizationView, name string, identity bool) (authorization.PrincipalRef, error) {
-	if name == "" {
-		return auth.state.CurrentUser, nil
-	}
-	if identity {
-		switch name {
-		case "current_user", "current_role":
-			return auth.state.CurrentUser, nil
-		case "session_user":
-			return auth.state.SessionUser, nil
-		}
-	}
-	role, ok := auth.roles.Lookup(name)
-	if !ok {
-		return authorization.PrincipalRef{}, sqlError("42704", fmt.Sprintf(`role "%s" does not exist`, name))
-	}
-	return role.Ref, nil
-}
 
 // Non-table creation and namespace moves retain their TEMP capability boundary.
 func checkPersistentCreationNamespace(catalog catalog.Read, namespace ids.ObjectAddress) error {
@@ -52,13 +34,13 @@ func checkPersistentCreationNamespace(catalog catalog.Read, namespace ids.Object
 
 func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ids.ObjectAddress, owner authorization.PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ids.ObjectRef) error {
 	auth.catalog = stage.Base
-	auth.recaptureCatalog(auth.catalog)
+	auth.Recapture(auth.catalog)
 	if namespace, ok := auth.catalog.Namespace(ns); ok && !namespace.TemporaryToast && auth.session != nil && namespace.Temporary == auth.session.token {
 		auth.stagedTemporary = ns
 	}
 	if len(stage.Descriptors) != 0 || len(stage.Removals) != 0 || len(stage.OldNames) != 0 {
 		auth.catalog = e.stageRead(stage)
-		auth.recaptureCatalog(auth.catalog)
+		auth.Recapture(auth.catalog)
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: name}
@@ -82,7 +64,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	}
 	if len(stage.Descriptors) != 0 || len(stage.Removals) != 0 || len(stage.OldNames) != 0 {
 		auth.catalog = e.stageRead(stage)
-		auth.recaptureCatalog(auth.catalog)
+		auth.Recapture(auth.catalog)
 	}
 	b, err := e.describe(op.Context(), s, auth, ids.ObjectRef{}, input, op, nil, nil)
 	if err != nil {
@@ -129,7 +111,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	}
 	// All owned sequences and their defaults share the private CREATE candidate.
 	auth.catalog = e.stageRead(stage)
-	auth.recaptureCatalog(auth.catalog)
+	auth.Recapture(auth.catalog)
 	// Preserve operation safety, but resolve diagnostic names lazily against
 	// the staged catalog that owns these defaults, generations and CHECKs.
 	input.TypeDiagnosticName = nil
@@ -453,7 +435,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			return nil, err
 		}
 	case *parser.CreateSchema:
-		owner, err := schemaOwner(auth, s.Authorization, s.AuthorizationIdentity)
+		owner, err := schemaOwner(auth.accessView, s.Authorization, s.AuthorizationIdentity)
 		if err != nil {
 			return nil, err
 		}
@@ -533,7 +515,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			}
 			next.ObjectName = s.NewName
 		} else {
-			target, err := schemaOwner(auth, s.Owner, s.OwnerIdentity)
+			target, err := schemaOwner(auth.accessView, s.Owner, s.OwnerIdentity)
 			if err != nil {
 				return nil, err
 			}
@@ -543,10 +525,10 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			if err = own(old); err != nil {
 				return nil, err
 			}
-			if err = ownershipSuccessor(auth, target); err != nil {
+			if err = ownershipSuccessor(auth.accessView, target); err != nil {
 				return nil, err
 			}
-			if err = ownershipDatabaseCreate(auth); err != nil {
+			if err = ownershipDatabaseCreate(auth.accessView, auth); err != nil {
 				return nil, err
 			}
 			next.Owner = target

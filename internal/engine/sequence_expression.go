@@ -381,7 +381,7 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 			if namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != r.token {
 				return 0, sqlError("42501", fmt.Sprintf("permission denied for schema %s", namespace.Name()))
 			}
-			if err := r.auth.CanUse(r.auth.engine.catalog.Domain.Ref(r.auth.catalog.Epoch(), ns)); err != nil {
+			if err := r.auth.CanUse(r.auth.Ref(ns)); err != nil {
 				return 0, err
 			}
 			path = []ids.ObjectAddress{ns}
@@ -447,7 +447,7 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	before, beforeErr := scope.writeAuthorizationLocked(e)
 	if beforeErr == nil && scope.catalog != nil {
 		before.catalog = e.privateCatalogLocked(scope.catalog)
-		before.recaptureCatalog(before.catalog)
+		before.Recapture(before.catalog)
 	}
 	if beforeErr == nil && ref.Epoch != before.catalog.Epoch() && x.temporary == scope.op.session.token && temporarySequenceEpochValid(before.catalog, ref, x.temporary) {
 		ref.Epoch = before.catalog.Epoch()
@@ -482,7 +482,7 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	}
 	if scope.catalog != nil {
 		auth.catalog = e.privateCatalogLocked(scope.catalog)
-		auth.recaptureCatalog(auth.catalog)
+		auth.Recapture(auth.catalog)
 	}
 	d, ok := auth.catalog.Relation(ref.Address)
 	if !ok {

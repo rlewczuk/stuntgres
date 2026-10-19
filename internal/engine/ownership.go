@@ -10,48 +10,6 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func ownershipSuccessor(auth AuthorizationView, target authorization.PrincipalRef) error {
-	allowed, err := auth.roles.CanSetRole(auth.state.CurrentUser, target)
-	if err != nil {
-		return err
-	}
-	if !allowed {
-		role, _ := auth.roles.Descriptor(target)
-		return sqlError("42501", fmt.Sprintf(`must be able to SET ROLE "%s"`, role.Name))
-	}
-	return nil
-}
-func ownershipDatabaseCreate(auth AuthorizationView) error {
-	return auth.CheckCreate(auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), catalog.CurrentDatabaseAddress))
-}
-func ownershipEligibility(auth AuthorizationView, target authorization.PrincipalRef, namespace ids.ObjectAddress) error {
-	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
-	if err != nil {
-		return err
-	}
-	if actor.Superuser {
-		return nil
-	}
-	if err = ownershipSuccessor(auth, target); err != nil {
-		return err
-	}
-	targetAuth := auth
-	targetAuth.state.CurrentUser = target
-	if namespace == (ids.ObjectAddress{}) {
-		return nil
-	}
-	return targetAuth.CheckCreate(auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), namespace))
-}
-func ownershipRoleOperand(spec parser.RoleSpec) (string, bool) {
-	switch spec.Identity {
-	case "current":
-		return "current_user", true
-	case "session":
-		return "session_user", true
-	}
-	return spec.Name, false
-}
-
 // Root classification follows canonical reciprocal identities, never object
 // names. Protected catalog namespaces and immutable providers are not bulk roots.
 func ownershipRoot(view catalog.Read, d catalog.Descriptor) bool {
@@ -274,7 +232,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 			return fail(err)
 		}
 	}
-	target, err := schemaOwner(auth, targetName, identity)
+	target, err := schemaOwner(auth.accessView, targetName, identity)
 	if err != nil {
 		return fail(err)
 	}
@@ -288,7 +246,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 		parent.SubID = 0
 		return fail(sequenceLinkedError(old, auth.catalog.MustRelation(parent), false))
 	}
-	if err = ownershipEligibility(auth, target, old.Namespace()); err != nil {
+	if err = ownershipEligibility(auth.accessView, auth, target, old.Namespace()); err != nil {
 		return fail(err)
 	}
 	stage := e.ownershipStage(auth, scope.op)
@@ -362,7 +320,7 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: display + " is a table's row type", Hint: "Use ALTER TABLE instead."})
 		}
 	}
-	target, err := schemaOwner(auth, name, identity)
+	target, err := schemaOwner(auth.accessView, name, identity)
 	if err != nil {
 		return fail(err)
 	}
@@ -378,7 +336,7 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true, OwnerNoun: "type"}); err != nil {
 		return fail(err)
 	}
-	if err = ownershipEligibility(auth, target, old.Namespace()); err != nil {
+	if err = ownershipEligibility(auth.accessView, auth, target, old.Namespace()); err != nil {
 		return fail(err)
 	}
 	stage := e.ownershipStage(auth, scope.op)
@@ -411,7 +369,7 @@ func (e *Engine) executeDatabaseOwnership(scope *StatementScope, s *parser.Alter
 	if err != nil {
 		return fail(err)
 	}
-	target, err := schemaOwner(auth, name, identity)
+	target, err := schemaOwner(auth.accessView, name, identity)
 	if err != nil {
 		return fail(err)
 	}
@@ -427,7 +385,7 @@ func (e *Engine) executeDatabaseOwnership(scope *StatementScope, s *parser.Alter
 	if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.catalog.Epoch(), database.Address()), OwnerOnly: true}); err != nil {
 		return fail(err)
 	}
-	if err = ownershipSuccessor(auth, target); err != nil {
+	if err = ownershipSuccessor(auth.accessView, target); err != nil {
 		return fail(err)
 	}
 	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)

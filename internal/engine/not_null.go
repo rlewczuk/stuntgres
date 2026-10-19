@@ -718,7 +718,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if err == nil {
 		disclosure, err = e.authorizationLocked(op)
 		disclosure.catalog = e.privateCatalogLocked(scope.owner.catalog)
-		disclosure.recaptureCatalog(disclosure.catalog)
+		disclosure.Recapture(disclosure.catalog)
 	}
 	e.mu.Unlock()
 	if err != nil {

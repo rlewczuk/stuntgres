@@ -74,7 +74,7 @@ func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.Ro
 			auth = s.routineAuth // Rule relation ownership is not routine authority.
 		}
 		if captureErr == nil {
-			auth.recaptureCatalog(e.catalog.read(binding.catalog))
+			auth.Recapture(e.catalog.read(binding.catalog))
 		}
 		e.mu.Unlock()
 		if captureErr != nil {
@@ -158,7 +158,7 @@ func (s *StatementScope) readmitProgramsAfterWait() error {
 	if err == nil {
 		auth, err = s.writeAuthorizationLocked(e)
 		if err == nil {
-			auth.recaptureCatalog(e.privateCatalogLocked(s.owner.catalog))
+			auth.Recapture(e.privateCatalogLocked(s.owner.catalog))
 		}
 	}
 	e.mu.Unlock()

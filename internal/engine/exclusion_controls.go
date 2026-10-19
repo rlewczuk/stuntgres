@@ -92,7 +92,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 	}
 	e.mu.Lock()
 	auth.catalog = e.privateCatalogLocked(s.owner.catalog)
-	auth.recaptureCatalog(auth.catalog)
+	auth.Recapture(auth.catalog)
 	s.beginExclusionProjectionLocked(e)
 	e.mu.Unlock()
 	candidate := s.exclusionModes

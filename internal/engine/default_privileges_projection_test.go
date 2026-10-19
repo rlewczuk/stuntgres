@@ -86,7 +86,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 		t.Fatal(err)
 	}
 	auth.catalog = view
-	auth.recaptureCatalog(auth.catalog)
+	auth.Recapture(auth.catalog)
 	held, got := defaultUnitProjection(t, view, auth)
 	var want [][]string
 	for _, privilege := range []string{"INSERT", "SELECT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"} {
@@ -135,7 +135,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	}
 	setFixtureEdges(roles, edges)
 	auth.roleRecord = roles
-	auth.recaptureCatalog(view)
+	auth.Recapture(view)
 	_, setRows := defaultUnitProjection(t, view, auth)
 	setWant := [][]string{{"default_owner", "PUBLIC", "unit_database", "default_schema", "proof_named", "INSERT", "NO", "NO"}, {"default_owner", "default_member", "unit_database", "default_schema", "proof_member", "UPDATE", "NO", "NO"}}
 	defaultUnitSortRows(setWant)
@@ -158,7 +158,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	putFixtureRole(actor, renamed)
 
 	auth.roleRecord = actor
-	auth.recaptureCatalog(f.e.catalog.read(changed))
+	auth.Recapture(f.e.catalog.read(changed))
 	auth.state.CurrentUser = f.reader
 	_, fresh := defaultUnitProjection(t, auth.catalog, auth)
 	freshWant := [][]string{{"default_owner", "renamed_reader", "unit_database", "default_schema", "proof_partition", "SELECT", "NO", "YES"}, {"default_owner", "renamed_reader", "unit_database", "default_schema", "proof_update_only", "UPDATE", "NO", "NO"}}

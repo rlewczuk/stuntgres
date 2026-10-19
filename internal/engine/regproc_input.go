@@ -105,7 +105,7 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 		if namespace == (ids.ObjectAddress{}) {
 			return missing()
 		}
-		if err := r.types.auth.CanUse(r.types.auth.engine.catalog.Domain.Ref(r.types.auth.catalog.Epoch(), namespace)); err != nil {
+		if err := r.types.auth.CanUse(r.types.auth.Ref(namespace)); err != nil {
 			return 0, err
 		}
 		if r.types.qualified != nil && !slices.Contains(*r.types.qualified, namespace) {
@@ -122,7 +122,7 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 	}
 	if r.operands != nil {
 		if owner := routineDescriptorOwner(r.types.auth.catalog, selected.ID); owner != nil && owner.Address().ObjectID != selected.ID {
-			ref := r.types.auth.engine.catalog.Domain.Ref(r.types.auth.catalog.Epoch(), owner.Address())
+			ref := r.types.auth.Ref(owner.Address())
 			for _, operand := range *r.operands {
 				if operand.Ref == ref {
 					return uint32(selected.ID), nil

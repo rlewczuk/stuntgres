@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
@@ -87,4 +89,44 @@ func setFixtureEdges(r *roleCatalog, edges []authorization.Membership) {
 
 func objectACLUnitEntry(source, target authorization.PrincipalRef, use, options authorization.Privileges) authorization.ACLEntry {
 	return authorization.ACLEntry{Grantor: source, Grantee: authorization.ACLGrantee{Role: target}, Privileges: use, GrantOptions: options}
+}
+
+// descriptorReferences lists every principal a descriptor references: owner,
+// policy roles, ACL grantors and grantees, including column ACLs.
+func descriptorReferences(d catalog.Descriptor) []authorization.PrincipalRef {
+	switch t := d.(type) {
+	case *catalog.ForeignObject:
+		if t.Address().ClassID == ids.ForeignMappingClassID {
+			if t.MappedRole == (authorization.PrincipalRef{}) {
+				return nil
+			}
+			return []authorization.PrincipalRef{t.MappedRole}
+		}
+	case *catalog.TSTemplate:
+		return nil
+	}
+	owner, acl, cols := descriptorACL(d)
+	refs := []authorization.PrincipalRef{owner}
+	if relation, ok := d.(*catalog.Relation); ok {
+		for _, policy := range relation.Security.Policies {
+			for _, role := range policy.Roles {
+				if !role.Public {
+					refs = append(refs, role.Ref)
+				}
+			}
+		}
+	}
+	add := func(a authorization.ACLValue) {
+		for _, x := range a.Entries {
+			refs = append(refs, x.Grantor)
+			if !x.Grantee.Public {
+				refs = append(refs, x.Grantee.Role)
+			}
+		}
+	}
+	add(acl)
+	for _, a := range cols {
+		add(a)
+	}
+	return refs
 }

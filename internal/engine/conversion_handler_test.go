@@ -22,7 +22,7 @@ func TestConversionHandlerEmptyProbePrecedence(t *testing.T) {
 	procedure := *candidate.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375})
 	procedure.Result = 25
 	candidate.SetDescriptor(procedure.Address(), &procedure)
-	auth.recaptureCatalog(e.catalog.read(candidate))
+	auth.Recapture(e.catalog.read(candidate))
 	stage := e.BeginCatalogStage(auth.catalog)
 	e.mu.Lock()
 	err := e.stageCreateConversionLocked(op, auth, stage, create)
@@ -35,7 +35,7 @@ func TestConversionHandlerEmptyProbePrecedence(t *testing.T) {
 	if e.CatalogRead().State() != view.State() {
 		t.Fatal("bad routine metadata published")
 	}
-	auth.recaptureCatalog(view)
+	auth.Recapture(view)
 	stage = e.BeginCatalogStage(view)
 	if err = stage.Create(conversionUnitDefinition(e, 90000, "probe", true)); err != nil {
 		t.Fatal(err)

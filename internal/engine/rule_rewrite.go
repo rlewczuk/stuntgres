@@ -1138,7 +1138,7 @@ func refreshRuleSources(auth AuthorizationView, b binding) (binding, error) {
 	var sources []queryLeaf
 	for i, source := range b.querySources {
 		current, ok := catalog.Relation(source.ref.Address)
-		if !ok || source.relation == nil || source.ref.Domain() != auth.engine.catalog.Domain || source.ref.Epoch != catalog.Epoch() || source.ref.Address.SubID != 0 {
+		if !ok || source.relation == nil || source.ref.Domain() != auth.owner.Domain || source.ref.Epoch != catalog.Epoch() || source.ref.Address.SubID != 0 {
 			return b, ids.ErrCatalogReplaced
 		}
 		storage := auth.engine.authorizationStorageLocked(auth, source.ref.Address)

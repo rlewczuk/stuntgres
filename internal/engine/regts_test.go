@@ -53,7 +53,7 @@ func regTSUnitSnapshot(t *testing.T) (*Engine, *Operation, catalog.Read, Authori
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth.recaptureCatalog(view)
+	auth.Recapture(view)
 	return e, op, view, auth, namespaces
 }
 func TestRegTSProviderResolution(t *testing.T) {
@@ -135,7 +135,7 @@ func TestRegTSProviderResolution(t *testing.T) {
 		quoted.State().BindName(catalog.DescriptorNameKey(&d), d.Address())
 	}
 	quotedInput := input
-	quotedInput.auth.recaptureCatalog(quoted)
+	quotedInput.auth.Recapture(quoted)
 	id, err = quotedInput.ResolveRegdictionary(context.Background(), `"Reg.TS".`+strings.Repeat("x", 70))
 	if err != nil || id != 92002 {
 		t.Fatal("identifier byte truncation", id, err)

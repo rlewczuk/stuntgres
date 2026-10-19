@@ -222,7 +222,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 	}
 	var ownerTarget authorization.PrincipalRef
 	if s.Action == "owner" {
-		ownerTarget, err = schemaOwner(auth, s.Target.Text, s.OwnerIdentity)
+		ownerTarget, err = schemaOwner(auth.accessView, s.Target.Text, s.OwnerIdentity)
 		if err != nil {
 			return err
 		}
@@ -276,7 +276,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 		}
 		next.ObjectNamespace = dest.Address
 	case "owner":
-		if err = ownershipEligibility(auth, ownerTarget, d.Namespace()); err != nil {
+		if err = ownershipEligibility(auth.accessView, auth, ownerTarget, d.Namespace()); err != nil {
 			return err
 		}
 		next.Owner = ownerTarget

@@ -57,6 +57,13 @@ func (s *roleStore) principalCandidateLocked() (authorization.PrincipalRef, erro
 // owner. It is empty unless view belongs to owner, the catalog owner this
 // store backs, and root belongs to this store's domain.
 func (s *roleStore) read(owner *catalog.Owner, view catalog.Read, root *roleCatalog) authorization.Read {
+	return roleRead(owner, &s.domain, view, root)
+}
+
+// roleRead returns the role view of root as seen by view's current database
+// owner. It is empty unless view belongs to owner and root belongs to the
+// principals domain.
+func roleRead(owner *catalog.Owner, principals *authorization.Domain, view catalog.Read, root *roleCatalog) authorization.Read {
 	if view.Owner() != owner || view.State() == nil || root == nil {
 		return authorization.Read{}
 	}
@@ -65,7 +72,7 @@ func (s *roleStore) read(owner *catalog.Owner, view catalog.Read, root *roleCata
 		return authorization.Read{}
 	}
 	read := root.root.Read(database.Owner)
-	if !read.BelongsTo(&s.domain) {
+	if !read.BelongsTo(principals) {
 		return authorization.Read{}
 	}
 	return read

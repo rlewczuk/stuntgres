@@ -97,7 +97,7 @@ func TestEnumPreparedParameterPrivateGeneration(t *testing.T) {
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	auth.catalog = e.stageRead(stage)
-	auth.recaptureCatalog(auth.catalog)
+	auth.Recapture(auth.catalog)
 	b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, &description)
 	b.queryAuth = &auth
 	node, failure := b.bind(parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 8}}, expressionPolicy{context: projectionContext, expected: typ.Usage()})

@@ -90,7 +90,7 @@ func TestRoleOwnershipDatabaseRejectsMixedAuthorization(t *testing.T) {
 	if _, err := auth.object(ref); err == nil {
 		t.Fatal("mixed retained pair accepted")
 	}
-	auth.recaptureCatalog(auth.catalog)
+	auth.Recapture(auth.catalog)
 	if _, err := auth.object(ref); err != nil {
 		t.Fatal("matching retained pair rejected", err)
 	}

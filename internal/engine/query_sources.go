@@ -235,7 +235,7 @@ func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
 		if err != nil {
 			return err
 		}
-		auth.recaptureCatalog(scope.commentCatalog)
+		auth.Recapture(scope.commentCatalog)
 		scope.commentRoles = auth.roles
 		scope.deparseAuth = auth
 		scope.deparsePath, err = e.referencePath(auth)
@@ -318,7 +318,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 	}
 	var collectErr error
 	collectAuth := scope.deparseAuth
-	collectAuth.recaptureCatalog(scope.partitionCaptureCatalog(scope.inheritanceRead(scope.commentCatalog)))
+	collectAuth.Recapture(scope.partitionCaptureCatalog(scope.inheritanceRead(scope.commentCatalog)))
 	refs, collectErr = e.queryTableRefsLocked(collectAuth, invoker, leaves, refs, scope.op.session.token, inherited)
 	if collectErr != nil {
 		return nil, collectErr

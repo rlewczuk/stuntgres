@@ -32,7 +32,7 @@ func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *catalog.Relatio
 	next.SetDescriptor(src.Address(), src)
 	next.SetDescriptor(sink.Address(), sink)
 	e.catalog.state = next
-	return e, AuthorizationView{engine: e, catalog: e.catalog.read(next)}, src, sink
+	return e, AuthorizationView{accessView: accessView{owner: e.catalog.owner(), catalog: e.catalog.read(next)}, engine: e}, src, sink
 }
 
 func ruleUnitRef(e *Engine, d *catalog.Relation) ids.ObjectRef {

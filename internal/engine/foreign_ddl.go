@@ -51,7 +51,7 @@ func findForeign(catalog catalog.Read, class ids.OID, name string) (*catalog.For
 	return nil, sqlError("42704", fmt.Sprintf(`%s "%s" does not exist`, foreignLabel(class), name))
 }
 func foreignRef(auth AuthorizationView, d catalog.Descriptor) ids.ObjectRef {
-	return auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
+	return auth.Ref(d.Address())
 }
 
 func (e *Engine) foreignProcedureLocked(auth AuthorizationView, name *parser.ObjectName, signature catalog.ProcedureSignature) (*catalog.Procedure, error) {
@@ -87,7 +87,7 @@ func foreignMappedRole(auth AuthorizationView, role parser.GrantGrantee) (author
 		return authorization.PrincipalRef{}, nil
 	}
 	name, identity := ownershipRoleOperand(role.Role)
-	return schemaOwner(auth, name, identity)
+	return schemaOwner(auth.accessView, name, identity)
 }
 func foreignMappingAuthority(auth AuthorizationView, server *catalog.ForeignObject, role authorization.PrincipalRef) error {
 	if err := auth.Check(AccessRequirement{Object: foreignRef(auth, server), OwnerOnly: true}); err == nil {
@@ -180,7 +180,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 	var successor authorization.PrincipalRef
 	if s.Owner != nil {
 		targetName, identity := ownershipRoleOperand(*s.Owner)
-		successor, err = schemaOwner(auth, targetName, identity)
+		successor, err = schemaOwner(auth.accessView, targetName, identity)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -481,7 +481,7 @@ func foreignOwnershipEligibility(auth AuthorizationView, object *catalog.Foreign
 	if err = auth.Check(AccessRequirement{Object: foreignRef(auth, object), OwnerOnly: true}); err != nil {
 		return err
 	}
-	if err = ownershipEligibility(auth, target, ids.ObjectAddress{}); err != nil {
+	if err = ownershipEligibility(auth.accessView, auth, target, ids.ObjectAddress{}); err != nil {
 		return err
 	}
 	wrapper, ok := auth.catalog.Foreign(object.Wrapper)

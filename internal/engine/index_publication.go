@@ -347,11 +347,11 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 	evaluation.catalog, evaluation.Output = view, output
 	if auth == nil {
 		// Trusted replacement has catalog identity but no SQL principal.
-		auth = &AuthorizationView{catalog: view}
+		auth = &AuthorizationView{accessView: accessView{catalog: view}}
 	} else {
 		disclosure := *auth
 		disclosure.catalog = view
-		disclosure.recaptureCatalog(disclosure.catalog)
+		disclosure.Recapture(disclosure.catalog)
 		auth = &disclosure
 	}
 	if auth.engine != nil {
@@ -600,7 +600,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *catalogChanges
 			e.mu.Unlock()
 			return err
 		}
-		programmeAuth.recaptureCatalog(view)
+		programmeAuth.Recapture(view)
 	}
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
@@ -614,7 +614,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *catalogChanges
 		}
 		if err == nil {
 			auth.catalog = view
-			auth.recaptureCatalog(view)
+			auth.Recapture(view)
 			input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
 		}
 		if err != nil {

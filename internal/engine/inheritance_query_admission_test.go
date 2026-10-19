@@ -146,7 +146,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	collectAuth.recaptureCatalog(fresh.inheritanceCatalog)
+	collectAuth.Recapture(fresh.inheritanceCatalog)
 	e.mu.Lock()
 	refs, err := e.queryTableRefsLocked(collectAuth, collectAuth.state.CurrentUser, fresh.querySources, nil, freshOp.session.token, queryRowMark{})
 	var view *VisibilityView

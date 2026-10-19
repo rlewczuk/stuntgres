@@ -163,7 +163,7 @@ func (n accessInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if scope.catalog != nil {
-		auth.recaptureCatalog(e.privateCatalogLocked(scope.catalog))
+		auth.Recapture(e.privateCatalogLocked(scope.catalog))
 	}
 	principal := c.expressionPrincipal()
 	var result bool
@@ -198,7 +198,7 @@ func (n accessInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 			d, _ = auth.catalog.Relation(ref.Address)
 		}
 		if d != nil {
-			result, err = rowSecurityApplies(auth, d, principal)
+			result, err = rowSecurityApplies(auth.roles, d, principal)
 		}
 	} else {
 		actor := uint64(principal.ID())

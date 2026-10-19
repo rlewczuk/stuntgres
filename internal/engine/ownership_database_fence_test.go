@@ -30,7 +30,7 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 				database.ObjectRevision++
 				selected.SetDescriptor(catalog.CurrentDatabaseAddress, &database)
 				auth.catalog = e.catalog.read(selected)
-				auth.recaptureCatalog(auth.catalog)
+				auth.Recapture(auth.catalog)
 			}
 			stage := e.BeginCatalogStage(auth.catalog)
 			defer e.DiscardCatalogStage(stage)

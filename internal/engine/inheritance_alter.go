@@ -319,7 +319,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 		command.Only = true
 		childAuth := auth
 		childAuth.catalog = e.stageRead(stage)
-		childAuth.recaptureCatalog(childAuth.catalog)
+		childAuth.Recapture(childAuth.catalog)
 		e.mu.Lock()
 		if _, err := e.alterTableLocked(scope, op, childAuth, &command, count); err != nil {
 			return Result{}, err

@@ -141,16 +141,16 @@ func TestAccessInquiryRLSDecision(t *testing.T) {
 				// A policy's provider may be irrelevant or even stale; eligibility must
 				// never traverse its roles or demand expression enforcement.
 				next.Security.Policies = []catalog.PolicyDefinition{{Permissive: true, Command: catalog.PolicyAll, Roles: []catalog.PolicyRole{{Public: true}}, Using: policyPayloadOf(using)}}
-				active, err := rowSecurityApplies(auth, &next, actor)
+				active, err := rowSecurityApplies(auth.roles, &next, actor)
 				if err != nil || active != want {
 					t.Fatalf("eligibility %v/%v/%v: %v %v", enabled, forced, actor, active, err)
 				}
-				disposition, err := rowSecurityDecision(auth, &next, actor, catalog.PolicySelect, false)
+				disposition, err := rowSecurityDecision(auth.roles, &next, actor, catalog.PolicySelect, false)
 				if err != nil || (disposition != rlsUnrestricted) != active {
 					t.Fatal("enforcement eligibility diverged", disposition, active, err)
 				}
 				next.Security.Policies[0].Roles = []catalog.PolicyRole{{Ref: e.roles.domain.Principal(4294967295)}}
-				active, err = rowSecurityApplies(auth, &next, actor)
+				active, err = rowSecurityApplies(auth.roles, &next, actor)
 				if err != nil || active != want {
 					t.Fatal("inquiry inspected policy", active, err)
 				}

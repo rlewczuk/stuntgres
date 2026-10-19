@@ -64,7 +64,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 			}
 		}
 		collectAuth := command.auth
-		collectAuth.recaptureCatalog(scope.inheritanceRead(command.auth.catalog))
+		collectAuth.Recapture(scope.inheritanceRead(command.auth.catalog))
 		principal := func(leaf queryLeaf) authorization.PrincipalRef {
 			if leaf.principal != (authorization.PrincipalRef{}) {
 				return leaf.principal

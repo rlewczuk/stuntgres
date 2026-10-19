@@ -179,7 +179,7 @@ func (n objectACLExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if scope.catalog != nil {
-		auth.recaptureCatalog(e.privateCatalogLocked(scope.catalog))
+		auth.Recapture(e.privateCatalogLocked(scope.catalog))
 	}
 	acl, err := rawObjectACL(auth.catalog, ids.ObjectAddress{ClassID: ids.OID(class), ObjectID: ids.OID(object), SubID: int32(subid)})
 	if err != nil {

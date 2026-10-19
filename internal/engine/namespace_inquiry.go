@@ -147,7 +147,7 @@ func (s *StatementScope) namespaceAuthorizationLocked(e *Engine) (AuthorizationV
 		return auth, err
 	}
 	if s.catalog != nil {
-		auth.recaptureCatalog(e.privateCatalogLocked(s.catalog))
+		auth.Recapture(e.privateCatalogLocked(s.catalog))
 	}
 	if s.catalog != nil && temporaryNamespace(auth) == (ids.ObjectAddress{}) {
 		for a, d := range s.catalog.descriptors {
@@ -181,7 +181,7 @@ func (s *StatementScope) schemaInquiryPathLocked(e *Engine) (AuthorizationView, 
 		return auth, nil, err
 	}
 	s.catalog = changes
-	auth.recaptureCatalog(e.privateCatalogLocked(changes))
+	auth.Recapture(e.privateCatalogLocked(changes))
 	auth.stagedTemporary = ref.Address
 	s.currentSchemaResult = sqltype.Value{}
 	s.searchPathResults = [2]sqltype.Value{}
