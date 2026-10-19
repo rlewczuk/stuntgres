@@ -660,10 +660,17 @@ installations from it, and `bindPgcrypto` reads the selected member's result
 and volatility from it, which installed procedures never change. The engine separately
 owns installed procedure address, namespace/ACL, intrinsic volatility, dependency,
 replay identity and narrow strong-entropy/actual-FIPS context capabilities.
-`internal/sqltype/pgcrypto.go` owns admitted signature/result plans, raw digest/HMAC,
-validated bf salt costs and random-byte count bounds. The adjacent public-domain bcrypt kernel uses fixed
-Blowfish state, byte-oriented72-byte key expansion, PostgreSQL2a/2x semantics,
-canonical custom base64 and per-round cancellation. Six hashes return raw BYTEA.
+`internal/sqltype/pgcrypto.go` owns admitted signature/result plans, raw digest/HMAC
+and random-byte count bounds. `pgcrypto_password.go` dispatches crypt and validates
+execution-local private-kind/uint32 salt parameters: des25, xdes odd1..16777215
+(default725), md5 1000 or bf4..31 (default6); zero selects the default.
+The carrier requests exactly2/3/6/16 entropy bytes for des/xdes/md5/bf using its
+sixteen-byte buffer. No entropy is requested for NULL or invalid inputs.
+The independent salted DES kernel keeps schedules/expansion call-local, truncates
+DES at eight bytes, folds all xdes bytes and polls cancellation. MD5-crypt streams
+passwords through the existing context-aware hash helper, with eight-byte salt
+truncation. Exact2a/2x bcrypt semantics remain unchanged;2b/2y use DES fallback.
+SHA-crypt remains unsupported. Six digest algorithms return raw BYTEA.
 The same carrier supports the four BYTEA-only raw AES overloads, including four
 children for `_iv`; unknown raw slots infer BYTEA rather than HMAC's TEXT
 preference. `internal/sqltype/pgcrypto_aes.go` owns stdlib AES CBC/ECB, PKCS/none,

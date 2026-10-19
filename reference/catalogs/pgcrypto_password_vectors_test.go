@@ -31,6 +31,27 @@ func TestReferencePgcryptoPasswordVectors(t *testing.T) {
 		defer stmt.Close()
 		held := fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}
 		vectors := []struct{ password, salt, hash string }{
+			// PostgreSQL REL_18_6 contrib/pgcrypto expected/crypt-{des,xdes,md5}.out.
+			{"", "NB", "NBPx/38Y48kHg"},
+			{"foox", "NB", "NB53EGGqrrb5E"},
+			{"password", "ab", "abJnggxhB/yWI"},
+			{"password", "$2b$04$......................", "$2SXu7evaw9i."},
+			{"", "_J9..j2zz", "_J9..j2zzR/nIRDK3pPc"},
+			{"foox", "_J9..j2zz", "_J9..j2zzAYKMvO2BYRY"},
+			{"longlongpassword", "_J9..j2zz", "_J9..j2zz4BeseiQNwUg"},
+			{"password", "_/!!!!!!!", "_/!!!!!!!zqM49hRzxko"},
+			{"", "$1$Szzz0yzz", "$1$Szzz0yzz$To38XrR3BsbXQW2ZpfKjF1"},
+			{"foox", "$1$Szzz0yzz", "$1$Szzz0yzz$IYL49cd3t9bllsA7Jmz1M1"},
+			// Pinned PostgreSQL 18.6 UTF8/C oracle edge observations.
+			{"aaaaaaaé", "NB", "NBqsnep6jbEUQ"},
+			{"aaaaaaaê", "NB", "NBqsnep6jbEUQ"},
+			{"abcdefghijklmnopq", "_J9..j2zz", "_J9..j2zzMajpe2REvSE"},
+			{"abcdefghijklmnopr", "_J9..j2zz", "_J9..j2zzG8w48ydCb3c"},
+			{"password", "_0.......", "_0.......JdXyN0hVWiM"},
+			{"foox", "$1$", "$1$$yS/p28w2q0fzatmSApPDM0"},
+			{"foox", "$1$$ignored", "$1$$yS/p28w2q0fzatmSApPDM0"},
+			{"foox", "$1$!@:", "$1$!@:$7/eL0rrpLEdNF.jbaJ8FL0"},
+			{"foox", "$1$aaaaaaé", "$1$aaaaaaé$VTDkaZHxkN.iWiYEiJ8EU0"},
 			{"", pgcryptoPasswordSalt, pgcryptoPasswordEmpty},
 			{"foox", pgcryptoPasswordSalt, pgcryptoPasswordFoox},
 			{"U*U", "$2a$05$CCCCCCCCCCCCCCCCCCCCC.", "$2a$05$CCCCCCCCCCCCCCCCCCCCC.E5YPO9kmyuRGyh0XouQYb4YMJKvyOeW"},
@@ -50,6 +71,42 @@ func TestReferencePgcryptoPasswordVectors(t *testing.T) {
 			pgcryptoPasswordText(t, p, c, r, q, v.hash, v.password, v.salt)
 			fixture.RunStep(t, p.Ctx, held, r, fixture.Select(q, []string{"value"}, []string{"TEXT"}, [][]any{{v.hash}}, v.password, v.salt))
 		}
+		for _, v := range []struct{ password, salt, hash string }{
+			{"foox", "NB", "NB53EGGqrrb5E"},
+			{"longlongpassword", "_J9..j2zz", "_J9..j2zz4BeseiQNwUg"},
+			{"foox", "$1$Szzz0yzz", "$1$Szzz0yzz$IYL49cd3t9bllsA7Jmz1M1"},
+		} {
+			for _, setting := range []string{v.hash, v.salt + "ignored suffix"} {
+				pgcryptoPasswordText(t, p, c, r, q, v.hash, v.password, setting)
+			}
+			s := fixture.Select("SELECT crypt($1,$2)=$2 AS correct,crypt('wrong',$2)=$2 AS wrong", []string{"correct", "wrong"}, []string{"BOOL", "BOOL"}, [][]any{{true, false}}, v.password, v.hash)
+			fixture.RunStep(t, p.Ctx, c, r, s)
+			fixture.RunStep(t, p.Ctx, c, r, fixture.Prepared(s))
+		}
+		for _, setting := range []string{"$1$Szzz0yzzEXTRA", "$1$Szzz0yzz$ignored"} {
+			pgcryptoPasswordText(t, p, c, r, q, "$1$Szzz0yzz$IYL49cd3t9bllsA7Jmz1M1", "foox", setting)
+		}
+		for _, v := range []struct {
+			password, salt string
+			hash           any
+		}{
+			{"foox", "NB", "NB53EGGqrrb5E"},
+			{"foox", pgcryptoPasswordSalt, pgcryptoPasswordFoox},
+			{"longlongpassword", "_J9..j2zz", "_J9..j2zz4BeseiQNwUg"},
+			{"foox", "$1$Szzz0yzz", "$1$Szzz0yzz$IYL49cd3t9bllsA7Jmz1M1"},
+		} {
+			fixture.RunStep(t, p.Ctx, held, r, fixture.Select(q, []string{"value"}, []string{"TEXT"}, [][]any{{v.hash}}, v.password, v.salt))
+		}
+		for _, setting := range []string{"", "_........"} {
+			code, message := "22023", "invalid salt"
+			if setting == "_........" {
+				code, message = "39000", "crypt(3) returned NULL"
+			}
+			s := fixture.ImplicitError(q, fixture.Diagnostic{Code: code, Message: message}, "foox", setting)
+			s.ErrorStage = "execute"
+			fixture.RunStep(t, p.Ctx, held, r, s)
+			fixture.RunStep(t, p.Ctx, held, r, fixture.Select(q, []string{"value"}, []string{"TEXT"}, [][]any{{"NB53EGGqrrb5E"}}, "foox", "NB"))
+		}
 		for _, salt := range []string{pgcryptoPasswordSalt, pgcryptoPasswordFoox, pgcryptoPasswordSalt + "arbitrary suffix", pgcryptoPasswordSalt[:28] + "P"} {
 			pgcryptoPasswordText(t, p, c, r, q, pgcryptoPasswordFoox, "foox", salt)
 		}
@@ -62,5 +119,8 @@ func TestReferencePgcryptoPasswordVectors(t *testing.T) {
 		// Byte 72 changes matter, byte 73 changes do not, including a split UTF8
 		// sequence: é and ê share their first byte, which is byte 72 here.
 		fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT crypt($1,$5)<>crypt($2,$5) AS shorter,crypt($2,$5)=crypt($3,$5) AS truncated,crypt($6,$5)=crypt($7,$5) AS octets,crypt('wrong',$4)<>$4 AS wrong", []string{"shorter", "truncated", "octets", "wrong"}, []string{"BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true, true}}, strings.Repeat("a", 71), strings.Repeat("a", 72), strings.Repeat("a", 72)+"z", pgcryptoPasswordFoox, "$2a$04$......................", strings.Repeat("a", 71)+"é", strings.Repeat("a", 71)+"ê"))
+		edges := fixture.Select("SELECT crypt('aaaaaaa','NB')<>crypt('aaaaaaaa','NB') AS eighth,crypt('aaaaaaaa','NB')=crypt('aaaaaaaaz','NB') AS ninth,crypt('aaaaaaaé','NB')=crypt('aaaaaaaê','NB') AS octets,crypt('abcdefghijklmnopq','_J9..j2zz')<>crypt('abcdefghijklmnopr','_J9..j2zz') AS folded,crypt('foox','$1$')=crypt('foox','$1$$ignored') AS empty_salt,length(crypt('password','_0.......')) AS even_count", []string{"eighth", "ninth", "octets", "folded", "empty_salt", "even_count"}, []string{"BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "INT4"}, [][]any{{true, true, true, true, true, int64(20)}})
+		fixture.RunStep(t, p.Ctx, c, r, edges)
+		fixture.RunStep(t, p.Ctx, c, r, fixture.Prepared(edges))
 	})
 }

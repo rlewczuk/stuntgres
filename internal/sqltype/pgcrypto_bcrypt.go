@@ -133,15 +133,6 @@ func pgcryptoBcryptEncode(dst, src []byte) {
 	}
 }
 
-// PgcryptoSalt encodes validated cost and exactly sixteen strong random octets.
-func PgcryptoSalt(cost uint8, entropy [16]byte) string {
-	var result [29]byte
-	copy(result[:], "$2a$00$")
-	result[4], result[5] = '0'+cost/10, '0'+cost%10
-	pgcryptoBcryptEncode(result[7:], entropy[:])
-	return string(result[:])
-}
-
 // pgcryptoBcrypt is the live cancellation-admission frame used by public tests.
 // All state/scratch is fixed size. Cost31 is representable; cancellation, not
 // an arbitrary lower safety ceiling, bounds abandoned expensive operations.

@@ -17,6 +17,26 @@ func pgcryptoPasswordConsumers(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fi
 	run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, r, s) }
 	run(fixture.Exec("CREATE SCHEMA pgcrypto_part", 0))
 	run(fixture.Exec("CREATE EXTENSION pgcrypto SCHEMA pgcrypto_part", 0))
+	runNew := func(conn *sql.Conn, record *fixture.Recorder, s fixture.Step) {
+		fixture.RunStep(t, p.Ctx, conn, record, s)
+	}
+	run(fixture.Exec("CREATE TABLE pgcrypto_password_new(id integer,p text DEFAULT 'foox',s text DEFAULT pgcrypto_part.gen_salt('md5'),h text GENERATED ALWAYS AS(pgcrypto_part.crypt(p,s)) STORED,d text DEFAULT pgcrypto_part.crypt('foox','NB'),x text GENERATED ALWAYS AS(pgcrypto_part.crypt(p,'_J9..j2zz')) STORED,m text GENERATED ALWAYS AS(pgcrypto_part.crypt(p,'$1$Szzz0yzz')) STORED,CHECK(pgcrypto_part.crypt(p,'NB')='NB53EGGqrrb5E'))", 0))
+	run(fixture.Exec("CREATE INDEX pgcrypto_password_new_idx ON pgcrypto_password_new((pgcrypto_part.crypt(p,'_J9..j2zz')))", 0))
+	run(fixture.Exec("CREATE VIEW pgcrypto_password_new_view AS SELECT id,d,x,m,h=pgcrypto_part.crypt(p,s) AS valid,pgcrypto_part.crypt('wrong',h)=h AS wrong FROM pgcrypto_password_new", 0))
+	run(fixture.Exec("CREATE VIEW pgcrypto_password_new_nested AS SELECT id,d,x,m,valid,wrong FROM pgcrypto_password_new_view", 0))
+	run(fixture.Exec("INSERT INTO pgcrypto_password_new(id) VALUES(1),(2)", 2))
+	newCheck := fixture.Select("SELECT id,d,x,m,valid,wrong FROM pgcrypto_password_new_nested ORDER BY id", []string{"id", "d", "x", "m", "valid", "wrong"}, []string{"INT4", "TEXT", "TEXT", "TEXT", "BOOL", "BOOL"}, [][]any{
+		{int64(1), "NB53EGGqrrb5E", "_J9..j2zzAYKMvO2BYRY", "$1$Szzz0yzz$IYL49cd3t9bllsA7Jmz1M1", true, false},
+		{int64(2), "NB53EGGqrrb5E", "_J9..j2zzAYKMvO2BYRY", "$1$Szzz0yzz$IYL49cd3t9bllsA7Jmz1M1", true, false},
+	})
+	run(newCheck)
+	run(fixture.Prepared(newCheck))
+	var newSalt, newHash string
+	if err := c.QueryRowContext(p.Ctx, "SELECT s,h FROM pgcrypto_password_new WHERE id=1").Scan(&newSalt, &newHash); err != nil {
+		t.Fatal(err)
+	}
+	pgcryptoPasswordAlgorithmSaltShape(t, newSalt, "md5", 1000)
+	newStored := fixture.Select("SELECT s,h FROM pgcrypto_password_new WHERE id=1", []string{"s", "h"}, []string{"TEXT", "TEXT"}, [][]any{{newSalt, newHash}})
 	run(fixture.Exec("CREATE TABLE pgcrypto_password_stored(id integer,p text DEFAULT 'foox',s text DEFAULT pgcrypto_part.gen_salt('bf',4),h text GENERATED ALWAYS AS (pgcrypto_part.crypt(p,s)) STORED,d text DEFAULT pgcrypto_part.crypt('foox','"+pgcryptoPasswordSalt+"'),CONSTRAINT pgcrypto_password_valid CHECK(p IS NULL OR pgcrypto_part.crypt(p,'"+pgcryptoPasswordSalt+"')='"+pgcryptoPasswordFoox+"'))", 0))
 	run(fixture.Exec("CREATE INDEX pgcrypto_password_idx ON pgcrypto_password_stored ((pgcrypto_part.crypt(p,'"+pgcryptoPasswordSalt+"')))", 0))
 	run(fixture.Exec("CREATE VIEW pgcrypto_password_view AS SELECT id,h,pgcrypto_part.crypt(p,s) AS verified,pgcrypto_part.gen_salt('bf',4) AS fresh FROM pgcrypto_password_stored", 0))
@@ -87,10 +107,15 @@ func pgcryptoPasswordConsumers(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fi
 	post := func(c *sql.Conn, r *fixture.Recorder) {
 		fixture.RunStep(t, p.Ctx, c, r, check)
 		fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT s,h FROM pgcrypto_password_stored WHERE id=1", []string{"s", "h"}, []string{"TEXT", "TEXT"}, [][]any{{salt, hash}}))
+		runNew(c, r, newCheck)
+		runNew(c, r, newStored)
 		pgcryptoReplayOverloads(t, p, c, r, pg)
 	}
 	post(c, r)
 	fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: held, SQL: q}, r, fixture.Select(q, []string{"value"}, []string{"TEXT"}, [][]any{{pgcryptoPasswordFoox}}, "foox", pgcryptoPasswordSalt))
+	for _, v := range []struct{ salt, hash string }{{"NB", "NB53EGGqrrb5E"}, {"_J9..j2zz", "_J9..j2zzAYKMvO2BYRY"}, {"$1$Szzz0yzz", "$1$Szzz0yzz$IYL49cd3t9bllsA7Jmz1M1"}} {
+		fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: held, SQL: q}, r, fixture.Select(q, []string{"value"}, []string{"TEXT"}, [][]any{{v.hash}}, "foox", v.salt))
+	}
 	before := extensionDump(t, p.Ctx, p.Native)
 	for _, bad := range []string{dump.String() + "\nINVALID SQL;", strings.Replace(dump.String(), "VERSION '1.4'", "VERSION 'missing'", 1)} {
 		if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)); err == nil {
@@ -114,6 +139,8 @@ func pgcryptoPasswordConsumers(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fi
 	post(target, record)
 	run(fixture.Exec("INSERT INTO pgcrypto_password_stored(id) VALUES(3)", 1))
 	run(fixture.Select("SELECT d,h=pgcrypto_part.crypt(p,s) AS valid FROM pgcrypto_password_stored WHERE id=3", []string{"d", "valid"}, []string{"TEXT", "BOOL"}, [][]any{{pgcryptoPasswordFoox, true}}))
+	run(fixture.Exec("INSERT INTO pgcrypto_password_new(id) VALUES(3)", 1))
+	run(fixture.Select("SELECT d,x,m,h=pgcrypto_part.crypt(p,s) AS valid FROM pgcrypto_password_new WHERE id=3", []string{"d", "x", "m", "valid"}, []string{"TEXT", "TEXT", "TEXT", "BOOL"}, [][]any{{"NB53EGGqrrb5E", "_J9..j2zzAYKMvO2BYRY", "$1$Szzz0yzz$IYL49cd3t9bllsA7Jmz1M1", true}}))
 }
 
 func TestReferencePgcryptoPasswordConsumersAndControls(t *testing.T) {
@@ -124,6 +151,16 @@ func TestReferencePgcryptoPasswordFeatureSmoke(t *testing.T) {
 	pgcryptoCase(t, false, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
 		pgcryptoPasswordConsumers(t, p, c, r, pg)
 		pgcryptoPasswordText(t, p, c, r, "SELECT pgcrypto_part.crypt('foox',$1) AS value", pgcryptoPasswordFoox, pgcryptoPasswordSalt)
+		for _, v := range []struct{ password, salt, hash string }{
+			{"foox", "NB", "NB53EGGqrrb5E"},
+			{"longlongpassword", "_J9..j2zz", "_J9..j2zz4BeseiQNwUg"},
+			{"foox", "$1$Szzz0yzzEXTRA", "$1$Szzz0yzz$IYL49cd3t9bllsA7Jmz1M1"},
+		} {
+			pgcryptoPasswordText(t, p, c, r, "SELECT pgcrypto_part.crypt($1,$2) AS value", v.hash, v.password, v.salt)
+			fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT pgcrypto_part.crypt('wrong',$1)=$1 AS wrong", []string{"wrong"}, []string{"BOOL"}, [][]any{{false}}, v.hash))
+		}
+		pgcryptoPasswordNewSalts(t, p, c, r, "pgcrypto_part.")
+		fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT pgcrypto_part.crypt('abcdefgh','NB')=pgcrypto_part.crypt('abcdefghZ','NB') AS truncated", []string{"truncated"}, []string{"BOOL"}, [][]any{{true}}))
 		q := "SELECT pgcrypto_part.crypt($1,$2) AS value"
 		stmt, err := c.PrepareContext(p.Ctx, q)
 		if err != nil {

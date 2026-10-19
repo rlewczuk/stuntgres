@@ -11,7 +11,12 @@ import (
 
 func TestReferencePgcryptoPasswordDiagnostics(t *testing.T) {
 	pgcryptoCase(t, true, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
-		for i, salt := range []string{"$2a$", "$2x$04$short", "$2a$00$......................", "$2a$03$......................", "$2a$32$......................", "$2x$40$......................", "$2a$ab$......................", "$2a$4$......................", "$2a$004$......................", "$2a$04!......................", "$2a$04$.....................=", "$2a$04$.....................\n", "$2x$04$.....................\r"} {
+		// Pinned PostgreSQL 18.6 UTF8/C confirms ERROR in both severity
+		// fields and empty Detail/Hint/Position/InternalPosition/InternalQuery/
+		// Context/Schema/Table/Column/DataType/Constraint for body failures.
+		// ImplicitError fills both severities; omitted Diagnostic fields are
+		// asserted empty by the shared fixture, not ignored.
+		for i, salt := range []string{"", "a", "_", "_.......", "$2a$", "$2x$04$short", "$2a$00$......................", "$2a$03$......................", "$2a$32$......................", "$2x$40$......................", "$2a$ab$......................", "$2a$4$......................", "$2a$004$......................", "$2a$04!......................", "$2a$04$.....................=", "$2a$04$.....................\n", "$2x$04$.....................\r"} {
 			t.Run(fmt.Sprintf("salt_%d", i), func(t *testing.T) {
 				s := fixture.ImplicitError("SELECT crypt($1,$2)", fixture.Diagnostic{Code: "22023", Message: "invalid salt"}, "password", salt)
 				s.ErrorStage = "execute"
@@ -25,7 +30,41 @@ func TestReferencePgcryptoPasswordDiagnostics(t *testing.T) {
 			fixture.RunStep(t, p.Ctx, c, r, s)
 			fixture.RunStep(t, p.Ctx, c, r, fixture.Prepared(s))
 		}
-		for _, name := range []string{"", "unknown", " bf", "bf ", strings.Repeat("b", 129)} {
+		for _, v := range []struct {
+			name   string
+			counts []int64
+		}{
+			{"des", []int64{-2147483648, -1, 1, 24, 26, 2147483647}},
+			{"md5", []int64{-2147483648, -1, 1, 999, 1001, 2147483647}},
+			{"xdes", []int64{-2147483648, -1, 2, 724, 16777214, 16777216, 2147483647}},
+		} {
+			q := "SELECT gen_salt($1,$2)"
+			stmt, err := c.PrepareContext(p.Ctx, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, count := range v.counts {
+				for _, s := range []fixture.Step{
+					fixture.ImplicitError(q, fixture.Diagnostic{Code: "22023", Message: "gen_salt: Incorrect number of rounds"}, v.name, count),
+					fixture.ImplicitError(fmt.Sprintf("SELECT gen_salt('%s',%d)", v.name, count), fixture.Diagnostic{Code: "22023", Message: "gen_salt: Incorrect number of rounds"}),
+				} {
+					s.ErrorStage = "execute"
+					fixture.RunStep(t, p.Ctx, c, r, s)
+					fixture.RunStep(t, p.Ctx, c, r, fixture.Prepared(s))
+				}
+				s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "22023", Message: "gen_salt: Incorrect number of rounds"}, v.name, count)
+				s.ErrorStage = "execute"
+				fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}, r, s)
+				var salt string
+				if err := stmt.QueryRowContext(p.Ctx, v.name, 0).Scan(&salt); err != nil {
+					t.Fatal(err)
+				}
+				rounds := map[string]int{"des": 25, "md5": 1000, "xdes": 725}[v.name]
+				pgcryptoPasswordAlgorithmSaltShape(t, salt, v.name, rounds)
+			}
+			stmt.Close()
+		}
+		for _, name := range []string{"", "unknown", " bf", "bf ", " des", "xdes ", " md5", strings.Repeat("b", 129)} {
 			fixture.RunStep(t, p.Ctx, c, r, fixture.ImplicitError("SELECT gen_salt($1)", fixture.Diagnostic{Code: "22023", Message: "gen_salt: Unknown salt algorithm"}, name))
 		}
 		fixture.RunStep(t, p.Ctx, c, r, fixture.ImplicitError("SELECT crypt('password','$2$')", fixture.Diagnostic{Code: "39000", Message: "crypt(3) returned NULL"}))
@@ -34,20 +73,20 @@ func TestReferencePgcryptoPasswordDiagnostics(t *testing.T) {
 			{"$2b$04$......................", "$2SXu7evaw9i."},
 			{"$2y$04$......................", "$2SXu7evaw9i."},
 		} {
-			// These prefixes dispatch to DES in PostgreSQL, NOT bcrypt.
-			// Native deliberately excludes non-bf crypt algorithms.
-			if pg {
-				pgcryptoPasswordText(t, p, c, r, "SELECT crypt('password',$1) AS value", v.hash, v.salt)
-			} else {
-				s := fixture.ImplicitError("SELECT crypt('password',$1) AS value", fixture.Diagnostic{Code: "0A000", Message: "crypt: unsupported salt algorithm"}, v.salt)
-				fixture.RunStep(t, p.Ctx, c, r, s)
-				fixture.RunStep(t, p.Ctx, c, r, fixture.Prepared(s))
-			}
+			// These prefixes dispatch to DES, not additional bcrypt variants.
+			pgcryptoPasswordText(t, p, c, r, "SELECT crypt('password',$1) AS value", v.hash, v.salt)
 		}
 		for _, v := range []struct{ query, code, message string }{
 			{"SELECT crypt('p','$2a$03$......................')", "22023", "invalid salt"},
 			{"SELECT gen_salt('bf',3)", "22023", "gen_salt: Incorrect number of rounds"},
 			{"SELECT gen_salt('unknown')", "22023", "gen_salt: Unknown salt algorithm"},
+			{"SELECT crypt('password','')", "22023", "invalid salt"},
+			{"SELECT crypt('password','a')", "22023", "invalid salt"},
+			{"SELECT crypt('password','_')", "22023", "invalid salt"},
+			{"SELECT crypt('password','_.......')", "22023", "invalid salt"},
+			{"SELECT crypt('password','_........')", "39000", "crypt(3) returned NULL"},
+			{"SELECT crypt('p','')", "22023", "invalid salt"},
+			{"SELECT crypt('p','_........')", "39000", "crypt(3) returned NULL"},
 		} {
 			s := fixture.ImplicitError(v.query, fixture.Diagnostic{Code: v.code, Message: v.message})
 			s.ErrorStage = "execute"
@@ -59,6 +98,11 @@ func TestReferencePgcryptoPasswordDiagnostics(t *testing.T) {
 		write := fixture.ImplicitError("INSERT INTO pgcrypto_password_atomic SELECT p,s,crypt(p,s) FROM (VALUES ('foox',$1::text),('wrong','$2a$03$......................')) AS source(p,s)", fixture.Diagnostic{Code: "22023", Message: "invalid salt"}, pgcryptoPasswordSalt)
 		fixture.RunStep(t, p.Ctx, c, r, write)
 		fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT count(*) FROM pgcrypto_password_atomic", []string{"count"}, []string{"INT8"}, [][]any{{int64(1)}}))
+		late := fixture.ImplicitError("INSERT INTO pgcrypto_password_atomic SELECT p,s,crypt(p,s) FROM (VALUES ('foox','NB'),('wrong','_.......')) AS source(p,s)", fixture.Diagnostic{Code: "22023", Message: "invalid salt"})
+		late.ErrorStage = "execute"
+		fixture.RunStep(t, p.Ctx, c, r, late)
+		fixture.RunStep(t, p.Ctx, c, r, fixture.Prepared(late))
+		fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT p,s,h FROM pgcrypto_password_atomic", []string{"p", "s", "h"}, []string{"TEXT", "TEXT", "TEXT"}, [][]any{{"foox", pgcryptoPasswordSalt, pgcryptoPasswordFoox}}))
 		fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("BEGIN", 0))
 		fixture.RunStep(t, p.Ctx, c, r, write)
 		fixture.RunStep(t, p.Ctx, c, r, fixture.ImplicitError("SELECT 1", fixture.Diagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"}))
@@ -108,7 +152,7 @@ func TestReferencePgcryptoPasswordOverloadsAndNull(t *testing.T) {
 			fixture.RunStep(t, p.Ctx, c, r, s)
 			fixture.RunStep(t, p.Ctx, c, r, fixture.Prepared(s))
 		}
-		for _, q := range []string{"SELECT crypt(NULL,'bad') AS value", "SELECT crypt('a',NULL) AS value", "SELECT gen_salt(NULL) AS value", "SELECT gen_salt(NULL,3) AS value", "SELECT gen_salt('bad',NULL) AS value"} {
+		for _, q := range []string{"SELECT crypt(NULL::text,'') AS value", "SELECT crypt(NULL::text,'_........') AS value", "SELECT crypt(NULL::text,'$1$') AS value", "SELECT gen_salt(NULL::text,-1) AS value", "SELECT gen_salt('des',NULL::integer) AS value", "SELECT gen_salt('xdes',NULL::integer) AS value", "SELECT gen_salt('md5',NULL::integer) AS value", "SELECT crypt(NULL,'bad') AS value", "SELECT crypt('a',NULL) AS value", "SELECT gen_salt(NULL) AS value", "SELECT gen_salt(NULL,3) AS value", "SELECT gen_salt('bad',NULL) AS value"} {
 			pgcryptoPasswordText(t, p, c, r, q, nil)
 		}
 		// A table column supplies genuine runtime NULL, not a parameter that
@@ -119,6 +163,11 @@ func TestReferencePgcryptoPasswordOverloadsAndNull(t *testing.T) {
 		sibling.ErrorStage = "execute"
 		fixture.RunStep(t, p.Ctx, c, r, sibling)
 		fixture.RunStep(t, p.Ctx, c, r, fixture.Prepared(sibling))
+		demand := fixture.ImplicitError("SELECT gen_salt(p,1/n) FROM pgcrypto_password_runtime_null", fixture.Diagnostic{Code: "22012", Message: "division by zero"})
+		demand.ErrorStage = "execute"
+		fixture.RunStep(t, p.Ctx, c, r, demand)
+		fixture.RunStep(t, p.Ctx, c, r, fixture.Prepared(demand))
+		pgcryptoPasswordNewSalts(t, p, c, r, "")
 		q := "SELECT gen_salt($1,$2) AS value"
 		stmt, err := c.PrepareContext(p.Ctx, q)
 		if err != nil {

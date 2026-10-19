@@ -151,7 +151,7 @@ func (p PgcryptoPlan) Evaluate(ctx context.Context, values ...Value) (Value, err
 		if err != nil {
 			return Value{}, err
 		}
-		hash, err := pgcryptoBcrypt(ctx, password, salt)
+		hash, err := pgcryptoCrypt(ctx, password, salt)
 		if err != nil {
 			return Value{}, err
 		}
@@ -203,6 +203,7 @@ func (p PgcryptoPlan) Evaluate(ctx context.Context, values ...Value) (Value, err
 		return Value{}, err
 	}
 	var digest hash.Hash
+	var scratch [4096]byte
 	if p.name == "hmac" {
 		key, err := raw(values[1])
 		if err != nil {
@@ -212,7 +213,7 @@ func (p PgcryptoPlan) Evaluate(ctx context.Context, values ...Value) (Value, err
 		var size int
 		if len(key) > blockSize {
 			digest = newHash()
-			if err := writeHashString(ctx, digest, key); err != nil {
+			if err := writeHashString(ctx, digest, key, &scratch); err != nil {
 				return Value{}, err
 			}
 			size = len(digest.Sum(effective[:0]))
@@ -223,7 +224,7 @@ func (p PgcryptoPlan) Evaluate(ctx context.Context, values ...Value) (Value, err
 	} else {
 		digest = newHash()
 	}
-	if err := writeHashString(ctx, digest, data); err != nil {
+	if err := writeHashString(ctx, digest, data, &scratch); err != nil {
 		return Value{}, err
 	}
 	var sum [sha512.Size]byte
@@ -265,43 +266,6 @@ func (p PgcryptoPlan) PrepareRandomBytes(values ...Value) (int, bool, error) {
 		return 0, false, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "39000", Message: "Length not in range"}
 	}
 	return int(count), false, nil
-}
-
-// PrepareSalt validates before the function carrier requests strong entropy.
-func (p PgcryptoPlan) PrepareSalt(values ...Value) (uint8, bool, error) {
-	if p.name != "gen_salt" {
-		return 0, false, fmt.Errorf("invalid salt plan")
-	}
-	null, err := p.validateValues(values)
-	if err != nil || null {
-		return 0, null, err
-	}
-	name, err := values[0].Text()
-	if err != nil {
-		return 0, false, err
-	}
-	if !pgcryptoSaltAlgorithmEqual(name, "bf") {
-		for _, excluded := range [...]string{"des", "md5", "xdes", "sha256crypt", "sha512crypt"} {
-			if pgcryptoSaltAlgorithmEqual(name, excluded) {
-				return 0, false, pgcryptoError("0A000", "gen_salt: unsupported salt algorithm")
-			}
-		}
-		return 0, false, pgcryptoError("22023", "gen_salt: Unknown salt algorithm")
-	}
-	cost := int64(6)
-	if len(values) == 2 {
-		cost, err = values[1].Integer()
-		if err != nil {
-			return 0, false, err
-		}
-		if cost == 0 {
-			cost = 6
-		}
-	}
-	if cost < 4 || cost > 31 {
-		return 0, false, pgcryptoError("22023", "gen_salt: Incorrect number of rounds")
-	}
-	return uint8(cost), false, nil
 }
 
 func pgcryptoSaltAlgorithmEqual(raw, lower string) bool {

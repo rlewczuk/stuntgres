@@ -18,14 +18,13 @@ type pgcryptoEntropyUnitContext struct {
 	failure error
 	cancel  context.CancelFunc
 	order   []int
+	sizes   []int
 }
 
 func (c *pgcryptoEntropyUnitContext) FunctionContext() context.Context { return c.Context }
 func (c *pgcryptoEntropyUnitContext) FunctionPgcryptoEntropy(dst []byte) error {
 	c.calls++
-	if len(dst) != 16 {
-		return errors.New("wrong entropy size")
-	}
+	c.sizes = append(c.sizes, len(dst))
 	if c.cancel != nil {
 		c.cancel()
 	}
@@ -55,11 +54,25 @@ func TestPgcryptoPasswordEntropy(t *testing.T) {
 		null          bool
 		calls         int
 		code, message string
+		size          int
+		want          string
 	}{
-		{"bf", 4, false, 1, "", ""}, {"BF", 0, false, 1, "", ""},
-		{"bf", 3, false, 0, "22023", "gen_salt: Incorrect number of rounds"},
-		{"unknown", 4, false, 0, "22023", "gen_salt: Unknown salt algorithm"},
-		{"bf", 3, true, 0, "", ""},
+		{"bf", 4, false, 1, "", "", 16, "$2a$04$......................"},
+		{"BF", 0, false, 1, "", "", 16, "$2a$06$......................"},
+		{"des", 0, false, 1, "", "", 2, ".."},
+		{"DES", 25, false, 1, "", "", 2, ".."},
+		{"xdes", 0, false, 1, "", "", 3, "_J9......"},
+		{"xdes", 16777215, false, 1, "", "", 3, "_zzzz...."},
+		{"md5", 1000, false, 1, "", "", 6, "$1$........"},
+		{"bf", 3, false, 0, "22023", "gen_salt: Incorrect number of rounds", 0, ""},
+		{"des", 1, false, 0, "22023", "gen_salt: Incorrect number of rounds", 0, ""},
+		{"xdes", 2, false, 0, "22023", "gen_salt: Incorrect number of rounds", 0, ""},
+		{"md5", 999, false, 0, "22023", "gen_salt: Incorrect number of rounds", 0, ""},
+		{"unknown", 4, false, 0, "22023", "gen_salt: Unknown salt algorithm", 0, ""},
+		{"bf", 3, true, 0, "", "", 0, ""},
+		{"des", 1, true, 0, "", "", 0, ""},
+		{"xdes", 2, true, 0, "", "", 0, ""},
+		{"md5", 999, true, 0, "", "", 0, ""},
 	} {
 		count, err := sqltype.Integer(integer, v.count)
 		if err != nil {
@@ -87,10 +100,10 @@ func TestPgcryptoPasswordEntropy(t *testing.T) {
 		} else if err != nil || got.Type() != text || got.IsNull() != v.null {
 			t.Fatal(v, got, err)
 		} else if !v.null {
-			want := "$2a$04$......................"
-			if v.count == 0 {
-				want = "$2a$06$......................"
+			if !reflect.DeepEqual(ctx.sizes, []int{v.size}) {
+				t.Fatal("entropy request sizes", ctx.sizes, v.size)
 			}
+			want := v.want
 			value, _ := got.Text()
 			if value != want {
 				t.Fatal(value, want)

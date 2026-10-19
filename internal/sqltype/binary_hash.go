@@ -53,7 +53,8 @@ func binaryDigest(ctx context.Context, name string, result *Descriptor, raw stri
 	default:
 		return Value{}, fmt.Errorf("invalid binary digest")
 	}
-	if err := writeHashString(ctx, digest, raw); err != nil {
+	var scratch [4096]byte
+	if err := writeHashString(ctx, digest, raw, &scratch); err != nil {
 		return Value{}, err
 	}
 	var sum [sha512.Size]byte
@@ -70,11 +71,10 @@ func binaryDigest(ctx context.Context, name string, result *Descriptor, raw stri
 }
 
 // Adapt immutable octets with bounded scratch shared by builtin and installed hashes.
-func writeHashString(ctx context.Context, digest hash.Hash, raw string) error {
+func writeHashString(ctx context.Context, digest hash.Hash, raw string, scratch *[4096]byte) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	var scratch [4096]byte
 	for start := 0; start < len(raw); {
 		if err := ctx.Err(); err != nil {
 			return err

@@ -2,6 +2,7 @@ package reference_test
 
 import (
 	"database/sql"
+	"reflect"
 	"testing"
 
 	"stuntgres/reference/fixture"
@@ -31,25 +32,28 @@ func TestReferencePgcryptoPasswordIdentity(t *testing.T) {
 		pgcryptoInventory(t, p, c, owner, owner)
 		run(extensionMissing("SELECT crypt('foox','salt')", "crypt", "unknown, unknown"))
 		pgcryptoPasswordText(t, p, c, r, "SELECT pgcrypto_part.crypt('foox',$1) AS value", pgcryptoPasswordFoox, pgcryptoPasswordSalt)
+		identities := pgcryptoProcedureIDs(t, p, c)
+		for _, v := range []struct{ salt, hash string }{{"NB", "NB53EGGqrrb5E"}, {"_J9..j2zz", "_J9..j2zzAYKMvO2BYRY"}, {"$1$Szzz0yzz", "$1$Szzz0yzz$IYL49cd3t9bllsA7Jmz1M1"}} {
+			pgcryptoPasswordText(t, p, c, r, "SELECT pgcrypto_part.crypt('foox',$1) AS value", v.hash, v.salt)
+			if !reflect.DeepEqual(identities, pgcryptoProcedureIDs(t, p, c)) {
+				t.Fatal("algorithm changed installed identities")
+			}
+		}
 		pgcryptoReplayOverloads(t, p, c, r, pg)
 		run(fixture.Exec("SET search_path TO pgcrypto_part,public", 0))
 		pgcryptoPasswordText(t, p, c, r, "SELECT crypt('foox',$1) AS value", pgcryptoPasswordFoox, pgcryptoPasswordSalt)
 		run(fixture.Exec("CREATE USER pgcrypto_owner", 0))
-		if pg {
-			run(fixture.Exec("REVOKE USAGE ON SCHEMA pgcrypto_part FROM PUBLIC", 0))
-		}
+		run(fixture.Exec("REVOKE USAGE ON SCHEMA pgcrypto_part FROM PUBLIC", 0))
 		run(fixture.Exec("SET SESSION AUTHORIZATION pgcrypto_owner", 0))
 		run(extensionMissing("SELECT crypt('foox','salt')", "crypt", "unknown, unknown"))
 		run(fixture.ImplicitError("SELECT pgcrypto_part.gen_salt('bf')", fixture.Diagnostic{Code: "42501", Message: "permission denied for schema pgcrypto_part", Position: "8"}))
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
-		if pg {
-			run(fixture.Exec("GRANT USAGE ON SCHEMA pgcrypto_part TO pgcrypto_owner", 0))
-		} else {
-			run(fixture.Exec("ALTER SCHEMA pgcrypto_part OWNER TO pgcrypto_owner", 0))
-		}
+		run(fixture.Exec("GRANT USAGE ON SCHEMA pgcrypto_part TO pgcrypto_owner", 0))
 		run(fixture.Exec("SET SESSION AUTHORIZATION pgcrypto_owner", 0))
 		pgcryptoPasswordText(t, p, c, r, "SELECT crypt('foox',$1) AS value", pgcryptoPasswordFoox, pgcryptoPasswordSalt)
 		pgcryptoPasswordGenerated(t, p, c, r, "SELECT gen_salt('bf',4)", "crypt", 4)
+		pgcryptoPasswordText(t, p, c, r, "SELECT crypt('foox','NB') AS value", "NB53EGGqrrb5E")
+		pgcryptoPasswordNewSalts(t, p, c, r, "")
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 	})
 }

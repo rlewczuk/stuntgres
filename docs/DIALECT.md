@@ -1367,18 +1367,25 @@ owners and executable expressions. Availability includes pgcrypto and the select
 uuid-ossp provider beside unaccent, two-wrapper intagg, selected-type intarray and
 selected-function fuzzystrmatch.
 
-Password hashing implements bf only, with a fixed-size stdlib-only Blowfish
-schedule. Only exact `$2a$`/`$2x$` heads select bcrypt, with costs04..31 and
-the first72 password bytes; short keys cycle through their terminating NUL.
-2x retains historical signed-octet expansion. Stored hash/salt suffix bytes
-after29 are ignored, and noncanonical final salt padding bits normalize away.
-Malformed recognized bf salts raise22023 `invalid salt`; other crypt algorithms
-and `$2b$`/`$2y$` dispatch are explicit native0A000 boundaries, while `$2$`
-retains39000 `crypt(3) returned NULL`. High costs remain cancellable each round.
-gen_salt recognizes bf case-insensitively without trimming, with omitted/zero
-cost6 and allowed4..31. Its sixteen strong random bytes are independent of SQL
-random state. Unknown names and invalid bf counts retain22023 diagnostics;
-documented non-bf generators are native0A000 boundaries.
+Password hashing implements DES, xdes, MD5-crypt and bcrypt with per-call state.
+DES consumes eight password bytes with high bits discarded; xdes folds the full
+byte string. MD5-crypt takes up to eight salt bytes, stopping at `$`; empty and
+nonalphabet salts are accepted. Stored checksum/suffix bytes are ignored.
+Only exact `$2a$`/`$2x$` heads select bcrypt, costs04..31 and the first72 password
+bytes; short keys cycle through terminating NUL. 2x retains signed-octet expansion.
+Noncanonical final bcrypt salt padding normalizes away. `$2b$`/`$2y$` and other
+unrecognized settings use DES fallback, not additional bcrypt variants.
+DES settings require two bytes, xdes nine; invalid alphabet digits decode zero.
+Malformed recognized settings raise22023 `invalid salt`; xdes zero count and
+`$2$` raise39000 `crypt(3) returned NULL`. Nonzero even xdes crypt counts work.
+SHA `$5$`/`$6$` and SHA generators retain native0A000 boundaries.
+gen_salt names are ASCII-case-insensitive without trimming. Omitted/zero counts
+select des25, xdes725, md5 1000, bf6. Explicit counts accept des25, md5 1000,
+xdes odd1..16777215 or bf4..31; invalid counts/names raise22023.
+Strong entropy uses des2/xdes3/md5 6/bf16 bytes, independent of SQL random state.
+Salt lengths are2/9/11/29; MD5 generation has no trailing `$`.
+NULL/validation precedes entropy; cancellation remains a context error and is
+polled while hashing/folding without an artificial lower cost ceiling.
 crypt is immutable; gen_salt is intrinsically volatile, including after stored
 expression reconstruction. Defaults/views may generate fresh salts; generated
 columns/expression indexes may not. Native controls preserve stored salt/hash

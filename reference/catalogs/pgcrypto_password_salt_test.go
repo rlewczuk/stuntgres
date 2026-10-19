@@ -24,6 +24,108 @@ func pgcryptoPasswordSaltShape(t *testing.T, salt string, cost int) {
 	}
 }
 
+func pgcryptoPasswordAlgorithmSaltShape(t *testing.T, salt, algorithm string, rounds int) {
+	t.Helper()
+	if strings.EqualFold(algorithm, "bf") {
+		pgcryptoPasswordSaltShape(t, salt, rounds)
+		return
+	}
+	digits := salt
+	switch strings.ToLower(algorithm) {
+	case "des":
+		if len(salt) != 2 {
+			t.Fatalf("DES salt: %q", salt)
+		}
+	case "md5":
+		if len(salt) != 11 || !strings.HasPrefix(salt, "$1$") {
+			t.Fatalf("MD5 salt: %q", salt)
+		}
+		digits = salt[3:]
+	case "xdes":
+		if len(salt) != 9 || salt[0] != '_' {
+			t.Fatalf("xdes salt: %q", salt)
+		}
+		digits = salt[1:]
+		count := 0
+		for i := range 4 {
+			n := strings.IndexByte("./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", salt[i+1])
+			if n < 0 {
+				t.Fatalf("xdes count alphabet: %q", salt)
+			}
+			count |= n << (6 * i)
+		}
+		if count != rounds {
+			t.Fatalf("xdes count: %q got %d want %d", salt, count, rounds)
+		}
+	default:
+		t.Fatalf("unknown expected algorithm %q", algorithm)
+	}
+	for _, ch := range digits {
+		if !strings.ContainsRune("./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", ch) {
+			t.Fatalf("salt alphabet: %q", salt)
+		}
+	}
+}
+
+func pgcryptoPasswordNewSalts(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, prefix string) {
+	t.Helper()
+	q := "SELECT " + prefix + "gen_salt($1,$2) AS value"
+	stmt, err := c.PrepareContext(p.Ctx, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stmt.Close()
+	for _, v := range []struct {
+		name                string
+		count, rounds, size int
+	}{
+		{"des", 0, 25, 13}, {"DeS", 25, 25, 13}, {"md5", 0, 1000, 34}, {"MD5", 1000, 1000, 34},
+		{"xdes", 0, 725, 20}, {"XDES", 1, 1, 20}, {"xdes", 3, 3, 20}, {"xdes", 725, 725, 20},
+		{"xdes", 16777215, 16777215, 20}, {"bf", 4, 4, 60},
+	} {
+		for _, mode := range []string{"direct", "prepared", "held"} {
+			var salt string
+			var err error
+			switch mode {
+			case "direct":
+				err = c.QueryRowContext(p.Ctx, q, v.name, v.count).Scan(&salt)
+			case "prepared":
+				fresh, e := c.PrepareContext(p.Ctx, q)
+				if e != nil {
+					t.Fatal(e)
+				}
+				err = fresh.QueryRowContext(p.Ctx, v.name, v.count).Scan(&salt)
+				fresh.Close()
+			case "held":
+				err = stmt.QueryRowContext(p.Ctx, v.name, v.count).Scan(&salt)
+			}
+			if err != nil {
+				t.Fatal(mode, v, err)
+			}
+			pgcryptoPasswordAlgorithmSaltShape(t, salt, v.name, v.rounds)
+			if v.rounds != 16777215 {
+				crypt := prefix + "crypt"
+				s := fixture.Select("SELECT length("+crypt+"('password',$1)) AS size,"+crypt+"('password',"+crypt+"('password',$1))="+crypt+"('password',$1) AS correct,"+crypt+"('wrong',"+crypt+"('password',$1))="+crypt+"('password',$1) AS wrong", []string{"size", "correct", "wrong"}, []string{"INT4", "BOOL", "BOOL"}, [][]any{{int64(v.size), true, false}}, salt)
+				fixture.RunStep(t, p.Ctx, c, r, s)
+			}
+		}
+		var value any
+		if err := stmt.QueryRowContext(p.Ctx, nil, -1).Scan(&value); err != nil || value != nil {
+			t.Fatal("held NULL", value, err)
+		}
+	}
+	for _, v := range []struct {
+		name   string
+		rounds int
+	}{{"des", 25}, {"xdes", 725}, {"md5", 1000}} {
+		var salt string
+		if err := c.QueryRowContext(p.Ctx, "SELECT "+prefix+"gen_salt($1)", v.name).Scan(&salt); err != nil {
+			t.Fatal(err)
+		}
+		pgcryptoPasswordAlgorithmSaltShape(t, salt, v.name, v.rounds)
+	}
+}
+
 func pgcryptoPasswordGenerated(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, query, cryptName string, cost int) string {
 	t.Helper()
 	var salt string
@@ -42,6 +144,7 @@ func pgcryptoPasswordGenerated(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fi
 
 func TestReferencePgcryptoPasswordSaltGeneration(t *testing.T) {
 	pgcryptoCase(t, true, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
+		pgcryptoPasswordNewSalts(t, p, c, r, "")
 		for _, v := range []struct {
 			query string
 			cost  int
@@ -89,7 +192,7 @@ func TestReferencePgcryptoPasswordSaltGeneration(t *testing.T) {
 			}
 			seen[salt] = true
 		}
-		for _, name := range []string{"des", "md5", "xdes", "sha256crypt", "sha512crypt"} {
+		for _, name := range []string{"sha256crypt", "sha512crypt"} {
 			q := "SELECT gen_salt($1) IS NOT NULL AS value"
 			if pg {
 				fixture.RunStep(t, p.Ctx, c, r, fixture.Select(q, []string{"value"}, []string{"BOOL"}, [][]any{{true}}, name))

@@ -2056,8 +2056,25 @@ truncation including split UTF8, stored hashes, arbitrary ignored suffixes and
 noncanonical salt padding. Bf salt generation tests omitted/zero default6,
 cost4 and cheap31, strong entropy independent of SQL reseeding, repeated held
 frames/rows/sessions, strict TEXT NULLs and exact coercion/failure stages.
-Non-bf crypt/generator exclusions assert explicit native0A000 independently
-of PostgreSQL DES fallback hashes and real non-bf generator success.
+DES/xdes/MD5 witnesses additionally use REL_18_6 published constants and pinned
+PostgreSQL18.6 UTF8/C edge observations: byte-eight DES truncation, extended DES
+full-password folding and even crypt counts, MD5 eight-byte/empty/nonalphabet
+salts, and generator defaults25/725/1000 with full24-bit odd xdes counts
+through16777215. New algorithms share direct, newly prepared and same-held
+frames with bcrypt, NULL and failure recovery. The valid UTF8 MD5 salt
+`$1$aaaaaaé` occupies exactly eight bytes and has an exact public vector.
+`$1$aaaaaaaé` truncates inside é and the oracle returns invalid UTF8 bytes;
+`TestPgcryptoMD5Salt` pins that raw result internally, without changing SQL
+TEXT admission or normalizing/replacing bytes. Only SHA crypt/generator
+algorithms retain the intentional native0A000 boundary. No temporary
+oracle-discovery test or PostgreSQL-only scenario gate remains.
+Generator syntax is independently decoded: des2, xdes9, md5 11 (no trailing `$`)
+and bf29 characters. Signed count validation precedes2/3/6/16-byte entropy
+requests, pinned by package units, with no entropy for invalid/NULL frames.
+`$2b$`/`$2y$` witnesses are exact DES fallback hashes, never extra bcrypt variants.
+`PasswordIdentity` uses the same real schema REVOKE/GRANT USAGE on both backends:
+the denied reader becomes a non-owner grantee, while the installer retains the
+schema and installed procedure ownership.
 `PasswordRelocation` additionally forces all fourteen actual OID collisions while
 preserving stored random salts/hashes, crypt generated-column/view recipes and
 gen_salt defaults, exact dependency addresses, held members, future writes and
@@ -2082,12 +2099,16 @@ Standalone feature smoke (same public scenario, no duplicate runner):
 ```sh
 make check RUN='^TestReferencePgcryptoPasswordFeatureSmoke$'
 make check REFERENCE=1 RUN='^TestReferencePgcryptoPasswordFeatureSmoke$'
-make check RACE=1 RUN='^(TestPgcryptoBcryptCancellation|TestReferencePgcryptoPasswordCancellation)$'
+make check RUN='^(TestPgcrypto(DES(Vectors|Protocol|Cancellation)|MD5(Vectors|Salt|Cancellation)|Salt(Parameters|Encoding)|Password(Dispatch|Entropy|Volatility)|Bcrypt(Vectors|PasswordProtocol|SaltParsing|SaltEncoding|Allocations|Cancellation)))$'
+make check RACE=1 RUN='^(TestPgcrypto(DES(Protocol|Cancellation)|MD5Cancellation|PasswordEntropy|BcryptCancellation)|TestReferencePgcryptoPasswordCancellation)$'
 ```
 
-Expected smoke observations: exact60-character release hashes/TEXT metadata,
-canonical29-character usable bf salt, default cost06, full invalid-salt22023
-diagnostic, immutable crypt versus volatile gen_salt metadata, and native stored
+Expected smoke observations: exact DES `NB53EGGqrrb5E`, xdes
+`_J9..j2zz4BeseiQNwUg`, MD5 `$1$Szzz0yzz$IYL49cd3t9bllsA7Jmz1M1`
+and existing60-character bcrypt hashes/TEXT metadata; legal2/9/11/29-character
+salts, low-count usability, wrong-password inequality, DES truncation and MD5
+salt truncation; full invalid-salt22023 diagnostic, immutable crypt versus
+volatile gen_salt metadata, and native stored
 salt/hash preservation plus executable defaults/views after Reset/Restore.
 These descriptions are assertions awaiting root verification, not proof results.
 

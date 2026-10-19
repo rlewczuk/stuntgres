@@ -73,6 +73,24 @@ make check RUN='^TestJSONBPathOps(Signatures|Consumers|Resolution|Binding|Recons
 make check RUN='^TestJSONBPathOpsConsumers$' RACE=1
 ```
 
+Password package units exercise the independent salted DES/xdes and streamed
+MD5-crypt kernels, execution-local generator parameters and salt encoding.
+Published PostgreSQL regressions/pinned18.6 edge constants ground exact hashes;
+DES primitive known-answer, parallel distinct-key schedules, bytewise folding,
+24-bit counts and deterministic context polling supplement public coverage.
+`TestPgcryptoMD5Salt` retains the raw byte-truncated UTF8 salt result without
+widening SQL TEXT admission. Streaming callers own one reusable4096-byte scratch
+buffer; MD5-crypt reuses it across all1000 rounds.
+
+```sh
+make check RUN='^TestPgcrypto(DES(Vectors|Protocol|Cancellation)|MD5(Vectors|Salt|Cancellation)|Salt(Parameters|Encoding)|PasswordDispatch)$'
+make check RACE=1 RUN='^TestPgcrypto(DES(Protocol|Cancellation)|MD5Cancellation)$'
+```
+
+The public direct/prepared/control scenarios and actual feature smoke belong to
+[`reference/catalogs`](../../reference/catalogs/README.md); they require both
+native and real pinned PostgreSQL modes before integration.
+
 `TestProtocolValueCodecs` exercises real unavailable receive/send diagnostics,
 domain receiver declaration versus invocation/base-error precedence, the builtin
 time_stamp domain's epoch representation and recursive domain-array

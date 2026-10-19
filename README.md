@@ -4817,16 +4817,23 @@ catalog/control paths. Old native Rows retain their bytes and metadata; failed
 replay is atomic and named owners must exist in the destination. Selected pgcrypto
 validation rejects mixed crypto/fuzzy provider identities rather than allowing a
 different provider's dispatch branch to admit a crypto member.
-Bcrypt accepts PostgreSQL's exact `$2a$` and `$2x$` salt heads, costs04..31,
-the first72 password bytes (even within a UTF8 character), full stored hashes
-and ignored salt suffixes. The standard-library-only Blowfish schedule uses
-constant scratch space and polls cancellation each cost round. gen_salt accepts
-case-insensitive bf without trimming; omitted/zero cost means6, and sixteen
-strong random bytes produce a canonical29-character salt independently of SQL
-random state. Volatile salts are valid defaults/views, not generated columns or
-expression indexes. Stored salts/hashes survive native replay without regeneration.
-Non-bf algorithms, including `$2b$`/`$2y$` dispatch, are native unsupported
-boundaries (0A000), not extra accepted bcrypt variants; `$2$` retains39000.
+Password hashing supports DES, extended DES (xdes), MD5-crypt and bcrypt using
+only Go's standard library and fixed per-call state. DES uses the first eight
+password bytes (discarding their high bits); xdes folds all password bytes.
+MD5-crypt uses at most eight salt bytes, stopping at `$`, including empty salts.
+Stored hashes may be reused as settings; trailing checksum/suffix bytes are ignored.
+Exact `$2a$`/`$2x$` heads retain PostgreSQL bcrypt, costs04..31 and the first72
+password bytes, even within UTF8. `$2b$`/`$2y$` use DES fallback, not new bcrypt
+variants. `$2$` retains39000; SHA-crypt remains unsupported (0A000).
+gen_salt recognizes case-insensitive names without trimming:
+des defaults to25 and accepts only25; md5 defaults to1000 and accepts only1000;
+xdes defaults to725 and accepts odd1..16777215; bf defaults to6 and accepts4..31.
+Omitted/zero counts select defaults. Entropy requests are respectively2/6/3/16
+bytes, independent of SQL random state; salt lengths are2/11/9/29 characters.
+MD5 salts have no trailing `$`. Validation/strict NULL handling precedes entropy.
+Expensive hashing polls cancellation without imposing a lower iteration ceiling.
+Volatile salts are valid defaults/views, not generated columns or expression
+indexes. Stored salts/hashes and installed identities survive native replay.
 gen_random_bytes accepts1..1024 bytes, validates bounds before allocation/entropy,
 and returns typed BYTEA NULL for a NULL count. Invalid counts report39000
 `Length not in range`; unknown inputs use ordinary INT4 coercion and diagnostics.

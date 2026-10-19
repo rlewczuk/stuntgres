@@ -167,7 +167,7 @@ func (e Pgcrypto) Eval(c expr.Context) (sqltype.Value, error) {
 		if err := ctx.Err(); err != nil {
 			return sqltype.Value{}, err
 		}
-		cost, null, err := e.Plan.PrepareSalt(values[:len(e.Args)]...)
+		parameters, null, err := e.Plan.PrepareSalt(values[:len(e.Args)]...)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -179,7 +179,7 @@ func (e Pgcrypto) Eval(c expr.Context) (sqltype.Value, error) {
 			return sqltype.Value{}, fmt.Errorf("missing pgcrypto entropy context")
 		}
 		var entropy [16]byte
-		if err := entropyContext.FunctionPgcryptoEntropy(entropy[:]); err != nil {
+		if err := entropyContext.FunctionPgcryptoEntropy(entropy[:parameters.EntropySize()]); err != nil {
 			if canceled := ctx.Err(); canceled != nil {
 				return sqltype.Value{}, canceled
 			}
@@ -188,7 +188,7 @@ func (e Pgcrypto) Eval(c expr.Context) (sqltype.Value, error) {
 		if err := ctx.Err(); err != nil {
 			return sqltype.Value{}, err
 		}
-		return sqltype.String(e.Usage.Type, sqltype.PgcryptoSalt(cost, entropy)), nil
+		return sqltype.String(e.Usage.Type, sqltype.PgcryptoSalt(parameters, entropy)), nil
 	}
 	return e.Plan.Evaluate(ctx, values[:len(e.Args)]...)
 }

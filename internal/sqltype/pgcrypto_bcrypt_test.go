@@ -68,7 +68,7 @@ func TestPgcryptoBcryptSaltParsing(t *testing.T) {
 }
 
 func TestPgcryptoBcryptSaltEncoding(t *testing.T) {
-	if got := PgcryptoSalt(4, [16]byte{}); got != "$2a$04$......................" {
+	if got := PgcryptoSalt(PgcryptoSaltParameters{kind: pgcryptoSaltBcrypt, rounds: 4}, [16]byte{}); got != "$2a$04$......................" {
 		t.Fatal(got)
 	}
 	// Every 0xff octet encodes six one bits; the final two bits become index48.
@@ -76,7 +76,7 @@ func TestPgcryptoBcryptSaltEncoding(t *testing.T) {
 	for i := range allOnes {
 		allOnes[i] = 255
 	}
-	if got := PgcryptoSalt(31, allOnes); got != "$2a$31$999999999999999999999u" {
+	if got := PgcryptoSalt(PgcryptoSaltParameters{kind: pgcryptoSaltBcrypt, rounds: 31}, allOnes); got != "$2a$31$999999999999999999999u" {
 		t.Fatal(got)
 	}
 }
