@@ -190,7 +190,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 // SSI evidence and exclusion projection after validating their own authority.
 func (w *WriteStage) stageDeletionLocked(e *Engine, candidate deleteCandidate, original storage.RowVersion) error {
 	s := w.scope
-	event := [1]serializableWrite{{row: candidate.row, version: candidate.version, base: original.Version, baseBorn: original.Born, creator: e.visibility.serializable.creators[original.Version], deletion: true}}
+	event := [1]serializableWrite{{row: candidate.row, version: candidate.version, base: original.Version, baseBorn: original.Born, creator: e.visibility.serializableCreatorLocked(original.Version), deletion: true}}
 	if err := e.serializableWriteLocked(s, candidate.ref, event[:]); err != nil {
 		return err
 	}

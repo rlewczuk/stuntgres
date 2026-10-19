@@ -674,7 +674,7 @@ retry:
 			versions[i].IndexOutputs = batch.states[i].indexes
 		}
 	}
-	if serializableRelevant(e.visibility.serializable.nodes[s.txRef]) {
+	if e.visibility.relevantSerializableLocked(s.txRef) != nil {
 		for _, row := range versions {
 			event := [1]serializableWrite{{row: row.Row, version: row.Version}}
 			if err := e.serializableWriteLocked(s, ref, event[:]); err != nil {

@@ -108,22 +108,22 @@ func TestPreparedSerializableOutcomeAndPivot(t *testing.T) {
 	out := serializableUnitNode(t, e, false)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if err := e.serializableEdgeLocked(in, in, pivot); err != nil {
+	if err := e.visibility.serializableEdgeLocked(in, in, pivot); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.serializableEdgeLocked(pivot, pivot, out); err != nil {
+	if err := e.visibility.serializableEdgeLocked(pivot, pivot, out); err != nil {
 		t.Fatal(err)
 	}
-	e.serializablePreparedLocked(pivot.ref)
+	e.visibility.serializablePreparedLocked(pivot.ref)
 	if pivot.committed || pivot.ended || !pivot.finalized || !pivot.prepared {
 		t.Fatal("prepare resolved actual outcome")
 	}
-	serializableUnitDiagnostic(t, e.serializablePrecommitLocked(out.ref), "Canceled on commit attempt with conflict in from prepared pivot.")
+	serializableUnitDiagnostic(t, e.visibility.serializablePrecommitLocked(out.ref), "Canceled on commit attempt with conflict in from prepared pivot.")
 	if pivot.doomed {
 		t.Fatal("prepared pivot selected as victim")
 	}
 	order := pivot.order
-	e.serializableCommittedLocked(pivot.ref, e.visibility.commitSeq)
+	e.visibility.serializableCommittedLocked(pivot.ref, e.visibility.commitSeq)
 	if !pivot.committed || pivot.order != order {
 		t.Fatal("completion reordered finalized transaction")
 	}
@@ -134,7 +134,7 @@ func TestPreparedSerializableOverlapUsesActualOutcome(t *testing.T) {
 	writer := serializableUnitNode(t, e, false)
 	e.mu.Lock()
 	writer.didWrite = true
-	e.serializablePreparedLocked(writer.ref)
+	e.visibility.serializablePreparedLocked(writer.ref)
 	prepareOrder := writer.order
 	e.mu.Unlock()
 	reader := serializableUnitNode(t, e, false)
@@ -143,7 +143,7 @@ func TestPreparedSerializableOverlapUsesActualOutcome(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal("snapshot acquired during prepared interval lost overlap")
 	}
-	e.serializableCommittedLocked(writer.ref, e.visibility.commitSeq)
+	e.visibility.serializableCommittedLocked(writer.ref, e.visibility.commitSeq)
 	if writer.order != prepareOrder || writer.commitOrder <= reader.snapshotOrder || !serializableOverlap(writer, reader) {
 		e.mu.Unlock()
 		t.Fatal("actual completion erased prepared-interval overlap or prepare order")

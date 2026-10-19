@@ -194,22 +194,40 @@ func (e *Engine) blockingPidValues(pid ids.SessionID, typ *sqltype.Descriptor) (
 // Caller holds Engine.mu. These flags describe an unresolved acquisition,
 // unlike possible/ready alone, which also exist for nondeferrable readers.
 func (e *Engine) safeSnapshotBlockingPidsLocked(pid ids.SessionID, typ *sqltype.Descriptor) ([]sqltype.Value, error) {
-	for ref, node := range e.visibility.serializable.nodes {
-		if ref.Domain() != e.catalog.Domain || ref.Epoch() != e.catalog.state.Epoch() || ref.Session() != (e.catalog.Domain.Session(pid)) || node.prepared || !node.captured || !node.readOnly || !node.deferrable || node.aborted || node.ended || node.committed || node.resolved || node.ready == nil {
+	var values []sqltype.Value
+	for _, writer := range e.visibility.safeSnapshotBlockersLocked(e.catalog.Domain, e.catalog.state.Epoch(), e.catalog.Domain.Session(pid)) {
+		var err error
+		values, err = appendBlockingPid(values, typ, writer.session, writer.prepared, e.catalog.Domain)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return values, nil
+}
+
+// safeSnapshotBlocker is a live read-write transaction that a DEFERRABLE
+// safe-snapshot acquisition still waits out.
+type safeSnapshotBlocker struct {
+	session  ids.SessionToken
+	prepared bool
+}
+
+// safeSnapshotBlockersLocked lists the writers blocking session's unresolved
+// DEFERRABLE acquisition in domain and epoch, or nil when it has none.
+// Caller holds Engine.mu.
+func (reg *visibilityRegistry) safeSnapshotBlockersLocked(domain *ids.Domain, epoch ids.CatalogEpoch, session ids.SessionToken) []safeSnapshotBlocker {
+	for ref, node := range reg.serializable.nodes {
+		if ref.Domain() != domain || ref.Epoch() != epoch || ref.Session() != session || node.prepared || !node.captured || !node.readOnly || !node.deferrable || node.aborted || node.ended || node.committed || node.resolved || node.ready == nil {
 			continue
 		}
-		var values []sqltype.Value
+		var blockers []safeSnapshotBlocker
 		for writer := range node.possible {
-			if writer.ref.Domain() != e.catalog.Domain || writer.ref.Epoch() != ref.Epoch() || e.visibility.serializable.nodes[writer.ref] != writer || writer.aborted || writer.ended || writer.committed {
+			if writer.ref.Domain() != domain || writer.ref.Epoch() != ref.Epoch() || reg.serializable.nodes[writer.ref] != writer || writer.aborted || writer.ended || writer.committed {
 				continue
 			}
-			var err error
-			values, err = appendBlockingPid(values, typ, writer.ref.Session(), writer.prepared, e.catalog.Domain)
-			if err != nil {
-				return nil, err
-			}
+			blockers = append(blockers, safeSnapshotBlocker{session: writer.ref.Session(), prepared: writer.prepared})
 		}
-		return values, nil
+		return blockers
 	}
-	return nil, nil
+	return nil
 }

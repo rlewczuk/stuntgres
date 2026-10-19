@@ -100,7 +100,7 @@ func TestSerializableSafeSnapshotWriterAbortOrNoWriteCommitWakes(t *testing.T) {
 			serializableUnitAwaitCandidate(t, e, node)
 			e.mu.Lock()
 			if commit {
-				e.serializableCommittedLocked(writer.ref, e.visibility.commitSeq)
+				e.visibility.serializableCommittedLocked(writer.ref, e.visibility.commitSeq)
 			}
 			e.endSerializableLocked(writer.ref, commit)
 			e.mu.Unlock()
@@ -122,7 +122,7 @@ func TestSerializableSafeSnapshotUnsafeRejectsRootsAndRecaptures(t *testing.T) {
 	writer.didWrite = true
 	writer.outgoing[out] = struct{}{}
 	out.incoming[writer] = struct{}{}
-	e.serializableCommittedLocked(out.ref, e.visibility.commitSeq)
+	e.visibility.serializableCommittedLocked(out.ref, e.visibility.commitSeq)
 	old := e.storage.Relations[ref.Address]
 	e.mu.Unlock()
 	scope, node := serializableUnitAcquisition(t, e, context.Background(), true, true)
@@ -135,7 +135,7 @@ func TestSerializableSafeSnapshotUnsafeRejectsRootsAndRecaptures(t *testing.T) {
 	next := &storage.Relation{Generation: old.Generation + 1}
 	e.storage.Relations[ref.Address] = next
 	e.visibility.commitSeq++
-	e.serializableCommittedLocked(writer.ref, e.visibility.commitSeq)
+	e.visibility.serializableCommittedLocked(writer.ref, e.visibility.commitSeq)
 	e.endSerializableLocked(writer.ref, true)
 	e.mu.Unlock()
 	if err := join(); err != nil {
@@ -156,8 +156,8 @@ func TestSerializableSafeSnapshotLateOutgoingCommitIsSafe(t *testing.T) {
 	writer.didWrite = true
 	writer.outgoing[out] = struct{}{}
 	out.incoming[writer] = struct{}{}
-	e.serializableCommittedLocked(out.ref, e.visibility.commitSeq)
-	e.serializableCommittedLocked(writer.ref, e.visibility.commitSeq)
+	e.visibility.serializableCommittedLocked(out.ref, e.visibility.commitSeq)
+	e.visibility.serializableCommittedLocked(writer.ref, e.visibility.commitSeq)
 	e.endSerializableLocked(writer.ref, true)
 	e.mu.Unlock()
 	if err := join(); err != nil {
@@ -351,8 +351,8 @@ func TestSerializablePublicationOrdinaryFailureCannotDoomPeers(t *testing.T) {
 	a := serializableUnitNode(t, e, false)
 	b := serializableUnitNode(t, e, false)
 	e.mu.Lock()
-	e.serializableEdgeLocked(a, a, b)
-	e.serializableEdgeLocked(b, b, a)
+	e.visibility.serializableEdgeLocked(a, a, b)
+	e.visibility.serializableEdgeLocked(b, b, a)
 	frontier := e.visibility.commitSeq
 	e.mu.Unlock()
 	ctx, cancel := context.WithCancel(context.Background())

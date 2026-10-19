@@ -98,10 +98,10 @@ func serializableUnitCycle(t *testing.T, e *Engine, node *serializableTransactio
 	peer := serializableUnitNode(t, e, false)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if err := e.serializableEdgeLocked(node, node, peer); err != nil {
+	if err := e.visibility.serializableEdgeLocked(node, node, peer); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.serializableEdgeLocked(peer, peer, node); err != nil {
+	if err := e.visibility.serializableEdgeLocked(peer, peer, node); err != nil {
 		t.Fatal(err)
 	}
 	return peer
@@ -124,10 +124,10 @@ func TestSerializablePublicationDoomedCatalogIndexSequenceProviderAtomicity(t *t
 	node := e.visibility.serializable.nodes[a.transactions.ref]
 	peer := serializableUnitCycle(t, e, node)
 	e.mu.Lock()
-	if err := e.serializablePrecommitLocked(peer.ref); err != nil {
+	if err := e.visibility.serializablePrecommitLocked(peer.ref); err != nil {
 		t.Fatal(err)
 	}
-	e.serializableCommittedLocked(peer.ref, e.visibility.commitSeq)
+	e.visibility.serializableCommittedLocked(peer.ref, e.visibility.commitSeq)
 	if !node.doomed {
 		t.Fatal("cycle did not doom staged participant")
 	}

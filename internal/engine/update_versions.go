@@ -224,10 +224,10 @@ retry:
 			versions[i].IndexOutputs = batch.states[i].indexes
 		}
 	}
-	if serializableRelevant(e.visibility.serializable.nodes[s.txRef]) {
+	if e.visibility.relevantSerializableLocked(s.txRef) != nil {
 		for i, row := range versions {
 			predecessor := old[i]
-			event := [1]serializableWrite{{row: row.Row, version: row.Version, base: predecessor.Version, baseBorn: predecessor.Born, creator: e.visibility.serializable.creators[predecessor.Version]}}
+			event := [1]serializableWrite{{row: row.Row, version: row.Version, base: predecessor.Version, baseBorn: predecessor.Born, creator: e.visibility.serializableCreatorLocked(predecessor.Version)}}
 			if err := e.serializableWriteLocked(s, ref, event[:]); err != nil {
 				return err
 			}

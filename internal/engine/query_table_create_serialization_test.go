@@ -102,9 +102,9 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 			if tc.doomed {
 				peer = serializableUnitCycle(t, e, node)
 				e.mu.Lock()
-				err = e.serializablePrecommitLocked(peer.ref)
+				err = e.visibility.serializablePrecommitLocked(peer.ref)
 				if err == nil {
-					e.serializableCommittedLocked(peer.ref, e.visibility.commitSeq)
+					e.visibility.serializableCommittedLocked(peer.ref, e.visibility.commitSeq)
 				}
 				e.mu.Unlock()
 				if err != nil || !node.doomed {

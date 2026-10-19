@@ -64,7 +64,7 @@ func TestSerializableEvidenceInvisibleCreatorAndVisibleEnder(t *testing.T) {
 			creator.writes[ref.Address] = map[serializableWriteKey]serializableWrite{{version: 1}: {row: 1, version: 1}}
 			creator.didWrite = true
 			e.visibility.serializable.creators[1] = creator.ref
-			e.serializableCommittedLocked(creator.ref, reader.frontier+1)
+			e.visibility.serializableCommittedLocked(creator.ref, reader.frontier+1)
 			if visible {
 				reader.frontier = creator.commitFrontier
 				reader.snapshotOrder = creator.order
@@ -134,7 +134,7 @@ func TestSerializableEvidenceRollbackKeepsReadsEdgesDoomAndStickyWrite(t *testin
 	if err := e.serializableWriteLocked(scope, ref, event[:]); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.serializableEdgeLocked(a, a, b); err != nil {
+	if err := e.visibility.serializableEdgeLocked(a, a, b); err != nil {
 		t.Fatal(err)
 	}
 	b.doomed = true
@@ -144,7 +144,7 @@ func TestSerializableEvidenceRollbackKeepsReadsEdgesDoomAndStickyWrite(t *testin
 	}
 	serializableUnitDiagnostic(t, e.serializableWriteLocked(scope, ref, event[:]), "Canceled on identification as a pivot, during conflict in checking.")
 	serializableUnitDiagnostic(t, e.serializableReadLocked(scope, ref), "Canceled on identification as a pivot, during conflict out checking.")
-	serializableUnitDiagnostic(t, e.serializablePrecommitLocked(b.ref), "Canceled on identification as a pivot, during commit attempt.")
+	serializableUnitDiagnostic(t, e.visibility.serializablePrecommitLocked(b.ref), "Canceled on identification as a pivot, during commit attempt.")
 }
 func TestSerializableEvidenceExemptSourcesAndUnrelatedFrontier(t *testing.T) {
 	e := New()
@@ -169,7 +169,7 @@ func TestSerializableEvidenceExemptSourcesAndUnrelatedFrontier(t *testing.T) {
 		t.Fatal("system source participated")
 	}
 	e.visibility.commitSeq += 100
-	if err := e.serializablePrecommitLocked(node.ref); err != nil {
+	if err := e.visibility.serializablePrecommitLocked(node.ref); err != nil {
 		t.Fatal("unrelated frontier aborted owner", err)
 	}
 }
@@ -204,7 +204,7 @@ func TestSerializableEvidenceOwnCreatorSurvivesEndingRollback(t *testing.T) {
 	if !ok || event.row != 41 || event.version != 73 || event.deletion || len(writer.writes[relation.Address]) != 1 || e.visibility.serializable.creators[73] != writer.ref || !writer.didWrite {
 		t.Fatal("rollback lost surviving exact creator identity")
 	}
-	e.serializableCommittedLocked(writer.ref, e.visibility.commitSeq+1)
+	e.visibility.serializableCommittedLocked(writer.ref, e.visibility.commitSeq+1)
 	if err := e.serializableReadLocked(serializableUnitScope(reader), relation); err != nil {
 		t.Fatal(err)
 	}

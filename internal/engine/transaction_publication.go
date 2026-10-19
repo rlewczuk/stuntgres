@@ -101,7 +101,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				err = e.discardResetPreflightLocked(op)
 			}
 			if err == nil {
-				err = e.serializablePrecommitLocked(ref)
+				err = e.visibility.serializablePrecommitLocked(ref)
 			}
 			if err != nil {
 				op.session.mu.Unlock()
@@ -118,7 +118,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				e.installPreparedLocked(phase)
 			} else {
 				e.installNotificationsLocked(notifications)
-				e.serializableCommittedLocked(ref, e.visibility.commitSeq)
+				e.visibility.serializableCommittedLocked(ref, e.visibility.commitSeq)
 				e.visibility.recordCommitTimestampLocked(ref)
 				e.finishPreparedLocked(phase)
 				e.finishDiscardRoleResetLocked(op)
@@ -396,7 +396,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				}
 			}
 		}
-		if err := e.serializablePrecommitLocked(ref); err != nil {
+		if err := e.visibility.serializablePrecommitLocked(ref); err != nil {
 			session.mu.Unlock()
 			e.mu.Unlock()
 			return err
@@ -468,7 +468,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		e.storage.IndexRoots = indexRoots
 		e.visibility.commitSeq++
 		e.visibility.recordCommitTimestampLocked(ref)
-		e.serializableCommittedLocked(ref, e.visibility.commitSeq)
+		e.visibility.serializableCommittedLocked(ref, e.visibility.commitSeq)
 		e.finishPreparedLocked(phase)
 		e.finishDiscardRoleResetLocked(op)
 		session.mu.Unlock()

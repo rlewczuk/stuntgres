@@ -71,7 +71,7 @@ func (e *Engine) preparedActorLocked(op *Operation, entry *preparedTransaction) 
 
 // Called at the canonical publisher's callback-free final boundary.
 func (e *Engine) installPreparedLocked(p *preparedPublication) {
-	e.serializablePreparedLocked(p.entry.ref)
+	e.visibility.serializablePreparedLocked(p.entry.ref)
 	e.visibility.dropSnapshotLocked(p.entry.ref)
 	e.prepared[p.entry.gid] = p.entry
 	p.origin.ticket = nil

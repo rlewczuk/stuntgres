@@ -1211,7 +1211,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			err = fmt.Errorf("stuntgres: commit sequence exhausted")
 		}
 		if err == nil && s.initialTx != (ids.TxRef{}) {
-			err = e.serializablePrecommitLocked(s.initialTx)
+			err = e.visibility.serializablePrecommitLocked(s.initialTx)
 		}
 		commitRef := s.initialTx
 		if scope != nil {
@@ -1256,7 +1256,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				e.visibility.commitSeq = frontier
 			}
 			if s.initialTx != (ids.TxRef{}) {
-				e.serializableCommittedLocked(s.initialTx, e.visibility.commitSeq)
+				e.visibility.serializableCommittedLocked(s.initialTx, e.visibility.commitSeq)
 			}
 			e.catalog.state = next
 			e.storage.Relations = relations
