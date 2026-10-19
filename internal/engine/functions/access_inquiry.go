@@ -152,6 +152,15 @@ func (n AccessInquiry) PlanningFold() expr.Fold { return expr.FoldNever }
 
 func (n AccessInquiry) LooksLikeFunction() bool { return true }
 
+// PreflightFold: preparation only preflights the children.
+func (n AccessInquiry) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// SameGroup implements expr.GroupIdentity.
+func (n AccessInquiry) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(AccessInquiry)
+	return ok && n.RowSecurity == o.RowSecurity && n.Count == o.Count && sameChildren(n.Children(), o.Children(), same)
+}
+
 // Render displays the call with its implicit argument casts.
 func (n AccessInquiry) Render() (expr.Rendering, error) {
 	if err := n.Validate(); err != nil {

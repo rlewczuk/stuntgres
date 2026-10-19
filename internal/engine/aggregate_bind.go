@@ -163,39 +163,6 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			}
 		}
 		return true
-	case functions.ACLValue:
-		o, ok := other.(functions.ACLValue)
-		if !ok || e.Kind != o.Kind || e.Named != o.Named || e.Namespace != o.Namespace {
-			return false
-		}
-		for i, arg := range e.Children() {
-			if !same(arg, o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.ObjectACL:
-		o, ok := other.(functions.ObjectACL)
-		if !ok || e.Slots != o.Slots || e.Labels != o.Labels {
-			return false
-		}
-		for i, arg := range e.Args {
-			if !same(arg, o.Args[i]) {
-				return false
-			}
-		}
-		return true
-	case functions.AccessInquiry:
-		o, ok := other.(functions.AccessInquiry)
-		if !ok || e.RowSecurity != o.RowSecurity || e.Count != o.Count {
-			return false
-		}
-		for i := range e.Count {
-			if !same(e.Args[i], o.Args[i]) {
-				return false
-			}
-		}
-		return true
 	case namespaceInquiryExpression:
 		o, ok := other.(namespaceInquiryExpression)
 		return ok && e.kind == o.kind && (e.arg == nil && o.arg == nil || e.arg != nil && o.arg != nil && same(e.arg, o.arg))
@@ -538,24 +505,6 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 	case objectAddressExpression:
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
-		}
-		stage(&e.Info)
-		bound = e
-	case functions.ACLValue:
-		for i := range e.Children() {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		stage(&e.Info)
-		bound = e
-	case functions.ObjectACL:
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		stage(&e.Info)
-		bound = e
-	case functions.AccessInquiry:
-		for i := range e.Count {
-			e.Args[i] = rewrite(e.Args[i])
 		}
 		stage(&e.Info)
 		bound = e
@@ -904,18 +853,6 @@ func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 		walk(e.arg)
 	case objectAddressExpression:
 		for _, arg := range e.args {
-			walk(arg)
-		}
-	case functions.ACLValue:
-		for _, arg := range e.Children() {
-			walk(arg)
-		}
-	case functions.ObjectACL:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.AccessInquiry:
-		for _, arg := range e.Children() {
 			walk(arg)
 		}
 	case namespaceInquiryExpression:

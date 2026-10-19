@@ -137,6 +137,14 @@ func TestACLNodesProtocol(t *testing.T) {
 		if !tc.node.(expr.FunctionSyntax).LooksLikeFunction() {
 			t.Fatalf("%T index key is not function syntax", tc.node)
 		}
+		if got := tc.node.(expr.Preflighting).PreflightFold(); got != expr.PreflightChildren {
+			t.Fatalf("%T preflight fold %v", tc.node, got)
+		}
+		identity := tc.node.(expr.GroupIdentity)
+		equal := func(a, b expr.Expr) bool { return a == b }
+		if !identity.SameGroup(tc.node, equal, false) || identity.SameGroup(rebuilt, equal, false) || identity.SameGroup(aclTestOID(t, 7), equal, false) {
+			t.Fatalf("%T grouping identity", tc.node)
+		}
 	}
 	explode := ACLValue{Kind: ACLExplode}
 	if explode.IntrinsicVolatility() != expr.Stable {
@@ -144,6 +152,16 @@ func TestACLNodesProtocol(t *testing.T) {
 	}
 	if (ACLValue{Kind: ACLContains}).LooksLikeFunction() {
 		t.Fatal("aclitem containment is not function syntax")
+	}
+	named := explode
+	named.Named = true
+	if explode.SameGroup(named, func(a, b expr.Expr) bool { return true }, true) {
+		t.Fatal("named notation is part of the ACL grouping identity")
+	}
+	reordered := object
+	reordered.Slots, reordered.Labels = [3]uint8{1, 0, 2}, [3]string{"objid", "classid", "objsubid"}
+	if object.SameGroup(reordered, func(a, b expr.Expr) bool { return true }, true) {
+		t.Fatal("slot order is part of the object ACL grouping identity")
 	}
 	if _, ok := any(object).(expr.StoredProvider); ok {
 		t.Fatal("pg_get_acl must not be a stored generation provider")

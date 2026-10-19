@@ -104,6 +104,16 @@ func (n ObjectACL) PlanningFold() expr.Fold { return expr.FoldNever }
 
 func (n ObjectACL) LooksLikeFunction() bool { return true }
 
+// PreflightFold: preparation only preflights the children.
+func (n ObjectACL) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// SameGroup implements expr.GroupIdentity: the slot mapping and labels are
+// part of the identity in every comparison.
+func (n ObjectACL) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(ObjectACL)
+	return ok && n.Slots == o.Slots && n.Labels == o.Labels && sameChildren(n.Args[:], o.Args[:], same)
+}
+
 // Render displays the identifier-quoted call with its labels and implicit
 // argument casts.
 func (n ObjectACL) Render() (expr.Rendering, error) {

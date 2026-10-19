@@ -291,6 +291,30 @@ func (n ACLValue) ValidateStoredProvider() error { return n.Validate() }
 // @> operator does not.
 func (n ACLValue) LooksLikeFunction() bool { return n.Kind != ACLContains }
 
+// PreflightFold: preparation only preflights the children; the calls stay
+// symbolic, as in planning.
+func (n ACLValue) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// SameGroup implements expr.GroupIdentity: the kind, named notation and
+// operator schema are part of the identity in every comparison.
+func (n ACLValue) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(ACLValue)
+	return ok && n.Kind == o.Kind && n.Named == o.Named && n.Namespace == o.Namespace && sameChildren(n.Children(), o.Children(), same)
+}
+
+// sameChildren compares two child lists of equal shape with same.
+func sameChildren(a, b []expr.Expr, same func(a, b expr.Expr) bool) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !same(a[i], b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
 // Render displays the calls schema-qualified with their implicit argument
 // casts, and the operator always parenthesized, written with its schema.
 func (n ACLValue) Render() (expr.Rendering, error) {
