@@ -54,6 +54,22 @@ func BindJSONBPathQuery(result Usage, args ...Usage) (JSONBPathQueryPlan, error)
 	return JSONBPathQueryPlan{p}, err
 }
 
+// The evaluator only reads vars; this empty payload is shared immutably.
+var jsonbPathOperatorVars = jsonbPayload{root: jsonbNode{kind: jsonbObject}}
+
+func (p BinaryPlan) jsonbPathOperator(ctx context.Context, document, path Value) (Value, error) {
+	consumer := jsonbPathConsumer{result: p.result, args: p.args}
+	values := [4]Value{
+		document, path,
+		{typ: p.args[2].Type, text: "{}", jsonb: &jsonbPathOperatorVars},
+		Boolean(p.args[3].Type, true),
+	}
+	if p.name == "@?" {
+		return (JSONBPathExistsPlan{consumer}).Evaluate(ctx, values[:])
+	}
+	return (JSONBPathMatchPlan{consumer}).Evaluate(ctx, values[:])
+}
+
 func (p jsonbPathConsumer) validate(ctx context.Context, values []Value) (bool, error) {
 	if p.result.Type == nil || len(values) != 4 {
 		return false, fmt.Errorf("invalid JSONPath consumer values")

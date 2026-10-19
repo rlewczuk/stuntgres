@@ -555,6 +555,11 @@ and separate error/commit publication arms.
 CopyCancelInput observes complete real input and preserves conversion precedence:
 invalid input remains primary22P02 despite pending user cancellation; valid split
 input raises57014 with its actual consumed-record context before CopyDone.
+The first-record hold is installed before CopyInResponse can be flushed, closing
+the start-hook cancellation gap without weakening the exact context assertions.
+`TestProtocolCopyStartCancellation` deterministically covers that boundary;
+selected proof is `make check RUN='^TestProtocolCopyStartCancellation$'` and
+the same command with `RACE=1`.
 CopyCancelTerminal uses PostgreSQL's real administrator backend termination;
 native instead stops its whole actual process through the public CLI and restores
 the original committed table. Their FATAL/EOF versus EOF expectations are

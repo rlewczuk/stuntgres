@@ -3080,8 +3080,8 @@ output is canonical. INSERT/UPDATE destinations and explicit CAST infer bound
 path types before import. SQL NULL differs from path `null`. Native metadata
 is JSONPATH/string; lib/pq reports an empty type name and interface{} ScanType,
 with raw bytes. Defaults, views, arrays/domains and native Dump/Restore reuse
-existing providers. The array-query and four query-family consumers below
-execute parsed paths; JSONPath operators and GIN remain excluded.
+existing providers. The array-query, query-family consumers and JSONB path
+operators below execute parsed paths; GIN remains excluded.
 See [JSONPath typed IO](https://www.postgresql.org/docs/18/datatype-json.html).
 Feature smoke: `make check RUN='^TestReferenceJSONPathFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferenceJSONPathFeatureSmoke$'`.
@@ -3099,7 +3099,7 @@ through stored expressions and native replay, and use the real routine's ACL
 and dependency authority. GROUP matching distinguishes named/positional and
 omitted/explicit-default forms. Demanded arithmetic and scalar methods raise
 native `0A000`, even with silent enabled; unreachable branches remain undemanded.
-JSONPath operators, `_tz`, SQL/JSON query syntax and GIN remain excluded.
+`_tz`, SQL/JSON query syntax and GIN remain excluded.
 See [navigation contracts](reference/binary_json_arrays/README.md#jsonpath-navigation-and-array-queries).
 Feature smoke: `make check RUN='^TestReferenceJSONPathNavigateFeatureSmoke$'`;
 pinned counterpart: `make check RUN='^TestReferenceJSONPathNavigateFeatureSmoke$' REFERENCE=1`.
@@ -3119,10 +3119,19 @@ invocation's partial collection. Target-list and FROM calls reuse the existing
 set lane, including lateral reopening, zip/padding and INT8 ordinality. This is
 not whole-query read atomicity across separate invocations. Stored scalar calls
 and symbolic query views use existing persistence; Restore INSERT query-source
-restrictions and advanced method/operator/timezone boundaries remain unchanged.
+restrictions and advanced arithmetic/method/timezone boundaries remain unchanged.
 Feature smoke: `make check RUN='^TestReferenceJSONPathQueryFeatureSmoke$'`;
 pinned counterpart: `make check RUN='^TestReferenceJSONPathQueryFeatureSmoke$' REFERENCE=1`.
 See [query-family contracts](reference/binary_json_arrays/README.md#jsonpath-query-consumer-contracts).
+
+Change note: JSONB `@?` and `@@` reuse the same evaluator with silent evaluation
+and no variables. `@?` tests item presence; `@@` returns a singleton Boolean or
+SQL NULL, including its retained Boolean prefix before a suppressed path error.
+Invalid path input and missing variables still raise their actual diagnostics.
+Documented structural and supported subscript errors are suppressed; demanded
+arithmetic and scalar/datetime methods retain the existing native `0A000`
+boundary. Held statements, actual operator-routine ACLs and symbolic native
+replay use the ordinary expression paths. See [operator contracts and smoke](reference/binary_json_arrays/README.md#jsonb-jsonpath-operators).
 
 
 

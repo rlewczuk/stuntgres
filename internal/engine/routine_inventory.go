@@ -916,6 +916,8 @@ var builtinRoutineDeclarations = [...]catalog.BuiltinRoutineDeclaration{
 	{catalog.RoutineIdentity{4009, ids.PGCatalogNamespaceOID, "jsonb_path_match", "3802,4072,3802,16"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 2, jsonRoutineProvider},
 	{catalog.RoutineIdentity{4008, ids.PGCatalogNamespaceOID, "jsonb_path_query_first", "3802,4072,3802,16"}, catalog.FunctionRoutine, 3802, true, expr.Immutable, 's', false, 0, 2, jsonRoutineProvider},
 	{catalog.RoutineIdentity{4006, ids.PGCatalogNamespaceOID, "jsonb_path_query", "3802,4072,3802,16"}, catalog.FunctionRoutine, 3802, true, expr.Immutable, 's', true, 0, 2, jsonRoutineProvider},
+	{catalog.RoutineIdentity{4010, ids.PGCatalogNamespaceOID, "jsonb_path_exists_opr", "3802,4072"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, operatorRoutineProvider},
+	{catalog.RoutineIdentity{4011, ids.PGCatalogNamespaceOID, "jsonb_path_match_opr", "3802,4072"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, operatorRoutineProvider},
 	{catalog.RoutineIdentity{3852, ids.PGCatalogNamespaceOID, "upper_inc", "3831"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, rangeRoutineProvider},
 	{catalog.RoutineIdentity{3853, ids.PGCatalogNamespaceOID, "lower_inf", "3831"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, rangeRoutineProvider},
 	{catalog.RoutineIdentity{3854, ids.PGCatalogNamespaceOID, "upper_inf", "3831"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, rangeRoutineProvider},

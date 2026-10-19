@@ -316,6 +316,25 @@ any held input view. The adapter's existing watcher requests ending on physical
 shutdown/disconnect and observes this wake for later FATAL delivery, so an earlier
 user-cancel cause cannot hide physical or session termination.
 
+Session checks and operation admission observe due transaction/idle budgets
+under `Session.mu` before publishing a lease or invalidating the idle slot.
+One timestamp feeds the existing callback expiry decision for both slots, so
+delayed callback delivery cannot admit work on an expired physical owner.
+Generation, transaction authority, retired budgets and pending statement/lock
+ERROR priority remain shared with callbacks; termination uses the canonical
+first-reason/cancellation/cleanup path. Pre-canceled callers retain their Go
+context error before admission.
+
+`TestSessionTimeoutAdmissionMechanics` covers Check, activity and command
+admission without scheduler sleeps. `TestSessionTimeoutRetiredAdmissionMechanics`
+and `TestSessionTimeoutCanceledAdmissionMechanics` preserve retirement and caller
+cancellation; `TestSessionTimeoutPendingOrderMechanics` covers active pending
+ERROR priority independently of callback scheduling.
+
+```sh
+make check RUN='^TestSessionTimeout(Admission|RetiredAdmission|CanceledAdmission|PendingOrder)Mechanics$'
+```
+
 Private mechanisms supplement the real socket tests:
 
 - `TestProtocolPreparedRegistry`: exact-session retirement and independently
@@ -338,6 +357,10 @@ Private mechanisms supplement the real socket tests:
 - `TestProtocolCopyInputContext`: real codec conversion precedence, standard
   context cancellation/value/deadline contracts, decoder-only scope, original
   source identity, ordinary caller/timeout behavior and ending before lease drain.
+- `TestProtocolCopyStartCancellation`: simple/extended COPY installs its first-record
+  cancellation hold before the metadata hook can send CopyInResponse. Immediate
+  cancellation retains actual record context and conversion-error precedence;
+  the hold and immutable source diagnostic do not escape the invocation.
 - `TestProtocolEndRequestedWake`: early/late request observation, repeated
   requests and completion waiting for the actual operation lease.
 - `TestProtocolCopyHooks`: unlocked metadata callbacks and terminal veto before

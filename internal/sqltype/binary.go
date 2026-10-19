@@ -37,6 +37,8 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 		}
 	case "@>", "<@":
 		ids, id = [4]ID{JSONB, JSONB}, Bool
+	case "@?", "@@":
+		ids, id = [4]ID{JSONB, JSONPath}, Bool
 	case "?":
 		ids, id = [4]ID{JSONB, Text}, Bool
 	case "?|", "?&":
@@ -172,6 +174,14 @@ func BindBinary(name string, result Usage, args ...Usage) (BinaryPlan, error) {
 	if name == "#-" && (!args[1].Type.IsArray() || args[1].Type.Element().ID() != Text) {
 		return p, fmt.Errorf("invalid JSONB deletion path descriptor")
 	}
+	if name == "@?" || name == "@@" {
+		// Hidden consumer formals retain the same descriptor authority as the
+		// explicit document and result, without changing the public arity.
+		p.args[2], p.args[3] = args[0], result
+		if _, err := bindJSONBPathConsumer(result, Bool, p.args[:]); err != nil {
+			return p, err
+		}
+	}
 	return p, nil
 }
 func (p BinaryPlan) Name() string       { return p.name }
@@ -278,6 +288,8 @@ func (p BinaryPlan) Evaluate(ctx context.Context, values ...Value) (Value, error
 		return p.jsonbContainment(ctx, values[0], values[1])
 	case "?", "?|", "?&":
 		return p.jsonbExistence(ctx, values[0], values[1])
+	case "@?", "@@":
+		return p.jsonbPathOperator(ctx, values[0], values[1])
 	case "#-":
 		return p.jsonbPathDelete(ctx, values[0], values[1])
 	case "-":

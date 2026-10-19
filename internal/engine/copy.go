@@ -245,9 +245,6 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	if err = s.reserveCopy(); err != nil {
 		return
 	}
-	if err = s.startProtocolCopy(hooks, true, options, len(b.targets)); err != nil {
-		return 0, err
-	}
 	var cursor interface {
 		RowCursor
 		rowDefaults() []bool
@@ -261,7 +258,13 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	rows, err := func() (indexWriteBatch, error) {
 		if s.protocolCommand || s.protocolSimple {
 			s.op.copyInput.active.Store(true)
+			// CopyInResponse permits immediate frontend cancellation. Install
+			// the first-record hold before its external start hook can send it.
+			s.op.copyInput.decoding.Store(true)
 			defer s.op.stopCopyInput()
+		}
+		if err := s.startProtocolCopy(hooks, true, options, len(b.targets)); err != nil {
+			return indexWriteBatch{}, err
 		}
 		rows, err := assembleInsertRows(s.op.Context(), b, cursor, -1, schema, s.input, s.output, s, len(unique.keys) != 0 || unique.checked, nil, nil)
 		if err == nil {

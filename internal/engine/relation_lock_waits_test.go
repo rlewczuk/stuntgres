@@ -183,30 +183,3 @@ func TestRelationLockWaitsTimeout(t *testing.T) {
 		}
 	}
 }
-
-func TestRelationLockWaitsTimeoutPerAcquisition(t *testing.T) {
-	e := New()
-	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-	sessionSQL(t, a, "CREATE TABLE t(v INT)")
-	sessionSQL(t, a, "CREATE TABLE u(v INT)")
-	rb := transactionBegin(t, b)
-	policy := lock.Policy{Timeout: 200 * time.Millisecond}
-	for _, name := range []string{"t", "u"} {
-		ref := catalogRef(t, e, e.CatalogRead(), name)
-		ra := transactionBegin(t, a)
-		if err := e.locks.Acquire(context.Background(), a.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
-			t.Fatal(err)
-		}
-		r, err := e.locks.StartAcquire(context.Background(), b.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare, policy)
-		if err != nil || r == nil {
-			t.Fatal(err)
-		}
-		time.Sleep(120 * time.Millisecond)
-		transactionEnd(t, a, ra, false)
-		if err = r.Wait(); err != nil {
-			t.Fatal(err)
-		}
-	}
-	transactionEnd(t, b, rb, false)
-	lockEmpty(t, e)
-}

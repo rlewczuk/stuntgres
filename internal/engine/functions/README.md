@@ -344,6 +344,15 @@ SQL and index inquiry. They build `Binary` nodes with the operator's routine
 identity (`BuiltinOperatorRoutineInfo`) and need no `Binder` method beyond the
 existing set.
 
+`BindJSONBPathOperator` (`@?`/`@@`, recognized by `JSONBPathOperatorName`) is
+reached only after catalog overload selection supplies JSONB/jsonpath formals.
+It reuses the selected argument slots and merges both children's properties with
+immutable intrinsic behavior. Competing `@@` text-search signatures retain their
+existing provider boundary. These Binary nodes capture the real two-argument
+`jsonb_path_exists_opr`/`jsonb_path_match_opr` routines, not the four-argument
+query functions. Generic reconstruction/retagging rebuilds the hidden consumer
+usages; rendering uses qualified infix SQL and does not classify them as calls.
+
 SQL/JSON constructors and `IS JSON` are syntax-dispatched
 (`parser.SQLJSONExpr`, `parser.JSONPredicateExpr`). `BindSQLJSON` binds
 `JSON_ARRAY`, `JSON_OBJECT`, `JSON`, `JSON_SCALAR` and `JSON_SERIALIZE` into

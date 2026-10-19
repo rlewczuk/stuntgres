@@ -6,6 +6,45 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### JSONB JSONPath operators
+
+`TestReferenceJSONBPathOps` specifies `@?` (any item, including false/null)
+versus `@@` (singleton Boolean, otherwise SQL NULL), strict/lax suppression,
+retained Boolean prefixes, ordinary error demand, input diagnostics and overload
+selection. Independent goldens were observed against the pinned PostgreSQL 18.6
+fixture before production implementation; both modes run the same bodies.
+
+The shared bodies also cover BOOL metadata before iteration, same-held recovery,
+the actual two-argument operator routines and runtime ACLs, stored expressions,
+native same/fresh-engine Dump/Reset/Restore with actual emitted SQL replay on PG,
+late-error atomicity and evaluator-admitted cancellation. Demanded arithmetic
+and scalar methods retain explicit native `0A000` boundaries while PostgreSQL
+has independently expected numeric/datetime suppression.
+
+Selected proof (run each selector in both modes after affected changes):
+
+```sh
+make check RUN='^TestReferenceJSONBPathOps(Values|Nulls|Demand|Suppression|CapabilityBoundary)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBPathOps(Diagnostics|Binding|MetadataHeld)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBPathOps(RoutineAuthority|StoredControls)$' REFERENCE=1
+make check RUN='^TestReferenceJSONBPathOps(Atomicity|Cancellation|FeatureSmoke)$' REFERENCE=1
+```
+
+Run the same four selectors without `REFERENCE=1` for native proof.
+
+Feature smoke argv:
+
+```sh
+make check RUN='^TestReferenceJSONBPathOpsFeatureSmoke$' REFERENCE=1
+make check RUN='^TestReferenceJSONBPathOpsFeatureSmoke$'
+```
+
+Expected observations: JSON false is present (`@? true`, `@@ false`), lax no-hit
+is false/NULL, strict missing is NULL/NULL, strict retained prefix is NULL/true,
+bound malformed path returns exact `42601` and the same statement recovers.
+The stored view starts true/false and changes to true/true after mutation,
+including actual native logical replay.
+
 ### intagg installed wrappers
 
 The shared `TestReferenceIntaggAggregate`, `Enumeration`, `InstalledIdentity`,

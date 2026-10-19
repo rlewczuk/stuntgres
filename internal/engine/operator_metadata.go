@@ -547,6 +547,8 @@ var supportedOperatorMetadata = [...]operatorMetadata{
 	{3965, 25, "b", false, false, 0, 0, 3950, 0, 0},
 	{3966, 114, "b", false, false, 0, 0, 3951, 0, 0},
 	{3967, 25, "b", false, false, 0, 0, 3953, 0, 0},
+	{4012, 16, "b", false, false, 0, 0, 4010, 5040, 5041},
+	{4013, 16, "b", false, false, 0, 0, 4011, 5040, 5041},
 	{4035, 16, "b", false, false, 0, 0, 4268, 4243, 108},
 	{4142, 16, "b", false, false, 0, 0, 4269, 4243, 108},
 	{4179, 16, "b", false, false, 4180, 0, 4255, 5040, 5041},

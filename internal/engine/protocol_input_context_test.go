@@ -3,6 +3,9 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -129,4 +132,51 @@ func TestProtocolCopyInputContext(t *testing.T) {
 			cancel(nil)
 		}
 	})
+}
+
+func TestProtocolCopyStartCancellation(t *testing.T) {
+	for _, simple := range []bool{false, true} {
+		for _, input := range []struct {
+			text, code, message, where string
+		}{
+			{"1\n", "57014", "canceling statement due to user request", `COPY t, line 1: "1"`},
+			{"bad\n", "22P02", `invalid input syntax for type integer: "bad"`, `COPY t, line 1, column v: "bad"`},
+		} {
+			t.Run(fmt.Sprintf("simple=%t/%s", simple, input.code), func(t *testing.T) {
+				e := New()
+				session := sessionStart(t, e, nil)
+				sessionSQL(t, session, "CREATE TABLE t(v INT)")
+				ctx, cancel := context.WithCancelCause(context.Background())
+				defer cancel(nil)
+				op, _, err := session.AcquireCommand(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer op.Done()
+				scope, err := e.StartStatement(op)
+				if err != nil {
+					t.Fatal(err)
+				}
+				scope.protocolSimple, scope.protocolCommand = simple, !simple
+				cause := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "57014", Message: "canceling statement due to user request"}
+				count, err := scope.CopyProtocol(statement(t, "COPY t FROM STDIN").(*parser.Copy), strings.NewReader(input.text), nil, CopyProtocolHooks{
+					Start: func(CopyProtocolMetadata) error {
+						// The frontend can cancel as soon as CopyInResponse is sent,
+						// before the start hook returns to the engine.
+						cancel(cause)
+						return nil
+					},
+				})
+				finishErr := scope.Finish(err)
+				var diagnostic *sqlstate.Error
+				want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: input.code, Message: input.message, Context: input.where}
+				if count != 0 || !errors.As(err, &diagnostic) || *diagnostic != want {
+					t.Fatalf("COPY start cancellation = count %d, error %#v (%v), want %#v; finish %v", count, diagnostic, err, want, finishErr)
+				}
+				if op.copyInput.active.Load() || op.copyInput.decoding.Load() || cause.Context != "" {
+					t.Fatal("COPY input hold or owned diagnostic escaped its invocation")
+				}
+			})
+		}
+	}
 }

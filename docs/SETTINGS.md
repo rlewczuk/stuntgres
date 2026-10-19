@@ -220,6 +220,13 @@ idle category runs. Query, Prepare, held Execute, Ping and Go controls are
 activity; retaining eager Rows is not executing work. A pooled idle physical
 owner can expire without another request.
 
+Physical-owner checks and operation admission observe elapsed transaction/idle
+deadlines before admitting work or stopping the previous idle budget. A delayed
+runtime callback cannot give a new command a live-owner window after expiry.
+The observation uses the same authority and retirement rules as callbacks;
+already-pending statement/lock ERROR retains priority over transaction FATAL.
+This is not earliest-deadline arbitration between every timeout reason.
+
 Expiry invokes canonical asynchronous physical termination. FATAL diagnostics are
 `25P04` for transaction timeout, `25P03` for idle-in-transaction timeout and
 `57P05` for idle-session timeout. Cleanup rolls back private effects and releases

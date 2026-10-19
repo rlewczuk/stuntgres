@@ -51,6 +51,10 @@ func (b *expressionBinder) bindBuiltinOperator(r parser.OperatorExpr, policy exp
 		return functions.BindJSONExtraction(b, r)
 	case functions.JSONBExistenceName(name):
 		return functions.BindJSONBExistence(b, r)
+	case functions.JSONBPathOperatorName(name) && len(b.selectedOperatorArgs) == 2 &&
+		b.selectedOperatorArgs[0].ResultUsage().Type.ID() == sqltype.JSONB &&
+		b.selectedOperatorArgs[1].ResultUsage().Type.ID() == sqltype.JSONPath:
+		return functions.BindJSONBPathOperator(b, r)
 	case name == "#-":
 		return functions.BindJSONBPathDelete(b, r)
 	case bitwiseName(name):

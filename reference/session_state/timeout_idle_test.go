@@ -155,18 +155,20 @@ func TestReferenceTimeoutPrecedence(t *testing.T) {
 		})
 	})
 	t.Run("admitted-set-config", timeoutReferencePrecedenceAssignment)
-	t.Run("old-transaction-beats-shorter-statement", func(t *testing.T) {
+	t.Run("residual-expiry-before-command", func(t *testing.T) {
 		timeoutReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 			f := newTimeoutReferenceFixture(t, p, b)
-			release := f.holdBlocked()
+			f.set("statement_timeout", "375ms")
 			f.set("transaction_timeout", "500ms")
 			f.beginPrivate()
-			timeoutReferenceIdle(t, p.Ctx, 300*time.Millisecond)
-			f.set("statement_timeout", "375ms")
-			o := f.blocked("utility", "LOCK TABLE timeout_blocked IN ACCESS EXCLUSIVE MODE", nil)
-			f.diagnostic(o.Err, "25P04")
-			f.dead()
-			release()
+			// The peer cannot read the sentinel until the owner's transaction
+			// releases its exclusive lock. Seeing only 7 proves actual rollback,
+			// without owner SQL restarting activity or admitting another timer.
+			f.rows(f.peer, 7)
+			// A new command must report the already-expired owner, not start a
+			// shorter statement budget. Simultaneously pending active ERROR and
+			// FATAL are a different contract: pending ERROR retains priority.
+			f.fatalProbe("25P04")
 			f.rows(f.peer, 7)
 		})
 	})

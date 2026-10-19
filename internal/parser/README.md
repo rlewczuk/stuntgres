@@ -6,6 +6,19 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Qualified JSONPath operators
+
+`TestJSONBPathOpsParser` checks generic maximal-munch `@?`/`@@`, qualified
+operator AST positions, whole-input consumption and empty quoted schema
+diagnostics. Qualified-operator lookahead preserves scanner failures rather
+than replacing their exact English message and character position with a later
+syntax error at `OPERATOR`. Public SQL direct/Prepare diagnostics remain in
+`reference/binary_json_arrays`.
+
+```sh
+make check RUN='^TestJSONBPathOpsParser$'
+```
+
 ### Parser scratch reuse
 
 Parser scratch reuse is an internal allocation change, not a parsed-result cache.

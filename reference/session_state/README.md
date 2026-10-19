@@ -250,6 +250,25 @@ Only a live cursor or the exact aborted-transaction diagnostic permits another
 window. The final FATAL diagnostic, unusable physical handle and rollback checks
 remain mandatory.
 
+Strict fatal-owner probes remain strict: physical-owner admission observes due
+budgets before a delayed callback can be outrun, with no published Rows or new
+statement timer on an expired owner. CHAIN, reenable and completed idle-reset
+boundaries do not retry live rows to conceal late admission.
+
+`TestReferenceTimeoutPrecedence/residual-expiry-before-command` observes actual
+rollback through a peer read blocked behind the owner's exclusive sentinel lock,
+then requires exact25P04/no Rows and a dead owner on the later command. It replaces
+the old wall-time active-race assumption that an older transaction must always
+beat a shorter new statement timeout. PostgreSQL processes an already-pending
+statement/lock ERROR before transaction FATAL; the private pending-order mechanics
+retain that separate contract. This witness tests owner-first residual expiry,
+not simultaneous-pending active-work deadline arbitration.
+
+```sh
+make check RUN='^TestReferenceTimeout(IdleBoundaries|ChainPrepared|TransactionAssignments|Precedence)$' REFERENCE=1
+make check RUN='^TestReferenceTimeout(IdleBoundaries|ChainPrepared|TransactionAssignments|Precedence)$'
+```
+
 A suite-owned Docker client reads each raw response synchronously, closes it
 on every exit, and validates complete eight-byte frame headers and bodies under
 a 32 MiB cumulative wire cap. Truncation, excess, daemon error streams and

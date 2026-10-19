@@ -3,22 +3,42 @@
 ## Provenance and status
 
 The companion `pg-operator-pg18-supported.tsv` is an independently constructed
-expected inventory, **546 admitted records out of 799 released identities**;
-253 remain identity-only. Of the admitted records, 3552 is executable through
+expected inventory, **554 admitted records out of 799 released identities**;
+245 remain identity-only. Of the admitted records, 3552 is executable through
 the bounded exclusion provider rather than general scalar SQL. The inventory
 has a header and exactly15 raw catalog columns,
 ordered numerically by OID. Root confirmed the initial531-row metadata against
 pinned PostgreSQL18.0 before production. Subsequent rebases synchronize existing
-TID/INET and ACL-inclusion providers as documented below. The latest complete
-546-row definitions require fresh root-owned proof; source facts are not a pass.
+TID/INET, ACL-inclusion, RECORD and exclusion providers. The latest complete
+554-row definitions require fresh root-owned proof; source facts are not a pass.
 No native query output, production metadata, or local PostgreSQL 20devel catalog
 was used to construct metadata values. Existing eight-column REGOPERATOR evidence
 and all 799 alias identities are unchanged.
 
+### JSONB JSONPath operator admission
+
+PG18-FUNC-JSONB-PATH-OPS adds only JSONB/jsonpath operators 4012 `@?` and
+4013 `@@`, raising the preexisting 552-record TSV to 554 records. Their complete
+15-field rows are grounded in
+[REL_18_6 pg_operator.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_operator.dat)
+and catalog defaults: namespace11, owner10, binary kind, BOOL16, no merge/hash,
+no commutator/negator, procedures4010/4011 and matchingsel5040/matchingjoinsel5041.
+The routines execute through the actual existing evaluator consumers, with
+strict silent suppression; this does not admit text-search or adjacent
+arithmetic/datetime execution.
+
+`supportedOperatorMetadata` initializes each seeded descriptor's result,
+implementation and estimator relationships and determines its pg_operator row
+admission. Routine associations alone do not publish that metadata. Existing
+inventory, relationship and lifecycle scenarios consume the independent TSV
+without a second feature-specific catalog inventory. Root-owned selected proof
+must cover the revised rows in both modes; the historical checkpoints and
+partition lists below are not new 18.6 observations.
+
 ### User-operator cutover
 
 PG18-FUNC-OPERATOR-USER supersedes the earlier builtin-only mutable-catalog
-boundary. The fixed546 supported seed rows and all799 alias identities remain
+boundary. The fixed554 supported seed rows and all799 alias identities remain
 distinct; custom definitions and shells add live rows without inventing pg_proc
 rows or broadening lookup-only seed execution. Selected calls bind the actual
 routine/provider and retain operator identity for dependencies and live SQL names.
@@ -156,7 +176,7 @@ a shared production generator. Procedure identity does not promise SQL pg_proc
 presence or arbitrary execution; commutator/negator identity does not promise
 supported catalog membership. Prefix rows use left=0, right=operand and kind=l.
 
-The current545 admitted bag is source-derived closed over every nonzero
+The historical545 admitted bag was source-derived closed over every nonzero
 commutator/negator target: no genuine absent-target builtin witness exists here.
 The reference scenario exhaustively resolves symbolic targets against the
 independent799-alias evidence rather than fabricating an absent target or
@@ -164,7 +184,7 @@ removing a working row. This does not impose closure on future operator parts.
 The genuine routine distinction is `int4pl`177: alias lookup/implementation
 reference works while native pg_proc has no SQL row for that identity.
 
-## All-family partition
+## Historical all-family partition (545-row checkpoint)
 
 Review authority is existing source routing in `internal/engine/expression.go`
 (`OperatorExpr`, `bindComparisonOperands`, `finishArithmetic`) and the owners
@@ -188,7 +208,7 @@ call to another provider does not create a second row.
 
 Total 288+128+27+26+6+6+1+21+42 = **545**. Retain all **799** aliases.
 
-## Exact partition audit
+## Historical exact partition audit (545-row checkpoint)
 
 These disjoint OID lists make the full source-review partition inspectable,
 including negative space. They are documentation, not a second resolver. Stage C

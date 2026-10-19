@@ -1616,8 +1616,8 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   casts. Identifier companion arrays remain lookup-only. Scalar input itself
   does not allocate; the selected transaction-information functions above own
   actual assignment, full epochs and retention, without populating system columns.
-- JSONPath supports `jsonb_path_query_array` and the four query-family consumers
-  described below, not SQL/JSON query syntax or GIN. JSON has no equality provider.
+- JSONPath supports `jsonb_path_query_array`, the four query-family consumers
+  and JSONB `@?`/`@@`, not SQL/JSON query syntax or GIN. JSON has no equality provider.
   Catalog type identities do not imply executable codecs.
 - Scalar `IN`/`NOT IN` lists and scalar operators with array-expression
   `ANY`/`SOME`/`ALL` reuse existing scalar comparison providers; array forms
@@ -1874,8 +1874,12 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   ACL/dependency and descriptor authority. Existing strict-NULL pruning and
   runtime-parameter optimizer boundaries remain unchanged. Demanded arithmetic
   and all scalar methods raise native `0A000` through silent/predicate layers;
-  unreachable branches are not eagerly rejected. JSONPath operators, `_tz`,
-  SQL/JSON query forms and GIN remain unsupported.
+  unreachable branches are not eagerly rejected. `_tz`, SQL/JSON query forms
+  and GIN remain unsupported. JSONB `@?`/`@@` use the same exists/match consumers
+  with silent evaluation and no variables: suppressed structural/subscript
+  errors do not hide malformed path input, missing variables, caller cancellation
+  or demanded native unsupported arithmetic/methods. Match can retain a singleton
+  Boolean prefix before a suppressed error; strict exists still demands its tail.
   `jsonb_path_exists`, `jsonb_path_match`, `jsonb_path_query_first` and
   `jsonb_path_query` reuse this evaluator, signature/defaults and immutable,
   strict, parallel-safe routine authority. Exists returns BOOL for any item,

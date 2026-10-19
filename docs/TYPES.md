@@ -406,6 +406,25 @@ Unknown operands infer JSONB from a known JSONB counterpart; known TEXT/JSON
 or SQL-array operands need explicit conversion. Direct/prepared/stored calls
 share this provider, without requiring JSON, SQL arrays or JSONPath execution.
 
+JSONB `@? jsonpath` and `@@ jsonpath` return BOOL through the existing path
+evaluator. `@?` tests item presence, so JSON false and JSON null are present;
+`@@` returns a singleton Boolean or SQL NULL for empty, multiple or nonboolean
+results. SQL NULL operands return typed BOOL NULL. Strict existence demands the
+whole path; match can retain a singleton Boolean prefix before a suppressed
+structural failure. Lax existence may stop at its first item.
+
+Both operators use implicit empty variables and silent evaluation, suppressing
+the evaluator's documented missing-field, structural and supported subscript
+numeric failures. Invalid path input, input numeric overflow and missing
+variables still raise ordinary PostgreSQL English diagnostics. Demanded
+arithmetic and scalar/datetime methods retain native `0A000`; PostgreSQL's
+broader numeric/datetime suppression does not imply those adjacent providers
+exist natively. Catalog overload resolution preserves competing `@@` text-search
+signatures rather than treating every spelling as JSONPath.
+
+Stored operators capture their actual two-argument implementation routines and
+replay as qualified infix SQL through existing native logical controls.
+
 JSONB top-level `||`, `- text` and `- integer` return the same JSONB descriptor
 and canonical string carrier, including NULL/empty-result metadata. Concat is a
 shallow right-wins object union or ordered array concatenation with non-array

@@ -24,6 +24,28 @@ func JSONBExistenceName(name string) bool { return name == "?" || name == "?|" |
 // with arrays.
 func JSONBContainmentName(name string) bool { return name == "@>" || name == "<@" }
 
+// JSONBPathOperatorName reports the JSONPath existence and match spellings.
+func JSONBPathOperatorName(name string) bool { return name == "@?" || name == "@@" }
+
+// BindJSONBPathOperator receives the catalog-selected JSONB/jsonpath signature.
+// The engine leaves competing @@ text-search signatures with their own provider.
+func BindJSONBPathOperator(b Binder, raw parser.OperatorExpr) (expr.Expr, error) {
+	operands, err := analyzeJSONOperands(b, raw)
+	if err != nil {
+		return nil, err
+	}
+	targets := [2]sqltype.Usage{b.Type(sqltype.JSONB).Usage(), b.Type(sqltype.JSONPath).Usage()}
+	if len(raw.Args) != 2 || !admitsImplicit(operands, targets) {
+		return nil, ArrayOperatorError(b, operands[0].Usage.Type, operands[1].Usage.Type, raw)
+	}
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	args, properties, err := coerceJSONOperands(b, operands, targets, name, expr.Properties{Volatility: expr.Immutable})
+	if err != nil {
+		return nil, err
+	}
+	return jsonOperatorNode(b, raw, name, b.Type(sqltype.Bool).Usage(), args, properties, sqltype.JSONB, sqltype.JSONPath)
+}
+
 // analyzeJSONOperands analyzes the written operands in the comparison
 // context; operands past the second are analyzed for their errors only.
 func analyzeJSONOperands(b Binder, raw parser.OperatorExpr) ([2]Argument, error) {

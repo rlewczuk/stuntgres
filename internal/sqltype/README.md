@@ -46,11 +46,32 @@ send availability only on its first delivered tuple, including all-NULL tuples,
 not for an empty result. FunctionCall NULL results remain a distinct framing
 shortcut rather than ordinary row-destination initialization.
 
+JSONB `@?`/`@@` use the comparable `BinaryPlan` with two public operands and
+hidden immutable vars/silent usages derived from the document/result owners.
+Binding validates those four consumer formals once. Execution supplies one
+shared immutable empty-object payload and invocation-local values to the existing
+exists/match consumers, not a second evaluator or an allocated result sequence.
+Descriptor validation, context-before-NULL, strict full demand and retained
+Boolean-prefix behavior remain owned by those consumers. Input/ordinary errors
+are never suppressed by SQLSTATE; unsupported arithmetic/scalar methods remain
+`0A000`.
+
 ## Testing
 
 Follow the [shared testing guide](../../docs/TESTING.md). These tests call codec
 and value functions directly; public SQL and socket answers belong in
 `reference/`.
+
+`TestJSONBPathOpsSignatures`, `Consumers` and `Resolution` exercise the typed
+two-operand plan, foreign-value/context admission, concurrent invocation-local
+state, and unknown-operand overload selection independently of SQL execution.
+The functions/engine/parser companions cover reminting, real routine dependency
+admission and maximal-munch qualified operator positions.
+
+```sh
+make check RUN='^TestJSONBPathOps(Signatures|Consumers|Resolution|Binding|Reconstruct|Parser)$'
+make check RUN='^TestJSONBPathOpsConsumers$' RACE=1
+```
 
 `TestProtocolValueCodecs` exercises real unavailable receive/send diagnostics,
 domain receiver declaration versus invocation/base-error precedence, the builtin

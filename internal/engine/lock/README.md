@@ -132,5 +132,34 @@ assignment, and delayed deadline release. Run them with the race detector:
 make check RACE=1 RUN='^Test(RelationDeadlock|RelationLockWaitsDelayedDeadlines|TypeLockLifecycle|Advisory(CountedGrantsAndOverflow|ExpiredSourceWinsDelayedCallback)|BlockingPids(AdvisoryAuthority|Lifecycle)|MultiXact|PGLocks(ResourceRecords|ConcurrentAssignmentCapture))'
 ```
 
+`TestRelationLockWaitsTimeoutPerAcquisition` uses the real manager, one waiter
+ticket and one policy across two different relation resources. It checks each
+generated deadline against that acquisition's start, ages only the first
+request's private deadline under `mu`, and supplies explicit instants to
+`ExpireWait`. Each wait consumes three quarters of its own budget; the second
+crosses the first deadline, and both requests transfer successfully. The total
+modeled wait is therefore one and a half budgets. A final request must fail
+exactly at its own deadline with `55P03` and the exact lock-timeout diagnostic.
+Grant ownership, callback retirement and empty teardown are also asserted.
+Reusing a request deadline or deducting an earlier wait from a later budget
+violates the fresh-deadline bound or the second wait's successful outcome.
+
+This replaces the engine's sleep-only duplicate: sleeping 120ms does not
+guarantee release within a 200ms timeout. `StartAcquire` installs a fresh
+absolute deadline, and queue settlement checks it before granting, even when
+the timer callback is delayed. A late release must fail rather than extend the
+timeout. No production clock, timeout or lock-order behavior changes.
+
+Selected mechanism smoke (also run with `RACE=1`):
+
+```sh
+make check RUN='^TestRelationLockWaitsTimeoutPerAcquisition$'
+```
+
+Expected: two granted acquisitions despite cumulative modeled waits exceeding
+one budget, exact-boundary timeout on the third, and no retained lock state.
+This is private manager coverage, not a public SQL/API witness; it needs no
+new reference definition or real-mode oracle run.
+
 Engine tests that need an engine stay in `internal/engine` and read lock state
 only through the diagnostic seam.

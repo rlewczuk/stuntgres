@@ -111,6 +111,20 @@ func (s *Session) expireTimeoutLocked(slot *sessionTimeout, generation uint64, t
 	s.requestEndLocked(Terminated)
 }
 
+// Admission observes elapsed budgets before a delayed callback can be outrun
+// by new work. Keep the callback's authority and pending-interrupt priorities.
+// Session.mu is held, and both slots are observed at the same instant.
+func (s *Session) observeTimeoutsLocked(now time.Time) {
+	slot := &s.timeouts.transaction
+	s.expireTimeoutLocked(slot, slot.generation, s.token, "25P04", now)
+	code := "57P05"
+	if s.timeouts.explicit {
+		code = "25P03"
+	}
+	slot = &s.timeouts.idle
+	s.expireTimeoutLocked(slot, slot.generation, s.token, code, now)
+}
+
 func (s *Session) readyTimeoutLocked(now time.Time) {
 	if s.state != live || s.timeouts.sqlLeases != 0 {
 		return
@@ -205,6 +219,7 @@ func (s *Session) Check(ctx context.Context) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.observeTimeoutsLocked(time.Now())
 	if s.state != live {
 		if s.timeouts.fatal != nil {
 			copy := *s.timeouts.fatal

@@ -324,6 +324,7 @@ func (s *Session) acquire(ctx context.Context, activity bool) (*Operation, error
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.observeTimeoutsLocked(time.Now())
 	if s.state != live || s.detaching {
 		if s.timeouts.fatal != nil {
 			copy := *s.timeouts.fatal

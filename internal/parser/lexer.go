@@ -697,6 +697,13 @@ func (l *lexer) qualifiedOperatorAhead() bool {
 	probe := *l
 	probe.options.Notice = nil
 	probe.options.LineComment = nil
+	// A probe must not turn a genuine scanner failure into a later syntax
+	// error at OPERATOR (for example, an empty quoted schema identifier).
+	defer func() {
+		if probe.err != nil {
+			l.err = probe.err
+		}
+	}()
 	if probe.nextRaw().code != '(' {
 		return false
 	}
