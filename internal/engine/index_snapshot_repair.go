@@ -48,7 +48,7 @@ func (snapshot *indexSnapshot) trackedGenerations(next *catalog.State) map[ids.O
 		if !ok {
 			continue
 		}
-		for attribute, generation := range parent.Generations {
+		for attribute, generation := range parent.ColumnMeta.Generations {
 			if generation.Kind != catalog.GenerationStored || !generationHasTableOID(generation.Planned) || !indexAttributeAffected(source.index.SQLIndex, attribute) {
 				continue
 			}

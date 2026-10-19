@@ -103,7 +103,7 @@ func (g *quoteCaptureCandidate) prune(view catalog.Read) {
 			return false
 		}
 		if origin.attribute != 0 {
-			return d.Defaults[origin.attribute].OID == origin.definition
+			return d.ColumnMeta.Defaults[origin.attribute].OID == origin.definition
 		}
 		return d.View != nil && viewOf(d).rule == origin.definition && viewOf(d).quoteRevision == origin.revision
 	}

@@ -36,7 +36,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 			binder.queryFrame = 1
 			// SELECT frame allocation stays monotonic across stored modifiers.
 		}
-		if op != nil && op.restoreInsertAuthority && len(b.relation.Identities) != 0 && s.Override != parser.OverrideSystem {
+		if op != nil && op.restoreInsertAuthority && len(b.relation.ColumnMeta.Identities) != 0 && s.Override != parser.OverrideSystem {
 			return b, sqlError("0A000", "restore identity rows require OVERRIDING SYSTEM VALUE")
 		}
 		if !b.relation.VirtualView {
@@ -159,7 +159,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 	if b.relation != nil {
 		switch statement.(type) {
 		case *parser.Insert, *parser.Update, *parser.Merge:
-			if err := binder.captureRetainedWriteInput(nil, b.relation.Generations, b.relation.CheckConstraints); err != nil {
+			if err := binder.captureRetainedWriteInput(nil, b.relation.ColumnMeta.Generations, b.relation.CheckConstraints); err != nil {
 				return b, err
 			}
 		}
@@ -172,7 +172,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 	}
 	binder.querySources = b.querySources
 	if b.viewWrite != nil {
-		if err := binder.captureRetainedWriteInput(b.defaults, b.viewWrite.base.Generations, b.viewWrite.base.CheckConstraints); err != nil {
+		if err := binder.captureRetainedWriteInput(b.defaults, b.viewWrite.base.ColumnMeta.Generations, b.viewWrite.base.CheckConstraints); err != nil {
 			return b, err
 		}
 	}

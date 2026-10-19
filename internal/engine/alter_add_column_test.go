@@ -12,8 +12,8 @@ import (
 func TestAlterAddColumnProjection(t *testing.T) {
 	e := New()
 	u := testUsage(e, sqltype.Int4)
-	old := &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: u}, {Name: "b", Usage: u}}, Attributes: []int32{1, 2}, AttributeHighWater: 2}
-	next := &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: u}, {Name: "c", Usage: u}}, Attributes: []int32{1, 3}, AttributeHighWater: 3}
+	old := &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: u}, {Name: "b", Usage: u}}, Attributes: []int32{1, 2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}}
+	next := &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: u}, {Name: "c", Usage: u}}, Attributes: []int32{1, 3}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3}}
 	one, err := sqltype.Integer(u.Type, 1)
 	if err != nil {
 		t.Fatal(err)
@@ -55,8 +55,8 @@ func TestAlterAddColumnProjection(t *testing.T) {
 func TestAlterAddColumnZeroWidthProjection(t *testing.T) {
 	e := New()
 	u := testUsage(e, sqltype.Text)
-	old := &catalog.Relation{AttributeHighWater: 3}
-	next := &catalog.Relation{Columns: []catalog.Column{{Name: "new", Usage: u}}, Attributes: []int32{4}, AttributeHighWater: 4}
+	old := &catalog.Relation{ColumnMeta: catalog.ColumnMetadata{HighWater: 3}}
+	next := &catalog.Relation{Columns: []catalog.Column{{Name: "new", Usage: u}}, Attributes: []int32{4}, ColumnMeta: catalog.ColumnMetadata{HighWater: 4}}
 	rows := []rowVersion{{}, {}}
 	projected, err := projectVersions(context.Background(), rows, old, next, map[int32]sqltype.Value{4: sqltype.Null(u.Type)})
 	if err != nil || len(projected) != 2 {
@@ -81,8 +81,8 @@ func TestAlterAddColumnCancellationDuringShapeTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	old := &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: u}}, Attributes: []int32{1}, AttributeHighWater: 1}
-	next := &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: u}, {Name: "b", Usage: u}}, Attributes: []int32{1, 2}, AttributeHighWater: 2}
+	old := &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: u}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
+	next := &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: u}, {Name: "b", Usage: u}}, Attributes: []int32{1, 2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}}
 	rows := []rowVersion{{row: 1, version: 1, values: []sqltype.Value{one}}, {row: 2, version: 2, values: []sqltype.Value{one}}, {row: 3, version: 3, values: []sqltype.Value{one}}}
 	projection, err := newColumnProjection(old, next, map[int32]sqltype.Value{2: sqltype.Null(u.Type)})
 	if err != nil {

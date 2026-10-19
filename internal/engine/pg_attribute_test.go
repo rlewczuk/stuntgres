@@ -65,7 +65,7 @@ func TestPGAttributeShape(t *testing.T) {
 	d, _ := pgAttributeUnitSource(t, e, view)
 	names := []string{"attrelid", "attname", "atttypid", "attlen", "attnum", "atttypmod", "attndims", "attbyval", "attalign", "attstorage", "attcompression", "attnotnull", "atthasdef", "atthasmissing", "attidentity", "attgenerated", "attisdropped", "attislocal", "attinhcount", "attcollation", "attstattarget", "attacl", "attoptions", "attfdwoptions", "attmissingval"}
 	typeIDs := []sqltype.ID{26, 19, 26, 21, 21, 23, 21, 16, 18, 18, 18, 16, 16, 16, 18, 18, 16, 16, 21, 26, 21, 1034, 1009, 1009, 2277}
-	if d.RowType != 75 || d.AttributeHighWater != 25 || len(d.Columns) != 25 || !d.History.HasIndexes || d.VirtualView {
+	if d.RowType != 75 || d.ColumnMeta.HighWater != 25 || len(d.Columns) != 25 || !d.History.HasIndexes || d.VirtualView {
 		t.Fatal("released identity", d)
 	}
 	for i, c := range d.Columns {
@@ -155,7 +155,7 @@ func TestPGAttributePublication(t *testing.T) {
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	u := testUsage(e, sqltype.Int4)
-	table := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "attribute_unit", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10), Columns: []catalog.Column{{Name: "a", Usage: u, Nullable: true, NullabilityKnown: true}}, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"a": 0}}
+	table := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "attribute_unit", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10), Columns: []catalog.Column{{Name: "a", Usage: u, Nullable: true, NullabilityKnown: true}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}, Index: map[string]int{"a": 0}}
 	if err := stage.Create(table); err != nil {
 		t.Fatal(err)
 	}
@@ -250,8 +250,8 @@ func TestPGAttributeDroppedHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	history := next.DroppedAttributes[1]
-	if history.Name != "........pg.dropped.1........" || history.TypeID != 0 || history.Number != 1 || history.Dimensions != 2 || history.Facts.Length != -1 || history.Facts.ByValue || history.Facts.Alignment != "i" || history.Facts.Storage != "x" || !history.Dropped || history.NotNull || history.HasDefault || len(next.Columns) != 0 || next.AttributeHighWater != 3 || len(old.DroppedAttributes) != 0 || len(old.Columns) != 1 {
+	history := next.ColumnMeta.Dropped[1]
+	if history.Name != "........pg.dropped.1........" || history.TypeID != 0 || history.Number != 1 || history.Dimensions != 2 || history.Facts.Length != -1 || history.Facts.ByValue || history.Facts.Alignment != "i" || history.Facts.Storage != "x" || !history.Dropped || history.NotNull || history.HasDefault || len(next.Columns) != 0 || next.ColumnMeta.HighWater != 3 || len(old.ColumnMeta.Dropped) != 0 || len(old.Columns) != 1 {
 		t.Fatal("owned tombstone", history, next, old)
 	}
 	rows := pgAttributeUnitRows(t, pgAttributeUnitCapture(t, e, e.stageRead(stage)), 20000)
@@ -262,7 +262,7 @@ func TestPGAttributeDroppedHistory(t *testing.T) {
 		t.Fatal("dropped type dependency retained")
 	}
 	identityColumn := *old
-	identityColumn.Identities = map[int32]catalog.ColumnIdentity{1: {Mode: parser.IdentityAlways}}
+	identityColumn.ColumnMeta.Identities = map[int32]catalog.ColumnIdentity{1: {Mode: parser.IdentityAlways}}
 	metadata := relationAttributeMetadata(&identityColumn, 0)
 	if metadata.Identity != "a" {
 		t.Fatal("identity before dependency removal", metadata)
@@ -300,7 +300,7 @@ func TestPGAttributeCarrier(t *testing.T) {
 		t.Fatal("foreign carrier descriptor admitted")
 	}
 	// Ordinary storage validation must not admit this pseudo type elsewhere.
-	ordinary := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "bad", Owner: e.authorizationDomain.Principal(10), Columns: []catalog.Column{{Name: "a", Usage: u}}, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"a": 0}}
+	ordinary := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "bad", Owner: e.authorizationDomain.Principal(10), Columns: []catalog.Column{{Name: "a", Usage: u}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}, Index: map[string]int{"a": 0}}
 	if err := (relationProvider{}).Validate(view, ordinary); err == nil {
 		t.Fatal("ANYARRAY stored column admitted")
 	}

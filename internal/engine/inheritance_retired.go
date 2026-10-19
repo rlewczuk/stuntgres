@@ -19,7 +19,7 @@ func validateRetiredInheritance(view catalog.Read, table *catalog.Relation, p ca
 			return fmt.Errorf("stuntgres: invalid retired inheritance lifetime namespace")
 		}
 		if !history.Replayed {
-			tombstone, exists := parent.DroppedAttributes[history.Attribute]
+			tombstone, exists := parent.ColumnMeta.Dropped[history.Attribute]
 			if !exists || !tombstone.Dropped || parent.HasAttribute(history.Attribute) || definitionOIDUsed(parent, history.Constraint) {
 				return fmt.Errorf("stuntgres: retired inheritance source was not removed")
 			}

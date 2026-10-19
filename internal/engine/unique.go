@@ -80,7 +80,7 @@ func (e *Engine) stageCreateUniques(op *Operation, stage *CatalogStage, d *catal
 func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *catalog.Relation, declarations []createUniqueConstraint, altering bool) error {
 	for _, declaration := range declarations {
 		for _, attribute := range declaration.Attributes {
-			if definition, ok := d.Generations[attribute]; ok && definition.Kind == catalog.GenerationVirtual {
+			if definition, ok := d.ColumnMeta.Generations[attribute]; ok && definition.Kind == catalog.GenerationVirtual {
 				message := "unique constraints on virtual generated columns are not supported"
 				if declaration.Primary {
 					message = "primary keys on virtual generated columns are not supported"
@@ -219,7 +219,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *c
 			}
 			index.Columns = slices.Clone(source.Columns)
 			index.Attributes = slices.Clone(source.Attributes)
-			index.AttributeHighWater = source.AttributeHighWater
+			index.ColumnMeta.HighWater = source.ColumnMeta.HighWater
 			if declarations[i-start].copyComments {
 				index.Comment = source.Comment
 			}
@@ -227,7 +227,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *c
 			definition.Keys = make([]catalog.IndexKey, len(c.Attributes))
 			index.Columns = make([]catalog.Column, len(c.Attributes))
 			index.Attributes = make([]int32, len(c.Attributes))
-			index.AttributeHighWater = int32(len(c.Attributes))
+			index.ColumnMeta.HighWater = int32(len(c.Attributes))
 			for j, a := range c.Attributes {
 				column := d.Columns[slices.Index(d.Attributes, a)]
 				class, ok := sqltype.DefaultIndexClass(column.Usage.Type)

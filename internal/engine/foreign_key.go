@@ -208,7 +208,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	}
 	deleteAttributes = normalized
 	for _, a := range local {
-		if _, generated := child.Generations[a]; !generated {
+		if _, generated := child.ColumnMeta.Generations[a]; !generated {
 			continue
 		}
 		if raw.UpdateAction == parser.ForeignKeyCascade || raw.UpdateAction == parser.ForeignKeySetNull || raw.UpdateAction == parser.ForeignKeySetDefault {

@@ -89,7 +89,7 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 	wide.Columns = append(append([]catalog.Column(nil), source.Columns...), source.Columns...)
 	wide.Attributes = []int32{3, 4, 1, 2}
 	base := columnExpression{Info: expr.Info{Usage: typ.Usage()}, scope: 1, frame: 1, slot: 2}
-	wide.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: base, Planned: base}}
+	wide.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: base, Planned: base}}
 	copied, err := remapScalarExpression(old, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, map[int32]int{1: 2, 2: 3}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -126,7 +126,7 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	typ := d.Columns[0].Usage.Type
 	one, _ := sqltype.Integer(typ, 1)
 	literal := literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: one}
-	d.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: literal, Planned: literal}}
+	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: literal, Planned: literal}}
 	left := columnExpression{Info: expr.Info{Usage: typ.Usage()}, origin: origin, scope: 1, frame: 4, slot: 1, queryOccurrence: 1}.withGeneration(d, 1, 0)
 	right := left
 	right.slot, right.rowStart, right.queryOccurrence = 3, 2, 2

@@ -55,7 +55,7 @@ func partitionRetainedAttributeChanged(ctx context.Context, h partitionRowHistor
 	if oldSlot < 0 || newSlot < 0 {
 		return false, ids.ErrCatalogReplaced
 	}
-	if generation, ok := h.relation.Generations[attribute]; ok && generation.Kind == catalog.GenerationVirtual {
+	if generation, ok := h.relation.ColumnMeta.Generations[attribute]; ok && generation.Kind == catalog.GenerationVirtual {
 		// Virtual cells have no stored value. Follow the already-certified
 		// generation dependency graph to its actual stored input cells.
 		for _, dependency := range generation.Dependencies {
@@ -216,11 +216,11 @@ func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHist
 				if whole != h.relation.Address() {
 					continue
 				}
-				for attribute, generation := range h.relation.Generations {
+				for attribute, generation := range h.relation.ColumnMeta.Generations {
 					if generation.Kind != catalog.GenerationVirtual || address.SubID != 0 && address.SubID != attribute {
 						continue
 					}
-					current, exists := d.Generations[attribute]
+					current, exists := d.ColumnMeta.Generations[attribute]
 					if !exists {
 						return nil, ids.ErrCatalogReplaced
 					}

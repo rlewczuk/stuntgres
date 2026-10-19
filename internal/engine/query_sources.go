@@ -262,12 +262,12 @@ func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relati
 			return nil
 		}
 	}
-	for _, definition := range relation.Defaults {
+	for _, definition := range relation.ColumnMeta.Defaults {
 		if definition.CatalogSnapshot {
 			return e.captureCommentSnapshotLocked(scope)
 		}
 	}
-	for _, definition := range relation.Generations {
+	for _, definition := range relation.ColumnMeta.Generations {
 		if definition.CatalogSnapshot {
 			return e.captureCommentSnapshotLocked(scope)
 		}

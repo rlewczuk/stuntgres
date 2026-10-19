@@ -30,7 +30,7 @@ func TestAlterAddColumnFinalProviderVeto(t *testing.T) {
 		} else {
 			e.mu.Unlock()
 		}
-		if generator.last != 6 || e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage || old.AttributeHighWater != 1 {
+		if generator.last != 6 || e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage || old.ColumnMeta.HighWater != 1 {
 			t.Error("provider did not see fully demanded unpublished ADD", generator.last)
 		}
 		cancel()
@@ -42,7 +42,7 @@ func TestAlterAddColumnFinalProviderVeto(t *testing.T) {
 	_, err = e.Execute(op, statement(t, "ALTER TABLE t ADD b BIGINT DEFAULT nextval('s') CHECK(nextval('s')>0)"), 0, nil)
 	op.Done()
 	e.catalog.Providers[ids.RelationClassID] = original
-	if !errors.Is(err, context.Canceled) || calls != 1 || generator.last != 6 || e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage || old.AttributeHighWater != 1 {
+	if !errors.Is(err, context.Canceled) || calls != 1 || generator.last != 6 || e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage || old.ColumnMeta.HighWater != 1 {
 		t.Fatal("final provider veto published candidate or rewound effects", err, calls, generator.last)
 	}
 	lockEmpty(t, e)

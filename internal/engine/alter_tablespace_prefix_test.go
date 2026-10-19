@@ -71,9 +71,9 @@ func TestAlterTablespaceAdmittedTypePrefix(t *testing.T) {
 	e, scope := c.e, c.scope
 	old := scope.lockedDescriptor.(*catalog.Relation)
 	before, storage := e.catalog.state, e.storage.relations[old.Address()]
-	a := old.Identities[old.Attributes[0]].Sequence
-	b := old.Identities[old.Attributes[1]].Sequence
-	third := old.Identities[old.Attributes[2]].Sequence
+	a := old.ColumnMeta.Identities[old.Attributes[0]].Sequence
+	b := old.ColumnMeta.Identities[old.Attributes[1]].Sequence
+	third := old.ColumnMeta.Identities[old.Attributes[2]].Sequence
 	generatorC := e.storage.sequences[third]
 	valueC, cacheC := *generatorC, *c.op.session.sequences[third]
 	generatorA, generatorB := e.storage.sequences[a], e.storage.sequences[b]
@@ -146,7 +146,7 @@ func TestAlterTablespaceAdmissionFailureNoPrefix(t *testing.T) {
 				old = &copy
 			}
 			before := c.e.catalog.state
-			a := original.Identities[original.Attributes[0]].Sequence
+			a := original.ColumnMeta.Identities[original.Attributes[0]].Sequence
 			memory := *c.op.session.sequences[a]
 			generator := *c.e.storage.sequences[a]
 			prepared, err := tablespacePrefixPrepare(c, old, c.raw.Actions)
@@ -183,8 +183,8 @@ func TestAlterTablespacePrefixErrorOwnership(t *testing.T) {
 				e, scope := c.e, c.scope
 				old := scope.lockedDescriptor.(*catalog.Relation)
 				before, storage := e.catalog.state, e.storage.relations[old.Address()]
-				a := old.Identities[old.Attributes[0]].Sequence
-				b := old.Identities[old.Attributes[1]].Sequence
+				a := old.ColumnMeta.Identities[old.Attributes[0]].Sequence
+				b := old.ColumnMeta.Identities[old.Attributes[1]].Sequence
 				generatorA, generatorB := e.storage.sequences[a], e.storage.sequences[b]
 				valueA, valueB := *generatorA, *generatorB
 				memoryA, memoryB := c.op.session.sequences[a], c.op.session.sequences[b]

@@ -111,7 +111,7 @@ func pgEnumUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef
 func TestPGEnumShapeAndCapture(t *testing.T) {
 	e := New()
 	d, ref := pgEnumUnitSource(t, e)
-	if d.Name() != "pg_enum" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.RowType != 10045 || d.AttributeHighWater != 4 || len(d.Columns) != 4 {
+	if d.Name() != "pg_enum" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.RowType != 10045 || d.ColumnMeta.HighWater != 4 || len(d.Columns) != 4 {
 		t.Fatal("source descriptor", d)
 	}
 	for i, id := range [4]sqltype.ID{sqltype.Oid, sqltype.Oid, sqltype.Float4, sqltype.Name} {

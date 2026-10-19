@@ -91,7 +91,7 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	for _, index := range [2]*catalog.Relation{f.parent, f.child} {
 		index.Columns = index.Columns[:2]
 		index.Attributes = index.Attributes[:2]
-		index.AttributeHighWater = 2
+		index.ColumnMeta.HighWater = 2
 		index.Index = map[string]int{"a": 0, "b": 1}
 		index.SQLIndex.Keys[1].Desc = false
 		index.SQLIndex.Keys[1].NullsFirst = false
@@ -111,12 +111,12 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	}
 	r, c, pi, ci, li := f.root.Address().ObjectID, f.leaf.Address().ObjectID, f.parent.Address().ObjectID, f.child.Address().ObjectID, local.Address().ObjectID
 	regclass := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}).SQLType
-	consumer := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46901}, ObjectNamespace: f.leaf.Namespace(), Owner: f.leaf.Owner, ObjectName: "unit_local_consumer", ObjectRevision: 1, RelationKind: catalog.TableRelation, Columns: []catalog.Column{{Name: "ref", Usage: regclass.Usage()}}, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"ref": 0}}
+	consumer := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46901}, ObjectNamespace: f.leaf.Namespace(), Owner: f.leaf.Owner, ObjectName: "unit_local_consumer", ObjectRevision: 1, RelationKind: catalog.TableRelation, Columns: []catalog.Column{{Name: "ref", Usage: regclass.Usage()}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}, Index: map[string]int{"ref": 0}}
 	value := sqltype.String(regclass, strconv.FormatUint(uint64(local.Address().ObjectID), 10))
-	consumer.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 46902, Expression: literalExpression{Info: expr.Info{Usage: regclass.Usage()}, value: value}, Dependencies: []ids.ObjectRef{f.e.catalog.Domain.Ref(f.view.Epoch(), local.Address())}}}
+	consumer.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 46902, Expression: literalExpression{Info: expr.Info{Usage: regclass.Usage()}, value: value}, Dependencies: []ids.ObjectRef{f.e.catalog.Domain.Ref(f.view.Epoch(), local.Address())}}}
 	f.view.State().SetDescriptor(consumer.Address(), consumer)
 	f.view.State().BindName(catalog.DescriptorNameKey(consumer), consumer.Address())
-	provider, err := dumpPredecessor(f.view, consumer.Defaults[1].Dependencies[0].Address, consumer.Address())
+	provider, err := dumpPredecessor(f.view, consumer.ColumnMeta.Defaults[1].Dependencies[0].Address, consumer.Address())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	}
 	// A real captured private-name projection exercises the local constraint's
 	// rename barrier. Stored REGCLASS data must wait for that original identity.
-	tables := []dumpRelation{{descriptor: f.root}, {descriptor: f.leaf}, {descriptor: consumer, columns: consumer.Columns, attributes: consumer.Attributes, defaults: consumer.Defaults, versions: []rowVersion{{row: 1, version: 1, values: []sqltype.Value{value}}}}}
+	tables := []dumpRelation{{descriptor: f.root}, {descriptor: f.leaf}, {descriptor: consumer, columns: consumer.Columns, attributes: consumer.Attributes, defaults: consumer.ColumnMeta.Defaults, versions: []rowVersion{{row: 1, version: 1, values: []sqltype.Value{value}}}}}
 	indices := map[ids.OID]int{pi: 0, ci: 1, li: 2}
 	_, replay := partitionConstraintDumpCatalog(f.view)
 	if err := partitionDumpEvents(context.Background(), f.view, graph, declarations, tables, indices, replay, false); err != nil {

@@ -27,7 +27,7 @@ func TestNotNullStableMetadataAndNoops(t *testing.T) {
 	held := run(t, e, "SELECT * FROM t")
 	run(t, e, "ALTER TABLE t ALTER a SET NOT NULL")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if next == old || next.Revision() != old.Revision()+1 || next.Address() != old.Address() || next.Owner != old.Owner || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.ColumnComments, old.ColumnComments) || e.storage.relations[ref.Address] != storage || &storage.versions[0].values[0] != values || next.Columns[0].Nullable || !old.Columns[0].Nullable || len(next.NotNullConstraints) != 1 || next.NotNullConstraints[0].OID == 0 || next.NotNullConstraints[0].Name != "t_a_not_null" || next.NotNullConstraints[0].Attribute != 1 {
+	if next == old || next.Revision() != old.Revision()+1 || next.Address() != old.Address() || next.Owner != old.Owner || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.ColumnMeta.Comments, old.ColumnMeta.Comments) || e.storage.relations[ref.Address] != storage || &storage.versions[0].values[0] != values || next.Columns[0].Nullable || !old.Columns[0].Nullable || len(next.NotNullConstraints) != 1 || next.NotNullConstraints[0].OID == 0 || next.NotNullConstraints[0].Name != "t_a_not_null" || next.NotNullConstraints[0].Attribute != 1 {
 		t.Fatal(old, next)
 	}
 	if !held.Rows.Schema()[0].Nullable || !reflect.DeepEqual(tuples(held), [][]driver.Value{{int64(7), "keep", int64(9)}}) {
@@ -42,7 +42,7 @@ func TestNotNullStableMetadataAndNoops(t *testing.T) {
 	run(t, e, "ALTER TABLE t ALTER c SET NOT NULL")
 	run(t, e, "ALTER TABLE t DROP a")
 	after := e.catalog.state.MustRelation(ref.Address)
-	if len(after.NotNullConstraints) != 1 || after.NotNullConstraints[0].OID == 0 || after.NotNullConstraints[0].Name != "t_c_not_null" || after.NotNullConstraints[0].Attribute != 3 || after.Columns[1].OriginAttribute != 3 || after.ColumnComments[3] != "survivor" {
+	if len(after.NotNullConstraints) != 1 || after.NotNullConstraints[0].OID == 0 || after.NotNullConstraints[0].Name != "t_c_not_null" || after.NotNullConstraints[0].Attribute != 3 || after.Columns[1].OriginAttribute != 3 || after.ColumnMeta.Comments[3] != "survivor" {
 		t.Fatal(after)
 	}
 	run(t, e, "ALTER TABLE t DROP CONSTRAINT t_c_not_null")

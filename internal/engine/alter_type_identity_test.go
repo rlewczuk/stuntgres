@@ -93,7 +93,7 @@ func TestAlterTypeIdentitySequenceMetadata(t *testing.T) {
 					}
 				}
 				before := e.catalog.state.MustRelation(tableRef.Address)
-				identity := before.Identities[before.Attributes[0]]
+				identity := before.ColumnMeta.Identities[before.Attributes[0]]
 				sequence := e.catalog.state.MustRelation(identity.Sequence)
 				oldGenerator := *e.storage.sequences[identity.Sequence]
 				notices, err := sequenceCreateRestartCommand(t, e, s, "ALTER TABLE t ALTER c TYPE "+tc.target, prepared)
@@ -103,7 +103,7 @@ func TestAlterTypeIdentitySequenceMetadata(t *testing.T) {
 				after := e.catalog.state.MustRelation(tableRef.Address)
 				nextSequence := e.catalog.state.MustRelation(identity.Sequence)
 				options := nextSequence.Sequence
-				if after.Identities[after.Attributes[0]] != identity || !reflect.DeepEqual(after.Attributes, before.Attributes) || !reflect.DeepEqual(after.Security.ACL, before.Security.ACL) || !reflect.DeepEqual(after.Security.ColumnACL, before.Security.ColumnACL) || after.Owner != before.Owner || after.Address() != before.Address() || after.Columns[0].Nullable || after.Columns[0].Usage.Type.ID() != tc.typ || len(after.Defaults) != 0 {
+				if after.ColumnMeta.Identities[after.Attributes[0]] != identity || !reflect.DeepEqual(after.Attributes, before.Attributes) || !reflect.DeepEqual(after.Security.ACL, before.Security.ACL) || !reflect.DeepEqual(after.Security.ColumnACL, before.Security.ColumnACL) || after.Owner != before.Owner || after.Address() != before.Address() || after.Columns[0].Nullable || after.Columns[0].Usage.Type.ID() != tc.typ || len(after.ColumnMeta.Defaults) != 0 {
 					t.Fatal("identity/table metadata was lost", before, after)
 				}
 				if nextSequence.Address() != sequence.Address() || nextSequence.Owner != sequence.Owner || nextSequence.Namespace() != sequence.Namespace() || nextSequence.Name() != sequence.Name() || !reflect.DeepEqual(nextSequence.Security.ACL, sequence.Security.ACL) || options.Owned != sequence.Sequence.Owned || !options.Identity || options.Persistence != sequence.Sequence.Persistence || options.SQLType != tc.typ || options.Min != tc.min || options.Max != tc.max || options.Start != tc.start || options.Increment != tc.increment || options.Cache != tc.cache || options.Cycle != tc.cycle {
@@ -147,7 +147,7 @@ func TestAlterTypeIdentityFailedMetadataAtomicity(t *testing.T) {
 				}
 				tableRef := roleTableRef(t, e, "t")
 				table := e.catalog.state.MustRelation(tableRef.Address)
-				identity := table.Identities[table.Attributes[0]]
+				identity := table.ColumnMeta.Identities[table.Attributes[0]]
 				sequence := e.catalog.state.Get(identity.Sequence)
 				generator := e.storage.sequences[identity.Sequence]
 				beforeGenerator := *generator
@@ -173,7 +173,7 @@ func TestAlterTypeIdentitySequenceGrantFreshness(t *testing.T) {
 			sessionSQL(t, a, "CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY)")
 			tableRef := catalogRef(t, e, e.CatalogRead(), "i")
 			originalTable := e.catalog.state.MustRelation(tableRef.Address)
-			originalIdentity := originalTable.Identities[originalTable.Attributes[0]]
+			originalIdentity := originalTable.ColumnMeta.Identities[originalTable.Attributes[0]]
 			ast := statement(t, "ALTER TABLE i ALTER id TYPE BIGINT")
 			var expected *StatementDescription
 			if prepared {
@@ -195,7 +195,7 @@ func TestAlterTypeIdentitySequenceGrantFreshness(t *testing.T) {
 				t.Fatal("stale lock-grant sequence migration", options)
 			}
 			table := e.catalog.state.MustRelation(tableRef.Address)
-			identity := table.Identities[table.Attributes[0]]
+			identity := table.ColumnMeta.Identities[table.Attributes[0]]
 			owned := tableRef.Address
 			owned.SubID = originalTable.Attributes[0]
 			if table.Attributes[0] != originalTable.Attributes[0] || identity.Sequence != originalIdentity.Sequence || identity.Mode != originalIdentity.Mode || table.Columns[0].Nullable || options.Owned != owned || !options.Identity {
@@ -312,7 +312,7 @@ func TestAlterTypeIdentityRefreshedDependencyFences(t *testing.T) {
 			run(t, e, "CREATE SEQUENCE q OWNED BY t.c")
 			tableRef := roleTableRef(t, e, "t")
 			table := e.catalog.state.MustRelation(tableRef.Address)
-			sequence := table.Identities[table.Attributes[0]].Sequence
+			sequence := table.ColumnMeta.Identities[table.Attributes[0]].Sequence
 			if name == "plain-auto" {
 				sequence = roleTableRef(t, e, "q").Address
 			}

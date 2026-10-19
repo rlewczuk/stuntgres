@@ -50,7 +50,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 		out.querySources = binder.querySources
 	} else {
 		out.insertSubquerySource = s.Source.Values.Order != nil || s.Source.Values.Bounds != nil
-		query, err = binder.bindValues(s.Source.Values, s.Override == parser.OverrideUser && len(out.relation.Identities) != 0)
+		query, err = binder.bindValues(s.Source.Values, s.Override == parser.OverrideUser && len(out.relation.ColumnMeta.Identities) != 0)
 	}
 	if err != nil {
 		return err
@@ -83,10 +83,10 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 				target = partial.column(target)
 			}
 		}
-		if _, generated := out.relation.Generations[out.relation.Attributes[out.targets[i]]]; generated {
+		if _, generated := out.relation.ColumnMeta.Generations[out.relation.Attributes[out.targets[i]]]; generated {
 			return generationWriteError(target.Name, false)
 		}
-		if identity, ok := out.relation.Identities[out.relation.Attributes[out.targets[i]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
+		if identity, ok := out.relation.ColumnMeta.Identities[out.relation.Attributes[out.targets[i]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
 			return identityInsertError(target.Name)
 		}
 		assigned, err := binder.assignOutput(expr, target)

@@ -194,10 +194,10 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			defaultEvaluation := evaluation
 			physical := b.physicalBinding()
 			attribute := physical.relation.Attributes[i]
-			defaultEvaluation.quoteOrigin = quoteOrigin{owner: physical.ref, attribute: attribute, definition: physical.relation.Defaults[attribute].OID}
+			defaultEvaluation.quoteOrigin = quoteOrigin{owner: physical.ref, attribute: attribute, definition: physical.relation.ColumnMeta.Defaults[attribute].OID}
 			defaultEvaluation.routineRecipe, defaultEvaluation.routineGraft = true, false
 			defaultEvaluation.routineChecks = nil
-			defaultEvaluation.routineReferences = physical.relation.Defaults[attribute].Dependencies
+			defaultEvaluation.routineReferences = physical.relation.ColumnMeta.Defaults[attribute].Dependencies
 			defaultEvaluation.routineConsumer = physical.relation
 			folded, changed, foldErr := preflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 			if foldErr != nil {

@@ -153,7 +153,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 		for slot, attribute := range in.source.Attributes {
 			target := destination.Attributes[in.targetSlot(slot)]
 			if in.options&likeIdentity != 0 {
-				if identity, ok := in.source.Identities[attribute]; ok {
+				if identity, ok := in.source.ColumnMeta.Identities[attribute]; ok {
 					sequence, ok := auth.catalog.Relation(identity.Sequence)
 					if !ok || sequence.Sequence == nil {
 						return fmt.Errorf("stuntgres: missing LIKE identity provider")
@@ -171,7 +171,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 				}
 			}
 			if in.options&likeDefaults != 0 {
-				if old, ok := in.source.Defaults[attribute]; ok {
+				if old, ok := in.source.ColumnMeta.Defaults[attribute]; ok {
 					// DEFAULT providers cannot reference the owner row; the cooked immutable
 					// tree, including frozen literals and external identities, is reusable.
 					node := old.Expression
@@ -195,10 +195,10 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 							return fmt.Errorf("stuntgres: stale stored routine reference")
 						}
 					}
-					if destination.Defaults == nil {
-						destination.Defaults = make(map[int32]catalog.ColumnDefault)
+					if destination.ColumnMeta.Defaults == nil {
+						destination.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault)
 					}
-					destination.Defaults[target] = definition
+					destination.ColumnMeta.Defaults[target] = definition
 					if destination.Inheritance != nil {
 						provenance := destination.Inheritance.Columns[target]
 						provenance.ExplicitDefault = true
@@ -207,8 +207,8 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 				}
 			}
 			if in.options&likeGenerated != 0 {
-				if old, ok := in.source.Generations[attribute]; ok {
-					if _, inherited := destination.Generations[target]; inherited {
+				if old, ok := in.source.ColumnMeta.Generations[attribute]; ok {
+					if _, inherited := destination.ColumnMeta.Generations[target]; inherited {
 						diagnostic := sqlError("2BP01", fmt.Sprintf("cannot drop default value for column %s of table %s because column %s of table %s requires it", destination.Columns[in.targetSlot(slot)].Name, destination.Name(), destination.Columns[in.targetSlot(slot)].Name, destination.Name())).(*sqlstate.Error)
 						diagnostic.Hint = fmt.Sprintf("You can drop column %s of table %s instead.", destination.Columns[in.targetSlot(slot)].Name, destination.Name())
 						return diagnostic
@@ -225,18 +225,18 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 						return err
 					}
-					if destination.Generations == nil {
-						destination.Generations = make(map[int32]catalog.ColumnGeneration)
+					if destination.ColumnMeta.Generations == nil {
+						destination.ColumnMeta.Generations = make(map[int32]catalog.ColumnGeneration)
 					}
-					destination.Generations[target] = definition
+					destination.ColumnMeta.Generations[target] = definition
 				}
 			}
 			if in.options&likeComments != 0 {
-				if comment, ok := in.source.ColumnComments[attribute]; ok {
-					if destination.ColumnComments == nil {
-						destination.ColumnComments = make(map[int32]string)
+				if comment, ok := in.source.ColumnMeta.Comments[attribute]; ok {
+					if destination.ColumnMeta.Comments == nil {
+						destination.ColumnMeta.Comments = make(map[int32]string)
 					}
-					destination.ColumnComments[target] = comment
+					destination.ColumnMeta.Comments[target] = comment
 				}
 			}
 		}

@@ -93,7 +93,7 @@ func TestNameCatalogRejectsForeignAndStale(t *testing.T) {
 		base := e.CatalogRead()
 		stage := e.BeginCatalogStage(base)
 		d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "invalid", ObjectRevision: 1, Columns: []catalog.Column{{Name: "n", Usage: usage}}, Index: map[string]int{"n": 0}, Attributes: []int32{1}}
-		d.AttributeHighWater = 1
+		d.ColumnMeta.HighWater = 1
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
 		}

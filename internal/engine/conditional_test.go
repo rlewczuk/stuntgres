@@ -687,7 +687,7 @@ func TestConditionalDefaultDecisivePolicy(t *testing.T) {
 			view := e.CatalogRead()
 			ref := roleTableRef(t, e, "d")
 			d := view.MustRelation(ref.Address)
-			original := d.Defaults[d.Attributes[0]]
+			original := d.ColumnMeta.Defaults[d.Attributes[0]]
 			c := &EvalContext{Context: context.Background()}
 			planned, changed, err := preflightCoercionsWithPolicy(c, original.Expression, true)
 			if err != nil || !changed {
@@ -723,7 +723,7 @@ func TestConditionalDefaultDecisivePolicy(t *testing.T) {
 			if err := (relationProvider{}).Validate(view, d); err != nil {
 				t.Fatal("stored definition invalid", err)
 			}
-			if !reflect.DeepEqual(d.Defaults[d.Attributes[0]], original) {
+			if !reflect.DeepEqual(d.ColumnMeta.Defaults[d.Attributes[0]], original) {
 				t.Fatal("stored default changed")
 			}
 		})
@@ -738,7 +738,7 @@ func TestConditionalDefaultDecisivePolicy(t *testing.T) {
 		run(t, e, "CREATE TABLE d(a BOOL DEFAULT ("+expr+"))")
 		ref := roleTableRef(t, e, "d")
 		d := e.CatalogRead().MustRelation(ref.Address)
-		_, _, err := preflightCoercionsWithPolicy(&EvalContext{Context: context.Background()}, d.Defaults[d.Attributes[0]].Expression, true)
+		_, _, err := preflightCoercionsWithPolicy(&EvalContext{Context: context.Background()}, d.ColumnMeta.Defaults[d.Attributes[0]].Expression, true)
 		state(t, err, "22P02")
 		run(t, e, "INSERT INTO d VALUES(FALSE)")
 	}

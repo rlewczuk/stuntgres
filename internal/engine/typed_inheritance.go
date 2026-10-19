@@ -264,11 +264,11 @@ func finishTypedInheritance(view catalog.Read, next *catalog.Relation, graph *ca
 				}
 			}
 		}
-		if _, retained := next.Defaults[attribute]; retained && !provenance.ExplicitDefault {
+		if _, retained := next.ColumnMeta.Defaults[attribute]; retained && !provenance.ExplicitDefault {
 			supplied := false
 			for _, origin := range provenance.Origins {
 				parent := view.MustRelation(origin.Parent)
-				_, supplied = parent.Defaults[origin.Attribute]
+				_, supplied = parent.ColumnMeta.Defaults[origin.Attribute]
 				if supplied {
 					break
 				}

@@ -110,7 +110,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 		view := e.CatalogRead()
 		table := view.MustRelation(roleTableRef(t, e, "body_defaults").Address)
 		stored := view.MustRelation(roleTableRef(t, e, "body_view").Address)
-		def := table.Defaults[table.Attributes[0]]
+		def := table.ColumnMeta.Defaults[table.Attributes[0]]
 		return []recipe{
 			{consumer: table, node: def.Expression, refs: def.Dependencies},
 			{consumer: stored, node: viewOf(stored).query.Root.(*projectNode).expressions[0], checks: viewOf(stored).dependencies},

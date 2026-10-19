@@ -28,7 +28,7 @@ func alterAddUnitScope(t *testing.T) (*Engine, *StatementScope, AuthorizationVie
 		t.Fatal(err)
 	}
 	u := testUsage(e, sqltype.Int4)
-	old := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "t", ObjectRevision: 1, Owner: auth.state.CurrentUser, Columns: []catalog.Column{{Name: "a", Usage: u, Nullable: true, NullabilityKnown: true, OriginTable: 20000, OriginAttribute: 1}}, Attributes: []int32{1}, AttributeHighWater: 3, Index: map[string]int{"a": 0}}
+	old := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "t", ObjectRevision: 1, Owner: auth.state.CurrentUser, Columns: []catalog.Column{{Name: "a", Usage: u, Nullable: true, NullabilityKnown: true, OriginTable: 20000, OriginAttribute: 1}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3}, Index: map[string]int{"a": 0}}
 	return e, scope, auth, old
 }
 
@@ -48,7 +48,7 @@ func TestAlterAddColumnOwnedCandidateAndHighWater(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next.AttributeHighWater != 4 || !reflect.DeepEqual(next.Attributes, []int32{1, 4}) || next.Columns[1].OriginAttribute != 4 || next.Columns[1].OriginTable != 20000 || added.attribute != 4 || len(old.Columns) != 1 || old.AttributeHighWater != 3 || len(old.Defaults) != 0 {
+	if next.ColumnMeta.HighWater != 4 || !reflect.DeepEqual(next.Attributes, []int32{1, 4}) || next.Columns[1].OriginAttribute != 4 || next.Columns[1].OriginTable != 20000 || added.attribute != 4 || len(old.Columns) != 1 || old.ColumnMeta.HighWater != 3 || len(old.ColumnMeta.Defaults) != 0 {
 		t.Fatal("stable identities/source changed", old, next, added)
 	}
 	if &next.Columns[0] == &old.Columns[0] || &next.Attributes[0] == &old.Attributes[0] {
@@ -70,14 +70,14 @@ func TestAlterAddColumnOwnedCandidateAndHighWater(t *testing.T) {
 	// A syntactically valid skipped declaration never resolves its unknown type.
 	skip := alterAddUnitAction(t, "ALTER TABLE t ADD IF NOT EXISTS a nonexistent_type DEFAULT 'oops'")
 	same, ignored, err := e.addColumnCandidate(scope, scope.op, auth, old, skip, nil)
-	if err != nil || same != old || ignored.column != nil || old.AttributeHighWater != 3 {
+	if err != nil || same != old || ignored.column != nil || old.ColumnMeta.HighWater != 3 {
 		t.Fatal(same, ignored, err)
 	}
 	limit := *old
-	limit.AttributeHighWater = 1600
+	limit.ColumnMeta.HighWater = 1600
 	_, _, err = e.addColumnCandidate(scope, scope.op, auth, &limit, action, nil)
 	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "54011" || limit.AttributeHighWater != 1600 {
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "54011" || limit.ColumnMeta.HighWater != 1600 {
 		t.Fatal(err)
 	}
 }
@@ -118,7 +118,7 @@ func TestAlterAddColumnVolatileEffectiveLiveRewrite(t *testing.T) {
 	next.Columns = append(append([]catalog.Column(nil), old.Columns...), catalog.Column{Name: "b", Usage: u, Nullable: true})
 	next.Attributes = []int32{1, 4}
 	next.Index = map[string]int{"a": 0, "b": 1}
-	next.AttributeHighWater = 4
+	next.ColumnMeta.HighWater = 4
 	calls := 0
 	expression := queryProbeExpression{Info: expr.Info{Usage: u, Property: expr.Properties{Volatility: expr.Volatile}}, eval: func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Integer(u.Type, int64(calls)) }}
 	additions := []addedColumn{{attribute: 4, column: &parser.Column{Name: "b"}, expression: expression, value: sqltype.Null(u.Type)}}

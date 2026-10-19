@@ -60,7 +60,7 @@ func (e columnExpression) withGeneration(d *catalog.Relation, physical, start in
 	if d == nil {
 		return e
 	}
-	if definition, ok := d.Generations[d.Attributes[physical]]; ok && definition.Kind == catalog.GenerationVirtual {
+	if definition, ok := d.ColumnMeta.Generations[d.Attributes[physical]]; ok && definition.Kind == catalog.GenerationVirtual {
 		e.virtual = definition.Planned
 		e.virtualOwner = d
 		e.virtualAttribute = d.Attributes[physical]
@@ -83,7 +83,7 @@ func (e columnExpression) admitVirtualGeneration(c *EvalContext, view catalog.Re
 	if e.virtualOwner == nil {
 		return fmt.Errorf("stuntgres: missing virtual generation owner")
 	}
-	definition, ok := e.virtualOwner.Generations[e.virtualAttribute]
+	definition, ok := e.virtualOwner.ColumnMeta.Generations[e.virtualAttribute]
 	if !ok || definition.Kind != catalog.GenerationVirtual || definition.Planned == nil {
 		return fmt.Errorf("stuntgres: missing original virtual generation")
 	}
@@ -135,7 +135,7 @@ func refreshGenerationChecks(d *catalog.Relation, catalog catalog.Read) error {
 }
 
 func logicalColumnValue(d *catalog.Relation, slot int, row []sqltype.Value, c *EvalContext) (sqltype.Value, error) {
-	if definition, ok := d.Generations[d.Attributes[slot]]; !ok || definition.Kind != catalog.GenerationVirtual {
+	if definition, ok := d.ColumnMeta.Generations[d.Attributes[slot]]; !ok || definition.Kind != catalog.GenerationVirtual {
 		return row[slot], nil
 	}
 	column := columnExpression{Info: expr.Info{Usage: d.Columns[slot].Usage}, scope: 1, frame: 1, slot: slot}.withGeneration(d, slot, 0)
@@ -157,7 +157,7 @@ func (e columnExpression) capturedGeneration(source *querySource, index int, cur
 	if !ok {
 		return nil, nil, fmt.Errorf("stuntgres: missing virtual source descriptor")
 	}
-	definition, ok := logical.Generations[e.origin.Address.SubID]
+	definition, ok := logical.ColumnMeta.Generations[e.origin.Address.SubID]
 	if !ok || definition.Kind != catalog.GenerationVirtual || definition.Planned == nil {
 		return nil, nil, fmt.Errorf("stuntgres: missing captured virtual generation")
 	}
@@ -179,7 +179,7 @@ func generationInheritanceError(column string, parent, child catalog.GenerationK
 
 func rejectVirtualIndexUses(parent *catalog.Relation, slots []int) error {
 	for _, slot := range slots {
-		if definition, ok := parent.Generations[parent.Attributes[slot]]; ok && definition.Kind == catalog.GenerationVirtual {
+		if definition, ok := parent.ColumnMeta.Generations[parent.Attributes[slot]]; ok && definition.Kind == catalog.GenerationVirtual {
 			return sqlError("0A000", "indexes on virtual generated columns are not supported")
 		}
 	}

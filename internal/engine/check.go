@@ -298,14 +298,14 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 				}
 			}
 		}
-		for _, definition := range d.Defaults {
+		for _, definition := range d.ColumnMeta.Defaults {
 			for _, ref := range definition.Dependencies {
 				if err := add(ref, d); err != nil {
 					return err
 				}
 			}
 		}
-		for _, definition := range d.Generations {
+		for _, definition := range d.ColumnMeta.Generations {
 			for _, ref := range definition.Dependencies {
 				if err := add(ref, d); err != nil {
 					return err

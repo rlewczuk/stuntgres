@@ -28,7 +28,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 			}
 		}
 		if slot, exists := b.relation.Index[a.Target.Text]; exists {
-			if _, generated := b.relation.Generations[b.relation.Attributes[slot]]; generated {
+			if _, generated := b.relation.ColumnMeta.Generations[b.relation.Attributes[slot]]; generated {
 				if _, requested := a.Value.(parser.DefaultExpr); !requested {
 					return generationWriteError(a.Target.Text, true)
 				}
@@ -76,11 +76,11 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 			return sqlError("42601", fmt.Sprintf(`multiple assignments to same column "%s"`, a.Target.Text))
 		}
 		seen[slot] = partial
-		if _, generated := b.relation.Generations[b.relation.Attributes[slot]]; generated {
+		if _, generated := b.relation.ColumnMeta.Generations[b.relation.Attributes[slot]]; generated {
 			b.targets = append(b.targets, slot)
 			continue
 		}
-		if identity, ok := b.relation.Identities[b.relation.Attributes[slot]]; ok && identity.Mode == parser.IdentityAlways {
+		if identity, ok := b.relation.ColumnMeta.Identities[b.relation.Attributes[slot]]; ok && identity.Mode == parser.IdentityAlways {
 			diagnostic := identityInsertError(a.Target.Text).(*sqlstate.Error)
 			diagnostic.Message = fmt.Sprintf(`column "%s" can only be updated to DEFAULT`, a.Target.Text)
 			diagnostic.Hint = ""

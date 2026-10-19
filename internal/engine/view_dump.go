@@ -103,7 +103,7 @@ func dumpPredecessor(view catalog.Read, address, consumer ids.ObjectAddress) (id
 		ownerAddress := owned
 		ownerAddress.SubID = 0
 		table, ok := view.Relation(ownerAddress)
-		if !ok || table.RelationKind != catalog.TableRelation || !table.HasAttribute(owned.SubID) || table.Identities[owned.SubID].Sequence != address || table.Namespace() != source.Namespace() {
+		if !ok || table.RelationKind != catalog.TableRelation || !table.HasAttribute(owned.SubID) || table.ColumnMeta.Identities[owned.SubID].Sequence != address || table.Namespace() != source.Namespace() {
 			return 0, fmt.Errorf("stuntgres: invalid identity dump dependency")
 		}
 		source = table

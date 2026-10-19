@@ -41,7 +41,7 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 	view := e.CatalogRead()
 	d, _ := pgDBRoleSettingUnitSource(t, e, view)
 	owner := e.Roles().LookupRef("postgres")
-	if d.Name() != "pg_db_role_setting" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.RelationKind != catalog.CatalogRelation || d.VirtualView || d.AttributeHighWater != 3 || len(d.Columns) != 3 || d.Owner != owner || !d.History.HasIndexes {
+	if d.Name() != "pg_db_role_setting" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.RelationKind != catalog.CatalogRelation || d.VirtualView || d.ColumnMeta.HighWater != 3 || len(d.Columns) != 3 || d.Owner != owner || !d.History.HasIndexes {
 		t.Fatal("relation identity", d)
 	}
 	names := [...]string{"setdatabase", "setrole", "setconfig"}

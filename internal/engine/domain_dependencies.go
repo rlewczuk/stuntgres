@@ -267,7 +267,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 					if droppedColumns[column] {
 						continue
 					}
-					if definition, ok := d.Defaults[column.SubID]; ok {
+					if definition, ok := d.ColumnMeta.Defaults[column.SubID]; ok {
 						for _, ref := range definition.Dependencies {
 							if ref.Address == target {
 								direct = append(direct, domainDependency{address: ids.ObjectAddress{ClassID: 2604, ObjectID: definition.OID}, target: target, root: root, oid: definition.OID, label: "default value for column " + dependencyIdentifier(c.Name) + " of table " + name, relation: d})
@@ -275,7 +275,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 							}
 						}
 					}
-					if definition, generated := d.Generations[column.SubID]; generated && target != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(c.Usage.Type.ID())}) {
+					if definition, generated := d.ColumnMeta.Generations[column.SubID]; generated && target != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(c.Usage.Type.ID())}) {
 						for _, ref := range definition.Dependencies {
 							if ref.Address == target {
 								direct = append(direct, domainDependency{address: column, target: target, root: root, oid: a.ObjectID, ordinal: column.SubID, label: "column " + dependencyIdentifier(c.Name) + " of table " + name, relation: d, column: c.Name})

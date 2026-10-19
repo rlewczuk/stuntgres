@@ -67,7 +67,7 @@ func pgUserUnitRole(e *Engine, state *roleCatalog, id uint64, name string) autho
 func TestPGUserDescriptor(t *testing.T) {
 	e := New()
 	d, _ := pgUserUnitSource(t, e)
-	if d.Name() != "pg_user" || !d.VirtualView || d.View != nil || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != 9 || len(d.Attributes) != 9 || len(d.Index) != 9 || d.AttributeHighWater != 9 {
+	if d.Name() != "pg_user" || !d.VirtualView || d.View != nil || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != 9 || len(d.Attributes) != 9 || len(d.Index) != 9 || d.ColumnMeta.HighWater != 9 {
 		t.Fatal("descriptor shape")
 	}
 	names := []string{"usename", "usesysid", "usecreatedb", "usesuper", "userepl", "usebypassrls", "passwd", "valuntil", "useconfig"}

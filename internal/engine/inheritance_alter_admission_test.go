@@ -357,7 +357,7 @@ func TestInheritanceAlterAdmissionStops(t *testing.T) {
 		}
 		current := retiredUnitTable(t, e, "c")
 		attribute := current.Attributes[current.Index["extra"]]
-		if !current.Inheritance.Columns[attribute].Local || len(current.Inheritance.Columns[attribute].Origins) != 1 || !sameGroupExpression(current.Defaults[attribute].Expression, c.Defaults[attribute].Expression) || retiredUnitTable(t, e, "leaf") != leaf {
+		if !current.Inheritance.Columns[attribute].Local || len(current.Inheritance.Columns[attribute].Origins) != 1 || !sameGroupExpression(current.ColumnMeta.Defaults[attribute].Expression, c.ColumnMeta.Defaults[attribute].Expression) || retiredUnitTable(t, e, "leaf") != leaf {
 			t.Fatal("merge replaced local recipe or changed stopped leaf")
 		}
 		inheritanceAlterAssertRows(t, e, current, []sqltype.Value{inheritanceQueryInt(e, 1), inheritanceQueryInt(e, 19)})

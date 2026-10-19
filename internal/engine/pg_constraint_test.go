@@ -119,7 +119,7 @@ func TestPGConstraintShapeAndOwnership(t *testing.T) {
 	view := e.CatalogRead()
 	names := []string{"oid", "conname", "connamespace", "contype", "condeferrable", "condeferred", "conenforced", "convalidated", "conrelid", "contypid", "conindid", "conparentid", "confrelid", "confupdtype", "confdeltype", "confmatchtype", "conislocal", "coninhcount", "connoinherit", "conperiod", "conkey", "confkey", "conpfeqop", "conppeqop", "conffeqop", "confdelsetcols", "conexclop", "conbin"}
 	typeIDs := []sqltype.ID{26, 19, 26, 18, 16, 16, 16, 16, 26, 26, 26, 26, 26, 18, 18, 18, 16, 21, 16, 16, 1005, 1005, 1028, 1028, 1028, 1005, 1028, 194}
-	if source.RowType != 10003 || source.AttributeHighWater != 28 || len(source.Columns) != 28 || source.Namespace().ObjectID != 11 {
+	if source.RowType != 10003 || source.ColumnMeta.HighWater != 28 || len(source.Columns) != 28 || source.Namespace().ObjectID != 11 {
 		t.Fatal("source shape", source)
 	}
 	for i, column := range source.Columns {

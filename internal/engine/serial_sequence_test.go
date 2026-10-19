@@ -35,7 +35,9 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 	table := &catalog.Relation{
 		ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, ObjectNamespace: ns.Address(), ObjectName: "Owned", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
 		Columns:    []catalog.Column{{Name: "ID", Usage: integer.Usage()}, {Name: "plain", Usage: integer.Usage()}},
-		Attributes: []int32{7, 9}, Index: map[string]int{"ID": 0, "plain": 1}, AttributeHighWater: 9,
+		Attributes: []int32{7, 9}, Index: map[string]int{"ID": 0, "plain": 1}, ColumnMeta: catalog.ColumnMetadata{
+			HighWater: 9,
+		},
 	}
 	owner := table.Address()
 	owner.SubID = 7

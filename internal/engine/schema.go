@@ -138,18 +138,18 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	binder.defaultTemporary = auth.catalog.MustNamespace(d.Namespace()).Temporary
 	for slot, declaration := range b.createDeclarations {
 		if declaration.defaultExpr != nil {
-			delete(d.Defaults, d.Attributes[slot])
+			delete(d.ColumnMeta.Defaults, d.Attributes[slot])
 		}
 	}
 	defaults, err := bindCreateDefaults(binder, d.Columns, b.createDeclarations)
 	if err != nil {
 		return err
 	}
-	if d.Defaults == nil {
-		d.Defaults = defaults
+	if d.ColumnMeta.Defaults == nil {
+		d.ColumnMeta.Defaults = defaults
 	} else {
 		for attribute, definition := range defaults {
-			d.Defaults[attribute] = definition
+			d.ColumnMeta.Defaults[attribute] = definition
 		}
 	}
 	if err := e.bindCreateGenerations(op, auth, d, b.createDeclarations, input); err != nil {
@@ -228,7 +228,7 @@ func (e *Engine) newTableDescriptorLocked(ns ids.ObjectAddress, name string, own
 		}
 	}
 	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns, ObjectName: name, ObjectRevision: revision, Owner: owner, Columns: columns, Index: index, Attributes: make([]int32, len(columns))}
-	d.AttributeHighWater = int32(len(columns))
+	d.ColumnMeta.HighWater = int32(len(columns))
 	for i := range columns {
 		d.Attributes[i] = int32(i + 1)
 		d.Columns[i].OriginTable = uint32(oid)

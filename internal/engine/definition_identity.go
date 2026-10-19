@@ -37,25 +37,25 @@ func (e *Engine) assignDefinitionOIDsLocked(d *catalog.Relation) error {
 		}
 	}
 	for _, attr := range d.Attributes {
-		def, ok := d.Defaults[attr]
+		def, ok := d.ColumnMeta.Defaults[attr]
 		if ok && def.OID == 0 {
 			id, err := e.catalog.allocateOIDLocked()
 			if err != nil {
 				return err
 			}
 			def.OID = id
-			d.Defaults[attr] = def
+			d.ColumnMeta.Defaults[attr] = def
 		}
 	}
 	for _, attr := range d.Attributes {
-		definition, exists := d.Generations[attr]
+		definition, exists := d.ColumnMeta.Generations[attr]
 		if exists && definition.OID == 0 {
 			id, err := e.catalog.allocateOIDLocked()
 			if err != nil {
 				return err
 			}
 			definition.OID = id
-			d.Generations[attr] = definition
+			d.ColumnMeta.Generations[attr] = definition
 		}
 	}
 	for i := range d.CheckConstraints {
@@ -145,12 +145,12 @@ func definitionOIDUsed(descriptor catalog.Descriptor, id ids.OID) bool {
 			return true
 		}
 	}
-	for _, c := range d.Defaults {
+	for _, c := range d.ColumnMeta.Defaults {
 		if c.OID == id {
 			return true
 		}
 	}
-	for _, definition := range d.Generations {
+	for _, definition := range d.ColumnMeta.Generations {
 		if definition.OID == id {
 			return true
 		}
@@ -199,10 +199,10 @@ func reserveDefinitionOIDs(reserved map[ids.OID]bool, descriptor catalog.Descrip
 	for _, c := range d.ForeignKeys {
 		reserved[c.OID] = true
 	}
-	for _, c := range d.Defaults {
+	for _, c := range d.ColumnMeta.Defaults {
 		reserved[c.OID] = true
 	}
-	for _, c := range d.Generations {
+	for _, c := range d.ColumnMeta.Generations {
 		reserved[c.OID] = true
 	}
 }
@@ -278,12 +278,12 @@ func validateDefinitionOIDs(view catalog.Read) error {
 				return err
 			}
 		}
-		for _, c := range d.Defaults {
+		for _, c := range d.ColumnMeta.Defaults {
 			if err := claim(c.OID); err != nil {
 				return err
 			}
 		}
-		for _, definition := range d.Generations {
+		for _, definition := range d.ColumnMeta.Generations {
 			if err := claim(definition.OID); err != nil {
 				return err
 			}
@@ -348,10 +348,10 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
 			for _, definition := range d.ForeignKeys {
 				claimed[definition.OID] = true
 			}
-			for _, definition := range d.Defaults {
+			for _, definition := range d.ColumnMeta.Defaults {
 				claimed[definition.OID] = true
 			}
-			for _, definition := range d.Generations {
+			for _, definition := range d.ColumnMeta.Generations {
 				claimed[definition.OID] = true
 			}
 		}
@@ -411,7 +411,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
 		if ns, ok := next.Namespace(old.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
 			continue
 		}
-		if len(old.NotNullConstraints)+len(old.CheckConstraints)+len(old.UniqueConstraints)+len(old.ExclusionConstraints)+len(old.ForeignKeys)+len(old.Defaults)+len(old.Generations)+len(old.Security.Policies)+len(rulesOf(old)) == 0 {
+		if len(old.NotNullConstraints)+len(old.CheckConstraints)+len(old.UniqueConstraints)+len(old.ExclusionConstraints)+len(old.ForeignKeys)+len(old.ColumnMeta.Defaults)+len(old.ColumnMeta.Generations)+len(old.Security.Policies)+len(rulesOf(old)) == 0 {
 			continue
 		}
 		d := *old
@@ -541,7 +541,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
 			recordConstraint(def.OID, id)
 			changed = true
 		}
-		for attr, def := range old.Defaults {
+		for attr, def := range old.ColumnMeta.Defaults {
 			id, err := remint(def.OID)
 			if err != nil {
 				return err
@@ -550,18 +550,18 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
 				continue
 			}
 			if !defaultCopied {
-				d.Defaults = make(map[int32]catalog.ColumnDefault, len(old.Defaults))
-				for key, value := range old.Defaults {
-					d.Defaults[key] = value
+				d.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault, len(old.ColumnMeta.Defaults))
+				for key, value := range old.ColumnMeta.Defaults {
+					d.ColumnMeta.Defaults[key] = value
 				}
 				defaultCopied = true
 			}
 			def.OID = id
-			d.Defaults[attr] = def
+			d.ColumnMeta.Defaults[attr] = def
 			changed = true
 		}
 		generationCopied := false
-		for attr, definition := range old.Generations {
+		for attr, definition := range old.ColumnMeta.Generations {
 			id, err := remint(definition.OID)
 			if err != nil {
 				return err
@@ -570,14 +570,14 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
 				continue
 			}
 			if !generationCopied {
-				d.Generations = make(map[int32]catalog.ColumnGeneration, len(old.Generations))
-				for key, value := range old.Generations {
-					d.Generations[key] = value
+				d.ColumnMeta.Generations = make(map[int32]catalog.ColumnGeneration, len(old.ColumnMeta.Generations))
+				for key, value := range old.ColumnMeta.Generations {
+					d.ColumnMeta.Generations[key] = value
 				}
 				generationCopied = true
 			}
 			definition.OID = id
-			d.Generations[attr] = definition
+			d.ColumnMeta.Generations[attr] = definition
 			changed = true
 		}
 		if changed {

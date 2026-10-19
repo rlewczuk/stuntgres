@@ -46,7 +46,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 		if i >= 20 {
 			collation = 950
 		}
-		if c.OriginTable != 2600 || c.OriginAttribute != int16(i+1) || !c.NullabilityKnown || c.Nullable != (i >= 20) || c.Usage.Collation.ID != collation || source.CatalogAttributes[i].NotNull != (i < 20) {
+		if c.OriginTable != 2600 || c.OriginAttribute != int16(i+1) || !c.NullabilityKnown || c.Nullable != (i >= 20) || c.Usage.Collation.ID != collation || source.ColumnMeta.CatalogAttributes[i].NotNull != (i < 20) {
 			t.Fatal("aggregate attribute facts", i, c)
 		}
 	}

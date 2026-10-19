@@ -18,15 +18,15 @@ func relationAttributeMetadata(relation *catalog.Relation, slot int) catalog.Att
 	column := relation.Columns[slot]
 	attribute := relation.Attributes[slot]
 	metadata := catalog.AttributeMetadata{Name: column.Name, TypeID: uint32(column.Usage.Type.ID()), Number: attribute, Facts: column.Usage.Type.AttributeFacts(), Typmod: column.Usage.Typmod, Dimensions: column.DeclaredDimensions, Collation: column.Usage.Collation.ID, NotNull: !column.Nullable, Local: true}
-	_, metadata.HasDefault = relation.Defaults[attribute]
-	if definition, ok := relation.Generations[attribute]; ok {
+	_, metadata.HasDefault = relation.ColumnMeta.Defaults[attribute]
+	if definition, ok := relation.ColumnMeta.Generations[attribute]; ok {
 		metadata.HasDefault = true
 		metadata.Generated = "s"
 		if definition.Kind == catalog.GenerationVirtual {
 			metadata.Generated = "v"
 		}
 	}
-	if definition, ok := relation.Identities[attribute]; ok {
+	if definition, ok := relation.ColumnMeta.Identities[attribute]; ok {
 		metadata.Identity = "d"
 		if definition.Mode == parser.IdentityAlways {
 			metadata.Identity = "a"
@@ -50,7 +50,7 @@ func relationAttributeMetadata(relation *catalog.Relation, slot int) catalog.Att
 		}
 	}
 	if relation.RelationKind == catalog.CatalogRelation {
-		fact := relation.CatalogAttributes[slot]
+		fact := relation.ColumnMeta.CatalogAttributes[slot]
 		metadata.NotNull, metadata.Dimensions, metadata.Collation = fact.NotNull, fact.Dimensions, fact.Collation
 	}
 	return metadata
@@ -94,7 +94,7 @@ func (e *Engine) capturePGAttribute(ctx context.Context, view catalog.Read, role
 			return nil, err
 		}
 		if relation, ok := descriptor.(*catalog.Relation); ok {
-			count += len(relation.Columns) + len(relation.DroppedAttributes)
+			count += len(relation.Columns) + len(relation.ColumnMeta.Dropped)
 			if hasSystemAttributes(view, relation) {
 				count += 6
 			}
@@ -122,7 +122,7 @@ func (e *Engine) capturePGAttribute(ctx context.Context, view catalog.Read, role
 				return nil, err
 			}
 		}
-		for _, metadata := range relation.DroppedAttributes {
+		for _, metadata := range relation.ColumnMeta.Dropped {
 			if err := appendRow(metadata); err != nil {
 				return nil, err
 			}

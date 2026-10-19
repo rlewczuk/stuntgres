@@ -56,7 +56,7 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *catalog.Relation
 		options.Owned.SubID = table.Attributes[slot]
 		sequence := &catalog.Relation{ObjectAddress: address, ObjectNamespace: table.Namespace(), ObjectName: name, ObjectRevision: revision, SequencePlanStamp: revision, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, RelationKind: catalog.SequenceRelation, Sequence: &options}
 		sequence.Security.ACL = stage.creationACL(table.Owner, table.Namespace(), authorization.DefaultSequences)
-		sequence.AttributeHighWater = 3
+		sequence.ColumnMeta.HighWater = 3
 		if err := stage.Create(sequence); err != nil {
 			return err
 		}

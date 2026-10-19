@@ -695,7 +695,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 		var deferredPredecessors []ids.OID
 		var deferredDefinitions map[int32]bool
-		for attribute, definition := range r.Defaults {
+		for attribute, definition := range r.ColumnMeta.Defaults {
 			eligible := defaultReplayDeferrable(definition)
 			if eligible {
 				if deferredDefinitions == nil {
@@ -735,7 +735,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 			}
 		}
-		for _, definition := range r.Generations {
+		for _, definition := range r.ColumnMeta.Generations {
 			if recipePlan[r.Address()] != nil {
 				continue
 			}
@@ -765,8 +765,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			viewDependencies[dumpEventKey{oid: oid}] = dumpDeclarationEvents(combined)
 		}
 		tableIndices[oid] = len(tables)
-		linked := make(map[ids.ObjectAddress]dumpSequence, len(r.Identities))
-		for _, identity := range r.Identities {
+		linked := make(map[ids.ObjectAddress]dumpSequence, len(r.ColumnMeta.Identities))
+		for _, identity := range r.ColumnMeta.Identities {
 			sequence := e.catalog.state.MustRelation(identity.Sequence)
 			linked[identity.Sequence] = dumpSequence{owner: principal.Name, schema: ns.Name(), name: sequence.Name(), options: *sequence.Sequence, state: *e.storage.sequences[identity.Sequence], comment: sequence.Comment}
 		}
@@ -775,7 +775,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if storage != nil {
 			versions, ends = storage.versions, storage.ends
 		}
-		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.Name(), name: r.Name(), columns: r.Columns, attributes: r.Attributes, versions: versions, ends: ends, frontier: e.commitSeq, comment: r.Comment, columnComments: r.ColumnComments, notNullConstraints: r.NotNullConstraints, defaults: r.Defaults, deferredDefinitions: deferredDefinitions, descriptor: r, identities: r.Identities, identitySequences: linked})
+		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.Name(), name: r.Name(), columns: r.Columns, attributes: r.Attributes, versions: versions, ends: ends, frontier: e.commitSeq, comment: r.Comment, columnComments: r.ColumnMeta.Comments, notNullConstraints: r.NotNullConstraints, defaults: r.ColumnMeta.Defaults, deferredDefinitions: deferredDefinitions, descriptor: r, identities: r.ColumnMeta.Identities, identitySequences: linked})
 		if selected := recipePlan[r.Address()]; selected != nil {
 			tables[len(tables)-1].recipePlaceholders = true
 			tables[len(tables)-1].recipeComponent = selected.recipeComponent
@@ -1257,7 +1257,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		qualified := quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name)
 		// CREATE TABLE OF cannot declare identity/generation or preserve a
 		// post-creation array rank. Reconstruct ordinary columns, then attach.
-		attachAfterCreate := t.descriptor.OfType != (ids.ObjectAddress{}) && (len(t.identities) != 0 || len(t.descriptor.Generations) != 0 || slices.ContainsFunc(t.columns, func(column catalog.Column) bool { return column.DeclaredDimensions != 0 }))
+		attachAfterCreate := t.descriptor.OfType != (ids.ObjectAddress{}) && (len(t.identities) != 0 || len(t.descriptor.ColumnMeta.Generations) != 0 || slices.ContainsFunc(t.columns, func(column catalog.Column) bool { return column.DeclaredDimensions != 0 }))
 		var line strings.Builder
 		if t.descriptor.Membership == nil || partitionDumpNeedsAttach(catalogView, t.descriptor) {
 			typed := t.descriptor.OfType != (ids.ObjectAddress{}) && !attachAfterCreate
@@ -1316,7 +1316,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 						line.WriteString(" DEFAULT NULL")
 					}
 				}
-				if definition, exists := t.descriptor.Generations[t.attributes[i]]; exists && provenance.ExplicitGeneration {
+				if definition, exists := t.descriptor.ColumnMeta.Generations[t.attributes[i]]; exists && provenance.ExplicitGeneration {
 					var text string
 					if t.recipePlaceholders {
 						// The genuine owning declaration supplies the full type/typmod.

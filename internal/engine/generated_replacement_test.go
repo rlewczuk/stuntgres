@@ -66,7 +66,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	d.Columns[1].Usage = oid.Usage()
 	ref := e.catalog.Domain.Ref(view.Epoch()+1, d.Address())
 	leaf := tableOIDExpression{expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, ref}
-	d.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: leaf, Planned: leaf}}
+	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: leaf, Planned: leaf}}
 	// CHECK consumes the repaired cell as well as the scoped provider. A stale
 	// source tableoid vetoes the row instead of reaching the final stale fence.
 	probe := functions.Random{Info: expr.Info{Usage: floating.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "random"}
@@ -102,7 +102,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	tempAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 27001}
 	temp := *d
 	temp.ObjectAddress, temp.ObjectNamespace, temp.ObjectName = tempAddress, tempNamespace, "retained"
-	temp.Generations, temp.CheckConstraints = nil, nil
+	temp.ColumnMeta.Generations, temp.CheckConstraints = nil, nil
 	tempValues := append([]sqltype.Value(nil), source...)
 	e.catalog.state = catalog.CloneState(e.catalog.state)
 	e.catalog.state.SetDescriptor(tempNamespace, &catalog.Namespace{ObjectAddress: tempNamespace, ObjectName: "pg_temp_1", Owner: d.Owner, ObjectRevision: 1, Temporary: e.catalog.Domain.Session(99)})

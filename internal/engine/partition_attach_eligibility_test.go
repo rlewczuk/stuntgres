@@ -88,12 +88,12 @@ func TestPartitionAttachNotNullValidity(t *testing.T) {
 			defer done()
 			parent := inheritanceUnitRelation(e, "parent", 32220, "k", "payload")
 			parent.Attributes = []int32{3, 8}
-			parent.AttributeHighWater = 8
+			parent.ColumnMeta.HighWater = 8
 			parent.Columns[1].Nullable = false
 			parent.NotNullConstraints = []catalog.NotNullConstraint{{OID: 32221, Name: "parent_nn", Attribute: 8, NotValid: c.parentInvalid}}
 			child := inheritanceUnitRelation(e, "child", 32222, "payload", "k")
 			child.Attributes = []int32{2, 9}
-			child.AttributeHighWater = 9
+			child.ColumnMeta.HighWater = 9
 			child.Columns[0].Nullable, child.Columns[1].Nullable = false, false
 			name := "child_nn"
 			if c.sameName {

@@ -118,7 +118,7 @@ func notNullCandidate(op *Operation, view catalog.Read, old *catalog.Relation, a
 		}
 	}
 	if !adding {
-		_, identity := old.Identities[old.Attributes[slot]]
+		_, identity := old.ColumnMeta.Identities[old.Attributes[slot]]
 		// ALTER COLUMN checks identity before entering constraint removal.
 		// Named DROP reaches the primary-key protection first instead.
 		if identity && a.Action != parser.DropConstraint {

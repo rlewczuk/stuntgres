@@ -25,7 +25,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 			sessionSQL(t, owner, "INSERT INTO src(a,n,active) VALUES(3,2,true)")
 			source := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "src")
 			oldEpoch := e.CatalogRead().Epoch()
-			generations := maps.Clone(source.Generations)
+			generations := maps.Clone(source.ColumnMeta.Generations)
 			for attribute, generation := range generations {
 				generation.Dependencies = slices.Clone(generation.Dependencies)
 				generations[attribute] = generation
@@ -93,7 +93,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 				}
 			}
 			for attribute, old := range generations {
-				copied := destination.Generations[attribute]
+				copied := destination.ColumnMeta.Generations[attribute]
 				if copied.OID == old.OID {
 					t.Fatal("generation identity retained")
 				}
@@ -145,7 +145,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 			if len(clonedIndexes) != 2 {
 				t.Fatal("indexes omitted")
 			}
-			if !slices.Equal(rowRefs(sourceTrees), originalRefs) || !reflect.DeepEqual(source.Generations, generations) || !slices.Equal(check.Dependencies, originalChecks) {
+			if !slices.Equal(rowRefs(sourceTrees), originalRefs) || !reflect.DeepEqual(source.ColumnMeta.Generations, generations) || !slices.Equal(check.Dependencies, originalChecks) {
 				t.Fatal("source cooked definitions mutated")
 			}
 			candidate, _, collision := tableLikeBuild(t, e, op, "CREATE "+prefix+"TABLE failed(LIKE pg_temp.src INCLUDING ALL,a INT)")
@@ -195,7 +195,7 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 	source := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "src")
 	anchor := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "anchor")
 	oldRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), anchor.Address())
-	oldGeneration := source.Generations[2]
+	oldGeneration := source.ColumnMeta.Generations[2]
 	oldCheck := source.CheckConstraints[0]
 	oldIndex := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "source_partial")
 	oldManifest := slices.Clone(oldIndex.SQLIndex.Predicate.Dependencies)
@@ -215,7 +215,7 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	generation := destination.Generations[3]
+	generation := destination.ColumnMeta.Generations[3]
 	if !slices.Contains(generation.Dependencies, oldRef) {
 		t.Fatal("external literal manifest reminted", generation.Dependencies)
 	}
@@ -255,7 +255,7 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 		assertNode(index.SQLIndex.Predicate.Definition)
 		assertNode(index.SQLIndex.Predicate.Execution)
 	}
-	if !reflect.DeepEqual(source.Generations[2], oldGeneration) || !reflect.DeepEqual(source.CheckConstraints[0], oldCheck) || !slices.Equal(oldIndex.SQLIndex.Predicate.Dependencies, oldManifest) {
+	if !reflect.DeepEqual(source.ColumnMeta.Generations[2], oldGeneration) || !reflect.DeepEqual(source.CheckConstraints[0], oldCheck) || !slices.Equal(oldIndex.SQLIndex.Predicate.Dependencies, oldManifest) {
 		t.Fatal("retained source definitions changed")
 	}
 	// An old external TEMP constant never borrows the mapper's fresh local-row

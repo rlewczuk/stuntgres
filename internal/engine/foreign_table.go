@@ -277,10 +277,10 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 				if !ok {
 					return Result{}, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Column.Text, next.Name()))
 				}
-				next.Defaults = maps.Clone(next.Defaults)
+				next.ColumnMeta.Defaults = maps.Clone(next.ColumnMeta.Defaults)
 				attribute := next.Attributes[slot]
 				if a.Action == parser.DropDefault {
-					delete(next.Defaults, attribute)
+					delete(next.ColumnMeta.Defaults, attribute)
 				} else {
 					e.mu.Lock()
 					definition, er := e.cookAlterDefaultLocked(scope, scope.op, auth, &next, slot, a.Expression)
@@ -288,10 +288,10 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 					if er != nil {
 						return Result{}, er
 					}
-					if next.Defaults == nil {
-						next.Defaults = make(map[int32]catalog.ColumnDefault)
+					if next.ColumnMeta.Defaults == nil {
+						next.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault)
 					}
-					next.Defaults[attribute] = definition
+					next.ColumnMeta.Defaults[attribute] = definition
 				}
 				continue
 			}

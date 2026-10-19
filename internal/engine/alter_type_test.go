@@ -21,7 +21,7 @@ func TestAlterTypeMetadataAndAtomicity(t *testing.T) {
 	held := run(t, e, "SELECT * FROM t")
 	run(t, e, "ALTER TABLE t ALTER a TYPE BIGINT USING a+1")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if next == old || next.Address() != old.Address() || next.Owner != old.Owner || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.ColumnComments, old.ColumnComments) || len(next.NotNullConstraints) != len(old.NotNullConstraints) {
+	if next == old || next.Address() != old.Address() || next.Owner != old.Owner || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.ColumnMeta.Comments, old.ColumnMeta.Comments) || len(next.NotNullConstraints) != len(old.NotNullConstraints) {
 		t.Fatal(old, next)
 	}
 	beforeNN, afterNN := old.NotNullConstraints[0], next.NotNullConstraints[0]

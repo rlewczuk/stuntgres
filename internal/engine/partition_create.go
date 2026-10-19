@@ -128,7 +128,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 	}
 	// Invalid keys/bounds and inherited definitions win over this declared
 	// implementation boundary; neither path publishes allocated auxiliaries.
-	pending.unsupportedCombination = len(child.Generations) != 0 || len(child.Identities) != 0
+	pending.unsupportedCombination = len(child.ColumnMeta.Generations) != 0 || len(child.ColumnMeta.Identities) != 0
 	for _, element := range syntax.Elements {
 		if element.Column != nil && serialTypeName(element.Column.TypeName) != "" {
 			pending.unsupportedCombination = true

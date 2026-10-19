@@ -198,7 +198,7 @@ func TestDeparseConstraintsNoEvalAndCarrierLifetime(t *testing.T) {
 	view := e.CatalogRead()
 	d := view.MustRelation(roleTableRef(t, e, "t").Address)
 	treeType, _ := view.LookupType(sqltype.PgNodeTree)
-	saved, err := catalogTree(treeType, d.Defaults[1].Expression)
+	saved, err := catalogTree(treeType, d.ColumnMeta.Defaults[1].Expression)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,20 +237,20 @@ func TestDeparseConstraintsDefinitionIdentityAndNullProducer(t *testing.T) {
 	run(t, e, "CREATE TABLE t(a INT DEFAULT NULL,b INT DEFAULT (NULL::integer),c INT DEFAULT COALESCE(NULL,1),d INT NOT NULL,CHECK(c>0))")
 	view := e.CatalogRead()
 	d := view.MustRelation(roleTableRef(t, e, "t").Address)
-	if len(d.Defaults) != 1 || d.Defaults[3].OID == 0 || d.CheckConstraints[0].OID == 0 || d.NotNullConstraints[0].OID == 0 {
-		t.Fatal(d.Defaults, d.CheckConstraints, d.NotNullConstraints)
+	if len(d.ColumnMeta.Defaults) != 1 || d.ColumnMeta.Defaults[3].OID == 0 || d.CheckConstraints[0].OID == 0 || d.NotNullConstraints[0].OID == 0 {
+		t.Fatal(d.ColumnMeta.Defaults, d.CheckConstraints, d.NotNullConstraints)
 	}
 	if err := validateDefinitionOIDs(view); err != nil {
 		t.Fatal(err)
 	}
-	old := d.Defaults[3].OID
+	old := d.ColumnMeta.Defaults[3].OID
 	run(t, e, "ALTER TABLE t ALTER c SET DEFAULT 3")
 	next := e.CatalogRead().MustRelation(d.Address())
-	if next.Defaults[3].OID == old || next.CheckConstraints[0].OID != d.CheckConstraints[0].OID {
+	if next.ColumnMeta.Defaults[3].OID == old || next.CheckConstraints[0].OID != d.CheckConstraints[0].OID {
 		t.Fatal("definition identity replacement/preservation")
 	}
 	run(t, e, "ALTER TABLE t ALTER c SET DEFAULT NULL")
-	if len(e.CatalogRead().MustRelation(d.Address()).Defaults) != 0 {
+	if len(e.CatalogRead().MustRelation(d.Address()).ColumnMeta.Defaults) != 0 {
 		t.Fatal("NULL definition persisted")
 	}
 }
@@ -371,7 +371,7 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 	run(t, e, "CREATE TABLE t(a INT DEFAULT 1 NOT NULL,CHECK(a>0))")
 	view := e.CatalogRead()
 	d := view.MustRelation(roleTableRef(t, e, "t").Address)
-	for _, id := range []ids.OID{d.Defaults[1].OID, d.NotNullConstraints[0].OID, d.CheckConstraints[0].OID} {
+	for _, id := range []ids.OID{d.ColumnMeta.Defaults[1].OID, d.NotNullConstraints[0].OID, d.CheckConstraints[0].OID} {
 		e.mu.Lock()
 		e.catalog.nextOID = id
 		next, err := e.catalog.allocateOIDLocked()
@@ -383,7 +383,7 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 	bad := catalog.CloneState(view.State())
 	copy := *d
 	copy.CheckConstraints = append([]catalog.CheckConstraint(nil), d.CheckConstraints...)
-	copy.CheckConstraints[0].OID = d.Defaults[1].OID
+	copy.CheckConstraints[0].OID = d.ColumnMeta.Defaults[1].OID
 	bad.SetDescriptor(d.Address(), &copy)
 	if err := validateDefinitionOIDs(e.catalog.read(bad)); err == nil {
 		t.Fatal("duplicate identity accepted")
@@ -397,7 +397,7 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 	if err := validateDefinitionOIDs(e.catalog.read(bad)); err != nil {
 		t.Fatal(err)
 	}
-	if d.CheckConstraints[0].OID == d.Defaults[1].OID {
+	if d.CheckConstraints[0].OID == d.ColumnMeta.Defaults[1].OID {
 		t.Fatal("remap mutated original")
 	}
 }

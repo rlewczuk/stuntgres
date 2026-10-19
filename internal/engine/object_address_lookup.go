@@ -524,10 +524,10 @@ func ownedAddressByName(d *catalog.Relation, class ids.OID, name string) ids.OID
 		for i, col := range d.Columns {
 			if col.Name == name {
 				sub := d.Attributes[i]
-				if def, ok := d.Defaults[sub]; ok {
+				if def, ok := d.ColumnMeta.Defaults[sub]; ok {
 					return def.OID
 				}
-				if def, ok := d.Generations[sub]; ok {
+				if def, ok := d.ColumnMeta.Generations[sub]; ok {
 					return def.OID
 				}
 			}

@@ -73,7 +73,7 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 	view := e.CatalogRead()
 	d, _ := pgParameterACLUnitSource(t, e, view)
 	owner := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
-	if d.Name() != "pg_parameter_acl" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.Owner != owner || d.Owner.ID() != 10 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || len(d.Columns) != 3 || d.AttributeHighWater != 3 || !d.History.HasIndexes {
+	if d.Name() != "pg_parameter_acl" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.Owner != owner || d.Owner.ID() != 10 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || len(d.Columns) != 3 || d.ColumnMeta.HighWater != 3 || !d.History.HasIndexes {
 		t.Fatal("relation identity", d)
 	}
 	for i, name := range []string{"oid", "parname", "paracl"} {

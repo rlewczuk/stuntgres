@@ -23,7 +23,7 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 	if c.OID == 0 || c.Index != index.Address() || !index.SQLIndex.Unique || index.SQLIndex.Constraint == nil || index.SQLIndex.Constraint.OID != c.OID || index.SQLIndex.Parent != parent.Address() || index.Owner != parent.Owner || index.Namespace() != parent.Namespace() || len(empty.entries) != 0 {
 		t.Fatal("broken parent/index closure")
 	}
-	if index.AttributeHighWater != int32(len(index.Attributes)) {
+	if index.ColumnMeta.HighWater != int32(len(index.Attributes)) {
 		t.Fatal("backing column identities exceed their allocation high-water")
 	}
 	run(t, e, "INSERT INTO t VALUES(1,'a'),(NULL,'n'),(NULL,'n')")

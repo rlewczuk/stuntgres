@@ -136,7 +136,7 @@ func (e *Engine) pgClassRow(ctx context.Context, view catalog.Read, roles author
 		oid(3, uint32(relation.RowType)), oid(4, uint32(relation.OfType.ObjectID)), oid(5, uint32(relation.Owner.ID())),
 		oid(6, method), oid(7, 0), oid(8, tablespace), integer(9, 0), checked(sqltype.Float(source.Columns[10].Usage.Type, tuples)),
 		integer(11, 0), integer(12, 0), oid(13, 0), boolean(14, relation.History.HasIndexes), boolean(15, shared),
-		text(16, pgClassPersistence(view, relation)), text(17, kind), integer(18, int64(relation.AttributeHighWater)), integer(19, int64(len(relation.CheckConstraints))),
+		text(16, pgClassPersistence(view, relation)), text(17, kind), integer(18, int64(relation.ColumnMeta.HighWater)), integer(19, int64(len(relation.CheckConstraints))),
 		boolean(20, len(rulesOf(relation)) != 0 || relation.View != nil || relation.RelationKind == catalog.CatalogRelation && kind == "v"), boolean(21, false), boolean(22, relation.History.HasSubclasses),
 		boolean(23, relation.Security.RLSEnabled), boolean(24, relation.Security.RLSForced), boolean(25, relation.RelationKind != catalog.MaterializedViewRelation || relation.Populated),
 		text(26, replica), boolean(27, relation.Membership != nil || relation.SQLIndex != nil && relation.SQLIndex.PartitionParent != (ids.ObjectAddress{})), oid(28, 0),

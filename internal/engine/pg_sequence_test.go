@@ -59,7 +59,7 @@ func pgSequenceUnitBag(t *testing.T, source *querySource) map[uint32][]any {
 func TestPGSequenceShape(t *testing.T) {
 	e := New()
 	d, _ := pgSequenceUnitSource(t, e)
-	if d.Name() != "pg_sequence" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 8 || len(d.Columns) != 8 {
+	if d.Name() != "pg_sequence" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.ColumnMeta.HighWater != 8 || len(d.Columns) != 8 {
 		t.Fatal(d)
 	}
 	for i, tc := range []struct {

@@ -161,14 +161,14 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		if ref.Address.SubID == 0 {
 			n.Comment = text
 		} else {
-			n.ColumnComments = make(map[int32]string, len(d.ColumnComments)+1)
-			for key, value := range d.ColumnComments {
-				n.ColumnComments[key] = value
+			n.ColumnMeta.Comments = make(map[int32]string, len(d.ColumnMeta.Comments)+1)
+			for key, value := range d.ColumnMeta.Comments {
+				n.ColumnMeta.Comments[key] = value
 			}
 			if text == "" {
-				delete(n.ColumnComments, ref.Address.SubID)
+				delete(n.ColumnMeta.Comments, ref.Address.SubID)
 			} else {
-				n.ColumnComments[ref.Address.SubID] = text
+				n.ColumnMeta.Comments[ref.Address.SubID] = text
 			}
 		}
 		updated = &n

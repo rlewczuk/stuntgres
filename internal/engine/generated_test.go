@@ -28,7 +28,7 @@ func generatedUnitDescriptor(t *testing.T) (*Engine, catalog.Read, *catalog.Rela
 			break
 		}
 	}
-	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 25000}, ObjectNamespace: namespace, ObjectName: "g", ObjectRevision: 1, Columns: []catalog.Column{{Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "b", Usage: integer.Usage(), Nullable: true}}, Attributes: []int32{1, 2}, AttributeHighWater: 2, Index: map[string]int{"a": 0, "b": 1}}
+	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 25000}, ObjectNamespace: namespace, ObjectName: "g", ObjectRevision: 1, Columns: []catalog.Column{{Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "b", Usage: integer.Usage(), Nullable: true}}, Attributes: []int32{1, 2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}, Index: map[string]int{"a": 0, "b": 1}}
 	return e, view, d
 }
 
@@ -37,7 +37,7 @@ func TestGeneratedTypedRowAndCancellation(t *testing.T) {
 	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 	ref.Address.SubID = 1
 	node := columnExpression{Info: expr.Info{Usage: d.Columns[0].Usage, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: 0}
-	d.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: node, Planned: node}}
+	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: node, Planned: node}}
 	value, err := sqltype.Integer(d.Columns[0].Usage.Type, 2)
 	if err != nil {
 		t.Fatal(err)
@@ -67,7 +67,7 @@ func TestGeneratedTypedRowAndCancellation(t *testing.T) {
 
 func TestGeneratedOriginalReferencesAndPrivateReadManifest(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
-	d.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored}}
+	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored}}
 	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 	columns := []queryColumn{{descriptor: d.Columns[0], slot: 0, leaf: 0, physical: 0}, {descriptor: d.Columns[1], slot: 1, leaf: 0, physical: 1}}
 	ns := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: "g", original: "g", schema: "public", ref: ref, columns: columns}}, frame: d.Columns}
@@ -176,8 +176,8 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	definition := d.Generations[2]
-	if definition.OID == 0 || !structuralNull(definition.Expression) || len(d.Defaults) != 0 {
+	definition := d.ColumnMeta.Generations[2]
+	if definition.OID == 0 || !structuralNull(definition.Expression) || len(d.ColumnMeta.Defaults) != 0 {
 		t.Fatal("generated NULL pruned/conflated", definition)
 	}
 	candidate := catalog.CloneState(view.State())
@@ -200,7 +200,7 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 		bad := *d
 		replacement := definition
 		mutate(&replacement)
-		bad.Generations = map[int32]catalog.ColumnGeneration{2: replacement}
+		bad.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: replacement}
 		if err := (relationProvider{}).Validate(read, &bad); err == nil {
 			t.Fatal("invalid generated definition accepted")
 		}
@@ -215,7 +215,7 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	d.Columns[1].Usage = oid.Usage()
 	ref := e.catalog.Domain.Ref(view.Epoch()+1, d.Address())
 	leaf := tableOIDExpression{expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, ref}
-	d.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: leaf, Planned: leaf}}
+	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: leaf, Planned: leaf}}
 	base, _ := sqltype.Integer(d.Columns[0].Usage.Type, 2)
 	oldOID, _ := sqltype.OIDValue(oid, uint32(oldAddress.ObjectID))
 	source := []sqltype.Value{base, oldOID}

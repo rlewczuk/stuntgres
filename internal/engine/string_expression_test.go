@@ -140,7 +140,7 @@ func TestStringCoreRegclassSnapshotManifest(t *testing.T) {
 	view := engine.CatalogRead()
 	ref := catalogRef(t, engine, view, "regclass_store")
 	relation := view.MustRelation(ref.Address)
-	if relation.Defaults[relation.Attributes[0]].CatalogSnapshot || !relation.CheckConstraints[0].CommentSnapshot {
+	if relation.ColumnMeta.Defaults[relation.Attributes[0]].CatalogSnapshot || !relation.CheckConstraints[0].CommentSnapshot {
 		t.Fatal("stored CHECK lost REGCLASS snapshot demand or ordinary default gained it")
 	}
 	broken := *relation

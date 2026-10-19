@@ -11,21 +11,21 @@ import (
 // or generation recipe. ONLY changes to a provider can leave a valid descendant
 // recipe that must be replayed without making its attribute local.
 func retainInheritedRecipes(view catalog.Read, child *catalog.Relation, attribute int32, provenance catalog.InheritedColumn) (catalog.InheritedColumn, error) {
-	childDefault, hasDefault := child.Defaults[attribute]
-	childGeneration, generated := child.Generations[attribute]
+	childDefault, hasDefault := child.ColumnMeta.Defaults[attribute]
+	childGeneration, generated := child.ColumnMeta.Generations[attribute]
 	suppliedDefault, suppliedGeneration := false, false
 	for _, origin := range provenance.Origins {
 		parent, ok := view.Relation(origin.Parent)
 		if !ok {
 			return provenance, ids.ErrCatalogReplaced
 		}
-		if definition, exists := parent.Defaults[origin.Attribute]; exists {
+		if definition, exists := parent.ColumnMeta.Defaults[origin.Attribute]; exists {
 			suppliedDefault = true
 			if !hasDefault || !sameInheritedExpression(definition.Expression, childDefault.Expression, child, view) {
 				provenance.ExplicitDefault = true
 			}
 		}
-		if definition, exists := parent.Generations[origin.Attribute]; exists && generated {
+		if definition, exists := parent.ColumnMeta.Generations[origin.Attribute]; exists && generated {
 			suppliedGeneration = true
 			mapper := createLikeInput{source: parent, targetSlots: make([]int, len(parent.Columns))}
 			for i, column := range parent.Columns {

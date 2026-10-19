@@ -27,7 +27,7 @@ func TestPGCollationShapeAndOwnership(t *testing.T) {
 	view := e.CatalogRead()
 	d, _ := pgCollationUnitSource(t, e, view)
 	owner := e.Roles().LookupRef("postgres")
-	if d.Name() != "pg_collation" || d.Namespace().ObjectID != 11 || d.Owner != owner || d.RelationKind != catalog.CatalogRelation || d.VirtualView || d.AttributeHighWater != 12 || len(d.Columns) != 12 {
+	if d.Name() != "pg_collation" || d.Namespace().ObjectID != 11 || d.Owner != owner || d.RelationKind != catalog.CatalogRelation || d.VirtualView || d.ColumnMeta.HighWater != 12 || len(d.Columns) != 12 {
 		t.Fatal("catalog identity", d)
 	}
 	names := [...]string{"oid", "collname", "collnamespace", "collowner", "collprovider", "collisdeterministic", "collencoding", "collcollate", "collctype", "colllocale", "collicurules", "collversion"}

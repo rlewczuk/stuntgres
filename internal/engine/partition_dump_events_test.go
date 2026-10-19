@@ -19,7 +19,7 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 	for _, table := range []*catalog.Relation{f.root, f.leaf} {
 		table.Columns = append(slices.Clone(table.Columns), catalog.Column{Name: "ref", Usage: regclass.Usage(), Nullable: true})
 		table.Attributes = append(slices.Clone(table.Attributes), 99)
-		table.AttributeHighWater = 99
+		table.ColumnMeta.HighWater = 99
 	}
 	other := *f.leaf
 	other.ObjectAddress.ObjectID = 90001

@@ -56,7 +56,7 @@ func TestPGIndexesDescriptors(t *testing.T) {
 	c := e.CatalogRead()
 	d, ref := pgIndexesUnitSource(t, c)
 	names := []string{"schemaname", "tablename", "indexname", "tablespace", "indexdef"}
-	if d.Name() != "pg_indexes" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || len(d.Columns) != 5 || d.AttributeHighWater != 5 {
+	if d.Name() != "pg_indexes" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || len(d.Columns) != 5 || d.ColumnMeta.HighWater != 5 {
 		t.Fatal(d)
 	}
 	for i, col := range d.Columns {

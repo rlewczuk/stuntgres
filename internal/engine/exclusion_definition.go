@@ -157,7 +157,7 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 	if err := partitionUniqueCoverage(parent, definition); err != nil {
 		return err
 	}
-	index := &catalog.Relation{ObjectAddress: c.Index, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition, Columns: columns, Attributes: attributes, Index: lookup, AttributeHighWater: int32(len(attributes))}
+	index := &catalog.Relation{ObjectAddress: c.Index, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition, Columns: columns, Attributes: attributes, Index: lookup, ColumnMeta: catalog.ColumnMetadata{HighWater: int32(len(attributes))}}
 	for i := range columns {
 		index.Columns[i].Nullable = true
 		index.Columns[i].NullabilityKnown = true

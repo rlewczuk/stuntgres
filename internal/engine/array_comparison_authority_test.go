@@ -40,7 +40,7 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 	ref := catalogRef(t, e, view, "ac_authority")
 	table := view.MustRelation(ref.Address)
 	for _, attribute := range table.Attributes {
-		original := table.Defaults[attribute].Expression.(scalarArrayComparisonExpression)
+		original := table.ColumnMeta.Defaults[attribute].Expression.(scalarArrayComparisonExpression)
 		input, conflict := original.predicate.InputCollation()
 		if input.ID != uint32(source.OID) || conflict || original.ResultUsage().Collation.ID != 0 {
 			t.Fatal("BOOL result leaked or hid input authority", input, conflict, original.ResultUsage())

@@ -92,7 +92,7 @@ func pgGroupUnitMembers(t *testing.T, row []sqltype.Value, want ...uint32) {
 func TestPGGroupDescriptor(t *testing.T) {
 	e := New()
 	d, _ := pgGroupUnitSource(t, e)
-	if d.Name() != "pg_group" || !d.VirtualView || d.View != nil || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != 3 || len(d.Attributes) != 3 || len(d.Index) != 3 || d.AttributeHighWater != 3 {
+	if d.Name() != "pg_group" || !d.VirtualView || d.View != nil || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != 3 || len(d.Attributes) != 3 || len(d.Index) != 3 || d.ColumnMeta.HighWater != 3 {
 		t.Fatal("descriptor shape")
 	}
 	for i, typ := range []sqltype.ID{sqltype.Name, sqltype.Oid, 1028} {

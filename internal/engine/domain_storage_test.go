@@ -165,8 +165,8 @@ func TestDomainDefinitionIdentityDependencyOrder(t *testing.T) {
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.a AS integer"))
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.t(keep integer,first integer DEFAULT 7::public.a,second integer DEFAULT 8::public.a,CHECK(keep>0::public.a))")
-	first := table.Defaults[table.Attributes[1]].OID
-	second := table.Defaults[table.Attributes[2]].OID
+	first := table.ColumnMeta.Defaults[table.Attributes[1]].OID
+	second := table.ColumnMeta.Defaults[table.Attributes[2]].OID
 	check := table.CheckConstraints[0].OID
 	if first == 0 || first >= second || second >= check {
 		t.Fatal("definition allocation does not follow attribute defaults then CHECK", first, second, check)

@@ -446,7 +446,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	if scope.viewPersistence == "temporary" {
 		definition.consumer = d.Address()
 	}
-	attribute := d.AttributeHighWater
+	attribute := d.ColumnMeta.HighWater
 	for _, id := range d.Attributes {
 		if id > attribute {
 			attribute = id
@@ -462,7 +462,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		d.Columns[i].OriginAttribute = int16(d.Attributes[i])
 		d.Columns[i].DeclaredDimensions = 0
 	}
-	d.AttributeHighWater = attribute
+	d.ColumnMeta.HighWater = attribute
 	if err = e.stageRowTypeLocked(stage, d); err != nil {
 		e.mu.Unlock()
 		return Result{}, err

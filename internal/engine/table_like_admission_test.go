@@ -81,7 +81,7 @@ func tableLikeAdmission(t *testing.T, provider string) {
 				}
 			}()
 			if provider == "predicate" {
-				if len(destination.Defaults) != 0 || len(destination.CheckConstraints) != 0 {
+				if len(destination.ColumnMeta.Defaults) != 0 || len(destination.CheckConstraints) != 0 {
 					t.Fatal("predicate provider admission masked by another definition")
 				}
 				retained := false

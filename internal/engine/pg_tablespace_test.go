@@ -68,8 +68,8 @@ func TestPGTablespaceDescriptorCapture(t *testing.T) {
 	if d.Owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) || d.RowType == 0 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || !representedSummaryTable(1213) {
 		t.Fatal("catalog identity", d)
 	}
-	if !reflect.DeepEqual(d.Attributes, []int32{1, 2, 3, 4, 5}) || d.AttributeHighWater != 5 {
-		t.Fatal("attribute positions", d.Attributes, d.AttributeHighWater)
+	if !reflect.DeepEqual(d.Attributes, []int32{1, 2, 3, 4, 5}) || d.ColumnMeta.HighWater != 5 {
+		t.Fatal("attribute positions", d.Attributes, d.ColumnMeta.HighWater)
 	}
 	for i, want := range []struct {
 		name string

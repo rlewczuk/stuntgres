@@ -50,11 +50,11 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 	}
 	defer scope.Finish(errors.New("candidate-only unit"))
 	old := e.catalog.state.MustRelation(ref.Address)
-	original := old.Generations[2]
+	original := old.ColumnMeta.Generations[2]
 	retained := auth.catalog
-	unaffected := old.Generations[3]
+	unaffected := old.ColumnMeta.Generations[3]
 	next, attribute, err := e.generationCandidate(scope, admin, auth, old, alterGenerationAction(alterGenerationLiteral(8)))
-	if err != nil || attribute != 2 || next == old || next.Generations[2].OID != 0 || next.Generations[2].Kind != catalog.GenerationStored {
+	if err != nil || attribute != 2 || next == old || next.ColumnMeta.Generations[2].OID != 0 || next.ColumnMeta.Generations[2].Kind != catalog.GenerationStored {
 		t.Fatal(next, attribute, err)
 	}
 	e.mu.Lock()
@@ -63,21 +63,21 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next.Generations[2].OID == 0 || next.Generations[2].OID == original.OID || !reflect.DeepEqual(old.Generations[2], original) || retained.Get(ref.Address) != old || !slices.Equal(old.Attributes, next.Attributes) || &old.Columns[0] != &next.Columns[0] {
+	if next.ColumnMeta.Generations[2].OID == 0 || next.ColumnMeta.Generations[2].OID == original.OID || !reflect.DeepEqual(old.ColumnMeta.Generations[2], original) || retained.Get(ref.Address) != old || !slices.Equal(old.Attributes, next.Attributes) || &old.Columns[0] != &next.Columns[0] {
 		t.Fatal("source/shape identity changed")
 	}
-	if next.Generations[3].OID != unaffected.OID || !reflect.DeepEqual(next.Generations[3], unaffected) || !reflect.DeepEqual(old.Generations[3], unaffected) {
+	if next.ColumnMeta.Generations[3].OID != unaffected.OID || !reflect.DeepEqual(next.ColumnMeta.Generations[3], unaffected) || !reflect.DeepEqual(old.ColumnMeta.Generations[3], unaffected) {
 		t.Fatal("unaffected definition reminted/mutated")
 	}
 	drop := parser.AlterTableAction{Action: parser.DropExpression, Column: parser.Identifier{Text: "b"}}
 	dropped, changed, err := e.generationCandidate(scope, admin, auth, next, drop)
-	if err != nil || changed != 0 || len(dropped.Generations) != 1 || len(next.Generations) != 2 || dropped.Columns[1] != old.Columns[1] || dropped.Generations[3].OID != unaffected.OID {
+	if err != nil || changed != 0 || len(dropped.ColumnMeta.Generations) != 1 || len(next.ColumnMeta.Generations) != 2 || dropped.Columns[1] != old.Columns[1] || dropped.ColumnMeta.Generations[3].OID != unaffected.OID {
 		t.Fatal(dropped, changed, err)
 	}
 	target := ref.Address
 	target.SubID = 1
 	originalDrop, _, err := e.generationCandidate(scope, admin, auth, old, drop)
-	if err != nil || !generationDepends(old, target) || generationDepends(next, target) || generationDepends(originalDrop, target) || originalDrop.Generations[3].OID != unaffected.OID {
+	if err != nil || !generationDepends(old, target) || generationDepends(next, target) || generationDepends(originalDrop, target) || originalDrop.ColumnMeta.Generations[3].OID != unaffected.OID {
 		t.Fatal("SET/DROP dependency edges or unaffected definition wrong", err)
 	}
 	drop.IfExists = true
@@ -109,7 +109,7 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 	next.Columns = slices.Clone(old.Columns)
 	next.Columns = append(next.Columns, catalog.Column{Name: "c", Usage: u, Nullable: true})
 	next.Attributes = []int32{1, 2, 3, 4}
-	next.AttributeHighWater = 4
+	next.ColumnMeta.HighWater = 4
 	next.Index = maps.Clone(old.Index)
 	next.Index["c"] = 3
 	calls := 0
@@ -124,8 +124,8 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 		t.Fatal("unaffected stored generation demanded")
 		return sqltype.Value{}, errors.New("unexpected evaluation")
 	}}
-	old.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Planned: untouched}, 3: {Kind: catalog.GenerationStored, Planned: untouched}}
-	next.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Planned: generated}, 3: {Kind: catalog.GenerationStored, Planned: untouched}}
+	old.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Planned: untouched}, 3: {Kind: catalog.GenerationStored, Planned: untouched}}
+	next.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Planned: generated}, 3: {Kind: catalog.GenerationStored, Planned: untouched}}
 	row := func(id ids.RowID, version uint64) rowVersion {
 		return rowVersion{row: id, version: ids.VersionID(version), born: 1, values: []sqltype.Value{integer(1), integer(2), integer(99)}}
 	}
@@ -177,7 +177,7 @@ func TestAlterGeneratedExpressionCancellation(t *testing.T) {
 	old.Columns = append(slices.Clone(base.Columns), catalog.Column{Name: "b", Usage: u, Nullable: true})
 	old.Attributes = []int32{1, 2}
 	old.Index = map[string]int{"a": 0, "b": 1}
-	old.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored}}
+	old.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored}}
 	next := old
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -191,7 +191,7 @@ func TestAlterGeneratedExpressionCancellation(t *testing.T) {
 		cancel()
 		return value, nil
 	}}
-	next.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Planned: expression}}
+	next.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Planned: expression}}
 	store := &relationStorage{generation: 7, versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{value, value}}, {row: 2, version: 2, born: 1, values: []sqltype.Value{value, value}}}}
 	op, cleanup, err := testOperation(e, ctx)
 	if err != nil {

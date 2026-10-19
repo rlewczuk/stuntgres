@@ -243,7 +243,7 @@ func TestInsertConflictInferenceMixedExpressionsAndAllProviders(t *testing.T) {
 		index.SQLIndex = &definition
 		index.Columns = []catalog.Column{f.parent.Columns[1], f.parent.Columns[0]}
 		index.Attributes = []int32{1, 2}
-		index.AttributeHighWater = 2
+		index.ColumnMeta.HighWater = 2
 		f.e.catalog.state.SetDescriptor(index.Address(), &index)
 		root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &definition, f.store, nil)
 		if err != nil {

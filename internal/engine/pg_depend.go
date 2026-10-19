@@ -380,7 +380,7 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 					add(owner, d.Address(), 'a')
 				}
 			}
-			for sub, definition := range d.Defaults {
+			for sub, definition := range d.ColumnMeta.Defaults {
 				if err := ctx.Err(); err != nil {
 					return nil, err
 				}
@@ -390,7 +390,7 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 					return nil, err
 				}
 			}
-			for sub, definition := range d.Generations {
+			for sub, definition := range d.ColumnMeta.Generations {
 				if err := ctx.Err(); err != nil {
 					return nil, err
 				}

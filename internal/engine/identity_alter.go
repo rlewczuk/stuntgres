@@ -24,13 +24,13 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 		return old, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, action.Column.Text, old.Name()))
 	}
 	attribute := old.Attributes[slot]
-	identity, exists := old.Identities[attribute]
+	identity, exists := old.ColumnMeta.Identities[attribute]
 	message := fmt.Sprintf(`column "%s" of relation "%s"`, action.Column.Text, old.Name())
 	if action.Action == parser.AddIdentity {
 		// PostgreSQL executes the sequence before-command before table guards.
 		// Stage it privately; a failed guard must not change the old link.
 		next := *old
-		next.Identities = maps.Clone(old.Identities)
+		next.ColumnMeta.Identities = maps.Clone(old.ColumnMeta.Identities)
 		column := &parser.Column{Name: action.Column.Text, Constraints: []parser.ColumnConstraint{{Identity: action.Identity}}}
 		e.mu.Lock()
 		err := e.stageCreateIdentities(auth, stage, &next, &parser.CreateTable{Elements: []parser.TableElement{{Column: column}}})
@@ -44,7 +44,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 		if old.Columns[slot].Nullable {
 			return old, sqlError("55000", message+" must be declared NOT NULL before identity can be added")
 		}
-		if _, ok := old.Defaults[attribute]; ok || old.Generations[attribute].Expression != nil {
+		if _, ok := old.ColumnMeta.Defaults[attribute]; ok || old.ColumnMeta.Generations[attribute].Expression != nil {
 			return old, sqlError("55000", message+" already has a default value")
 		}
 		return &next, nil
@@ -78,10 +78,10 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 		return old, sqlError("42601", "conflicting or redundant options")
 	}
 	next := *old
-	next.Identities = maps.Clone(old.Identities)
+	next.ColumnMeta.Identities = maps.Clone(old.ColumnMeta.Identities)
 	if definition.Mode != parser.IdentityNone {
 		identity.Mode = definition.Mode
-		next.Identities[attribute] = identity
+		next.ColumnMeta.Identities[attribute] = identity
 	}
 	return &next, nil
 }

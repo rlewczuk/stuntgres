@@ -50,7 +50,7 @@ func inheritanceQueryUnitColumns(e *Engine, id ids.OID, names ...string) *catalo
 		d.Attributes = append(d.Attributes, int32(i+1))
 		d.Index[name] = i
 	}
-	d.AttributeHighWater = int32(len(names))
+	d.ColumnMeta.HighWater = int32(len(names))
 	return d
 }
 

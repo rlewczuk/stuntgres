@@ -191,7 +191,7 @@ var inheritanceMetadataActions = []struct{ name, sql string }{
 
 func inheritanceMetadataAssert(t *testing.T, e *Engine, action string, old, current *catalog.Relation) {
 	t.Helper()
-	if current == nil || current == old || current.Owner != old.Owner || !slices.Equal(current.Attributes, old.Attributes) || current.AttributeHighWater != old.AttributeHighWater || current.Columns[0].Usage != old.Columns[0].Usage || len(current.NotNullConstraints) != 1 || current.NotNullConstraints[0].OID != old.NotNullConstraints[0].OID || current.NotNullConstraints[0].Attribute != old.NotNullConstraints[0].Attribute || current.NotNullConstraints[0].NotValid || current.NotNullConstraints[0].NoInherit {
+	if current == nil || current == old || current.Owner != old.Owner || !slices.Equal(current.Attributes, old.Attributes) || current.ColumnMeta.HighWater != old.ColumnMeta.HighWater || current.Columns[0].Usage != old.Columns[0].Usage || len(current.NotNullConstraints) != 1 || current.NotNullConstraints[0].OID != old.NotNullConstraints[0].OID || current.NotNullConstraints[0].Attribute != old.NotNullConstraints[0].Attribute || current.NotNullConstraints[0].NotValid || current.NotNullConstraints[0].NoInherit {
 		t.Fatal("metadata operation lost actual attribute/owner/fact identity", old.Name(), current)
 	}
 	columnName, constraintName := "i", "metadata_nn"
@@ -204,7 +204,7 @@ func inheritanceMetadataAssert(t *testing.T, e *Engine, action string, old, curr
 	if current.Columns[0].Name != columnName || current.NotNullConstraints[0].Name != constraintName {
 		t.Fatal("admitted descendant missed actual metadata operation", current.Name(), current.Columns, current.NotNullConstraints)
 	}
-	definition, present := current.Defaults[current.Attributes[0]]
+	definition, present := current.ColumnMeta.Defaults[current.Attributes[0]]
 	if action == "drop_default" {
 		if present {
 			t.Fatal("admitted descendant retained dropped default", current.Name())
@@ -263,7 +263,7 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 					if old.Columns[0].Name != "i" || len(old.NotNullConstraints) != 1 || old.NotNullConstraints[0].Name != "metadata_nn" {
 						t.Fatal("queued metadata provider exposed a partial rename", old.Name())
 					}
-					definition, present := old.Defaults[old.Attributes[0]]
+					definition, present := old.ColumnMeta.Defaults[old.Attributes[0]]
 					if !present {
 						t.Fatal("queued metadata provider exposed a partial default removal", old.Name())
 					}

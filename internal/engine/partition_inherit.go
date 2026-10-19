@@ -109,19 +109,19 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	if err != nil {
 		return nil, err
 	}
-	if len(parent.Defaults) != 0 || len(localDefaults) != 0 {
-		d.Defaults = make(map[int32]catalog.ColumnDefault, len(parent.Defaults)+len(localDefaults))
+	if len(parent.ColumnMeta.Defaults) != 0 || len(localDefaults) != 0 {
+		d.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault, len(parent.ColumnMeta.Defaults)+len(localDefaults))
 		for i, attribute := range parent.Attributes {
 			if declarations[i].defaultExpr != nil || declarations[i].identity != nil || declarations[i].generation != nil {
 				continue
 			}
-			if definition, ok := parent.Defaults[attribute]; ok {
+			if definition, ok := parent.ColumnMeta.Defaults[attribute]; ok {
 				definition.OID = 0
-				d.Defaults[d.Attributes[i]] = definition
+				d.ColumnMeta.Defaults[d.Attributes[i]] = definition
 			}
 		}
 		for attribute, definition := range localDefaults {
-			d.Defaults[attribute] = definition
+			d.ColumnMeta.Defaults[attribute] = definition
 		}
 	}
 	if err = e.bindCreateGenerations(op, auth, d, declarations, scope.input); err != nil {

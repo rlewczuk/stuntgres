@@ -134,10 +134,10 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 			remaining[ref]--
 		}
 	}
-	for _, definition := range consumer.Defaults {
+	for _, definition := range consumer.ColumnMeta.Defaults {
 		assertManifest("DEFAULT", scalarRenderer{provenance: consumer, capturedManifest: definition.Dependencies}, definition.Expression, definition.Dependencies)
 	}
-	for _, definition := range consumer.Generations {
+	for _, definition := range consumer.ColumnMeta.Generations {
 		assertManifest("generated", scalarRenderer{owner: consumer, capturedManifest: definition.Dependencies}, definition.Expression, definition.Dependencies)
 	}
 	for _, definition := range consumer.CheckConstraints {

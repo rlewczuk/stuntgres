@@ -20,38 +20,38 @@ func TestIdentityCatalogReciprocalDefinitions(t *testing.T) {
 	read := e.CatalogRead()
 	ref := roleTableRef(t, e, "i")
 	old := read.MustRelation(ref.Address)
-	if len(old.Identities) != 2 || old.Identities[1].Sequence == old.Identities[2].Sequence {
-		t.Fatal(old.Identities)
+	if len(old.ColumnMeta.Identities) != 2 || old.ColumnMeta.Identities[1].Sequence == old.ColumnMeta.Identities[2].Sequence {
+		t.Fatal(old.ColumnMeta.Identities)
 	}
 	if err := (relationProvider{}).Validate(read, old); err != nil {
 		t.Fatal(err)
 	}
 	for _, mutate := range []func(*catalog.Relation){
 		func(d *catalog.Relation) {
-			identity := d.Identities[1]
+			identity := d.ColumnMeta.Identities[1]
 			identity.Mode = parser.IdentityNone
-			d.Identities[1] = identity
+			d.ColumnMeta.Identities[1] = identity
 		},
 		func(d *catalog.Relation) {
-			identity := d.Identities[1]
+			identity := d.ColumnMeta.Identities[1]
 			identity.Sequence = ids.ObjectAddress{}
-			d.Identities[1] = identity
+			d.ColumnMeta.Identities[1] = identity
 		},
-		func(d *catalog.Relation) { d.Identities[99] = d.Identities[1] },
-		func(d *catalog.Relation) { d.Identities[1] = d.Identities[2] },
+		func(d *catalog.Relation) { d.ColumnMeta.Identities[99] = d.ColumnMeta.Identities[1] },
+		func(d *catalog.Relation) { d.ColumnMeta.Identities[1] = d.ColumnMeta.Identities[2] },
 		func(d *catalog.Relation) {
 			d.Columns = append([]catalog.Column(nil), d.Columns...)
 			d.Columns[0].Nullable = true
 		},
 	} {
 		next := *old
-		next.Identities = maps.Clone(old.Identities)
+		next.ColumnMeta.Identities = maps.Clone(old.ColumnMeta.Identities)
 		mutate(&next)
 		if err := (relationProvider{}).Validate(read, &next); err == nil {
 			t.Fatal("invalid identity admitted")
 		}
 	}
-	sequence := read.MustRelation(old.Identities[1].Sequence)
+	sequence := read.MustRelation(old.ColumnMeta.Identities[1].Sequence)
 	next := *sequence
 	options := *sequence.Sequence
 	options.Owned = ids.ObjectAddress{}

@@ -23,7 +23,7 @@ func TestSerialDefaultIdentityProviderTemporaryCollision(t *testing.T) {
 			_, description := sequencePreparedDescription(t, dest, b, `SELECT nextval('kept')`)
 			temp := description.sequences.constants[0].ref.Address
 			original := source.catalog.state.MustRelation(roleTableRef(t, source, "portable.consumer").Address)
-			leaf := serialLeaf(original.Defaults[1].Expression)
+			leaf := serialLeaf(original.ColumnMeta.Defaults[1].Expression)
 			if leaf.ref.Address != temp {
 				t.Fatal("fixture lacks actual identity provider collision", leaf.ref.Address, temp)
 			}
@@ -39,8 +39,8 @@ func TestSerialDefaultIdentityProviderTemporaryCollision(t *testing.T) {
 				t.Fatal(err)
 			}
 			consumer := dest.catalog.state.MustRelation(roleTableRef(t, dest, "portable.consumer").Address)
-			current := serialLeaf(consumer.Defaults[1].Expression)
-			if current.ref.Address == temp || !closedSequenceDefault(consumer.Defaults[1].Expression) {
+			current := serialLeaf(consumer.ColumnMeta.Defaults[1].Expression)
+			if current.ref.Address == temp || !closedSequenceDefault(consumer.ColumnMeta.Defaults[1].Expression) {
 				t.Fatal("identity provider reference not remapped", current.ref)
 			}
 			provider := dest.catalog.state.MustRelation(current.ref.Address)
@@ -52,7 +52,7 @@ func TestSerialDefaultIdentityProviderTemporaryCollision(t *testing.T) {
 			sessionSQL(t, b, `INSERT INTO portable.producer DEFAULT VALUES`)
 			sequenceScalar(t, b, `SELECT id FROM portable.producer`, 9)
 			sequenceScalar(t, b, `SELECT nextval('kept')`, 31)
-			if serialLeaf(original.Defaults[1].Expression).ref != leaf.ref {
+			if serialLeaf(original.ColumnMeta.Defaults[1].Expression).ref != leaf.ref {
 				t.Fatal("source provider identity mutated")
 			}
 			checkReviewDependencyValid(t, dest)

@@ -38,7 +38,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *catalog.Relation, *ca
 		source.RelationKind = catalog.CompositeRelation
 		if !empty {
 			source.Attributes = []int32{2, 4}
-			source.AttributeHighWater = 4
+			source.ColumnMeta.HighWater = 4
 			source.Columns[0].OriginAttribute = 2
 			source.Columns[1].OriginAttribute = 4
 		}
@@ -52,7 +52,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *catalog.Relation, *ca
 		table.OfType = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}
 		if !empty {
 			table.Attributes = []int32{1, 7}
-			table.AttributeHighWater = 7
+			table.ColumnMeta.HighWater = 7
 			table.Columns[1].OriginAttribute = 7
 		}
 		err = e.stageRowTypeLocked(stage, table)
@@ -78,7 +78,7 @@ func TestTypedProviderShapeAndIndependentAttributes(t *testing.T) {
 	if err := validateTypedAttachment(view, table); err != nil {
 		t.Fatal(err)
 	}
-	if table.RowType == source.RowType || !reflect.DeepEqual(table.Attributes, []int32{1, 7}) || table.AttributeHighWater != 7 {
+	if table.RowType == source.RowType || !reflect.DeepEqual(table.Attributes, []int32{1, 7}) || table.ColumnMeta.HighWater != 7 {
 		t.Fatal("source identity copied into destination", table)
 	}
 	next, err := renameColumnCandidate(source, "note", "label")

@@ -343,8 +343,10 @@ func TestRegTSStoredDependencyProviders(t *testing.T) {
 		return &catalog.Relation{
 			ObjectAddress:    ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 95000},
 			CheckConstraints: []catalog.CheckConstraint{{Dependencies: []catalog.ExpressionDependency{{Ref: ref, Revision: dictionary.Revision()}}}},
-			Defaults:         map[int32]catalog.ColumnDefault{1: {Dependencies: []ids.ObjectRef{ref}}},
-			Generations:      map[int32]catalog.ColumnGeneration{1: {Dependencies: []ids.ObjectRef{ref}}},
+			ColumnMeta: catalog.ColumnMetadata{
+				Defaults:    map[int32]catalog.ColumnDefault{1: {Dependencies: []ids.ObjectRef{ref}}},
+				Generations: map[int32]catalog.ColumnGeneration{1: {Dependencies: []ids.ObjectRef{ref}}},
+			},
 		}
 	}
 	for name, validate := range map[string]func(catalog.Read, *catalog.Relation) error{

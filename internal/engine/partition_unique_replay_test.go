@@ -43,7 +43,7 @@ func partitionUniqueReplayUnit(t *testing.T, primary bool) (*Engine, *catalog.Re
 		columns := slices.Clone(table.Columns)
 		columns[0].OriginTable = uint32(id)
 		columns[0].OriginAttribute = 1
-		return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: table.Namespace(), Owner: table.Owner, ObjectName: name, ObjectRevision: 1, RelationKind: catalog.IndexRelation, Columns: columns, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"k": 0}, SQLIndex: &catalog.IndexDefinition{Parent: table.Address(), PartitionParent: parent, Method: catalog.BtreeMethod, Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Unique: true, Valid: valid, Ready: true, Live: true}}
+		return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: table.Namespace(), Owner: table.Owner, ObjectName: name, ObjectRevision: 1, RelationKind: catalog.IndexRelation, Columns: columns, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}, Index: map[string]int{"k": 0}, SQLIndex: &catalog.IndexDefinition{Parent: table.Address(), PartitionParent: parent, Method: catalog.BtreeMethod, Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Unique: true, Valid: valid, Ready: true, Live: true}}
 	}
 	ri := index(root, 47203, "unique_replay_root_plain", ids.ObjectAddress{}, false)
 	mi := index(mid, 47204, "unique_replay_mid_plain", ri.Address(), true)
@@ -212,7 +212,7 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	graph[dumpEventKey{oid: local.Address().ObjectID}] = []dumpEventKey{{oid: mid.Address().ObjectID}}
 	indices[local.Address().ObjectID] = len(indices)
 	regclass := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}).SQLType
-	consumer := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47206}, ObjectNamespace: mid.Namespace(), Owner: mid.Owner, ObjectName: "unique_replay_consumer", ObjectRevision: 1, RelationKind: catalog.TableRelation, Columns: []catalog.Column{{Name: "ref", Usage: regclass.Usage()}, {Name: "leaf_ref", Usage: regclass.Usage()}}, Attributes: []int32{1, 2}, AttributeHighWater: 2, Index: map[string]int{"ref": 0, "leaf_ref": 1}}
+	consumer := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47206}, ObjectNamespace: mid.Namespace(), Owner: mid.Owner, ObjectName: "unique_replay_consumer", ObjectRevision: 1, RelationKind: catalog.TableRelation, Columns: []catalog.Column{{Name: "ref", Usage: regclass.Usage()}, {Name: "leaf_ref", Usage: regclass.Usage()}}, Attributes: []int32{1, 2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}, Index: map[string]int{"ref": 0, "leaf_ref": 1}}
 	value := sqltype.String(regclass, strconv.FormatUint(uint64(local.Address().ObjectID), 10))
 	leafValue := sqltype.String(regclass, strconv.FormatUint(uint64(child.Address().ObjectID), 10))
 	state := *view.State()

@@ -55,8 +55,8 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 			// LIKE expressions arrive after inherited conflicts are checked; only a
 			// raw child DEFAULT (including serial) can resolve a parent conflict.
 			declaration := b.createDeclarations[mapper.targetSlots[sourceSlot]]
-			if old, ok := in.source.Defaults[sourceAttribute]; ok && declaration.defaultExpr == nil && !declaration.serial {
-				if incumbent, ok := d.Defaults[target]; ok && !sameGroupExpression(incumbent.Expression, old.Expression) {
+			if old, ok := in.source.ColumnMeta.Defaults[sourceAttribute]; ok && declaration.defaultExpr == nil && !declaration.serial {
+				if incumbent, ok := d.ColumnMeta.Defaults[target]; ok && !sameGroupExpression(incumbent.Expression, old.Expression) {
 					if defaultConflicts == nil {
 						defaultConflicts = make(map[int32]bool)
 					}
@@ -67,12 +67,12 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 				if err := validateCookedDefaultTemporary(copied.Expression, auth.catalog.MustNamespace(d.Namespace()).Temporary); err != nil {
 					return err
 				}
-				if d.Defaults == nil {
-					d.Defaults = make(map[int32]catalog.ColumnDefault)
+				if d.ColumnMeta.Defaults == nil {
+					d.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault)
 				}
-				d.Defaults[target] = copied
+				d.ColumnMeta.Defaults[target] = copied
 			}
-			if old, ok := in.source.Generations[sourceAttribute]; ok && declaration.generation == nil {
+			if old, ok := in.source.ColumnMeta.Generations[sourceAttribute]; ok && declaration.generation == nil {
 				node, err := mapper.remap(old.Expression, d, auth.catalog)
 				if err != nil {
 					return err
@@ -81,7 +81,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 				if err != nil {
 					return err
 				}
-				if incumbent, ok := d.Generations[target]; ok && !sameGroupExpression(incumbent.Expression, node) {
+				if incumbent, ok := d.ColumnMeta.Generations[target]; ok && !sameGroupExpression(incumbent.Expression, node) {
 					if generationConflicts == nil {
 						generationConflicts = make(map[int32]bool)
 					}
@@ -91,10 +91,10 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 				if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &copied.Dependencies, commentSnapshot: &copied.CatalogSnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 					return err
 				}
-				if d.Generations == nil {
-					d.Generations = make(map[int32]catalog.ColumnGeneration)
+				if d.ColumnMeta.Generations == nil {
+					d.ColumnMeta.Generations = make(map[int32]catalog.ColumnGeneration)
 				}
-				d.Generations[target] = copied
+				d.ColumnMeta.Generations[target] = copied
 			}
 		}
 		for _, old := range orderedChecks(in.source) {

@@ -47,7 +47,7 @@ func (e *Engine) stageAlterIdentityTypes(scope *StatementScope, op *Operation, a
 		}
 		slot := original.Index[action.Column.Text]
 		attribute := original.Attributes[slot]
-		if identity, exists := original.Identities[attribute]; exists {
+		if identity, exists := original.ColumnMeta.Identities[attribute]; exists {
 			if stage == nil {
 				if scope.inheritanceAlter != nil {
 					stage = scope.inheritanceAlter.stage
@@ -117,7 +117,7 @@ func (e *Engine) admitAlterTypeLocked(scope *StatementScope, op *Operation, auth
 	if ref.Epoch != e.catalog.state.Epoch() {
 		return fail(ids.ErrCatalogReplaced)
 	}
-	if _, generated := original.Generations[original.Attributes[source]]; generated {
+	if _, generated := original.ColumnMeta.Generations[original.Attributes[source]]; generated {
 		if a.Using != nil {
 			diagnostic := expr.ErrorAt("42611", "cannot specify USING when altering type of generated column", a.Column.Pos).(*sqlstate.Error)
 			diagnostic.Detail = fmt.Sprintf(`Column "%s" is a generated column.`, a.Column.Text)
@@ -223,7 +223,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		return fail(err)
 	}
 	for _, attribute := range next.Attributes {
-		definition, generated := next.Generations[attribute]
+		definition, generated := next.ColumnMeta.Generations[attribute]
 		if !generated {
 			continue
 		}
@@ -311,7 +311,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 	if usage == current {
 		return &replacement, transformation, nil
 	}
-	if definition, exists := next.Defaults[attribute]; exists {
+	if definition, exists := next.ColumnMeta.Defaults[attribute]; exists {
 		expression := definition.Expression
 		for {
 			wrapper, ok := expression.(coercionExpression)
@@ -341,13 +341,13 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		if err != nil {
 			return fail(err)
 		}
-		replacement.Defaults = make(map[int32]catalog.ColumnDefault, len(next.Defaults))
-		for id, d := range next.Defaults {
-			replacement.Defaults[id] = d
+		replacement.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault, len(next.ColumnMeta.Defaults))
+		for id, d := range next.ColumnMeta.Defaults {
+			replacement.ColumnMeta.Defaults[id] = d
 		}
 		definition.Expression = expression
 		definition.OID = 0
-		replacement.Defaults[attribute] = definition
+		replacement.ColumnMeta.Defaults[attribute] = definition
 	}
 	if err := e.captureCheckCommentSnapshotLocked(scope, &replacement); err != nil {
 		return fail(err)
@@ -486,7 +486,7 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *catalog.Re
 				preparedGeneration = true
 			}
 			for i, attribute := range generations {
-				expression := generationRecipeExpression(next.Generations[attribute])
+				expression := generationRecipeExpression(next.ColumnMeta.Generations[attribute])
 				if generationProgram != nil {
 					expression = generationProgram[generatedSlots[i]]
 				}

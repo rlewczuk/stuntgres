@@ -151,7 +151,7 @@ func pgShDescriptionUnitInquiry(t *testing.T, e *Engine, roles authorization.Rea
 func TestPGShDescriptionDescriptor(t *testing.T) {
 	e := New()
 	d, ref := pgShDescriptionUnitSource(t, e)
-	if d.Name() != "pg_shdescription" || d.Address().ObjectID != 2396 || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 3 || len(d.Columns) != 3 || len(d.Attributes) != 3 || len(d.Index) != 3 {
+	if d.Name() != "pg_shdescription" || d.Address().ObjectID != 2396 || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.ColumnMeta.HighWater != 3 || len(d.Columns) != 3 || len(d.Attributes) != 3 || len(d.Index) != 3 {
 		t.Fatal(d)
 	}
 	for i, tc := range []struct {

@@ -28,7 +28,7 @@ func TestIdentityAlterSequenceGrantFreshness(t *testing.T) {
 			lockAwait(t, done, nil)
 			if action == `ALTER TABLE i ALTER id DROP IDENTITY` {
 				table := e.catalog.state.MustRelation(catalogRef(t, e, e.CatalogRead(), "i").Address)
-				if len(table.Identities) != 0 || e.catalog.state.Get(ref.Address) != nil {
+				if len(table.ColumnMeta.Identities) != 0 || e.catalog.state.Get(ref.Address) != nil {
 					t.Fatal("drop lost exact linked identity")
 				}
 				sessionSQL(t, b, `INSERT INTO i VALUES(55)`)

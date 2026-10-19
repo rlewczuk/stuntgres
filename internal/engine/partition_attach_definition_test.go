@@ -15,10 +15,10 @@ func TestPartitionAttachLayout(t *testing.T) {
 	e := New()
 	parent := inheritanceUnitRelation(e, "parent", 32000, "k", "payload")
 	parent.Attributes = []int32{3, 8}
-	parent.AttributeHighWater = 8
+	parent.ColumnMeta.HighWater = 8
 	child := inheritanceUnitRelation(e, "child", 32001, "payload", "k")
 	child.Attributes = []int32{2, 9}
-	child.AttributeHighWater = 9
+	child.ColumnMeta.HighWater = 9
 	layout, err := inheritanceQueryLayout(parent, child)
 	if err != nil {
 		t.Fatal(err)

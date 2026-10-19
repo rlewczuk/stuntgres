@@ -114,18 +114,18 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	if e.catalog.state != before.State() || destination.Address() == source.Address() || destination.RowType == source.RowType || destination.Defaults[3].OID == source.Defaults[2].OID || destination.Generations[5].OID == source.Generations[4].OID || destination.CheckConstraints[0].OID == source.CheckConstraints[0].OID {
+	if e.catalog.state != before.State() || destination.Address() == source.Address() || destination.RowType == source.RowType || destination.ColumnMeta.Defaults[3].OID == source.ColumnMeta.Defaults[2].OID || destination.ColumnMeta.Generations[5].OID == source.ColumnMeta.Generations[4].OID || destination.CheckConstraints[0].OID == source.CheckConstraints[0].OID {
 		t.Fatal("copied provider identities or published early")
 	}
-	if !destination.CheckConstraints[0].NoInherit || destination.CheckConstraints[0].Name != "positive" || destination.ColumnComments[3] != "exact" || len(source.Columns) != 3 || len(destination.Columns) != 5 {
+	if !destination.CheckConstraints[0].NoInherit || destination.CheckConstraints[0].Name != "positive" || destination.ColumnMeta.Comments[3] != "exact" || len(source.Columns) != 3 || len(destination.Columns) != 5 {
 		t.Fatal(destination, source)
 	}
-	identity := destination.Identities[4]
+	identity := destination.ColumnMeta.Identities[4]
 	sequence := stage.Descriptors[identity.Sequence].(*catalog.Relation)
-	if identity.Sequence == source.Identities[3].Sequence || sequence.Sequence.Owned != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.Address().ObjectID, SubID: 4}) || sequence.Owner != destination.Owner || sequence.Sequence.Persistence != "logged" || stage.generators[identity.Sequence].called {
+	if identity.Sequence == source.ColumnMeta.Identities[3].Sequence || sequence.Sequence.Owned != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.Address().ObjectID, SubID: 4}) || sequence.Owner != destination.Owner || sequence.Sequence.Persistence != "logged" || stage.generators[identity.Sequence].called {
 		t.Fatal("identity copy authority/state", sequence)
 	}
-	for _, ref := range destination.Generations[5].Dependencies {
+	for _, ref := range destination.ColumnMeta.Generations[5].Dependencies {
 		if ref.Address.ClassID == ids.RelationClassID && ref.Address.ObjectID == source.Address().ObjectID {
 			t.Fatal("generation retained source row", ref)
 		}

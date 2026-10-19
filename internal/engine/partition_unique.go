@@ -347,7 +347,7 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 	if err != nil {
 		return nil, err
 	}
-	index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: child.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: child.Owner, RelationKind: catalog.IndexRelation, SQLIndex: mapped, Columns: slices.Clone(parentIndex.Columns), Attributes: slices.Clone(parentIndex.Attributes), AttributeHighWater: parentIndex.AttributeHighWater, Index: make(map[string]int, len(parentIndex.Columns))}
+	index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: child.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: child.Owner, RelationKind: catalog.IndexRelation, SQLIndex: mapped, Columns: slices.Clone(parentIndex.Columns), Attributes: slices.Clone(parentIndex.Attributes), ColumnMeta: catalog.ColumnMetadata{HighWater: parentIndex.ColumnMeta.HighWater}, Index: make(map[string]int, len(parentIndex.Columns))}
 	for i := range index.Columns {
 		index.Columns[i].OriginTable = uint32(oid)
 		index.Columns[i].OriginAttribute = int16(i + 1)

@@ -49,7 +49,7 @@ func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *catalog.Rel
 		return old, capture, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, action.Column.Text, old.Name()))
 	}
 	attribute := old.Attributes[slot]
-	identity, exists := old.Identities[attribute]
+	identity, exists := old.ColumnMeta.Identities[attribute]
 	if !exists {
 		message := fmt.Sprintf(`column "%s" of relation "%s" is not an identity column`, action.Column.Text, old.Name())
 		if !action.IfExists {
@@ -95,8 +95,8 @@ func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *catalog.Rel
 		applyIdentityDropTombstone(provider.stage, identity.Sequence)
 	}
 	next := *old
-	next.Identities = maps.Clone(old.Identities)
-	delete(next.Identities, attribute)
+	next.ColumnMeta.Identities = maps.Clone(old.ColumnMeta.Identities)
+	delete(next.ColumnMeta.Identities, attribute)
 	return &next, capture, nil
 }
 

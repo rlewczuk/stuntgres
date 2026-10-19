@@ -237,7 +237,7 @@ func TestRegclassOpaqueInlineDefaultReplayPrerequisites(t *testing.T) {
 			ownerRef, targetRef := roleTableRef(t, e, "rr_opaque_owner"), roleTableRef(t, e, "rr_opaque_target")
 			descriptor, _ := view.Descriptor(ownerRef.Address)
 			owner := descriptor.(*catalog.Relation)
-			definition := owner.Defaults[owner.Attributes[owner.Index["v"]]]
+			definition := owner.ColumnMeta.Defaults[owner.Attributes[owner.Index["v"]]]
 			if defaultReplayDeferrable(definition) || definition.Expression.ResultUsage().Type.ID() != sqltype.Bool {
 				t.Fatal("opaque BOOL default changed eligibility")
 			}

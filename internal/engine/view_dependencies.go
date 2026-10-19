@@ -296,7 +296,7 @@ func supportedDependentLabelsWithPolicies(catalog catalog.Read, targets []ids.Ob
 	dependents = append(dependents, other...)
 	for _, edge := range defaults {
 		label := "default value for column " + dependencyIdentifier(edge.column) + " of table " + dependencyRelationName(catalog, edge.relation, path)
-		dependents = append(dependents, supportedDependent{oid: edge.relation.Defaults[edge.attribute].OID, target: edge.target, label: label})
+		dependents = append(dependents, supportedDependent{oid: edge.relation.ColumnMeta.Defaults[edge.attribute].OID, target: edge.target, label: label})
 	}
 	for _, edge := range checks {
 		label := "constraint " + dependencyIdentifier(edge.check.Name) + " on table " + dependencyRelationName(catalog, edge.relation, path)

@@ -133,8 +133,8 @@ func partitionDumpNeedsAttach(catalog catalog.Read, d *catalog.Relation) bool {
 			return true
 		}
 		attribute, parentAttribute := d.Attributes[i], parent.Attributes[i]
-		if _, exists := parent.Defaults[parentAttribute]; exists {
-			if _, exists := d.Defaults[attribute]; !exists {
+		if _, exists := parent.ColumnMeta.Defaults[parentAttribute]; exists {
+			if _, exists := d.ColumnMeta.Defaults[attribute]; !exists {
 				return true
 			}
 		}
@@ -203,8 +203,8 @@ func partitionChildSQL(ctx context.Context, catalog catalog.Read, d *catalog.Rel
 		var option strings.Builder
 		option.WriteString(quoteIdentifier(column.Name))
 		changed := false
-		childDefault, childHasDefault := d.Defaults[d.Attributes[i]]
-		parentDefault, parentHasDefault := parent.Defaults[parent.Attributes[i]]
+		childDefault, childHasDefault := d.ColumnMeta.Defaults[d.Attributes[i]]
+		parentDefault, parentHasDefault := parent.ColumnMeta.Defaults[parent.Attributes[i]]
 		childSQL, parentSQL := "NULL", "NULL"
 		var err error
 		if childHasDefault {

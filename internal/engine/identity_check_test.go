@@ -30,7 +30,7 @@ func TestIdentityOwnCheckAtomicConstruction(t *testing.T) {
 	}
 	sessionSQL(t, s, `CREATE SCHEMA portable CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY,CHECK(pg_catalog.nextval('i_id_seq')>0)) CREATE TABLE c(p INT CHECK(nextval('portable.i_id_seq')>0))`)
 	table := e.catalog.state.MustRelation(roleTableRef(t, e, "portable.i").Address)
-	identity := table.Identities[table.Attributes[0]]
+	identity := table.ColumnMeta.Identities[table.Attributes[0]]
 	provider := e.catalog.state.MustRelation(identity.Sequence)
 	found := false
 	for _, dependency := range table.CheckConstraints[0].Dependencies {
@@ -121,7 +121,7 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 				t.Fatal("fixture lacks predecessor inversion", owner, view, check)
 			}
 			table := dest.catalog.state.MustRelation(owner)
-			identity := table.Identities[table.Attributes[0]]
+			identity := table.ColumnMeta.Identities[table.Attributes[0]]
 			sequence := dest.catalog.state.MustRelation(identity.Sequence)
 			owned := owner
 			owned.SubID = table.Attributes[0]
@@ -211,7 +211,7 @@ func TestIdentityDumpProviderMapping(t *testing.T) {
 	consumer := roleTableRef(t, e, "c").Address
 	view := roleTableRef(t, e, "v").Address
 	table := read.MustRelation(owner)
-	sequence := table.Identities[table.Attributes[0]].Sequence
+	sequence := table.ColumnMeta.Identities[table.Attributes[0]].Sequence
 	ordinary := catalogRef(t, e, read, "ordinary").Address
 	for _, tc := range []struct {
 		provider, consumer ids.ObjectAddress
@@ -255,7 +255,7 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 	sessionSQL(t, s, `CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY)`)
 	read := e.CatalogRead()
 	table := read.MustRelation(roleTableRef(t, e, "i").Address)
-	address := table.Identities[table.Attributes[0]].Sequence
+	address := table.ColumnMeta.Identities[table.Attributes[0]].Sequence
 	original := read.MustRelation(address)
 	stage := e.BeginCatalogStage(read)
 	candidate := *original

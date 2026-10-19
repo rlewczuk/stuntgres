@@ -441,7 +441,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	var storedReplacements []int32
 	for _, attribute := range replacements {
-		if next.Generations[attribute].Kind == catalog.GenerationStored {
+		if next.ColumnMeta.Generations[attribute].Kind == catalog.GenerationStored {
 			storedReplacements = append(storedReplacements, attribute)
 		}
 	}
@@ -512,7 +512,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		rewrite = rewrite || transformation.rewrite
 	}
 	if next != old {
-		next.Defaults = maps.Clone(next.Defaults)
+		next.ColumnMeta.Defaults = maps.Clone(next.ColumnMeta.Defaults)
 		next.CheckConstraints = slices.Clone(next.CheckConstraints)
 		next.NotNullConstraints = slices.Clone(next.NotNullConstraints)
 		e.mu.Lock()
@@ -600,7 +600,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 	}
 	for _, added := range additions {
-		if next.Defaults[added.attribute].CatalogSnapshot {
+		if next.ColumnMeta.Defaults[added.attribute].CatalogSnapshot {
 			e.mu.Lock()
 			err = e.captureCommentSnapshotLocked(scope)
 			e.mu.Unlock()
@@ -741,7 +741,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	virtualNotNullScan := false
 	if !rewrite {
 		for _, attribute := range replacements {
-			if next.Generations[attribute].Kind == catalog.GenerationVirtual && slices.Contains(validator.notNull, next.IndexForAttribute(attribute)) {
+			if next.ColumnMeta.Generations[attribute].Kind == catalog.GenerationVirtual && slices.Contains(validator.notNull, next.IndexForAttribute(attribute)) {
 				virtualNotNullScan = true
 				break
 			}

@@ -17,8 +17,8 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	root.Columns = append(root.Columns, catalog.Column{Name: "payload", Usage: typ.Usage(), Nullable: true})
 	root.Attributes = append(root.Attributes, 2)
 	root.Index["payload"] = 1
-	root.AttributeHighWater = 2
-	leaf.AttributeHighWater = 2
+	root.ColumnMeta.HighWater = 2
+	leaf.ColumnMeta.HighWater = 2
 	leaf.Columns = root.Columns
 	leaf.Attributes = root.Attributes
 	leaf.Index = root.Index
@@ -120,7 +120,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	// dependency cells still determine whether this old constraint is affected.
 	virtualLeaf := *leaf
 	sourceColumn := leaf.CheckConstraints[1].Expression.(comparisonExpression).left.(columnExpression)
-	virtualLeaf.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: sourceColumn, Planned: sourceColumn, Dependencies: []ids.ObjectRef{sourceColumn.origin}}}
+	virtualLeaf.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: sourceColumn, Planned: sourceColumn, Dependencies: []ids.ObjectRef{sourceColumn.origin}}}
 	virtualCheck := makeCheck(26002, "virtual_input", 1, sqltype.CompareEqual, 1)
 	virtualExpression := virtualCheck.Expression.(comparisonExpression)
 	virtualColumn := virtualExpression.left.(columnExpression)

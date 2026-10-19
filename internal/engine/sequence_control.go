@@ -183,7 +183,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 			retainExpression := func(node expr.Expr) {
 				walkBoundExpression(node, func(node expr.Expr) { retainBuiltin(node.ResultUsage().Type) })
 			}
-			for _, definition := range relation.Defaults {
+			for _, definition := range relation.ColumnMeta.Defaults {
 				retainExpression(definition.Expression)
 			}
 			for _, definition := range relation.CheckConstraints {
@@ -196,7 +196,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 					}
 				}
 			}
-			for _, definition := range relation.Generations {
+			for _, definition := range relation.ColumnMeta.Generations {
 				retainExpression(definition.Expression)
 				retainExpression(definition.Planned)
 			}
@@ -479,13 +479,13 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 					}
 					n.Sequence = &o
 				}
-				if len(r.Identities) != 0 {
-					n.Identities = make(map[int32]catalog.ColumnIdentity, len(r.Identities))
-					for attribute, identity := range r.Identities {
+				if len(r.ColumnMeta.Identities) != 0 {
+					n.ColumnMeta.Identities = make(map[int32]catalog.ColumnIdentity, len(r.ColumnMeta.Identities))
+					for attribute, identity := range r.ColumnMeta.Identities {
 						if destination, ok := mapping[identity.Sequence]; ok {
 							identity.Sequence = destination
 						}
-						n.Identities[attribute] = identity
+						n.ColumnMeta.Identities[attribute] = identity
 					}
 				}
 				d = &n
@@ -772,7 +772,7 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalog.State, tempora
 				return fail()
 			}
 			candidate, ok := next.Relation(address)
-			if !ok || candidate.RelationKind != old.RelationKind || candidate.Namespace() != old.Namespace() || candidate.Name() != old.Name() || candidate.Owner != old.Owner || candidate.VirtualView != old.VirtualView || candidate.History.HasIndexes != old.History.HasIndexes || candidate.History.HasSubclasses != old.History.HasSubclasses || candidate.AttributeHighWater != old.AttributeHighWater || !slices.Equal(candidate.Attributes, old.Attributes) || len(candidate.Columns) != len(old.Columns) || candidate.Security.ACL.Explicit != old.Security.ACL.Explicit || !slices.Equal(candidate.Security.ACL.Entries, old.Security.ACL.Entries) || len(candidate.Security.ColumnACL) != len(old.Security.ColumnACL) {
+			if !ok || candidate.RelationKind != old.RelationKind || candidate.Namespace() != old.Namespace() || candidate.Name() != old.Name() || candidate.Owner != old.Owner || candidate.VirtualView != old.VirtualView || candidate.History.HasIndexes != old.History.HasIndexes || candidate.History.HasSubclasses != old.History.HasSubclasses || candidate.ColumnMeta.HighWater != old.ColumnMeta.HighWater || !slices.Equal(candidate.Attributes, old.Attributes) || len(candidate.Columns) != len(old.Columns) || candidate.Security.ACL.Explicit != old.Security.ACL.Explicit || !slices.Equal(candidate.Security.ACL.Entries, old.Security.ACL.Entries) || len(candidate.Security.ColumnACL) != len(old.Security.ColumnACL) {
 				return fail()
 			}
 			for attribute, acl := range old.Security.ColumnACL {

@@ -21,15 +21,15 @@ func TestPgClassProjection(t *testing.T) {
 	source := pgClassUnitSource(t, e)
 	names := []string{"oid", "relname", "relnamespace", "reltype", "reloftype", "relowner", "relam", "relfilenode", "reltablespace", "relpages", "reltuples", "relallvisible", "relallfrozen", "reltoastrelid", "relhasindex", "relisshared", "relpersistence", "relkind", "relnatts", "relchecks", "relhasrules", "relhastriggers", "relhassubclass", "relrowsecurity", "relforcerowsecurity", "relispopulated", "relreplident", "relispartition", "relrewrite", "relfrozenxid", "relminmxid", "relacl", "reloptions", "relpartbound"}
 	typeIDs := []sqltype.ID{26, 19, 26, 26, 26, 26, 26, 26, 26, 23, 700, 23, 23, 26, 16, 16, 18, 18, 21, 21, 16, 16, 16, 16, 16, 16, 18, 16, 26, 28, 28, 1034, 1009, 194}
-	if len(source.Columns) != 34 || source.AttributeHighWater != 34 {
-		t.Fatal("full catalog schema", source.Columns, source.AttributeHighWater)
+	if len(source.Columns) != 34 || source.ColumnMeta.HighWater != 34 {
+		t.Fatal("full catalog schema", source.Columns, source.ColumnMeta.HighWater)
 	}
 	for i, column := range source.Columns {
 		if column.Name != names[i] || column.Usage.Type.ID() != typeIDs[i] || !column.NullabilityKnown || column.Nullable != (i >= 31) || column.OriginTable != 1259 || column.OriginAttribute != int16(i+1) {
 			t.Fatal("descriptor", i, column)
 		}
 	}
-	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200001}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "projection", Owner: e.authorizationDomain.Principal(10), RowType: 200002, OfType: ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 200003}, AttributeHighWater: 2, History: catalog.PublicationHistory{HasIndexes: true, HasSubclasses: true}, Security: catalog.RelationSecurity{RLSEnabled: true, RLSForced: true}, CheckConstraints: make([]catalog.CheckConstraint, 2)}
+	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200001}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "projection", Owner: e.authorizationDomain.Principal(10), RowType: 200002, OfType: ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 200003}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}, History: catalog.PublicationHistory{HasIndexes: true, HasSubclasses: true}, Security: catalog.RelationSecurity{RLSEnabled: true, RLSForced: true}, CheckConstraints: make([]catalog.CheckConstraint, 2)}
 	row, err := e.pgClassRow(context.Background(), view, e.Roles(), source, relation)
 	if err != nil || len(row) != 34 {
 		t.Fatal(row, err)

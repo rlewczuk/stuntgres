@@ -131,7 +131,7 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 	}
 	extensionTemporaryGoneUnit(t, e, ext)
 	current := e.catalog.state.MustRelation(survivor.Address())
-	if current == survivor || len(current.Defaults) != 0 || len(current.CheckConstraints) != 0 || e.storage.relations[survivor.Address()] != store || e.storage.indexRoots[index] != root || !sameVersionRoot(retained, store.versions) || store.ends != retainedEnds {
+	if current == survivor || len(current.ColumnMeta.Defaults) != 0 || len(current.CheckConstraints) != 0 || e.storage.relations[survivor.Address()] != store || e.storage.indexRoots[index] != root || !sameVersionRoot(retained, store.versions) || store.ends != retainedEnds {
 		t.Fatal("stale retirement lost surviving storage/index or failed pruning")
 	}
 	for _, name := range []string{"ext_view", "ext_chain", "ext_stale_late"} {
@@ -219,7 +219,7 @@ func extensionTemporarySaturatedEnd(t *testing.T) {
 	}
 	extensionTemporaryGoneUnit(t, e, ext)
 	current := e.catalog.state.MustRelation(survivor.Address())
-	if current == &maximum || current.Revision() != maximum.Revision() || len(current.Defaults) != 0 || len(current.CheckConstraints) != 0 || len(maximum.Defaults) != 1 || len(maximum.CheckConstraints) != 1 || e.catalog.nextRevision != maximum.Revision() {
+	if current == &maximum || current.Revision() != maximum.Revision() || len(current.ColumnMeta.Defaults) != 0 || len(current.CheckConstraints) != 0 || len(maximum.ColumnMeta.Defaults) != 1 || len(maximum.CheckConstraints) != 1 || e.catalog.nextRevision != maximum.Revision() {
 		t.Fatal("post-drain did not preserve terminal counter/immutable predecessor contract")
 	}
 	if e.storage.relations[survivor.Address()] != store || e.storage.indexRoots[index] != root || !sameVersionRoot(retained, store.versions) || ends != store.ends || e.catalog.state.Get(peerNamespace.Address()) != peerNamespace || e.catalog.state.Get(peerTable) != peerDescriptor || e.storage.relations[peerTable] != peerStore {

@@ -168,8 +168,10 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	// Stored generation manifests retain the real installed routine provider,
 	// rather than reducing the call to its extension or output type.
 	generated := &catalog.Relation{
-		Generations: map[int32]catalog.ColumnGeneration{
-			1: {Kind: catalog.GenerationStored, Expression: n, Planned: n, Dependencies: []ids.ObjectRef{n.ref}},
+		ColumnMeta: catalog.ColumnMetadata{
+			Generations: map[int32]catalog.ColumnGeneration{
+				1: {Kind: catalog.GenerationStored, Expression: n, Planned: n, Dependencies: []ids.ObjectRef{n.ref}},
+			},
 		},
 	}
 	if err := validateGenerationProviders(e.CatalogRead(), generated); err != nil {
@@ -180,7 +182,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	}
 	stale := n.ref
 	stale.Epoch = 0
-	generated.Generations[1] = catalog.ColumnGeneration{Dependencies: []ids.ObjectRef{stale}}
+	generated.ColumnMeta.Generations[1] = catalog.ColumnGeneration{Dependencies: []ids.ObjectRef{stale}}
 	if err := validateGenerationProviders(e.CatalogRead(), generated); err == nil {
 		t.Fatal("invalid installed generation epoch accepted")
 	}

@@ -105,7 +105,7 @@ func TestPartitionDetachDependencies(t *testing.T) {
 			for _, index := range [2]*catalog.Relation{f.parent, f.child} {
 				index.Columns = index.Columns[:2]
 				index.Attributes = index.Attributes[:2]
-				index.AttributeHighWater = 2
+				index.ColumnMeta.HighWater = 2
 				index.Index = map[string]int{"a": 0, "b": 1}
 				index.SQLIndex.Keys[1].Desc = false
 				index.SQLIndex.Keys[1].NullsFirst = false

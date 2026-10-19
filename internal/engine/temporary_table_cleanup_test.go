@@ -17,9 +17,9 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 	}
 	options.Persistence, options.Owned = "temporary", table.Address()
 	options.Owned.SubID = 1
-	sequence := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20003}, ObjectNamespace: table.Namespace(), ObjectName: "owned", ObjectRevision: 1, SequencePlanStamp: 1, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, AttributeHighWater: 3, RelationKind: catalog.SequenceRelation, Sequence: &options}
+	sequence := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20003}, ObjectNamespace: table.Namespace(), ObjectName: "owned", ObjectRevision: 1, SequencePlanStamp: 1, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3}, RelationKind: catalog.SequenceRelation, Sequence: &options}
 	class, _ := sqltype.DefaultIndexClass(table.Columns[0].Usage.Type)
-	index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20004}, ObjectNamespace: table.Namespace(), ObjectName: "backing", ObjectRevision: 1, Owner: table.Owner, Columns: table.Columns, Index: table.Index, Attributes: table.Attributes, AttributeHighWater: 1, RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Parent: table.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}}}
+	index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20004}, ObjectNamespace: table.Namespace(), ObjectName: "backing", ObjectRevision: 1, Owner: table.Owner, Columns: table.Columns, Index: table.Index, Attributes: table.Attributes, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}, RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Parent: table.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}}}
 	peer := sessionStart(t, e, nil)
 	peerNamespace := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20005}, ObjectName: "pg_temp_peer", ObjectRevision: 1, Owner: table.Owner, Temporary: peer.token}
 	peerTable := *table
@@ -249,7 +249,7 @@ func TestTemporaryTableCascadeRevisionBounds(t *testing.T) {
 				roleExecute(t, e, op, "CREATE TABLE public.cleanup_defaults(v BIGINT DEFAULT nextval('public.cleanup_default_source'))")
 				sequence = e.catalog.state.MustRelation(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: consumer.Namespace(), Name: "cleanup_default_source"}))
 				consumer = e.catalog.state.MustRelation(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: consumer.Namespace(), Name: "cleanup_defaults"}))
-				if len(consumer.Defaults) != 1 {
+				if len(consumer.ColumnMeta.Defaults) != 1 {
 					t.Fatal("missing actual DEFAULT")
 				}
 			}
@@ -277,7 +277,7 @@ func TestTemporaryTableCascadeRevisionBounds(t *testing.T) {
 					if err != nil || !ok || replacement == &maximum || replacement.Revision() != maximum.Revision() {
 						t.Fatal("terminal maximum cascade omitted fresh metadata", err)
 					}
-					if kind == "CHECK" && (len(replacement.CheckConstraints) != 0 || len(maximum.CheckConstraints) != 1) || kind == "DEFAULT" && (len(replacement.Defaults) != 0 || len(maximum.Defaults) != 1) {
+					if kind == "CHECK" && (len(replacement.CheckConstraints) != 0 || len(maximum.CheckConstraints) != 1) || kind == "DEFAULT" && (len(replacement.ColumnMeta.Defaults) != 0 || len(maximum.ColumnMeta.Defaults) != 1) {
 						t.Fatal("replacement changed captured definition")
 					}
 				}

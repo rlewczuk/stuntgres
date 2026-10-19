@@ -13,15 +13,15 @@ func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.I
 	b.identityDiscard = nil
 	b.insertProjection = nil
 	for i, attr := range d.Attributes {
-		b.defaults[i] = d.Defaults[attr].Expression
-		if identity, ok := d.Identities[attr]; ok {
+		b.defaults[i] = d.ColumnMeta.Defaults[attr].Expression
+		if identity, ok := d.ColumnMeta.Identities[attr]; ok {
 			b.defaults[i] = sequenceCallExpression{Info: expr.Info{Usage: d.Columns[i].Usage, Property: expr.Properties{Volatility: expr.Volatile}}, name: "nextval", ref: e.catalog.Domain.Ref(auth.catalog.Epoch(), identity.Sequence), identity: true}
 		}
 	}
-	if s.Override == parser.OverrideUser && len(d.Identities) != 0 {
+	if s.Override == parser.OverrideUser && len(d.ColumnMeta.Identities) != 0 {
 		b.identityDiscard = make([]bool, len(d.Columns))
 		for i, attr := range d.Attributes {
-			_, b.identityDiscard[i] = d.Identities[attr]
+			_, b.identityDiscard[i] = d.ColumnMeta.Identities[attr]
 		}
 	}
 	for i, slot := range b.targets {
@@ -40,10 +40,10 @@ func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.I
 			}
 		}
 		if supplied {
-			if _, generated := d.Generations[attr]; generated {
+			if _, generated := d.ColumnMeta.Generations[attr]; generated {
 				return generationWriteError(d.Columns[slot].Name, false)
 			}
-			if identity, ok := d.Identities[attr]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
+			if identity, ok := d.ColumnMeta.Identities[attr]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
 				return identityInsertError(d.Columns[slot].Name)
 			}
 		}
@@ -53,7 +53,7 @@ func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.I
 			b.defaults[slot] = nil
 		}
 	}
-	if len(d.Identities) != 0 {
+	if len(d.ColumnMeta.Identities) != 0 {
 		b.insertProjection = make([]int, len(d.Columns))
 		for i := range b.insertProjection {
 			b.insertProjection[i] = -1

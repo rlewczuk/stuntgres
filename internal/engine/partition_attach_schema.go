@@ -58,7 +58,7 @@ func partitionAttachEligibility(view catalog.Read, parent, child *catalog.Relati
 		return sqlError("42809", fmt.Sprintf(`cannot attach a temporary relation as partition of permanent relation "%s"`, parent.Name()))
 	}
 	for _, attribute := range child.Attributes {
-		if _, ok := child.Identities[attribute]; ok {
+		if _, ok := child.ColumnMeta.Identities[attribute]; ok {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`table "%s" being attached contains an identity column "%s"`, child.Name(), child.Columns[child.IndexForAttribute(attribute)].Name), Detail: "The new partition may not contain an identity column."}
 		}
 	}
@@ -103,8 +103,8 @@ func partitionAttachSchema(ctxScope *StatementScope, view catalog.Read, parent, 
 		if !column.Nullable && other.Nullable {
 			return nil, sqlError("42804", fmt.Sprintf(`column "%s" in child table "%s" must be marked NOT NULL`, column.Name, child.Name()))
 		}
-		_, generated := child.Generations[child.Attributes[slot]]
-		_, requiredGeneration := parent.Generations[parent.Attributes[i]]
+		_, generated := child.ColumnMeta.Generations[child.Attributes[slot]]
+		_, requiredGeneration := parent.ColumnMeta.Generations[parent.Attributes[i]]
 		if generated && !requiredGeneration {
 			return nil, sqlError("42804", fmt.Sprintf(`column "%s" in child table must not be a generated column`, column.Name))
 		}

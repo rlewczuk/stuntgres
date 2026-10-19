@@ -102,13 +102,13 @@ func validateInheritance(v catalog.Read, d *catalog.Relation) error {
 				return invalid()
 			}
 		}
-		for sourceAttribute, generation := range parent.Generations {
+		for sourceAttribute, generation := range parent.ColumnMeta.Generations {
 			sourceSlot := slices.Index(parent.Attributes, sourceAttribute)
 			if sourceSlot < 0 {
 				return invalid()
 			}
 			target := d.Attributes[mapper.targetSlots[sourceSlot]]
-			child, ok := d.Generations[target]
+			child, ok := d.ColumnMeta.Generations[target]
 			if !ok || child.Kind != generation.Kind {
 				return invalid()
 			}

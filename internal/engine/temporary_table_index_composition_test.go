@@ -263,7 +263,7 @@ func TestTemporaryTablePredicateOnlyRetainedTypes(t *testing.T) {
 			index = relation
 		}
 	}
-	if parent == nil || index == nil || index.SQLIndex.Predicate == nil || index.SQLIndex.Keys[0].Derived != nil || len(parent.Generations) != 0 || len(parent.Defaults) != 0 || len(parent.CheckConstraints) != 0 || len(parent.Columns) != 1 || parent.Columns[0].Usage.Type.ID() != sqltype.Int4 {
+	if parent == nil || index == nil || index.SQLIndex.Predicate == nil || index.SQLIndex.Keys[0].Derived != nil || len(parent.ColumnMeta.Generations) != 0 || len(parent.ColumnMeta.Defaults) != 0 || len(parent.CheckConstraints) != 0 || len(parent.Columns) != 1 || parent.Columns[0].Usage.Type.ID() != sqltype.Int4 {
 		t.Fatal("fixture is not a genuine unmasked plain-key partial predicate")
 	}
 	predicate := index.SQLIndex.Predicate

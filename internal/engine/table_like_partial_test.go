@@ -307,7 +307,7 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 							columns[i].OriginTable = uint32(oid)
 							columns[i].OriginAttribute = int16(i + 1)
 						}
-						index = &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: source.Namespace(), ObjectName: "private_partial", ObjectRevision: revision, Owner: source.Owner, Columns: columns, Attributes: attributes, AttributeHighWater: int32(len(attributes)), Index: lookup, RelationKind: catalog.IndexRelation, SQLIndex: definition}
+						index = &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: source.Namespace(), ObjectName: "private_partial", ObjectRevision: revision, Owner: source.Owner, Columns: columns, Attributes: attributes, ColumnMeta: catalog.ColumnMetadata{HighWater: int32(len(attributes))}, Index: lookup, RelationKind: catalog.IndexRelation, SQLIndex: definition}
 						err = stage.Create(index)
 					}
 				}

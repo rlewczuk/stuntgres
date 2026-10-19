@@ -23,7 +23,7 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 					q := inheritanceUnitRelation(e, "q", 22001, "a")
 					c := inheritanceUnitRelation(e, "c", 22002, "extra", "a")
 					c.Attributes = []int32{2, 7}
-					c.AttributeHighWater = 7
+					c.ColumnMeta.HighWater = 7
 					parents := []ids.ObjectAddress{p.Address()}
 					origins := []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 1}}
 					if other {
@@ -150,28 +150,28 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 	expression := func(n int64) expr.Expr {
 		return literalExpression{Info: expr.Info{Usage: usage}, value: inheritanceQueryInt(e, n)}
 	}
-	p.Defaults = map[int32]catalog.ColumnDefault{1: {Expression: expression(1)}}
-	c.Defaults = map[int32]catalog.ColumnDefault{1: {Expression: expression(9)}}
+	p.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {Expression: expression(1)}}
+	c.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {Expression: expression(9)}}
 	provenance := catalog.InheritedColumn{Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 1}}}
 	view := inheritanceUnitView(e, p, c)
 	retained, err := retainInheritedRecipes(view, c, 1, provenance)
 	if err != nil || retained.Local || !retained.ExplicitDefault || !reflect.DeepEqual(retained.Origins, provenance.Origins) {
 		t.Fatal("default authority changed attribute locality/origins", retained, err)
 	}
-	c.Defaults = nil
+	c.ColumnMeta.Defaults = nil
 	tombstone, err := retainInheritedRecipes(view, c, 1, provenance)
 	if err != nil || tombstone.Local || !tombstone.ExplicitDefault {
 		t.Fatal("default absence lost explicit authority", tombstone, err)
 	}
-	p.Defaults = nil
+	p.ColumnMeta.Defaults = nil
 	plain, err := retainInheritedRecipes(view, c, 1, provenance)
 	if err != nil || plain.ExplicitDefault || plain.Local {
 		t.Fatal("ordinary inherited absence fabricated authority", plain, err)
 	}
 	p = inheritanceUnitRelation(e, "gp", 22002, "a", "g")
 	c = inheritanceUnitRelation(e, "gc", 22003, "a", "g")
-	p.Generations = map[int32]catalog.ColumnGeneration{2: {OID: 24000, Kind: catalog.GenerationVirtual, Expression: expression(1)}}
-	c.Generations = map[int32]catalog.ColumnGeneration{2: {OID: 24001, Kind: catalog.GenerationVirtual, Expression: expression(2)}}
+	p.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {OID: 24000, Kind: catalog.GenerationVirtual, Expression: expression(1)}}
+	c.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {OID: 24001, Kind: catalog.GenerationVirtual, Expression: expression(2)}}
 	c.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{p.Address()}, Columns: map[int32]catalog.InheritedColumn{1: {Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 1}}}, 2: {Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 2}}}}, NotNull: map[int32]catalog.InheritedConstraint{}, Checks: map[string]catalog.InheritedConstraint{}}
 	view = inheritanceUnitView(e, p, c)
 	if err := validateInheritance(view, c); err != nil {
@@ -187,7 +187,7 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 		next.Inheritance = cloneInheritance(c.Inheritance)
 		switch kind {
 		case "kind":
-			next.Generations = map[int32]catalog.ColumnGeneration{2: {OID: 24001, Kind: catalog.GenerationStored, Expression: expression(2)}}
+			next.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {OID: 24001, Kind: catalog.GenerationStored, Expression: expression(2)}}
 		case "usage":
 			next.Columns[1].Usage = testUsage(e, sqltype.Int8)
 		case "origin":
@@ -198,10 +198,10 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 		}
 	}
 	foreign := New()
-	definition := c.Generations[2]
+	definition := c.ColumnMeta.Generations[2]
 	definition.Dependencies = []ids.ObjectRef{foreign.catalog.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)})}
 	invalid := *c
-	invalid.Generations = map[int32]catalog.ColumnGeneration{2: definition}
+	invalid.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: definition}
 	if err := validateGenerationProviders(view, &invalid); err == nil {
 		t.Fatal("foreign generation provider gained authority")
 	}
@@ -250,7 +250,7 @@ func TestInheritanceAlterOnlyMixedActions(t *testing.T) {
 		}
 		before := retiredUnitTable(t, e, "c")
 		g := before.Attributes[before.Index["g"]]
-		generation := before.Generations[g]
+		generation := before.ColumnMeta.Generations[g]
 		ownershipUnitExec(t, e, "ALTER TABLE ONLY p DROP COLUMN b,ALTER g SET EXPRESSION AS(a+10)")
 		parent := retiredUnitTable(t, e, "p")
 		child := retiredUnitTable(t, e, "c")
@@ -258,8 +258,8 @@ func TestInheritanceAlterOnlyMixedActions(t *testing.T) {
 			t.Fatal("root column survived actual DROP")
 		}
 		provenance := child.Inheritance.Columns[child.Attributes[child.Index["b"]]]
-		if !provenance.Local || len(provenance.Origins) != 0 || child.Generations[g].OID != generation.OID {
-			t.Fatal("ONLY later recipe changed child definition", provenance, child.Generations[g])
+		if !provenance.Local || len(provenance.Origins) != 0 || child.ColumnMeta.Generations[g].OID != generation.OID {
+			t.Fatal("ONLY later recipe changed child definition", provenance, child.ColumnMeta.Generations[g])
 		}
 		expectInts(t, e, "SELECT a,g FROM ONLY p", [][]int64{{1, 11}})
 		expectInts(t, e, "SELECT a,b,g FROM ONLY c", [][]int64{{2, 8, 3}})

@@ -104,7 +104,7 @@ func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth Author
 	}
 	next := *mutation.next
 	next.ObjectRevision = old.Revision() + 1
-	next.Defaults = maps.Clone(next.Defaults)
+	next.ColumnMeta.Defaults = maps.Clone(next.ColumnMeta.Defaults)
 	next.CheckConstraints = slices.Clone(next.CheckConstraints)
 	next.NotNullConstraints = slices.Clone(next.NotNullConstraints)
 	e.mu.Lock()

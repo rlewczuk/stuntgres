@@ -167,15 +167,15 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *catalog.Relat
 	options.Owned = table.Address()
 	options.Owned.SubID = table.Attributes[slot]
 	options.Identity = true
-	d := &catalog.Relation{ObjectAddress: address, ObjectNamespace: table.Namespace(), ObjectName: name, ObjectRevision: rev, SequencePlanStamp: rev, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, AttributeHighWater: 3, RelationKind: catalog.SequenceRelation, Sequence: &options}
+	d := &catalog.Relation{ObjectAddress: address, ObjectNamespace: table.Namespace(), ObjectName: name, ObjectRevision: rev, SequencePlanStamp: rev, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3}, RelationKind: catalog.SequenceRelation, Sequence: &options}
 	d.Security.ACL = stage.creationACL(table.Owner, table.Namespace(), authorization.DefaultSequences)
 	if err := stage.Create(d); err != nil {
 		return err
 	}
-	if table.Identities == nil {
-		table.Identities = make(map[int32]catalog.ColumnIdentity)
+	if table.ColumnMeta.Identities == nil {
+		table.ColumnMeta.Identities = make(map[int32]catalog.ColumnIdentity)
 	}
-	table.Identities[table.Attributes[slot]] = catalog.ColumnIdentity{Mode: mode, Sequence: address}
+	table.ColumnMeta.Identities[table.Attributes[slot]] = catalog.ColumnIdentity{Mode: mode, Sequence: address}
 	if stage.generators == nil {
 		stage.generators = make(map[ids.ObjectAddress]*sequenceGenerator)
 	}

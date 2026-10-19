@@ -53,7 +53,7 @@ func partitionConstraintDescriptors(t *testing.T) partitionConstraintUnit {
 	leaf.Membership = &catalog.PartitionMembership{Parent: root.Address(), DefaultBound: true}
 	leaf.Columns = []catalog.Column{root.Columns[1], root.Columns[0], root.Columns[2]}
 	leaf.Attributes = []int32{11, 22, 33}
-	leaf.AttributeHighWater = 33
+	leaf.ColumnMeta.HighWater = 33
 	leaf.Index = map[string]int{"b": 0, "a": 1, "p": 2}
 	root.Partition.Children = []ids.ObjectAddress{leaf.Address()}
 	root.Partition.DefaultChild = leaf.Address()

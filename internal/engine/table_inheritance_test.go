@@ -18,7 +18,7 @@ func inheritanceUnitRelation(e *Engine, name string, id ids.OID, names ...string
 		d.Attributes = append(d.Attributes, int32(i+1))
 		d.Columns = append(d.Columns, catalog.Column{Name: name, Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true, OriginTable: uint32(id), OriginAttribute: int16(i + 1)})
 	}
-	d.AttributeHighWater = int32(len(names))
+	d.ColumnMeta.HighWater = int32(len(names))
 	return d
 }
 func inheritanceUnitView(e *Engine, relations ...*catalog.Relation) catalog.Read {
@@ -66,8 +66,8 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 		t.Fatal(err)
 	}
 	literal := literalExpression{Info: expr.Info{Usage: usage}, value: value}
-	p.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 23002, Expression: literal}}
-	q.Defaults = map[int32]catalog.ColumnDefault{2: {OID: 23003, Expression: literal}}
+	p.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 23002, Expression: literal}}
+	q.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{2: {OID: 23003, Expression: literal}}
 	child := inheritanceUnitRelation(e, "c", 22002, "a", "x", "z")
 	view := inheritanceUnitView(e, p, q)
 	auth, err := op.Authorization()
@@ -84,13 +84,13 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 	if len(child.NotNullConstraints) != 1 || child.NotNullConstraints[0].Name != "first" || child.Columns[0].Nullable || len(child.Inheritance.NotNull[1].Origins) != 2 || child.Inheritance.NotNull[1].Local || child.Inheritance.Columns[1].Local || !child.Inheritance.Columns[3].Local {
 		t.Fatal(child)
 	}
-	if !reflect.DeepEqual(child.Inheritance.Parents, []ids.ObjectAddress{p.Address(), q.Address()}) || !sameGroupExpression(child.Defaults[1].Expression, literal) || child.Defaults[1].OID != 0 || p.Defaults[1].OID != 23002 {
-		t.Fatal(child.Defaults, p.Defaults)
+	if !reflect.DeepEqual(child.Inheritance.Parents, []ids.ObjectAddress{p.Address(), q.Address()}) || !sameGroupExpression(child.ColumnMeta.Defaults[1].Expression, literal) || child.ColumnMeta.Defaults[1].OID != 0 || p.ColumnMeta.Defaults[1].OID != 23002 {
+		t.Fatal(child.ColumnMeta.Defaults, p.ColumnMeta.Defaults)
 	}
 	if err := e.assignDefinitionOIDsLocked(child); err != nil {
 		t.Fatal(err)
 	}
-	if child.NotNullConstraints[0].OID == p.NotNullConstraints[0].OID || child.Defaults[1].OID == p.Defaults[1].OID {
+	if child.NotNullConstraints[0].OID == p.NotNullConstraints[0].OID || child.ColumnMeta.Defaults[1].OID == p.ColumnMeta.Defaults[1].OID {
 		t.Fatal("inherited identity copied")
 	}
 	combined := inheritanceUnitView(e, p, q, child)
@@ -169,8 +169,8 @@ func TestInheritanceMergeDefaultOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 23000, Expression: literalExpression{Info: expr.Info{Usage: usage}, value: first}}}
-	q.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 23001, Expression: literalExpression{Info: expr.Info{Usage: usage}, value: second}}}
+	p.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 23000, Expression: literalExpression{Info: expr.Info{Usage: usage}, value: first}}}
+	q.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 23001, Expression: literalExpression{Info: expr.Info{Usage: usage}, value: second}}}
 	view := inheritanceUnitView(e, p, q)
 	auth, err := op.Authorization()
 	if err != nil {
@@ -195,11 +195,11 @@ func TestInheritanceMergeDefaultOverride(t *testing.T) {
 			}
 			continue
 		}
-		if err != nil || len(child.Defaults) != 0 || !child.Inheritance.Columns[1].ExplicitDefault || !child.Inheritance.Columns[1].Local {
+		if err != nil || len(child.ColumnMeta.Defaults) != 0 || !child.Inheritance.Columns[1].ExplicitDefault || !child.Inheritance.Columns[1].Local {
 			t.Fatal(child, err)
 		}
 	}
-	if p.Defaults[1].OID != 23000 || q.Defaults[1].OID != 23001 {
+	if p.ColumnMeta.Defaults[1].OID != 23000 || q.ColumnMeta.Defaults[1].OID != 23001 {
 		t.Fatal("source default identity changed")
 	}
 }
@@ -284,7 +284,7 @@ func TestInheritanceGenerationDeclarationProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	expression := literalExpression{Info: expr.Info{Usage: usage}, value: value}
-	parent.Generations = map[int32]catalog.ColumnGeneration{1: {Kind: catalog.GenerationStored, Expression: expression, Planned: expression}}
+	parent.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{1: {Kind: catalog.GenerationStored, Expression: expression, Planned: expression}}
 	view := inheritanceUnitView(e, parent)
 	auth, err := op.Authorization()
 	if err != nil {
@@ -305,7 +305,7 @@ func TestInheritanceGenerationDeclarationProvenance(t *testing.T) {
 		if !provenance.Local || provenance.ExplicitGeneration != explicit {
 			t.Fatal("generation declaration provenance", provenance, explicit)
 		}
-		if !explicit && !sameGroupExpression(child.Generations[1].Expression, expression) {
+		if !explicit && !sameGroupExpression(child.ColumnMeta.Generations[1].Expression, expression) {
 			t.Fatal("plain local declaration lost inherited generation")
 		}
 	}

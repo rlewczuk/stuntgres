@@ -40,7 +40,7 @@ func TestPGDatabaseShapeAndOwnership(t *testing.T) {
 	view := e.CatalogRead()
 	d, _ := pgDatabaseUnitSource(t, e, view)
 	owner := e.Roles().LookupRef("postgres")
-	if d.Name() != "pg_database" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || d.AttributeHighWater != 18 || len(d.Columns) != 18 || d.Owner != owner || !d.History.HasIndexes {
+	if d.Name() != "pg_database" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || d.ColumnMeta.HighWater != 18 || len(d.Columns) != 18 || d.Owner != owner || !d.History.HasIndexes {
 		t.Fatal("relation identity", d)
 	}
 	names := [...]string{"oid", "datname", "datdba", "encoding", "datlocprovider", "datistemplate", "datallowconn", "dathasloginevt", "datconnlimit", "datfrozenxid", "datminmxid", "dattablespace", "datcollate", "datctype", "datlocale", "daticurules", "datcollversion", "datacl"}

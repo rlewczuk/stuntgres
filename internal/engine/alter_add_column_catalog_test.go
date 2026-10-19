@@ -19,7 +19,7 @@ func TestAlterAddColumnDescriptorValidation(t *testing.T) {
 		valid     bool
 	}{{3, 1, true}, {0, 1, false}, {-1, 1, false}, {3, 4, false}} {
 		d := *original
-		d.AttributeHighWater = tc.high
+		d.ColumnMeta.HighWater = tc.high
 		d.Attributes = []int32{tc.attribute}
 		stage := e.BeginCatalogStage(auth.catalog)
 		if err := stage.Create(&d); err != nil {
@@ -83,8 +83,8 @@ func TestAlterAddColumnPrivateSnapshotEqualWidthProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	old := &catalog.Relation{Columns: []catalog.Column{{Name: "old", Usage: u}}, Attributes: []int32{1}, AttributeHighWater: 1}
-	next := &catalog.Relation{Columns: []catalog.Column{{Name: "new", Usage: u}}, Attributes: []int32{2}, AttributeHighWater: 2}
+	old := &catalog.Relation{Columns: []catalog.Column{{Name: "old", Usage: u}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
+	next := &catalog.Relation{Columns: []catalog.Column{{Name: "new", Usage: u}}, Attributes: []int32{2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}}
 	original := &relationStorage{versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{one}}}}
 	historical := []rowVersion{{row: 2, version: 2, born: 1, values: []sqltype.Value{one}}}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
@@ -131,14 +131,14 @@ func TestAlterAddColumnNativeImportPreservesCeilingAndSource(t *testing.T) {
 		t.Fatal(err)
 	}
 	imported := destination.CatalogRead().MustRelation(next.Address())
-	if imported.AttributeHighWater != 4 || !reflect.DeepEqual(imported.Attributes, []int32{1, 4}) || imported.Columns[1].OriginAttribute != 4 || source.CatalogRead().State() != before.State() || before.Get(next.Address()) != next || old.AttributeHighWater != 3 {
+	if imported.ColumnMeta.HighWater != 4 || !reflect.DeepEqual(imported.Attributes, []int32{1, 4}) || imported.Columns[1].OriginAttribute != 4 || source.CatalogRead().State() != before.State() || before.Get(next.Address()) != next || old.ColumnMeta.HighWater != 3 {
 		t.Fatal("import changed source or stable identity", imported, next, old)
 	}
 	// Foreign replacement adopts an immutable catalog generation. Provider
 	// validity is membership in the installed generation, not pointer inequality
 	// across owners (ReplaceCatalog clones the source catalog and remaps refs).
 	view := destination.CatalogRead()
-	node := imported.Defaults[4].Expression
+	node := imported.ColumnMeta.Defaults[4].Expression
 	usage := node.ResultUsage()
 	provider, exists := view.LookupType(usage.Type.ID())
 	if !exists || provider != usage.Type || usage != imported.Columns[1].Usage {

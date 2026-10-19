@@ -374,7 +374,7 @@ func (e *Engine) initializeCatalogSources() error {
 
 func (e *Engine) catalogSourceDescriptor(oid ids.OID, namespace ids.ObjectAddress, name string, count int) *catalog.Relation {
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, RelationKind: catalog.CatalogRelation, Owner: owner, Index: make(map[string]int, count), Attributes: make([]int32, count), Columns: make([]catalog.Column, count), AttributeHighWater: int32(count), Security: catalog.RelationSecurity{ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}}}
+	return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, RelationKind: catalog.CatalogRelation, Owner: owner, Index: make(map[string]int, count), Attributes: make([]int32, count), Columns: make([]catalog.Column, count), ColumnMeta: catalog.ColumnMetadata{HighWater: int32(count)}, Security: catalog.RelationSecurity{ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}}}
 }
 
 func (e *Engine) registerCatalogSource(d *catalog.Relation) {
@@ -505,14 +505,14 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, view catalog.Re
 				rows = append(rows, []sqltype.Value{oid(0, uint32(relation.Address().ObjectID)), oid(1, uint32(definition.Parent.ObjectID)), boolean(2, definition.Unique), boolean(3, definition.Constraint != nil && definition.Constraint.Primary), boolean(4, definition.Valid), boolean(5, definition.Ready), boolean(6, definition.Live), boolean(7, definition.NullsNotDistinct)})
 			}
 		case 2604:
-			for attribute, definition := range relation.Defaults {
+			for attribute, definition := range relation.ColumnMeta.Defaults {
 				tree, err := catalogTree(source.Columns[3].Usage.Type, definition.Expression)
 				if err != nil {
 					return nil, err
 				}
 				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), oid(1, uint32(relation.Address().ObjectID)), integer(2, int64(attribute)), tree})
 			}
-			for attribute, definition := range relation.Generations {
+			for attribute, definition := range relation.ColumnMeta.Generations {
 				tree, err := catalogTree(source.Columns[3].Usage.Type, definition.Expression)
 				if err != nil {
 					return nil, err

@@ -11,13 +11,13 @@ func TestSerialDefaultMergedRootProviderValidation(t *testing.T) {
 	run(t, e, `CREATE SEQUENCE q`)
 	run(t, e, `CREATE TABLE consumer(id INT DEFAULT nextval('q'))`)
 	ref := roleTableRef(t, e, "consumer")
-	definition := e.catalog.state.MustRelation(ref.Address).Defaults[1]
+	definition := e.catalog.state.MustRelation(ref.Address).ColumnMeta.Defaults[1]
 	run(t, e, `ALTER TABLE consumer ALTER id DROP DEFAULT`)
 	read := e.CatalogRead()
 	original := read.MustRelation(ref.Address)
 	candidate := *original
 	candidate.ObjectRevision++
-	candidate.Defaults = map[int32]catalog.ColumnDefault{1: definition}
+	candidate.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: definition}
 	stage := e.BeginCatalogStage(read)
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Replace(&candidate); err != nil {

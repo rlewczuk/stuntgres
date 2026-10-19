@@ -47,13 +47,10 @@ type Relation struct {
 	Columns                        []Column
 	Index                          map[string]int
 	Attributes                     []int32
-	AttributeHighWater             int32
-	DroppedAttributes              map[int32]AttributeMetadata
-	CatalogAttributes              []CatalogAttribute
+	ColumnMeta                     ColumnMetadata
 	Owner                          authorization.PrincipalRef
 	Comment                        string
 	Security                       RelationSecurity
-	ColumnComments                 map[int32]string
 	NotNullConstraints             []NotNullConstraint
 	PhysicalNotNull                map[int32]PhysicalNotNullProof
 	CheckConstraints               []CheckConstraint
@@ -61,9 +58,6 @@ type Relation struct {
 	UniqueConstraints              []UniqueConstraint
 	ExclusionConstraints           []ExclusionConstraint
 	ForeignKeys                    []ForeignKeyConstraint
-	Defaults                       map[int32]ColumnDefault
-	Generations                    map[int32]ColumnGeneration
-	Identities                     map[int32]ColumnIdentity
 	Inheritance                    *TableInheritance
 	RelationKind                   RelationKind
 	History                        PublicationHistory
@@ -79,6 +73,18 @@ type Relation struct {
 	RowType                        sqltype.ID
 	OfType                         ids.ObjectAddress
 	Foreign                        *ForeignTableDefinition
+}
+
+// ColumnMetadata holds per-attribute metadata keyed by attribute number,
+// beside the relation's live Columns and Attributes.
+type ColumnMetadata struct {
+	HighWater         int32 // Highest attribute number ever assigned.
+	Dropped           map[int32]AttributeMetadata
+	CatalogAttributes []CatalogAttribute
+	Comments          map[int32]string
+	Defaults          map[int32]ColumnDefault
+	Generations       map[int32]ColumnGeneration
+	Identities        map[int32]ColumnIdentity
 }
 
 // RelationSecurity holds a relation's access control: its ACL, column ACLs

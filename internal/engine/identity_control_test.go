@@ -24,7 +24,7 @@ func TestIdentityControlsTemporaryCollision(t *testing.T) {
 			tempRef := tempDescription.sequences.constants[0].ref.Address
 			sourceRef := roleTableRef(t, source, "portable.i").Address
 			original := source.catalog.state.MustRelation(sourceRef)
-			originalIdentity := original.Identities[original.Attributes[0]]
+			originalIdentity := original.ColumnMeta.Identities[original.Attributes[0]]
 			if originalIdentity.Sequence != tempRef {
 				t.Fatal("fixture lacks actual sequence/TEMP collision", originalIdentity.Sequence, tempRef)
 			}
@@ -54,7 +54,7 @@ func TestIdentityControlsTemporaryCollision(t *testing.T) {
 			}
 			ref := roleTableRef(t, dest, "portable.i").Address
 			table := dest.catalog.state.MustRelation(ref)
-			identity := table.Identities[table.Attributes[0]]
+			identity := table.ColumnMeta.Identities[table.Attributes[0]]
 			if identity.Sequence == tempRef {
 				t.Fatal("identity forward address not remapped")
 			}
@@ -76,7 +76,7 @@ func TestIdentityControlsTemporaryCollision(t *testing.T) {
 			if dest.catalog.state.Get(identity.Sequence) != nil || dest.storage.sequences[identity.Sequence] != nil {
 				t.Fatal("remapped dependency closure failed")
 			}
-			if source.catalog.state.Get(sourceRef) != original || original.Identities[original.Attributes[0]] != originalIdentity {
+			if source.catalog.state.Get(sourceRef) != original || original.ColumnMeta.Identities[original.Attributes[0]] != originalIdentity {
 				t.Fatal("source immutable definition changed")
 			}
 		})
