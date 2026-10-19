@@ -30,7 +30,7 @@ func (e *Engine) captureIndexSnapshot(ctx context.Context, catalog catalog.Read,
 	return e.captureIndexSnapshotParents(ctx, catalog, storage, roots, frontier, nil, nil)
 }
 
-func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view catalog.Read, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, frontier ids.CommitSeq, parents map[ids.ObjectAddress]*relationStorage, private *catalogChanges) (*indexSnapshot, error) {
+func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view catalog.Read, relations map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, frontier ids.CommitSeq, parents map[ids.ObjectAddress]*relationStorage, private *catalogChanges) (*indexSnapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view catalog.R
 			return nil, err
 		}
 		if relation, ok := descriptor.(*catalog.Relation); ok && partitionNeedsRowHistory(view, relation) {
-			store := storage[address]
+			store := relations[address]
 			if store == nil || store != e.privateStorageLocked(private, address) {
 				return nil, ids.ErrCatalogReplaced
 			}
@@ -86,7 +86,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view catalog.R
 		if parent.Partition != nil {
 			continue
 		}
-		store, root := storage[parent.Address()], roots[address]
+		store, root := relations[parent.Address()], roots[address]
 		if store == nil || root == nil || store != e.privateStorageLocked(private, parent.Address()) || root != actualRoot(address) {
 			return nil, ids.ErrCatalogReplaced
 		}
@@ -205,7 +205,7 @@ func (snapshot *indexSnapshot) transport(ctx context.Context, next *catalog.Stat
 
 // Same-logical-ID domain generation changes retain every physical version and
 // produced key. Replacement's ordinary transport still compacts live rows.
-func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, positions map[ids.ObjectAddress]map[indexRowIdentity]int, preserveVersions bool) (map[ids.ObjectAddress]*logicalIndexRoot, error) {
+func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*relationStorage, positions map[ids.ObjectAddress]map[indexRowIdentity]int, preserveVersions bool) (map[ids.ObjectAddress]*logicalIndexRoot, error) {
 	roots := make(map[ids.ObjectAddress]*logicalIndexRoot, len(snapshot.sources))
 	checkedParents := make(map[ids.ObjectAddress]bool)
 	collation := remappedCollationCapabilities(next, snapshot.mapping)
@@ -222,7 +222,7 @@ func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalog.
 		if !ok {
 			return nil, ids.ErrCatalogReplaced
 		}
-		store, selected := storage[parent.Address()], positions[parent.Address()]
+		store, selected := relations[parent.Address()], positions[parent.Address()]
 		if store == nil || selected == nil {
 			return nil, ids.ErrCatalogReplaced
 		}

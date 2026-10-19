@@ -131,19 +131,19 @@ func (s *StatementScope) foreignActionRow(ref ids.ObjectRef, candidate rowVersio
 	if err := s.validateForeignActionLocked(e, ref); err != nil {
 		return rowVersion{}, false, err
 	}
-	storage := s.foreignActionAdmissions[ref.Address].storage
+	stored := s.foreignActionAdmissions[ref.Address].storage
 	if uniqueRowDeleted(candidate.Row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
 		return rowVersion{}, false, nil
 	}
-	for _, rows := range [][]rowVersion{s.stage.rows[ref.Address], s.ownWrites[ref.Address], storage.Versions} {
+	for _, rows := range [][]rowVersion{s.stage.rows[ref.Address], s.ownWrites[ref.Address], stored.Versions} {
 		row, _, found := rowByID(rows, candidate.Row, -1)
 		if !found {
 			continue
 		}
-		if err := s.repeatableConflict(row, storage.Ends); err != nil {
+		if err := s.repeatableConflict(row, stored.Ends); err != nil {
 			return rowVersion{}, false, err
 		}
-		return row, liveVersion(row, e.commitSeq, storage.Ends, nil), nil
+		return row, liveVersion(row, e.commitSeq, stored.Ends, nil), nil
 	}
 	return rowVersion{}, false, fmt.Errorf("stuntgres: missing internal action predecessor")
 }

@@ -40,12 +40,12 @@ func partitionReplacementRow(from, to *catalog.Relation, row []sqltype.Value) []
 
 // Run only inside the isolated admitted repair statement, after scalar/provider
 // remint and before index transport. Published target/TEMP roots are never touched.
-func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, storage map[ids.ObjectAddress]*relationStorage, auth AuthorizationView, snapshot *indexSnapshot) (map[ids.ObjectAddress]bool, error) {
+func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, relations map[ids.ObjectAddress]*relationStorage, auth AuthorizationView, snapshot *indexSnapshot) (map[ids.ObjectAddress]bool, error) {
 	view := evaluation.catalog
 	var removed map[ids.ObjectAddress]map[int]bool
 	var incoming map[ids.ObjectAddress][]rowVersion
 	var dirty map[ids.ObjectAddress]bool
-	for address, store := range storage {
+	for address, store := range relations {
 		source, ok := view.Relation(address)
 		if !ok || source.Membership == nil || source.Partition != nil {
 			continue
@@ -155,7 +155,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 		}
 	}
 	for address := range dirty {
-		original := storage[address]
+		original := relations[address]
 		if original == nil {
 			return nil, ids.ErrCatalogReplaced
 		}
@@ -168,7 +168,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 		}
 		next.Versions = append(next.Versions, incoming[address]...)
 		next.Generation++
-		storage[address] = &next
+		relations[address] = &next
 	}
 	return dirty, ctx.Err()
 }

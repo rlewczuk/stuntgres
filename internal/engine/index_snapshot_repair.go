@@ -67,7 +67,7 @@ func (snapshot *indexSnapshot) trackedGenerations(next *catalog.State) map[ids.O
 // This is part of the existing admitted restore-repair statement, before its
 // Finish. Only genuinely changed inputs or owner-dependent expressions produce
 // new entries; all other snapshots retain their original produced data.
-func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalContext, storage map[ids.ObjectAddress]*relationStorage, changed map[ids.ObjectAddress]map[int32]bool, moved map[ids.ObjectAddress]bool, auth AuthorizationView) error {
+func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalContext, relations map[ids.ObjectAddress]*relationStorage, changed map[ids.ObjectAddress]map[int32]bool, moved map[ids.ObjectAddress]bool, auth AuthorizationView) error {
 	if snapshot == nil {
 		return nil
 	}
@@ -92,7 +92,7 @@ func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalConte
 		if !ok || parent.Partition != nil || index.SQLIndex.Parent != parentAddress {
 			return ids.ErrCatalogReplaced
 		}
-		store := storage[parentAddress]
+		store := relations[parentAddress]
 		if store == nil {
 			return ids.ErrCatalogReplaced
 		}

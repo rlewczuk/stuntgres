@@ -163,8 +163,8 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 		data.generations = make(map[ids.ObjectAddress]visibilityGeneration, len(refs))
 	}
 	for _, ref := range refs {
-		storage := e.privateStorageLocked(s.owner.catalog, ref.Address)
-		versions, ends := storage.Versions, storage.Ends
+		stored := e.privateStorageLocked(s.owner.catalog, ref.Address)
+		versions, ends := stored.Versions, stored.Ends
 		needsBirthFilter := false
 		var rewrite catalogStorageChange
 		if s.owner.catalog != nil {
@@ -210,9 +210,9 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 		}
 		data.committed[ref.Address] = versions
 		if data.generations != nil {
-			data.generations[ref.Address] = visibilityGeneration{storage: storage, needsBirthFilter: needsBirthFilter}
+			data.generations[ref.Address] = visibilityGeneration{storage: stored, needsBirthFilter: needsBirthFilter}
 		} else {
-			data.singleGeneration = storage
+			data.singleGeneration = stored
 			data.singleNeedsBirthFilter = needsBirthFilter
 		}
 		if ends != nil {

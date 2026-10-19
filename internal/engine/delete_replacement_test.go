@@ -319,10 +319,10 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	run(t, source, "INSERT INTO t VALUES(1),(2),(2),(91)")
 	replacement := source.CatalogRead()
 	sourceRoles, targetRoles := source.Roles(), e.Roles()
-	storage := make(map[ids.ObjectAddress]*relationStorage)
+	relations := make(map[ids.ObjectAddress]*relationStorage)
 	source.mu.Lock()
 	for address, relation := range source.storage.Relations {
-		storage[address] = &relationStorage{Versions: append([]rowVersion(nil), relation.Versions...)}
+		relations[address] = &relationStorage{Versions: append([]rowVersion(nil), relation.Versions...)}
 	}
 	sequences, sequenceErr := copySequenceState(source, replacement)
 	indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage.Relations, source.storage.IndexRoots, source.commitSeq)
@@ -381,9 +381,9 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 		}
 		if err == nil {
 			var prepared remintedIndexStorage
-			prepared, err = e.prepareForeignIndexStorage(context.Background(), next, storage, indexes)
+			prepared, err = e.prepareForeignIndexStorage(context.Background(), next, relations, indexes)
 			if err == nil {
-				err = e.installForeignCatalogLocked(context.Background(), next, storage, sequences, nextRevision, prepared)
+				err = e.installForeignCatalogLocked(context.Background(), next, relations, sequences, nextRevision, prepared)
 			}
 		}
 	}

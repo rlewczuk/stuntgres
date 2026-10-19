@@ -646,8 +646,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			sequences = append(sequences, sequence)
 			continue
 		}
-		storage := e.storage.Relations[a]
-		if storage == nil && r.Partition == nil {
+		stored := e.storage.Relations[a]
+		if stored == nil && r.Partition == nil {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: relation storage is missing")
 		}
@@ -772,8 +772,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 		var versions []rowVersion
 		var ends *deletionRoot
-		if storage != nil {
-			versions, ends = storage.Versions, storage.Ends
+		if stored != nil {
+			versions, ends = stored.Versions, stored.Ends
 		}
 		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.Name(), name: r.Name(), columns: r.Columns, attributes: r.Attributes, versions: versions, ends: ends, frontier: e.commitSeq, comment: r.Comment, columnComments: r.ColumnMeta.Comments, notNullConstraints: r.Constraints.NotNull, defaults: r.ColumnMeta.Defaults, deferredDefinitions: deferredDefinitions, descriptor: r, identities: r.ColumnMeta.Identities, identitySequences: linked})
 		if selected := recipePlan[r.Address()]; selected != nil {

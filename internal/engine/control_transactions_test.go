@@ -115,7 +115,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 			defer retained.Close()
 			before := target.CatalogRead()
 			ref := catalogRef(t, target, before, "t")
-			owner, storage, frontier := target.catalog.Domain, target.storage.Relations[ref.Address], target.commitSeq
+			owner, stored, frontier := target.catalog.Domain, target.storage.Relations[ref.Address], target.commitSeq
 			stage := target.BeginCatalogStage(before)
 			controlsRequire(t, a, "BEGIN")
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
@@ -199,7 +199,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				if !errors.Is(err, context.Canceled) {
 					t.Fatal(err)
 				}
-				if target.CatalogRead().State() != before.State() || target.storage.Relations[ref.Address] != storage || target.commitSeq != frontier {
+				if target.CatalogRead().State() != before.State() || target.storage.Relations[ref.Address] != stored || target.commitSeq != frontier {
 					t.Fatal("failed replacement changed state/storage/frontier")
 				}
 				if err = target.ValidateObjectRef(before, ref); err != nil {
@@ -215,7 +215,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				controlsRequire(t, a, "COMMIT")
 				transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 77)
 			}
-			if retained.count != 1 || retained.source.view.read().catalog.State() != before.State() || testExport(storage.Versions[0].Values[0]) != int64(77) {
+			if retained.count != 1 || retained.source.view.read().catalog.State() != before.State() || testExport(stored.Versions[0].Values[0]) != int64(77) {
 				t.Fatal("retained generation changed")
 			}
 		})

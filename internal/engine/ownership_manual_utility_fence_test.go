@@ -75,8 +75,8 @@ func ownershipManualCapture(e *Engine, session *Session, sequence ids.ObjectRef)
 	for address, generator := range e.storage.Sequences {
 		snapshot.generators[address], snapshot.generatorValues[address] = generator, *generator
 	}
-	for address, storage := range e.storage.Relations {
-		rows := append([]rowVersion(nil), storage.Versions...)
+	for address, stored := range e.storage.Relations {
+		rows := append([]rowVersion(nil), stored.Versions...)
 		for i := range rows {
 			rows[i].Values = append([]sqltype.Value(nil), rows[i].Values...)
 		}

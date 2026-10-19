@@ -148,10 +148,10 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			predecessor, before := root, e.CatalogRead()
-			storage := e.storage.Relations[root.Address()]
+			stored := e.storage.Relations[root.Address()]
 			roleExecute(t, e, op, "CREATE TABLE child() INHERITS(typed)")
 			root = e.CatalogRead().MustRelation(predecessor.Address())
-			if root == predecessor || !root.History.HasSubclasses || predecessor.History.HasSubclasses || root.Address() != predecessor.Address() || root.RowType != predecessor.RowType || root.OfType != predecessor.OfType || root.Revision() == predecessor.Revision() || before.Get(predecessor.Address()) != predecessor || e.storage.Relations[root.Address()] != storage {
+			if root == predecessor || !root.History.HasSubclasses || predecessor.History.HasSubclasses || root.Address() != predecessor.Address() || root.RowType != predecessor.RowType || root.OfType != predecessor.OfType || root.Revision() == predecessor.Revision() || before.Get(predecessor.Address()) != predecessor || e.storage.Relations[root.Address()] != stored {
 				t.Fatal("successful child publication did not preserve immutable typed identity/storage and transition subclass history")
 			}
 			roleExecute(t, e, op, "INSERT INTO typed VALUES(11,'root')")

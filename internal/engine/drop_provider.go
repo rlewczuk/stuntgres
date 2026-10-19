@@ -417,13 +417,13 @@ func (p *dropProvider) projectColumn(old, next *catalog.Relation) error {
 		return p.scope.stagePrivateColumnShape(stage, p.changes, old, next)
 	}
 	e.mu.Lock()
-	storage := e.stageStorageLocked(stage, old.Address())
+	stored := e.stageStorageLocked(stage, old.Address())
 	storageOwner := stage.Base.MustRelation(old.Address())
-	if e.stageCatalogBaseLocked(stage).Get(old.Address()) != storageOwner || storage == nil {
+	if e.stageCatalogBaseLocked(stage).Get(old.Address()) != storageOwner || stored == nil {
 		e.mu.Unlock()
 		return catalog.Conflict{}
 	}
-	rows, ends, generation := storage.Versions, storage.Ends, storage.Generation
+	rows, ends, generation := stored.Versions, stored.Ends, stored.Generation
 	e.mu.Unlock()
 	nextGeneration := generation + 1
 	if generation == ^uint64(0) {
@@ -438,7 +438,7 @@ func (p *dropProvider) projectColumn(old, next *catalog.Relation) error {
 	}
 	replacement := &relationStorage{Versions: projected, Ends: ends, Generation: nextGeneration}
 	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), old.Address())
-	return stage.alterRelation(ctx, ref, next, storage, replacement, len(rows), generation, ends)
+	return stage.alterRelation(ctx, ref, next, stored, replacement, len(rows), generation, ends)
 }
 
 func (p *dropProvider) lockInheritanceClosure(roots []ids.ObjectAddress) error {

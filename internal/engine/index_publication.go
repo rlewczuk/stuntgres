@@ -280,7 +280,7 @@ func (provider dropProvider) evolveIndex(address ids.ObjectAddress, index, paren
 
 // Captured heads are immutable; the copied scalar generation/end-root tuple
 // fences every build against row publication, even when catalog is unchanged.
-func captureIndexStores(storage map[ids.ObjectAddress]*relationStorage, snapshot *catalog.State) map[ids.ObjectAddress]*relationStorage {
+func captureIndexStores(relations map[ids.ObjectAddress]*relationStorage, snapshot *catalog.State) map[ids.ObjectAddress]*relationStorage {
 	var captured map[ids.ObjectAddress]*relationStorage
 	for _, d := range snapshot.Descriptors() {
 		index, ok := d.(*catalog.Relation)
@@ -297,7 +297,7 @@ func captureIndexStores(storage map[ids.ObjectAddress]*relationStorage, snapshot
 		if captured[a] != nil {
 			continue
 		}
-		if store := storage[a]; store != nil {
+		if store := relations[a]; store != nil {
 			copy := *store
 			copy.IndexSource = store
 			captured[a] = &copy
@@ -339,7 +339,7 @@ func (e *Engine) prepareIndexCatalog(evaluation *EvalContext, current, next *cat
 	return e.prepareIndexPublication(evaluation, current, next, storage, roots, rebuildParents, rebuildIndexes, nil, true, output, auth, runtimeOwners, candidates)
 }
 
-func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*catalog.Relation, publications []rowPublication, materialize bool, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]indexRootCandidate) (map[ids.ObjectAddress]*logicalIndexRoot, error) {
+func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next *catalog.State, relations map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*logicalIndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*catalog.Relation, publications []rowPublication, materialize bool, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]indexRootCandidate) (map[ids.ObjectAddress]*logicalIndexRoot, error) {
 	ctx := evaluation.Context
 	var result map[ids.ObjectAddress]*logicalIndexRoot
 	view := e.catalog.read(next)
@@ -403,7 +403,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 		root := roots[a]
 		candidate, produced := candidates[a]
 		if produced {
-			if candidate.root == nil || !candidate.matchesIndex(index, storage[parent.Address()]) {
+			if candidate.root == nil || !candidate.matchesIndex(index, relations[parent.Address()]) {
 				return nil, catalog.Conflict{}
 			}
 			root = candidate.root
@@ -461,7 +461,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 				if err := validateIndexDefinition(e.catalog.read(next), index); err != nil {
 					return nil, err
 				}
-				root, err = buildHashIndexRoot(evaluation, parent, index.SQLIndex, storage[parent.Address()], materialize || index.SQLIndex.IsExclusion(), nil)
+				root, err = buildHashIndexRoot(evaluation, parent, index.SQLIndex, relations[parent.Address()], materialize || index.SQLIndex.IsExclusion(), nil)
 				if err != nil {
 					return nil, err
 				}
@@ -495,7 +495,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 			// Required ordering/uniqueness scratch is not an installation
 			// root. PREPARE returns neither a root wrapper nor a root map.
 			var err error
-			entries, err = buildIndexEntries(evaluation, parent, index.SQLIndex, storage[parent.Address()], nil)
+			entries, err = buildIndexEntries(evaluation, parent, index.SQLIndex, relations[parent.Address()], nil)
 			if err != nil {
 				return nil, err
 			}

@@ -373,9 +373,9 @@ func TestPartitionConstraintsDumpCollisionProvenance(t *testing.T) {
 	e.catalog.nextOID = 30000
 	for range 2 {
 		next := catalog.CloneState(source.catalog.state)
-		storage := map[ids.ObjectAddress]*relationStorage{parent.Address(): {}, child.Address(): {}, manual.Address(): {}}
+		relations := map[ids.ObjectAddress]*relationStorage{parent.Address(): {}, child.Address(): {}, manual.Address(): {}}
 		e.mu.Lock()
-		err := e.preserveTemporaryLocked(context.Background(), next, storage, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
+		err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -397,7 +397,7 @@ func TestPartitionConstraintsDumpCollisionProvenance(t *testing.T) {
 			t.Fatal("replacement mutated source provenance")
 		}
 		e.catalog.state = next
-		e.storage.Relations = storage
+		e.storage.Relations = relations
 	}
 }
 
@@ -494,9 +494,9 @@ func TestPartitionConstraintsDumpCollisionDefinitionReservation(t *testing.T) {
 	destination.catalog.nextOID = childKey.OID
 	old := destination.catalog.state
 	next := catalog.CloneState(f.view.State())
-	storage := map[ids.ObjectAddress]*relationStorage{f.leaf.Address(): {}}
+	relations := map[ids.ObjectAddress]*relationStorage{f.leaf.Address(): {}}
 	destination.mu.Lock()
-	err := destination.preserveTemporaryLocked(context.Background(), next, storage, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
+	err := destination.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
 	destination.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

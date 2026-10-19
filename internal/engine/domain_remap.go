@@ -360,7 +360,7 @@ func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation
 	return target.Wrap(physical)
 }
 
-func reownCatalogScalarTypes(next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
+func reownCatalogScalarTypes(next *catalog.State, relations map[ids.ObjectAddress]*relationStorage, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
 	collation := remappedCollationCapabilities(next, mapping)
 	typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if d, ok := next.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}); ok {
@@ -413,7 +413,7 @@ func reownCatalogScalarTypes(next *catalog.State, storage map[ids.ObjectAddress]
 			next.SetDescriptor(address, &copy)
 		}
 	}
-	for address, relation := range storage {
+	for address, relation := range relations {
 		var versions []rowVersion
 		for i, row := range relation.Versions {
 			var values []sqltype.Value
@@ -515,7 +515,7 @@ func reownCatalogScalarTypes(next *catalog.State, storage map[ids.ObjectAddress]
 		if versions != nil {
 			copy := *relation
 			copy.Versions = versions
-			storage[address] = &copy
+			relations[address] = &copy
 		}
 	}
 	return nil

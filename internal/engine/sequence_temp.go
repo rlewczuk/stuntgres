@@ -281,16 +281,16 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 	for a, g := range e.storage.Sequences {
 		sequences[a] = g
 	}
-	storage := make(map[ids.ObjectAddress]*relationStorage, len(e.storage.Relations))
+	relations := make(map[ids.ObjectAddress]*relationStorage, len(e.storage.Relations))
 	for a, store := range e.storage.Relations {
-		storage[a] = store
+		relations[a] = store
 	}
 	roots := make(map[ids.ObjectAddress]*logicalIndexRoot, len(e.storage.IndexRoots))
 	for a, root := range e.storage.IndexRoots {
 		roots[a] = root
 	}
 	for address, shape := range stage.rowShapes {
-		storage[address] = shape.replacement
+		relations[address] = shape.replacement
 	}
 	if indexes != nil {
 		for address, root := range indexes.roots {
@@ -299,7 +299,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 	}
 	for a := range stage.Removals {
 		delete(sequences, a)
-		delete(storage, a)
+		delete(relations, a)
 		delete(roots, a)
 	}
 	catalog.PruneNamespaceDefaults(stage.Base.State(), next, namespaces)
@@ -312,7 +312,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 			}
 		}
 	}
-	e.catalog.state, e.storage.Sequences, e.storage.Relations, e.storage.IndexRoots = next, sequences, storage, roots
+	e.catalog.state, e.storage.Sequences, e.storage.Relations, e.storage.IndexRoots = next, sequences, relations, roots
 	stage.lifecycle = catalogPublished
 	e.catalog.nextRevision = nextRevision
 	s.sequences = nil

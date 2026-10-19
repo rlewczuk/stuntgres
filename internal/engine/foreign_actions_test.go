@@ -133,7 +133,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 		sessionSQL(t, s, q)
 	}
 	scope := foreignActionUnitScope(t, e, s, "UPDATE p SET id=2")
-	named, storage, descriptor := scope.lockedRef, scope.lockedStorage, scope.lockedDescriptor
+	named, stored, descriptor := scope.lockedRef, scope.lockedStorage, scope.lockedDescriptor
 	jobs, auth, err := scope.prepareForeignActions()
 	if err != nil {
 		t.Fatal(err)
@@ -175,7 +175,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	if next.Row != old.Row || next.Version == old.Version || next.Base != old.Version || len(scope.foreignActionTransitions) != 1 || scope.foreignActionTransitions[0].old.Version != old.Version || scope.foreignActionTransitions[0].next.Version != next.Version {
 		t.Fatal("physical lineage was not recorded", old, next, scope.foreignActionTransitions)
 	}
-	if scope.lockedRef != named || scope.lockedStorage != storage || scope.lockedDescriptor != descriptor {
+	if scope.lockedRef != named || scope.lockedStorage != stored || scope.lockedDescriptor != descriptor {
 		t.Fatal("child action spoofed initiating admission")
 	}
 	admission := scope.foreignActionAdmissions[ref.Address]
