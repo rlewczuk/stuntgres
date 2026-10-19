@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -55,7 +56,7 @@ func TestTypedPublicationStorageGenerationConflict(t *testing.T) {
 	if store == nil {
 		t.Fatal("unit fixture missing physical table")
 	}
-	stage.rowShapes = map[ids.ObjectAddress]catalogRowShape{table.Address(): {original: store, replacement: &relationStorage{Generation: store.Generation + 1}, observedLength: len(store.Versions), observedEnds: store.Ends, generation: store.Generation}}
+	stage.rowShapes = map[ids.ObjectAddress]catalogRowShape{table.Address(): {original: store, replacement: &storage.Relation{Generation: store.Generation + 1}, observedLength: len(store.Versions), observedEnds: store.Ends, generation: store.Generation}}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -174,7 +175,7 @@ func TestInfoYesOrNoLogicalDescriptions(t *testing.T) {
 	// Install a private storage fixture, not a public SQL/API witness. Result
 	// analysis must retain the domain even when the only physical datum is NULL.
 	e.mu.Lock()
-	e.storage.Relations[table.Address()] = &relationStorage{Generation: 1, Versions: []rowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{sqltype.Null(d)}}}}
+	e.storage.Relations[table.Address()] = &storage.Relation{Generation: 1, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{sqltype.Null(d)}}}}
 	e.commitSeq = 1
 	e.mu.Unlock()
 	check("SELECT v FROM public.yes_or_no_description")

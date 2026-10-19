@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"testing"
 	"time"
@@ -58,7 +59,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	// A real end marker must affect visibility, rather than merely exercising
 	// preservation of a non-nil but empty root.
 	deleted := innerStorage.Versions[2]
-	innerStorage.Ends = &deletionRoot{Rows: map[ids.RowID]rowEnd{
+	innerStorage.Ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{
 		deleted.Row: {Version: deleted.Version, End: e.commitSeq},
 	}}
 	frontier := e.commitSeq
@@ -115,7 +116,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 		if scope.materializedSourceView != snapshot || snapshot == nil || snapshot.frontier != frontier || len(snapshot.committed) != 2 {
 			t.Fatal("physical mixed producer manifest changed", snapshot)
 		}
-		for address, storage := range map[ids.ObjectAddress]*relationStorage{inner.Address(): innerStorage, gate.Address(): gateStorage} {
+		for address, storage := range map[ids.ObjectAddress]*storage.Relation{inner.Address(): innerStorage, gate.Address(): gateStorage} {
 			versions, ends := innerVersions, innerEnds
 			if address == gate.Address() {
 				versions, ends = gateVersions, gateEnds

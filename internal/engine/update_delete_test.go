@@ -11,6 +11,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 )
 
 // This worker executes the real command and Finish; its owner cancels and joins
@@ -259,9 +260,9 @@ func TestUpdateCoreDeletePublication(t *testing.T) {
 			tr := catalogRef(t, e, e.CatalogRead(), "t")
 			ur := catalogRef(t, e, e.CatalogRead(), "u")
 			ts, us := e.storage.Relations[tr.Address], e.storage.Relations[ur.Address]
-			roots := [2][]rowVersion{ts.Versions, us.Versions}
-			old := [2]rowVersion{roots[0][0], roots[1][0]}
-			ends := [2]*deletionRoot{ts.Ends, us.Ends}
+			roots := [2][]storage.RowVersion{ts.Versions, us.Versions}
+			old := [2]storage.RowVersion{roots[0][0], roots[1][0]}
+			ends := [2]*storage.DeletionRoot{ts.Ends, us.Ends}
 			frontier := e.commitSeq
 			tx := transactionBegin(t, owner)
 			sessionSQL(t, owner, "UPDATE t SET v=11")
@@ -309,7 +310,7 @@ func TestUpdateCoreDeletePublication(t *testing.T) {
 				}
 			}
 			op.Done()
-			if !reflect.DeepEqual(old, [2]rowVersion{roots[0][0], roots[1][0]}) {
+			if !reflect.DeepEqual(old, [2]storage.RowVersion{roots[0][0], roots[1][0]}) {
 				t.Fatal("old prefixes mutated")
 			}
 			lockState := e.locks.Inspect(ticket)

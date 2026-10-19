@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -164,11 +165,11 @@ func TestGeneratedVirtualReplacementDoesNotMaterializeOwner(t *testing.T) {
 	node := tableOIDExpression{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, owner: ref}
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: node, Planned: node}}
 	base, _ := sqltype.Integer(d.Columns[0].Usage.Type, 2)
-	store := &relationStorage{Versions: []rowVersion{{Values: []sqltype.Value{base, sqltype.Null(oid)}}}}
+	store := &storage.Relation{Versions: []storage.RowVersion{{Values: []sqltype.Value{base, sqltype.Null(oid)}}}}
 	next := catalog.CloneState(view.State())
 	next.SetEpoch(next.Epoch() + 1)
 	next.SetDescriptor(d.Address(), d)
-	if err := recomputeRemappedGenerations(context.Background(), next, map[ids.ObjectAddress]*relationStorage{d.Address(): store}, map[ids.ObjectAddress]ids.ObjectAddress{original: d.Address()}, EvalContext{}, nil); err != nil {
+	if err := recomputeRemappedGenerations(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{d.Address(): store}, map[ids.ObjectAddress]ids.ObjectAddress{original: d.Address()}, EvalContext{}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if !store.Versions[0].Values[1].IsNull() {

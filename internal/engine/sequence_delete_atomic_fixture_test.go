@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -19,14 +20,14 @@ type sequenceDeletePublicationSnapshot struct {
 	descriptors             map[ids.ObjectAddress]catalog.Descriptor
 	names                   map[ids.NameKey]ids.ObjectAddress
 	storageID, generatorsID uintptr
-	stores                  map[ids.ObjectAddress]*relationStorage
-	generators              map[ids.ObjectAddress]*sequenceGenerator
-	generatorValues         map[ids.ObjectAddress]sequenceGenerator
-	store                   *relationStorage
-	root                    []rowVersion
-	rows                    []rowVersion
-	ends                    *deletionRoot
-	endValues               map[ids.RowID]rowEnd
+	stores                  map[ids.ObjectAddress]*storage.Relation
+	generators              map[ids.ObjectAddress]*storage.SequenceGenerator
+	generatorValues         map[ids.ObjectAddress]storage.SequenceGenerator
+	store                   *storage.Relation
+	root                    []storage.RowVersion
+	rows                    []storage.RowVersion
+	ends                    *storage.DeletionRoot
+	endValues               map[ids.RowID]storage.RowEnd
 	frontier                ids.CommitSeq
 	temporary, last         ids.ObjectAddress
 	memoryID                uintptr
@@ -40,9 +41,9 @@ func captureSequenceDeletePublication(e *Engine, s *Session, table ids.ObjectAdd
 		descriptors: make(map[ids.ObjectAddress]catalog.Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress),
 		storageID:       uintptr(reflect.ValueOf(e.storage.Relations).UnsafePointer()),
 		generatorsID:    uintptr(reflect.ValueOf(e.storage.Sequences).UnsafePointer()),
-		stores:          make(map[ids.ObjectAddress]*relationStorage),
-		generators:      make(map[ids.ObjectAddress]*sequenceGenerator),
-		generatorValues: make(map[ids.ObjectAddress]sequenceGenerator),
+		stores:          make(map[ids.ObjectAddress]*storage.Relation),
+		generators:      make(map[ids.ObjectAddress]*storage.SequenceGenerator),
+		generatorValues: make(map[ids.ObjectAddress]storage.SequenceGenerator),
 		store:           e.storage.Relations[table], frontier: e.commitSeq,
 		temporary: s.temporaryNamespace, last: s.lastSequence,
 		memoryID: uintptr(reflect.ValueOf(s.sequences).UnsafePointer()),
@@ -64,12 +65,12 @@ func captureSequenceDeletePublication(e *Engine, s *Session, table ids.ObjectAdd
 		p.memory[a], p.memoryValues[a] = m, *m
 	}
 	p.root, p.ends = p.store.Versions, p.store.Ends
-	p.rows = append([]rowVersion(nil), p.root...)
+	p.rows = append([]storage.RowVersion(nil), p.root...)
 	for i := range p.rows {
 		p.rows[i].Values = append([]sqltype.Value(nil), p.rows[i].Values...)
 	}
 	if p.ends != nil {
-		p.endValues = make(map[ids.RowID]rowEnd)
+		p.endValues = make(map[ids.RowID]storage.RowEnd)
 		for id, end := range p.ends.Rows {
 			p.endValues[id] = end
 		}

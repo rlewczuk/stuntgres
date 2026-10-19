@@ -70,7 +70,7 @@ func indexLayoutSlotsUnchanged(index, oldParent, parent *catalog.Relation) bool 
 
 // A layout projection preserves surviving cells and exact row/version order.
 // Both baseline entries and private row outputs therefore travel without SQL.
-func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes *catalogChanges, parent *catalog.Relation, sourceStore, targetStore *relationStorage, sourceWrites, writes []rowVersion) ([]rowVersion, bool, error) {
+func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes *catalogChanges, parent *catalog.Relation, sourceStore, targetStore *storage.Relation, sourceWrites, writes []storage.RowVersion) ([]storage.RowVersion, bool, error) {
 	if len(stage.indexLayouts) == 0 {
 		return writes, false, nil
 	}
@@ -281,7 +281,7 @@ func (e *Engine) fenceEmptyIndexStorageLocked(snapshot *catalog.State, changes *
 // A real whole-storage deletion has no SQL index inputs. Rebind its empty
 // physical artifacts to the new incarnation rather than retaining old pins or
 // evaluating declarations during publication.
-func transportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, changes *catalogChanges, stage *CatalogStage, address ids.ObjectAddress, store *relationStorage) error {
+func transportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, changes *catalogChanges, stage *CatalogStage, address ids.ObjectAddress, store *storage.Relation) error {
 	parent, ok := snapshot.Relation(address)
 	if !ok || store == nil || len(store.Versions) != 0 {
 		return ids.ErrCatalogReplaced

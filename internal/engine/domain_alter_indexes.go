@@ -9,7 +9,7 @@ import (
 // Engine.mu is held. Reuse the native snapshot scalar/key transport, retaining
 // every version and every produced predicate/expression result. ALTER must not
 // turn a metadata generation change into another CHECK or index truth event.
-func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *catalog.State, stores map[ids.ObjectAddress]*relationStorage) error {
+func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *catalog.State, stores map[ids.ObjectAddress]*storage.Relation) error {
 	for address, store := range stores {
 		rebound, err := reownDomainIndexOutputs(stage.domainAlter, stage.Base.State(), next, e.stageStorageLocked(stage, address), store)
 		if err != nil {
@@ -17,7 +17,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 		}
 		stores[address] = rebound
 	}
-	sources := make(map[ids.ObjectAddress]*relationStorage, len(stores))
+	sources := make(map[ids.ObjectAddress]*storage.Relation, len(stores))
 	for address := range stores {
 		sources[address] = e.stageStorageLocked(stage, address)
 	}

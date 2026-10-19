@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 func TestControlTransactionsEndMatrix(t *testing.T) {
@@ -127,10 +128,10 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 			// targets installation, not admission or the live-row scan.
 			replacement := source.CatalogRead()
 			sourceRoles, targetRoles := source.Roles(), target.Roles()
-			preparedStorage := make(map[ids.ObjectAddress]*relationStorage)
+			preparedStorage := make(map[ids.ObjectAddress]*storage.Relation)
 			source.mu.Lock()
 			for address, relation := range source.storage.Relations {
-				preparedStorage[address] = &relationStorage{Versions: append([]rowVersion(nil), relation.Versions...)}
+				preparedStorage[address] = &storage.Relation{Versions: append([]storage.RowVersion(nil), relation.Versions...)}
 			}
 			preparedSequences, sequenceErr := copySequenceState(source, replacement)
 			indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage.Relations, source.storage.IndexRoots, source.commitSeq)

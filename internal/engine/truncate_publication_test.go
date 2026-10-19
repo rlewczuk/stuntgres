@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"testing"
 )
 
@@ -105,7 +106,7 @@ func TestTruncateFinalVetoAdditional(t *testing.T) {
 				stage := e.BeginCatalogStage(base)
 				next := *base.MustRelation(p.Address)
 				next.ObjectRevision++
-				replacement := &relationStorage{Versions: oldP.Versions, Ends: oldP.Ends, Generation: oldP.Generation + 1}
+				replacement := &storage.Relation{Versions: oldP.Versions, Ends: oldP.Ends, Generation: oldP.Generation + 1}
 				if err := stage.alterRelation(context.Background(), p, &next, oldP, replacement, len(oldP.Versions), oldP.Generation, oldP.Ends); err != nil {
 					t.Fatal(err)
 				}

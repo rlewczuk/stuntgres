@@ -10,8 +10,8 @@ import (
 	"stuntgres/internal/engine/storage"
 )
 
-func reownDomainIndexOutputs(ctx context.Context, base, next *catalog.State, original, store *relationStorage) (*relationStorage, error) {
-	var versions []rowVersion
+func reownDomainIndexOutputs(ctx context.Context, base, next *catalog.State, original, store *storage.Relation) (*storage.Relation, error) {
+	var versions []storage.RowVersion
 	for i, row := range original.Versions {
 		if err := ctx.Err(); err != nil {
 			return nil, err

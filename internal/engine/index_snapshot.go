@@ -21,17 +21,17 @@ type indexSnapshot struct {
 
 type indexSnapshotSource struct {
 	index, parent *catalog.Relation
-	store         relationStorage
+	store         storage.Relation
 	root          *storage.IndexRoot
 	frontier      ids.CommitSeq
 }
 
 // captureIndexSnapshot captures the indexes of catalog, which e must own.
-func (e *Engine) captureIndexSnapshot(ctx context.Context, catalog catalog.Read, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*storage.IndexRoot, frontier ids.CommitSeq) (*indexSnapshot, error) {
+func (e *Engine) captureIndexSnapshot(ctx context.Context, catalog catalog.Read, storage map[ids.ObjectAddress]*storage.Relation, roots map[ids.ObjectAddress]*storage.IndexRoot, frontier ids.CommitSeq) (*indexSnapshot, error) {
 	return e.captureIndexSnapshotParents(ctx, catalog, storage, roots, frontier, nil, nil)
 }
 
-func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view catalog.Read, relations map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*storage.IndexRoot, frontier ids.CommitSeq, parents map[ids.ObjectAddress]*relationStorage, private *catalogChanges) (*indexSnapshot, error) {
+func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view catalog.Read, relations map[ids.ObjectAddress]*storage.Relation, roots map[ids.ObjectAddress]*storage.IndexRoot, frontier ids.CommitSeq, parents map[ids.ObjectAddress]*storage.Relation, private *catalogChanges) (*indexSnapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -200,13 +200,13 @@ func (snapshot *indexSnapshot) datum(value sqltype.Value, target *sqltype.Descri
 
 // Row identities in positions are the source identities saved before remint.
 // No predicate, expression or domain conversion is executed by this transport.
-func (snapshot *indexSnapshot) transport(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, positions map[ids.ObjectAddress]map[indexRowIdentity]int) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
+func (snapshot *indexSnapshot) transport(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*storage.Relation, positions map[ids.ObjectAddress]map[indexRowIdentity]int) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
 	return snapshot.transportRows(ctx, next, storage, positions, false)
 }
 
 // Same-logical-ID domain generation changes retain every physical version and
 // produced key. Replacement's ordinary transport still compacts live rows.
-func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*relationStorage, positions map[ids.ObjectAddress]map[indexRowIdentity]int, preserveVersions bool) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
+func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, positions map[ids.ObjectAddress]map[indexRowIdentity]int, preserveVersions bool) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
 	roots := make(map[ids.ObjectAddress]*storage.IndexRoot, len(snapshot.sources))
 	checkedParents := make(map[ids.ObjectAddress]bool)
 	collation := remappedCollationCapabilities(next, snapshot.mapping)

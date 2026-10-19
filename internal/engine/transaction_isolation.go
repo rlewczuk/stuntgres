@@ -6,14 +6,15 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
 type transactionRoot struct {
-	versions []rowVersion
-	ends     *deletionRoot
-	storage  *relationStorage
+	versions []storage.RowVersion
+	ends     *storage.DeletionRoot
+	storage  *storage.Relation
 	relation *catalog.Relation
 }
 
@@ -517,7 +518,7 @@ func explicitUtility(stmt parser.Statement) bool {
 	}
 	return false
 }
-func (s *StatementScope) repeatableConflict(head rowVersion, end *deletionRoot) error {
+func (s *StatementScope) repeatableConflict(head storage.RowVersion, end *storage.DeletionRoot) error {
 	if !stableIsolation(s.owner.isolation) || head.Born == 0 {
 		return nil
 	}

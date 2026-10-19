@@ -281,8 +281,8 @@ func (provider dropProvider) evolveIndex(address ids.ObjectAddress, index, paren
 
 // Captured heads are immutable; the copied scalar generation/end-root tuple
 // fences every build against row publication, even when catalog is unchanged.
-func captureIndexStores(relations map[ids.ObjectAddress]*relationStorage, snapshot *catalog.State) map[ids.ObjectAddress]*relationStorage {
-	var captured map[ids.ObjectAddress]*relationStorage
+func captureIndexStores(relations map[ids.ObjectAddress]*storage.Relation, snapshot *catalog.State) map[ids.ObjectAddress]*storage.Relation {
+	var captured map[ids.ObjectAddress]*storage.Relation
 	for _, d := range snapshot.Descriptors() {
 		index, ok := d.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
@@ -292,7 +292,7 @@ func captureIndexStores(relations map[ids.ObjectAddress]*relationStorage, snapsh
 			continue
 		}
 		if captured == nil {
-			captured = make(map[ids.ObjectAddress]*relationStorage)
+			captured = make(map[ids.ObjectAddress]*storage.Relation)
 		}
 		a := index.SQLIndex.Parent
 		if captured[a] != nil {
@@ -306,7 +306,7 @@ func captureIndexStores(relations map[ids.ObjectAddress]*relationStorage, snapsh
 	}
 	return captured
 }
-func indexStoresUnchanged(storage, captured map[ids.ObjectAddress]*relationStorage, current, next *catalog.State, prepared, previous map[ids.ObjectAddress]*storage.IndexRoot) bool {
+func indexStoresUnchanged(storage, captured map[ids.ObjectAddress]*storage.Relation, current, next *catalog.State, prepared, previous map[ids.ObjectAddress]*storage.IndexRoot) bool {
 	if len(prepared) == 0 && len(captured) == 0 {
 		return true
 	}
@@ -336,11 +336,11 @@ func indexStoresUnchanged(storage, captured map[ids.ObjectAddress]*relationStora
 // Constructors poll cancellation while doing index work; the publication owner
 // performs the final veto. An empty/unchanged set must not add an Err callback
 // between the owner's established successful observation and installation.
-func (e *Engine) prepareIndexCatalog(evaluation *EvalContext, current, next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*storage.IndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*catalog.Relation, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]indexRootCandidate) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
+func (e *Engine) prepareIndexCatalog(evaluation *EvalContext, current, next *catalog.State, storage map[ids.ObjectAddress]*storage.Relation, roots map[ids.ObjectAddress]*storage.IndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*catalog.Relation, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]indexRootCandidate) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
 	return e.prepareIndexPublication(evaluation, current, next, storage, roots, rebuildParents, rebuildIndexes, nil, true, output, auth, runtimeOwners, candidates)
 }
 
-func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next *catalog.State, relations map[ids.ObjectAddress]*relationStorage, roots map[ids.ObjectAddress]*storage.IndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*catalog.Relation, publications []rowPublication, materialize bool, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]indexRootCandidate) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
+func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, roots map[ids.ObjectAddress]*storage.IndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*catalog.Relation, publications []rowPublication, materialize bool, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]indexRootCandidate) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
 	ctx := evaluation.Context
 	var result map[ids.ObjectAddress]*storage.IndexRoot
 	view := e.catalog.read(next)

@@ -6,12 +6,13 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
 type deleteCandidate struct {
 	ref     ids.ObjectRef
-	storage *relationStorage
+	storage *storage.Relation
 	row     ids.RowID
 	version ids.VersionID
 	base    ids.VersionID
@@ -22,7 +23,7 @@ type privateDeletionRoot struct{ rows map[ids.RowID]deleteCandidate }
 
 // A private replacement and an older retained snapshot may share RowID without
 // sharing lineage. End only the deleted version and its actual replacement base.
-func liveVersion(v rowVersion, frontier ids.CommitSeq, ends *deletionRoot, own *privateDeletionRoot) bool {
+func liveVersion(v storage.RowVersion, frontier ids.CommitSeq, ends *storage.DeletionRoot, own *privateDeletionRoot) bool {
 	if own != nil {
 		if deleted, ok := own.rows[v.Row]; ok && (v.Version == deleted.version || deleted.base != 0 && v.Version == deleted.base) {
 			return false
@@ -187,7 +188,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 
 // Both named-target and separately admitted RI deletion use the same roots,
 // SSI evidence and exclusion projection after validating their own authority.
-func (w *WriteStage) stageDeletionLocked(e *Engine, candidate deleteCandidate, original rowVersion) error {
+func (w *WriteStage) stageDeletionLocked(e *Engine, candidate deleteCandidate, original storage.RowVersion) error {
 	s := w.scope
 	event := [1]serializableWrite{{row: candidate.row, version: candidate.version, base: original.Version, baseBorn: original.Born, creator: e.serializable.creators[original.Version], deletion: true}}
 	if err := e.serializableWriteLocked(s, candidate.ref, event[:]); err != nil {
@@ -363,16 +364,16 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 }
 
 // Row arbitration freezes identity, not a stale ordinal or pre-wait predicate.
-func (s *StatementScope) latestDeleteRow(candidate deleteCandidate) (rowVersion, bool, error) {
+func (s *StatementScope) latestDeleteRow(candidate deleteCandidate) (storage.RowVersion, bool, error) {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := s.validateLockedRelation(e); err != nil {
-		return rowVersion{}, false, err
+		return storage.RowVersion{}, false, err
 	}
 	store := e.privateStorageLocked(s.owner.catalog, candidate.ref.Address)
 	if store == nil || store != candidate.storage {
-		return rowVersion{}, false, ids.ErrCatalogReplaced
+		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
 	}
 	rows := store.Versions
 	if candidate.own {
@@ -380,10 +381,10 @@ func (s *StatementScope) latestDeleteRow(candidate deleteCandidate) (rowVersion,
 	}
 	row, _, found := rowByID(rows, candidate.row, candidate.ordinal)
 	if !found {
-		return rowVersion{}, false, errors.New("stuntgres: invalid deletion predecessor")
+		return storage.RowVersion{}, false, errors.New("stuntgres: invalid deletion predecessor")
 	}
 	if err := s.repeatableConflict(row, store.Ends); err != nil {
-		return rowVersion{}, false, err
+		return storage.RowVersion{}, false, err
 	}
 	return row, liveVersion(row, e.commitSeq, store.Ends, s.ownDeletes[candidate.ref.Address]), nil
 }
@@ -416,7 +417,7 @@ func captureQueryPrefix(view *VisibilityView, ref ids.ObjectRef) (*querySource, 
 }
 
 // Query and catalog replacement share one physical-to-live head selection.
-func selectQuerySource(ctx context.Context, source *querySource, frontier ids.CommitSeq, ends *deletionRoot, own *privateDeletionRoot) (*querySource, error) {
+func selectQuerySource(ctx context.Context, source *querySource, frontier ids.CommitSeq, ends *storage.DeletionRoot, own *privateDeletionRoot) (*querySource, error) {
 	if source.rlsDenied {
 		return source, ctx.Err()
 	}

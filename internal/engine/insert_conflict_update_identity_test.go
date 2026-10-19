@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -180,7 +181,7 @@ func TestInsertConflictUpdateMixedStage(t *testing.T) {
 		sessionSQL(t, s, "CREATE TABLE t(k INT UNIQUE,v INT)")
 		sessionSQL(t, s, "INSERT INTO t VALUES(1,10),(3,30)")
 		ref := catalogRef(t, e, e.CatalogRead(), "t")
-		before := append([]rowVersion(nil), e.storage.Relations[ref.Address].Versions...)
+		before := append([]storage.RowVersion(nil), e.storage.Relations[ref.Address].Versions...)
 		tx := transactionBegin(t, s)
 		sessionSQL(t, s, "INSERT INTO t VALUES(4,40)")
 		ctx, cancel := context.WithCancel(context.Background())

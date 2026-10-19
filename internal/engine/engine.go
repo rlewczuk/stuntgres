@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -26,7 +27,7 @@ type Engine struct {
 	catalog              catalogStore
 	databaseName         string
 	databaseNameError    error
-	storage              storageStore
+	storage              storage.Store
 	sessionMu            sync.Mutex
 	sessions             map[ids.SessionToken]*Session
 	settingsDefinitions  map[string]SettingDefinition
@@ -72,7 +73,7 @@ type binding struct {
 	ruleTemplate          bool
 	insertSubquerySource  bool // Analyzed SELECT or VALUES with query clauses; normalization never changes source ownership.
 	relation              *catalog.Relation
-	storage               *relationStorage
+	storage               *storage.Relation
 	ref                   ids.ObjectRef
 	viewWrite             *viewWrite
 	targets               []int
@@ -164,12 +165,12 @@ func NewWithSettings(definitions []SettingDefinition, database string, trackComm
 
 func newEngine(providers []catalog.Provider, definitions []SettingDefinition, database string, trackCommitTimestamp bool) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
-	e := &Engine{catalog: catalogStore{Owner: catalog.Owner{Domain: &ids.Domain{}, Providers: map[ids.OID]catalog.Provider{}}, nextOID: 16384, nextRevision: 2}, storage: storageStore{Relations: map[ids.ObjectAddress]*relationStorage{}}}
+	e := &Engine{catalog: catalogStore{Owner: catalog.Owner{Domain: &ids.Domain{}, Providers: map[ids.OID]catalog.Provider{}}, nextOID: 16384, nextRevision: 2}, storage: storage.Store{Relations: map[ids.ObjectAddress]*storage.Relation{}}}
 	e.catalog.Principals, e.catalog.ACLAuthority = &e.roles.domain, &e.roles.aclAuthority
 	e.trackCommitTimestamp = trackCommitTimestamp
 	e.assignedXID, e.commitTimestampBase = 2, 3
 	e.locks = lock.New(e.catalog.Domain)
-	e.storage.Sequences = make(map[ids.ObjectAddress]*sequenceGenerator)
+	e.storage.Sequences = make(map[ids.ObjectAddress]*storage.SequenceGenerator)
 	e.roles.initialize()
 	e.initializeSettings(definitions)
 	for _, p := range providers {

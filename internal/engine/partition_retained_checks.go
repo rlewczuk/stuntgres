@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -13,7 +14,7 @@ import (
 // and datum payloads remain immutable; candidate copyRows owns separate vectors.
 type partitionRowHistory struct {
 	relation *catalog.Relation
-	store    relationStorage
+	store    storage.Relation
 	frontier ids.CommitSeq
 }
 
@@ -29,7 +30,7 @@ func partitionNeedsRowHistory(catalog catalog.Read, d *catalog.Relation) bool {
 	return false
 }
 
-func (h partitionRowHistory) nextRow(ctx context.Context, position *int, candidate rowVersion) ([]sqltype.Value, error) {
+func (h partitionRowHistory) nextRow(ctx context.Context, position *int, candidate storage.RowVersion) ([]sqltype.Value, error) {
 	for *position < len(h.store.Versions) {
 		if err := ctx.Err(); err != nil {
 			return nil, err

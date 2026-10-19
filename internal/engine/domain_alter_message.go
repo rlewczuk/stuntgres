@@ -13,7 +13,7 @@ import (
 // equality and never another execution of the selected CHECK.
 func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogChanges, current *catalog.State) error {
 	if fence := stage.domainValidation; fence != nil {
-		stores := make(map[ids.ObjectAddress]*relationStorage, len(fence.uses))
+		stores := make(map[ids.ObjectAddress]*storage.Relation, len(fence.uses))
 		for _, use := range fence.uses {
 			stores[use.relation.Address()] = e.stageStorageLocked(stage, use.relation.Address())
 		}
@@ -78,7 +78,7 @@ func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes
 		if err != nil {
 			return err
 		}
-		original, target := relationStorage{Versions: writes}, relationStorage{Versions: mapped}
+		original, target := storage.Relation{Versions: writes}, storage.Relation{Versions: mapped}
 		rebound, err := reownDomainIndexOutputs(scope.op.Context(), stage.Base.State(), next, &original, &target)
 		if err != nil {
 			return err

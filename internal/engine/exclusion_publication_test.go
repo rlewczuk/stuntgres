@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -28,7 +29,7 @@ func TestExclusionPublication(t *testing.T) {
 				before := indexMaintenanceCapture(e)
 				storeBefore := uniquePublicationStore(store)
 				row, version := e.storage.RowFrontier(), e.storage.VersionFrontier()
-				writes := []rowVersion{{Row: ids.RowID(row + 1), Version: ids.VersionID(version + 1), Values: []sqltype.Value{value}}}
+				writes := []storage.RowVersion{{Row: ids.RowID(row + 1), Version: ids.VersionID(version + 1), Values: []sqltype.Value{value}}}
 				publication := rowPublication{address: parent.Address(), relation: parent, originalRelation: parent, original: store, store: store, root: store.Versions, ends: store.Ends, generation: store.Generation, writes: writes, singleSlot: -1}
 				if materialize {
 					if err := e.prepareRowPublication(&publication, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), true); err != nil {
@@ -66,7 +67,7 @@ func TestExclusionPublication(t *testing.T) {
 				before := indexMaintenanceCapture(e)
 				storeBefore := uniquePublicationStore(store)
 				row, version := e.storage.RowFrontier(), e.storage.VersionFrontier()
-				writes := []rowVersion{{Row: ids.RowID(row + 1), Version: ids.VersionID(version + 1), Values: []sqltype.Value{overflow}}}
+				writes := []storage.RowVersion{{Row: ids.RowID(row + 1), Version: ids.VersionID(version + 1), Values: []sqltype.Value{overflow}}}
 				publication := rowPublication{address: parent.Address(), relation: parent, originalRelation: parent, original: store, store: store, root: store.Versions, ends: store.Ends, generation: store.Generation, writes: writes, singleSlot: -1}
 				if err := e.prepareRowPublication(&publication, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), true); err != nil {
 					t.Fatal(err)
@@ -108,7 +109,7 @@ func TestExclusionPublication(t *testing.T) {
 					before := indexMaintenanceCapture(e)
 					storeBefore := uniquePublicationStore(store)
 					row, version := e.storage.RowFrontier(), e.storage.VersionFrontier()
-					writes := []rowVersion{{Row: ids.RowID(row + 1), Version: ids.VersionID(version + 1), Values: []sqltype.Value{value}}}
+					writes := []storage.RowVersion{{Row: ids.RowID(row + 1), Version: ids.VersionID(version + 1), Values: []sqltype.Value{value}}}
 					publication := rowPublication{address: parent.Address(), relation: parent, originalRelation: parent, original: store, store: store, root: store.Versions, ends: store.Ends, generation: store.Generation, writes: writes, singleSlot: -1}
 					if materialize {
 						if err := e.prepareRowPublication(&publication, e.catalog.Domain.Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), true); err != nil {

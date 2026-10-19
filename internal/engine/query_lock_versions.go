@@ -1,13 +1,15 @@
 package engine
 
+import "stuntgres/internal/engine/storage"
+
 // A materialized candidate owns version identity alongside physical provenance.
 // Later explicit marks compare against the version this candidate actually
 // carries, not an earlier leaf capture, so an already completed local recheck
 // is not resurrected as a new replacement. Rank/cache identity remains separate.
-func appendQueryVersions(dst []rowVersion, source *querySource, index int, locks *queryLockContext) []rowVersion {
+func appendQueryVersions(dst []storage.RowVersion, source *querySource, index int, locks *queryLockContext) []storage.RowVersion {
 	if index == absentQueryIndex {
 		for range queryOccurrenceWidth(source) {
-			dst = append(dst, rowVersion{})
+			dst = append(dst, storage.RowVersion{})
 		}
 		return dst
 	}
@@ -30,11 +32,11 @@ func appendQueryVersions(dst []rowVersion, source *querySource, index int, locks
 			leaf := locks.leaves[occurrence].source
 			visible := source.provenance[index*width+j]
 			if visible == absentQueryIndex {
-				dst = append(dst, rowVersion{})
+				dst = append(dst, storage.RowVersion{})
 				continue
 			}
 			if leaf.anonymous != nil {
-				dst = append(dst, rowVersion{Values: leaf.row(visible)})
+				dst = append(dst, storage.RowVersion{Values: leaf.row(visible)})
 			} else {
 				dst = append(dst, leaf.versionAt(leaf.rawIndex(visible)))
 			}
@@ -42,7 +44,7 @@ func appendQueryVersions(dst []rowVersion, source *querySource, index int, locks
 		return dst
 	}
 	if source.anonymous != nil {
-		return append(dst, rowVersion{Values: source.row(index)})
+		return append(dst, storage.RowVersion{Values: source.row(index)})
 	}
 	return append(dst, source.versionAt(source.rawIndex(index)))
 }

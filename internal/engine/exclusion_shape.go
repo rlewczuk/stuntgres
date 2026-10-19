@@ -5,10 +5,11 @@ import (
 	"maps"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
-func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relation, view catalog.Read, writes []rowVersion, deletes *privateDeletionRoot) error {
+func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relation, view catalog.Read, writes []storage.RowVersion, deletes *privateDeletionRoot) error {
 	if len(original.Constraints.Exclusion)+len(parent.Constraints.Exclusion) == 0 {
 		return nil
 	}

@@ -250,7 +250,7 @@ func TestHashIndexValidationOnlyPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	writes := append([]rowVersion(nil), store.Versions...)
+	writes := append([]storage.RowVersion(nil), store.Versions...)
 	for i := range writes {
 		writes[i].Base, writes[i].Born = writes[i].Version, 0
 		writes[i].Version += 100

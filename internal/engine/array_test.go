@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -209,8 +210,8 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	original := &relationStorage{Generation: 2, Versions: []rowVersion{{Row: 42, Version: 99, Born: 1, Values: []sqltype.Value{value}}}}
-	storage := map[ids.ObjectAddress]*relationStorage{table.Address(): original}
+	original := &storage.Relation{Generation: 2, Versions: []storage.RowVersion{{Row: 42, Version: 99, Born: 1, Values: []sqltype.Value{value}}}}
+	storage := map[ids.ObjectAddress]*storage.Relation{table.Address(): original}
 	next := catalog.CloneState(e.catalog.state)
 	fresh := New()
 	regclassAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}
@@ -368,7 +369,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := &relationStorage{Generation: 3, Versions: []rowVersion{{Row: 42, Version: 99, Born: 1, Values: []sqltype.Value{i, v}}}}
+	store := &storage.Relation{Generation: 3, Versions: []storage.RowVersion{{Row: 42, Version: 99, Born: 1, Values: []sqltype.Value{i, v}}}}
 	e.mu.Lock()
 	e.storage.Relations[table.Address()] = store
 	e.commitSeq = 1
@@ -392,7 +393,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sourceStore := &relationStorage{Generation: 2, Versions: []rowVersion{{Row: 4, Version: 7, Born: 1, Values: []sqltype.Value{sourceInt, sourceText}}}}
+	sourceStore := &storage.Relation{Generation: 2, Versions: []storage.RowVersion{{Row: 4, Version: 7, Born: 1, Values: []sqltype.Value{sourceInt, sourceText}}}}
 	replacement.mu.Lock()
 	replacement.storage.Relations[importedSource.Address()] = sourceStore
 	replacement.commitSeq = 1
@@ -485,7 +486,7 @@ func TestArrayRetainedTemporaryDomainBoundaryComponent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := &relationStorage{Generation: 3, Versions: []rowVersion{{Row: 42, Version: 99, Born: 1, Values: []sqltype.Value{value}}}}
+	store := &storage.Relation{Generation: 3, Versions: []storage.RowVersion{{Row: 42, Version: 99, Born: 1, Values: []sqltype.Value{value}}}}
 	e.mu.Lock()
 	e.storage.Relations[table.Address()] = store
 	e.commitSeq = 1

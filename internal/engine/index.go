@@ -223,7 +223,7 @@ func (o indexOrdering) fillKeys(values []sqltype.Value, keys []sqltype.Value, ev
 	return nil
 }
 
-func (o indexOrdering) entry(row rowVersion, evaluation *EvalContext) (storage.IndexEntry, error) {
+func (o indexOrdering) entry(row storage.RowVersion, evaluation *EvalContext) (storage.IndexEntry, error) {
 	keys := make([]sqltype.Value, len(o.slots))
 	if err := o.fillKeys(row.Values, keys, evaluation); err != nil {
 		return storage.IndexEntry{}, err
@@ -272,7 +272,7 @@ func (o indexOrdering) sort(ctx context.Context, entries []storage.IndexEntry) e
 	copy(entries, src)
 	return nil
 }
-func buildIndexRoot(evaluation *EvalContext, parent *catalog.Relation, d *catalog.IndexDefinition, store *relationStorage, capture *indexBuildCapture) (*storage.IndexRoot, error) {
+func buildIndexRoot(evaluation *EvalContext, parent *catalog.Relation, d *catalog.IndexDefinition, store *storage.Relation, capture *indexBuildCapture) (*storage.IndexRoot, error) {
 	if d.Method == catalog.HashMethod {
 		return buildHashIndexRoot(evaluation, parent, d, store, true, capture)
 	}
@@ -283,7 +283,7 @@ func buildIndexRoot(evaluation *EvalContext, parent *catalog.Relation, d *catalo
 	return newLogicalIndexRoot(d, entries), nil
 }
 
-func buildIndexEntries(evaluation *EvalContext, parent *catalog.Relation, d *catalog.IndexDefinition, store *relationStorage, capture *indexBuildCapture) ([]storage.IndexEntry, error) {
+func buildIndexEntries(evaluation *EvalContext, parent *catalog.Relation, d *catalog.IndexDefinition, store *storage.Relation, capture *indexBuildCapture) ([]storage.IndexEntry, error) {
 	ctx := evaluation.Context
 	o, err := bindIndexKeys(parent, d)
 	if err != nil {

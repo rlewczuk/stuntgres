@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -109,14 +110,14 @@ func TestInheritanceQueryLocator(t *testing.T) {
 	ref := func(d *catalog.Relation) ids.ObjectRef {
 		return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 	}
-	one := rowVersion{Row: 1, Version: 1, Values: []sqltype.Value{inheritanceQueryInt(e, 1)}}
-	two := rowVersion{Row: 1, Version: 2, Values: []sqltype.Value{inheritanceQueryInt(e, 9), inheritanceQueryInt(e, 2)}}
-	ps, cs := &relationStorage{}, &relationStorage{}
+	one := storage.RowVersion{Row: 1, Version: 1, Values: []sqltype.Value{inheritanceQueryInt(e, 1)}}
+	two := storage.RowVersion{Row: 1, Version: 2, Values: []sqltype.Value{inheritanceQueryInt(e, 9), inheritanceQueryInt(e, 2)}}
+	ps, cs := &storage.Relation{}, &storage.Relation{}
 	parent := queryLeaf{ref: ref(p), relation: p, storage: ps}
 	child := queryLeaf{ref: ref(c), relation: c, storage: cs}
 	source := &querySource{ref: parent.ref, inheritance: []inheritanceQuerySegment{
-		{leaf: parent, prefix: &querySource{committed: []rowVersion{one}}},
-		{leaf: child, prefix: &querySource{committed: []rowVersion{{}, two}, visible: []int{1}}, layout: []int{1}, scratch: make([]sqltype.Value, 1)},
+		{leaf: parent, prefix: &querySource{committed: []storage.RowVersion{one}}},
+		{leaf: child, prefix: &querySource{committed: []storage.RowVersion{{}, two}, visible: []int{1}}, layout: []int{1}, scratch: make([]sqltype.Value, 1)},
 	}, inheritanceEnds: []int{1, 2}}
 	first := source.physicalRow(0, parent, one)
 	second := source.physicalRow(1, parent, two)
@@ -143,8 +144,8 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	c := inheritanceLifecycleTable(e, 20001, "c", p.Address())
 	inheritanceLifecycleInstall(e, p, c)
 	e.commitSeq = 1
-	e.storage.Relations[p.Address()].Versions = []rowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{}}}
-	e.storage.Relations[c.Address()].Versions = []rowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{}}}
+	e.storage.Relations[p.Address()].Versions = []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{}}}
+	e.storage.Relations[c.Address()].Versions = []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{}}}
 	op, done, err := testOperation(e, context.Background())
 	if err != nil {
 		t.Fatal(err)

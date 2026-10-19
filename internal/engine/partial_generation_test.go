@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -22,7 +23,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			}
 			oldCatalog := f.e.catalog.state
 			oldRoot := f.e.storage.IndexRoots[f.index.Address()]
-			oldRows := append([]rowVersion(nil), f.store.Versions...)
+			oldRows := append([]storage.RowVersion(nil), f.store.Versions...)
 			oldPredicate := f.index.SQLIndex.Predicate
 			oldUsage := f.predicate.ResultUsage()
 			for i := range oldRows {
@@ -77,7 +78,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			if !catalogExpressionTypesChanged(&index, typ) {
 				t.Error("predicate-only type generation was not detected")
 			}
-			stores := map[ids.ObjectAddress]*relationStorage{f.parent.Address(): f.store}
+			stores := map[ids.ObjectAddress]*storage.Relation{f.parent.Address(): f.store}
 			if err := reownCatalogScalarTypes(next, stores, nil); err != nil {
 				t.Fatal(err)
 			}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -95,11 +96,11 @@ func TestConcurrentIndexU5LiveSimpleRowKeyBitmapIndependentOfReadiness(t *testin
 				if err != nil {
 					t.Fatal(err)
 				}
-				before, err := ordering.entry(rowVersion{Values: old}, &EvalContext{Context: context.Background(), Scope: 1, Frame: 1})
+				before, err := ordering.entry(storage.RowVersion{Values: old}, &EvalContext{Context: context.Background(), Scope: 1, Frame: 1})
 				if err != nil {
 					t.Fatal(err)
 				}
-				after, err := ordering.entry(rowVersion{Values: next}, &EvalContext{Context: context.Background(), Scope: 1, Frame: 1})
+				after, err := ordering.entry(storage.RowVersion{Values: next}, &EvalContext{Context: context.Background(), Scope: 1, Frame: 1})
 				if err != nil {
 					t.Fatal(err)
 				}

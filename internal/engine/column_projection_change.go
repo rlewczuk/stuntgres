@@ -8,16 +8,17 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 // Project a DROP shape through committed, private-write and retained snapshot
 // roots. The original publication preconditions remain in shape.
-func projectColumnShape(scope *StatementScope, old, next *catalog.Relation, store *relationStorage, shape catalogStorageChange, snapshot transactionRoot, snapshotExists bool) (catalogStorageChange, []rowVersion, *privateDeletionRoot, error) {
+func projectColumnShape(scope *StatementScope, old, next *catalog.Relation, store *storage.Relation, shape catalogStorageChange, snapshot transactionRoot, snapshotExists bool) (catalogStorageChange, []storage.RowVersion, *privateDeletionRoot, error) {
 	writes, deletes := scope.columnProjectionRoots(old.Address())
 	return projectColumnShapeRoots(scope.op.Context(), stableIsolation(scope.owner.isolation), old, next, store, shape, snapshot, snapshotExists, writes, deletes)
 }
 
-func projectColumnShapeRoots(ctx context.Context, stable bool, old, next *catalog.Relation, store *relationStorage, shape catalogStorageChange, snapshot transactionRoot, snapshotExists bool, writes []rowVersion, deletes *privateDeletionRoot) (catalogStorageChange, []rowVersion, *privateDeletionRoot, error) {
+func projectColumnShapeRoots(ctx context.Context, stable bool, old, next *catalog.Relation, store *storage.Relation, shape catalogStorageChange, snapshot transactionRoot, snapshotExists bool, writes []storage.RowVersion, deletes *privateDeletionRoot) (catalogStorageChange, []storage.RowVersion, *privateDeletionRoot, error) {
 	if slices.Equal(old.Attributes, next.Attributes) {
 		shape.relation = next
 		return shape, writes, deletes, nil
@@ -39,7 +40,7 @@ func projectColumnShapeRoots(ctx context.Context, stable bool, old, next *catalo
 	if err != nil {
 		return shape, nil, nil, err
 	}
-	shape.replacement = &relationStorage{Versions: versions, Ends: store.Ends, Generation: store.Generation + 1}
+	shape.replacement = &storage.Relation{Versions: versions, Ends: store.Ends, Generation: store.Generation + 1}
 	shape.truncated = false
 	writes, err = projection.versions(ctx, writes)
 	if err != nil {
@@ -62,14 +63,14 @@ func projectColumnShapeRoots(ctx context.Context, stable bool, old, next *catalo
 }
 
 // Nested cascades may have already projected this statement's private roots.
-func (scope *StatementScope) columnProjectionRoots(address ids.ObjectAddress) ([]rowVersion, *privateDeletionRoot) {
+func (scope *StatementScope) columnProjectionRoots(address ids.ObjectAddress) ([]storage.RowVersion, *privateDeletionRoot) {
 	if scope.projectedRoots {
 		return scope.stage.rows[address], scope.stage.deletes[address]
 	}
 	return scope.ownWrites[address], scope.ownDeletes[address]
 }
 
-func (scope *StatementScope) stageProjectedColumnRoots(address ids.ObjectAddress, writes []rowVersion, deletes *privateDeletionRoot) {
+func (scope *StatementScope) stageProjectedColumnRoots(address ids.ObjectAddress, writes []storage.RowVersion, deletes *privateDeletionRoot) {
 	if !scope.projectedRoots {
 		scope.stage.rows = maps.Clone(scope.ownWrites)
 		scope.stage.deletes = maps.Clone(scope.ownDeletes)
@@ -77,7 +78,7 @@ func (scope *StatementScope) stageProjectedColumnRoots(address ids.ObjectAddress
 	scope.projectedRoots = true
 	if len(scope.ownWrites) != 0 {
 		if scope.stage.rows == nil {
-			scope.stage.rows = make(map[ids.ObjectAddress][]rowVersion)
+			scope.stage.rows = make(map[ids.ObjectAddress][]storage.RowVersion)
 		}
 		scope.stage.rows[address] = writes
 		scope.stage.replacing = true
@@ -109,13 +110,13 @@ func (scope *StatementScope) stageColumnShape(stage *CatalogStage, changes *cata
 	return err
 }
 
-func stagePrivateColumnShape(evaluation *EvalContext, stage *CatalogStage, changes *catalogChanges, old, next *catalog.Relation, writes []rowVersion, deletes *privateDeletionRoot, snapshot transactionRoot, snapshotExists, stable bool) ([]rowVersion, *privateDeletionRoot, bool, error) {
+func stagePrivateColumnShape(evaluation *EvalContext, stage *CatalogStage, changes *catalogChanges, old, next *catalog.Relation, writes []storage.RowVersion, deletes *privateDeletionRoot, snapshot transactionRoot, snapshotExists, stable bool) ([]storage.RowVersion, *privateDeletionRoot, bool, error) {
 	return stagePrivateColumnShapeMetadata(evaluation, stage, changes, old, next, writes, deletes, snapshot, snapshotExists, stable, false)
 }
 
 // The prepared path consumes the same physical projector after the immutable
 // descriptor/index/lineage effects have been applied to this sole stage.
-func stagePrivateColumnShapeMetadata(evaluation *EvalContext, stage *CatalogStage, changes *catalogChanges, old, next *catalog.Relation, writes []rowVersion, deletes *privateDeletionRoot, snapshot transactionRoot, snapshotExists, stable, metadataPrepared bool) ([]rowVersion, *privateDeletionRoot, bool, error) {
+func stagePrivateColumnShapeMetadata(evaluation *EvalContext, stage *CatalogStage, changes *catalogChanges, old, next *catalog.Relation, writes []storage.RowVersion, deletes *privateDeletionRoot, snapshot transactionRoot, snapshotExists, stable, metadataPrepared bool) ([]storage.RowVersion, *privateDeletionRoot, bool, error) {
 	ctx := evaluation.Context
 	e := stage.owner
 	e.mu.Lock()

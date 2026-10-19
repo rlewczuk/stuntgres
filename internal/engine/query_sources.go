@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
 
@@ -13,7 +14,7 @@ import (
 type queryLeaf struct {
 	ref              ids.ObjectRef
 	relation         *catalog.Relation
-	storage          *relationStorage
+	storage          *storage.Relation
 	only             bool
 	principal        authorization.PrincipalRef // Relation authority, not expression/session identity.
 	frozenAttributes []int32                    // Execution-owned stored-view subquery layout.

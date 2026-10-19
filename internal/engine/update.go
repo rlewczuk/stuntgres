@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -215,24 +216,24 @@ func (s *StatementScope) acquireUpdateRowMode(ref ids.ObjectRef, row ids.RowID, 
 }
 
 type updateCandidate struct {
-	rowVersion
+	storage.RowVersion
 	slot        int
 	sourceIndex int
 	physical    queryPhysicalRow
 }
 
-func (e *Engine) latestUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate updateCandidate) (rowVersion, bool, error) {
+func (e *Engine) latestUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate updateCandidate) (storage.RowVersion, bool, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := s.validateLockedRelation(e); err != nil {
-		return rowVersion{}, false, err
+		return storage.RowVersion{}, false, err
 	}
 	if ref.Epoch != e.catalog.state.Epoch() || s.txRef.Epoch() != e.catalog.state.Epoch() {
-		return rowVersion{}, false, ids.ErrCatalogReplaced
+		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
 	}
 	store := e.privateStorageLocked(s.owner.catalog, ref.Address)
 	if store == nil {
-		return rowVersion{}, false, ids.ErrCatalogReplaced
+		return storage.RowVersion{}, false, ids.ErrCatalogReplaced
 	}
 	current := store.Versions
 	hint := candidate.slot
@@ -241,10 +242,10 @@ func (e *Engine) latestUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate
 	}
 	row, _, found := rowByID(current, candidate.Row, hint)
 	if !found {
-		return rowVersion{}, false, errors.New("stuntgres: invalid update predecessor")
+		return storage.RowVersion{}, false, errors.New("stuntgres: invalid update predecessor")
 	}
 	if err := s.repeatableConflict(row, store.Ends); err != nil {
-		return rowVersion{}, false, err
+		return storage.RowVersion{}, false, err
 	}
 	return row, liveVersion(row, e.commitSeq, store.Ends, s.ownDeletes[ref.Address]), nil
 }
@@ -356,13 +357,13 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 				return Result{}, err
 			}
 			if matches {
-				candidates = append(candidates, updateCandidate{rowVersion: old, slot: physical.hint, sourceIndex: j, physical: physical})
+				candidates = append(candidates, updateCandidate{RowVersion: old, slot: physical.hint, sourceIndex: j, physical: physical})
 			}
 		}
 	}
 	type physicalBatch struct {
 		ref    ids.ObjectRef
-		old    []rowVersion
+		old    []storage.RowVersion
 		rows   indexWriteBatch
 		staged int
 		prior  map[ids.RowID]struct{}
@@ -371,7 +372,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	single.ref = b.ref
 	if len(s.inheritedTargets) == 0 {
 		capacity := min(len(candidates), source.count())
-		single.old = make([]rowVersion, 0, capacity)
+		single.old = make([]storage.RowVersion, 0, capacity)
 		single.rows.values = make([][]sqltype.Value, 0, capacity)
 	}
 	batches := []physicalBatch(nil)
@@ -383,7 +384,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		}
 		for i := range batches {
 			capacity := min(len(candidates), source.inheritance[i].prefix.count())
-			batches[i].old = make([]rowVersion, 0, capacity)
+			batches[i].old = make([]storage.RowVersion, 0, capacity)
 			batches[i].rows.values = make([][]sqltype.Value, 0, capacity)
 		}
 	}

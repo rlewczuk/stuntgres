@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -88,8 +89,8 @@ func TestInheritanceDMLLocator(t *testing.T) {
 	ref := func(d *catalog.Relation) ids.ObjectRef {
 		return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 	}
-	old := rowVersion{Row: 7, Version: 11, Base: 5, Born: 3, Values: []sqltype.Value{inheritanceQueryInt(e, 99), inheritanceQueryInt(e, 2), inheritanceQueryInt(e, 1)}}
-	physical := queryPhysicalRow{leaf: queryLeaf{ref: ref(c), relation: c, storage: &relationStorage{}}, version: old, hint: 6, segment: &inheritanceQuerySegment{layout: layout, scratch: make([]sqltype.Value, 2)}}
+	old := storage.RowVersion{Row: 7, Version: 11, Base: 5, Born: 3, Values: []sqltype.Value{inheritanceQueryInt(e, 99), inheritanceQueryInt(e, 2), inheritanceQueryInt(e, 1)}}
+	physical := queryPhysicalRow{leaf: queryLeaf{ref: ref(c), relation: c, storage: &storage.Relation{}}, version: old, hint: 6, segment: &inheritanceQuerySegment{layout: layout, scratch: make([]sqltype.Value, 2)}}
 	proposed := []sqltype.Value{inheritanceQueryInt(e, 8), inheritanceQueryInt(e, 2)}
 	scattered := scatterMutationRow(physical, old, proposed, []int{0})
 	want := []sqltype.Value{old.Values[0], old.Values[1], proposed[0]}

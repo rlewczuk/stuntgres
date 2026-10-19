@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -61,7 +62,7 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 	oldCatalog := e.catalog.state
 	oldRelation := oldCatalog.MustRelation(ref.Address)
 	value, _ := mood.SQLType.Input(context.Background(), "q", -1)
-	oldStore := &relationStorage{Versions: []rowVersion{{Row: 7, Version: 11, Born: 3, KeyChangedAt: 2, Values: []sqltype.Value{value}}}, Generation: 4}
+	oldStore := &storage.Relation{Versions: []storage.RowVersion{{Row: 7, Version: 11, Born: 3, KeyChangedAt: 2, Values: []sqltype.Value{value}}}, Generation: 4}
 	e.storage.Relations[ref.Address] = oldStore
 	otherStore := e.storage.Relations[other.Address]
 	members := mood.SQLType.EnumMembers()

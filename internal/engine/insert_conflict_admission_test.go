@@ -87,7 +87,7 @@ func TestInsertConflictExistingOutputPreservesProposalKey(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			own := rowVersion{Row: 200, Version: 200, Values: insertConflictUnitRow(t, f, 10)}
+			own := storage.RowVersion{Row: 200, Version: 200, Values: insertConflictUnitRow(t, f, 10)}
 			member, existing, err := scope.existingUniqueOutput(bound, own, &evaluation, purpose)
 			if err != nil || !member {
 				t.Fatal("existing row lost membership", member, err)
@@ -165,10 +165,10 @@ func TestInsertConflictCommittedVisibility(t *testing.T) {
 				t.Fatal("post-frontier tuple", admitted, err)
 			}
 		}
-		if err := scope.insertConflictVisible(rowVersion{Born: 10}, false); err != nil {
+		if err := scope.insertConflictVisible(storage.RowVersion{Born: 10}, false); err != nil {
 			t.Fatal("own proposal is visible", err)
 		}
-		if err := scope.insertConflictVisible(rowVersion{Born: 0}, true); err != nil {
+		if err := scope.insertConflictVisible(storage.RowVersion{Born: 0}, true); err != nil {
 			t.Fatal("frontier tuple is visible", err)
 		}
 	}

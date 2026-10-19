@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
 	"time"
@@ -201,7 +202,7 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 				t.Fatal("holder does not use actual own-row provider")
 			}
 			for _, expected := range []struct {
-				store *relationStorage
+				store *storage.Relation
 				id    int64
 				note  string
 			}{{rootStorage, 11, "root"}, {childStorage, 7, "leaf"}} {

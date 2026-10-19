@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -360,7 +361,7 @@ func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation
 	return target.Wrap(physical)
 }
 
-func reownCatalogScalarTypes(next *catalog.State, relations map[ids.ObjectAddress]*relationStorage, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
+func reownCatalogScalarTypes(next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
 	collation := remappedCollationCapabilities(next, mapping)
 	typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if d, ok := next.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}); ok {
@@ -414,7 +415,7 @@ func reownCatalogScalarTypes(next *catalog.State, relations map[ids.ObjectAddres
 		}
 	}
 	for address, relation := range relations {
-		var versions []rowVersion
+		var versions []storage.RowVersion
 		for i, row := range relation.Versions {
 			var values []sqltype.Value
 			for j, value := range row.Values {
@@ -506,7 +507,7 @@ func reownCatalogScalarTypes(next *catalog.State, relations map[ids.ObjectAddres
 			}
 			if values != nil {
 				if versions == nil {
-					versions = append([]rowVersion(nil), relation.Versions...)
+					versions = append([]storage.RowVersion(nil), relation.Versions...)
 				}
 				versions[i].Values = values
 				versions[i].IndexOutputs = nil

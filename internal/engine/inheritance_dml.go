@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -108,7 +109,7 @@ func (s *StatementScope) mutationTargetRefs(ref ids.ObjectRef) []ids.ObjectRef {
 	return refs
 }
 
-func (s *StatementScope) mutationStorage(ref ids.ObjectRef) *relationStorage {
+func (s *StatementScope) mutationStorage(ref ids.ObjectRef) *storage.Relation {
 	if ref == s.lockedRef {
 		return s.lockedStorage
 	}
@@ -190,7 +191,7 @@ func (e *Engine) validateInheritedMutationRow(s *StatementScope, named binding, 
 		return err
 	}
 	diagnostic := func(column, check string) error {
-		detail, err := e.rowConstraintDetail(s, &named, physical.values(rowVersion{Values: row}))
+		detail, err := e.rowConstraintDetail(s, &named, physical.values(storage.RowVersion{Values: row}))
 		if err != nil {
 			return err
 		}
@@ -224,7 +225,7 @@ func (e *Engine) validateInheritedMutationRow(s *StatementScope, named binding, 
 	return nil
 }
 
-func scatterMutationRow(physical queryPhysicalRow, old rowVersion, named []sqltype.Value, targets []int) []sqltype.Value {
+func scatterMutationRow(physical queryPhysicalRow, old storage.RowVersion, named []sqltype.Value, targets []int) []sqltype.Value {
 	if physical.segment == nil || physical.segment.layout == nil {
 		return named
 	}

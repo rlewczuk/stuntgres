@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -108,7 +109,7 @@ func TestUpdateFromFramesOriginsAndPhysicalTargets(t *testing.T) {
 	if len(metadata) != 9 || metadata[3].Usage.Type.ID() != sqltype.Int8 || metadata[3].OriginTable != metadata[4].OriginTable || metadata[3].OriginAttribute != metadata[4].OriginAttribute || metadata[3].OriginTable == metadata[5].OriginTable || metadata[6].Usage.Typmod != 11 {
 		t.Fatal(metadata)
 	}
-	original := append([]rowVersion(nil), target.committed...)
+	original := append([]storage.RowVersion(nil), target.committed...)
 	r, err := e.executeUpdate(op.ctx, scope, b, target, from, nil, "public")
 	if err != nil || r.Count != 2 {
 		scope.Finish(err)
@@ -150,7 +151,7 @@ func TestUpdateFromLosingPairsDemandAndFailureCleanup(t *testing.T) {
 			}
 			op, scope, b, target, from := updateFromBoundSources(t, e, a, context.Background(), "UPDATE t SET a=id FROM s WHERE id=k RETURNING old.a,new.a,s.k")
 			children := append([]*querySource(nil), from.sources...)
-			saved := append([]rowVersion(nil), target.committed...)
+			saved := append([]storage.RowVersion(nil), target.committed...)
 			calls, outputs := 0, 0
 			sentinel := errors.New("losing UPDATE FROM assignment failure")
 			rhs := b.update.assignments[0]

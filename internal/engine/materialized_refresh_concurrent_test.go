@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -419,7 +420,7 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 				case "length":
 					old.Versions = old.Versions[:2]
 				case "ends":
-					old.Ends = &deletionRoot{}
+					old.Ends = &storage.DeletionRoot{}
 				case "storage":
 					copy := *old
 					e.storage.Relations[d.Address()] = &copy

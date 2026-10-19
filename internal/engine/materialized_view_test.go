@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -179,7 +180,7 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 			op, done, stage, d := materializedUnitStage(t, e)
 			defer done()
 			e.catalog.state = e.stageRead(stage).State()
-			e.storage.Relations[d.Address()] = &relationStorage{}
+			e.storage.Relations[d.Address()] = &storage.Relation{}
 			before, store := e.catalog.state, e.storage.Relations[d.Address()]
 			if err := e.importMaterializedSnapshots(context.Background(), op, []materializedSnapshot{{"public", "unit_mv", true, rows}}); err == nil {
 				t.Fatal("accepted noncanonical/effectful snapshot")
@@ -193,7 +194,7 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 	op, done, stage, d := materializedUnitStage(t, e)
 	defer done()
 	e.catalog.state = e.stageRead(stage).State()
-	e.storage.Relations[d.Address()] = &relationStorage{}
+	e.storage.Relations[d.Address()] = &storage.Relation{}
 	record := materializedSnapshot{"public", "unit_mv", true, "INSERT INTO public.unit_mv VALUES (7),(7),(NULL);"}
 	if err := e.importMaterializedSnapshots(context.Background(), op, []materializedSnapshot{record, record}); err == nil {
 		t.Fatal("duplicate target accepted")

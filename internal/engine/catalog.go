@@ -158,7 +158,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		if r.SequencePlanStamp == 0 || r.Sequence == nil || len(r.Columns) != 3 || r.Columns[0].Name != "last_value" || r.Columns[1].Name != "log_cnt" || r.Columns[2].Name != "is_called" || r.Columns[0].Usage.Type.ID() != sqltype.Int8 || r.Columns[1].Usage.Type.ID() != sqltype.Int8 || r.Columns[2].Usage.Type.ID() != sqltype.Bool {
 			return fmt.Errorf("stuntgres: invalid sequence descriptor")
 		}
-		if _, _, err := bindSequenceOptions(r.Sequence, sequenceGenerator{Last: r.Sequence.Start}, nil); err != nil {
+		if _, _, err := bindSequenceOptions(r.Sequence, storage.SequenceGenerator{Last: r.Sequence.Start}, nil); err != nil {
 			return err
 		}
 		if r.Sequence.Identity && r.Sequence.Owned == (ids.ObjectAddress{}) {
@@ -324,11 +324,11 @@ const (
 )
 
 type catalogRowShape struct {
-	original       *relationStorage
-	root           []rowVersion
-	replacement    *relationStorage
+	original       *storage.Relation
+	root           []storage.RowVersion
+	replacement    *storage.Relation
 	observedLength int
-	observedEnds   *deletionRoot
+	observedEnds   *storage.DeletionRoot
 	generation     uint64
 }
 
@@ -346,7 +346,7 @@ type CatalogStage struct {
 	indexParents         map[ids.ObjectAddress]*catalog.Relation
 	indexSets            map[ids.ObjectAddress]int
 	indexOutput          sqltype.OutputEnvironment
-	generators           map[ids.ObjectAddress]*sequenceGenerator
+	generators           map[ids.ObjectAddress]*storage.SequenceGenerator
 	identityOriginals    map[ids.ObjectAddress]catalog.Descriptor
 	identityDependencies []catalogDependencyObservation
 	typedSource          ids.ObjectAddress
@@ -375,7 +375,7 @@ type CatalogStage struct {
 	terminalCleanup bool
 	// New query-derived tables carry private initial storage, never replacements
 	// of live storage. Publication installs the definition and data together.
-	initialTables           map[ids.ObjectAddress]*relationStorage
+	initialTables           map[ids.ObjectAddress]*storage.Relation
 	initialTx               ids.TxRef
 	materializedReplacement *materializedReplacement
 	querySources            []catalog.Descriptor
@@ -443,7 +443,7 @@ func (s *CatalogStage) replaceDescriptor(d catalog.Descriptor, synchronize bool)
 }
 
 // alterRelation couples a same-identity revision with an immutable storage root.
-func (s *CatalogStage) alterRelation(ctx context.Context, ref ids.ObjectRef, d *catalog.Relation, original, replacement *relationStorage, observedLength int, observedGeneration uint64, observedEnds *deletionRoot) error {
+func (s *CatalogStage) alterRelation(ctx context.Context, ref ids.ObjectRef, d *catalog.Relation, original, replacement *storage.Relation, observedLength int, observedGeneration uint64, observedEnds *storage.DeletionRoot) error {
 	if s == nil || s.owner == nil || s.lifecycle != catalogOpen || s.invalid != nil {
 		return fmt.Errorf("stuntgres: invalid catalog stage")
 	}
@@ -914,7 +914,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				continue
 			}
 			if indexStores == nil {
-				indexStores = make(map[ids.ObjectAddress]*relationStorage)
+				indexStores = make(map[ids.ObjectAddress]*storage.Relation)
 			}
 			a := index.SQLIndex.Parent
 			if indexStores[a] == nil && currentStorage[a] != nil {
@@ -937,7 +937,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		next := catalog.CloneState(current)
 		next.OverlayDefaultACLs(current, s.DefaultACLs)
 		operators := catalog.OperatorIndexEdit{Index: current.OperatorNames()}
-		relations := make(map[ids.ObjectAddress]*relationStorage, len(currentStorage)+len(s.Descriptors))
+		relations := make(map[ids.ObjectAddress]*storage.Relation, len(currentStorage)+len(s.Descriptors))
 		for a, v := range currentStorage {
 			relations[a] = v
 		}
@@ -961,7 +961,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				if initial := s.initialTables[a]; initial != nil {
 					relations[a] = initial
 				} else {
-					relations[a] = &relationStorage{}
+					relations[a] = &storage.Relation{}
 				}
 			}
 		}
@@ -982,7 +982,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		candidateStores := false
 		var rebuildIndexes map[ids.ObjectAddress]bool
 		if len(indexStores) > 0 && (len(s.rowShapes) > 0 || s.materializedReplacement != nil) {
-			buildStores = make(map[ids.ObjectAddress]*relationStorage, len(indexStores))
+			buildStores = make(map[ids.ObjectAddress]*storage.Relation, len(indexStores))
 			for a, store := range indexStores {
 				buildStores[a] = store
 			}
@@ -1010,7 +1010,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				continue
 			}
 			if !candidateStores {
-				buildStores = make(map[ids.ObjectAddress]*relationStorage, len(indexStores)+1)
+				buildStores = make(map[ids.ObjectAddress]*storage.Relation, len(indexStores)+1)
 				for address, store := range indexStores {
 					buildStores[address] = store
 				}
@@ -1247,7 +1247,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 					if replacement.concurrent {
 						lineage := replacement.predecessor.MaterializedLineage
 						if lineage == nil {
-							lineage = &materializedLineage{}
+							lineage = &storage.MaterializedLineage{}
 						}
 						replacement.predecessor.MaterializedLineage = lineage
 						replacement.storage.MaterializedLineage = lineage
@@ -1353,8 +1353,8 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 			relationAddresses = append(relationAddresses, a)
 		}
 	}
-	relations := make(map[ids.ObjectAddress]*relationStorage, len(relationAddresses))
-	var sequences map[ids.ObjectAddress]*sequenceGenerator
+	relations := make(map[ids.ObjectAddress]*storage.Relation, len(relationAddresses))
+	var sequences map[ids.ObjectAddress]*storage.SequenceGenerator
 	var indexes *indexSnapshot
 	copyRows := func(owner *Engine) error {
 		source, frontier := owner.storage.Relations, owner.commitSeq
@@ -1366,12 +1366,12 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 			if err != nil {
 				return err
 			}
-			versions := make([]rowVersion, selected.count())
+			versions := make([]storage.RowVersion, selected.count())
 			for i := range versions {
 				versions[i] = selected.versionAt(selected.rawIndex(i))
 			}
 			selected.close()
-			relations[a] = &relationStorage{Versions: versions}
+			relations[a] = &storage.Relation{Versions: versions}
 		}
 		var err error
 		indexes, err = owner.captureIndexSnapshot(ctx, replacement, source, owner.storage.IndexRoots, frontier)
@@ -1555,7 +1555,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 // replacementMu and mu and has validated capacity, descriptors and authority.
 // Storage vectors and sequence generator scalars are private copies; payload
 // values remain immutable. All prepared containers publish at the same boundary.
-func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, sequences map[ids.ObjectAddress]*sequenceGenerator, nextRevision ids.DefinitionRevision, prepared remintedIndexStorage) error {
+func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared remintedIndexStorage) error {
 	if prepared.catalog != next || prepared.baseCatalog != e.catalog.state || prepared.baseRow != e.storage.RowFrontier() || prepared.baseVersion != e.storage.VersionFrontier() || prepared.frontier != e.commitSeq {
 		return ids.ErrCatalogReplaced
 	}

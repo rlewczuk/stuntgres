@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -18,7 +19,7 @@ type truncateGraphFence struct {
 	targets   map[ids.ObjectAddress]int // Immutable after acquisition; savepoints share it.
 	token     ids.SessionToken          // Descendant TEMP exclusion matches grant-time admission.
 	restart   bool
-	sequences map[ids.ObjectAddress]*sequenceGenerator // Immutable committed bindings; not counter undo.
+	sequences map[ids.ObjectAddress]*storage.SequenceGenerator // Immutable committed bindings; not counter undo.
 }
 
 // Catalog replacements do not have to honor SQL AX locks. Fence new inbound
@@ -151,9 +152,9 @@ func (s *StatementScope) stageTruncate() error {
 		shape.truncated = !exists || shape.truncated || shape.replacement == shape.original
 		lineage := store.TruncateLineage
 		if lineage == nil {
-			lineage = &truncateLineage{}
+			lineage = &storage.TruncateLineage{}
 		}
-		shape.replacement = &relationStorage{Generation: store.Generation + 1, TruncateLineage: lineage}
+		shape.replacement = &storage.Relation{Generation: store.Generation + 1, TruncateLineage: lineage}
 		shape.relation = d
 		shape.rewritten, shape.frontier = true, e.commitSeq
 		shape.snapshot, shape.hasSnapshot = nil, false
@@ -171,7 +172,7 @@ func (s *StatementScope) stageTruncate() error {
 			err = catalog.Conflict{}
 		}
 	}
-	var sequences map[ids.ObjectAddress]*sequenceGenerator
+	var sequences map[ids.ObjectAddress]*storage.SequenceGenerator
 	if err == nil && s.truncateRestart {
 		sequences, err = s.stageTruncateSequences(auth, stage)
 	}

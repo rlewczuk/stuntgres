@@ -7,6 +7,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -22,7 +23,7 @@ func TestPartialIndexUniqueTypeFinalMembershipBaseline(t *testing.T) {
 			// column admits a formerly excluded duplicate. The real retained predicate
 			// is evaluated against final Usage, not a mock expression or key validator.
 			store.Versions[2].Values[3] = store.Versions[0].Values[3]
-			var writes []rowVersion
+			var writes []storage.RowVersion
 			var deletes *privateDeletionRoot
 			if overlay == "delete" {
 				r := store.Versions[2]
@@ -35,7 +36,7 @@ func TestPartialIndexUniqueTypeFinalMembershipBaseline(t *testing.T) {
 				}
 				r := partialUniqueRow(t, f, 1, "2001-02-03", "1", active)
 				r.Row, r.Base = store.Versions[2].Row, store.Versions[2].Version
-				writes = []rowVersion{r}
+				writes = []storage.RowVersion{r}
 			}
 			before := uniquePublicationStore(&store)
 			roots, err := validateAlterIndexBuilds(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: f.auth.catalog}, f.auth, f.auth.catalog, f.parent, &store, writes, deletes, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: f.parent.Attributes[3], rewrite: true}}, nil, nil, true)

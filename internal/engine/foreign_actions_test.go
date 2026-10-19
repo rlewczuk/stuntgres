@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -147,7 +148,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	old := children.committed[0]
 	value, _ := sqltype.Integer(job.child.Columns[0].Usage.Type, 2)
 	replacement := [1][]sqltype.Value{{value}}
-	predecessor := [1]rowVersion{old}
+	predecessor := [1]storage.RowVersion{old}
 	if err = scope.stage.replace(ref, predecessor[:], indexWriteBatch{values: replacement[:]}); err == nil {
 		t.Fatal("FK address alone authorized a child replacement")
 	}
@@ -200,7 +201,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 		t.Fatal("changed action definition authority survived", err)
 	}
 	originalStorage := admission.storage
-	admission.storage = &relationStorage{}
+	admission.storage = &storage.Relation{}
 	e.mu.Lock()
 	err = scope.validateForeignActionLocked(e, ref)
 	e.mu.Unlock()

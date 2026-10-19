@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 type catalogIndexFence struct {
@@ -22,7 +23,7 @@ func (e *Engine) stageCatalogBaseLocked(s *CatalogStage) *catalog.State {
 	}
 	return e.catalog.state
 }
-func (e *Engine) stageStorageLocked(s *CatalogStage, a ids.ObjectAddress) *relationStorage {
+func (e *Engine) stageStorageLocked(s *CatalogStage, a ids.ObjectAddress) *storage.Relation {
 	if s.authSession != nil && s.authSession.transactions.retainsTransaction() {
 		return e.privateStorageLocked(s.authSession.transactions.catalog, a)
 	}

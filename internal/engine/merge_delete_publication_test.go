@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/storage"
 	"testing"
 )
 
@@ -128,7 +129,7 @@ func TestMergeDeleteLineage(t *testing.T) {
 			case "version":
 				candidate.version++
 			case "storage":
-				candidate.storage = &relationStorage{}
+				candidate.storage = &storage.Relation{}
 			case "ref":
 				candidate.ref.Epoch++
 			case "copiedStage":

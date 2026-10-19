@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -16,11 +17,11 @@ func TestUpdateCoreVersionsAndPrivateHeads(t *testing.T) {
 	sessionSQL(t, b, "CREATE TABLE t(v INT)")
 	sessionSQL(t, b, "INSERT INTO t VALUES(1),(1)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	original := append([]rowVersion(nil), e.storage.Relations[ref.Address].Versions...)
+	original := append([]storage.RowVersion(nil), e.storage.Relations[ref.Address].Versions...)
 	saved := transactionRows(t, b, "SELECT v FROM t", 1, 1)
 	tx := transactionBegin(t, a)
 	sessionSQL(t, a, "UPDATE t SET v=2")
-	first := append([]rowVersion(nil), a.transactions.writes[ref.Address]...)
+	first := append([]storage.RowVersion(nil), a.transactions.writes[ref.Address]...)
 	transactionRows(t, a, "SELECT v FROM t", 2, 2)
 	transactionRows(t, b, "SELECT v FROM t", 1, 1)
 	sessionSQL(t, a, "UPDATE t SET v=3")

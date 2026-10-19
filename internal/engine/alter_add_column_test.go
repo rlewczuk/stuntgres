@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -22,7 +23,7 @@ func TestAlterAddColumnProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows := []rowVersion{{Values: []sqltype.Value{one, seven}}}
+	rows := []storage.RowVersion{{Values: []sqltype.Value{one, seven}}}
 	before := append([]sqltype.Value(nil), rows[0].Values...)
 	for _, fill := range []sqltype.Value{sqltype.Null(u.Type), seven} {
 		projected, err := projectVersions(context.Background(), rows, old, next, map[int32]sqltype.Value{3: fill})
@@ -41,7 +42,7 @@ func TestAlterAddColumnProjection(t *testing.T) {
 	if _, err := projectVersions(context.Background(), rows, old, next, nil); err == nil {
 		t.Fatal("missing captured fill accepted")
 	}
-	bad := []rowVersion{{Values: []sqltype.Value{one}}}
+	bad := []storage.RowVersion{{Values: []sqltype.Value{one}}}
 	if _, err := projectVersions(context.Background(), bad, old, next, map[int32]sqltype.Value{3: seven}); err == nil {
 		t.Fatal("invalid original width accepted")
 	}
@@ -57,7 +58,7 @@ func TestAlterAddColumnZeroWidthProjection(t *testing.T) {
 	u := testUsage(e, sqltype.Text)
 	old := &catalog.Relation{ColumnMeta: catalog.ColumnMetadata{HighWater: 3}}
 	next := &catalog.Relation{Columns: []catalog.Column{{Name: "new", Usage: u}}, Attributes: []int32{4}, ColumnMeta: catalog.ColumnMetadata{HighWater: 4}}
-	rows := []rowVersion{{}, {}}
+	rows := []storage.RowVersion{{}, {}}
 	projected, err := projectVersions(context.Background(), rows, old, next, map[int32]sqltype.Value{4: sqltype.Null(u.Type)})
 	if err != nil || len(projected) != 2 {
 		t.Fatal(projected, err)
@@ -83,7 +84,7 @@ func TestAlterAddColumnCancellationDuringShapeTraversal(t *testing.T) {
 	}
 	old := &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: u}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 	next := &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: u}, {Name: "b", Usage: u}}, Attributes: []int32{1, 2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}}
-	rows := []rowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{one}}, {Row: 2, Version: 2, Values: []sqltype.Value{one}}, {Row: 3, Version: 3, Values: []sqltype.Value{one}}}
+	rows := []storage.RowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{one}}, {Row: 2, Version: 2, Values: []sqltype.Value{one}}, {Row: 3, Version: 3, Values: []sqltype.Value{one}}}
 	projection, err := newColumnProjection(old, next, map[int32]sqltype.Value{2: sqltype.Null(u.Type)})
 	if err != nil {
 		t.Fatal(err)

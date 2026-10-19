@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -40,10 +41,10 @@ func partitionReplacementRow(from, to *catalog.Relation, row []sqltype.Value) []
 
 // Run only inside the isolated admitted repair statement, after scalar/provider
 // remint and before index transport. Published target/TEMP roots are never touched.
-func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, relations map[ids.ObjectAddress]*relationStorage, auth AuthorizationView, snapshot *indexSnapshot) (map[ids.ObjectAddress]bool, error) {
+func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, relations map[ids.ObjectAddress]*storage.Relation, auth AuthorizationView, snapshot *indexSnapshot) (map[ids.ObjectAddress]bool, error) {
 	view := evaluation.catalog
 	var removed map[ids.ObjectAddress]map[int]bool
-	var incoming map[ids.ObjectAddress][]rowVersion
+	var incoming map[ids.ObjectAddress][]storage.RowVersion
 	var dirty map[ids.ObjectAddress]bool
 	for address, store := range relations {
 		source, ok := view.Relation(address)
@@ -142,7 +143,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 			}
 			if dirty == nil {
 				removed = make(map[ids.ObjectAddress]map[int]bool)
-				incoming = make(map[ids.ObjectAddress][]rowVersion)
+				incoming = make(map[ids.ObjectAddress][]storage.RowVersion)
 				dirty = make(map[ids.ObjectAddress]bool)
 			}
 			if removed[address] == nil {
@@ -160,7 +161,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 			return nil, ids.ErrCatalogReplaced
 		}
 		next := *original
-		next.Versions = make([]rowVersion, 0, len(original.Versions)-len(removed[address])+len(incoming[address]))
+		next.Versions = make([]storage.RowVersion, 0, len(original.Versions)-len(removed[address])+len(incoming[address]))
 		for i, version := range original.Versions {
 			if !removed[address][i] {
 				next.Versions = append(next.Versions, version)

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -192,7 +193,7 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 	if err != nil {
 		return err
 	}
-	stage.initialTables = map[ids.ObjectAddress]*relationStorage{d.Address(): {Versions: versions}}
+	stage.initialTables = map[ids.ObjectAddress]*storage.Relation{d.Address(): {Versions: versions}}
 	stage.initialTx = ref
 	return nil
 }

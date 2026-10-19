@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -47,7 +48,7 @@ func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 				if writerNode == nil || !writerNode.captured || writerNode.ended || writerNode.committed || len(writer.transactions.writes[relation.Address]) != 1 {
 					t.Fatal("writer was not actually admitted with unresolved staged data")
 				}
-				beforeWrites := append([]rowVersion(nil), writer.transactions.writes[relation.Address]...)
+				beforeWrites := append([]storage.RowVersion(nil), writer.transactions.writes[relation.Address]...)
 				beforeStorage := e.storage.Relations[relation.Address]
 				beforeFrontier, beforeRows, beforeVersions := e.commitSeq, e.storage.RowFrontier(), e.storage.VersionFrontier()
 				beforeCatalog := e.catalog.state

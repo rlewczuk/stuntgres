@@ -15,11 +15,11 @@ import (
 type indexMaintenanceSnapshot struct {
 	catalog *catalog.State
 	roots   map[ids.ObjectAddress]*storage.IndexRoot
-	stores  map[ids.ObjectAddress]*relationStorage
+	stores  map[ids.ObjectAddress]*storage.Relation
 }
 
 func indexMaintenanceCapture(e *Engine) indexMaintenanceSnapshot {
-	s := indexMaintenanceSnapshot{catalog: e.catalog.state, roots: make(map[ids.ObjectAddress]*storage.IndexRoot, len(e.storage.IndexRoots)), stores: make(map[ids.ObjectAddress]*relationStorage, len(e.storage.Relations))}
+	s := indexMaintenanceSnapshot{catalog: e.catalog.state, roots: make(map[ids.ObjectAddress]*storage.IndexRoot, len(e.storage.IndexRoots)), stores: make(map[ids.ObjectAddress]*storage.Relation, len(e.storage.Relations))}
 	for a, r := range e.storage.IndexRoots {
 		s.roots[a] = r
 	}

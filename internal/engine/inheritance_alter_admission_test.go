@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -188,8 +189,8 @@ func inheritanceAlterAssertRows(t *testing.T, e *Engine, table *catalog.Relation
 		t.Fatal("wrong physical replacement row", table.Name(), store)
 	}
 }
-func inheritanceAlterRowRoots(e *Engine) map[ids.ObjectAddress][]rowVersion {
-	roots := make(map[ids.ObjectAddress][]rowVersion, len(e.storage.Relations))
+func inheritanceAlterRowRoots(e *Engine) map[ids.ObjectAddress][]storage.RowVersion {
+	roots := make(map[ids.ObjectAddress][]storage.RowVersion, len(e.storage.Relations))
 	for address, store := range e.storage.Relations {
 		rows := slices.Clone(store.Versions)
 		for i := range rows {

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/storage"
 	"testing"
 )
 
@@ -12,7 +13,7 @@ func TestMergeSourceUpdatePublication(t *testing.T) {
 	sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
 	sessionSQL(t, peer, "INSERT INTO t VALUES(1,10),(2,20)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	before := append([]rowVersion(nil), e.storage.Relations[ref.Address].Versions...)
+	before := append([]storage.RowVersion(nil), e.storage.Relations[ref.Address].Versions...)
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)

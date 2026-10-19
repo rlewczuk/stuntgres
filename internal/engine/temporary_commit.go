@@ -4,12 +4,13 @@ import (
 	"maps"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
 
 // Prepare descriptor-owned actions only at an outer successful commit. The
 // transaction/savepoint roots remain untouched until the ordinary final install.
-func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]rowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges) (map[ids.ObjectAddress][]rowVersion, map[ids.ObjectAddress]*privateDeletionRoot, *catalogChanges, error) {
+func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges) (map[ids.ObjectAddress][]storage.RowVersion, map[ids.ObjectAddress]*privateDeletionRoot, *catalogChanges, error) {
 	e.mu.Lock()
 	if ref.Epoch() != e.catalog.state.Epoch() {
 		e.mu.Unlock()
@@ -51,7 +52,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 			store := e.storage.Relations[a]
 			shape = catalogStorageChange{original: store, root: store.Versions, ends: store.Ends, generation: store.Generation}
 		}
-		shape.replacement = &relationStorage{}
+		shape.replacement = &storage.Relation{}
 		shape.truncated = false
 		shape.relation = base.MustRelation(a)
 		next.storage[a] = shape
@@ -79,7 +80,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 			}
 			if rows != nil || nextWrites != nil {
 				if nextWrites == nil {
-					nextWrites = make(map[ids.ObjectAddress][]rowVersion)
+					nextWrites = make(map[ids.ObjectAddress][]storage.RowVersion)
 				}
 				nextWrites[old.Address()] = rows
 			}

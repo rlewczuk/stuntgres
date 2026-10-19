@@ -7,12 +7,13 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func uniqueHistoryCopy(rows []rowVersion) []rowVersion {
-	copyRows := append([]rowVersion(nil), rows...)
+func uniqueHistoryCopy(rows []storage.RowVersion) []storage.RowVersion {
+	copyRows := append([]storage.RowVersion(nil), rows...)
 	for i := range copyRows {
 		copyRows[i].Values = append([]sqltype.Value(nil), copyRows[i].Values...)
 	}
@@ -25,7 +26,7 @@ func TestUniqueKeyHistoryPublicationAndProjection(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(extra INT,k INT UNIQUE,v INT)")
 	sessionSQL(t, s, "INSERT INTO t VALUES(0,1,10)")
 	ref := roleTableRef(t, e, "t")
-	head := func() rowVersion { return e.storage.Relations[ref.Address].Versions[0] }
+	head := func() storage.RowVersion { return e.storage.Relations[ref.Address].Versions[0] }
 	initialPrefix := e.storage.Relations[ref.Address].Versions
 	initialCopy := uniqueHistoryCopy(initialPrefix)
 	tx := transactionBegin(t, s)

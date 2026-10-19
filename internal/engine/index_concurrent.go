@@ -13,17 +13,17 @@ import (
 type indexRootCandidate struct {
 	root       *storage.IndexRoot
 	index      *catalog.Relation
-	storage    *relationStorage
+	storage    *storage.Relation
 	generation uint64
-	ends       *deletionRoot
+	ends       *storage.DeletionRoot
 	length     int
 }
 
-func (c indexRootCandidate) matches(store *relationStorage) bool {
+func (c indexRootCandidate) matches(store *storage.Relation) bool {
 	return store == c.storage && store != nil && store.Generation == c.generation && store.Ends == c.ends && len(store.Versions) == c.length
 }
 
-func (c indexRootCandidate) matchesIndex(index *catalog.Relation, store *relationStorage) bool {
+func (c indexRootCandidate) matchesIndex(index *catalog.Relation, store *storage.Relation) bool {
 	return store != nil && c.index != nil && sameIndexKeySemantics(c.index, index) && c.matches(store.IndexIdentity())
 }
 

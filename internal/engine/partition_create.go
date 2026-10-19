@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -269,9 +270,9 @@ func partitionTupleSQL(ctx context.Context, tuple []catalog.PartitionDatum) (str
 
 type partitionReadFence struct {
 	address    ids.ObjectAddress
-	storage    *relationStorage
+	storage    *storage.Relation
 	length     int
-	ends       *deletionRoot
+	ends       *storage.DeletionRoot
 	generation uint64
 }
 

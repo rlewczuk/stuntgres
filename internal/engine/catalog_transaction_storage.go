@@ -6,17 +6,18 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
 type catalogStorageChange struct {
-	original    *relationStorage
-	root        []rowVersion
-	ends        *deletionRoot
+	original    *storage.Relation
+	root        []storage.RowVersion
+	ends        *storage.DeletionRoot
 	generation  uint64
-	replacement *relationStorage
+	replacement *storage.Relation
 	relation    *catalog.Relation
-	snapshot    []rowVersion
+	snapshot    []storage.RowVersion
 	hasSnapshot bool
 	rewritten   bool
 	truncated   bool
@@ -88,12 +89,12 @@ func (e *Engine) catalogAuthorityPreflightLocked(a *catalogAuthority, c *catalog
 	return nil
 }
 
-func sameVersionRoot(a, b []rowVersion) bool {
+func sameVersionRoot(a, b []storage.RowVersion) bool {
 	return len(a) == len(b) && (len(a) == 0 || &a[0] == &b[0])
 }
 
 // Callers hold Engine.mu; private storage is never installed before Finish/Commit.
-func (e *Engine) privateStorageLocked(c *catalogChanges, a ids.ObjectAddress) *relationStorage {
+func (e *Engine) privateStorageLocked(c *catalogChanges, a ids.ObjectAddress) *storage.Relation {
 	if c != nil {
 		if shape, ok := c.storage[a]; ok {
 			return shape.replacement
@@ -102,7 +103,7 @@ func (e *Engine) privateStorageLocked(c *catalogChanges, a ids.ObjectAddress) *r
 	return e.storage.Relations[a]
 }
 
-func (e *Engine) authorizationStorageLocked(auth AuthorizationView, a ids.ObjectAddress) *relationStorage {
+func (e *Engine) authorizationStorageLocked(auth AuthorizationView, a ids.ObjectAddress) *storage.Relation {
 	if auth.session != nil && auth.session.transactions != nil {
 		return e.privateStorageLocked(auth.session.transactions.catalog, a)
 	}
@@ -140,7 +141,7 @@ func newColumnProjection(old, next *catalog.Relation, fills map[int32]sqltype.Va
 	return p, nil
 }
 
-func projectVersions(ctx context.Context, rows []rowVersion, old, next *catalog.Relation, fills map[int32]sqltype.Value) ([]rowVersion, error) {
+func projectVersions(ctx context.Context, rows []storage.RowVersion, old, next *catalog.Relation, fills map[int32]sqltype.Value) ([]storage.RowVersion, error) {
 	if len(rows) == 0 {
 		return rows, nil
 	}
@@ -151,11 +152,11 @@ func projectVersions(ctx context.Context, rows []rowVersion, old, next *catalog.
 	return p.versions(ctx, rows)
 }
 
-func (p columnProjection) versions(ctx context.Context, rows []rowVersion) ([]rowVersion, error) {
+func (p columnProjection) versions(ctx context.Context, rows []storage.RowVersion) ([]storage.RowVersion, error) {
 	if len(rows) == 0 {
 		return rows, nil
 	}
-	projected := make([]rowVersion, len(rows))
+	projected := make([]storage.RowVersion, len(rows))
 	for i, row := range rows {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -178,7 +179,7 @@ func (p columnProjection) versions(ctx context.Context, rows []rowVersion) ([]ro
 	return projected, nil
 }
 
-func projectDeletions(root *privateDeletionRoot, store *relationStorage) *privateDeletionRoot {
+func projectDeletions(root *privateDeletionRoot, store *storage.Relation) *privateDeletionRoot {
 	if root == nil {
 		return nil
 	}

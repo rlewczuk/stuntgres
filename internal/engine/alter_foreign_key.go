@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -15,7 +16,7 @@ import (
 // against the completed private candidate, which may own a newly added key.
 type alterForeignKeyAdmission struct {
 	target  ids.ObjectRef
-	storage *relationStorage
+	storage *storage.Relation
 	index   ids.ObjectAddress
 }
 
@@ -70,7 +71,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 	}
 	captures := make([]alterForeignKeyAdmission, count)
 	refs := []ids.ObjectRef{childRef}
-	stores := map[ids.ObjectAddress]*relationStorage{childRef.Address: e.privateStorageLocked(s.owner.catalog, childRef.Address)}
+	stores := map[ids.ObjectAddress]*storage.Relation{childRef.Address: e.privateStorageLocked(s.owner.catalog, childRef.Address)}
 	i := 0
 	for _, action := range raw.Actions {
 		if action.Action != parser.AddForeignKey {

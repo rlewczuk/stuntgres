@@ -278,11 +278,11 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 		}
 	}
 	next := e.stageRead(stage).State()
-	sequences := make(map[ids.ObjectAddress]*sequenceGenerator, len(e.storage.Sequences))
+	sequences := make(map[ids.ObjectAddress]*storage.SequenceGenerator, len(e.storage.Sequences))
 	for a, g := range e.storage.Sequences {
 		sequences[a] = g
 	}
-	relations := make(map[ids.ObjectAddress]*relationStorage, len(e.storage.Relations))
+	relations := make(map[ids.ObjectAddress]*storage.Relation, len(e.storage.Relations))
 	for a, store := range e.storage.Relations {
 		relations[a] = store
 	}

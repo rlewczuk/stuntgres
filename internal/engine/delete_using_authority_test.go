@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/storage"
 	"testing"
 )
 
@@ -21,7 +22,7 @@ func TestDeleteUsingCandidateAuthorityRemainsStrict(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, bad := range []deleteCandidate{
-		{ref: b.ref, storage: &relationStorage{}, row: v.Row, version: v.Version, ordinal: candidate.ordinal},
+		{ref: b.ref, storage: &storage.Relation{}, row: v.Row, version: v.Version, ordinal: candidate.ordinal},
 		{ref: b.ref, storage: b.storage, row: v.Row, version: v.Version + 1, ordinal: candidate.ordinal},
 		{ref: b.ref, storage: b.storage, row: v.Row, version: v.Version, ordinal: candidate.ordinal + 1},
 		{ref: b.ref, storage: b.storage, row: v.Row, version: v.Version, ordinal: candidate.ordinal, own: true},

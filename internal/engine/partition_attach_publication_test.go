@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -123,9 +124,9 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 				copy := *store
 				e.storage.Relations[child.Address()] = &copy
 			case "length":
-				store.Versions = append(store.Versions, rowVersion{Row: 1, Version: 1})
+				store.Versions = append(store.Versions, storage.RowVersion{Row: 1, Version: 1})
 			case "ends":
-				store.Ends = &deletionRoot{Rows: map[ids.RowID]rowEnd{}}
+				store.Ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{}}
 			case "generation":
 				store.Generation++
 			case "provider":

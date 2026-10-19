@@ -17,7 +17,7 @@ type indexWriteCandidate struct {
 	values                        []sqltype.Value
 	indexes                       map[ids.ObjectAddress]storage.IndexOutput
 	precheck                      map[ids.ObjectAddress]storage.IndexOutput
-	exclusion                     *rowVersion
+	exclusion                     *storage.RowVersion
 	sharedIndexes, sharedPrecheck bool
 }
 
@@ -32,7 +32,7 @@ type indexWriteBatch struct {
 
 type indexWriteState struct {
 	indexes, precheck map[ids.ObjectAddress]storage.IndexOutput
-	exclusion         *rowVersion
+	exclusion         *storage.RowVersion
 }
 
 func (b *indexWriteBatch) append(row indexWriteCandidate) {
@@ -220,7 +220,7 @@ func materializeIndexOutput(evaluation *EvalContext, preparation *indexExecution
 	return output, err
 }
 
-func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVersion, evaluation *EvalContext, purpose indexProbePurpose) (bool, []sqltype.Value, error) {
+func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row storage.RowVersion, evaluation *EvalContext, purpose indexProbePurpose) (bool, []sqltype.Value, error) {
 	index := bound.index
 	read := func(output storage.IndexOutput) (bool, []sqltype.Value, error) {
 		if !indexOutputMatches(output, index) {
@@ -386,7 +386,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 	return true, bound.scratch, err
 }
 
-func (s *StatementScope) matchesExistingUnique(bound *uniqueBoundKey, row rowVersion, evaluation *EvalContext, key []sqltype.Value, purpose indexProbePurpose) (bool, error) {
+func (s *StatementScope) matchesExistingUnique(bound *uniqueBoundKey, row storage.RowVersion, evaluation *EvalContext, key []sqltype.Value, purpose indexProbePurpose) (bool, error) {
 	if purpose == indexProbeRuntime && !bound.index.SQLIndex.HasRuntimeDomainConversion() && row.IndexOutputs == nil {
 		return bound.matches(evaluation, row.Values, key)
 	}

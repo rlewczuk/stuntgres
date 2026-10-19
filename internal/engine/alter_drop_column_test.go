@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"sync/atomic"
@@ -73,7 +74,7 @@ func alterDropTestStage(t *testing.T, e *Engine) (*CatalogStage, ids.ObjectRef, 
 	next.Index = map[string]int{"a": 0}
 	next.Security.ColumnACL = nil
 	original := e.storage.Relations[ref.Address]
-	replacement := &relationStorage{Versions: make([]rowVersion, len(original.Versions)), Ends: original.Ends}
+	replacement := &storage.Relation{Versions: make([]storage.RowVersion, len(original.Versions)), Ends: original.Ends}
 	for i, row := range original.Versions {
 		row.Values = append([]sqltype.Value(nil), row.Values[0])
 		replacement.Versions[i] = row

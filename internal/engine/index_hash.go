@@ -76,7 +76,7 @@ func extractIndexKey(slot int, expression expr.Expr, values []sqltype.Value, eva
 	return expression.Eval(evaluation)
 }
 
-func buildHashIndexRoot(evaluation *EvalContext, parent *catalog.Relation, d *catalog.IndexDefinition, store *relationStorage, materialize bool, capture *indexBuildCapture) (*storage.IndexRoot, error) {
+func buildHashIndexRoot(evaluation *EvalContext, parent *catalog.Relation, d *catalog.IndexDefinition, store *storage.Relation, materialize bool, capture *indexBuildCapture) (*storage.IndexRoot, error) {
 	ctx := evaluation.Context
 	binding, err := bindHashIndex(parent, d) // Eager even on empty/all-NULL input.
 	if err != nil {
@@ -195,7 +195,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 		}
 		touched[h] = true
 	}
-	end := func(row rowVersion) error {
+	end := func(row storage.RowVersion) error {
 		if ended == nil {
 			ended = make(map[ids.RowID]ids.VersionID)
 		}

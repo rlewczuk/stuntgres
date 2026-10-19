@@ -3,9 +3,10 @@ package engine
 import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 )
 
-func (s *StatementScope) physicalRowEvent(ref ids.ObjectRef, row rowVersion, mode lock.MultiMode, successor ids.VersionID) error {
+func (s *StatementScope) physicalRowEvent(ref ids.ObjectRef, row storage.RowVersion, mode lock.MultiMode, successor ids.VersionID) error {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	err := e.assignTransactionXIDLocked(s.txRef)

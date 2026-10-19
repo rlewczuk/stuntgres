@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -40,7 +41,7 @@ func sequenceDefaults(id sqltype.ID, inc int64) (int64, int64) {
 func sequenceOptionError(format string, args ...any) error {
 	return sqlError("22023", fmt.Sprintf(format, args...))
 }
-func bindSequenceOptions(old *catalog.SequenceOptions, state sequenceGenerator, raw []parser.SequenceOption) (catalog.SequenceOptions, *int64, error) {
+func bindSequenceOptions(old *catalog.SequenceOptions, state storage.SequenceGenerator, raw []parser.SequenceOption) (catalog.SequenceOptions, *int64, error) {
 	o := catalog.SequenceOptions{SQLType: sqltype.Int8, Increment: 1, Cache: 1, Persistence: "logged"}
 	if old != nil {
 		o = *old
@@ -178,7 +179,7 @@ func sequenceStep(o catalog.SequenceOptions, v int64) (int64, bool) {
 	}
 	return v + o.Increment, true
 }
-func reserveSequence(o catalog.SequenceOptions, g *sequenceGenerator, name string) (int64, uint64, error) {
+func reserveSequence(o catalog.SequenceOptions, g *storage.SequenceGenerator, name string) (int64, uint64, error) {
 	first := g.Last
 	if g.Called {
 		v, ok := sequenceStep(o, first)

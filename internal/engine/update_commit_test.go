@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 func TestUpdateCoreMultiRelationCanceledFencedCommit(t *testing.T) {
@@ -23,8 +24,8 @@ func TestUpdateCoreMultiRelationCanceledFencedCommit(t *testing.T) {
 			sessionSQL(t, peer, "INSERT INTO u VALUES(2)")
 			tr := catalogRef(t, e, e.CatalogRead(), "t")
 			ur := catalogRef(t, e, e.CatalogRead(), "u")
-			roots := [2][]rowVersion{e.storage.Relations[tr.Address].Versions, e.storage.Relations[ur.Address].Versions}
-			saved := [2]rowVersion{roots[0][0], roots[1][0]}
+			roots := [2][]storage.RowVersion{e.storage.Relations[tr.Address].Versions, e.storage.Relations[ur.Address].Versions}
+			saved := [2]storage.RowVersion{roots[0][0], roots[1][0]}
 			frontier := e.commitSeq
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, "UPDATE t SET v=7")
@@ -67,7 +68,7 @@ func TestUpdateCoreMultiRelationCanceledFencedCommit(t *testing.T) {
 				}
 			}
 			op.Done()
-			if !reflect.DeepEqual(saved, [2]rowVersion{roots[0][0], roots[1][0]}) {
+			if !reflect.DeepEqual(saved, [2]storage.RowVersion{roots[0][0], roots[1][0]}) {
 				t.Fatal("retained predecessors mutated")
 			}
 			lockState := e.locks.Inspect(oldTicket)

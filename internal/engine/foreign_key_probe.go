@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (r foreignKeyRows) committedLive(v rowVersion) bool {
+func (r foreignKeyRows) committedLive(v storage.RowVersion) bool {
 	return r.shadow[v.Row] == 0 && liveVersion(v, r.frontier, r.ends, r.priorDeletes) && liveVersion(v, r.frontier, r.ends, r.currentDeletes)
 }
 func prepareForeignKeyChild(ctx context.Context, comparisons []foreignKeyComparison, child, key []sqltype.Value, input sqltype.InputEnvironment) error {
@@ -83,13 +83,13 @@ func foreignKeyIndexOrder(ctx context.Context, index *catalog.Relation, comparis
 	return 0, nil
 }
 
-func findForeignKeyParent(ctx context.Context, index *catalog.Relation, comparisons []foreignKeyComparison, rows foreignKeyRows, child []sqltype.Value, input sqltype.InputEnvironment) (rowVersion, storage.IndexEntry, error) {
+func findForeignKeyParent(ctx context.Context, index *catalog.Relation, comparisons []foreignKeyComparison, rows foreignKeyRows, child []sqltype.Value, input sqltype.InputEnvironment) (storage.RowVersion, storage.IndexEntry, error) {
 	// Statement-final overlays are not committed index entries. Their shadow
 	// identities hide replaced committed rows and earlier transaction versions.
 	overlay := rows
 	overlay.committed = nil
-	var matching rowVersion
-	if err := overlay.each(func(parent rowVersion) (bool, error) {
+	var matching storage.RowVersion
+	if err := overlay.each(func(parent storage.RowVersion) (bool, error) {
 		match := true
 		var err error
 		for i, comparison := range comparisons {

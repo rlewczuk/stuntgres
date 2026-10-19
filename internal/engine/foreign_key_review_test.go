@@ -91,7 +91,7 @@ func TestForeignKeyIndexProbeVisitBounds(t *testing.T) {
 		t.Fatal("probe modified the source index")
 	}
 	visited := 0
-	if err := rows.each(func(rowVersion) (bool, error) { visited++; return true, nil }); err != nil || visited != 1 {
+	if err := rows.each(func(storage.RowVersion) (bool, error) { visited++; return true, nil }); err != nil || visited != 1 {
 		t.Fatal("successful iterator stop walked trailing versions", visited, err)
 	}
 }

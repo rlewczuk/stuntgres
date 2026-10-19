@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -95,10 +96,10 @@ func TestQueryOuterJoinsDemandAndCancellation(t *testing.T) {
 }
 
 func TestQueryOuterJoinsAbsentVersionsAndLineage(t *testing.T) {
-	real := rowVersion{Row: 7}
-	source := &querySource{materialized: true, occurrences: []int{0, 1}, provenance: []int{-1, 3}, versions: []rowVersion{{}, real}}
+	real := storage.RowVersion{Row: 7}
+	source := &querySource{materialized: true, occurrences: []int{0, 1}, provenance: []int{-1, 3}, versions: []storage.RowVersion{{}, real}}
 	got := appendQueryVersions(nil, source, 0, &queryLockContext{})
-	if !reflect.DeepEqual(got, []rowVersion{{}, real}) {
+	if !reflect.DeepEqual(got, []storage.RowVersion{{}, real}) {
 		t.Fatal("first absent version invalidated complete cache", got)
 	}
 	bridge := &querySource{lineage: &queryLockLineage{stage: source, currentIndex: 4, currentOrder: []sqltype.Value{{}}, cacheWidth: 1}}
@@ -112,9 +113,9 @@ func TestQueryOuterJoinsAbsentVersionsAndLineage(t *testing.T) {
 	if len(appendQueryVersions(nil, bridge, -1, &queryLockContext{})) != 2 {
 		t.Fatal("absent version width")
 	}
-	sparse := &querySource{materialized: true, occurrences: []int{0, 1}, versions: []rowVersion{{}, {}}, versionValid: []bool{false}, lineage: &queryLockLineage{stage: source, selection: []int{0}}}
+	sparse := &querySource{materialized: true, occurrences: []int{0, 1}, versions: []storage.RowVersion{{}, {}}, versionValid: []bool{false}, lineage: &queryLockLineage{stage: source, selection: []int{0}}}
 	got = appendQueryVersions(nil, sparse, 0, &queryLockContext{})
-	if !reflect.DeepEqual(got, []rowVersion{{}, real}) {
+	if !reflect.DeepEqual(got, []storage.RowVersion{{}, real}) {
 		t.Fatal("sparse uninitialized cache mistaken for absent physical versions", got)
 	}
 }

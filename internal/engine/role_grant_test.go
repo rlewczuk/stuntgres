@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -47,7 +48,7 @@ func TestObjectGrantSequencePublication(t *testing.T) {
 	original := e.catalog.state.MustRelation(address)
 	original.RelationKind = catalog.SequenceRelation
 	original.SequencePlanStamp = 1
-	generator := &sequenceGenerator{Last: 11}
+	generator := &storage.SequenceGenerator{Last: 11}
 	e.storage.Sequences[address] = generator
 	request := objectGrantUnitRequest()
 	request.Kind = "sequence"

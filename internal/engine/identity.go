@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -99,7 +100,7 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 				}
 				raw = append(raw, option)
 			}
-			options, restart, err := bindSequenceOptions(nil, sequenceGenerator{}, raw)
+			options, restart, err := bindSequenceOptions(nil, storage.SequenceGenerator{}, raw)
 			if err != nil {
 				return err
 			}
@@ -177,13 +178,13 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *catalog.Relat
 	}
 	table.ColumnMeta.Identities[table.Attributes[slot]] = catalog.ColumnIdentity{Mode: mode, Sequence: address}
 	if stage.generators == nil {
-		stage.generators = make(map[ids.ObjectAddress]*sequenceGenerator)
+		stage.generators = make(map[ids.ObjectAddress]*storage.SequenceGenerator)
 	}
 	initial := options.Start
 	if restart != nil {
 		initial = *restart
 	}
-	stage.generators[address] = &sequenceGenerator{Last: initial, Generation: rev}
+	stage.generators[address] = &storage.SequenceGenerator{Last: initial, Generation: rev}
 	return nil
 }
 

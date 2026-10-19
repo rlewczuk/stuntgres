@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -186,7 +187,7 @@ func TestSerializableEvidenceOwnCreatorSurvivesEndingRollback(t *testing.T) {
 	if err := e.serializableWriteLocked(scope, relation, create[:]); err != nil {
 		t.Fatal(err)
 	}
-	owner.writes = map[ids.ObjectAddress][]rowVersion{relation.Address: {{Row: 41, Version: 73}}}
+	owner.writes = map[ids.ObjectAddress][]storage.RowVersion{relation.Address: {{Row: 41, Version: 73}}}
 	ending := [1]serializableWrite{{row: 41, version: 73, base: 73, creator: writer.ref, deletion: true}}
 	if err := e.serializableWriteLocked(scope, relation, ending[:]); err != nil {
 		t.Fatal(err)
@@ -269,7 +270,7 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 	if len(node.reads) != 0 || len(node.writes) != 0 || node.didWrite || len(node.incoming) != 0 || len(node.outgoing) != 0 {
 		t.Fatal("temporary stored relation registered evidence")
 	}
-	var persistentGenerator, temporaryGenerator *sequenceGenerator
+	var persistentGenerator, temporaryGenerator *storage.SequenceGenerator
 	for address, descriptor := range e.catalog.state.Descriptors() {
 		if d, ok := descriptor.(*catalog.Relation); ok && d.RelationKind == catalog.SequenceRelation {
 			if d.Name() == "persistent_s" {

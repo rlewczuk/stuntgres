@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -158,10 +159,10 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	movedRow := rowVersion{Row: 7, Version: 11, Born: 1, Values: []sqltype.Value{value}}
-	storage := map[ids.ObjectAddress]*relationStorage{
+	movedRow := storage.RowVersion{Row: 7, Version: 11, Born: 1, Values: []sqltype.Value{value}}
+	storage := map[ids.ObjectAddress]*storage.Relation{
 		source.Address():      {},
-		destination.Address(): {Versions: []rowVersion{movedRow}},
+		destination.Address(): {Versions: []storage.RowVersion{movedRow}},
 	}
 	snapshot := &indexSnapshot{sources: map[ids.ObjectAddress]indexSnapshotSource{
 		sourceIndex.Address():      {index: sourceIndex, parent: source, frontier: 1},

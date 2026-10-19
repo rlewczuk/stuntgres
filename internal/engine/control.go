@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
 
@@ -770,8 +771,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			sequence := e.catalog.state.MustRelation(identity.Sequence)
 			linked[identity.Sequence] = dumpSequence{owner: principal.Name, schema: ns.Name(), name: sequence.Name(), options: *sequence.Sequence, state: *e.storage.Sequences[identity.Sequence], comment: sequence.Comment}
 		}
-		var versions []rowVersion
-		var ends *deletionRoot
+		var versions []storage.RowVersion
+		var ends *storage.DeletionRoot
 		if stored != nil {
 			versions, ends = stored.Versions, stored.Ends
 		}

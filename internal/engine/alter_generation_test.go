@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -126,16 +127,16 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 	}}
 	old.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Planned: untouched}, 3: {Kind: catalog.GenerationStored, Planned: untouched}}
 	next.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Planned: generated}, 3: {Kind: catalog.GenerationStored, Planned: untouched}}
-	row := func(id ids.RowID, version uint64) rowVersion {
-		return rowVersion{Row: id, Version: ids.VersionID(version), Born: 1, Values: []sqltype.Value{integer(1), integer(2), integer(99)}}
+	row := func(id ids.RowID, version uint64) storage.RowVersion {
+		return storage.RowVersion{Row: id, Version: ids.VersionID(version), Born: 1, Values: []sqltype.Value{integer(1), integer(2), integer(99)}}
 	}
-	store := &relationStorage{Generation: 1, Versions: []rowVersion{row(1, 1), row(2, 2), row(3, 3), row(4, 4)}, Ends: &deletionRoot{Rows: map[ids.RowID]rowEnd{2: {Version: 2, End: 2}}}}
+	store := &storage.Relation{Generation: 1, Versions: []storage.RowVersion{row(1, 1), row(2, 2), row(3, 3), row(4, 4)}, Ends: &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{2: {Version: 2, End: 2}}}}
 	own := row(3, 5)
 	own.Base = 3
 	own.Born = 0
 	insert := row(5, 6)
 	insert.Born = 0
-	scope.ownWrites = map[ids.ObjectAddress][]rowVersion{old.Address(): {own, insert}}
+	scope.ownWrites = map[ids.ObjectAddress][]storage.RowVersion{old.Address(): {own, insert}}
 	scope.ownDeletes = map[ids.ObjectAddress]*privateDeletionRoot{old.Address(): {rows: map[ids.RowID]deleteCandidate{4: {row: 4, version: 4}}}}
 	transform := queryProbeExpression{Info: expr.Info{Usage: u}, eval: func(ec *EvalContext) (sqltype.Value, error) {
 		if len(ec.Row) != 3 || ec.Row[0] != integer(1) {
@@ -192,7 +193,7 @@ func TestAlterGeneratedExpressionCancellation(t *testing.T) {
 		return value, nil
 	}}
 	next.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Planned: expression}}
-	store := &relationStorage{Generation: 7, Versions: []rowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value, value}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{value, value}}}}
+	store := &storage.Relation{Generation: 7, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value, value}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{value, value}}}}
 	op, cleanup, err := testOperation(e, ctx)
 	if err != nil {
 		t.Fatal(err)

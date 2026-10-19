@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -205,7 +206,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		// Ordinary CREATE validates options before DefineRelation checks CREATE
 		// authority. IF NOT EXISTS checks the namespace before options or skip.
 		if !s.IfNotExists {
-			options, restart, err = bindSequenceOptions(nil, sequenceGenerator{}, s.Options)
+			options, restart, err = bindSequenceOptions(nil, storage.SequenceGenerator{}, s.Options)
 			if err != nil {
 				e.mu.Unlock()
 				return Result{}, err
@@ -245,7 +246,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 		}
 		if s.IfNotExists {
-			options, restart, err = bindSequenceOptions(nil, sequenceGenerator{}, s.Options)
+			options, restart, err = bindSequenceOptions(nil, storage.SequenceGenerator{}, s.Options)
 			if err != nil {
 				e.mu.Unlock()
 				return Result{}, err
@@ -283,7 +284,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if restart != nil {
 			initial = *restart
 		}
-		changes.generators[d.Address()] = &sequenceGenerator{Last: initial, Generation: rev}
+		changes.generators[d.Address()] = &storage.SequenceGenerator{Last: initial, Generation: rev}
 		scope.catalog = changes
 		e.mu.Unlock()
 		return Result{}, nil

@@ -12,8 +12,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func hashCancellationRows(rows []rowVersion) []rowVersion {
-	copy := append([]rowVersion(nil), rows...)
+func hashCancellationRows(rows []storage.RowVersion) []storage.RowVersion {
+	copy := append([]storage.RowVersion(nil), rows...)
 	for i := range copy {
 		copy[i].Values = append([]sqltype.Value(nil), rows[i].Values...)
 	}

@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -50,7 +51,7 @@ func TestTruncateRestartGeneration(t *testing.T) {
 			}
 			for _, test := range []struct {
 				ref   ids.ObjectRef
-				old   *sequenceGenerator
+				old   *storage.SequenceGenerator
 				d     *catalog.Relation
 				start int64
 			}{{ps, oldPS, oldPD, 1}, {qs, oldQS, oldQD, 44}} {
@@ -147,14 +148,14 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 			case "GeneratorBinding":
 				stage := e.BeginCatalogStage(e.CatalogRead())
 				replacement := *oldPS
-				stage.generators = map[ids.ObjectAddress]*sequenceGenerator{ps.Address: &replacement}
+				stage.generators = map[ids.ObjectAddress]*storage.SequenceGenerator{ps.Address: &replacement}
 				truncateUnitPublish(t, e, stage)
 			case "Storage":
 				base := e.CatalogRead()
 				stage := e.BeginCatalogStage(base)
 				next := *base.MustRelation(p.Address)
 				next.ObjectRevision++
-				replacement := &relationStorage{Versions: oldP.Versions, Ends: oldP.Ends, Generation: oldP.Generation + 1}
+				replacement := &storage.Relation{Versions: oldP.Versions, Ends: oldP.Ends, Generation: oldP.Generation + 1}
 				if err := stage.alterRelation(context.Background(), p, &next, oldP, replacement, len(oldP.Versions), oldP.Generation, oldP.Ends); err != nil {
 					t.Fatal(err)
 				}

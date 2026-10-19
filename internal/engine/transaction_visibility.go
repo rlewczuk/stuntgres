@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 // VisibilityView retains exact immutable relation-local roots, not copied row
@@ -14,7 +15,7 @@ import (
 // A committed TRUNCATE incarnation can be newer than the retained snapshot.
 // This flag is capture metadata for the existing selector, not another frontier.
 type visibilityGeneration struct {
-	storage          *relationStorage
+	storage          *storage.Relation
 	needsBirthFilter bool
 }
 
@@ -24,16 +25,16 @@ type visibilityData struct {
 	frontier               ids.CommitSeq
 	rewrittenFrontiers     map[ids.ObjectAddress]ids.CommitSeq
 	catalog                catalog.Read
-	committed              map[ids.ObjectAddress][]rowVersion
+	committed              map[ids.ObjectAddress][]storage.RowVersion
 	generations            map[ids.ObjectAddress]visibilityGeneration
-	singleGeneration       *relationStorage
+	singleGeneration       *storage.Relation
 	singleNeedsBirthFilter bool
-	own                    map[ids.ObjectAddress][]rowVersion
-	ends                   map[ids.ObjectAddress]*deletionRoot
+	own                    map[ids.ObjectAddress][]storage.RowVersion
+	ends                   map[ids.ObjectAddress]*storage.DeletionRoot
 	deleted                map[ids.ObjectAddress]*privateDeletionRoot
 }
 
-func (d *visibilityData) generationAt(address ids.ObjectAddress) *relationStorage {
+func (d *visibilityData) generationAt(address ids.ObjectAddress) *storage.Relation {
 	if d.generations != nil {
 		return d.generations[address].storage
 	}
@@ -157,7 +158,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 	data := &visibilityData{
 		tx: s.txRef, command: s.command, frontier: frontier,
 		catalog:   catalog,
-		committed: make(map[ids.ObjectAddress][]rowVersion, len(refs)),
+		committed: make(map[ids.ObjectAddress][]storage.RowVersion, len(refs)),
 	}
 	if len(refs) > 1 {
 		data.generations = make(map[ids.ObjectAddress]visibilityGeneration, len(refs))
@@ -217,13 +218,13 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 		}
 		if ends != nil {
 			if data.ends == nil {
-				data.ends = make(map[ids.ObjectAddress]*deletionRoot)
+				data.ends = make(map[ids.ObjectAddress]*storage.DeletionRoot)
 			}
 			data.ends[ref.Address] = ends
 		}
 		if rows := s.ownWrites[ref.Address]; len(rows) != 0 {
 			if data.own == nil {
-				data.own = make(map[ids.ObjectAddress][]rowVersion)
+				data.own = make(map[ids.ObjectAddress][]storage.RowVersion)
 			}
 			data.own[ref.Address] = rows
 		}

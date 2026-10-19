@@ -20,7 +20,7 @@ type remintedIndexStorage struct {
 	frontier             ids.CommitSeq
 }
 
-func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, snapshot *indexSnapshot) (remintedIndexStorage, error) {
+func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*storage.Relation, snapshot *indexSnapshot) (remintedIndexStorage, error) {
 	prepared := remintedIndexStorage{catalog: next, baseCatalog: e.catalog.state, baseRow: e.storage.RowFrontier(), baseVersion: e.storage.VersionFrontier(), frontier: e.commitSeq}
 	var err error
 	prepared.roots, prepared.nextRow, prepared.nextVersion, err = e.prepareRemintedStorage(ctx, next, storage, snapshot)
@@ -33,7 +33,7 @@ func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalog.S
 // Imported storage is private to replacement. Exact retained TEMP storage keeps
 // its internal lifetime and row identities. Allocator frontiers advance only
 // after comparison, root construction and cancellation have all succeeded.
-func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, snapshot *indexSnapshot) (map[ids.ObjectAddress]*storage.IndexRoot, uint64, uint64, error) {
+func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*storage.Relation, snapshot *indexSnapshot) (map[ids.ObjectAddress]*storage.IndexRoot, uint64, uint64, error) {
 	retained := catalog.NewState(0)
 	for address, descriptor := range next.Descriptors() {
 		namespace, temporary := next.Namespace(descriptor.Namespace())

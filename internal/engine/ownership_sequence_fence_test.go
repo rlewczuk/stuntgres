@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -164,12 +165,12 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				}
 				before := indexMaintenanceCapture(e)
 				sentinel := roleTableRef(t, e, "ownership_fence_sentinel").Address
-				rows := append([]rowVersion(nil), e.storage.Relations[sentinel].Versions...)
+				rows := append([]storage.RowVersion(nil), e.storage.Relations[sentinel].Versions...)
 				for i := range rows {
 					rows[i].Values = append([]sqltype.Value(nil), rows[i].Values...)
 				}
-				generators := make(map[ids.ObjectAddress]*sequenceGenerator, len(e.storage.Sequences))
-				generatorValues := make(map[ids.ObjectAddress]sequenceGenerator, len(e.storage.Sequences))
+				generators := make(map[ids.ObjectAddress]*storage.SequenceGenerator, len(e.storage.Sequences))
+				generatorValues := make(map[ids.ObjectAddress]storage.SequenceGenerator, len(e.storage.Sequences))
 				for address, g := range e.storage.Sequences {
 					generators[address], generatorValues[address] = g, *g
 				}

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -243,7 +244,7 @@ func TestPartitionConstraintsAttachPublication(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := f.e.prepareIndexPublication(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, f.view.State(), next.State(), map[ids.ObjectAddress]*relationStorage{f.leaf.Address(): {}}, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil); !errors.Is(err, context.Canceled) {
+	if _, err := f.e.prepareIndexPublication(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, f.view.State(), next.State(), map[ids.ObjectAddress]*storage.Relation{f.leaf.Address(): {}}, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil); !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled candidate accepted", err)
 	}
 	if f.child.SQLIndex.PartitionParent != (ids.ObjectAddress{}) || f.parent.SQLIndex.Valid {
@@ -373,9 +374,9 @@ func TestPartitionConstraintsDumpCollisionProvenance(t *testing.T) {
 	e.catalog.nextOID = 30000
 	for range 2 {
 		next := catalog.CloneState(source.catalog.state)
-		relations := map[ids.ObjectAddress]*relationStorage{parent.Address(): {}, child.Address(): {}, manual.Address(): {}}
+		relations := map[ids.ObjectAddress]*storage.Relation{parent.Address(): {}, child.Address(): {}, manual.Address(): {}}
 		e.mu.Lock()
-		err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
+		err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil)
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -494,9 +495,9 @@ func TestPartitionConstraintsDumpCollisionDefinitionReservation(t *testing.T) {
 	destination.catalog.nextOID = childKey.OID
 	old := destination.catalog.state
 	next := catalog.CloneState(f.view.State())
-	relations := map[ids.ObjectAddress]*relationStorage{f.leaf.Address(): {}}
+	relations := map[ids.ObjectAddress]*storage.Relation{f.leaf.Address(): {}}
 	destination.mu.Lock()
-	err := destination.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
+	err := destination.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil)
 	destination.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -941,8 +942,8 @@ func TestPartitionConstraintsIncompleteReplacementAdmission(t *testing.T) {
 	for _, query := range []string{"CREATE TABLE root(k INT) PARTITION BY RANGE(k)", "CREATE TABLE mid PARTITION OF root DEFAULT PARTITION BY RANGE(k)", "CREATE TABLE leaf PARTITION OF mid DEFAULT", "CREATE UNIQUE INDEX parent_idx ON ONLY root(k)", "CREATE UNIQUE INDEX mid_idx ON ONLY mid(k)", "CREATE UNIQUE INDEX leaf_idx ON leaf(k)", "ALTER INDEX parent_idx ATTACH PARTITION mid_idx", "INSERT INTO root VALUES(1)"} {
 		run(t, e, query)
 	}
-	copiedStorage := func() map[ids.ObjectAddress]*relationStorage {
-		out := make(map[ids.ObjectAddress]*relationStorage, len(e.storage.Relations))
+	copiedStorage := func() map[ids.ObjectAddress]*storage.Relation {
+		out := make(map[ids.ObjectAddress]*storage.Relation, len(e.storage.Relations))
 		for address, store := range e.storage.Relations {
 			copy := *store
 			copy.Versions = slices.Clone(store.Versions)

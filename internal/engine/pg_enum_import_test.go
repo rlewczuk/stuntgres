@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -70,7 +71,7 @@ func TestPGEnumImportMetadata(t *testing.T) {
 	}
 	ref := catalogRef(t, source, original, "saved")
 	source.commitSeq = 1
-	source.storage.Relations[ref.Address] = &relationStorage{Versions: []rowVersion{{Row: 7, Version: 11, Born: 1, Values: []sqltype.Value{v, d, c}}}}
+	source.storage.Relations[ref.Address] = &storage.Relation{Versions: []storage.RowVersion{{Row: 7, Version: 11, Born: 1, Values: []sqltype.Value{v, d, c}}}}
 	targetOp, targetDone := roleOperation(t, target, "postgres")
 	domainUnitPublish(t, target, domainUnitStage(t, target, targetOp, "CREATE TYPE reserved AS ENUM ('a','b','c')"))
 	targetDone()

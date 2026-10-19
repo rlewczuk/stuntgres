@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -38,13 +39,13 @@ func TestPartialIndexUniqueAdmissionPrivatePrefix(t *testing.T) {
 					old := partialUniqueRow(t, f, 1, "2001-02-05", "3", membership)
 					next := partialUniqueRow(t, f, 2, "2001-02-05", "3", candidate)
 					var prefix [][]sqltype.Value
-					scope.ownWrites = make(map[ids.ObjectAddress][]rowVersion)
-					scope.stage.rows = make(map[ids.ObjectAddress][]rowVersion)
+					scope.ownWrites = make(map[ids.ObjectAddress][]storage.RowVersion)
+					scope.stage.rows = make(map[ids.ObjectAddress][]storage.RowVersion)
 					switch source {
 					case "own":
-						scope.ownWrites[f.ref.Address] = []rowVersion{old}
+						scope.ownWrites[f.ref.Address] = []storage.RowVersion{old}
 					case "stage":
-						scope.stage.rows[f.ref.Address] = []rowVersion{old}
+						scope.stage.rows[f.ref.Address] = []storage.RowVersion{old}
 					case "prefix":
 						prefix = [][]sqltype.Value{old.Values}
 					}

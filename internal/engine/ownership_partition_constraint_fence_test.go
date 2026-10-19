@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -95,7 +96,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 				oldRoles, sessionRevision, epoch := e.roles.published, session.authorization.revision, e.catalog.state.Epoch()
 				before := indexMaintenanceCapture(e)
 				leaf := roleTableRef(t, e, "leaf").Address
-				rows := append([]rowVersion(nil), e.storage.Relations[leaf].Versions...)
+				rows := append([]storage.RowVersion(nil), e.storage.Relations[leaf].Versions...)
 				for i := range rows {
 					rows[i].Values = append([]sqltype.Value(nil), rows[i].Values...)
 				}

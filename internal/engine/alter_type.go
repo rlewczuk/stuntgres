@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -357,7 +358,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 
 // Rewrite only effective live heads. Own updates become inserts into the private
 // replacement because their committed predecessors are intentionally omitted.
-func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *catalog.Relation, store *relationStorage, frontier ids.CommitSeq, transforms []columnTransformation, additions []addedColumn, generations []int32, validator alterRowValidator) (*relationStorage, []rowVersion, *privateDeletionRoot, error) {
+func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *catalog.Relation, store *storage.Relation, frontier ids.CommitSeq, transforms []columnTransformation, additions []addedColumn, generations []int32, validator alterRowValidator) (*storage.Relation, []storage.RowVersion, *privateDeletionRoot, error) {
 	if store.Generation == ^uint64(0) {
 		return nil, nil, nil, fmt.Errorf("stuntgres: storage generation exhausted")
 	}
@@ -410,8 +411,8 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *catalog.Re
 	preparedTransforms := false
 	var generationProgram []expr.Expr
 	preparedGeneration := false
-	convert := func(input []rowVersion, committed bool) ([]rowVersion, error) {
-		result := make([]rowVersion, 0, len(input))
+	convert := func(input []storage.RowVersion, committed bool) ([]storage.RowVersion, error) {
+		result := make([]storage.RowVersion, 0, len(input))
 		for _, row := range input {
 			if err := op.Context().Err(); err != nil {
 				return nil, err
@@ -516,5 +517,5 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *catalog.Re
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	return &relationStorage{Versions: committed, Generation: store.Generation + 1}, own, nil, nil
+	return &storage.Relation{Versions: committed, Generation: store.Generation + 1}, own, nil, nil
 }

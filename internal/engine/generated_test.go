@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -219,10 +220,10 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	base, _ := sqltype.Integer(d.Columns[0].Usage.Type, 2)
 	oldOID, _ := sqltype.OIDValue(oid, uint32(oldAddress.ObjectID))
 	source := []sqltype.Value{base, oldOID}
-	rows := &relationStorage{Versions: []rowVersion{{Values: source}}}
+	rows := &storage.Relation{Versions: []storage.RowVersion{{Values: source}}}
 	candidate := catalog.CloneState(view.State())
 	candidate.SetDescriptor(d.Address(), d)
-	storage := map[ids.ObjectAddress]*relationStorage{d.Address(): rows}
+	storage := map[ids.ObjectAddress]*storage.Relation{d.Address(): rows}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.Address()}
 	if err := recomputeRemappedGenerations(context.Background(), candidate, storage, mapping, EvalContext{Context: context.Background()}, nil); err != nil {
 		t.Fatal(err)

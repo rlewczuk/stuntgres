@@ -12,7 +12,7 @@ import (
 
 func TestTemporaryTableCleanupClosure(t *testing.T) {
 	e, op, c, table := temporaryCatalogCandidate(t, parser.OnCommitPreserve)
-	options, _, err := bindSequenceOptions(nil, sequenceGenerator{}, nil)
+	options, _, err := bindSequenceOptions(nil, storage.SequenceGenerator{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,11 +31,11 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 	}
 	e.catalog.state = e.privateCatalogLocked(c).State()
 	op.session.temporaryNamespace = table.Namespace()
-	rows := []rowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}
-	store := &relationStorage{Versions: rows}
-	peerStore := &relationStorage{}
+	rows := []storage.RowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}
+	store := &storage.Relation{Versions: rows}
+	peerStore := &storage.Relation{}
 	e.storage.Relations[table.Address()], e.storage.Relations[peerTable.Address()] = store, peerStore
-	generator := &sequenceGenerator{Last: options.Start, Generation: 1}
+	generator := &storage.SequenceGenerator{Last: options.Start, Generation: 1}
 	e.storage.Sequences[sequence.Address()] = generator
 	root := &storage.IndexRoot{}
 	e.storage.IndexRoots = map[ids.ObjectAddress]*storage.IndexRoot{}

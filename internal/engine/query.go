@@ -499,7 +499,7 @@ type querySource struct {
 	// A frozen-view occurrence may carry an older immutable manifest ref.
 	// Set only after contextual owner/provider proof at source capture.
 	storedRef        ids.ObjectRef
-	committed, own   []rowVersion
+	committed, own   []storage.RowVersion
 	partialMask      *storage.IndexRoot
 	singleton        bool
 	rlsDenied        bool
@@ -536,7 +536,7 @@ type querySource struct {
 	occurrence               int
 	occurrences              []int
 	provenance               []int
-	versions                 []rowVersion
+	versions                 []storage.RowVersion
 	versionValid             []bool // Nil: complete sequential cache; nonnil: sparse frontier.
 	joinLeft, joinRight      *querySource
 	joinPairs                []queryPair
@@ -657,9 +657,9 @@ func (s *querySource) rawIndex(i int) int {
 	}
 	return i
 }
-func (s *querySource) versionAt(i int) rowVersion {
+func (s *querySource) versionAt(i int) storage.RowVersion {
 	if i == absentQueryIndex {
-		return rowVersion{}
+		return storage.RowVersion{}
 	}
 	if s.inheritance != nil {
 		segment, index := s.inheritanceSegment(i)

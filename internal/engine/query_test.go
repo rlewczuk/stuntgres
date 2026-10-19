@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -160,7 +161,7 @@ func TestQueryCoreCancellation(t *testing.T) {
 				value, _ = sqltype.Integer(typ, 1)
 			}
 			// Own a new immutable captured prefix for this sort-key fixture.
-			source.committed = append([]rowVersion(nil), source.committed...)
+			source.committed = append([]storage.RowVersion(nil), source.committed...)
 			for i, version := range source.committed {
 				source.committed[i].Values = append([]sqltype.Value(nil), version.Values...)
 				source.committed[i].Values[1] = value

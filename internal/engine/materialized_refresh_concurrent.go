@@ -76,7 +76,7 @@ func materializedNewEntries(ctx context.Context, ordering indexOrdering, rows []
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		entry, err := ordering.entry(rowVersion{Values: values, Row: ids.RowID(i + 1), Version: ids.VersionID(i + 1)}, &evaluation)
+		entry, err := ordering.entry(storage.RowVersion{Values: values, Row: ids.RowID(i + 1), Version: ids.VersionID(i + 1)}, &evaluation)
 		if err != nil {
 			return nil, err
 		}
@@ -170,7 +170,7 @@ func materializedRowsMatch(ctx context.Context, orderings []indexOrdering, old, 
 // eligible key narrows candidates; all eligible key equalities and row images
 // decide matches. Matches are existential, never consumed one-to-one. Datum
 // buffers are shared/transferred, including each surviving old row's image.
-func materializedConcurrentRows(ctx context.Context, view catalog.Read, parent *catalog.Relation, previous *relationStorage, frontier ids.CommitSeq, oldEntries []storage.IndexEntry, indices []*catalog.Relation, rows [][]sqltype.Value, output sqltype.OutputEnvironment) ([][]sqltype.Value, error) {
+func materializedConcurrentRows(ctx context.Context, view catalog.Read, parent *catalog.Relation, previous *storage.Relation, frontier ids.CommitSeq, oldEntries []storage.IndexEntry, indices []*catalog.Relation, rows [][]sqltype.Value, output sqltype.OutputEnvironment) ([][]sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -267,13 +267,13 @@ func materializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 	return effective, nil
 }
 
-func sameMaterializedLineage(old, current *catalog.Relation, a, b *relationStorage) bool {
+func sameMaterializedLineage(old, current *catalog.Relation, a, b *storage.Relation) bool {
 	return old != nil && current != nil && old.RelationKind == catalog.MaterializedViewRelation && current.RelationKind == catalog.MaterializedViewRelation && old.Populated && current.Populated && a != nil && b != nil && a.MaterializedLineage != nil && a.MaterializedLineage == b.MaterializedLineage && relationDefiningAuthorityCompatible(old, current)
 }
 
 // A producer snapshot may outlive a compatible source publication, never a
 // defining-authority change. All storage/token observations require Engine.mu.
-func materializedSourceCurrent(snapshot *visibilityData, observed catalog.Descriptor, current *catalog.State, store *relationStorage) bool {
+func materializedSourceCurrent(snapshot *visibilityData, observed catalog.Descriptor, current *catalog.State, store *storage.Relation) bool {
 	if current.Get(observed.Address()) == observed {
 		return true
 	}
@@ -291,7 +291,7 @@ func materializedSourceCurrent(snapshot *visibilityData, observed catalog.Descri
 type materializedSourceFence struct {
 	ref      ids.ObjectRef
 	relation *catalog.Relation
-	storage  *relationStorage
+	storage  *storage.Relation
 }
 
 func (e *Engine) materializedSourceFenceCurrent(f materializedSourceFence) bool {

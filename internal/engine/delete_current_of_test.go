@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 )
 
 func TestDeleteCurrentOfIdentity(t *testing.T) {
@@ -43,12 +44,12 @@ func TestDeleteCurrentOfIdentity(t *testing.T) {
 }
 
 func TestDeleteCurrentOfOccurrenceVersions(t *testing.T) {
-	old := rowVersion{Row: 3, Version: 4}
-	effective := rowVersion{Row: 3, Version: 9}
-	leaf := &querySource{occurrence: 2, committed: []rowVersion{old}}
+	old := storage.RowVersion{Row: 3, Version: 4}
+	effective := storage.RowVersion{Row: 3, Version: 9}
+	leaf := &querySource{occurrence: 2, committed: []storage.RowVersion{old}}
 	locks := &queryLockContext{leaves: make([]queryLockLeaf, 3)}
 	locks.leaves[2].source = leaf
-	materialized := &querySource{materialized: true, occurrences: []int{1, 2}, provenance: []int{-1, 0}, versions: []rowVersion{{}, effective}}
+	materialized := &querySource{materialized: true, occurrences: []int{1, 2}, provenance: []int{-1, 0}, versions: []storage.RowVersion{{}, effective}}
 	if got := cursorOccurrenceVersion(materialized, 0, 2, locks); got.Row != effective.Row || got.Version != effective.Version {
 		t.Fatal("effective rowmark version lost", got)
 	}

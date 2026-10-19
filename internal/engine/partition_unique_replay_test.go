@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -223,7 +224,7 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	state.SetDescriptor(consumer.Address(), consumer)
 	view = view.WithState(&state)
 	graph[dumpEventKey{oid: consumer.Address().ObjectID}] = []dumpEventKey{{oid: local.Address().ObjectID}}
-	tables = append(tables, dumpRelation{descriptor: consumer, columns: consumer.Columns, attributes: consumer.Attributes, versions: []rowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{value, leafValue}}}})
+	tables = append(tables, dumpRelation{descriptor: consumer, columns: consumer.Columns, attributes: consumer.Attributes, versions: []storage.RowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{value, leafValue}}}})
 	declarations, err := viewDumpOrder(context.Background(), graph, nil)
 	if err != nil {
 		t.Fatal(err)

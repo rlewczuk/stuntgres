@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -27,7 +28,7 @@ func inheritanceLifecycleInstall(e *Engine, tables ...*catalog.Relation) {
 	for _, table := range tables {
 		e.catalog.state.SetDescriptor(table.Address(), table)
 		e.catalog.state.BindName(catalog.DescriptorNameKey(table), table.Address())
-		e.storage.Relations[table.Address()] = &relationStorage{}
+		e.storage.Relations[table.Address()] = &storage.Relation{}
 	}
 }
 
@@ -162,7 +163,7 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 			}
 			e.mu.Lock()
 			e.catalogChangeLocked(changes, child.Address(), &child)
-			childStore := &relationStorage{}
+			childStore := &storage.Relation{}
 			changes.storage[child.Address()] = catalogStorageChange{replacement: childStore, relation: &child}
 			e.mu.Unlock()
 			one, err := sqltype.Integer(parent.Columns[0].Usage.Type, 1)
@@ -173,7 +174,7 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			writes := map[ids.ObjectAddress][]rowVersion{
+			writes := map[ids.ObjectAddress][]storage.RowVersion{
 				parent.Address(): {{Row: 1, Version: 1, Values: []sqltype.Value{one}}},
 				child.Address():  {{Row: 2, Version: 2, Values: []sqltype.Value{two}}},
 			}

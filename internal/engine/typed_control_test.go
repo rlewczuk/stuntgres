@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"testing"
 )
 
@@ -36,11 +37,11 @@ func typedControlsTemporary(e *Engine, tables ...*catalog.Relation) {
 func TestTypedTemporaryReplacementAdmission(t *testing.T) {
 	e, _, table := typedUnitCatalog(t, false)
 	typedControlsTemporary(e, table)
-	e.storage.Relations[table.Address()] = &relationStorage{}
+	e.storage.Relations[table.Address()] = &storage.Relation{}
 	state, oid, revision, stored := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision, e.storage.Relations[table.Address()]
 	next := catalog.CloneState(New().catalog.state)
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*relationStorage{}, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
+	err := e.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
 	if err == nil || err.Error() != temporaryTypedReplacementError {
 		t.Fatal(err)
@@ -59,11 +60,11 @@ func TestTypedTemporaryReplacementAdmission(t *testing.T) {
 func TestTypedTemporaryProviderSourceIdentityRetention(t *testing.T) {
 	e, source, table := typedUnitCatalog(t, false)
 	typedControlsTemporary(e, source, table)
-	e.storage.Relations[table.Address()] = &relationStorage{}
+	e.storage.Relations[table.Address()] = &storage.Relation{}
 	next := catalog.CloneState(New().catalog.state)
-	relations := map[ids.ObjectAddress]*relationStorage{}
+	relations := map[ids.ObjectAddress]*storage.Relation{}
 	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*sequenceGenerator{}, nil, nil)
+	err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

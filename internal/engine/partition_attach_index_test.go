@@ -61,7 +61,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			if duplicate {
 				second = 1
 			}
-			store := &relationStorage{Generation: 4, Versions: []rowVersion{
+			store := &storage.Relation{Generation: 4, Versions: []storage.RowVersion{
 				{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{integer(0, 7), integer(1, 1), sqltype.String(f.leaf.Columns[2].Usage.Type, "first")}},
 				{Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{integer(0, 7), integer(1, second), sqltype.String(f.leaf.Columns[2].Usage.Type, "different included payload")}},
 			}}

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 )
 
 // Exercise the real dependency admission before any DEFAULT or CHECK demand.
@@ -137,7 +138,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 				if !held {
 					t.Fatal("provider hold retired before Finish")
 				}
-				var injectedStorage *relationStorage
+				var injectedStorage *storage.Relation
 				switch veto {
 				case "cancel":
 					cancel()
@@ -146,7 +147,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 					worker.authorization.revision++
 					worker.mu.Unlock()
 				case "storage":
-					injectedStorage = &relationStorage{Generation: stored.Generation + 1, Versions: stored.Versions, Ends: stored.Ends}
+					injectedStorage = &storage.Relation{Generation: stored.Generation + 1, Versions: stored.Versions, Ends: stored.Ends}
 					e.mu.Lock()
 					e.storage.Relations[ref.Address] = injectedStorage
 					e.mu.Unlock()

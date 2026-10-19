@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 func serializableUnitAcquisition(t *testing.T, e *Engine, parent context.Context, readOnly, deferrable bool) (*StatementScope, *serializableTransaction) {
@@ -131,7 +132,7 @@ func TestSerializableSafeSnapshotUnsafeRejectsRootsAndRecaptures(t *testing.T) {
 	if scope.owner.roots[ref.Address].storage != old {
 		t.Fatal("candidate did not capture old root")
 	}
-	next := &relationStorage{Generation: old.Generation + 1}
+	next := &storage.Relation{Generation: old.Generation + 1}
 	e.storage.Relations[ref.Address] = next
 	e.commitSeq++
 	e.serializableCommittedLocked(writer.ref, e.commitSeq)

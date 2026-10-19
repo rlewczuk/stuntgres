@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -144,7 +145,7 @@ func TestPGSequenceProjection(t *testing.T) {
 	state.SetDescriptor(a, d)
 	state.SetDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, &catalog.Relation{RelationKind: catalog.TableRelation})
 	state.SetDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}, &catalog.Relation{RelationKind: catalog.ViewRelation})
-	e.storage.Sequences[a] = &sequenceGenerator{Last: 99, Called: true, Generation: 100}
+	e.storage.Sequences[a] = &storage.SequenceGenerator{Last: 99, Called: true, Generation: 100}
 	rows, err := capturePGSequence(context.Background(), &state, nil, ref, source)
 	if err != nil {
 		t.Fatal(err)

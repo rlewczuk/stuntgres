@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -436,7 +437,7 @@ func (p *dropProvider) projectColumn(old, next *catalog.Relation) error {
 	if err != nil {
 		return err
 	}
-	replacement := &relationStorage{Versions: projected, Ends: ends, Generation: nextGeneration}
+	replacement := &storage.Relation{Versions: projected, Ends: ends, Generation: nextGeneration}
 	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), old.Address())
 	return stage.alterRelation(ctx, ref, next, stored, replacement, len(rows), generation, ends)
 }

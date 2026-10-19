@@ -9,6 +9,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -277,7 +278,7 @@ func notNullProviderPublicationFences(t *testing.T, q string) {
 						value = stored.Versions[0].Values[0]
 					}
 					e.mu.Lock()
-					stored.Versions = append(stored.Versions, rowVersion{Row: 99, Version: 99, Born: e.commitSeq, Values: []sqltype.Value{value, stored.Versions[0].Values[1]}})
+					stored.Versions = append(stored.Versions, storage.RowVersion{Row: 99, Version: 99, Born: e.commitSeq, Values: []sqltype.Value{value, stored.Versions[0].Values[1]}})
 					e.mu.Unlock()
 				case "descriptor":
 					next := *old.(*catalog.Relation)

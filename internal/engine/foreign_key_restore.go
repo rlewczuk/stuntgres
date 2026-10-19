@@ -6,6 +6,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -190,7 +191,7 @@ func validateForeignKeyData(ctx context.Context, auth AuthorizationView, child, 
 		return ids.ErrCatalogReplaced
 	}
 	key := make([]sqltype.Value, len(comparisons))
-	return children.each(func(row rowVersion) (bool, error) {
+	return children.each(func(row storage.RowVersion) (bool, error) {
 		if err := ctx.Err(); err != nil {
 			return false, err
 		}

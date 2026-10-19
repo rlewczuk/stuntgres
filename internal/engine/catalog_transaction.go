@@ -19,7 +19,7 @@ type catalogChanges struct {
 	defaultACLs         map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
 	defaultOriginals    map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
 	defaultReads        map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
-	generators          map[ids.ObjectAddress]*sequenceGenerator
+	generators          map[ids.ObjectAddress]*storage.SequenceGenerator
 	storage             map[ids.ObjectAddress]catalogStorageChange
 	uniqueRoots         map[ids.ObjectAddress]*storage.IndexRoot
 	indexCandidates     map[ids.ObjectAddress]indexRootCandidate // Private produced DDL roots and their exact baseline pins.
@@ -44,7 +44,7 @@ type catalogChanges struct {
 }
 
 func newCatalogChanges() *catalogChanges {
-	return &catalogChanges{originals: map[ids.ObjectAddress]catalog.Descriptor{}, descriptors: map[ids.ObjectAddress]catalog.Descriptor{}, names: map[ids.NameKey]ids.ObjectAddress{}, generators: map[ids.ObjectAddress]*sequenceGenerator{}, storage: map[ids.ObjectAddress]catalogStorageChange{}}
+	return &catalogChanges{originals: map[ids.ObjectAddress]catalog.Descriptor{}, descriptors: map[ids.ObjectAddress]catalog.Descriptor{}, names: map[ids.NameKey]ids.ObjectAddress{}, generators: map[ids.ObjectAddress]*storage.SequenceGenerator{}, storage: map[ids.ObjectAddress]catalogStorageChange{}}
 }
 func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	n := newCatalogChanges()
@@ -183,7 +183,7 @@ func (e *Engine) catalogChangeLocked(c *catalogChanges, a ids.ObjectAddress, d c
 	c.cachedBase = nil
 	c.cached = catalog.Read{}
 }
-func (e *Engine) sequenceGeneratorLocked(s *StatementScope, a ids.ObjectAddress) *sequenceGenerator {
+func (e *Engine) sequenceGeneratorLocked(s *StatementScope, a ids.ObjectAddress) *storage.SequenceGenerator {
 	if s.catalog != nil {
 		if descriptor, exists := s.catalog.descriptors[a]; exists && descriptor == nil {
 			return nil

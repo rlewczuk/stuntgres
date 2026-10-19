@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -105,7 +106,7 @@ func TestAlterNullabilityCancellationBoundaries(t *testing.T) {
 				store := e.storage.Relations[ref.Address]
 				descriptor := e.catalog.state.Get(ref.Address)
 				frontier, generation, ends := e.commitSeq, store.Generation, store.Ends
-				all := append([]rowVersion(nil), store.Versions[:cap(store.Versions)]...)
+				all := append([]storage.RowVersion(nil), store.Versions[:cap(store.Versions)]...)
 				for i := range all {
 					all[i].Values = append([]sqltype.Value(nil), all[i].Values...)
 				}

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -52,7 +53,7 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 		}
 		return v
 	}
-	e.storage.Relations[base.Address()] = &relationStorage{Generation: 1, Versions: []rowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value(1), value(10), value(42)}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{value(2), value(20), value(42)}}}}
+	e.storage.Relations[base.Address()] = &storage.Relation{Generation: 1, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value(1), value(10), value(42)}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{value(2), value(20), value(42)}}}}
 	e.commitSeq = 1
 	e.storage.SetFrontierLocked(2, 2)
 	return viewWriteFixture{e, base, view, baseRef, viewRef, integer, boolean}
@@ -243,7 +244,7 @@ func TestViewWriteDemand(t *testing.T) {
 		f := viewWriteMechanics(t)
 		f.e.commitSeq = 2
 		store := f.e.storage.Relations[f.base.Address()]
-		store.Ends = &deletionRoot{Rows: map[ids.RowID]rowEnd{1: {Version: 1, End: 2}}}
+		store.Ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 1, End: 2}}}
 		scope, op := f.scope(t)
 		leaves := []queryLeaf{{ref: f.baseRef, relation: f.base, storage: store, frozenAttributes: []int32{11, 7}}}
 		f.e.mu.Lock()
@@ -298,7 +299,7 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 	}
 	row := append([]sqltype.Value(nil), old.Values...)
 	row[1], _ = sqltype.Integer(f.integer, 0)
-	if err := holder.Writes().replace(f.baseRef, []rowVersion{old}, indexWriteBatch{values: [][]sqltype.Value{row}}); err != nil {
+	if err := holder.Writes().replace(f.baseRef, []storage.RowVersion{old}, indexWriteBatch{values: [][]sqltype.Value{row}}); err != nil {
 		t.Fatal(err)
 	}
 	if err := holder.Finish(nil); err != nil {
@@ -307,7 +308,7 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 	if err := request.Wait(); err != nil {
 		t.Fatal(err)
 	}
-	current, live, err := f.e.latestUpdateRow(waiter, f.baseRef, updateCandidate{rowVersion: old, slot: 0})
+	current, live, err := f.e.latestUpdateRow(waiter, f.baseRef, updateCandidate{RowVersion: old, slot: 0})
 	if err != nil || !live || current.Version == old.Version {
 		t.Fatal(current, live, err)
 	}
@@ -337,7 +338,7 @@ func TestViewWriteCancellation(t *testing.T) {
 	}
 	row := append([]sqltype.Value(nil), originals[1].Values...)
 	row[1], _ = sqltype.Integer(f.integer, 99)
-	if err := scope.Writes().replace(f.baseRef, []rowVersion{originals[1]}, indexWriteBatch{values: [][]sqltype.Value{row}}); err != nil {
+	if err := scope.Writes().replace(f.baseRef, []storage.RowVersion{originals[1]}, indexWriteBatch{values: [][]sqltype.Value{row}}); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(scope.op.Context())

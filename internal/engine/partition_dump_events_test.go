@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -56,7 +57,7 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 		t.Run(reference.Name(), func(t *testing.T) {
 			rowValues := slices.Clone(values)
 			rowValues[len(rowValues)-1] = sqltype.String(regclass, strconv.FormatUint(uint64(reference.Address().ObjectID), 10))
-			tables := []dumpRelation{{descriptor: f.root}, {descriptor: &other}, {descriptor: f.leaf, columns: f.leaf.Columns, attributes: f.leaf.Attributes, versions: []rowVersion{{Row: 1, Version: 1, Values: rowValues}}}}
+			tables := []dumpRelation{{descriptor: f.root}, {descriptor: &other}, {descriptor: f.leaf, columns: f.leaf.Columns, attributes: f.leaf.Attributes, versions: []storage.RowVersion{{Row: 1, Version: 1, Values: rowValues}}}}
 			graph := make(map[dumpEventKey][]dumpEventKey)
 			indices := make(map[ids.OID]int)
 			for _, table := range tables {

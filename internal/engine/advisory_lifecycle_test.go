@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 )
 
 type advisoryScopeOutcome struct{ err, finish error }
@@ -73,10 +74,10 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 	source := New()
 	replacement := source.CatalogRead()
 	sourceRoles, targetRoles := source.Roles(), e.Roles()
-	relations := make(map[ids.ObjectAddress]*relationStorage)
+	relations := make(map[ids.ObjectAddress]*storage.Relation)
 	source.mu.Lock()
 	for address, relation := range source.storage.Relations {
-		relations[address] = &relationStorage{Versions: append([]rowVersion(nil), relation.Versions...)}
+		relations[address] = &storage.Relation{Versions: append([]storage.RowVersion(nil), relation.Versions...)}
 	}
 	sequences, err := copySequenceState(source, replacement)
 	indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage.Relations, source.storage.IndexRoots, source.commitSeq)

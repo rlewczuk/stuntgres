@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"testing"
 )
 
@@ -103,7 +104,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 			message := batchUnitStart(t, session, ctx)
 			defer message.end(context.Canceled)
 			oldCatalog, oldRoles := f.e.catalog.state, f.e.roles.published
-			storage := make(map[ids.ObjectAddress]*relationStorage, len(f.e.storage.Relations))
+			storage := make(map[ids.ObjectAddress]*storage.Relation, len(f.e.storage.Relations))
 			for address, root := range f.e.storage.Relations {
 				storage[address] = root
 			}

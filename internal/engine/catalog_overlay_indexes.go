@@ -10,7 +10,7 @@ import (
 
 type catalogOverlayIndex struct {
 	index, parent *catalog.Relation
-	store         relationStorage
+	store         storage.Relation
 }
 
 // Ordinary key providers run only on detached storage captures, never under
