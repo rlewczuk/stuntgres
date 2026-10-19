@@ -260,14 +260,12 @@ run it in parallel with 6c or with another broad rewrite (§8).
 - [x] B3 — `access` created and code moved (`8e529feda`, `0d549283e`,
   `9cfb1306b`, `a168628d4`, then the commit that records this status)
   *(racecheck skipped at user request; targeted RACE=1 runs passed)*
-- [ ] B4 — Aliases removed
+- [x] B4 — Aliases removed (`68be6bf5a`, `4130fa669`, then the commit
+  that records this status) *(racecheck skipped at user request; targeted
+  RACE=1 runs passed)*
 
-Outstanding aliases (B3, in `internal/engine/access_aliases.go`):
-`accessView` (`access.View`), `accessEnvironment` (`access.Environment`),
-`AccessRequirement` (`access.Requirement`), `AuthorizationStamp`
-(`access.Stamp`), `roleCatalog` (`access.RoleRecord`), `rlsDisposition`
-(`access.RLSDisposition`) and the constants `rlsUnrestricted`,
-`rlsDefaultDeny` and `rlsNeedsExpressions`. Part A, B1 and B2 added none.
+No aliases remain: B4 removed the nine B3 aliases and deleted
+`internal/engine/access_aliases.go`. Part A, B1 and B2 added none.
 
 A1 outcome. The re-measure (`go/types`, free declarations) found that most
 listed candidates are not authorization algorithms, and found others that are:
@@ -623,3 +621,48 @@ Notes for later steps (B3):
   helpers. A shared home below both (for example `catalog`, which already
   owns the type descriptors) would remove the copy; the engine has about 80
   uses.
+
+B4 results:
+
+- **Rewrite.** A go/types tool (the 1d/4c qualifier, re-parametrized)
+  type-checked the engine with its in-package tests and rewrote by object
+  identity: 241 alias uses (`AccessRequirement` 141, `roleCatalog` 40,
+  `accessView` 20, `rlsUnrestricted` 16, `rlsDefaultDeny` 13,
+  `rlsNeedsExpressions` 6, `rlsDisposition` 5) to `access.X`, and the 53
+  uses of `AuthorizationView`'s embedded `accessView` field (selectors and
+  composite-literal keys) to `View`, in 108 files. `accessEnvironment` and
+  `AuthorizationStamp` had no uses left. It checked with `LookupParent`
+  that `access` names the package at every rewritten use (no shadowing
+  found), added the import to 76 files and gofmt'ed only files that were
+  already clean. The per-object census matched before and after. Engine
+  comments naming the aliases and the alias paragraph of the `access`
+  README were updated by hand.
+- **Not changed.** `docs/design/PG18-ARCH-AUTHORIZATION.md` keeps its
+  design-time sketch names (`AccessRequirement`, `AuthorizationStamp`, an
+  interface `AuthorizationView`): they are rationale, and the note already
+  points at the `access` README. `fixedAccessEnvironment` (engine tests)
+  stays, as planned.
+- **Tests.** None moved, deleted or substantially rewritten; test files
+  changed only by the mechanical rewrite.
+- **Verification.** `make build` after each commit. Targeted `make check`
+  (the `authorization` README unit and engine-consumer sets, the `access`
+  package tests, role store, access view, RLS, policies, ownership,
+  `pg_group`/`pg_roles`/`pg_user`/`pg_shdescription`, predefined roles,
+  data type privileges, ACL items, comments, generated columns, rules and
+  index predicates) passed, and `RACE=1` passed for the README concurrency
+  set with the role store and `access` seam tests. `quickcheck` passed.
+  The full `racecheck` was skipped at the user's request. `make bench` was
+  not run: removing type aliases leaves the compiled code unchanged.
+  `make deps` lists only module paths; `access` imports are unchanged.
+  `AGENTS.md` stays at 100 lines (`authorization` dropped from the
+  `internal/engine` bullet).
+
+Notes for later steps (B4):
+
+- Part B is done. What remains of authorization in the engine waits for
+  later waves, as recorded above: the ACL SQL function nodes for step 3
+  Tier C, the privilege projections for `pgcatalog`, Dump/Restore and
+  remap for `control`, policy DDL for the policy feature package and the
+  binding walkers for `plan`/`exec`.
+- `access/names.go` still duplicates the engine's diagnostic name helpers
+  (see the B3 notes).

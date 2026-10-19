@@ -5,17 +5,15 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `1b3a12a08`.
+Last verified against `master` at `80de2df73`.
 
 ## Next ready sub-steps
 
 - **7c** — `visibility` aliases removed (needs 7b ✓). Broad rewrite; see
   the 7b notes in the prompt file.
-- **B4** — `access` aliases removed (needs B3 ✓). Broad rewrite; see the
-  B3 notes in the prompt file.
 
-Both are broad rewrites (§8): run them one after the other, not in
-parallel.
+Authorization and `access` are done. Step 3 Tier C refinement waits for
+step 7 (after 7c).
 
 ## Task tree
 
@@ -158,12 +156,12 @@ parallel.
     *(racecheck skipped at user request; targeted RACE=1 runs passed;
     REFERENCE=1 MERGE RR `/postgres` drift also fails on `master`)*
   - [ ] 7c — Aliases removed *(broad rewrite)*
-- [ ] **Authorization and `access`**
+- [x] **Authorization and `access`**
   ([prompt](ENGINE-SPLIT-authorization.md); Part A needs —, Part B needs 5e)
   - [x] Part A
     - [x] A1 — Pure helpers moved, README rewritten (`e932fc381`,
       `96ee8d96b`, docs `31aa39dfb`)
-  - [ ] Part B
+  - [x] Part B
     - [x] B0 — `access` refined and approved (docs only, then the docs
       commit)
     - [x] B1 — `roleStore` role state ownership (`e4174a713`, `e91c6d175`,
@@ -176,7 +174,8 @@ parallel.
     - [x] B3 — `access` created and code moved (`8e529feda`, `0d549283e`,
       `9cfb1306b`, `a168628d4`, then the docs commit) *(racecheck skipped
       at user request; targeted RACE=1 runs passed)*
-    - [ ] B4 — Aliases removed *(broad rewrite)*
+    - [x] B4 — Aliases removed (`68be6bf5a`, `4130fa669`, then the docs
+      commit) *(racecheck skipped at user request)*
 - [ ] **Later waves** ([ENGINE-SPLIT.md §6](ENGINE-SPLIT.md#6-later-waves-sketch);
   sketch only, no prompt files yet)
   - [ ] `pgcatalog` — system relations `pg_*` (needs 5)
