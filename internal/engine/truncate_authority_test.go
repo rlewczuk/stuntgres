@@ -317,14 +317,14 @@ func TestTruncateAdmission(t *testing.T) {
 		e, holder, p, _ := truncateUnitFixture(t)
 		waiter := sessionStart(t, e, nil)
 		original := e.storage.Relations[p.Address]
-		frontier := e.commitSeq
+		frontier := e.visibility.commitSeq
 		tx := transactionBegin(t, holder)
 		truncateUnitExecute(t, e, holder, truncateUnitAST("p"))
 		done, _ := truncateUnitAsync(t, e, waiter, truncateUnitAST("p"))
 		lockPending(t, e, 1)
 		transactionEnd(t, holder, tx, true)
 		truncateUnitJoin(t, done, "")
-		if e.storage.Relations[p.Address].Generation != original.Generation+2 || !original.SameTruncateLineage(e.storage.Relations[p.Address]) || e.commitSeq != frontier+2 {
+		if e.storage.Relations[p.Address].Generation != original.Generation+2 || !original.SameTruncateLineage(e.storage.Relations[p.Address]) || e.visibility.commitSeq != frontier+2 {
 			t.Fatal("queued truncate was retargeted or rejected legal lineage")
 		}
 		lockEmpty(t, e)

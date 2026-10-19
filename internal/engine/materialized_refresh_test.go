@@ -49,7 +49,7 @@ func TestMaterializedRefreshPublication(t *testing.T) {
 		old := d
 		store := e.storage.Relations[d.Address()]
 		root, ends, generation := store.Versions, store.Ends, store.Generation
-		frontier := e.commitSeq
+		frontier := e.visibility.commitSeq
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		rows := refreshUnitRows(t, d, tc.count)
 		if err := e.stageMaterializedRows(context.Background(), stage, d, store, rows, tc.populated, ids.TxRef{}); err != nil {
@@ -67,8 +67,8 @@ func TestMaterializedRefreshPublication(t *testing.T) {
 		if d == old || d.View != old.View || d.Address() != old.Address() || d.RowType != old.RowType || viewOf(d).rule != viewOf(old).rule || d.Owner != old.Owner || d.Revision() != old.Revision()+1 || !reflect.DeepEqual(d.Security.ACL, old.Security.ACL) || !reflect.DeepEqual(d.Security.ColumnACL, old.Security.ColumnACL) || !reflect.DeepEqual(d.Columns, old.Columns) || !reflect.DeepEqual(d.Attributes, old.Attributes) {
 			t.Fatal("refresh lost immutable identity/metadata")
 		}
-		if e.storage.Relations[d.Address()] != candidate || len(candidate.Versions) != tc.count || candidate.Generation != generation+1 || d.Populated != tc.populated || e.commitSeq != frontier+1 {
-			t.Fatal("incomplete atomic replacement", d.Populated, e.commitSeq, candidate)
+		if e.storage.Relations[d.Address()] != candidate || len(candidate.Versions) != tc.count || candidate.Generation != generation+1 || d.Populated != tc.populated || e.visibility.commitSeq != frontier+1 {
+			t.Fatal("incomplete atomic replacement", d.Populated, e.visibility.commitSeq, candidate)
 		}
 		if !sameVersionRoot(root, store.Versions) || store.Ends != ends || store.Generation != generation {
 			t.Fatal("predecessor mutated")
@@ -150,7 +150,7 @@ func TestMaterializedRefreshPublicationFences(t *testing.T) {
 			case "cancel":
 				cancel()
 			case "frontier":
-				e.commitSeq = ids.CommitSeq(math.MaxUint64)
+				e.visibility.commitSeq = ids.CommitSeq(math.MaxUint64)
 			case "source":
 				stage.querySources = []catalog.Descriptor{&catalog.Relation{ObjectAddress: d.Address()}}
 			case "role", "authorization":
@@ -167,9 +167,9 @@ func TestMaterializedRefreshPublicationFences(t *testing.T) {
 				copy := *stage.Descriptors[d.Address()].(*catalog.Relation)
 				stage.Descriptors[d.Address()] = &copy
 			}
-			beforeCatalog, beforeStore, beforeFrontier := e.catalog.state, e.storage.Relations[d.Address()], e.commitSeq
+			beforeCatalog, beforeStore, beforeFrontier := e.catalog.state, e.storage.Relations[d.Address()], e.visibility.commitSeq
 			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
-			if err == nil || e.catalog.state != beforeCatalog || e.storage.Relations[d.Address()] != beforeStore || e.commitSeq != beforeFrontier {
+			if err == nil || e.catalog.state != beforeCatalog || e.storage.Relations[d.Address()] != beforeStore || e.visibility.commitSeq != beforeFrontier {
 				t.Fatal("failed fence published", err)
 			}
 			if phase == "cancel" && !errors.Is(err, context.Canceled) {

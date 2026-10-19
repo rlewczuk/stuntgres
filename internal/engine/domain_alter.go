@@ -193,7 +193,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		if graphErr == nil && !domainGraphEqual(fence, currentUses) {
 			graphErr = catalog.Conflict{}
 		}
-		frontier := e.commitSeq
+		frontier := e.visibility.commitSeq
 		if graphErr == nil {
 			for i := range fence.uses {
 				use := &fence.uses[i]

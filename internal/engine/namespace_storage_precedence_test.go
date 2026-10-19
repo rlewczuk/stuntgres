@@ -30,7 +30,7 @@ func TestPGNamespaceCopyStoragePrecedence(t *testing.T) {
 			op.Done()
 			t.Fatal(err)
 		}
-		before, sequence, oid, revision := e.catalog.state, e.commitSeq, e.catalog.nextOID, e.catalog.nextRevision
+		before, sequence, oid, revision := e.catalog.state, e.visibility.commitSeq, e.catalog.nextOID, e.catalog.nextRevision
 		store := e.storage.Relations[foreign.Address()]
 		root, ends := store.Versions, store.Ends
 		persistentStore := e.storage.Relations[persistent.Address()]
@@ -41,7 +41,7 @@ func TestPGNamespaceCopyStoragePrecedence(t *testing.T) {
 		err = scope.Finish(err)
 		op.Done()
 		defaultUnitDiagnostic(t, err, code, message)
-		if count != 0 || reader.calls != 0 || output.Len() != 0 || e.catalog.state != before || e.commitSeq != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[foreign.Address()] != store || !sameVersionRoot(store.Versions, root) || store.Ends != ends || e.storage.Relations[persistent.Address()] != persistentStore || !sameVersionRoot(persistentStore.Versions, persistentRoot) || persistentStore.Ends != persistentEnds || peer.temporaryNamespace != (ids.ObjectAddress{}) || peer.transactions.accessedTemporary {
+		if count != 0 || reader.calls != 0 || output.Len() != 0 || e.catalog.state != before || e.visibility.commitSeq != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[foreign.Address()] != store || !sameVersionRoot(store.Versions, root) || store.Ends != ends || e.storage.Relations[persistent.Address()] != persistentStore || !sameVersionRoot(persistentStore.Versions, persistentRoot) || persistentStore.Ends != persistentEnds || peer.temporaryNamespace != (ids.ObjectAddress{}) || peer.transactions.accessedTemporary {
 			t.Fatal("denied COPY changed storage, frontier, input or TEMP footprint", query, count, err)
 		}
 		sessionSQL(t, actor, "ROLLBACK")
@@ -114,12 +114,12 @@ func TestPGNamespaceViewStoragePrecedence(t *testing.T) {
 		address := auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: viewName})
 		relation := auth.catalog.MustRelation(address)
 		leaf := queryLeaf{ref: e.catalog.Domain.Ref(auth.catalog.Epoch(), address), relation: relation}
-		before, sequence, oid, revision := e.catalog.state, e.commitSeq, e.catalog.nextOID, e.catalog.nextRevision
+		before, sequence, oid, revision := e.catalog.state, e.visibility.commitSeq, e.catalog.nextOID, e.catalog.nextRevision
 		e.mu.Lock()
 		refs, err := e.queryTableRefsLocked(auth, auth.state.CurrentUser, []queryLeaf{leaf}, nil, peer.token, queryRowMark{})
 		e.mu.Unlock()
 		defaultUnitDiagnostic(t, err, code, message)
-		if len(refs) != 0 || e.catalog.state != before || e.commitSeq != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[base] != store || !sameVersionRoot(store.Versions, root) || store.Ends != ends || peer.temporaryNamespace != (ids.ObjectAddress{}) || peer.transactions.accessedTemporary {
+		if len(refs) != 0 || e.catalog.state != before || e.visibility.commitSeq != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[base] != store || !sameVersionRoot(store.Versions, root) || store.Ends != ends || peer.temporaryNamespace != (ids.ObjectAddress{}) || peer.transactions.accessedTemporary {
 			t.Fatal("view rejection changed physical frontier", viewName, refs, err)
 		}
 	}
@@ -131,7 +131,7 @@ func TestPGNamespaceViewStoragePrecedence(t *testing.T) {
 		query := "SELECT v FROM " + name + "." + view
 		ast, description := sequencePreparedDescription(t, e, peer, query)
 		for _, prepared := range []bool{false, true} {
-			before, sequence, oid, revision := e.catalog.state, e.commitSeq, e.catalog.nextOID, e.catalog.nextRevision
+			before, sequence, oid, revision := e.catalog.state, e.visibility.commitSeq, e.catalog.nextOID, e.catalog.nextRevision
 			var err error
 			if prepared {
 				_, err = sequencePreparedExecute(e, peer, ast, &description)
@@ -144,7 +144,7 @@ func TestPGNamespaceViewStoragePrecedence(t *testing.T) {
 				op.Done()
 			}
 			defaultUnitDiagnostic(t, err, "42501", "permission denied for table storage_acl_source")
-			if e.catalog.state != before || e.commitSeq != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[base] != store || !sameVersionRoot(store.Versions, root) || store.Ends != ends || peer.temporaryNamespace != (ids.ObjectAddress{}) || peer.transactions.accessedTemporary {
+			if e.catalog.state != before || e.visibility.commitSeq != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[base] != store || !sameVersionRoot(store.Versions, root) || store.Ends != ends || peer.temporaryNamespace != (ids.ObjectAddress{}) || peer.transactions.accessedTemporary {
 				t.Fatal("denied direct/prepared view changed storage or TEMP footprint", view, prepared, err)
 			}
 		}

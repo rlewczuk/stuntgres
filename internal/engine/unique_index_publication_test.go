@@ -129,7 +129,7 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
 		t.Fatal(err)
 	}
-	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), roles: e.roles.published, stores: maps.Clone(e.storage.Relations), storeSnapshots: make(map[ids.ObjectAddress]storage.Relation), roots: maps.Clone(e.storage.IndexRoots), entries: make(map[ids.ObjectAddress][]storage.IndexEntry), nextRow: e.storage.RowFrontier(), nextVersion: e.storage.VersionFrontier(), frontier: e.commitSeq}
+	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), roles: e.roles.published, stores: maps.Clone(e.storage.Relations), storeSnapshots: make(map[ids.ObjectAddress]storage.Relation), roots: maps.Clone(e.storage.IndexRoots), entries: make(map[ids.ObjectAddress][]storage.IndexEntry), nextRow: e.storage.RowFrontier(), nextVersion: e.storage.VersionFrontier(), frontier: e.visibility.commitSeq}
 	for address, store := range f.stores {
 		f.storeSnapshots[address] = uniquePublicationStore(store)
 	}
@@ -163,7 +163,7 @@ func (f *uniquePublicationFixture) row(t *testing.T, offset int, a, b string) st
 
 func (f *uniquePublicationFixture) unchanged(t *testing.T) {
 	t.Helper()
-	if f.e.catalog.state != f.catalog || f.e.roles.published != f.roles || f.e.storage.RowFrontier() != f.nextRow || f.e.storage.VersionFrontier() != f.nextVersion || f.e.commitSeq != f.frontier || len(f.e.storage.IndexRoots) != len(f.roots) || len(f.e.storage.Relations) != len(f.stores) {
+	if f.e.catalog.state != f.catalog || f.e.roles.published != f.roles || f.e.storage.RowFrontier() != f.nextRow || f.e.storage.VersionFrontier() != f.nextVersion || f.e.visibility.commitSeq != f.frontier || len(f.e.storage.IndexRoots) != len(f.roots) || len(f.e.storage.Relations) != len(f.stores) {
 		t.Fatal("package preparation changed live publication state")
 	}
 	if !maps.Equal(maps.Collect(f.catalog.Descriptors()), f.descriptors) || !maps.Equal(maps.Collect(f.catalog.Names()), f.names) {

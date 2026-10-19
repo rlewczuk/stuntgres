@@ -123,7 +123,7 @@ func TestPreparedSerializableOutcomeAndPivot(t *testing.T) {
 		t.Fatal("prepared pivot selected as victim")
 	}
 	order := pivot.order
-	e.serializableCommittedLocked(pivot.ref, e.commitSeq)
+	e.serializableCommittedLocked(pivot.ref, e.visibility.commitSeq)
 	if !pivot.committed || pivot.order != order {
 		t.Fatal("completion reordered finalized transaction")
 	}
@@ -143,7 +143,7 @@ func TestPreparedSerializableOverlapUsesActualOutcome(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal("snapshot acquired during prepared interval lost overlap")
 	}
-	e.serializableCommittedLocked(writer.ref, e.commitSeq)
+	e.serializableCommittedLocked(writer.ref, e.visibility.commitSeq)
 	if writer.order != prepareOrder || writer.commitOrder <= reader.snapshotOrder || !serializableOverlap(writer, reader) {
 		e.mu.Unlock()
 		t.Fatal("actual completion erased prepared-interval overlap or prepare order")

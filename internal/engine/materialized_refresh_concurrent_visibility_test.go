@@ -201,7 +201,7 @@ func TestMaterializedRefreshConcurrentLateCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	frontier := e.commitSeq
+	frontier := e.visibility.commitSeq
 	published := e.storage.Relations[d.Address()]
 	if !scope.completed || len(published.Versions) != 1 {
 		t.Fatal("actual refresh did not complete publication")
@@ -210,7 +210,7 @@ func TestMaterializedRefreshConcurrentLateCancellation(t *testing.T) {
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal("late cancellation retracted completed utility", err)
 	}
-	if e.storage.Relations[d.Address()] != published || e.commitSeq != frontier {
+	if e.storage.Relations[d.Address()] != published || e.visibility.commitSeq != frontier {
 		t.Fatal("late completion published twice")
 	}
 }

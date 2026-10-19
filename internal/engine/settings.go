@@ -198,7 +198,7 @@ func (e *Engine) initializeSettings(defs []SettingDefinition) {
 	for i, list := range [][]SettingDefinition{builtinSettings, defs} {
 		for _, d := range list {
 			if i == 0 {
-				if d.Name == "track_commit_timestamp" && e.trackCommitTimestamp {
+				if d.Name == "track_commit_timestamp" && e.visibility.trackCommitTimestamp {
 					d.BootDefault = "on"
 				}
 				v, err := d.parse(d.BootDefault)

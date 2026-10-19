@@ -194,13 +194,13 @@ func (e *Engine) blockingPidValues(pid ids.SessionID, typ *sqltype.Descriptor) (
 // Caller holds Engine.mu. These flags describe an unresolved acquisition,
 // unlike possible/ready alone, which also exist for nondeferrable readers.
 func (e *Engine) safeSnapshotBlockingPidsLocked(pid ids.SessionID, typ *sqltype.Descriptor) ([]sqltype.Value, error) {
-	for ref, node := range e.serializable.nodes {
+	for ref, node := range e.visibility.serializable.nodes {
 		if ref.Domain() != e.catalog.Domain || ref.Epoch() != e.catalog.state.Epoch() || ref.Session() != (e.catalog.Domain.Session(pid)) || node.prepared || !node.captured || !node.readOnly || !node.deferrable || node.aborted || node.ended || node.committed || node.resolved || node.ready == nil {
 			continue
 		}
 		var values []sqltype.Value
 		for writer := range node.possible {
-			if writer.ref.Domain() != e.catalog.Domain || writer.ref.Epoch() != ref.Epoch() || e.serializable.nodes[writer.ref] != writer || writer.aborted || writer.ended || writer.committed {
+			if writer.ref.Domain() != e.catalog.Domain || writer.ref.Epoch() != ref.Epoch() || e.visibility.serializable.nodes[writer.ref] != writer || writer.aborted || writer.ended || writer.committed {
 				continue
 			}
 			var err error

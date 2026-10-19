@@ -26,7 +26,7 @@ func (e *Engine) serializableReadLocked(s *StatementScope, ref ids.ObjectRef) er
 	if s.txRef.Domain() != e.catalog.Domain || txOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.ref {
 		return errors.New("stuntgres: invalid SSI read authority")
 	}
-	node := e.serializable.nodes[s.txRef]
+	node := e.visibility.serializable.nodes[s.txRef]
 	if !serializableRelevant(node) || !e.serializableEligibleLocked(ref, s.owner.catalog) {
 		return nil
 	}
@@ -34,7 +34,7 @@ func (e *Engine) serializableReadLocked(s *StatementScope, ref ids.ObjectRef) er
 		return serializableError("Canceled on identification as a pivot, during conflict out checking.")
 	}
 	node.reads[ref.Address] = struct{}{}
-	for _, writer := range e.serializable.nodes {
+	for _, writer := range e.visibility.serializable.nodes {
 		if !serializableOverlap(node, writer) {
 			continue
 		}
@@ -46,7 +46,7 @@ func (e *Engine) serializableReadLocked(s *StatementScope, ref ids.ObjectRef) er
 			// For an invisible inserted predecessor, only its creator can be
 			// the visibility conflict, even if another participant ended it.
 			if event.base != 0 && event.baseBorn > node.frontier {
-				selected = e.serializable.nodes[event.creator]
+				selected = e.visibility.serializable.nodes[event.creator]
 			}
 			if err := e.serializableEdgeLocked(node, node, selected); err != nil {
 				return err
@@ -71,7 +71,7 @@ func (e *Engine) serializableWriteLocked(s *StatementScope, ref ids.ObjectRef, e
 	if !e.serializableEligibleLocked(ref, s.owner.catalog) {
 		return nil
 	}
-	node := e.serializable.nodes[s.txRef]
+	node := e.visibility.serializable.nodes[s.txRef]
 	if !serializableRelevant(node) {
 		return nil
 	}
@@ -82,7 +82,7 @@ func (e *Engine) serializableWriteLocked(s *StatementScope, ref ids.ObjectRef, e
 		return nil
 	}
 	node.didWrite = true
-	for _, reader := range e.serializable.nodes {
+	for _, reader := range e.visibility.serializable.nodes {
 		if _, read := reader.reads[ref.Address]; read {
 			if err := e.serializableEdgeLocked(node, reader, node); err != nil {
 				return err
@@ -97,7 +97,7 @@ func (e *Engine) serializableWriteLocked(s *StatementScope, ref ids.ObjectRef, e
 	for _, event := range events {
 		writes[serializableWriteKey{version: event.version, deletion: event.deletion}] = event
 		if !event.deletion && !event.rewrite {
-			e.serializable.creators[event.version] = s.txRef
+			e.visibility.serializable.creators[event.version] = s.txRef
 		}
 	}
 	return nil
@@ -106,7 +106,7 @@ func (e *Engine) serializableWriteLocked(s *StatementScope, ref ids.ObjectRef, e
 // Rollback restores surviving identity evidence only, never graph edges,
 // predicates, doom or attempted-write history. Engine.mu and owner.mu held.
 func (e *Engine) reconcileSerializableWritesLocked(t *transactionOwner) {
-	node := e.serializable.nodes[t.ref]
+	node := e.visibility.serializable.nodes[t.ref]
 	if node == nil {
 		return
 	}
@@ -131,8 +131,8 @@ func (e *Engine) reconcileSerializableWritesLocked(t *transactionOwner) {
 			}
 			if !keep {
 				delete(events, id)
-				if !event.deletion && !event.rewrite && e.serializable.creators[event.version] == t.ref {
-					delete(e.serializable.creators, event.version)
+				if !event.deletion && !event.rewrite && e.visibility.serializable.creators[event.version] == t.ref {
+					delete(e.visibility.serializable.creators, event.version)
 				}
 			}
 		}

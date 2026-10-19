@@ -178,7 +178,7 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 	}
 	before := indexMaintenanceCapture(e)
 	rows, buckets := hashCancellationRows(store.Versions), hashCancellationBuckets(old)
-	generation, ends, frontier := store.Generation, store.Ends, e.commitSeq
+	generation, ends, frontier := store.Generation, store.Ends, e.visibility.commitSeq
 
 	// Dry preparation uses the same real private batch and slot/end owner as
 	// publication. Its final pre-return poll follows touched-bucket copying;
@@ -213,7 +213,7 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 		t.Fatal("owner did not cancel inside real hash merge", err, during.checks.Load(), during.at)
 	}
 	indexMaintenanceUnchanged(t, e, before)
-	if store.Generation != generation || store.Ends != ends || e.commitSeq != frontier || !reflect.DeepEqual(store.Versions, rows) || !reflect.DeepEqual(old.Buckets, buckets) || !reflect.DeepEqual(hashKeys(t, old), []string{"1", "2", "2", "3"}) {
+	if store.Generation != generation || store.Ends != ends || e.visibility.commitSeq != frontier || !reflect.DeepEqual(store.Versions, rows) || !reflect.DeepEqual(old.Buckets, buckets) || !reflect.DeepEqual(hashKeys(t, old), []string{"1", "2", "2", "3"}) {
 		t.Fatal("canceled merge published rows/endings or mutated predecessor buckets")
 	}
 	transactionEnd(t, writer, ref, false)

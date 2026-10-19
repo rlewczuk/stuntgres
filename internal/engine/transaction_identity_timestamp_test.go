@@ -10,29 +10,29 @@ func identityUnitTimestampWrap(t *testing.T) {
 		_, b := blockingUnitOwner(t, e)
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		e.assignedXID = 4294967294
+		e.visibility.assignedXID = 4294967294
 		if err := e.assignTransactionXIDLocked(a.Ref()); err != nil {
 			t.Fatal(err)
 		}
 		if err := e.assignTransactionXIDLocked(b.Ref()); err != nil {
 			t.Fatal(err)
 		}
-		if e.visibility[a.Ref()].fullXID != 4294967295 || e.visibility[b.Ref()].fullXID != 4294967299 || len(e.commitTimestamps) != 2 {
+		if e.visibility.entries[a.Ref()].fullXID != 4294967295 || e.visibility.entries[b.Ref()].fullXID != 4294967299 || len(e.visibility.commitTimestamps) != 2 {
 			t.Fatal("sparse wrap reservations")
 		}
-		if e.commitTimestamps[4294967295].present || e.commitTimestamps[4294967299].present {
+		if e.visibility.commitTimestamps[4294967295].present || e.visibility.commitTimestamps[4294967299].present {
 			t.Fatal("assignment fabricated completion")
 		}
 		e.recordCommitTimestampLocked(b.Ref())
 		newer := e.lookupCommitTimestampLocked(3)
 		e.recordCommitTimestampLocked(a.Ref())
 		older := e.lookupCommitTimestampLocked(4294967295)
-		if !older.present || !newer.present || e.lastCommittedXID != 4294967295 || len(e.commitTimestamps) != 2 {
+		if !older.present || !newer.present || e.visibility.lastCommittedXID != 4294967295 || len(e.visibility.commitTimestamps) != 2 {
 			t.Fatal("old-epoch active completion lost sparse slot")
 		}
-		last := e.lastCommitTimestamp
+		last := e.visibility.lastCommitTimestamp
 		e.recordCommitTimestampLocked(a.Ref())
-		if e.lastCommitTimestamp != last || e.lookupCommitTimestampLocked(3) != newer {
+		if e.visibility.lastCommitTimestamp != last || e.lookupCommitTimestampLocked(3) != newer {
 			t.Fatal("duplicate completion changed history")
 		}
 	})
@@ -51,11 +51,11 @@ func identityUnitTimestampWrap(t *testing.T) {
 		e.endLockOwner(a)
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		e.assignedXID = 4294967295
+		e.visibility.assignedXID = 4294967295
 		if err := e.assignTransactionXIDLocked(b.Ref()); err != nil {
 			t.Fatal(err)
 		}
-		if _, retained := e.commitTimestamps[3]; retained || len(e.commitTimestamps) != 1 {
+		if _, retained := e.visibility.commitTimestamps[3]; retained || len(e.visibility.commitTimestamps) != 1 {
 			t.Fatal("reused low32 retained incompatible timestamp")
 		}
 		e.endSerializableLocked(b.Ref(), false)

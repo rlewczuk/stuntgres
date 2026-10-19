@@ -52,7 +52,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				outcome = err
 				t.Fatal(err)
 			}
-			node := e.serializable.nodes[scope.txRef]
+			node := e.visibility.serializable.nodes[scope.txRef]
 			if node == nil || !node.captured || scope.owner.state != TxImplicit {
 				t.Fatal("missing actual implicit serializable consumer")
 			}
@@ -104,7 +104,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				e.mu.Lock()
 				err = e.serializablePrecommitLocked(peer.ref)
 				if err == nil {
-					e.serializableCommittedLocked(peer.ref, e.commitSeq)
+					e.serializableCommittedLocked(peer.ref, e.visibility.commitSeq)
 				}
 				e.mu.Unlock()
 				if err != nil || !node.doomed {
@@ -116,7 +116,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 			stage, d := queryCreateStage(t, e, "copy", 1)
 			defer e.DiscardCatalogStage(stage)
 			types := queryCreateTypes(e)
-			beforeFrontier, beforeOrder := e.commitSeq, e.serializable.order
+			beforeFrontier, beforeOrder := e.visibility.commitSeq, e.visibility.serializable.order
 			beforeRows, beforeVersions := e.storage.RowFrontier(), e.storage.VersionFrontier()
 			if err = e.stageQueryTableRows(op.Context(), stage, d, rows, scope.txRef); err != nil {
 				outcome = err
@@ -127,7 +127,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				serializableUnitDiagnostic(t, outcome, "Canceled on identification as a pivot, during commit attempt.")
 				queryCreateAssertAbsent(t, e, d)
 				queryCreateAssertTypes(t, e, types)
-				if scope.completed || node.committed || e.commitSeq != beforeFrontier || e.serializable.order != beforeOrder {
+				if scope.completed || node.committed || e.visibility.commitSeq != beforeFrontier || e.visibility.serializable.order != beforeOrder {
 					t.Fatal("doomed producer crossed installation fence")
 				}
 			} else {
@@ -138,8 +138,8 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				if wanted != 0 {
 					wantedFrontier++
 				}
-				if !scope.completed || !node.committed || node.commitFrontier != wantedFrontier || node.order != beforeOrder+1 || e.serializable.order != beforeOrder+1 || e.commitSeq != wantedFrontier {
-					t.Fatal("successful producer did not finalize once at its installation frontier", node, e.commitSeq, e.serializable.order)
+				if !scope.completed || !node.committed || node.commitFrontier != wantedFrontier || node.order != beforeOrder+1 || e.visibility.serializable.order != beforeOrder+1 || e.visibility.commitSeq != wantedFrontier {
+					t.Fatal("successful producer did not finalize once at its installation frontier", node, e.visibility.commitSeq, e.visibility.serializable.order)
 				}
 				if len(e.storage.Relations[d.Address()].Versions) != wanted {
 					t.Fatal("installed row count changed")
@@ -148,14 +148,14 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 			if e.storage.RowFrontier() != beforeRows+uint64(wanted) || e.storage.VersionFrontier() != beforeVersions+uint64(wanted) || predicates != 3 {
 				t.Fatal("identity reservation or producer demand replayed")
 			}
-			afterOrder, afterFrontier := e.serializable.order, e.commitSeq
+			afterOrder, afterFrontier := e.visibility.serializable.order, e.visibility.commitSeq
 			if got := scope.Finish(outcome); got != outcome {
 				t.Fatal("Finish changed publication outcome", got, outcome)
 			}
 			if got := scope.Finish(outcome); got != outcome {
 				t.Fatal("repeated Finish changed publication outcome", got, outcome)
 			}
-			if e.serializable.order != afterOrder || e.commitSeq != afterFrontier || !node.ended || peer.ended || e.serializable.nodes[node.ref] != node {
+			if e.visibility.serializable.order != afterOrder || e.visibility.commitSeq != afterFrontier || !node.ended || peer.ended || e.visibility.serializable.nodes[node.ref] != node {
 				t.Fatal("Finish replayed commit or discarded overlapping evidence")
 			}
 			if _, ok := node.reads[sourceRef.Address]; !ok {

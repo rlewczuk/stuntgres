@@ -60,9 +60,9 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	// preservation of a non-nil but empty root.
 	deleted := innerStorage.Versions[2]
 	innerStorage.Ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{
-		deleted.Row: {Version: deleted.Version, End: e.commitSeq},
+		deleted.Row: {Version: deleted.Version, End: e.visibility.commitSeq},
 	}}
-	frontier := e.commitSeq
+	frontier := e.visibility.commitSeq
 	innerVersions, gateVersions := innerStorage.Versions, gateStorage.Versions
 	innerEnds, gateEnds := innerStorage.Ends, gateStorage.Ends
 	holder := sessionStart(t, e, nil)
@@ -146,7 +146,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	}
 	assertManifest()
 	inner = concurrentUnitReplace(t, e, inner, refreshUnitRows(t, inner, 1), true, true)
-	if e.storage.Relations[inner.Address()] == innerStorage || e.commitSeq <= frontier {
+	if e.storage.Relations[inner.Address()] == innerStorage || e.visibility.commitSeq <= frontier {
 		t.Fatal("peer did not publish a new committed source incarnation")
 	}
 	assertSourceWait()

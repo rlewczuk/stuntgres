@@ -151,13 +151,13 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 		e.mu.Lock()
 		op.session.mu.Lock()
 		err := publicationOperationLocked(e, op)
-		if err == nil && e.diagnosticTx == ^uint32(0) {
+		if err == nil && e.visibility.diagnosticTx == ^uint32(0) {
 			err = errors.New("stuntgres: transaction diagnostic identity exhausted")
 		}
 		if err == nil {
 			t.next++
-			e.diagnosticTx++
-			next = e.catalog.Domain.Tx(t.session.token, t.next, e.catalog.state.Epoch(), t, e.diagnosticTx)
+			e.visibility.diagnosticTx++
+			next = e.catalog.Domain.Tx(t.session.token, t.next, e.catalog.state.Epoch(), t, e.visibility.diagnosticTx)
 			e.enrollSerializableLocked(next, isolation)
 		}
 		op.session.mu.Unlock()

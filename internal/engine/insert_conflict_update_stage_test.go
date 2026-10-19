@@ -33,7 +33,7 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 			sessionSQL(t, s, "INSERT INTO t VALUES"+conflictUpdateBatchValues(size, 10))
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
 			committed := e.storage.Relations[ref.Address].Versions
-			frontier := e.commitSeq
+			frontier := e.visibility.commitSeq
 			tx := transactionBegin(t, s)
 			sessionSQL(t, s, "UPDATE t SET v=11 WHERE k<=64")
 			prior := s.transactions.writes[ref.Address]
@@ -106,7 +106,7 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 				t.Fatal("once-only Finish result", err)
 			}
 			op.Done()
-			if e.commitSeq != frontier {
+			if e.visibility.commitSeq != frontier {
 				t.Fatal("statement published before transaction commit")
 			}
 			if duplicate {
@@ -129,8 +129,8 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 				}
 				transactionRows(t, s, "SELECT v FROM t ORDER BY k", want...)
 				transactionEnd(t, s, tx, true)
-				if e.commitSeq != frontier+1 {
-					t.Fatal("not exactly one transaction publication", e.commitSeq, frontier)
+				if e.visibility.commitSeq != frontier+1 {
+					t.Fatal("not exactly one transaction publication", e.visibility.commitSeq, frontier)
 				}
 				transactionRows(t, observer, "SELECT v FROM t ORDER BY k", want...)
 			}

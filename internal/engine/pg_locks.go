@@ -41,7 +41,7 @@ func virtualTransaction(owner lock.RecordOwner) string {
 // association even after commit; no session lookup or live ticket is needed.
 func (e *Engine) capturePGPredicateLocksLocked() ([]lock.Record, error) {
 	var records []lock.Record
-	for ref, node := range e.serializable.nodes {
+	for ref, node := range e.visibility.serializable.nodes {
 		if ref.Epoch() != e.catalog.state.Epoch() || node.ref != ref || !serializableRelevant(node) {
 			continue
 		}

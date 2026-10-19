@@ -54,7 +54,7 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 		return v
 	}
 	e.storage.Relations[base.Address()] = &storage.Relation{Generation: 1, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value(1), value(10), value(42)}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{value(2), value(20), value(42)}}}}
-	e.commitSeq = 1
+	e.visibility.commitSeq = 1
 	e.storage.SetFrontierLocked(2, 2)
 	return viewWriteFixture{e, base, view, baseRef, viewRef, integer, boolean}
 }
@@ -242,7 +242,7 @@ func TestViewWriteDemand(t *testing.T) {
 	}
 	t.Run("frozen_live_prefix", func(t *testing.T) {
 		f := viewWriteMechanics(t)
-		f.e.commitSeq = 2
+		f.e.visibility.commitSeq = 2
 		store := f.e.storage.Relations[f.base.Address()]
 		store.Ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 1, End: 2}}}
 		scope, op := f.scope(t)
@@ -354,7 +354,7 @@ func TestViewWriteCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	current := f.e.storage.Relations[f.base.Address()].Versions
-	if current[0].Version != originals[0].Version || current[1].Version != originals[1].Version || f.e.commitSeq != 1 || len(scope.stage.rows) != 0 || scope.viewWrite != nil {
+	if current[0].Version != originals[0].Version || current[1].Version != originals[1].Version || f.e.visibility.commitSeq != 1 || len(scope.stage.rows) != 0 || scope.viewWrite != nil {
 		t.Fatal("canceled stage published or retained resources")
 	}
 	lockState := f.e.locks.Inspect()

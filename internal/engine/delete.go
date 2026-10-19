@@ -167,7 +167,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 	if !found || !ok || len(original.Values) != len(relation.Columns) {
 		return false, errors.New("stuntgres: invalid deletion predecessor")
 	}
-	if !liveVersion(original, e.commitSeq, storage.Ends, s.ownDeletes[candidate.ref.Address]) {
+	if !liveVersion(original, e.visibility.commitSeq, storage.Ends, s.ownDeletes[candidate.ref.Address]) {
 		return false, nil
 	}
 	candidate.version, candidate.ordinal = original.Version, slot
@@ -190,7 +190,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 // SSI evidence and exclusion projection after validating their own authority.
 func (w *WriteStage) stageDeletionLocked(e *Engine, candidate deleteCandidate, original storage.RowVersion) error {
 	s := w.scope
-	event := [1]serializableWrite{{row: candidate.row, version: candidate.version, base: original.Version, baseBorn: original.Born, creator: e.serializable.creators[original.Version], deletion: true}}
+	event := [1]serializableWrite{{row: candidate.row, version: candidate.version, base: original.Version, baseBorn: original.Born, creator: e.visibility.serializable.creators[original.Version], deletion: true}}
 	if err := e.serializableWriteLocked(s, candidate.ref, event[:]); err != nil {
 		return err
 	}
@@ -386,7 +386,7 @@ func (s *StatementScope) latestDeleteRow(candidate deleteCandidate) (storage.Row
 	if err := s.repeatableConflict(row, store.Ends); err != nil {
 		return storage.RowVersion{}, false, err
 	}
-	return row, liveVersion(row, e.commitSeq, store.Ends, s.ownDeletes[candidate.ref.Address]), nil
+	return row, liveVersion(row, e.visibility.commitSeq, store.Ends, s.ownDeletes[candidate.ref.Address]), nil
 }
 
 // The nil selection path remains allocation-free for undeleted prefixes.

@@ -205,10 +205,10 @@ func TestGeneratedReplacementStaleAuthority(t *testing.T) {
 				next.SetEpoch(next.Epoch() + 1)
 				f.target.catalog.state = next
 			case "CommitFrontier":
-				f.target.commitSeq++
+				f.target.visibility.commitSeq++
 				f.target.storage.Relations[f.temp] = &storage.Relation{Versions: append(append([]storage.RowVersion(nil), f.target.storage.Relations[f.temp].Versions...), storage.RowVersion{Values: append([]sqltype.Value(nil), f.tempValues...)})}
 			}
-			expectedState, expectedRoles, expectedFrontier := f.target.catalog.state, f.target.roles.published, f.target.commitSeq
+			expectedState, expectedRoles, expectedFrontier := f.target.catalog.state, f.target.roles.published, f.target.visibility.commitSeq
 			expectedStorage := cloneGeneratedRepairStorage(f.target.storage.Relations)
 			expectedSequences, expectedIndexes := f.target.storage.Sequences, f.target.storage.IndexRoots
 			nextRow, nextVersion, nextRevision := f.target.storage.RowFrontier(), f.target.storage.VersionFrontier(), f.target.catalog.nextRevision
@@ -220,7 +220,7 @@ func TestGeneratedReplacementStaleAuthority(t *testing.T) {
 			if f.gate.calls != 1 {
 				t.Fatal("repair retried provider", f.gate.calls)
 			}
-			if f.target.catalog.state != expectedState || f.target.roles.published != expectedRoles || f.target.commitSeq != expectedFrontier || !reflect.DeepEqual(f.target.storage.Relations, expectedStorage) || !reflect.DeepEqual(f.target.storage.Sequences, expectedSequences) || !reflect.DeepEqual(f.target.storage.IndexRoots, expectedIndexes) || f.target.storage.RowFrontier() != nextRow || f.target.storage.VersionFrontier() != nextVersion || f.target.catalog.nextRevision != nextRevision {
+			if f.target.catalog.state != expectedState || f.target.roles.published != expectedRoles || f.target.visibility.commitSeq != expectedFrontier || !reflect.DeepEqual(f.target.storage.Relations, expectedStorage) || !reflect.DeepEqual(f.target.storage.Sequences, expectedSequences) || !reflect.DeepEqual(f.target.storage.IndexRoots, expectedIndexes) || f.target.storage.RowFrontier() != nextRow || f.target.storage.VersionFrontier() != nextVersion || f.target.catalog.nextRevision != nextRevision {
 				t.Fatal("repair installed candidate or erased concurrent target change")
 			}
 			if _, exists := f.target.catalog.state.Find(f.imported); exists {
@@ -268,7 +268,7 @@ func TestGeneratedReplacementLateCancellation(t *testing.T) {
 			if point == "CompletedCheck" {
 				f.gate.onReturn = cancel
 			}
-			state, roles, frontier := f.target.catalog.state, f.target.roles.published, f.target.commitSeq
+			state, roles, frontier := f.target.catalog.state, f.target.roles.published, f.target.visibility.commitSeq
 			storage := cloneGeneratedRepairStorage(f.target.storage.Relations)
 			sequences, indexes := f.target.storage.Sequences, f.target.storage.IndexRoots
 			nextRow, nextVersion, nextRevision := f.target.storage.RowFrontier(), f.target.storage.VersionFrontier(), f.target.catalog.nextRevision
@@ -283,7 +283,7 @@ func TestGeneratedReplacementLateCancellation(t *testing.T) {
 			if err := <-result; !errors.Is(err, context.Canceled) {
 				t.Fatal("late cancellation accepted", err)
 			}
-			if f.gate.calls != 1 || f.target.catalog.state != state || f.target.roles.published != roles || f.target.commitSeq != frontier || !reflect.DeepEqual(f.target.storage.Relations, storage) || !reflect.DeepEqual(f.target.storage.Sequences, sequences) || !reflect.DeepEqual(f.target.storage.IndexRoots, indexes) || f.target.storage.RowFrontier() != nextRow || f.target.storage.VersionFrontier() != nextVersion || f.target.catalog.nextRevision != nextRevision {
+			if f.gate.calls != 1 || f.target.catalog.state != state || f.target.roles.published != roles || f.target.visibility.commitSeq != frontier || !reflect.DeepEqual(f.target.storage.Relations, storage) || !reflect.DeepEqual(f.target.storage.Sequences, sequences) || !reflect.DeepEqual(f.target.storage.IndexRoots, indexes) || f.target.storage.RowFrontier() != nextRow || f.target.storage.VersionFrontier() != nextVersion || f.target.catalog.nextRevision != nextRevision {
 				t.Fatal("canceled repair published catalog/storage/index/sequence state")
 			}
 			if got, _ := f.source[1].OID(); got != 25000 {

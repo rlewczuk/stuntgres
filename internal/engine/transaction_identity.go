@@ -235,9 +235,9 @@ func (n transactionIdentityExpression) Eval(ctx expr.Context) (sqltype.Value, er
 		if err := e.assignTransactionXIDLocked(scope.txRef); err != nil {
 			return sqltype.Value{}, err
 		}
-		return sqltype.XID8Value(n.Usage.Type, e.visibility[scope.txRef].fullXID)
+		return sqltype.XID8Value(n.Usage.Type, e.visibility.entries[scope.txRef].fullXID)
 	case identityAssigned:
-		full = e.visibility[scope.txRef].fullXID
+		full = e.visibility.entries[scope.txRef].fullXID
 		if full == 0 {
 			return sqltype.Null(n.Usage.Type), nil
 		}

@@ -26,7 +26,7 @@ func TestUpdateCoreMultiRelationCanceledFencedCommit(t *testing.T) {
 			ur := catalogRef(t, e, e.CatalogRead(), "u")
 			roots := [2][]storage.RowVersion{e.storage.Relations[tr.Address].Versions, e.storage.Relations[ur.Address].Versions}
 			saved := [2]storage.RowVersion{roots[0][0], roots[1][0]}
-			frontier := e.commitSeq
+			frontier := e.visibility.commitSeq
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, "UPDATE t SET v=7")
 			sessionSQL(t, a, "UPDATE u SET v=8")
@@ -63,7 +63,7 @@ func TestUpdateCoreMultiRelationCanceledFencedCommit(t *testing.T) {
 				cancel()
 				close(barrier.release)
 				lockAwait(t, done, context.Canceled)
-				if e.commitSeq != frontier || &e.storage.Relations[tr.Address].Versions[0] != &roots[0][0] || &e.storage.Relations[ur.Address].Versions[0] != &roots[1][0] {
+				if e.visibility.commitSeq != frontier || &e.storage.Relations[tr.Address].Versions[0] != &roots[0][0] || &e.storage.Relations[ur.Address].Versions[0] != &roots[1][0] {
 					t.Fatal("canceled batch installed a root/frontier")
 				}
 			}

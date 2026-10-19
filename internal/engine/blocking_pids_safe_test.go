@@ -43,7 +43,7 @@ func TestBlockingPidsSafeAuthority(t *testing.T) {
 	w2 := &serializableTransaction{ref: second.Ref(), captured: true}
 	r.possible = map[*serializableTransaction]struct{}{w: {}, w2: {}}
 	e.mu.Lock()
-	e.serializable.nodes = map[ids.TxRef]*serializableTransaction{r.ref: r, w.ref: w, w2.ref: w2}
+	e.visibility.serializable.nodes = map[ids.TxRef]*serializableTransaction{r.ref: r, w.ref: w, w2.ref: w2}
 	e.mu.Unlock()
 	blockingUnitSafeWant(t, e, reader.token.ID(), int64(writer.token.ID()), int64(second.Session().ID()))
 	blockingUnitWant(t, e, reader.token.ID()) // SSI must never invent ordinary locks.
@@ -85,25 +85,25 @@ func TestBlockingPidsSafeAuthority(t *testing.T) {
 	r.resolved = false
 	r.ready = make(chan struct{})
 	r.possible = map[*serializableTransaction]struct{}{w: {}}
-	e.serializable.nodes[r.ref] = r
+	e.visibility.serializable.nodes[r.ref] = r
 	e.mu.Unlock()
 	blockingUnitSafeWant(t, e, reader.token.ID())
 	// Full-width session identity must not alias an int4 target on lookup.
 	e.mu.Lock()
-	delete(e.serializable.nodes, r.ref)
+	delete(e.visibility.serializable.nodes, r.ref)
 	r.ref = withTxSession(r.ref, withSessionID(r.ref.Session(), r.ref.Session().ID()+ids.SessionID(uint64(1)<<32)))
-	e.serializable.nodes[r.ref] = r
+	e.visibility.serializable.nodes[r.ref] = r
 	e.mu.Unlock()
 	blockingUnitSafeWant(t, e, reader.token.ID())
 	// Exercise native overflow separately from prepared zero classification.
 	e.mu.Lock()
 	w.aborted, w.ended, w.prepared = false, false, false
-	delete(e.serializable.nodes, w.ref)
+	delete(e.visibility.serializable.nodes, w.ref)
 	w.ref = withTxSession(w.ref, withSessionID(w.ref.Session(), math.MaxInt32+1))
-	e.serializable.nodes[w.ref] = w
-	delete(e.serializable.nodes, r.ref)
+	e.visibility.serializable.nodes[w.ref] = w
+	delete(e.visibility.serializable.nodes, r.ref)
 	r.ref = withTxSession(r.ref, reader.token)
-	e.serializable.nodes[r.ref] = r
+	e.visibility.serializable.nodes[r.ref] = r
 	r.possible = map[*serializableTransaction]struct{}{w: {}}
 	_, err := e.safeSnapshotBlockingPidsLocked(reader.token.ID(), typ)
 	e.mu.Unlock()

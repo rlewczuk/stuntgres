@@ -36,21 +36,21 @@ func (e *Engine) transactionAgeLocked(ref ids.TxRef, xid uint32) (int32, error) 
 	if ref.Domain() != domainOf(e) || ref.Epoch() != e.catalog.state.Epoch() {
 		return 0, ids.ErrCatalogReplaced
 	}
-	v := e.visibility[ref]
+	v := e.visibility.entries[ref]
 	if !v.ageDemanded {
 		anchor := v.assignedXID
 		if anchor == 0 {
-			next, err := nextFullTransactionID(e.assignedXID)
+			next, err := nextFullTransactionID(e.visibility.assignedXID)
 			if err != nil {
 				return 0, err
 			}
 			anchor = uint32(next)
 		}
 		v.ageAnchor, v.ageDemanded = anchor, true
-		if e.visibility == nil {
-			e.visibility = make(map[ids.TxRef]transactionVisibility)
+		if e.visibility.entries == nil {
+			e.visibility.entries = make(map[ids.TxRef]transactionVisibility)
 		}
-		e.visibility[ref] = v
+		e.visibility.entries[ref] = v
 	}
 	return transactionAge(v.ageAnchor, xid), nil
 }
@@ -61,13 +61,13 @@ func (e *Engine) transactionStatusLocked(xid uint64) (string, bool, error) {
 	case 1, 2:
 		return "committed", true, nil
 	}
-	if xid > e.assignedXID {
+	if xid > e.visibility.assignedXID {
 		return "", false, sqlError("22023", fmt.Sprintf("transaction ID %d is in the future", xid))
 	}
-	if xid < e.transactionHorizon {
+	if xid < e.visibility.transactionHorizon {
 		return "", false, nil
 	}
-	r, ok := e.transactionHistory[xid]
+	r, ok := e.visibility.transactionHistory[xid]
 	if !ok {
 		return "", false, nil
 	}
@@ -80,11 +80,11 @@ func (e *Engine) transactionStatusLocked(xid uint64) (string, bool, error) {
 	return "aborted", true, nil
 }
 func (e *Engine) endTransactionIdentityLocked(ref ids.TxRef, committed bool) {
-	v := e.visibility[ref]
+	v := e.visibility.entries[ref]
 	if v.fullXID == 0 {
 		return
 	}
-	r, ok := e.transactionHistory[v.fullXID]
+	r, ok := e.visibility.transactionHistory[v.fullXID]
 	if !ok || r.state != ids.TxInProgress {
 		return
 	}
@@ -95,5 +95,5 @@ func (e *Engine) endTransactionIdentityLocked(ref ids.TxRef, committed bool) {
 	if r.ticket != nil {
 		r.ticket.MirrorCompletion(r.state)
 	}
-	e.transactionHistory[v.fullXID] = r
+	e.visibility.transactionHistory[v.fullXID] = r
 }

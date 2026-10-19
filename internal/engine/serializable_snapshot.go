@@ -23,12 +23,12 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 			return err
 		}
 		e.enrollSerializableLocked(t.ref, t.isolation)
-		node := e.serializable.nodes[t.ref]
+		node := e.visibility.serializable.nodes[t.ref]
 		node.captured = true
 		node.readOnly = t.readOnly
 		node.deferrable = t.deferrable
-		node.frontier = e.commitSeq
-		node.snapshotOrder = e.serializable.order
+		node.frontier = e.visibility.commitSeq
+		node.snapshotOrder = e.visibility.serializable.order
 		node.resolved = false
 		node.unsafe = false
 		node.exempt = false
@@ -40,10 +40,10 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 				roots[address] = transactionRoot{storage.Versions, storage.Ends, storage, relation}
 			}
 		}
-		t.roots, t.frontier = roots, e.commitSeq
+		t.roots, t.frontier = roots, e.visibility.commitSeq
 		t.sequenceCatalog = e.catalog.state
 		if node.readOnly {
-			for _, writer := range e.serializable.nodes {
+			for _, writer := range e.visibility.serializable.nodes {
 				if writer != node && serializableRelevant(writer) && !serializableReadOnly(writer) && !writer.committed && writer.ref.Epoch() == node.ref.Epoch() {
 					if node.possible == nil {
 						node.possible = make(map[*serializableTransaction]struct{})

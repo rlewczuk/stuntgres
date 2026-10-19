@@ -43,7 +43,7 @@ func (e *Engine) capturePartialMaskLocked(scope *StatementScope, leaf queryLeaf,
 		return nil
 	}
 	parent := leaf.ref.Address
-	if len(data.own[parent]) != 0 || data.deleted[parent] != nil || len(data.rewrittenFrontiers) != 0 || data.frontierAt(parent) != e.commitSeq {
+	if len(data.own[parent]) != 0 || data.deleted[parent] != nil || len(data.rewrittenFrontiers) != 0 || data.frontierAt(parent) != e.visibility.commitSeq {
 		return nil
 	}
 	store := e.storage.Relations[parent]

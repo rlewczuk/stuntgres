@@ -47,7 +47,7 @@ func TestSerializableEvidenceEmptyReadAndAcceptedWrite(t *testing.T) {
 	if err := e.serializableWriteLocked(serializableUnitScope(writer), ref, event[:]); err != nil {
 		t.Fatal(err)
 	}
-	if len(reader.reads) != 1 || len(reader.outgoing) != 1 || len(writer.incoming) != 1 || !writer.didWrite || e.serializable.creators[1] != writer.ref {
+	if len(reader.reads) != 1 || len(reader.outgoing) != 1 || len(writer.incoming) != 1 || !writer.didWrite || e.visibility.serializable.creators[1] != writer.ref {
 		t.Fatal("empty read/write evidence omitted")
 	}
 }
@@ -63,7 +63,7 @@ func TestSerializableEvidenceInvisibleCreatorAndVisibleEnder(t *testing.T) {
 			defer e.mu.Unlock()
 			creator.writes[ref.Address] = map[serializableWriteKey]serializableWrite{{version: 1}: {row: 1, version: 1}}
 			creator.didWrite = true
-			e.serializable.creators[1] = creator.ref
+			e.visibility.serializable.creators[1] = creator.ref
 			e.serializableCommittedLocked(creator.ref, reader.frontier+1)
 			if visible {
 				reader.frontier = creator.commitFrontier
@@ -139,7 +139,7 @@ func TestSerializableEvidenceRollbackKeepsReadsEdgesDoomAndStickyWrite(t *testin
 	}
 	b.doomed = true
 	e.reconcileSerializableWritesLocked(txOwnerOf(b.ref))
-	if len(b.writes) != 0 || len(e.serializable.creators) != 0 || !b.didWrite || !b.doomed || len(b.reads) != 1 || len(b.incoming) != 1 {
+	if len(b.writes) != 0 || len(e.visibility.serializable.creators) != 0 || !b.didWrite || !b.doomed || len(b.reads) != 1 || len(b.incoming) != 1 {
 		t.Fatal("rollback erased top-level state or retained discarded payload identity")
 	}
 	serializableUnitDiagnostic(t, e.serializableWriteLocked(scope, ref, event[:]), "Canceled on identification as a pivot, during conflict in checking.")
@@ -168,7 +168,7 @@ func TestSerializableEvidenceExemptSourcesAndUnrelatedFrontier(t *testing.T) {
 	if len(node.reads) != 0 || len(node.writes) != 0 || node.didWrite {
 		t.Fatal("system source participated")
 	}
-	e.commitSeq += 100
+	e.visibility.commitSeq += 100
 	if err := e.serializablePrecommitLocked(node.ref); err != nil {
 		t.Fatal("unrelated frontier aborted owner", err)
 	}
@@ -201,10 +201,10 @@ func TestSerializableEvidenceOwnCreatorSurvivesEndingRollback(t *testing.T) {
 	owner.deletes = nil
 	e.reconcileSerializableWritesLocked(owner)
 	event, ok := writer.writes[relation.Address][serializableWriteKey{version: 73}]
-	if !ok || event.row != 41 || event.version != 73 || event.deletion || len(writer.writes[relation.Address]) != 1 || e.serializable.creators[73] != writer.ref || !writer.didWrite {
+	if !ok || event.row != 41 || event.version != 73 || event.deletion || len(writer.writes[relation.Address]) != 1 || e.visibility.serializable.creators[73] != writer.ref || !writer.didWrite {
 		t.Fatal("rollback lost surviving exact creator identity")
 	}
-	e.serializableCommittedLocked(writer.ref, e.commitSeq+1)
+	e.serializableCommittedLocked(writer.ref, e.visibility.commitSeq+1)
 	if err := e.serializableReadLocked(serializableUnitScope(reader), relation); err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +213,7 @@ func TestSerializableEvidenceOwnCreatorSurvivesEndingRollback(t *testing.T) {
 	}
 	owner.writes = nil
 	e.reconcileSerializableWritesLocked(owner)
-	if len(writer.writes) != 0 || len(e.serializable.creators) != 0 || !writer.didWrite || len(reader.outgoing) != 1 {
+	if len(writer.writes) != 0 || len(e.visibility.serializable.creators) != 0 || !writer.didWrite || len(reader.outgoing) != 1 {
 		t.Fatal("full overlay discard lost sticky graph or retained creator")
 	}
 }
@@ -244,14 +244,14 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 			result.Rows.Close()
 		}
 		e.mu.Lock()
-		node := e.serializable.nodes[session.transactions.ref]
+		node := e.visibility.serializable.nodes[session.transactions.ref]
 		if node == nil || !node.captured || len(node.reads) != 0 || len(node.writes) != 0 || node.didWrite || len(node.incoming) != 0 || len(node.outgoing) != 0 {
 			t.Fatal("actual sequence/catalog provider registered SSI evidence", query)
 		}
 		e.mu.Unlock()
 	}
 	e.mu.Lock()
-	node := e.serializable.nodes[session.transactions.ref]
+	node := e.visibility.serializable.nodes[session.transactions.ref]
 	namespace := e.catalog.state.MustNamespace(session.temporaryNamespace)
 	if namespace.Temporary != session.token {
 		t.Fatal("fixture did not create actual session-owned temporary namespace")

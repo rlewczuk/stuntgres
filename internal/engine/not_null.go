@@ -163,7 +163,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if !exists {
 		shape = catalogStorageChange{original: original, root: original.Versions, ends: original.Ends, generation: original.Generation, replacement: store, relation: old}
 	}
-	versions, ends, frontier := store.Versions, store.Ends, e.commitSeq
+	versions, ends, frontier := store.Versions, store.Ends, e.visibility.commitSeq
 	snapshot, snapshotExists := scope.owner.roots[ref.Address]
 	grantCatalog := e.catalog.state
 	schema := auth.catalog.Get(old.Namespace()).Name()

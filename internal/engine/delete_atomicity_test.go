@@ -51,7 +51,7 @@ func TestDeleteCoreAtomicity(t *testing.T) {
 			sessionSQL(t, s, "CREATE TABLE t(v INT)")
 			sessionSQL(t, s, "INSERT INTO t VALUES(1),(2),(3)")
 			scope, b, source := deleteProbeScope(t, s)
-			originalFrontier := e.commitSeq
+			originalFrontier := e.visibility.commitSeq
 			boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
 			sentinel := errors.New("late predicate failure")
 			ctx, cancel := context.WithCancel(scope.op.Context())
@@ -82,7 +82,7 @@ func TestDeleteCoreAtomicity(t *testing.T) {
 			if !errors.Is(err, want) || result.Count != 0 || result.Rows != nil {
 				t.Fatal(result, err, want)
 			}
-			if e.commitSeq != originalFrontier || e.storage.Relations[b.ref.Address].Ends != nil {
+			if e.visibility.commitSeq != originalFrontier || e.storage.Relations[b.ref.Address].Ends != nil {
 				t.Fatal("partial publication")
 			}
 			transactionRows(t, s, "SELECT v FROM t ORDER BY v", 1, 2, 3)
@@ -124,7 +124,7 @@ func TestDeleteCorePublicationCancellation(t *testing.T) {
 				_ = scope.Finish(err)
 				t.Fatal(err)
 			}
-			frontier := e.commitSeq
+			frontier := e.visibility.commitSeq
 			base, cancel := context.WithCancel(op.Context())
 			defer cancel()
 			if wins {
@@ -134,13 +134,13 @@ func TestDeleteCorePublicationCancellation(t *testing.T) {
 			}
 			err = scope.Finish(nil)
 			if wins {
-				if err != nil || result.Count != 2 || base.Err() != context.Canceled || e.commitSeq != frontier+1 {
-					t.Fatal(result, err, base.Err(), e.commitSeq, frontier)
+				if err != nil || result.Count != 2 || base.Err() != context.Canceled || e.visibility.commitSeq != frontier+1 {
+					t.Fatal(result, err, base.Err(), e.visibility.commitSeq, frontier)
 				}
 				transactionRows(t, s, "SELECT v FROM t ORDER BY v")
 			} else {
-				if !errors.Is(err, context.Canceled) || e.commitSeq != frontier {
-					t.Fatal(err, e.commitSeq, frontier)
+				if !errors.Is(err, context.Canceled) || e.visibility.commitSeq != frontier {
+					t.Fatal(err, e.visibility.commitSeq, frontier)
 				}
 				transactionRows(t, s, "SELECT v FROM t ORDER BY v", 1, 2)
 			}
@@ -286,7 +286,7 @@ func TestDeleteCoreCombinedPreflight(t *testing.T) {
 			deleteCount(t, a, "DELETE FROM t WHERE v=1", 1)
 			sessionSQL(t, a, "INSERT INTO u VALUES(7)")
 			target := catalogRef(t, e, e.CatalogRead(), "t")
-			frontier := e.commitSeq
+			frontier := e.visibility.commitSeq
 			switch failure {
 			case "wrong_version":
 				for id, candidate := range a.transactions.deletes[target.Address].rows {
@@ -304,8 +304,8 @@ func TestDeleteCoreCombinedPreflight(t *testing.T) {
 				replacement := *e.storage.Relations[target.Address]
 				e.storage.Relations[target.Address] = &replacement
 			case "exhausted_frontier":
-				e.commitSeq = ids.CommitSeq(^uint64(0))
-				frontier = e.commitSeq
+				e.visibility.commitSeq = ids.CommitSeq(^uint64(0))
+				frontier = e.visibility.commitSeq
 			case "stale_epoch":
 				e.catalog.state = catalog.CloneState(e.catalog.state)
 				e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
@@ -313,12 +313,12 @@ func TestDeleteCoreCombinedPreflight(t *testing.T) {
 			op := transactionOperation(t, a)
 			_, err := e.Commit(op, ref)
 			op.Done()
-			if err == nil || e.commitSeq != frontier || e.storage.Relations[target.Address].Ends != nil {
+			if err == nil || e.visibility.commitSeq != frontier || e.storage.Relations[target.Address].Ends != nil {
 				t.Fatal("failed combined batch published", err)
 			}
 			// Restore only the deliberately exhausted test frontier to permit read witnesses.
 			if failure == "exhausted_frontier" {
-				e.commitSeq = 2
+				e.visibility.commitSeq = 2
 			}
 			transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 2)
 			transactionRows(t, b, "SELECT v FROM u ORDER BY v", 9)
@@ -353,13 +353,13 @@ func TestDeleteCoreDeletedScanCancellation(t *testing.T) {
 	scope.op.ctx = ctx
 	root := e.storage.Relations[scope.lockedRef.Address].Ends
 	target := scope.lockedRef // Finish retires admission; retain the exact witness.
-	frontier := e.commitSeq
+	frontier := e.visibility.commitSeq
 	source, err := captureQuerySource(ctx, view, scope.lockedRef)
 	if source != nil || !errors.Is(err, context.Canceled) || ctx.checks.Load() != 2 {
 		_ = scope.Finish(err)
 		t.Fatal(source, err, ctx.checks.Load())
 	}
-	if err = scope.Finish(err); !errors.Is(err, context.Canceled) || e.storage.Relations[target.Address].Ends != root || e.commitSeq != frontier {
+	if err = scope.Finish(err); !errors.Is(err, context.Canceled) || e.storage.Relations[target.Address].Ends != root || e.visibility.commitSeq != frontier {
 		t.Fatal(err, "deleted scan changed state")
 	}
 	transactionRows(t, s, "SELECT v FROM t ORDER BY v")

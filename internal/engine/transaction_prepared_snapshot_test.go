@@ -94,7 +94,7 @@ func TestPreparedSerializableCandidateRetainsAdmittedSnapshot(t *testing.T) {
 			}
 			e.mu.Lock()
 			current := e.storage.Relations[relation.Address]
-			published, err := selectQuerySource(context.Background(), &querySource{committed: current.Versions}, e.commitSeq, current.Ends, nil)
+			published, err := selectQuerySource(context.Background(), &querySource{committed: current.Versions}, e.visibility.commitSeq, current.Ends, nil)
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
