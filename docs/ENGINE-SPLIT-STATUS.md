@@ -1,25 +1,33 @@
 # Engine split — status
 
-One-page progress tracker for the `internal/engine` split. The plan is
+Progress tracker for the `internal/engine` split. The plan is
 [ENGINE-SPLIT.md](ENGINE-SPLIT.md). Each step has its own prompt file, and the
 Status section of that file is the detailed record: commits, aliases,
-corrections and notes. This page only shows what is done and what comes next.
+corrections and notes. This page shows what is done, what comes next, and
+the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `6f71c048e`.
+Last verified against `master` at `LAST_VERIFIED`. The later-wave plans
+(steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
 
-- **Step 3 Tier C parts** — catalog inquiry, transaction identity and
-  commit timestamps, advisory locks, sequence calls (needs steps 4, 5 and
-  7 ✓). One session per part, following the ACL part's capability pattern;
-  see "Tier C refinement" in the functions prompt file. Parts may run in
-  parallel but touch the same switch files; rebase early.
-- **F2 remainder** — view literal capture and function sources, the last
-  engine switches that list function nodes, plus the `SQLJSON` rendering
-  (broad rewrite; see the F2 session 4 notes in the functions prompt file).
+Every item below has all its prerequisites ticked. Numbers refer to the
+"Linear plan" section. Items marked **broad** must not run at the same time
+as another broad item (§8).
 
-Steps 1, 2 and 4–7 and `access` are done. The later waves have no prompt
-files yet.
+- **Step 3 remainder** — F2 items 1–5 (1 and 2 broad), F3 aliases item 6
+  (broad), and the Tier C parts 7–9 (catalog inquiry with session identity,
+  transaction identity and commit timestamps, advisory locks with blocking
+  inquiry). One session each. They touch the same switch files; rebase early.
+- **Optional cleanups** — catalog 5h (item 11), storage 6d (item 12).
+- **Step 8 `settings`** — 8a (item 13).
+- **Step 9 `pgcatalog`** — 9a (item 16).
+- **In-place untangling** — 10a `EvalContext` split (item 19), 12a
+  `binding` split (item 20) and 13a scope slots (item 22). All three are
+  broad: one at a time.
+
+Item 24 (routine 14a) waits for the `PG18-ROUTINE-CORE` feature work to merge.
+Steps 1, 2 and 4–7 and `access` are done.
 
 ## Task tree
 
@@ -67,12 +75,17 @@ files yet.
     - [x] closed DEFAULT checks (`632814b91`)
     - [x] `Arguments()` removed (`25fcad768`, then the docs commit)
       *(racecheck skipped at user request)*
-    - [ ] view literal capture
-    - [ ] function sources
+    - [ ] view literal capture *(broad)*
+    - [ ] function sources, with `seriesExpression` and `unnestExpression`
+      *(broad)*
     - [ ] `SQLJSON` rendering
+    - [ ] result nullability hook (`query_bind.go`, `returning.go`)
+    - [ ] conditional closure hook (closed-DEFAULT check)
   - [x] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot
     family: UUID extraction (`60dc1cedd`, `cd4a88387`, `5d59e5737`, docs
     `9bca9b2b6`)
+  - [ ] F3 aliases removed (`routineProvider` and 23 provider constants in
+    `routine_declaration.go`) *(broad)*
   - [x] F4/F5 Tier A — port in place, then move
     - [x] math (`3078b889f`, `d5dc34c59`, `0f3c7e5a2`, docs `96e11f662`)
       *(racecheck skipped at user request)*
@@ -121,9 +134,9 @@ files yet.
     - [x] ACL SQL function nodes (`b3ce43139`, `574de18f1`, `436322070`,
       `75d906ea8`, then the docs commit) *(racecheck skipped at user
       request)*
-    - [ ] catalog inquiry
+    - [ ] catalog inquiry, with session identity (`identityExpression`)
     - [ ] transaction identity and commit timestamps
-    - [ ] advisory locks
+    - [ ] advisory locks, with blocking inquiry
     - [ ] sequence calls
 - [x] **Step 4 — `lock`** ([prompt](ENGINE-SPLIT-lock.md); needs 1)
   - [x] 4a — Cut 11, `EndReason`, mutex encapsulation, lock-order audit
@@ -160,6 +173,8 @@ files yet.
     (`43c6b86ec`, `47a4495b2`, `089bf7856`, `3ef61771b`, `90f6a9b52`, then
     the docs commit) *(racecheck skipped at user request; targeted RACE=1
     runs passed)*
+  - [ ] 5h — Optional: one revision-frontier helper; `Candidate` overlay
+    behind methods
 - [x] **Step 6 — `storage`** ([prompt](ENGINE-SPLIT-storage.md); needs 5e)
   - [x] 6a — `storageStore` state ownership (`79c8a6f3a`, `d6bbc8a3e`,
     then the docs commit) *(racecheck skipped at user request; targeted
@@ -170,6 +185,7 @@ files yet.
   - [x] 6c — Aliases removed (`518fd7141`, `4c9a2a229`, `33c1b6f43`,
     `a57f5648e`, then the docs commit) *(racecheck skipped at user
     request)*
+  - [ ] 6d — Optional: store map writes confined to methods
 - [x] **Step 7 — `visibility`** ([prompt](ENGINE-SPLIT-visibility.md); needs
   4 and 6 complete)
   - [x] 7a — `visibilityRegistry` state ownership (`f556f670c`,
@@ -204,20 +220,197 @@ files yet.
     - [x] Names cleanup — diagnostic name helpers moved to `catalog`
       (`9a73852a6`, `416945ecb`, then the docs commit) *(racecheck skipped
       at user request)*
-- [ ] **Later waves** ([ENGINE-SPLIT.md §6](ENGINE-SPLIT.md#6-later-waves-sketch);
-  sketch only, no prompt files yet)
-  - [ ] `pgcatalog` — system relations `pg_*` (needs 5)
-  - [ ] `settings` — GUC definitions and validation (needs 5)
-  - [ ] `plan`, `exec` — plan IR, executor, concrete engine nodes (needs 2, 5,
-    6, 7 and the `EvalContext` split)
-  - [ ] `analyze` — `expressionBinder` and statement binding (needs `plan`,
-    3)
-  - [ ] `session` — sessions, operations, prepared SQL, transaction owner
-  - [ ] Feature packages — index, partition, inheritance, sequence, types,
-    views/rules/policies, FDW, extensions, routines, DML
-  - [ ] `control` — native Reset/Dump/Restore through a remap protocol (last)
+    - [ ] B5 — Binding walkers moved next to `binding` (needs 12d)
+- [ ] **Step 8 — `settings`** ([prompt](ENGINE-SPLIT-settings.md); needs —)
+  - [ ] 8a — Registry in place
+  - [ ] 8b — `settings` created and definitions moved
+  - [ ] 8c — Aliases removed
+- [ ] **Step 9 — `pgcatalog`** ([prompt](ENGINE-SPLIT-pgcatalog.md); needs
+  5, B4; 9b also 8b)
+  - [ ] 9a — One producer contract and one registry, in place
+  - [ ] 9b — `pgcatalog` created and producers moved
+  - [ ] 9c — Aliases removed
+- [ ] **Step 10 — `plan`** ([prompt](ENGINE-SPLIT-plan.md); needs 2, 3 F1, 5)
+  - [ ] 10a — `EvalContext` split in place *(broad)*
+  - [ ] 10b — Opaque CTE mutation and node runtime, in place
+  - [ ] 10c — `plan` created, IR and node types moved *(broad)*
+  - [ ] 10d — Aliases removed *(broad)*
+- [ ] **Step 11 — `exec`** ([prompt](ENGINE-SPLIT-exec.md); needs 10c, 13a)
+  - [ ] 11a — Refine (docs only)
+  - [ ] 11b — Host seam in place
+  - [ ] 11c — `exec` created and executor moved *(broad)*
+  - [ ] 11d — Aliases removed *(broad)*
+- [ ] **Step 12 — `analyze`** ([prompt](ENGINE-SPLIT-analyze.md); 12a–12b
+  need —; 12c needs 10c; 12d needs 11c)
+  - [ ] 12a — `binding` split per statement kind *(broad)*
+  - [ ] 12b — `expressionBinder` fields grouped *(broad)*
+  - [ ] 12c — Refined; host seam in place
+  - [ ] 12d — `analyze` created and binding moved (several sessions)
+    *(broad)*
+  - [ ] 12e — Aliases removed *(broad)*
+- [ ] **Step 13 — `session`** ([prompt](ENGINE-SPLIT-session.md); 13a–13b
+  need —; 13c needs 11c, 12d, 8b)
+  - [ ] 13a — Statement scope slots *(broad)*
+  - [ ] 13b — Operation, journal, stage and owner slots *(broad)*
+  - [ ] 13c — Refine (docs only)
+  - [ ] 13d — `session` created and moved (several sessions) *(broad)*
+  - [ ] 13e — Aliases removed *(broad)*
+- [ ] **Step 14 — `routine`** ([prompt](ENGINE-SPLIT-routine.md); Part A
+  needs `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item; Part B
+  needs 13d)
+  - [ ] 14a — In place
+  - [ ] 14b — `routine` created and clean set moved
+  - [ ] 14c — Host refined (docs only)
+  - [ ] 14d — DDL handlers moved
+- [ ] **Step 15 — `typedef`** ([prompt](ENGINE-SPLIT-typedef.md); Part A
+  needs 14b; Part B needs 13d)
+  - [ ] 15a — In place
+  - [ ] 15b — `typedef` created and clean set moved
+  - [ ] 15c — Host refined (docs only)
+  - [ ] 15d — DDL handlers moved
+- [ ] **Step 16 — `extension`** ([prompt](ENGINE-SPLIT-extension.md); Part A
+  needs 15b; Part B needs 13d)
+  - [ ] 16a — In place
+  - [ ] 16b — `extension` created and clean set moved
+  - [ ] 16c — Host refined (docs only)
+  - [ ] 16d — Installation handlers moved
+- [ ] **Step 17 — `sequence`** ([prompt](ENGINE-SPLIT-sequence.md); Part A
+  needs Tier C sequence calls; Part B needs 13d)
+  - [ ] 17a — In place
+  - [ ] 17b — `sequence` created and clean set moved
+  - [ ] 17c — Host refined (docs only)
+  - [ ] 17d — Handlers moved
+- [ ] **Postponed packages** ([ENGINE-SPLIT.md §6](ENGINE-SPLIT.md#postponed-packages);
+  no prompt files yet): `index`, `partition`, `inheritance`, `table`,
+  `view`, `fdw`, `dml`, `control`
 
 `access` is tracked under Part B above, not under the later waves.
+
+## Linear plan
+
+All open sub-steps in execution order. Give an agent one item number; it
+implements that item from the named prompt file and ticks the box here and
+in the prompt file's Status section.
+
+- **needs** lists the item numbers that must be ticked first. Items with no
+  unticked prerequisites may run in parallel, on separate branches.
+- **broad** items rewrite hundreds of files. Never run two broad items at the
+  same time; rebase other open branches right after a broad item lands.
+- Groups are only for reading; the "needs" lists decide the order.
+
+### Group A — finish the existing packages
+
+1. [ ] Functions F2: view literal capture —
+   [functions](ENGINE-SPLIT-functions.md) F2 · needs — · **broad**
+2. [ ] Functions F2: function sources (with `seriesExpression`,
+   `unnestExpression`) — [functions](ENGINE-SPLIT-functions.md) F2 · needs
+   — · **broad**
+3. [ ] Functions F2: `SQLJSON` rendering —
+   [functions](ENGINE-SPLIT-functions.md) F2 · needs —
+4. [ ] Functions F2: result nullability hook —
+   [functions](ENGINE-SPLIT-functions.md) F2 · needs —
+5. [ ] Functions F2: conditional closure hook —
+   [functions](ENGINE-SPLIT-functions.md) F2 · needs —
+6. [ ] Functions F3 aliases removed —
+   [functions](ENGINE-SPLIT-functions.md) Status, "Later-wave refresh" ·
+   needs — · **broad**
+7. [ ] Tier C: catalog inquiry, with session identity —
+   [functions](ENGINE-SPLIT-functions.md) Tier C · needs — (easier after 4)
+8. [ ] Tier C: transaction identity and commit timestamps —
+   [functions](ENGINE-SPLIT-functions.md) Tier C · needs —
+9. [ ] Tier C: advisory locks, with blocking inquiry —
+   [functions](ENGINE-SPLIT-functions.md) Tier C · needs —
+10. [ ] Tier C: sequence calls — [functions](ENGINE-SPLIT-functions.md)
+    Tier C · needs 7, 8, 9
+11. [ ] Catalog 5h (optional) — [catalog](ENGINE-SPLIT-catalog.md) 5h ·
+    needs —
+12. [ ] Storage 6d (optional) — [storage](ENGINE-SPLIT-storage.md) 6d ·
+    needs —
+
+### Group B — independent leaves
+
+13. [ ] Settings 8a — [settings](ENGINE-SPLIT-settings.md) 8a · needs —
+14. [ ] Settings 8b — [settings](ENGINE-SPLIT-settings.md) 8b · needs 13
+15. [ ] Settings 8c — [settings](ENGINE-SPLIT-settings.md) 8c · needs 14
+16. [ ] pgcatalog 9a — [pgcatalog](ENGINE-SPLIT-pgcatalog.md) 9a · needs —
+17. [ ] pgcatalog 9b — [pgcatalog](ENGINE-SPLIT-pgcatalog.md) 9b · needs
+    16, 14
+18. [ ] pgcatalog 9c — [pgcatalog](ENGINE-SPLIT-pgcatalog.md) 9c · needs 17
+
+### Group C — untangle the shared structs in place
+
+19. [ ] Plan 10a: `EvalContext` split — [plan](ENGINE-SPLIT-plan.md) 10a ·
+    needs — · **broad**
+20. [ ] Analyze 12a: `binding` split — [analyze](ENGINE-SPLIT-analyze.md)
+    12a · needs — · **broad**
+21. [ ] Analyze 12b: binder field groups —
+    [analyze](ENGINE-SPLIT-analyze.md) 12b · needs 20 · **broad**
+22. [ ] Session 13a: scope slots — [session](ENGINE-SPLIT-session.md) 13a ·
+    needs — · **broad**
+23. [ ] Session 13b: operation, journal, stage and owner slots —
+    [session](ENGINE-SPLIT-session.md) 13b · needs 22 · **broad**
+
+### Group D — feature packages, Part A
+
+24. [ ] Routine 14a — [routine](ENGINE-SPLIT-routine.md) 14a · needs
+    `PG18-ROUTINE-CORE` merged
+25. [ ] Routine 14b — [routine](ENGINE-SPLIT-routine.md) 14b · needs 24, 6
+26. [ ] Typedef 15a — [typedef](ENGINE-SPLIT-typedef.md) 15a · needs 25
+27. [ ] Typedef 15b — [typedef](ENGINE-SPLIT-typedef.md) 15b · needs 26
+28. [ ] Extension 16a — [extension](ENGINE-SPLIT-extension.md) 16a · needs
+    27
+29. [ ] Extension 16b — [extension](ENGINE-SPLIT-extension.md) 16b · needs
+    28
+30. [ ] Sequence 17a — [sequence](ENGINE-SPLIT-sequence.md) 17a · needs 10
+31. [ ] Sequence 17b — [sequence](ENGINE-SPLIT-sequence.md) 17b · needs 30
+
+### Group E — core moves
+
+32. [ ] Plan 10b — [plan](ENGINE-SPLIT-plan.md) 10b · needs 19
+33. [ ] Plan 10c — [plan](ENGINE-SPLIT-plan.md) 10c · needs 32 · **broad**
+34. [ ] Plan 10d — [plan](ENGINE-SPLIT-plan.md) 10d · needs 33 · **broad**
+35. [ ] Exec 11a (refine, docs only) — [exec](ENGINE-SPLIT-exec.md) 11a ·
+    needs 33, 22
+36. [ ] Exec 11b — [exec](ENGINE-SPLIT-exec.md) 11b · needs 35
+37. [ ] Exec 11c — [exec](ENGINE-SPLIT-exec.md) 11c · needs 36 · **broad**
+38. [ ] Exec 11d — [exec](ENGINE-SPLIT-exec.md) 11d · needs 37 · **broad**
+39. [ ] Analyze 12c (refine, then host seam) —
+    [analyze](ENGINE-SPLIT-analyze.md) 12c · needs 21, 33
+40. [ ] Analyze 12d (several sessions) — [analyze](ENGINE-SPLIT-analyze.md)
+    12d · needs 39, 37 · **broad**
+41. [ ] Analyze 12e — [analyze](ENGINE-SPLIT-analyze.md) 12e · needs 40 ·
+    **broad**
+42. [ ] Access B5: binding walkers —
+    [authorization](ENGINE-SPLIT-authorization.md) B5 · needs 40
+43. [ ] Session 13c (refine, docs only) —
+    [session](ENGINE-SPLIT-session.md) 13c · needs 23, 37, 40, 14
+44. [ ] Session 13d (several sessions) — [session](ENGINE-SPLIT-session.md)
+    13d · needs 43 · **broad**
+45. [ ] Session 13e — [session](ENGINE-SPLIT-session.md) 13e · needs 44 ·
+    **broad**
+
+### Group F — feature packages, Part B
+
+46. [ ] Routine 14c (refine, docs only) — [routine](ENGINE-SPLIT-routine.md)
+    14c · needs 44, 25
+47. [ ] Routine 14d — [routine](ENGINE-SPLIT-routine.md) 14d · needs 46
+48. [ ] Typedef 15c (refine, docs only) — [typedef](ENGINE-SPLIT-typedef.md)
+    15c · needs 44, 27
+49. [ ] Typedef 15d — [typedef](ENGINE-SPLIT-typedef.md) 15d · needs 48
+50. [ ] Extension 16c (refine, docs only) —
+    [extension](ENGINE-SPLIT-extension.md) 16c · needs 44, 29
+51. [ ] Extension 16d — [extension](ENGINE-SPLIT-extension.md) 16d · needs
+    50
+52. [ ] Sequence 17c (refine, docs only) —
+    [sequence](ENGINE-SPLIT-sequence.md) 17c · needs 44, 31
+53. [ ] Sequence 17d — [sequence](ENGINE-SPLIT-sequence.md) 17d · needs 52
+
+### Group G — next planning round
+
+54. [ ] Plan the postponed packages (docs only, like this round): prompt
+    files for `index`, `partition`, `inheritance`, `table`, `view`, `fdw`,
+    `dml` and `control` — [ENGINE-SPLIT.md](ENGINE-SPLIT.md) §6 "Postponed
+    packages" · needs 44
 
 ## Updating this file
 
@@ -242,14 +435,22 @@ section, in the same commit that records the sub-step (§8.4).
    - F3 names its pilot family in place of `(name)`;
    - B0 replaces or refines the B1–B4 items it rewrote;
    - Tier C refinement adds its items under "Tier C refined";
+   - a refine sub-step (11a, 12c, 13c, 14c–17c) adds or splits the items it
+     planned, in the tree and in the linear plan;
    - a later wave that gets a prompt file gets a link and its sub-steps here.
    Do not add items that are not in a prompt file or in ENGINE-SPLIT.md.
-5. **Rewrite "Next ready sub-steps"**: list each unticked sub-step whose
-   prerequisites are all ticked. Prerequisites are in each prompt file's
-   "Needs" line and in the §8 table. Mark broad rewrites, which must not run in
-   parallel with each other (§8).
-6. **Update the "Last verified" line** with the `master` commit you checked
+5. **Keep the linear plan in step with the tree.** Tick the item when its
+   tree entry is ticked. When an item splits (for example 12d's sessions),
+   add lettered sub-items (`40a`, `40b`, ...) instead of renumbering, so
+   numbers given to other agents stay valid. Add new items at the end of
+   their group with the next free number, and give them "needs" lists.
+6. **Rewrite "Next ready sub-steps"**: list each unticked item whose
+   prerequisites are all ticked. Prerequisites are the linear plan's "needs"
+   lists, each prompt file's "Needs" line and the §8 table. Mark broad
+   rewrites, which must not run in parallel with each other (§8).
+7. **Update the "Last verified" line** with the `master` commit you checked
    against.
 
-Keep this page short. Corrections, outstanding aliases, moved tests and notes
-for later steps go in the prompt file, not here.
+Keep entries short: one line per item, plus commit hashes. Corrections,
+outstanding aliases, moved tests and notes for later steps go in the prompt
+file, not here.
