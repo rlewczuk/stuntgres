@@ -185,6 +185,7 @@ the `levenshtein` line):
 | Final sigma (`pg_unicode_fast`) | `66ec24276b1` | `SELECT lower(U&'\0345\03A3' COLLATE pg_unicode_fast);` | `U+0345 ς` | `U+0345 σ` |
 | Hangul TBASE composition | `273fe94852b` | `SELECT normalize(U&'\AC00\11A7') = U&'\AC00\11A7';` | `f` (U+11A7 consumed) | `t` |
 | Levenshtein overflow | `e88eb4e7663` | `SELECT levenshtein('', 'aa', 2147483647, 1, 1);` | `-2` (wrapped) | `22003 levenshtein distance out of range` |
+| `ALTER TABLE OF` source USAGE (CVE-2026-6470) | `57f59ca1d95` | As a role with schema CREATE and no USAGE on composite `pair`: `CREATE TABLE t(id int); ALTER TABLE t OF pair;` | attaches | `42501 permission denied for type pair` |
 | Aggregate argument limit | `2a03f21daf5` | `rank(1,...,50) WITHIN GROUP (ORDER BY 1,...,50)` (50 pairs) | server crash | `54023 aggregates cannot have more than 99 arguments` |
 
 Two more need two sessions:

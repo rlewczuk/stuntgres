@@ -1748,8 +1748,10 @@ type. `ALTER TABLE ... OF/NOT OF` changes only the source attachment. Standalone
 `ALTER TYPE` attribute changes propagate atomically through typed tables and their
 existing inheritance descendants with CASCADE; DROP TYPE follows real dependency
 edges. Native Dump/Restore retains true attachment, including ordinary identity
-and generated definitions exported before a real ALTER TABLE OF. CREATE requires
-source USAGE; PostgreSQL18 attachment does not. A target-lock wait can select a
+and generated definitions exported before a real ALTER TABLE OF. CREATE and
+attachment both require source USAGE (PostgreSQL 18.6). Source `ALTER TYPE ...
+CASCADE` also requires ownership of every typed table and descendant it reaches.
+A target-lock wait can select a
 new earlier-path source; attachment retains that actual source's grant and fails
 atomically on source timeout/cancellation.
 See [typed tables](https://www.postgresql.org/docs/18/sql-createtable.html).

@@ -650,9 +650,11 @@ CASCADE/RESTRICT grammar without consuming dependency modes as a second type wor
 Review-regression definitions exercise actual CREATE source grants (persistent
 and TEMP), callback replacement during CREATE/ALTER/DROP in a bounded child test process,
 late root/descendant own-row consumers, and immutable member/source type ACLs.
-`TestTypedAuthorizationProviderACL` supplies actual native revoked-source CREATE,
-attach-without-USAGE, foreign-owner CASCADE, member denial/grant and grouped owner
-preflight scenarios; session/role revision tests alone are not their substitute.
+`TestReferenceTypedTableProviderACL` covers revoked-source CREATE and attachment,
+foreign-owner and descendant CASCADE denial, member denial/grant ordering and grouped
+owner preflight with a non-superuser source owner; session/role revision tests alone
+are not its substitute. `TestReferenceTypedTableAuthorization` also covers attach
+USAGE ordering against composite, inheritance and shape diagnostics.
 `TestTypedAdmissionCreateSourceRevisionConflict` rejects a coherent source generation
 change published while actual persistent/TEMP CREATE waits, then proves fresh
 execution can use the new shape. Shared
