@@ -102,7 +102,7 @@ func TestMergeUpdateReadCommittedPending(t *testing.T) {
 				sessionSQL(t, peer, "CREATE TABLE source(id INT,x INT)")
 				sessionSQL(t, peer, "INSERT INTO source VALUES(1,7)")
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				row := e.storage[ref.Address].versions[0].row
+				row := e.storage.relations[ref.Address].versions[0].row
 				tx := transactionBegin(t, holder)
 				hold := "UPDATE t SET v=20 WHERE id=1"
 				if lane == "keyChange" || lane == "keyChangeNoInsert" {
@@ -200,7 +200,7 @@ func mergeUpdateRepeatableReadPending(t *testing.T, targetOnly bool) {
 				sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
 				sessionSQL(t, peer, "INSERT INTO t VALUES(1,10),(2,20),(3,30)")
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				original := e.storage[ref.Address].versions[0]
+				original := e.storage.relations[ref.Address].versions[0]
 				sessionSQL(t, worker, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 				transactionRows(t, worker, "SELECT v FROM t WHERE id=1", 10)
 				worker.transactions.mu.Lock()
@@ -339,7 +339,7 @@ func mergeUpdateFollowChainPending(t *testing.T, targetOnly bool) {
 			sessionSQL(t, peer, "CREATE TABLE t(id INT NOT NULL UNIQUE,v INT)")
 			sessionSQL(t, peer, "INSERT INTO t VALUES(1,10)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			row := e.storage[ref.Address].versions[0].row
+			row := e.storage.relations[ref.Address].versions[0].row
 			a := transactionBegin(t, holder)
 			r := sessionSQL(t, holder, "SELECT id FROM t FOR KEY SHARE")
 			r.Rows.Close()

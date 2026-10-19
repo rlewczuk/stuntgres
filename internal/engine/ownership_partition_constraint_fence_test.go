@@ -95,7 +95,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 				oldRoles, sessionRevision, epoch := e.roles, session.authorization.revision, e.catalog.state.Epoch()
 				before := indexMaintenanceCapture(e)
 				leaf := roleTableRef(t, e, "leaf").Address
-				rows := append([]rowVersion(nil), e.storage[leaf].versions...)
+				rows := append([]rowVersion(nil), e.storage.relations[leaf].versions...)
 				for i := range rows {
 					rows[i].values = append([]sqltype.Value(nil), rows[i].values...)
 				}
@@ -172,7 +172,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					if err != nil {
 						t.Fatal("unchanged committed predecessor rejected selected authority", err)
 					}
-					if len(e.catalog.state.MustRelation(root.Address).UniqueConstraints) != 0 || len(e.catalog.state.MustRelation(leaf).UniqueConstraints) != 1 || !reflect.DeepEqual(e.storage[leaf].versions, rows) {
+					if len(e.catalog.state.MustRelation(root.Address).UniqueConstraints) != 0 || len(e.catalog.state.MustRelation(leaf).UniqueConstraints) != 1 || !reflect.DeepEqual(e.storage.relations[leaf].versions, rows) {
 						t.Fatal("healthy drop changed rows or retained selected keys")
 					}
 					for address, descriptor := range before.catalog.Descriptors() {
@@ -195,7 +195,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					t.Fatal("missing partition constraint DB predecessor veto", err)
 				}
 				indexMaintenanceUnchanged(t, e, before)
-				if e.roles != oldRoles || !reflect.DeepEqual(e.storage[leaf].versions, rows) || len(table.UniqueConstraints) != 1 || auth.databasePredecessor != committed || auth.catalog.Get(root.Address) != table || len(auth.catalog.MustRelation(leaf).UniqueConstraints) != 2 {
+				if e.roles != oldRoles || !reflect.DeepEqual(e.storage.relations[leaf].versions, rows) || len(table.UniqueConstraints) != 1 || auth.databasePredecessor != committed || auth.catalog.Get(root.Address) != table || len(auth.catalog.MustRelation(leaf).UniqueConstraints) != 2 {
 					t.Fatal("veto mutated retained roles, constraints or storage")
 				}
 			})

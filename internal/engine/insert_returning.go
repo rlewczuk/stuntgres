@@ -153,12 +153,12 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 	if candidate.exclusion != nil {
 		version = *candidate.exclusion
 	} else {
-		if e.nextRow == ^uint64(0) || e.nextVersion == ^uint64(0) {
+		if e.storage.nextRow == ^uint64(0) || e.storage.nextVersion == ^uint64(0) {
 			return false, false, errors.New("stuntgres: row or version identity exhausted")
 		}
-		e.nextRow++
-		e.nextVersion++
-		version = rowVersion{row: ids.RowID(e.nextRow), version: ids.VersionID(e.nextVersion), values: row}
+		e.storage.nextRow++
+		e.storage.nextVersion++
+		version = rowVersion{row: ids.RowID(e.storage.nextRow), version: ids.VersionID(e.storage.nextVersion), values: row}
 	}
 	version.indexAdmission = catalog.State()
 	version.indexOutputs = candidate.indexes

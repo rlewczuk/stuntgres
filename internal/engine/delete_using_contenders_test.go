@@ -35,7 +35,7 @@ func TestDeleteUsingQueuedContenderRecheck(t *testing.T) {
 				expected = &description
 			}
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			original := e.storage[ref.Address].versions[0]
+			original := e.storage.relations[ref.Address].versions[0]
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "UPDATE t SET v=20 WHERE id=1")
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

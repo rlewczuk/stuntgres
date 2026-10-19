@@ -31,7 +31,7 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 			sessionSQL(t, s, "CREATE TABLE t(k INT UNIQUE,v INT)")
 			sessionSQL(t, s, "INSERT INTO t VALUES"+conflictUpdateBatchValues(size, 10))
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			committed := e.storage[ref.Address].versions
+			committed := e.storage.relations[ref.Address].versions
 			frontier := e.commitSeq
 			tx := transactionBegin(t, s)
 			sessionSQL(t, s, "UPDATE t SET v=11 WHERE k<=64")

@@ -397,7 +397,7 @@ func TestPartitionConstraintsDumpCollisionProvenance(t *testing.T) {
 			t.Fatal("replacement mutated source provenance")
 		}
 		e.catalog.state = next
-		e.storage = storage
+		e.storage.relations = storage
 	}
 }
 
@@ -632,7 +632,7 @@ func TestPartitionConstraintsTransactionOverlay(t *testing.T) {
 				parent = roleTableRef(t, e, "keyed_pkey")
 			}
 			oldChild := e.catalog.state.Get(child.Address)
-			oldRoot := e.indexRoots[child.Address]
+			oldRoot := e.storage.indexRoots[child.Address]
 			tx := transactionBegin(t, s)
 			sessionSQL(t, s, "SAVEPOINT kept")
 			prior := s.transactions.catalog
@@ -662,16 +662,16 @@ func TestPartitionConstraintsTransactionOverlay(t *testing.T) {
 				t.Fatal("overlay copy changed immutable edge authority")
 			}
 			sessionSQL(t, s, "ROLLBACK TO kept")
-			if s.transactions.catalog != prior || e.catalog.state.Get(child.Address) != oldChild || e.indexRoots[child.Address] != oldRoot {
+			if s.transactions.catalog != prior || e.catalog.state.Get(child.Address) != oldChild || e.storage.indexRoots[child.Address] != oldRoot {
 				t.Fatal("savepoint rebuilt or published prior utility roots")
 			}
 			sessionSQL(t, s, query)
 			transactionEnd(t, s, tx, true)
 			if operation == "attach" {
-				if e.catalog.state.MustRelation(child.Address).SQLIndex.PartitionParent != parent.Address || e.indexRoots[child.Address] != oldRoot {
+				if e.catalog.state.MustRelation(child.Address).SQLIndex.PartitionParent != parent.Address || e.storage.indexRoots[child.Address] != oldRoot {
 					t.Fatal("commit missed edge or rebuilt unchanged physical key")
 				}
-			} else if e.catalog.state.Get(child.Address) != nil || e.catalog.state.Get(parent.Address) != nil || e.indexRoots[child.Address] != nil {
+			} else if e.catalog.state.Get(child.Address) != nil || e.catalog.state.Get(parent.Address) != nil || e.storage.indexRoots[child.Address] != nil {
 				t.Fatal("commit missed recursive backing removal")
 			}
 			lockEmpty(t, e)
@@ -850,16 +850,16 @@ func TestPartitionConstraintsPreservesNewestPhysicalRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	child := roleTableRef(t, e, "child_idx")
-	original := e.indexRoots[child.Address]
+	original := e.storage.indexRoots[child.Address]
 	run(t, e, "INSERT INTO root VALUES(2)")
-	latest := e.indexRoots[child.Address]
+	latest := e.storage.indexRoots[child.Address]
 	if latest == original {
 		t.Fatal("fixture did not publish a newer key root")
 	}
 	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	if e.indexRoots[child.Address] != latest || e.indexRoots[roleTableRef(t, e, "parent_idx").Address] != nil {
+	if e.storage.indexRoots[child.Address] != latest || e.storage.indexRoots[roleTableRef(t, e, "parent_idx").Address] != nil {
 		t.Fatal("metadata attachment rebuilt/lost latest physical root or installed a virtual root")
 	}
 	btreeWantKeys(t, e, "child_idx", "1", "2")
@@ -917,7 +917,7 @@ func TestPartitionConstraintsRecursiveBuildFailure(t *testing.T) {
 		t.Fatal("late recursive build did not fail atomically", result, err)
 	}
 	indexMaintenanceUnchanged(t, e, before)
-	if len(e.indexRoots) != 0 {
+	if len(e.storage.indexRoots) != 0 {
 		t.Fatal("failed recursive build retained cold physical installation roots")
 	}
 	for _, d := range e.catalog.state.Descriptors() {
@@ -931,7 +931,7 @@ func TestPartitionConstraintsRecursiveBuildFailure(t *testing.T) {
 	run(t, e, "CREATE UNIQUE INDEX parent_idx ON root(k)")
 	btreeWantKeys(t, e, "a_k_idx", "1")
 	btreeWantKeys(t, e, "b_k_idx", "3")
-	if e.indexRoots[roleTableRef(t, e, "parent_idx").Address] != nil {
+	if e.storage.indexRoots[roleTableRef(t, e, "parent_idx").Address] != nil {
 		t.Fatal("healthy recursive retry installed virtual storage")
 	}
 }
@@ -942,8 +942,8 @@ func TestPartitionConstraintsIncompleteReplacementAdmission(t *testing.T) {
 		run(t, e, query)
 	}
 	copiedStorage := func() map[ids.ObjectAddress]*relationStorage {
-		out := make(map[ids.ObjectAddress]*relationStorage, len(e.storage))
-		for address, store := range e.storage {
+		out := make(map[ids.ObjectAddress]*relationStorage, len(e.storage.relations))
+		for address, store := range e.storage.relations {
 			copy := *store
 			copy.versions = slices.Clone(store.versions)
 			out[address] = &copy
@@ -951,7 +951,7 @@ func TestPartitionConstraintsIncompleteReplacementAdmission(t *testing.T) {
 		return out
 	}
 	before := indexMaintenanceCapture(e)
-	snapshot, err := e.captureIndexSnapshot(context.Background(), e.CatalogRead(), e.storage, e.indexRoots, e.commitSeq)
+	snapshot, err := e.captureIndexSnapshot(context.Background(), e.CatalogRead(), e.storage.relations, e.storage.indexRoots, e.commitSeq)
 	if err != nil {
 		t.Fatal(err)
 	}

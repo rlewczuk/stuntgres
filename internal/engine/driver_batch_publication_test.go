@@ -49,7 +49,7 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 			s := sessionStart(t, e, nil)
 			sessionSQL(t, s, "CREATE TABLE t(v INT)")
 			table := catalogRef(t, e, e.CatalogRead(), "t")
-			store := e.storage[table.Address]
+			store := e.storage.relations[table.Address]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			m := batchUnitStart(t, s, ctx)

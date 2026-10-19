@@ -28,7 +28,7 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 		committed.allowContainers = true
 		for i := range committed.uses {
 			use := &committed.uses[i]
-			use.storage = e.storage[use.relation.Address()]
+			use.storage = e.storage.relations[use.relation.Address()]
 			if use.storage == nil {
 				return catalog.Conflict{}
 			}
@@ -46,7 +46,7 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 			if e.domainStageIndexRootLocked(stage, address) != root {
 				return catalog.Conflict{}
 			}
-			changes.domainIndexRoots[address] = e.indexRoots[address]
+			changes.domainIndexRoots[address] = e.storage.indexRoots[address]
 		}
 	}
 	return nil
@@ -60,7 +60,7 @@ func (e *Engine) domainStageIndexRootLocked(stage *CatalogStage, address ids.Obj
 			}
 		}
 	}
-	return e.indexRoots[address]
+	return e.storage.indexRoots[address]
 }
 
 func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes *catalogChanges) error {

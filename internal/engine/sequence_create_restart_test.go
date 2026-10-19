@@ -110,8 +110,8 @@ func TestSequenceCreateRestart(t *testing.T) {
 				d := e.catalog.state.MustRelation(ref.Address)
 				options := d.Sequence
 				want := catalog.SequenceOptions{SQLType: tc.typ, Increment: tc.increment, Min: tc.min, Max: tc.max, Start: tc.start, Cache: 1, Persistence: "logged"}
-				if !reflect.DeepEqual(*options, want) || e.sequences[ref.Address].last != tc.initial || e.sequences[ref.Address].called || e.sequences[ref.Address].generation == 0 {
-					t.Fatal("configured START and initial uncalled state", options, e.sequences[ref.Address], want)
+				if !reflect.DeepEqual(*options, want) || e.storage.sequences[ref.Address].last != tc.initial || e.storage.sequences[ref.Address].called || e.storage.sequences[ref.Address].generation == 0 {
+					t.Fatal("configured START and initial uncalled state", options, e.storage.sequences[ref.Address], want)
 				}
 				sequenceCreateRestartRow(t, e, s, "s", tc.initial, false)
 				_, err = sequencePreparedExecute(e, s, statement(t, "SELECT currval('s')"), nil)

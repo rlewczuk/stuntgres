@@ -21,7 +21,7 @@ func TestDeleteCoreRowLifecycle(t *testing.T) {
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			ar, br := transactionBegin(t, a), transactionBegin(t, b)
 			target := catalogRef(t, e, e.CatalogRead(), "t")
-			resource := lock.Resource{ObjectRef: target, Row: e.storage[target.Address].versions[0].row}
+			resource := lock.Resource{ObjectRef: target, Row: e.storage.relations[target.Address].versions[0].row}
 			manager := e.locks
 			if err := manager.Acquire(context.Background(), a.transactions.ticket, resource, lock.ForUpdate); err != nil {
 				t.Fatal(err)

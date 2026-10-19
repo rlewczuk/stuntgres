@@ -16,7 +16,7 @@ func TestUpdateCoreVersionsAndPrivateHeads(t *testing.T) {
 	sessionSQL(t, b, "CREATE TABLE t(v INT)")
 	sessionSQL(t, b, "INSERT INTO t VALUES(1),(1)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	original := append([]rowVersion(nil), e.storage[ref.Address].versions...)
+	original := append([]rowVersion(nil), e.storage.relations[ref.Address].versions...)
 	saved := transactionRows(t, b, "SELECT v FROM t", 1, 1)
 	tx := transactionBegin(t, a)
 	sessionSQL(t, a, "UPDATE t SET v=2")
@@ -35,7 +35,7 @@ func TestUpdateCoreVersionsAndPrivateHeads(t *testing.T) {
 	transactionRows(t, a, "SELECT v FROM t ORDER BY v", 3, 3, 6)
 	transactionEnd(t, a, tx, true)
 	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 3, 3, 6)
-	current := e.storage[ref.Address].versions
+	current := e.storage.relations[ref.Address].versions
 	if len(current) != 3 || current[0].row != original[0].row || current[1].row != original[1].row || current[0].version == original[0].version || current[0].born <= original[0].born || current[0].base != 0 {
 		t.Fatal("current committed heads", current)
 	}
@@ -100,14 +100,14 @@ func TestUpdateCoreFinishCancellationAndExhaustion(t *testing.T) {
 	a := sessionStart(t, e, nil)
 	sessionSQL(t, a, "CREATE TABLE t(v INT)")
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-	before := e.storage[catalogRef(t, e, e.CatalogRead(), "t").Address].versions[0]
-	e.nextVersion = ^uint64(0)
+	before := e.storage.relations[catalogRef(t, e, e.CatalogRead(), "t").Address].versions[0]
+	e.storage.nextVersion = ^uint64(0)
 	op := transactionOperation(t, a)
 	_, err := e.Execute(op, statement(t, "UPDATE t SET v=2"), 0, nil)
 	if err == nil || err.Error() != "stuntgres: version identity exhausted" {
 		t.Fatal(err)
 	}
-	after := e.storage[catalogRef(t, e, e.CatalogRead(), "t").Address].versions[0]
+	after := e.storage.relations[catalogRef(t, e, e.CatalogRead(), "t").Address].versions[0]
 	if !reflect.DeepEqual(before, after) {
 		t.Fatal("exhaustion mutated row")
 	}

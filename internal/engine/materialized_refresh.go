@@ -143,7 +143,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 		previous = *scope.lockedStorage
 		var root *logicalIndexRoot
 		if len(indices) != 0 {
-			root = e.indexRoots[indices[0].Address()]
+			root = e.storage.indexRoots[indices[0].Address()]
 			if scope.owner.catalog != nil && scope.owner.catalog.uniqueRoots[indices[0].Address()] != nil {
 				root = scope.owner.catalog.uniqueRoots[indices[0].Address()]
 			}
@@ -302,7 +302,7 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 			}
 		}
 	}
-	versions, err := e.allocateRowVersionsLocked(rows, nil)
+	versions, err := e.storage.allocateRowVersionsLocked(rows, nil)
 	if err != nil {
 		return err
 	}

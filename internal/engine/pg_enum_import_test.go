@@ -70,7 +70,7 @@ func TestPGEnumImportMetadata(t *testing.T) {
 	}
 	ref := catalogRef(t, source, original, "saved")
 	source.commitSeq = 1
-	source.storage[ref.Address] = &relationStorage{versions: []rowVersion{{row: 7, version: 11, born: 1, values: []sqltype.Value{v, d, c}}}}
+	source.storage.relations[ref.Address] = &relationStorage{versions: []rowVersion{{row: 7, version: 11, born: 1, values: []sqltype.Value{v, d, c}}}}
 	targetOp, targetDone := roleOperation(t, target, "postgres")
 	domainUnitPublish(t, target, domainUnitStage(t, target, targetOp, "CREATE TYPE reserved AS ENUM ('a','b','c')"))
 	targetDone()
@@ -88,13 +88,13 @@ func TestPGEnumImportMetadata(t *testing.T) {
 		t.Fatal("import mutated source")
 	}
 	newRef := catalogRef(t, target, target.CatalogRead(), "saved")
-	rows := target.storage[newRef.Address].versions
+	rows := target.storage.relations[newRef.Address].versions
 	// Foreign replacement remints engine-local row/version identities;
 	// unlike ALTER publication, import preserves logical values, not these IDs.
 	if len(rows) != 1 {
 		t.Fatal("import row count", rows)
 	}
-	sourceRows := source.storage[ref.Address].versions
+	sourceRows := source.storage.relations[ref.Address].versions
 	if len(sourceRows) != 1 || sourceRows[0].row != 7 || sourceRows[0].version != 11 || sourceRows[0].born != 1 || !reflect.DeepEqual(sourceRows[0].values, []sqltype.Value{v, d, c}) {
 		t.Fatal("import mutated source storage", sourceRows)
 	}

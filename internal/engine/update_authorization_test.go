@@ -123,7 +123,7 @@ func TestUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 						}
 						expected = &description
 					}
-					original := append([]rowVersion(nil), e.storage[ref.Address].versions...)
+					original := append([]rowVersion(nil), e.storage.relations[ref.Address].versions...)
 					repeats := 1
 					if prepared {
 						repeats = 2
@@ -163,7 +163,7 @@ func TestUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 							roleError(t, e, op, "UPDATE t SET n=3", "25P02", "current transaction is aborted, commands ignored until end of transaction block", "")
 							roleExecute(t, e, op, "ROLLBACK")
 						}
-						if !reflect.DeepEqual(e.storage[ref.Address].versions, original) {
+						if !reflect.DeepEqual(e.storage.relations[ref.Address].versions, original) {
 							t.Fatal("failed UPDATE changed protected row or version")
 						}
 						result = roleExecute(t, e, admin, "SELECT n,secret,readable FROM t")

@@ -81,7 +81,7 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 			if !absence {
 				t.Fatal("new-index committed source-absence fence omitted")
 			}
-			if e.catalog.state != before || e.commitSeq != frontier || e.storage[ct] != nil || e.storage[mv] != nil || e.sequences[seq] != nil {
+			if e.catalog.state != before || e.commitSeq != frontier || e.storage.relations[ct] != nil || e.storage.relations[mv] != nil || e.storage.sequences[seq] != nil {
 				t.Fatal("initial data or generators published before end")
 			}
 			if commit {
@@ -102,13 +102,13 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 				t.Fatal("private initial rows and row-shape result", got)
 			}
 			if commit {
-				if e.commitSeq != frontier+1 || len(e.storage[ct].versions) != 1 || len(e.storage[mv].versions) != 1 || e.sequences[seq] == nil || len(e.indexRoots[index].entries) != 1 {
+				if e.commitSeq != frontier+1 || len(e.storage.relations[ct].versions) != 1 || len(e.storage.relations[mv].versions) != 1 || e.storage.sequences[seq] == nil || len(e.storage.indexRoots[index].entries) != 1 {
 					t.Fatal("joint initial rows/shape/sequence/index installation")
 				}
 				transactionRows(t, s, "SELECT x FROM ct", 5)
 				transactionRows(t, s, "SELECT x FROM mv", 5)
 			} else {
-				if e.catalog.state != before || e.commitSeq != frontier || e.storage[ct] != nil || e.storage[mv] != nil || e.sequences[seq] != nil || e.indexRoots[index] != nil {
+				if e.catalog.state != before || e.commitSeq != frontier || e.storage.relations[ct] != nil || e.storage.relations[mv] != nil || e.storage.sequences[seq] != nil || e.storage.indexRoots[index] != nil {
 					t.Fatal("initial table or provider result escaped rollback")
 				}
 			}

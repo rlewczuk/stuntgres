@@ -132,7 +132,7 @@ func TestUpdateFromFramesOriginsAndPhysicalTargets(t *testing.T) {
 	if target.view != nil || from.sources != nil || len(scope.querySources) != 0 {
 		t.Fatal("capture ownership leaked")
 	}
-	store := e.storage[b.ref.Address]
+	store := e.storage.relations[b.ref.Address]
 	if len(store.versions) != 2 || store.versions[0].row != original[0].row || store.versions[1].row != original[1].row || original[0].row == original[1].row || store.versions[0].version == original[0].version || testExport(original[0].values[1]) != int64(10) {
 		t.Fatal("physical identity/head immutability", store.versions, original)
 	}

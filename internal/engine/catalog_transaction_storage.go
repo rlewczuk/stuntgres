@@ -99,14 +99,14 @@ func (e *Engine) privateStorageLocked(c *catalogChanges, a ids.ObjectAddress) *r
 			return shape.replacement
 		}
 	}
-	return e.storage[a]
+	return e.storage.relations[a]
 }
 
 func (e *Engine) authorizationStorageLocked(auth AuthorizationView, a ids.ObjectAddress) *relationStorage {
 	if auth.session != nil && auth.session.transactions != nil {
 		return e.privateStorageLocked(auth.session.transactions.catalog, a)
 	}
-	return e.storage[a]
+	return e.storage.relations[a]
 }
 
 type columnProjection struct {

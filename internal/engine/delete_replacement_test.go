@@ -89,7 +89,7 @@ func TestDeleteCoreReplacementImmediateAdmission(t *testing.T) {
 	go func() {
 		e.replacementMu.Lock()
 		e.mu.Lock()
-		root := e.storage[ref.Address].ends
+		root := e.storage.relations[ref.Address].ends
 		published := root != nil && len(root.rows) == 2 && e.commitSeq == frontier+1
 		e.mu.Unlock()
 		e.replacementMu.Unlock()
@@ -235,7 +235,7 @@ func TestDeleteCoreReplacementWaitingPhases(t *testing.T) {
 				sessionSQL(t, peer, "CREATE TABLE t(v INT)")
 				sessionSQL(t, peer, "INSERT INTO t VALUES(1),(2),(3)")
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				oldStorage := e.storage[ref.Address]
+				oldStorage := e.storage.relations[ref.Address]
 				resource := lock.Resource{ObjectRef: ref, Row: oldStorage.versions[1].row}
 				hr := transactionBegin(t, holder)
 				deleteCount(t, holder, "DELETE FROM t WHERE v=2", 1)
@@ -304,7 +304,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	sessionSQL(t, peer, "CREATE TABLE t(v INT)")
 	sessionSQL(t, peer, "INSERT INTO t VALUES(1),(2),(3)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	oldStorage := e.storage[ref.Address]
+	oldStorage := e.storage.relations[ref.Address]
 	first, blocked := oldStorage.versions[0].row, oldStorage.versions[1].row
 	resource := lock.Resource{ObjectRef: ref, Row: blocked}
 	hr := transactionBegin(t, holder)
@@ -321,11 +321,11 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	sourceRoles, targetRoles := source.Roles(), e.Roles()
 	storage := make(map[ids.ObjectAddress]*relationStorage)
 	source.mu.Lock()
-	for address, relation := range source.storage {
+	for address, relation := range source.storage.relations {
 		storage[address] = &relationStorage{versions: append([]rowVersion(nil), relation.versions...)}
 	}
 	sequences, sequenceErr := copySequenceState(source, replacement)
-	indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage, source.indexRoots, source.commitSeq)
+	indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage.relations, source.storage.indexRoots, source.commitSeq)
 	source.mu.Unlock()
 	if sequenceErr != nil {
 		t.Fatal(sequenceErr)

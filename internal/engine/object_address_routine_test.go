@@ -264,7 +264,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 			}
 			sequence := catalogRef(t, e, e.CatalogRead(), "strict_null_steps")
 			e.mu.Lock()
-			called := e.sequences[sequence.Address].called
+			called := e.storage.sequences[sequence.Address].called
 			e.mu.Unlock()
 			if called {
 				t.Fatal("planning/admission replayed volatile child")
@@ -516,7 +516,7 @@ func TestObjectAddressSourceFalseDemand(t *testing.T) {
 				}
 				sequence := catalogRef(t, e, e.CatalogRead(), "strict_null_steps")
 				e.mu.Lock()
-				called := e.sequences[sequence.Address].called
+				called := e.storage.sequences[sequence.Address].called
 				e.mu.Unlock()
 				if called {
 					t.Fatal("source-demand proof evaluated volatile data")

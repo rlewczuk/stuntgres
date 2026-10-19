@@ -29,8 +29,8 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 		}
 		proposal := []sqltype.Value{integer(1), integer(2)}
 		hit, err := scope.probeUniqueRow(b.ref, &indexWriteCandidate{values: proposal}, nil, indexWriteBatch{}, b.conflict, indexProbeRuntime)
-		entry := e.indexRoots[b.conflict.selected[0]].entries[0]
-		store := e.storage[b.ref.Address]
+		entry := e.storage.indexRoots[b.conflict.selected[0]].entries[0]
+		store := e.storage.relations[b.ref.Address]
 		if err != nil || !hit.committed || entry.position != 1 || hit.position != 1 || hit.row.row != entry.row || hit.row.version != entry.version || &hit.row.values[0] != &store.versions[1].values[0] {
 			t.Fatal("provider physical hint after real tombstone, without copying", isolation, hit, entry, err)
 		}
@@ -116,16 +116,16 @@ func TestInsertConflictUpdateTargetFence(t *testing.T) {
 			}
 			if scope.lockedRef != ref || scope.lockedIdentityOnly ||
 				(scope.lockedStorage != nil) != mode.storage ||
-				(mode.storage && scope.lockedStorage != e.storage[ref.Address]) {
+				(mode.storage && scope.lockedStorage != e.storage.relations[ref.Address]) {
 				t.Fatal("exact target fence", scope.lockedRef, scope.lockedStorage, mode.storage)
 			}
 			check := func(name string, mutate func(), want error) {
 				t.Helper()
 				e.mu.Lock()
-				catalog, storage := e.catalog.state, e.storage[ref.Address]
+				catalog, storage := e.catalog.state, e.storage.relations[ref.Address]
 				defer func() {
 					e.catalog.state = catalog
-					e.storage[ref.Address] = storage
+					e.storage.relations[ref.Address] = storage
 					e.mu.Unlock()
 				}()
 				mutate()
@@ -154,8 +154,8 @@ func TestInsertConflictUpdateTargetFence(t *testing.T) {
 			check("row shape replacement", func() { replacement(true) }, ids.ErrCatalogReplaced)
 			if mode.storage {
 				check("storage replacement", func() {
-					storage := *e.storage[ref.Address]
-					e.storage[ref.Address] = &storage
+					storage := *e.storage.relations[ref.Address]
+					e.storage.relations[ref.Address] = &storage
 				}, ids.ErrCatalogReplaced)
 			}
 			check("catalog epoch replacement", func() {
@@ -180,7 +180,7 @@ func TestInsertConflictUpdateMixedStage(t *testing.T) {
 		sessionSQL(t, s, "CREATE TABLE t(k INT UNIQUE,v INT)")
 		sessionSQL(t, s, "INSERT INTO t VALUES(1,10),(3,30)")
 		ref := catalogRef(t, e, e.CatalogRead(), "t")
-		before := append([]rowVersion(nil), e.storage[ref.Address].versions...)
+		before := append([]rowVersion(nil), e.storage.relations[ref.Address].versions...)
 		tx := transactionBegin(t, s)
 		sessionSQL(t, s, "INSERT INTO t VALUES(4,40)")
 		ctx, cancel := context.WithCancel(context.Background())
@@ -243,7 +243,7 @@ func TestInsertConflictUpdateMixedStage(t *testing.T) {
 			sessionSQL(t, holder, "CREATE TABLE t(k INT UNIQUE,v INT)")
 			sessionSQL(t, holder, "INSERT INTO t VALUES(1,10)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			old := e.storage[ref.Address].versions[0]
+			old := e.storage.relations[ref.Address].versions[0]
 			tx := transactionBegin(t, worker)
 			sessionSQL(t, worker, "SET TRANSACTION ISOLATION LEVEL "+level)
 			transactionRows(t, worker, "SELECT v FROM t", 10)

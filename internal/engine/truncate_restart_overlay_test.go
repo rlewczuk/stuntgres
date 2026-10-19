@@ -11,7 +11,7 @@ import (
 func TestTruncateRestartSavepoints(t *testing.T) {
 	e, s, p, _, ps, _ := truncateRestartUnitFixture(t)
 	peer := sessionStart(t, e, nil)
-	original, descriptor := e.sequences[ps.Address], e.catalog.state.Get(ps.Address)
+	original, descriptor := e.storage.sequences[ps.Address], e.catalog.state.Get(ps.Address)
 	tx := transactionBegin(t, s)
 	sessionSQL(t, s, "INSERT INTO p VALUES(9)")
 	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
@@ -20,7 +20,7 @@ func TestTruncateRestartSavepoints(t *testing.T) {
 	truncateUnitExecute(t, e, s, truncateRestartUnitAST("p"))
 	first := s.transactions.catalog.generators[ps.Address]
 	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 1)
-	if first.last != 1 || original.last != 3 || e.sequences[ps.Address] != original {
+	if first.last != 1 || original.last != 3 || e.storage.sequences[ps.Address] != original {
 		t.Fatal("replacement mutated original counter")
 	}
 	sessionSQL(t, s, "ROLLBACK TO before_reset")
@@ -57,7 +57,7 @@ func TestTruncateRestartSavepoints(t *testing.T) {
 	}
 	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
 	transactionEnd(t, s, tx, false)
-	if e.sequences[ps.Address] != original || original.last != 4 || s.sequences[ps.Address].value != 3 || !s.sequences[ps.Address].valid {
+	if e.storage.sequences[ps.Address] != original || original.last != 4 || s.sequences[ps.Address].value != 3 || !s.sequences[ps.Address].valid {
 		t.Fatal("outer rollback undid ordinary allocation or local observation")
 	}
 	lockEmpty(t, e)
@@ -68,7 +68,7 @@ func TestTruncateRestartCache(t *testing.T) {
 		e, s, _, _, ps, _ := truncateRestartUnitFixture(t)
 		sessionSQL(t, s, "ALTER SEQUENCE p_id_seq CACHE 4")
 		sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
-		original := e.sequences[ps.Address]
+		original := e.storage.sequences[ps.Address]
 		if original.last != 6 || s.sequences[ps.Address].remaining != 3 {
 			t.Fatal("cache fixture not primed")
 		}
@@ -78,7 +78,7 @@ func TestTruncateRestartCache(t *testing.T) {
 			t.Fatal("reset did not discard just unused tail")
 		}
 		transactionEnd(t, s, tx, false) // No sequence operation after reset.
-		if e.sequences[ps.Address] != original || original.last != 6 {
+		if e.storage.sequences[ps.Address] != original || original.last != 6 {
 			t.Fatal("rollback changed committed binding/highwater")
 		}
 		sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 7)
@@ -89,21 +89,21 @@ func TestTruncateRestartCache(t *testing.T) {
 		peer := sessionStart(t, e, nil)
 		sessionSQL(t, s, "ALTER SEQUENCE p_id_seq CACHE 4")
 		sequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 3)
-		original := e.sequences[ps.Address]
+		original := e.storage.sequences[ps.Address]
 		tx := transactionBegin(t, s)
 		truncateUnitExecute(t, e, s, truncateRestartUnitAST("p"))
 		transactionEnd(t, s, tx, false)
 		sequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 4)
-		if e.sequences[ps.Address] != original || peer.sequences[ps.Address].remaining != 2 {
+		if e.storage.sequences[ps.Address] != original || peer.sequences[ps.Address].remaining != 2 {
 			t.Fatal("rollback invalidated untouched peer tail")
 		}
 		truncateUnitExecute(t, e, s, truncateRestartUnitAST("p"))
-		if e.sequences[ps.Address] == original || peer.sequences[ps.Address].value != 4 {
+		if e.storage.sequences[ps.Address] == original || peer.sequences[ps.Address].value != 4 {
 			t.Fatal("commit did not replace binding/preserved local observation")
 		}
 		sequenceScalar(t, peer, "SELECT currval('p_id_seq')", 4)
 		sequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 1)
-		if peer.sequences[ps.Address].generation != e.sequences[ps.Address].generation {
+		if peer.sequences[ps.Address].generation != e.storage.sequences[ps.Address].generation {
 			t.Fatal("peer did not adopt committed generation")
 		}
 		lockEmpty(t, e)
@@ -193,7 +193,7 @@ func TestTruncateRestartClosure(t *testing.T) {
 		}
 		scope.op.Done()
 		scope = truncateRestartUnitStage(t, e, s, "r")
-		if len(scope.catalog.generators) != 3 || len(scope.catalog.storage) != 2 || e.storage[root.Address] != nil || scope.catalog.storage[low.Address].replacement == nil || scope.catalog.storage[high.Address].replacement == nil {
+		if len(scope.catalog.generators) != 3 || len(scope.catalog.storage) != 2 || e.storage.relations[root.Address] != nil || scope.catalog.storage[low.Address].replacement == nil || scope.catalog.storage[high.Address].replacement == nil {
 			t.Fatal("virtual root omitted its sequence/descendant")
 		}
 		for _, ref := range []ids.ObjectRef{rs, ls, hs} {
@@ -220,7 +220,7 @@ func TestTruncateRestartClosure(t *testing.T) {
 		catalog := e.CatalogRead()
 		own := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: s.temporaryNamespace, Name: "own_s"})
 		foreign := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: peer.temporaryNamespace, Name: "peer_s"})
-		original := e.sequences[foreign]
+		original := e.storage.sequences[foreign]
 		scope := truncateRestartUnitStage(t, e, s, "p")
 		if scope.catalog.generators[own] == nil || scope.catalog.generators[foreign] != nil || len(scope.truncateSequences) != 1 {
 			t.Fatal("TEMP ownership not isolated")
@@ -236,7 +236,7 @@ func TestTruncateRestartClosure(t *testing.T) {
 			t.Fatal(err)
 		}
 		scope.op.Done()
-		if e.sequences[foreign] != original {
+		if e.storage.sequences[foreign] != original {
 			t.Fatal("foreign TEMP generator replaced")
 		}
 		lockEmpty(t, e)
@@ -249,7 +249,7 @@ func TestTruncateRestartClosure(t *testing.T) {
 		sessionSQL(t, s, "ALTER SEQUENCE p_id_seq OWNED BY NONE")
 		sessionSQL(t, s, "CREATE SEQUENCE later START 90 OWNED BY p.id")
 		transactionEnd(t, s, tx, true)
-		if e.sequences[ps.Address] != replacement || e.catalog.state.MustRelation(ps.Address).Sequence.Owned != (ids.ObjectAddress{}) {
+		if e.storage.sequences[ps.Address] != replacement || e.catalog.state.MustRelation(ps.Address).Sequence.Owned != (ids.ObjectAddress{}) {
 			t.Fatal("legitimate own later DDL rejected or reset discarded")
 		}
 		sequenceScalar(t, s, "SELECT nextval('later')", 90)

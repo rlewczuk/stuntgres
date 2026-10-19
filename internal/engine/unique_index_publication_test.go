@@ -128,7 +128,7 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
 		t.Fatal(err)
 	}
-	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), roles: e.roles, stores: maps.Clone(e.storage), storeSnapshots: make(map[ids.ObjectAddress]relationStorage), roots: maps.Clone(e.indexRoots), entries: make(map[ids.ObjectAddress][]logicalIndexEntry), nextRow: e.nextRow, nextVersion: e.nextVersion, frontier: e.commitSeq}
+	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), roles: e.roles, stores: maps.Clone(e.storage.relations), storeSnapshots: make(map[ids.ObjectAddress]relationStorage), roots: maps.Clone(e.storage.indexRoots), entries: make(map[ids.ObjectAddress][]logicalIndexEntry), nextRow: e.storage.nextRow, nextVersion: e.storage.nextVersion, frontier: e.commitSeq}
 	for address, store := range f.stores {
 		f.storeSnapshots[address] = uniquePublicationStore(store)
 	}
@@ -162,19 +162,19 @@ func (f *uniquePublicationFixture) row(t *testing.T, offset int, a, b string) ro
 
 func (f *uniquePublicationFixture) unchanged(t *testing.T) {
 	t.Helper()
-	if f.e.catalog.state != f.catalog || f.e.roles != f.roles || f.e.nextRow != f.nextRow || f.e.nextVersion != f.nextVersion || f.e.commitSeq != f.frontier || len(f.e.indexRoots) != len(f.roots) || len(f.e.storage) != len(f.stores) {
+	if f.e.catalog.state != f.catalog || f.e.roles != f.roles || f.e.storage.nextRow != f.nextRow || f.e.storage.nextVersion != f.nextVersion || f.e.commitSeq != f.frontier || len(f.e.storage.indexRoots) != len(f.roots) || len(f.e.storage.relations) != len(f.stores) {
 		t.Fatal("package preparation changed live publication state")
 	}
 	if !maps.Equal(maps.Collect(f.catalog.Descriptors()), f.descriptors) || !maps.Equal(maps.Collect(f.catalog.Names()), f.names) {
 		t.Fatal("retained catalog membership mutated")
 	}
 	for address, root := range f.roots {
-		if f.e.indexRoots[address] != root || !reflect.DeepEqual(root.entries, f.entries[address]) {
+		if f.e.storage.indexRoots[address] != root || !reflect.DeepEqual(root.entries, f.entries[address]) {
 			t.Fatal("retained root mutated", address)
 		}
 	}
 	for address, store := range f.stores {
-		if f.e.storage[address] != store || !reflect.DeepEqual(*store, f.storeSnapshots[address]) {
+		if f.e.storage.relations[address] != store || !reflect.DeepEqual(*store, f.storeSnapshots[address]) {
 			t.Fatal("retained store mutated", address)
 		}
 	}
@@ -191,7 +191,7 @@ func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, st
 	if deletion != nil {
 		beforeDeletes = maps.Clone(deletion.rows)
 	}
-	stores := captureIndexStores(f.e.storage, f.catalog)
+	stores := captureIndexStores(f.e.storage.relations, f.catalog)
 	stores[f.parent.Address()] = store
 	parents := map[ids.ObjectAddress]bool{f.parent.Address(): rebuild}
 	publication := rowPublication{address: f.parent.Address(), relation: f.parent, originalRelation: f.parent, original: f.stores[f.parent.Address()], store: store, root: store.versions, ends: store.ends, generation: store.generation, writes: writes, deletion: deletion, singleSlot: -1}

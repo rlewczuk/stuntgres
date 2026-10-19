@@ -55,7 +55,7 @@ func TestAlterAddConstraintStableKeys(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(a INT UNIQUE,z INT,b INT)")
 	sessionSQL(t, s, "ALTER TABLE t DROP z")
 	original := alterConstraintDescriptor(t, e, "t")
-	before, store := e.catalog.state, e.storage[original.Address()]
+	before, store := e.catalog.state, e.storage.relations[original.Address()]
 	op := alterConstraintOperation(t, s)
 	auth, err := op.Authorization()
 	if err != nil {
@@ -82,7 +82,7 @@ func TestAlterAddConstraintStableKeys(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(context.Background(), stage); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.state != before || e.storage[original.Address()] != store || len(original.UniqueConstraints) != 1 {
+	if e.catalog.state != before || e.storage.relations[original.Address()] != store || len(original.UniqueConstraints) != 1 {
 		t.Fatal("candidate changed borrowed catalog/storage")
 	}
 }
@@ -103,12 +103,12 @@ func TestAlterAddConstraintValidationSelection(t *testing.T) {
 		t.Fatal("historical selection contains invalid jobs", v)
 	}
 	evaluation := EvalContext{Context: context.Background(), Scope: 1, Frame: 1}
-	for _, row := range e.storage[d.Address()].versions {
+	for _, row := range e.storage.relations[d.Address()].versions {
 		if err := v.validate(row.values, &evaluation); err != nil {
 			t.Fatal(err)
 		}
 	}
-	row := e.storage[d.Address()].versions[1]
+	row := e.storage.relations[d.Address()].versions[1]
 	failed, err := validateCheckRow(d, row.values, &evaluation)
 	if err != nil || failed == nil || failed.Name != "ck" {
 		t.Fatal("ordinary DML lost invalid CHECK enforcement", failed, err)
@@ -173,7 +173,7 @@ func TestAlterAddConstraintForeignKeySuccessors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value := e.storage[child.Address()].versions[0].values[0]
+	value := e.storage.relations[child.Address()].versions[0].values[0]
 	equal, err := comparisons[0].comparison.EqualChildren(context.Background(), value, value, sqltype.InputEnvironment{})
 	if err != nil || !equal {
 		t.Fatal("narrowed committed unchanged child key", equal, err)
@@ -256,8 +256,8 @@ func TestAlterAddConstraintAtomicity(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(a INT UNIQUE,b INT)")
 	sessionSQL(t, s, "INSERT INTO t VALUES(1,1),(2,1)")
 	original := alterConstraintDescriptor(t, e, "t")
-	before, store := e.catalog.state, e.storage[original.Address()]
-	root := e.indexRoots[original.UniqueConstraints[0].Index]
+	before, store := e.catalog.state, e.storage.relations[original.Address()]
+	root := e.storage.indexRoots[original.UniqueConstraints[0].Index]
 	op := alterConstraintOperation(t, s)
 	auth, err := op.Authorization()
 	if err != nil {
@@ -278,7 +278,7 @@ func TestAlterAddConstraintAtomicity(t *testing.T) {
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23505" {
 		t.Fatal("no real private root validation", err)
 	}
-	if e.catalog.state != before || e.storage[original.Address()] != store || e.indexRoots[original.UniqueConstraints[0].Index] != root || len(original.UniqueConstraints) != 1 {
+	if e.catalog.state != before || e.storage.relations[original.Address()] != store || e.storage.indexRoots[original.UniqueConstraints[0].Index] != root || len(original.UniqueConstraints) != 1 {
 		t.Fatal("failed candidate changed catalog/roots")
 	}
 }
@@ -350,7 +350,7 @@ func TestAlterAddConstraintControls(t *testing.T) {
 	}
 	sourceState := e.catalog.state
 	source := alterConstraintDescriptor(t, e, "t")
-	sourceStore := e.storage[source.Address()]
+	sourceStore := e.storage.relations[source.Address()]
 	sourceNN, sourceCK, sourceFK := source.NotNullConstraints[0].OID, source.CheckConstraints[0].OID, source.ForeignKeys[0].OID
 	op := alterConstraintOperation(t, s)
 	auth, err := op.Authorization()
@@ -369,7 +369,7 @@ func TestAlterAddConstraintControls(t *testing.T) {
 	}
 	e.DiscardCatalogStage(malformed)
 	op.Done()
-	if source.ForeignKeys[0].Index == source.Address() || e.catalog.state != sourceState || e.storage[source.Address()] != sourceStore {
+	if source.ForeignKeys[0].Index == source.Address() || e.catalog.state != sourceState || e.storage.relations[source.Address()] != sourceStore {
 		t.Fatal("malformed stage changed borrowed source")
 	}
 	target := New()
@@ -377,11 +377,11 @@ func TestAlterAddConstraintControls(t *testing.T) {
 	sessionSQL(t, owner, "CREATE TABLE sentinel(a INT)")
 	sessionSQL(t, owner, "INSERT INTO sentinel VALUES(91)")
 	sentinel := alterConstraintDescriptor(t, target, "sentinel")
-	before, store, epoch := target.catalog.state, target.storage[sentinel.Address()], target.catalog.state.Epoch()
+	before, store, epoch := target.catalog.state, target.storage.relations[sentinel.Address()], target.catalog.state.Epoch()
 	if err := target.Restore(context.Background(), strings.NewReader(text+"ALTER TABLE public.t ADD CONSTRAINT late FOREIGN KEY(pid) REFERENCES public.absent NOT VALID;")); err == nil {
 		t.Fatal("late missing provider silently accepted")
 	}
-	if target.catalog.state != before || target.storage[sentinel.Address()] != store || target.catalog.state.Epoch() != epoch {
+	if target.catalog.state != before || target.storage.relations[sentinel.Address()] != store || target.catalog.state.Epoch() != epoch {
 		t.Fatal("failed import changed sentinel/incarnation")
 	}
 	if err := target.Restore(context.Background(), strings.NewReader(text)); err != nil {
@@ -398,7 +398,7 @@ func TestAlterAddConstraintControls(t *testing.T) {
 	if again.String() != text {
 		t.Fatal("noncanonical invalid replay", text, again.String())
 	}
-	if e.catalog.state != sourceState || e.storage[source.Address()] != sourceStore || alterConstraintDescriptor(t, e, "t") != source || source.NotNullConstraints[0].OID != sourceNN || source.CheckConstraints[0].OID != sourceCK || source.ForeignKeys[0].OID != sourceFK {
+	if e.catalog.state != sourceState || e.storage.relations[source.Address()] != sourceStore || alterConstraintDescriptor(t, e, "t") != source || source.NotNullConstraints[0].OID != sourceNN || source.CheckConstraints[0].OID != sourceCK || source.ForeignKeys[0].OID != sourceFK {
 		t.Fatal("target import mutated borrowed source state/storage/identities")
 	}
 }

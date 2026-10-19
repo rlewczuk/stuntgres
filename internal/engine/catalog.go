@@ -770,7 +770,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			e.mu.Unlock()
 			return ChangeSet{}, err
 		}
-		currentStorage := e.storage
+		currentStorage := e.storage.relations
 		if p.epoch != current.Epoch() || token.Epoch != current.Epoch() {
 			e.mu.Unlock()
 			return ChangeSet{}, ids.ErrCatalogReplaced
@@ -779,7 +779,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			e.mu.Unlock()
 			return ChangeSet{}, err
 		}
-		if !e.domainIndexRootsCurrent(s) {
+		if !e.storage.indexRootsCurrent(s.domainIndexRoots) {
 			e.mu.Unlock()
 			return ChangeSet{}, catalog.Conflict{}
 		}
@@ -937,7 +937,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				indexStores[a] = &copy
 			}
 		}
-		indexPredecessors := e.indexRoots
+		indexPredecessors := e.storage.indexRoots
 		var disclosure *AuthorizationView
 		if op != nil {
 			auth, authErr := e.authorizationLocked(op)
@@ -1121,7 +1121,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			e.mu.Unlock()
 			continue
 		}
-		if !indexStoresUnchanged(e.storage, indexStores, current, next, indexRoots, indexPredecessors) {
+		if !indexStoresUnchanged(e.storage.relations, indexStores, current, next, indexRoots, indexPredecessors) {
 			if op != nil {
 				op.session.mu.Unlock()
 			}
@@ -1136,7 +1136,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			return ChangeSet{}, catalog.Conflict{}
 		}
 		for a, shape := range s.rowShapes {
-			if e.storage[a] != shape.original || len(shape.original.versions) != shape.observedLength || shape.original.generation != shape.generation || shape.original.ends != shape.observedEnds {
+			if e.storage.relations[a] != shape.original || len(shape.original.versions) != shape.observedLength || shape.original.generation != shape.generation || shape.original.ends != shape.observedEnds {
 				if op != nil {
 					op.session.mu.Unlock()
 				}
@@ -1145,7 +1145,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			}
 		}
 		if r := s.materializedReplacement; r != nil {
-			if err := s.materializedReplacementCurrent(e.catalog.state, e.storage[r.original.Address()]); err != nil {
+			if err := s.materializedReplacementCurrent(e.catalog.state, e.storage.relations[r.original.Address()]); err != nil {
 				if op != nil {
 					op.session.mu.Unlock()
 				}
@@ -1154,10 +1154,10 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			}
 		}
 		err := p.ctx.Err()
-		if err == nil && !e.domainIndexRootsCurrent(s) {
+		if err == nil && !e.storage.indexRootsCurrent(s.domainIndexRoots) {
 			err = catalog.Conflict{}
 		}
-		if err == nil && s.domainValidation != nil && !s.domainValidation.current(e.catalog.read(e.catalog.state), e.storage) {
+		if err == nil && s.domainValidation != nil && !s.domainValidation.current(e.catalog.read(e.catalog.state), e.storage.relations) {
 			err = catalog.Conflict{}
 		}
 		if err == nil && s.databasePredecessor != nil && e.catalog.state.Get(catalog.CurrentDatabaseAddress) != s.databasePredecessor {
@@ -1273,14 +1273,14 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				e.serializableCommittedLocked(s.initialTx, e.commitSeq)
 			}
 			e.catalog.state = next
-			e.storage = storage
-			preserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.indexRoots)
-			e.indexRoots = indexRoots
+			e.storage.relations = storage
+			preserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.storage.indexRoots)
+			e.storage.indexRoots = indexRoots
 			for a := range s.Removals {
-				delete(e.sequences, a)
+				delete(e.storage.sequences, a)
 			}
 			for a, generator := range s.generators {
-				e.sequences[a] = generator
+				e.storage.sequences[a] = generator
 			}
 			e.catalog.nextRevision = nextRevision
 			if s.roleCandidate != nil {
@@ -1371,7 +1371,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	var sequences map[ids.ObjectAddress]*sequenceGenerator
 	var indexes *indexSnapshot
 	copyRows := func(owner *Engine) error {
-		source, frontier := owner.storage, owner.commitSeq
+		source, frontier := owner.storage.relations, owner.commitSeq
 		for _, a := range relationAddresses {
 			if source[a] == nil {
 				return fmt.Errorf("stuntgres: relation storage is missing")
@@ -1388,7 +1388,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 			storage[a] = &relationStorage{versions: versions}
 		}
 		var err error
-		indexes, err = owner.captureIndexSnapshot(ctx, replacement, source, owner.indexRoots, frontier)
+		indexes, err = owner.captureIndexSnapshot(ctx, replacement, source, owner.storage.indexRoots, frontier)
 		return err
 	}
 	if replacement.Owner() == e.catalog.owner() {
@@ -1442,10 +1442,10 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		for _, relation := range storage {
 			imported += uint64(len(relation.versions))
 		}
-		if imported > ^uint64(0)-e.nextRow {
+		if imported > ^uint64(0)-e.storage.nextRow {
 			return ChangeSet{}, fmt.Errorf("stuntgres: row identity exhausted")
 		}
-		if imported > ^uint64(0)-e.nextVersion {
+		if imported > ^uint64(0)-e.storage.nextVersion {
 			return ChangeSet{}, fmt.Errorf("stuntgres: version identity exhausted")
 		}
 		if e.commitSeq == ids.CommitSeq(^uint64(0)) {
@@ -1468,15 +1468,15 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		if err := ctx.Err(); err != nil {
 			return ChangeSet{}, err
 		}
-		e.nextRow, e.nextVersion = nextRow, nextVersion
-		e.indexRoots = roots
+		e.storage.nextRow, e.storage.nextVersion = nextRow, nextVersion
+		e.storage.indexRoots = roots
 		e.commitSeq++
 		next.SetEpoch(e.catalog.state.Epoch() + 1)
 		e.catalog.state = next
-		e.storage = storage
+		e.storage.relations = storage
 		e.exclusionPending = nil
 		e.exclusionGeneration++
-		e.sequences = sequences
+		e.storage.sequences = sequences
 		e.clearPersistentSequenceMemoryLocked()
 		e.catalog.nextRevision = nextRevision
 		e.fenceSerializableLocked()
@@ -1519,10 +1519,10 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	if e.catalog.state.Epoch() == ids.CatalogEpoch(math.MaxUint64) {
 		return ChangeSet{}, fmt.Errorf("stuntgres: catalog epoch exhausted")
 	}
-	if imported > ^uint64(0)-e.nextRow {
+	if imported > ^uint64(0)-e.storage.nextRow {
 		return ChangeSet{}, fmt.Errorf("stuntgres: row identity exhausted")
 	}
-	if imported > ^uint64(0)-e.nextVersion {
+	if imported > ^uint64(0)-e.storage.nextVersion {
 		return ChangeSet{}, fmt.Errorf("stuntgres: version identity exhausted")
 	}
 	if e.commitSeq == ids.CommitSeq(^uint64(0)) {
@@ -1570,21 +1570,21 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 // Storage vectors and sequence generator scalars are private copies; payload
 // values remain immutable. All prepared containers publish at the same boundary.
 func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, sequences map[ids.ObjectAddress]*sequenceGenerator, nextRevision ids.DefinitionRevision, prepared remintedIndexStorage) error {
-	if prepared.catalog != next || prepared.baseCatalog != e.catalog.state || prepared.baseRow != e.nextRow || prepared.baseVersion != e.nextVersion || prepared.frontier != e.commitSeq {
+	if prepared.catalog != next || prepared.baseCatalog != e.catalog.state || prepared.baseRow != e.storage.nextRow || prepared.baseVersion != e.storage.nextVersion || prepared.frontier != e.commitSeq {
 		return ids.ErrCatalogReplaced
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	e.nextRow, e.nextVersion = prepared.nextRow, prepared.nextVersion
-	e.indexRoots = prepared.roots
+	e.storage.nextRow, e.storage.nextVersion = prepared.nextRow, prepared.nextVersion
+	e.storage.indexRoots = prepared.roots
 	e.commitSeq++
 	next.SetEpoch(e.catalog.state.Epoch() + 1)
 	e.catalog.state = next
-	e.storage = storage
+	e.storage.relations = storage
 	e.exclusionPending = nil
 	e.exclusionGeneration++
-	e.sequences = sequences
+	e.storage.sequences = sequences
 	e.clearPersistentSequenceMemoryLocked()
 	e.catalog.nextRevision = nextRevision
 	e.fenceSerializableLocked()

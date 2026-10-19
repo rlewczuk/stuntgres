@@ -75,11 +75,11 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 	sourceRoles, targetRoles := source.Roles(), e.Roles()
 	storage := make(map[ids.ObjectAddress]*relationStorage)
 	source.mu.Lock()
-	for address, relation := range source.storage {
+	for address, relation := range source.storage.relations {
 		storage[address] = &relationStorage{versions: append([]rowVersion(nil), relation.versions...)}
 	}
 	sequences, err := copySequenceState(source, replacement)
-	indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage, source.indexRoots, source.commitSeq)
+	indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage.relations, source.storage.indexRoots, source.commitSeq)
 	source.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

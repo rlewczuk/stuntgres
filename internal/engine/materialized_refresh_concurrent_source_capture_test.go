@@ -54,7 +54,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	outer := concurrentSourceOuter(t, e)
 	index := materializedConcurrentUnitIndex(t, e, outer, "outer_u", "i", "")
 	outer = e.catalog.state.MustRelation(outer.Address())
-	innerStorage, gateStorage := e.storage[inner.Address()], e.storage[gate.Address()]
+	innerStorage, gateStorage := e.storage.relations[inner.Address()], e.storage.relations[gate.Address()]
 	// A real end marker must affect visibility, rather than merely exercising
 	// preservation of a non-nil but empty root.
 	deleted := innerStorage.versions[2]
@@ -145,7 +145,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	}
 	assertManifest()
 	inner = concurrentUnitReplace(t, e, inner, refreshUnitRows(t, inner, 1), true, true)
-	if e.storage[inner.Address()] == innerStorage || e.commitSeq <= frontier {
+	if e.storage.relations[inner.Address()] == innerStorage || e.commitSeq <= frontier {
 		t.Fatal("peer did not publish a new committed source incarnation")
 	}
 	assertSourceWait()
@@ -171,7 +171,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 		t.Fatal("missing target rowtype provider")
 	}
 	stage.domainBases = []catalog.Descriptor{provider}
-	if err := e.stageMaterializedRows(context.Background(), stage, outer, e.storage[outer.Address()], refreshUnitRows(t, outer, 3), true, ids.TxRef{}); err != nil {
+	if err := e.stageMaterializedRows(context.Background(), stage, outer, e.storage.relations[outer.Address()], refreshUnitRows(t, outer, 3), true, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	stage.materializedReplacement.concurrent = true

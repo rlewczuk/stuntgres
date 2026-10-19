@@ -101,7 +101,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 			e.mu.Unlock()
 			return nil, false, ids.ErrCatalogReplaced
 		}
-		root := e.indexRoots[address]
+		root := e.storage.indexRoots[address]
 		if private := changes.uniqueRoots[address]; private != nil {
 			candidate, pinned := changes.indexCandidates[address]
 			if pinned {
@@ -119,7 +119,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 			root = private
 		} else {
 			source, ok := e.catalog.state.Relation(address)
-			current := e.storage[parent.Address()]
+			current := e.storage.relations[parent.Address()]
 			for edge := &lineage; edge != nil; edge = edge.previous {
 				if ok && sameIndexKeySemantics(source, edge.source) {
 					lineage.source, lineage.sourceParent = edge.source, edge.sourceParent

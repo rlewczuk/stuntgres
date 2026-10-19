@@ -93,7 +93,7 @@ func TestPreparedSerializableCandidateRetainsAdmittedSnapshot(t *testing.T) {
 				t.Fatal("admitted snapshot did not retain predecessor0", value, err)
 			}
 			e.mu.Lock()
-			current := e.storage[relation.Address]
+			current := e.storage.relations[relation.Address]
 			published, err := selectQuerySource(context.Background(), &querySource{committed: current.versions}, e.commitSeq, current.ends, nil)
 			e.mu.Unlock()
 			if err != nil {

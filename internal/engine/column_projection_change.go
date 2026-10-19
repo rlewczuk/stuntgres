@@ -119,7 +119,7 @@ func stagePrivateColumnShapeMetadata(evaluation *EvalContext, stage *CatalogStag
 	ctx := evaluation.Context
 	e := stage.owner
 	e.mu.Lock()
-	original := e.storage[old.Address()]
+	original := e.storage.relations[old.Address()]
 	store := e.privateStorageLocked(changes, old.Address())
 	shape, exists := changes.storage[old.Address()]
 	if store == nil || original == nil && !exists {

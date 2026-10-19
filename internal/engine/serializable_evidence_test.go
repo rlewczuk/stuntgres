@@ -273,10 +273,10 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 	for address, descriptor := range e.catalog.state.Descriptors() {
 		if d, ok := descriptor.(*catalog.Relation); ok && d.RelationKind == catalog.SequenceRelation {
 			if d.Name() == "persistent_s" {
-				persistentGenerator = e.sequences[address]
+				persistentGenerator = e.storage.sequences[address]
 			}
 			if d.Name() == "temporary_s" {
-				temporaryGenerator = e.sequences[address]
+				temporaryGenerator = e.storage.sequences[address]
 			}
 		}
 	}

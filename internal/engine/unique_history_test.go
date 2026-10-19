@@ -25,8 +25,8 @@ func TestUniqueKeyHistoryPublicationAndProjection(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(extra INT,k INT UNIQUE,v INT)")
 	sessionSQL(t, s, "INSERT INTO t VALUES(0,1,10)")
 	ref := roleTableRef(t, e, "t")
-	head := func() rowVersion { return e.storage[ref.Address].versions[0] }
-	initialPrefix := e.storage[ref.Address].versions
+	head := func() rowVersion { return e.storage.relations[ref.Address].versions[0] }
+	initialPrefix := e.storage.relations[ref.Address].versions
 	initialCopy := uniqueHistoryCopy(initialPrefix)
 	tx := transactionBegin(t, s)
 	sessionSQL(t, s, "UPDATE t SET k=2")
@@ -58,7 +58,7 @@ func TestUniqueKeyHistoryPublicationAndProjection(t *testing.T) {
 	if changed.keyChangedAt == 0 || changed.keyChangedAt != e.commitSeq || changed.pendingKeyChange {
 		t.Fatal("transition not stamped at final publication", changed, e.commitSeq)
 	}
-	changedPrefix := e.storage[ref.Address].versions
+	changedPrefix := e.storage.relations[ref.Address].versions
 	changedCopy := uniqueHistoryCopy(changedPrefix)
 	sessionSQL(t, s, "UPDATE t SET v=40")
 	if head().keyChangedAt != changed.keyChangedAt || head().born <= changed.born || head().pendingKeyChange {
@@ -81,7 +81,7 @@ func TestUniqueKeyHistoryPublicationAndProjection(t *testing.T) {
 	if !reflect.DeepEqual(initialPrefix, initialCopy) || !reflect.DeepEqual(changedPrefix, changedCopy) {
 		t.Fatal("publication or projection mutated retained committed prefixes")
 	}
-	retained := e.storage[ref.Address].versions
+	retained := e.storage.relations[ref.Address].versions
 	retainedCopy := uniqueHistoryCopy(retained)
 	var dump bytes.Buffer
 	if err := e.Dump(context.Background(), &dump); err != nil {
@@ -91,7 +91,7 @@ func TestUniqueKeyHistoryPublicationAndProjection(t *testing.T) {
 		t.Fatal(err)
 	}
 	importedRef := roleTableRef(t, e, "t")
-	for _, row := range e.storage[importedRef.Address].versions {
+	for _, row := range e.storage.relations[importedRef.Address].versions {
 		if row.keyChangedAt != 0 || row.pendingKeyChange || row.row == restored.row {
 			t.Fatal("reminted row inherited foreign transition history", row)
 		}
@@ -108,7 +108,7 @@ func TestUniqueKeyHistoryFailedBatchAndSavepoint(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(k INT CONSTRAINT u UNIQUE,v INT)")
 	sessionSQL(t, s, "INSERT INTO t VALUES(1,10),(2,20)")
 	ref := roleTableRef(t, e, "t")
-	committed := e.storage[ref.Address].versions
+	committed := e.storage.relations[ref.Address].versions
 	committedCopy := uniqueHistoryCopy(committed)
 	tx := transactionBegin(t, s)
 	sessionSQL(t, s, "UPDATE t SET k=3 WHERE k=1")
@@ -135,7 +135,7 @@ func TestUniqueKeyHistoryFailedBatchAndSavepoint(t *testing.T) {
 	sessionSQL(t, s, "UPDATE t SET v=30 WHERE k=3")
 	transactionEnd(t, s, tx, true)
 	changed := 0
-	for _, row := range e.storage[ref.Address].versions {
+	for _, row := range e.storage.relations[ref.Address].versions {
 		if row.pendingKeyChange {
 			t.Fatal("private transition leaked into committed root", row)
 		}

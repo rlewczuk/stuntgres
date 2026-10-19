@@ -22,7 +22,7 @@ func TestDeleteCurrentOfIdentity(t *testing.T) {
 	ref := catalogRef(t, s.Engine(), s.Engine().CatalogRead(), "unit_rows")
 	row := cursorOccurrenceVersion(c.currentSource, c.currentIndex, 0, c.locks)
 	s.Engine().mu.Lock()
-	want := s.Engine().storage[ref.Address].versions[1].row
+	want := s.Engine().storage.relations[ref.Address].versions[1].row
 	s.Engine().mu.Unlock()
 	if row.row != want {
 		t.Fatal("last returned occurrence is not physical row2", row.row, want)
@@ -295,7 +295,7 @@ func TestDeleteCurrentOfJoinIdentityRetention(t *testing.T) {
 			leaf := c.locks.leaves[occurrence]
 			row := cursorOccurrenceVersion(c.currentSource, c.currentIndex, occurrence, c.locks)
 			s.Engine().mu.Lock()
-			want := s.Engine().storage[leaf.leaf.ref.Address].versions[1].row
+			want := s.Engine().storage.relations[leaf.leaf.ref.Address].versions[1].row
 			s.Engine().mu.Unlock()
 			if row.row != want {
 				t.Fatal("retained lineage lost last-FETCH physical identity", row.row, want)

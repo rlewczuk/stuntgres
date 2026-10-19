@@ -26,21 +26,21 @@ func (e *Engine) stageStorageLocked(s *CatalogStage, a ids.ObjectAddress) *relat
 	if s.authSession != nil && s.authSession.transactions.retainsTransaction() {
 		return e.privateStorageLocked(s.authSession.transactions.catalog, a)
 	}
-	return e.storage[a]
+	return e.storage.relations[a]
 }
 func (e *Engine) catalogReadPreflightLocked(c *catalogChanges) error {
 	for _, fence := range c.domainValidations {
-		if !fence.current(e.catalog.read(e.catalog.state), e.storage) {
+		if !fence.current(e.catalog.read(e.catalog.state), e.storage.relations) {
 			return catalog.Conflict{}
 		}
 	}
 	for address, root := range c.domainIndexRoots {
-		if e.indexRoots[address] != root {
+		if e.storage.indexRoots[address] != root {
 			return catalog.Conflict{}
 		}
 	}
 	for _, f := range c.readFences {
-		s := e.storage[f.address]
+		s := e.storage.relations[f.address]
 		if s != f.storage || s != nil && (len(s.versions) != f.length || s.ends != f.ends || s.generation != f.generation) {
 			return catalog.Conflict{}
 		}
@@ -239,7 +239,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		}
 	}
 	captureStorage := func(a ids.ObjectAddress) {
-		store := e.storage[a]
+		store := e.storage.relations[a]
 		f := partitionReadFence{address: a, storage: store}
 		if store != nil {
 			f.length = len(store.versions)

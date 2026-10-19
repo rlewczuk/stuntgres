@@ -17,7 +17,7 @@ func TestAlterNullabilityGrowingDependencyClosure(t *testing.T) {
 	view := roleTableRef(t, e, "v")
 	old := e.catalog.state.Get(table.Address)
 	originalView := e.catalog.state.MustRelation(view.Address)
-	store := e.storage[table.Address]
+	store := e.storage.relations[table.Address]
 	provider := e.catalog.Providers[ids.RelationClassID]
 	var added ids.ObjectAddress
 	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
@@ -67,7 +67,7 @@ func TestAlterNullabilityGrowingDependencyClosure(t *testing.T) {
 	if err == nil {
 		t.Fatal("stale dependency closure installed")
 	}
-	if added == (ids.ObjectAddress{}) || e.catalog.state.Get(added) == nil || e.catalog.state.Get(table.Address) != old || e.catalog.state.Get(view.Address) != originalView || e.storage[table.Address] != store {
+	if added == (ids.ObjectAddress{}) || e.catalog.state.Get(added) == nil || e.catalog.state.Get(table.Address) != old || e.catalog.state.Get(view.Address) != originalView || e.storage.relations[table.Address] != store {
 		t.Fatal("failed list published a closure prefix", err)
 	}
 	if got := tuples(run(t, e, "SELECT * FROM late_view")); len(got) != 1 || got[0][0] != int64(9) {

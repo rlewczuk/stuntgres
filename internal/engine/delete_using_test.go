@@ -63,7 +63,7 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 		t.Fatal("capture leaked")
 	}
 	for i, v := range original {
-		if testExport(v.values[1]) != testExport(e.storage[b.ref.Address].versions[i].values[1]) {
+		if testExport(v.values[1]) != testExport(e.storage.relations[b.ref.Address].versions[i].values[1]) {
 			t.Fatal("immutable predecessor changed")
 		}
 	}

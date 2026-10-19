@@ -42,20 +42,20 @@ func TestUpdateCoreSparseAllocation(t *testing.T) {
 		}
 		sessionSQL(t, s, q.String())
 		ref := catalogRef(t, e, e.CatalogRead(), "t")
-		before := e.storage[ref.Address].versions
+		before := e.storage.relations[ref.Address].versions
 		zero = allocated(func() { sessionSQL(t, s, "UPDATE t SET v=2 WHERE FALSE") })
 		absent := allocated(func() { sessionSQL(t, s, "UPDATE t SET v=2 WHERE id=-1") })
 		if absent > zero {
 			zero = absent
 		}
-		if &before[0] != &e.storage[ref.Address].versions[0] {
+		if &before[0] != &e.storage.relations[ref.Address].versions[0] {
 			t.Fatal("zero-match UPDATE replaced root")
 		}
 		sparse = allocated(func() { sessionSQL(t, s, "UPDATE t SET v=2 WHERE id=0") })
-		if len(e.storage[ref.Address].versions) != n || testExport(before[0].values[1]) != int64(1) {
+		if len(e.storage.relations[ref.Address].versions) != n || testExport(before[0].values[1]) != int64(1) {
 			t.Fatal("root retention/cardinality")
 		}
-		old := e.storage[ref.Address].versions
+		old := e.storage.relations[ref.Address].versions
 		stage := []rowVersion{old[n-1]}
 		stage[0].version++
 		private = allocated(func() {
@@ -183,7 +183,7 @@ func TestUpdateCoreMultirowAllocation(t *testing.T) {
 			retained.Release()
 			t.Fatal("multirow UPDATE", n, result, err, finishErr)
 		}
-		current := e.storage[bound.ref.Address].versions
+		current := e.storage.relations[bound.ref.Address].versions
 		if len(current) != n || len(old) != n {
 			retained.Release()
 			t.Fatal("replacement cardinality", n, len(current), len(old))
@@ -239,7 +239,7 @@ func TestUpdateCoreStagedPrefixOverlap(t *testing.T) {
 	if len(earlier) != 1 || testExport(earlier[0].values[1]) != int64(11) || testExport(committed[0].values[1]) != int64(1) {
 		t.Fatal("replacement mutated retained action/source prefix")
 	}
-	current := e.storage[bound.ref.Address].versions
+	current := e.storage.relations[bound.ref.Address].versions
 	if len(current) != 2 {
 		t.Fatal("overlap appended duplicate physical heads", len(current))
 	}

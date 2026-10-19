@@ -30,13 +30,13 @@ func TestCheckReviewReplayHistoryFailurePreservesDestination(t *testing.T) {
 	sessionSQL(t, peer, "INSERT INTO sentinel VALUES(7)")
 	before := target.CatalogRead()
 	ref := catalogRef(t, target, before, "sentinel")
-	storage := target.storage[ref.Address]
+	storage := target.storage.relations[ref.Address]
 	stage := target.BeginCatalogStage(before)
 	defer target.DiscardCatalogStage(stage)
 	err := target.Restore(ctx, bytes.NewReader(dump.Bytes()))
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23514", Message: `new row for relation "t" violates check constraint "c"`, Detail: "Failing row contains (9).", Schema: "public", Table: "t", Constraint: "c"})
 	after := target.CatalogRead()
-	if after.State() != before.State() || after.Epoch() != before.Epoch() || target.storage[ref.Address] != storage {
+	if after.State() != before.State() || after.Epoch() != before.Epoch() || target.storage.relations[ref.Address] != storage {
 		t.Fatal("failed volatile replay replaced destination")
 	}
 	if err := target.ValidateObjectRef(after, ref); err != nil {

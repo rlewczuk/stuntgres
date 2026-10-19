@@ -97,7 +97,7 @@ func TestRangePartitionPublicationResetDuringBoundDemand(t *testing.T) {
 		t.Fatal("control callback failed to invalidate private DDL publication", ctx.entered.Load(), resetErr, err)
 	}
 	e.mu.Lock()
-	storage := len(e.storage)
+	storage := len(e.storage.relations)
 	for _, descriptor := range e.catalog.state.Descriptors() {
 		if relation, ok := descriptor.(*catalog.Relation); ok && (relation.Name() == "root" || relation.Name() == "leaf") {
 			t.Error("stale hierarchy definition published after reset")

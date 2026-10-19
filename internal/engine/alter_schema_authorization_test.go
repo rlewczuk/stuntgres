@@ -62,12 +62,12 @@ func TestAlterSchemaAuthorization(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			before, sequence, storage := e.catalog.state.Get(a), e.catalog.state.Get(q), e.storage[a]
+			before, sequence, storage := e.catalog.state.Get(a), e.catalog.state.Get(q), e.storage.relations[a]
 			roleExecute(t, e, op, "SET SESSION AUTHORIZATION "+tc.actor)
 			_, err := e.Execute(op, statement(t, "ALTER TABLE s1.t SET SCHEMA "+tc.destination), 0, nil)
 			if tc.code != "" {
 				renameWantError(t, err, tc.code, tc.message)
-				if e.catalog.state.Get(a) != before || e.catalog.state.Get(q) != sequence || e.storage[a] != storage {
+				if e.catalog.state.Get(a) != before || e.catalog.state.Get(q) != sequence || e.storage.relations[a] != storage {
 					t.Fatal("denial changed closure")
 				}
 			} else {
@@ -75,7 +75,7 @@ func TestAlterSchemaAuthorization(t *testing.T) {
 					t.Fatal(err)
 				}
 				dest := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: tc.destination})
-				if e.catalog.state.Get(a).Namespace() != dest || e.catalog.state.Get(q).Namespace() != dest || e.storage[a] != storage {
+				if e.catalog.state.Get(a).Namespace() != dest || e.catalog.state.Get(q).Namespace() != dest || e.storage.relations[a] != storage {
 					t.Fatal("successful authorized move lost closure")
 				}
 			}

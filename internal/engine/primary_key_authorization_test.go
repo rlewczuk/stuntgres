@@ -63,7 +63,7 @@ func TestPrimaryKeyCurrentACLDisclosure(t *testing.T) {
 				if err != nil || allowed != (mode == "keys" || mode == "table") {
 					t.Fatal("actual current key disclosure authority", allowed, err)
 				}
-				before, store, root := e.catalog.state, e.storage[parent.Address()], e.indexRoots[index.Address()]
+				before, store, root := e.catalog.state, e.storage.relations[parent.Address()], e.storage.indexRoots[index.Address()]
 				execute := func(ast parser.Statement, held *StatementDescription) (Result, error) {
 					if !prepared {
 						return e.Execute(owner, ast, 0, nil)
@@ -92,7 +92,7 @@ func TestPrimaryKeyCurrentACLDisclosure(t *testing.T) {
 					detail = "Key (a, b)=(0, protected) is duplicated."
 				}
 				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "pk"`, Detail: detail, Schema: "public", Table: "t", Constraint: "pk"})
-				if result.Count != 0 || result.Rows != nil || e.catalog.state != before || e.storage[parent.Address()] != store || e.indexRoots[index.Address()] != root || e.catalog.state.Get(parent.Address()) != current {
+				if result.Count != 0 || result.Rows != nil || e.catalog.state != before || e.storage.relations[parent.Address()] != store || e.storage.indexRoots[index.Address()] != root || e.catalog.state.Get(parent.Address()) != current {
 					t.Fatal("failed runtime/TYPE disclosed or published protected state", result)
 				}
 				lockEmpty(t, e)

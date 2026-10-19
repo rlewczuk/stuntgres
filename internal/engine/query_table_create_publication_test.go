@@ -57,7 +57,7 @@ func queryCreateAssertTypes(t *testing.T, e *Engine, want map[ids.ObjectAddress]
 func queryCreateAssertAbsent(t *testing.T, e *Engine, d *catalog.Relation) {
 	t.Helper()
 	view := e.CatalogRead()
-	if _, ok := view.Descriptor(d.Address()); ok || e.storage[d.Address()] != nil {
+	if _, ok := view.Descriptor(d.Address()); ok || e.storage.relations[d.Address()] != nil {
 		t.Fatal("partial descriptor/storage publication")
 	}
 	for _, class := range []ids.OID{ids.RelationClassID, ids.TypeClassID} {
@@ -109,7 +109,7 @@ func TestQueryTableCreateInitialPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			descriptor, ok := e.CatalogRead().Descriptor(d.Address())
-			storage := e.storage[d.Address()]
+			storage := e.storage.relations[d.Address()]
 			if !ok || descriptor != d || storage == nil || len(storage.versions) != tc.count {
 				t.Fatal(descriptor, storage)
 			}
@@ -117,8 +117,8 @@ func TestQueryTableCreateInitialPublication(t *testing.T) {
 			if tc.count != 0 {
 				wantFrontier++
 			}
-			if e.commitSeq != wantFrontier || e.nextRow != uint64(tc.count) || e.nextVersion != uint64(tc.count) {
-				t.Fatal("frontier or shared counters", e.commitSeq, e.nextRow, e.nextVersion)
+			if e.commitSeq != wantFrontier || e.storage.nextRow != uint64(tc.count) || e.storage.nextVersion != uint64(tc.count) {
+				t.Fatal("frontier or shared counters", e.commitSeq, e.storage.nextRow, e.storage.nextVersion)
 			}
 			if tc.count != 0 && storage.generation != 1 {
 				t.Fatal(storage.generation)
@@ -149,20 +149,20 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 			value, _ := sqltype.Integer(d.Columns[0].Usage.Type, 7)
 			rows := [][]sqltype.Value{{value}}
 			if phase == "row_identity" {
-				e.nextRow = math.MaxUint64
+				e.storage.nextRow = math.MaxUint64
 			}
 			if phase == "version_identity" {
-				e.nextVersion = math.MaxUint64
+				e.storage.nextVersion = math.MaxUint64
 			}
-			beforeRow, beforeVersion := e.nextRow, e.nextVersion
+			beforeRow, beforeVersion := e.storage.nextRow, e.storage.nextVersion
 			err := e.stageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{})
 			if phase == "row_identity" || phase == "version_identity" {
 				want := "stuntgres: row identity exhausted"
 				if phase == "version_identity" {
 					want = "stuntgres: version identity exhausted"
 				}
-				if err == nil || err.Error() != want || e.nextRow != beforeRow || e.nextVersion != beforeVersion {
-					t.Fatal(err, e.nextRow, e.nextVersion)
+				if err == nil || err.Error() != want || e.storage.nextRow != beforeRow || e.storage.nextVersion != beforeVersion {
+					t.Fatal(err, e.storage.nextRow, e.storage.nextVersion)
 				}
 				queryCreateAssertAbsent(t, e, d)
 				queryCreateAssertTypes(t, e, registry)
@@ -278,7 +278,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 				}
 			}
 			if phase == "name" {
-				if _, ok := e.CatalogRead().Descriptor(d.Address()); ok || e.storage[d.Address()] != nil {
+				if _, ok := e.CatalogRead().Descriptor(d.Address()); ok || e.storage.relations[d.Address()] != nil {
 					t.Fatal("loser published")
 				}
 			} else {
@@ -328,7 +328,7 @@ func TestQueryTableCreateUnrelatedRefresh(t *testing.T) {
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	if e.nextRow != 1 || e.nextVersion != 1 || e.commitSeq != 1 || len(e.storage[d.Address()].versions) != 1 || !sqltype.SameDatum(e.storage[d.Address()].versions[0].values[0], value) {
+	if e.storage.nextRow != 1 || e.storage.nextVersion != 1 || e.commitSeq != 1 || len(e.storage.relations[d.Address()].versions) != 1 || !sqltype.SameDatum(e.storage.relations[d.Address()].versions[0].values[0], value) {
 		t.Fatal("refresh replayed or lost data")
 	}
 }
@@ -367,7 +367,7 @@ func TestQueryTableCreateSharedRowIdentities(t *testing.T) {
 	if outcome = scope.Finish(nil); outcome != nil {
 		t.Fatal(outcome)
 	}
-	stored := e.storage[ref.Address].versions[0]
+	stored := e.storage.relations[ref.Address].versions[0]
 	if stored.row != staged.row || stored.version != staged.version || stored.born != e.commitSeq {
 		t.Fatal("ordinary publication changed staged identity")
 	}
@@ -377,7 +377,7 @@ func TestQueryTableCreateSharedRowIdentities(t *testing.T) {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, nextStage)
-	copied := e.storage[next.Address()].versions[0]
+	copied := e.storage.relations[next.Address()].versions[0]
 	if copied.row != stored.row+1 || copied.version != stored.version+1 || copied.born != before+1 || e.commitSeq != before+1 || reserved.born != 0 {
 		t.Fatal("initial storage did not share the ordinary non-reusing identity/frontier owner")
 	}

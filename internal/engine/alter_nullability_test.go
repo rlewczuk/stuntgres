@@ -17,25 +17,25 @@ func TestAlterNullabilityMetadataAndStorage(t *testing.T) {
 	run(t, e, "COMMENT ON COLUMN t.a IS 'stable'")
 	ref := roleTableRef(t, e, "t")
 	old := e.catalog.state.MustRelation(ref.Address)
-	store := e.storage[ref.Address]
+	store := e.storage.relations[ref.Address]
 	root := store.versions
 	ends, generation := store.ends, store.generation
 	held := run(t, e, "SELECT * FROM t")
 	defer held.Rows.Close()
 	run(t, e, "ALTER TABLE t ALTER a SET NOT NULL, ADD CONSTRAINT requested NOT NULL a")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if next.Address() != old.Address() || next.Revision() != old.Revision()+1 || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.ColumnComments, old.ColumnComments) || e.storage[ref.Address] != store || store.generation != generation || store.ends != ends || !sameVersionRoot(root, store.versions) || &root[0].values[0] != &store.versions[0].values[0] {
+	if next.Address() != old.Address() || next.Revision() != old.Revision()+1 || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.ColumnComments, old.ColumnComments) || e.storage.relations[ref.Address] != store || store.generation != generation || store.ends != ends || !sameVersionRoot(root, store.versions) || &root[0].values[0] != &store.versions[0].values[0] {
 		t.Fatal("pure NN rewrote identity, metadata or values")
 	}
 	if len(next.NotNullConstraints) != 1 || next.NotNullConstraints[0].Name != "t_a_not_null" {
 		t.Fatal(next.NotNullConstraints)
 	}
 	run(t, e, "ALTER TABLE t ALTER a SET NOT NULL, ADD NOT NULL a")
-	if e.catalog.state.Get(ref.Address) != next || e.storage[ref.Address] != store {
+	if e.catalog.state.Get(ref.Address) != next || e.storage.relations[ref.Address] != store {
 		t.Fatal("no-op changed descriptor/storage")
 	}
 	run(t, e, "ALTER TABLE t ALTER a DROP NOT NULL")
-	if e.storage[ref.Address] != store || store.generation != generation || !sameVersionRoot(root, store.versions) {
+	if e.storage.relations[ref.Address] != store || store.generation != generation || !sameVersionRoot(root, store.versions) {
 		t.Fatal("drop copied values")
 	}
 	if !held.Rows.Schema()[0].Nullable {
@@ -51,7 +51,7 @@ func TestAlterNullabilityLifecycle(t *testing.T) {
 			sessionSQL(t, a, "CREATE TABLE t(a INT,b INT)")
 			sessionSQL(t, a, "INSERT INTO t VALUES(7,9)")
 			ref := roleTableRef(t, e, "t")
-			descriptor, store := e.catalog.state.Get(ref.Address), e.storage[ref.Address]
+			descriptor, store := e.catalog.state.Get(ref.Address), e.storage.relations[ref.Address]
 			frontier := e.commitSeq
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
@@ -62,7 +62,7 @@ func TestAlterNullabilityLifecycle(t *testing.T) {
 			cancel()
 			lockAwait(t, done, context.Canceled)
 			lockPending(t, e, 0)
-			if e.catalog.state.Get(ref.Address) != descriptor || e.storage[ref.Address] != store || e.commitSeq != frontier {
+			if e.catalog.state.Get(ref.Address) != descriptor || e.storage.relations[ref.Address] != store || e.commitSeq != frontier {
 				t.Fatal("canceled list published")
 			}
 			transactionEnd(t, a, tx, false)
@@ -102,7 +102,7 @@ func TestAlterNullabilityCancellationBoundaries(t *testing.T) {
 			}
 			for at := int32(1); at <= checks; at++ {
 				e, ref := setup()
-				store := e.storage[ref.Address]
+				store := e.storage.relations[ref.Address]
 				descriptor := e.catalog.state.Get(ref.Address)
 				frontier, generation, ends := e.commitSeq, store.generation, store.ends
 				all := append([]rowVersion(nil), store.versions[:cap(store.versions)]...)
@@ -122,7 +122,7 @@ func TestAlterNullabilityCancellationBoundaries(t *testing.T) {
 					if !errors.Is(err, context.Canceled) {
 						t.Fatal(at, err)
 					}
-					if e.catalog.state.Get(ref.Address) != descriptor || e.storage[ref.Address] != store || store.generation != generation || store.ends != ends || e.commitSeq != frontier || !reflect.DeepEqual(all, store.versions[:cap(store.versions)]) {
+					if e.catalog.state.Get(ref.Address) != descriptor || e.storage.relations[ref.Address] != store || store.generation != generation || store.ends != ends || e.commitSeq != frontier || !reflect.DeepEqual(all, store.versions[:cap(store.versions)]) {
 						t.Fatal("cancellation mutated a prefix or spare suffix", at)
 					}
 				} else if e.catalog.state.Get(ref.Address) == descriptor {
@@ -160,7 +160,7 @@ func TestAlterNullabilityProviderReplacement(t *testing.T) {
 			if !fired || !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal(fired, err)
 			}
-			if len(e.storage) != 0 {
+			if len(e.storage.relations) != 0 {
 				t.Fatal("stale callback installed storage")
 			}
 		})

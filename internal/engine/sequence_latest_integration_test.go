@@ -22,7 +22,7 @@ func TestSequenceLatestMixedUpdatePublication(t *testing.T) {
 	if _, err := e.Commit(transactionOperation(t, s), ref); err != nil {
 		t.Fatal(err)
 	}
-	store := e.storage[table.Address]
+	store := e.storage.relations[table.Address]
 	if e.commitSeq != frontier+1 || len(store.versions) != 3 {
 		t.Fatal("mixed publication frontier or duplicate replacement", e.commitSeq, frontier, len(store.versions))
 	}

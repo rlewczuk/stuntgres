@@ -23,8 +23,8 @@ func TestAlterAddColumnProviderAdmissionBeforeDemand(t *testing.T) {
 			sessionSQL(t, holder, "INSERT INTO t VALUES(1),(2),(2)")
 			ref := roleTableRef(t, e, "t")
 			seq := roleTableRef(t, e, "s")
-			old, storage := e.catalog.state.Get(ref.Address), e.storage[ref.Address]
-			generator := e.sequences[seq.Address]
+			old, storage := e.catalog.state.Get(ref.Address), e.storage.relations[ref.Address]
+			generator := e.storage.sequences[seq.Address]
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "DROP SEQUENCE s")
 			q := "ALTER TABLE t ADD b BIGINT DEFAULT 7 CHECK(nextval('s')>0)"
@@ -42,7 +42,7 @@ func TestAlterAddColumnProviderAdmissionBeforeDemand(t *testing.T) {
 				t.Fatal("ADD did not queue AS against exact provider")
 			}
 			e.mu.Lock()
-			untouched := !generator.called && e.catalog.state.Get(ref.Address) == old && e.storage[ref.Address] == storage
+			untouched := !generator.called && e.catalog.state.Get(ref.Address) == old && e.storage.relations[ref.Address] == storage
 			e.mu.Unlock()
 			if !untouched {
 				t.Fatal("ADD demanded or published before provider admission")
@@ -51,7 +51,7 @@ func TestAlterAddColumnProviderAdmissionBeforeDemand(t *testing.T) {
 			lockAwait(t, waiting, context.Canceled)
 			transactionEnd(t, holder, tx, false)
 			lockEmpty(t, e)
-			if generator.called || e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != storage {
+			if generator.called || e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage {
 				t.Fatal("canceled admission changed original candidate/root")
 			}
 			sessionSQL(t, worker, q)
@@ -88,8 +88,8 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 				ref := roleTableRef(t, e, "t")
 				seq := roleTableRef(t, e, "s")
 				old := e.catalog.state.MustRelation(ref.Address)
-				storage := e.storage[ref.Address]
-				generator := e.sequences[seq.Address]
+				storage := e.storage.relations[ref.Address]
+				generator := e.storage.sequences[seq.Address]
 				var tx ids.TxRef
 				if explicit {
 					tx = transactionBegin(t, worker)
@@ -123,7 +123,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 				if candidate == old || candidate.AttributeHighWater != old.AttributeHighWater+1 || len(candidate.Columns) != 2 || shape.replacement == storage || !shape.rewritten || generator.last != 6 {
 					t.Fatal("complete candidate/backfill missing", candidate, shape, generator.last)
 				}
-				if e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != storage || old.AttributeHighWater != 1 {
+				if e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage || old.AttributeHighWater != 1 {
 					t.Fatal("Execute published private ADD")
 				}
 				for _, row := range storage.versions {
@@ -148,7 +148,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 				case "storage":
 					injectedStorage = &relationStorage{generation: storage.generation + 1, versions: storage.versions, ends: storage.ends}
 					e.mu.Lock()
-					e.storage[ref.Address] = injectedStorage
+					e.storage.relations[ref.Address] = injectedStorage
 					e.mu.Unlock()
 				case "replacement":
 					if err = e.Restore(context.Background(), strings.NewReader("CREATE TABLE sentinel(v INT);INSERT INTO sentinel VALUES(91)")); err != nil {
@@ -177,7 +177,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 					if injectedStorage != nil {
 						wantStorage = injectedStorage
 					}
-					if e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != wantStorage || old.AttributeHighWater != 1 || len(old.Columns) != 1 || generator.last != 6 {
+					if e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != wantStorage || old.AttributeHighWater != 1 || len(old.Columns) != 1 || generator.last != 6 {
 						t.Fatal("veto published ADD or rewound sequence")
 					}
 					if explicit && (!sameVersionRoot(worker.transactions.writes[ref.Address], priorWrites) || worker.transactions.deletes[ref.Address] != priorDeletes || worker.transactions.catalog != priorCatalog) {
@@ -185,7 +185,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 					}
 				} else {
 					transactionRows(t, sessionStart(t, e, nil), "SELECT v FROM sentinel", 91)
-					if e.catalog.state.Get(ref.Address) == old || e.storage[ref.Address] == storage {
+					if e.catalog.state.Get(ref.Address) == old || e.storage.relations[ref.Address] == storage {
 						t.Fatal("old incarnation resurrected")
 					}
 				}

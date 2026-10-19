@@ -327,11 +327,11 @@ func TestIndexClausesReplacement(t *testing.T) {
 	}
 	destination := &relationStorage{versions: append([]rowVersion(nil), source.versions...)}
 	e := New()
-	e.nextRow = 100
-	e.nextVersion = 200
+	e.storage.nextRow = 100
+	e.storage.nextVersion = 200
 	e.catalog.state = catalog
-	e.storage[parent.Address()] = source
-	e.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.Address(): original}
+	e.storage.relations[parent.Address()] = source
+	e.storage.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.Address(): original}
 	e.commitSeq = 1
 	snapshot, err := e.captureIndexSnapshot(ctx, e.catalog.read(catalog), map[ids.ObjectAddress]*relationStorage{parent.Address(): source}, map[ids.ObjectAddress]*logicalIndexRoot{index.Address(): original}, 1)
 	if err != nil {
@@ -341,7 +341,7 @@ func TestIndexClausesReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rows != 101 || versions != 201 || roots[index.Address()].entries[0].row != 101 || len(roots[index.Address()].entries[0].keys) != 2 || e.nextRow != 100 || e.nextVersion != 200 {
+	if rows != 101 || versions != 201 || roots[index.Address()].entries[0].row != 101 || len(roots[index.Address()].entries[0].keys) != 2 || e.storage.nextRow != 100 || e.storage.nextVersion != 200 {
 		t.Fatal("replacement did not privately remint actual key-only root", roots, rows, versions)
 	}
 	if !reflect.DeepEqual(index.SQLIndex.Include, []int32{30}) || source.versions[0].row != 1 || original.entries[0].version != 2 {
@@ -352,7 +352,7 @@ func TestIndexClausesReplacement(t *testing.T) {
 	if _, _, _, err := e.prepareRemintedStorage(canceled, catalog, map[ids.ObjectAddress]*relationStorage{parent.Address(): destination}, snapshot); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if e.nextRow != 100 || e.nextVersion != 200 {
+	if e.storage.nextRow != 100 || e.storage.nextVersion != 200 {
 		t.Fatal("failed replacement published allocator")
 	}
 }

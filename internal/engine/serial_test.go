@@ -37,7 +37,7 @@ func TestSerialStoredDefaultInvariants(t *testing.T) {
 		if seq.Sequence.Identity || seq.Sequence.Owned != owner || seq.Sequence.SQLType != d.Columns[slot].Usage.Type.ID() {
 			t.Fatal("serial ownership/width", seq.Sequence)
 		}
-		if e.sequences[seq.Address()].called || e.sequences[seq.Address()].last != 1 {
+		if e.storage.sequences[seq.Address()].called || e.storage.sequences[seq.Address()].last != 1 {
 			t.Fatal("CREATE evaluated nextval")
 		}
 		if err := (relationProvider{}).Validate(view, d); err != nil {
@@ -102,7 +102,7 @@ func TestSerialControlsTemporaryCollision(t *testing.T) {
 			if leaf.ref.Address != temp {
 				t.Fatal("fixture lacks actual persistent sequence collision", leaf.ref.Address, temp)
 			}
-			definition, generator, memory := dest.catalog.state.Get(temp), dest.sequences[temp], b.sequences[temp]
+			definition, generator, memory := dest.catalog.state.Get(temp), dest.storage.sequences[temp], b.sequences[temp]
 			if mode == "Restore" {
 				var dump bytes.Buffer
 				if err := source.Dump(context.Background(), &dump); err != nil {
@@ -114,7 +114,7 @@ func TestSerialControlsTemporaryCollision(t *testing.T) {
 			} else if _, err := dest.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 				t.Fatal(err)
 			}
-			if dest.catalog.state.Get(temp) != definition || dest.sequences[temp] != generator || b.sequences[temp] != memory {
+			if dest.catalog.state.Get(temp) != definition || dest.storage.sequences[temp] != generator || b.sequences[temp] != memory {
 				t.Fatal("retained TEMP changed")
 			}
 			d := dest.catalog.state.MustRelation(roleTableRef(t, dest, "portable.t").Address)

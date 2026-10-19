@@ -36,7 +36,7 @@ func TestBtreeIndexOwnerAndNamespaceAuthority(t *testing.T) {
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION owner")
 	roleError(t, e, op, "CREATE INDEX forbidden ON t(n)", "42501", "permission denied for schema public", "")
-	if len(e.indexRoots) != 1 {
+	if len(e.storage.indexRoots) != 1 {
 		t.Fatal("denied index leaked roots")
 	}
 }
@@ -68,7 +68,7 @@ func TestBtreeIndexPrivateTypeSavepointAndDrop(t *testing.T) {
 	tx = transactionBegin(t, s)
 	sessionSQL(t, s, "ALTER TABLE t DROP s")
 	transactionEnd(t, s, tx, true)
-	if len(e.indexRoots) != 1 {
+	if len(e.storage.indexRoots) != 1 {
 		t.Fatal("private drop left orphan root")
 	}
 }

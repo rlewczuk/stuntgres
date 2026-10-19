@@ -17,7 +17,7 @@ func TestTableLikeIndexClone(t *testing.T) {
 	run(t, e, `CREATE INDEX covering ON src(b COLLATE "C" text_pattern_ops DESC NULLS LAST) INCLUDE(a)`)
 	run(t, e, "CREATE INDEX derived ON src((a+1))")
 	run(t, e, "CREATE INDEX hashed ON src USING hash(a)")
-	sourceRoots := e.indexRoots
+	sourceRoots := e.storage.indexRoots
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	stage, destination, err := tableLikeBuild(t, e, op, "CREATE TABLE clone(head BOOL,lead TEXT,LIKE src INCLUDING INDEXES)")
@@ -76,12 +76,12 @@ func TestTableLikeIndexClone(t *testing.T) {
 	}
 	for _, descriptor := range stage.Descriptors {
 		index, ok := descriptor.(*catalog.Relation)
-		if ok && index.SQLIndex != nil && e.indexRoots[index.Address()] == nil {
+		if ok && index.SQLIndex != nil && e.storage.indexRoots[index.Address()] == nil {
 			t.Fatal("new index has no actual published root", index.Name())
 		}
 		if ok && index.SQLIndex != nil {
 			for address, root := range sourceRoots {
-				if e.indexRoots[address] != root || e.indexRoots[index.Address()] == root {
+				if e.storage.indexRoots[address] != root || e.storage.indexRoots[index.Address()] == root {
 					t.Fatal("copied index reused or changed a source root", index.Name())
 				}
 			}

@@ -15,12 +15,12 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	d := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 	d = e.catalog.state.MustRelation(d.Address())
-	original := e.storage[d.Address()]
+	original := e.storage.relations[d.Address()]
 	scope := refreshUnitScope(t, e, context.Background())
 	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
 	scope.querySources = []queryLeaf{{ref: ref, relation: d, storage: original}, {ref: ref, relation: d, storage: original}}
 	d = concurrentUnitReplace(t, e, d, refreshUnitRows(t, d, 4), true, true)
-	current := e.storage[d.Address()]
+	current := e.storage.relations[d.Address()]
 	e.mu.Lock()
 	err := scope.refreshRelationGrantsLocked(e)
 	e.mu.Unlock()
@@ -86,7 +86,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			d = e.catalog.state.MustRelation(d.Address())
 			stage, unrelated := queryCreateStage(t, e, "unrelated_snapshot", 1)
 			queryCreatePublish(t, e, stage)
-			original := e.storage[d.Address()]
+			original := e.storage.relations[d.Address()]
 			original.ends = &deletionRoot{}
 			scope := refreshUnitScope(t, e, context.Background())
 			scope.owner.isolation = RepeatableRead
@@ -95,7 +95,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			}
 			root := scope.owner.roots[d.Address()]
 			frontier := scope.owner.frontier
-			if root.storage != original || root.ends != original.ends || scope.owner.roots[unrelated.Address()].storage != e.storage[unrelated.Address()] {
+			if root.storage != original || root.ends != original.ends || scope.owner.roots[unrelated.Address()].storage != e.storage.relations[unrelated.Address()] {
 				t.Fatal("snapshot did not capture database roots")
 			}
 			ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
@@ -144,9 +144,9 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			case "control_epoch":
 				e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
 			case "ordinary_incarnation":
-				copy := *e.storage[d.Address()]
+				copy := *e.storage.relations[d.Address()]
 				copy.materializedLineage = nil
-				e.storage[d.Address()] = &copy
+				e.storage.relations[d.Address()] = &copy
 			default:
 				copy := *d
 				switch phase {
@@ -201,7 +201,7 @@ func TestMaterializedRefreshConcurrentLateCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	frontier := e.commitSeq
-	published := e.storage[d.Address()]
+	published := e.storage.relations[d.Address()]
 	if !scope.completed || len(published.versions) != 1 {
 		t.Fatal("actual refresh did not complete publication")
 	}
@@ -209,7 +209,7 @@ func TestMaterializedRefreshConcurrentLateCancellation(t *testing.T) {
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal("late cancellation retracted completed utility", err)
 	}
-	if e.storage[d.Address()] != published || e.commitSeq != frontier {
+	if e.storage.relations[d.Address()] != published || e.commitSeq != frontier {
 		t.Fatal("late completion published twice")
 	}
 }

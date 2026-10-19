@@ -57,7 +57,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				t.Fatal("missing actual implicit serializable consumer")
 			}
 			e.mu.Lock()
-			source, err := e.captureQuerySourcesLocked(scope, []queryLeaf{{ref: sourceRef, relation: sourceDescriptor, storage: e.storage[sourceRef.Address]}}, false)
+			source, err := e.captureQuerySourcesLocked(scope, []queryLeaf{{ref: sourceRef, relation: sourceDescriptor, storage: e.storage.relations[sourceRef.Address]}}, false)
 			e.mu.Unlock()
 			if err != nil {
 				outcome = err
@@ -117,7 +117,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 			defer e.DiscardCatalogStage(stage)
 			types := queryCreateTypes(e)
 			beforeFrontier, beforeOrder := e.commitSeq, e.serializable.order
-			beforeRows, beforeVersions := e.nextRow, e.nextVersion
+			beforeRows, beforeVersions := e.storage.nextRow, e.storage.nextVersion
 			if err = e.stageQueryTableRows(op.Context(), stage, d, rows, scope.txRef); err != nil {
 				outcome = err
 				t.Fatal(err)
@@ -141,11 +141,11 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				if !scope.completed || !node.committed || node.commitFrontier != wantedFrontier || node.order != beforeOrder+1 || e.serializable.order != beforeOrder+1 || e.commitSeq != wantedFrontier {
 					t.Fatal("successful producer did not finalize once at its installation frontier", node, e.commitSeq, e.serializable.order)
 				}
-				if len(e.storage[d.Address()].versions) != wanted {
+				if len(e.storage.relations[d.Address()].versions) != wanted {
 					t.Fatal("installed row count changed")
 				}
 			}
-			if e.nextRow != beforeRows+uint64(wanted) || e.nextVersion != beforeVersions+uint64(wanted) || predicates != 3 {
+			if e.storage.nextRow != beforeRows+uint64(wanted) || e.storage.nextVersion != beforeVersions+uint64(wanted) || predicates != 3 {
 				t.Fatal("identity reservation or producer demand replayed")
 			}
 			afterOrder, afterFrontier := e.serializable.order, e.commitSeq

@@ -48,7 +48,7 @@ func TestObjectGrantSequencePublication(t *testing.T) {
 	original.RelationKind = catalog.SequenceRelation
 	original.SequencePlanStamp = 1
 	generator := &sequenceGenerator{last: 11}
-	e.sequences[address] = generator
+	e.storage.sequences[address] = generator
 	request := objectGrantUnitRequest()
 	request.Kind = "sequence"
 	request.Privileges = []parser.GrantPrivilege{{All: true}}
@@ -63,7 +63,7 @@ func TestObjectGrantSequencePublication(t *testing.T) {
 	if authorization.ACLRights(next.ACL, next.Owner, []authorization.PrincipalRef{reader}, mask, false) != mask {
 		t.Fatal("sequence ALL omitted rights", next.ACL)
 	}
-	if next.SequencePlanStamp == original.SequencePlanStamp || e.sequences[address] != generator || generator.last != 11 || original.ACL.Explicit {
+	if next.SequencePlanStamp == original.SequencePlanStamp || e.storage.sequences[address] != generator || generator.last != 11 || original.ACL.Explicit {
 		t.Fatal("ACL publication changed generator or retained descriptor")
 	}
 	before, roles := e.catalog.state, e.roles

@@ -173,13 +173,13 @@ func retiredResourceCounts(e *Engine) [7]int {
 func retiredReject(t *testing.T, e *Engine, op *Operation, q string, a *restoredHistoryAuthority) {
 	t.Helper()
 	before := e.catalog.state
-	stores := maps.Clone(e.storage)
+	stores := maps.Clone(e.storage.relations)
 	capture := retiredAuthorityClone(a)
 	resources := retiredResourceCounts(e)
 	if err := e.restoreRetiredConstraint(op, retiredRaw(t, q), a); err == nil {
 		t.Fatal("forged repair gained authority", q)
 	}
-	if e.catalog.state != before || !reflect.DeepEqual(stores, e.storage) || !retiredAuthorityEqual(a, capture) || retiredResourceCounts(e) != resources {
+	if e.catalog.state != before || !reflect.DeepEqual(stores, e.storage.relations) || !retiredAuthorityEqual(a, capture) || retiredResourceCounts(e) != resources {
 		t.Fatal("rejected repair changed catalog/store/authority/resources")
 	}
 }
@@ -348,7 +348,7 @@ func TestRestoreConstraintHistoryAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := e.catalog.state
-	stores := maps.Clone(e.storage)
+	stores := maps.Clone(e.storage.relations)
 	rows := make(map[ids.ObjectAddress][]rowVersion)
 	resources := retiredResourceCounts(e)
 	for address, store := range stores {
@@ -362,7 +362,7 @@ func TestRestoreConstraintHistoryAtomicity(t *testing.T) {
 			if err := e.Restore(context.Background(), strings.NewReader(stream)); err == nil {
 				t.Fatal("late invalid import succeeded")
 			}
-			if e.catalog.state != before || !reflect.DeepEqual(stores, e.storage) || retiredResourceCounts(e) != resources {
+			if e.catalog.state != before || !reflect.DeepEqual(stores, e.storage.relations) || retiredResourceCounts(e) != resources {
 				t.Fatal("failed import replaced original catalog/store/resources")
 			}
 			for address, store := range stores {

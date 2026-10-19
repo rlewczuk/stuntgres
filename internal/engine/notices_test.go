@@ -185,7 +185,7 @@ func TestNoticesPublicationConflictCanceled(t *testing.T) {
 			if after.State() != winner.State() {
 				t.Fatal("losing CREATE replaced winner catalog")
 			}
-			if _, exists := after.Descriptor(loser); exists || e.storage[loser] != nil {
+			if _, exists := after.Descriptor(loser); exists || e.storage.relations[loser] != nil {
 				t.Fatal("losing CREATE published descriptor or storage")
 			}
 			got := run(t, e, "SELECT kept FROM conflict_rows")
@@ -275,7 +275,7 @@ func TestNoticesPublicationConflictCanceledBeforeSkip(t *testing.T) {
 	if after.State() != winner.State() {
 		t.Fatal("losing CREATE replaced winner catalog")
 	}
-	if _, exists := after.Descriptor(loser); exists || e.storage[loser] != nil {
+	if _, exists := after.Descriptor(loser); exists || e.storage.relations[loser] != nil {
 		t.Fatal("losing CREATE published descriptor or storage")
 	}
 	got := run(t, e, "SELECT kept FROM conflict_rows")

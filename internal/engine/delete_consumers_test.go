@@ -70,14 +70,14 @@ func TestDeleteCoreConsumers(t *testing.T) {
 		sessionSQL(t, s, "CREATE TABLE t(a INT,b TEXT,c BOOL)")
 		sessionSQL(t, s, "INSERT INTO t VALUES(NULL,'gone',TRUE),(7,'keep',FALSE)")
 		ref := catalogRef(t, e, e.CatalogRead(), "t")
-		old := e.storage[ref.Address]
+		old := e.storage.relations[ref.Address]
 		retained := sessionSQL(t, s, "SELECT * FROM t")
 		defer retained.Rows.Close()
 		deleteCount(t, s, "DELETE FROM t WHERE b='gone'", 1)
 		ends := old.ends
 		sessionSQL(t, s, "ALTER TABLE t ALTER a SET NOT NULL")
 		sessionSQL(t, s, "ALTER TABLE t DROP COLUMN b")
-		current := e.storage[ref.Address]
+		current := e.storage.relations[ref.Address]
 		if current == old || current.ends != ends || len(current.versions) != 2 || len(old.versions[0].values) != 3 {
 			t.Fatal("shape lost history/end authority")
 		}
@@ -111,7 +111,7 @@ func TestDeleteCoreConsumers(t *testing.T) {
 			t.Fatal("zero-width live Restore", err)
 		}
 		deleteCount(t, s, "DELETE FROM t", 1)
-		if len(ends.rows) != 1 || e.storage[ref.Address].ends == ends || len(e.storage[ref.Address].ends.rows) != 2 {
+		if len(ends.rows) != 1 || e.storage.relations[ref.Address].ends == ends || len(e.storage.relations[ref.Address].ends.rows) != 2 {
 			t.Fatal("committed deletion root mutated/reused")
 		}
 		deleteCount(t, s, "DELETE FROM t", 0)
@@ -173,12 +173,12 @@ func TestDeleteCoreCatalogReplacement(t *testing.T) {
 	retained := run(t, source, "SELECT v FROM t ORDER BY v")
 	run(t, source, "DELETE FROM t WHERE v=1")
 	ref := catalogRef(t, source, source.CatalogRead(), "t")
-	oldStore := source.storage[ref.Address]
+	oldStore := source.storage.relations[ref.Address]
 	oldLive := oldStore.versions[2]
 	if _, err := source.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	self := source.storage[ref.Address]
+	self := source.storage.relations[ref.Address]
 	if self == oldStore || len(self.versions) != 1 || self.ends != nil || self.versions[0].row == oldLive.row || self.versions[0].version == oldLive.version || self.versions[0].born != source.commitSeq {
 		t.Fatal("self replacement did not detach/remint live heads")
 	}
@@ -192,7 +192,7 @@ func TestDeleteCoreCatalogReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	imported := catalogRef(t, target, target.CatalogRead(), "t")
-	store := target.storage[imported.Address]
+	store := target.storage.relations[imported.Address]
 	if len(store.versions) != 1 || store.ends != nil || store.versions[0].row == 0 || store.versions[0].version == 0 || store.versions[0].born != target.commitSeq {
 		t.Fatal("foreign replacement imported history", store)
 	}
@@ -232,7 +232,7 @@ func TestDeleteCoreFailedReplacement(t *testing.T) {
 	sessionSQL(t, a, "INSERT INTO t VALUES(7)")
 	deleteCount(t, a, "DELETE FROM t WHERE v=2", 1)
 	target := catalogRef(t, e, e.CatalogRead(), "t")
-	epoch, frontier, ends := e.CatalogRead().Epoch(), e.commitSeq, e.storage[target.Address].ends
+	epoch, frontier, ends := e.CatalogRead().Epoch(), e.commitSeq, e.storage.relations[target.Address].ends
 	own := a.transactions.deletes[target.Address]
 	sentinel := errors.New("late replacement reader")
 	if err := e.Restore(context.Background(), &deleteFailingReader{text: "CREATE TABLE fresh(v INT); INSERT INTO fresh VALUES(99);", err: sentinel}); !errors.Is(err, sentinel) {
@@ -251,7 +251,7 @@ func TestDeleteCoreFailedReplacement(t *testing.T) {
 	if err := e.Restore(ctx, strings.NewReader("CREATE TABLE fresh(v INT)")); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if e.CatalogRead().Epoch() != epoch || e.commitSeq != frontier || e.storage[target.Address].ends != ends || a.TransactionState() != TxActive || a.transactions.deletes[target.Address] != own {
+	if e.CatalogRead().Epoch() != epoch || e.commitSeq != frontier || e.storage.relations[target.Address].ends != ends || a.TransactionState() != TxActive || a.transactions.deletes[target.Address] != own {
 		t.Fatal("failed replacement changed committed/private authority")
 	}
 	transactionRows(t, a, "SELECT v FROM t ORDER BY v", 7)

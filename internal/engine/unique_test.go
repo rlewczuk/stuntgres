@@ -34,7 +34,7 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 			t.Fatal(result)
 		}
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "u"`, Detail: "Key (k)=(1) already exists.", Schema: "public", Table: "t", Constraint: "u"})
-		if e.indexRoots[index.Address()] != old {
+		if e.storage.indexRoots[index.Address()] != old {
 			t.Fatal("failed batch published root")
 		}
 		lockEmpty(t, e)
@@ -54,7 +54,7 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 	}
 	btreeWantKeys(t, e, "u", "1", "NULL", "NULL")
 	run(t, e, "ALTER TABLE t DROP CONSTRAINT u")
-	if len(e.indexRoots) != 0 {
+	if len(e.storage.indexRoots) != 0 {
 		t.Fatal("orphan backing root")
 	}
 	run(t, e, "INSERT INTO t VALUES(1,'duplicate allowed')")

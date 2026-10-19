@@ -679,7 +679,7 @@ retry:
 			versions[i].indexAdmission = admission
 		}
 	} else {
-		versions, err = e.allocateRowVersionsLocked(rows, admission)
+		versions, err = e.storage.allocateRowVersionsLocked(rows, admission)
 	}
 	if err != nil {
 		return err
@@ -995,25 +995,6 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 		}
 	}
 	return s.op.session.Engine().executeStatement(s, stmt, count, importFrame)
-}
-
-// Both ordinary writes and initial catalog data reserve globally nonreused
-// identities. Engine.mu protects both checked counters; failed work may leave gaps.
-func (e *Engine) allocateRowVersionsLocked(rows [][]sqltype.Value, admission *catalog.State) ([]rowVersion, error) {
-	n := uint64(len(rows))
-	if n > ^uint64(0)-e.nextRow {
-		return nil, errors.New("stuntgres: row identity exhausted")
-	}
-	if n > ^uint64(0)-e.nextVersion {
-		return nil, errors.New("stuntgres: version identity exhausted")
-	}
-	versions := make([]rowVersion, len(rows))
-	for i, row := range rows {
-		e.nextRow++
-		e.nextVersion++
-		versions[i] = rowVersion{row: ids.RowID(e.nextRow), version: ids.VersionID(e.nextVersion), values: row, indexAdmission: admission}
-	}
-	return versions, nil
 }
 
 // Prepare only vector headers/capacity. Tail writes follow the final preflight.

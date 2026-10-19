@@ -22,7 +22,7 @@ func TestExclusionReplacement(t *testing.T) {
 			before := source.CatalogRead()
 			original := before.MustRelation(roleTableRef(t, source, "portable.t").Address)
 			constraint := original.ExclusionConstraints[0]
-			sourceRoot := source.indexRoots[constraint.Index]
+			sourceRoot := source.storage.indexRoots[constraint.Index]
 			target := New()
 			b := sessionStart(t, target, nil)
 			if self {
@@ -32,14 +32,14 @@ func TestExclusionReplacement(t *testing.T) {
 			sequenceScalar(t, b, "SELECT nextval('kept')", 1)
 			_, description := sequencePreparedDescription(t, target, b, "SELECT nextval('kept')")
 			tempRef := description.sequences.constants[0].ref
-			temp, generator, memory := target.catalog.state.Get(tempRef.Address), target.sequences[tempRef.Address], b.sequences[tempRef.Address]
+			temp, generator, memory := target.catalog.state.Get(tempRef.Address), target.storage.sequences[tempRef.Address], b.sequences[tempRef.Address]
 			if !self && tempRef.Address.ObjectID != original.Address().ObjectID {
 				t.Fatal("fixture must collide with a real retained TEMP address")
 			}
 			if _, err := target.ReplaceCatalog(ctx, source, before); err != nil {
 				t.Fatal(err)
 			}
-			if target.catalog.state.Get(tempRef.Address) != temp || target.sequences[tempRef.Address] != generator || b.sequences[tempRef.Address] != memory {
+			if target.catalog.state.Get(tempRef.Address) != temp || target.storage.sequences[tempRef.Address] != generator || b.sequences[tempRef.Address] != memory {
 				t.Fatal("replacement changed retained TEMP identity")
 			}
 			parent := target.catalog.state.MustRelation(roleTableRef(t, target, "portable.t").Address)

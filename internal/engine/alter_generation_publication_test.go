@@ -32,10 +32,10 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 				e, admin, _, ref := generatedAuthorizationFixture(t)
 				alterGenerationPopulate(t, e, admin)
 				old := e.catalog.state.MustRelation(ref.Address)
-				store := e.storage[ref.Address]
+				store := e.storage.relations[ref.Address]
 				snapshot := e.catalog.state
 				ends, generation := store.ends, store.generation
-				rowID, versionID, frontier := e.nextRow, e.nextVersion, e.commitSeq
+				rowID, versionID, frontier := e.storage.nextRow, e.storage.nextVersion, e.commitSeq
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				op, cleanup, err := testOperation(e, ctx)
@@ -56,7 +56,7 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 				candidate := scope.catalog.descriptors[ref.Address].(*catalog.Relation)
-				if candidate == old || candidate.Revision() != old.Revision()+1 || e.catalog.state != snapshot || e.storage[ref.Address] != store {
+				if candidate == old || candidate.Revision() != old.Revision()+1 || e.catalog.state != snapshot || e.storage.relations[ref.Address] != store {
 					t.Fatal("stage published before Finish")
 				}
 				shape := scope.catalog.storage[ref.Address]
@@ -88,7 +88,7 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 							t.Fatal("retained rows changed", n, err)
 						}
 					}
-					for i, row := range e.storage[ref.Address].versions {
+					for i, row := range e.storage.relations[ref.Address].versions {
 						n, err := row.values[1].Integer()
 						offset := 2
 						if !drop {
@@ -105,7 +105,7 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 				if err := scope.Finish(nil); !errors.Is(err, context.Canceled) {
 					t.Fatal("Finish cancellation veto", err)
 				}
-				if e.catalog.state != snapshot || e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != store || store.ends != ends || store.generation != generation || e.nextRow != rowID || e.nextVersion != versionID || e.commitSeq != frontier || scope.owner.catalog != nil {
+				if e.catalog.state != snapshot || e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != store || store.ends != ends || store.generation != generation || e.storage.nextRow != rowID || e.storage.nextVersion != versionID || e.commitSeq != frontier || scope.owner.catalog != nil {
 					t.Fatal("Finish veto changed installed roots/counters/owner")
 				}
 				lockEmpty(t, e)
@@ -120,9 +120,9 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 			e, admin, actor, ref := generatedAuthorizationFixture(t)
 			alterGenerationPopulate(t, e, admin)
 			old := e.catalog.state.MustRelation(ref.Address)
-			store := e.storage[ref.Address]
+			store := e.storage.relations[ref.Address]
 			retained := e.CatalogRead()
-			rowID, versionID, frontier := e.nextRow, e.nextVersion, e.commitSeq
+			rowID, versionID, frontier := e.storage.nextRow, e.storage.nextVersion, e.commitSeq
 			generation, ends := store.generation, store.ends
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -142,7 +142,7 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 				} else {
 					e.mu.Unlock()
 				}
-				if e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != store {
+				if e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != store {
 					t.Error("candidate leaked before provider validation")
 				}
 				switch kind {
@@ -203,7 +203,7 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 					t.Fatal(err)
 				}
 			} else {
-				if e.storage[ref.Address] != store || store.generation != generation || store.ends != ends || e.nextRow != rowID || e.nextVersion != versionID {
+				if e.storage.relations[ref.Address] != store || store.generation != generation || store.ends != ends || e.storage.nextRow != rowID || e.storage.nextVersion != versionID {
 					t.Fatal("provider veto changed storage/counters", err)
 				}
 				current := e.catalog.state.MustRelation(ref.Address)
@@ -252,9 +252,9 @@ func TestAlterGeneratedExpressionRevisionExhaustion(t *testing.T) {
 	if _, err := e.PublishCatalog(validated, PublicationToken{Epoch: ref.Epoch}); err != nil {
 		t.Fatal(err)
 	}
-	catalog, store, oid := e.catalog.state, e.storage[ref.Address], e.catalog.nextOID
+	catalog, store, oid := e.catalog.state, e.storage.relations[ref.Address], e.catalog.nextOID
 	_, err = e.Execute(admin, alterGenerationStatement(alterGenerationReplacement()), 0, nil)
-	if err == nil || err.Error() != "stuntgres: definition revision exhausted" || e.catalog.state != catalog || e.storage[ref.Address] != store || e.catalog.nextOID != oid {
+	if err == nil || err.Error() != "stuntgres: definition revision exhausted" || e.catalog.state != catalog || e.storage.relations[ref.Address] != store || e.catalog.nextOID != oid {
 		t.Fatal("revision overflow changed state", err)
 	}
 	lockEmpty(t, e)

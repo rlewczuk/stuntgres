@@ -76,10 +76,10 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 	ownershipUnitPublish(t, e, setup)
 	base = e.CatalogRead()
 	oldTable := base.MustRelation(table.Address())
-	store := e.storage[table.Address()]
+	store := e.storage.relations[table.Address()]
 	rows := store.versions
 	generators := make(map[ids.ObjectAddress]*sequenceGenerator)
-	for a, g := range e.sequences {
+	for a, g := range e.storage.sequences {
 		generators[a] = g
 	}
 	stage := e.BeginCatalogStage(base)
@@ -128,11 +128,11 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 	if moved.Owner != target || moved.Attributes[1] != oldTable.Attributes[1] || moved.ACL.Entries[0].Grantor != target || moved.ColumnACL[moved.Attributes[1]].Entries[0].Grantor != target {
 		t.Fatal("table/column ACL or stable attribute", moved)
 	}
-	if e.storage[table.Address()] != store || len(store.versions) != len(rows) || &store.versions[0] != &rows[0] || oldTable.Owner != owner || oldTable.ACL.Entries[0].Grantor != owner {
+	if e.storage.relations[table.Address()] != store || len(store.versions) != len(rows) || &store.versions[0] != &rows[0] || oldTable.Owner != owner || oldTable.ACL.Entries[0].Grantor != owner {
 		t.Fatal("retained data/descriptor changed")
 	}
 	for a, g := range generators {
-		if e.sequences[a] != g {
+		if e.storage.sequences[a] != g {
 			t.Fatal("ownership replaced sequence generator", a)
 		}
 	}

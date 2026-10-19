@@ -302,6 +302,6 @@ func (e *Engine) materializedSourceFenceCurrent(f materializedSourceFence) bool 
 		return false
 	}
 	current, _ := e.catalog.state.Relation(f.ref.Address)
-	store := e.storage[f.ref.Address]
+	store := e.storage.relations[f.ref.Address]
 	return current == f.relation && store == f.storage || sameMaterializedLineage(f.relation, current, f.storage, store)
 }

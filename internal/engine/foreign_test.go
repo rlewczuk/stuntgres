@@ -73,7 +73,7 @@ func TestFDWCatalogOverlay(t *testing.T) {
 	if _, ok := e.stageRead(stage).Descriptor(wrapper.Address()); !ok {
 		t.Fatal("stage overlay lost descriptor")
 	}
-	beforeStorage := len(e.storage)
+	beforeStorage := len(e.storage.relations)
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
@@ -81,7 +81,7 @@ func TestFDWCatalogOverlay(t *testing.T) {
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	if len(e.storage) != beforeStorage {
+	if len(e.storage.relations) != beforeStorage {
 		t.Fatal("SQL/MED metadata allocated physical storage")
 	}
 	if got := descriptorReferences(mapping); !slices.Equal(got, []authorization.PrincipalRef{owner}) {

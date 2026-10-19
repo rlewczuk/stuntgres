@@ -15,8 +15,8 @@ func btreeRoot(t *testing.T, e *Engine, name string) (*catalog.Relation, *logica
 	t.Helper()
 	ref := roleTableRef(t, e, name)
 	index := e.catalog.state.MustRelation(ref.Address)
-	root := e.indexRoots[ref.Address]
-	if index.RelationKind != catalog.IndexRelation || index.SQLIndex == nil || root == nil || e.storage[ref.Address] != nil {
+	root := e.storage.indexRoots[ref.Address]
+	if index.RelationKind != catalog.IndexRelation || index.SQLIndex == nil || root == nil || e.storage.relations[ref.Address] != nil {
 		t.Fatal("not a substantive index", index, root)
 	}
 	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
@@ -137,7 +137,7 @@ func TestBtreeIndexLifecycleAndReplacement(t *testing.T) {
 	if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: index.Namespace(), Name: "si"})) != 0 {
 		t.Fatal("indexed column left orphan")
 	}
-	old := e.indexRoots[index.Address()]
+	old := e.storage.indexRoots[index.Address()]
 	if _, err := e.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
@@ -146,8 +146,8 @@ func TestBtreeIndexLifecycleAndReplacement(t *testing.T) {
 		t.Fatal("replacement retained source identities")
 	}
 	run(t, e, "DROP TABLE moved.renamed RESTRICT")
-	if len(e.indexRoots) != 0 {
-		t.Fatal("orphan roots", e.indexRoots)
+	if len(e.storage.indexRoots) != 0 {
+		t.Fatal("orphan roots", e.storage.indexRoots)
 	}
 	run(t, e, "CREATE TABLE moved.ni(n INT)")
 }
@@ -236,8 +236,8 @@ func TestBtreeIndexSchemaDropClosure(t *testing.T) {
 		t.Fatal("failed RESTRICT changed root")
 	}
 	run(t, e, "DROP SCHEMA scoped CASCADE")
-	if len(e.indexRoots) != 0 {
-		t.Fatal("schema drop left roots", e.indexRoots)
+	if len(e.storage.indexRoots) != 0 {
+		t.Fatal("schema drop left roots", e.storage.indexRoots)
 	}
 	for _, q := range []string{"CREATE SCHEMA scoped", "CREATE TABLE scoped.t(n INT)", "CREATE INDEX idx ON scoped.t(n)"} {
 		run(t, e, q)

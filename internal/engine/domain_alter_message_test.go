@@ -47,8 +47,8 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 			table := catalogRef(t, e, view, "stored")
 			domain := domainUnitType(t, view, "d")
 			sequence := catalogRef(t, e, view, "calls")
-			if e.sequences[sequence.Address].last != 2 || domain.DomainChecks[0].NotValid || e.catalog.state != entry {
-				t.Fatal("selected truth count or private publication", e.sequences[sequence.Address].last)
+			if e.storage.sequences[sequence.Address].last != 2 || domain.DomainChecks[0].NotValid || e.catalog.state != entry {
+				t.Fatal("selected truth count or private publication", e.storage.sequences[sequence.Address].last)
 			}
 			if kind == "private_create" && (changes.originals[domain.Address()] != nil || changes.storage[table.Address].original != nil) {
 				t.Fatal("private creation lacks honest committed absence")
@@ -88,7 +88,7 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 				}
 				done()
 			case "root", "length", "generation", "ends":
-				store := *e.storage[table.Address]
+				store := *e.storage.relations[table.Address]
 				switch kind {
 				case "length":
 					store.versions = append(append([]rowVersion(nil), store.versions...), rowVersion{row: 200, version: 200})
@@ -97,10 +97,10 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 				case "ends":
 					store.ends = &deletionRoot{}
 				}
-				e.storage[table.Address] = &store
+				e.storage.relations[table.Address] = &store
 				fail = true
 			}
-			before, stores, roots, frontier := e.catalog.state, maps.Clone(e.storage), maps.Clone(e.indexRoots), e.commitSeq
+			before, stores, roots, frontier := e.catalog.state, maps.Clone(e.storage.relations), maps.Clone(e.storage.indexRoots), e.commitSeq
 			var err error
 			if kind == "cancel_before" || kind == "cancel_after" {
 				barrier := &batchPublicationContext{Context: message.op.ctx, e: e, s: s, entered: make(chan struct{}), release: make(chan struct{})}
@@ -149,7 +149,7 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 				err = message.end(nil)
 			}
 			if fail {
-				if err == nil || e.catalog.state != before || !maps.Equal(e.storage, stores) || !maps.Equal(e.indexRoots, roots) || e.commitSeq != frontier {
+				if err == nil || e.catalog.state != before || !maps.Equal(e.storage.relations, stores) || !maps.Equal(e.storage.indexRoots, roots) || e.commitSeq != frontier {
 					t.Fatal("message veto installed partial roots", err)
 				}
 				if kind == "cancel_before" && !errors.Is(err, context.Canceled) {
@@ -167,11 +167,11 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 				} else if len(current.DomainChecks) != 1 || current.DomainChecks[0].NotValid {
 					t.Fatal("message lost certified flag")
 				}
-				if len(e.storage[table.Address].versions) != 2 {
+				if len(e.storage.relations[table.Address].versions) != 2 {
 					t.Fatal("message did not publish old plus own rows")
 				}
 			}
-			if e.sequences[sequence.Address].last != expectedTruth {
+			if e.storage.sequences[sequence.Address].last != expectedTruth {
 				t.Fatal("outer publication replayed selected truth")
 			}
 		})
@@ -214,7 +214,7 @@ func domainAlterMessageIndexOutputs(t *testing.T) {
 			if executable && (!ok || !output.member || !output.matches(oldIndex)) {
 				t.Fatal("SQL producer lost executable key/predicate output")
 			}
-			if e.sequences[sequence].last != 2 {
+			if e.storage.sequences[sequence].last != 2 {
 				t.Fatal("setup CHECK event count")
 			}
 			step("ALTER DOMAIN public.d ADD CONSTRAINT never_replay CHECK(FALSE) NOT VALID")
@@ -233,17 +233,17 @@ func domainAlterMessageIndexOutputs(t *testing.T) {
 					t.Fatal("retained producer output mutated")
 				}
 			}
-			if e.sequences[sequence].last != 2 {
+			if e.storage.sequences[sequence].last != 2 {
 				t.Fatal("metadata truth replay")
 			}
 			if err := message.end(nil); err != nil {
 				t.Fatal("owner publication", err)
 			}
-			if e.sequences[sequence].last != 2 {
+			if e.storage.sequences[sequence].last != 2 {
 				t.Fatal("owner publication replayed CHECK truth")
 			}
 			transactionRows(t, s, "SELECT v::integer AS v FROM public.stored ORDER BY v", 1, 2)
-			root := e.indexRoots[index]
+			root := e.storage.indexRoots[index]
 			entries := len(root.entries)
 			if root.hash != nil {
 				entries = 0

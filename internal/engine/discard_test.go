@@ -298,7 +298,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 	if relation == nil {
 		t.Fatal("missing actual relation fixture")
 	}
-	storage := e.storage[relation.Address()]
+	storage := e.storage.relations[relation.Address()]
 	sessionSQL(t, s, "BEGIN")
 	sessionSQL(t, s, "CREATE TEMP TABLE discard_private(v int)")
 	private := e.privateCatalogLocked(s.transactions.catalog)
@@ -318,7 +318,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 	if scope.completed || scope.sessionCompleted || scope.catalog == nil || !scope.projectedRoots {
 		t.Fatal("TEMP bypasses private publication")
 	}
-	if scope.catalog.originals[relation.Address()] != relation || scope.catalog.descriptors[relation.Address()] != nil || e.storage[relation.Address()] != storage {
+	if scope.catalog.originals[relation.Address()] != relation || scope.catalog.descriptors[relation.Address()] != nil || e.storage.relations[relation.Address()] != storage {
 		t.Fatal("TEMP uses live undo instead of catalog original fence")
 	}
 	if original, present := scope.catalog.originals[privateAddress]; !present || original != nil {
@@ -333,7 +333,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 		t.Fatal("private deletion leaked to shared catalog or retired namespace")
 	}
 	sessionSQL(t, s, "ROLLBACK")
-	if e.catalog.state.Get(relation.Address()) != relation || e.storage[relation.Address()] != storage || s.transactions.catalog != nil {
+	if e.catalog.state.Get(relation.Address()) != relation || e.storage.relations[relation.Address()] != storage || s.transactions.catalog != nil {
 		t.Fatal("rollback failed to release private deletion")
 	}
 	t.Run("CollationDependentProjection", func(t *testing.T) {
@@ -352,10 +352,10 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 		if survivor == nil {
 			t.Fatal("missing durable dependent fixture")
 		}
-		durableRows := e.storage[survivor.Address()].versions
+		durableRows := e.storage.relations[survivor.Address()].versions
 		discardUnitApply(t, s, parser.DiscardTemp)
 		next := e.catalog.state.MustRelation(survivor.Address())
-		if next == survivor || len(next.Columns) != 1 || len(e.storage[survivor.Address()].versions[0].values) != 1 || len(durableRows[0].values) != 2 {
+		if next == survivor || len(next.Columns) != 1 || len(e.storage.relations[survivor.Address()].versions[0].values) != 1 || len(durableRows[0].values) != 2 {
 			t.Fatal("CASCADE failed provider-owned durable projection or mutated old rows")
 		}
 		if e.catalog.state.Get(namespace) == nil || s.temporaryNamespace != namespace {
@@ -396,7 +396,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 				if survivor == nil || provider == nil || index == nil {
 					t.Fatal("missing real dependent closure fixture")
 				}
-				namespace, storage := s.temporaryNamespace, e.storage[survivor.Address()]
+				namespace, storage := s.temporaryNamespace, e.storage.relations[survivor.Address()]
 				sessionSQL(t, s, "BEGIN")
 				if boundary == "savepoint" {
 					sessionSQL(t, s, "SAVEPOINT original")
@@ -420,7 +420,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 				op.Done()
 				private := e.privateCatalogLocked(s.transactions.catalog)
 				projected := private.MustRelation(survivor.Address())
-				if projected == survivor || len(projected.Columns) != 1 || private.Get(providerAddress) != nil || private.Get(indexAddress) != nil || e.catalog.state.Get(survivor.Address()) != survivor || e.storage[survivor.Address()] != storage || len(storage.versions[0].values) != 2 {
+				if projected == survivor || len(projected.Columns) != 1 || private.Get(providerAddress) != nil || private.Get(indexAddress) != nil || e.catalog.state.Get(survivor.Address()) != survivor || e.storage.relations[survivor.Address()] != storage || len(storage.versions[0].values) != 2 {
 					t.Fatal("private projection leaked into committed descriptor/data or missed closure")
 				}
 				switch boundary {
@@ -433,10 +433,10 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 					sessionSQL(t, s, "COMMIT")
 				}
 				if boundary == "commit" {
-					if len(e.catalog.state.MustRelation(survivor.Address()).Columns) != 1 || len(e.storage[survivor.Address()].versions[0].values) != 1 || e.catalog.state.Get(providerAddress) != nil || e.catalog.state.Get(indexAddress) != nil {
+					if len(e.catalog.state.MustRelation(survivor.Address()).Columns) != 1 || len(e.storage.relations[survivor.Address()].versions[0].values) != 1 || e.catalog.state.Get(providerAddress) != nil || e.catalog.state.Get(indexAddress) != nil {
 						t.Fatal("commit lost projected durable consumer or retained provider/index")
 					}
-				} else if e.catalog.state.Get(survivor.Address()) != survivor || e.catalog.state.Get(providerAddress) != provider || e.catalog.state.Get(indexAddress) != index || e.storage[survivor.Address()] != storage || len(storage.versions[0].values) != 2 {
+				} else if e.catalog.state.Get(survivor.Address()) != survivor || e.catalog.state.Get(providerAddress) != provider || e.catalog.state.Get(indexAddress) != index || e.storage.relations[survivor.Address()] != storage || len(storage.versions[0].values) != 2 {
 					t.Fatal("rollback did not restore exact durable descriptor/data/provider/index")
 				}
 				if s.temporaryNamespace != namespace || e.catalog.state.Get(namespace) == nil {

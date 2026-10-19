@@ -166,7 +166,7 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 					sessionSQL(t, observer, "CREATE TABLE t(k INT UNIQUE,v INT)")
 					sessionSQL(t, observer, "INSERT INTO t VALUES(1,10)")
 					ref := catalogRef(t, e, e.CatalogRead(), "t")
-					original := e.storage[ref.Address].versions[0]
+					original := e.storage.relations[ref.Address].versions[0]
 					workerTx := transactionBegin(t, worker)
 					sessionSQL(t, worker, "SET TRANSACTION ISOLATION LEVEL "+level)
 					transactionRows(t, worker, "SELECT v FROM t", 10)
@@ -218,7 +218,7 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 					sessionSQL(t, observer, "CREATE TABLE t(k INT UNIQUE,v INT)")
 					sessionSQL(t, observer, "INSERT INTO t VALUES(1,10)")
 					ref := catalogRef(t, e, e.CatalogRead(), "t")
-					original := e.storage[ref.Address].versions[0]
+					original := e.storage.relations[ref.Address].versions[0]
 					workerTx := transactionBegin(t, worker)
 					sessionSQL(t, worker, "SET TRANSACTION ISOLATION LEVEL "+level)
 					transactionRows(t, worker, "SELECT v FROM t", 10)
@@ -314,7 +314,7 @@ func TestInsertConflictUpdateLockOrdering(t *testing.T) {
 			sessionSQL(t, observer, "CREATE TABLE t(k INT UNIQUE,v INT)")
 			sessionSQL(t, observer, "INSERT INTO t VALUES(1,10)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			id := e.storage[ref.Address].versions[0].row
+			id := e.storage.relations[ref.Address].versions[0].row
 			workerTx := transactionBegin(t, worker)
 			sessionSQL(t, worker, "INSERT INTO t VALUES(4,40)")
 			baseline := e.locks.CheckpointUnique(worker.transactions.ticket, nil)
@@ -386,7 +386,7 @@ func TestInsertConflictUpdateAuthorizationAfterWait(t *testing.T) {
 			sessionSQL(t, admin, "GRANT INSERT,UPDATE,SELECT ON t TO upsert_waiter")
 			sessionSQL(t, worker, "SET ROLE upsert_waiter")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			id := e.storage[ref.Address].versions[1].row
+			id := e.storage.relations[ref.Address].versions[1].row
 			holderTx := transactionBegin(t, holder)
 			transactionRows(t, holder, "SELECT v FROM t WHERE k=3 FOR UPDATE", 30)
 			running := conflictUpdateStartWorker(t, e, worker, "INSERT INTO t VALUES(2,20),(1,11),(3,31) ON CONFLICT(k) DO UPDATE SET v=excluded.v")

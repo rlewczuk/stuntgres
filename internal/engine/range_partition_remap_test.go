@@ -61,7 +61,7 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 		}
 	}
 	tempDemand(1)
-	tempGenerator, tempMemory := e.sequences[tempAddress], op.session.sequences[tempAddress]
+	tempGenerator, tempMemory := e.storage.sequences[tempAddress], op.session.sequences[tempAddress]
 	roleExecute(t, e, op, "CREATE TEMP TABLE retained_table(k INT,payload INT DEFAULT nextval('retained_temp'),g INT GENERATED ALWAYS AS(payload+1) STORED,CONSTRAINT retained_positive CHECK(payload>0))")
 	roleExecute(t, e, op, "CREATE UNIQUE INDEX retained_table_key ON retained_table(k) WHERE payload>0")
 	roleExecute(t, e, op, "CREATE INDEX retained_table_expression ON retained_table((k+0)) WHERE payload>0")
@@ -70,9 +70,9 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 	tempTableAddress := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: tempNamespace, Name: "retained_table"})
 	tempIndexAddress := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: tempNamespace, Name: "retained_table_key"})
 	tempTableDescriptor, tempIndexDescriptor := e.catalog.state.Get(tempTableAddress), e.catalog.state.Get(tempIndexAddress)
-	tempTableStore, tempIndexRoot := e.storage[tempTableAddress], e.indexRoots[tempIndexAddress]
+	tempTableStore, tempIndexRoot := e.storage.relations[tempTableAddress], e.storage.indexRoots[tempIndexAddress]
 	tempExpressionAddress := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: tempNamespace, Name: "retained_table_expression"})
-	tempExpressionDescriptor, tempExpressionRoot := e.catalog.state.Get(tempExpressionAddress), e.indexRoots[tempExpressionAddress]
+	tempExpressionDescriptor, tempExpressionRoot := e.catalog.state.Get(tempExpressionAddress), e.storage.indexRoots[tempExpressionAddress]
 	tempVersions := slices.Clone(tempTableStore.versions)
 	tempTableCursor := roleExecute(t, e, op, "SELECT k,payload FROM retained_table")
 	retained := e.CatalogRead()
@@ -96,14 +96,14 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 	if err != nil || !changes.Replacement || e.CatalogRead().Epoch() != retained.Epoch()+1 {
 		t.Fatal(changes, err)
 	}
-	if op.session.token != tempToken || op.session.temporaryNamespace != tempNamespace || e.catalog.state.Get(tempAddress) != tempDescriptor || e.catalog.state.Get(tempNamespace) != tempNamespaceDescriptor || e.sequences[tempAddress] != tempGenerator || op.session.sequences[tempAddress] != tempMemory || *tempGenerator != tempGeneratorState || *tempMemory != tempMemoryState {
+	if op.session.token != tempToken || op.session.temporaryNamespace != tempNamespace || e.catalog.state.Get(tempAddress) != tempDescriptor || e.catalog.state.Get(tempNamespace) != tempNamespaceDescriptor || e.storage.sequences[tempAddress] != tempGenerator || op.session.sequences[tempAddress] != tempMemory || *tempGenerator != tempGeneratorState || *tempMemory != tempMemoryState {
 		t.Fatal("hierarchy self remap changed exact live TEMP identity/cache")
 	}
 	tempDemand(3)
-	if e.catalog.state.Get(tempTableAddress) != tempTableDescriptor || e.catalog.state.Get(tempIndexAddress) != tempIndexDescriptor || e.storage[tempTableAddress] != tempTableStore || e.indexRoots[tempIndexAddress] != tempIndexRoot || !reflect.DeepEqual(tempTableStore.versions, tempVersions) {
+	if e.catalog.state.Get(tempTableAddress) != tempTableDescriptor || e.catalog.state.Get(tempIndexAddress) != tempIndexDescriptor || e.storage.relations[tempTableAddress] != tempTableStore || e.storage.indexRoots[tempIndexAddress] != tempIndexRoot || !reflect.DeepEqual(tempTableStore.versions, tempVersions) {
 		t.Fatal("hierarchy replacement reminted retained TEMP table definitions/storage/index")
 	}
-	if e.catalog.state.Get(tempExpressionAddress) != tempExpressionDescriptor || e.indexRoots[tempExpressionAddress] != tempExpressionRoot {
+	if e.catalog.state.Get(tempExpressionAddress) != tempExpressionDescriptor || e.storage.indexRoots[tempExpressionAddress] != tempExpressionRoot {
 		t.Fatal("hierarchy replacement reminted retained TEMP expression/predicate index")
 	}
 	if !reflect.DeepEqual(tuples(tempTableCursor), [][]driver.Value{{int64(1), int64(2)}}) {

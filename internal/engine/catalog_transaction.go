@@ -199,7 +199,7 @@ func (e *Engine) sequenceGeneratorLocked(s *StatementScope, a ids.ObjectAddress)
 			return g
 		}
 	}
-	return e.sequences[a]
+	return e.storage.sequences[a]
 }
 func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, epoch ids.CatalogEpoch) (*catalog.State, error) {
 	e.mu.Lock()
@@ -277,7 +277,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 		return err
 	}
 	for a, shape := range c.storage {
-		store := e.storage[a]
+		store := e.storage.relations[a]
 		if store != shape.original || store != nil && (store.generation != shape.generation || len(store.versions) != len(shape.root) || store.ends != shape.ends || !sameVersionRoot(store.versions, shape.root)) {
 			return catalog.Conflict{}
 		}

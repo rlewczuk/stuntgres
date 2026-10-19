@@ -98,7 +98,7 @@ func TestAlterDefaultProviderDropFences(t *testing.T) {
 			run(t, e, "INSERT INTO t DEFAULT VALUES")
 			ref := roleTableRef(t, e, "t")
 			old := e.catalog.state.MustRelation(ref.Address)
-			storage := e.storage[ref.Address]
+			storage := e.storage.relations[ref.Address]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			provider := e.catalog.Providers[ids.RelationClassID]
@@ -142,7 +142,7 @@ func TestAlterDefaultProviderDropFences(t *testing.T) {
 				t.Fatal("stale DROP published")
 			}
 			current := e.catalog.state.MustRelation(ref.Address)
-			if current.Defaults[current.Attributes[0]].Expression != old.Defaults[old.Attributes[0]].Expression || e.storage[ref.Address] != storage {
+			if current.Defaults[current.Attributes[0]].Expression != old.Defaults[old.Attributes[0]].Expression || e.storage.relations[ref.Address] != storage {
 				t.Fatal("failed DROP removed definition")
 			}
 			lockEmpty(t, e)

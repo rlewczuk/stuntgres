@@ -62,8 +62,8 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 	oldRelation := oldCatalog.MustRelation(ref.Address)
 	value, _ := mood.SQLType.Input(context.Background(), "q", -1)
 	oldStore := &relationStorage{versions: []rowVersion{{row: 7, version: 11, born: 3, keyChangedAt: 2, values: []sqltype.Value{value}}}, generation: 4}
-	e.storage[ref.Address] = oldStore
-	otherStore := e.storage[other.Address]
+	e.storage.relations[ref.Address] = oldStore
+	otherStore := e.storage.relations[other.Address]
 	members := mood.SQLType.EnumMembers()
 	members[1].Label = "end"
 	members = append(members, sqltype.EnumMember{ID: 100000, Label: "last", SortOrder: 3})
@@ -91,7 +91,7 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 	if oldID != newID || row.row != 7 || row.version != 11 || row.born != 3 || row.keyChangedAt != 2 || !reflect.DeepEqual(oldRelation.Attributes, stage.Descriptors[ref.Address].(*catalog.Relation).Attributes) {
 		t.Fatal("row/column/member identity rewritten")
 	}
-	if stage.rowShapes[other.Address].replacement != nil || e.storage[other.Address] != otherStore {
+	if stage.rowShapes[other.Address].replacement != nil || e.storage.relations[other.Address] != otherStore {
 		t.Fatal("unaffected store copied")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -100,7 +100,7 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); !errors.Is(err, context.Canceled) || e.catalog.state != oldCatalog || e.storage[ref.Address] != oldStore {
+	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); !errors.Is(err, context.Canceled) || e.catalog.state != oldCatalog || e.storage.relations[ref.Address] != oldStore {
 		t.Fatal("canceled partial generation publication", err)
 	}
 	if text, err := mood.SQLType.Output(context.Background(), oldStore.versions[0].values[0]); err != nil || text != "q" {

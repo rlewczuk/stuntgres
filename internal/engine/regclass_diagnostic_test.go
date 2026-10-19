@@ -93,7 +93,7 @@ func TestRegclassDiagnosticSnapshotACL(t *testing.T) {
 					err = e.rowConstraintError(scope, bound, "public", "", "rr_diag_bound", row)
 					nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23514", Message: `new row for relation "rr_diag" violates check constraint "rr_diag_bound"`, Detail: detail, Schema: "public", Table: "rr_diag", Constraint: "rr_diag_bound"})
 				}
-				if len(e.storage[ref.Address].versions) != 0 {
+				if len(e.storage.relations[ref.Address].versions) != 0 {
 					t.Fatal("formatter changed stored rows")
 				}
 				if got := scope.Finish(err); got != err {

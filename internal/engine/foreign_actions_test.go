@@ -257,7 +257,7 @@ func TestForeignActionsDefaults(t *testing.T) {
 			}
 			defaultProbe(t, e, probe)
 			ref := catalogRef(t, e, e.CatalogRead(), "d")
-			before := e.storage[ref.Address]
+			before := e.storage.relations[ref.Address]
 			versions := slices.Clone(before.versions)
 			scope := foreignActionUnitScope(t, e, s, "DELETE FROM p WHERE id=10")
 			err := scope.settleForeignActions()
@@ -284,7 +284,7 @@ func TestForeignActionsDefaults(t *testing.T) {
 					}
 				}
 			}
-			if e.storage[ref.Address] != before || !reflect.DeepEqual(before.versions, versions) {
+			if e.storage.relations[ref.Address] != before || !reflect.DeepEqual(before.versions, versions) {
 				t.Fatal("private action changed committed storage")
 			}
 		})

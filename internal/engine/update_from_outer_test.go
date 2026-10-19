@@ -94,7 +94,7 @@ func TestUpdateFromQueuedFrozenOuterAbsence(t *testing.T) {
 				expected = &description
 			}
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			original := e.storage[ref.Address].versions[0]
+			original := e.storage.relations[ref.Address].versions[0]
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "UPDATE t SET v=21 WHERE id=2")
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -162,7 +162,7 @@ func TestUpdateFromQueuedFrozenOuterAbsence(t *testing.T) {
 			if got.scope == nil || len(got.scope.querySources) != 0 {
 				t.Fatal("outer source admission leaked")
 			}
-			store := e.storage[ref.Address]
+			store := e.storage.relations[ref.Address]
 			if len(store.versions) != 1 || store.versions[0].row != original.row || testExport(original.values[1]) != int64(20) {
 				t.Fatal("absent source replaced physical target identity or mutated capture", store.versions, original)
 			}

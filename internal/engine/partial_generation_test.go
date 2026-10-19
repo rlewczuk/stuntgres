@@ -21,7 +21,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 				t.Fatal("admitted partial index did not retain a membership mask")
 			}
 			oldCatalog := f.e.catalog.state
-			oldRoot := f.e.indexRoots[f.index.Address()]
+			oldRoot := f.e.storage.indexRoots[f.index.Address()]
 			oldRows := append([]rowVersion(nil), f.store.versions...)
 			oldPredicate := f.index.SQLIndex.Predicate
 			oldUsage := f.predicate.ResultUsage()
@@ -127,7 +127,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			}
 			partialWantMembership(t, root, map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5})
 			partialWantMembership(t, oldRoot, map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5})
-			if f.e.catalog.state != oldCatalog || oldCatalog.Get(f.parent.Address()) != f.parent || oldCatalog.Get(f.index.Address()) != f.index || f.e.indexRoots[f.index.Address()] != oldRoot || f.index.SQLIndex.Predicate != oldPredicate || predicate.Definition != beforeDefinition || predicate.Execution != beforeExecution || !reflect.DeepEqual(predicate.Dependencies, beforeDependencies) || !reflect.DeepEqual(f.store.versions, oldRows) {
+			if f.e.catalog.state != oldCatalog || oldCatalog.Get(f.parent.Address()) != f.parent || oldCatalog.Get(f.index.Address()) != f.index || f.e.storage.indexRoots[f.index.Address()] != oldRoot || f.index.SQLIndex.Predicate != oldPredicate || predicate.Definition != beforeDefinition || predicate.Execution != beforeExecution || !reflect.DeepEqual(predicate.Dependencies, beforeDependencies) || !reflect.DeepEqual(f.store.versions, oldRows) {
 				t.Fatal("type-only reownership mutated a retained catalog, predicate, row or root")
 			}
 			for i, row := range view.data.Load().committed[f.parent.Address()] {

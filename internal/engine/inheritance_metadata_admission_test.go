@@ -257,7 +257,7 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 					t.Fatal("fixture did not publish genuine additive growth/marker identity")
 				}
 				originals := inheritanceAlterOrder(grown, grown.MustRelation(command.scope.lockedRef.Address))
-				stores := maps.Clone(e.storage)
+				stores := maps.Clone(e.storage.relations)
 				rows := inheritanceAlterRowRoots(e)
 				for _, old := range originals {
 					if old.Columns[0].Name != "i" || len(old.NotNullConstraints) != 1 || old.NotNullConstraints[0].Name != "metadata_nn" {
@@ -293,7 +293,7 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 					}
 					current, _ := completed.Relation(old.Address())
 					inheritanceMetadataAssert(t, e, action.name, old, current)
-					if e.storage[old.Address()] != stores[old.Address()] {
+					if e.storage.relations[old.Address()] != stores[old.Address()] {
 						t.Fatal("completed metadata utility replaced physical storage", old.Name())
 					}
 				}
@@ -303,7 +303,7 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 				published := e.CatalogRead()
 				for _, old := range originals {
 					inheritanceMetadataAssert(t, e, action.name, old, published.MustRelation(old.Address()))
-					if e.storage[old.Address()] != stores[old.Address()] {
+					if e.storage.relations[old.Address()] != stores[old.Address()] {
 						t.Fatal("metadata-only publication replaced physical storage", old.Name())
 					}
 				}
@@ -350,7 +350,7 @@ func TestInheritanceMetadataAdmissionFences(t *testing.T) {
 						}
 					}
 					stable := e.CatalogRead()
-					stores, rows := maps.Clone(e.storage), inheritanceAlterRowRoots(e)
+					stores, rows := maps.Clone(e.storage.relations), inheritanceAlterRowRoots(e)
 					if fence == "cancellation" {
 						command.cancel()
 					} else {
@@ -371,7 +371,7 @@ func TestInheritanceMetadataAdmissionFences(t *testing.T) {
 					}
 					command.scope.Finish(err)
 					holder.Finish(nil)
-					if e.CatalogRead().State() != stable.State() || !reflect.DeepEqual(stores, e.storage) || !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) {
+					if e.CatalogRead().State() != stable.State() || !reflect.DeepEqual(stores, e.storage.relations) || !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) {
 						t.Fatal("failed metadata admission published any partial graph or row change")
 					}
 					lockEmpty(t, e)

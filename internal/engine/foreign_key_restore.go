@@ -165,12 +165,12 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 			if err != nil {
 				return err
 			}
-			childStore, parentStore := e.storage[child.Address()], e.storage[parent.Address()]
+			childStore, parentStore := e.storage.relations[child.Address()], e.storage.relations[parent.Address()]
 			if childStore == nil || parentStore == nil {
 				return ids.ErrCatalogReplaced
 			}
 			children := foreignKeyRows{storage: childStore, committed: childStore.versions, ends: childStore.ends, frontier: e.commitSeq}
-			parents := foreignKeyRows{storage: parentStore, committed: parentStore.versions, ends: parentStore.ends, frontier: e.commitSeq, index: f.Index, root: e.indexRoots[f.Index]}
+			parents := foreignKeyRows{storage: parentStore, committed: parentStore.versions, ends: parentStore.ends, frontier: e.commitSeq, index: f.Index, root: e.storage.indexRoots[f.Index]}
 			if err := validateForeignKeyData(ctx, auth, child, parent, f, comparisons, children, parents, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}); err != nil {
 				return err
 			}

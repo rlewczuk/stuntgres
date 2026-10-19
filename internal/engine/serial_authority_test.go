@@ -23,7 +23,7 @@ func TestSerialSequenceAuthority(t *testing.T) {
 	}
 	roleExecute(t, e, op, `SET SESSION AUTHORIZATION serial_writer`)
 	roleError(t, e, op, `INSERT INTO t DEFAULT VALUES`, "42501", "permission denied for sequence t_id_seq", "")
-	if e.sequences[sequence.Address].called {
+	if e.storage.sequences[sequence.Address].called {
 		t.Fatal("denied serial consumed")
 	}
 	roleExecute(t, e, op, `RESET SESSION AUTHORIZATION`)
@@ -53,7 +53,7 @@ func TestSerialAtomicDeclarationsAndNaming(t *testing.T) {
 	} {
 		before := e.catalog.state
 		roleError(t, e, op, tc.query, "42601", tc.message, "")
-		if e.catalog.state != before || len(e.sequences) != 0 {
+		if e.catalog.state != before || len(e.storage.sequences) != 0 {
 			t.Fatal("failed CREATE published serial objects")
 		}
 	}
@@ -61,10 +61,10 @@ func TestSerialAtomicDeclarationsAndNaming(t *testing.T) {
 	roleExecute(t, e, op, `CREATE TABLE bad_id_seq1(v INT)`)
 	roleExecute(t, e, op, `CREATE TABLE bad(id SERIAL)`)
 	roleExecute(t, e, op, `INSERT INTO bad DEFAULT VALUES`)
-	if e.sequences[roleTableRef(t, e, "bad_id_seq").Address].called {
+	if e.storage.sequences[roleTableRef(t, e, "bad_id_seq").Address].called {
 		t.Fatal("adopted preexisting sequence")
 	}
-	if !e.sequences[roleTableRef(t, e, "bad_id_seq2").Address].called {
+	if !e.storage.sequences[roleTableRef(t, e, "bad_id_seq2").Address].called {
 		t.Fatal("generated suffix sequence unused")
 	}
 	name := ownedSequenceName(strings.Repeat("界", 21), strings.Repeat("列", 21), func(string) bool { return false })

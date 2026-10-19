@@ -20,7 +20,7 @@ func TestUpdateCurrentOfIdentity(t *testing.T) {
 	ref := catalogRef(t, s.Engine(), s.Engine().CatalogRead(), "unit_rows")
 	identity := cursorOccurrenceVersion(source, index, 0, c.locks)
 	s.Engine().mu.Lock()
-	want := s.Engine().storage[ref.Address].versions[1].row
+	want := s.Engine().storage.relations[ref.Address].versions[1].row
 	s.Engine().mu.Unlock()
 	if identity.row != want {
 		t.Fatal("wrong original RowID", identity.row, want)

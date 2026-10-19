@@ -38,7 +38,7 @@ func TestUpdateReturningCurrentPredecessor(t *testing.T) {
 			await := updateDeleteAsync(t, e, worker, context.Background(), query)
 			lockPending(t, e, 1)
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			resource := lock.Resource{ObjectRef: ref, Row: e.storage[ref.Address].versions[0].row}
+			resource := lock.Resource{ObjectRef: ref, Row: e.storage.relations[ref.Address].versions[0].row}
 			lockState := e.locks.Inspect()
 			entry := lockState.Resources[resource]
 			actual := entry != nil && len(entry.Pending) == 1 && entry.Holders[holder.transactions.ticket].Mode&(lock.ForUpdate|lock.ForNoKeyUpdate) != 0
@@ -100,8 +100,8 @@ func TestUpdateReturningWaitCancellation(t *testing.T) {
 	lockPending(t, e, 1)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	lockState := e.locks.Inspect()
-	first := lock.Resource{ObjectRef: ref, Row: e.storage[ref.Address].versions[0].row}
-	second := lock.Resource{ObjectRef: ref, Row: e.storage[ref.Address].versions[1].row}
+	first := lock.Resource{ObjectRef: ref, Row: e.storage.relations[ref.Address].versions[0].row}
+	second := lock.Resource{ObjectRef: ref, Row: e.storage.relations[ref.Address].versions[1].row}
 	entry := lockState.Resources[second]
 	actual := entry != nil && len(entry.Pending) == 1 && lockState.Resources[first] != nil
 	if actual {

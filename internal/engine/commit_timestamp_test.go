@@ -157,12 +157,12 @@ func TestCommitTimePublication(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						versions, err := e.allocateRowVersionsLocked([][]sqltype.Value{{value}}, e.catalog.state)
+						versions, err := e.storage.allocateRowVersionsLocked([][]sqltype.Value{{value}}, e.catalog.state)
 						if err != nil {
 							t.Fatal(err)
 						}
 						writes = map[ids.ObjectAddress][]rowVersion{d.Address(): versions}
-						rowStore = e.storage[d.Address()]
+						rowStore = e.storage.relations[d.Address()]
 					}
 				}
 				barrier := &transactionBarrierContext{Context: ctx, entered: make(chan struct{}), release: make(chan struct{})}

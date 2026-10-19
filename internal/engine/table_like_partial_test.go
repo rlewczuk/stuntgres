@@ -29,7 +29,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 	sourcePredicate := ordinary.SQLIndex.Predicate
 	sourceAttributes := slices.Clone(sourcePredicate.Attributes)
 	sourceDependencies := slices.Clone(sourcePredicate.Dependencies)
-	sourceRoots := e.indexRoots
+	sourceRoots := e.storage.indexRoots
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	stage, destination, err := tableLikeBuild(t, e, op, "CREATE TABLE clone(lead TEXT,LIKE src INCLUDING ALL)")
@@ -136,12 +136,12 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, index := range copied {
-		root := e.indexRoots[index.Address()]
+		root := e.storage.indexRoots[index.Address()]
 		if root == nil || root.membership == nil || len(root.entries) != 0 || len(root.membership) != 0 {
 			t.Fatal("copy root not independently empty", root)
 		}
 		for address, old := range sourceRoots {
-			if root == old || e.indexRoots[address] != old {
+			if root == old || e.storage.indexRoots[address] != old {
 				t.Fatal("source root reused or changed", index.Name())
 			}
 		}
@@ -149,7 +149,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 	run(t, e, "INSERT INTO clone VALUES('x',1,10,TRUE,2),('x',2,20,FALSE,0),('x',3,30,NULL,0),('x',4,NULL,TRUE,2),('x',5,10,TRUE,2)")
 	assertMembership := func(count int) {
 		want := make(map[ids.RowID]ids.VersionID)
-		for _, row := range e.storage[destination.Address()].versions {
+		for _, row := range e.storage.relations[destination.Address()].versions {
 			truth, err := TruthOf(row.values[3])
 			if err != nil {
 				t.Fatal(err)
@@ -162,7 +162,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 			t.Fatal("unexpected current physical members", want, count)
 		}
 		for _, index := range copied {
-			partialWantMembership(t, e.indexRoots[index.Address()], want)
+			partialWantMembership(t, e.storage.indexRoots[index.Address()], want)
 		}
 	}
 	assertMembership(3)
@@ -205,7 +205,7 @@ func TestTableLikePartialUniqueClone(t *testing.T) {
 		}
 	}
 	queryCreatePublish(t, e, stage)
-	if e.indexRoots[copied.Address()] == nil || e.indexRoots[copied.Address()] == e.indexRoots[source.Address()] || e.indexRoots[copied.Address()].membership == nil {
+	if e.storage.indexRoots[copied.Address()] == nil || e.storage.indexRoots[copied.Address()] == e.storage.indexRoots[source.Address()] || e.storage.indexRoots[copied.Address()].membership == nil {
 		t.Fatal("partial unique root shared")
 	}
 }
@@ -249,7 +249,7 @@ func TestTableLikePartialConstants(t *testing.T) {
 			}
 			queryCreatePublish(t, e, stage)
 			run(t, e, "INSERT INTO clone VALUES('x',1,0),('x',2,0)")
-			root := e.indexRoots[copied.Address()]
+			root := e.storage.indexRoots[copied.Address()]
 			if truth == "TRUE" {
 				if root.membership != nil || len(root.entries) != 2 {
 					t.Fatal("TRUE did not include all rows", root)
@@ -339,7 +339,7 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 	if !current.HasIndexes || current.Revision() != source.Revision() || current == source {
 		t.Fatal("private normalization invariant", current)
 	}
-	if e.indexRoots[index.Address()] == nil {
+	if e.storage.indexRoots[index.Address()] == nil {
 		t.Fatal("private predicate index root absent")
 	}
 }

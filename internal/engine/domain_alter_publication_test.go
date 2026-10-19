@@ -41,7 +41,7 @@ func domainAlterPublicationFixture(t *testing.T) (*Engine, *Operation, func(), *
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.storage[table.Address()] = &relationStorage{generation: 1, versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{value}}}}
+	e.storage.relations[table.Address()] = &relationStorage{generation: 1, versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{value}}}}
 	e.commitSeq = 1
 	stage := e.BeginCatalogStage(view)
 	next := *d
@@ -82,7 +82,7 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 				state.SetDescriptor(d.Address(), &changed)
 				e.catalog.state = state
 			case "root", "length", "generation", "ends":
-				store := *e.storage[table.Address()]
+				store := *e.storage.relations[table.Address()]
 				switch kind {
 				case "length":
 					store.versions = append(slices.Clone(store.versions), rowVersion{row: 2, version: 2})
@@ -91,7 +91,7 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 				case "ends":
 					store.ends = &deletionRoot{}
 				}
-				e.storage[table.Address()] = &store
+				e.storage.relations[table.Address()] = &store
 			case "replacement":
 				state := catalog.CloneState(e.catalog.state)
 				state.SetEpoch(state.Epoch() + 1)
@@ -105,15 +105,15 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 				e.catalog.state = state
 			}
 			before := e.catalog.state
-			stores := maps.Clone(e.storage)
-			roots := maps.Clone(e.indexRoots)
+			stores := maps.Clone(e.storage.relations)
+			roots := maps.Clone(e.storage.indexRoots)
 			_, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if kind == "success" || kind == "unrelated" {
 				if err != nil || domainUnitType(t, e.CatalogRead(), "d").DomainChecks[0].NotValid {
 					t.Fatal("validity not atomically installed", err)
 				}
 			} else {
-				if err == nil || e.catalog.state != before || !maps.Equal(e.storage, stores) || !maps.Equal(e.indexRoots, roots) || !d.DomainChecks[0].NotValid {
+				if err == nil || e.catalog.state != before || !maps.Equal(e.storage.relations, stores) || !maps.Equal(e.storage.indexRoots, roots) || !d.DomainChecks[0].NotValid {
 					t.Fatal("veto published partial roots", err)
 				}
 			}
@@ -132,7 +132,7 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 				barrier.late = cancel
 			}
 			prepared.ctx = barrier
-			before, store := e.catalog.state, e.storage[table.Address()]
+			before, store := e.catalog.state, e.storage.relations[table.Address()]
 			finished := make(chan error, 1)
 			joined := false
 			defer func() {
@@ -174,7 +174,7 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 				t.Fatal("publication completion deadline")
 			}
 			if mode == "cancel_before" {
-				if !errors.Is(err, context.Canceled) || e.catalog.state != before || e.storage[table.Address()] != store || !d.DomainChecks[0].NotValid {
+				if !errors.Is(err, context.Canceled) || e.catalog.state != before || e.storage.relations[table.Address()] != store || !d.DomainChecks[0].NotValid {
 					t.Fatal("cancellation partially installed", err)
 				}
 			} else if err != nil || e.catalog.state == before || domainUnitType(t, e.CatalogRead(), "d").DomainChecks[0].NotValid || !d.DomainChecks[0].NotValid {

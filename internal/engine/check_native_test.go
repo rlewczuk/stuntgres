@@ -57,14 +57,14 @@ func TestCheckFailedRestorePreservesEpochAndStage(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO sentinel VALUES(7)")
 	before := e.CatalogRead()
 	ref := catalogRef(t, e, before, "sentinel")
-	storage := e.storage[ref.Address]
+	storage := e.storage.relations[ref.Address]
 	stage := e.BeginCatalogStage(before)
 	for _, script := range []string{"CREATE TABLE replacement(a INT CHECK(a))", "CREATE TABLE replacement(a INT CHECK(a=1));INSERT INTO replacement VALUES(2)"} {
 		if err := e.Restore(context.Background(), strings.NewReader(script)); err == nil {
 			t.Fatal("bad Restore succeeded")
 		}
 		after := e.CatalogRead()
-		if after.State() != before.State() || after.Epoch() != before.Epoch() || e.storage[ref.Address] != storage {
+		if after.State() != before.State() || after.Epoch() != before.Epoch() || e.storage.relations[ref.Address] != storage {
 			t.Fatal("failed Restore replaced destination")
 		}
 		if err := e.ValidateObjectRef(after, ref); err != nil {

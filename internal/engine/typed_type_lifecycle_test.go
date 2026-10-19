@@ -50,7 +50,7 @@ func TestTypedPublicationStorageGenerationConflict(t *testing.T) {
 	stage := typedRenameStage(t, e, source, table)
 	defer e.DiscardCatalogStage(stage)
 	e.mu.Lock()
-	store := e.storage[table.Address()]
+	store := e.storage.relations[table.Address()]
 	e.mu.Unlock()
 	if store == nil {
 		t.Fatal("unit fixture missing physical table")
@@ -63,12 +63,12 @@ func TestTypedPublicationStorageGenerationConflict(t *testing.T) {
 	e.mu.Lock()
 	concurrent := *store
 	concurrent.generation++
-	e.storage[table.Address()] = &concurrent
+	e.storage.relations[table.Address()] = &concurrent
 	e.mu.Unlock()
 	before := e.CatalogRead()
 	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()})
 	var conflict catalog.Conflict
-	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() || e.storage[table.Address()] != &concurrent {
+	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() || e.storage.relations[table.Address()] != &concurrent {
 		t.Fatal("storage conflict was not atomic", changes, err)
 	}
 }
