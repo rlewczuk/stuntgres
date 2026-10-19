@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -298,7 +299,7 @@ func buildIndexEntries(evaluation *EvalContext, parent *catalog.Relation, d *cat
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if liveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, nil) {
+		if visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, nil) {
 			matches, err := preparation.predicateMatches(evaluation, parent, d, row.Values, &o, nil)
 			if err != nil {
 				return nil, err
@@ -340,7 +341,7 @@ func mergeIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation, ol
 	}
 	endedCount := len(p.writes)
 	if p.deletion != nil {
-		endedCount += len(p.deletion.rows)
+		endedCount += len(p.deletion.Rows)
 	}
 	ended := make(map[ids.RowID]ids.VersionID, endedCount)
 	added := make([]storage.IndexEntry, 0, len(p.writes))
@@ -353,7 +354,7 @@ func mergeIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation, ol
 			ended[row.Row] = row.Base
 		}
 		if p.deletion != nil {
-			if end, ok := p.deletion.rows[row.Row]; ok && end.version == row.Version {
+			if end, ok := p.deletion.Rows[row.Row]; ok && end.Version == row.Version {
 				continue
 			}
 		}
@@ -391,9 +392,9 @@ func mergeIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation, ol
 		added = append(added, entry)
 	}
 	if p.deletion != nil {
-		for id, end := range p.deletion.rows {
-			if !end.own {
-				ended[id] = end.version
+		for id, end := range p.deletion.Rows {
+			if !end.Own {
+				ended[id] = end.Version
 			}
 		}
 	}
@@ -682,7 +683,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		}
 		if err == nil && s.Concurrent.Character != 0 {
 			e.mu.Lock()
-			e.visibility.resetPhaseLocked(scope.txRef)
+			e.visibility.ResetPhaseLocked(scope.txRef)
 			e.mu.Unlock()
 			return e.executeConcurrentIndex(scope, s, d)
 		}

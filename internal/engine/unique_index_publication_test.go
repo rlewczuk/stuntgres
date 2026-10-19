@@ -129,7 +129,7 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
 		t.Fatal(err)
 	}
-	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), roles: e.roles.published, stores: maps.Clone(e.storage.Relations), storeSnapshots: make(map[ids.ObjectAddress]storage.Relation), roots: maps.Clone(e.storage.IndexRoots), entries: make(map[ids.ObjectAddress][]storage.IndexEntry), nextRow: e.storage.RowFrontier(), nextVersion: e.storage.VersionFrontier(), frontier: e.visibility.commitSeq}
+	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), roles: e.roles.published, stores: maps.Clone(e.storage.Relations), storeSnapshots: make(map[ids.ObjectAddress]storage.Relation), roots: maps.Clone(e.storage.IndexRoots), entries: make(map[ids.ObjectAddress][]storage.IndexEntry), nextRow: e.storage.RowFrontier(), nextVersion: e.storage.VersionFrontier(), frontier: e.visibility.CommitSeq()}
 	for address, store := range f.stores {
 		f.storeSnapshots[address] = uniquePublicationStore(store)
 	}
@@ -163,7 +163,7 @@ func (f *uniquePublicationFixture) row(t *testing.T, offset int, a, b string) st
 
 func (f *uniquePublicationFixture) unchanged(t *testing.T) {
 	t.Helper()
-	if f.e.catalog.state != f.catalog || f.e.roles.published != f.roles || f.e.storage.RowFrontier() != f.nextRow || f.e.storage.VersionFrontier() != f.nextVersion || f.e.visibility.commitSeq != f.frontier || len(f.e.storage.IndexRoots) != len(f.roots) || len(f.e.storage.Relations) != len(f.stores) {
+	if f.e.catalog.state != f.catalog || f.e.roles.published != f.roles || f.e.storage.RowFrontier() != f.nextRow || f.e.storage.VersionFrontier() != f.nextVersion || f.e.visibility.CommitSeq() != f.frontier || len(f.e.storage.IndexRoots) != len(f.roots) || len(f.e.storage.Relations) != len(f.stores) {
 		t.Fatal("package preparation changed live publication state")
 	}
 	if !maps.Equal(maps.Collect(f.catalog.Descriptors()), f.descriptors) || !maps.Equal(maps.Collect(f.catalog.Names()), f.names) {
@@ -190,7 +190,7 @@ func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, st
 	beforeWrites := uniquePublicationRows(writes)
 	var beforeDeletes map[ids.RowID]deleteCandidate
 	if deletion != nil {
-		beforeDeletes = maps.Clone(deletion.rows)
+		beforeDeletes = maps.Clone(deletion.Rows)
 	}
 	stores := captureIndexStores(f.e.storage.Relations, f.catalog)
 	stores[f.parent.Address()] = store
@@ -203,7 +203,7 @@ func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, st
 	}
 	output := sqltype.OutputEnvironment{DateStyle: sqltype.DateStyle{Style: sqltype.DateGerman, Order: sqltype.DateDMY}}
 	roots, err := f.e.prepareIndexPublication(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, f.catalog, f.catalog, stores, f.roots, parents, nil, []rowPublication{publication}, materialize, output, &f.auth, nil, nil)
-	if !reflect.DeepEqual(*store, beforeStore) || !reflect.DeepEqual(writes, beforeWrites) || deletion != nil && !reflect.DeepEqual(deletion.rows, beforeDeletes) {
+	if !reflect.DeepEqual(*store, beforeStore) || !reflect.DeepEqual(writes, beforeWrites) || deletion != nil && !reflect.DeepEqual(deletion.Rows, beforeDeletes) {
 		t.Fatal("publication inputs mutated")
 	}
 	f.unchanged(t)
@@ -288,7 +288,7 @@ func TestUniqueIndexPublicationRebuiltPredecessor(t *testing.T) {
 					var writes []storage.RowVersion
 					var deletion *privateDeletionRoot
 					if delta == "delete" {
-						deletion = &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{old.Row: {ref: f.ref, storage: &store, row: old.Row, version: old.Version}}}
+						deletion = &privateDeletionRoot{Rows: map[ids.RowID]deleteCandidate{old.Row: {Ref: f.ref, Storage: &store, Row: old.Row, Version: old.Version}}}
 					} else {
 						replacement := f.row(t, 1, "2001-02-05", "3")
 						replacement.Row, replacement.Base = old.Row, old.Version
@@ -375,7 +375,7 @@ func TestUniqueIndexPublicationReplacementMembership(t *testing.T) {
 			t.Run(fmt.Sprintf("attached=%t/materialize=%t", attached, materialize), func(t *testing.T) {
 				f := newUniquePublicationFixture(t, attached, true, true, "table", false)
 				rows := f.stores[f.parent.Address()].Versions
-				deletion := &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{rows[0].Row: {ref: f.ref, storage: f.stores[f.parent.Address()], row: rows[0].Row, version: rows[0].Version}}}
+				deletion := &privateDeletionRoot{Rows: map[ids.RowID]deleteCandidate{rows[0].Row: {Ref: f.ref, Storage: f.stores[f.parent.Address()], Row: rows[0].Row, Version: rows[0].Version}}}
 				replacement := f.row(t, 1, "2001-02-05", "3")
 				replacement.Row, replacement.Base = rows[1].Row, rows[1].Version
 				writes := []storage.RowVersion{replacement, f.row(t, 2, "2001-02-06", "4")}

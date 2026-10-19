@@ -138,7 +138,7 @@ func TestTransactionScopeFinishAndViewOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(view.read().own) != 0 {
+	if len(view.Data().Own) != 0 {
 		t.Fatal("same-command writes became visible")
 	}
 	retained := view.Retain()
@@ -314,7 +314,7 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 	e.storage.SetFrontierLocked(0, e.storage.VersionFrontier())
 	ref = transactionBegin(t, a)
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-	e.visibility.commitSeq = ids.CommitSeq(^uint64(0))
+	e.visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
 	_, err = e.Commit(op, ref)
 	if err == nil || a.TransactionState() != TxIdle {
 		t.Fatal("commit frontier wrapped")
@@ -376,7 +376,7 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 			}
 			spare := roots[0][len(roots[0]):cap(roots[0])]
 			suffix := append([]storage.RowVersion(nil), spare...)
-			frontier := e.visibility.commitSeq
+			frontier := e.visibility.CommitSeq()
 			retainedFrontier, retainedEpoch := frontier, e.catalog.state.Epoch()
 			retainedCatalog := e.catalog.state
 			ref := transactionBegin(t, a)
@@ -455,8 +455,8 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				outcome, err = e.Commit(op, ref)
 			case "counter_before":
 				e.mu.Lock()
-				e.visibility.commitSeq = ids.CommitSeq(^uint64(0))
-				frontier = e.visibility.commitSeq
+				e.visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
+				frontier = e.visibility.CommitSeq()
 				e.mu.Unlock()
 				outcome, err = e.Commit(op, ref)
 			case "ref_before":
@@ -468,8 +468,8 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 			}
 			published := boundary == "success" || boundary == "cancel_after"
 			if published {
-				if err != nil || !outcome.Committed || e.visibility.commitSeq != frontier+1 {
-					t.Fatal("complete publication must advance exactly one frontier", outcome, err, e.visibility.commitSeq, frontier)
+				if err != nil || !outcome.Committed || e.visibility.CommitSeq() != frontier+1 {
+					t.Fatal("complete publication must advance exactly one frontier", outcome, err, e.visibility.CommitSeq(), frontier)
 				}
 			} else {
 				want := map[string]error{
@@ -479,8 +479,8 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 					"counter_before":  errors.New("stuntgres: commit sequence exhausted"),
 					"ref_before":      errors.New("stuntgres: stale transaction reference"),
 				}[boundary]
-				if err == nil || (!errors.Is(err, want) && err.Error() != want.Error()) || outcome.Committed || e.visibility.commitSeq != frontier {
-					t.Fatal("rejection changed committed frontier or outcome", outcome, err, e.visibility.commitSeq, frontier)
+				if err == nil || (!errors.Is(err, want) && err.Error() != want.Error()) || outcome.Committed || e.visibility.CommitSeq() != frontier {
+					t.Fatal("rejection changed committed frontier or outcome", outcome, err, e.visibility.CommitSeq(), frontier)
 				}
 				if !reflect.DeepEqual(spare, suffix) {
 					t.Fatal("rejected publication wrote unpublished spare suffix")
@@ -499,14 +499,14 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				if sameRoot != (!published || i == 0) {
 					t.Fatalf("relation %d used wrong spare/growth root", i)
 				}
-				data := retained[i].source.view.read()
-				if data.frontier != retainedFrontier || data.catalog.State() != retainedCatalog || data.catalog.Epoch() != retainedEpoch {
+				data := retained[i].source.view.Data()
+				if data.Frontier != retainedFrontier || data.Catalog.State() != retainedCatalog || data.Catalog.Epoch() != retainedEpoch {
 					t.Fatal("retained frontier/catalog metadata changed")
 				}
 				if retained[i].count != len(root) {
 					t.Fatal("retained result length changed")
 				}
-				if len(data.committed) != 1 || !reflect.DeepEqual(data.committed[addresses[i]], records[i]) || !reflect.DeepEqual(current[:len(root)], records[i]) {
+				if len(data.Committed) != 1 || !reflect.DeepEqual(data.Committed[addresses[i]], records[i]) || !reflect.DeepEqual(current[:len(root)], records[i]) {
 					t.Fatal("retained or live prefix identities/birth/payload changed")
 				}
 				if published {

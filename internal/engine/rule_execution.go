@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -137,20 +138,20 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 		// Immutable prefix roots are visible to this program only. No owner merge
 		// or newer committed frontier is introduced between actions.
 		if originalView != nil {
-			data := *originalView.read()
-			data.own = maps.Clone(originalWrites)
-			if data.own == nil && len(scope.stage.rows) != 0 {
-				data.own = make(map[ids.ObjectAddress][]storage.RowVersion, len(scope.stage.rows))
+			data := *originalView.Data()
+			data.Own = maps.Clone(originalWrites)
+			if data.Own == nil && len(scope.stage.rows) != 0 {
+				data.Own = make(map[ids.ObjectAddress][]storage.RowVersion, len(scope.stage.rows))
 			}
 			for address, rows := range scope.stage.rows {
-				data.own[address] = mergePrivateRows(originalWrites[address], rows, false)
+				data.Own[address] = mergePrivateRows(originalWrites[address], rows, false)
 			}
-			data.deleted = mergeDeletions(originalDeletes, scope.stage.deletes)
+			data.Deleted = mergeDeletions(originalDeletes, scope.stage.deletes)
 			if scope.view != originalView {
 				scope.view.Release()
 			}
-			scope.view = newVisibilityView(&data)
-			scope.ownWrites, scope.ownDeletes = data.own, data.deleted
+			scope.view = visibility.NewView(&data)
+			scope.ownWrites, scope.ownDeletes = data.Own, data.Deleted
 		}
 		e.mu.Lock()
 		output, err := e.executePreparedCTECommandsLocked(scope, command.syntax, &prepared[i], parameters, nil, nil)

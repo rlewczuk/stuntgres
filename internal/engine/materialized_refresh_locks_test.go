@@ -135,7 +135,7 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 				}
 			}()
 			lockPending(t, e, 1)
-			before := e.visibility.commitSeq
+			before := e.visibility.CommitSeq()
 			execute := func(scope *StatementScope, stmt *parser.RefreshMaterializedView) {
 				t.Helper()
 				e.mu.Lock()
@@ -159,7 +159,7 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 			if noData {
 				firstCount = 0
 			}
-			if descriptorA.Populated == noData || len(afterA.Versions) != firstCount || e.visibility.commitSeq != before+1 || len(original.Versions) != 3 {
+			if descriptorA.Populated == noData || len(afterA.Versions) != firstCount || e.visibility.CommitSeq() != before+1 || len(original.Versions) != 3 {
 				t.Fatal("first refresh did not publish its exact immutable transition")
 			}
 			if err := a.Finish(nil); err != nil {
@@ -175,7 +175,7 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 				t.Fatal(err)
 			}
 			final := e.catalog.state.MustRelation(d.Address())
-			if e.visibility.commitSeq != before+2 || e.storage.Relations[d.Address()] == afterA || len(e.storage.Relations[d.Address()].Versions) != 1 || len(afterA.Versions) != firstCount || !final.Populated || final.Address() != d.Address() || final.View != d.View || final.RowType != d.RowType {
+			if e.visibility.CommitSeq() != before+2 || e.storage.Relations[d.Address()] == afterA || len(e.storage.Relations[d.Address()].Versions) != 1 || len(afterA.Versions) != firstCount || !final.Populated || final.Address() != d.Address() || final.View != d.View || final.RowType != d.RowType {
 				t.Fatal("serialized refresh failed complete immutable replacement")
 			}
 			values := e.storage.Relations[d.Address()].Versions[0].Values

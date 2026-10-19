@@ -45,7 +45,7 @@ func TestForeignKeyIndexProbeVisitBounds(t *testing.T) {
 	}
 	root := e.storage.IndexRoots[f.Index]
 	original := slices.Clone(root.Entries)
-	rows := foreignKeyRows{committed: e.storage.Relations[parent.Address()].Versions, ends: e.storage.Relations[parent.Address()].Ends, frontier: e.visibility.commitSeq, root: root, index: f.Index}
+	rows := foreignKeyRows{committed: e.storage.Relations[parent.Address()].Versions, ends: e.storage.Relations[parent.Address()].Ends, frontier: e.visibility.CommitSeq(), root: root, index: f.Index}
 	missing := e.storage.Relations[catalogRef(t, e, view, "probe_input").Address].Versions[0].Values
 	for _, target := range []int{0, 2048, 4095, 4096} {
 		t.Run(fmt.Sprint(target), func(t *testing.T) {

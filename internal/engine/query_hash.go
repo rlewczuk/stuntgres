@@ -21,17 +21,17 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf,
 	if !scope.implicit || scope.catalog != nil || mark.mode != 0 || source.view == nil || source.inheritance != nil || len(source.own) != 0 {
 		return nil
 	}
-	data := source.view.read()
-	if data.catalog.State() != e.catalog.state {
+	data := source.view.Data()
+	if data.Catalog.State() != e.catalog.state {
 		return nil
 	}
 	a := leaf.ref.Address
-	store := data.generationAt(a)
-	if store == nil || store != e.storage.Relations[a] || data.frontierAt(a) != e.visibility.commitSeq || data.deleted[a] != nil || len(source.committed) != len(store.Versions) || data.ends[a] != store.Ends {
+	store := data.GenerationAt(a)
+	if store == nil || store != e.storage.Relations[a] || data.FrontierAt(a) != e.visibility.CommitSeq() || data.Deleted[a] != nil || len(source.committed) != len(store.Versions) || data.Ends[a] != store.Ends {
 		return nil
 	}
 	for address, carrier := range e.storage.IndexRoots {
-		index, ok := data.catalog.Relation(address)
+		index, ok := data.Catalog.Relation(address)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Method != catalog.HashMethod || index.SQLIndex.Parent != a || carrier == nil || carrier.Hash == nil {
 			continue
 		}
@@ -45,7 +45,7 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf,
 			continue
 		}
 		root := carrier.Hash
-		if root.Storage != store || root.Generation != store.Generation || root.Prefix != len(source.committed) || root.Ends != data.ends[a] {
+		if root.Storage != store || root.Generation != store.Generation || root.Prefix != len(source.committed) || root.Ends != data.Ends[a] {
 			continue
 		}
 		usage, err := indexKeyUsage(leaf.relation, index.SQLIndex.Keys[0])

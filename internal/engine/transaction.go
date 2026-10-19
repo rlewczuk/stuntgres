@@ -167,7 +167,7 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState, 
 	if err := publicationOperationLocked(e, op); err != nil {
 		return err
 	}
-	diagnostic, err := e.visibility.nextDiagnosticTxLocked()
+	diagnostic, err := e.visibility.NextDiagnosticTxLocked()
 	if err != nil {
 		return err
 	}
@@ -674,9 +674,9 @@ retry:
 			versions[i].IndexOutputs = batch.states[i].indexes
 		}
 	}
-	if e.visibility.relevantSerializableLocked(s.txRef) != nil {
+	if e.visibility.RelevantSerializableLocked(s.txRef) != nil {
 		for _, row := range versions {
-			event := [1]serializableWrite{{row: row.Row, version: row.Version}}
+			event := [1]serializableWrite{{Row: row.Row, Version: row.Version}}
 			if err := e.serializableWriteLocked(s, ref, event[:]); err != nil {
 				return err
 			}

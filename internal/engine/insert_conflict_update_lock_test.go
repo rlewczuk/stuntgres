@@ -93,7 +93,7 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 		source := catalogRef(t, e, e.CatalogRead(), "src")
 		holderTx := transactionBegin(t, holder)
 		sessionSQL(t, holder, "INSERT INTO t VALUES(1,10)")
-		frontier := e.visibility.commitSeq
+		frontier := e.visibility.CommitSeq()
 		running := conflictUpdateStartWorker(t, e, worker, "INSERT INTO t SELECT src.k,src.v FROM src LEFT JOIN t ON t.k=src.k WHERE t.k IS NULL ON CONFLICT(k) DO UPDATE SET v=t.v+excluded.v")
 		lockPending(t, e, 1)
 		request := func() lock.Waiter {
@@ -133,14 +133,14 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 			request.Resource.Address != scope.insertConflict.selected[0] || request.Resource.Epoch != ref.Epoch {
 			t.Fatal("wrong admitted source/conflict capture", scope, request.Resource)
 		}
-		captured := scope.view.data.Load()
+		captured := scope.view.Load()
 		if captured == nil {
 			t.Fatal("missing source visibility view")
 		}
-		_, targetCaptured := captured.committed[ref.Address]
-		if !targetCaptured || captured.frontier != frontier || len(captured.committed[ref.Address]) != 0 ||
-			len(captured.own[ref.Address]) != 0 || len(captured.committed[source.Address]) != 1 ||
-			testExport(captured.committed[source.Address][0].Values[1]) != int64(1) {
+		_, targetCaptured := captured.Committed[ref.Address]
+		if !targetCaptured || captured.Frontier != frontier || len(captured.Committed[ref.Address]) != 0 ||
+			len(captured.Own[ref.Address]) != 0 || len(captured.Committed[source.Address]) != 1 ||
+			testExport(captured.Committed[source.Address][0].Values[1]) != int64(1) {
 			t.Fatal("source snapshot sees the uncommitted conflict identity", captured)
 		}
 		transactionEnd(t, holder, holderTx, true)
@@ -148,7 +148,7 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 		if outcome.err != nil || outcome.result.Rows != nil || outcome.result.Count != 1 {
 			t.Fatal("exact invisible-source action count", outcome)
 		}
-		if captured.frontier != frontier || len(captured.committed[ref.Address]) != 0 {
+		if captured.Frontier != frontier || len(captured.Committed[ref.Address]) != 0 {
 			t.Fatal("source snapshot was replaced during conflict admission")
 		}
 		transactionRows(t, observer, "SELECT k FROM t", 1)

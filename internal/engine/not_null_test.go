@@ -182,7 +182,7 @@ func TestNotNullAlterScanFailureAndPreparedUtility(t *testing.T) {
 	}
 	// Nonvisible versions must not participate in the committed scan.
 	e.mu.Lock()
-	storage.Versions[0].Born = e.visibility.commitSeq + 1
+	storage.Versions[0].Born = e.visibility.CommitSeq() + 1
 	e.mu.Unlock()
 	roleExecute(t, e, op, "ALTER TABLE t ALTER a SET NOT NULL")
 }
@@ -278,7 +278,7 @@ func notNullProviderPublicationFences(t *testing.T, q string) {
 						value = stored.Versions[0].Values[0]
 					}
 					e.mu.Lock()
-					stored.Versions = append(stored.Versions, storage.RowVersion{Row: 99, Version: 99, Born: e.visibility.commitSeq, Values: []sqltype.Value{value, stored.Versions[0].Values[1]}})
+					stored.Versions = append(stored.Versions, storage.RowVersion{Row: 99, Version: 99, Born: e.visibility.CommitSeq(), Values: []sqltype.Value{value, stored.Versions[0].Values[1]}})
 					e.mu.Unlock()
 				case "descriptor":
 					next := *old.(*catalog.Relation)

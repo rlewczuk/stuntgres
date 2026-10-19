@@ -61,12 +61,12 @@ func TestDeleteCoreVisibility(t *testing.T) {
 			deleteCount(t, a, "DELETE FROM t WHERE v=1", 2)
 			first := transactionRows(t, a, "SELECT v FROM t ORDER BY v", 2)
 			target := catalogRef(t, e, e.CatalogRead(), "t")
-			firstRoot := first.source.view.read().deleted[target.Address]
+			firstRoot := first.source.view.Data().Deleted[target.Address]
 			deleteCount(t, a, "DELETE FROM t WHERE v=1", 0)
 			sessionSQL(t, a, "INSERT INTO t VALUES(7),(7)")
 			private := transactionRows(t, a, "SELECT v FROM t ORDER BY v", 2, 7, 7)
 			deleteCount(t, a, "DELETE FROM t WHERE v=7", 2)
-			if firstRoot == nil || len(firstRoot.rows) != 2 || a.transactions.deletes[target.Address] == firstRoot || len(a.transactions.deletes[target.Address].rows) != 4 {
+			if firstRoot == nil || len(firstRoot.Rows) != 2 || a.transactions.deletes[target.Address] == firstRoot || len(a.transactions.deletes[target.Address].Rows) != 4 {
 				t.Fatal("prior-own deletion root was mutated/reused")
 			}
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
@@ -145,9 +145,9 @@ func TestDeleteCoreCombinedCommit(t *testing.T) {
 	sessionSQL(t, b, "INSERT INTO t VALUES(4)")
 	transactionRows(t, a, "SELECT v FROM t ORDER BY v", 2, 3, 4)
 	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 2, 4)
-	frontier := e.visibility.commitSeq
+	frontier := e.visibility.CommitSeq()
 	transactionEnd(t, a, ref, true)
-	if e.visibility.commitSeq != frontier+1 {
+	if e.visibility.CommitSeq() != frontier+1 {
 		t.Fatal("combined commit advanced multiple frontiers")
 	}
 	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 2, 3, 4)
@@ -157,7 +157,7 @@ func TestDeleteCoreCombinedCommit(t *testing.T) {
 			continue
 		}
 		for _, end := range store.Ends.Rows {
-			if end.End != e.visibility.commitSeq {
+			if end.End != e.visibility.CommitSeq() {
 				t.Fatal("mixed deletion frontier", end)
 			}
 		}

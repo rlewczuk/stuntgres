@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -108,23 +109,23 @@ func TestPreparedSerializableOutcomeAndPivot(t *testing.T) {
 	out := serializableUnitNode(t, e, false)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if err := e.visibility.serializableEdgeLocked(in, in, pivot); err != nil {
+	if err := e.visibility.SerializableEdgeLocked(in, in, pivot); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.visibility.serializableEdgeLocked(pivot, pivot, out); err != nil {
+	if err := e.visibility.SerializableEdgeLocked(pivot, pivot, out); err != nil {
 		t.Fatal(err)
 	}
-	e.visibility.serializablePreparedLocked(pivot.ref)
-	if pivot.committed || pivot.ended || !pivot.finalized || !pivot.prepared {
+	e.visibility.SerializablePreparedLocked(pivot.Ref)
+	if pivot.Committed || pivot.Ended || !pivot.Finalized || !pivot.Prepared {
 		t.Fatal("prepare resolved actual outcome")
 	}
-	serializableUnitDiagnostic(t, e.visibility.serializablePrecommitLocked(out.ref), "Canceled on commit attempt with conflict in from prepared pivot.")
-	if pivot.doomed {
+	serializableUnitDiagnostic(t, e.visibility.SerializablePrecommitLocked(out.Ref), "Canceled on commit attempt with conflict in from prepared pivot.")
+	if pivot.Doomed {
 		t.Fatal("prepared pivot selected as victim")
 	}
-	order := pivot.order
-	e.visibility.serializableCommittedLocked(pivot.ref, e.visibility.commitSeq)
-	if !pivot.committed || pivot.order != order {
+	order := pivot.Order
+	e.visibility.SerializableCommittedLocked(pivot.Ref, e.visibility.CommitSeq())
+	if !pivot.Committed || pivot.Order != order {
 		t.Fatal("completion reordered finalized transaction")
 	}
 }
@@ -133,18 +134,18 @@ func TestPreparedSerializableOverlapUsesActualOutcome(t *testing.T) {
 	e := New()
 	writer := serializableUnitNode(t, e, false)
 	e.mu.Lock()
-	writer.didWrite = true
-	e.visibility.serializablePreparedLocked(writer.ref)
-	prepareOrder := writer.order
+	writer.DidWrite = true
+	e.visibility.SerializablePreparedLocked(writer.Ref)
+	prepareOrder := writer.Order
 	e.mu.Unlock()
 	reader := serializableUnitNode(t, e, false)
 	e.mu.Lock()
-	if !serializableOverlap(writer, reader) {
+	if !visibility.SerializableOverlap(writer, reader) {
 		e.mu.Unlock()
 		t.Fatal("snapshot acquired during prepared interval lost overlap")
 	}
-	e.visibility.serializableCommittedLocked(writer.ref, e.visibility.commitSeq)
-	if writer.order != prepareOrder || writer.commitOrder <= reader.snapshotOrder || !serializableOverlap(writer, reader) {
+	e.visibility.SerializableCommittedLocked(writer.Ref, e.visibility.CommitSeq())
+	if writer.Order != prepareOrder || writer.CommitOrder <= reader.SnapshotOrder || !visibility.SerializableOverlap(writer, reader) {
 		e.mu.Unlock()
 		t.Fatal("actual completion erased prepared-interval overlap or prepare order")
 	}
@@ -152,7 +153,7 @@ func TestPreparedSerializableOverlapUsesActualOutcome(t *testing.T) {
 	later := serializableUnitNode(t, e, false)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if serializableOverlap(writer, later) {
+	if visibility.SerializableOverlap(writer, later) {
 		t.Fatal("postcommit snapshot still overlapped finished writer")
 	}
 }

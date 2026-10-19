@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -138,7 +139,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 	var oldEntries []storage.IndexEntry
 	var ownRows []storage.RowVersion
 	var ownDeletes *privateDeletionRoot
-	frontier := e.visibility.commitSeq
+	frontier := e.visibility.CommitSeq()
 	if concurrent {
 		indices = materializedEligibleIndexes(caller.Catalog, d)
 		previous = *scope.lockedStorage
@@ -177,12 +178,12 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 		if len(ownRows) != 0 || ownDeletes != nil {
 			versions := make([]storage.RowVersion, 0, len(previous.Versions)+len(ownRows))
 			for _, row := range previous.Versions {
-				if liveVersion(row, frontier, previous.Ends, ownDeletes) {
+				if visibility.LiveVersion(row, frontier, previous.Ends, ownDeletes) {
 					versions = append(versions, row)
 				}
 			}
 			for _, row := range ownRows {
-				if liveVersion(row, frontier, nil, ownDeletes) {
+				if visibility.LiveVersion(row, frontier, nil, ownDeletes) {
 					versions = append(versions, row)
 				}
 			}

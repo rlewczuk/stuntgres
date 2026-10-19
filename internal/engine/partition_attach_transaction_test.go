@@ -114,7 +114,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 		}
 		store := e.storage.Relations[ref.Address]
 		row := store.Versions[0]
-		candidate := deleteCandidate{ref: ref, storage: store, row: row.Row, version: row.Version, ordinal: 0}
+		candidate := deleteCandidate{Ref: ref, Storage: store, Row: row.Row, Version: row.Version, Ordinal: 0}
 		if err := deleting.acquireRow(candidate); err != nil {
 			t.Fatal(err)
 		}
@@ -155,7 +155,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			t.Fatal(err)
 		}
 		validationOp.Done()
-		if latest.data.Load() != nil || ordinary.data.Load() != nil || !reflect.DeepEqual(partitionAttachUnitValues(t, retained, ref), []int64{3, 2}) {
+		if latest.Load() != nil || ordinary.Load() != nil || !reflect.DeepEqual(partitionAttachUnitValues(t, retained, ref), []int64{3, 2}) {
 			t.Fatal("Finish did not release only its own view handles")
 		}
 	})

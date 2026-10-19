@@ -93,7 +93,7 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 	latest := [][]sqltype.Value{{three, sqltype.Null(old.Columns[1].Usage.Type), five}}
 	evaluate(bridge, 8, latest)
 	evaluate(bridge, 7, nil)
-	if len(old.Columns) != 2 || previous.view.data.Load().catalog.Get(ref.Address) != old || !reflect.DeepEqual(frozen.virtual, old.ColumnMeta.Generations[2].Planned) {
+	if len(old.Columns) != 2 || previous.view.Load().Catalog.Get(ref.Address) != old || !reflect.DeepEqual(frozen.virtual, old.ColumnMeta.Generations[2].Planned) {
 		t.Fatal("frozen source recipe changed")
 	}
 	recipeContext := EvalContext{}
@@ -105,7 +105,7 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 	}); allocations != 0 {
 		t.Fatal("captured recipe resolution allocated", allocations)
 	}
-	capturedOwner := current.view.data.Load().catalog.MustRelation(ref.Address)
+	capturedOwner := current.view.Load().Catalog.MustRelation(ref.Address)
 	if recipeContext.routineConsumer != capturedOwner || !recipeContext.routineRecipe || recipeContext.routineGraft ||
 		!reflect.DeepEqual(recipeContext.routineReferences, capturedOwner.ColumnMeta.Generations[2].Dependencies) {
 		t.Fatal("captured generation borrowed frozen or enclosing provenance")

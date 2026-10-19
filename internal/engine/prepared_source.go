@@ -16,7 +16,7 @@ func (e *Engine) capturePreparedSourceLocked(ctx context.Context, ref ids.Object
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		xid, err := sqltype.XIDValue(source.Columns[0].Usage.Type, e.visibility.assignedXIDLocked(entry.ref))
+		xid, err := sqltype.XIDValue(source.Columns[0].Usage.Type, e.visibility.AssignedXIDLocked(entry.ref))
 		if err != nil {
 			return nil, err
 		}

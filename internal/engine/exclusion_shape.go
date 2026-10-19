@@ -92,8 +92,8 @@ func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relatio
 		}
 	}
 	if deletes != nil {
-		for id, candidate := range deletes.rows {
-			ends[id] = candidate.version
+		for id, candidate := range deletes.Rows {
+			ends[id] = candidate.Version
 		}
 	}
 	p.ended[parent.Address()] = ends

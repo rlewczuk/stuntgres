@@ -234,7 +234,7 @@ func TestConcurrentIndexU6CompletionTerminalArbitration(t *testing.T) {
 			transactionEnd(t, b, tb, false)
 			lockEmpty(t, e)
 			e.mu.Lock()
-			registry := len(e.visibility.entries)
+			registry := len(e.visibility.Entries)
 			e.mu.Unlock()
 			if registry != 0 {
 				t.Fatal("terminal visibility registry leak")

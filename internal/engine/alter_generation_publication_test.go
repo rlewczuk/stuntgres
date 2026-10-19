@@ -35,7 +35,7 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 				store := e.storage.Relations[ref.Address]
 				snapshot := e.catalog.state
 				ends, generation := store.Ends, store.Generation
-				rowID, versionID, frontier := e.storage.RowFrontier(), e.storage.VersionFrontier(), e.visibility.commitSeq
+				rowID, versionID, frontier := e.storage.RowFrontier(), e.storage.VersionFrontier(), e.visibility.CommitSeq()
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				op, cleanup, err := testOperation(e, ctx)
@@ -105,7 +105,7 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 				if err := scope.Finish(nil); !errors.Is(err, context.Canceled) {
 					t.Fatal("Finish cancellation veto", err)
 				}
-				if e.catalog.state != snapshot || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != store || store.Ends != ends || store.Generation != generation || e.storage.RowFrontier() != rowID || e.storage.VersionFrontier() != versionID || e.visibility.commitSeq != frontier || scope.owner.catalog != nil {
+				if e.catalog.state != snapshot || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != store || store.Ends != ends || store.Generation != generation || e.storage.RowFrontier() != rowID || e.storage.VersionFrontier() != versionID || e.visibility.CommitSeq() != frontier || scope.owner.catalog != nil {
 					t.Fatal("Finish veto changed installed roots/counters/owner")
 				}
 				lockEmpty(t, e)
@@ -122,7 +122,7 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 			old := e.catalog.state.MustRelation(ref.Address)
 			store := e.storage.Relations[ref.Address]
 			retained := e.CatalogRead()
-			rowID, versionID, frontier := e.storage.RowFrontier(), e.storage.VersionFrontier(), e.visibility.commitSeq
+			rowID, versionID, frontier := e.storage.RowFrontier(), e.storage.VersionFrontier(), e.visibility.CommitSeq()
 			generation, ends := store.Generation, store.Ends
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -210,7 +210,7 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 				if !reflect.DeepEqual(current.ColumnMeta.Generations, old.ColumnMeta.Generations) || current.ColumnMeta.Generations[2].OID != old.ColumnMeta.Generations[2].OID {
 					t.Fatal("failed generation replaced old recipe")
 				}
-				if kind == "cancel" && e.visibility.commitSeq != frontier {
+				if kind == "cancel" && e.visibility.CommitSeq() != frontier {
 					t.Fatal("canceled generation advanced commit frontier")
 				}
 			}

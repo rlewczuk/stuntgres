@@ -27,7 +27,7 @@ func TestPartialIndexUniqueTypeFinalMembershipBaseline(t *testing.T) {
 			var deletes *privateDeletionRoot
 			if overlay == "delete" {
 				r := store.Versions[2]
-				deletes = &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{r.Row: {ref: f.ref, storage: &store, row: r.Row, version: r.Version}}}
+				deletes = &privateDeletionRoot{Rows: map[ids.RowID]deleteCandidate{r.Row: {Ref: f.ref, Storage: &store, Row: r.Row, Version: r.Version}}}
 			}
 			if overlay == "outside_successor" || overlay == "member_successor" {
 				active := "false"

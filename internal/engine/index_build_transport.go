@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 )
 
 type indexRowIdentity struct {
@@ -151,7 +152,7 @@ func indexBuildPositions(ctx context.Context, store *storage.Relation) (map[inde
 }
 
 func indexBuildVisibleStore(ctx context.Context, store *storage.Relation, writes []storage.RowVersion, deletes *privateDeletionRoot) (*storage.Relation, error) {
-	if len(writes) == 0 && (deletes == nil || len(deletes.rows) == 0) {
+	if len(writes) == 0 && (deletes == nil || len(deletes.Rows) == 0) {
 		return store, nil
 	}
 	replaced := make(map[ids.RowID]bool, len(writes))
@@ -163,7 +164,7 @@ func indexBuildVisibleStore(ctx context.Context, store *storage.Relation, writes
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if !replaced[row.Row] && liveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, deletes) {
+		if !replaced[row.Row] && visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, deletes) {
 			live = append(live, row)
 		}
 	}

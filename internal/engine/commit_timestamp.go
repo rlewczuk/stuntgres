@@ -190,29 +190,29 @@ func (n commitTimestampExpression) Eval(ctx expr.Context) (sqltype.Value, error)
 		}
 		e := scope.op.session.Engine()
 		e.mu.Lock()
-		if !e.visibility.tracksCommitTimestamps() {
+		if !e.visibility.TracksCommitTimestamps() {
 			e.mu.Unlock()
 			return sqltype.Value{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: "could not get commit timestamp data", Hint: `Make sure the configuration parameter "track_commit_timestamp" is set.`}
 		}
 		if n.kind == commitTimestampLast {
-			xid, entry = e.visibility.lastCommitTimestampLocked()
+			xid, entry = e.visibility.LastCommittedXID(), e.visibility.LastCommitTimestamp()
 		} else {
-			entry = e.visibility.lookupCommitTimestampLocked(xid)
+			entry = e.visibility.LookupCommitTimestampLocked(xid)
 		}
 		e.mu.Unlock()
 	}
 	if n.kind == commitTimestampScalar {
-		if !entry.present {
+		if !entry.Present {
 			return sqltype.Null(n.Usage.Type), nil
 		}
-		return sqltype.TimestampFromTime(n.Usage.Type, entry.stamp)
+		return sqltype.TimestampFromTime(n.Usage.Type, entry.Stamp)
 	}
 	shape := n.Usage.Type
 	fields := make([]sqltype.Value, shape.CompositeLen())
 	for i := range fields {
 		fields[i] = sqltype.Null(shape.CompositeMember(i).Usage.Type)
 	}
-	if entry.present {
+	if entry.Present {
 		i := 0
 		if n.kind == commitTimestampLast {
 			var err error
@@ -223,11 +223,11 @@ func (n commitTimestampExpression) Eval(ctx expr.Context) (sqltype.Value, error)
 			i++
 		}
 		var err error
-		fields[i], err = sqltype.TimestampFromTime(shape.CompositeMember(i).Usage.Type, entry.stamp)
+		fields[i], err = sqltype.TimestampFromTime(shape.CompositeMember(i).Usage.Type, entry.Stamp)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		fields[i+1], err = sqltype.OIDValue(shape.CompositeMember(i+1).Usage.Type, entry.origin)
+		fields[i+1], err = sqltype.OIDValue(shape.CompositeMember(i+1).Usage.Type, entry.Origin)
 		if err != nil {
 			return sqltype.Value{}, err
 		}

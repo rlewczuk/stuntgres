@@ -23,21 +23,21 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 			return err
 		}
 		e.enrollSerializableLocked(t.ref, t.isolation)
-		node := e.visibility.captureSerializableLocked(t.ref, t.readOnly, t.deferrable)
+		node := e.visibility.CaptureSerializableLocked(t.ref, t.readOnly, t.deferrable)
 		roots := make(map[ids.ObjectAddress]transactionRoot, len(e.storage.Relations))
 		for address, storage := range e.storage.Relations {
 			if relation, ok := e.catalog.state.Relation(address); ok {
 				roots[address] = transactionRoot{storage.Versions, storage.Ends, storage, relation}
 			}
 		}
-		t.roots, t.frontier = roots, e.visibility.commitSeq
+		t.roots, t.frontier = roots, e.visibility.CommitSeq()
 		t.sequenceCatalog = e.catalog.state
-		if !node.readOnly || !node.deferrable || node.resolved {
+		ready, wait := node.SafeSnapshotWait()
+		if !wait {
 			t.snapshotSet = true
 			e.mu.Unlock()
 			return nil
 		}
-		ready := node.ready
 		e.mu.Unlock()
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
@@ -54,23 +54,20 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 		e.mu.Lock()
 		s.op.session.mu.Lock()
 		err = publicationOperationLocked(e, s.op)
-		if err == nil && (t.ref != s.txRef || t.ref.Epoch() != e.catalog.state.Epoch() || node.aborted || node.ended) {
+		live, safe := node.SafeSnapshotOutcome()
+		if err == nil && (t.ref != s.txRef || t.ref.Epoch() != e.catalog.state.Epoch() || !live) {
 			err = ids.ErrCatalogReplaced
 		}
 		s.op.session.mu.Unlock()
 		if err != nil {
-			node.possible = nil
-			if !node.resolved {
-				node.resolved = true
-				close(node.ready)
-			}
+			node.AbandonSafeSnapshotLocked()
 			t.roots = nil
 			t.sequenceCatalog = nil
 			t.frontier = 0
 			e.mu.Unlock()
 			return err
 		}
-		if node.resolved && !node.unsafe {
+		if safe {
 			t.snapshotSet = true
 			e.mu.Unlock()
 			return nil
@@ -82,40 +79,4 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 		t.frontier = 0
 		e.mu.Unlock()
 	}
-}
-
-// captureSerializableLocked marks ref's enrolled node captured at the current
-// commit frontier and finalization order. A read-only node collects the
-// overlapping read-write writers it must wait out; with none it is exempt
-// at once, otherwise it gets a ready channel that resolution closes. Caller
-// holds Engine.mu and has enrolled ref.
-func (reg *visibilityRegistry) captureSerializableLocked(ref ids.TxRef, readOnly, deferrable bool) *serializableTransaction {
-	node := reg.serializable.nodes[ref]
-	node.captured = true
-	node.readOnly = readOnly
-	node.deferrable = deferrable
-	node.frontier = reg.commitSeq
-	node.snapshotOrder = reg.serializable.order
-	node.resolved = false
-	node.unsafe = false
-	node.exempt = false
-	node.possible = nil
-	node.ready = nil
-	if node.readOnly {
-		for _, writer := range reg.serializable.nodes {
-			if writer != node && serializableRelevant(writer) && !serializableReadOnly(writer) && !writer.committed && writer.ref.Epoch() == node.ref.Epoch() {
-				if node.possible == nil {
-					node.possible = make(map[*serializableTransaction]struct{})
-				}
-				node.possible[writer] = struct{}{}
-			}
-		}
-		if len(node.possible) == 0 {
-			node.resolved = true
-			node.exempt = true
-		} else {
-			node.ready = make(chan struct{})
-		}
-	}
-	return node
 }

@@ -25,7 +25,7 @@ func (s *StatementScope) validateInheritedReplacements(ref ids.ObjectRef, old []
 	if store == nil {
 		return errors.New("stuntgres: replacement is outside its mutation targets")
 	}
-	if s.view == nil || s.view.read().generationAt(ref.Address) != store {
+	if s.view == nil || s.view.Data().GenerationAt(ref.Address) != store {
 		return errors.New("stuntgres: replacement requires its captured target view")
 	}
 	var small [8]ids.RowID
@@ -33,14 +33,14 @@ func (s *StatementScope) validateInheritedReplacements(ref ids.ObjectRef, old []
 	if s.ticket == nil || s.ticket.Ref() != s.txRef || !target {
 		return errors.New("stuntgres: replacement requires its target grant")
 	}
-	data := s.view.read()
+	data := s.view.Data()
 	for i, row := range old {
 		if i == missing {
 			return errors.New("stuntgres: replacement requires its row grant")
 		}
-		captured := data.committed[ref.Address]
+		captured := data.Committed[ref.Address]
 		if row.Born == 0 {
-			captured = data.own[ref.Address]
+			captured = data.Own[ref.Address]
 		}
 		if _, _, found := rowByID(captured, row.Row, -1); !found {
 			return errors.New("stuntgres: replacement is outside its candidate view")

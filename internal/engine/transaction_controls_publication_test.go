@@ -92,9 +92,9 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			retained := [2]*finalRows{transactionRows(t, b, "SELECT v FROM t ORDER BY v", 7, 8, 10), transactionRows(t, b, "SELECT v FROM u ORDER BY v", 70)}
 			retainedCatalog := e.catalog.state
 			retainedEpoch := e.catalog.state.Epoch()
-			retainedFrontier := e.visibility.commitSeq
+			retainedFrontier := e.visibility.CommitSeq()
 			spare := append([]storage.RowVersion(nil), roots[0][3:4]...)
-			frontier := e.visibility.commitSeq
+			frontier := e.visibility.CommitSeq()
 			controlsRequire(t, a, "BEGIN")
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			sessionSQL(t, a, "INSERT INTO u VALUES(9)")
@@ -157,8 +157,8 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				_, err = scope.Execute(query, 0, nil)
 			case "counter_before":
 				e.mu.Lock()
-				e.visibility.commitSeq = ids.CommitSeq(^uint64(0))
-				frontier = e.visibility.commitSeq
+				e.visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
+				frontier = e.visibility.CommitSeq()
 				e.mu.Unlock()
 				_, err = scope.Execute(query, 0, nil)
 			case "ref_before":
@@ -180,7 +180,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				ticket := a.transactions.ticket
 				transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 7, 8, 10)
 				transactionRows(t, b, "SELECT v FROM u ORDER BY v", 9, 70)
-				if e.visibility.commitSeq != frontier+1 {
+				if e.visibility.CommitSeq() != frontier+1 {
 					t.Fatal("not one frontier")
 				}
 				if next.ID() <= old.ID() || a.TransactionState() != TxActive || a.transactions.command != 0 || ticket == oldTicket || a.transactions.writes != nil {
@@ -199,7 +199,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				if boundary == "cancel_after" {
 					transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 7, 8, 10)
 					transactionRows(t, b, "SELECT v FROM u ORDER BY v", 9, 70)
-					if e.visibility.commitSeq != frontier+1 {
+					if e.visibility.CommitSeq() != frontier+1 {
 						t.Fatal("not one frontier")
 					}
 				}
@@ -223,7 +223,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				if a.TransactionState() == TxActive && a.transactions.ref != old {
 					t.Fatal("rejection installed chain")
 				}
-				if e.visibility.commitSeq != frontier || len(stores[0].Versions) != 3 || len(stores[1].Versions) != 1 || &stores[0].Versions[0] != &roots[0][0] || &stores[1].Versions[0] != &roots[1][0] {
+				if e.visibility.CommitSeq() != frontier || len(stores[0].Versions) != 3 || len(stores[1].Versions) != 1 || &stores[0].Versions[0] != &roots[0][0] || &stores[1].Versions[0] != &roots[1][0] {
 					t.Fatal("rejection changed storage frontier/root")
 				}
 				if !reflect.DeepEqual(roots[0][3:4], spare) {
@@ -234,8 +234,8 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				if !reflect.DeepEqual(root, prefixes[i]) {
 					t.Fatal("immutable prefix changed", i)
 				}
-				data := retained[i].source.view.read()
-				if retained[i].count != len(root) || data.frontier != retainedFrontier || data.catalog.State() != retainedCatalog || data.catalog.Epoch() != retainedEpoch || !reflect.DeepEqual(data.committed[addresses[i]], prefixes[i]) {
+				data := retained[i].source.view.Data()
+				if retained[i].count != len(root) || data.Frontier != retainedFrontier || data.Catalog.State() != retainedCatalog || data.Catalog.Epoch() != retainedEpoch || !reflect.DeepEqual(data.Committed[addresses[i]], prefixes[i]) {
 					t.Fatal("retained rows/types/frontier changed", i)
 				}
 				if success {
@@ -277,7 +277,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			old, oldTicket := a.transactions.ref, a.transactions.ticket
-			frontier := e.visibility.commitSeq
+			frontier := e.visibility.CommitSeq()
 			op := transactionOperation(t, a)
 			defer op.Done()
 			scope, err := e.StartStatement(op)
@@ -291,15 +291,15 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			next, ticket := a.transactions.ref, a.transactions.ticket
 			if scope.finished || next.ID() <= old.ID() || ticket == nil || ticket == oldTicket ||
 				a.TransactionState() != TxActive || a.transactions.command != 0 || a.transactions.writes != nil ||
-				e.visibility.commitSeq != frontier+1 {
+				e.visibility.CommitSeq() != frontier+1 {
 				t.Fatal("execution did not publish once and leave an unfinished fresh chain")
 			}
 			// A real peer SELECT completes before control Finish: the old AX
 			// hold is gone and both typed rows have already been published.
 			retained := transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 7)
-			data := retained.source.view.read()
-			catalog, epoch := data.catalog.State(), data.catalog.Epoch()
-			versions := append([]storage.RowVersion(nil), data.committed[address]...)
+			data := retained.source.view.Data()
+			catalog, epoch := data.Catalog.State(), data.Catalog.Epoch()
+			versions := append([]storage.RowVersion(nil), data.Committed[address]...)
 			for i := range versions {
 				versions[i].Values = append([]sqltype.Value(nil), versions[i].Values...)
 			}
@@ -321,11 +321,11 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				if err := e.Reset(context.Background()); err != nil {
 					t.Fatal(err)
 				}
-				if e.CatalogRead().Epoch() == epoch || e.visibility.commitSeq != frontier+2 {
+				if e.CatalogRead().Epoch() == epoch || e.visibility.CommitSeq() != frontier+2 {
 					t.Fatal("actual replacement did not install its distinct epoch/frontier")
 				}
 			}
-			completedFrontier := e.visibility.commitSeq
+			completedFrontier := e.visibility.CommitSeq()
 			// These are the FIRST and repeated Finish, both after the real
 			// lifecycle boundary, not the generic already-finished early return.
 			if scope.finished {
@@ -339,12 +339,12 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			}
 			if a.transactions.ref != next || a.transactions.ticket != ticket ||
 				a.TransactionState() != TxActive || a.transactions.command != 0 ||
-				a.transactions.writes != nil || e.visibility.commitSeq != completedFrontier {
+				a.transactions.writes != nil || e.visibility.CommitSeq() != completedFrontier {
 				t.Fatal("Finish ended or mutated the fresh chained incarnation")
 			}
 			assertRetained := func() {
 				t.Helper()
-				view := retained.source.view.read()
+				view := retained.source.view.Data()
 				values := make([]sqltype.Value, 1)
 				cursor := independentFinalRows(retained)
 				defer cursor.Close()
@@ -353,8 +353,8 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 						t.Fatal("accepted retained typed row changed", i, present, err, values)
 					}
 				}
-				if retained.count != 2 || view.frontier != frontier+1 || view.catalog.State() != catalog ||
-					view.catalog.Epoch() != epoch || !reflect.DeepEqual(view.committed[address], versions) {
+				if retained.count != 2 || view.Frontier != frontier+1 || view.Catalog.State() != catalog ||
+					view.Catalog.Epoch() != epoch || !reflect.DeepEqual(view.Committed[address], versions) {
 					t.Fatal("lifecycle boundary changed retained committed rows/metadata/frontier")
 				}
 			}
@@ -375,7 +375,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				lockEmpty(t, e)
 				op.Done()
 				a.RequestEnd(Terminated)
-				if err := a.WaitEnd(context.Background()); err != nil || e.visibility.commitSeq != completedFrontier {
+				if err := a.WaitEnd(context.Background()); err != nil || e.visibility.CommitSeq() != completedFrontier {
 					t.Fatal("repeated drain changed accepted publication", err)
 				}
 				transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 7)

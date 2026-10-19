@@ -25,7 +25,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	t.Helper()
 	f := insertConflictUniqueFixture(t)
 	f.e.storage.SetFrontierLocked(1, 1)
-	f.e.visibility.commitSeq = 1
+	f.e.visibility.SetCommitSeqLocked(1)
 	definition := *f.index.SQLIndex
 	definition.Predicate = nil
 	f.index.SQLIndex = &definition

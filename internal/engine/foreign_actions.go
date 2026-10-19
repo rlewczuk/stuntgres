@@ -220,7 +220,7 @@ func (s *StatementScope) settleForeignActions() error {
 		if err != nil {
 			return err
 		}
-		for id := range root.rows {
+		for id := range root.Rows {
 			old, ok := image.previous(id)
 			if !ok {
 				for _, row := range image.staged {

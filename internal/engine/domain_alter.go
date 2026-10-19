@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -193,7 +194,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		if graphErr == nil && !domainGraphEqual(fence, currentUses) {
 			graphErr = catalog.Conflict{}
 		}
-		frontier := e.visibility.commitSeq
+		frontier := e.visibility.CommitSeq()
 		if graphErr == nil {
 			for i := range fence.uses {
 				use := &fence.uses[i]
@@ -258,7 +259,7 @@ func (c *EvalContext) validateSelectedDomainRows(view catalog.Read, selected *ca
 			if err := c.Context.Err(); err != nil {
 				return err
 			}
-			if committed && replaced[row.Row] || !liveVersion(row, frontier, use.ends, deletes) {
+			if committed && replaced[row.Row] || !visibility.LiveVersion(row, frontier, use.ends, deletes) {
 				continue
 			}
 			for i, column := range use.columns {

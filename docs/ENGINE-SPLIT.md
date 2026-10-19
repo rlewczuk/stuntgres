@@ -136,7 +136,7 @@ types new to that layer:
 | `catalog` | 64 | Descriptors (namespace, relation, type, procedure, operator, collation), constraint, default, generation, identity, index, partition, inheritance, policy and foreign-table records, `catalogState`, `CatalogRead`, default ACL records, operator name index, `expressionDependency` |
 | `lock` | 20 | Relation, tuple, advisory and unique-key resources, tickets, policies, multixact |
 | `storage` | 18 | `rowVersion`, `relationStorage`, deletion roots, logical and hash index roots, `sequenceGenerator`, truncate and materialized-view lineage, `CommitSeq`/`RowID`/`VersionID` |
-| `visibility` | 13 | Visibility registry, xid identity records, `VisibilityView`/`visibilityData`, `transactionRoot`, commit timestamps, serializable tracker |
+| `visibility` | 16 | Visibility registry, xid identity records, `View`/`Data`, `Root`, commit timestamps, serializable tracker, the private deletion overlay (moved in 7b) |
 
 `savepointMark`, the `catalogChanges` journal, prepared transactions and
 `transactionOwner` do not belong in `visibility`. They pull in domains, index
@@ -735,7 +735,7 @@ package-specific scope. This section holds the rules every session follows.
 | 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | done (4a–4c) |
 | 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | done (5a–5g) |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | done (6a–6c) |
-| 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | 7a done; 7b next |
+| 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | 7a and 7b done; 7c next |
 | A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | A1, B0, B1, B2 and B3 done; B4 next |
 
 Tracks may run in parallel only on separate branches. Do not run two broad

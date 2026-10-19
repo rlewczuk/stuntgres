@@ -181,11 +181,11 @@ func identityMultiCacheUnits(t *testing.T) {
 		identityMultiEmit(t, e, a, first, lock.MultiKeyShare)
 		identityMultiGrant(t, e, b, first, lock.ForKeyShare)
 		identityMultiEmit(t, e, b, first, lock.MultiKeyShare)
-		counter := e.visibility.assignedXID
+		counter := e.visibility.LastAssignedXID()
 		if _, err := e.locks.MultiXactMembers(reader, 1); err != nil {
 			t.Fatal(err)
 		}
-		if reader.AssignedPublicXID() != 0 || e.visibility.assignedXID != counter {
+		if reader.AssignedPublicXID() != 0 || e.visibility.LastAssignedXID() != counter {
 			t.Fatal("member inquiry assigned an observer XID")
 		}
 		if _, err := e.locks.MultiXactMembers(a, 1); err != nil {

@@ -147,8 +147,8 @@ func TestTransactionAppendScalingAndRelationRetention(t *testing.T) {
 			sessionSQL(t, s, "INSERT INTO u VALUES(3)")
 			own := sessionSQL(t, s, "SELECT v FROM t").Rows.(*finalRows)
 			defer own.Close()
-			data := own.source.view.read()
-			if len(data.committed) != 1 || len(data.own) != 1 || len(data.committed[ref.Address]) != n || len(data.own[ref.Address]) != 1 {
+			data := own.source.view.Data()
+			if len(data.Committed) != 1 || len(data.Own) != 1 || len(data.Committed[ref.Address]) != n || len(data.Own[ref.Address]) != 1 {
 				t.Fatal("query retained unrelated committed/private relation roots")
 			}
 			transactionEnd(t, s, tx, false)
@@ -159,7 +159,7 @@ func TestTransactionAppendScalingAndRelationRetention(t *testing.T) {
 			if own.count != n+1 || err != nil || value != 2 || retained.count != 1 {
 				t.Fatal("replacement lost retained relation-local roots")
 			}
-			t.Logf("N=%d backing-root changes=%d copied-prefix entries=%d retained committed relations=%d private relations=%d", n, changes, copied, len(data.committed), len(data.own))
+			t.Logf("N=%d backing-root changes=%d copied-prefix entries=%d retained committed relations=%d private relations=%d", n, changes, copied, len(data.Committed), len(data.Own))
 		})
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
@@ -94,7 +95,7 @@ func buildHashIndexRoot(evaluation *EvalContext, parent *catalog.Relation, d *ca
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if !liveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, nil) {
+		if !visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, nil) {
 			continue
 		}
 		matches, err := preparation.predicateMatches(evaluation, parent, d, row.Values, nil, &binding)
@@ -230,7 +231,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 			}
 		}
 		if p.deletion != nil {
-			if deletion, ok := p.deletion.rows[row.Row]; ok && deletion.version == row.Version {
+			if deletion, ok := p.deletion.Rows[row.Row]; ok && deletion.Version == row.Version {
 				continue
 			}
 		}
@@ -280,12 +281,12 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 		}
 	}
 	if p.deletion != nil && materialize {
-		for id, deletion := range p.deletion.rows {
-			if deletion.own {
+		for id, deletion := range p.deletion.Rows {
+			if deletion.Own {
 				continue
 			}
-			row, _, found := rowByID(p.root, id, deletion.ordinal)
-			if !found || row.Version != deletion.version {
+			row, _, found := rowByID(p.root, id, deletion.Ordinal)
+			if !found || row.Version != deletion.Version {
 				return nil, fmt.Errorf("stuntgres: invalid hash deletion predecessor")
 			}
 			if err := end(row); err != nil {

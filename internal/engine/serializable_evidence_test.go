@@ -31,7 +31,7 @@ func serializableUnitRelation(t *testing.T, e *Engine) ids.ObjectRef {
 	return e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
 }
 func serializableUnitScope(node *serializableTransaction) *StatementScope {
-	return &StatementScope{owner: txOwnerOf(node.ref), txRef: node.ref}
+	return &StatementScope{owner: txOwnerOf(node.Ref), txRef: node.Ref}
 }
 func TestSerializableEvidenceEmptyReadAndAcceptedWrite(t *testing.T) {
 	e := New()
@@ -43,11 +43,11 @@ func TestSerializableEvidenceEmptyReadAndAcceptedWrite(t *testing.T) {
 	if err := e.serializableReadLocked(serializableUnitScope(reader), ref); err != nil {
 		t.Fatal(err)
 	}
-	event := [1]serializableWrite{{row: 1, version: 1}}
+	event := [1]serializableWrite{{Row: 1, Version: 1}}
 	if err := e.serializableWriteLocked(serializableUnitScope(writer), ref, event[:]); err != nil {
 		t.Fatal(err)
 	}
-	if len(reader.reads) != 1 || len(reader.outgoing) != 1 || len(writer.incoming) != 1 || !writer.didWrite || e.visibility.serializable.creators[1] != writer.ref {
+	if len(reader.Reads) != 1 || len(reader.Outgoing) != 1 || len(writer.Incoming) != 1 || !writer.DidWrite || e.visibility.Serializable.Creators[1] != writer.Ref {
 		t.Fatal("empty read/write evidence omitted")
 	}
 }
@@ -61,15 +61,15 @@ func TestSerializableEvidenceInvisibleCreatorAndVisibleEnder(t *testing.T) {
 			ender := serializableUnitNode(t, e, false)
 			e.mu.Lock()
 			defer e.mu.Unlock()
-			creator.writes[ref.Address] = map[serializableWriteKey]serializableWrite{{version: 1}: {row: 1, version: 1}}
-			creator.didWrite = true
-			e.visibility.serializable.creators[1] = creator.ref
-			e.visibility.serializableCommittedLocked(creator.ref, reader.frontier+1)
+			creator.Writes[ref.Address] = map[serializableWriteKey]serializableWrite{{Version: 1}: {Row: 1, Version: 1}}
+			creator.DidWrite = true
+			e.visibility.Serializable.Creators[1] = creator.Ref
+			e.visibility.SerializableCommittedLocked(creator.Ref, reader.Frontier+1)
 			if visible {
-				reader.frontier = creator.commitFrontier
-				reader.snapshotOrder = creator.order
+				reader.Frontier = creator.CommitFrontier
+				reader.SnapshotOrder = creator.Order
 			}
-			ender.writes[ref.Address] = map[serializableWriteKey]serializableWrite{{version: 2}: {row: 1, version: 2, base: 1, baseBorn: creator.commitFrontier, creator: creator.ref}}
+			ender.Writes[ref.Address] = map[serializableWriteKey]serializableWrite{{Version: 2}: {Row: 1, Version: 2, Base: 1, BaseBorn: creator.CommitFrontier, Creator: creator.Ref}}
 			if err := e.serializableReadLocked(serializableUnitScope(reader), ref); err != nil {
 				t.Fatal(err)
 			}
@@ -77,10 +77,10 @@ func TestSerializableEvidenceInvisibleCreatorAndVisibleEnder(t *testing.T) {
 			if visible {
 				want = ender
 			}
-			if len(reader.outgoing) != 1 {
-				t.Fatal("selected zero/multiple writers", len(reader.outgoing))
+			if len(reader.Outgoing) != 1 {
+				t.Fatal("selected zero/multiple writers", len(reader.Outgoing))
 			}
-			if _, ok := reader.outgoing[want]; !ok {
+			if _, ok := reader.Outgoing[want]; !ok {
 				t.Fatal("wrong creator/ender identity")
 			}
 		})
@@ -95,7 +95,7 @@ func TestSerializableEvidenceRejectsForeignStaleAndInvalidBeforeMutation(t *test
 	defer e.mu.Unlock()
 	for _, kind := range []string{"foreign", "stale", "subobject", "row", "version", "transaction"} {
 		bad := ref
-		event := [1]serializableWrite{{row: 1, version: 1}}
+		event := [1]serializableWrite{{Row: 1, Version: 1}}
 		s := *scope
 		switch kind {
 		case "foreign":
@@ -105,9 +105,9 @@ func TestSerializableEvidenceRejectsForeignStaleAndInvalidBeforeMutation(t *test
 		case "subobject":
 			bad.Address.SubID = 1
 		case "row":
-			event[0].row = 0
+			event[0].Row = 0
 		case "version":
-			event[0].version = 0
+			event[0].Version = 0
 		case "transaction":
 			s.txRef = withTxID(s.txRef, s.txRef.ID()+1)
 		}
@@ -116,7 +116,7 @@ func TestSerializableEvidenceRejectsForeignStaleAndInvalidBeforeMutation(t *test
 		if err == nil || errors.As(err, &diagnostic) {
 			t.Fatal("invalid identity did not stay ordinary", kind, err)
 		}
-		if node.didWrite || len(node.writes) != 0 || len(node.incoming) != 0 || len(node.outgoing) != 0 {
+		if node.DidWrite || len(node.Writes) != 0 || len(node.Incoming) != 0 || len(node.Outgoing) != 0 {
 			t.Fatal("invalid evidence mutated graph", kind)
 		}
 	}
@@ -129,22 +129,22 @@ func TestSerializableEvidenceRollbackKeepsReadsEdgesDoomAndStickyWrite(t *testin
 	scope := serializableUnitScope(b)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	b.reads[ref.Address] = struct{}{}
-	event := [1]serializableWrite{{row: 1, version: 1}}
+	b.Reads[ref.Address] = struct{}{}
+	event := [1]serializableWrite{{Row: 1, Version: 1}}
 	if err := e.serializableWriteLocked(scope, ref, event[:]); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.visibility.serializableEdgeLocked(a, a, b); err != nil {
+	if err := e.visibility.SerializableEdgeLocked(a, a, b); err != nil {
 		t.Fatal(err)
 	}
-	b.doomed = true
-	e.reconcileSerializableWritesLocked(txOwnerOf(b.ref))
-	if len(b.writes) != 0 || len(e.visibility.serializable.creators) != 0 || !b.didWrite || !b.doomed || len(b.reads) != 1 || len(b.incoming) != 1 {
+	b.Doomed = true
+	e.reconcileSerializableWritesLocked(txOwnerOf(b.Ref))
+	if len(b.Writes) != 0 || len(e.visibility.Serializable.Creators) != 0 || !b.DidWrite || !b.Doomed || len(b.Reads) != 1 || len(b.Incoming) != 1 {
 		t.Fatal("rollback erased top-level state or retained discarded payload identity")
 	}
 	serializableUnitDiagnostic(t, e.serializableWriteLocked(scope, ref, event[:]), "Canceled on identification as a pivot, during conflict in checking.")
 	serializableUnitDiagnostic(t, e.serializableReadLocked(scope, ref), "Canceled on identification as a pivot, during conflict out checking.")
-	serializableUnitDiagnostic(t, e.visibility.serializablePrecommitLocked(b.ref), "Canceled on identification as a pivot, during commit attempt.")
+	serializableUnitDiagnostic(t, e.visibility.SerializablePrecommitLocked(b.Ref), "Canceled on identification as a pivot, during commit attempt.")
 }
 func TestSerializableEvidenceExemptSourcesAndUnrelatedFrontier(t *testing.T) {
 	e := New()
@@ -161,15 +161,15 @@ func TestSerializableEvidenceExemptSourcesAndUnrelatedFrontier(t *testing.T) {
 	if err := e.serializableReadLocked(serializableUnitScope(node), ref); err != nil {
 		t.Fatal(err)
 	}
-	event := [1]serializableWrite{{row: 1, version: 1}}
+	event := [1]serializableWrite{{Row: 1, Version: 1}}
 	if err := e.serializableWriteLocked(serializableUnitScope(node), ref, event[:]); err != nil {
 		t.Fatal(err)
 	}
-	if len(node.reads) != 0 || len(node.writes) != 0 || node.didWrite {
+	if len(node.Reads) != 0 || len(node.Writes) != 0 || node.DidWrite {
 		t.Fatal("system source participated")
 	}
-	e.visibility.commitSeq += 100
-	if err := e.visibility.serializablePrecommitLocked(node.ref); err != nil {
+	e.visibility.SetCommitSeqLocked(e.visibility.CommitSeq() + 100)
+	if err := e.visibility.SerializablePrecommitLocked(node.Ref); err != nil {
 		t.Fatal("unrelated frontier aborted owner", err)
 	}
 }
@@ -180,40 +180,40 @@ func TestSerializableEvidenceOwnCreatorSurvivesEndingRollback(t *testing.T) {
 	reader := serializableUnitNode(t, e, false)
 	writer := serializableUnitNode(t, e, false)
 	scope := serializableUnitScope(writer)
-	owner := txOwnerOf(writer.ref)
+	owner := txOwnerOf(writer.Ref)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	create := [1]serializableWrite{{row: 41, version: 73}}
+	create := [1]serializableWrite{{Row: 41, Version: 73}}
 	if err := e.serializableWriteLocked(scope, relation, create[:]); err != nil {
 		t.Fatal(err)
 	}
 	owner.writes = map[ids.ObjectAddress][]storage.RowVersion{relation.Address: {{Row: 41, Version: 73}}}
-	ending := [1]serializableWrite{{row: 41, version: 73, base: 73, creator: writer.ref, deletion: true}}
+	ending := [1]serializableWrite{{Row: 41, Version: 73, Base: 73, Creator: writer.Ref, Deletion: true}}
 	if err := e.serializableWriteLocked(scope, relation, ending[:]); err != nil {
 		t.Fatal(err)
 	}
-	owner.deletes = map[ids.ObjectAddress]*privateDeletionRoot{relation.Address: {rows: map[ids.RowID]deleteCandidate{41: {row: 41, version: 73, own: true}}}}
+	owner.deletes = map[ids.ObjectAddress]*privateDeletionRoot{relation.Address: {Rows: map[ids.RowID]deleteCandidate{41: {Row: 41, Version: 73, Own: true}}}}
 	e.reconcileSerializableWritesLocked(owner)
-	if len(writer.writes[relation.Address]) != 2 {
+	if len(writer.Writes[relation.Address]) != 2 {
 		t.Fatal("ending overwrote same-version creator")
 	}
 	// Restore the saved owner overlays: insertion remains, ending is discarded.
 	owner.deletes = nil
 	e.reconcileSerializableWritesLocked(owner)
-	event, ok := writer.writes[relation.Address][serializableWriteKey{version: 73}]
-	if !ok || event.row != 41 || event.version != 73 || event.deletion || len(writer.writes[relation.Address]) != 1 || e.visibility.serializable.creators[73] != writer.ref || !writer.didWrite {
+	event, ok := writer.Writes[relation.Address][serializableWriteKey{Version: 73}]
+	if !ok || event.Row != 41 || event.Version != 73 || event.Deletion || len(writer.Writes[relation.Address]) != 1 || e.visibility.Serializable.Creators[73] != writer.Ref || !writer.DidWrite {
 		t.Fatal("rollback lost surviving exact creator identity")
 	}
-	e.visibility.serializableCommittedLocked(writer.ref, e.visibility.commitSeq+1)
+	e.visibility.SerializableCommittedLocked(writer.Ref, e.visibility.CommitSeq()+1)
 	if err := e.serializableReadLocked(serializableUnitScope(reader), relation); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := reader.outgoing[writer]; !ok {
+	if _, ok := reader.Outgoing[writer]; !ok {
 		t.Fatal("old-view read omitted surviving creator dependency")
 	}
 	owner.writes = nil
 	e.reconcileSerializableWritesLocked(owner)
-	if len(writer.writes) != 0 || len(e.visibility.serializable.creators) != 0 || !writer.didWrite || len(reader.outgoing) != 1 {
+	if len(writer.Writes) != 0 || len(e.visibility.Serializable.Creators) != 0 || !writer.DidWrite || len(reader.Outgoing) != 1 {
 		t.Fatal("full overlay discard lost sticky graph or retained creator")
 	}
 }
@@ -244,14 +244,14 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 			result.Rows.Close()
 		}
 		e.mu.Lock()
-		node := e.visibility.serializable.nodes[session.transactions.ref]
-		if node == nil || !node.captured || len(node.reads) != 0 || len(node.writes) != 0 || node.didWrite || len(node.incoming) != 0 || len(node.outgoing) != 0 {
+		node := e.visibility.Serializable.Nodes[session.transactions.ref]
+		if node == nil || !node.Captured || len(node.Reads) != 0 || len(node.Writes) != 0 || node.DidWrite || len(node.Incoming) != 0 || len(node.Outgoing) != 0 {
 			t.Fatal("actual sequence/catalog provider registered SSI evidence", query)
 		}
 		e.mu.Unlock()
 	}
 	e.mu.Lock()
-	node := e.visibility.serializable.nodes[session.transactions.ref]
+	node := e.visibility.Serializable.Nodes[session.transactions.ref]
 	namespace := e.catalog.state.MustNamespace(session.temporaryNamespace)
 	if namespace.Temporary != session.token {
 		t.Fatal("fixture did not create actual session-owned temporary namespace")
@@ -263,11 +263,11 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 	if err := e.serializableReadLocked(scope, relation); err != nil {
 		t.Fatal(err)
 	}
-	event := [1]serializableWrite{{row: 1, version: 1}}
+	event := [1]serializableWrite{{Row: 1, Version: 1}}
 	if err := e.serializableWriteLocked(scope, relation, event[:]); err != nil {
 		t.Fatal(err)
 	}
-	if len(node.reads) != 0 || len(node.writes) != 0 || node.didWrite || len(node.incoming) != 0 || len(node.outgoing) != 0 {
+	if len(node.Reads) != 0 || len(node.Writes) != 0 || node.DidWrite || len(node.Incoming) != 0 || len(node.Outgoing) != 0 {
 		t.Fatal("temporary stored relation registered evidence")
 	}
 	var persistentGenerator, temporaryGenerator *storage.SequenceGenerator

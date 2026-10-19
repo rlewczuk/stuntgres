@@ -222,7 +222,7 @@ func TestDeleteCoreRowCastLateAtomicity(t *testing.T) {
 	result, executeErr := scope.Execute(statement(t, "DELETE FROM t WHERE int4(s) IS DISTINCT FROM 0"), 0, nil)
 	state(t, executeErr, "22P02")
 	root := scope.stage.deletes[scope.lockedRef.Address]
-	if result.Count != 0 || result.Rows != nil || root == nil || len(root.rows) != 1 {
+	if result.Count != 0 || result.Rows != nil || root == nil || len(root.Rows) != 1 {
 		t.Fatal("actual first row was not staged before late cast failure", result, root)
 	}
 	if err := scope.Finish(executeErr); err != executeErr {

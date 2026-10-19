@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
@@ -78,7 +79,7 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, view catalog.Read, ou
 		}
 		if storage := e.storage.Relations[relation.Address()]; storage != nil {
 			for _, version := range storage.Versions {
-				if !liveVersion(version, e.visibility.commitSeq, storage.Ends, nil) {
+				if !visibility.LiveVersion(version, e.visibility.CommitSeq(), storage.Ends, nil) {
 					continue
 				}
 				for i, value := range version.Values {

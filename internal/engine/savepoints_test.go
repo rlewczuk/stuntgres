@@ -100,7 +100,7 @@ func TestSavepointsAuthorityAndCompletion(t *testing.T) {
 			e := New()
 			a := sessionStart(t, e, nil)
 			controlsRequire(t, a, "BEGIN")
-			ref, command, frontier := a.transactions.ref, a.transactions.command, e.visibility.commitSeq
+			ref, command, frontier := a.transactions.ref, a.transactions.command, e.visibility.CommitSeq()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			op, err := a.Acquire(ctx)
@@ -140,7 +140,7 @@ func TestSavepointsAuthorityAndCompletion(t *testing.T) {
 					t.Fatal("canceled mark installed")
 				}
 			}
-			if a.transactions.ref != ref || a.transactions.command != command || e.visibility.commitSeq != frontier {
+			if a.transactions.ref != ref || a.transactions.command != command || e.visibility.CommitSeq() != frontier {
 				t.Fatal("control advanced transaction identity/frontier")
 			}
 		})
@@ -205,11 +205,11 @@ func TestSavepointsOperationAuthority(t *testing.T) {
 	op.Done()
 	a.transactions.command = ids.CommandID(^uint64(0))
 	a.transactions.next = ids.TxID(^uint64(0))
-	e.visibility.commitSeq = ids.CommitSeq(^uint64(0))
+	e.visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
 	for _, q := range []string{"ROLLBACK TO s", "RELEASE s", "SAVEPOINT s"} {
 		controlsRequire(t, a, q)
 	}
-	if a.transactions.command != ids.CommandID(^uint64(0)) || a.transactions.next != ids.TxID(^uint64(0)) || e.visibility.commitSeq != ids.CommitSeq(^uint64(0)) {
+	if a.transactions.command != ids.CommandID(^uint64(0)) || a.transactions.next != ids.TxID(^uint64(0)) || e.visibility.CommitSeq() != ids.CommitSeq(^uint64(0)) {
 		t.Fatal("savepoint control advanced exhausted counters")
 	}
 	controlsRequire(t, a, "ROLLBACK")

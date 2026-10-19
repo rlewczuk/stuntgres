@@ -58,7 +58,7 @@ func TestSQLCursorDetachedBatchesAndLifetime(t *testing.T) {
 	}
 	cursor := s.cursors.entries["c"]
 	pin, cell := cursor.source.view, cursor.authority
-	if cursor.stage != nil || cell.scope != nil || cell.expression != nil || pin.data.Load() == nil {
+	if cursor.stage != nil || cell.scope != nil || cell.expression != nil || pin.Load() == nil {
 		t.Fatal("DECLARE opens demand or loses capture")
 	}
 	first := cursorUnitBatch(t, s, "FETCH 1 FROM c", [][]driver.Value{{int64(1)}})
@@ -73,7 +73,7 @@ func TestSQLCursorDetachedBatchesAndLifetime(t *testing.T) {
 	}
 	cursorUnitBatch(t, s, "FETCH ALL FROM c", [][]driver.Value{})
 	sessionSQL(t, s, "CLOSE c")
-	if pin.data.Load() != nil || cell.scope != nil || cell.expression != nil {
+	if pin.Load() != nil || cell.scope != nil || cell.expression != nil {
 		t.Fatal("SQL close leaks retained execution")
 	}
 	sessionSQL(t, s, "COMMIT")
@@ -444,7 +444,7 @@ func TestSQLCursorCompletedPublicationBoundary(t *testing.T) {
 			pin := cursor.source.view
 			sessionSQL(t, s, "SAVEPOINT recover")
 			result := completed(t, s, query)
-			if result.Count != 0 || result.Rows != nil || s.cursors.entries["c"] != nil || pin.data.Load() != nil || cursor.authority.scope != nil {
+			if result.Count != 0 || result.Rows != nil || s.cursors.entries["c"] != nil || pin.Load() != nil || cursor.authority.scope != nil {
 				t.Fatal("completed CLOSE loses removal or leaks capture", result, cursor)
 			}
 			sessionSQL(t, s, "ROLLBACK TO recover")

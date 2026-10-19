@@ -138,7 +138,7 @@ func TestQueryTableCreateCleanup(t *testing.T) {
 			t.Fatal(result, count, err, closes)
 		}
 		queryCreateAssertAbsent(t, e, d)
-		if e.storage.RowFrontier() != 0 || e.storage.VersionFrontier() != 0 || e.visibility.commitSeq != 0 {
+		if e.storage.RowFrontier() != 0 || e.storage.VersionFrontier() != 0 || e.visibility.CommitSeq() != 0 {
 			t.Fatal("cleanup failure reserved or published data")
 		}
 	}

@@ -87,7 +87,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				base, roles, frontier := e.catalog.state, e.roles.published, e.visibility.commitSeq
+				base, roles, frontier := e.catalog.state, e.roles.published, e.visibility.CommitSeq()
 				var err error
 				if carrier == "ordinary" || carrier == "clone" {
 					err = m.end(nil)
@@ -120,7 +120,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 				if err == nil || dependency != "registered" && !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("invalid retirement candidate published", err)
 				}
-				if e.catalog.state != base || e.roles.published != roles || e.visibility.commitSeq != frontier || address != (ids.ObjectAddress{}) && e.catalog.state.Get(address) != descriptor {
+				if e.catalog.state != base || e.roles.published != roles || e.visibility.CommitSeq() != frontier || address != (ids.ObjectAddress{}) && e.catalog.state.Get(address) != descriptor {
 					t.Fatal("rejected retirement changed committed peer roots or publication frontier")
 				}
 				if current, ok := e.Roles().Lookup("retired"); !ok || current.Ref != role.Ref {

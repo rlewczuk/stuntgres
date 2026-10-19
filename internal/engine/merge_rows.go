@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -138,10 +139,10 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 	capture := func(i int, class parser.MergeMatch, source int) mergeCandidate {
 		slot := target.rawIndex(i)
 		old := target.versionAt(slot)
-		deletion := deleteCandidate{ref: b.ref, storage: b.storage, row: old.Row, version: old.Version, ordinal: slot}
+		deletion := deleteCandidate{Ref: b.ref, Storage: b.storage, Row: old.Row, Version: old.Version, Ordinal: slot}
 		if slot >= len(target.committed) {
-			deletion.own = true
-			deletion.ordinal -= len(target.committed)
+			deletion.Own = true
+			deletion.Ordinal -= len(target.committed)
 		}
 		return mergeCandidate{updateCandidate: updateCandidate{RowVersion: old, slot: slot, sourceIndex: source}, class: class, deletion: deletion}
 	}
@@ -376,7 +377,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 		// Retire exclusion authority in actual action order before later admission.
 		// Canonical Delete still validates the original captured provenance at stage.
 		projected := deletion
-		projected.version = old.Version
+		projected.Version = old.Version
 		e.mu.Lock()
 		scope.projectExclusionDeletionLocked(e, projected)
 		e.mu.Unlock()
@@ -526,13 +527,13 @@ func (e *Engine) latestMergeRow(s *StatementScope, ref ids.ObjectRef, candidate 
 	}
 	current, hint := store.Versions, candidate.slot
 	if own, _, found := rowByID(s.ownWrites[ref.Address], candidate.Row, -1); found {
-		return own, liveVersion(own, e.visibility.commitSeq, store.Ends, s.ownDeletes[ref.Address]), nil
+		return own, visibility.LiveVersion(own, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address]), nil
 	}
 	row, _, found := rowByID(current, candidate.Row, hint)
 	if !found {
 		return storage.RowVersion{}, false, errors.New("stuntgres: invalid MERGE predecessor")
 	}
-	live := liveVersion(row, e.visibility.commitSeq, store.Ends, s.ownDeletes[ref.Address])
+	live := visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address])
 	if !live && stableIsolation(s.owner.isolation) && store.Ends != nil {
 		if tombstone, ok := store.Ends.Rows[row.Row]; ok && tombstone.Version == row.Version && tombstone.End > s.owner.frontier {
 			return storage.RowVersion{}, false, sqlError("40001", "could not serialize access due to concurrent delete")

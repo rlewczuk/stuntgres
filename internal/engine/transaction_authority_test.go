@@ -60,10 +60,10 @@ func TestTransactionCopiedScopeStageViewAndSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data := scope.view.read()
+	data := scope.view.Data()
 	var relation ids.ObjectRef
-	for a := range data.committed {
-		relation = e.catalog.Domain.Ref(data.catalog.Epoch(), a)
+	for a := range data.Committed {
+		relation = e.catalog.Domain.Ref(data.Catalog.Epoch(), a)
 	}
 	stage := *scope.Writes()
 	before := e.storage.RowFrontier()
@@ -83,12 +83,6 @@ func TestTransactionCopiedScopeStageViewAndSnapshot(t *testing.T) {
 	}
 	if e.storage.RowFrontier() != before {
 		t.Fatal("failed Apply transferred ownership/allocated identity")
-	}
-	forged := &VisibilityView{self: scope.view}
-	forged.data.Store(data)
-	forged.Release()
-	if forged.Retain() != nil || scope.view.Catalog().Epoch() == 0 {
-		t.Fatal("copied view affected original authority")
 	}
 	actual := result.Rows.(*finalRows)
 	forgedResult := &finalRows{self: actual, source: actual.source}
@@ -112,7 +106,7 @@ func TestTransactionRollbackAndAbortDoNotPublishFrontier(t *testing.T) {
 	b := sessionStart(t, e, nil)
 	sessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
 	sessionSQL(t, b, "INSERT INTO t VALUES(7)")
-	frontier := e.visibility.commitSeq
+	frontier := e.visibility.CommitSeq()
 	for _, abort := range []bool{false, true} {
 		ref := transactionBegin(t, a)
 		sessionSQL(t, a, "INSERT INTO t VALUES(1)")
@@ -127,14 +121,14 @@ func TestTransactionRollbackAndAbortDoNotPublishFrontier(t *testing.T) {
 		} else {
 			transactionEnd(t, a, ref, false)
 		}
-		if e.visibility.commitSeq != frontier {
+		if e.visibility.CommitSeq() != frontier {
 			t.Fatal("discard emitted a committed frontier")
 		}
 		transactionRows(t, b, "SELECT v FROM t ORDER BY v", 7)
 	}
 	ref := transactionBegin(t, a)
 	sessionSQL(t, a, "INSERT INTO t VALUES(3)")
-	if !transactionEnd(t, a, ref, true).Committed || e.visibility.commitSeq != frontier+1 {
+	if !transactionEnd(t, a, ref, true).Committed || e.visibility.CommitSeq() != frontier+1 {
 		t.Fatal("successful commit did not advance exactly one frontier")
 	}
 	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 3, 7)

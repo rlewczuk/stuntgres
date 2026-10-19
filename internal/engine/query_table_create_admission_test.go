@@ -44,13 +44,13 @@ func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 						transactionEnd(t, writer, writerRef, false)
 					}
 				})
-				writerNode := e.visibility.serializable.nodes[writerRef]
-				if writerNode == nil || !writerNode.captured || writerNode.ended || writerNode.committed || len(writer.transactions.writes[relation.Address]) != 1 {
+				writerNode := e.visibility.Serializable.Nodes[writerRef]
+				if writerNode == nil || !writerNode.Captured || writerNode.Ended || writerNode.Committed || len(writer.transactions.writes[relation.Address]) != 1 {
 					t.Fatal("writer was not actually admitted with unresolved staged data")
 				}
 				beforeWrites := append([]storage.RowVersion(nil), writer.transactions.writes[relation.Address]...)
 				beforeStorage := e.storage.Relations[relation.Address]
-				beforeFrontier, beforeRows, beforeVersions := e.visibility.commitSeq, e.storage.RowFrontier(), e.storage.VersionFrontier()
+				beforeFrontier, beforeRows, beforeVersions := e.visibility.CommitSeq(), e.storage.RowFrontier(), e.storage.VersionFrontier()
 				beforeCatalog := e.catalog.state
 				ctx, cancel := context.WithCancel(context.Background())
 				t.Cleanup(cancel)
@@ -99,8 +99,8 @@ func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 						break
 					}
 					e.mu.Lock()
-					_, containsWriter := node.possible[writerNode]
-					waiting = node.ready != nil && !node.resolved && containsWriter && !writerNode.ended && !writerNode.committed
+					_, containsWriter := node.Possible[writerNode]
+					waiting = node.Ready != nil && !node.Resolved && containsWriter && !writerNode.Ended && !writerNode.Committed
 					e.mu.Unlock()
 					if waiting {
 						cancel()
@@ -128,15 +128,15 @@ func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 				if !errors.As(outcome, &diagnostic) || *diagnostic != want {
 					t.Errorf("utility admitted to safe-snapshot wait=%t: got %v, want %+v", waiting, outcome, want)
 				}
-				if waiting || node.captured || node.ready != nil || len(node.possible) != 0 || reader.owner.snapshotSet || len(reader.owner.roots) != 0 {
+				if waiting || node.Captured || node.Ready != nil || len(node.Possible) != 0 || reader.owner.snapshotSet || len(reader.owner.roots) != 0 {
 					t.Error("rejected utility acquired candidate/root/snapshot evidence")
 				}
-				if reader.owner.state != TxAborted || writerNode.ended || writerNode.committed || !reflect.DeepEqual(beforeWrites, writer.transactions.writes[relation.Address]) || e.catalog.state != beforeCatalog || e.storage.Relations[relation.Address] != beforeStorage || e.visibility.commitSeq != beforeFrontier || e.storage.RowFrontier() != beforeRows || e.storage.VersionFrontier() != beforeVersions {
+				if reader.owner.state != TxAborted || writerNode.Ended || writerNode.Committed || !reflect.DeepEqual(beforeWrites, writer.transactions.writes[relation.Address]) || e.catalog.state != beforeCatalog || e.storage.Relations[relation.Address] != beforeStorage || e.visibility.CommitSeq() != beforeFrontier || e.storage.RowFrontier() != beforeRows || e.storage.VersionFrontier() != beforeVersions {
 					t.Error("utility changed writer/source/publication state or did not abort its owner")
 				}
 				reader.op.Done()
-				transactionEnd(t, reader.op.session, node.ref, false)
-				if reader.owner.state != TxIdle || len(reader.owner.roots) != 0 || !node.ended {
+				transactionEnd(t, reader.op.session, node.Ref, false)
+				if reader.owner.state != TxIdle || len(reader.owner.roots) != 0 || !node.Ended {
 					t.Fatal("rollback did not retire the rejected owner")
 				}
 				preparedUnitStatement(t, e, reader.op.session, &parser.Select{Targets: []parser.Expr{literal(1)}})
@@ -176,8 +176,8 @@ func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 				}()
 				serializableUnitAwaitCandidate(t, e, controlNode)
 				e.mu.Lock()
-				_, containsWriter := controlNode.possible[writerNode]
-				registered := containsWriter && len(controlNode.possible) == 1 && !controlNode.resolved && !control.owner.snapshotSet
+				_, containsWriter := controlNode.Possible[writerNode]
+				registered := containsWriter && len(controlNode.Possible) == 1 && !controlNode.Resolved && !control.owner.snapshotSet
 				e.mu.Unlock()
 				if !registered {
 					t.Fatal("ordinary SELECT control did not retain the actual unresolved writer")
@@ -193,11 +193,11 @@ func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 				case <-time.After(5 * time.Second):
 					t.Fatal("ordinary SELECT did not resume after writer rollback")
 				}
-				if !control.owner.snapshotSet || !controlNode.resolved || !writerNode.ended || e.storage.Relations[relation.Address] != beforeStorage || e.visibility.commitSeq != beforeFrontier {
+				if !control.owner.snapshotSet || !controlNode.Resolved || !writerNode.Ended || e.storage.Relations[relation.Address] != beforeStorage || e.visibility.CommitSeq() != beforeFrontier {
 					t.Fatal("snapshot control or writer rollback changed committed source state")
 				}
 				control.op.Done()
-				transactionEnd(t, control.op.session, controlNode.ref, false)
+				transactionEnd(t, control.op.session, controlNode.Ref, false)
 			})
 		}
 	}

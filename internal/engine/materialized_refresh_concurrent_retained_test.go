@@ -56,7 +56,7 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 	old = concurrentUnitReplace(t, e, old, refreshUnitRows(t, old, 1), false, true)
 	catalog := e.CatalogRead()
 	stored := e.storage.Relations[old.Address()]
-	snapshot := &visibilityData{catalog: catalog, committed: map[ids.ObjectAddress][]storage.RowVersion{old.Address(): stored.Versions}, singleGeneration: stored}
+	snapshot := &visibilityData{Catalog: catalog, Committed: map[ids.ObjectAddress][]storage.RowVersion{old.Address(): stored.Versions}, SingleGeneration: stored}
 	fence := materializedSourceFence{ref: e.catalog.Domain.Ref(catalog.Epoch(), old.Address()), relation: old, storage: stored}
 	current := concurrentUnitReplace(t, e, old, refreshUnitRows(t, old, 2), true, true)
 	e.mu.Lock()
@@ -88,7 +88,7 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 	}
 	e.mu.Unlock()
 	// Snapshot vectors remain the old immutable data, not the newly installed bag.
-	if len(snapshot.committed[old.Address()]) != 1 {
+	if len(snapshot.Committed[old.Address()]) != 1 {
 		t.Fatal("source snapshot was recaptured")
 	}
 }

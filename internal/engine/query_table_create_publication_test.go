@@ -87,7 +87,7 @@ func TestQueryTableCreateInitialPublication(t *testing.T) {
 			e := New()
 			registry := queryCreateTypes(e)
 			stage, d := queryCreateStage(t, e, "copy", tc.width)
-			before := e.visibility.commitSeq
+			before := e.visibility.CommitSeq()
 			rows := make([][]sqltype.Value, tc.count)
 			for i := range rows {
 				rows[i] = make([]sqltype.Value, tc.width)
@@ -117,8 +117,8 @@ func TestQueryTableCreateInitialPublication(t *testing.T) {
 			if tc.count != 0 {
 				wantFrontier++
 			}
-			if e.visibility.commitSeq != wantFrontier || e.storage.RowFrontier() != uint64(tc.count) || e.storage.VersionFrontier() != uint64(tc.count) {
-				t.Fatal("frontier or shared counters", e.visibility.commitSeq, e.storage.RowFrontier(), e.storage.VersionFrontier())
+			if e.visibility.CommitSeq() != wantFrontier || e.storage.RowFrontier() != uint64(tc.count) || e.storage.VersionFrontier() != uint64(tc.count) {
+				t.Fatal("frontier or shared counters", e.visibility.CommitSeq(), e.storage.RowFrontier(), e.storage.VersionFrontier())
 			}
 			if tc.count != 0 && storage.Generation != 1 {
 				t.Fatal(storage.Generation)
@@ -132,7 +132,7 @@ func TestQueryTableCreateInitialPublication(t *testing.T) {
 				}
 			}
 			queryCreateAssertTypes(t, e, registry)
-			if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil || e.visibility.commitSeq != wantFrontier {
+			if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil || e.visibility.CommitSeq() != wantFrontier {
 				t.Fatal("replayed publication", err)
 			}
 		})
@@ -202,11 +202,11 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			before := e.visibility.commitSeq
+			before := e.visibility.CommitSeq()
 			switch phase {
 			case "frontier":
-				e.visibility.commitSeq = ids.CommitSeq(math.MaxUint64)
-				before = e.visibility.commitSeq
+				e.visibility.SetCommitSeqLocked(ids.CommitSeq(math.MaxUint64))
+				before = e.visibility.CommitSeq()
 			case "cancel":
 				cancel()
 			case "name":
@@ -249,7 +249,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 				}
 				queryCreatePublish(t, e, peer)
 			}
-			before = e.visibility.commitSeq
+			before = e.visibility.CommitSeq()
 			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if err == nil {
 				t.Fatal("invalid stage published", phase)
@@ -287,8 +287,8 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 			if phase != "epoch" {
 				queryCreateAssertTypes(t, e, registry)
 			}
-			if e.visibility.commitSeq != before || stage.initialTables[d.Address()].Versions[0].Born != 0 {
-				t.Fatal("failed birth/frontier", e.visibility.commitSeq)
+			if e.visibility.CommitSeq() != before || stage.initialTables[d.Address()].Versions[0].Born != 0 {
+				t.Fatal("failed birth/frontier", e.visibility.CommitSeq())
 			}
 		})
 	}
@@ -328,7 +328,7 @@ func TestQueryTableCreateUnrelatedRefresh(t *testing.T) {
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	if e.storage.RowFrontier() != 1 || e.storage.VersionFrontier() != 1 || e.visibility.commitSeq != 1 || len(e.storage.Relations[d.Address()].Versions) != 1 || !sqltype.SameDatum(e.storage.Relations[d.Address()].Versions[0].Values[0], value) {
+	if e.storage.RowFrontier() != 1 || e.storage.VersionFrontier() != 1 || e.visibility.CommitSeq() != 1 || len(e.storage.Relations[d.Address()].Versions) != 1 || !sqltype.SameDatum(e.storage.Relations[d.Address()].Versions[0].Values[0], value) {
 		t.Fatal("refresh replayed or lost data")
 	}
 }
@@ -368,17 +368,17 @@ func TestQueryTableCreateSharedRowIdentities(t *testing.T) {
 		t.Fatal(outcome)
 	}
 	stored := e.storage.Relations[ref.Address].Versions[0]
-	if stored.Row != staged.Row || stored.Version != staged.Version || stored.Born != e.visibility.commitSeq {
+	if stored.Row != staged.Row || stored.Version != staged.Version || stored.Born != e.visibility.CommitSeq() {
 		t.Fatal("ordinary publication changed staged identity")
 	}
-	before := e.visibility.commitSeq
+	before := e.visibility.CommitSeq()
 	nextStage, next := queryCreateStage(t, e, "next_copy", 1)
 	if err = e.stageQueryTableRows(context.Background(), nextStage, next, [][]sqltype.Value{{value}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, nextStage)
 	copied := e.storage.Relations[next.Address()].Versions[0]
-	if copied.Row != stored.Row+1 || copied.Version != stored.Version+1 || copied.Born != before+1 || e.visibility.commitSeq != before+1 || reserved.Born != 0 {
+	if copied.Row != stored.Row+1 || copied.Version != stored.Version+1 || copied.Born != before+1 || e.visibility.CommitSeq() != before+1 || reserved.Born != 0 {
 		t.Fatal("initial storage did not share the ordinary non-reusing identity/frontier owner")
 	}
 }

@@ -4,19 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
-
-type transactionRoot struct {
-	versions []storage.RowVersion
-	ends     *storage.DeletionRoot
-	storage  *storage.Relation
-	relation *catalog.Relation
-}
 
 func isolationFromText(text string) Isolation {
 	switch text {
@@ -206,7 +198,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 			return false
 		}
 		for address, shape := range t.catalog.storage {
-			if root, exists := roots[address]; exists && !shape.hasSnapshot && !slices.Equal(root.relation.Attributes, shape.relation.Attributes) {
+			if root, exists := roots[address]; exists && !shape.hasSnapshot && !slices.Equal(root.Relation.Attributes, shape.relation.Attributes) {
 				return true
 			}
 		}
@@ -246,7 +238,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 				roots[address] = transactionRoot{storage.Versions, storage.Ends, storage, relation}
 			}
 		}
-		frontier = e.visibility.commitSeq
+		frontier = e.visibility.CommitSeq()
 		sequenceCatalog = e.catalog.state
 	}
 	if !needsProjection(roots) {

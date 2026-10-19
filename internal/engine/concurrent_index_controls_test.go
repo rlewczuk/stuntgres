@@ -108,7 +108,7 @@ func TestConcurrentIndexU6ReadyCancellationReleasesSUE(t *testing.T) {
 	sessionSQL(t, reader, "ROLLBACK")
 	lockEmpty(t, e)
 	e.mu.Lock()
-	remaining := len(e.visibility.entries)
+	remaining := len(e.visibility.Entries)
 	e.mu.Unlock()
 	if remaining != 0 {
 		t.Fatal("canceled builder registry leak")

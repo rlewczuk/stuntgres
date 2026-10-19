@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
@@ -35,7 +36,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view catalog.R
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if view.Owner() == nil || view.Owner() != e.catalog.owner() || view.State() == nil || e.catalog.state.Epoch() != view.Epoch() || frontier != e.visibility.commitSeq {
+	if view.Owner() == nil || view.Owner() != e.catalog.owner() || view.State() == nil || e.catalog.state.Epoch() != view.Epoch() || frontier != e.visibility.CommitSeq() {
 		return nil, ids.ErrCatalogReplaced
 	}
 	authority := e.catalog.state
@@ -233,7 +234,7 @@ func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalog.
 				if err := ctx.Err(); err != nil {
 					return nil, err
 				}
-				if !preserveVersions && !liveVersion(row, source.frontier, source.store.Ends, nil) {
+				if !preserveVersions && !visibility.LiveVersion(row, source.frontier, source.store.Ends, nil) {
 					continue
 				}
 				position, ok := selected[indexRowIdentity{row: row.Row, version: row.Version}]

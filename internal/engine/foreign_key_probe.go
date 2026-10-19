@@ -6,11 +6,12 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
 func (r foreignKeyRows) committedLive(v storage.RowVersion) bool {
-	return r.shadow[v.Row] == 0 && liveVersion(v, r.frontier, r.ends, r.priorDeletes) && liveVersion(v, r.frontier, r.ends, r.currentDeletes)
+	return r.shadow[v.Row] == 0 && visibility.LiveVersion(v, r.frontier, r.ends, r.priorDeletes) && visibility.LiveVersion(v, r.frontier, r.ends, r.currentDeletes)
 }
 func prepareForeignKeyChild(ctx context.Context, comparisons []foreignKeyComparison, child, key []sqltype.Value, input sqltype.InputEnvironment) error {
 	for i, comparison := range comparisons {

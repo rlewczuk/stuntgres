@@ -34,13 +34,13 @@ func TestMergeDeleteDeletionBaseAuthority(t *testing.T) {
 		t.Fatal("own replacement deletion count", result.Count)
 	}
 	root := scope.stage.deletes[ref.Address]
-	candidate := root.rows[original.Row]
-	if !candidate.own || candidate.base != original.Version || candidate.version == original.Version {
+	candidate := root.Rows[original.Row]
+	if !candidate.Own || candidate.Base != original.Version || candidate.Version == original.Version {
 		scope.Finish(err)
 		t.Fatal("deletion lost derived replacement base", candidate, original)
 	}
-	candidate.base++
-	root.rows[original.Row] = candidate
+	candidate.Base++
+	root.Rows[original.Row] = candidate
 	if err = scope.Finish(nil); err != nil {
 		t.Fatal("statement stage Finish unexpectedly publishes", err)
 	}

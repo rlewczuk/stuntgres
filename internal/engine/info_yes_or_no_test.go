@@ -176,7 +176,7 @@ func TestInfoYesOrNoLogicalDescriptions(t *testing.T) {
 	// analysis must retain the domain even when the only physical datum is NULL.
 	e.mu.Lock()
 	e.storage.Relations[table.Address()] = &storage.Relation{Generation: 1, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{sqltype.Null(d)}}}}
-	e.visibility.commitSeq = 1
+	e.visibility.SetCommitSeqLocked(1)
 	e.mu.Unlock()
 	check("SELECT v FROM public.yes_or_no_description")
 	check("SELECT NULL::information_schema.yes_or_no AS v")

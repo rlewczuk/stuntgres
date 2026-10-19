@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
@@ -144,7 +145,7 @@ func (s *StatementScope) foreignActionRow(ref ids.ObjectRef, candidate storage.R
 		if err := s.repeatableConflict(row, stored.Ends); err != nil {
 			return storage.RowVersion{}, false, err
 		}
-		return row, liveVersion(row, e.visibility.commitSeq, stored.Ends, nil), nil
+		return row, visibility.LiveVersion(row, e.visibility.CommitSeq(), stored.Ends, nil), nil
 	}
 	return storage.RowVersion{}, false, fmt.Errorf("stuntgres: missing internal action predecessor")
 }
@@ -179,9 +180,9 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 		return nil
 	}
 	stored := s.foreignActionAdmissions[ref.Address].storage
-	candidate := deleteCandidate{ref: ref, storage: stored, row: old.Row, version: old.Version, base: old.Base, own: old.Born == 0}
+	candidate := deleteCandidate{Ref: ref, Storage: stored, Row: old.Row, Version: old.Version, Base: old.Base, Own: old.Born == 0}
 	if old.Born != 0 {
-		candidate.base = old.Version
+		candidate.Base = old.Version
 	}
 	if err := w.stageDeletionLocked(e, candidate, old); err != nil {
 		return err
@@ -230,11 +231,11 @@ func (s *StatementScope) captureForeignActionRows(ref ids.ObjectRef) (foreignKey
 	var retained foreignKeyRows
 	if stableIsolation(s.owner.isolation) && s.owner.snapshotSet {
 		if root, exists := s.owner.roots[ref.Address]; exists {
-			if root.storage != rows.storage {
+			if root.Storage != rows.storage {
 				return foreignKeyRows{}, retained, ids.ErrCatalogReplaced
 			}
 			retained = rows
-			retained.committed, retained.ends, retained.frontier = root.versions, root.ends, s.owner.frontier
+			retained.committed, retained.ends, retained.frontier = root.Versions, root.Ends, s.owner.frontier
 		}
 	}
 	return rows, retained, nil

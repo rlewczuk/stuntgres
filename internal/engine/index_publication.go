@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
@@ -434,7 +435,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 					continue
 				}
 				for _, row := range publication.writes {
-					if !rowMaintainsIndex(row, index) || !liveVersion(row, ids.CommitSeq(^uint64(0)), nil, publication.deletion) {
+					if !rowMaintainsIndex(row, index) || !visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), nil, publication.deletion) {
 						continue
 					}
 					if output, ok := row.IndexOutputs[a]; !ok || !indexOutputMatches(output, index) {
@@ -672,7 +673,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *catalogChanges
 			if !rowMaintainsIndex(row, index) {
 				continue
 			}
-			if !liveVersion(row, ids.CommitSeq(^uint64(0)), nil, deletes[index.SQLIndex.Parent]) {
+			if !visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), nil, deletes[index.SQLIndex.Parent]) {
 				continue
 			}
 			if output, ok := row.IndexOutputs[index.Address()]; ok && indexOutputMatches(output, index) {

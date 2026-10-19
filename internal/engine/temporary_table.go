@@ -290,7 +290,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 		// absence). A repeated refresh replaces only the latest private root.
 		shape.replacement, shape.relation = r.storage, r.descriptor
 		shape.truncated = false
-		shape.rewritten, shape.frontier = true, e.visibility.commitSeq
+		shape.rewritten, shape.frontier = true, e.visibility.CommitSeq()
 		shape.snapshot, shape.hasSnapshot = nil, false
 		changes.storage[a] = shape
 	}

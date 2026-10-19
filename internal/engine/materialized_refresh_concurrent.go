@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -227,7 +228,7 @@ func materializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 			continue
 		}
 		for i := oldAt; i < oldEnd; i++ {
-			if !liveVersion(previous.Versions[oldEntries[i].Position], frontier, previous.Ends, nil) {
+			if !visibility.LiveVersion(previous.Versions[oldEntries[i].Position], frontier, previous.Ends, nil) {
 				continue
 			}
 			values := previous.Versions[oldEntries[i].Position].Values
@@ -277,7 +278,7 @@ func materializedSourceCurrent(snapshot *visibilityData, observed catalog.Descri
 	if current.Get(observed.Address()) == observed {
 		return true
 	}
-	if snapshot == nil || snapshot.catalog.Epoch() != current.Epoch() || snapshot.catalog.Get(observed.Address()) != observed {
+	if snapshot == nil || snapshot.Catalog.Epoch() != current.Epoch() || snapshot.Catalog.Get(observed.Address()) != observed {
 		return false
 	}
 	old, ok := observed.(*catalog.Relation)
@@ -285,7 +286,7 @@ func materializedSourceCurrent(snapshot *visibilityData, observed catalog.Descri
 		return false
 	}
 	live, _ := current.Relation(observed.Address())
-	return sameMaterializedLineage(old, live, snapshot.generationAt(observed.Address()), store)
+	return sameMaterializedLineage(old, live, snapshot.GenerationAt(observed.Address()), store)
 }
 
 type materializedSourceFence struct {

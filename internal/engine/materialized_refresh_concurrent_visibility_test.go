@@ -39,9 +39,9 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	retained := view.read()
-	frontier := retained.frontier
-	if !sameVersionRoot(retained.committed[d.Address()], current.Versions) {
+	retained := view.Data()
+	frontier := retained.Frontier
+	if !sameVersionRoot(retained.Committed[d.Address()], current.Versions) {
 		t.Fatal("capture did not own current immutable root")
 	}
 	next := concurrentUnitReplace(t, e, d, refreshUnitRows(t, d, 2), true, true)
@@ -58,7 +58,7 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	if err != nil || again != view {
 		t.Fatal("captured data view changed", err)
 	}
-	if again.read().frontier != frontier || !sameVersionRoot(again.read().committed[d.Address()], current.Versions) || len(again.read().committed[d.Address()]) != 4 {
+	if again.Data().Frontier != frontier || !sameVersionRoot(again.Data().Committed[d.Address()], current.Versions) || len(again.Data().Committed[d.Address()]) != 4 {
 		t.Fatal("reader mixed incarnations")
 	}
 	for _, source := range scope.querySources {
@@ -96,7 +96,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			}
 			root := scope.owner.roots[d.Address()]
 			frontier := scope.owner.frontier
-			if root.storage != original || root.ends != original.Ends || scope.owner.roots[unrelated.Address()].storage != e.storage.Relations[unrelated.Address()] {
+			if root.Storage != original || root.Ends != original.Ends || scope.owner.roots[unrelated.Address()].Storage != e.storage.Relations[unrelated.Address()] {
 				t.Fatal("snapshot did not capture database roots")
 			}
 			ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
@@ -115,8 +115,8 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 				if err != nil {
 					t.Fatal("RR compatible root selection", err)
 				}
-				data := view.read()
-				if data.frontier != frontier || !sameVersionRoot(data.committed[d.Address()], root.versions) || data.ends[d.Address()] != root.ends || data.needsBirthFilterAt(d.Address()) || len(data.committed[d.Address()]) != 3 {
+				data := view.Data()
+				if data.Frontier != frontier || !sameVersionRoot(data.Committed[d.Address()], root.Versions) || data.Ends[d.Address()] != root.Ends || data.NeedsBirthFilterAt(d.Address()) || len(data.Committed[d.Address()]) != 3 {
 					t.Fatal("RR selected current/birth-filtered rows")
 				}
 			}
@@ -201,7 +201,7 @@ func TestMaterializedRefreshConcurrentLateCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	frontier := e.visibility.commitSeq
+	frontier := e.visibility.CommitSeq()
 	published := e.storage.Relations[d.Address()]
 	if !scope.completed || len(published.Versions) != 1 {
 		t.Fatal("actual refresh did not complete publication")
@@ -210,7 +210,7 @@ func TestMaterializedRefreshConcurrentLateCancellation(t *testing.T) {
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal("late cancellation retracted completed utility", err)
 	}
-	if e.storage.Relations[d.Address()] != published || e.visibility.commitSeq != frontier {
+	if e.storage.Relations[d.Address()] != published || e.visibility.CommitSeq() != frontier {
 		t.Fatal("late completion published twice")
 	}
 }

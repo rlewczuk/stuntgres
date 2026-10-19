@@ -153,7 +153,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 		err := publicationOperationLocked(e, op)
 		var diagnostic uint32
 		if err == nil {
-			diagnostic, err = e.visibility.nextDiagnosticTxLocked()
+			diagnostic, err = e.visibility.NextDiagnosticTxLocked()
 		}
 		if err == nil {
 			t.next++

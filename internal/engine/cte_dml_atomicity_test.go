@@ -52,11 +52,11 @@ func TestCTEDMLCancellationBeforeFinish(t *testing.T) {
 				t.Fatal(result, err)
 			}
 			defer result.Rows.Close()
-			if scope.completed || len(scope.stage.rows[b.Address]) != 2 || scope.stage.deletes[a.Address] == nil || len(scope.stage.deletes[a.Address].rows) != 2 || scope.cteInvocation != nil {
+			if scope.completed || len(scope.stage.rows[b.Address]) != 2 || scope.stage.deletes[a.Address] == nil || len(scope.stage.deletes[a.Address].Rows) != 2 || scope.cteInvocation != nil {
 				t.Fatal("not one unpublished complete stage")
 			}
-			view := scope.view.data.Load()
-			if view == nil || len(view.committed) < 2 || &view.committed[a.Address][0].Values[0] != &e.storage.Relations[a.Address].Versions[0].Values[0] || &view.committed[b.Address][0].Values[0] != &e.storage.Relations[b.Address].Versions[0].Values[0] {
+			view := scope.view.Load()
+			if view == nil || len(view.Committed) < 2 || &view.Committed[a.Address][0].Values[0] != &e.storage.Relations[a.Address].Versions[0].Values[0] || &view.Committed[b.Address][0].Values[0] != &e.storage.Relations[b.Address].Versions[0].Values[0] {
 				t.Fatal("snapshot did not retain both original roots")
 			}
 			transactionRows(t, observer, "SELECT id FROM a ORDER BY id", 1, 2)
@@ -99,7 +99,7 @@ func TestCTEDMLAtomicPublication(t *testing.T) {
 		t.Fatal(result, err)
 	}
 	defer result.Rows.Close()
-	before := e.visibility.commitSeq
+	before := e.visibility.CommitSeq()
 	transactionRows(t, observer, "SELECT id FROM a ORDER BY id", 1, 2)
 	transactionRows(t, observer, "SELECT id FROM b")
 	if scope.completed {
@@ -109,8 +109,8 @@ func TestCTEDMLAtomicPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	op.Done()
-	if e.visibility.commitSeq != before+1 {
-		t.Fatal("more than one publication frontier", before, e.visibility.commitSeq)
+	if e.visibility.CommitSeq() != before+1 {
+		t.Fatal("more than one publication frontier", before, e.visibility.CommitSeq())
 	}
 	transactionRows(t, observer, "SELECT id FROM a")
 	transactionRows(t, observer, "SELECT id FROM b ORDER BY id", 1, 2)

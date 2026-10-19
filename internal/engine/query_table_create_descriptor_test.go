@@ -261,7 +261,7 @@ func TestQueryTableCreateStructuralDescriptorAdmission(t *testing.T) {
 		project := &projectNode{querySchema: querySchema{{Name: "tree", Usage: usage}}, expressions: []expr.Expr{probe}}
 		syntax := &parser.CreateQueryTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "copy"}}}, Query: &parser.Select{}, NoData: noData}
 		registry := queryCreateTypes(e)
-		beforeRow, beforeVersion, beforeFrontier := e.storage.RowFrontier(), e.storage.VersionFrontier(), e.visibility.commitSeq
+		beforeRow, beforeVersion, beforeFrontier := e.storage.RowFrontier(), e.storage.VersionFrontier(), e.visibility.CommitSeq()
 		e.mu.Lock()
 		auth, err := e.authorizationLocked(op)
 		var stage *CatalogStage
@@ -276,7 +276,7 @@ func TestQueryTableCreateStructuralDescriptorAdmission(t *testing.T) {
 			t.Fatal("structural DATA/NO DATA admission reached runtime or stage", noData, stage, err, calls)
 		}
 		queryCreateAssertTypes(t, e, registry)
-		if e.storage.RowFrontier() != beforeRow || e.storage.VersionFrontier() != beforeVersion || e.visibility.commitSeq != beforeFrontier {
+		if e.storage.RowFrontier() != beforeRow || e.storage.VersionFrontier() != beforeVersion || e.visibility.CommitSeq() != beforeFrontier {
 			done()
 			t.Fatal("structural admission reserved rows/frontier")
 		}

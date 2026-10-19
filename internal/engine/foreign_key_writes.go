@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -27,7 +28,7 @@ type foreignKeyRows struct {
 
 func (r foreignKeyRows) each(visit func(storage.RowVersion) (bool, error)) error {
 	for _, v := range r.committed {
-		if r.shadow[v.Row] != 0 || !liveVersion(v, r.frontier, r.ends, r.priorDeletes) || !liveVersion(v, r.frontier, r.ends, r.currentDeletes) {
+		if r.shadow[v.Row] != 0 || !visibility.LiveVersion(v, r.frontier, r.ends, r.priorDeletes) || !visibility.LiveVersion(v, r.frontier, r.ends, r.currentDeletes) {
 			continue
 		}
 		if stop, err := visit(v); err != nil || stop {
@@ -35,7 +36,7 @@ func (r foreignKeyRows) each(visit func(storage.RowVersion) (bool, error)) error
 		}
 	}
 	for _, v := range r.own {
-		if r.shadow[v.Row]&2 != 0 || !liveVersion(v, r.frontier, nil, r.priorDeletes) || !liveVersion(v, r.frontier, nil, r.currentDeletes) {
+		if r.shadow[v.Row]&2 != 0 || !visibility.LiveVersion(v, r.frontier, nil, r.priorDeletes) || !visibility.LiveVersion(v, r.frontier, nil, r.currentDeletes) {
 			continue
 		}
 		if stop, err := visit(v); err != nil || stop {
@@ -43,7 +44,7 @@ func (r foreignKeyRows) each(visit func(storage.RowVersion) (bool, error)) error
 		}
 	}
 	for _, v := range r.staged {
-		if !liveVersion(v, r.frontier, nil, r.currentDeletes) {
+		if !visibility.LiveVersion(v, r.frontier, nil, r.currentDeletes) {
 			continue
 		}
 		if stop, err := visit(v); err != nil || stop {
@@ -59,7 +60,7 @@ func (r foreignKeyRows) previous(id ids.RowID) (storage.RowVersion, bool) {
 		}
 	}
 	for _, v := range r.committed {
-		if v.Row == id && liveVersion(v, r.frontier, r.ends, r.priorDeletes) {
+		if v.Row == id && visibility.LiveVersion(v, r.frontier, r.ends, r.priorDeletes) {
 			return v, true
 		}
 	}
@@ -81,7 +82,7 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.Obje
 	if storage == nil {
 		return foreignKeyRows{}, ids.ErrCatalogReplaced
 	}
-	r := foreignKeyRows{storage: storage, committed: storage.Versions, ends: storage.Ends, own: s.ownWrites[ref.Address], staged: s.stage.rows[ref.Address], priorDeletes: s.ownDeletes[ref.Address], currentDeletes: s.stage.deletes[ref.Address], frontier: e.visibility.commitSeq}
+	r := foreignKeyRows{storage: storage, committed: storage.Versions, ends: storage.Ends, own: s.ownWrites[ref.Address], staged: s.stage.rows[ref.Address], priorDeletes: s.ownDeletes[ref.Address], currentDeletes: s.stage.deletes[ref.Address], frontier: e.visibility.CommitSeq()}
 	r.index = index
 	if index != (ids.ObjectAddress{}) {
 		r.root = e.storage.IndexRoots[index]
@@ -285,7 +286,7 @@ func (s *StatementScope) checkForeignKeys() error {
 		// Child checks only newly written final rows, not unaffected old rows.
 		for _, row := range s.stage.rows[childRef.Address] {
 			if root := s.stage.deletes[childRef.Address]; root != nil {
-				if _, deleted := root.rows[row.Row]; deleted {
+				if _, deleted := root.Rows[row.Row]; deleted {
 					continue
 				}
 			}
@@ -357,7 +358,7 @@ func (s *StatementScope) checkForeignKeys() error {
 		if parentRows.currentDeletes != nil {
 			for _, rows := range [][]storage.RowVersion{parentRows.committed, parentRows.own} {
 				for _, old := range rows {
-					if _, deleted := parentRows.currentDeletes.rows[old.Row]; !deleted {
+					if _, deleted := parentRows.currentDeletes.Rows[old.Row]; !deleted {
 						continue
 					}
 					previous, ok := parentRows.previous(old.Row)
@@ -421,7 +422,7 @@ func (s *StatementScope) refreshForeignKeyRows(ref ids.ObjectRef, rows *foreignK
 	if storage == nil || storage != rows.storage {
 		return ids.ErrCatalogReplaced
 	}
-	rows.committed, rows.ends, rows.frontier = storage.Versions, storage.Ends, e.visibility.commitSeq
+	rows.committed, rows.ends, rows.frontier = storage.Versions, storage.Ends, e.visibility.CommitSeq()
 	rows.root = e.storage.IndexRoots[rows.index]
 	if changes != nil && changes.uniqueRoots[rows.index] != nil {
 		rows.root = changes.uniqueRoots[rows.index]

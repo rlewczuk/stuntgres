@@ -84,7 +84,7 @@ func TestForeignActionsLocks(t *testing.T) {
 			b.transactions.mu.Lock()
 			if tc.name == "delete" {
 				root := b.transactions.deletes[ref.Address]
-				if root == nil || root.rows[row].version != latest.Version || root.rows[row].storage != e.storage.Relations[ref.Address] {
+				if root == nil || root.Rows[row].Version != latest.Version || root.Rows[row].Storage != e.storage.Relations[ref.Address] {
 					b.transactions.mu.Unlock()
 					t.Fatal("delete failed latest physical predecessor")
 				}

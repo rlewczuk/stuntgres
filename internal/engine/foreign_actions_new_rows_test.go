@@ -27,7 +27,7 @@ func TestForeignActionsLocksNewRows(t *testing.T) {
 				transactionRows(t, reader, "SELECT id FROM p ORDER BY id", 1, 9)
 				child := catalogRef(t, e, e.CatalogRead(), "c")
 				root, exists := reader.transactions.roots[child.Address]
-				if !exists || len(root.versions) != 0 {
+				if !exists || len(root.Versions) != 0 {
 					t.Fatal("first stable snapshot did not retain the empty child root", exists, root)
 				}
 				sessionSQL(t, writer, "INSERT INTO c VALUES(1,'committed')")

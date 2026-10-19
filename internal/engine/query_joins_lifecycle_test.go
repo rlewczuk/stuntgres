@@ -67,7 +67,7 @@ func TestQueryJoinsStatementFrontierAndNoWidening(t *testing.T) {
 	if err == nil {
 		source, err = e.captureQuerySourcesLocked(scope, binding.querySources, false)
 	}
-	frontier := e.visibility.commitSeq
+	frontier := e.visibility.CommitSeq()
 	if err == nil {
 		_, widenErr = scope.acquireDataViewLocked(e, unrelated)
 	}
@@ -81,8 +81,8 @@ func TestQueryJoinsStatementFrontierAndNoWidening(t *testing.T) {
 		t.Fatal("retained statement view widened")
 	}
 	defer source.close()
-	data := source.view.read()
-	if source.sources[1].view.read() != data || data.frontier != frontier || len(data.committed) != 2 || data.generationAt(binding.querySources[0].ref.Address) != binding.querySources[0].storage || data.generationAt(binding.querySources[1].ref.Address) != binding.querySources[1].storage {
+	data := source.view.Data()
+	if source.sources[1].view.Data() != data || data.Frontier != frontier || len(data.Committed) != 2 || data.GenerationAt(binding.querySources[0].ref.Address) != binding.querySources[0].storage || data.GenerationAt(binding.querySources[1].ref.Address) != binding.querySources[1].storage {
 		t.Fatal(data)
 	}
 	peer := transactionBegin(t, b)
@@ -532,12 +532,12 @@ func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
 			return source, finish
 		}()
 		defer source.close()
-		data := source.view.read()
+		data := source.view.Data()
 		ownCount, deleteCount := 0, 0
 		if private {
 			ownCount, deleteCount = 2, 1
 		}
-		if len(data.committed) != 2 || len(data.own) != ownCount || len(data.deleted) != deleteCount || len(data.own[unrelated.Address]) != 0 || data.deleted[unrelated.Address] != nil {
+		if len(data.Committed) != 2 || len(data.Own) != ownCount || len(data.Deleted) != deleteCount || len(data.Own[unrelated.Address]) != 0 || data.Deleted[unrelated.Address] != nil {
 			t.Fatal("unrelated private roots retained", data)
 		}
 		rows, n, err := finalizeQuery(context.Background(), query.Root, source, nil)

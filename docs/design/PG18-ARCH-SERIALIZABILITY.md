@@ -27,7 +27,7 @@ Predicate tracking is nonblocking: it never waits for a peer transaction to fini
 
 Exactly one `SSITracker` belongs to each Engine/DatabaseTarget epoch. Engine-owned records can outlive transaction handles and physical sessions. Graph keys and footprints use qualified identities, never SQL names, pointers exposed as SQL identities, or unqualified numeric IDs.
 
-Reuse TX's immutable `TxRef`, `ObjectRef`, `RowRef`, `VersionRef`, `CommitSeq`, `TxOptions`, `VisibilityView`, `VersionWrite`, `StatementScope`, `WriteStage`, `PreparedTransaction` and `TxObserver`. TX remains the transaction/identity allocator, version authority, binder and sole publication owner. SSI introduces neither an XID allocator nor a second store or executor. All subtransaction writer evidence names its top-level TxRef.
+Reuse TX's immutable `TxRef`, `ObjectRef`, `RowRef`, `VersionRef`, `CommitSeq`, `TxOptions`, `VisibilityView` (now `visibility.View`), `VersionWrite`, `StatementScope`, `WriteStage`, `PreparedTransaction` and `TxObserver`. TX remains the transaction/identity allocator, version authority, binder and sole publication owner. SSI introduces neither an XID allocator nor a second store or executor. All subtransaction writer evidence names its top-level TxRef.
 
 ```go
 // Proposed future contracts, not existing declarations.
@@ -48,6 +48,7 @@ type SSISnapshot struct {
     Frontier CommitSeq
     ActiveReadWrite []TxRef
 }
+// SSITracker: now visibility.Tracker in visibility.Registry; see internal/engine/visibility/README.md.
 func (s *SSITracker) Enroll(tx TxRef, options TxOptions) error
 func (s *SSITracker) Capture(ctx context.Context, tx TxRef) (*VisibilityView, error)
 func (s *SSITracker) Read(view *VisibilityView, target DatabaseTarget, relation ObjectRef, predicate any) error

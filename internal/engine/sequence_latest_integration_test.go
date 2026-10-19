@@ -11,7 +11,7 @@ func TestSequenceLatestMixedUpdatePublication(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO t VALUES(1),(2)")
 	sessionSQL(t, s, "CREATE SEQUENCE s")
 	table := catalogRef(t, e, e.CatalogRead(), "t")
-	frontier := e.visibility.commitSeq
+	frontier := e.visibility.CommitSeq()
 	ref := transactionBegin(t, s)
 	sessionSQL(t, s, "ALTER SEQUENCE s RESTART 100")
 	if result := sessionSQL(t, s, "UPDATE t SET v=nextval('s') WHERE v=1"); result.Count != 1 {
@@ -23,8 +23,8 @@ func TestSequenceLatestMixedUpdatePublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := e.storage.Relations[table.Address]
-	if e.visibility.commitSeq != frontier+1 || len(store.Versions) != 3 {
-		t.Fatal("mixed publication frontier or duplicate replacement", e.visibility.commitSeq, frontier, len(store.Versions))
+	if e.visibility.CommitSeq() != frontier+1 || len(store.Versions) != 3 {
+		t.Fatal("mixed publication frontier or duplicate replacement", e.visibility.CommitSeq(), frontier, len(store.Versions))
 	}
 	if store.Versions[0].Born != frontier+1 || store.Versions[0].Base != 0 || store.Versions[2].Born != frontier+1 {
 		t.Fatal("replacement/insert frontier", store.Versions)

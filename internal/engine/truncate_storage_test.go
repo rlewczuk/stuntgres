@@ -65,7 +65,7 @@ func TestTruncateGeneration(t *testing.T) {
 			e, s, p, q := truncateUnitFixture(t)
 			originalP, originalQ := e.storage.Relations[p.Address], e.storage.Relations[q.Address]
 			versions, ends, generation := originalP.Versions, originalP.Ends, originalP.Generation
-			descriptor, frontier := e.catalog.state.Get(p.Address), e.visibility.commitSeq
+			descriptor, frontier := e.catalog.state.Get(p.Address), e.visibility.CommitSeq()
 			scope := truncateUnitStage(t, e, s, "p", "q")
 			for _, ref := range []ids.ObjectRef{p, q} {
 				shape := scope.catalog.storage[ref.Address]
@@ -76,7 +76,7 @@ func TestTruncateGeneration(t *testing.T) {
 					t.Fatal("descriptor copied/reminted")
 				}
 			}
-			if e.storage.Relations[p.Address] != originalP || e.storage.Relations[q.Address] != originalQ || originalP.TruncateLineage != nil || originalQ.TruncateLineage != nil || e.visibility.commitSeq != frontier {
+			if e.storage.Relations[p.Address] != originalP || e.storage.Relations[q.Address] != originalQ || originalP.TruncateLineage != nil || originalQ.TruncateLineage != nil || e.visibility.CommitSeq() != frontier {
 				t.Fatal("staging published or stamped predecessor")
 			}
 			var err error
@@ -90,10 +90,10 @@ func TestTruncateGeneration(t *testing.T) {
 				t.Fatal("retained predecessor/definition changed")
 			}
 			if commit {
-				if e.storage.Relations[p.Address] == originalP || e.storage.Relations[q.Address] == originalQ || !originalP.SameTruncateLineage(e.storage.Relations[p.Address]) || e.visibility.commitSeq != frontier+1 {
+				if e.storage.Relations[p.Address] == originalP || e.storage.Relations[q.Address] == originalQ || !originalP.SameTruncateLineage(e.storage.Relations[p.Address]) || e.visibility.CommitSeq() != frontier+1 {
 					t.Fatal("not one atomic frontier")
 				}
-			} else if e.storage.Relations[p.Address] != originalP || e.storage.Relations[q.Address] != originalQ || originalP.TruncateLineage != nil || e.visibility.commitSeq != frontier {
+			} else if e.storage.Relations[p.Address] != originalP || e.storage.Relations[q.Address] != originalQ || originalP.TruncateLineage != nil || e.visibility.CommitSeq() != frontier {
 				t.Fatal("rollback changed committed lineage/roots")
 			}
 		})

@@ -43,7 +43,7 @@ func domainAlterPublicationFixture(t *testing.T) (*Engine, *Operation, func(), *
 		t.Fatal(err)
 	}
 	e.storage.Relations[table.Address()] = &storage.Relation{Generation: 1, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value}}}}
-	e.visibility.commitSeq = 1
+	e.visibility.SetCommitSeqLocked(1)
 	stage := e.BeginCatalogStage(view)
 	next := *d
 	next.DomainChecks = slices.Clone(d.DomainChecks)

@@ -163,7 +163,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if !exists {
 		shape = catalogStorageChange{original: original, root: original.Versions, ends: original.Ends, generation: original.Generation, replacement: store, relation: old}
 	}
-	versions, ends, frontier := store.Versions, store.Ends, e.visibility.commitSeq
+	versions, ends, frontier := store.Versions, store.Ends, e.visibility.CommitSeq()
 	snapshot, snapshotExists := scope.owner.roots[ref.Address]
 	grantCatalog := e.catalog.state
 	schema := auth.Catalog.Get(old.Namespace()).Name()
@@ -909,7 +909,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		e.mu.Lock()
 		err = scope.validateLockedRelation(e)
 		if err == nil {
-			event := [1]serializableWrite{{rewrite: true}}
+			event := [1]serializableWrite{{Rewrite: true}}
 			err = e.serializableWriteLocked(scope, ref, event[:])
 		}
 		e.mu.Unlock()

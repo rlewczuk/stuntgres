@@ -171,7 +171,7 @@ func mutationPhysicalRow(source *querySource, index int, b binding) queryPhysica
 }
 
 func (row queryPhysicalRow) deletion() deleteCandidate {
-	return deleteCandidate{ref: row.leaf.ref, storage: row.leaf.storage, row: row.version.Row, version: row.version.Version, base: row.version.Base, ordinal: row.hint, own: row.version.Born == 0}
+	return deleteCandidate{Ref: row.leaf.ref, Storage: row.leaf.storage, Row: row.version.Row, Version: row.version.Version, Base: row.version.Base, Ordinal: row.hint, Own: row.version.Born == 0}
 }
 
 type mutationRowIdentity struct {

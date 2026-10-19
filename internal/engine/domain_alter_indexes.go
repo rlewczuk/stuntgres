@@ -31,7 +31,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 	if stage.authSession != nil && stage.authSession.transactions.retainsTransaction() {
 		private = stage.authSession.transactions.catalog
 	}
-	snapshot, err := e.captureIndexSnapshotParents(stage.domainAlter, stage.Base, sources, sourceRoots, e.visibility.commitSeq, stores, private)
+	snapshot, err := e.captureIndexSnapshotParents(stage.domainAlter, stage.Base, sources, sourceRoots, e.visibility.CommitSeq(), stores, private)
 	if err != nil {
 		return err
 	}

@@ -306,7 +306,7 @@ func TestMaterializedRefreshConcurrentMatch(t *testing.T) {
 				produced = append(produced, concurrentUnitRows(t, d, nil)...)
 			}
 			old := e.storage.Relations[d.Address()]
-			frontier := e.visibility.commitSeq
+			frontier := e.visibility.CommitSeq()
 			effective, err := materializedConcurrentRows(context.Background(), e.CatalogRead(), d, old, frontier, e.storage.IndexRoots[first.Address()].Entries, indices, produced, sqltype.OutputEnvironment{})
 			if err != nil {
 				t.Fatal(err)
@@ -315,7 +315,7 @@ func TestMaterializedRefreshConcurrentMatch(t *testing.T) {
 			if phase == "unmatched_null" || phase == "all_keys" || phase == "null_key" || phase == "not_distinct_null_key" {
 				expected = 2
 			}
-			if len(effective) != expected || e.visibility.commitSeq != frontier || e.storage.Relations[d.Address()] != old || old.MaterializedLineage != nil {
+			if len(effective) != expected || e.visibility.CommitSeq() != frontier || e.storage.Relations[d.Address()] != old || old.MaterializedLineage != nil {
 				t.Fatal("effective bag/staging ownership", phase, len(effective))
 			}
 			if expected == 1 && &effective[0][0] != &old.Versions[0].Values[0] {
@@ -347,7 +347,7 @@ func TestMaterializedRefreshConcurrentPublication(t *testing.T) {
 	d = e.catalog.state.MustRelation(d.Address())
 	first := e.storage.Relations[d.Address()]
 	versions, ends := first.Versions, first.Ends
-	frontier := e.visibility.commitSeq
+	frontier := e.visibility.CommitSeq()
 	for _, count := range []int{4, 0, 2} {
 		old := e.storage.Relations[d.Address()]
 		stage := e.BeginCatalogStage(e.CatalogRead())
@@ -367,7 +367,7 @@ func TestMaterializedRefreshConcurrentPublication(t *testing.T) {
 		e.DiscardCatalogStage(stage)
 		d = e.catalog.state.MustRelation(d.Address())
 		frontier++
-		if e.visibility.commitSeq != frontier || !d.Populated || e.storage.Relations[d.Address()] != candidate || !sameMaterializedLineage(d, d, first, candidate) || len(e.storage.IndexRoots[index.Address()].Entries) != count {
+		if e.visibility.CommitSeq() != frontier || !d.Populated || e.storage.Relations[d.Address()] != candidate || !sameMaterializedLineage(d, d, first, candidate) || len(e.storage.IndexRoots[index.Address()].Entries) != count {
 			t.Fatal("atomic roots/frontier/lineage")
 		}
 	}
@@ -431,11 +431,11 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 				case "index_set":
 					materializedConcurrentUnitIndex(t, e, d, "unit_second", "i", "")
 				case "frontier":
-					e.visibility.commitSeq = ids.CommitSeq(math.MaxUint64)
+					e.visibility.SetCommitSeqLocked(ids.CommitSeq(math.MaxUint64))
 				}
-				beforeCatalog, beforeStore, beforeFrontier := e.catalog.state, e.storage.Relations[d.Address()], e.visibility.commitSeq
+				beforeCatalog, beforeStore, beforeFrontier := e.catalog.state, e.storage.Relations[d.Address()], e.visibility.CommitSeq()
 				_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
-				if e.catalog.state != beforeCatalog || e.storage.Relations[d.Address()] != beforeStore || e.visibility.commitSeq != beforeFrontier {
+				if e.catalog.state != beforeCatalog || e.storage.Relations[d.Address()] != beforeStore || e.visibility.CommitSeq() != beforeFrontier {
 					t.Fatal("veto changed publication")
 				}
 			}

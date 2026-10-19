@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -149,14 +150,14 @@ func TestPartialIndexMembershipTransitions(t *testing.T) {
 	}
 	partialWantMembership(t, next, map[ids.RowID]ids.VersionID{2: 7, 3: 8, 5: 10})
 	partialWantMembership(t, old, map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5})
-	p = &rowPublication{deletion: &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{2: {version: 7}, 1: {version: 6}}}}
+	p = &rowPublication{deletion: &privateDeletionRoot{Rows: map[ids.RowID]deleteCandidate{2: {Version: 7}, 1: {Version: 6}}}}
 	next, err = mergeIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, f.index, next.Entries, p, false, true, false, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	partialWantMembership(t, next, map[ids.RowID]ids.VersionID{3: 8, 5: 10})
 	// Excluded successors and own-deleted additions must never resurrect identities.
-	p = &rowPublication{writes: []storage.RowVersion{write(3, 11, 8, sqltype.Boolean(boolean, false)), write(2, 12, 0, sqltype.Boolean(boolean, true))}, deletion: &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{2: {version: 12, own: true}}}}
+	p = &rowPublication{writes: []storage.RowVersion{write(3, 11, 8, sqltype.Boolean(boolean, false)), write(2, 12, 0, sqltype.Boolean(boolean, true))}, deletion: &privateDeletionRoot{Rows: map[ids.RowID]deleteCandidate{2: {Version: 12, Own: true}}}}
 	next, err = mergeIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, f.index, next.Entries, p, false, true, false, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -358,8 +359,8 @@ func partialMaskFixture(t *testing.T) (partialIndexFixture, *StatementScope, que
 	f := newPartialIndexFixture(t)
 	scope := &StatementScope{owner: &transactionOwner{isolation: ReadCommitted}}
 	leaf := queryLeaf{ref: f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address()), relation: f.parent, storage: f.store, partialCandidate: f.index}
-	data := &visibilityData{catalog: f.e.CatalogRead(), frontier: f.e.visibility.commitSeq, committed: map[ids.ObjectAddress][]storage.RowVersion{f.parent.Address(): f.store.Versions}, singleGeneration: f.store}
-	view := newVisibilityView(data)
+	data := &visibilityData{Catalog: f.e.CatalogRead(), Frontier: f.e.visibility.CommitSeq(), Committed: map[ids.ObjectAddress][]storage.RowVersion{f.parent.Address(): f.store.Versions}, SingleGeneration: f.store}
+	view := visibility.NewView(data)
 	t.Cleanup(view.Release)
 	return f, scope, leaf, view
 }
@@ -412,40 +413,40 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 	for _, name := range []string{"private catalog", "own insert", "own update", "own delete", "historical", "frontier", "rewrite", "generation", "prefix", "vector", "ends", "definition", "catalog snapshot", "missing root", "epoch", "shape", "locking", "occurrence locking", "inherited locking", "absent candidate"} {
 		t.Run(name, func(t *testing.T) {
 			f, scope, leaf, view := partialMaskFixture(t)
-			data := view.read()
+			data := view.Data()
 			a := f.parent.Address()
 			inherited := queryRowMark{}
 			switch name {
 			case "private catalog":
 				scope.owner.catalog = &catalogChanges{}
 			case "own insert":
-				data.own = map[ids.ObjectAddress][]storage.RowVersion{a: {f.store.Versions[1]}}
+				data.Own = map[ids.ObjectAddress][]storage.RowVersion{a: {f.store.Versions[1]}}
 			case "own update":
 				row := f.store.Versions[0]
 				row.Base = row.Version
 				row.Version = 100
-				data.own = map[ids.ObjectAddress][]storage.RowVersion{a: {row}}
+				data.Own = map[ids.ObjectAddress][]storage.RowVersion{a: {row}}
 			case "own delete":
-				data.deleted = map[ids.ObjectAddress]*privateDeletionRoot{a: {}}
+				data.Deleted = map[ids.ObjectAddress]*privateDeletionRoot{a: {}}
 			case "historical":
 				scope.owner.isolation = RepeatableRead
 			case "frontier":
-				f.e.visibility.commitSeq++
+				f.e.visibility.AdvanceCommitSeqLocked()
 			case "rewrite":
-				data.rewrittenFrontiers = map[ids.ObjectAddress]ids.CommitSeq{a: 0}
+				data.RewrittenFrontiers = map[ids.ObjectAddress]ids.CommitSeq{a: 0}
 			case "generation":
-				data.singleGeneration = &storage.Relation{}
+				data.SingleGeneration = &storage.Relation{}
 			case "prefix":
-				data.committed[a] = data.committed[a][:1]
+				data.Committed[a] = data.Committed[a][:1]
 			case "vector":
-				data.committed[a] = append([]storage.RowVersion(nil), data.committed[a]...)
+				data.Committed[a] = append([]storage.RowVersion(nil), data.Committed[a]...)
 			case "ends":
 				f.store.Ends = &storage.DeletionRoot{}
 			case "definition":
 				copy := *f.index
 				f.e.catalog.state.SetDescriptor(f.index.Address(), &copy)
 			case "catalog snapshot":
-				data.catalog = data.catalog.WithState(catalog.CloneState(f.e.catalog.state))
+				data.Catalog = data.Catalog.WithState(catalog.CloneState(f.e.catalog.state))
 			case "missing root":
 				delete(f.e.storage.IndexRoots, f.index.Address())
 			case "epoch":
@@ -525,7 +526,7 @@ func TestPartialIndexPredicateReplacement(t *testing.T) {
 	old := f.e.storage.IndexRoots[f.index.Address()]
 	destination := &storage.Relation{Versions: append([]storage.RowVersion(nil), f.store.Versions...)}
 	f.e.storage.SetFrontierLocked(100, 200)
-	snapshot, err := f.e.captureIndexSnapshot(context.Background(), f.e.CatalogRead(), f.e.storage.Relations, f.e.storage.IndexRoots, f.e.visibility.commitSeq)
+	snapshot, err := f.e.captureIndexSnapshot(context.Background(), f.e.CatalogRead(), f.e.storage.Relations, f.e.storage.IndexRoots, f.e.visibility.CommitSeq())
 	if err != nil {
 		t.Fatal(err)
 	}

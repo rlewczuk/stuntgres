@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 )
 
 // Validation is shared by prepare and commit. Only commit constructs install
@@ -65,7 +66,7 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materia
 			} else {
 				predecessor, slot, found = rowByID(p.root, row.Row, -1)
 			}
-			if !found || predecessor.Version != row.Base || !liveVersion(predecessor, ids.CommitSeq(^uint64(0)), p.ends, nil) {
+			if !found || predecessor.Version != row.Base || !visibility.LiveVersion(predecessor, ids.CommitSeq(^uint64(0)), p.ends, nil) {
 				return errors.New("stuntgres: stale update predecessor")
 			}
 			if materialize {
@@ -79,7 +80,7 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materia
 	}
 	if p.deletion != nil {
 		if materialize {
-			count := len(p.deletion.rows)
+			count := len(p.deletion.Rows)
 			if p.ends != nil {
 				count += len(p.ends.Rows)
 			}
@@ -90,23 +91,23 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materia
 				}
 			}
 		}
-		for id, candidate := range p.deletion.rows {
-			if candidate.ref.Domain() != e.catalog.Domain || candidate.ref.Epoch != ref.Epoch() || candidate.ref.Address != p.address || id == 0 || id != candidate.row || candidate.version == 0 || candidate.storage != p.store {
+		for id, candidate := range p.deletion.Rows {
+			if candidate.Ref.Domain() != e.catalog.Domain || candidate.Ref.Epoch != ref.Epoch() || candidate.Ref.Address != p.address || id == 0 || id != candidate.Row || candidate.Version == 0 || candidate.Storage != p.store {
 				return ids.ErrCatalogReplaced
 			}
 			predecessors := p.root
-			if candidate.own {
+			if candidate.Own {
 				predecessors = p.writes
 			}
-			predecessor, _, found := rowByID(predecessors, id, candidate.ordinal)
-			if !found || predecessor.Version != candidate.version || candidate.own && predecessor.Base != candidate.base || len(predecessor.Values) != len(p.relation.Columns) {
+			predecessor, _, found := rowByID(predecessors, id, candidate.Ordinal)
+			if !found || predecessor.Version != candidate.Version || candidate.Own && predecessor.Base != candidate.Base || len(predecessor.Values) != len(p.relation.Columns) {
 				return errors.New("stuntgres: invalid deletion predecessor")
 			}
-			if !candidate.own && !liveVersion(predecessor, ids.CommitSeq(^uint64(0)), p.ends, nil) {
+			if !candidate.Own && !visibility.LiveVersion(predecessor, ids.CommitSeq(^uint64(0)), p.ends, nil) {
 				return errors.New("stuntgres: deletion predecessor already ended")
 			}
 			if materialize {
-				p.nextEnds.Rows[id] = storage.RowEnd{Version: candidate.version}
+				p.nextEnds.Rows[id] = storage.RowEnd{Version: candidate.Version}
 			}
 		}
 	}

@@ -156,12 +156,12 @@ func (s *StatementScope) stageTruncate() error {
 		}
 		shape.replacement = &storage.Relation{Generation: store.Generation + 1, TruncateLineage: lineage}
 		shape.relation = d
-		shape.rewritten, shape.frontier = true, e.visibility.commitSeq
+		shape.rewritten, shape.frontier = true, e.visibility.CommitSeq()
 		shape.snapshot, shape.hasSnapshot = nil, false
 		shape.fills = nil
 		changes.storage[ref.Address] = shape
 		e.fenceEmptyIndexStorageLocked(auth.Catalog.State(), changes, ref.Address)
-		if err = e.serializableWriteLocked(s, ref, []serializableWrite{{rewrite: true}}); err != nil {
+		if err = e.serializableWriteLocked(s, ref, []serializableWrite{{Rewrite: true}}); err != nil {
 			break
 		}
 	}

@@ -98,7 +98,7 @@ func TestInheritanceDMLLocator(t *testing.T) {
 		t.Fatal("scatter lost child-only values or mutated predecessor", scattered, old)
 	}
 	deletion := physical.deletion()
-	if deletion.ref != ref(c) || deletion.storage != physical.leaf.storage || deletion.row != 7 || deletion.version != 11 || deletion.base != 5 || deletion.ordinal != 6 || deletion.own {
+	if deletion.Ref != ref(c) || deletion.Storage != physical.leaf.storage || deletion.Row != 7 || deletion.Version != 11 || deletion.Base != 5 || deletion.Ordinal != 6 || deletion.Own {
 		t.Fatal("delete lost physical provenance", deletion)
 	}
 	if (mutationRowIdentity{ref(p), 7}) == (mutationRowIdentity{ref(c), 7}) {
@@ -106,7 +106,7 @@ func TestInheritanceDMLLocator(t *testing.T) {
 	}
 	own := physical
 	own.version.Born = 0
-	if !own.deletion().own {
+	if !own.deletion().Own {
 		t.Fatal("prior-own provenance lost")
 	}
 	identity := queryPhysicalRow{}

@@ -22,7 +22,7 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 					f.store.Versions[i] = storage.RowVersion{Row: ids.RowID(i + 1), Version: ids.VersionID(i + 1), Born: 1, Values: insertConflictUnitRow(b, f, int64(size-i))}
 				}
 				f.e.storage.SetFrontierLocked(uint64(size), uint64(size))
-				f.e.visibility.commitSeq = 1
+				f.e.visibility.SetCommitSeqLocked(1)
 				root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, f.index.SQLIndex, f.store, nil)
 				if err != nil {
 					b.Fatal(err)

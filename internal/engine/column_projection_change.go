@@ -48,10 +48,10 @@ func projectColumnShapeRoots(ctx context.Context, stable bool, old, next *catalo
 	}
 	deletes = projectDeletions(deletes, shape.replacement)
 	if stable && snapshotExists && !shape.rewritten {
-		if slices.Equal(snapshot.relation.Attributes, old.Attributes) {
-			shape.snapshot, err = projection.versions(ctx, snapshot.versions)
+		if slices.Equal(snapshot.Relation.Attributes, old.Attributes) {
+			shape.snapshot, err = projection.versions(ctx, snapshot.Versions)
 		} else {
-			shape.snapshot, err = projectVersions(ctx, snapshot.versions, snapshot.relation, next, shape.fills)
+			shape.snapshot, err = projectVersions(ctx, snapshot.Versions, snapshot.Relation, next, shape.fills)
 		}
 		if err != nil {
 			return shape, nil, nil, err
@@ -206,7 +206,7 @@ func (scope *StatementScope) projectCatalogOverlayShapes(stage *CatalogStage, ch
 		snapshot, snapshotExists := scope.owner.roots[address]
 		stage.owner.mu.Unlock()
 		if stableIsolation(scope.owner.isolation) && snapshotExists && !shape.rewritten {
-			shape.snapshot, err = projectVersions(scope.op.Context(), snapshot.versions, snapshot.relation, next, shape.fills)
+			shape.snapshot, err = projectVersions(scope.op.Context(), snapshot.Versions, snapshot.Relation, next, shape.fills)
 			if err != nil {
 				return err
 			}

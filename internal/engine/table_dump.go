@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -63,7 +64,7 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalog catalog.Read, emit 
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if !liveVersion(version, t.frontier, t.ends, nil) {
+		if !visibility.LiveVersion(version, t.frontier, t.ends, nil) {
 			continue
 		}
 		row := version.Values
@@ -132,7 +133,7 @@ func (t *dumpRelation) rowReplayReferences(ctx context.Context, catalog catalog.
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if !liveVersion(version, t.frontier, t.ends, nil) {
+		if !visibility.LiveVersion(version, t.frontier, t.ends, nil) {
 			continue
 		}
 		for i, column := range t.columns {

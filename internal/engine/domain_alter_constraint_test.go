@@ -153,7 +153,7 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 	}
 	store := &storage.Relation{Generation: 3, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value, arrayValue, composite}}}}
 	e.storage.Relations[table.Address()] = store
-	e.visibility.commitSeq = 3
+	e.visibility.SetCommitSeqLocked(3)
 	// A permanently FALSE recipe proves pure retagging does not check old data.
 	raw := statement(t, "CREATE DOMAIN public.unused AS integer CONSTRAINT positive CHECK(FALSE)").(*parser.CreateDomain)
 	e.mu.Lock()

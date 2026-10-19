@@ -115,10 +115,124 @@ pass. 7c completes the step.
 - [x] 7a — `visibilityRegistry` state ownership (`f556f670c`, `e2745162f`,
   `89aed2c58`, then the commit that records this status) *(racecheck
   skipped at user request; targeted RACE=1 runs passed)*
-- [ ] 7b — `visibility` created and types moved
+- [x] 7b — `visibility` created and types moved (`41a569c1c`,
+  `e896f75d7`, `334ddf32c`, `eb53b840a`, then the commit that records this
+  status) *(racecheck skipped at user request; targeted RACE=1 runs passed)*
 - [ ] 7c — Aliases removed
 
-Outstanding aliases: none yet.
+Outstanding aliases: 12 unexported type aliases in
+`internal/engine/visibility_aliases.go`: `VisibilityView`,
+`commitTimestampEntry`, `deleteCandidate`, `privateDeletionRoot`,
+`serializableTransaction`, `serializableWrite`, `serializableWriteKey`,
+`transactionRoot`, `transactionVisibility`, `visibilityData`,
+`visibilityGeneration` and `visibilityRegistry`. Functions were qualified
+at the move (`visibility.NewRegistry`, `NewView`, `NextFullXID`, `Age`,
+`SerializableOverlap`, `LiveVersion`), so 7c rewrites types only.
+
+7b results:
+
+- **Decisions (user).** The surface follows the 6b split. Registry
+  counters are private behind accessors. Maps, record fields and methods
+  are exported. The transaction-private deletion overlay
+  (`privateDeletionRoot`, `deleteCandidate`) and `liveVersion` move into
+  `visibility`, because `visibilityData.deleted` holds them and
+  `visibility` cannot import the engine. This reverses the 6b note that
+  kept them with write staging.
+- **Export in place** (`41a569c1c`). A type-checked rename (`fieldrn`)
+  capitalized every field of the records to move and of the overlay:
+  1,781 edits in 113 files. The 97-field use census was identical before
+  and after. `VisibilityView.read` became `Data`; the new `Load` replaces
+  raw `data.Load()` reads (including in `generated_virtual.go` and
+  `view_locks.go`). The `visibilityData` helpers are exported as
+  `GenerationAt`, `NeedsBirthFilterAt` and `FrontierAt`.
+- **Methods and counters** (`e896f75d7`):
+  - `methx` exported 34 registry methods (177 edits).
+    `resolveSerializableCandidatesLocked` stays private, and
+    `lastCommitTimestampLocked` became the `LastCommittedXID` and
+    `LastCommitTimestamp` reads.
+  - A new go/types `counterx` mode rewrote 456 counter uses in 123 files:
+    349 `commitSeq` reads, 36 sets and 7 increments, plus the other
+    counters. `CommitSeq` and `AdvanceCommitSeqLocked` serve publication,
+    and each caller keeps its exhaustion check. `catalog.go`'s
+    `commitSeq = frontier` (`frontier` is `commitSeq+1`) became an advance.
+  - `SetCommitSeqLocked`, `SetLastAssignedXIDLocked` and
+    `SetDiagnosticTxLocked` are seeding seams used only by tests.
+- **Safe-snapshot seam.** The wait loop in `acquireSerializableSnapshot`
+  now calls `SafeSnapshotWait`, `SafeSnapshotOutcome` and
+  `AbandonSafeSnapshotLocked` instead of reading node fields. The loop,
+  `replacementMu` and owner locking stay in the engine, so the step-4 note
+  on `replacementMu` versus `transactionOwner.mu` is unaffected:
+  `visibility` takes no mutex. `transactionStatusLocked` builds its 22023
+  error through the package's own `sqlError`, as `lock` did in 4b.
+- **Move** (`334ddf32c`). 87 declarations moved with the 6b `movex` tool,
+  after a rebase onto B3 (two small mechanical conflicts). The package
+  files are `registry.go`, `identity.go`, `commit_timestamp.go`,
+  `serializable.go`, `serializable_evidence.go`, `safe_snapshot.go`,
+  `predicate_locks.go`, `view.go`, `root.go`, `deletes.go` and `errors.go`.
+  The engine qualifies 51 function references. Type names:
+  - `visibilityRegistry` → `Registry`, `transactionVisibility` → `Entry`,
+    `transactionIdentityRecord` → `IdentityRecord`,
+    `commitTimestampEntry` → `CommitTimestamp`;
+  - `serializableTracker` → `Tracker`, `serializableTransaction` →
+    `SerializableTx`, `serializableWriteKey` → `WriteKey`;
+  - `visibilityData` → `Data`, `visibilityGeneration` → `Generation`,
+    `VisibilityView` → `View`, `transactionRoot` → `Root`;
+  - `privateDeletionRoot` → `PrivateDeletes`, `deleteCandidate` →
+    `DeleteCandidate`.
+
+  `visibility` imports only `catalog`, `ids`, `lock`, `storage`,
+  `sqlstate` and the standard library. `lock` is used only for
+  `*lock.Ticket` identity and its atomics.
+- **Tests:**
+  - *Moved* into `visibility/serializable_graph_test.go`: six
+    `TestSerializableGraph*` tests and
+    `TestSerializablePrecommitRetainsAttemptedWriteReadOnlyHistory`. Their
+    setup moved onto `fixture_test.go`, which mints TxRefs through
+    `ids.Domain` like the lock fixture. Assertions are unchanged.
+    `TestSerializableGraphCycleFirstCommitDoomsActivePivot` stays in the
+    engine because it also checks the owner's state.
+  - *Rewritten:* the forged-view assertions of
+    `TestQueryJoinsVisibilityReleaseAuthority` and
+    `TestTransactionCopiedScopeStageViewAndSnapshot`, which need the
+    view's private fields, became `TestViewForgedCopyHasNoAuthority`.
+  - *New seam tests:* `TestViewRetainReleaseIndependence`,
+    `TestRegistryCommitSeqAdvanceAndSeed`,
+    `TestNextFullXIDSkipsSpecialLowValues`,
+    `TestRegistryXIDAssignmentLiveAliasGuard`,
+    `TestLiveVersionOverlayAndEnds` and four `TestSafeSnapshot*` tests.
+    Mutating `AbandonSafeSnapshotLocked` or `SafeSnapshotOutcome` makes
+    them fail.
+  - Other engine tests changed only through the mechanical rewrites. No
+    test was deleted.
+- **Docs.** New `visibility/README.md`. The identity paragraph and the
+  identity and commit-time selectors moved there from
+  `internal/engine/README.md`. Also updated: the `storage` README, the
+  `VisibilityView`/`SSITracker` pointers in the TX-VISIBILITY and
+  SERIALIZABILITY design notes, and `docs/QUERIES.md`. `AGENTS.md` stays at
+  100 lines (13,134 bytes, 96 fewer): `visibility` joined the
+  subpackage bullet, "snapshots" left the engine bullet, and the
+  RR/RC retention details of the isolation rule moved into the README.
+- **Verification:**
+  - `make build`, plus vet of the engine tests, after each commit.
+  - `make check RACE=1` over transaction identity, commit time,
+    serializable, prepared transaction, isolation, visibility, concurrent
+    index, blocking PIDs, `pg_locks`, driver batch, transaction controls,
+    savepoint, CREATE TABLE AS serialization, notification publication,
+    DELETE, UPDATE, MERGE, rule, query join, authority and cursor tests,
+    plus the new package tests. All passed.
+  - `quickcheck` passed after the move and on the rebased branch.
+  - Reference: the 7a selection plus `DeleteCore|UpdateCore|Merge` (`dml`,
+    `locking_transactions`, `sessions`) passed in quick mode. With
+    `REFERENCE=1`, every stuntgres subtest passed. 22 `/postgres` subtests
+    of `TestReferenceMerge(Update|Delete|SourceUpdate)RepeatableRead*`
+    failed with 40001 from PostgreSQL 18.6 itself, with the same 22
+    failures on `master` (`1b3a12a08`). That is oracle drift unrelated to
+    this step, not yet recorded in `POSTGRES_REGRESSION.md`.
+  - `make bench`: 1.72–2.25 ms/op before and 1.51–1.72 ms/op after,
+    7,769 allocations and about 2.07 MB/op on both. The <1 ms target is
+    already missed on `master`.
+  - `make deps` lists only module paths.
+  - The full `racecheck` was skipped at the user's request.
 
 7a results:
 
@@ -192,9 +306,16 @@ Outstanding aliases: none yet.
 
 Notes for later steps:
 
-- 7b: decide the exported surface. `commitSeq` needs a read accessor and an
-  advance method for the publication sites (keep their distinct exhaustion
-  messages). `serializableTransaction` fields are still read by
+- 7c: 12 type aliases, all unexported. Locals named `visibility` exist
+  (for example in `cte_mutation_bind.go`). Audit shadowing first, as 4c
+  and 6c did. The field `Engine.visibility` is a selector and does not
+  collide.
+- 7c or later: `View.Load` returns the raw pointer without the identity
+  check that `Data` and `Retain` make, as the old `data.Load()` reads did.
+  Tightening it would be a behavior change.
+- 7b (resolved above): decide the exported surface. `commitSeq` needs a
+  read accessor and an advance method for the publication sites (keep
+  their distinct exhaustion messages). `serializableTransaction` fields are still read by
   `acquireSerializableSnapshot`'s wait loop (`ready`, `resolved`, `unsafe`,
   `aborted`, `ended`, and the error path that closes `ready`); move that
   loop's node handling behind registry methods, and recheck the step-4 note

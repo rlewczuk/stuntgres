@@ -2,74 +2,11 @@ package engine
 
 import (
 	"errors"
-	"sync/atomic"
 
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 )
-
-// VisibilityView retains exact immutable relation-local roots, not copied row
-// values. Each handle has independent release authority. The immutable data is
-// naturally reclaimed after the last view/result owner; no registry is needed.
-// A committed TRUNCATE incarnation can be newer than the retained snapshot.
-// This flag is capture metadata for the existing selector, not another frontier.
-type visibilityGeneration struct {
-	storage          *storage.Relation
-	needsBirthFilter bool
-}
-
-type visibilityData struct {
-	tx                     ids.TxRef
-	command                ids.CommandID
-	frontier               ids.CommitSeq
-	rewrittenFrontiers     map[ids.ObjectAddress]ids.CommitSeq
-	catalog                catalog.Read
-	committed              map[ids.ObjectAddress][]storage.RowVersion
-	generations            map[ids.ObjectAddress]visibilityGeneration
-	singleGeneration       *storage.Relation
-	singleNeedsBirthFilter bool
-	own                    map[ids.ObjectAddress][]storage.RowVersion
-	ends                   map[ids.ObjectAddress]*storage.DeletionRoot
-	deleted                map[ids.ObjectAddress]*privateDeletionRoot
-}
-
-func (d *visibilityData) generationAt(address ids.ObjectAddress) *storage.Relation {
-	if d.generations != nil {
-		return d.generations[address].storage
-	}
-	if _, ok := d.committed[address]; ok {
-		return d.singleGeneration
-	}
-	return nil
-}
-
-func (d *visibilityData) needsBirthFilterAt(address ids.ObjectAddress) bool {
-	if d.generations != nil {
-		return d.generations[address].needsBirthFilter
-	}
-	_, captured := d.committed[address]
-	return captured && d.singleNeedsBirthFilter
-}
-
-func (d *visibilityData) frontierAt(address ids.ObjectAddress) ids.CommitSeq {
-	if frontier, ok := d.rewrittenFrontiers[address]; ok {
-		return frontier
-	}
-	return d.frontier
-}
-
-type VisibilityView struct {
-	self *VisibilityView
-	data atomic.Pointer[visibilityData]
-}
-
-func newVisibilityView(data *visibilityData) *VisibilityView {
-	v := &VisibilityView{}
-	v.self = v
-	v.data.Store(data)
-	return v
-}
 
 func (s *StatementScope) AcquireDataView(ref ids.ObjectRef) (*VisibilityView, error) {
 	if err := s.active(); err != nil {
@@ -120,18 +57,18 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 		existing = s.partitionValidationView
 	}
 	if existing != nil {
-		data := existing.data.Load()
+		data := existing.Load()
 		if data == nil {
 			return nil, errors.New("stuntgres: visibility view is released")
 		}
 		for _, ref := range refs {
-			if _, ok := data.committed[ref.Address]; !ok {
+			if _, ok := data.Committed[ref.Address]; !ok {
 				return nil, errors.New("stuntgres: relation is outside statement data view")
 			}
-			captured := data.generationAt(ref.Address)
+			captured := data.GenerationAt(ref.Address)
 			current := e.privateStorageLocked(s.owner.catalog, ref.Address)
 			if captured != current {
-				oldRelation, _ := data.catalog.Relation(ref.Address)
+				oldRelation, _ := data.Catalog.Relation(ref.Address)
 				liveRelation, _ := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
 				if !sameMaterializedLineage(oldRelation, liveRelation, captured, current) {
 					return nil, ids.ErrCatalogReplaced
@@ -150,18 +87,18 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 			return nil, err
 		}
 	}
-	frontier := e.visibility.commitSeq
+	frontier := e.visibility.CommitSeq()
 	if !latest && stableIsolation(s.owner.isolation) {
 		frontier = s.owner.frontier
 	}
 	catalog := e.privateCatalogLocked(s.owner.catalog)
 	data := &visibilityData{
-		tx: s.txRef, command: s.command, frontier: frontier,
-		catalog:   catalog,
-		committed: make(map[ids.ObjectAddress][]storage.RowVersion, len(refs)),
+		Tx: s.txRef, Command: s.command, Frontier: frontier,
+		Catalog:   catalog,
+		Committed: make(map[ids.ObjectAddress][]storage.RowVersion, len(refs)),
 	}
 	if len(refs) > 1 {
-		data.generations = make(map[ids.ObjectAddress]visibilityGeneration, len(refs))
+		data.Generations = make(map[ids.ObjectAddress]visibilityGeneration, len(refs))
 	}
 	for _, ref := range refs {
 		stored := e.privateStorageLocked(s.owner.catalog, ref.Address)
@@ -176,17 +113,17 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 			if exists {
 				current, ok := e.catalog.state.Relation(ref.Address)
 				live := e.storage.Relations[ref.Address]
-				if !ok || !sameRelationRowShape(root.relation, current) {
+				if !ok || !sameRelationRowShape(root.Relation, current) {
 					return nil, ids.ErrCatalogReplaced
 				}
-				if root.storage == live {
-					versions, ends = root.versions, root.ends
-				} else if sameMaterializedLineage(root.relation, current, root.storage, live) {
+				if root.Storage == live {
+					versions, ends = root.Versions, root.Ends
+				} else if sameMaterializedLineage(root.Relation, current, root.Storage, live) {
 					// Concurrent MV publication retains the actual RR root and
 					// its end markers, not the new incarnation with a birth filter.
-					versions, ends = root.versions, root.ends
+					versions, ends = root.Versions, root.Ends
 				} else {
-					if !root.storage.SameTruncateLineage(live) {
+					if !root.Storage.SameTruncateLineage(live) {
 						return nil, ids.ErrCatalogReplaced
 					}
 					needsBirthFilter = true
@@ -204,29 +141,29 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 			}
 		}
 		if !latest && rewrite.rewritten && stableIsolation(s.owner.isolation) {
-			if data.rewrittenFrontiers == nil {
-				data.rewrittenFrontiers = make(map[ids.ObjectAddress]ids.CommitSeq)
+			if data.RewrittenFrontiers == nil {
+				data.RewrittenFrontiers = make(map[ids.ObjectAddress]ids.CommitSeq)
 			}
-			data.rewrittenFrontiers[ref.Address] = rewrite.frontier
+			data.RewrittenFrontiers[ref.Address] = rewrite.frontier
 		}
-		data.committed[ref.Address] = versions
-		if data.generations != nil {
-			data.generations[ref.Address] = visibilityGeneration{storage: stored, needsBirthFilter: needsBirthFilter}
+		data.Committed[ref.Address] = versions
+		if data.Generations != nil {
+			data.Generations[ref.Address] = visibilityGeneration{Storage: stored, NeedsBirthFilter: needsBirthFilter}
 		} else {
-			data.singleGeneration = stored
-			data.singleNeedsBirthFilter = needsBirthFilter
+			data.SingleGeneration = stored
+			data.SingleNeedsBirthFilter = needsBirthFilter
 		}
 		if ends != nil {
-			if data.ends == nil {
-				data.ends = make(map[ids.ObjectAddress]*storage.DeletionRoot)
+			if data.Ends == nil {
+				data.Ends = make(map[ids.ObjectAddress]*storage.DeletionRoot)
 			}
-			data.ends[ref.Address] = ends
+			data.Ends[ref.Address] = ends
 		}
 		if rows := s.ownWrites[ref.Address]; len(rows) != 0 {
-			if data.own == nil {
-				data.own = make(map[ids.ObjectAddress][]storage.RowVersion)
+			if data.Own == nil {
+				data.Own = make(map[ids.ObjectAddress][]storage.RowVersion)
 			}
-			data.own[ref.Address] = rows
+			data.Own[ref.Address] = rows
 		}
 	}
 	if len(s.ownDeletes) != 0 {
@@ -239,12 +176,12 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 		if selected == len(s.ownDeletes) {
 			// Reuse an already exact immutable root set, including the usual
 			// single-target case, rather than allocating a redundant map.
-			data.deleted = s.ownDeletes
+			data.Deleted = s.ownDeletes
 		} else if selected != 0 {
-			data.deleted = make(map[ids.ObjectAddress]*privateDeletionRoot, selected)
+			data.Deleted = make(map[ids.ObjectAddress]*privateDeletionRoot, selected)
 			for _, ref := range refs {
 				if root := s.ownDeletes[ref.Address]; root != nil {
-					data.deleted[ref.Address] = root
+					data.Deleted[ref.Address] = root
 				}
 			}
 		}
@@ -254,7 +191,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 			return nil, err
 		}
 	}
-	captured := newVisibilityView(data)
+	captured := visibility.NewView(data)
 	if latest {
 		s.partitionValidationView = captured
 	} else {
@@ -262,36 +199,3 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 	}
 	return captured, nil
 }
-
-func (v *VisibilityView) Retain() *VisibilityView {
-	if v == nil || v.self != v {
-		return nil
-	}
-	data := v.data.Load()
-	if data == nil {
-		return nil
-	}
-	return newVisibilityView(data)
-}
-
-func (v *VisibilityView) Release() {
-	if v != nil && v.self == v {
-		v.data.Store(nil)
-	}
-}
-
-func (v *VisibilityView) read() *visibilityData {
-	if v == nil || v.self != v {
-		panic("stuntgres: visibility view is released")
-	}
-	data := v.data.Load()
-	if data == nil {
-		panic("stuntgres: visibility view is released")
-	}
-	return data
-}
-
-func (v *VisibilityView) Tx() ids.TxRef           { return v.read().tx }
-func (v *VisibilityView) Command() ids.CommandID  { return v.read().command }
-func (v *VisibilityView) Frontier() ids.CommitSeq { return v.read().frontier }
-func (v *VisibilityView) Catalog() catalog.Read   { return v.read().catalog }

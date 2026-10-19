@@ -183,10 +183,10 @@ func projectDeletions(root *privateDeletionRoot, store *storage.Relation) *priva
 	if root == nil {
 		return nil
 	}
-	next := &privateDeletionRoot{rows: make(map[ids.RowID]deleteCandidate, len(root.rows))}
-	for id, candidate := range root.rows {
-		candidate.storage = store
-		next.rows[id] = candidate
+	next := &privateDeletionRoot{Rows: make(map[ids.RowID]deleteCandidate, len(root.Rows))}
+	for id, candidate := range root.Rows {
+		candidate.Storage = store
+		next.Rows[id] = candidate
 	}
 	return next
 }
@@ -197,13 +197,13 @@ func projectPrivateSnapshotRoots(ctx context.Context, catalog *catalogChanges, r
 	var next *catalogChanges
 	for address, shape := range catalog.storage {
 		root, exists := roots[address]
-		if !exists || shape.rewritten || shape.hasSnapshot || slices.Equal(root.relation.Attributes, shape.relation.Attributes) {
+		if !exists || shape.rewritten || shape.hasSnapshot || slices.Equal(root.Relation.Attributes, shape.relation.Attributes) {
 			continue
 		}
 		versions := shape.replacement.Versions
-		if root.storage != shape.original || root.ends != shape.ends || !sameVersionRoot(root.versions, shape.root) {
+		if root.Storage != shape.original || root.Ends != shape.ends || !sameVersionRoot(root.Versions, shape.root) {
 			var err error
-			versions, err = projectVersions(ctx, root.versions, root.relation, shape.relation, shape.fills)
+			versions, err = projectVersions(ctx, root.Versions, root.Relation, shape.relation, shape.fills)
 			if err != nil {
 				return nil, err
 			}
