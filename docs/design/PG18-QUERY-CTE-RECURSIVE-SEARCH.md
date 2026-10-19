@@ -83,7 +83,7 @@ current/next frontier scheduling remains the existing iterative producer.
 Public result signatures distinguish PostgreSQL RECORD/_RECORD identity from
 internal shape. Rebinding INT4 keys to INT8 preserves raw generated result identity
 and seq::text, while a public original INT4→INT8 result still fails0A000. Parameters
-retain exact occurrence shape. `sameRecordUsage`, expression/catalog validation,
+retain exact occurrence shape. `sqltype.SameRecordUsage`, expression/catalog validation,
 record type mapping and prepared catalog-owner/epoch fences are not relaxed.
 Captured Rows retain original descriptor/data and every execution starts fresh.
 

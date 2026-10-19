@@ -68,7 +68,7 @@ Retained eager rows therefore remain valid after producer/catalog replacement.
 requiring exact current leaf generations. One memoized descriptor-pointer map
 remaps the entire tree, preserving distinct same-OID occurrences and the exact
 array-element/recipe-record relationship without mutating the source. Internal
-`sameRecordUsage` checks shapes and leaves. Public statement signatures instead
+`sqltype.SameRecordUsage` checks shapes and leaves. Public statement signatures instead
 retain PostgreSQL's stable record[] result identity: a key-only INT4→INT8 shape
 change does not reject held raw/text paths. Ordinary scalar results still reject
 changed types. This public rule does not authorize foreign internal descriptors.
