@@ -268,24 +268,6 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 		}
 		fmt.Fprintf(out, "ObjectAddress %d slots %v labels %v", n.op, n.slots, n.labels)
 		err = args(n.args[:])
-	case aclValueExpression:
-		if err := n.validateStored(); err != nil {
-			return err
-		}
-		fmt.Fprintf(out, "ACLValue %d named %t namespace %s", n.kind, n.named, n.namespace)
-		err = args(n.arguments())
-	case objectACLExpression:
-		if err := n.validateStored(); err != nil {
-			return err
-		}
-		fmt.Fprintf(out, "ObjectACL slots %v labels %v", n.slots, n.labels)
-		err = args(n.args[:])
-	case accessInquiryExpression:
-		if err := n.validateStored(); err != nil {
-			return err
-		}
-		fmt.Fprintf(out, "AccessInquiry %s", n.name())
-		err = args(n.arguments())
 	case namespaceInquiryExpression:
 		if err := n.validateStored(); err != nil {
 			return err

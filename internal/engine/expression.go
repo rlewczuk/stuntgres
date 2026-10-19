@@ -619,39 +619,39 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			return next, changed || simplified, err
 		}
 		return e, changed, nil
-	case aclValueExpression:
+	case functions.ACLValue:
 		changed := false
-		for i, arg := range e.arguments() {
+		for i, arg := range e.Children() {
 			next, did, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if did {
-				e.args[i], changed = next, true
+				e.Args[i], changed = next, true
 			}
 		}
 		return e, changed, nil
-	case objectACLExpression:
+	case functions.ObjectACL:
 		changed := false
-		for i, arg := range e.args {
+		for i, arg := range e.Args {
 			next, did, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if did {
-				e.args[i], changed = next, true
+				e.Args[i], changed = next, true
 			}
 		}
 		return e, changed, nil
-	case accessInquiryExpression:
+	case functions.AccessInquiry:
 		changed := false
-		for i, arg := range e.arguments() {
+		for i, arg := range e.Children() {
 			next, did, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
 			if did {
-				e.args[i], changed = next, true
+				e.Args[i], changed = next, true
 			}
 		}
 		return e, changed, nil

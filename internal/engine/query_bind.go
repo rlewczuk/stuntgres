@@ -416,13 +416,13 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		if _, ok := expr.(currentSchemasExpression); ok {
 			result.Nullable, result.NullabilityKnown = true, true
 		}
-		if _, ok := expr.(accessInquiryExpression); ok {
+		if _, ok := expr.(functions.AccessInquiry); ok {
 			result.Nullable, result.NullabilityKnown = true, true
 		}
-		if _, ok := expr.(objectACLExpression); ok {
+		if _, ok := expr.(functions.ObjectACL); ok {
 			result.Nullable, result.NullabilityKnown = true, true
 		}
-		if _, ok := expr.(aclValueExpression); ok {
+		if _, ok := expr.(functions.ACLValue); ok {
 			result.Nullable, result.NullabilityKnown = true, true
 		}
 		if inquiry, ok := expr.(namespaceInquiryExpression); ok {

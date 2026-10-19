@@ -30,17 +30,8 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 	if parser.CatalogRelationFunctionName(name) {
 		return b.bindCatalogRelation(raw)
 	}
-	if parser.ACLValueFunctionName(name) {
-		return bindACLValue(b, raw)
-	}
 	if parser.ObjectAddressFunctionName(name) {
 		return b.bindObjectAddress(raw)
-	}
-	if strings.EqualFold(name, "pg_get_acl") {
-		return bindObjectACL(b, raw)
-	}
-	if parser.AccessInquiryFunctionName(name) {
-		return bindAccessInquiry(b, raw)
 	}
 	if raw.Syntax == parser.SimilarEscapeFunctionSyntax {
 		return functions.BindSimilarEscape(b, raw)

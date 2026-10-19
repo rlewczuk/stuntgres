@@ -37,9 +37,9 @@ func sameQuerySetOccurrence(a, b expr.Expr) bool {
 	case functions.JSONBPathQuery:
 		second, ok := b.(functions.JSONBPathQuery)
 		return ok && first.ResultUsage() == second.ResultUsage()
-	case aclValueExpression:
-		second, ok := b.(aclValueExpression)
-		return ok && first.kind == aclExplode && second.kind == aclExplode && sqltype.SameRecordUsage(first.ResultUsage(), second.ResultUsage())
+	case functions.ACLValue:
+		second, ok := b.(functions.ACLValue)
+		return ok && first.Kind == functions.ACLExplode && second.Kind == functions.ACLExplode && sqltype.SameRecordUsage(first.ResultUsage(), second.ResultUsage())
 	case seriesExpression:
 		second, ok := b.(seriesExpression)
 		return ok && first.ResultUsage() == second.ResultUsage() && len(first.args) == len(second.args)

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -36,26 +37,26 @@ func TestAccessInquiryBinding(t *testing.T) {
 	} {
 		t.Run(tc.sql, func(t *testing.T) {
 			q := domainUnitBindSelect(t, e, op, tc.sql)
-			n, ok := q.Root.(*projectNode).expressions[0].(accessInquiryExpression)
-			if !ok || n.count != len(tc.ids) || n.rowSecurity != tc.rls || n.ResultUsage().Type.ID() != sqltype.Bool || n.Properties().Volatility != expr.Stable {
+			n, ok := q.Root.(*projectNode).expressions[0].(functions.AccessInquiry)
+			if !ok || n.Count != len(tc.ids) || n.RowSecurity != tc.rls || n.ResultUsage().Type.ID() != sqltype.Bool || n.Properties().Volatility != expr.Stable {
 				t.Fatalf("typed signature %#v", n)
 			}
 			for i, id := range tc.ids {
-				if n.args[i].ResultUsage().Type.ID() != id {
-					t.Fatalf("argument %d got %v want %v", i, n.args[i].ResultUsage(), id)
+				if n.Args[i].ResultUsage().Type.ID() != id {
+					t.Fatalf("argument %d got %v want %v", i, n.Args[i].ResultUsage(), id)
 				}
 			}
-			if err := n.validateStored(); err != nil {
+			if err := n.Validate(); err != nil {
 				t.Fatal(err)
 			}
 			bad := n
 			bad.Property.Volatility = expr.Immutable
-			if bad.validateStored() == nil {
+			if bad.Validate() == nil {
 				t.Fatal("accepted immutable inquiry")
 			}
 			bad = n
-			bad.args[0] = nil
-			if bad.validateStored() == nil {
+			bad.Args[0] = nil
+			if bad.Validate() == nil {
 				t.Fatal("accepted missing argument")
 			}
 		})
@@ -167,11 +168,11 @@ func TestAccessInquiryLifecycle(t *testing.T) {
 	oid, _ := view.LookupType(sqltype.Oid)
 	name, _ := view.LookupType(sqltype.Name)
 	text, _ := view.LookupType(sqltype.Text)
-	n := accessInquiryExpression{Info: expr.Info{Usage: boolean.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, count: 3}
-	n.args[0] = literalExpression{Info: expr.Info{Usage: name.Usage()}, value: sqltype.String(name, "postgres")}
+	n := functions.AccessInquiry{Info: expr.Info{Usage: boolean.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Count: 3}
+	n.Args[0] = literalExpression{Info: expr.Info{Usage: name.Usage()}, value: sqltype.String(name, "postgres")}
 	v, _ := sqltype.OIDValue(oid, 10)
-	n.args[1] = literalExpression{Info: expr.Info{Usage: oid.Usage()}, value: v}
-	n.args[2] = literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "MEMBER")}
+	n.Args[1] = literalExpression{Info: expr.Info{Usage: oid.Usage()}, value: v}
+	n.Args[2] = literalExpression{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "MEMBER")}
 	destination := New().CatalogRead()
 	mapped, changed, err := retagBoundTypes(destination, n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == nil {
@@ -183,19 +184,19 @@ func TestAccessInquiryLifecycle(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal("did not remint recipe", mapped, changed, err)
 	}
-	fresh := mapped.(accessInquiryExpression)
+	fresh := mapped.(functions.AccessInquiry)
 	if fresh.ResultUsage().Type == n.ResultUsage().Type {
 		t.Fatal("result retained foreign type")
 	}
-	for i, arg := range fresh.arguments() {
-		if arg.ResultUsage().Type == n.args[i].ResultUsage().Type {
+	for i, arg := range fresh.Children() {
+		if arg.ResultUsage().Type == n.Args[i].ResultUsage().Type {
 			t.Fatal("child retained foreign type", i)
 		}
 	}
-	if err := fresh.validateStored(); err != nil {
+	if err := fresh.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if n.args[0].ResultUsage().Type != name {
+	if n.Args[0].ResultUsage().Type != name {
 		t.Fatal("mutated original children")
 	}
 	rewritten, changed, err := mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(child expr.Expr) (expr.Expr, bool, error) {
@@ -208,13 +209,13 @@ func TestAccessInquiryLifecycle(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal("nested leaf rewrite failed", changed, err)
 	}
-	got, _ := rewritten.(accessInquiryExpression).args[0].(literalExpression).value.Text()
-	old, _ := n.args[0].(literalExpression).value.Text()
+	got, _ := rewritten.(functions.AccessInquiry).Args[0].(literalExpression).value.Text()
+	old, _ := n.Args[0].(literalExpression).value.Text()
 	if got != "replacement" || old != "postgres" {
 		t.Fatal("recipe rewrite aliasing", got, old)
 	}
 	remapped, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-	if err != nil || remapped.(accessInquiryExpression).validateStored() != nil {
+	if err != nil || remapped.(functions.AccessInquiry).Validate() != nil {
 		t.Fatal("stored recipe remap", err)
 	}
 }

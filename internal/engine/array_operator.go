@@ -53,7 +53,7 @@ func (b *expressionBinder) finishArrayMembership(raw parser.OperatorExpr, operan
 		if len(raw.Name.Parts) == 2 {
 			namespace = raw.Name.Parts[0].Text
 		}
-		return bindACLContains(b, [2]functions.Argument{operandArgument(operands[0]), operandArgument(operands[1])}, namespace, raw.Pos)
+		return functions.BindACLContains(b, [2]functions.Argument{operandArgument(operands[0]), operandArgument(operands[1])}, namespace, raw.Pos)
 	}
 	var selected *sqltype.Descriptor
 	for _, d := range []*sqltype.Descriptor{left, right} {

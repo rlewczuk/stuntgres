@@ -65,6 +65,9 @@ var definitions = [...]Definition{
 	{Names: pgcryptoNames[:], Bind: bindPgcrypto},
 	{Names: fuzzystrmatchNames[:], Bind: bindFuzzystrmatch},
 	{Names: []string{"unaccent", "daitch_mokotoff"}, Bind: bindInstalledText},
+	{Names: []string{"acldefault", "makeaclitem", "aclexplode"}, Bind: bindACLValue},
+	{Names: []string{"pg_get_acl"}, Bind: bindObjectACL},
+	{Names: []string{"pg_has_role", "row_security_active"}, Bind: bindAccessInquiry},
 }
 
 // Lookup returns the definition that claims an unqualified function name.

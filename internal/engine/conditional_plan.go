@@ -508,45 +508,6 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 			}
 		}
 		expression = e
-	case aclValueExpression:
-		e.Property = e.baseProperties()
-		for i, arg := range e.arguments() {
-			node, did, failure := simplifyConditional(c, arg, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.args[i], changed = node, true
-			}
-			e.Property = expr.MergeProperties(e.Property, e.args[i].Properties())
-		}
-		expression = e
-	case objectACLExpression:
-		e.Property = expr.Properties{Volatility: expr.Stable}
-		for i, arg := range e.args {
-			node, did, failure := simplifyConditional(c, arg, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.args[i], changed = node, true
-			}
-			e.Property = expr.MergeProperties(e.Property, e.args[i].Properties())
-		}
-		expression = e
-	case accessInquiryExpression:
-		e.Property = expr.Properties{Volatility: expr.Stable}
-		for i, arg := range e.arguments() {
-			node, did, failure := simplifyConditional(c, arg, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.args[i], changed = node, true
-			}
-			e.Property = expr.MergeProperties(e.Property, e.args[i].Properties())
-		}
-		expression = e
 	case namespaceInquiryExpression:
 		if e.arg != nil {
 			node, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
@@ -813,10 +774,6 @@ func conditionalConstantInputs(node expr.Expr) bool {
 			}
 		}
 		return true
-	case aclValueExpression:
-		// Keep constructors symbolic: their inert identities need the statement
-		// authority, and stored definitions must retain their child dependencies.
-		return false
 	case catalogUserNameExpression, catalogForeignKeysExpression, transactionIdentityExpression, commitTimestampExpression, objectAddressExpression:
 		return false
 	case installedSoundexFunctionExpression:

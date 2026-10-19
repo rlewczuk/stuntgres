@@ -118,8 +118,6 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 		return session(children(n.left, n.right), n.equality.SessionDependent())
 	case conditionalExpression:
 		return session(children(n.args...), n.comparison.SessionDependent())
-	case aclValueExpression:
-		return merge(children(n.arguments()...), n.baseProperties().Volatility)
 	case objectAddressExpression:
 		return merge(children(n.args[:]...), expr.Stable)
 	case catalogUserNameExpression:

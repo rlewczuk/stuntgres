@@ -431,8 +431,8 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		return child(r.Child, bound)
 	case parser.OperatorExpr:
 		switch n := bound.(type) {
-		case aclValueExpression:
-			return children(r.Args, n.arguments())
+		case functions.ACLValue:
+			return children(r.Args, n.Children())
 		case functions.ArrayTransform:
 			return selectedArrayArguments(r.Args, n.Args)
 		case functions.RangeOperator:
@@ -698,14 +698,14 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if n, ok := bound.(objectAddressExpression); ok {
 			return children(r.Args, n.args[:])
 		}
-		if n, ok := bound.(aclValueExpression); ok {
-			return children(r.Args, n.arguments())
+		if n, ok := bound.(functions.ACLValue); ok {
+			return children(r.Args, n.Children())
 		}
-		if n, ok := bound.(objectACLExpression); ok {
-			return children(r.Args, n.args[:])
+		if n, ok := bound.(functions.ObjectACL); ok {
+			return children(r.Args, n.Args[:])
 		}
-		if n, ok := bound.(accessInquiryExpression); ok {
-			return children(r.Args, n.arguments())
+		if n, ok := bound.(functions.AccessInquiry); ok {
+			return children(r.Args, n.Children())
 		}
 		if n, ok := bound.(namespaceInquiryExpression); ok {
 			if n.arg != nil && len(r.Args) == 1 {

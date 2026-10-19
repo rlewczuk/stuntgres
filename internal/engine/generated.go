@@ -228,8 +228,6 @@ func generationImmutable(node expr.Expr) bool {
 		return true
 	case unnestExpression:
 		return false
-	case aclValueExpression:
-		return n.kind != aclExplode && args(n.arguments())
 	case objectAddressExpression:
 		return false
 	case catalogUserNameExpression, catalogForeignKeysExpression:
@@ -427,8 +425,6 @@ func generationHasTableOID(node expr.Expr) bool {
 			}
 		}
 		return false
-	case aclValueExpression:
-		return args(n.arguments())
 	case objectAddressExpression:
 		return args(n.args[:])
 	case catalogUserNameExpression:
@@ -745,11 +741,6 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 			}
 		}
 		return nil
-	case aclValueExpression:
-		if err := n.validateStored(); err != nil {
-			return err
-		}
-		return args(n.arguments())
 	case objectAddressExpression:
 		if err := n.validateStored(); err != nil {
 			return err

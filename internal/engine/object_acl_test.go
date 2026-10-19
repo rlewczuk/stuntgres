@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
@@ -124,12 +125,12 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 	defer done()
 	for _, query := range []string{"SELECT pg_get_acl($1,$2,$3)", "SELECT pg_get_acl(objsubid => $1,classid => $2,objid => $3)", "SELECT pg_get_acl(NULL,NULL,NULL)"} {
 		q := domainUnitBindSelect(t, e, op, query)
-		n, ok := q.Root.(*projectNode).expressions[0].(objectACLExpression)
-		if !ok || n.ResultUsage().Type.ID() != sqltype.ACLItemArray || n.Properties().Volatility != expr.Stable || n.validateStored() != nil {
+		n, ok := q.Root.(*projectNode).expressions[0].(functions.ObjectACL)
+		if !ok || n.ResultUsage().Type.ID() != sqltype.ACLItemArray || n.Properties().Volatility != expr.Stable || n.Validate() != nil {
 			t.Fatal("typed STABLE recipe", n)
 		}
-		for i, arg := range n.args {
-			if arg.ResultUsage().Type.ID() != objectACLTypes[n.slots[i]] {
+		for i, arg := range n.Args {
+			if arg.ResultUsage().Type.ID() != [3]sqltype.ID{sqltype.Oid, sqltype.Oid, sqltype.Int4}[n.Slots[i]] {
 				t.Fatal("wrong formal argument type", i, arg.ResultUsage())
 			}
 		}
@@ -139,13 +140,13 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 			t.Fatal("lexical children", children)
 		}
 		bad := n
-		bad.slots[1] = bad.slots[0]
-		if bad.validateStored() == nil {
+		bad.Slots[1] = bad.Slots[0]
+		if bad.Validate() == nil {
 			t.Fatal("accepted duplicate formal slot")
 		}
 		bad = n
 		bad.Property.Volatility = expr.Immutable
-		if bad.validateStored() == nil {
+		if bad.Validate() == nil {
 			t.Fatal("accepted immutable inquiry")
 		}
 		if query == "SELECT pg_get_acl(NULL,NULL,NULL)" {
@@ -160,9 +161,9 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 	array, _ := view.LookupType(sqltype.ACLItemArray)
 	oid, _ := view.LookupType(sqltype.Oid)
 	integer, _ := view.LookupType(sqltype.Int4)
-	n := objectACLExpression{Info: expr.Info{Usage: array.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, slots: [3]uint8{0, 1, 2}}
+	n := functions.ObjectACL{Info: expr.Info{Usage: array.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Slots: [3]uint8{0, 1, 2}}
 	for i, typ := range []*sqltype.Descriptor{oid, oid, integer} {
-		n.args[i] = literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: sqltype.Null(typ)}
+		n.Args[i] = literalExpression{Info: expr.Info{Usage: typ.Usage()}, value: sqltype.Null(typ)}
 	}
 	destination := New().CatalogRead()
 	mapped, changed, err := retagBoundTypes(destination, n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
@@ -172,17 +173,17 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal("retag recipe", changed, err)
 	}
-	fresh := mapped.(objectACLExpression)
-	if fresh.ResultUsage().Type == n.ResultUsage().Type || fresh.validateStored() != nil {
+	fresh := mapped.(functions.ObjectACL)
+	if fresh.ResultUsage().Type == n.ResultUsage().Type || fresh.Validate() != nil {
 		t.Fatal("foreign result carrier retained", fresh)
 	}
-	for i, arg := range fresh.args {
-		if arg.ResultUsage().Type == n.args[i].ResultUsage().Type {
+	for i, arg := range fresh.Args {
+		if arg.ResultUsage().Type == n.Args[i].ResultUsage().Type {
 			t.Fatal("foreign argument carrier retained", i)
 		}
 	}
 	remapped, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-	if err != nil || remapped.(objectACLExpression).validateStored() != nil {
+	if err != nil || remapped.(functions.ObjectACL).Validate() != nil {
 		t.Fatal("stored remap", err)
 	}
 	rewritten, changed, err := mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(child expr.Expr) (expr.Expr, bool, error) {
@@ -192,19 +193,19 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 		}
 		return child, false, nil
 	})
-	if err != nil || !changed || rewritten.(objectACLExpression).args[0].(literalExpression).value.IsNull() || !n.args[0].(literalExpression).value.IsNull() {
+	if err != nil || !changed || rewritten.(functions.ObjectACL).Args[0].(literalExpression).value.IsNull() || !n.Args[0].(literalExpression).value.IsNull() {
 		t.Fatal("leaf rewrite mutated original recipe or skipped children", changed, err)
 	}
 	// Named recipes must render their NULL children in written order.
-	n.slots, n.labels = [3]uint8{2, 0, 1}, [3]string{"objsubid", "classid", "objid"}
-	n.args = [3]expr.Expr{n.args[2], n.args[0], n.args[1]}
-	text, err := n.sql("pg_catalog.pg_get_acl", func(arg expr.Expr) (string, error) {
-		if !arg.(literalExpression).value.IsNull() {
-			t.Fatal("named render changed a NULL child")
+	n.Slots, n.Labels = [3]uint8{2, 0, 1}, [3]string{"objsubid", "classid", "objid"}
+	n.Args = [3]expr.Expr{n.Args[2], n.Args[0], n.Args[1]}
+	spec, err := n.Render()
+	if err != nil || spec.Name != "pg_get_acl" || len(spec.Args) != 3 {
+		t.Fatal("named written-order render", spec, err)
+	}
+	for i, label := range []string{"objsubid", "classid", "objid"} {
+		if spec.Args[i].Label != label || spec.Args[i].Expr != n.Args[i] || !spec.Args[i].Expr.(literalExpression).value.IsNull() {
+			t.Fatal("named render changed written order or a NULL child", i, spec.Args[i])
 		}
-		return "NULL", nil
-	})
-	if err != nil || text != "pg_catalog.pg_get_acl(objsubid => NULL, classid => NULL, objid => NULL)" {
-		t.Fatal("named written-order render", text, err)
 	}
 }

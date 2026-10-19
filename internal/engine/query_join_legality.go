@@ -782,12 +782,6 @@ func joinExpressionSides(node expr.Expr, leftWidth, rightWidth int) (uint8, erro
 		children = []expr.Expr{e.arg}
 	case objectAddressExpression:
 		children = e.args[:]
-	case aclValueExpression:
-		children = e.arguments()
-	case objectACLExpression:
-		children = e.args[:]
-	case accessInquiryExpression:
-		children = e.arguments()
 	case namespaceInquiryExpression:
 		children = e.arguments()
 	case blockingInquiryExpression:

@@ -104,8 +104,6 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(proc.Name()), []expr.Expr{n.Arg})
-	case aclValueExpression:
-		return n.sql(func(child expr.Expr) (string, error) { return r.sql(ctx, view, child) })
 	case catalogUserNameExpression:
 		if r.commentSnapshot != nil {
 			*r.commentSnapshot = true

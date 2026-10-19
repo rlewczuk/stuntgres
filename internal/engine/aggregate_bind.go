@@ -163,35 +163,35 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			}
 		}
 		return true
-	case aclValueExpression:
-		o, ok := other.(aclValueExpression)
-		if !ok || e.kind != o.kind || e.named != o.named || e.namespace != o.namespace {
+	case functions.ACLValue:
+		o, ok := other.(functions.ACLValue)
+		if !ok || e.Kind != o.Kind || e.Named != o.Named || e.Namespace != o.Namespace {
 			return false
 		}
-		for i, arg := range e.arguments() {
-			if !same(arg, o.args[i]) {
+		for i, arg := range e.Children() {
+			if !same(arg, o.Args[i]) {
 				return false
 			}
 		}
 		return true
-	case objectACLExpression:
-		o, ok := other.(objectACLExpression)
-		if !ok || e.slots != o.slots || e.labels != o.labels {
+	case functions.ObjectACL:
+		o, ok := other.(functions.ObjectACL)
+		if !ok || e.Slots != o.Slots || e.Labels != o.Labels {
 			return false
 		}
-		for i, arg := range e.args {
-			if !same(arg, o.args[i]) {
+		for i, arg := range e.Args {
+			if !same(arg, o.Args[i]) {
 				return false
 			}
 		}
 		return true
-	case accessInquiryExpression:
-		o, ok := other.(accessInquiryExpression)
-		if !ok || e.rowSecurity != o.rowSecurity || e.count != o.count {
+	case functions.AccessInquiry:
+		o, ok := other.(functions.AccessInquiry)
+		if !ok || e.RowSecurity != o.RowSecurity || e.Count != o.Count {
 			return false
 		}
-		for i := range e.count {
-			if !same(e.args[i], o.args[i]) {
+		for i := range e.Count {
+			if !same(e.Args[i], o.Args[i]) {
 				return false
 			}
 		}
@@ -541,21 +541,21 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		}
 		stage(&e.Info)
 		bound = e
-	case aclValueExpression:
-		for i := range e.arguments() {
-			e.args[i] = rewrite(e.args[i])
+	case functions.ACLValue:
+		for i := range e.Children() {
+			e.Args[i] = rewrite(e.Args[i])
 		}
 		stage(&e.Info)
 		bound = e
-	case objectACLExpression:
-		for i := range e.args {
-			e.args[i] = rewrite(e.args[i])
+	case functions.ObjectACL:
+		for i := range e.Args {
+			e.Args[i] = rewrite(e.Args[i])
 		}
 		stage(&e.Info)
 		bound = e
-	case accessInquiryExpression:
-		for i := range e.count {
-			e.args[i] = rewrite(e.args[i])
+	case functions.AccessInquiry:
+		for i := range e.Count {
+			e.Args[i] = rewrite(e.Args[i])
 		}
 		stage(&e.Info)
 		bound = e
@@ -906,16 +906,16 @@ func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 		for _, arg := range e.args {
 			walk(arg)
 		}
-	case aclValueExpression:
-		for _, arg := range e.arguments() {
+	case functions.ACLValue:
+		for _, arg := range e.Children() {
 			walk(arg)
 		}
-	case objectACLExpression:
-		for _, arg := range e.args {
+	case functions.ObjectACL:
+		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case accessInquiryExpression:
-		for _, arg := range e.arguments() {
+	case functions.AccessInquiry:
+		for _, arg := range e.Children() {
 			walk(arg)
 		}
 	case namespaceInquiryExpression:

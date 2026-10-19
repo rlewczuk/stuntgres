@@ -896,23 +896,6 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 			argRenderer.showImplicit = true
 			return argRenderer.sql(ctx, arg, pgRenderParent{})
 		})
-	case aclValueExpression:
-		return n.sql(func(arg expr.Expr) (string, error) {
-			argRenderer := r
-			argRenderer.showImplicit = true
-			return argRenderer.sql(ctx, arg, pgRenderParent{})
-		})
-	case objectACLExpression:
-		return n.sql(r.identifier("pg_get_acl"), func(arg expr.Expr) (string, error) {
-			argRenderer := r
-			argRenderer.showImplicit = true
-			return argRenderer.sql(ctx, arg, pgRenderParent{})
-		})
-	case accessInquiryExpression:
-		if err := n.validateStored(); err != nil {
-			return "", err
-		}
-		return function(n.name(), n.arguments(), true)
 	case namespaceInquiryExpression:
 		if err := n.validateStored(); err != nil {
 			return "", err

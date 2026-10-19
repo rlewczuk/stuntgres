@@ -1,6 +1,7 @@
 package functions
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -150,6 +151,15 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 			t.Fatalf("Lookup(%q) = %+v, %v", name, definition.Names, ok)
 		}
 	}
+	// The ACL value, object ACL and access inquiry calls sat before the shared
+	// gates and matched every folded spelling; each name reaches its own
+	// family (pg_get_acl's branch preceded the access inquiries).
+	for _, name := range []string{"acldefault", "ACLDEFAULT", "MakeAclItem", "aclexplode", "pg_get_acl", "Pg_Get_Acl", "pg_has_role", "PG_HAS_ROLE", "pg_ha\u017f_role", "row_security_active", "row_\u017fecurity_active"} {
+		definition, ok := Lookup(name)
+		if !ok || definition.Bind == nil || definition.ExactSpelling || definition.SharedGates || definition.Claims != nil || !slices.ContainsFunc(definition.Names, func(n string) bool { return strings.EqualFold(n, name) }) {
+			t.Fatalf("Lookup(%q) = %+v, %v", name, definition.Names, ok)
+		}
+	}
 	for _, name := range []string{"", "uuid_generate_v1", "uuid_generate_v4x", "concat_w\u017f", "concatenate", "formats", "format_type", "uuid_extract", "uuid_extract_versions", "UUIDv7", "uuidv1", "uuidv", "ABS", "Width_Bucket", "absolute", "unnest", "generate_subscripts", "array_agg", "array_cat_agg", "array", "range_agg", "int4range",
 		"JSON_OBJECT", "json_agg", "jsonb_object_agg", "json", "to_j\u017fon", "jsonb_populate_record\u017fet", "json_array", "jsonb_path_query_arrays",
 		"Date_Trunc", "MAKE_DATE", "age", "isfinite", "overlaps", "TO_NUMBER",
@@ -158,7 +168,8 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 		"LIKE_ESCAPE", "REGEXP_MATCH", "regexp", "similar_to_escape", "similar_escape",
 		"LEFT", "Trim", "String_To_Table",
 		"SUBSTRING", "Substr", "Encode", "sha1", "get_bits", "convert_to_text", "pg_size_bytes",
-		"digests", "gen_random_bytea", "pgp_sym_encrypt", "armor", "levenshtein_x", "metaphones", "soundex_code", "unaccent_init", "unaccent_lexize", "daitch"} {
+		"digests", "gen_random_bytea", "pgp_sym_encrypt", "armor", "levenshtein_x", "metaphones", "soundex_code", "unaccent_init", "unaccent_lexize", "daitch",
+		"aclitemin", "aclitemout", "aclcontains", "aclinsert", "acl", "has_table_privilege", "pg_get_acl_x", "pg_get_acls", "pg_has_roles", "row_security"} {
 		if definition, ok := Lookup(name); ok {
 			t.Fatalf("Lookup(%q) claimed by %v", name, definition.Names)
 		}

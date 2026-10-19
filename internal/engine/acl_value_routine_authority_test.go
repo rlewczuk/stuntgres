@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -19,26 +20,26 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 	for _, tc := range []struct {
 		name, expression, signature string
 		oid, result                 ids.OID
-		kind                        aclValueKind
+		kind                        functions.ACLKind
 		volatility                  expr.Volatility
 		set                         bool
 		provider                    routineProvider
 		formals                     []sqltype.ID
 	}{
-		{"acldefault", "acldefault('r',$1::oid)", "18,26", 3943, 1034, aclDefault, expr.Immutable, false, catalogRoutineProvider, []sqltype.ID{18, 26}},
-		{"makeaclitem", "makeaclitem($1::oid,$2::oid,$3::text,$4::boolean)", "26,26,25,16", 1365, 1033, aclMake, expr.Immutable, false, catalogRoutineProvider, []sqltype.ID{26, 26, 25, 16}},
-		{"aclexplode", "aclexplode(acl => $1::aclitem[])", "1034", 1689, 2249, aclExplode, expr.Stable, true, catalogRoutineProvider, []sqltype.ID{1034}},
-		{"aclcontains", "$1::aclitem[] @> $2::aclitem", "1034,1033", 1037, 16, aclContains, expr.Immutable, false, operatorRoutineProvider, []sqltype.ID{1034, 1033}},
+		{"acldefault", "acldefault('r',$1::oid)", "18,26", 3943, 1034, functions.ACLDefault, expr.Immutable, false, catalogRoutineProvider, []sqltype.ID{18, 26}},
+		{"makeaclitem", "makeaclitem($1::oid,$2::oid,$3::text,$4::boolean)", "26,26,25,16", 1365, 1033, functions.ACLMake, expr.Immutable, false, catalogRoutineProvider, []sqltype.ID{26, 26, 25, 16}},
+		{"aclexplode", "aclexplode(acl => $1::aclitem[])", "1034", 1689, 2249, functions.ACLExplode, expr.Stable, true, catalogRoutineProvider, []sqltype.ID{1034}},
+		{"aclcontains", "$1::aclitem[] @> $2::aclitem", "1034,1033", 1037, 16, functions.ACLContains, expr.Immutable, false, operatorRoutineProvider, []sqltype.ID{1034, 1033}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			node, binder, evaluation := strictNullUnitBind(t, e, op, scope, tc.expression)
-			call, ok := node.(aclValueExpression)
-			if !ok || call.kind != tc.kind || len(call.arguments()) != len(tc.formals) {
+			call, ok := node.(functions.ACLValue)
+			if !ok || call.Kind != tc.kind || len(call.Children()) != len(tc.formals) {
 				t.Fatal("actual ACL carrier/full IN arity", node)
 			}
 			for i, formal := range tc.formals {
-				if call.args[i].ResultUsage().Type.ID() != formal {
-					t.Fatal("physical coerced IN type", i, call.args[i].ResultUsage(), formal)
+				if call.Args[i].ResultUsage().Type.ID() != formal {
+					t.Fatal("physical coerced IN type", i, call.Args[i].ResultUsage(), formal)
 				}
 			}
 			if got := ids.OID(call.ResultUsage().Type.ID()); got != tc.result {
@@ -51,7 +52,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 				t.Fatalf("isQuerySet: got %t, want %t", got, tc.set)
 			}
 			// Containment is deliberately not a function-source capability.
-			if got, want := validFunctionSourceCall(call), tc.kind != aclContains; got != want {
+			if got, want := validFunctionSourceCall(call), tc.kind != functions.ACLContains; got != want {
 				t.Fatalf("validFunctionSourceCall: got %t, want %t", got, want)
 			}
 			// bindACLValue returns the bare carrier directly, without setting
@@ -62,7 +63,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			}
 			if tc.set {
 				shape := call.ResultUsage().Type
-				if !call.named || shape.CompositeLen() != 4 {
+				if !call.Named || shape.CompositeLen() != 4 {
 					t.Fatal("named sole IN/four OUT shape", call)
 				}
 				for i, out := range []struct {
@@ -154,9 +155,9 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal("actual ACL carrier retag", err)
 			}
-			mapped := remapped.(aclValueExpression)
+			mapped := remapped.(functions.ACLValue)
 			mappedDescriptor, err := expressionRoutineDescriptor(mapped)
-			if err != nil || mappedDescriptor == captured || mappedDescriptor != foreign.catalog.Get(address) || mapped.kind != call.kind || mapped.named != call.named || mapped.namespace != call.namespace || mapped.SourcePosition() != call.SourcePosition() || mapped.Properties() != call.Properties() {
+			if err != nil || mappedDescriptor == captured || mappedDescriptor != foreign.catalog.Get(address) || mapped.Kind != call.Kind || mapped.Named != call.Named || mapped.Namespace != call.Namespace || mapped.SourcePosition() != call.SourcePosition() || mapped.Properties() != call.Properties() {
 				t.Fatal("retag lost selected carrier contract", mapped, err)
 			}
 			for _, manifest := range [][]catalog.ExpressionDependency{original, nil, {}} {
