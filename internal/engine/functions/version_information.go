@@ -117,3 +117,6 @@ func (e VersionInformation) SameGroup(other expr.Expr, same func(a, b expr.Expr)
 	o, ok := other.(VersionInformation)
 	return ok && e.Kind == o.Kind
 }
+
+// GroupLeaf implements expr.GroupLeaf.
+func (e VersionInformation) GroupLeaf() {}

@@ -73,3 +73,17 @@ func TestGroupIdentityTimezoneLocalIgnoresZone(t *testing.T) {
 		t.Error("AT LOCAL matched AT TIME ZONE")
 	}
 }
+
+func TestGroupLeafMarksOnlyChildlessLeaves(t *testing.T) {
+	for _, node := range []expr.Expr{CurrentDateTime{}, TransactionTime{}, VersionInformation{}} {
+		if _, ok := node.(expr.GroupLeaf); !ok {
+			t.Errorf("%T is not a group leaf", node)
+		}
+	}
+	// Zero-argument volatile calls are rebuilt as stage dependent.
+	for _, node := range []expr.Expr{Random{}, UUIDGeneration{}} {
+		if _, ok := node.(expr.GroupLeaf); ok {
+			t.Errorf("%T is a group leaf", node)
+		}
+	}
+}

@@ -668,70 +668,12 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		e.left, e.right = rewrite(e.left), rewrite(e.right)
 		stage(&e.Info)
 		bound = e
-	case functions.LikeEscape:
-		e.Pattern, e.Escape = rewrite(e.Pattern), rewrite(e.Escape)
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.Posix:
-		e.Left, e.Right = rewrite(e.Left), rewrite(e.Right)
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.Similar:
-		e.Left, e.Right = rewrite(e.Left), rewrite(e.Right)
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.SimilarEscape:
-		e.Pattern, e.Escape = rewrite(e.Pattern), rewrite(e.Escape)
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.PosixSubstring:
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.SimilarSubstring:
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
 	case rowComparisonExpression:
 		e.comparisons = append([]comparisonExpression(nil), e.comparisons...)
 		for i, pair := range e.comparisons {
 			e.comparisons[i] = rewrite(pair).(comparisonExpression)
 		}
 		stage(&e.Info)
-		bound = e
-	case functions.Regexp:
-		e.Args = append([]expr.Expr(nil), e.Args...)
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.RegexpSet:
-		e.Args = append([]expr.Expr(nil), e.Args...)
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
 		bound = e
 	case scalarArrayComparisonExpression:
 		e.left = rewrite(e.left)
@@ -761,49 +703,6 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 	case unnestExpression:
 		e.args = []expr.Expr{rewrite(e.args[0])}
 		stage(&e.Info)
-		bound = e
-	case functions.JSONKeys:
-		e.Args = []expr.Expr{rewrite(e.Args[0])}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.JSONBRecord:
-		args := make([]expr.Expr, len(e.Args))
-		for i, arg := range e.Args {
-			args[i] = rewrite(arg)
-		}
-		e.Args = args
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.JSONBElements:
-		e.Args = []expr.Expr{rewrite(e.Args[0])}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.JSONRecord:
-		e.Args = append([]expr.Expr(nil), e.Args...)
-		for i, arg := range e.Args {
-			e.Args[i] = rewrite(arg)
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.JSONEach:
-		e.Args = []expr.Expr{rewrite(e.Args[0])}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.JSONElements:
-		e.Args = []expr.Expr{rewrite(e.Args[0])}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
 		bound = e
 	case comparisonExpression:
 		e.left = rewrite(e.left)
@@ -852,203 +751,6 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		}
 		stage(&e.Info)
 		bound = e
-	case functions.Binary:
-		e.Args = append([]expr.Expr(nil), e.Args...)
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.DatetimeJustify:
-		e.Arg = rewrite(e.Arg)
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.DatetimeExtract:
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.DatetimeOverlaps:
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.DatetimeBin:
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.DatetimeTrunc:
-		for i := range e.Arguments() {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.DatetimeZoneCalendar:
-		for i := range e.Arguments() {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.DatetimeAgeFinite:
-		for i := range e.Arguments() {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.JSONStripNulls:
-		for i := range e.Arguments() {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.JSONExtract:
-		e, _, err = functions.MapJSONExtractChildren(e, func(arg expr.Expr) (expr.Expr, bool, error) {
-			next := rewrite(arg)
-			return next, !b.sameGroupExpression(arg, next), err
-		})
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.JSONBPathQueryArray:
-		for i := range e.Arguments() {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.JSONBPathExists:
-		for i := range e.Arguments() {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.JSONBPathMatch:
-		for i := range e.Arguments() {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.JSONBPathQueryFirst:
-		for i := range e.Arguments() {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.JSONBPathQuery:
-		for i := range e.Arguments() {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.JSONBSet:
-		for i := range e.Arguments() {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.DatetimeMake:
-		for i := range e.Arguments() {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.DatetimeFormatting:
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.NumericFormatting:
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.String:
-		e.Args = append([]expr.Expr(nil), e.Args...)
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.ArrayRandom:
-		e.Args = append([]expr.Expr(nil), e.Args...)
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.ArrayTransform:
-		e.Args = append([]expr.Expr(nil), e.Args...)
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.ArrayInspect:
-		e.Args = append([]expr.Expr(nil), e.Args...)
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.ArraySearch:
-		e.Args = append([]expr.Expr(nil), e.Args...)
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
 	case catalogUserNameExpression:
 		e.arg = rewrite(e.arg)
 		stage(&e.Info)
@@ -1067,78 +769,6 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 			e.arg = rewrite(e.arg)
 		}
 		stage(&e.Info)
-		bound = e
-	case functions.UUIDExtract:
-		e.Arg = rewrite(e.Arg)
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.NetworkFormat:
-		for i := range e.Kind.Arity() {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.RangeOperator:
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.RangeInspect:
-		e.Args = append([]expr.Expr(nil), e.Args...)
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.Enum:
-		e.Args = append([]expr.Expr(nil), e.Args...)
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.Math:
-		e.Args = append([]expr.Expr(nil), e.Args...)
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.UUIDGeneration:
-		if len(e.Args) != 0 {
-			e.Args = []expr.Expr{rewrite(e.Args[0])}
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.Random:
-		e.Args = append([]expr.Expr(nil), e.Args...)
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.DatetimeSleep:
-		e.Arg = rewrite(e.Arg)
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
 		bound = e
 	case advisoryExpression:
 		e.args = append([]expr.Expr(nil), e.args...)
@@ -1178,15 +808,6 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 			e.args[i] = rewrite(e.args[i])
 		}
 		stage(&e.Info)
-		bound = e
-	case functions.NullCount:
-		e.Args = append([]expr.Expr(nil), e.Args...)
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
 		bound = e
 	case installedSoundexFunctionExpression:
 		e.Args = append([]expr.Expr(nil), e.Args...)
@@ -1233,44 +854,25 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		e.Arg = rewrite(e.Arg)
 		stage(&e.Info)
 		bound = e
-	case functions.SQLJSON:
-		e.Args = append([]expr.Expr(nil), e.Args...)
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
+	case expr.GroupLeaf:
+		// Childless leaf calls keep their metadata.
+	case expr.Composite:
+		// Function nodes rebuild over their rewritten children as stage
+		// dependent; installed-routine wrappers keep their cases above.
+		children := append([]expr.Expr(nil), e.Children()...)
+		for i := range children {
+			children[i] = rewrite(children[i])
 		}
-		stage(&e.Info)
-		bound = e
-	case functions.JSONPredicate:
-		e.Child = rewrite(e.Child)
-		stage(&e.Info)
-		bound = e
-	case functions.JSONCreate:
-		e.Args = append([]expr.Expr(nil), e.Args...)
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
+		if err != nil {
+			return nil, err
 		}
 		info := expr.InfoOf(e)
 		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.StringVariadic:
-		e.Args = append([]expr.Expr(nil), e.Args...)
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
+		next, failure := e.Rebuild(info, children)
+		if failure != nil {
+			return nil, failure
 		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
-	case functions.Format:
-		e.Args = append([]expr.Expr(nil), e.Args...)
-		for i := range e.Args {
-			e.Args[i] = rewrite(e.Args[i])
-		}
-		info := expr.InfoOf(e)
-		stage(&info)
-		e.Info = info
-		bound = e
+		bound = next
 	}
 	return bound, err
 }
@@ -1344,38 +946,10 @@ func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 	case likeExpression:
 		walk(e.left)
 		walk(e.right)
-	case functions.LikeEscape:
-		walk(e.Pattern)
-		walk(e.Escape)
-	case functions.Posix:
-		walk(e.Left)
-		walk(e.Right)
-	case functions.Similar:
-		walk(e.Left)
-		walk(e.Right)
-	case functions.SimilarEscape:
-		walk(e.Pattern)
-		walk(e.Escape)
-	case functions.PosixSubstring:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.SimilarSubstring:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
 	case rowComparisonExpression:
 		for _, pair := range e.comparisons {
 			walk(pair.left)
 			walk(pair.right)
-		}
-	case functions.Regexp:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.RegexpSet:
-		for _, arg := range e.Args {
-			walk(arg)
 		}
 	case scalarArrayComparisonExpression:
 		walk(e.left)
@@ -1395,22 +969,6 @@ func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 		}
 	case unnestExpression:
 		walk(e.args[0])
-	case functions.JSONKeys:
-		walk(e.Args[0])
-	case functions.JSONBRecord:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.JSONBElements:
-		walk(e.Args[0])
-	case functions.JSONRecord:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.JSONEach:
-		walk(e.Args[0])
-	case functions.JSONElements:
-		walk(e.Args[0])
 	case comparisonExpression:
 		walk(e.left)
 		walk(e.right)
@@ -1439,100 +997,6 @@ func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 		for _, arg := range e.args {
 			walk(arg)
 		}
-	case functions.Binary:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.DatetimeJustify:
-		walk(e.Arg)
-	case functions.DatetimeExtract:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.DatetimeOverlaps:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.DatetimeBin:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.DatetimeTrunc:
-		for _, arg := range e.Arguments() {
-			walk(arg)
-		}
-	case functions.DatetimeZoneCalendar:
-		for _, arg := range e.Arguments() {
-			walk(arg)
-		}
-	case functions.DatetimeAgeFinite:
-		for _, arg := range e.Arguments() {
-			walk(arg)
-		}
-	case functions.JSONStripNulls:
-		for _, arg := range e.Arguments() {
-			walk(arg)
-		}
-	case functions.JSONExtract:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.JSONBPathQueryArray:
-		for _, arg := range e.Arguments() {
-			walk(arg)
-		}
-	case functions.JSONBPathExists:
-		for _, arg := range e.Arguments() {
-			walk(arg)
-		}
-	case functions.JSONBPathMatch:
-		for _, arg := range e.Arguments() {
-			walk(arg)
-		}
-	case functions.JSONBPathQueryFirst:
-		for _, arg := range e.Arguments() {
-			walk(arg)
-		}
-	case functions.JSONBPathQuery:
-		for _, arg := range e.Arguments() {
-			walk(arg)
-		}
-	case functions.JSONBSet:
-		for _, arg := range e.Arguments() {
-			walk(arg)
-		}
-	case functions.DatetimeMake:
-		for _, arg := range e.Arguments() {
-			walk(arg)
-		}
-	case functions.DatetimeFormatting:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.NumericFormatting:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.String:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.ArrayRandom:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.ArrayTransform:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.ArrayInspect:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.ArraySearch:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
 	case catalogUserNameExpression:
 		walk(e.arg)
 	case catalogForeignKeysExpression:
@@ -1544,38 +1008,6 @@ func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 		if e.arg != nil {
 			walk(e.arg)
 		}
-	case functions.UUIDExtract:
-		walk(e.Arg)
-	case functions.NetworkFormat:
-		for _, arg := range e.Args[:e.Kind.Arity()] {
-			walk(arg)
-		}
-	case functions.RangeOperator:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.RangeInspect:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.Enum:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.Math:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.UUIDGeneration:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.Random:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.DatetimeSleep:
-		walk(e.Arg)
 	case advisoryExpression:
 		for _, arg := range e.args {
 			walk(arg)
@@ -1592,10 +1024,6 @@ func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 		walk(e.arg)
 	case commentInquiryExpression:
 		for _, arg := range e.args {
-			walk(arg)
-		}
-	case functions.NullCount:
-		for _, arg := range e.Args {
 			walk(arg)
 		}
 	case installedSoundexFunctionExpression:
@@ -1618,23 +1046,10 @@ func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 		}
 	case installedFunctionExpression:
 		walk(e.Arg)
-	case functions.SQLJSON:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.JSONPredicate:
-		walk(e.Child)
-	case functions.JSONCreate:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.StringVariadic:
-		for _, arg := range e.Args {
-			walk(arg)
-		}
-	case functions.Format:
-		for _, arg := range e.Args {
-			walk(arg)
+	case expr.Composite:
+		// Function nodes list their children in evaluation order.
+		for _, child := range e.Children() {
+			walk(child)
 		}
 	}
 	return found

@@ -170,3 +170,6 @@ func (e TransactionTime) SameGroup(other expr.Expr, same func(a, b expr.Expr) bo
 	o, ok := other.(TransactionTime)
 	return ok && e.Kind == o.Kind
 }
+
+// GroupLeaf implements expr.GroupLeaf.
+func (e TransactionTime) GroupLeaf() {}

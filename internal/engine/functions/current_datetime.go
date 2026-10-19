@@ -117,3 +117,6 @@ func (e CurrentDateTime) SameGroup(other expr.Expr, same func(a, b expr.Expr) bo
 	o, ok := other.(CurrentDateTime)
 	return ok && e.Kind == o.Kind && e.HasPrecision == o.HasPrecision && (!definition || e.Precision == o.Precision)
 }
+
+// GroupLeaf implements expr.GroupLeaf.
+func (e CurrentDateTime) GroupLeaf() {}

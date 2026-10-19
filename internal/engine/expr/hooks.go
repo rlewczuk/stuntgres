@@ -104,3 +104,11 @@ type Annotated interface {
 type GroupIdentity interface {
 	SameGroup(other Expr, same func(a, b Expr) bool, definition bool) bool
 }
+
+// GroupLeaf marks a childless call that grouping leaves unchanged when it
+// rewrites an expression above its keys: the SQL value functions, the
+// transaction clocks and version information. Grouping rebuilds every other
+// call over its rewritten children and marks it stage dependent.
+type GroupLeaf interface {
+	GroupLeaf()
+}
