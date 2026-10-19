@@ -12,11 +12,24 @@ import (
 
 func fdwScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.Backend, *sql.Conn, *fdwSQLReader, func(fixture.Step))) {
 	t.Helper()
+	fdwConfiguredScenario(t, false, body)
+}
+
+func fdwWriteScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.Backend, *sql.Conn, *fdwSQLReader, func(fixture.Step))) {
+	t.Helper()
+	fdwConfiguredScenario(t, true, body)
+}
+
+func fdwConfiguredScenario(t *testing.T, writable bool, body func(*testing.T, *fixture.Pair, fixture.Backend, *sql.Conn, *fdwSQLReader, func(fixture.Step))) {
+	t.Helper()
 	fixture.RoleReferenceCleanup(t, []string{"fdw_reader", "fdw_other", "fdw_owner"})
 	fixture.SchemaReferenceCleanup(t, "fdw_source")
 	fixture.SchemaReferenceCleanup(t, "fdw_import")
 	fixture.SchemaReferenceCleanup(t, "fdw_empty")
 	reader := newFDWSQLReader(t)
+	if writable {
+		reader.writer = &fdwSQLWriter{fdwSQLReader: reader, batchSize: 2}
+	}
 	p := fixture.NewScenarioWithDriverConfig(t, reader.configure)
 	for _, b := range p.Backends() {
 		t.Run(b.Name, func(t *testing.T) {
@@ -26,7 +39,7 @@ func fdwScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.Back
 			}
 			t.Cleanup(func() { c.Close() })
 			t.Cleanup(func() {
-				for _, q := range []string{"ROLLBACK", "RESET ROLE", "DROP FOREIGN DATA WRAPPER IF EXISTS fdw_meta CASCADE", "DROP SERVER IF EXISTS fdw_live CASCADE", "DROP FOREIGN DATA WRAPPER IF EXISTS fdw_native CASCADE"} {
+				for _, q := range []string{"ROLLBACK", "RESET ROLE", "DROP FOREIGN DATA WRAPPER IF EXISTS fdw_meta CASCADE", "DROP SERVER IF EXISTS fdw_live CASCADE", "DROP SERVER IF EXISTS fdw_second CASCADE", "DROP SERVER IF EXISTS fdw_truncate_second CASCADE", "DROP SERVER IF EXISTS fdw_readonly CASCADE", "DROP FOREIGN DATA WRAPPER IF EXISTS fdw_readonly_wrapper CASCADE", "DROP FOREIGN DATA WRAPPER IF EXISTS fdw_native CASCADE"} {
 					if _, err := c.ExecContext(p.Ctx, q); err != nil {
 						t.Errorf("cleanup %s: %v", q, err)
 					}

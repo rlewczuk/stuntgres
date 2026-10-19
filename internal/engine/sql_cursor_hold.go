@@ -25,7 +25,7 @@ func (r *cursorRegistry) hasCurrentHold(ref ids.TxRef) bool {
 
 // Admission is already held; the transaction/engine/session mutexes are not.
 // Ordinary commits avoid scope allocation and presentation capture entirely.
-func (e *Engine) holdPrecommit(op *Operation, owner *transactionOwner, start time.Time) error {
+func (e *Engine) holdPrecommit(op *Operation, owner *transactionOwner, start time.Time, settlement *StatementScope) error {
 	if !op.session.cursors.hasCurrentHold(owner.ref) {
 		return nil
 	}
@@ -39,7 +39,13 @@ func (e *Engine) holdPrecommit(op *Operation, owner *transactionOwner, start tim
 	owner.mu.Lock()
 	scope.attachTransactionLocked()
 	owner.mu.Unlock()
+	scope.foreignStatements = settlement.foreignStatements
+	settlement.foreignStatements = nil
 	defer func() {
+		settlement.foreignStatements = scope.foreignStatements
+		scope.foreignStatements = nil
+		settlement.foreignHoldPromotions = scope.foreignHoldPromotions
+		scope.foreignHoldPromotions = nil
 		scope.routineAuth = AuthorizationView{}
 		scope.routineDependencies = nil
 		scope.routinePrograms = nil
@@ -75,10 +81,18 @@ func (s *StatementScope) materializeHeldCursors() error {
 		return 0
 	})
 	defer func() { s.querySources, s.queryLocks = nil, nil }()
+	// Reuse the visitation vector as the exact successful-promotion list.
+	// A failed current promotion is disposed by materializeHeldCursor itself.
+	promotions := cursors[:0]
+	defer func() {
+		s.foreignHoldPromotions = promotions
+		clear(cursors[len(promotions):])
+	}()
 	for _, c := range cursors {
 		if err := s.materializeHeldCursor(c); err != nil {
 			return err
 		}
+		promotions = append(promotions, c)
 	}
 	return nil
 }

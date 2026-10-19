@@ -42,6 +42,11 @@ type ForeignRequest struct {
 	RequiredAttributes                                          []int32
 	WrapperOptions, ServerOptions, TableOptions, MappingOptions []ForeignOption
 	Parameters                                                  ForeignScanParameters
+	// Stable catalog identities key participation under the sole SQL owner.
+	ServerOID, MappingOID, HandlerOID uint32
+	// Execution-only; planning requests never contain a provider transaction.
+	Transaction ForeignTransaction
+	Identity    *ForeignUpdateTargets
 }
 
 type ForeignRelSize struct{ Rows, Width float64 }

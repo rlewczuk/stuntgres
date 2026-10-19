@@ -147,7 +147,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				}
 			case "terminal_before":
 				a.RequestEnd(Terminated)
-				err = e.publishWrites(op, old, a.transactions.writes, a.transactions.deletes)
+				err = e.publishWrites(op, old, a.transactions.writes, a.transactions.deletes, nil)
 			case "epoch_before":
 				e.mu.Lock()
 				next := *e.catalog.state

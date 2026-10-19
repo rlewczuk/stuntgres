@@ -178,7 +178,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 	var err error
 	committed := false
 	if commit && t.state != TxAborted {
-		if len(t.exclusionModes.events) != 0 {
+		if len(t.exclusionModes.events) != 0 || op.session.cursors.hasCurrentHold(ref) {
 			if scope == nil {
 				scope = newStatementScope(op, t, statementOperationStart(op))
 			}
@@ -189,15 +189,19 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 			e.replacementMu.RUnlock()
 			chainFence = false
 		}
-		err = e.holdPrecommit(op, t, nextStart)
+		err = e.holdPrecommit(op, t, nextStart, scope)
 		if err == nil {
 			if scope != nil {
 				err = e.checkTransactionExclusions(scope)
 			}
 		}
-		if err == nil {
-			err = disposeSQLCursors(op.Context(), t.session.cursors.endTransaction(ref))
+		if scope != nil && len(t.foreignParticipants) != 0 {
+			scope.foreignUnlocked()
 		}
+		if cleanupErr := disposeSQLCursors(op.Context(), t.session.cursors.endTransaction(ref)); err == nil {
+			err = cleanupErr
+		}
+		hasForeign := len(t.foreignParticipants) != 0
 		if chain {
 			e.replacementMu.RLock()
 			chainFence = true
@@ -206,12 +210,40 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 				err = ids.ErrCatalogReplaced
 			}
 			e.mu.Unlock()
+			if hasForeign {
+				e.replacementMu.RUnlock()
+				chainFence = false
+			}
 		}
 		if err == nil {
-			err = e.publishWrites(op, ref, t.writes, t.deletes)
+			var publicationScope *StatementScope
+			if scope != nil && len(scope.foreignStatements) != 0 {
+				publicationScope = scope
+			}
+			err = e.publishWrites(op, ref, t.writes, t.deletes, publicationScope)
+			committed = err == nil
+		}
+		if scope != nil && len(scope.foreignStatements) != 0 {
+			err = scope.finishForeignStatements(err)
+		}
+		if scope != nil {
+			if hasForeign && !committed {
+				err = scope.discardForeignHoldPromotions(err)
+			} else {
+				scope.foreignHoldPromotions = nil
+			}
+		}
+		// Old publication truth is independent of prospective CHAIN readmission.
+		if chain && hasForeign {
+			e.replacementMu.RLock()
+			chainFence = true
+			e.mu.Lock()
+			if err == nil && next.Epoch() != e.catalog.state.Epoch() {
+				err = ids.ErrCatalogReplaced
+			}
+			e.mu.Unlock()
 		}
 		t.mu.Lock()
-		committed = err == nil
 	} else {
 		err = e.endPreflight(op)
 		// Replacement also fences SQL recovery commits of aborted blocks.
@@ -254,7 +286,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 	t.clear()
 	t.session.retireTransactionTimeout()
 	if err != nil {
-		return EndResult{}, err
+		return EndResult{Committed: committed}, err
 	}
 	// All fallible work/allocation is over. Publication survives late cancel,
 	// and old waiters wake only after this fresh empty incarnation is installed.

@@ -259,12 +259,79 @@ PostgreSQL's blocking schedule or automatically retry the transaction.
 Ordinary results finish their foreign resources before publication. Named SQL
 cursors instead retain their live producer across finite eager FETCH/MOVE batches;
 public `Rows.Next`/`Close` never perform foreign I/O. This is not a PostgreSQL C
-ABI, built-in postgres_fdw transport, foreign-write or connection-pooling feature.
+ABI, built-in postgres_fdw transport or connection-pooling feature.
 See [embedding API](docs/DRIVER.md#foreign-provider-registration),
 [catalog/control limits](docs/TABLES.md#foreign-metadata-and-dependencies), and
 [selected dual-mode proof](reference/tables/README.md#foreign-metadata-and-scans).
 Feature smoke: `make check RUN='^TestReferenceFDWScan$'`, and the same command
 with `REFERENCE=1`; Rescan and Import smoke selectors are documented alongside it.
+
+### Registered foreign writes
+
+The same registered provider may independently implement `ForeignInserter`,
+`ForeignUpdater`, `ForeignDeleter` and `ForeignTruncater`. UPDATE/DELETE request
+separate provider-defined original row identity through `ForeignUpdateTargetProvider`
+and `ForeignIdentityScan`; changing a key does not change the selected identity.
+Successful callbacks return actual full tuples and presence, not proposed-row
+echoes or attempted-row counts. RETURNING uses those actual tuples.
+View CHECK OPTION validates the imported actual returned tuple before RETURNING,
+not proposed NEW; failure rolls back the real provider statement.
+
+A writer also implements `ForeignTransactionProvider` with genuine statement
+and transaction rollback. Unsupported atomicity rejects before mutation (`0A000`);
+there is no irreversible auto-commit mode or compensating DML. Optional planning,
+Begin/End and COPY-specific BeginForeignInsert/EndForeignInsert release execution
+resources, not transactions. Both batch methods are required for batching;
+RETURNING and applicable view CHECK OPTION use singles. COPY FROM stages
+accepted text/CSV/binary input before remote mutation.
+TRUNCATE groups selected tables once per actual server and passes identity/cascade flags.
+
+For an application-owned concrete provider, registration remains the existing API:
+
+```go
+func OpenWritableForeign(name string, source interface {
+	stuntgres.ForeignDataWrapper
+	stuntgres.ForeignTransactionProvider
+	stuntgres.ForeignInserter
+}) (*sql.DB, error) {
+	d := stuntgres.NewDriver()
+	if err := d.RegisterForeignDataWrapper(stuntgres.ForeignDataWrapperDefinition{
+		HandlerName: stuntgres.ForeignFunctionName{Schema: "public", Name: "writer_handler"},
+		Wrapper: source,
+	}); err != nil {
+		return nil, err
+	}
+	connector, err := d.OpenConnector(name)
+	if err != nil {
+		return nil, err
+	}
+	return sql.OpenDB(connector), nil
+}
+```
+
+Create SQL/MED wrapper/server/mapping/table metadata naming `writer_handler` as
+with the scan example. The [real SQL writer fixture](reference/tables/fdw_writer_test.go)
+implements actual source SQL transactions, savepoints and mutations.
+
+Participants belong to the existing session transaction owner. Foreign scans and
+writes share the enlisted transaction; separate observers cannot see its uncommitted
+effects. Commits are remote-first in enlistment order, local publication last,
+with final local fences retained. **This is not distributed atomicity:** a later
+commit or final local fence can fail after an earlier remote commit; a commit
+error can mean an unknown outcome. The command fails, already committed effects
+are not undone, and no callback is retried. Do not blindly retry. PREPARE TRANSACTION
+is rejected after foreign participation. See [provider contracts](docs/DRIVER.md#foreign-writes-and-transactions).
+
+Foreign CHECK/NOT NULL remain unenforced locally. STORED values are computed
+before the callback; VIRTUAL values are sent as NULL and computed on read.
+postgres_fdw independently sends DEFAULT for generated fields, so its ordinary
+remote-column fixture differs from the native provider that stores callback inputs.
+Foreign MERGE/ON CONFLICT, row locking, partitions, local indexes/keys and native
+procedural triggers remain outside this surface.
+
+Write smoke: `make check RUN='^TestReferenceFDWWriteActions/memory/Smoke'`;
+pinned oracle: `make check RUN='^TestReferenceFDWWriteActions/postgres/Smoke' REFERENCE=1`.
+
 
 ## Type catalog — change note
 
@@ -1511,8 +1578,8 @@ Reset alone preserves session
 currval/lastval, and rollback retains values locally observed on a reverted
 replacement. Reset discards the initiating session's unused cache tail.
 Restart requires sequence ownership and holds sequence ACCESS EXCLUSIVE until
-transaction end. Native triggers/FDW truncation and partition foreign keys remain
-unavailable.
+transaction end. Native triggers and partition foreign keys remain unavailable;
+registered foreign providers may supply grouped transactional truncation.
 See [TRUNCATE](https://www.postgresql.org/docs/18/sql-truncate.html) and
 [transaction semantics](docs/TRANSACTIONS.md#whole-table-generation-replacement).
 Feature smoke: `make check RUN='^TestReferenceTruncateRestartFeatureSmoke$'` and

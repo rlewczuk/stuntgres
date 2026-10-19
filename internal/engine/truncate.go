@@ -27,9 +27,23 @@ func checkTruncate(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Relatio
 		return guardedCatalogMutationError(auth, d, true)
 	}
 	if d.RelationKind == catalog.ForeignRelation {
-		return sqlError("0A000", "foreign table truncation is unsupported in embedded mode")
+		server, ok := auth.Catalog.Foreign(d.Foreign.Server)
+		if !ok {
+			return ids.ErrCatalogReplaced
+		}
+		wrapper, ok := auth.Catalog.Foreign(server.Wrapper)
+		if !ok {
+			return ids.ErrCatalogReplaced
+		}
+		handler, err := foreignHandlerFor(auth.Catalog, wrapper)
+		if err != nil {
+			return err
+		}
+		if _, ok := handler.Wrapper.(catalog.ForeignTruncater); !ok {
+			return sqlError("0A000", fmt.Sprintf("cannot truncate foreign table %q", d.Name()))
+		}
 	}
-	if d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation {
+	if d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation && d.RelationKind != catalog.ForeignRelation {
 		return sqlError("42809", fmt.Sprintf("%q is not a table", d.Name()))
 	}
 	if privilege {
@@ -63,6 +77,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 	selected := make(map[ids.ObjectAddress]int)
 	s.truncateSelected = selected
 	s.truncateRestart = stmt.RestartIdentity
+	s.foreignTruncateCascade = stmt.Mode == parser.DropCascade
 	expanded := make(map[ids.ObjectAddress]bool)
 	var open func(ids.ObjectRef, *truncateName, bool, bool, bool, bool) error
 	open = func(ref ids.ObjectRef, name *truncateName, privilege, only, recurse, cascade bool) error {

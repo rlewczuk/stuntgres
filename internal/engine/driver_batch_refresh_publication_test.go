@@ -151,7 +151,7 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 			case "ref":
 				stale := s.transactions.ref
 				stale = withTxID(stale, stale.ID()+1)
-				err = e.publishWrites(m.op, stale, s.transactions.writes, s.transactions.deletes)
+				err = e.publishWrites(m.op, stale, s.transactions.writes, s.transactions.deletes, nil)
 				if err == nil {
 					t.Fatal("foreign incarnation admitted materialized replacement")
 				}

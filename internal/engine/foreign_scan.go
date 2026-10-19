@@ -54,6 +54,11 @@ func copyForeignRequest(request catalog.ForeignRequest) catalog.ForeignRequest {
 	request.MappingOptions = slices.Clone(request.MappingOptions)
 	request.Parameters.Values = copyForeignCells(request.Parameters.Values)
 	request.Parameters.Correlation = copyForeignCells(request.Parameters.Correlation)
+	if request.Identity != nil {
+		targets := *request.Identity
+		targets.Names = slices.Clone(targets.Names)
+		request.Identity = &targets
+	}
 	return request
 }
 func copyForeignCells(cells []driver.Value) []driver.Value {
@@ -100,6 +105,9 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 		return nil, err
 	}
 	request := catalog.ForeignRequest{Schema: auth.Catalog.Get(relation.Namespace()).Name(), Table: relation.Name(), Role: role.Name, TableOID: uint32(relation.Address().ObjectID), RoleOID: uint32(role.Ref.ID()), WrapperOptions: slices.Clone(wrapper.Options), ServerOptions: slices.Clone(server.Options), TableOptions: slices.Clone(relation.Foreign.Options), MappingOptions: slices.Clone(mapping.Options)}
+	request.ServerOID = uint32(server.Address().ObjectID)
+	request.MappingOID = uint32(mapping.Address().ObjectID)
+	request.HandlerOID = uint32(wrapper.Handler.ObjectID)
 	for i, column := range relation.Columns {
 		request.Columns = append(request.Columns, catalog.ForeignColumn{Attribute: relation.Attributes[i], Name: column.Name, TypeName: column.Usage.Type.Name(), TypeOID: uint32(column.Usage.Type.ID()), TypeModifier: column.Usage.Typmod, CollationOID: column.Usage.Collation.ID, Nullable: column.Nullable, Options: slices.Clone(relation.Foreign.Columns[relation.Attributes[i]])})
 	}
@@ -179,14 +187,14 @@ func foreignLayout(request catalog.ForeignRequest, attributes []int32) error {
 func (f *foreignQuerySource) plan(ctx context.Context, request catalog.ForeignRequest, execution *foreignExecution) error {
 	size, err := f.wrapper.GetForeignRelSize(ctx, copyForeignRequest(request))
 	if err != nil {
-		return err
+		return foreignCallbackError(err)
 	}
 	if !finiteForeignNumber(size.Rows) || !finiteForeignNumber(size.Width) {
 		return fmt.Errorf("stuntgres: invalid foreign relation size")
 	}
 	paths, err := f.wrapper.GetForeignPaths(ctx, copyForeignRequest(request), size)
 	if err != nil {
-		return err
+		return foreignCallbackError(err)
 	}
 	if len(paths) == 0 {
 		return fmt.Errorf("stuntgres: foreign-data wrapper returned no scan paths")
@@ -205,7 +213,7 @@ func (f *foreignQuerySource) plan(ctx context.Context, request catalog.ForeignRe
 	}
 	plan, err := f.wrapper.GetForeignPlan(ctx, copyForeignRequest(request), paths[selected])
 	if err != nil {
-		return err
+		return foreignCallbackError(err)
 	}
 	if err = foreignLayout(request, plan.Attributes); err != nil {
 		return err
@@ -261,7 +269,7 @@ func (execution *foreignExecution) end(ctx context.Context) error {
 	execution.ended = true
 	execution.active = false
 	if execution.scan != nil {
-		execution.closeError = execution.scan.EndForeignScan(context.WithoutCancel(ctx))
+		execution.closeError = foreignCallbackError(execution.scan.EndForeignScan(context.WithoutCancel(ctx)))
 		execution.scan = nil
 	}
 	execution.plan = catalog.ForeignPlan{}
@@ -304,18 +312,24 @@ func openForeignStage(ctx context.Context, state *queryState, source *querySourc
 				return err
 			}
 		}
+		if scope := source.liveScope(); scope != nil {
+			request.Transaction, err = scope.enlistForeign(ctx, f.wrapper, request, false)
+			if err != nil {
+				return err
+			}
+		}
 		if execution.scan == nil {
 			scan, err := f.wrapper.BeginForeignScan(ctx, request, execution.plan)
 			execution.scan = scan
 			if err != nil {
-				return err
+				return foreignCallbackError(err)
 			}
 			if scan == nil {
 				return fmt.Errorf("stuntgres: foreign-data wrapper returned a nil scan")
 			}
 		} else {
 			if err = execution.scan.ReScanForeignScan(ctx, parameters); err != nil {
-				return err
+				return foreignCallbackError(err)
 			}
 		}
 		started = true
@@ -331,46 +345,25 @@ func openForeignStage(ctx context.Context, state *queryState, source *querySourc
 				return false, err
 			}
 		}
+		if scope := source.liveScope(); scope != nil {
+			if err := scope.touchForeignScan(ctx, f); err != nil {
+				return false, err
+			}
+		}
 		row, present, err := execution.scan.IterateForeignScan(ctx)
 		if err != nil || !present {
-			return false, err
+			return false, foreignCallbackError(err)
 		}
 		if len(row) != len(execution.plan.Attributes) {
 			return false, fmt.Errorf("stuntgres: foreign scan row width does not match its plan")
-		}
-		values := make([]sqltype.Value, len(f.columns))
-		for i, column := range f.columns {
-			values[i] = sqltype.Null(column.Usage.Type)
 		}
 		input, output := state.input, state.output
 		if scope := source.liveScope(); scope != nil {
 			input, output = scope.input, scope.output
 		}
-		for i, slot := range execution.slots {
-			cell, err := driver.DefaultParameterConverter.ConvertValue(row[i])
-			if err != nil {
-				return false, err
-			}
-			if bytes, ok := cell.([]byte); ok && bytes != nil {
-				cell = string(bytes)
-			}
-			value, err := f.importValue(ctx, cell, f.columns[slot].Usage, input)
-			if err != nil {
-				return false, f.columnDiagnostic(err, node, slot)
-			}
-			// Parameter input intentionally defers ordinary typmods; a foreign
-			// cell is a table datum and must satisfy the full declared usage.
-			if !value.IsNull() && (f.columns[slot].Usage.Typmod != -1 || !value.ValidResult(f.columns[slot].Usage)) {
-				plan, err := sqltype.PlanCoercion(value.Type().Usage(), f.columns[slot].Usage, sqltype.Assignment)
-				if err != nil {
-					return false, err
-				}
-				value, err = plan.Apply(ctx, value, input, output)
-				if err != nil {
-					return false, f.columnDiagnostic(err, node, slot)
-				}
-			}
-			values[slot] = value
+		values, err := f.importValues(ctx, row, execution.slots, input, output, node)
+		if err != nil {
+			return false, err
 		}
 		index := len(source.anonymous)
 		source.anonymous = append(source.anonymous, values)
@@ -384,12 +377,17 @@ func openForeignStage(ctx context.Context, state *queryState, source *querySourc
 			scope.replacementRead = false
 		}
 		if started {
+			if scope := source.liveScope(); scope != nil {
+				if err := scope.touchForeignScan(ctx, f); err != nil {
+					return false, err
+				}
+			}
 			parameters, err := foreignParameters(ctx, state, f)
 			if err != nil {
 				return false, err
 			}
 			if err = execution.scan.ReScanForeignScan(ctx, parameters); err != nil {
-				return false, err
+				return false, foreignCallbackError(err)
 			}
 		}
 		out.selection = out.selection[:0]

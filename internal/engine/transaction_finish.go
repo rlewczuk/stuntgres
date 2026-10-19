@@ -64,6 +64,7 @@ func (s *StatementScope) Finish(err error) error {
 	}
 	t := s.owner
 	e := s.op.session.Engine()
+	published := false
 	t.mu.Lock()
 	// Parsing can fail before classification; admitted failures still abort
 	// explicit work. Completed row/catalog/session utilities have already passed
@@ -97,6 +98,9 @@ func (s *StatementScope) Finish(err error) error {
 		err = s.finishForeignOwner(s.foreignOwner, err)
 		t.mu.Lock()
 	}
+	t.mu.Unlock()
+	err = s.finishForeignModifications(err)
+	t.mu.Lock()
 	if err == nil && s.worked {
 		catalog := t.catalog
 		if s.catalog != nil {
@@ -106,6 +110,7 @@ func (s *StatementScope) Finish(err error) error {
 			if !s.completed {
 				t.mu.Unlock()
 				err = e.publishRows(s.op, t.ref, s.stage.rows, s.stage.deletes, catalog, s.catalogAuthority, s)
+				published = err == nil
 				t.mu.Lock()
 			}
 		} else if !s.sessionCompleted {
@@ -134,6 +139,7 @@ func (s *StatementScope) Finish(err error) error {
 				}
 				notificationEvents := appendNotificationEvents(t.notificationEvents, s.notificationEvents)
 				session := s.op.session
+			privateForeignFence:
 				e.mu.Lock()
 				session.mu.Lock()
 				err = publicationOperationLocked(e, s.op)
@@ -145,6 +151,19 @@ func (s *StatementScope) Finish(err error) error {
 				}
 				if err == nil {
 					err = e.catalogAuthorityPreflightLocked(s.catalogAuthority, catalog)
+				}
+				if err == nil && len(s.foreignStatements) != 0 {
+					session.mu.Unlock()
+					e.mu.Unlock()
+					t.mu.Unlock()
+					settleErr := s.finishForeignStatements(nil)
+					t.mu.Lock()
+					if settleErr == nil {
+						goto privateForeignFence
+					}
+					err = settleErr
+					e.mu.Lock()
+					session.mu.Lock()
 				}
 				if err == nil {
 					for a, rows := range s.stage.rows {
@@ -170,6 +189,26 @@ func (s *StatementScope) Finish(err error) error {
 			t.command++
 		}
 	}
+	if t.state == TxImplicit && err != nil && len(t.foreignParticipants) != 0 {
+		t.mu.Unlock()
+		s.foreignUnlocked()
+		_ = disposeSQLCursors(s.op.Context(), t.session.cursors.endTransaction(t.ref))
+		t.mu.Lock()
+	}
+	if len(s.foreignStatements) != 0 {
+		t.mu.Unlock()
+		err = s.finishForeignStatements(err)
+		t.mu.Lock()
+	}
+	if len(s.foreignHoldPromotions) != 0 {
+		if err != nil && !published && len(t.foreignParticipants) != 0 {
+			t.mu.Unlock()
+			err = s.discardForeignHoldPromotions(err)
+			t.mu.Lock()
+		} else {
+			s.foreignHoldPromotions = nil
+		}
+	}
 	if err != nil {
 		s.op.session.finishScopeTimeout(s, true)
 	}
@@ -191,11 +230,20 @@ func (s *StatementScope) Finish(err error) error {
 		if len(t.savepoints) != 0 {
 			if t.state == TxActive {
 				mark := t.savepoints[len(t.savepoints)-1]
+				t.mu.Unlock()
+				remoteErr := t.foreignSavepoint(context.WithoutCancel(s.op.Context()), 1, mark.foreignID)
+				t.mu.Lock()
+				if remoteErr != nil {
+					t.foreignCleanup = append(t.foreignCleanup, t.foreignParticipants...)
+					t.foreignParticipants = nil
+				}
 				t.restoreSavepoint(mark, mark.settings.clone())
 				e.locks.Restore(t.ticket, mark.locks)
 			}
 			t.state = TxAborted
 		} else {
+			t.foreignCleanup = append(t.foreignCleanup, t.foreignParticipants...)
+			t.foreignParticipants = nil
 			t.session.settings.finishTransaction(false)
 			e.endSerializable(t.ref, false)
 			t.isolation, t.readOnly = t.entryIsolation, t.entryReadOnly

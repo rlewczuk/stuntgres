@@ -27,6 +27,7 @@ type fdwSQLReader struct {
 	validateHook                                                                              func(context.Context, stuntgres.ForeignObjectKind, []stuntgres.ForeignOption) error
 	rowTransform                                                                              func(context.Context, stuntgres.ForeignRow) (stuntgres.ForeignRow, error)
 	hook                                                                                      func(context.Context, string) error
+	writer                                                                                    *fdwSQLWriter
 }
 
 func newFDWSQLReader(t *testing.T) *fdwSQLReader {
@@ -49,11 +50,20 @@ func newFDWSQLReader(t *testing.T) *fdwSQLReader {
 	return r
 }
 func (r *fdwSQLReader) configure(d *stuntgres.Driver) error {
-	if err := d.RegisterForeignDataWrapper(stuntgres.ForeignDataWrapperDefinition{HandlerName: stuntgres.ForeignFunctionName{Schema: "public", Name: "fdw_sql_handler"}, Wrapper: r}); err != nil {
+	var wrapper stuntgres.ForeignDataWrapper = r
+	if r.writer != nil {
+		wrapper = r.writer
+	}
+	if err := d.RegisterForeignDataWrapper(stuntgres.ForeignDataWrapperDefinition{HandlerName: stuntgres.ForeignFunctionName{Schema: "public", Name: "fdw_sql_handler"}, Wrapper: wrapper}); err != nil {
 		return err
 	}
 	if err := d.RegisterForeignDataWrapper(stuntgres.ForeignDataWrapperDefinition{HandlerName: stuntgres.ForeignFunctionName{Schema: "public", Name: "fdw_scan_only_handler"}, Wrapper: fdwScanOnly{r}}); err != nil {
 		return err
+	}
+	if r.writer != nil {
+		if err := r.writer.registerVariants(d); err != nil {
+			return err
+		}
 	}
 	return d.RegisterForeignValidator(stuntgres.ForeignValidatorDefinition{Name: stuntgres.ForeignFunctionName{Schema: "public", Name: "fdw_sql_validator"}, Validate: r.validate})
 }

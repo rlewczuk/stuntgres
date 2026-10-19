@@ -391,7 +391,7 @@ func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, pa
 	// rows. A target without unique indexes needs no per-row catalog recapture;
 	// its epoch is still checked when the completed batch reaches Apply.
 	unique := len(b.relation.Constraints.Unique) != 0
-	if scope != nil && scope.partitionInsert == nil {
+	if scope != nil && scope.partitionInsert == nil && b.relation.RelationKind != catalog.ForeignRelation {
 		bound, err := scope.bindUniqueWrite(b.ref)
 		if err != nil {
 			return indexWriteBatch{}, err
@@ -511,6 +511,10 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 		}
 		if err := evaluateGenerations(ctx, b.relation, row, &evaluation); err != nil {
 			return indexWriteBatch{}, err
+		}
+		if b.relation.RelationKind == catalog.ForeignRelation {
+			rows.append(candidate)
+			continue
 		}
 		if scope != nil {
 			if err := access.RowSecurityProposal(scope.rlsProposal, scope.rlsProposalTable); err != nil {

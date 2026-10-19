@@ -261,7 +261,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	}
 	switch stmt.(type) {
 	case *parser.Insert, *parser.Update, *parser.Delete:
-		if b.viewWrite == nil && b.relation.RelationKind != catalog.MaterializedViewRelation {
+		if b.viewWrite == nil && b.relation.RelationKind != catalog.MaterializedViewRelation && b.relation.RelationKind != catalog.ForeignRelation {
 			if err := tableKind(b.relation, "change"); err != nil {
 				e.mu.Unlock()
 				return Result{}, err
@@ -372,6 +372,28 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			return Result{}, err
 		}
 	}
+	if b.relation != nil && b.relation.RelationKind == catalog.ForeignRelation {
+		operation, modifying := catalog.ForeignInsert, true
+		switch stmt.(type) {
+		case *parser.Insert:
+			if b.conflict != nil {
+				e.mu.Unlock()
+				return Result{}, sqlError("0A000", "ON CONFLICT on foreign tables is unsupported in embedded mode")
+			}
+		case *parser.Update:
+			operation = catalog.ForeignUpdate
+		case *parser.Delete:
+			operation = catalog.ForeignDelete
+		default:
+			modifying = false
+		}
+		if modifying {
+			if err := foreignModifyAdmission(auth.Catalog, b.relation, operation); err != nil {
+				e.mu.Unlock()
+				return Result{}, err
+			}
+		}
+	}
 	if err := e.configureRowSecurityLocked(scope, b, stmt); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -402,6 +424,12 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			return Result{}, err
 		}
 		e.mu.Lock()
+	}
+	if b.relation != nil && b.relation.RelationKind == catalog.ForeignRelation {
+		switch stmt.(type) {
+		case *parser.Insert, *parser.Update, *parser.Delete:
+			return e.executeForeignCommandLocked(scope, stmt, execution, canonical)
+		}
 	}
 	switch s := stmt.(type) {
 	case *parser.Merge:

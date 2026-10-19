@@ -50,8 +50,9 @@ statement/transaction/savepoint staging and conflict/authority fences.
 Existing admitted metadata actions reuse common column/default/type/constraint,
 rename, schema and owner machinery. Type changes recook defaults/CHECKs without
 fetching or rewriting remote rows. Unsupported local index/UNIQUE/PK/FK,
-foreign-write, row-lock, trigger and hierarchy combinations do not create stores
-or pretend callbacks succeeded. Consult the PostgreSQL 18 SQL command reference
+row-lock, trigger and hierarchy combinations do not create stores or pretend
+callbacks succeeded. Selected foreign writes instead use the registered
+transactional provider contract, without physical storage. Consult the PostgreSQL 18 SQL command reference
 for syntax; this is not a second SQL grammar manual.
 Foreign LIKE accepts all ordinary option spellings. As in PostgreSQL, copied
 INDEXES, IDENTITY, STORAGE and COMPRESSION properties have no effect on a foreign
@@ -632,8 +633,11 @@ generation or security flags. Virtual partition authorities have no phantom stor
 Incoming FK closure uses actual definitions even for empty tables. Grant-time and
 final graph reconciliation retain the same session-specific TEMP closure. Each
 explicit/FK-cascade member retains its own authorization even if expansion already
-selected its physical effect. Trigger and foreign-table truncation callbacks
-remain unsupported; installed foreign providers supply SELECT scans only.
+selected its physical effect. Trigger callbacks remain unsupported. Registered
+foreign truncation groups selected tables by server, admits all capabilities
+before effects and passes RESTRICT/CASCADE/identity flags to the real provider.
+Mixed local/remote completion follows the documented remote-first transaction
+contract, not distributed atomicity.
 See [atomic truncation lifetime](TRANSACTIONS.md#whole-table-generation-replacement).
 
 Typed tables own independent stable attributes, storage and row codecs, plus one

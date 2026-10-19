@@ -128,7 +128,9 @@ func TestReferenceTruncateProviderControls(t *testing.T) {
 				}()
 				truncateExec(t, f, f.A, "CREATE SERVER truncate_server FOREIGN DATA WRAPPER truncate_fdw", 0)
 				truncateExec(t, f, f.A, "CREATE FOREIGN TABLE ft(id INT) SERVER truncate_server", 0)
-				truncateError(t, f, f.A, "TRUNCATE ft", truncateWant("0A000", "foreign table truncation is unsupported in embedded mode"))
+				// Registration is required: metadata alone still cannot mutate.
+				// Actual registered writers are exercised by FDWWriteTruncate.
+				truncateError(t, f, f.A, "TRUNCATE ft", truncateWant("55000", `foreign-data wrapper "truncate_fdw" has no handler`))
 				fixture.RunStep(t, p.Ctx, f.A, b.Recorder, fixture.Select("SELECT relkind FROM pg_class WHERE relname='ft'", []string{"relkind"}, []string{"CHAR"}, [][]any{{"f"}}))
 				return
 			}

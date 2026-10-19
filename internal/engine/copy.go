@@ -152,6 +152,19 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		}
 		return s.copyOutput(rows, options, destination)
 	}
+	var foreign *foreignModification
+	if b.relation.RelationKind == catalog.ForeignRelation {
+		e.mu.Lock()
+		target, captureErr := e.captureForeignSourceLocked(s, b.ref, b.relation, authorization.PrincipalRef{}, nil, queryRowMark{})
+		e.mu.Unlock()
+		if captureErr != nil {
+			return 0, captureErr
+		}
+		foreign, err = s.planForeignModification(s.op.Context(), target.foreign, catalog.ForeignInsert, true)
+		if err != nil {
+			return 0, err
+		}
+	}
 	e.mu.Lock()
 	if err = s.validateLockedRelation(e); err == nil {
 		err = e.initCopyInputLocked(s, &b, auth)
@@ -222,7 +235,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	if err == nil {
 		err = e.captureCheckCommentSnapshotLocked(s, b.relation)
 	}
-	if err == nil {
+	if err == nil && foreign == nil {
 		err = s.capturePartitionInsertLocked(e, auth, b.relation)
 	}
 	schema := ""
@@ -238,9 +251,12 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	if err = s.readmitPreparedPrograms(auth); err != nil {
 		return 0, err
 	}
-	unique, err := s.bindUniqueWrite(b.ref)
-	if err != nil {
-		return 0, err
+	unique := &uniqueWriteBinding{}
+	if foreign == nil {
+		unique, err = s.bindUniqueWrite(b.ref)
+		if err != nil {
+			return 0, err
+		}
 	}
 	if err = s.reserveCopy(); err != nil {
 		return
@@ -284,6 +300,17 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 			return 0, cursor.diagnostic(err)
 		}
 	}
+	if foreign != nil {
+		// Terminal input/FinishInput acceptance precedes all provider mutation.
+		if err := foreign.begin(s.op.Context(), s); err != nil {
+			return 0, err
+		}
+		n, err := foreign.insertRows(s.op.Context(), s, rows.values, false, nil)
+		if err != nil {
+			return 0, cursor.diagnostic(err)
+		}
+		return n, nil
+	}
 	n, err := s.applyInsertValidated(b.ref, rows)
 	if err != nil {
 		return 0, cursor.diagnostic(err)
@@ -325,7 +352,7 @@ func copyRelationKind(relation *catalog.Relation, from bool) error {
 		d.Hint = "Use the REFRESH MATERIALIZED VIEW command."
 		return d
 	}
-	if relation.RelationKind != catalog.TableRelation && !(from && relation.RelationKind == catalog.PartitionedRelation) && !(!from && relation.RelationKind == catalog.MaterializedViewRelation) {
+	if relation.RelationKind != catalog.TableRelation && !(from && (relation.RelationKind == catalog.PartitionedRelation || relation.RelationKind == catalog.ForeignRelation)) && !(!from && relation.RelationKind == catalog.MaterializedViewRelation) {
 		kind := "non-table relation"
 		switch relation.RelationKind {
 		case catalog.ViewRelation:

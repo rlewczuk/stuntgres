@@ -315,6 +315,9 @@ unsupported. See [local notifications](DRIVER.md#local-session-notifications).
 Completing a detached prepared entry never consults the origin session's later
 transaction notification buffers. Only the detached row/catalog roots publish;
 later origin subscriptions and events retain their own commit/rollback outcome.
+It likewise never inspects or settles foreign participants belonging to a later
+origin incarnation. Foreign participation prevents preparing that incarnation;
+it does not obstruct completion of an earlier detached local transaction.
 
 The prepared catalog provider owns coherent registry snapshots. Its XID carrier
 uses the same distinct scalar identity and fresh decimal bytes as public XID
@@ -453,8 +456,29 @@ tails on later demand; a peer still using the original binding can retain its
 tail after rollback. Reset alone does not alter currval/lastval, and local values
 observed on a reverted replacement remain valid afterward. Session observations
 and cache-tail discard are not transactional undo state. Dump observes committed
-bindings, not private resets or physical-session memories. Trigger/FDW and
-partition-FK providers remain excluded.
+bindings, not private resets or physical-session memories. Trigger and
+partition-FK providers remain excluded. Registered foreign truncation passes
+identity flags to the provider; it never resets a fabricated local foreign store.
+
+### Foreign transaction participants
+
+Registered transactional foreign scans and writes enlist under the sole session
+owner, keyed by actual handler/server/mapping/effective role. Statements use
+genuine provider marks; SQL savepoints establish and restore remote marks,
+including late enlistment. Mutation/scan End only releases resources. COPY
+input and terminal veto settle before remote insertion. Missing write/rollback
+capability rejects before mutation; no compensating SQL or irreversible-success
+fallback exists. Session termination and stale-work disposal release still-open
+provider transactions.
+
+Commit prepares/checks feasible local state, commits remote participants once
+in enlistment order, then rechecks the final local publication fence and installs
+local state. This is not distributed atomicity: after a remote acknowledgement,
+a later provider/local conflict may leave earlier remote commits intact, and a
+Commit error may mean unknown completion. Failure is returned, not successful
+mutation; only still-open handles roll back. There is no blind retry, 2PC or
+remote PREPARE. PREPARE TRANSACTION rejects foreign participation. See
+[callback and capability contracts](DRIVER.md#foreign-writes-and-transactions).
 
 Prepared sequence literals use the existing relation-source stamp, not generator
 state or descriptor revision as an invalidation token. A committed rewrite's

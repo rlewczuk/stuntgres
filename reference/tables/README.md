@@ -6,6 +6,125 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Foreign writes
+
+`TestReferenceFDWWriteActions`, `Identity`, `Returning`, `Batch`, `Copy`,
+`Truncate`, `Constraints`, `Transactions`, `Diagnostics` and `Consumers` share
+the same public SQL definitions across the native registered SQL writer and
+genuine pinned PostgreSQL postgres_fdw loopback. Actual independent source SQL
+defines/observes effects; no expected-row echo or compensation implements writes.
+The native fixture owns actual `sql.Tx` handles, statement/public savepoints,
+shared participating scans and real INSERT/UPDATE/DELETE/TRUNCATE.
+
+Independent assertions cover exact typed rows/counts/RETURNING, original hidden
+identity and duplicate-visible tuples, cached prepared execution, batch bounds/
+remainder/fallback/suppression, text/CSV/binary COPY and terminal failures,
+per-server grouped TRUNCATE and sequence restart, CHECK/NOT NULL nonenforcement,
+STORED/VIRTUAL generation, savepoint/rollback/observer isolation, teardown and
+conversion failure, missing callbacks, native contract refusal and partial commit.
+Native provider SQL rewriting/suppression and PostgreSQL's genuine remote trigger
+are distinct explicitly labeled phases. PostgreSQL postgres_fdw sends DEFAULT
+for generated attributes; the native provider stores actual full callback inputs.
+The shared parameterized STORED division-by-zero INSERT/UPDATE witnesses prove
+core computation independently of that transport distinction.
+
+View CHECK OPTION witnesses cover both proposed-pass/returned-fail rollback and
+proposed-fail/returned-pass success through actual remote trigger/provider SQL
+rewrite. WCO validates actual returned tuples before RETURNING and forces singles.
+Native participating cursor FETCH requests establish their own statement marks
+while retaining the same genuine provider transaction and scan lifecycle.
+
+Run each selected group both natively and with `REFERENCE=1`, with an external
+900-second deadline:
+
+```sh
+make check RUN='^TestReferenceFDWWrite(Actions|Identity|Returning)$'
+make check RUN='^TestReferenceFDWWrite(Actions|Identity|Returning)$' REFERENCE=1
+make check RUN='^TestReferenceFDWWrite(Batch|Copy|Truncate)$'
+make check RUN='^TestReferenceFDWWrite(Batch|Copy|Truncate)$' REFERENCE=1
+make check RUN='^TestReferenceFDWWrite(Constraints|Transactions|Diagnostics|Consumers)$'
+make check RUN='^TestReferenceFDWWrite(Constraints|Transactions|Diagnostics|Consumers)$' REFERENCE=1
+make check RUN='^TestFDW(ModifyCapabilities|ModifyIdentity|ModifyLifecycle|TransactionParticipants|ProviderContractErrors)$'
+make check RUN='^TestFDW(ModifyLifecycle|TransactionParticipants|ProviderContractErrors)$' RACE=1
+make check RUN='^TestReferenceFDWWrite(Transactions|Consumers)$' RACE=1
+make check RUN='^TestReferenceTruncateProviderControls$'
+make check RUN='^TestReferenceTruncateProviderControls$' REFERENCE=1
+```
+
+R3's shared `CombinedSourceFrame` subtest covers direct and prepared UPDATE FROM
+and DELETE USING with target, matched-source, and OLD/NEW RETURNING projections.
+Duplicate source matches have identical projected values, so no unspecified
+PostgreSQL winner is asserted.
+
+R3's shared `VirtualSourceIdentity` subtest isolates RETURNING-only,
+predicate-only, assignment-only, JOIN-condition-only and array-target-only
+virtual demand. Direct/prepared correlated LEFT JOIN cases distinguish present
+virtual values from null-extended rows; demanded division-by-zero cases check
+rollback of genuine provider mutations. Fresh source observations check the
+successful committed effects and failure atomicity.
+Run the complete changed definition with
+`make check RUN='^TestReferenceFDWWriteReturning$'` and
+`make check RUN='^TestReferenceFDWWriteReturning$' REFERENCE=1`.
+
+R8's shared `PreparedOriginReuse` covers empty
+and row-bearing detached entries while the origin owns a later genuine foreign
+transaction, including independent concurrent commit/rollback completion.
+The migrated TRUNCATE provider witness is
+`TestReferenceTruncateProviderControls/ForeignTruncateProviderBoundary`;
+`TestReferenceTruncateBoundaries` is a separate definition.
+`TestFDWModifyIdentity/KeyedMembership` exercises typed hashing, repeated and
+owned-byte identities, forced collisions, signed zero/NaN/time semantics, and
+50,000 distinct collision-free buckets with a structural one-entry lookup bound.
+No timing threshold or production comparison counter supplies the work oracle.
+Driver-extension coverage distinguishes comparable decimal values/pointers from
+noncomparable slice/struct/nested-interface values; native R2 checks rejection
+before mutation with unchanged real source rows and no invented SQLSTATE.
+
+R8's native `ProviderContractErrors` subtest injects direct/wrapped/joined
+ErrBadConn/ErrSkip after genuine source mutation, source/modify End and genuine
+remote commit, via direct and prepared database/sql. Each callback runs once:
+precommit faults roll back actual source work; postcommit faults fail without
+inventing undo or allowing replay. No PostgreSQL callback-sentinel parity is
+claimed. Its focused selector is
+`make check RUN='^TestReferenceFDWWriteTransactions/memory/ProviderContractErrors'`.
+
+R8's shared `HeldCommit` subtest runs identical SQL against both real providers:
+unfetched and partially fetched ordered cursors retain their remaining rows
+after COMMIT. Focus it with
+`make check RUN='^TestReferenceFDWWriteTransactions/postgres/HeldCommit' REFERENCE=1`
+and `make check RUN='^TestReferenceFDWWriteTransactions/memory/HeldCommit'`.
+
+R8's native `ParticipatingHoldSettlement` covers unfetched/partially fetched HOLD,
+multiple cursors sharing one mark, native `sql.Tx.Commit`, SQL COMMIT/AND CHAIN,
+and implicit HOLD. It checks source End → EndStatement → Commit ordering, real
+rollback on drain/End/statement/preflight/cancellation failures, and removal of
+only newly promoted cursors after unsuccessful publication.
+Use `make check RUN='^TestReferenceFDWWriteTransactions/memory/ParticipatingHoldSettlement'`.
+The `TestFDWTransactionParticipants/HoldSettlement` unit checks borrowed mark
+ownership; `ChainReadmission` also retains a newly committed HOLD promotion when
+the next transaction loses its catalog epoch. Both are included in the unit
+group above; race mode is selected with `RACE=1`.
+
+Feature smoke (repeat for `Copy`, `Truncate`, `Transactions`):
+
+```sh
+make check RUN='^TestReferenceFDWWriteActions/memory/Smoke'
+make check RUN='^TestReferenceFDWWriteActions/postgres/Smoke' REFERENCE=1
+```
+
+Actions inserts4/updates2/deletes3, each count1, with source rows1/2/4. Copy
+imports2 with `COPY 2` and late malformed input adds none. Truncate empties two
+actual same-server sources/count0. Transactions sees its own staged9 while an
+observer cannot, rolls9 back, then commits10 visible to the observer.
+Backend selectors intentionally have no interior `$`, which Make would consume.
+These commands specify proof; observed results belong to the verification report.
+COPY uses the shared fixture transport adapter also used by existing dml
+CopyText/CopyCSV/CopyBinary definitions; those callers retain dual-mode regression
+coverage. Existing unconfigured wire CLI fixtures cannot inject a registered
+provider: public CopyFrom plus direct engine CopyProtocol terminal-veto tests
+cover the writable provider route without inventing server configuration.
+
+
 ### Foreign metadata and scans
 
 The `fdw_*_test.go` scenarios independently prescribe SQL/MED catalogs, ordered

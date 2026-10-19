@@ -144,6 +144,128 @@ Validators receive complete resulting ordered options and the exact
 Empty options are nonnil. Rejection prevents the whole catalog statement from
 publishing. Ordinary provider/I/O/context errors remain ordinary Go errors;
 providers may intentionally return a structured `stuntgres.Error`.
+Accepted provider callbacks must not signal `driver.ErrBadConn` or `driver.ErrSkip`:
+database/sql reserves those for replay/fallback of unexecuted work. A direct,
+wrapped or joined match is converted at the callback boundary to an ordinary
+explicit provider-contract error containing the original text, without Unwrap,
+Is or SQLSTATE. This prevents replay after mutation or uncertain Commit.
+All other errors retain their exact identity/diagnostics, including context/I/O
+errors. The remote sentinel does not mark the local connection dead, fabricate a
+SQLSTATE, or imply rollback of an acknowledged/unknown remote commit.
+
+### Foreign writes and transactions
+
+Optional interfaces on the same wrapper advertise each operation independently:
+`ForeignInserter.ExecForeignInsert`, `ForeignUpdater.ExecForeignUpdate`,
+`ForeignDeleter.ExecForeignDelete`, and `ForeignTruncater.ExecForeignTruncate`.
+Missing callbacks return command-specific `0A000 cannot ... foreign table "name"`.
+The first three return `(ForeignRow, bool, error)`: actual full declared-order
+tuples, presence and failure. Error wins; false means zero affected even when
+RETURNING is absent. Empty/all-NULL rows are not absence. Return buffers must
+survive until the next callback; the engine imports/owns them before then.
+
+`ForeignUpdateTargetProvider.AddForeignUpdateTargets` supplies immutable ordered
+names/private planning data. A target scan must then implement
+`ForeignIdentityScan.IterateForeignIdentity`, returning visible row and separate
+opaque standard-driver identity cells. Width must match the descriptor.
+Identities are copied before the next callback; UPDATE retains the original
+identity when NEW changes its key. Join matches deduplicate by identity, not
+visible payload equality. Ordinary SELECT retains the ordinary scan method.
+Membership uses typed hash buckets with exact collision equality, never visible
+tuples or stringified keys. Byte cells compare by content (nil and empty byte
+slices are equal); byte cells and strings remain distinct. Scalar equality is
+typed Go equality, including signed zero and strict `time.Time`; NaN does not
+equal itself. Distinct identities do not incur a growing whole-command search.
+UPDATE FROM/DELETE USING RETURNING retains the matched source frame and query
+identity while substituting the actual returned target tuple and separate OLD.
+Before opening FROM/USING, the executor discovers virtual reads in the source,
+predicate, UPDATE assignments and array targets, and RETURNING with the same
+core walkers as local mutations. Joined/correlated reads retain occurrence
+lineage and null-extension semantics. Discovery does not evaluate generated
+expressions eagerly: a demanded expression error still aborts genuine provider
+work through the normal statement rollback path.
+Driver extension cells must be runtime-comparable, including values nested in
+interface fields. Comparable decimal extensions retain their exact Go equality;
+noncomparable extensions fail identity admission before a mutation callback,
+with an ordinary provider-contract error rather than a fabricated SQLSTATE.
+
+`ForeignModifyPlanner.PlanForeignModify` returns immutable reusable `Private`
+data. `ForeignModifyBeginner`/`ForeignModifyEnder` own per-execution state; optional
+absence adds no state. Entered operations End once, including partial Begin
+state returned alongside an error. End is resource cleanup, never commit.
+Planning requests have no transaction handle. Execution requests carry copied
+table/options/authority metadata, operation, plan, targets and enlisted handle.
+`ForeignRequest.ServerOID`, `MappingOID`, `HandlerOID` and `RoleOID` are actual
+catalog identities. Callbacks run without engine/session/state mutexes or the
+replacement reservation, using current contexts; cleanup detaches cancellation.
+Primary errors win over cleanup; cleanup-only failure vetoes success.
+
+Both `ForeignBatchSizer` and `ForeignBatchInserter` are required for batching.
+Positive maximum size bounds each batch; one uses singles and nonpositive
+values fail before writes. Returned actual tuple count is authoritative, never
+larger than input. INSERT RETURNING and applicable view CHECK OPTION use singles.
+COPY FROM accepts all decoded
+input and FinishInput before remote mutation and uses optional
+`ForeignInsertBeginner.BeginForeignInsert`/`ForeignInsertEnder.EndForeignInsert`.
+Its `ForeignInsertRequest.Copy` is true; it has no ordinary modification plan.
+COPY shares the real single/batch row path. TRUNCATE receives one server's
+deduplicated tables and exact CASCADE/RestartIdentity flags, once per server.
+
+Every writer must implement `ForeignTransactionProvider` and advertise both
+`StatementRollback` and `TransactionRollback`. Otherwise writes reject with
+native `0A000 foreign writes require statement and transaction rollback support`,
+before any mutation. There is no nontransactional success fallback.
+`BeginForeignTransaction` returns genuine provider state implementing
+`BeginStatement`, `EndStatement(success)`, `Commit`, and `Rollback`. A nonnil handle
+returned alongside failure transfers rollback ownership. Providers must not tie
+the transaction's lifetime to the first statement's cancellation context.
+`Savepoints=true` additionally requires `ForeignTransactionSavepoints`.
+No-savepoint providers reject writes beneath retained SQL savepoints and reject
+new SQL savepoints while enlisted. Provider-private statement marks must not
+collide with public SQL marks.
+
+The sole session transaction owner keys ordered participants by actual
+handler/server/mapping/effective-role identity. Participating scans share the
+same handle, including SELECT before write. EndStatement succeeds only after
+row conversion, RETURNING and source/modification teardown; failure uses genuine
+rollback. Public savepoints establish remote marks, including late enlistment,
+and recovery restores/removes descendant effects. Session close and stale-work
+disposal roll back still-open handles. PREPARE TRANSACTION is not supported
+after foreign participation.
+A previously detached local prepared entry remains independent of foreign
+participants subsequently enlisted by its reused origin. COMMIT PREPARED neither
+reads nor settles that later incarnation's provider handles.
+
+WITH HOLD drains keep their statement marks on the current completion; the
+borrowed cursor execution scope never finishes a second statement. All admitted
+source Ends precede EndStatement, and successful EndStatement follows local
+preflights and precedes provider Commit. Native `sql.Tx.Commit`, SQL COMMIT and
+implicit HOLD declarations use that same ordering. If foreign completion fails
+before old-transaction publication, only newly promoted cursors from that
+completion are discarded; earlier committed HOLD cursors survive. A successful
+old commit retains its new promotions even if AND CHAIN cannot admit the next
+transaction. Provider and End hooks are never replayed.
+
+Commit is **remote-first, enlistment order, local publication last**. All feasible
+local preparation/preflights precede the first Commit; final locked fences remain
+after external callbacks. A remote Commit error can mean unknown completion;
+later provider/final-local failure can leave earlier remote commits intact.
+The command fails, only still-open participants roll back, and nothing is retried
+or compensated. This is not 2PC or a distributed all-or-nothing guarantee.
+
+Foreign NOT NULL/CHECK are metadata assumptions, not local write checks.
+Existing codec/domain/typmod and applicable view CHECK OPTION authority remains.
+View checks run on the imported actual returned INSERT/UPDATE tuple before
+RETURNING/count, never a precheck of proposed NEW. Suppression does not check a
+nonexistent row; failure genuinely rolls back all provider statement effects.
+STORED generation is computed before dispatch; VIRTUAL is passed NULL and
+computed on read. postgres_fdw separately transmits DEFAULT for generated
+attributes, unlike the native fixture that stores actual callback inputs.
+Native procedural triggers, foreign MERGE/ON CONFLICT, foreign row locking,
+foreign partitions and local foreign indexes/keys remain unsupported.
+See the [real SQL writer](../reference/tables/fdw_writer_test.go) and
+[selected evidence definitions](../reference/tables/README.md#foreign-writes).
+
 
 Optional `ForeignSchemaImporter` adds
 `ImportForeignSchema(context.Context, ForeignImportRequest) ([]ForeignTableDefinition,error)`.

@@ -25,6 +25,36 @@ type ForeignImportRequest = engine.ForeignImportRequest
 type ForeignColumnDefinition = engine.ForeignColumnDefinition
 type ForeignTableDefinition = engine.ForeignTableDefinition
 type ForeignSchemaImporter = engine.ForeignSchemaImporter
+type ForeignModifyOperation = catalog.ForeignModifyOperation
+type ForeignModifyPlan = catalog.ForeignModifyPlan
+type ForeignUpdateTargets = catalog.ForeignUpdateTargets
+type ForeignRowIdentity = catalog.ForeignRowIdentity
+type ForeignModifyRequest = catalog.ForeignModifyRequest
+type ForeignInsertRequest = catalog.ForeignInsertRequest
+type ForeignTruncateRequest = catalog.ForeignTruncateRequest
+type ForeignUpdateTargetProvider = catalog.ForeignUpdateTargetProvider
+type ForeignModifyPlanner = catalog.ForeignModifyPlanner
+type ForeignModifyBeginner = catalog.ForeignModifyBeginner
+type ForeignModifyEnder = catalog.ForeignModifyEnder
+type ForeignInserter = catalog.ForeignInserter
+type ForeignUpdater = catalog.ForeignUpdater
+type ForeignDeleter = catalog.ForeignDeleter
+type ForeignBatchSizer = catalog.ForeignBatchSizer
+type ForeignBatchInserter = catalog.ForeignBatchInserter
+type ForeignTruncater = catalog.ForeignTruncater
+type ForeignInsertBeginner = catalog.ForeignInsertBeginner
+type ForeignInsertEnder = catalog.ForeignInsertEnder
+type ForeignIdentityScan = catalog.ForeignIdentityScan
+type ForeignTransactionCapabilities = catalog.ForeignTransactionCapabilities
+type ForeignTransactionProvider = catalog.ForeignTransactionProvider
+type ForeignTransaction = catalog.ForeignTransaction
+type ForeignTransactionSavepoints = catalog.ForeignTransactionSavepoints
+
+const (
+	ForeignInsert = catalog.ForeignInsert
+	ForeignUpdate = catalog.ForeignUpdate
+	ForeignDelete = catalog.ForeignDelete
+)
 
 const (
 	ForeignAttribute   = catalog.ForeignAttribute

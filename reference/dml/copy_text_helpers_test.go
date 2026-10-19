@@ -41,22 +41,7 @@ func copyTextScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fixture
 }
 
 func (c copyTextConnection) from(q string, r io.Reader) (copyTextResult, error) {
-	if !c.pg {
-		return stuntgres.CopyFrom(c.ctx, c.conn, q, r)
-	}
-	var result copyTextResult
-	err := c.conn.Raw(func(raw any) error {
-		conn, ok := raw.(*stdlib.Conn)
-		if !ok {
-			return fmt.Errorf("unexpected oracle COPY connection %T", raw)
-		}
-		tag, err := conn.Conn().PgConn().CopyFrom(c.ctx, r, q)
-		if err == nil {
-			result = copyTextResult{tag.RowsAffected(), tag.String()}
-		}
-		return err
-	})
-	return result, err
+	return fixture.CopyFrom(c.ctx, c.conn, c.pg, q, r)
 }
 
 func (c copyTextConnection) to(q string, w io.Writer) (copyTextResult, error) {

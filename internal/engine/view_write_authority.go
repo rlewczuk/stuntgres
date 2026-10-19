@@ -128,19 +128,19 @@ func (s *StatementScope) acquireViewWriteTarget(w *viewWrite) error {
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	catalog := e.privateCatalogLocked(s.owner.catalog)
-	current, ok := catalog.Relation(w.ref.Address)
+	read := e.privateCatalogLocked(s.owner.catalog)
+	current, ok := read.Relation(w.ref.Address)
 	if !ok || w.ref.Domain() != e.catalog.Domain || w.ref.Epoch != e.catalog.state.Epoch() || !sameRelationRowShape(current, w.base) {
 		return ids.ErrCatalogReplaced
 	}
 	for _, layer := range w.layers {
-		d, ok := catalog.Relation(layer.ref.Address)
+		d, ok := read.Relation(layer.ref.Address)
 		if !ok || d.View != layer.relation.View || !sameRelationRowShape(d, layer.relation) {
 			return ids.ErrCatalogReplaced
 		}
 	}
 	storage := e.privateStorageLocked(s.owner.catalog, w.ref.Address)
-	if storage == nil {
+	if storage == nil && current.RelationKind != catalog.ForeignRelation {
 		return ids.ErrCatalogReplaced
 	}
 	s.viewWrite = w

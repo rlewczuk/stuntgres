@@ -17,6 +17,7 @@ import (
 // generator counters or snapshots. The outer block keeps the same ticket.
 type savepointMark struct {
 	name                string
+	foreignID           uint64
 	writes              map[ids.ObjectAddress][]storage.RowVersion
 	deletes             map[ids.ObjectAddress]*visibility.PrivateDeletes
 	catalog             *catalogChanges
@@ -78,6 +79,7 @@ func (s *sessionSettings) restoreSavepoint(candidate settingsMark, identity auth
 
 func (t *transactionOwner) captureSavepoint(name string) savepointMark {
 	writes := maps.Clone(t.writes)
+	t.foreignMarkNext++
 	for a, rows := range t.writes {
 		// A later append after rollback must not overwrite a discarded suffix
 		// still retained by a result opened before rollback.
@@ -90,7 +92,7 @@ func (t *transactionOwner) captureSavepoint(name string) savepointMark {
 	t.session.mu.Lock()
 	identity := t.session.authorization.state
 	t.session.mu.Unlock()
-	return savepointMark{name: name, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: e.locks.Checkpoint(t.ticket), cursors: t.session.cursors.ordinal, exclusionModes: t.exclusionModes, exclusionProjection: projection, identity: identity, notificationActions: t.notificationActions[:len(t.notificationActions):len(t.notificationActions)], notificationEvents: t.notificationEvents[:len(t.notificationEvents):len(t.notificationEvents)]}
+	return savepointMark{name: name, foreignID: t.foreignMarkNext, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: e.locks.Checkpoint(t.ticket), cursors: t.session.cursors.ordinal, exclusionModes: t.exclusionModes, exclusionProjection: projection, identity: identity, notificationActions: t.notificationActions[:len(t.notificationActions):len(t.notificationActions)], notificationEvents: t.notificationEvents[:len(t.notificationEvents):len(t.notificationEvents)]}
 }
 
 func (t *transactionOwner) restoreSavepoint(mark savepointMark, settings settingsMark) {
@@ -169,6 +171,9 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 	var settings settingsMark
 	var stack []savepointMark
 	if control.Kind == parser.CreateSavepoint {
+		if t.foreignMarkNext == ^uint64(0) {
+			return Result{}, fmt.Errorf("stuntgres: foreign savepoint identity exhausted")
+		}
 		mark = t.captureSavepoint(control.Name.Text)
 		// Reserve the stack before the final callback-free preflight.
 		stack = slices.Grow(t.savepoints, 1)
@@ -185,6 +190,23 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 				settings = mark.settings.clone()
 			}
 		}
+	}
+	if control.Kind != parser.CreateSavepoint && index < 0 {
+		return Result{}, sqlError("3B001", fmt.Sprintf("savepoint \"%s\" does not exist", control.Name.Text))
+	}
+	kind := 0
+	if control.Kind == parser.RollbackSavepoint {
+		kind = 1
+	}
+	if control.Kind == parser.ReleaseSavepoint {
+		kind = 2
+	}
+	s.foreignUnlocked()
+	t.mu.Unlock()
+	hookErr := t.foreignSavepoint(s.op.Context(), kind, mark.foreignID)
+	t.mu.Lock()
+	if hookErr != nil {
+		return Result{}, hookErr
 	}
 	result, err := func() (Result, error) {
 		e.mu.Lock()

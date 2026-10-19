@@ -547,8 +547,24 @@ existing deferred stale-cursor owner: replacement itself does not sweep other
 sessions; a subsequent request/rollback/CLOSE/session end releases its scan.
 Already finalized batches remain readable.
 
-Foreign writes, row locks, index/UNIQUE/PK/FK/trigger/truncation callbacks,
-hierarchy expansion and arbitrary remote pushdown are unsupported. No generic
+Registered foreign INSERT/UPDATE/DELETE/RETURNING, COPY FROM and grouped TRUNCATE
+use independent optional callbacks and genuine provider transactions. Missing
+operation support fails explicitly before source demand/mutation. Transactional
+rollback capability is mandatory; provider savepoint support gates SQL savepoints.
+Full callback rows determine affected counts and RETURNING; opaque original
+identity selects UPDATE/DELETE targets independently of NEW keys. Both batch
+callbacks and positive size are required; RETURNING and view CHECK OPTION use
+singles. View checks validate the actual returned INSERT/UPDATE tuple before
+RETURNING, not proposed NEW; violations roll back actual remote effects. COPY accepts
+terminal input before remote mutation and uses its distinct insertion lifecycle.
+Foreign CHECK/NOT NULL are not locally enforced; STORED generation is computed
+locally and VIRTUAL fields are sent NULL. Remote constraints remain real provider
+errors. Scans share enlisted transactions, not independently committed connections.
+Remote-first ordered commit and final local fences do not provide distributed
+atomicity; later failure can leave partial/unknown remote completion, never a
+successful command or compensating rollback claim.
+Foreign MERGE/ON CONFLICT, row locks, index/UNIQUE/PK/FK/trigger callbacks,
+hierarchy expansion and arbitrary remote pushdown remain unsupported. No generic
 has_server_privilege/has_foreign_data_wrapper_privilege SQL execution is added
 merely because static PostgreSQL identities exist. Actual GRANT/REVOKE and common
 authorization/stored-ACL inquiries use the new descriptor classes. Dump rejects
@@ -908,9 +924,10 @@ Nested modifying WITH and referenced no-RETURNING output are rejected. Ordinary
 views reject modifying WITH at execution, including held statements; materialized
 views and cursors reject it at held preparation. Existing CTAS/SELECT INTO remain
 admitted consumers. CTAS WITH NO DATA creates empty schema without executing the
-query or its modifiers. Recursive modifying definitions, trigger and
-foreign-write/hierarchy provider exclusions remain unchanged; admitted local
-consumers may read real foreign SELECT sources. Rule expansion must leave exactly one
+query or its modifiers. Recursive modifying definitions, native triggers and
+hierarchy provider exclusions remain unchanged; admitted commands may read
+real foreign sources and modify registered transactional foreign targets.
+Rule expansion must leave exactly one
 admitted auxiliary query; zero/multiple expansions retain the documented
 INSTEAD NOTHING/conditional/ALSO/multi-statement restrictions. A single SELECT
 replacement remains lazy when unused. No portable same-row overlap winner or
@@ -1019,11 +1036,12 @@ Materialized views support logical indexes and autocommit concurrent refresh.
 Explicit transaction refresh and refresh as Restore input remain excluded.
 Physical temporary heaps, SPI diff SQL/Context, WAL and crash durability remain
 server mechanisms, not native logical publication contracts. Trigger, pending
-trigger, foreign-write callbacks and procedural-language execution are unavailable.
+trigger and procedural-language execution are unavailable. Registered foreign
+write/truncate callbacks retain their explicit transaction contract above.
 TRUNCATE RESTART IDENTITY resets owned sequences transactionally to configured
 START, including selected virtual roots and supported inheritance/CASCADE closure.
 It does not reset unowned default references, undo ordinary nextval/setval
-allocations, clear local currval/lastval on rollback, or enable trigger/FDW/
+allocations, clear local currval/lastval on rollback, or enable trigger or
 partition-FK providers.
 
 Adding generated columns and changing their destination type without an explicit

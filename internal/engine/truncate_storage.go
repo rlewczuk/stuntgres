@@ -93,6 +93,10 @@ func (e *Engine) truncateGraphPreflightLocked(c *catalogChanges) error {
 // stageTruncate replaces roots, never scans/discards individual row values.
 // Existing Finish/Commit provides the one atomic publication frontier and veto.
 func (s *StatementScope) stageTruncate() error {
+	groups, err := s.prepareForeignTruncate()
+	if err != nil {
+		return err
+	}
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(s.op)
@@ -128,7 +132,7 @@ func (s *StatementScope) stageTruncate() error {
 			break
 		}
 		stage.querySources = append(stage.querySources, d)
-		if d.RelationKind == catalog.PartitionedRelation {
+		if d.RelationKind == catalog.PartitionedRelation || d.RelationKind == catalog.ForeignRelation {
 			continue
 		}
 		if store == nil {
@@ -187,7 +191,7 @@ func (s *StatementScope) stageTruncate() error {
 	}
 	for _, selected := range s.truncateRelations {
 		address := selected.ref.Address
-		if selected.relation.RelationKind != catalog.PartitionedRelation {
+		if selected.relation.RelationKind != catalog.PartitionedRelation && selected.relation.RelationKind != catalog.ForeignRelation {
 			if err := transportEmptyIndexStorage(s.op.Context(), auth.Catalog.State(), changes, stage, address, changes.storage[address].replacement); err != nil {
 				return err
 			}
@@ -196,7 +200,10 @@ func (s *StatementScope) stageTruncate() error {
 			s.stageProjectedColumnRoots(address, nil, nil)
 		}
 	}
-	return e.stageCatalogOverlay(s, stage, changes)
+	if err := e.stageCatalogOverlay(s, stage, changes); err != nil {
+		return err
+	}
+	return s.executeForeignTruncate(groups)
 }
 
 // A name observation is a fence, not permission to replay on a new relation.

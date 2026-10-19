@@ -217,7 +217,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		if err != nil {
 			return err
 		}
-		if source.RelationKind != catalog.TableRelation && source.RelationKind != catalog.ViewRelation {
+		if source.RelationKind != catalog.TableRelation && source.RelationKind != catalog.ViewRelation && source.RelationKind != catalog.ForeignRelation {
 			return viewWriteError(d, operation, "Views that do not select from a single table or view are not automatically updatable.")
 		}
 		direct := make([]int, len(project.expressions))

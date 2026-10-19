@@ -84,9 +84,14 @@ type transactionOwner struct {
 	cursorCleanup       []*sqlCursor // Detached under owner lock; drained unlocked.
 	notificationActions []notificationAction
 	notificationEvents  []Notification
+	foreignParticipants []*foreignParticipant
+	foreignCleanup      []*foreignParticipant
+	foreignMarkNext     uint64
 }
 
 func (t *transactionOwner) clear() {
+	t.foreignCleanup = append(t.foreignCleanup, t.foreignParticipants...)
+	t.foreignParticipants = nil
 	if t.session.cursors != nil {
 		t.cursorCleanup = append(t.cursorCleanup, t.session.cursors.endTransaction(t.ref)...)
 	}
@@ -309,6 +314,9 @@ type StatementScope struct {
 	materializedSourceView         *visibility.Data
 	querySources                   []queryLeaf
 	foreignOwner                   *foreignScanOwner
+	foreignStatements              []*foreignParticipant
+	foreignModifications           []*foreignModification
+	foreignHoldPromotions          []*sqlCursor // Exact new promotions owned by this completion.
 	foreignCursor                  *sqlCursor
 	queryLockAdmission             queryLockAdmission
 	queryLocks                     *queryLockContext
@@ -327,6 +335,7 @@ type StatementScope struct {
 	truncateRelations              []truncateRelation
 	truncateSequences              []truncateSequence
 	truncateRestart                bool
+	foreignTruncateCascade         bool
 	truncateNames                  []truncateName
 	truncateSelected               map[ids.ObjectAddress]int
 	Expected                       *StatementDescription
@@ -1019,6 +1028,8 @@ func (t *transactionOwner) drainCursorCleanup(ctx context.Context, scope *Statem
 	t.mu.Lock()
 	cursors := t.cursorCleanup
 	t.cursorCleanup = nil
+	participants := t.foreignCleanup
+	t.foreignCleanup = nil
 	t.mu.Unlock()
 	wire := scope != nil && (scope.protocolCommand || scope.protocolSimple)
 	var err error
@@ -1026,6 +1037,9 @@ func (t *transactionOwner) drainCursorCleanup(ctx context.Context, scope *Statem
 		err = scope.protocolTerminalIO(func() error { return disposeSQLCursors(ctx, cursors) })
 	} else {
 		err = disposeSQLCursors(ctx, cursors)
+	}
+	if failure := rollbackForeign(ctx, participants); err == nil {
+		err = failure
 	}
 	if t.session.preparedSQL == nil {
 		return err
