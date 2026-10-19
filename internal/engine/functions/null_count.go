@@ -199,3 +199,13 @@ func (e NullCount) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, 
 
 // ClosureTransparent implements expr.ClosureTransparent.
 func (e NullCount) ClosureTransparent() {}
+
+func (e NullCount) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind == expr.CaptureField && len(e.Args) == 1 {
+		return expr.CaptureOperands{Args: e.Args, Count: 1, DotBuiltin: e.Name()}, true, nil
+	}
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return expr.CaptureOperands{Args: e.Args, Count: len(e.Args)}, true, nil
+}

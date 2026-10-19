@@ -179,3 +179,14 @@ func (n AccessInquiry) Render() (expr.Rendering, error) {
 		Args:   args,
 	}, nil
 }
+
+func (e AccessInquiry) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return captureShape(e.Count, len(e.Args))
+}
+
+func (e AccessInquiry) CaptureOperand(written int) (expr.Expr, error) {
+	return captureAt(e.Args[:], e.Count, written)
+}

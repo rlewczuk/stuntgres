@@ -104,3 +104,10 @@ func (e DatetimeJustify) Substitute(info expr.Info, children []expr.Expr) (expr.
 
 // ClosureTransparent implements expr.ClosureTransparent.
 func (e DatetimeJustify) ClosureTransparent() {}
+
+func (e DatetimeJustify) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return expr.CaptureOperands{Inline: [2]expr.Expr{e.Arg}, Count: 1}, true, nil
+}

@@ -279,3 +279,11 @@ func (e UUIDGeneration) Substitute(info expr.Info, children []expr.Expr) (expr.E
 	e.Info, e.Args = info, children
 	return e, nil
 }
+
+func (e UUIDGeneration) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	args := e.Children()
+	return expr.CaptureOperands{Args: args, Count: len(args)}, true, nil
+}

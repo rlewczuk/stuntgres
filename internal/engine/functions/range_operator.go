@@ -102,3 +102,10 @@ func (e RangeOperator) Substitute(info expr.Info, children []expr.Expr) (expr.Ex
 
 // ClosureTransparent implements expr.ClosureTransparent.
 func (e RangeOperator) ClosureTransparent() {}
+
+func (e RangeOperator) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureOperator {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return expr.CaptureOperands{Inline: [2]expr.Expr{e.Args[0], e.Args[1]}, Count: 2}, true, nil
+}

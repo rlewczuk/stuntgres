@@ -400,3 +400,47 @@ func (e JSONBPathMatch) ClosureTransparent() {}
 
 // ClosureTransparent implements expr.ClosureTransparent.
 func (e JSONBPathQueryFirst) ClosureTransparent() {}
+
+func (e JSONBPathExists) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return captureWritten(e.Args[:], e.WrittenSlots[:], e.WrittenCount, len(e.Args))
+}
+
+func (e JSONBPathExists) CaptureOperand(written int) (expr.Expr, error) {
+	return captureWrittenAt(e.Args[:], e.WrittenSlots[:], e.WrittenCount, len(e.Args), written)
+}
+
+func (e JSONBPathMatch) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return captureWritten(e.Args[:], e.WrittenSlots[:], e.WrittenCount, len(e.Args))
+}
+
+func (e JSONBPathMatch) CaptureOperand(written int) (expr.Expr, error) {
+	return captureWrittenAt(e.Args[:], e.WrittenSlots[:], e.WrittenCount, len(e.Args), written)
+}
+
+func (e JSONBPathQueryFirst) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return captureWritten(e.Args[:], e.WrittenSlots[:], e.WrittenCount, len(e.Args))
+}
+
+func (e JSONBPathQueryFirst) CaptureOperand(written int) (expr.Expr, error) {
+	return captureWrittenAt(e.Args[:], e.WrittenSlots[:], e.WrittenCount, len(e.Args), written)
+}
+
+func (e JSONBPathQuery) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return captureWritten(e.Args[:], e.WrittenSlots[:], e.WrittenCount, len(e.Args))
+}
+
+func (e JSONBPathQuery) CaptureOperand(written int) (expr.Expr, error) {
+	return captureWrittenAt(e.Args[:], e.WrittenSlots[:], e.WrittenCount, len(e.Args), written)
+}

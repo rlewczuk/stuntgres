@@ -122,3 +122,14 @@ func (e JSONBSet) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, e
 
 // ClosureTransparent implements expr.ClosureTransparent.
 func (e JSONBSet) ClosureTransparent() {}
+
+func (e JSONBSet) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return captureWritten(e.Args[:], e.WrittenSlots[:], e.WrittenCount, e.Count)
+}
+
+func (e JSONBSet) CaptureOperand(written int) (expr.Expr, error) {
+	return captureWrittenAt(e.Args[:], e.WrittenSlots[:], e.WrittenCount, e.Count, written)
+}

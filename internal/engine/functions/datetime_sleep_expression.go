@@ -295,3 +295,10 @@ func (x DatetimeSleep) Substitute(info expr.Info, children []expr.Expr) (expr.Ex
 	x.Info, x.Arg = info, children[0]
 	return x, nil
 }
+
+func (e DatetimeSleep) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return expr.CaptureOperands{Inline: [2]expr.Expr{e.Arg}, Count: 1, CallImplicit: true}, true, nil
+}

@@ -481,9 +481,20 @@ To add or port a builtin family:
    engine's wrapper node and its validation stay in the engine; switches keep
    explicit wrapper cases ahead of their protocol branch, because the wrapper's
    catalog identity is engine state.
-6. Helpers that remaining engine switches still call (view literal capture,
-   function sources, aggregate binding) stay exported until those switches
-   adopt the protocol.
+6. Capture-admitted nodes implement `expr.Capturable` beside their definition.
+   Reuse Composite children only when they exactly match written operands and
+   borrow safe slice storage, never fixed arrays from a value-receiver copy.
+   Fixed-storage nodes implement value-receiver `expr.IndexedCapturable` locally:
+   `CaptureOperand` maps existing WrittenSlots/WrittenCount or written Args
+   directly, with checked bounds and no reordered copies, retained slices or
+   receiver reboxing. `CaptureOperands.Indexed` carries only the storage mode;
+   `Check(source, count)` and `At(source, written)` receive the original boxed
+   Capturable (including promoted wrappers). Safe slices and at most two inline
+   operands remain available. Array formal slots and EvaluationOrder do not
+   reorder capture. SQL-standard calls retain parser Args order, not Pieces.
+   Hooks never evaluate, render, rebuild, rebind or mutate. Engine wrappers win
+   over promoted hooks; catalog/coercion decisions and annotation maps stay there.
+   Helpers still used by function sources/aggregate binding remain exported.
 
 ## Node protocol
 
@@ -576,7 +587,7 @@ SQL replays function nodes from their `expr.Rendering` (`Replay` in the
 `expr` README); a node states its stored form there, next to its display.
 The SQL/JSON constructor's query form, RETURNING coercion and SQL rendering
 (`sqljson_expression.go`, `sqljson_query.go`, `sqljson_deparse.go`) stay in
-the engine; view literal capture names `SQLJSON`/`JSONPredicate` explicitly.
+the engine; capture hooks request formatted-input unwrapping without owning it.
 
 The ACL SQL functions keep these engine parts: the `ACLRuntime`
 implementation; `aclexplode`'s set-returning admission and function scan,
@@ -746,6 +757,24 @@ There is no input-length limit, Unicode normalization or transliteration.
 
 Run from repository root; use `make check RUN='...'` for individual or small
 cohesive selections. Registry shape and claims:
+
+Written operand hooks and engine raw/bound capture (no public SQL API fixture):
+
+```sh
+make check RUN='^TestCaptureOperands(WrittenSlots|RawKinds|SpecialAnnotations|NoAllocations)$'
+make check RUN='^TestViewLiteralProtocol(WrittenOperands|OccurrenceOwnership|Annotations|RejectsMismatch|QueryBoundaries|InstalledWrapper)$'
+make check RUN='^Test(JSONBSetContextualArrayCapture|JSONBSetRetagRemapAndPresentation|JSONBSetViewReplayDeterminism|JSONBSetViewReplayCastBoundaries|JSONStripNullsBindingStoredPresentation|DatetimeMakeArgumentAssociation)$'
+```
+
+The hooks preserve written identity, omitted defaults, variadic boundaries,
+annotations and immutability. NoAllocations measures Capture, Check and every At
+through a dynamic interface with preboxed fixtures and an escaping descriptor
+sink; every migrated fixed-storage family and safe slice/inline/zero controls
+must allocate zero times. This is a test requirement, not a measured claim here.
+Engine tests pin structural paths, true subquery/function-source boundaries,
+remap/retag and installed-wrapper identity. These
+supplement the unchanged dual-mode stored-consumer definitions; run the selected
+reference families in both native and pinned PostgreSQL modes before review.
 
 ```sh
 make check RUN='^(TestLookupClaimsRegisteredNames|TestDefinitionsAreWellFormed)$'

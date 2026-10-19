@@ -304,3 +304,11 @@ func (e StringVariadic) Substitute(info expr.Info, children []expr.Expr) (expr.E
 
 // ClosureTransparent implements expr.ClosureTransparent.
 func (e StringVariadic) ClosureTransparent() {}
+
+func (e StringVariadic) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	args := e.Children()
+	return expr.CaptureOperands{Args: args, Count: len(args)}, true, nil
+}

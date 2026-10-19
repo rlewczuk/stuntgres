@@ -15,7 +15,7 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 3 remainder** — F2 items 1–5 (1 and 2 broad), F3 aliases item 6
+- **Step 3 remainder** — F2 items 2–5 (2 broad), F3 aliases item 6
   (broad), and the Tier C parts 7–9 (catalog inquiry with session identity,
   transaction identity and commit timestamps, advisory locks with blocking
   inquiry). One session each. They touch the same switch files; rebase early.
@@ -75,7 +75,8 @@ Steps 1, 2 and 4–7 and `access` are done.
     - [x] closed DEFAULT checks (`632814b91`)
     - [x] `Arguments()` removed (`25fcad768`, then the docs commit)
       *(racecheck skipped at user request)*
-    - [ ] view literal capture *(broad)*
+    - [x] view literal capture *(broad; explicit written-operands protocol;
+      racecheck/finalcheck waived at user request)*
     - [ ] function sources, with `seriesExpression` and `unnestExpression`
       *(broad)*
     - [ ] `SQLJSON` rendering
@@ -300,7 +301,7 @@ in the prompt file's Status section.
 
 ### Group A — finish the existing packages
 
-1. [ ] Functions F2: view literal capture —
+1. [x] Functions F2: view literal capture —
    [functions](ENGINE-SPLIT-functions.md) F2 · needs — · **broad**
 2. [ ] Functions F2: function sources (with `seriesExpression`,
    `unnestExpression`) — [functions](ENGINE-SPLIT-functions.md) F2 · needs

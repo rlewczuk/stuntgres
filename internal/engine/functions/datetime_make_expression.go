@@ -228,3 +228,14 @@ func (e DatetimeMake) Substitute(info expr.Info, children []expr.Expr) (expr.Exp
 
 // ClosureTransparent implements expr.ClosureTransparent.
 func (e DatetimeMake) ClosureTransparent() {}
+
+func (e DatetimeMake) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return captureWritten(e.Args[:], e.WrittenSlots[:], e.WrittenCount, e.Count)
+}
+
+func (e DatetimeMake) CaptureOperand(written int) (expr.Expr, error) {
+	return captureWrittenAt(e.Args[:], e.WrittenSlots[:], e.WrittenCount, e.Count, written)
+}

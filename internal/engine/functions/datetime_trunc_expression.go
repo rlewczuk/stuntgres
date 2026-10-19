@@ -218,3 +218,14 @@ func (e DatetimeTrunc) Substitute(info expr.Info, children []expr.Expr) (expr.Ex
 	copy(e.Args[:], children)
 	return e, nil
 }
+
+func (e DatetimeTrunc) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return captureShape(e.Count, len(e.Args))
+}
+
+func (e DatetimeTrunc) CaptureOperand(written int) (expr.Expr, error) {
+	return captureAt(e.Args[:], e.Count, written)
+}

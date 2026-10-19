@@ -289,3 +289,14 @@ func (e DatetimeZoneCalendar) Substitute(info expr.Info, children []expr.Expr) (
 	copy(e.Args[:], children)
 	return e, nil
 }
+
+func (e DatetimeZoneCalendar) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return captureShape(e.Count, len(e.Args))
+}
+
+func (e DatetimeZoneCalendar) CaptureOperand(written int) (expr.Expr, error) {
+	return captureAt(e.Args[:], e.Count, written)
+}

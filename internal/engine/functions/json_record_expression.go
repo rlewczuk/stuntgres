@@ -119,3 +119,11 @@ func (e JSONRecord) Substitute(info expr.Info, children []expr.Expr) (expr.Expr,
 	e.Info, e.Args = info, children
 	return e, nil
 }
+
+func (e JSONRecord) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	args := e.Children()
+	return expr.CaptureOperands{Args: args, Count: len(args)}, true, nil
+}

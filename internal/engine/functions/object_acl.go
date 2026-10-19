@@ -134,3 +134,14 @@ func (n ObjectACL) Render() (expr.Rendering, error) {
 		Args:       args,
 	}, nil
 }
+
+func (e ObjectACL) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return captureShape(len(e.Args), len(e.Args))
+}
+
+func (e ObjectACL) CaptureOperand(written int) (expr.Expr, error) {
+	return captureAt(e.Args[:], len(e.Args), written)
+}

@@ -133,3 +133,11 @@ func (e JSONExtract) Substitute(info expr.Info, children []expr.Expr) (expr.Expr
 
 // ClosureTransparent implements expr.ClosureTransparent.
 func (e JSONExtract) ClosureTransparent() {}
+
+func (e JSONExtract) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	args := e.Children()
+	return expr.CaptureOperands{Args: args, Count: len(args)}, true, nil
+}

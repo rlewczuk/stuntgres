@@ -115,3 +115,14 @@ func (e JSONStripNulls) Substitute(info expr.Info, children []expr.Expr) (expr.E
 
 // ClosureTransparent implements expr.ClosureTransparent.
 func (e JSONStripNulls) ClosureTransparent() {}
+
+func (e JSONStripNulls) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return captureWritten(e.Args[:], e.WrittenSlots[:], e.WrittenCount, len(e.Args))
+}
+
+func (e JSONStripNulls) CaptureOperand(written int) (expr.Expr, error) {
+	return captureWrittenAt(e.Args[:], e.WrittenSlots[:], e.WrittenCount, len(e.Args), written)
+}

@@ -461,3 +461,39 @@ func (e SimilarSubstring) ClosureTransparent() {}
 
 // ClosureTransparent implements expr.ClosureTransparent.
 func (e LikeEscape) ClosureTransparent() {}
+
+func (e Similar) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureOperator {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return expr.CaptureOperands{Inline: [2]expr.Expr{e.Left, e.Right}, Count: 2}, true, nil
+}
+
+func (e SimilarSubstring) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return expr.CaptureOperands{Count: len(e.Args), Indexed: true, SimilarSubstring: true}, true, nil
+}
+
+func (e SimilarSubstring) CaptureOperand(written int) (expr.Expr, error) {
+	return captureAt(e.Args[:], len(e.Args), written)
+}
+
+func (e LikeEscape) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return expr.CaptureOperands{Inline: [2]expr.Expr{e.Pattern, e.Escape}, Count: 2}, true, nil
+}
+
+func (e SimilarEscape) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	count := 2
+	if e.Omitted {
+		count = 1
+	}
+	return expr.CaptureOperands{Inline: [2]expr.Expr{e.Pattern, e.Escape}, Count: count}, true, nil
+}

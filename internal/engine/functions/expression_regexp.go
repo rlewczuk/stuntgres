@@ -311,3 +311,14 @@ func (e RegexpSet) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, 
 
 // ClosureTransparent implements expr.ClosureTransparent.
 func (e Regexp) ClosureTransparent() {}
+
+func (e RegexpCall) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return captureWritten(e.Args, e.WrittenSlots[:], len(e.Args), len(e.Args))
+}
+
+func (e RegexpCall) CaptureOperand(written int) (expr.Expr, error) {
+	return captureWrittenAt(e.Args, e.WrittenSlots[:], len(e.Args), len(e.Args), written)
+}

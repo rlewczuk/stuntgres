@@ -227,3 +227,10 @@ func (e DatetimeExtract) Substitute(info expr.Info, children []expr.Expr) (expr.
 	copy(e.Args[:], children)
 	return e, nil
 }
+
+func (e DatetimeExtract) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return expr.CaptureOperands{Inline: e.Args, Count: len(e.Args)}, true, nil
+}

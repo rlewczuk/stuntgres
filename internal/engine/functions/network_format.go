@@ -144,3 +144,14 @@ func (e NetworkFormat) Substitute(info expr.Info, children []expr.Expr) (expr.Ex
 
 // ClosureTransparent implements expr.ClosureTransparent.
 func (e NetworkFormat) ClosureTransparent() {}
+
+func (e NetworkFormat) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	count := e.Kind.Arity()
+	if count < 0 || count > 2 {
+		return captureShape(-1, len(e.Args))
+	}
+	return expr.CaptureOperands{Inline: e.Args, Count: count}, true, nil
+}

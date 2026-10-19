@@ -69,18 +69,16 @@ with `Replay`, and its helpers are gone.
 State after the fourth F2 session: grouping identity, the grouping rewrite,
 aggregate occurrence, preflight, index key display and the closed-DEFAULT
 checks have one protocol branch each, and `Arguments()` no longer duplicates
-`Children()`. Still listing function nodes: view literal capture
-(`view_literals.go`, keyed on raw syntax), function sources (the set cursor in
-`string_set_query.go` and its classifiers) and the explicit `SQLJSON` deparse
-and stored SQL cases; see the session 4 notes.
+`Children()`. View literal capture subsequently adopted explicit raw-kind
+admission and written operands through `expr.Capturable`, with indexed access
+for fixed receiver storage. Still listing function nodes: function sources
+(the set cursor and classifiers) and explicit `SQLJSON` rendering.
 
-Remaining F2 items, refreshed at `75fe0d710` (details in "Later-wave refresh"
-at the end of the Status section): view literal capture; function sources,
-which also covers the engine's `seriesExpression` and `unnestExpression`
-markers; `SQLJSON` rendering; a result nullability hook that removes the
-per-node cases in `query_bind.go` and `returning.go`; and a conditional
-closure hook for the closed-DEFAULT check. Each is one session; view literal
-capture and function sources are broad.
+Remaining F2 items (details in "Later-wave refresh" at the end of Status):
+function sources, including the engine's `seriesExpression` and
+`unnestExpression` markers; `SQLJSON` rendering; a result nullability hook
+for `query_bind.go` and `returning.go`; and a conditional closure hook for
+the closed-DEFAULT check. Function sources remain broad.
 
 ### F3 — Binder interface and registry, with a pilot family
 
@@ -176,7 +174,7 @@ Tier C has a refined plan.
   replay protocol, `cca30a78c` stored scalar SQL, then the docs commit)
   [x] grouping identity [x] grouping rewrite and aggregate occurrence
   [x] preflight [x] index key display [x] closed DEFAULT checks
-  [x] `Arguments()` [ ] view literal capture [ ] function sources
+  [x] `Arguments()` [x] view literal capture [ ] function sources
   (with `seriesExpression` and `unnestExpression`) [ ] `SQLJSON` rendering
   [ ] result nullability hook [ ] conditional closure hook (session 4: `063fe2d1e` identity, `622b3d3ba`
   rewrite, `a187f7f5d` preflight, `39c887998` index, `b2675f4c2`
@@ -1441,13 +1439,13 @@ onto `5cc6fe6e5`:
   written order, hence `EvaluationOrdered`. The two closed-DEFAULT checks
   differ on `date_trunc`, `date_bin` and the zone calendar calls (only the uuid
   check looks through them), which stay explicit there.
-- Deferred, as the plan allowed for function sources: view literal capture
-  pairs raw parser syntax with bound nodes, so the operands depend on the raw
-  syntax kind, and several cases record display state (implicit casts of
-  array and sleep arguments, SUBSTRING flags, the omitted SIMILAR escape).
-  Reusing `Render` does not reproduce it exactly. Function sources open
-  typed set cursors on the execution path (`functionSetCursor`); a protocol
-  cursor needs an `expr` cursor interface.
+- View literal capture was deferred in session 4 because raw syntax kind,
+  written/default operand correspondence and display annotations differ from
+  runtime children and `Render`. The subsequent capture conversion uses
+  `expr.Capturable` and allocation-free indexed access to fixed node storage;
+  the engine still owns structural paths, coercions and catalog identities.
+  Function sources remain deferred: their execution cursor still needs an
+  `expr` cursor interface.
 - Deleted: `functions.MapArray*Children` (`array_node_children.go`),
   `MapJSONExtractChildren` (`json_extract_children.go`),
   `JSONBRecord.MapChildren`, `mapNetworkFormatChildren`,
@@ -1499,11 +1497,13 @@ statement-preparation paths, not startup).
 
 Notes for later steps (F2 session 4):
 
-- View literal capture (`captureNormalizedViewLiteralTree`, 67 function-node
-  references) needs a written-operands hook that knows the raw syntax kind
-  (call or operator) and reports the display state the capture records; the
-  `Rendering` written arguments are the natural source once they cover the
-  SQL-standard templates.
+- View literal capture is now converted. The historical 67-reference count
+  had grown to 71 before this cutover. Raw-kind admission, borrowed slice or
+  bounded inline operands, and indexed fixed storage preserve written order
+  without evaluating or rendering nodes. Engine wrappers retain precedence.
+  Focused internal and pinned PostgreSQL18.6 witnesses, byte-identical public
+  deparse/Dump smoke and quickcheck passed; remaining checks were waived at
+  user request. Package READMEs document the protocol and exact selectors.
 - Function sources: `isQuerySet`, `validFunctionSourceCall`,
   `functionCallArguments`, `withFunctionCallArguments`,
   `sameQuerySetOccurrence` and `openFunctionCall` need a set-source hook and a
@@ -1718,9 +1718,11 @@ Later-wave refresh, measured at `75fe0d710` while planning steps 8–17
   `Engine.mu` and the session; `sequenceCallExpression` reads
   `Engine.catalog`, the session's sequence memories and the transaction
   owner.
-- **F2 leftovers still present:** `captureNormalizedViewLiteralTree`
-  (`view_literals.go:56`, 1,481-line file, 71 `functions.` references);
-  `isQuerySet`, `validFunctionSourceCall`, `functionCallArguments`,
+- **F2 capture completed:** `captureNormalizedViewLiteralTree` now reads the
+  explicit written-operands protocol; SQLJSON query/RETURNING, coercions,
+  occurrence maps and installed identities stay engine-owned. The original
+  1,481-line file/71-reference measurement is historical, not remaining work.
+- **F2 leftovers still present:** `isQuerySet`, `validFunctionSourceCall`, `functionCallArguments`,
   `withFunctionCallArguments` (`string_table_bind.go`, 45 references);
   `sameQuerySetOccurrence` (`string_set_lower.go`); `openFunctionCall` and
   `functionSetCursor` (`string_set_query.go:205` and `:88`; the cursor has 97

@@ -69,6 +69,20 @@ package-level variable. Evaluation always receives a non-nil `Context`.
   `case expr.Composite:` branch. Explicit cases before it keep precedence:
   engine wrappers that embed a protocol node (installed extension routines)
   keep their cases, because their catalog identity is engine state.
+- **`Capturable`** (`capture.go`) explicitly admits a `CaptureKind` and supplies
+  immutable written operands, not execution or rendering order. `CaptureOperands`
+  borrows safe slice storage or uses two inline operands. Fixed-array value nodes
+  use `Indexed: true` and the optional value-receiver `IndexedCapturable` accessor
+  to read existing written-slot provenance directly, without retaining receiver
+  slices, copying/reordering arguments or reboxing the node. `Check(source, count)`
+  and `At(source, written)` take the original already-boxed Capturable, including
+  promoted wrappers; the descriptor retains no source or callback. The explicit
+  count includes zero; checks reject missing accessors, conflicting indexed
+  storage, malformed counts/slots and nil operands before engine map writes.
+  Composite membership alone never admits capture syntax. Capture must not Eval,
+  Render, Rebuild, rebind or mutate. Selected/call implicit usages, substring kind,
+  formatted JSON sources and dot-builtin spelling are annotation requests only:
+  the engine owns structural paths, maps, coercions, catalog identity and frames.
 
 Optional hooks (`hooks.go`), each answering one switch's question; a node
 without a hook gets the switch's previous generic behavior:
@@ -170,10 +184,10 @@ grouping rewrite and aggregate occurrence keep one explicit `Timezone` case:
 they visit the value before the zone, unlike PostgreSQL, a divergence kept
 until a compatibility fix. The uuid closed-DEFAULT check keeps explicit cases
 for `date_trunc`, `date_bin` and the zone calendar calls, which only it looks
-through. Still listing function nodes: view literal capture
-(`view_literals.go`), function sources (`string_table_bind.go`,
-`string_set_query.go`, `string_set_lower.go`) and the explicit `SQLJSON`
-deparse and stored SQL cases.
+through. Function sources (`string_table_bind.go`, `string_set_query.go`,
+`string_set_lower.go`) and the explicit `SQLJSON` deparse and stored SQL cases
+remain separate engine work. Literal capture uses `Capturable` only after
+engine-owned wrappers, coercions, constructors and query-frame boundaries.
 
 ## What stays in the engine
 
@@ -200,4 +214,5 @@ and the `reference/` suite.
 make check RUN='^Test(MergeProperties|IntrinsicPropertyRules|InfoOf|ErrorAt|WithPosition)'
 make check RUN='^Test(WalkVisitsPreOrderAndSkipsNil|MapUnchangedKeepsNode|MapChangedRebuildsCopy|MapPropagatesErrors)$'
 make check RUN='^Test(MapSubstitutedFollowsEvaluationOrderAndKeepsPositions|SubstitutePrefersTheHook)$'
+make check RUN='^TestCaptureOperands(WrittenSlots|RawKinds|SpecialAnnotations|NoAllocations)$'
 ```

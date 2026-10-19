@@ -333,3 +333,35 @@ func (e JSONBElements) Substitute(info expr.Info, children []expr.Expr) (expr.Ex
 	e.Info, e.Args = info, children
 	return e, nil
 }
+
+func (e JSONKeys) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	args := e.Children()
+	return expr.CaptureOperands{Args: args, Count: len(args)}, true, nil
+}
+
+func (e JSONEach) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	args := e.Children()
+	return expr.CaptureOperands{Args: args, Count: len(args)}, true, nil
+}
+
+func (e JSONElements) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	args := e.Children()
+	return expr.CaptureOperands{Args: args, Count: len(args)}, true, nil
+}
+
+func (e JSONBElements) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	args := e.Children()
+	return expr.CaptureOperands{Args: args, Count: len(args)}, true, nil
+}

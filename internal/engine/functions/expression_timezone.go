@@ -119,3 +119,27 @@ func (e Timezone) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, e
 
 // ClosureTransparent implements expr.ClosureTransparent.
 func (e Timezone) ClosureTransparent() {}
+
+func (e Timezone) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	switch kind {
+	case expr.CaptureFunction:
+		if !e.Function {
+			return expr.CaptureOperands{}, false, nil
+		}
+		if e.Local {
+			return expr.CaptureOperands{Inline: [2]expr.Expr{e.Value}, Count: 1}, true, nil
+		}
+		return expr.CaptureOperands{Inline: [2]expr.Expr{e.Zone, e.Value}, Count: 2}, true, nil
+	case expr.CaptureLocal:
+		if !e.Local {
+			return expr.CaptureOperands{}, false, nil
+		}
+		return expr.CaptureOperands{Inline: [2]expr.Expr{e.Value}, Count: 1}, true, nil
+	case expr.CaptureTimeZone:
+		if e.Local {
+			return expr.CaptureOperands{}, false, nil
+		}
+		return expr.CaptureOperands{Inline: [2]expr.Expr{e.Value, e.Zone}, Count: 2}, true, nil
+	}
+	return expr.CaptureOperands{}, false, nil
+}

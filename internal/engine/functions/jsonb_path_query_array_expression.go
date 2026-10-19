@@ -122,3 +122,14 @@ func (e JSONBPathQueryArray) Substitute(info expr.Info, children []expr.Expr) (e
 
 // ClosureTransparent implements expr.ClosureTransparent.
 func (e JSONBPathQueryArray) ClosureTransparent() {}
+
+func (e JSONBPathQueryArray) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return captureWritten(e.Args[:], e.WrittenSlots[:], e.WrittenCount, len(e.Args))
+}
+
+func (e JSONBPathQueryArray) CaptureOperand(written int) (expr.Expr, error) {
+	return captureWrittenAt(e.Args[:], e.WrittenSlots[:], e.WrittenCount, len(e.Args), written)
+}

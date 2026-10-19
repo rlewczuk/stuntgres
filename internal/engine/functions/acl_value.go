@@ -350,3 +350,20 @@ func (n ACLValue) Render() (expr.Rendering, error) {
 	spec.Replay.Name = n.Kind.Name()
 	return spec, nil
 }
+
+func (e ACLValue) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction && kind != expr.CaptureOperator {
+		return expr.CaptureOperands{}, false, nil
+	}
+	if int(e.Kind) >= len(aclValueArity) {
+		return captureShape(-1, len(e.Args))
+	}
+	return captureShape(aclValueArity[e.Kind], len(e.Args))
+}
+
+func (e ACLValue) CaptureOperand(written int) (expr.Expr, error) {
+	if int(e.Kind) >= len(aclValueArity) {
+		return nil, fmt.Errorf("invalid capture count")
+	}
+	return captureAt(e.Args[:], aclValueArity[e.Kind], written)
+}

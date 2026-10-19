@@ -126,3 +126,10 @@ func (e VersionInformation) PreflightFold() expr.Preflight { return expr.Preflig
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e VersionInformation) LooksLikeFunction() bool { return true }
+
+func (e VersionInformation) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return expr.CaptureOperands{}, true, e.Validate(expr.PropertiesMatch(e.Property, e.Kind.IntrinsicRule()))
+}

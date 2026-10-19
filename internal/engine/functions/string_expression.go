@@ -540,3 +540,11 @@ func (e String) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, err
 
 // ClosureTransparent implements expr.ClosureTransparent.
 func (e String) ClosureTransparent() {}
+
+func (e String) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction && kind != expr.CaptureOperator {
+		return expr.CaptureOperands{}, false, nil
+	}
+	args := e.Children()
+	return expr.CaptureOperands{Args: args, Count: len(args)}, true, nil
+}

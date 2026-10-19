@@ -223,3 +223,17 @@ func (e SQLJSON) ClosureTransparent() {}
 
 // ClosureTransparent implements expr.ClosureTransparent.
 func (e JSONPredicate) ClosureTransparent() {}
+
+func (e SQLJSON) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureSQLJSON {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return expr.CaptureOperands{Args: e.Args, Count: len(e.Args), JSONSources: true}, true, nil
+}
+
+func (e JSONPredicate) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureJSONPredicate {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return expr.CaptureOperands{Inline: [2]expr.Expr{e.Child}, Count: 1}, true, nil
+}

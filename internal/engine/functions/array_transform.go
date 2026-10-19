@@ -428,3 +428,10 @@ func (e ArrayTransform) Substitute(info expr.Info, children []expr.Expr) (expr.E
 
 // ClosureTransparent implements expr.ClosureTransparent.
 func (e ArrayTransform) ClosureTransparent() {}
+
+func (e ArrayTransform) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction && kind != expr.CaptureOperator {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return expr.CaptureOperands{Args: e.Args, Count: len(e.Args), SelectedImplicit: true}, true, nil
+}

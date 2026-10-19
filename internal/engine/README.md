@@ -5,6 +5,25 @@
 Follow the [shared testing guide](../../docs/TESTING.md) for common policy and
 public/private test placement. Run these commands from the repository root.
 
+Stored literal capture pairs raw normalized preorder with explicitly admitted
+`expr.Capturable` written operands. Engine-owned wrappers run first; structural
+query/clause/target/node/source/row keys, selected-parent argument annotations,
+catalog identities, coercions, SQLJSON RETURNING, constructors and frame ownership
+remain engine responsibilities. Hooks never evaluate or reconstruct definitions.
+Capture validates all operands before any annotation write. Source-aware
+`Check`/`At` reuse the original boxed Capturable; fixed-array nodes use indexed
+access instead of borrowing value-receiver array copies. Safe slices and two
+inline operands retain their existing storage path.
+
+```sh
+make check RUN='^TestViewLiteralProtocol(WrittenOperands|OccurrenceOwnership|Annotations|RejectsMismatch|QueryBoundaries|InstalledWrapper)$'
+make check RUN='^TestCaptureOperands(WrittenSlots|RawKinds|SpecialAnnotations|NoAllocations)$'
+```
+
+The boundary test binds a real nested query/function source and remaps its frozen
+presentation to fresh type descriptors. Existing stored-consumer reference tests
+remain unchanged and require both selected native and real PostgreSQL proof.
+
 Dependency function diagnostics render every validated installed signature using
 canonical builtin type names and the captured diagnostic path for other types,
 without changing regprocedure output or function-name qualification. Internal

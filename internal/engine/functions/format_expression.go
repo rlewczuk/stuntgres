@@ -177,3 +177,11 @@ func (e Format) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, err
 
 // ClosureTransparent implements expr.ClosureTransparent.
 func (e Format) ClosureTransparent() {}
+
+func (e Format) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	args := e.Children()
+	return expr.CaptureOperands{Args: args, Count: len(args)}, true, nil
+}

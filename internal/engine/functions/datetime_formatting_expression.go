@@ -176,3 +176,10 @@ func (e DatetimeFormatting) Substitute(info expr.Info, children []expr.Expr) (ex
 
 // ClosureTransparent implements expr.ClosureTransparent.
 func (e DatetimeFormatting) ClosureTransparent() {}
+
+func (e DatetimeFormatting) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction && kind != expr.CaptureOperator {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return expr.CaptureOperands{Inline: e.Args, Count: len(e.Args)}, true, nil
+}

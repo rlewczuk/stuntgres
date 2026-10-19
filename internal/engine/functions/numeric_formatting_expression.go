@@ -128,3 +128,10 @@ func (e NumericFormatting) Substitute(info expr.Info, children []expr.Expr) (exp
 
 // ClosureTransparent implements expr.ClosureTransparent.
 func (e NumericFormatting) ClosureTransparent() {}
+
+func (e NumericFormatting) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction && kind != expr.CaptureOperator {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return expr.CaptureOperands{Inline: e.Args, Count: len(e.Args)}, true, nil
+}

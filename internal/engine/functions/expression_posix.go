@@ -236,3 +236,21 @@ func (e Posix) ClosureTransparent() {}
 
 // ClosureTransparent implements expr.ClosureTransparent.
 func (e PosixSubstring) ClosureTransparent() {}
+
+func (e Posix) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureOperator {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return expr.CaptureOperands{Inline: [2]expr.Expr{e.Left, e.Right}, Count: 2}, true, nil
+}
+
+func (e PosixSubstring) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return expr.CaptureOperands{Count: len(e.Args), Indexed: true, PosixSubstring: true}, true, nil
+}
+
+func (e PosixSubstring) CaptureOperand(written int) (expr.Expr, error) {
+	return captureAt(e.Args[:], len(e.Args), written)
+}

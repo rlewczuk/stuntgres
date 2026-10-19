@@ -179,3 +179,10 @@ func (e TransactionTime) PreflightFold() expr.Preflight { return expr.PreflightK
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e TransactionTime) LooksLikeFunction() bool { return true }
+
+func (e TransactionTime) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return expr.CaptureOperands{}, true, e.Validate(expr.PropertiesMatch(e.Property, e.Kind.IntrinsicRule()))
+}

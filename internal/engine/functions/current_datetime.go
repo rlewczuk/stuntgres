@@ -126,3 +126,10 @@ func (e CurrentDateTime) PreflightFold() expr.Preflight { return expr.PreflightK
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e CurrentDateTime) LooksLikeFunction() bool { return true }
+
+func (e CurrentDateTime) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureCurrentDateTime {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return expr.CaptureOperands{}, true, nil
+}

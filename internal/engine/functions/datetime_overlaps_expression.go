@@ -395,3 +395,14 @@ func (e DatetimeOverlaps) Substitute(info expr.Info, children []expr.Expr) (expr
 	copy(e.Args[:], children)
 	return e, nil
 }
+
+func (e DatetimeOverlaps) Capture(kind expr.CaptureKind) (expr.CaptureOperands, bool, error) {
+	if kind != expr.CaptureFunction {
+		return expr.CaptureOperands{}, false, nil
+	}
+	return captureShape(len(e.Args), len(e.Args))
+}
+
+func (e DatetimeOverlaps) CaptureOperand(written int) (expr.Expr, error) {
+	return captureAt(e.Args[:], len(e.Args), written)
+}
