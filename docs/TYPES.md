@@ -1430,7 +1430,7 @@ without Docker and with `REFERENCE=1`. See [testing](TESTING.md) for suite polic
 ## UUID generation state
 
 Installed `uuid_generate_v4()` is available only after
-`CREATE EXTENSION "uuid-ossp"` (selected version1.1 member). It shares the
+`CREATE EXTENSION "uuid-ossp"` (selected version1.1 provider). It shares the
 standard-library `crypto/rand` version4 kernel with builtin UUID generation,
 without a clock, counter, seeded SQL random state or cached generated value.
 Version4 and RFC variant masks leave122 random bits. Its non-NULL UUID result
@@ -1440,6 +1440,18 @@ not imply16-byte public binds or a known database/sql Length.
 may still produce typed NULL independently of the zero-argument generator.
 Its genuine installed procedure/schema/owner identity, volatility and symbolic
 recipes survive native controls rather than turning into a builtin alias.
+
+The same provider installs immutable zero-argument `uuid_nil()`, `uuid_ns_dns()`,
+`uuid_ns_url()`, `uuid_ns_oid()` and `uuid_ns_x500()`. Their canonical values
+are respectively `00000000-0000-0000-0000-000000000000`,
+`6ba7b810-9dad-11d1-80b4-00c04fd430c8`,
+`6ba7b811-9dad-11d1-80b4-00c04fd430c8`,
+`6ba7b812-9dad-11d1-80b4-00c04fd430c8` and
+`6ba7b814-9dad-11d1-80b4-00c04fd430c8`. These use ordinary UUID2950 storage,
+comparison and textual string/[]byte binding; nil UUID is not SQL NULL.
+Constants do not demand entropy or session generation state. Generated columns
+and expression indexes accept them, but stored calls retain their installed
+procedure identity/current invoker ACL and symbolic recipes rather than literals.
 
 The version-7 ascending clock belongs to the physical session, not a table,
 statement or transaction. Tie/backward wall time advances its minimum step.

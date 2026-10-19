@@ -41,7 +41,7 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 	}
 	// The installed uuid-ossp routine sat before the shared gates and matched
 	// every spelling; its installed lookup owns exact resolution.
-	for _, name := range []string{"uuid_generate_v4", "UUID_Generate_V4"} {
+	for _, name := range []string{"uuid_generate_v4", "UUID_Generate_V4", "uuid_nil", "UUID_Nil", "uuid_ns_dns", "UUID_NS_DNS", "uuid_ns_url", "UUID_NS_URL", "uuid_ns_oid", "UUID_NS_OID", "uuid_ns_x500", "UUID_NS_X500"} {
 		definition, ok := Lookup(name)
 		if !ok || definition.Bind == nil || definition.ExactSpelling || definition.SharedGates {
 			t.Fatalf("Lookup(%q) = %+v, %v", name, definition.Names, ok)

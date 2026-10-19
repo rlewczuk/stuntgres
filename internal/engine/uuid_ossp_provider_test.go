@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
@@ -43,7 +44,7 @@ func uuidOsspUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
 func TestUUIDOsspProviderIdentity(t *testing.T) {
 	e, ext := uuidOsspUnitInstalled(t)
 	view := e.CatalogRead()
-	if ext.Version != "1.1" || len(ext.Members) != 1 || ext.Namespace() != (ids.ObjectAddress{}) {
+	if ext.Version != "1.1" || len(ext.Members) != 6 || ext.Namespace() != (ids.ObjectAddress{}) {
 		t.Fatal(ext)
 	}
 	address := ext.Members[0]
@@ -62,12 +63,12 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	for _, edge := range edges {
 		if edge.referenced == ext.Address() && edge.deptype == 'e' {
 			count++
-			if edge.dependent != address {
+			if !slices.Contains(ext.Members, edge.dependent) {
 				t.Fatal(edge)
 			}
 		}
 	}
-	if count != 1 {
+	if count != 6 {
 		t.Fatal("membership count", count)
 	}
 	for _, mutate := range []func(*catalog.Procedure){

@@ -15,7 +15,7 @@ func TestReferenceServerCopyCancelTerminal(t *testing.T) {
 		t.Run(b.Name, func(t *testing.T) {
 			dsn := f.DSNFor(b)
 			peer := serverAuthenticated(t, dsn)
-			serverWantCode(t, peer.query(t, "CREATE TABLE server_copy_cancel_terminal(v integer)"), "")
+			serverWantCode(t, peer.query(t, "CREATE TABLE server_copy_cancel_terminal(v integer); INSERT INTO server_copy_cancel_terminal VALUES (99)"), "")
 			w := serverAuthenticated(t, dsn)
 			defer w.Close()
 			serverWantCode(t, w.query(t, "BEGIN"), "")
@@ -26,7 +26,7 @@ func TestReferenceServerCopyCancelTerminal(t *testing.T) {
 			// independent real retirement mechanisms, not a native SQL-provider
 			// claim: PostgreSQL terminates one backend; native stops its whole
 			// actual process through the existing fixture control.
-			serverScalar(t, peer, "SELECT count(*) FROM server_copy_cancel_terminal", "0")
+			serverScalar(t, peer, "SELECT v FROM server_copy_cancel_terminal", "99")
 			if b.PG {
 				var terminated bool
 				if err := f.RawPool(t, b).QueryRowContext(f.Ctx, "SELECT pg_terminate_backend($1)", w.pid).Scan(&terminated); err != nil || !terminated {
@@ -59,16 +59,17 @@ func TestReferenceServerCopyCancelTerminal(t *testing.T) {
 			if !b.PG {
 				// Native uses whole-process Stop/Dump and genuine Restore,
 				// stronger than PostgreSQL's per-backend termination boundary.
-				// The original committed table must survive with no COPY rows.
+				// The original committed row must survive with no COPY rows.
 				f.Restart(t, true)
 				dsn = f.DSNFor(b)
 				peer = serverAuthenticated(t, dsn)
 			}
 			serverWantCode(t, peer.query(t, "SET lock_timeout='1000ms'"), "")
 			serverWantCode(t, peer.query(t, "BEGIN; LOCK TABLE server_copy_cancel_terminal IN ACCESS EXCLUSIVE MODE; ROLLBACK"), "")
-			serverScalar(t, peer, "SELECT count(*) FROM server_copy_cancel_terminal", "0")
+			serverScalar(t, peer, "SELECT v FROM server_copy_cancel_terminal", "99")
 			fresh := serverAuthenticated(t, dsn)
 			serverScalar(t, fresh, "SELECT 42", "42")
+			serverScalar(t, fresh, "SELECT v FROM server_copy_cancel_terminal", "99")
 		})
 	}
 }

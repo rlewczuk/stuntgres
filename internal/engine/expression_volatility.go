@@ -142,7 +142,7 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 	case installedLevenshteinFunctionExpression:
 		return children(n.Args...)
 	case installedUUIDOsspFunctionExpression:
-		return expr.Volatile
+		return n.procedure.Volatility
 	case installedCryptoFunctionExpression:
 		return merge(n.procedure.Volatility, children(n.Args...))
 	case installedFunctionExpression:

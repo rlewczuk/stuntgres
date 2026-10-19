@@ -100,7 +100,15 @@ func (c *copyBinaryCursor) Next(ctx context.Context, dst []sqltype.Value) (bool,
 		ctx = c.scope.op.Context()
 	}
 	if err := ctx.Err(); err != nil {
-		return false, c.diagnostic(err)
+		if c.header && c.scope.op.copyInput.held() && pendingProtocolUserCancel(ctx) {
+			// Refresh a context captured just before user cancellation only
+			// after binary startup has admitted the row-decoding phase.
+			ctx = c.scope.op.Context()
+			err = ctx.Err()
+		}
+		if err != nil {
+			return false, c.diagnostic(err)
+		}
 	}
 	if c.ended {
 		return false, nil

@@ -276,7 +276,16 @@ func (c *copyCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error
 		ctx = c.scope.op.Context()
 	}
 	if err := ctx.Err(); err != nil {
-		return false, c.diagnostic(err)
+		if c.scope.op.copyInput.held() && pendingProtocolUserCancel(ctx) {
+			// User cancellation may arrive after Context selected its live
+			// standard context. Refresh only the admitted decoder's view;
+			// its owner retains deadlines, terminal and source authority.
+			ctx = c.scope.op.Context()
+			err = ctx.Err()
+		}
+		if err != nil {
+			return false, c.diagnostic(err)
+		}
 	}
 	if !c.headerDone {
 		c.headerDone = true

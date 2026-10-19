@@ -328,8 +328,8 @@ func serverCancel(t *testing.T, dsn string, pid uint32, key []byte) {
 	if _, e = c.Write(b); e != nil {
 		t.Fatal(e)
 	}
-	// EOF acknowledges server-side handling, fencing this request from later
-	// commands on the target connection. CancelRequest has no response payload.
+	// EOF acknowledges handling of the cancellation connection, not delivery
+	// or observation by the target executor. CancelRequest has no response payload.
 	if e = c.SetReadDeadline(time.Now().Add(5 * time.Second)); e != nil {
 		t.Fatal(e)
 	}

@@ -799,7 +799,7 @@ func conditionalConstantInputs(node expr.Expr) bool {
 		}
 		return true
 	case installedUUIDOsspFunctionExpression:
-		return false
+		return e.procedure != nil && e.procedure.Volatility == expr.Immutable
 	case installedCryptoFunctionExpression:
 		for _, arg := range e.Args {
 			if !literal(arg) {

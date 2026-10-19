@@ -223,8 +223,7 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 func pgIndexFunctionExpression(node expr.Expr) bool {
 	switch n := node.(type) {
 	case installedUUIDOsspFunctionExpression:
-		// The wrapper embeds a UUIDGeneration but has kept the default.
-		return false
+		return true
 	case unnestExpression:
 		return false
 	case indexPropertyExpression:

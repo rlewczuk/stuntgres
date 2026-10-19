@@ -772,10 +772,10 @@ make check RUN='^TestReferencePGAggregate(Lifecycle|Prepared)$' RACE=1
 
 `TestReferenceUUIDOsspGeneration`, `Identity`, `Diagnostics`, `Consumers`,
 `Controls`, `GroupedControls` and `FeatureSmoke` share public direct/held
-scenarios across native and pinned PostgreSQL18.0. Native installs only
-uuid_generate_v4(), version1.1;
-upstream's additional generators/constants are not fabricated. Independent
-canonical decoding checks non-NULL values, version4 and RFC variant bits,
+scenarios across native and PostgreSQL (historical version4 evidence:18.0).
+Native installs six selected members, version1.1: uuid_generate_v4() plus the
+five constants described below; additional upstream generators remain excluded.
+Independent canonical decoding checks non-NULL values, version4 and RFC variant bits,
 while transport metadata is checked before iteration, including empty results.
 Bounded distinctness is a freshness witness, not proof of cryptographic security.
 Production uses the shared standard-library crypto/rand kernel.
@@ -823,6 +823,49 @@ direct/held/default/view generation, UUID metadata, exact NULL-overload failure
 and native control reconstruction. The complementary
 [binary smoke](../dml/README.md#installed-uuid-ossp-binary-copy) exports and
 reimports the same saved generated UUID, not a different random call.
+
+### Installed uuid-ossp namespace constants
+
+`TestReferenceUUIDOsspNamespaceValues`, `Bindings`, `Identity`, `Diagnostics`,
+`Authority`, `Consumers`, `Controls` and `FeatureSmoke` independently specify the
+five RFC9562 constants and released PostgreSQL18.6 declarations. Oracle-first
+discovery on the pinned18.6 fixture established their complete diagnostics,
+computed UUID metadata and immutable EXECUTE behavior before native implementation.
+
+| Function | Canonical UUID |
+|---|---|
+| uuid_nil | 00000000-0000-0000-0000-000000000000 |
+| uuid_ns_dns | 6ba7b810-9dad-11d1-80b4-00c04fd430c8 |
+| uuid_ns_url | 6ba7b811-9dad-11d1-80b4-00c04fd430c8 |
+| uuid_ns_oid | 6ba7b812-9dad-11d1-80b4-00c04fd430c8 |
+| uuid_ns_x500 | 6ba7b814-9dad-11d1-80b4-00c04fd430c8 |
+
+All five are zero-argument UUID IMMUTABLE STRICT PARALLEL SAFE functions, not
+builtins or SQL NULL. Tests cover direct/fresh/repeated held calls, raw UUID
+metadata before populated and empty iteration, declared storage, textual binds,
+NULL propagation, extension/schema/member identities and wrong-overload errors.
+Current-invoker EXECUTE remains required for held calls, views and defaults;
+revoked late defaults publish no partial writes. Immutable generated/index and
+grouped expressions are admitted without converting installed recipes to literals.
+Native-only phases preserve values/NULL, retained rows/metadata, held statements,
+six-member owner recipes and independent-driver replay with atomic failed/canceled
+Restore. Existing V4 freshness and volatile-consumer rejection remain unchanged.
+
+Run each selected command with a900-second external deadline:
+
+```sh
+make check RUN='^TestReferenceUUIDOsspNamespace(Values|Bindings|Identity|Diagnostics|Authority|Consumers|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceUUIDOsspNamespace(Values|Bindings|Identity|Diagnostics|Authority|Consumers|Controls|FeatureSmoke)$'
+make check RUN='^TestUUIDOsspNamespace(Constants|ExpressionIdentity|Manifest|Collision)$'
+make check RACE=1 RUN='^TestUUIDOsspNamespace(Constants|ExpressionIdentity|Manifest|Collision)$'
+```
+
+The permanent shared-body smoke is `TestReferenceUUIDOsspNamespaceFeatureSmoke`.
+The catalog part additionally supplies a standalone public-API Go smoke as a
+session artifact; materialize it at `/tmp/uuid-namespace-smoke.go` and run
+`go run /tmp/uuid-namespace-smoke.go` from the repository root, then remove that
+temporary source. Successful smoke is silent and failures exit nonzero.
+
 
 ### pg_language selected proof
 

@@ -243,7 +243,7 @@ func generationImmutable(node expr.Expr) bool {
 	case installedLevenshteinFunctionExpression:
 		return args(n.Args)
 	case installedUUIDOsspFunctionExpression:
-		return false
+		return n.procedure != nil && n.procedure.Volatility == expr.Immutable
 	case installedCryptoFunctionExpression:
 		return n.procedure != nil && n.procedure.Volatility == expr.Immutable && args(n.Args)
 	case installedFunctionExpression:

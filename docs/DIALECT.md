@@ -1467,8 +1467,9 @@ See [PostgreSQL raw encryption](https://www.postgresql.org/docs/18/pgcrypto.html
 
 ## Installed uuid-ossp version 4
 
-The uuid-ossp1.1 provider installs exactly one native member:
-`uuid_generate_v4() RETURNS uuid`. Use quoted `CREATE EXTENSION "uuid-ossp"`
+The uuid-ossp1.1 provider installs exactly six native members returning UUID:
+`uuid_generate_v4()` and `uuid_nil()`, `uuid_ns_dns()`, `uuid_ns_url()`,
+`uuid_ns_oid()`, `uuid_ns_x500()`. Use quoted `CREATE EXTENSION "uuid-ossp"`
 with an optional installation schema. Installation uses the existing trusted
 extension/database-CREATE authority: the installer owns the extension, while
 superuser-required members installed by a nonsuperuser belong to the bootstrap
@@ -1487,8 +1488,18 @@ fails ordinary overload resolution rather than returning NULL.
 Closed defaults and views retain fresh demand-time generation and actual
 qualified installed recipes through Dump/Reset/Restore; stored UUID data is
 preserved exactly. Generated columns/expression indexes reject the volatility.
-Other uuid-ossp generators, namespaces/constants, and arbitrary shared-library
-loading remain excluded; PostgreSQL's complete upstream inventory is larger.
+The five constants are IMMUTABLE STRICT PARALLEL SAFE, with no entropy, clock or
+generation-state demand. Their values are respectively
+`00000000-0000-0000-0000-000000000000`,
+`6ba7b810-9dad-11d1-80b4-00c04fd430c8`,
+`6ba7b811-9dad-11d1-80b4-00c04fd430c8`,
+`6ba7b812-9dad-11d1-80b4-00c04fd430c8`, and
+`6ba7b814-9dad-11d1-80b4-00c04fd430c8`. Nil UUID is an ordinary non-NULL UUID.
+They support generated columns and expression indexes while preserving genuine
+installed identity, current EXECUTE checks and symbolic qualified control recipes.
+All six overloads have zero arguments; passing NULL is a missing overload.
+Other uuid-ossp generators and arbitrary shared-library loading remain excluded;
+PostgreSQL's complete upstream inventory is larger.
 
 ## query_int extension type
 

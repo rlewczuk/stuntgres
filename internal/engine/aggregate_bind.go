@@ -980,7 +980,7 @@ func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 			walk(arg)
 		}
 	case installedUUIDOsspFunctionExpression:
-		// Installed random generation is a zero-child leaf.
+		// Installed UUID generators and constants are zero-child leaves.
 	case installedCryptoFunctionExpression:
 		for _, arg := range e.Args {
 			walk(arg)

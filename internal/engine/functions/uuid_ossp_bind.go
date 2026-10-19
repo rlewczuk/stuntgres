@@ -6,9 +6,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// bindUUIDOssp binds uuid-ossp's installed uuid_generate_v4. It sat before the
-// engine's shared gates, so it owns labels and decorations. The engine
-// resolves and owns the installed procedure; the call shares the v4 kernel.
+// bindUUIDOssp owns labels and decorations before the shared gates. Installed
+// procedure authority remains with the engine, not the shared UUID kernel.
 func bindUUIDOssp(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	var names []string
 	if len(raw.Args) <= 100 {
@@ -46,7 +45,8 @@ func bindUUIDOssp(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if err := CallDecorationError(raw); err != nil {
 		return nil, err
 	}
-	call, err := NewUUIDGeneration(b.Info(b.Type(sqltype.UUID).Usage(), raw.Pos, expr.Properties{Volatility: expr.Volatile}), "uuidv4", nil, nil)
+	selector, volatility, _ := UUIDOsspLookup(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
+	call, err := NewUUIDGeneration(b.Info(b.Type(sqltype.UUID).Usage(), raw.Pos, expr.Properties{Volatility: volatility}), selector, nil, nil)
 	if err != nil {
 		return nil, err
 	}

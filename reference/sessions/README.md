@@ -553,23 +553,53 @@ and existing-destination skips, no producer demand, named sibling preservation
 and separate error/commit publication arms.
 
 CopyCancelInput observes complete real input and preserves conversion precedence:
-invalid input remains primary22P02 despite pending user cancellation; valid split
-input raises57014 with its actual consumed-record context before CopyDone.
+invalid input, including a record split across CopyData packets, remains
+primary22P02 despite pending user cancellation; valid split input raises57014
+with its actual consumed-record context before CopyDone. Full logical diagnostic
+fields, failed transaction state, same-session rollback/recovery and the unchanged
+committed sentinel row are checked independently.
 The first-record hold is installed before CopyInResponse can be flushed, closing
 the start-hook cancellation gap without weakening the exact context assertions.
-`TestProtocolCopyStartCancellation` deterministically covers that boundary;
-selected proof is `make check RUN='^TestProtocolCopyStartCancellation$'` and
+Native wire FROM establishes protected receive ownership before G publication
+after healthy admission, including binary input. This native handoff policy does
+not claim PostgreSQL G universally equals ClientRead admission; the PostgreSQL
+arm still observes its actual read wait. G alone is not asserted to acknowledge
+PostgreSQL's later pre-row interrupt checkpoint.
+`TestProtocolCopyStartCancellation` and the complementary
+`TestProtocolCopyStartCancellationAuthority` regression cover the Start boundary;
+selected proof is `make check RUN='^TestProtocolCopyStartCancellation(Authority)?$'` and
 the same command with `RACE=1`.
-Native G publication occurs within that caller-owned input hold; PostgreSQL is
-instead observed in its actual active ClientRead wait. G alone is
-not asserted to acknowledge PostgreSQL's later pre-row interrupt checkpoint.
 The input witness retries short socket-read waits under the fixture's outer
 safety context, retaining partial frame bytes rather than restarting framing.
 Elapsed time and cancellation-connection EOF never stand in for executor entry.
+
+CopyBinaryInputAtomicity independently checks the binary receiver boundary:
+a valid first row followed by an overlong int4 payload, complete or split across
+CopyData packets, requires22P03 with full line2/column diagnostics before any
+binary trailer or CopyDone. Neither the valid prefix nor a successful completion
+may publish; failed-transaction state, sentinel99 and same-session recovery remain
+required.
+This deterministic wire witness does not claim native binary row-cancellation
+admission: neither G nor header-send completion proves it. Exact admitted binary
+row cancellation is covered by the private cursor owner regression; the decoder's
+captured-context refresh remains gated on an already accepted binary header,
+separately from the inherited pre-Start ownership. PostgreSQL startup/row-phase
+cancellation observations remain separate oracle evidence.
+
+```sh
+make check RUN='^TestReferenceServerCopyBinaryInputAtomicity$'
+make check REFERENCE=1 RUN='^TestReferenceServerCopyBinaryInputAtomicity$'
+```
+
 CopyCancelTerminal uses PostgreSQL's real administrator backend termination;
 native instead stops its whole actual process through the public CLI and restores
-the original committed table. Their FATAL/EOF versus EOF expectations are
+the original committed sentinel row. Their FATAL/EOF versus EOF expectations are
 independent host-control boundaries, not a native SQL termination provider.
+Neither path permits a COPY completion or ReadyForQuery after retirement.
+CancelRequest-connection EOF acknowledges that connection's handling, not target
+executor admission or interrupt observation; the target's actual error/retirement
+frames remain required. PostgreSQL additionally exposes its ClientRead wait;
+native does not promise an equivalent SQL observer.
 
 PreparedCopy covers SQL EXECUTE of wire-created COPY and extended EXECUTE
 wrappers across FROM/TO and all three formats, terminal failure atomicity,

@@ -18,7 +18,7 @@ func TestReferenceServerCopyCancelInput(t *testing.T) {
 		t.Run(b.Name, func(t *testing.T) {
 			dsn := f.DSNFor(b)
 			peer := serverAuthenticated(t, dsn)
-			serverWantCode(t, peer.query(t, "CREATE TABLE server_copy_cancel_input(v integer)"), "")
+			serverWantCode(t, peer.query(t, "CREATE TABLE server_copy_cancel_input(v integer); INSERT INTO server_copy_cancel_input VALUES (99)"), "")
 			for _, c := range []struct {
 				name, code, message, context string
 				chunks                       [][]byte
@@ -32,6 +32,12 @@ func TestReferenceServerCopyCancelInput(t *testing.T) {
 				{
 					name:   "invalid_record",
 					chunks: [][]byte{[]byte("bad\n")},
+					code:   "22P02", message: "invalid input syntax for type integer: \"bad\"",
+					context: "COPY server_copy_cancel_input, line 1, column v: \"bad\"",
+				},
+				{
+					name:   "invalid_split_record",
+					chunks: [][]byte{[]byte("ba"), []byte("d\n")},
 					code:   "22P02", message: "invalid input syntax for type integer: \"bad\"",
 					context: "COPY server_copy_cancel_input, line 1, column v: \"bad\"",
 				},
@@ -69,10 +75,10 @@ func TestReferenceServerCopyCancelInput(t *testing.T) {
 					serverWantTags(t, frames, "EZ")
 					serverWantReady(t, frames, 'E')
 					serverWantCompletions(t, frames)
-					serverScalar(t, peer, "SELECT count(*) FROM server_copy_cancel_input", "0")
+					serverScalar(t, peer, "SELECT v FROM server_copy_cancel_input", "99")
 					serverWantCode(t, w.query(t, "ROLLBACK"), "")
 					serverScalar(t, w, "SELECT 42", "42")
-					serverScalar(t, peer, "SELECT count(*) FROM server_copy_cancel_input", "0")
+					serverScalar(t, peer, "SELECT v FROM server_copy_cancel_input", "99")
 				})
 			}
 		})

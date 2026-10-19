@@ -111,6 +111,9 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 
 func TestUUIDOsspControls(t *testing.T) {
 	record := extensionOwnerRecord{Name: "uuid-ossp", Schema: "public", Version: "1.1", Owner: "installer", Members: []extensionMemberOwner{{Kind: "procedure", Name: "uuid_generate_v4", Signature: "", Owner: "postgres"}}}
+	for _, name := range []string{"uuid_nil", "uuid_ns_dns", "uuid_ns_url", "uuid_ns_oid", "uuid_ns_x500"} {
+		record.Members = append(record.Members, extensionMemberOwner{Kind: "procedure", Name: name, Signature: "", Owner: "postgres"})
+	}
 	encode := func(r extensionOwnerRecord) string {
 		data, err := json.Marshal(r)
 		if err != nil {
@@ -301,6 +304,13 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{
 		ext.Address(): {ClassID: ids.ExtensionClassID, ObjectID: 900000},
 		n.ref.Address: {ClassID: ids.ProcedureClassID, ObjectID: 900001},
+	}
+	next := mapping[n.ref.Address].ObjectID + 1
+	for _, address := range ext.Members {
+		if address != n.ref.Address {
+			mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: next}
+			next++
+		}
 	}
 	state := catalog.CloneState(evaluation.catalog.State())
 	for address := range mapping {

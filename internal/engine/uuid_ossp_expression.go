@@ -10,8 +10,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// The embedded name selects the shared v4 kernel only. SQL authority and stored
-// recipes always use the captured installed procedure, never a builtin alias.
+// The embedded selector shares UUID kernels; SQL authority and stored recipes
+// always use the captured installed procedure, never a builtin alias or literal.
 type installedUUIDOsspFunctionExpression struct {
 	functions.UUIDGeneration
 	procedure *catalog.Procedure
@@ -34,7 +34,11 @@ func (n installedUUIDOsspFunctionExpression) validShape() bool {
 	// Group rewriting adds execution-stage dependence to a valid leaf.
 	// DEFAULT closure separately rejects that dependence before shape checks.
 	properties.StageDependent = false
-	return n.procedure != nil && n.RoutineReference == n.procedure && uuidOsspProviderOf(n.procedure) == stockUUIDOssp && n.ref.Address == n.procedure.Address() && n.ref.Epoch != 0 && n.Name == "uuidv4" && len(n.Args) == 0 && n.Timestamp == nil && n.Addition == (sqltype.Arithmetic{}) && n.ResultUsage().Type != nil && n.ResultUsage().Type.ID() == sqltype.UUID && n.ResultUsage().Valid() && properties == (expr.Properties{Volatility: expr.Volatile})
+	if n.procedure == nil {
+		return false
+	}
+	selector, volatility, selected := functions.UUIDOsspLookup(n.procedure.Name())
+	return selected && n.RoutineReference == n.procedure && uuidOsspProviderOf(n.procedure) == stockUUIDOssp && n.ref.Address == n.procedure.Address() && n.ref.Epoch != 0 && n.Name == selector && len(n.Args) == 0 && n.Timestamp == nil && n.Addition == (sqltype.Arithmetic{}) && n.ResultUsage().Type != nil && n.ResultUsage().Type.ID() == sqltype.UUID && n.ResultUsage().Valid() && properties == (expr.Properties{Volatility: volatility})
 }
 
 func (n installedUUIDOsspFunctionExpression) validate(v catalog.Read) error {

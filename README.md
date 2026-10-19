@@ -395,21 +395,33 @@ See [native contract](docs/DIALECT.md#pg_range-supported-range-metadata) and
 
 ## Installed UUID version 4 — change note
 
-`CREATE EXTENSION "uuid-ossp"` installs the selected zero-argument
-`uuid_generate_v4() RETURNS uuid` overload, version1.1. It uses Go's
+`CREATE EXTENSION "uuid-ossp"` installs six zero-argument `RETURNS uuid`
+members, version1.1: `uuid_generate_v4()` and the five immutable constants below.
+The generator uses Go's
 `crypto/rand` source and the shared UUID codec to return non-NULL random
 version4/RFC-variant values. The function is VOLATILE: held calls, row defaults
 and views demand fresh values; generated columns and expression indexes reject it.
 Schema visibility and real installed procedure identities survive native
 Dump/Reset/Restore, including grouped views projecting UUID calls beside
 aggregates. Legitimate group-stage metadata is retained without relaxing closed
-DEFAULT restrictions. Other upstream uuid-ossp generators/constants are not installed.
+DEFAULT restrictions. Other upstream uuid-ossp generators are not installed.
 Its installed identity also participates in current-invoker EXECUTE grants:
 held calls, views and demanded DEFAULT writes deny after revocation, without
 borrowing a table/view owner's function authority or publishing partial writes.
 Canonical text remains distinct from the16-byte binary COPY/wire UUID encoding;
 the extension adds no separate embedded binary-bind API. See the
 [contract and feature smoke](reference/catalogs/README.md#installed-uuid-ossp-version-4).
+
+The IMMUTABLE STRICT PARALLEL SAFE constants are `uuid_nil()` =
+`00000000-0000-0000-0000-000000000000`, `uuid_ns_dns()` =
+`6ba7b810-9dad-11d1-80b4-00c04fd430c8`, `uuid_ns_url()` =
+`6ba7b811-9dad-11d1-80b4-00c04fd430c8`, `uuid_ns_oid()` =
+`6ba7b812-9dad-11d1-80b4-00c04fd430c8`, and `uuid_ns_x500()` =
+`6ba7b814-9dad-11d1-80b4-00c04fd430c8`. Nil UUID is not SQL NULL.
+These installed calls retain current-invoker EXECUTE authority and qualified
+symbolic recipes through controls; immutable generated columns and expression
+indexes accept them. Ordinary UUID storage, textual bindings and NULL semantics
+are unchanged. None accepts a NULL argument or any other argument.
 
 ## Language catalog — change note
 

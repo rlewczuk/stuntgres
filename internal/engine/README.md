@@ -54,6 +54,7 @@ make check RUN='^(TestCatalogDrop(PublicationAndRetainedReads|ReferenceAndConfli
 make check RACE=1 RUN='^(TestExtensionDropPublication(Candidate)?|TestPGDependDomainCheckDependencies|TestReferenceExtensionDropTransactions|TestReferenceExtensionTransactions)$'
 ```
 
+### Relation lock timeout mechanics
 
 Relation-lock timeout units observe completion and lock state together in short
 repeated checks; a short SQL timeout need not remain queued until the parent is
@@ -66,10 +67,19 @@ The canonical per-acquisition proof lives in
 It retains two successful grants across modeled cumulative waits, independently
 brackets each fresh deadline and verifies expiry at a later request's own bound.
 
+`TestRelationLockWaitsTimeoutCleanup` complements that canonical budget proof
+with one real 200ms request expired at its own deadline. Exact55P03 and retired
+callbacks are required even if its real timer already won. Before holder release,
+it checks the unchanged exclusive holder, empty pending queue and removed waiter
+journal entry; after release, the same ticket must acquire untimed successfully.
+Complete teardown must leave no lock state.
+
 ```sh
-make check RUN='^TestRelationLockWaits(Timeout|TimeoutPerAcquisition|Fairness)$'
-make check RUN='^TestRelationLockWaits(Timeout|TimeoutPerAcquisition|Fairness)$' RACE=1
+make check RUN='^TestRelationLockWaits(Timeout|TimeoutPerAcquisition|TimeoutCleanup|Fairness)$'
+make check RUN='^TestRelationLockWaits(Timeout|TimeoutPerAcquisition|TimeoutCleanup|Fairness)$' RACE=1
 ```
+
+### Other engine invariants
 
 Caller-interruption and row-view units observe the actual queued request before
 triggering a controlled caller deadline. Untimed waits and delayed-callback
@@ -393,8 +403,14 @@ A missing provider therefore emits the response and its genuine diagnostic, not
 binary data or successful completion. Domains delegate to their base provider;
 generic array send does not eagerly initialize its members' providers.
 
-Already-pending typed wire user cancellation is deferred only through genuine
-COPY decoding/conversion. The operation selects an actual standard input context
+Typed wire user cancellation is deferred only through genuine COPY receive
+ownership and decoding/conversion. For native wire FROM, including binary input,
+healthy admission establishes that owner before publishing CopyInResponse and
+carries it through the unlocked Start return fence into the first decoder.
+Pre-canceled admission still rejects before Start; callback errors and
+owner/catalog fences remain authoritative. Embedded COPY and COPY OUT are
+unchanged.
+The operation selects an actual standard input context
 without replacing its original/source context. Only after that cancellation is
 pending does the lazy view detach its cancellation key and re-project the exact
 captured absolute deadline; no budget is restarted. Required codec conversion
@@ -409,6 +425,16 @@ Cleanup covers failed Start, failed resume validation, decoder exit and panics
 after ownership begins. `TestProtocolCopyInputStartOwnership` cancels inside the
 actual callback without timing, covering valid/invalid input, embedded
 cancellation, pre-start cancellation, failed publication and ownership cleanup.
+
+At text-decoder entry and binary row-decoder entry after header initialization,
+a typed user cancel arriving just after selection of a live context causes a
+refresh through that same held input owner, followed by another cancellation
+check. This decoder refresh does not alter the caller's pre-Start ownership.
+This does not bypass an ordinary, terminal or deadline error, change source
+cancellation, or promise that CopyInResponse alone establishes socket-read
+admission. The complete record
+still determines conversion errors; successful conversion must still observe
+the pending-cancel veto.
 
 `Session.EndRequested` lazily observes canonical ending before lease cleanup,
 without acquiring a lease or changing `WaitEnd`. Session ending directly cancels
@@ -436,6 +462,29 @@ make check RUN='^TestSessionTimeout(Admission|RetiredAdmission|CanceledAdmission
 ```
 
 Private mechanisms supplement the real socket tests:
+
+`TestProtocolCopyCursorCapturedCancellation` and
+`TestProtocolCopyBinaryCursorCapturedCancellation` deterministically schedule
+genuine source cancellation between input-context selection and the cursor's
+first cancellation check. Real text/binary parsing and integer conversion
+distinguish invalid input precedence from successful conversion's pending-cancel
+veto; ordinary and terminal cancellation retain their own authority. Selected
+owner-seam proof:
+
+```sh
+make check RUN='^TestProtocolCopy(Binary)?CursorCapturedCancellation$'
+```
+
+`TestProtocolCopyStartCancellation` retains the canonical simple/extended
+valid/invalid first-record handoff proof. Its complementary
+`TestProtocolCopyStartCancellationAuthority` checks pre-canceled admission,
+ordinary/FATAL causes and primary callback failures without consuming input.
+Both use actual COPY Start callbacks; neither infers a socket-read observer
+or PostgreSQL admission equivalence.
+
+```sh
+make check RUN='^TestProtocolCopyStartCancellation(Authority)?$'
+```
 
 - `TestProtocolPreparedRegistry`: exact-session retirement and independently
   retained portal recipes.

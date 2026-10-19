@@ -222,3 +222,40 @@ func TestRelationLockWaitsTimeout(t *testing.T) {
 		}
 	}
 }
+
+func TestRelationLockWaitsTimeoutCleanup(t *testing.T) {
+	e := New()
+	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
+	sessionSQL(t, a, "CREATE TABLE t(v INT)")
+	ra, rb := transactionBegin(t, a), transactionBegin(t, b)
+	ref := catalogRef(t, e, e.CatalogRead(), "t")
+	resource := lock.Resource{ObjectRef: ref}
+	if err := e.locks.Acquire(context.Background(), a.transactions.ticket, resource, lock.AccessExclusive); err != nil {
+		t.Fatal(err)
+	}
+	r, err := e.locks.StartAcquire(context.Background(), b.transactions.ticket, resource, lock.AccessShare, lock.Policy{Timeout: 200 * time.Millisecond})
+	if err != nil || r == nil {
+		t.Fatal("timeout request did not queue", err)
+	}
+	// Use the actual request deadline. A real timer that already won must
+	// still yield the exact timeout and retire the same registrations.
+	e.locks.ExpireWait(r, r.Deadline())
+	waitsDiagnostic(t, r.Wait(), "55P03", "canceling statement due to lock timeout")
+	if !r.Released() {
+		t.Fatal("timed-out acquisition retained timer or context callback")
+	}
+	lockState := e.locks.Inspect(b.transactions.ticket)
+	entry := lockState.Resources[resource]
+	if entry == nil || len(entry.Pending) != 0 || len(entry.Holders) != 1 || entry.Holders[a.transactions.ticket].Mode != lock.AccessExclusive {
+		t.Fatal("timeout changed holder or retained waiter")
+	}
+	if _, retained := lockState.Journals[b.transactions.ticket][resource]; retained {
+		t.Fatal("timeout retained resource in waiter journal")
+	}
+	transactionEnd(t, a, ra, false)
+	if request, err := e.locks.StartAcquire(context.Background(), b.transactions.ticket, resource, lock.AccessShare, lock.Policy{}); err != nil || request != nil {
+		t.Fatalf("same-ticket recovery acquisition: request=%v err=%v", request, err)
+	}
+	transactionEnd(t, b, rb, false)
+	lockEmpty(t, e)
+}
