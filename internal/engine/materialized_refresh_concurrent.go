@@ -266,10 +266,6 @@ func materializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 	return effective, nil
 }
 
-// Metadata tokens are accessed only under Engine.mu. They retain no storage
-// or row vector; a nonconcurrent rewrite/control replacement breaks provenance.
-type materializedLineage struct{ marker byte }
-
 func sameMaterializedLineage(old, current *catalog.Relation, a, b *relationStorage) bool {
 	return old != nil && current != nil && old.RelationKind == catalog.MaterializedViewRelation && current.RelationKind == catalog.MaterializedViewRelation && old.Populated && current.Populated && a != nil && b != nil && a.MaterializedLineage != nil && a.MaterializedLineage == b.MaterializedLineage && relationDefiningAuthorityCompatible(old, current)
 }

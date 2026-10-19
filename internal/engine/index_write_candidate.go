@@ -80,15 +80,6 @@ func (b indexWriteBatch) slice(first, last int) indexWriteBatch {
 	return b
 }
 
-// This is an already produced index membership/key, not a CHECK result. Only
-// immutable descriptor authority and physical index data cross publication.
-type indexRowOutput struct {
-	Index  *catalog.Relation
-	Member bool
-	Keys   []sqltype.Value
-	Key    sqltype.Value // Hash indexes retain one scalar, not a one-element slice.
-}
-
 func indexOutputMatches(r indexRowOutput, index *catalog.Relation) bool {
 	return r.Index != nil && sameIndexKeySemantics(r.Index, index)
 }

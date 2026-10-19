@@ -10,11 +10,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type sequenceGenerator struct {
-	Last       int64
-	Called     bool
-	Generation ids.DefinitionRevision
-}
 type sequenceMemory struct {
 	value      int64
 	valid      bool

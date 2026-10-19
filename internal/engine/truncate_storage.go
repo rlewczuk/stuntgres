@@ -8,17 +8,6 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// Nonzero-size tokens identify only uninterrupted TRUNCATE incarnations.
-// Engine.mu protects predecessor stamping and all token comparisons. Tokens
-// retain neither old storage nor row vectors; ordinary replacements break them.
-type truncateLineage struct{ marker byte }
-
-// SameTruncateLineage reports whether a and b are incarnations of one
-// uninterrupted TRUNCATE lineage. Either may be nil.
-func (a *relationStorage) SameTruncateLineage(b *relationStorage) bool {
-	return a != nil && b != nil && a.TruncateLineage != nil && a.TruncateLineage == b.TruncateLineage
-}
-
 type truncateName struct {
 	name      parser.ObjectName
 	ref       ids.ObjectRef

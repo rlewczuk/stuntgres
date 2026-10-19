@@ -23,21 +23,6 @@ func domainOf(e *Engine) *ids.Domain {
 	return e.catalog.Domain
 }
 
-// One immutable physical head per logical row, plus immutable end markers.
-// Published vectors/end roots are retained by views; generation guards either.
-type relationStorage struct {
-	Versions    []rowVersion
-	Ends        *deletionRoot
-	Generation  uint64
-	IndexSource *relationStorage // Origin only on detached index-build captures.
-	// Metadata only, accessed under Engine.mu. Rows/end vectors are never
-	// changed when this first committed TRUNCATE stamps its predecessor.
-	TruncateLineage *truncateLineage
-	// Successful concurrent MV publication stamps both incarnations atomically.
-	// It does not share TRUNCATE's current-root/birth-filter semantics.
-	MaterializedLineage *materializedLineage
-}
-
 type relationProvider struct{}
 
 func (relationProvider) ClassID() ids.OID { return ids.RelationClassID }

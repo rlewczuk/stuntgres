@@ -15,18 +15,6 @@ import (
 	"unicode/utf8"
 )
 
-type logicalIndexEntry struct {
-	Keys     []sqltype.Value
-	Row      ids.RowID
-	Version  ids.VersionID
-	Position int // Physical slot in the simultaneously published immutable storage.
-}
-type logicalIndexRoot struct {
-	Entries    []logicalIndexEntry // Ordered B-tree keys or unordered logical GiST membership.
-	Hash       *hashIndexRoot
-	Membership map[ids.RowID]ids.VersionID // Immutable; partial roots only.
-	RowEntries map[ids.RowID]int           // Entry ordinals, only checked unique/exclusion expression keys.
-}
 type indexOrdering struct {
 	slots       []int
 	comparisons []sqltype.IndexComparison

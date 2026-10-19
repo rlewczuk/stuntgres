@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/catalog"
@@ -24,15 +23,6 @@ func bindIndexProvider(parent *catalog.Relation, d *catalog.IndexDefinition) err
 	default:
 		return fmt.Errorf("stuntgres: invalid index method")
 	}
-}
-
-type hashIndexBinding struct {
-	Slot       int
-	Expression expr.Expr
-	Derived    *catalog.DerivedIndexKey
-	Usage      sqltype.Usage
-	Class      sqltype.IndexClass
-	Provider   sqltype.IndexHash
 }
 
 func bindHashIndex(parent *catalog.Relation, d *catalog.IndexDefinition) (hashIndexBinding, error) {
@@ -83,31 +73,6 @@ func extractIndexKey(slot int, expression expr.Expr, values []sqltype.Value, eva
 	}
 	evaluation.Row = values
 	return expression.Eval(evaluation)
-}
-
-type hashIndexEntry struct {
-	Key      sqltype.Value
-	Row      ids.RowID
-	Version  ids.VersionID
-	Position int
-}
-type hashIndexRoot struct {
-	Buckets    map[uint64][]hashIndexEntry
-	RowEntries map[ids.RowID]*hashIndexEntry
-	Binding    hashIndexBinding
-	Storage    *relationStorage
-	Generation uint64
-	Prefix     int
-	Ends       *deletionRoot
-}
-
-// IndexIdentity is the storage an index root was built from: the origin for a
-// detached index-build capture, otherwise the storage itself.
-func (s *relationStorage) IndexIdentity() *relationStorage {
-	if s.IndexSource != nil {
-		return s.IndexSource
-	}
-	return s
 }
 
 func buildHashIndexRoot(evaluation *EvalContext, parent *catalog.Relation, d *catalog.IndexDefinition, store *relationStorage, materialize bool, capture *indexBuildCapture) (*logicalIndexRoot, error) {
@@ -383,21 +348,4 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 		return nil, err
 	}
 	return &logicalIndexRoot{Hash: root}, ctx.Err()
-}
-
-func (r *hashIndexRoot) CaptureRowEntries(ctx context.Context, d *catalog.IndexDefinition) error {
-	if !d.IsExclusion() || !d.HasRuntimeDomainKeyConversion() {
-		return nil
-	}
-	r.RowEntries = make(map[ids.RowID]*hashIndexEntry)
-	for _, bucket := range r.Buckets {
-		for i := range bucket {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			entry := &bucket[i]
-			r.RowEntries[entry.Row] = entry
-		}
-	}
-	return nil
 }

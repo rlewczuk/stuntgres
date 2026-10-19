@@ -9,12 +9,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Roots are immutable after transfer to a command view or committed storage.
-type rowEnd struct {
-	Version ids.VersionID
-	End     ids.CommitSeq
-}
-type deletionRoot struct{ Rows map[ids.RowID]rowEnd }
 type deleteCandidate struct {
 	ref     ids.ObjectRef
 	storage *relationStorage

@@ -44,22 +44,6 @@ type TxOptions struct {
 
 type EndResult struct{ Committed bool }
 
-type rowVersion struct {
-	Row     ids.RowID
-	Version ids.VersionID
-	Born    ids.CommitSeq
-	// The last committed key transition survives key restoration and payload
-	// replacements. Private successors accumulate transitions until commit.
-	KeyChangedAt     ids.CommitSeq
-	PendingKeyChange bool
-	// base is the committed predecessor for a private replacement; zero is an insert.
-	Base   ids.VersionID
-	Values []sqltype.Value
-	// Private admission captures index readiness; committed rows clear this pin.
-	IndexAdmission *catalog.State
-	IndexOutputs   map[ids.ObjectAddress]indexRowOutput // Private, immutable produced index data.
-}
-
 type transactionOwner struct {
 	ids.TxOwnerMarker
 	admission       sync.Mutex
