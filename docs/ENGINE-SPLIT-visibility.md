@@ -118,16 +118,53 @@ pass. 7c completes the step.
 - [x] 7b — `visibility` created and types moved (`41a569c1c`,
   `e896f75d7`, `334ddf32c`, `eb53b840a`, then the commit that records this
   status) *(racecheck skipped at user request; targeted RACE=1 runs passed)*
-- [ ] 7c — Aliases removed
+- [x] 7c — Aliases removed (`81766feb0`, then the commit that records
+  this status) *(racecheck skipped at user request; targeted RACE=1 runs
+  passed)*
 
-Outstanding aliases: 12 unexported type aliases in
-`internal/engine/visibility_aliases.go`: `VisibilityView`,
-`commitTimestampEntry`, `deleteCandidate`, `privateDeletionRoot`,
-`serializableTransaction`, `serializableWrite`, `serializableWriteKey`,
-`transactionRoot`, `transactionVisibility`, `visibilityData`,
-`visibilityGeneration` and `visibilityRegistry`. Functions were qualified
-at the move (`visibility.NewRegistry`, `NewView`, `NextFullXID`, `Age`,
-`SerializableOverlap`, `LiveVersion`), so 7c rewrites types only.
+Outstanding aliases: none. 7b kept 12 unexported type aliases in
+`internal/engine/visibility_aliases.go`; 7c removed them all. Step 7 is
+complete.
+
+7c results:
+
+- **Scope.** Measured on `50d842db3` with go/types: 198 alias uses in 79
+  engine files, the largest `privateDeletionRoot` (66), `deleteCandidate`
+  (35), `VisibilityView` (30), `serializableTransaction` and
+  `serializableWrite` (17 each) and `transactionRoot` (15). No use outside
+  package `engine` (the aliases were unexported). One embedded alias field,
+  `deleteUsingCandidate.deleteCandidate` (`delete_using.go`), became
+  `visibility.DeleteCandidate`; its selectors follow.
+- **Shadowing.** None. The only local named `visibility` (a bool in
+  `bindCTEMutation`, `cte_mutation_bind.go`) is in a function that never
+  names the package, so neither a shadow nor a readability rename was
+  needed. The field `Engine.visibility` is a selector and does not collide.
+- **Rewrite** (`81766feb0`). 264 edits in 79 files, 64 imports added, and
+  `visibility_aliases.go` deleted. One test comment that named
+  `visibilityData` was fixed by hand. gofmt reordered imports in two test
+  files.
+- **Tool.** Scratchpad `visaliasx`, the 6c `storagex` tool parametrized for
+  `visibility`. Each write reloads the package with its tests, requires zero
+  type errors and an exact per-object use census before and after, mapped
+  through the edits.
+- **Tests.** Adapted mechanically by the same tool; none moved, deleted or
+  rewritten by hand.
+- **Docs.** Design notes already name `visibility.View` where they mean
+  current code; plan-time records keep the old names. The `visibility`
+  README and `AGENTS.md` are unchanged (100 lines).
+- **Verification.** `make build` after the rewrite. `make check RACE=1`
+  over the package seam selector of the `visibility` README, transaction
+  identity, commit time, serializable, prepared transaction, isolation,
+  visibility, concurrent index, blocking PIDs, `pg_locks`, DELETE, UPDATE,
+  MERGE, materialized refresh, query join, cursor, copied-scope, INSERT
+  conflict, inheritance, partition and RLS tests: all passed. `quickcheck`
+  passed on the branch rebased onto `50d842db3`. `racecheck` skipped at
+  the user's request. No `REFERENCE=1` selection is required for a pure
+  rename. `make bench`: 1.49–1.59 ms/op before and 1.51–1.72 ms/op after,
+  7,769 allocations and about 2.07 MB/op on both. The <1 ms target is
+  already missed on `master`. `make deps` lists only module paths.
+  `visibility` still imports only `catalog`, `ids`, `lock`, `storage`,
+  `sqlstate` and the standard library.
 
 7b results:
 
@@ -306,11 +343,7 @@ at the move (`visibility.NewRegistry`, `NewView`, `NextFullXID`, `Age`,
 
 Notes for later steps:
 
-- 7c: 12 type aliases, all unexported. Locals named `visibility` exist
-  (for example in `cte_mutation_bind.go`). Audit shadowing first, as 4c
-  and 6c did. The field `Engine.visibility` is a selector and does not
-  collide.
-- 7c or later: `View.Load` returns the raw pointer without the identity
+- Later (open): `View.Load` returns the raw pointer without the identity
   check that `Data` and `Retain` make, as the old `data.Load()` reads did.
   Tightening it would be a behavior change.
 - 7b (resolved above): decide the exported surface. `commitSeq` needs a

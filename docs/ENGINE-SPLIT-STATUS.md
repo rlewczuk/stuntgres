@@ -5,15 +5,20 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `80de2df73`.
+Last verified against `master` at `50d842db3`.
 
 ## Next ready sub-steps
 
-- **7c** — `visibility` aliases removed (needs 7b ✓). Broad rewrite; see
-  the 7b notes in the prompt file.
+- **Step 3 Tier C refined** — catalog, ACL, xid, advisory-lock and
+  sequence inquiry functions (needs steps 4, 5 and 7 ✓). Refinement first:
+  narrow `functions` capabilities or homes in the owning subsystem; see the
+  functions prompt file.
+- **F2 remainder** — remove `Arguments()` where it duplicates `Children()`,
+  once preflight and aggregate binding stop calling it (all nine switches
+  are done; see the F2 section of the functions prompt file).
 
-Authorization and `access` are done. Step 3 Tier C refinement waits for
-step 7 (after 7c).
+Steps 1, 2 and 4–7 and `access` are done. The later waves have no prompt
+files yet.
 
 ## Task tree
 
@@ -146,7 +151,7 @@ step 7 (after 7c).
   - [x] 6c — Aliases removed (`518fd7141`, `4c9a2a229`, `33c1b6f43`,
     `a57f5648e`, then the docs commit) *(racecheck skipped at user
     request)*
-- [ ] **Step 7 — `visibility`** ([prompt](ENGINE-SPLIT-visibility.md); needs
+- [x] **Step 7 — `visibility`** ([prompt](ENGINE-SPLIT-visibility.md); needs
   4 and 6 complete)
   - [x] 7a — `visibilityRegistry` state ownership (`f556f670c`,
     `e2745162f`, `89aed2c58`, then the docs commit) *(racecheck skipped at
@@ -155,7 +160,8 @@ step 7 (after 7c).
     `e896f75d7`, `334ddf32c`, `eb53b840a`, then the docs commit)
     *(racecheck skipped at user request; targeted RACE=1 runs passed;
     REFERENCE=1 MERGE RR `/postgres` drift also fails on `master`)*
-  - [ ] 7c — Aliases removed *(broad rewrite)*
+  - [x] 7c — Aliases removed (`81766feb0`, then the docs commit)
+    *(racecheck skipped at user request)*
 - [x] **Authorization and `access`**
   ([prompt](ENGINE-SPLIT-authorization.md); Part A needs —, Part B needs 5e)
   - [x] Part A
