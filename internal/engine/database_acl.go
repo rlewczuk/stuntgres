@@ -48,16 +48,3 @@ func (e *Engine) checkDatabaseConnectLocked(ctx context.Context, authenticated a
 	diagnostic.Detail = "User does not have CONNECT privilege."
 	return diagnostic
 }
-
-// Own TEMP namespaces remain usable after revocation, but CREATE is contingent
-// on the current effective role's database TEMP privilege, not authentication.
-func (v AuthorizationView) ownTemporaryPrivileges() (authorization.Privileges, error) {
-	rights, err := v.Effective(v.engine.catalog.Domain.Ref(v.catalog.Epoch(), catalog.CurrentDatabaseAddress), false)
-	if err != nil {
-		return 0, err
-	}
-	if rights&authorization.TemporaryPrivilege != 0 {
-		return authorization.UsagePrivilege | authorization.CreatePrivilege, nil
-	}
-	return authorization.UsagePrivilege, nil
-}

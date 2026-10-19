@@ -40,7 +40,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	for _, tc := range descriptors {
 		state.SetDescriptor(tc.d.Address(), tc.d)
 	}
-	v := AuthorizationView{engine: e, pairedCatalog: e.catalog.read(state), roleRecord: e.roles.published, catalog: e.catalog.read(state), roles: e.roles.read(e.catalog.owner(), e.catalog.read(state), e.roles.published), state: authorization.RoleState{CurrentUser: reader.Ref}}
+	v := AuthorizationView{accessView: accessView{owner: e.catalog.owner(), pairedCatalog: e.catalog.read(state), roleRecord: e.roles.published, catalog: e.catalog.read(state), roles: e.roles.read(e.catalog.owner(), e.catalog.read(state), e.roles.published), state: authorization.RoleState{CurrentUser: reader.Ref}}, engine: e}
 	for _, tc := range descriptors {
 		ref := e.catalog.Domain.Ref(state.Epoch(), tc.d.Address())
 		got, err := v.Effective(ref, false)
