@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -293,7 +294,7 @@ func uniqueRowExcluded(id ids.RowID, excluded []storage.RowVersion) bool {
 	}
 	return false
 }
-func uniqueRowDeleted(id ids.RowID, roots ...*privateDeletionRoot) bool {
+func uniqueRowDeleted(id ids.RowID, roots ...*visibility.PrivateDeletes) bool {
 	for _, root := range roots {
 		if root != nil {
 			if _, ok := root.Rows[id]; ok {

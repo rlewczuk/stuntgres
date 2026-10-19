@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/visibility"
 )
 
 func (s *StatementScope) acquireViewSources() (err error) {
@@ -120,7 +121,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 			physical, err = e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, leaves, nil, s.op.session.token, queryRowMark{})
 		}
 		if err == nil {
-			var view *VisibilityView
+			var view *visibility.View
 			view, err = s.acquireDataViewsLocked(e, physical)
 			if err == nil {
 				s.materializedSourceView = view.Load()

@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -494,7 +495,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 // the occurrence bundle. Joined stages instead own flat admitted frames.
 // A nil visible mapping preserves the allocation-free all-occurrences path.
 type querySource struct {
-	view *VisibilityView
+	view *visibility.View
 	ref  ids.ObjectRef
 	// A frozen-view occurrence may carry an older immutable manifest ref.
 	// Set only after contextual owner/provider proof at source capture.

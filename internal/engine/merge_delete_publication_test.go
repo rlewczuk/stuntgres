@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"testing"
 )
 
@@ -113,7 +114,7 @@ func TestMergeDeleteLineage(t *testing.T) {
 				scope.Finish(err)
 				t.Fatal(err)
 			}
-			var candidate deleteCandidate
+			var candidate visibility.DeleteCandidate
 			for _, root := range scope.stage.deletes {
 				for _, c := range root.Rows {
 					candidate = c

@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 )
 
 // Prepare immutable replacement heads/end roots outside final locks. Appends
@@ -18,13 +19,13 @@ type rowPublication struct {
 	relation           *catalog.Relation
 	root, next, writes []storage.RowVersion
 	ends, nextEnds     *storage.DeletionRoot
-	deletion           *privateDeletionRoot
+	deletion           *visibility.PrivateDeletes
 	generation         uint64
 	slots              []int
 	singleSlot         int
 }
 
-func (e *Engine) publishWrites(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot) error {
+func (e *Engine) publishWrites(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes) error {
 	owner := txOwnerOf(ref)
 	if op == nil || op.self != op || op.session == nil || op.session.transactions == nil || owner == nil || ref.Domain() != domainOf(e) || ref.Session() != op.session.token || owner != op.session.transactions || ref.ID() == 0 || ref != owner.ref {
 		return errors.New("stuntgres: foreign or stale publication transaction")
@@ -35,7 +36,7 @@ func (e *Engine) publishWrites(op *Operation, ref ids.TxRef, writes map[ids.Obje
 	return e.publishRows(op, ref, writes, deletes, owner.catalog, nil, nil)
 }
 
-func (e *Engine) publishRows(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority, scope *StatementScope) error {
+func (e *Engine) publishRows(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *catalogChanges, authority *catalogAuthority, scope *StatementScope) error {
 	var err error
 	writes, deletes, c, err = e.prepareTemporaryCommit(op, ref, writes, deletes, c)
 	if err != nil {
@@ -46,7 +47,7 @@ func (e *Engine) publishRows(op *Operation, ref ids.TxRef, writes map[ids.Object
 
 // A reserved empty container is not a write. PREPARE is the explicit exception:
 // even an otherwise empty prepared transaction needs a retained public identity.
-func publicationNeedsXID(writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges, phase *preparedPublication) bool {
+func publicationNeedsXID(writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *catalogChanges, phase *preparedPublication) bool {
 	if phase != nil && phase.preparing {
 		return true
 	}
@@ -68,7 +69,7 @@ func publicationNeedsXID(writes map[ids.ObjectAddress][]storage.RowVersion, dele
 	return false
 }
 
-func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority, phase *preparedPublication, scope *StatementScope) error {
+func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *catalogChanges, authority *catalogAuthority, phase *preparedPublication, scope *StatementScope) error {
 	materialize := phase == nil || !phase.preparing
 	actions, events, err := notificationEffects(op, ref, phase, scope)
 	if err != nil {
@@ -193,7 +194,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				}
 			}
 		}
-		capture := func(a ids.ObjectAddress, rows []storage.RowVersion, deletion *privateDeletionRoot) error {
+		capture := func(a ids.ObjectAddress, rows []storage.RowVersion, deletion *visibility.PrivateDeletes) error {
 			original := e.storage.Relations[a]
 			store := e.privateStorageLocked(c, a)
 			originalRelation, live := e.catalog.state.Relation(a)

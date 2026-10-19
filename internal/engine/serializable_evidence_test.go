@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -30,7 +31,7 @@ func serializableUnitRelation(t *testing.T, e *Engine) ids.ObjectRef {
 	}
 	return e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
 }
-func serializableUnitScope(node *serializableTransaction) *StatementScope {
+func serializableUnitScope(node *visibility.SerializableTx) *StatementScope {
 	return &StatementScope{owner: txOwnerOf(node.Ref), txRef: node.Ref}
 }
 func TestSerializableEvidenceEmptyReadAndAcceptedWrite(t *testing.T) {
@@ -43,7 +44,7 @@ func TestSerializableEvidenceEmptyReadAndAcceptedWrite(t *testing.T) {
 	if err := e.serializableReadLocked(serializableUnitScope(reader), ref); err != nil {
 		t.Fatal(err)
 	}
-	event := [1]serializableWrite{{Row: 1, Version: 1}}
+	event := [1]visibility.SerializableWrite{{Row: 1, Version: 1}}
 	if err := e.serializableWriteLocked(serializableUnitScope(writer), ref, event[:]); err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +62,7 @@ func TestSerializableEvidenceInvisibleCreatorAndVisibleEnder(t *testing.T) {
 			ender := serializableUnitNode(t, e, false)
 			e.mu.Lock()
 			defer e.mu.Unlock()
-			creator.Writes[ref.Address] = map[serializableWriteKey]serializableWrite{{Version: 1}: {Row: 1, Version: 1}}
+			creator.Writes[ref.Address] = map[visibility.WriteKey]visibility.SerializableWrite{{Version: 1}: {Row: 1, Version: 1}}
 			creator.DidWrite = true
 			e.visibility.Serializable.Creators[1] = creator.Ref
 			e.visibility.SerializableCommittedLocked(creator.Ref, reader.Frontier+1)
@@ -69,7 +70,7 @@ func TestSerializableEvidenceInvisibleCreatorAndVisibleEnder(t *testing.T) {
 				reader.Frontier = creator.CommitFrontier
 				reader.SnapshotOrder = creator.Order
 			}
-			ender.Writes[ref.Address] = map[serializableWriteKey]serializableWrite{{Version: 2}: {Row: 1, Version: 2, Base: 1, BaseBorn: creator.CommitFrontier, Creator: creator.Ref}}
+			ender.Writes[ref.Address] = map[visibility.WriteKey]visibility.SerializableWrite{{Version: 2}: {Row: 1, Version: 2, Base: 1, BaseBorn: creator.CommitFrontier, Creator: creator.Ref}}
 			if err := e.serializableReadLocked(serializableUnitScope(reader), ref); err != nil {
 				t.Fatal(err)
 			}
@@ -95,7 +96,7 @@ func TestSerializableEvidenceRejectsForeignStaleAndInvalidBeforeMutation(t *test
 	defer e.mu.Unlock()
 	for _, kind := range []string{"foreign", "stale", "subobject", "row", "version", "transaction"} {
 		bad := ref
-		event := [1]serializableWrite{{Row: 1, Version: 1}}
+		event := [1]visibility.SerializableWrite{{Row: 1, Version: 1}}
 		s := *scope
 		switch kind {
 		case "foreign":
@@ -130,7 +131,7 @@ func TestSerializableEvidenceRollbackKeepsReadsEdgesDoomAndStickyWrite(t *testin
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	b.Reads[ref.Address] = struct{}{}
-	event := [1]serializableWrite{{Row: 1, Version: 1}}
+	event := [1]visibility.SerializableWrite{{Row: 1, Version: 1}}
 	if err := e.serializableWriteLocked(scope, ref, event[:]); err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +162,7 @@ func TestSerializableEvidenceExemptSourcesAndUnrelatedFrontier(t *testing.T) {
 	if err := e.serializableReadLocked(serializableUnitScope(node), ref); err != nil {
 		t.Fatal(err)
 	}
-	event := [1]serializableWrite{{Row: 1, Version: 1}}
+	event := [1]visibility.SerializableWrite{{Row: 1, Version: 1}}
 	if err := e.serializableWriteLocked(serializableUnitScope(node), ref, event[:]); err != nil {
 		t.Fatal(err)
 	}
@@ -183,16 +184,16 @@ func TestSerializableEvidenceOwnCreatorSurvivesEndingRollback(t *testing.T) {
 	owner := txOwnerOf(writer.Ref)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	create := [1]serializableWrite{{Row: 41, Version: 73}}
+	create := [1]visibility.SerializableWrite{{Row: 41, Version: 73}}
 	if err := e.serializableWriteLocked(scope, relation, create[:]); err != nil {
 		t.Fatal(err)
 	}
 	owner.writes = map[ids.ObjectAddress][]storage.RowVersion{relation.Address: {{Row: 41, Version: 73}}}
-	ending := [1]serializableWrite{{Row: 41, Version: 73, Base: 73, Creator: writer.Ref, Deletion: true}}
+	ending := [1]visibility.SerializableWrite{{Row: 41, Version: 73, Base: 73, Creator: writer.Ref, Deletion: true}}
 	if err := e.serializableWriteLocked(scope, relation, ending[:]); err != nil {
 		t.Fatal(err)
 	}
-	owner.deletes = map[ids.ObjectAddress]*privateDeletionRoot{relation.Address: {Rows: map[ids.RowID]deleteCandidate{41: {Row: 41, Version: 73, Own: true}}}}
+	owner.deletes = map[ids.ObjectAddress]*visibility.PrivateDeletes{relation.Address: {Rows: map[ids.RowID]visibility.DeleteCandidate{41: {Row: 41, Version: 73, Own: true}}}}
 	e.reconcileSerializableWritesLocked(owner)
 	if len(writer.Writes[relation.Address]) != 2 {
 		t.Fatal("ending overwrote same-version creator")
@@ -200,7 +201,7 @@ func TestSerializableEvidenceOwnCreatorSurvivesEndingRollback(t *testing.T) {
 	// Restore the saved owner overlays: insertion remains, ending is discarded.
 	owner.deletes = nil
 	e.reconcileSerializableWritesLocked(owner)
-	event, ok := writer.Writes[relation.Address][serializableWriteKey{Version: 73}]
+	event, ok := writer.Writes[relation.Address][visibility.WriteKey{Version: 73}]
 	if !ok || event.Row != 41 || event.Version != 73 || event.Deletion || len(writer.Writes[relation.Address]) != 1 || e.visibility.Serializable.Creators[73] != writer.Ref || !writer.DidWrite {
 		t.Fatal("rollback lost surviving exact creator identity")
 	}
@@ -263,7 +264,7 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 	if err := e.serializableReadLocked(scope, relation); err != nil {
 		t.Fatal(err)
 	}
-	event := [1]serializableWrite{{Row: 1, Version: 1}}
+	event := [1]visibility.SerializableWrite{{Row: 1, Version: 1}}
 	if err := e.serializableWriteLocked(scope, relation, event[:]); err != nil {
 		t.Fatal(err)
 	}

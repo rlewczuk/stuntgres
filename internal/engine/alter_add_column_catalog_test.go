@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -91,7 +92,7 @@ func TestAlterAddColumnPrivateSnapshotEqualWidthProjection(t *testing.T) {
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
 	shape := catalogStorageChange{original: original, root: original.Versions, relation: next, replacement: &storage.Relation{}, fills: map[int32]sqltype.Value{2: seven}}
 	catalog := &catalogChanges{storage: map[ids.ObjectAddress]catalogStorageChange{address: shape}}
-	roots := map[ids.ObjectAddress]transactionRoot{address: {Storage: original, Relation: old, Versions: historical}}
+	roots := map[ids.ObjectAddress]visibility.Root{address: {Storage: original, Relation: old, Versions: historical}}
 	projected, err := projectPrivateSnapshotRoots(context.Background(), catalog, roots)
 	if err != nil || projected == catalog || !projected.storage[address].hasSnapshot || catalog.storage[address].hasSnapshot {
 		t.Fatal(projected, err)

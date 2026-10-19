@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
@@ -38,7 +39,7 @@ func inheritanceQueryLayout(parent, child *catalog.Relation) ([]int, error) {
 	return layout, nil
 }
 
-func captureInheritanceQueryPrefix(catalogView catalog.Read, view *VisibilityView, leaf queryLeaf, token ids.SessionToken) (*querySource, error) {
+func captureInheritanceQueryPrefix(catalogView catalog.Read, view *visibility.View, leaf queryLeaf, token ids.SessionToken) (*querySource, error) {
 	if leaf.only || !inheritanceHasChildren(catalogView, leaf.ref.Address) {
 		return captureQueryPrefix(view, leaf.ref)
 	}

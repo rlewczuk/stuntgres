@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -144,7 +145,7 @@ func TestPartialIndexUniquePublicationCombined(t *testing.T) {
 					rows := f.stores[f.parent.Address()].Versions
 					replacement := partialUniqueRow(t, f, 1, "2001-02-05", "3", "false")
 					replacement.Row, replacement.Base = rows[0].Row, rows[0].Version
-					var deletion *privateDeletionRoot
+					var deletion *visibility.PrivateDeletes
 					writes := []storage.RowVersion{replacement}
 					want := []storage.RowVersion{rows[1]}
 					if mode == "enter" {
@@ -154,7 +155,7 @@ func TestPartialIndexUniquePublicationCombined(t *testing.T) {
 						want = []storage.RowVersion{rows[0], rows[1], replacement}
 					}
 					if mode == "delete" || mode == "empty" {
-						deletion = &privateDeletionRoot{Rows: map[ids.RowID]deleteCandidate{rows[1].Row: {Ref: f.ref, Storage: f.stores[f.parent.Address()], Row: rows[1].Row, Version: rows[1].Version}}}
+						deletion = &visibility.PrivateDeletes{Rows: map[ids.RowID]visibility.DeleteCandidate{rows[1].Row: {Ref: f.ref, Storage: f.stores[f.parent.Address()], Row: rows[1].Row, Version: rows[1].Version}}}
 						want = nil
 						if mode == "delete" {
 							member := partialUniqueRow(t, f, 2, "2001-02-06", "4", "true")
@@ -186,9 +187,9 @@ func TestPartialIndexUniquePublicationRebuiltBeforeDelta(t *testing.T) {
 					}
 					old := store.Versions[1]
 					var writes []storage.RowVersion
-					var deletion *privateDeletionRoot
+					var deletion *visibility.PrivateDeletes
 					if delta == "delete" {
-						deletion = &privateDeletionRoot{Rows: map[ids.RowID]deleteCandidate{old.Row: {Ref: f.ref, Storage: &store, Row: old.Row, Version: old.Version}}}
+						deletion = &visibility.PrivateDeletes{Rows: map[ids.RowID]visibility.DeleteCandidate{old.Row: {Ref: f.ref, Storage: &store, Row: old.Row, Version: old.Version}}}
 					} else {
 						r := partialUniqueRow(t, f, 1, "2001-02-05", "3", "true")
 						r.Row, r.Base = old.Row, old.Version

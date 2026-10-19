@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 	"sync/atomic"
 	"testing"
@@ -93,7 +94,7 @@ func serializableRequirePublicationUnchanged(t *testing.T, e *Engine, before ser
 		t.Fatal("failed publication changed catalog/descriptors/names/revisions/roots/spare rows/ends/indexes/generators/providers/frontiers")
 	}
 }
-func serializableUnitCycle(t *testing.T, e *Engine, node *serializableTransaction) *serializableTransaction {
+func serializableUnitCycle(t *testing.T, e *Engine, node *visibility.SerializableTx) *visibility.SerializableTx {
 	t.Helper()
 	peer := serializableUnitNode(t, e, false)
 	e.mu.Lock()

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -23,7 +24,7 @@ type pendingPartitionDefinition struct {
 	bound                  *catalog.PartitionMembership
 	rawBounds              parser.PartitionBound
 	auth                   AuthorizationView
-	view                   *VisibilityView
+	view                   *visibility.View
 	defaultLeaves          []ids.ObjectRef
 	unsupportedCombination bool
 }

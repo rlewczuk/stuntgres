@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -61,7 +62,7 @@ func partitionAttachUnitWrite(t *testing.T, e *Engine, session *Session, ref ids
 	op.Done()
 }
 
-func partitionAttachUnitValues(t *testing.T, view *VisibilityView, ref ids.ObjectRef) []int64 {
+func partitionAttachUnitValues(t *testing.T, view *visibility.View, ref ids.ObjectRef) []int64 {
 	t.Helper()
 	source, err := captureQuerySource(context.Background(), view, ref)
 	if err != nil {
@@ -114,7 +115,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 		}
 		store := e.storage.Relations[ref.Address]
 		row := store.Versions[0]
-		candidate := deleteCandidate{Ref: ref, Storage: store, Row: row.Row, Version: row.Version, Ordinal: 0}
+		candidate := visibility.DeleteCandidate{Ref: ref, Storage: store, Row: row.Row, Version: row.Version, Ordinal: 0}
 		if err := deleting.acquireRow(candidate); err != nil {
 			t.Fatal(err)
 		}

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"sync"
@@ -58,7 +59,7 @@ type transactionOwner struct {
 	next            ids.TxID
 	command         ids.CommandID
 	writes          map[ids.ObjectAddress][]storage.RowVersion
-	deletes         map[ids.ObjectAddress]*privateDeletionRoot
+	deletes         map[ids.ObjectAddress]*visibility.PrivateDeletes
 	start           time.Time
 	isolation       Isolation
 	readOnly        bool
@@ -68,7 +69,7 @@ type transactionOwner struct {
 	entryDeferrable bool
 	snapshotSet     bool
 	frontier        ids.CommitSeq
-	roots           map[ids.ObjectAddress]transactionRoot
+	roots           map[ids.ObjectAddress]visibility.Root
 	// Retained with the existing snapshot; consumed by pg_sequence and pg_sequences.
 	sequenceCatalog     *catalog.State
 	catalog             *catalogChanges
@@ -284,8 +285,8 @@ type StatementScope struct {
 	stage                          WriteStage
 	notificationActions            []notificationAction
 	notificationEvents             []Notification
-	view                           *VisibilityView
-	partitionValidationView        *VisibilityView // Latest DDL scan, same owner; never the retained query snapshot.
+	view                           *visibility.View
+	partitionValidationView        *visibility.View // Latest DDL scan, same owner; never the retained query snapshot.
 	finished                       bool
 	message                        bool
 	messageEnded                   bool
@@ -305,7 +306,7 @@ type StatementScope struct {
 	indexMaintenance               *indexMaintenanceGrant
 	materializedRefresh            bool
 	materializedSources            []catalog.Descriptor
-	materializedSourceView         *visibilityData
+	materializedSourceView         *visibility.Data
 	querySources                   []queryLeaf
 	foreignOwner                   *foreignScanOwner
 	foreignCursor                  *sqlCursor
@@ -315,7 +316,7 @@ type StatementScope struct {
 	txRef                          ids.TxRef
 	command                        ids.CommandID
 	ownWrites                      map[ids.ObjectAddress][]storage.RowVersion
-	ownDeletes                     map[ids.ObjectAddress]*privateDeletionRoot
+	ownDeletes                     map[ids.ObjectAddress]*visibility.PrivateDeletes
 	existingIndexOutputs           map[ids.ObjectAddress]map[indexRowIdentity]storage.IndexOutput
 	exclusionModes                 exclusionModes
 	exclusionStarted               bool
@@ -395,7 +396,7 @@ type WriteStage struct {
 	self      *WriteStage
 	scope     *StatementScope
 	rows      map[ids.ObjectAddress][]storage.RowVersion
-	deletes   map[ids.ObjectAddress]*privateDeletionRoot
+	deletes   map[ids.ObjectAddress]*visibility.PrivateDeletes
 	replacing bool
 }
 
@@ -676,7 +677,7 @@ retry:
 	}
 	if e.visibility.RelevantSerializableLocked(s.txRef) != nil {
 		for _, row := range versions {
-			event := [1]serializableWrite{{Row: row.Row, Version: row.Version}}
+			event := [1]visibility.SerializableWrite{{Row: row.Row, Version: row.Version}}
 			if err := e.serializableWriteLocked(s, ref, event[:]); err != nil {
 				return err
 			}

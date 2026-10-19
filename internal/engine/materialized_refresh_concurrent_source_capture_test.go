@@ -91,7 +91,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 		}
 	}()
 	// This calls the actual target admission and acquireViewSources, not a
-	// manually assembled visibilityData or materializedSourceFence.
+	// manually assembled visibility.Data or materializedSourceFence.
 	go func() { done <- scope.acquireMaterializedRefresh(stmt) }()
 	lockPending(t, e, 1)
 	assertSourceWait := func() {

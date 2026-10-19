@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -458,7 +459,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		var view *VisibilityView
+		var view *visibility.View
 		if len(b.querySources) != 0 || len(scope.inheritedTargets) != 0 {
 			collectAuth := auth
 			collectAuth.Recapture(scope.inheritanceRead(auth.Catalog))
@@ -662,7 +663,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		return Result{Count: int64(count)}, nil
 	case *parser.Delete:
-		var view *VisibilityView
+		var view *visibility.View
 		var viewErr error
 		if len(b.querySources) != 0 || len(scope.inheritedTargets) != 0 {
 			collectAuth := auth

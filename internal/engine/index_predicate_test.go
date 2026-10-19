@@ -151,14 +151,14 @@ func TestPartialIndexMembershipTransitions(t *testing.T) {
 	}
 	partialWantMembership(t, next, map[ids.RowID]ids.VersionID{2: 7, 3: 8, 5: 10})
 	partialWantMembership(t, old, map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5})
-	p = &rowPublication{deletion: &privateDeletionRoot{Rows: map[ids.RowID]deleteCandidate{2: {Version: 7}, 1: {Version: 6}}}}
+	p = &rowPublication{deletion: &visibility.PrivateDeletes{Rows: map[ids.RowID]visibility.DeleteCandidate{2: {Version: 7}, 1: {Version: 6}}}}
 	next, err = mergeIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, f.index, next.Entries, p, false, true, false, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	partialWantMembership(t, next, map[ids.RowID]ids.VersionID{3: 8, 5: 10})
 	// Excluded successors and own-deleted additions must never resurrect identities.
-	p = &rowPublication{writes: []storage.RowVersion{write(3, 11, 8, sqltype.Boolean(boolean, false)), write(2, 12, 0, sqltype.Boolean(boolean, true))}, deletion: &privateDeletionRoot{Rows: map[ids.RowID]deleteCandidate{2: {Version: 12, Own: true}}}}
+	p = &rowPublication{writes: []storage.RowVersion{write(3, 11, 8, sqltype.Boolean(boolean, false)), write(2, 12, 0, sqltype.Boolean(boolean, true))}, deletion: &visibility.PrivateDeletes{Rows: map[ids.RowID]visibility.DeleteCandidate{2: {Version: 12, Own: true}}}}
 	next, err = mergeIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, f.index, next.Entries, p, false, true, false, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -356,11 +356,11 @@ func TestPartialIndexImplication(t *testing.T) {
 	}
 }
 
-func partialMaskFixture(t *testing.T) (partialIndexFixture, *StatementScope, queryLeaf, *VisibilityView) {
+func partialMaskFixture(t *testing.T) (partialIndexFixture, *StatementScope, queryLeaf, *visibility.View) {
 	f := newPartialIndexFixture(t)
 	scope := &StatementScope{owner: &transactionOwner{isolation: ReadCommitted}}
 	leaf := queryLeaf{ref: f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address()), relation: f.parent, storage: f.store, partialCandidate: f.index}
-	data := &visibilityData{Catalog: f.e.CatalogRead(), Frontier: f.e.visibility.CommitSeq(), Committed: map[ids.ObjectAddress][]storage.RowVersion{f.parent.Address(): f.store.Versions}, SingleGeneration: f.store}
+	data := &visibility.Data{Catalog: f.e.CatalogRead(), Frontier: f.e.visibility.CommitSeq(), Committed: map[ids.ObjectAddress][]storage.RowVersion{f.parent.Address(): f.store.Versions}, SingleGeneration: f.store}
 	view := visibility.NewView(data)
 	t.Cleanup(view.Release)
 	return f, scope, leaf, view
@@ -428,7 +428,7 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 				row.Version = 100
 				data.Own = map[ids.ObjectAddress][]storage.RowVersion{a: {row}}
 			case "own delete":
-				data.Deleted = map[ids.ObjectAddress]*privateDeletionRoot{a: {}}
+				data.Deleted = map[ids.ObjectAddress]*visibility.PrivateDeletes{a: {}}
 			case "historical":
 				scope.owner.isolation = RepeatableRead
 			case "frontier":

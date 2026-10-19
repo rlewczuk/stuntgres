@@ -19,7 +19,7 @@ type foreignKeyRows struct {
 	storage                      *storage.Relation
 	committed, own, staged       []storage.RowVersion
 	ends                         *storage.DeletionRoot
-	priorDeletes, currentDeletes *privateDeletionRoot
+	priorDeletes, currentDeletes *visibility.PrivateDeletes
 	shadow                       map[ids.RowID]uint8
 	frontier                     ids.CommitSeq
 	index                        ids.ObjectAddress

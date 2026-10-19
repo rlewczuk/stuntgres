@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -161,7 +162,7 @@ func (s *StatementScope) stageTruncate() error {
 		shape.fills = nil
 		changes.storage[ref.Address] = shape
 		e.fenceEmptyIndexStorageLocked(auth.Catalog.State(), changes, ref.Address)
-		if err = e.serializableWriteLocked(s, ref, []serializableWrite{{Rewrite: true}}); err != nil {
+		if err = e.serializableWriteLocked(s, ref, []visibility.SerializableWrite{{Rewrite: true}}); err != nil {
 			break
 		}
 	}

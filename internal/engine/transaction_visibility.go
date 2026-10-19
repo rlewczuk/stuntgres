@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/engine/visibility"
 )
 
-func (s *StatementScope) AcquireDataView(ref ids.ObjectRef) (*VisibilityView, error) {
+func (s *StatementScope) AcquireDataView(ref ids.ObjectRef) (*visibility.View, error) {
 	if err := s.active(); err != nil {
 		return nil, err
 	}
@@ -23,21 +23,21 @@ func (s *StatementScope) AcquireDataView(ref ids.ObjectRef) (*VisibilityView, er
 	return s.acquireDataViewLocked(e, ref)
 }
 
-func (s *StatementScope) acquireDataViewLocked(e *Engine, ref ids.ObjectRef) (*VisibilityView, error) {
+func (s *StatementScope) acquireDataViewLocked(e *Engine, ref ids.ObjectRef) (*visibility.View, error) {
 	return s.acquireDataViewsLocked(e, []ids.ObjectRef{ref})
 }
 
-func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ids.ObjectRef) (*VisibilityView, error) {
+func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ids.ObjectRef) (*visibility.View, error) {
 	return s.captureDataViewsLocked(e, refs, false)
 }
 
 // ATTACH validates the grant-time committed frontier plus this owner's earlier
 // commands. It does not change the RR/Serializable owner's ordinary snapshot.
-func (s *StatementScope) acquirePartitionValidationViewsLocked(e *Engine, refs []ids.ObjectRef) (*VisibilityView, error) {
+func (s *StatementScope) acquirePartitionValidationViewsLocked(e *Engine, refs []ids.ObjectRef) (*visibility.View, error) {
 	return s.captureDataViewsLocked(e, refs, true)
 }
 
-func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef, latest bool) (*VisibilityView, error) {
+func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef, latest bool) (*visibility.View, error) {
 	if s.txRef.Epoch() != e.catalog.state.Epoch() {
 		return nil, ids.ErrCatalogReplaced
 	}
@@ -92,13 +92,13 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 		frontier = s.owner.frontier
 	}
 	catalog := e.privateCatalogLocked(s.owner.catalog)
-	data := &visibilityData{
+	data := &visibility.Data{
 		Tx: s.txRef, Command: s.command, Frontier: frontier,
 		Catalog:   catalog,
 		Committed: make(map[ids.ObjectAddress][]storage.RowVersion, len(refs)),
 	}
 	if len(refs) > 1 {
-		data.Generations = make(map[ids.ObjectAddress]visibilityGeneration, len(refs))
+		data.Generations = make(map[ids.ObjectAddress]visibility.Generation, len(refs))
 	}
 	for _, ref := range refs {
 		stored := e.privateStorageLocked(s.owner.catalog, ref.Address)
@@ -148,7 +148,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 		}
 		data.Committed[ref.Address] = versions
 		if data.Generations != nil {
-			data.Generations[ref.Address] = visibilityGeneration{Storage: stored, NeedsBirthFilter: needsBirthFilter}
+			data.Generations[ref.Address] = visibility.Generation{Storage: stored, NeedsBirthFilter: needsBirthFilter}
 		} else {
 			data.SingleGeneration = stored
 			data.SingleNeedsBirthFilter = needsBirthFilter
@@ -178,7 +178,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 			// single-target case, rather than allocating a redundant map.
 			data.Deleted = s.ownDeletes
 		} else if selected != 0 {
-			data.Deleted = make(map[ids.ObjectAddress]*privateDeletionRoot, selected)
+			data.Deleted = make(map[ids.ObjectAddress]*visibility.PrivateDeletes, selected)
 			for _, ref := range refs {
 				if root := s.ownDeletes[ref.Address]; root != nil {
 					data.Deleted[ref.Address] = root

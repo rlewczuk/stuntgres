@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -230,7 +231,7 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		e.visibility.ResetPhaseLocked(ticket.Ref())
 		after := e.visibility.Entries[ticket.Ref()]
 		e.mu.Unlock()
-		if after != (transactionVisibility{Ticket: ticket}) {
+		if after != (visibility.Entry{Ticket: ticket}) {
 			t.Fatal("phase reset lost ticket or retained advertisement", after)
 		}
 		xid := pgLocksUnitAssign(t, e, ticket)
@@ -241,7 +242,7 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		e.visibility.ResetPhaseLocked(ticket.Ref())
 		after = e.visibility.Entries[ticket.Ref()]
 		e.mu.Unlock()
-		if after != (transactionVisibility{Ticket: ticket, AssignedXID: xid, FullXID: uint64(xid)}) || ticket.AssignedPublicXID() != xid {
+		if after != (visibility.Entry{Ticket: ticket, AssignedXID: xid, FullXID: uint64(xid)}) || ticket.AssignedPublicXID() != xid {
 			t.Fatal("phase reset discarded real assigned ownership", after)
 		}
 		e.mu.Lock()
@@ -253,7 +254,7 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		e.visibility.ResetPhaseLocked(ticket.Ref())
 		after = e.visibility.Entries[ticket.Ref()]
 		e.mu.Unlock()
-		if after != (transactionVisibility{Ticket: ticket}) || ticket.AssignedPublicXID() != 0 {
+		if after != (visibility.Entry{Ticket: ticket}) || ticket.AssignedPublicXID() != 0 {
 			t.Fatal("completed phase retained XID or lost association", after)
 		}
 		records := pgLocksUnitCapture(t, e)

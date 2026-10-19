@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"testing"
 
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
 )
 
-func serializableUnitNode(t *testing.T, e *Engine, readOnly bool) *serializableTransaction {
+func serializableUnitNode(t *testing.T, e *Engine, readOnly bool) *visibility.SerializableTx {
 	t.Helper()
 	s := sessionStart(t, e, nil)
 	op := transactionOperation(t, s)

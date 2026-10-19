@@ -11,11 +11,11 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func mergeDeletions(previous, staged map[ids.ObjectAddress]*privateDeletionRoot) map[ids.ObjectAddress]*privateDeletionRoot {
+func mergeDeletions(previous, staged map[ids.ObjectAddress]*visibility.PrivateDeletes) map[ids.ObjectAddress]*visibility.PrivateDeletes {
 	if len(staged) == 0 {
 		return previous
 	}
-	next := make(map[ids.ObjectAddress]*privateDeletionRoot, len(previous)+len(staged))
+	next := make(map[ids.ObjectAddress]*visibility.PrivateDeletes, len(previous)+len(staged))
 	for a, root := range previous {
 		next[a] = root
 	}
@@ -25,19 +25,19 @@ func mergeDeletions(previous, staged map[ids.ObjectAddress]*privateDeletionRoot)
 			next[a] = root
 			continue
 		}
-		rows := make(map[ids.RowID]deleteCandidate, len(old.Rows)+len(root.Rows))
+		rows := make(map[ids.RowID]visibility.DeleteCandidate, len(old.Rows)+len(root.Rows))
 		for id, candidate := range old.Rows {
 			rows[id] = candidate
 		}
 		for id, candidate := range root.Rows {
 			rows[id] = candidate
 		}
-		next[a] = &privateDeletionRoot{Rows: rows}
+		next[a] = &visibility.PrivateDeletes{Rows: rows}
 	}
 	return next
 }
 
-func (s *StatementScope) acquireRow(candidate deleteCandidate) error {
+func (s *StatementScope) acquireRow(candidate visibility.DeleteCandidate) error {
 	if err := s.active(); err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func (s *StatementScope) acquireRow(candidate deleteCandidate) error {
 
 // Delete transfers only the original identity, never a value-based substitute.
 // A peer committed deletion is a successful skip after arbitration.
-func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error) {
+func (w *WriteStage) Delete(candidate visibility.DeleteCandidate) (deleted bool, err error) {
 	if w == nil || w.self != w || w.scope == nil {
 		return false, errors.New("stuntgres: foreign or missing write stage")
 	}
@@ -156,18 +156,18 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 
 // Both named-target and separately admitted RI deletion use the same roots,
 // SSI evidence and exclusion projection after validating their own authority.
-func (w *WriteStage) stageDeletionLocked(e *Engine, candidate deleteCandidate, original storage.RowVersion) error {
+func (w *WriteStage) stageDeletionLocked(e *Engine, candidate visibility.DeleteCandidate, original storage.RowVersion) error {
 	s := w.scope
-	event := [1]serializableWrite{{Row: candidate.Row, Version: candidate.Version, Base: original.Version, BaseBorn: original.Born, Creator: e.visibility.SerializableCreatorLocked(original.Version), Deletion: true}}
+	event := [1]visibility.SerializableWrite{{Row: candidate.Row, Version: candidate.Version, Base: original.Version, BaseBorn: original.Born, Creator: e.visibility.SerializableCreatorLocked(original.Version), Deletion: true}}
 	if err := e.serializableWriteLocked(s, candidate.Ref, event[:]); err != nil {
 		return err
 	}
 	if w.deletes == nil {
-		w.deletes = make(map[ids.ObjectAddress]*privateDeletionRoot)
+		w.deletes = make(map[ids.ObjectAddress]*visibility.PrivateDeletes)
 	}
 	root := w.deletes[candidate.Ref.Address]
 	if root == nil {
-		root = &privateDeletionRoot{Rows: make(map[ids.RowID]deleteCandidate)}
+		root = &visibility.PrivateDeletes{Rows: make(map[ids.RowID]visibility.DeleteCandidate)}
 		w.deletes[candidate.Ref.Address] = root
 	}
 	root.Rows[candidate.Row] = candidate
@@ -176,7 +176,7 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate deleteCandidate, o
 	return nil
 }
 
-func (s *StatementScope) executeDelete(b binding, view *VisibilityView, inputs *querySource, parameters []sqltype.Value) (Result, error) {
+func (s *StatementScope) executeDelete(b binding, view *visibility.View, inputs *querySource, parameters []sqltype.Value) (Result, error) {
 	source, err := s.captureMutationSource(s.op.Context(), view, b)
 	if err != nil {
 		if inputs != nil {
@@ -332,7 +332,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 }
 
 // Row arbitration freezes identity, not a stale ordinal or pre-wait predicate.
-func (s *StatementScope) latestDeleteRow(candidate deleteCandidate) (storage.RowVersion, bool, error) {
+func (s *StatementScope) latestDeleteRow(candidate visibility.DeleteCandidate) (storage.RowVersion, bool, error) {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -358,7 +358,7 @@ func (s *StatementScope) latestDeleteRow(candidate deleteCandidate) (storage.Row
 }
 
 // The nil selection path remains allocation-free for undeleted prefixes.
-func captureQuerySource(ctx context.Context, view *VisibilityView, ref ids.ObjectRef) (*querySource, error) {
+func captureQuerySource(ctx context.Context, view *visibility.View, ref ids.ObjectRef) (*querySource, error) {
 	source, err := captureQueryPrefix(view, ref)
 	if err != nil {
 		return nil, err
@@ -367,7 +367,7 @@ func captureQuerySource(ctx context.Context, view *VisibilityView, ref ids.Objec
 	return selectQuerySource(ctx, source, data.FrontierAt(ref.Address), data.Ends[ref.Address], data.Deleted[ref.Address])
 }
 
-func captureQueryPrefix(view *VisibilityView, ref ids.ObjectRef) (*querySource, error) {
+func captureQueryPrefix(view *visibility.View, ref ids.ObjectRef) (*querySource, error) {
 	pin := view.Retain()
 	if pin == nil {
 		return nil, errors.New("stuntgres: visibility view is released")
@@ -385,7 +385,7 @@ func captureQueryPrefix(view *VisibilityView, ref ids.ObjectRef) (*querySource, 
 }
 
 // Query and catalog replacement share one physical-to-live head selection.
-func selectQuerySource(ctx context.Context, source *querySource, frontier ids.CommitSeq, ends *storage.DeletionRoot, own *privateDeletionRoot) (*querySource, error) {
+func selectQuerySource(ctx context.Context, source *querySource, frontier ids.CommitSeq, ends *storage.DeletionRoot, own *visibility.PrivateDeletes) (*querySource, error) {
 	if source.rlsDenied {
 		return source, ctx.Err()
 	}

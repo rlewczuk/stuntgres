@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"unicode/utf8"
@@ -380,7 +381,7 @@ type CatalogStage struct {
 	initialTx               ids.TxRef
 	materializedReplacement *materializedReplacement
 	querySources            []catalog.Descriptor
-	materializedSourceView  *visibilityData
+	materializedSourceView  *visibility.Data
 	likeSources             []catalog.Descriptor // CREATE-only exact descriptor captures, not dependencies.
 }
 

@@ -180,7 +180,7 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 		return nil
 	}
 	stored := s.foreignActionAdmissions[ref.Address].storage
-	candidate := deleteCandidate{Ref: ref, Storage: stored, Row: old.Row, Version: old.Version, Base: old.Base, Own: old.Born == 0}
+	candidate := visibility.DeleteCandidate{Ref: ref, Storage: stored, Row: old.Row, Version: old.Version, Base: old.Base, Own: old.Born == 0}
 	if old.Born != 0 {
 		candidate.Base = old.Version
 	}

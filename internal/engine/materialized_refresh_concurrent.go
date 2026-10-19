@@ -274,7 +274,7 @@ func sameMaterializedLineage(old, current *catalog.Relation, a, b *storage.Relat
 
 // A producer snapshot may outlive a compatible source publication, never a
 // defining-authority change. All storage/token observations require Engine.mu.
-func materializedSourceCurrent(snapshot *visibilityData, observed catalog.Descriptor, current *catalog.State, store *storage.Relation) bool {
+func materializedSourceCurrent(snapshot *visibility.Data, observed catalog.Descriptor, current *catalog.State, store *storage.Relation) bool {
 	if current.Get(observed.Address()) == observed {
 		return true
 	}

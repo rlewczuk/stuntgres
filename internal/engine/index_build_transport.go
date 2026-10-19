@@ -151,7 +151,7 @@ func indexBuildPositions(ctx context.Context, store *storage.Relation) (map[inde
 	return positions, nil
 }
 
-func indexBuildVisibleStore(ctx context.Context, store *storage.Relation, writes []storage.RowVersion, deletes *privateDeletionRoot) (*storage.Relation, error) {
+func indexBuildVisibleStore(ctx context.Context, store *storage.Relation, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) (*storage.Relation, error) {
 	if len(writes) == 0 && (deletes == nil || len(deletes.Rows) == 0) {
 		return store, nil
 	}

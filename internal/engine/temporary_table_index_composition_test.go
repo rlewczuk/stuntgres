@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -62,7 +63,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			stage.terminalCleanup = mode == "TerminalMaximum"
 			changes := cloneCatalogChanges(nil)
 			project := func(old, next *catalog.Relation) error {
-				_, _, _, err := stagePrivateColumnShape(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: stage.Base}, stage, changes, old, next, nil, nil, transactionRoot{}, false, false)
+				_, _, _, err := stagePrivateColumnShape(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, catalog: stage.Base}, stage, changes, old, next, nil, nil, visibility.Root{}, false, false)
 				return err
 			}
 			providerRef := e.catalog.Domain.Ref(stage.Base.Epoch(), provider.Address())

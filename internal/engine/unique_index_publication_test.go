@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -182,14 +183,14 @@ func (f *uniquePublicationFixture) unchanged(t *testing.T) {
 	}
 }
 
-func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, store *storage.Relation, rebuild, materialize bool, writes []storage.RowVersion, deletion *privateDeletionRoot) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
+func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, store *storage.Relation, rebuild, materialize bool, writes []storage.RowVersion, deletion *visibility.PrivateDeletes) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
 	t.Helper()
 	if store == nil {
 		store = f.stores[f.parent.Address()]
 	}
 	beforeStore := uniquePublicationStore(store)
 	beforeWrites := uniquePublicationRows(writes)
-	var beforeDeletes map[ids.RowID]deleteCandidate
+	var beforeDeletes map[ids.RowID]visibility.DeleteCandidate
 	if deletion != nil {
 		beforeDeletes = maps.Clone(deletion.Rows)
 	}
@@ -287,9 +288,9 @@ func TestUniqueIndexPublicationRebuiltPredecessor(t *testing.T) {
 					store.Versions[1].Values = slices.Clone(store.Versions[0].Values)
 					old := store.Versions[1]
 					var writes []storage.RowVersion
-					var deletion *privateDeletionRoot
+					var deletion *visibility.PrivateDeletes
 					if delta == "delete" {
-						deletion = &privateDeletionRoot{Rows: map[ids.RowID]deleteCandidate{old.Row: {Ref: f.ref, Storage: &store, Row: old.Row, Version: old.Version}}}
+						deletion = &visibility.PrivateDeletes{Rows: map[ids.RowID]visibility.DeleteCandidate{old.Row: {Ref: f.ref, Storage: &store, Row: old.Row, Version: old.Version}}}
 					} else {
 						replacement := f.row(t, 1, "2001-02-05", "3")
 						replacement.Row, replacement.Base = old.Row, old.Version
@@ -376,7 +377,7 @@ func TestUniqueIndexPublicationReplacementMembership(t *testing.T) {
 			t.Run(fmt.Sprintf("attached=%t/materialize=%t", attached, materialize), func(t *testing.T) {
 				f := newUniquePublicationFixture(t, attached, true, true, "table", false)
 				rows := f.stores[f.parent.Address()].Versions
-				deletion := &privateDeletionRoot{Rows: map[ids.RowID]deleteCandidate{rows[0].Row: {Ref: f.ref, Storage: f.stores[f.parent.Address()], Row: rows[0].Row, Version: rows[0].Version}}}
+				deletion := &visibility.PrivateDeletes{Rows: map[ids.RowID]visibility.DeleteCandidate{rows[0].Row: {Ref: f.ref, Storage: f.stores[f.parent.Address()], Row: rows[0].Row, Version: rows[0].Version}}}
 				replacement := f.row(t, 1, "2001-02-05", "3")
 				replacement.Row, replacement.Base = rows[1].Row, rows[1].Version
 				writes := []storage.RowVersion{replacement, f.row(t, 2, "2001-02-06", "4")}

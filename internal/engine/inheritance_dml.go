@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -123,7 +124,7 @@ func (s *StatementScope) mutationStorage(ref ids.ObjectRef) *storage.Relation {
 
 // Capture the already admitted manifest, never rediscover a graph after the
 // command view has frozen its roots. Each segment retains real physical rows.
-func (s *StatementScope) captureMutationSource(ctx context.Context, view *VisibilityView, b binding) (*querySource, error) {
+func (s *StatementScope) captureMutationSource(ctx context.Context, view *visibility.View, b binding) (*querySource, error) {
 	if s.rlsTargetDenied {
 		return captureDeniedQuerySource(view, b.ref)
 	}
@@ -170,8 +171,8 @@ func mutationPhysicalRow(source *querySource, index int, b binding) queryPhysica
 	return source.physicalRow(index, queryLeaf{ref: b.ref, relation: b.relation, storage: b.storage}, version)
 }
 
-func (row queryPhysicalRow) deletion() deleteCandidate {
-	return deleteCandidate{Ref: row.leaf.ref, Storage: row.leaf.storage, Row: row.version.Row, Version: row.version.Version, Base: row.version.Base, Ordinal: row.hint, Own: row.version.Born == 0}
+func (row queryPhysicalRow) deletion() visibility.DeleteCandidate {
+	return visibility.DeleteCandidate{Ref: row.leaf.ref, Storage: row.leaf.storage, Row: row.version.Row, Version: row.version.Version, Base: row.version.Base, Ordinal: row.hint, Own: row.version.Born == 0}
 }
 
 type mutationRowIdentity struct {

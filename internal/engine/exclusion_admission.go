@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -231,7 +232,7 @@ func (s *StatementScope) discardExclusionCandidate(ref ids.ObjectRef, proposal *
 	}
 	s.installExclusionProjectionLocked(e, p)
 }
-func (s *StatementScope) projectExclusionDeletionLocked(e *Engine, candidate deleteCandidate) {
+func (s *StatementScope) projectExclusionDeletionLocked(e *Engine, candidate visibility.DeleteCandidate) {
 	parent, ok := e.privateCatalogLocked(s.owner.catalog).Relation(candidate.Ref.Address)
 	if !ok || len(parent.Constraints.Exclusion) == 0 {
 		return

@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/visibility"
 )
 
 func (e *Engine) serializableEligibleLocked(ref ids.ObjectRef, changes *catalogChanges) bool {
@@ -34,7 +35,7 @@ func (e *Engine) serializableReadLocked(s *StatementScope, ref ids.ObjectRef) er
 	return e.visibility.SerializableReadLocked(node, ref.Address)
 }
 
-func (e *Engine) serializableWriteLocked(s *StatementScope, ref ids.ObjectRef, events []serializableWrite) error {
+func (e *Engine) serializableWriteLocked(s *StatementScope, ref ids.ObjectRef, events []visibility.SerializableWrite) error {
 	if ref.Domain() != e.catalog.Domain || ref.Address.SubID != 0 || s.txRef.Domain() != e.catalog.Domain || txOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.ref {
 		return errors.New("stuntgres: invalid SSI write authority")
 	}
@@ -59,7 +60,7 @@ func (e *Engine) serializableWriteLocked(s *StatementScope, ref ids.ObjectRef, e
 // Rollback restores surviving identity evidence only, never graph edges,
 // predicates, doom or attempted-write history. Engine.mu and owner.mu held.
 func (e *Engine) reconcileSerializableWritesLocked(t *transactionOwner) {
-	e.visibility.ReconcileSerializableWritesLocked(t.ref, func(address ids.ObjectAddress, event serializableWrite) bool {
+	e.visibility.ReconcileSerializableWritesLocked(t.ref, func(address ids.ObjectAddress, event visibility.SerializableWrite) bool {
 		if event.Rewrite {
 			return t.catalog != nil && t.catalog.storage[address].rewritten
 		}

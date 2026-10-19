@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -910,7 +911,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		e.mu.Lock()
 		err = scope.validateLockedRelation(e)
 		if err == nil {
-			event := [1]serializableWrite{{Rewrite: true}}
+			event := [1]visibility.SerializableWrite{{Rewrite: true}}
 			err = e.serializableWriteLocked(scope, ref, event[:])
 		}
 		e.mu.Unlock()
