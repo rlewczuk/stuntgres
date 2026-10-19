@@ -37,6 +37,8 @@ type Definition struct {
 // The static table is the registry: no init() registration. Names must not
 // overlap any family that is still dispatched by the engine's name chain.
 var definitions = [...]Definition{
+	{Names: []string{"mxid_age", "pg_current_xact_id", "pg_current_xact_id_if_assigned", "pg_xact_status", "pg_get_multixact_members"}, Claims: parser.TransactionIdentityFunctionName, Bind: bindTransactionIdentity},
+	{Names: []string{"pg_xact_commit_timestamp", "pg_xact_commit_timestamp_origin", "pg_last_committed_xact"}, Claims: parser.CommitTimestampFunctionName, Bind: bindCommitTimestamp},
 	{Names: []string{"uuid_extract_timestamp", "uuid_extract_version"}, Bind: bindUUIDExtract},
 	{Names: jsonCallNames[:], Claims: jsonCallClaims, Bind: bindJSONCall, ProbeCall: probeJSONCall},
 	{Names: mathNames[:], ExactSpelling: true, SharedGates: true, Bind: bindMath, ProbeCall: probeThresholdBucket},

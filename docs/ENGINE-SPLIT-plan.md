@@ -70,6 +70,11 @@ types; only `Eval` (and a few helpers) recover `*EvalContext` through
 | Tier C (excluded) | `catalogUserNameExpression`, `catalogForeignKeysExpression`, `objectAddressExpression`, `namespaceInquiryExpression`, `currentSchemasExpression`, `visibilityInquiryExpression`, `indexPropertyExpression`, `commentInquiryExpression`, `deparseExpression`, `identityExpression`, `transactionIdentityExpression`, `commitTimestampExpression`, `advisoryExpression`, `blockingInquiryExpression`, `sequenceCallExpression` | statement scope, session, engine stores: they move to `functions` in step 3 Tier C |
 | Engine wrapper | `installedFunctionExpression` | prologue only; holds an extension routine identity |
 
+The transaction identity/timestamp entries above are historical: their private
+nodes, binders and source/protocol behavior now belong to `functions`, behind
+`TransactionInquiryRuntime`. Runtime allocation/history, scope/fences, locks and
+publication remain engine-owned; see the functions package README.
+
 Other dirty node helpers: `columnExpression.rowContext`,
 `capturedGeneration`, `admitVirtualGeneration`; `rowExpression.absent`;
 `rowComparisonExpression.compare`.

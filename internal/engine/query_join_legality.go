@@ -742,16 +742,6 @@ func joinExpressionSides(node expr.Expr, leftWidth, rightWidth int) (uint8, erro
 		return 0, nil
 	case extensionPathsExpression:
 		return joinExpressionSides(e.arg, leftWidth, rightWidth)
-	case transactionIdentityExpression:
-		if e.arg == nil {
-			return 0, nil
-		}
-		children = []expr.Expr{e.arg}
-	case commitTimestampExpression:
-		if e.arg == nil {
-			return 0, nil
-		}
-		return joinExpressionSides(e.arg, leftWidth, rightWidth)
 	case advisoryExpression:
 		children = e.args
 	case sequenceCallExpression:

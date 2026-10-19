@@ -321,6 +321,10 @@ Its private immutable payloads contain no session/operation/notice authority.
    `parser` and `sqlstate`, never `catalog`, `storage`, `lock` or `visibility`.
    When a function needs engine state, it declares a narrow capability that the
    binder or evaluation context implements.
+   Transaction identity/age/member and commit-timestamp nodes use
+   `functions.TransactionInquiryRuntime`, implemented on `*EvalContext`; their
+   binders/source/protocol behavior are leaf-owned while live scope, allocation,
+   history, mutexes/tickets and publication retain their canonical owners.
 6. **Feature packages do not import each other** unless §6 says so. Shared
    needs go down into a core package or up into the root dispatch.
 7. **Lower layers never name upper-layer types.** When a lower package must
@@ -1201,7 +1205,7 @@ package-specific scope. This section holds the rules every session follows.
 |---|---|---|---|
 | 1 | [`ENGINE-SPLIT-ids.md`](ENGINE-SPLIT-ids.md) | — | done (1a–1d) |
 | 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | done (2a–2d) |
-| 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3, F4/F5 Tier A, Tier B, and aggregates and windows done; F2 view literal capture, result nullability protocol and conditional closure hook done (selected proof/quickcheck passed; racecheck/finalcheck waived by user); `SQLJSON` rendering done (selected dual-mode/quickcheck passed; remaining checks, including full racecheck/finalcheck, waived by user); function sources done (proof and specific LIKE-observer failure waiver recorded in the functions prompt); Tier C refined, ACL part done, catalog/xid/advisory/sequence parts next |
+| 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3, F4/F5 Tier A, Tier B, and aggregates and windows done; F2 view literal capture, result nullability protocol and conditional closure hook done (selected proof/quickcheck passed; racecheck/finalcheck waived by user); `SQLJSON` rendering done (selected dual-mode/quickcheck passed; remaining checks, including full racecheck/finalcheck, waived by user); function sources done (proof and specific LIKE-observer failure waiver recorded in the functions prompt); Tier C refined, ACL part done; transaction inquiries source/unit cutover implemented with build/standalone smoke observed, required verification/review pending; catalog/advisory/sequence parts next |
 | 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | done (4a–4c) |
 | 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | done (5a–5g); optional 5h open |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | done (6a–6c); optional 6d open |

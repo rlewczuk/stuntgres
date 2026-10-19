@@ -1029,26 +1029,6 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			e.args = args
 			return e, true, nil
 		}
-	case transactionIdentityExpression:
-		if e.arg == nil {
-			return e, false, nil
-		}
-		arg, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
-		if err != nil {
-			return nil, false, err
-		}
-		e.arg = arg
-		return e, changed, nil
-	case commitTimestampExpression:
-		if e.arg == nil {
-			return e, false, nil
-		}
-		arg, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
-		if err != nil {
-			return nil, false, err
-		}
-		e.arg = arg
-		return e, changed, nil
 	case advisoryExpression:
 		var args []expr.Expr
 		for i, arg := range e.args {

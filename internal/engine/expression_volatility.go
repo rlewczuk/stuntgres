@@ -120,17 +120,6 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 		return expr.Stable
 	case extensionPathsExpression:
 		return merge(children(n.arg), expr.Stable)
-	case transactionIdentityExpression:
-		volatility := expr.Stable
-		if n.kind == identityStatus || n.kind == identityMembers {
-			volatility = expr.Volatile
-		}
-		if n.arg != nil {
-			return merge(children(n.arg), volatility)
-		}
-		return volatility
-	case commitTimestampExpression:
-		return expr.Volatile
 	case installedSoundexFunctionExpression:
 		return children(n.Args...)
 	case installedMetaphoneFunctionExpression:

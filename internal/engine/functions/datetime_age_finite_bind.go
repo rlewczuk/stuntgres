@@ -7,8 +7,7 @@ import (
 )
 
 // The candidates are only this PG18 function family's homogeneous signatures.
-// age(xid) is a transaction-identity inquiry: the caller supplies its node.
-func BindDatetimeAgeFinite(b Binder, raw parser.FunctionExpr, visible bool, transactionAge func(expr.Expr) (expr.Expr, error)) (expr.Expr, error) {
+func BindDatetimeAgeFinite(b Binder, raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	var small [2]Argument
 	operands := small[:min(len(raw.Args), len(small))]
@@ -70,7 +69,7 @@ func BindDatetimeAgeFinite(b Binder, raw parser.FunctionExpr, visible bool, tran
 		if err != nil {
 			return nil, err
 		}
-		return transactionAge(arg)
+		return identityExpression(b, raw, identityAge, arg)
 	}
 	e := DatetimeAgeFinite{Count: len(operands)}
 	properties := expr.Properties{Volatility: expr.Immutable}

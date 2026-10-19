@@ -637,30 +637,6 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			return node, false, err
 		}
 		rebound = n
-	case transactionIdentityExpression:
-		if n.arg != nil {
-			n.arg = child(n.arg)
-		}
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		n.Info = info
-		rebound = n
-	case commitTimestampExpression:
-		if n.arg != nil {
-			n.arg = child(n.arg)
-		}
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		n.Info = info
-		rebound = n
 	case visibilityInquiryExpression:
 		n.arg = child(n.arg)
 		n.Info = info

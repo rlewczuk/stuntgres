@@ -22,6 +22,10 @@ a registry instead of the name if-chain. It stays a leaf library: it imports
 `expr`, `ids`, `sqltype`, `parser` and `sqlstate`, never `catalog`, `storage`,
 `lock`, `visibility` or the root engine.
 
+Transaction identity/age/member and commit-timestamp function ownership now
+follows this boundary through `TransactionInquiryRuntime`; canonical allocation,
+history, tickets, scope/fences, locks and publication remain in the engine.
+
 ## Sub-steps
 
 ### F1 — Remove generics (needs 2b)
@@ -133,6 +137,12 @@ smoke proof; full racecheck and post-merge finalcheck were waived by the user.
   Status section: one part per subsystem, each with a narrow capability
   interface in `functions`.
 
+The transaction inquiry port uses the shipped Binder without expansion, then
+moves private owners and registers both families before shared gates using the
+existing parser predicates. The datetime registry owns age/isfinite; XID age
+constructs its node from the already analyzed/coerced operand, without the old
+engine builder callback. Item8's source/unit cutover and proof status are below.
+
 ## Invariants
 
 - Results, errors, SQLSTATEs, positions, notices, volatility and
@@ -239,7 +249,7 @@ Tier C has a refined plan.
 - [ ] Tier C refined (after steps 4, 5 and 7; plan in "Tier C refinement"
   below): [x] ACL SQL function nodes (`b3ce43139` seam, `574de18f1` port,
   `436322070` move, `75d906ea8` protocol hooks, then the docs commit)
-  [ ] catalog inquiry (with session identity) [ ] transaction identity and
+  [ ] catalog inquiry (with session identity) [x] transaction identity and
   commit timestamps [ ] advisory locks (with blocking inquiry) [ ] sequence
   calls
 
@@ -673,10 +683,11 @@ Notes for later steps (datetime, pattern, string):
   string predicates; a throwaway benchmark measured 0.6 to 1 µs per miss with
   no allocations. A sorted static table would keep it `init()`-free.
 - The binary port removes `FinishBinary` (done).
-- Still engine-dispatched over exported entry points: `age`/`isfinite`
-  (Tier C), `overlaps` (an F2 inline-safety hook) and `similar_to_escape`
-  (needs a syntax-keyed definition). `regexp_*`, the variadic string family
-  and `to_number` registered in the follow-up below.
+- Still engine-dispatched over exported entry points: `overlaps` (an F2
+  inline-safety hook) and `similar_to_escape` (needs a syntax-keyed definition).
+  age/isfinite now register with datetime; XID age no longer takes an engine
+  node-builder callback. `regexp_*`, the variadic string family and `to_number`
+  registered in the follow-up below.
 - LIKE's binder and node move together once F2 has converted the switches
   that name `likeExpression`.
 
@@ -1551,12 +1562,12 @@ Tier C refinement, measured on `5cc6fe6e5` with the ACL part done first:
   recapture and error order of the old `Eval`. `expr.Context` does not grow
   per family. Bind code uses `Binder`; registry entries keep the chain's
   position (these branches sit before the shared gates).
-- **What stays in the engine** for every part: the capability
-  implementation, set-returning admission and function scans (the
-  function-source switches have no set-source hook yet), result nullability
-  (`query_bind.go`, `returning.go`), view literal pairing, the
-  closed-DEFAULT check, and statement input/output adapters such as the
-  aclitem and regrole resolvers and formatters.
+- **What stays in the engine** for every part: the capability implementation,
+  live authority, query scheduling/function scans, OUT layout and statement
+  input/output adapters such as aclitem and regrole resolvers/formatters.
+  Function sources, capture, nullability and closure now have shipped node
+  protocols; callers retain explicit engine-wrapper and lexical-boundary
+  precedence rather than concrete transaction inquiry cases.
 - **Parts**, one session each, can run in parallel: they touch the same
   switch files, `function.go` and these docs, so rebase early.
   - ACL SQL function nodes: done (record below).
@@ -1567,10 +1578,12 @@ Tier C refinement, measured on `5cc6fe6e5` with the ACL part done first:
     `commentInquiryExpression` and `deparseExpression`. They read the
     statement's catalog snapshot and search path: a catalog inquiry
     capability.
-  - Transaction identity and commit timestamps:
-    `transactionIdentityExpression`, `commitTimestampExpression` and
-    `age(xid)` (`BindDatetimeAgeFinite` then loses its node-builder value).
-    They read `visibility` state: a transaction capability.
+  - Transaction identity and commit timestamps: private
+    `transactionIdentityExpression` and `commitTimestampExpression` now live in
+    `functions`, including age(xid), binders and source/protocol operations.
+    `TransactionInquiryRuntime` retains engine visibility/lock authority;
+    `BindDatetimeAgeFinite` has no engine node-builder callback. Source/unit
+    cutover and selected dual-mode, quickcheck, full race and smoke proof passed.
   - Advisory locks: `advisoryExpression` over the `lock` package's advisory
     manager: a lock capability.
   - Sequence calls: `sequenceCallExpression`, with its prepared-literal and
@@ -1699,12 +1712,13 @@ Notes for later steps (Tier C ACL):
 Later-wave refresh, measured at `75fe0d710` while planning steps 8–17
 (docs only; no code changed):
 
-The historical inventory below predates the result-nullability protocol cutover.
-`query_bind.go` and `returning.go` now ask node-owned hooks rather than enumerate
-the catalog/session/blocking inquiry kinds.
+The historical inventory below predates the result-nullability and transaction
+inquiry cutovers. `query_bind.go` and `returning.go` now ask node-owned hooks
+rather than enumerate the catalog/session/blocking inquiry kinds. Transaction
+identity/timestamp nodes have moved; their central concrete cases are removed.
 
-- **Tier C nodes still in the engine** (all 14 listed in the refinement,
-  plus `identityExpression`). Every one is named by the same 12 central
+- **Historical Tier C engine inventory** (before the transaction inquiry move;
+  current Item8 ownership is recorded below). These nodes were named by 12
   switch files: `aggregate_bind.go`, `conditional_plan.go`, `default.go`,
   `deparse_renderer.go`, `deparse_tree.go`, `expression.go`,
   `expression_retag.go`, `index_control.go`, `query_expression_walk.go`,
@@ -1719,10 +1733,9 @@ the catalog/session/blocking inquiry kinds.
     `string_set_query.go`, `string_table_bind.go` and `transaction_time.go`
     for `catalogUserNameExpression`, `catalogForeignKeysExpression` and
     `objectAddressExpression`;
-  - transaction identity and commit timestamps: the same six files as the
-    catalog relations nodes (`expression_volatility.go`, `generated.go`,
-    `scalar_function_sql.go`, `string_set_query.go`, `string_table_bind.go`,
-    `transaction_time.go`);
+  - transaction identity and commit timestamps: superseded by Item8 below;
+    these nodes use generic consumers and explicit source capabilities, not
+    the historical concrete-switch inventory;
   - advisory locks: the core 12 only; `blockingInquiryExpression` adds
     `query_bind.go` and `returning.go`;
   - sequence calls: `default_replay.go`, `expression_volatility.go`,
@@ -1734,13 +1747,15 @@ the catalog/session/blocking inquiry kinds.
   `currentSchemasExpression` read `Engine.mu`, the session token and the
   scope's search-path results and rule/FK authorities; `identityExpression`
   reads the scope's identity snapshot and current-schema result;
-  `transactionIdentityExpression` reads `Engine.catalog`, `locks`, `mu`,
-  `visibility` and the scope's ticket and TxRef; `commitTimestampExpression`
-  reads `Engine.mu` and `visibility`; `advisoryExpression` reads
+  transaction inquiry nodes now read `TransactionInquiryRuntime`; its engine
+  adapter reads catalog/visibility under `Engine.mu`, or the manager with the
+  actual live scope ticket outside that mutex. Timestamp/last reads snapshot
+  canonical tracking/history together; `advisoryExpression` reads
   `Engine.locks` and `Session.advisory`; `blockingInquiryExpression` reads
   `Engine.mu` and the session; `sequenceCallExpression` reads
   `Engine.catalog`, the session's sequence memories and the transaction
   owner.
+
 - **F2 capture completed:** `captureNormalizedViewLiteralTree` now reads the
   explicit written-operands protocol; SQLJSON query/RETURNING, coercions,
   occurrence maps and installed identities stay engine-owned. The original
@@ -1854,4 +1869,52 @@ See [functions Testing](../internal/engine/functions/README.md#testing) for the
 retained selectors, independent outcomes and exercised smoke argv.
 SQLJSON rendering and the engine-owned catalog/xid cases remain separate work;
 the adjacent result-nullability protocol is now integrated as described above.
+
+### Transaction inquiries — Group A Item8 source/unit cutover
+
+Both private families own binders, immutable nodes/Eval, validating Rebuild,
+provider-preserving Substitute, source opening and applicable render/replay,
+grouping, volatility/folding/preflight, capture and conditional-closure hooks in
+`functions`. The four former engine owner/source files, callback and concrete
+cases in all 17 affected caller/routing files are removed without aliases or
+exported concrete-node switches. Existing generic consumers keep engine-wrapper
+and lexical-boundary precedence. Members remain nonreflexive source occurrences;
+no strict-folding, nullability, group-leaf or transparent-closure hook was added.
+
+`TransactionInquiryRuntime` on `*EvalContext` preserves distinct demand order:
+identity context initialization before child errors/NULL and scope; timestamp
+strict NULL/xid0/bootstrap/frozen before runtime/tracking. Scalar member misuse
+checks scope before invocation-required diagnostics. Canonical domain/epoch
+fences, allocator/history, visibility publication and actual manager tickets
+remain engine-owned. Member rows reuse the sole manager snapshot clone and are
+packed into owned values outside locks; last XID/entry is one locked snapshot.
+No Binder expansion, per-evaluation closure, transfer-member buffer, production
+fixture API, new dependency or leaf import of engine state was introduced.
+
+No existing whole test definition was deleted. Mixed engine
+`TestTransactionIdentityBinding` and `TestCommitTimeExpression` retain real
+catalog/provider/dependency, traversal/render/group, remap/retag and lifecycle
+assertions; the latter still maps actual column SubID1 to2 and slot0 to3 without
+mutating the original. `TestSourceProtocolOccurrence` uses real binding and
+retains member nonreflexivity. Canonical allocation/publication/MultiXact and
+source-lifetime units stay at their owners. New genuine leaf units are
+`TestTransactionInquiryIdentityDemand`, `TestTransactionInquiryTimestampDemand`
+and `TestTransactionInquiryImmutableProtocols`; exact commands and assertion
+boundaries are in the functions README's Testing section. Public goldens remain
+unchanged, including temporal age/isfinite and EXECUTE-authority demand.
+
+Observed after source edits: root-owned `make build` followed by the existing
+temporary standalone public-driver Go smoke passed exit0 (combined24.12s).
+The smoke exercised direct/same-held identity and member behavior, exact disabled
+diagnostics, actual enabled commit timestamps and byte-identical symbolic native
+roundtrip (583 observed bytes, not a size expectation). All eight bounded
+PostgreSQL18.6/native selections, moved/retained units, focused races, full
+quickcheck, build and module-only dependency checks passed. Full racecheck passed
+with `GOMAXPROCS=2 GOFLAGS=-p=16` in526.84s after earlier oversubscribed/deadline
+failures; coverage and900s deadlines were unchanged. Five startup samples in that
+runtime environment measured1.151–1.310ms, above the <1ms target, with steady
+5152allocs/op unchanged from baseline; timings are not an isolated performance
+comparison. Review and post-integration proof are separate workflow gates, not
+claimed by these implementation measurements. No temporary smoke source is a
+repository deliverable.
 

@@ -668,22 +668,6 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if n, ok := bound.(extensionPathsExpression); ok && len(r.Args) == 1 {
 			return child(r.Args[0], n.arg)
 		}
-		if n, ok := bound.(transactionIdentityExpression); ok {
-			if n.arg == nil && len(r.Args) == 0 {
-				return nil
-			}
-			if n.arg != nil && len(r.Args) == 1 {
-				return child(r.Args[0], n.arg)
-			}
-		}
-		if n, ok := bound.(commitTimestampExpression); ok {
-			if n.arg == nil && len(r.Args) == 0 {
-				return nil
-			}
-			if n.arg != nil && len(r.Args) == 1 {
-				return child(r.Args[0], n.arg)
-			}
-		}
 		if n, ok := bound.(currentSchemasExpression); ok && len(r.Args) == 1 {
 			return child(r.Args[0], n.arg)
 		}

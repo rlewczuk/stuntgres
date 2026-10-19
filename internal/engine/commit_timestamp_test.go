@@ -295,17 +295,17 @@ func TestCommitTimeExpression(t *testing.T) {
 	ctx := context.Background()
 	e := New()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	for _, kind := range []commitTimestampKind{commitTimestampScalar, commitTimestampOrigin, commitTimestampLast} {
-		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: kind.name()}}}}
-		if kind != commitTimestampLast {
+	for _, name := range []string{"pg_xact_commit_timestamp", "pg_xact_commit_timestamp_origin", "pg_last_committed_xact"} {
+		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}}
+		if name != "pg_last_committed_xact" {
 			raw.Args = []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}
 		}
-		bound, err := b.bindCommitTimestamp(raw)
+		bound, err := b.bindFunctionProvider(raw)
 		if err != nil {
 			t.Fatal(err)
 		}
-		n := bound.(commitTimestampExpression)
-		if err := n.validate(); err != nil {
+		n := bound
+		if err := n.(expr.StoredProvider).ValidateStoredProvider(); err != nil {
 			t.Fatal(err)
 		}
 		if n.Properties().Volatility != expr.Volatile || plannedVolatility(n) != expr.Volatile || generationImmutable(n) || conditionalConstantInputs(n) || !sameGroupExpression(n, n) {
@@ -316,28 +316,31 @@ func TestCommitTimeExpression(t *testing.T) {
 		if count != len(raw.Args) {
 			t.Fatal("child traversal", count)
 		}
-		if kind != commitTimestampLast {
+		if name != "pg_last_committed_xact" {
 			v, err := n.Eval(&EvalContext{Context: ctx})
-			if err != nil || !v.IsNull() || v.Type() != n.Usage.Type {
+			if err != nil || !v.IsNull() || v.Type() != n.ResultUsage().Type {
 				t.Fatal("strict whole NULL", err)
 			}
 		}
 		recipe, err := (scalarRenderer{}).scalarFunctionSQL(ctx, e.CatalogRead(), n)
-		if err != nil || !strings.Contains(recipe, "pg_catalog."+kind.name()+"(") {
+		if err != nil || !strings.Contains(recipe, "pg_catalog."+name+"(") {
 			t.Fatal(recipe, err)
 		}
 		persisted, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-		if err != nil || !sameGroupExpression(n, persisted) || persisted.(commitTimestampExpression).validate() != nil {
+		if err != nil || !sameGroupExpression(n, persisted) || persisted.(expr.StoredProvider).ValidateStoredProvider() != nil {
 			t.Fatal("symbolic persistence lost the inquiry signature or argument", err)
 		}
-		if n.arg != nil {
+		if len(n.(expr.Composite).Children()) != 0 {
 			column := columnExpression{
 				Info:   b.info(b.typ(sqltype.Xid).Usage(), parser.Position{}, expr.Properties{RowDependent: true}),
 				origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 16384, SubID: 1}},
 			}
-			withColumn := n
-			withColumn.arg = column
-			withColumn.Property = expr.MergeProperties(expr.Properties{Volatility: expr.Volatile}, column.Properties())
+			info := expr.InfoOf(n)
+			info.Property = expr.MergeProperties(expr.Properties{Volatility: expr.Volatile}, column.Properties())
+			withColumn, err := n.(expr.Composite).Rebuild(info, []expr.Expr{column})
+			if err != nil {
+				t.Fatal(err)
+			}
 			persisted, err := remapBoundExpression(withColumn, func(ref ids.ObjectRef) ids.ObjectRef {
 				ref.Address.SubID++
 				return ref
@@ -345,12 +348,12 @@ func TestCommitTimeExpression(t *testing.T) {
 			if err != nil {
 				t.Fatal("symbolic inquiry child remap", err)
 			}
-			next := persisted.(commitTimestampExpression)
-			mappedColumn := next.arg.(columnExpression)
-			if next.kind != kind || next.validate() != nil || mappedColumn.origin.Address.SubID != 2 || mappedColumn.slot != 3 {
+			next := persisted
+			mappedColumn := next.(expr.Composite).Children()[0].(columnExpression)
+			if next.(expr.StoredProvider).ValidateStoredProvider() != nil || expr.InfoOf(next).CallRoutineReference() != expr.InfoOf(n).CallRoutineReference() || next.Properties() != withColumn.Properties() || next.ResultUsage() != n.ResultUsage() || mappedColumn.origin.Address.SubID != 2 || mappedColumn.slot != 3 {
 				t.Fatal("persistence failed to remap the inquiry's child")
 			}
-			originalColumn := withColumn.arg.(columnExpression)
+			originalColumn := withColumn.(expr.Composite).Children()[0].(columnExpression)
 			if originalColumn.origin.Address.SubID != 1 || originalColumn.slot != 0 {
 				t.Fatal("persistence mutated the original inquiry child")
 			}
@@ -363,7 +366,7 @@ func TestCommitTimeExpression(t *testing.T) {
 			}
 			return fb.typ(d.ID())
 		})
-		if err != nil || mapped.(commitTimestampExpression).validate() != nil {
+		if err != nil || mapped.(expr.StoredProvider).ValidateStoredProvider() != nil {
 			t.Fatal("retagged provider", err)
 		}
 	}

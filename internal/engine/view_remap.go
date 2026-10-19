@@ -315,16 +315,6 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 	case extensionPathsExpression:
 		n.arg = child(n.arg)
 		next = n
-	case transactionIdentityExpression:
-		if n.arg != nil {
-			n.arg = child(n.arg)
-		}
-		next = n
-	case commitTimestampExpression:
-		if n.arg != nil {
-			n.arg = child(n.arg)
-		}
-		next = n
 	case currentSchemasExpression:
 		n.arg = child(n.arg)
 		next = n

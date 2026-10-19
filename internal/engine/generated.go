@@ -232,10 +232,6 @@ func generationImmutable(node expr.Expr) bool {
 		return false
 	case catalogUserNameExpression, catalogForeignKeysExpression, extensionPathsExpression:
 		return false
-	case transactionIdentityExpression:
-		return false
-	case commitTimestampExpression:
-		return false
 	case installedSoundexFunctionExpression:
 		return args(n.Args)
 	case installedMetaphoneFunctionExpression:
@@ -433,10 +429,6 @@ func generationHasTableOID(node expr.Expr) bool {
 		return false
 	case extensionPathsExpression:
 		return generationHasTableOID(n.arg)
-	case transactionIdentityExpression:
-		return n.arg != nil && generationHasTableOID(n.arg)
-	case commitTimestampExpression:
-		return n.arg != nil && generationHasTableOID(n.arg)
 	case installedSoundexFunctionExpression:
 		return args(n.Args)
 	case installedMetaphoneFunctionExpression:
@@ -797,22 +789,6 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 			return err
 		}
 		return validateGenerationPlan(view, d, n.arg)
-	case transactionIdentityExpression:
-		if err := n.validate(); err != nil {
-			return err
-		}
-		if n.arg != nil {
-			return validateGenerationPlan(view, d, n.arg)
-		}
-		return nil
-	case commitTimestampExpression:
-		if err := n.validate(); err != nil {
-			return err
-		}
-		if n.arg != nil {
-			return validateGenerationPlan(view, d, n.arg)
-		}
-		return nil
 	case installedSoundexFunctionExpression:
 		return args(n.Args)
 	case installedMetaphoneFunctionExpression:

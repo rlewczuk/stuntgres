@@ -144,24 +144,6 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		args := [1]expr.Expr{n.arg}
 		return r.functionSQL(ctx, view, "pg_catalog.pg_extension_update_paths", args[:])
-	case transactionIdentityExpression:
-		if err := n.validate(); err != nil {
-			return "", err
-		}
-		if n.arg == nil {
-			return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), nil)
-		}
-		args := [1]expr.Expr{n.arg}
-		return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), args[:])
-	case commitTimestampExpression:
-		if err := n.validate(); err != nil {
-			return "", err
-		}
-		if n.arg == nil {
-			return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), nil)
-		}
-		args := [1]expr.Expr{n.arg}
-		return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), args[:])
 	case expr.Renderable:
 		// Function nodes describe their stored form; engine wrappers that embed
 		// one keep their explicit cases above.

@@ -1,4 +1,4 @@
-package engine
+package functions
 
 import (
 	"fmt"
@@ -44,8 +44,7 @@ func (e commitTimestampExpression) Substitute(info expr.Info, children []expr.Ex
 func (e commitTimestampExpression) SourceAdmission() (bool, bool) { return true, false }
 
 func (e commitTimestampExpression) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
-	c := evalContext(ctx)
-	value, err := e.Eval(c)
+	value, err := e.Eval(ctx)
 	if err != nil {
 		return expr.SourceCursor{}, err
 	}

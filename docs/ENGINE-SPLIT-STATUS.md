@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `b9e93292b`. The later-wave plans
+Last verified against `master` at `f91336682346e5f24e665a7d6f5aebe88d308c6f`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -16,9 +16,9 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 as another broad item (§8).
 
 - **Step 3 remainder** — F2 item 3, F3 aliases item 6
-  (broad), and the Tier C parts 7–9 (catalog inquiry with session identity,
-  transaction identity and commit timestamps, advisory locks with blocking
-  inquiry). One session each. They touch the same switch files; rebase early.
+  (broad), and the Tier C parts 7 and 9 (catalog inquiry with session identity,
+  advisory locks with blocking inquiry). One session each. They touch the same
+  switch files; rebase early.
 - **Optional cleanups** — catalog 5h (item 11), storage 6d (item 12).
 - **Step 8 `settings`** — 8a (item 13) implementation/proof complete;
   review/integration pending. 8b (item 14) follows integration.
@@ -142,7 +142,7 @@ Steps 1, 2 and 4–7 and `access` are done.
       `75d906ea8`, then the docs commit) *(racecheck skipped at user
       request)*
     - [ ] catalog inquiry, with session identity (`identityExpression`)
-    - [ ] transaction identity and commit timestamps
+    - [x] transaction identity and commit timestamps *(this commit; selected dual-mode, quickcheck, racecheck and driver smoke passed)*
     - [ ] advisory locks, with blocking inquiry
     - [ ] sequence calls
 - [x] **Step 4 — `lock`** ([prompt](ENGINE-SPLIT-lock.md); needs 1)
@@ -331,8 +331,8 @@ in the prompt file's Status section.
    needs — · **broad**
 7. [ ] Tier C: catalog inquiry, with session identity —
    [functions](ENGINE-SPLIT-functions.md) Tier C · needs — (easier after 4)
-8. [ ] Tier C: transaction identity and commit timestamps —
-   [functions](ENGINE-SPLIT-functions.md) Tier C · needs —
+8. [x] Tier C: transaction identity and commit timestamps —
+   [functions](ENGINE-SPLIT-functions.md) Tier C · needs — · this commit; verified
 9. [ ] Tier C: advisory locks, with blocking inquiry —
    [functions](ENGINE-SPLIT-functions.md) Tier C · needs —
 10. [ ] Tier C: sequence calls — [functions](ENGINE-SPLIT-functions.md)

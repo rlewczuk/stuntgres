@@ -318,12 +318,6 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 	case catalogForeignKeysExpression:
 		_, ok := other.(catalogForeignKeysExpression)
 		return ok
-	case transactionIdentityExpression:
-		o, ok := other.(transactionIdentityExpression)
-		return ok && e.kind == o.kind && ((e.arg == nil && o.arg == nil) || (e.arg != nil && o.arg != nil && same(e.arg, o.arg)))
-	case commitTimestampExpression:
-		o, ok := other.(commitTimestampExpression)
-		return ok && e.kind == o.kind && ((e.arg == nil && o.arg == nil) || (e.arg != nil && o.arg != nil && same(e.arg, o.arg)))
 	case advisoryExpression:
 		o, ok := other.(advisoryExpression)
 		if !ok || e.name != o.name || len(e.args) != len(o.args) {
@@ -678,18 +672,6 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 	case catalogForeignKeysExpression:
 		stage(&e.Info)
 		bound = e
-	case transactionIdentityExpression:
-		if e.arg != nil {
-			e.arg = rewrite(e.arg)
-		}
-		stage(&e.Info)
-		bound = e
-	case commitTimestampExpression:
-		if e.arg != nil {
-			e.arg = rewrite(e.arg)
-		}
-		stage(&e.Info)
-		bound = e
 	case advisoryExpression:
 		e.args = append([]expr.Expr(nil), e.args...)
 		for i := range e.args {
@@ -900,14 +882,6 @@ func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 	case extensionPathsExpression:
 		walk(e.arg)
 	case catalogForeignKeysExpression:
-	case transactionIdentityExpression:
-		if e.arg != nil {
-			walk(e.arg)
-		}
-	case commitTimestampExpression:
-		if e.arg != nil {
-			walk(e.arg)
-		}
 	case advisoryExpression:
 		for _, arg := range e.args {
 			walk(arg)

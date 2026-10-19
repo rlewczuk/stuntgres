@@ -70,7 +70,7 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 			t.Fatalf("Lookup(%q) = %v, %v", name, definition.Names, ok)
 		}
 	}
-	for _, name := range []string{"extract", "date_part", "date_trunc", "date_bin", "timezone", "date_add", "justify_interval", "to_char", "to_timestamp", "make_date", "make_interval"} {
+	for _, name := range []string{"extract", "date_part", "date_trunc", "date_bin", "timezone", "date_add", "justify_interval", "to_char", "to_timestamp", "age", "isfinite", "make_date", "make_interval"} {
 		definition, ok := Lookup(name)
 		if !ok || definition.Bind == nil || !definition.ExactSpelling || !definition.SharedGates {
 			t.Fatalf("Lookup(%q) = %v, %v", name, definition.Names, ok)
@@ -162,7 +162,7 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 	}
 	for _, name := range []string{"", "uuid_generate_v1", "uuid_generate_v4x", "concat_w\u017f", "concatenate", "formats", "format_type", "uuid_extract", "uuid_extract_versions", "UUIDv7", "uuidv1", "uuidv", "ABS", "Width_Bucket", "absolute", "unnest", "generate_subscripts", "array_agg", "array_cat_agg", "array", "range_agg", "int4range",
 		"JSON_OBJECT", "json_agg", "jsonb_object_agg", "json", "to_j\u017fon", "jsonb_populate_record\u017fet", "json_array", "jsonb_path_query_arrays",
-		"Date_Trunc", "MAKE_DATE", "age", "isfinite", "overlaps", "TO_NUMBER",
+		"Date_Trunc", "MAKE_DATE", "AGE", "ISFINITE", "overlaps", "TO_NUMBER",
 		"RANDOM", "Random_Normal", "SETSEED", "randoms", "setseeds", "PG_SLEEP", "Pg_Sleep_For", "pg_sleep_untill", "sleep",
 		"current_date", "current_timestamp", "localtimestamp", "clock", "timeofdays", "now_utc", "int_array", "int_array_enumerate", "int_agg_state", "int_agg_final_array", "query_int", "bqarr_in",
 		"LIKE_ESCAPE", "REGEXP_MATCH", "regexp", "similar_to_escape", "similar_escape",

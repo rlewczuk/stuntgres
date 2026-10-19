@@ -1,4 +1,4 @@
-package engine
+package functions
 
 import (
 	"fmt"
@@ -46,15 +46,14 @@ func (e transactionIdentityExpression) SourceAdmission() (bool, bool) {
 }
 
 func (e transactionIdentityExpression) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
-	c := evalContext(ctx)
 	if e.kind == identityMembers {
-		values, err := e.openMembers(c)
+		values, err := e.openMembers(ctx)
 		if err != nil {
 			return expr.SourceCursor{}, err
 		}
 		return expr.OwnedSource(e.Usage.Type, values), nil
 	}
-	value, err := e.Eval(c)
+	value, err := e.Eval(ctx)
 	if err != nil {
 		return expr.SourceCursor{}, err
 	}

@@ -42,12 +42,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 	if parser.VersionInformationFunctionName(name) {
 		return b.bindVersionInformation(raw)
 	}
-	if parser.CommitTimestampFunctionName(name) {
-		return b.bindCommitTimestamp(raw)
-	}
-	if parser.TransactionIdentityFunctionName(name) {
-		return b.bindTransactionIdentity(raw)
-	}
 	if strings.EqualFold(name, "generate_series") {
 		visible, err := b.builtinVisible(raw.Name, functionLookup)
 		if err != nil {
@@ -103,10 +97,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 		return b.bindEnumFunction(raw, visible)
 	case "pg_get_constraintdef", "pg_get_expr", "pg_get_indexdef", "pg_get_viewdef", "pg_get_serial_sequence":
 		return b.bindDeparse(raw, visible)
-	case "age", "isfinite":
-		return functions.BindDatetimeAgeFinite(b, raw, visible, func(arg expr.Expr) (expr.Expr, error) {
-			return b.identityExpression(raw, identityAge, arg)
-		})
 	case "overlaps":
 		node, err := functions.BindDatetimeOverlaps(b, raw, visible)
 		if err != nil {

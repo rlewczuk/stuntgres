@@ -221,50 +221,50 @@ func TestTransactionIdentityBinding(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	for _, tc := range []struct {
-		kind   transactionIdentityKind
+		name   string
 		oid    uint32
 		result sqltype.ID
-	}{{identityAge, 1181, sqltype.Int4}, {identityMultiAge, 3939, sqltype.Int4}, {identityCurrent, 5059, sqltype.Xid8}, {identityAssigned, 5060, sqltype.Xid8}, {identityStatus, 5066, sqltype.Text}, {identityMembers, 3819, sqltype.ID(2249)}} {
-		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.kind.name()}}}}
-		if tc.kind != identityCurrent && tc.kind != identityAssigned {
+	}{{"age", 1181, sqltype.Int4}, {"mxid_age", 3939, sqltype.Int4}, {"pg_current_xact_id", 5059, sqltype.Xid8}, {"pg_current_xact_id_if_assigned", 5060, sqltype.Xid8}, {"pg_xact_status", 5066, sqltype.Text}, {"pg_get_multixact_members", 3819, sqltype.ID(2249)}} {
+		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name}}}}
+		if tc.name != "pg_current_xact_id" && tc.name != "pg_current_xact_id_if_assigned" {
 			raw.Args = []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}
 		}
 		var bound expr.Expr
 		var err error
-		if tc.kind == identityAge {
+		if tc.name == "age" {
 			raw.Args = []parser.Expr{ageFiniteTyped("xid", "0")}
 			bound, err = b.bindFunctionProvider(raw)
 		} else {
-			bound, err = b.bindTransactionIdentity(raw)
+			bound, err = b.bindFunctionProvider(raw)
 		}
 		if err != nil {
-			t.Fatal(tc.kind, err)
+			t.Fatal(tc.name, err)
 		}
-		n := bound.(transactionIdentityExpression)
-		if err := n.validate(); err != nil {
+		n := bound
+		if err := n.(expr.StoredProvider).ValidateStoredProvider(); err != nil {
 			t.Fatal(err)
 		}
-		reference := n.CallRoutineReference()
+		reference := expr.InfoOf(n).CallRoutineReference()
 		if reference == nil || reference.RoutineOID() != tc.oid {
-			t.Fatal("original formal identity", tc.kind, reference)
+			t.Fatal("original formal identity", tc.name, reference)
 		}
-		if tc.kind != identityMembers && n.ResultUsage().Type.ID() != tc.result {
-			t.Fatal("result usage", tc.kind)
+		if tc.name != "pg_get_multixact_members" && n.ResultUsage().Type.ID() != tc.result {
+			t.Fatal("result usage", tc.name)
 		}
 		intrinsic := expr.Stable
-		if tc.kind == identityStatus || tc.kind == identityMembers {
+		if tc.name == "pg_xact_status" || tc.name == "pg_get_multixact_members" {
 			intrinsic = expr.Volatile
 		}
 		if plannedVolatility(n) != intrinsic || conditionalConstantInputs(n) || generationImmutable(n) {
-			t.Fatal("unsafe constant/volatility admission", tc.kind)
+			t.Fatal("unsafe constant/volatility admission", tc.name)
 		}
 		count := 0
 		boundExpressionChildren(n, func(expr.Expr) { count++ })
 		if count != len(raw.Args) {
-			t.Fatal("closed traversal", tc.kind, count)
+			t.Fatal("closed traversal", tc.name, count)
 		}
 		recipe, err := (scalarRenderer{}).scalarFunctionSQL(ctx, e.CatalogRead(), n)
-		if err != nil || !strings.Contains(recipe, "pg_catalog."+tc.kind.name()+"(") {
+		if err != nil || !strings.Contains(recipe, "pg_catalog."+tc.name+"(") {
 			t.Fatal("symbolic recipe", recipe, err)
 		}
 		persisted, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
@@ -290,7 +290,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 		if err := admitRoutineDescriptor(auth, nil, captured, nil); err == nil {
 			t.Fatal("current OID repaired missing original routine manifest")
 		}
-		if n.arg != nil && tc.kind != identityAge {
+		if len(n.(expr.Composite).Children()) != 0 && tc.name != "age" {
 			value, err := n.Eval(&EvalContext{Context: ctx})
 			if err != nil || !value.IsNull() {
 				t.Fatal("typed strict null", err)
@@ -304,7 +304,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 			}
 			return fb.typ(d.ID())
 		})
-		if err != nil || mapped.(transactionIdentityExpression).validate() != nil {
+		if err != nil || mapped.(expr.StoredProvider).ValidateStoredProvider() != nil {
 			t.Fatal("retag provider", err)
 		}
 		if !reflect.DeepEqual(expr.Expr(n).(expr.Composite).Children(), expr.Expr(persisted).(expr.Composite).Children()) {

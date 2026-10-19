@@ -5,12 +5,11 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// datetimeNames are the datetime functions dispatched by exact spelling after
-// the shared call gates. age/isfinite and overlaps stay engine-dispatched:
-// age(xid) and overlaps' inline safety need engine state.
+// datetimeNames are dispatched by exact spelling after the shared call gates.
 var datetimeNames = [...]string{
 	"extract", "date_part", "date_trunc", "date_bin", "timezone", "date_add", "date_subtract",
 	"justify_days", "justify_hours", "justify_interval", "to_char", "to_date", "to_timestamp",
+	"age", "isfinite",
 }
 
 // datetimeMakeNames accept argument labels; the label gate exempts them.
@@ -24,6 +23,8 @@ func bindDatetime(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		return nil, err
 	}
 	switch raw.Name.Parts[len(raw.Name.Parts)-1].Text {
+	case "age", "isfinite":
+		return BindDatetimeAgeFinite(b, raw, visible)
 	case "extract", "date_part":
 		return bindDatetimeExtract(b, raw, visible)
 	case "date_trunc":

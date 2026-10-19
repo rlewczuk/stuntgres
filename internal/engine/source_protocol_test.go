@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -74,7 +75,11 @@ func TestSourceProtocolOccurrence(t *testing.T) {
 			t.Fatal("distinct occurrence collapsed", other)
 		}
 	}
-	members := transactionIdentityExpression{kind: identityMembers}
+	binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
+	members, err := binder.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_get_multixact_members"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if sameQuerySetOccurrence(members, members) {
 		t.Fatal("legacy identityMembers nonreflexive occurrence changed")
 	}

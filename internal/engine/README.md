@@ -50,10 +50,12 @@ hook is exposed. Existing public reference scenarios are unchanged. Complete
 ordinality and cleanup, not provider dispatch. `SourceAdmission` separates
 closed FROM eligibility from target-set cardinality; OUT names do not control
 record expansion. `openFunctionSource` requires explicit admission and opening.
-Engine-only catalog/transaction/commit/object-address/extension providers retain
-their original state/validation authority. Unnest retains real intagg procedure,
-object-ref, owner-domain/epoch and revision checks in installed remap/retag,
-render, dependency and stored-admission routes.
+Catalog/object-address/extension providers retain their original engine
+state/validation authority. Transaction inquiry nodes now live in `functions`;
+their `TransactionInquiryRuntime` adapter retains live scope, catalog fences,
+canonical visibility and lock-manager authority here. Unnest retains real intagg
+procedure, object-ref, owner-domain/epoch and revision checks in installed
+remap/retag, render, dependency and stored-admission routes.
 
 Series/subscripts/unnest now expose immutable lexical children, substitution,
 grouping, volatility, no-fold/preflight and rendering hooks. Equivalent stage
@@ -317,6 +319,39 @@ Transaction identity, commit order, commit timestamps, snapshot views and SSI
 belong to `visibility.Registry` (`Engine.visibility`) under Engine.mu; see
 [visibility/README.md](visibility/README.md), which also lists the identity
 and commit-timestamp selectors.
+
+Transaction identity/timestamp function-specific binders, immutable nodes,
+evaluation, source operations and node protocols belong to
+[`functions`](functions/README.md#transaction-inquiry-ownership-and-demand).
+`transaction_inquiry_runtime.go` implements their narrow runtime capability;
+`transaction_identity_store.go` and `commit_timestamp_store.go` retain their
+existing domain/epoch fences. Identity context checks precede child evaluation;
+timestamp strict NULL and xid0/1/2 paths precede capability demand. Member SQL
+packing follows the manager snapshot clone outside locks; last XID/timestamp
+are sampled together under `Engine.mu`. No allocator/history or publication
+authority moved into a node.
+
+Mixed real binding/lifecycle tests remain here rather than becoming leaf fakes.
+`TestTransactionIdentityBinding` retains fixed provider IDs, dependency-manifest
+admission, replay/grouping/traversal and fresh-owner retag/remap assertions.
+`TestCommitTimeExpression` retains actual column-origin and slot remapping,
+original immutability, shape/provider/properties and strict whole NULL checks.
+Genuine demand/immutable-node units are listed in the functions README; no whole
+existing definition was removed. Selected engine proof:
+
+```sh
+make check RUN='^TestTransactionIdentity(AgeArithmetic|Allocation|History|Completion|Binding)$'
+make check RUN='^TestCommitTime(Assignment|Publication|Replacement|Expression)$'
+make check RUN='^TestTransactionIdentity(MultiHistory|GrantActions|Savepoint)$'
+make check RACE=1 RUN='^TestCommitTime(Assignment|Publication|Replacement)$'
+```
+
+The root observed the Item8 worktree build and standalone public-driver smoke
+pass after source edits, including real member ownership, exact disabled
+timestamp diagnostics, actual commit timestamps and byte-identical symbolic
+Dump/Reset/Restore. That observation does not replace required selected
+dual-mode, full-suite, race, review or post-integration proof.
+
 
 MultiXact records, counters and version history belong to the lock manager; see
 [lock/README.md](lock/README.md). Raw candidate grants imply neither assignment

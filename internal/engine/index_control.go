@@ -230,10 +230,6 @@ func pgIndexFunctionExpression(node expr.Expr) bool {
 		return true
 	case catalogUserNameExpression, catalogForeignKeysExpression, extensionPathsExpression:
 		return true
-	case transactionIdentityExpression:
-		return true
-	case commitTimestampExpression:
-		return true
 	case namespaceInquiryExpression, blockingInquiryExpression, objectAddressExpression:
 		return true
 	case advisoryExpression, sequenceCallExpression, currentSchemasExpression, visibilityInquiryExpression, commentInquiryExpression, deparseExpression, conditionalExpression, identityExpression:

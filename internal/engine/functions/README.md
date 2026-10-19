@@ -293,9 +293,9 @@ finalized argument at the raw argument's position, without a cast routine
 identity: `pg_get_acl` and the access inquiries coerce their fixed formals
 that way, and reporting a cast routine would add stored dependencies.
 
-Engine state that bind code needs at a single point is passed as a value
-instead of a method: `age(xid)` receives the engine's transaction-identity
-node builder.
+`age(xid)` constructs its private transaction-identity node here from the
+datetime resolver's already analyzed/coerced operand. It needs neither an
+engine node-builder callback nor another Binder method or analysis pass.
 
 Prefer passing values to adding methods. A new method needs a reason here:
 either a genuine analyzer capability or a leak that a later step removes.
@@ -317,6 +317,20 @@ it with a compile-time assertion. `expr.Context` does not grow per family.
   borrows the statement's authorization, private catalog and role snapshot
   under the engine mutex for one call (`internal/engine/acl_runtime.go`);
   the node passes values (OIDs, names, privilege text) and caches nothing.
+- `TransactionInquiryRuntime` (`transaction_inquiry_runtime.go`) supplies age,
+  current/assigned ID, status, members and commit timestamp snapshots through
+  the engine's `*EvalContext`. Identity calls initialize/check the evaluation
+  context before evaluating children; child errors and strict NULL then precede
+  live-scope demand. Scalar member misuse checks scope before its invocation
+  error. Timestamp calls deliberately have no such eager context prelude:
+  unary errors/NULL, xid0 and bootstrap/frozen handling precede runtime demand.
+  Only ordinary lookups and last-completion reads require scope/tracking.
+  The engine retains catalog/domain/epoch fences, visibility allocation/history,
+  completion publication and lock-manager tickets. Timestamp/last snapshots are
+  copied under `Engine.mu`; SQL values are constructed after unlocking. Members
+  use the manager's single existing snapshot clone, then pack owned SQL records
+  outside both locks; the capability returns owned values, not manager records
+  or a second transfer-member buffer. Nodes retain no execution authority.
 
 ## Registry
 
@@ -381,17 +395,19 @@ Registered families:
 | ACL values | `acl_value_bind.go` | `acldefault`, `makeaclitem`, `aclexplode` | none |
 | Object ACL | `object_acl_bind.go` | `pg_get_acl` | none |
 | Access inquiries | `access_inquiry_bind.go` | `pg_has_role`, `row_security_active` | none |
+| Transaction identity | `transaction_identity_bind.go` | `mxid_age`, `pg_current_xact_id`, `pg_current_xact_id_if_assigned`, `pg_xact_status`, `pg_get_multixact_members` | parser `Claims`, before shared gates |
+| Commit timestamps | `commit_timestamp_bind.go` | `pg_xact_commit_timestamp`, `pg_xact_commit_timestamp_origin`, `pg_last_committed_xact` | parser `Claims`, before shared gates |
 
 `datetimeNames` covers extract/date_part, date_trunc, date_bin,
-timezone/date_add/date_subtract, justify_* and to_char/to_date/to_timestamp.
+timezone/date_add/date_subtract, justify_*, to_char/to_date/to_timestamp and
+age/isfinite. The XID age branch uses the transaction-identity owner directly;
+temporal overload selection and unknown-argument ambiguity are unchanged.
 `stringNames` is the final switch's string list, including the
 argument-analyzing `trim`, which PostgreSQL does not have as a function.
 
 Calls of these families that keep an engine dispatch branch over an exported
 entry point, because they need engine state the registry cannot express:
 
-- `age`/`isfinite` (`BindDatetimeAgeFinite`): `age(xid)` is a Tier C
-  transaction-identity node.
 - `overlaps` (`BindDatetimeOverlaps`): the engine sets `WrapperContext` from
   inline safety, an engine node walk that F2 replaces.
 - `similar_to_escape` (`BindSimilarEscape`): claimed by call syntax, not name.
@@ -900,6 +916,46 @@ There is no input-length limit, Unicode normalization or transliteration.
 
 ## Testing
 
+### Transaction inquiry ownership and demand
+
+Private `transaction_identity` and `commit_timestamp` nodes, binders, source
+operations and protocol hooks live here. `Rebuild` validates; `Substitute`
+preserves the selected provider and immutable metadata without re-resolution.
+Members retain nonreflexive source occurrence. No strict-planning fold,
+result-nullability, group-leaf or transparent-closure hook is inferred from
+execution strictness; conditional DEFAULT closure preserves the existing
+separate UUID policy. Display and stored replay share rendering descriptors,
+with provider validation deferred to replay.
+
+Genuine demand and immutable-node units:
+
+```sh
+make check RUN='^TestTransactionInquiry(IdentityDemand|TimestampDemand|ImmutableProtocols)$'
+make check RUN='^TestLookupClaimsRegisteredNames$'
+```
+
+Identity demand units pin context-before-child and strict-NULL-before-scope
+ordering, member NULL emptiness and scalar misuse diagnostics. Timestamp units
+exercise strict/special paths without a runtime capability and ordinary/last
+runtime demand. Immutable units retain validation versus substitution, provider
+identity, original children, group identity, written capture and lazy replay
+validation. Mixed `TestTransactionIdentityBinding` and `TestCommitTimeExpression`
+remain engine integrations through real binding/remap/retag and generic hooks;
+no existing whole test definition was deleted. Canonical allocator/publication,
+MultiXact and source-lifetime tests remain at their engine/manager owners.
+
+Public goldens remain in the unchanged transaction identity, commit-time,
+datetime and EXECUTE-authority reference scenarios. Run their bounded selections
+in pinned PostgreSQL18.6 mode first and native mode second; see the owning
+reference READMEs. On this Item8 worktree the root observed `make build` and the
+standalone public-driver smoke pass after code edits: held identity/member and
+diagnostic behavior, actual commit timestamps and byte-identical symbolic native
+roundtrip (583 observed bytes, not an expected-size constant). Required selected
+dual-mode, full-suite, race and review gates are not claimed by that observation.
+
+
+### Shared integration and protocol selections
+
 Function-source private binding/scheduling/authority units remain engine-owned:
 their fixtures require the real analyzer and installed/catalog identities.
 Existing sqltype native cursor/kernel units stay beside those kernels. Engine
@@ -1227,7 +1283,7 @@ UUID extraction uses one strict unary `UUIDExtract` carrier with exact immutable
 intrinsic properties. It classifies the two variant bits before reading the
 version nibble; only v1/v7 produce timestamps. Unsigned integer arithmetic
 preserves PostgreSQL 18.0 truncation without clock, entropy, formatting or
-per-evaluation allocation. It is the first registered family:
+per-evaluation allocation. It is registered as one family:
 `uuid_extract_bind.go` binds both names through `Binder`, which supplies
 catalog-owned UUID and TIMESTAMPTZ/INT2 usages. Engine retag/remap reconstructs
 the same carrier with fresh usages rather than retaining source descriptors.
