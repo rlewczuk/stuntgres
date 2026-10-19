@@ -39,35 +39,44 @@ func (d *Namespace) Name() string { return d.ObjectName }
 
 func (*Namespace) Kind() ids.ObjectKind { return ids.NamespaceObject }
 
+// Relation is a pg_class entry: a table, partitioned table, view,
+// materialized view, index, sequence, composite type, foreign table or
+// catalog relation. Its sub-records are values,
+// so copying a Relation shares their slices and maps exactly as it shares
+// its top-level ones (copy-on-write).
 type Relation struct {
 	ObjectAddress, ObjectNamespace ids.ObjectAddress
 	ObjectName                     string
 	ObjectRevision                 ids.DefinitionRevision
-	SequencePlanStamp              ids.DefinitionRevision
-	Columns                        []Column
-	Index                          map[string]int
-	Attributes                     []int32
-	ColumnMeta                     ColumnMetadata
+	RelationKind                   RelationKind
 	Owner                          authorization.PrincipalRef
 	Comment                        string
-	Constraints                    RelationConstraints
-	Security                       RelationSecurity
-	Rules                          RulesPayload
-	Inheritance                    *TableInheritance
-	RelationKind                   RelationKind
-	History                        PublicationHistory
-	OnCommit                       parser.OnCommitAction
-	Sequence                       *SequenceOptions
-	View                           ViewPayload
-	Populated                      bool                // Independent of stored row count, including populated-empty MVs.
 	AutoExtensions                 []ids.ObjectAddress // Immutable whole-object AUTO_EXTENSION authority.
-	VirtualView                    bool
-	SQLIndex                       *IndexDefinition
-	Partition                      *PartitionDefinition
-	Membership                     *PartitionMembership
-	RowType                        sqltype.ID
-	OfType                         ids.ObjectAddress
-	Foreign                        *ForeignTableDefinition
+
+	Columns    []Column
+	Index      map[string]int
+	Attributes []int32
+	RowType    sqltype.ID
+	OfType     ids.ObjectAddress
+
+	ColumnMeta  ColumnMetadata
+	Constraints RelationConstraints
+	Security    RelationSecurity
+	History     PublicationHistory
+
+	// Kind payloads.
+	SQLIndex          *IndexDefinition
+	Partition         *PartitionDefinition
+	Membership        *PartitionMembership
+	Inheritance       *TableInheritance
+	Sequence          *SequenceOptions
+	SequencePlanStamp ids.DefinitionRevision
+	View              ViewPayload
+	VirtualView       bool
+	Populated         bool // Independent of stored row count, including populated-empty MVs.
+	Rules             RulesPayload
+	Foreign           *ForeignTableDefinition
+	OnCommit          parser.OnCommitAction
 }
 
 // ColumnMetadata holds per-attribute metadata keyed by attribute number,
