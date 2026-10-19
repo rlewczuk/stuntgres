@@ -66,8 +66,10 @@ SQL behavior and native limits are described in
 
 ## What stays in the engine
 
-- **Publication:** the record holding the current `Root`, revision headroom,
-  cancellation fences, journals and savepoints, and principal allocation.
+- **Publication:** `roleStore` (`role_store.go`) holds the domain, the
+  committed record with the current `Root` and its revision headroom,
+  principal allocation and other features' role references. Cancellation
+  fences, journals and savepoints stay with the transaction code.
 - **Pairing:** each `Read` is captured together with its exact `catalog.Read`;
   a stamp reads that captured pair, not later engine state. There is no cached
   ACL decision.
@@ -105,7 +107,7 @@ timeout 900s make check RUN='^(TestAuthorizationDescriptorCandidateImmutability|
 Engine consumers:
 
 ```sh
-timeout 900s make check RUN='^(TestAuthorizationStampRetainsRolePublication|TestRoleOwnershipDatabaseImmutableRolePair|TestRoleOwnershipDatabaseRejectsMixedAuthorization|TestCollationBootstrapPrincipalNameReuse|TestRoleOwnershipInitialSourceCanonicalIdentity|TestRoleAttributesMembershipNonInheritanceAndAdminTraversal)$'
+timeout 900s make check RUN='^(TestAuthorizationStampRetainsRolePublication|TestRoleOwnershipDatabaseImmutableRolePair|TestRoleOwnershipDatabaseRejectsMixedAuthorization|TestCollationBootstrapPrincipalNameReuse|TestRoleOwnershipInitialSourceCanonicalIdentity|TestRoleAttributesMembershipNonInheritanceAndAdminTraversal|TestRoleStoreReadRequiresOwnCatalogAndRoot|TestRoleStoreSetReferencesFailuresLeaveStateUnchanged)$'
 timeout 900s make check RUN='^(TestPGGroupProjection|TestPGGroupRoleRoot|TestPGGroupCancellation|TestAccessInquiryRoleOIDs|TestDatabaseACLBaselineTransitions|TestPgClassACLTranslation)$'
 timeout 900s make check RACE=1 RUN='^(TestMembershipConcurrentCyclePublication|TestAuthorizationInitializationFencesDeletedPrincipal|TestRoleAttributesConnectionLimitRaces|TestRoleAttributesPasswordCancellationLifecycle)$'
 ```

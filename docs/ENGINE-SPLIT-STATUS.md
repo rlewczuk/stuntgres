@@ -5,12 +5,13 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `ddd427ae3`.
+Last verified against `master` at `1f457c21c`.
 
 ## Next ready sub-steps
 
 - **6c** — `storage` aliases removed (needs 6b ✓) *(broad rewrite)*.
-- **B1** — `roleStore` role state ownership (needs B0 ✓).
+- **B2** — `accessView` and `accessEnvironment`; checks ported in place
+  (needs B1 ✓).
 
 They may run in parallel on separate branches (§8).
 
@@ -156,7 +157,9 @@ They may run in parallel on separate branches (§8).
   - [ ] Part B
     - [x] B0 — `access` refined and approved (docs only, then the docs
       commit)
-    - [ ] B1 — `roleStore` role state ownership
+    - [x] B1 — `roleStore` role state ownership (`e4174a713`, `e91c6d175`,
+      then the docs commit) *(racecheck skipped at user request; targeted
+      RACE=1 runs passed)*
     - [ ] B2 — `accessView` and `accessEnvironment`; checks ported in place
     - [ ] B3 — `access` created and code moved
     - [ ] B4 — Aliases removed *(broad rewrite)*
