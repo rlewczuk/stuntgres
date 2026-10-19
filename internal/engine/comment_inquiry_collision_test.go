@@ -13,7 +13,7 @@ func TestCommentInquiryLegacyCollision(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
-	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	if err := stage.Create(&catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, Owner: owner, ObjectName: "collision", ObjectRevision: 1, Comment: "namespace candidate"}); err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func TestCommentInquiryLegacyCollision(t *testing.T) {
 	}
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	e.nextPrincipal = 20000
+	e.roles.nextPrincipal = 20000
 	roleExecute(t, e, op, "CREATE ROLE shared_collision")
 	roleExecute(t, e, op, "COMMENT ON ROLE shared_collision IS 'shared excluded'")
 	shared := tuples(roleExecute(t, e, op, "SELECT shobj_description(20000,'pg_authid')"))

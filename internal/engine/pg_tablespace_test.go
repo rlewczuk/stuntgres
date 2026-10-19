@@ -65,7 +65,7 @@ func TestPGTablespaceDescriptorCapture(t *testing.T) {
 	e := New()
 	d, source := pgTablespaceUnitCapture(t, e)
 	pgTablespaceUnitRows(t, source)
-	if d.Owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) || d.RowType == 0 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || !representedSummaryTable(1213) {
+	if d.Owner != e.roles.domain.Principal(authorization.BootstrapPrincipalID) || d.RowType == 0 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || !representedSummaryTable(1213) {
 		t.Fatal("catalog identity", d)
 	}
 	if !reflect.DeepEqual(d.Attributes, []int32{1, 2, 3, 4, 5}) || d.ColumnMeta.HighWater != 5 {
@@ -109,12 +109,12 @@ func TestPGTablespaceDescriptorCapture(t *testing.T) {
 func TestPGTablespaceCanonicalReplacement(t *testing.T) {
 	e := New()
 	_, retained := pgTablespaceUnitCapture(t, e)
-	initial := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
-	roles := cloneRoleFixture(e.roles)
+	initial := e.roles.domain.Principal(authorization.BootstrapPrincipalID)
+	roles := cloneRoleFixture(e.roles.published)
 	r := fixtureRole(roles, initial)
 	r.Name = "renamed_initial"
 	putFixtureRole(roles, r)
-	e.roles = roles
+	e.roles.published = roles
 	d, renamed := pgTablespaceUnitCapture(t, e)
 	if d.Owner != initial {
 		t.Fatal("role rename changed canonical source owner", d.Owner)
@@ -126,18 +126,18 @@ func TestPGTablespaceCanonicalReplacement(t *testing.T) {
 	if err := e.Reset(context.Background()); err == nil {
 		t.Fatal("Reset bypassed missing replacement-owner provenance")
 	}
-	if e.catalog.state != state || e.roles != roles || e.catalog.nextOID != oid || e.catalog.nextRevision != revision {
+	if e.catalog.state != state || e.roles.published != roles || e.catalog.nextOID != oid || e.catalog.nextRevision != revision {
 		t.Fatal("rejected replacement changed target authority")
 	}
 	pgTablespaceUnitRows(t, retained)
 	// A source with matching renamed provenance can genuinely replace it.
 	source := New()
-	sourceInitial := source.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
-	sourceRoles := cloneRoleFixture(source.roles)
+	sourceInitial := source.roles.domain.Principal(authorization.BootstrapPrincipalID)
+	sourceRoles := cloneRoleFixture(source.roles.published)
 	sourceRole := fixtureRole(sourceRoles, sourceInitial)
 	sourceRole.Name = r.Name
 	putFixtureRole(sourceRoles, sourceRole)
-	source.roles = sourceRoles
+	source.roles.published = sourceRoles
 	if _, err := e.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
@@ -147,11 +147,11 @@ func TestPGTablespaceCanonicalReplacement(t *testing.T) {
 	}
 	pgTablespaceUnitRows(t, renamed)
 	// Restore the target name required by Reset's fresh source provenance.
-	roles = cloneRoleFixture(e.roles)
+	roles = cloneRoleFixture(e.roles.published)
 	r = fixtureRole(roles, initial)
 	r.Name = "postgres"
 	putFixtureRole(roles, r)
-	e.roles = roles
+	e.roles.published = roles
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}

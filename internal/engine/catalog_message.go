@@ -281,7 +281,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 	}
 	c.dependencies = append(c.dependencies, s.identityDependencies...)
 	if s.authSession != nil && c.rolesBase == nil {
-		c.rolesBase = e.roles
+		c.rolesBase = e.roles.published
 	}
 	c.domainChanged = c.domainChanged || len(s.domainTargets) != 0
 	for _, d := range s.Descriptors {

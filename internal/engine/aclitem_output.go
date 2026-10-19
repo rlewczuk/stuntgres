@@ -32,7 +32,7 @@ type capturedACLItemOutput struct {
 }
 
 func (r capturedACLItemOutput) FormatACLRole(authority *sqltype.ACLAuthority, id uint32) (string, error) {
-	if r.owner == nil || authority != &r.owner.aclAuthority || !r.roles.BelongsTo(&r.owner.authorizationDomain) {
+	if r.owner == nil || authority != &r.owner.roles.aclAuthority || !r.roles.BelongsTo(&r.owner.roles.domain) {
 		return "", fmt.Errorf("stuntgres: foreign ACL identity")
 	}
 	if id == 0 {
@@ -41,7 +41,7 @@ func (r capturedACLItemOutput) FormatACLRole(authority *sqltype.ACLAuthority, id
 		}
 		return "0", nil
 	}
-	role, ok := r.roles.Find(r.owner.authorizationDomain.Principal(uint64(id)))
+	role, ok := r.roles.Find(r.owner.roles.domain.Principal(uint64(id)))
 	if !ok {
 		if r.lossless {
 			return "", fmt.Errorf("stuntgres: dump cannot serialize stale ACL identity %d", id)
@@ -105,7 +105,7 @@ func captureACLItemOutputValue(rows *finalRows, output capturedACLItemOutput, va
 	if err != nil {
 		return err
 	}
-	if output.owner == nil || authority != &output.owner.aclAuthority {
+	if output.owner == nil || authority != &output.owner.roles.aclAuthority {
 		return fmt.Errorf("stuntgres: foreign ACL result identity")
 	}
 	for _, id := range [2]uint32{grantee, grantor} {

@@ -144,10 +144,10 @@ func TestCatalogRelationsCapture(t *testing.T) {
 	// Publish real immutable authorization roots; no SQL, enumeration cache or
 	// mocked lookup is involved. The statement keeps the original root frontier.
 	e.mu.Lock()
-	ref := e.authorizationDomain.Principal(50000)
-	first := cloneRoleFixture(e.roles)
+	ref := e.roles.domain.Principal(50000)
+	first := cloneRoleFixture(e.roles.published)
 	putFixtureRole(first, authorization.RoleDescriptor{Ref: ref, Name: "captured é\"role", ConnectionLimit: -1})
-	e.roles = first
+	e.roles.published = first
 	e.mu.Unlock()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
@@ -164,11 +164,11 @@ func TestCatalogRelationsCapture(t *testing.T) {
 	}
 	original := scope.commentRoles
 	e.mu.Lock()
-	next := cloneRoleFixture(e.roles)
+	next := cloneRoleFixture(e.roles.published)
 	retireFixtureRole(next, ref)
-	replacement := e.authorizationDomain.Principal(50001)
+	replacement := e.roles.domain.Principal(50001)
 	putFixtureRole(next, authorization.RoleDescriptor{Ref: replacement, Name: "captured é\"role", ConnectionLimit: -1})
-	e.roles = next
+	e.roles.published = next
 	e.mu.Unlock()
 	oidType, _ := e.CatalogRead().LookupType(sqltype.Oid)
 	nameType, _ := e.CatalogRead().LookupType(sqltype.Name)
@@ -214,7 +214,7 @@ func TestCatalogRelationsCapture(t *testing.T) {
 	lookup(current, 0, "unknown (OID=0)")
 	foreign := New()
 	saved := current.commentRoles
-	current.commentRoles = foreign.roles.root.Read(authorization.PrincipalRef{})
+	current.commentRoles = foreign.roles.published.root.Read(authorization.PrincipalRef{})
 	input, _ := sqltype.OIDValue(oidType, 50001)
 	node := catalogUserNameExpression{Info: expr.Info{Usage: nameType.Usage()}, arg: literalExpression{Info: expr.Info{Usage: oidType.Usage()}, value: input}}
 	if _, err := node.Eval(&EvalContext{Context: context.Background(), statementScope: current}); err == nil {

@@ -27,7 +27,7 @@ func ownershipManualCreationFixture(t *testing.T, e *Engine, actor authorization
 	table := roleTableRef(t, e, "ownership_fence_creation.owned_table")
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	namespace := *stage.Base.MustNamespace(ns)
-	namespace.Owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
+	namespace.Owner = e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 	namespace.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(namespace.Owner, namespace.Owner, authorization.UsagePrivilege|authorization.CreatePrivilege, 0)}}
 	namespace.ObjectRevision++
 	if err := stage.Replace(&namespace); err != nil {
@@ -66,7 +66,7 @@ type ownershipManualSnapshot struct {
 
 func ownershipManualCapture(e *Engine, session *Session, sequence ids.ObjectRef) ownershipManualSnapshot {
 	snapshot := ownershipManualSnapshot{
-		roots: indexMaintenanceCapture(e), roles: e.roles, revision: session.authorization.revision,
+		roots: indexMaintenanceCapture(e), roles: e.roles.published, revision: session.authorization.revision,
 		generators: make(map[ids.ObjectAddress]*sequenceGenerator), generatorValues: make(map[ids.ObjectAddress]sequenceGenerator),
 		memory: session.sequences[sequence.Address], last: session.lastSequence,
 		rows: make(map[ids.ObjectAddress][]rowVersion),
@@ -126,7 +126,7 @@ func ownershipManualReplaceDatabase(t *testing.T, e *Engine, session *Session, b
 	if private {
 		database.Owner = session.authorization.state.CurrentUser
 	} else {
-		database.Owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		database.Owner = e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	}
 	database.ObjectRevision++
 	if err := stage.Replace(&database); err != nil {
@@ -134,7 +134,7 @@ func ownershipManualReplaceDatabase(t *testing.T, e *Engine, session *Session, b
 	}
 	ownershipUnitPublish(t, e, stage)
 	e.DiscardCatalogStage(stage)
-	if e.roles != before.roles || session.authorization.revision != before.revision || e.catalog.state.Epoch() != before.roots.catalog.Epoch() {
+	if e.roles.published != before.roles || session.authorization.revision != before.revision || e.catalog.state.Epoch() != before.roots.catalog.Epoch() {
 		t.Fatal("database replacement changed role/session/epoch authority")
 	}
 	for address, descriptor := range before.roots.catalog.Descriptors() {
@@ -162,7 +162,7 @@ func ownershipManualReplaceDatabase(t *testing.T, e *Engine, session *Session, b
 
 func ownershipManualRetainedUnchanged(t *testing.T, e *Engine, session *Session, sequence ids.ObjectRef, auth AuthorizationView, committed catalog.Descriptor, old *catalog.Relation, retainedACL authorization.ACLValue, retainedOptions catalog.SequenceOptions, before ownershipManualSnapshot, dropped bool) {
 	t.Helper()
-	if e.roles != before.roles || session.authorization.revision != before.revision || e.catalog.state.Epoch() != auth.catalog.Epoch() || auth.databasePredecessor != committed || auth.catalog.Get(sequence.Address) != old || old.Owner != auth.roles.LookupRef("pg_database_owner") || old.Comment != "retained sequence comment" || !reflect.DeepEqual(old.Security.ACL, retainedACL) || *old.Sequence != retainedOptions {
+	if e.roles.published != before.roles || session.authorization.revision != before.revision || e.catalog.state.Epoch() != auth.catalog.Epoch() || auth.databasePredecessor != committed || auth.catalog.Get(sequence.Address) != old || old.Owner != auth.roles.LookupRef("pg_database_owner") || old.Comment != "retained sequence comment" || !reflect.DeepEqual(old.Security.ACL, retainedACL) || *old.Sequence != retainedOptions {
 		t.Fatal("manual utility mutated retained sequence/ACL/paired authority")
 	}
 	if session.sequences[sequence.Address] != before.memory || *before.memory != before.memoryValue || session.lastSequence != before.last {

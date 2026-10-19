@@ -23,8 +23,8 @@ func TestConversionDumpLegalDuplicateDefaultsAndSeedCollisions(t *testing.T) {
 		t.Fatal(err)
 	}
 	view := e.CatalogRead()
-	hidden := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, ObjectName: "hidden", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10)}
-	collision := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90011}, ObjectName: "__stuntgres_conversion_2", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10)}
+	hidden := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, ObjectName: "hidden", ObjectRevision: 1, Owner: e.roles.domain.Principal(10)}
+	collision := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90011}, ObjectName: "__stuntgres_conversion_2", ObjectRevision: 1, Owner: e.roles.domain.Principal(10)}
 	first, second := conversionUnitDefinition(e, 90000, "a", true), conversionUnitDefinition(e, 90001, "b", true)
 	plain := conversionUnitDefinition(e, 90002, "plain", false)
 	seed := *view.MustConversion(ids.ObjectAddress{ClassID: ids.ConversionClassID, ObjectID: 4519})
@@ -89,7 +89,7 @@ func TestConversionDumpLegalDuplicateDefaultsAndSeedCollisions(t *testing.T) {
 		namespace := current.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: expected.namespace})
 		address := current.NameAddress(ids.NameKey{ClassID: ids.ConversionClassID, Namespace: namespace, Name: expected.name})
 		restored, ok := current.Conversion(address)
-		if !ok || restored.Source != 6 || restored.Destination != 8 || restored.Handler != first.Handler || restored.DefaultConversion != expected.def || restored.Owner != e.authorizationDomain.Principal(10) {
+		if !ok || restored.Source != 6 || restored.Destination != 8 || restored.Handler != first.Handler || restored.DefaultConversion != expected.def || restored.Owner != e.roles.domain.Principal(10) {
 			t.Fatal("lossless replay conversion metadata", expected, restored)
 		}
 	}

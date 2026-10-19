@@ -638,7 +638,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		return nil, err
 	}
 	e.mu.Lock()
-	if err := s.validateRoleCandidate(e.roles); err != nil {
+	if err := s.validateRoleCandidate(e.roles.published); err != nil {
 		e.mu.Unlock()
 		return nil, err
 	}
@@ -1152,17 +1152,17 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			err = catalogDependencyPreflight(e.catalog.state, next, s.identityDependencies, s.identityOriginals)
 		}
 		if err == nil {
-			err = s.validateRoleCandidate(e.roles)
+			err = s.validateRoleCandidate(e.roles.published)
 		}
 		if err == nil && op != nil {
 			err = publicationOperationLocked(e, op)
 		}
 		if err == nil {
-			err = catalog.ValidateDefaultACLs(s.roleRead(e.roles, e.catalog.read(next)), e.catalog.read(next))
+			err = catalog.ValidateDefaultACLs(s.roleRead(e.roles.published, e.catalog.read(next)), e.catalog.read(next))
 		}
 		if err == nil {
 			for _, d := range s.Descriptors {
-				if err = validateACL(s.roleRead(e.roles, e.catalog.read(next)), d); err != nil {
+				if err = validateACL(s.roleRead(e.roles.published, e.catalog.read(next)), d); err != nil {
 					break
 				}
 			}
@@ -1173,7 +1173,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				s.authSession.mu.Lock()
 			}
 			auth := s.authSession.authorization
-			valid := auth != nil && auth.revision == s.authRevision && e.roles.revision == s.roleRevision
+			valid := auth != nil && auth.revision == s.authRevision && e.roles.published.revision == s.roleRevision
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Unlock()
 			}
@@ -1185,7 +1185,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Lock()
 			}
-			auth := AuthorizationView{engine: e, pairedCatalog: e.catalog.read(e.catalog.state), roleRecord: e.roles, catalog: e.catalog.read(e.catalog.state), roles: e.roleRead(e.catalog.read(e.catalog.state), e.roles), state: s.authSession.authorization.state}
+			auth := AuthorizationView{engine: e, pairedCatalog: e.catalog.read(e.catalog.state), roleRecord: e.roles.published, catalog: e.catalog.read(e.catalog.state), roles: e.roleRead(e.catalog.read(e.catalog.state), e.roles.published), state: s.authSession.authorization.state}
 			err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(e.catalog.state.Epoch(), s.materializedReplacement.original.Address()), Privileges: authorization.MaintainPrivilege})
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Unlock()
@@ -1269,7 +1269,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			}
 			e.catalog.nextRevision = nextRevision
 			if s.roleCandidate != nil {
-				e.roles = s.roleCandidate
+				e.roles.published = s.roleCandidate
 			}
 			if commitRef != (ids.TxRef{}) {
 				e.recordCommitTimestampLocked(commitRef)
@@ -1405,12 +1405,12 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		if err := e.preserveTemporaryLocked(ctx, next, storage, sequences, restoreOp, indexes); err != nil {
 			return ChangeSet{}, err
 		}
-		if err := catalog.ValidateDefaultACLs(e.roleRead(e.catalog.read(next), e.roles), e.catalog.read(next)); err != nil {
+		if err := catalog.ValidateDefaultACLs(e.roleRead(e.catalog.read(next), e.roles.published), e.catalog.read(next)); err != nil {
 			return ChangeSet{}, err
 		}
 		nextRevision := e.catalog.nextRevision
 		for _, d := range next.Descriptors() {
-			if err := validateACL(e.roleRead(e.catalog.read(next), e.roles), d); err != nil {
+			if err := validateACL(e.roleRead(e.catalog.read(next), e.roles.published), d); err != nil {
 				return ChangeSet{}, err
 			}
 			if revision := descriptorRevisionFrontier(d); revision >= nextRevision {
@@ -1478,7 +1478,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	if err == nil {
 		sequences, err = copySequenceState(source, replacement)
 	}
-	sourceRoles := source.roleRead(replacement, source.roles)
+	sourceRoles := source.roleRead(replacement, source.roles.published)
 	foreignNamespaces := source.foreignNamespaces
 	source.mu.Unlock()
 	if err != nil {
@@ -1522,12 +1522,12 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	if err = e.preserveTemporaryLocked(ctx, next, storage, sequences, restoreOp, indexes); err != nil {
 		return ChangeSet{}, err
 	}
-	if err := catalog.ValidateDefaultACLs(e.roleRead(e.catalog.read(next), e.roles), e.catalog.read(next)); err != nil {
+	if err := catalog.ValidateDefaultACLs(e.roleRead(e.catalog.read(next), e.roles.published), e.catalog.read(next)); err != nil {
 		return ChangeSet{}, err
 	}
 	nextRevision := e.catalog.nextRevision
 	for _, d := range next.Descriptors() {
-		if err := validateACL(e.roleRead(e.catalog.read(next), e.roles), d); err != nil {
+		if err := validateACL(e.roleRead(e.catalog.read(next), e.roles.published), d); err != nil {
 			return ChangeSet{}, err
 		}
 		if revision := descriptorRevisionFrontier(d); revision >= nextRevision {

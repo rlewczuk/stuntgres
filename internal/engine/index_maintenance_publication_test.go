@@ -188,7 +188,7 @@ func TestIndexMaintenanceFinalAuthorizationFence(t *testing.T) {
 			stage.authSession, stage.authRevision = op.session, op.session.authorization.revision
 			op.session.mu.Unlock()
 			e.mu.Lock()
-			stage.roleRevision = e.roles.revision
+			stage.roleRevision = e.roles.published.revision
 			e.mu.Unlock()
 			prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 			if err != nil {

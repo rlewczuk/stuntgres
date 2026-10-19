@@ -17,7 +17,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		source.grant(t, "tables", "select", nil)
 		source.grant(t, "types", "usage", []string{"default_schema"})
 		retained := source.e.CatalogRead()
-		oldRolesPublication := target.e.roles
+		oldRolesPublication := target.e.roles.published
 		if _, err := target.e.ReplaceCatalog(context.Background(), source.e, retained); err != nil {
 			t.Fatal(err)
 		}
@@ -34,19 +34,19 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 				}
 			}
 		}
-		if retained.State().DefaultACL(catalog.DefaultACLKey{Creator: source.owner, Class: authorization.DefaultTables}) == nil || retained.State().DefaultACL(global) != nil || target.e.roles != oldRolesPublication {
+		if retained.State().DefaultACL(catalog.DefaultACLKey{Creator: source.owner, Class: authorization.DefaultTables}) == nil || retained.State().DefaultACL(global) != nil || target.e.roles.published != oldRolesPublication {
 			t.Fatal("replacement changed source or target role catalog")
 		}
 		// Exact target incarnation, not just a recycled name, is fenced by remap.
 		candidate := catalog.CloneState(retained.State())
 		snapshot := target.e.Roles()
-		roles := cloneRoleFixture(target.e.roles)
+		roles := cloneRoleFixture(target.e.roles.published)
 		replacement := target.reader
-		replacement = target.e.authorizationDomain.Principal(replacement.ID() + 100)
+		replacement = target.e.roles.domain.Principal(replacement.ID() + 100)
 		retireFixtureRole(roles, target.reader)
 		putFixtureRole(roles, authorization.RoleDescriptor{Ref: replacement, Name: "default_reader", Login: true})
 
-		target.e.roles = roles
+		target.e.roles.published = roles
 		if _, err := target.e.remapPreparedCatalog(candidate, source.e.Roles(), snapshot, nil); err == nil {
 			t.Fatal("recycled recipient incarnation imported")
 		}
@@ -166,24 +166,24 @@ func TestDefaultPrivilegesControls(t *testing.T) {
 		t.Fatal("stored-empty Dump", err)
 	}
 	before := f.e.CatalogRead()
-	rolesPublication := f.e.roles
+	rolesPublication := f.e.roles.published
 	roles := f.e.Roles()
 	edges := roles.Memberships()
 	err := f.e.Restore(context.Background(), strings.NewReader("CREATE TABLE before_reject(x INT); ALTER DEFAULT PRIVILEGES GRANT SELECT ON TABLES TO PUBLIC;"))
-	if err == nil || f.e.catalog.state != before.State() || f.e.roles != rolesPublication {
+	if err == nil || f.e.catalog.state != before.State() || f.e.roles.published != rolesPublication {
 		t.Fatal("Restore admitted defaults or changed original", err)
 	}
 	if err = f.e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if f.e.catalog.state.DefaultACLCount() != 0 || f.e.roles != rolesPublication || !reflect.DeepEqual(f.e.Roles().Memberships(), edges) {
+	if f.e.catalog.state.DefaultACLCount() != 0 || f.e.roles.published != rolesPublication || !reflect.DeepEqual(f.e.Roles().Memberships(), edges) {
 		t.Fatal("Reset default/role/edge boundary")
 	}
 	// Pristine dependent hardwired TYPE baselines must not make ordinary table
 	// dump/restore fail, nor require a broadened generic TypeObject fallback.
 	stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 	f.schema = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	f.owner = f.e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	f.owner = f.e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	table := defaultUnitTable(t, f, stage, "pristine", f.owner)
 	if err = defaultUnitPublish(t, f.e, stage); err != nil {
 		t.Fatal(err)

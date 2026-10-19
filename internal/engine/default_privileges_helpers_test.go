@@ -22,16 +22,16 @@ type defaultUnitFixture struct {
 func newDefaultUnitFixture(t *testing.T) defaultUnitFixture {
 	t.Helper()
 	e := New()
-	roles := cloneRoleFixture(e.roles)
+	roles := cloneRoleFixture(e.roles.published)
 	refs := make([]authorization.PrincipalRef, 3)
 	for i, name := range []string{"default_owner", "default_reader", "default_member"} {
-		ref := e.authorizationDomain.Principal(uint64(20001 + i))
+		ref := e.roles.domain.Principal(uint64(20001 + i))
 		refs[i] = ref
 		putFixtureRole(roles, authorization.RoleDescriptor{Ref: ref, Name: name, Login: true, Inherit: true, ConnectionLimit: -1})
 
 	}
-	setFixtureEdges(roles, append(append([]authorization.Membership(nil), fixtureEdges(roles)...), authorization.Membership{Role: refs[0], Member: refs[2], Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Inherit: true, Set: true}))
-	e.roles = roles
+	setFixtureEdges(roles, append(append([]authorization.Membership(nil), fixtureEdges(roles)...), authorization.Membership{Role: refs[0], Member: refs[2], Grantor: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Inherit: true, Set: true}))
+	e.roles.published = roles
 	schema := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20010}
 	next := catalog.CloneState(e.catalog.state)
 	namespace := &catalog.Namespace{ObjectAddress: schema, ObjectName: "default_schema", ObjectRevision: 2, Owner: refs[0]}

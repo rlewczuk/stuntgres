@@ -47,7 +47,7 @@ func (e *Engine) capturePGDatabase(ctx context.Context, view catalog.Read, roles
 	if err := (catalog.DatabaseProvider{}).Validate(view, database); err != nil {
 		return nil, err
 	}
-	if !roles.BelongsTo(&e.authorizationDomain) {
+	if !roles.BelongsTo(&e.roles.domain) {
 		return nil, fmt.Errorf("stuntgres: foreign database owner authority")
 	}
 	if _, err := roles.Descriptor(database.Owner); err != nil {

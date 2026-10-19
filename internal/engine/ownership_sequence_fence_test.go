@@ -19,12 +19,12 @@ import (
 func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Session, ids.ObjectRef, authorization.PrincipalRef, catalog.Descriptor, *catalogChanges) {
 	t.Helper()
 	e, bootstrap, actor, target, reader := ownershipUnitRoles()
-	roles := cloneRoleFixture(e.roles)
+	roles := cloneRoleFixture(e.roles.published)
 	ordinary := fixtureRole(roles, actor)
 	ordinary.Login, ordinary.ConnectionLimit = true, -1
 	putFixtureRole(roles, ordinary)
 	setFixtureEdges(roles, append(fixtureEdges(roles), authorization.Membership{Role: target, Member: actor, Grantor: bootstrap, Set: true}))
-	e.roles = roles
+	e.roles.published = roles
 	for _, query := range []string{
 		"CREATE SEQUENCE ownership_fence_seq START 40 CACHE 3",
 		"CREATE SEQUENCE ownership_fence_other START 100",
@@ -133,7 +133,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				}
 				retainedACL := authorization.ACLValue{Explicit: old.Security.ACL.Explicit, Entries: append([]authorization.ACLEntry(nil), old.Security.ACL.Entries...)}
 				retainedOptions := *old.Sequence
-				oldRoles, sessionRevision, epoch := e.roles, session.authorization.revision, e.catalog.state.Epoch()
+				oldRoles, sessionRevision, epoch := e.roles.published, session.authorization.revision, e.catalog.state.Epoch()
 				originalCatalog := e.catalog.state
 				// A real nontransactional draw must survive rollback without another
 				// draw, cache reset, generator replacement or currval change.
@@ -189,7 +189,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 					}
 					ownershipUnitPublish(t, e, stage)
 					e.DiscardCatalogStage(stage)
-					if e.roles != oldRoles || session.authorization.revision != sessionRevision || e.catalog.state.Epoch() != epoch {
+					if e.roles.published != oldRoles || session.authorization.revision != sessionRevision || e.catalog.state.Epoch() != epoch {
 						t.Fatal("DB-only replacement changed role/session/epoch authority")
 					}
 					for address, descriptor := range before.catalog.Descriptors() {
@@ -256,7 +256,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 						t.Fatal("veto installed sequence owner/ACL or retained row prefix")
 					}
 				}
-				if e.roles != oldRoles || session.authorization.revision != sessionRevision || e.catalog.state.Epoch() != epoch || old.Owner != dbRole || !reflect.DeepEqual(old.Security.ACL, retainedACL) || *old.Sequence != retainedOptions || auth.catalog.Get(ref.Address) != old || auth.catalog.Get(catalog.CurrentDatabaseAddress) != selectedDB || auth.databasePredecessor != committed || originalCatalog.Get(catalog.CurrentDatabaseAddress) != committed {
+				if e.roles.published != oldRoles || session.authorization.revision != sessionRevision || e.catalog.state.Epoch() != epoch || old.Owner != dbRole || !reflect.DeepEqual(old.Security.ACL, retainedACL) || *old.Sequence != retainedOptions || auth.catalog.Get(ref.Address) != old || auth.catalog.Get(catalog.CurrentDatabaseAddress) != selectedDB || auth.databasePredecessor != committed || originalCatalog.Get(catalog.CurrentDatabaseAddress) != committed {
 					t.Fatal("publication mutated immutable retained authority or sequence roots")
 				}
 				if e.storage.Sequences[ref.Address] != generator || *generator != generatorValue || session.sequences[ref.Address] != memory || *memory != memoryValue || session.lastSequence != lastSequence {

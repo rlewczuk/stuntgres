@@ -22,7 +22,7 @@ func TestRoleOwnershipDatabasePreparedPathIdentity(t *testing.T) {
 	bootstrap := fixtureRole(roles, auth.state.CurrentUser)
 	bootstrap.Superuser = false
 	putFixtureRole(roles, bootstrap)
-	successor := e.authorizationDomain.Principal(100001)
+	successor := e.roles.domain.Principal(100001)
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: successor, Name: "successor", Inherit: true})
 	before := catalog.CloneState(auth.catalog.State())
 	address := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}

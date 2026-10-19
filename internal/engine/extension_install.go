@@ -157,7 +157,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	}
 	memberOwner := actor.Ref
 	if registration.Superuser && !actor.Superuser {
-		memberOwner = e.authorizationDomain.Principal(10)
+		memberOwner = e.roles.domain.Principal(10)
 	}
 	oid, err := e.catalog.allocateOIDLocked()
 	if err != nil {

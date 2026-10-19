@@ -24,11 +24,11 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	if !needed {
 		return ctx.Err()
 	}
-	catalogSnapshot, roles, frontier := e.catalog.state, e.roles, e.commitSeq
+	catalogSnapshot, roles, frontier := e.catalog.state, e.roles.published, e.commitSeq
 	e.mu.Unlock()
 	defer func() {
 		e.mu.Lock()
-		if result == nil && (e.catalog.state != catalogSnapshot || e.roles != roles || e.commitSeq != frontier) {
+		if result == nil && (e.catalog.state != catalogSnapshot || e.roles.published != roles || e.commitSeq != frontier) {
 			result = ids.ErrCatalogReplaced
 		}
 	}()
@@ -40,7 +40,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	}
 	candidate := catalog.CloneState(next)
 	stage.mu.Lock()
-	_, err := stage.remapPreparedCatalog(candidate, e.roleRead(e.catalog.read(next), roles), stage.roleRead(stage.catalog.read(stage.catalog.state), stage.roles), nil)
+	_, err := stage.remapPreparedCatalog(candidate, e.roleRead(e.catalog.read(next), roles), stage.roleRead(stage.catalog.read(stage.catalog.state), stage.roles.published), nil)
 	if err == nil {
 		// remapCatalogExpressions targets the next epoch. Preserve final numeric
 		// identities while projecting only engine/principal ownership.
@@ -58,7 +58,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		return err
 	}
 	if op == nil {
-		session, err := stage.StartSession(ctx, SessionStart{ID: 1, Authenticated: stage.authorizationDomain.Principal(10)})
+		session, err := stage.StartSession(ctx, SessionStart{ID: 1, Authenticated: stage.roles.domain.Principal(10)})
 		if err != nil {
 			return err
 		}

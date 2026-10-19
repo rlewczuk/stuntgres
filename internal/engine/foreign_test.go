@@ -52,7 +52,7 @@ func TestFDWOptionsTransform(t *testing.T) {
 func TestFDWCatalogOverlay(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
-	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	wrapper := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignWrapperClassID, ObjectID: 40000}, ObjectRevision: 1, ObjectName: "unit_wrapper", Owner: owner, Options: []catalog.ForeignOption{{"a", "1"}}}
 	server := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignServerClassID, ObjectID: 40001}, ObjectRevision: 1, ObjectName: "unit_server", Owner: owner, Wrapper: wrapper.Address()}
 	server.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}
@@ -332,8 +332,8 @@ func TestFDWProcedureACLCOW(t *testing.T) {
 			if rights, err := retained.Effective(ref, false); err != nil || rights != authorization.ExecutePrivilege {
 				t.Fatal("publication mutated retained authority", rights, err)
 			}
-			stable, roles := e.catalog.state, e.roles
-			if err := applyObjectGrantUnit(e, op, request); err != nil || e.catalog.state != stable || e.roles != roles {
+			stable, roles := e.catalog.state, e.roles.published
+			if err := applyObjectGrantUnit(e, op, request); err != nil || e.catalog.state != stable || e.roles.published != roles {
 				t.Fatal("explicit no-op republished foreign procedure", err)
 			}
 		})

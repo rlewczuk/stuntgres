@@ -372,7 +372,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	if err == nil {
 		nextRevision := e.catalog.nextRevision
 		for _, descriptor := range next.Descriptors() {
-			if err = validateACL(e.roleRead(e.catalog.read(next), e.roles), descriptor); err != nil {
+			if err = validateACL(e.roleRead(e.catalog.read(next), e.roles.published), descriptor); err != nil {
 				break
 			}
 			if revision := descriptor.Revision(); revision >= nextRevision {

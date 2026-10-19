@@ -19,10 +19,10 @@ func (r capturedRegroleOutput) FormatRegrole(id uint32) (string, error) {
 	if id == 0 {
 		return "-", nil
 	}
-	if r.owner == nil || !r.roles.BelongsTo(&r.owner.authorizationDomain) {
+	if r.owner == nil || !r.roles.BelongsTo(&r.owner.roles.domain) {
 		return "", fmt.Errorf("stuntgres: missing regrole output authority")
 	}
-	role, ok := r.roles.Find(r.owner.authorizationDomain.Principal(uint64(id)))
+	role, ok := r.roles.Find(r.owner.roles.domain.Principal(uint64(id)))
 	if !ok {
 		return strconv.FormatUint(uint64(id), 10), nil
 	}

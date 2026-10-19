@@ -104,7 +104,7 @@ func TestPGGroupDescriptor(t *testing.T) {
 			t.Fatal("exact group metadata", i, c)
 		}
 	}
-	if !d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.Security.ACL.Entries[0].Grantor != d.Owner || d.Owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
+	if !d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.Security.ACL.Entries[0].Grantor != d.Owner || d.Owner != e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 		t.Fatal("PUBLIC SELECT/owner")
 	}
 	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
@@ -199,11 +199,11 @@ func TestPGGroupProjection(t *testing.T) {
 func TestPGGroupRoleRoot(t *testing.T) {
 	e := New()
 	d, ref := pgGroupUnitSource(t, e)
-	old := cloneRoleFixture(e.roles)
+	old := cloneRoleFixture(e.roles.published)
 	group := pgGroupUnitRole(e, old, 20000, "snapshot", false)
 	member := pgGroupUnitRole(e, old, 20001, "member", true)
 	setFixtureEdges(old, append(fixtureEdges(old), authorization.Membership{Role: group, Member: member, Grantor: group}))
-	e.roles = old
+	e.roles.published = old
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	scope := &StatementScope{op: op, owner: op.session.transactions}
@@ -219,7 +219,7 @@ func TestPGGroupRoleRoot(t *testing.T) {
 	open := func(s *StatementScope, r ids.ObjectRef) *querySource {
 		t.Helper()
 		e.mu.Lock()
-		source, err := e.openRelationSourceLocked(s, r, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
+		source, err := e.openRelationSourceLocked(s, r, e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -229,7 +229,7 @@ func TestPGGroupRoleRoot(t *testing.T) {
 	first := open(scope, ref)
 	updated := cloneRoleFixture(old)
 	setFixtureEdges(updated, nil)
-	e.roles = updated
+	e.roles.published = updated
 	second := open(scope, ref)
 	for _, source := range []*querySource{first, second} {
 		pgGroupUnitMembers(t, pgGroupUnitRows(t, source, d)[20000], 20001)

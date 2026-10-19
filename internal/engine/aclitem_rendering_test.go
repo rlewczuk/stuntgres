@@ -57,9 +57,9 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 	}
 	role, _ := e.Roles().Lookup("acl_render_a")
 	e.mu.Lock()
-	next := cloneRoleFixture(e.roles)
+	next := cloneRoleFixture(e.roles.published)
 	retireFixtureRole(next, role.Ref)
-	e.roles = next
+	e.roles.published = next
 	e.mu.Unlock()
 	if err := validateChecks(view, relation, make(map[string]bool)); err != nil {
 		t.Fatal("DROP invalidated stored CHECK datum", err)
@@ -74,7 +74,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 		t.Fatal("ordinary stale presentation", text, err)
 	}
 	foreign := New()
-	foreignValue, err := sqltype.ACLItemValue(value.Type(), &foreign.aclAuthority, 20000, 20001, 2, 2)
+	foreignValue, err := sqltype.ACLItemValue(value.Type(), &foreign.roles.aclAuthority, 20000, 20001, 2, 2)
 	if err != nil {
 		t.Fatal(err)
 	}

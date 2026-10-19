@@ -23,7 +23,7 @@ func TestDropOwnedACLSelectiveCascade(t *testing.T) {
 			}
 			old := authorization.ACLValue{Explicit: true, Entries: entries}
 			retained := append([]authorization.ACLEntry(nil), entries...)
-			got, changed, err := authorization.OwnedACL(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), e.roles), old, owner, map[authorization.PrincipalRef]bool{source: true})
+			got, changed, err := authorization.OwnedACL(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), e.roles.published), old, owner, map[authorization.PrincipalRef]bool{source: true})
 			if err != nil || !changed || !reflect.DeepEqual(old.Entries, retained) {
 				t.Fatal("cleanup/error/immutable source", got, changed, err)
 			}
@@ -39,7 +39,7 @@ func TestDropOwnedACLSelectiveCascade(t *testing.T) {
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
-			if _, _, err := authorization.OwnedACL(ctx, e.roleRead(e.catalog.read(e.catalog.state), e.roles), old, owner, map[authorization.PrincipalRef]bool{source: true}); !errors.Is(err, context.Canceled) {
+			if _, _, err := authorization.OwnedACL(ctx, e.roleRead(e.catalog.read(e.catalog.state), e.roles.published), old, owner, map[authorization.PrincipalRef]bool{source: true}); !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}
 		}
@@ -61,8 +61,8 @@ func TestDropOwnedPolicyTargets(t *testing.T) {
 }
 func TestDropOwnedMembershipProvenance(t *testing.T) {
 	e, owner, source, target, reader := ownershipUnitRoles()
-	setFixtureEdges(e.roles, append(fixtureEdges(e.roles), authorization.Membership{Role: target, Member: source, Grantor: owner, Admin: true}, authorization.Membership{Role: target, Member: reader, Grantor: source, Admin: true, Inherit: true, Set: true}, authorization.Membership{Role: target, Member: owner, Grantor: reader, Inherit: true}))
-	old := e.roles
+	setFixtureEdges(e.roles.published, append(fixtureEdges(e.roles.published), authorization.Membership{Role: target, Member: source, Grantor: owner, Admin: true}, authorization.Membership{Role: target, Member: reader, Grantor: source, Admin: true, Inherit: true, Set: true}, authorization.Membership{Role: target, Member: owner, Grantor: reader, Inherit: true}))
+	old := e.roles.published
 	retained := append([]authorization.Membership(nil), fixtureEdges(old)...)
 	next, err := ownedMembershipCandidate(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), old), old.revision, map[authorization.PrincipalRef]bool{source: true})
 	if err != nil || next == nil || next.revision != old.revision+1 || !reflect.DeepEqual(fixtureEdges(old), retained) {
@@ -98,7 +98,7 @@ func TestDropOwnedUnionRestrictAndCascade(t *testing.T) {
 		}
 	}
 	ownershipUnitPublish(t, e, setup)
-	oldState, oldRoles := e.catalog.state, e.roles
+	oldState, oldRoles := e.catalog.state, e.roles.published
 	parent := oldState.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ownership_parent"})
 	store := e.storage.Relations[parent]
 	rows := store.Versions
@@ -108,7 +108,7 @@ func TestDropOwnedUnionRestrictAndCascade(t *testing.T) {
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "2BP01" || diagnostic.Message != "cannot drop desired object(s) because other objects depend on them" {
 		t.Fatal("actual external refusal", err)
 	}
-	if e.catalog.state != oldState || e.roles != oldRoles || e.storage.Relations[parent] != store || &store.Versions[0] != &rows[0] {
+	if e.catalog.state != oldState || e.roles.published != oldRoles || e.storage.Relations[parent] != store || &store.Versions[0] != &rows[0] {
 		t.Fatal("RESTRICT partially published")
 	}
 	stmt.Mode = parser.DropCascade
@@ -149,16 +149,16 @@ func TestReassignOwnedSourceSetAndUnrelatedGrant(t *testing.T) {
 	ownershipUnitPublish(t, e, setup)
 	before := e.catalog.state
 	store := e.storage.Relations[move.Address()]
-	roles := e.roles
+	roles := e.roles.published
 	late := &parser.ReassignOwned{Sources: []parser.RoleSpec{{Name: "ownership_source"}, {Name: "absent"}}, Target: parser.RoleSpec{Name: "ownership_target"}}
-	if _, err := testExecute(e, context.Background(), late, nil); err == nil || e.catalog.state != before || e.roles != roles {
+	if _, err := testExecute(e, context.Background(), late, nil); err == nil || e.catalog.state != before || e.roles.published != roles {
 		t.Fatal("late-source preflight partially published", err)
 	}
 	late.Sources = late.Sources[:1]
 	if _, err := testExecute(e, context.Background(), late, nil); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.state.MustRelation(move.Address()).Owner != target || e.catalog.state.Get(other.Address()) != before.Get(other.Address()) || e.roles != roles || e.storage.Relations[move.Address()] != store {
+	if e.catalog.state.MustRelation(move.Address()).Owner != target || e.catalog.state.Get(other.Address()) != before.Get(other.Address()) || e.roles.published != roles || e.storage.Relations[move.Address()] != store {
 		t.Fatal("reassign changed unrelated grant, roles or data")
 	}
 }
@@ -182,7 +182,7 @@ func TestDropOwnedTypeACLAndCancellation(t *testing.T) {
 	}
 	ownershipUnitPublish(t, e, setup)
 	base = e.CatalogRead()
-	roles := e.roles
+	roles := e.roles.published
 	stage := e.BeginCatalogStage(base)
 	stage.roleRevision = roles.revision
 	ctx, cancel := context.WithCancel(context.Background())
@@ -190,7 +190,7 @@ func TestDropOwnedTypeACLAndCancellation(t *testing.T) {
 	if err := stageOwnedCleanup(ctx, stage, e.roleRead(base, roles), roles, map[authorization.PrincipalRef]bool{source: true}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if len(stage.Descriptors) != 0 || e.catalog.state != base.State() || e.roles != roles {
+	if len(stage.Descriptors) != 0 || e.catalog.state != base.State() || e.roles.published != roles {
 		t.Fatal("canceled cleanup mutated state")
 	}
 	stage = e.BeginCatalogStage(base)
@@ -243,14 +243,14 @@ func TestDropOwnedCollectedCleanupPrimary(t *testing.T) {
 				ownershipUnitExec(t, e, "GRANT SELECT ON ownership_external TO ownership_source")
 			}
 			if tc.membership {
-				graph := cloneRoleFixture(e.roles)
+				graph := cloneRoleFixture(e.roles.published)
 				setFixtureEdges(graph, append(fixtureEdges(graph),
 					authorization.Membership{Role: target, Member: source, Grantor: owner, Admin: true, Inherit: true, Set: true},
 					authorization.Membership{Role: target, Member: reader, Grantor: source, Inherit: true, Set: true}))
 				graph.revision++
-				e.roles = graph
+				e.roles.published = graph
 			}
-			before, roles := e.catalog.state, e.roles
+			before, roles := e.catalog.state, e.roles.published
 			address := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ownership_primary"})
 			store := e.storage.Relations[address]
 			versions := store.Versions
@@ -263,7 +263,7 @@ func TestDropOwnedCollectedCleanupPrimary(t *testing.T) {
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "2BP01" || diagnostic.Message != want {
 				t.Fatal("collected deletion primary", err, "want", want)
 			}
-			if e.catalog.state != before || e.roles != roles || e.storage.Relations[address] != store || &store.Versions[0] != &versions[0] {
+			if e.catalog.state != before || e.roles.published != roles || e.storage.Relations[address] != store || &store.Versions[0] != &versions[0] {
 				t.Fatal("private cleanup or dependency refusal partially published")
 			}
 		})
@@ -310,7 +310,7 @@ func TestDropOwnedACLGrantorSupport(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e, owner, source, target, reader := ownershipUnitRoles()
-			graph := cloneRoleFixture(e.roles)
+			graph := cloneRoleFixture(e.roles.published)
 			setFixtureEdges(graph, []authorization.Membership{{Role: owner, Member: source, Grantor: owner, Inherit: tc.inheritedOwner, Set: true}})
 			old := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 				objectACLUnitEntry(source, reader, both, both),
@@ -365,13 +365,13 @@ func TestDropOwnedIndependentSequenceCollectedOnce(t *testing.T) {
 	} {
 		ownershipUnitExec(t, e, q)
 	}
-	before, roles := e.catalog.state, e.roles
+	before, roles := e.catalog.state, e.roles.published
 	_, err := testExecute(e, context.Background(), &parser.DropOwned{Sources: []parser.RoleSpec{{Name: "ownership_source"}}, Mode: parser.DropRestrict}, nil)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "2BP01" || diagnostic.Message != "cannot drop sequence ownership_direct_sequence because other objects depend on it" {
 		t.Fatal("independent sequence was counted twice", err)
 	}
-	if e.catalog.state != before || e.roles != roles {
+	if e.catalog.state != before || e.roles.published != roles {
 		t.Fatal("refusal changed retained roots")
 	}
 }
@@ -397,9 +397,9 @@ func TestDropOwnedSQLGrantorProvenance(t *testing.T) {
 	} {
 		roleExecute(t, e, op, q)
 	}
-	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_sql_owner")
-	source := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_sql_source")
-	downstream := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_sql_downstream")
+	owner := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_sql_owner")
+	source := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_sql_source")
+	downstream := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_sql_downstream")
 	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ownership_sql_support"})
 	original := e.catalog.state.MustRelation(address)
 	received := objectACLUnitEntry(owner, source, authorization.SelectPrivilege, authorization.SelectPrivilege)
@@ -417,9 +417,9 @@ func TestDropOwnedSQLGrantorProvenance(t *testing.T) {
 	if !slices.Equal(original.Security.ACL.Entries, retained) || e.storage.Relations[address] != store {
 		t.Fatal("cleanup changed retained ACL or surviving storage")
 	}
-	before, roles := e.catalog.state, e.roles
+	before, roles := e.catalog.state, e.roles.published
 	roleError(t, e, op, "DROP ROLE ownership_sql_source", "2BP01", `role "ownership_sql_source" cannot be dropped because some objects depend on it`, "privileges for table ownership_sql_support")
-	if e.catalog.state != before || e.roles != roles {
+	if e.catalog.state != before || e.roles.published != roles {
 		t.Fatal("retained grantor blocker partially retired the source")
 	}
 }

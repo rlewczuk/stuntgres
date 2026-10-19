@@ -16,7 +16,7 @@ func TestViewJoinedOriginalInvokerAuthority(t *testing.T) {
 		roleExecute(t, e, op, q)
 	}
 	reader, _ := e.Roles().Lookup("joined_reader")
-	grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grantor := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	grant := func(name string, rights authorization.Privileges) {
 		t.Helper()
 		if err := e.SetObjectACL(context.Background(), roleTableRef(t, e, name), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {

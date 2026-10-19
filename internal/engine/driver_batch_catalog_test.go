@@ -17,7 +17,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 		t.Run(map[bool]string{false: "rollback", true: "commit"}[commit], func(t *testing.T) {
 			e := New()
 			a := sessionStart(t, e, nil)
-			beforeCatalog, beforeRoles, frontier := e.catalog.state, e.roles, e.commitSeq
+			beforeCatalog, beforeRoles, frontier := e.catalog.state, e.roles.published, e.commitSeq
 			original, revision := a.authorization.state, a.authorization.revision
 			m := batchUnitStart(t, a, context.Background())
 			defer m.end(context.Canceled)
@@ -56,7 +56,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 			if changes.storage[table].original != nil || len(changes.uniqueRoots[index].Entries) != 0 || len(a.transactions.writes[table]) != 2 {
 				t.Fatal("baseline and own writes conflated")
 			}
-			if e.catalog.state != beforeCatalog || e.roles != beforeRoles || e.commitSeq != frontier || e.storage.Relations[table] != nil || e.storage.IndexRoots[index] != nil {
+			if e.catalog.state != beforeCatalog || e.roles.published != beforeRoles || e.commitSeq != frontier || e.storage.Relations[table] != nil || e.storage.IndexRoots[index] != nil {
 				t.Fatal("candidate escaped before message end")
 			}
 			if _, ok := e.Roles().Lookup("batch_member"); ok {
@@ -69,7 +69,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 				if _, ok := e.Roles().Lookup("batch_member"); !ok {
 					t.Fatal("role root not installed with catalog")
 				}
-				if e.catalog.state == beforeCatalog || e.roles == beforeRoles || len(e.storage.Relations[table].Versions) != 2 || len(e.storage.IndexRoots[index].Entries) != 2 {
+				if e.catalog.state == beforeCatalog || e.roles.published == beforeRoles || len(e.storage.Relations[table].Versions) != 2 || len(e.storage.IndexRoots[index].Entries) != 2 {
 					t.Fatal("incomplete atomic installation")
 				}
 				sessionSQL(t, a, "RESET ROLE")
@@ -83,7 +83,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 				if end := m.end(err); end != err {
 					t.Fatal("primary error replaced", end, err)
 				}
-				if e.catalog.state != beforeCatalog || e.roles != beforeRoles || e.commitSeq != frontier || a.authorization.state != original || a.authorization.revision <= revision || a.transactions.identityCaptured {
+				if e.catalog.state != beforeCatalog || e.roles.published != beforeRoles || e.commitSeq != frontier || a.authorization.state != original || a.authorization.revision <= revision || a.transactions.identityCaptured {
 					t.Fatal("joint rollback or identity revision")
 				}
 			}

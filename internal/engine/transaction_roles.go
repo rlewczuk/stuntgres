@@ -12,7 +12,7 @@ func (e *Engine) operationRolesLocked(op *Operation) *roleCatalog {
 	if op != nil {
 		return e.sessionRolesLocked(op.session)
 	}
-	return e.roles
+	return e.roles.published
 }
 func (e *Engine) sessionRolesLocked(session *Session) *roleCatalog {
 	if session != nil && session.transactions != nil {
@@ -20,19 +20,19 @@ func (e *Engine) sessionRolesLocked(session *Session) *roleCatalog {
 			return c.roles
 		}
 	}
-	return e.roles
+	return e.roles.published
 }
 
 // The operation/session publication preflight has passed before this call.
 func (e *Engine) installOperationRolesLocked(op *Operation, next *roleCatalog) {
 	t := op.session.transactions
 	if !t.retainsTransaction() {
-		e.roles = next
+		e.roles.published = next
 		return
 	}
 	c := cloneCatalogChanges(t.catalog)
 	if c.rolesBase == nil {
-		c.rolesBase = e.roles
+		c.rolesBase = e.roles.published
 	}
 	c.roles = next
 	t.catalog = c
@@ -65,7 +65,7 @@ func (e *Engine) roleRetirementPreflightLocked(c *catalogChanges, catalog *catal
 				return ids.ErrCatalogReplaced
 			}
 		}
-		for _, refs := range e.roleReferences {
+		for _, refs := range e.roles.references {
 			for _, dependency := range refs {
 				if dependency == ref {
 					return ids.ErrCatalogReplaced

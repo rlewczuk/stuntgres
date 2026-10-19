@@ -73,7 +73,7 @@ func (e *Engine) capturePGAttribute(ctx context.Context, view catalog.Read, role
 	if view.Owner() != e.catalog.owner() || view.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAttributeOID}) || ref.Domain() != e.catalog.Domain || ref.Epoch != view.State().Epoch() || ref.Address != source.Address() || view.Get(source.Address()) != source {
 		return nil, fmt.Errorf("stuntgres: foreign attribute source authority")
 	}
-	if !roles.BelongsTo(&e.authorizationDomain) {
+	if !roles.BelongsTo(&e.roles.domain) {
 		return nil, fmt.Errorf("stuntgres: foreign attribute ACL authority")
 	}
 	if len(source.Columns) != len(pgAttributeTypeIDs) {

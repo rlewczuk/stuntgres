@@ -42,11 +42,11 @@ func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapsh
 		if _, err := source.Descriptor(ref); err != nil {
 			return authorization.PrincipalRef{}, err
 		}
-		target := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
+		target := e.roles.domain.Principal(authorization.BootstrapPrincipalID)
 		if _, err := targetSnapshot.Descriptor(target); err != nil {
 			return authorization.PrincipalRef{}, err
 		}
-		if _, err := e.roleRead(e.catalog.read(e.catalog.state), e.roles).Descriptor(target); err != nil {
+		if _, err := e.roleRead(e.catalog.read(e.catalog.state), e.roles.published).Descriptor(target); err != nil {
 			return authorization.PrincipalRef{}, err
 		}
 		return target, nil
@@ -238,7 +238,7 @@ func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapsh
 		}
 		state.SetDefaultACLs(next)
 	}
-	if err := catalog.ValidateDefaultACLs(e.roleRead(e.catalog.read(state), e.roles), e.catalog.read(state)); err != nil {
+	if err := catalog.ValidateDefaultACLs(e.roleRead(e.catalog.read(state), e.roles.published), e.catalog.read(state)); err != nil {
 		return nil, err
 	}
 	return state, nil
@@ -260,7 +260,7 @@ func (e *Engine) replacementPrincipalMapper(source, targetSnapshot authorization
 		if !ok {
 			return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: replacement principal %q does not exist", d.Name)
 		}
-		if _, err := e.roleRead(e.catalog.read(e.catalog.state), e.roles).Descriptor(target.Ref); err != nil {
+		if _, err := e.roleRead(e.catalog.read(e.catalog.state), e.roles.published).Descriptor(target.Ref); err != nil {
 			return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: replacement principal %q changed", d.Name)
 		}
 		if expected != nil && expected[ref] != target.Ref {
@@ -275,7 +275,7 @@ func (e *Engine) restoreStage() *Engine {
 	// Capture before reading: dropping and recreating an owner while a reader
 	// is blocked cannot silently adopt the replacement role with the same name.
 	e.mu.Lock()
-	sourceRoles, nextPrincipal := e.roles, e.nextPrincipal
+	sourceRoles, nextPrincipal := e.roles.published, e.roles.nextPrincipal
 	database := e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
 	e.mu.Unlock()
 	stage := NewWithSettings(nil, e.databaseName, false)
@@ -283,19 +283,19 @@ func (e *Engine) restoreStage() *Engine {
 		panic(err)
 	}
 	stage.importTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef, sourceRoles.root.Read(authorization.PrincipalRef{}).RoleCount())
-	roles := sourceRoles.root.Reprovenance(&stage.authorizationDomain, stage.importTargets)
+	roles := sourceRoles.root.Reprovenance(&stage.roles.domain, stage.importTargets)
 	retainedDatabase := *database
-	retainedDatabase.Owner = stage.authorizationDomain.Principal(database.Owner.ID())
+	retainedDatabase.Owner = stage.roles.domain.Principal(database.Owner.ID())
 	retainedDatabase.ACL.Entries = append([]authorization.ACLEntry(nil), database.ACL.Entries...)
 	for i := range retainedDatabase.ACL.Entries {
 		entry := &retainedDatabase.ACL.Entries[i]
-		entry.Grantor = stage.authorizationDomain.Principal(entry.Grantor.ID())
+		entry.Grantor = stage.roles.domain.Principal(entry.Grantor.ID())
 		if !entry.Grantee.Public {
-			entry.Grantee.Role = stage.authorizationDomain.Principal(entry.Grantee.Role.ID())
+			entry.Grantee.Role = stage.roles.domain.Principal(entry.Grantee.Role.ID())
 		}
 	}
 	stage.catalog.state.SetDescriptor(catalog.CurrentDatabaseAddress, &retainedDatabase)
-	stage.roles = &roleCatalog{root: roles, revision: sourceRoles.revision}
-	stage.nextPrincipal = nextPrincipal
+	stage.roles.published = &roleCatalog{root: roles, revision: sourceRoles.revision}
+	stage.roles.nextPrincipal = nextPrincipal
 	return stage
 }

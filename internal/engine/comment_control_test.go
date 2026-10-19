@@ -97,11 +97,11 @@ func TestCommentControls(t *testing.T) {
 	}
 	for _, suffix := range []string{"COMMENT ON COLUMN s.t.missing IS 'late';", "COMMENT ON ROLE owner IS 'late';", "SET SESSION AUTHORIZATION absent; CREATE TABLE public.late(v INT);"} {
 		before := e.CatalogRead()
-		rolesPublication := e.roles
+		rolesPublication := e.roles.published
 		if err := e.Restore(context.Background(), strings.NewReader(canonical+"COMMENT ON TABLE s.t IS 'earlier';"+suffix)); err == nil {
 			t.Fatal("accepted invalid restore", suffix)
 		}
-		if before.State() != e.CatalogRead().State() || rolesPublication != e.roles || commentDump(t, e) != canonical {
+		if before.State() != e.CatalogRead().State() || rolesPublication != e.roles.published || commentDump(t, e) != canonical {
 			t.Fatal("failed restore published metadata")
 		}
 	}

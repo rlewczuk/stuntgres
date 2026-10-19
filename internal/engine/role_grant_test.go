@@ -66,9 +66,9 @@ func TestObjectGrantSequencePublication(t *testing.T) {
 	if next.SequencePlanStamp == original.SequencePlanStamp || e.storage.Sequences[address] != generator || generator.Last != 11 || original.Security.ACL.Explicit {
 		t.Fatal("ACL publication changed generator or retained descriptor")
 	}
-	before, roles := e.catalog.state, e.roles
+	before, roles := e.catalog.state, e.roles.published
 	request.Relations = append(request.Relations, parser.ObjectName{Parts: []parser.Identifier{{Text: "missing"}}})
-	if err := applyObjectGrantUnit(e, op, request); err == nil || e.catalog.state != before || e.roles != roles {
+	if err := applyObjectGrantUnit(e, op, request); err == nil || e.catalog.state != before || e.roles.published != roles {
 		t.Fatal("late target error published sequence ACL", err)
 	}
 }
@@ -76,13 +76,13 @@ func TestObjectGrantSequencePublication(t *testing.T) {
 func TestObjectGrantAtomicPublicationAndStableSubID(t *testing.T) {
 	e, op, reader, address := objectGrantUnitFixture(t)
 	before := e.catalog.state
-	roles := e.roles
+	roles := e.roles.published
 	failed := objectGrantUnitRequest()
 	failed.Relations = append(failed.Relations, parser.ObjectName{Parts: []parser.Identifier{{Text: "missing"}}})
 	if err := applyObjectGrantUnit(e, op, failed); err == nil {
 		t.Fatal("missing target accepted")
 	}
-	if e.catalog.state != before || e.roles != roles {
+	if e.catalog.state != before || e.roles.published != roles {
 		t.Fatal("late failure published prefix")
 	}
 	request := objectGrantUnitRequest()
@@ -90,17 +90,17 @@ func TestObjectGrantAtomicPublicationAndStableSubID(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := e.catalog.state.MustRelation(address)
-	if next == before.Get(address) || next.Security.ColumnACL[3].Entries[0].Grantee.Role != reader || len(next.Security.ColumnACL[1].Entries) != 0 || e.roles.revision != roles.revision+1 {
+	if next == before.Get(address) || next.Security.ColumnACL[3].Entries[0].Grantee.Role != reader || len(next.Security.ColumnACL[1].Entries) != 0 || e.roles.published.revision != roles.revision+1 {
 		t.Fatal("wrong immutable/stable publication", next)
 	}
 	if len(before.MustRelation(address).Security.ColumnACL) != 0 {
 		t.Fatal("retained descriptor mutated")
 	}
-	stableState, stableRoles := e.catalog.state, e.roles
+	stableState, stableRoles := e.catalog.state, e.roles.published
 	if err := applyObjectGrantUnit(e, op, request); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.state != stableState || e.roles != stableRoles {
+	if e.catalog.state != stableState || e.roles.published != stableRoles {
 		t.Fatal("no-op advanced revisions")
 	}
 	request.Revoke = true
@@ -146,16 +146,16 @@ func TestObjectGrantColumnTableIndependence(t *testing.T) {
 
 func TestObjectGrantRevisionExhaustionAndSessionFence(t *testing.T) {
 	e, op, _, _ := objectGrantUnitFixture(t)
-	originalRoles := e.roles
+	originalRoles := e.roles.published
 	saturated := *originalRoles
 	saturated.revision = ^uint64(0)
-	e.roles = &saturated
+	e.roles.published = &saturated
 	before := e.catalog.state
 	err := applyObjectGrantUnit(e, op, objectGrantUnitRequest())
-	if err == nil || !strings.Contains(err.Error(), "revision exhausted") || e.catalog.state != before || e.roles != &saturated {
+	if err == nil || !strings.Contains(err.Error(), "revision exhausted") || e.catalog.state != before || e.roles.published != &saturated {
 		t.Fatal(err, "revision exhaustion published")
 	}
-	e.roles = originalRoles
+	e.roles.published = originalRoles
 	originalContext := op.ctx
 	ctx, cancel := context.WithCancel(originalContext)
 	cancel()
@@ -239,7 +239,7 @@ func TestObjectGrantMergedColumnNoticeOrder(t *testing.T) {
 	}
 	for _, revoke := range []bool{false, true} {
 		request.Revoke = revoke
-		before, roles := e.catalog.state, e.roles
+		before, roles := e.catalog.state, e.roles.published
 		if err := applyObjectGrantUnit(e, actor, request); err != nil {
 			t.Fatal(err)
 		}
@@ -254,14 +254,14 @@ func TestObjectGrantMergedColumnNoticeOrder(t *testing.T) {
 		if got := actor.DetachNotices(); !reflect.DeepEqual(got, want) {
 			t.Fatalf("revoke=%v notices %#v want %#v", revoke, got, want)
 		}
-		if e.catalog.state != before || e.roles != roles {
+		if e.catalog.state != before || e.roles.published != roles {
 			t.Fatal("zero-option request published ACLs")
 		}
 	}
 	// Signed ordering also retains the table warning first, then negative
 	// system attributes and positive live attributes across a dropped gap.
 	request.Privileges = []parser.GrantPrivilege{{Name: "select"}}
-	before, roles := e.catalog.state, e.roles
+	before, roles := e.catalog.state, e.roles.published
 	if err := applyObjectGrantUnit(e, actor, request); err != nil {
 		t.Fatal(err)
 	}
@@ -272,7 +272,7 @@ func TestObjectGrantMergedColumnNoticeOrder(t *testing.T) {
 	if got := actor.DetachNotices(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("signed attribute notices %#v want %#v", got, want)
 	}
-	if e.catalog.state != before || e.roles != roles {
+	if e.catalog.state != before || e.roles.published != roles {
 		t.Fatal("zero-option table revoke published ACLs")
 	}
 }
@@ -316,7 +316,7 @@ func TestObjectGrantMergedColumnMaskWarnings(t *testing.T) {
 				request.Privileges = tc.privileges
 				for _, revoke := range []bool{false, true} {
 					request.Revoke = revoke
-					before, roles := e.catalog.state, e.roles
+					before, roles := e.catalog.state, e.roles.published
 					if err := applyObjectGrantUnit(e, actor, request); err != nil {
 						t.Fatal(err)
 					}
@@ -342,7 +342,7 @@ func TestObjectGrantMergedColumnMaskWarnings(t *testing.T) {
 						t.Fatal("column request changed table or another stable attribute")
 					}
 					if !options {
-						if e.catalog.state != before || e.roles != roles {
+						if e.catalog.state != before || e.roles.published != roles {
 							t.Fatal("zero-option request published")
 						}
 					} else if revoke {

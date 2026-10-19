@@ -14,9 +14,9 @@ import (
 )
 
 func refreshUnitPrincipals(e *Engine) (authorization.PrincipalRef, authorization.PrincipalRef) {
-	owner, caller := e.authorizationDomain.Principal(100001), e.authorizationDomain.Principal(100002)
+	owner, caller := e.roles.domain.Principal(100001), e.roles.domain.Principal(100002)
 	for _, role := range []authorization.RoleDescriptor{{Ref: owner, Name: "refresh_unit_owner", Login: true, Inherit: true, ConnectionLimit: -1}, {Ref: caller, Name: "refresh_unit_caller", Login: true, Inherit: true, ConnectionLimit: -1}} {
-		putFixtureRole(e.roles, role)
+		putFixtureRole(e.roles.published, role)
 
 	}
 	return owner, caller
@@ -28,7 +28,7 @@ func TestMaterializedRefreshAuthorization(t *testing.T) {
 	owner, caller := refreshUnitPrincipals(e)
 	d.Owner = owner
 	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
-	auth := AuthorizationView{engine: e, pairedCatalog: e.CatalogRead(), roleRecord: e.roles, catalog: e.CatalogRead(), roles: e.Roles(), state: authorization.RoleState{CurrentUser: caller, SessionUser: caller, Authenticated: caller}}
+	auth := AuthorizationView{engine: e, pairedCatalog: e.CatalogRead(), roleRecord: e.roles.published, catalog: e.CatalogRead(), roles: e.Roles(), state: authorization.RoleState{CurrentUser: caller, SessionUser: caller, Authenticated: caller}}
 	for _, privilege := range []authorization.Privileges{authorization.SelectPrivilege, authorization.MaintainPrivilege} {
 		d.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, caller, privilege, 0)}}
 		err := materializedRefreshAccess(auth, ref)

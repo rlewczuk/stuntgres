@@ -60,13 +60,13 @@ func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.Principa
 	t.Helper()
 	e, query, source := queryCoreFixture(t, "SELECT v FROM t")
 	base := source.ref
-	owner := e.authorizationDomain.Principal(1000000)
-	reader := e.authorizationDomain.Principal(1000001)
-	roles := cloneRoleFixture(e.roles)
+	owner := e.roles.domain.Principal(1000000)
+	reader := e.roles.domain.Principal(1000001)
+	roles := cloneRoleFixture(e.roles.published)
 	for _, role := range []authorization.RoleDescriptor{{Ref: owner, Name: "set_owner"}, {Ref: reader, Name: "set_reader"}} {
 		putFixtureRole(roles, role)
 	}
-	e.roles = roles
+	e.roles.published = roles
 	e.catalog.state = catalog.CloneState(e.catalog.state)
 	original := e.catalog.state.MustRelation(base.Address)
 	right := base
@@ -168,7 +168,7 @@ func TestQuerySetStoredLockAuthority(t *testing.T) {
 			check(name, queryRowMark{mode: lock.ForUpdate}, tc.name)
 		}
 		// Restore this arm before checking the other arm's independent denial.
-		if err := e.SetObjectACL(context.Background(), tc.ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.SelectPrivilege}}}); err != nil {
+		if err := e.SetObjectACL(context.Background(), tc.ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 			t.Fatal(err)
 		}
 	}

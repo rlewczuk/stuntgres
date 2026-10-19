@@ -26,7 +26,7 @@ func namespaceUnitCapture(t *testing.T, e *Engine, c catalog.Read) *querySource 
 	t.Helper()
 	d, ref := namespaceUnitSource(t, e, c)
 	e.mu.Lock()
-	rows, err := e.capturePGNamespace(context.Background(), c, e.roleRead(c, e.roles), ref, d)
+	rows, err := e.capturePGNamespace(context.Background(), c, e.roleRead(c, e.roles.published), ref, d)
 	e.mu.Unlock()
 	if err != nil || rows == nil || rows.ref != ref {
 		t.Fatal(rows, err)
@@ -186,7 +186,7 @@ func TestPGNamespaceACL(t *testing.T) {
 				if public {
 					want = 0
 				}
-				if err != nil || authority != &e.aclAuthority || grantee != want || grantor != 10 || mask != masks[i] || optionMask != masks[j] {
+				if err != nil || authority != &e.roles.aclAuthority || grantee != want || grantor != 10 || mask != masks[i] || optionMask != masks[j] {
 					t.Fatal("schema ACL bits", grantee, grantor, mask, optionMask, err)
 				}
 			}
@@ -206,7 +206,7 @@ func TestPGNamespaceACL(t *testing.T) {
 		t.Fatal(grantee, grantor, mask, options, err)
 	}
 	foreign := New()
-	for _, bad := range []authorization.PrincipalRef{foreign.authorizationDomain.Principal(10), e.authorizationDomain.Principal(999999)} {
+	for _, bad := range []authorization.PrincipalRef{foreign.roles.domain.Principal(10), e.roles.domain.Principal(999999)} {
 		for _, grantor := range []bool{false, true} {
 			broken := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.UsagePrivilege}}}
 			if grantor {
@@ -267,7 +267,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 		reject(e.catalog.read(next), e.Roles(), ref, &invalid)
 	}
 	ns := c.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 99})
-	for _, owner := range []authorization.PrincipalRef{foreign.authorizationDomain.Principal(10), e.authorizationDomain.Principal(999999), e.authorizationDomain.Principal(1 << 32)} {
+	for _, owner := range []authorization.PrincipalRef{foreign.roles.domain.Principal(10), e.roles.domain.Principal(999999), e.roles.domain.Principal(1 << 32)} {
 		next := catalog.CloneState(c.State())
 		invalid := *ns
 		invalid.Owner = owner

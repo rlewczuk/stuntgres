@@ -65,7 +65,7 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 		}
 		// Ordinary descriptors must not acquire compatibility facts merely
 		// because their implementation/source kind resembles a table.
-		ordinary := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200555}, ObjectName: "unindexed", RelationKind: catalog.TableRelation, Owner: e.authorizationDomain.Principal(10)}
+		ordinary := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200555}, ObjectName: "unindexed", RelationKind: catalog.TableRelation, Owner: e.roles.domain.Principal(10)}
 		project(ordinary, false)
 	}
 	check()

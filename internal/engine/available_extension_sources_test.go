@@ -29,7 +29,7 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 		{12085, 12087, 12086, []string{"name", "version", "installed", "superuser", "trusted", "relocatable", "schema", "requires", "comment"}, []sqltype.ID{19, 25, 16, 16, 16, 16, 19, 1003, 25}, []uint32{950, 100, 0, 0, 0, 0, 950, 950, 100}},
 	} {
 		d, ref := availableUnitSource(e, spec.oid)
-		owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		owner := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 		if !d.VirtualView || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != 11 || d.Owner != owner || d.RowType != sqltype.ID(spec.row) || len(d.Columns) != len(spec.names) || d.ColumnMeta.HighWater != int32(len(spec.names)) {
 			t.Fatal("view identity", d)
 		}

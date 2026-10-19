@@ -106,7 +106,7 @@ func (e *Engine) capturePGType(ctx context.Context, view catalog.Read, roles aut
 		}
 	}
 	database, ok := view.Database(catalog.CurrentDatabaseAddress)
-	if !ok || database == nil || !roles.BelongsTo(&e.authorizationDomain) || roles.DatabaseOwner() != database.Owner {
+	if !ok || database == nil || !roles.BelongsTo(&e.roles.domain) || roles.DatabaseOwner() != database.Owner {
 		return nil, fmt.Errorf("stuntgres: foreign type owner authority")
 	}
 	count := 0

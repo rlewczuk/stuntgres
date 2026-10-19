@@ -102,7 +102,7 @@ func (c *EvalContext) selectExpressionRecipe(recipe *catalog.Relation) error {
 	}
 	if auth.engine != nil {
 		current, ok := auth.catalog.Relation(recipe.Address())
-		if !ok || current.View != recipe.View || recipe.Owner.ID() == 0 || recipe.Owner != auth.engine.authorizationDomain.Principal(recipe.Owner.ID()) {
+		if !ok || current.View != recipe.View || recipe.Owner.ID() == 0 || recipe.Owner != auth.engine.roles.domain.Principal(recipe.Owner.ID()) {
 			return ids.ErrCatalogReplaced
 		}
 	}

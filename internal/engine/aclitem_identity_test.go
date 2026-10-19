@@ -15,13 +15,13 @@ import (
 func aclUnitRoles(e *Engine, names ...string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	next := cloneRoleFixture(e.roles)
+	next := cloneRoleFixture(e.roles.published)
 	for i, name := range names {
-		putFixtureRole(next, authorization.RoleDescriptor{Ref: e.authorizationDomain.Principal(uint64(20000 + i)), Name: name, Inherit: true, ConnectionLimit: -1})
+		putFixtureRole(next, authorization.RoleDescriptor{Ref: e.roles.domain.Principal(uint64(20000 + i)), Name: name, Inherit: true, ConnectionLimit: -1})
 	}
-	e.roles = next
-	if nextID := uint64(20000 + len(names)); e.nextPrincipal < nextID {
-		e.nextPrincipal = nextID
+	e.roles.published = next
+	if nextID := uint64(20000 + len(names)); e.roles.nextPrincipal < nextID {
+		e.roles.nextPrincipal = nextID
 	}
 }
 func aclUnitType(t *testing.T, e *Engine, id sqltype.ID) *sqltype.Descriptor {
@@ -69,10 +69,10 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 	}
 	a, _ := oldRoles.Lookup("acl_unit_a")
 	e.mu.Lock()
-	next := cloneRoleFixture(e.roles)
+	next := cloneRoleFixture(e.roles.published)
 	a.Name = "acl_unit_renamed"
 	putFixtureRole(next, a)
-	e.roles = next
+	e.roles.published = next
 	e.mu.Unlock()
 	fresh := capturedACLItemOutput{owner: e, roles: e.Roles()}
 	text, err := d.OutputWithEnvironment(context.Background(), value, sqltype.OutputEnvironment{ACLItem: fresh})
@@ -120,15 +120,15 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		role, err := old.Descriptor(bootstrapEngine.authorizationDomain.Principal(10))
+		role, err := old.Descriptor(bootstrapEngine.roles.domain.Principal(10))
 		if err != nil {
 			t.Fatal(err)
 		}
 		bootstrapEngine.mu.Lock()
-		next := cloneRoleFixture(bootstrapEngine.roles)
+		next := cloneRoleFixture(bootstrapEngine.roles.published)
 		role.Name = "acl_unit_bootstrap"
 		putFixtureRole(next, role)
-		bootstrapEngine.roles = next
+		bootstrapEngine.roles.published = next
 		bootstrapEngine.mu.Unlock()
 		output := capturedACLItemOutput{owner: bootstrapEngine, roles: bootstrapEngine.Roles()}
 		text, err := typeACL.OutputWithEnvironment(context.Background(), value, sqltype.OutputEnvironment{ACLItem: output})

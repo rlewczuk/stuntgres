@@ -229,7 +229,7 @@ func TestSchemaAuthorizationAndIndependentOwners(t *testing.T) {
 	roleError(t, e, admin, "ALTER SCHEMA owned RENAME TO renamed", "42501", "permission denied for database stuntgres", "")
 	roleExecute(t, e, admin, "ALTER SCHEMA owned OWNER TO owner")
 	roleExecute(t, e, admin, "RESET SESSION AUTHORIZATION")
-	bootstrap := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	bootstrap := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	for _, tc := range []struct {
 		name   string
 		rights authorization.Privileges
@@ -284,7 +284,7 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 	owner, _ := e.Roles().Lookup("schema_owner")
 	tableOwner, _ := e.Roles().Lookup("table_owner")
 	laterOwner, _ := e.Roles().Lookup("later_owner")
-	rolesBefore := e.roles
+	rolesBefore := e.roles.published
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "SET search_path TO mixed")
 	if d := e.catalog.state.MustNamespace(ns.Address); d.Owner != owner.Ref || d.ACL.Explicit {
@@ -373,7 +373,7 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 		}
 	}
 	assertMixed()
-	if e.roles != rolesBefore {
+	if e.roles.published != rolesBefore {
 		t.Fatal("controls changed captured roles")
 	}
 	if got := tuples(sessionSQL(t, s, "SHOW search_path")); !reflect.DeepEqual(got, [][]driver.Value{{"mixed"}}) {

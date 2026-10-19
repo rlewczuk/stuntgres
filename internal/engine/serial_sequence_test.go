@@ -31,9 +31,9 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 	view = view.WithState(catalog.CloneState(view.State()))
 	text, _ := view.LookupType(sqltype.Text)
 	integer, _ := view.LookupType(sqltype.Int4)
-	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90001}, ObjectName: "Mixed.Schema", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90001}, ObjectName: "Mixed.Schema", ObjectRevision: 1, Owner: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	table := &catalog.Relation{
-		ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, ObjectNamespace: ns.Address(), ObjectName: "Owned", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
+		ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, ObjectNamespace: ns.Address(), ObjectName: "Owned", ObjectRevision: 1, Owner: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
 		Columns:    []catalog.Column{{Name: "ID", Usage: integer.Usage()}, {Name: "plain", Usage: integer.Usage()}},
 		Attributes: []int32{7, 9}, Index: map[string]int{"ID": 0, "plain": 1}, ColumnMeta: catalog.ColumnMetadata{
 			HighWater: 9,
@@ -42,7 +42,7 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 	owner := table.Address()
 	owner.SubID = 7
 	sequence := &catalog.Relation{
-		ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90003}, ObjectNamespace: ns.Address(), ObjectName: "Owned.Seq", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
+		ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90003}, ObjectNamespace: ns.Address(), ObjectName: "Owned.Seq", ObjectRevision: 1, Owner: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
 		RelationKind: catalog.SequenceRelation, Sequence: &catalog.SequenceOptions{Owned: owner},
 	}
 	for _, descriptor := range []catalog.Descriptor{ns, table, sequence} {

@@ -14,10 +14,10 @@ import (
 // revision cache can supply the expected authority.
 func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 	e := New()
-	roles := cloneRoleFixture(e.roles)
+	roles := cloneRoleFixture(e.roles.published)
 	previous := roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	next := e.authorizationDomain.Principal(100001)
-	member := e.authorizationDomain.Principal(100002)
+	next := e.roles.domain.Principal(100001)
+	member := e.roles.domain.Principal(100002)
 	bootstrap := fixtureRole(roles, previous)
 	bootstrap.Superuser = false
 	putFixtureRole(roles, bootstrap)
@@ -73,7 +73,7 @@ func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 			t.Fatal("member ADMIN invented", flags, ok, err)
 		}
 	}
-	if before.Epoch() != after.Epoch() || oldView.Stamp().Roles != newView.Stamp().Roles || before.MustDatabase(catalog.CurrentDatabaseAddress).Owner != previous || len(fixtureEdges(roles)) != len(fixtureEdges(e.roles)) {
+	if before.Epoch() != after.Epoch() || oldView.Stamp().Roles != newView.Stamp().Roles || before.MustDatabase(catalog.CurrentDatabaseAddress).Owner != previous || len(fixtureEdges(roles)) != len(fixtureEdges(e.roles.published)) {
 		t.Fatal("source pair mutated")
 	}
 }

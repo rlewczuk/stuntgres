@@ -63,12 +63,12 @@ func TestACLValuesZeroIdentity(t *testing.T) {
 	e, c := aclValuesUnitContext(t)
 	view := e.CatalogRead()
 	d, _ := view.LookupType(sqltype.ACLItem)
-	value, err := sqltype.ACLItemValue(d, &e.aclAuthority, 0, 0, 2, 2)
+	value, err := sqltype.ACLItemValue(d, &e.roles.aclAuthority, 0, 0, 2, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
 	a, g, r, p, o, err := value.ACLItem()
-	if err != nil || a != &e.aclAuthority || g != 0 || r != 0 || p != 2 || o != 2 {
+	if err != nil || a != &e.roles.aclAuthority || g != 0 || r != 0 || p != 2 || o != 2 {
 		t.Fatal("zero identity datum", err)
 	}
 	output := capturedACLItemOutput{owner: e, roles: e.Roles()}
@@ -93,7 +93,7 @@ func TestACLValuesZeroIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	aa, gg, rr, _, _, err := mapped.ACLItem()
-	if err != nil || aa != &target.aclAuthority || gg != 0 || rr != 0 {
+	if err != nil || aa != &target.roles.aclAuthority || gg != 0 || rr != 0 {
 		t.Fatal("zero remap", err)
 	}
 	if _, err := aclValueContains(c, mustACLValuesArray(t, view, value), mapped); err == nil {
@@ -114,7 +114,7 @@ func TestACLValuesContainment(t *testing.T) {
 	view := e.CatalogRead()
 	d, _ := view.LookupType(sqltype.ACLItem)
 	item := func(g, r, p, o uint32) sqltype.Value {
-		v, err := sqltype.ACLItemValue(d, &e.aclAuthority, g, r, p, o)
+		v, err := sqltype.ACLItemValue(d, &e.roles.aclAuthority, g, r, p, o)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -170,8 +170,8 @@ func TestACLValuesInvocation(t *testing.T) {
 	e, _ := aclValuesUnitContext(t)
 	view := e.CatalogRead()
 	d, _ := view.LookupType(sqltype.ACLItem)
-	item, _ := sqltype.ACLItemValue(d, &e.aclAuthority, 0, 0, 16386, 16384)
-	noRights, _ := sqltype.ACLItemValue(d, &e.aclAuthority, 0, 0, 0, 0)
+	item, _ := sqltype.ACLItemValue(d, &e.roles.aclAuthority, 0, 0, 16386, 16384)
+	noRights, _ := sqltype.ACLItemValue(d, &e.roles.aclAuthority, 0, 0, 0, 0)
 	array := mustACLValuesArray(t, view, noRights, item, item)
 	shape := aclValuesUnitShape(t, view)
 	first, second := aclExplodeCursor{array: array}, aclExplodeCursor{array: array}

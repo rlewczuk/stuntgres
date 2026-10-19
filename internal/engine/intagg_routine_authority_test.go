@@ -408,7 +408,7 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 		t.Fatal("named owner roundtrip", roundtrip, err)
 	}
 	foreign := New()
-	foreignOwner := foreign.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	foreignOwner := foreign.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	for _, owner := range []authorization.PrincipalRef{{}, foreignOwner} {
 		state := catalog.CloneState(e.catalog.state)
 		for _, a := range ext.Members {

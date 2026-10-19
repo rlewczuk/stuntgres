@@ -66,7 +66,7 @@ func (e *Engine) grantParameterDescriptorLocked(v AuthorizationView, name string
 	if err != nil {
 		return nil, err
 	}
-	return &catalog.Parameter{ObjectAddress: ids.ObjectAddress{ClassID: ids.ParameterClassID, ObjectID: oid}, ObjectRevision: revision, ObjectName: key, Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}, nil
+	return &catalog.Parameter{ObjectAddress: ids.ObjectAddress{ClassID: ids.ParameterClassID, ObjectID: oid}, ObjectRevision: revision, ObjectName: key, Owner: e.roles.domain.Principal(authorization.BootstrapPrincipalID)}, nil
 }
 
 // installParameterGrant changes only the detached central catalog candidate.

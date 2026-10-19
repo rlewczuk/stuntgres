@@ -30,7 +30,7 @@ func (e *Engine) initialRole(ctx context.Context, authenticated authorization.Pr
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	roles := e.roleRead(e.catalog.read(e.catalog.state), e.roles)
+	roles := e.roleRead(e.catalog.read(e.catalog.state), e.roles.published)
 	target, ok := roles.Lookup(name)
 	if !ok {
 		return authorization.PrincipalRef{}, sqlError("22023", fmt.Sprintf("role \"%s\" does not exist", name))
@@ -419,7 +419,7 @@ func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.D
 				dependencies = append(dependencies, roleDependency{kind: 'a', description: "privileges for membership of role " + member.Name + " in role " + role.Name})
 			}
 		}
-		for feature, refs := range e.roleReferences {
+		for feature, refs := range e.roles.references {
 			for _, dependency := range refs {
 				if dependency == ref {
 					dependencies = append(dependencies, roleDependency{kind: 'a', description: "privileges for " + feature})

@@ -35,14 +35,14 @@ func roleAttributeAlter(name string, o parser.RoleOptions) *parser.AlterRole {
 }
 func roleAttributeFailure(t *testing.T, e *Engine, op *Operation, s parser.Statement, code string) {
 	t.Helper()
-	beforePublication := e.roles
-	next := e.nextPrincipal
+	beforePublication := e.roles.published
+	next := e.roles.nextPrincipal
 	r, err := e.Execute(op, s, 0, nil)
 	var d *sqlstate.Error
 	if err == nil || code != "" && (!errors.As(err, &d) || d.Code != code) || r.Rows != nil {
 		t.Fatalf("want %s: %#v %v", code, r, err)
 	}
-	if e.roles != beforePublication || e.nextPrincipal != next {
+	if e.roles.published != beforePublication || e.roles.nextPrincipal != next {
 		t.Fatal("failed mutation published role root or allocator")
 	}
 }
@@ -121,7 +121,7 @@ func TestRoleAttributesAuthority(t *testing.T) {
 	before := e.Roles()
 	target := roleAttributeCreate(t, e, op, "owned", false, parser.RoleOptions{})
 	edges := e.Roles().Memberships()
-	wantEdge := authorization.Membership{Role: target.Ref, Member: actor.Ref, Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Admin: true}
+	wantEdge := authorization.Membership{Role: target.Ref, Member: actor.Ref, Grantor: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Admin: true}
 	if len(edges) != 4 || edges[3] != wantEdge || len(before.Memberships()) != 3 {
 		t.Fatal("creator ADMIN not atomic", edges)
 	}
@@ -245,16 +245,16 @@ func TestRoleAttributesPublicationAndSnapshots(t *testing.T) {
 			t.Fatal("mutable edge snapshot")
 		}
 	}
-	savedNext := e.nextPrincipal
-	e.nextPrincipal = ^uint64(0)
+	savedNext := e.roles.nextPrincipal
+	e.roles.nextPrincipal = ^uint64(0)
 	roleAttributeFailure(t, e, admin, &parser.CreateRole{Name: parser.Identifier{Text: "exhausted"}}, "")
-	e.nextPrincipal = savedNext
-	savedRoot := e.roles
+	e.roles.nextPrincipal = savedNext
+	savedRoot := e.roles.published
 	exhaustedRoot := *savedRoot
 	exhaustedRoot.revision = ^uint64(0)
-	e.roles = &exhaustedRoot
+	e.roles.published = &exhaustedRoot
 	roleAttributeFailure(t, e, admin, roleAttributeAlter("snapshot", parser.RoleOptions{Present: parser.RoleLogin}), "")
-	e.roles = savedRoot
+	e.roles.published = savedRoot
 	for _, create := range []bool{false, true} {
 		t.Run(fmt.Sprintf("canceled final publication/create%v", create), func(t *testing.T) {
 			fixture := New()
@@ -268,8 +268,8 @@ func TestRoleAttributesPublicationAndSnapshots(t *testing.T) {
 				Targets: []parser.RoleSpec{{Name: "cancel_target"}}, Members: []parser.RoleSpec{{Name: "creator_cancel"}},
 				Options: []parser.MembershipOption{{Name: "admin", Value: true}, {Name: "inherit"}, {Name: "set"}},
 			})
-			beforePublication := fixture.roles
-			next := fixture.nextPrincipal
+			beforePublication := fixture.roles.published
+			next := fixture.roles.nextPrincipal
 			ctx, cancel := context.WithCancel(actor.Context())
 			defer cancel()
 			fence := &identityRolePublicationContext{Context: ctx, session: actor.session, cancel: cancel}
@@ -279,7 +279,7 @@ func TestRoleAttributesPublicationAndSnapshots(t *testing.T) {
 				stmt = &parser.CreateRole{Name: parser.Identifier{Text: "cancel_created"}}
 			}
 			_, err := fixture.executeRoleAttributes(&StatementScope{op: actor}, stmt, 0)
-			if !fence.observed || !errors.Is(err, context.Canceled) || fixture.roles != beforePublication || fixture.nextPrincipal != next {
+			if !fence.observed || !errors.Is(err, context.Canceled) || fixture.roles.published != beforePublication || fixture.roles.nextPrincipal != next {
 				t.Fatal("final cancellation leaked catalog, edge, allocator", fence.observed, err)
 			}
 		})
@@ -310,11 +310,11 @@ func TestRoleAttributesControlsRetention(t *testing.T) {
 	if got != d {
 		t.Fatal("controls changed descriptor", got)
 	}
-	before := e.roles
+	before := e.roles.published
 	if err := e.Restore(context.Background(), strings.NewReader("CREATE ROLE forbidden")); err == nil {
 		t.Fatal("Restore role whitelist widened")
 	}
-	if e.roles != before {
+	if e.roles.published != before {
 		t.Fatal("failed Restore changed roles")
 	}
 	// Real admission/authority continue to consume the retained root.

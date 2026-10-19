@@ -95,7 +95,7 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 		return Result{}, err
 	}
 	if _, creating := stmt.(*parser.CreateRole); creating {
-		e.nextPrincipal = d.Ref.ID() + 1
+		e.roles.nextPrincipal = d.Ref.ID() + 1
 	}
 	e.installOperationRolesLocked(op, &roleCatalog{root: n, revision: v.roleRecord.revision + 1})
 	emitPasswordNotice(op, notice)

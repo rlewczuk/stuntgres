@@ -39,7 +39,7 @@ func databaseRights(ctx context.Context, view catalog.Read, roles authorization.
 // Identity switches and already admitted operations do not call it.
 func (e *Engine) checkDatabaseConnectLocked(ctx context.Context, authenticated authorization.PrincipalRef) error {
 	view := e.catalog.read(e.catalog.state)
-	rights, err := databaseRights(ctx, view, e.roleRead(view, e.roles), authenticated)
+	rights, err := databaseRights(ctx, view, e.roleRead(view, e.roles.published), authenticated)
 	if err != nil || rights&authorization.ConnectPrivilege != 0 {
 		return err
 	}

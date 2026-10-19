@@ -45,7 +45,7 @@ func indexBuiltinRoutineFormals() map[builtinRoutineKey]*catalog.BuiltinRoutineD
 }
 
 func (e *Engine) initializeBuiltinRoutines() {
-	owner := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
+	owner := e.roles.domain.Principal(authorization.BootstrapPrincipalID)
 	// Catalog pointers retain this engine-owned backing array. Immutable cells
 	// remain stable; later ACL/owner changes still publish ordinary COW records.
 	storage := make([]catalog.Procedure, len(builtinRoutineDeclarations))

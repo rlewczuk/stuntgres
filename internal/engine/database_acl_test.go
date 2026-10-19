@@ -41,7 +41,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 		next.ACL = tc.acl
 		candidate.SetDescriptor(catalog.CurrentDatabaseAddress, &next)
 		catalog := e.catalog.read(candidate)
-		roles := cloneRoleFixture(e.roles)
+		roles := cloneRoleFixture(e.roles.published)
 		bootstrap := fixtureRole(roles, owner)
 		bootstrap.Superuser = false
 		putFixtureRole(roles, bootstrap)
@@ -64,7 +64,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if rights, err := databaseRights(ctx, base, e.roleRead(base, e.roles), owner); rights != 0 || !errors.Is(err, context.Canceled) {
+	if rights, err := databaseRights(ctx, base, e.roleRead(base, e.roles.published), owner); rights != 0 || !errors.Is(err, context.Canceled) {
 		t.Fatal("superuser must not bypass cancellation", rights, err)
 	}
 }
@@ -73,7 +73,7 @@ func TestDatabaseACLDelegationCancellation(t *testing.T) {
 	e, owner, source, target, _ := ownershipUnitRoles()
 	db := e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
 	baseline := authorization.MaterializeDatabaseACL(db.ACL, db.Owner)
-	roles := e.roleRead(e.CatalogRead(), e.roles)
+	roles := e.roleRead(e.CatalogRead(), e.roles.published)
 	delegated, _, err := authorization.ChangeObjectACL(context.Background(), roles, baseline, owner, owner, []authorization.ACLGrantee{{Role: source}}, authorization.DatabasePrivileges, true, false, false, false)
 	if err != nil {
 		t.Fatal(err)
@@ -131,7 +131,7 @@ func TestDatabaseTemporaryCapturedRights(t *testing.T) {
 	if _, err := databaseRights(ctx, fresh.catalog, fresh.roles, reader); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	foreign := New().authorizationDomain.Principal(reader.ID())
+	foreign := New().roles.domain.Principal(reader.ID())
 	if _, err := databaseRights(context.Background(), fresh.catalog, fresh.roles, foreign); err == nil {
 		t.Fatal("foreign principal accepted")
 	}

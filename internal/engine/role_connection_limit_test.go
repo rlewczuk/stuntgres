@@ -126,7 +126,7 @@ func TestRoleAttributesConnectionLimitLifecycle(t *testing.T) {
 		t.Fatalf("trusted nonexistent principal boundary: %v", missingErr)
 	}
 	// Count attribution remains physical authenticated even across authorization.
-	physical := roleLimitOpen(t, e, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"))
+	physical := roleLimitOpen(t, e, e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"))
 	identity, err := physical.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -138,7 +138,7 @@ func TestRoleAttributesConnectionLimitLifecycle(t *testing.T) {
 	e.sessionMu.Lock()
 	count := e.roleSessionCountLocked(other.Ref)
 	e.sessionMu.Unlock()
-	if count != 1 || physical.countedAuthenticated != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
+	if count != 1 || physical.countedAuthenticated != e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 		t.Fatal("identity switch changed accounting", count)
 	}
 }
@@ -403,9 +403,9 @@ func TestRoleAttributesPasswordCancellationLifecycle(t *testing.T) {
 				// Retain a real automatic ADMIN edge alongside every owner field.
 				roleAttributeCreate(t, e, setup, "retained_child", false, parser.RoleOptions{})
 				setup.Done()
-				beforePublication := e.roles
+				beforePublication := e.roles.published
 				before := e.Roles()
-				next, revision := e.nextPrincipal, beforePublication.revision
+				next, revision := e.roles.nextPrincipal, beforePublication.revision
 				salt := []byte("0123456789abcdef")
 				secret := strings.Replace(passwordExpectedSecret("notempty", salt, 1), "$4096:", "$2147483647:", 1)
 				var stmt parser.Statement = roleAttributeAlter("cancel_owner", parser.RoleOptions{Present: parser.RolePassword, Password: secret})
@@ -438,7 +438,7 @@ func TestRoleAttributesPasswordCancellationLifecycle(t *testing.T) {
 				if !errors.Is(err, context.Canceled) || ctx.checks.Load() < 128 || ctx.checks.Load() > 130 {
 					t.Fatal("operation did not stop inside derivation", err, ctx.checks.Load())
 				}
-				if e.roles != beforePublication || e.nextPrincipal != next || e.roles.revision != revision || !reflect.DeepEqual(e.Roles().Memberships(), before.Memberships()) {
+				if e.roles.published != beforePublication || e.roles.nextPrincipal != next || e.roles.published.revision != revision || !reflect.DeepEqual(e.Roles().Memberships(), before.Memberships()) {
 					t.Fatal("canceled derivation published attributes, graph, revision or allocator")
 				}
 				if _, ok := e.Roles().Lookup("canceled_child"); ok || len(op.DetachNotices()) != 0 {

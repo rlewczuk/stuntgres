@@ -25,7 +25,7 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 		t.Fatal("composite fixture lacks reciprocal type authority")
 	}
 	reader, _ := e.Roles().Lookup("composite_reader")
-	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	denied := authorization.ACLValue{Explicit: true}
 	grant := func(privilege authorization.Privileges) authorization.ACLValue {
 		return authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: privilege}}}

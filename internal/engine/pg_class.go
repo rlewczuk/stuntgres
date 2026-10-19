@@ -152,7 +152,7 @@ func (e *Engine) pgClassACL(roles authorization.Read, array *sqltype.Descriptor,
 	if !acl.Explicit {
 		return sqltype.Null(array), nil
 	}
-	if !roles.BelongsTo(&e.authorizationDomain) {
+	if !roles.BelongsTo(&e.roles.domain) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: foreign catalog ACL authority")
 	}
 	elements := make([]sqltype.Value, len(acl.Entries))
@@ -181,7 +181,7 @@ func (e *Engine) pgClassACL(roles authorization.Read, array *sqltype.Descriptor,
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		elements[i], err = sqltype.ACLItemValue(array.Element(), &e.aclAuthority, grantee, uint32(entry.Grantor.ID()), mask, options)
+		elements[i], err = sqltype.ACLItemValue(array.Element(), &e.roles.aclAuthority, grantee, uint32(entry.Grantor.ID()), mask, options)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
