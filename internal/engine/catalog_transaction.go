@@ -300,7 +300,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	}
 	for _, d := range c.descriptors {
 		if d != nil {
-			if err := validateACL(read, d); err != nil {
+			if err := ValidateACL(read, d); err != nil {
 				return err
 			}
 		}

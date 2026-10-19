@@ -22,7 +22,7 @@ func (e *Engine) capturePGTablespace(ctx context.Context, view catalog.Read, rol
 		if !ok || d == nil {
 			return nil, fmt.Errorf("stuntgres: missing builtin tablespace descriptor")
 		}
-		if err := validateACL(roles, d); err != nil {
+		if err := ValidateACL(roles, d); err != nil {
 			return nil, err
 		}
 		id, err := sqltype.OIDValue(source.Columns[0].Usage.Type, uint32(d.Address().ObjectID))

@@ -69,7 +69,7 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 	if a := temporaryNamespace(auth); a != (ids.ObjectAddress{}) {
 		return e.catalog.Domain.Ref(e.catalog.state.Epoch(), a), nil
 	}
-	rights, err := databaseRights(context.Background(), auth.Catalog, auth.Roles, auth.State.CurrentUser)
+	rights, err := DatabaseRights(context.Background(), auth.Catalog, auth.Roles, auth.State.CurrentUser)
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}

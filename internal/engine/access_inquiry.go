@@ -198,7 +198,7 @@ func (n accessInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 			d, _ = auth.Catalog.Relation(ref.Address)
 		}
 		if d != nil {
-			result, err = rowSecurityApplies(auth.Roles, d, principal)
+			result, err = RowSecurityApplies(auth.Roles, d, principal)
 		}
 	} else {
 		actor := uint64(principal.ID())

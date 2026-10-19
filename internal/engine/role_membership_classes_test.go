@@ -84,7 +84,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		mask := classPrivileges(d)
+		mask := ClassPrivileges(d)
 		got, err := view.Effective(ref, false)
 		if err != nil || got != mask {
 			t.Fatal(d.Name(), got, mask, err)
@@ -129,7 +129,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		mask := classPrivileges(d)
+		mask := ClassPrivileges(d)
 		if err := view.Check(AccessRequirement{Object: ref, Privileges: mask}); err != nil {
 			t.Fatal("all inherited bits", d.Name(), err)
 		}

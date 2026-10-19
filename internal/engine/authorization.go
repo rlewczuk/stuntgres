@@ -431,7 +431,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 	default:
 		return fmt.Errorf("stuntgres: unsupported ACL object")
 	}
-	if err := validateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), next); err != nil {
+	if err := ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), next); err != nil {
 		return err
 	}
 	if e.roles.published.Revision == ^uint64(0) {

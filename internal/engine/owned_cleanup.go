@@ -74,7 +74,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 		if replacement := stage.Descriptors[address]; replacement != nil {
 			descriptor = replacement
 		}
-		owner, acl, columns := descriptorACL(descriptor)
+		owner, acl, columns := DescriptorACL(descriptor)
 		nextACL, changed, err := authorization.OwnedACL(ctx, roles, acl, owner, sources)
 		if err != nil {
 			return err

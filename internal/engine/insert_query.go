@@ -512,7 +512,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 			return indexWriteBatch{}, err
 		}
 		if scope != nil {
-			if err := rowSecurityProposal(scope.rlsProposal, scope.rlsProposalTable); err != nil {
+			if err := RowSecurityProposal(scope.rlsProposal, scope.rlsProposalTable); err != nil {
 				return indexWriteBatch{}, err
 			}
 		}

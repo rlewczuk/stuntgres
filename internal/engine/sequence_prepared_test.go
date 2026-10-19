@@ -486,7 +486,7 @@ func TestSequencePreparedNamespaceExhaustion(t *testing.T) {
 			t.Fatal("failed namespace ACL published catalog or authorization")
 		}
 		d, _ := e.CatalogRead().Descriptor(ref.Address)
-		_, acl, _ := descriptorACL(d)
+		_, acl, _ := DescriptorACL(d)
 		if !acl.Explicit {
 			t.Fatal("failed ACL update removed the live ACL")
 		}

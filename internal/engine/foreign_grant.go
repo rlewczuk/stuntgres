@@ -108,7 +108,7 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 		if er != nil {
 			return Result{}, er
 		}
-		if er = validateACL(auth.Roles, &next); er != nil {
+		if er = ValidateACL(auth.Roles, &next); er != nil {
 			return Result{}, er
 		}
 		e.catalogChangeLocked(changes, d.Address(), &next)

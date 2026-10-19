@@ -58,7 +58,7 @@ func TestExtensionSchemaACL(t *testing.T) {
 	}
 	for _, a := range ext.Members {
 		if a.ClassID != ids.TSTemplateClassID {
-			owner, _, _ := descriptorACL(e.catalog.state.Get(a))
+			owner, _, _ := DescriptorACL(e.catalog.state.Get(a))
 			if owner != e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 				t.Fatal("trusted member owner")
 			}

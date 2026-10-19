@@ -247,8 +247,8 @@ func TestDomainExcludedClausesNeverPublishInternal(t *testing.T) {
 		t.Fatal("explicit NULL lost default")
 	}
 	auth := catalogAuthorization(e, e.CatalogRead())
-	var dependencies []roleDependency
-	descriptorRoleDependencies(d, d.Owner, &dependencies)
+	var dependencies []RoleDependency
+	DescriptorRoleDependencies(d, d.Owner, &dependencies)
 	if len(dependencies) == 0 || dependencyDescription(auth, dependencies[0]) != "owner of type nullable" {
 		t.Fatal("domain role dependency", dependencies)
 	}

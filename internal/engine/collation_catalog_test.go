@@ -203,8 +203,8 @@ func TestCollationOwnerMembershipRequiresDestinationCreate(t *testing.T) {
 	if changed.Owner != target.Ref || changed.OID != d.OID {
 		t.Fatal("owner transfer lost identity", changed)
 	}
-	var dependencies []roleDependency
-	descriptorRoleDependencies(changed, target.Ref, &dependencies)
+	var dependencies []RoleDependency
+	DescriptorRoleDependencies(changed, target.Ref, &dependencies)
 	if len(dependencies) != 1 {
 		t.Fatal("missing owner dependency", dependencies)
 	}

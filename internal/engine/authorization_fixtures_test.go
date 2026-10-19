@@ -105,7 +105,7 @@ func descriptorReferences(d catalog.Descriptor) []authorization.PrincipalRef {
 	case *catalog.TSTemplate:
 		return nil
 	}
-	owner, acl, cols := descriptorACL(d)
+	owner, acl, cols := DescriptorACL(d)
 	refs := []authorization.PrincipalRef{owner}
 	if relation, ok := d.(*catalog.Relation); ok {
 		for _, policy := range relation.Security.Policies {

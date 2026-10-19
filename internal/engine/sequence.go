@@ -338,7 +338,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		}
 		var ownerTarget authorization.PrincipalRef
 		if s.Action == "owner" {
-			ownerTarget, err = schemaOwner(auth.accessView, s.Target.Text, s.OwnerIdentity)
+			ownerTarget, err = SchemaOwner(auth.accessView, s.Target.Text, s.OwnerIdentity)
 			if err != nil {
 				return Result{}, err
 			}

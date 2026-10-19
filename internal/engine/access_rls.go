@@ -17,7 +17,7 @@ const (
 
 // Applicability is metadata only. Even TRUE/FALSE/NULL syntax requires the
 // adjacent expression-enforcement capability; nil clauses contribute nothing.
-func rowSecurityApplies(roles authorization.Read, d *catalog.Relation, principal authorization.PrincipalRef) (bool, error) {
+func RowSecurityApplies(roles authorization.Read, d *catalog.Relation, principal authorization.PrincipalRef) (bool, error) {
 	if !d.Security.RLSEnabled {
 		return false, nil
 	}
@@ -40,8 +40,8 @@ func rowSecurityApplies(roles authorization.Read, d *catalog.Relation, principal
 	return true, nil
 }
 
-func rowSecurityDecision(roles authorization.Read, d *catalog.Relation, principal authorization.PrincipalRef, command catalog.PolicyCommand, proposed bool) (rlsDisposition, error) {
-	applies, err := rowSecurityApplies(roles, d, principal)
+func RowSecurityDecision(roles authorization.Read, d *catalog.Relation, principal authorization.PrincipalRef, command catalog.PolicyCommand, proposed bool) (rlsDisposition, error) {
+	applies, err := RowSecurityApplies(roles, d, principal)
 	if err != nil || !applies {
 		return rlsUnrestricted, err
 	}
@@ -75,12 +75,12 @@ func rowSecurityDecision(roles authorization.Read, d *catalog.Relation, principa
 	return rlsDefaultDeny, nil
 }
 
-func rowSecurityGroups(roles authorization.Read, d *catalog.Relation, principal authorization.PrincipalRef, command catalog.PolicyCommand, proposed, selectRead bool) (rlsDisposition, error) {
-	decision, err := rowSecurityDecision(roles, d, principal, command, proposed)
+func RowSecurityGroups(roles authorization.Read, d *catalog.Relation, principal authorization.PrincipalRef, command catalog.PolicyCommand, proposed, selectRead bool) (rlsDisposition, error) {
+	decision, err := RowSecurityDecision(roles, d, principal, command, proposed)
 	if err != nil || !selectRead || command == catalog.PolicySelect {
 		return decision, err
 	}
-	read, err := rowSecurityDecision(roles, d, principal, catalog.PolicySelect, proposed)
+	read, err := RowSecurityDecision(roles, d, principal, catalog.PolicySelect, proposed)
 	if err != nil {
 		return rlsUnrestricted, err
 	}
@@ -93,33 +93,33 @@ func rowSecurityGroups(roles authorization.Read, d *catalog.Relation, principal 
 	return rlsUnrestricted, nil
 }
 
-func rowSecurityExpressionError() error {
+func RowSecurityExpressionError() error {
 	return sqlError("0A000", "row-security policy expression enforcement is unsupported")
 }
 
-func rowSecurityProposal(decision rlsDisposition, table string) error {
+func RowSecurityProposal(decision rlsDisposition, table string) error {
 	switch decision {
 	case rlsDefaultDeny:
 		return sqlError("42501", fmt.Sprintf(`new row violates row-level security policy for table "%s"`, table))
 	case rlsNeedsExpressions:
-		return rowSecurityExpressionError()
+		return RowSecurityExpressionError()
 	default:
 		return nil
 	}
 }
 
-// rowSecurityLayer is one view layer of an auto-updatable view write, from
+// RowSecurityLayer is one view layer of an auto-updatable view write, from
 // the outermost view inward: the view's owner and whether it runs with
 // security_invoker.
-type rowSecurityLayer struct {
+type RowSecurityLayer struct {
 	Owner   authorization.PrincipalRef
 	Invoker bool
 }
 
-// rowSecurityPrincipal returns the role whose policies apply to the base
+// RowSecurityPrincipal returns the role whose policies apply to the base
 // relation: the innermost view's owner, or current for an invoker view or a
 // direct write.
-func rowSecurityPrincipal(current authorization.PrincipalRef, layers []rowSecurityLayer) authorization.PrincipalRef {
+func RowSecurityPrincipal(current authorization.PrincipalRef, layers []RowSecurityLayer) authorization.PrincipalRef {
 	principal := current
 	for _, layer := range layers {
 		principal = layer.Owner

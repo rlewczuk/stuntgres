@@ -396,7 +396,7 @@ func foreignKeyDiagnostic(ctx context.Context, auth AuthorizationView, child, pa
 		d.Message = fmt.Sprintf(`update or delete on table "%s" violates foreign key constraint "%s" on table "%s"`, parent.Name(), f.Name, child.Name())
 		violating, attributes, suffix = parent, f.Referenced, fmt.Sprintf(` is still referenced from table "%s".`, child.Name())
 	}
-	disposition, err := rowSecurityDecision(auth.Roles, violating, auth.State.CurrentUser, catalog.PolicySelect, false)
+	disposition, err := RowSecurityDecision(auth.Roles, violating, auth.State.CurrentUser, catalog.PolicySelect, false)
 	if err != nil {
 		return err
 	}

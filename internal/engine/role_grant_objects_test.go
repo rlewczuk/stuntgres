@@ -31,7 +31,7 @@ func TestObjectGrantSchemaTypePublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			next := e.catalog.state.Get(address)
-			owner, acl, _ := descriptorACL(next)
+			owner, acl, _ := DescriptorACL(next)
 			if next == original || e.roles.published.Revision != roles.Revision+1 || authorization.ACLRights(acl, owner, []authorization.PrincipalRef{reader}, want, true) != want {
 				t.Fatal("wrong immutable class publication", acl)
 			}
@@ -67,7 +67,7 @@ func TestObjectGrantBuiltinTypeAuthority(t *testing.T) {
 	}
 	broken := *next
 	broken.Owner = authorization.PrincipalRef{}
-	if err := validateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), &broken); err == nil {
+	if err := ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), &broken); err == nil {
 		t.Fatal("builtin zero owner bypassed validation")
 	}
 	request.Relations[0].Parts[0].Text = "_int4"

@@ -181,7 +181,7 @@ func (n objectACLExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if scope.catalog != nil {
 		auth.Recapture(e.privateCatalogLocked(scope.catalog))
 	}
-	acl, err := rawObjectACL(auth.Catalog, ids.ObjectAddress{ClassID: ids.OID(class), ObjectID: ids.OID(object), SubID: int32(subid)})
+	acl, err := RawObjectACL(auth.Catalog, ids.ObjectAddress{ClassID: ids.OID(class), ObjectID: ids.OID(object), SubID: int32(subid)})
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -191,7 +191,7 @@ func (n objectACLExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 // REL_18_0 ObjectProperty, not the native provider inventory. A catalog without
 // native instances can still be a recognized address class. pg_largeobject is
 // the released alias for pg_largeobject_metadata. pg_parameter_acl is not listed.
-func objectACLClass(class ids.OID) (hasACL, known bool) {
+func ObjectACLClass(class ids.OID) (hasACL, known bool) {
 	switch class {
 	case 1259, 2615, 1247, 1255, 1262, 2612, 1213, 2328, 1417, 2995, 2613:
 		return true, true
@@ -203,14 +203,14 @@ func objectACLClass(class ids.OID) (hasACL, known bool) {
 	return false, false
 }
 
-func rawObjectACL(view catalog.Read, address ids.ObjectAddress) (authorization.ACLValue, error) {
+func RawObjectACL(view catalog.Read, address ids.ObjectAddress) (authorization.ACLValue, error) {
 	if address.ClassID == 0 && address.ObjectID == 0 {
 		return authorization.ACLValue{}, nil
 	}
 	if address.ClassID == 2613 {
 		address.ClassID = 2995
 	}
-	hasACL, known := objectACLClass(address.ClassID)
+	hasACL, known := ObjectACLClass(address.ClassID)
 	if !known {
 		return authorization.ACLValue{}, sqlError("XX000", fmt.Sprintf("unrecognized class ID: %d", address.ClassID))
 	}
@@ -232,7 +232,7 @@ func rawObjectACL(view catalog.Read, address ids.ObjectAddress) (authorization.A
 	if typ, ok := d.(*catalog.Type); ok && typ.ACLSyntheticDefault {
 		return authorization.ACLValue{}, nil
 	}
-	_, acl, _ := descriptorACL(d)
+	_, acl, _ := DescriptorACL(d)
 	return acl, nil
 }
 

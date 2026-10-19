@@ -27,7 +27,7 @@ func (e *Engine) capturePGParameterACL(ctx context.Context, view catalog.Read, r
 		if err := (parameterProvider{e.settingsDefinitions}).Validate(view, d); err != nil {
 			return nil, err
 		}
-		if err := validateACL(roles, d); err != nil {
+		if err := ValidateACL(roles, d); err != nil {
 			return nil, err
 		}
 		id, err := sqltype.OIDValue(source.Columns[0].Usage.Type, uint32(d.Address().ObjectID))

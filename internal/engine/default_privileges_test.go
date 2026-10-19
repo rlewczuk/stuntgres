@@ -14,11 +14,11 @@ func TestDefaultPrivilegesBaselines(t *testing.T) {
 	stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 	table := defaultUnitTable(t, f, stage, "dependent", f.owner)
 	row := stage.Descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(table.RowType)}].(*catalog.Type)
-	if !authorization.MatchesDefaultBaseline(row.ACL, f.owner, authorization.DefaultTypes, false) || descriptorRoleDependencies(row, f.reader, nil) {
+	if !authorization.MatchesDefaultBaseline(row.ACL, f.owner, authorization.DefaultTypes, false) || DescriptorRoleDependencies(row, f.reader, nil) {
 		t.Fatal("dependent rowtype consumed TYPES defaults")
 	}
 	array := stage.Descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)}].(*catalog.Type)
-	if !authorization.MatchesDefaultBaseline(array.ACL, f.owner, authorization.DefaultTypes, false) || descriptorRoleDependencies(array, f.reader, nil) {
+	if !authorization.MatchesDefaultBaseline(array.ACL, f.owner, authorization.DefaultTypes, false) || DescriptorRoleDependencies(array, f.reader, nil) {
 		t.Fatal("dependent array consumed TYPES defaults")
 	}
 	// Only the independent base consumes TYPES: its generated array must not
@@ -36,7 +36,7 @@ func TestDefaultPrivilegesBaselines(t *testing.T) {
 	}
 	row = stage.Descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(composite.RowType)}].(*catalog.Type)
 	array = stage.Descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)}].(*catalog.Type)
-	if !descriptorRoleDependencies(row, f.reader, nil) || descriptorRoleDependencies(array, f.reader, nil) || !authorization.MatchesDefaultBaseline(array.ACL, f.owner, authorization.DefaultTypes, false) {
+	if !DescriptorRoleDependencies(row, f.reader, nil) || DescriptorRoleDependencies(array, f.reader, nil) || !authorization.MatchesDefaultBaseline(array.ACL, f.owner, authorization.DefaultTypes, false) {
 		t.Fatal("standalone/associated ACL distinction")
 	}
 }

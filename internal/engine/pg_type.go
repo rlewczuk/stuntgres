@@ -207,7 +207,7 @@ func (e *Engine) capturePGType(ctx context.Context, view catalog.Read, roles aut
 				}
 			case sqltype.ACLItemArray:
 				var acl authorization.ACLValue
-				acl, err = rawObjectACL(view, address)
+				acl, err = RawObjectACL(view, address)
 				if err == nil {
 					row[i], err = e.pgClassACL(roles, column.Usage.Type, acl)
 				}

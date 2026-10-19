@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func predefinedPrivileges(d catalog.Descriptor, principals []authorization.PrincipalRef) authorization.Privileges {
+func PredefinedPrivileges(d catalog.Descriptor, principals []authorization.PrincipalRef) authorization.Privileges {
 	rights := authorization.PredefinedPrivileges(principals)
 	if d.Kind() == ids.NamespaceObject {
 		if rights&(authorization.SelectPrivilege|authorization.InsertPrivilege|authorization.UpdatePrivilege|authorization.DeletePrivilege) != 0 {

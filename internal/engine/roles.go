@@ -155,7 +155,7 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 	return Result{}, fmt.Errorf("stuntgres: invalid role statement")
 }
 
-type roleDependency struct {
+type RoleDependency struct {
 	Address     ids.ObjectAddress
 	Kind        byte // PostgreSQL shared dependency types: ACL ('a'), owner ('o').
 	Description string
@@ -165,12 +165,12 @@ type roleDependency struct {
 
 // A nil collector stops at the first dependency without building diagnostics.
 // Admission and final publication share the exact same descriptor classification.
-func descriptorRoleDependencies(d catalog.Descriptor, ref authorization.PrincipalRef, deps *[]roleDependency) bool {
+func DescriptorRoleDependencies(d catalog.Descriptor, ref authorization.PrincipalRef, deps *[]RoleDependency) bool {
 	if relation, ok := d.(*catalog.Relation); ok {
 		for _, policy := range relation.Security.Policies {
 			for _, role := range policy.Roles {
 				if !role.Public && role.Ref == ref {
-					if recordRoleDependency(deps, roleDependency{Address: ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}, Kind: 'r', PolicyTable: relation.Address(), PolicyName: policy.Name}) {
+					if recordRoleDependency(deps, RoleDependency{Address: ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}, Kind: 'r', PolicyTable: relation.Address(), PolicyName: policy.Name}) {
 						return true
 					}
 				}
@@ -191,14 +191,14 @@ func descriptorRoleDependencies(d catalog.Descriptor, ref authorization.Principa
 		// Index ownership belongs to its validated parent relation.
 		return false
 	}
-	owner, acl, columns := descriptorACL(d)
+	owner, acl, columns := DescriptorACL(d)
 	if owner == ref {
 		if typ, array := d.(*catalog.Type); array && typ.SQLType.IsArray() {
 			// Associated array ownership is represented by its parent.
 			return false
 		}
 		// The owner's shared ACL dependencies are represented by ownership.
-		return recordRoleDependency(deps, roleDependency{Address: d.Address(), Kind: 'o'})
+		return recordRoleDependency(deps, RoleDependency{Address: d.Address(), Kind: 'o'})
 	}
 	if aclRoleDependencies(d.Address(), acl, ref, deps) {
 		return true
@@ -213,16 +213,16 @@ func descriptorRoleDependencies(d catalog.Descriptor, ref authorization.Principa
 	return false
 }
 
-func aclRoleDependencies(address ids.ObjectAddress, acl authorization.ACLValue, ref authorization.PrincipalRef, deps *[]roleDependency) bool {
+func aclRoleDependencies(address ids.ObjectAddress, acl authorization.ACLValue, ref authorization.PrincipalRef, deps *[]RoleDependency) bool {
 	for _, entry := range acl.Entries {
 		if entry.Grantor == ref || !entry.Grantee.Public && entry.Grantee.Role == ref {
-			return recordRoleDependency(deps, roleDependency{Address: address, Kind: 'a'})
+			return recordRoleDependency(deps, RoleDependency{Address: address, Kind: 'a'})
 		}
 	}
 	return false
 }
 
-func recordRoleDependency(deps *[]roleDependency, dependency roleDependency) bool {
+func recordRoleDependency(deps *[]RoleDependency, dependency RoleDependency) bool {
 	if deps == nil {
 		return true
 	}
@@ -296,7 +296,7 @@ func relationDiagnosticNameAt(catalog catalog.Read, relation *catalog.Relation, 
 	return dependencyIdentifier(catalog.Get(relation.Namespace()).Name()) + "." + name
 }
 
-func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
+func dependencyDescription(auth AuthorizationView, dep RoleDependency) string {
 	view := auth.Catalog
 	if dep.Kind == 'r' {
 		relation := view.MustRelation(dep.PolicyTable)
@@ -407,20 +407,20 @@ func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.D
 		if d.Predefined() {
 			return Result{}, roleDiagnostic("2BP01", "cannot drop role "+d.Name+" because it is required by the database system", "")
 		}
-		var dependencies []roleDependency
+		var dependencies []RoleDependency
 		for _, object := range v.Catalog.Descriptors() {
-			descriptorRoleDependencies(object, ref, &dependencies)
+			DescriptorRoleDependencies(object, ref, &dependencies)
 		}
-		defaultRoleDependencies(v.Catalog, v.Roles, ref, &dependencies)
+		DefaultRoleDependencies(v.Catalog, v.Roles, ref, &dependencies)
 		for edge := range retained {
 			if edge.Grantor == ref {
 				member, _ := v.Roles.Descriptor(edge.Member)
 				role, _ := v.Roles.Descriptor(edge.Role)
-				dependencies = append(dependencies, roleDependency{Kind: 'a', Description: "privileges for membership of role " + member.Name + " in role " + role.Name})
+				dependencies = append(dependencies, RoleDependency{Kind: 'a', Description: "privileges for membership of role " + member.Name + " in role " + role.Name})
 			}
 		}
 		for _, feature := range e.roles.referencingFeatures(ref) {
-			dependencies = append(dependencies, roleDependency{Kind: 'a', Description: "privileges for " + feature})
+			dependencies = append(dependencies, RoleDependency{Kind: 'a', Description: "privileges for " + feature})
 		}
 		if len(dependencies) > 0 {
 			sort.Slice(dependencies, func(i, j int) bool {

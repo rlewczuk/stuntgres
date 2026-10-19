@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func ownershipSuccessor(auth accessView, target authorization.PrincipalRef) error {
+func OwnershipSuccessor(auth accessView, target authorization.PrincipalRef) error {
 	allowed, err := auth.Roles.CanSetRole(auth.State.CurrentUser, target)
 	if err != nil {
 		return err
@@ -20,15 +20,15 @@ func ownershipSuccessor(auth accessView, target authorization.PrincipalRef) erro
 	}
 	return nil
 }
-func ownershipDatabaseCreate(auth accessView, env accessEnvironment) error {
+func OwnershipDatabaseCreate(auth accessView, env accessEnvironment) error {
 	return auth.CheckCreate(env, auth.Ref(catalog.CurrentDatabaseAddress))
 }
 
-// ownershipEligibility checks that the current user may hand an object to
+// OwnershipEligibility checks that the current user may hand an object to
 // target: target must be a SET ROLE successor and may need CREATE on the
 // object's namespace. The namespace check runs as target with the caller's
 // environment; a namespace CREATE check never reads the reference path.
-func ownershipEligibility(auth accessView, env accessEnvironment, target authorization.PrincipalRef, namespace ids.ObjectAddress) error {
+func OwnershipEligibility(auth accessView, env accessEnvironment, target authorization.PrincipalRef, namespace ids.ObjectAddress) error {
 	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
 		return err
@@ -36,7 +36,7 @@ func ownershipEligibility(auth accessView, env accessEnvironment, target authori
 	if actor.Superuser {
 		return nil
 	}
-	if err = ownershipSuccessor(auth, target); err != nil {
+	if err = OwnershipSuccessor(auth, target); err != nil {
 		return err
 	}
 	targetAuth := auth
@@ -46,7 +46,7 @@ func ownershipEligibility(auth accessView, env accessEnvironment, target authori
 	}
 	return targetAuth.CheckCreate(env, auth.Ref(namespace))
 }
-func ownershipRoleOperand(spec parser.RoleSpec) (string, bool) {
+func OwnershipRoleOperand(spec parser.RoleSpec) (string, bool) {
 	switch spec.Identity {
 	case "current":
 		return "current_user", true
@@ -55,7 +55,7 @@ func ownershipRoleOperand(spec parser.RoleSpec) (string, bool) {
 	}
 	return spec.Name, false
 }
-func schemaOwner(auth accessView, name string, identity bool) (authorization.PrincipalRef, error) {
+func SchemaOwner(auth accessView, name string, identity bool) (authorization.PrincipalRef, error) {
 	if name == "" {
 		return auth.State.CurrentUser, nil
 	}

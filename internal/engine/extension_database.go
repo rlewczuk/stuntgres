@@ -122,7 +122,7 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 	if err != nil {
 		return Result{}, err
 	}
-	if err := validateACL(v.Roles, &next); err != nil {
+	if err := ValidateACL(v.Roles, &next); err != nil {
 		return Result{}, err
 	}
 	changes := cloneCatalogChanges(scope.owner.catalog)

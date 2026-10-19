@@ -435,7 +435,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			return nil, err
 		}
 	case *parser.CreateSchema:
-		owner, err := schemaOwner(auth.accessView, s.Authorization, s.AuthorizationIdentity)
+		owner, err := SchemaOwner(auth.accessView, s.Authorization, s.AuthorizationIdentity)
 		if err != nil {
 			return nil, err
 		}
@@ -515,7 +515,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			}
 			next.ObjectName = s.NewName
 		} else {
-			target, err := schemaOwner(auth.accessView, s.Owner, s.OwnerIdentity)
+			target, err := SchemaOwner(auth.accessView, s.Owner, s.OwnerIdentity)
 			if err != nil {
 				return nil, err
 			}
@@ -525,10 +525,10 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			if err = own(old); err != nil {
 				return nil, err
 			}
-			if err = ownershipSuccessor(auth.accessView, target); err != nil {
+			if err = OwnershipSuccessor(auth.accessView, target); err != nil {
 				return nil, err
 			}
-			if err = ownershipDatabaseCreate(auth.accessView, auth); err != nil {
+			if err = OwnershipDatabaseCreate(auth.accessView, auth); err != nil {
 				return nil, err
 			}
 			next.Owner = target

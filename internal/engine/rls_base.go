@@ -111,26 +111,26 @@ func (e *Engine) rowSecurityInputLocked(scope *StatementScope, d *catalog.Relati
 	if principal == (authorization.PrincipalRef{}) {
 		principal = auth.State.CurrentUser
 	}
-	decision, err := rowSecurityGroups(auth.Roles, d, principal, command, false, selectRead)
+	decision, err := RowSecurityGroups(auth.Roles, d, principal, command, false, selectRead)
 	if err != nil {
 		return false, err
 	}
 	if decision == rlsNeedsExpressions {
-		return false, rowSecurityExpressionError()
+		return false, RowSecurityExpressionError()
 	}
 	return decision == rlsDefaultDeny, nil
 }
 
 // rowSecurityLayers collects the owner and security_invoker flag of each
 // view layer of an auto-updatable view write, outermost first.
-func rowSecurityLayers(view catalog.Read, b binding) []rowSecurityLayer {
+func rowSecurityLayers(view catalog.Read, b binding) []RowSecurityLayer {
 	if b.viewWrite == nil {
 		return nil
 	}
-	layers := make([]rowSecurityLayer, 0, len(b.viewWrite.layers))
+	layers := make([]RowSecurityLayer, 0, len(b.viewWrite.layers))
 	for _, layer := range b.viewWrite.layers {
 		current := view.MustRelation(layer.ref.Address)
-		layers = append(layers, rowSecurityLayer{Owner: current.Owner, Invoker: viewOf(current).invoker})
+		layers = append(layers, RowSecurityLayer{Owner: current.Owner, Invoker: viewOf(current).invoker})
 	}
 	return layers
 }
@@ -167,31 +167,31 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, st
 	}
 	auth.Catalog = e.privateCatalogLocked(scope.owner.catalog)
 	auth.Recapture(auth.Catalog)
-	principal := rowSecurityPrincipal(auth.State.CurrentUser, rowSecurityLayers(auth.Catalog, b))
+	principal := RowSecurityPrincipal(auth.State.CurrentUser, rowSecurityLayers(auth.Catalog, b))
 	reads := b.returning != nil || len(b.usedColumns) != 0
 	if b.viewWrite != nil {
 		reads = reads || len(b.viewWrite.logical.usedColumns) != 0
 	}
 	if command != catalog.PolicyInsert {
-		decision, err := rowSecurityGroups(auth.Roles, b.relation, principal, command, false, reads)
+		decision, err := RowSecurityGroups(auth.Roles, b.relation, principal, command, false, reads)
 		if err != nil {
 			return err
 		}
 		if decision == rlsNeedsExpressions {
-			return rowSecurityExpressionError()
+			return RowSecurityExpressionError()
 		}
 		scope.rlsTargetDenied = decision == rlsDefaultDeny
 	}
 	proposedRead := b.conflict != nil && len(b.conflict.reads) != 0
 	switch stmt.(type) {
 	case *parser.Insert:
-		scope.rlsProposal, err = rowSecurityGroups(auth.Roles, b.relation, principal, catalog.PolicyInsert, true, proposedRead)
+		scope.rlsProposal, err = RowSecurityGroups(auth.Roles, b.relation, principal, catalog.PolicyInsert, true, proposedRead)
 	case *parser.Update:
-		scope.rlsProposal, err = rowSecurityGroups(auth.Roles, b.relation, principal, catalog.PolicyUpdate, true, reads)
+		scope.rlsProposal, err = RowSecurityGroups(auth.Roles, b.relation, principal, catalog.PolicyUpdate, true, reads)
 	case *parser.Merge:
-		scope.rlsMergeInsert, err = rowSecurityGroups(auth.Roles, b.relation, principal, catalog.PolicyInsert, true, false)
+		scope.rlsMergeInsert, err = RowSecurityGroups(auth.Roles, b.relation, principal, catalog.PolicyInsert, true, false)
 		if err == nil {
-			scope.rlsMergeUpdate, err = rowSecurityGroups(auth.Roles, b.relation, principal, catalog.PolicyUpdate, true, true)
+			scope.rlsMergeUpdate, err = RowSecurityGroups(auth.Roles, b.relation, principal, catalog.PolicyUpdate, true, true)
 		}
 	}
 	return err

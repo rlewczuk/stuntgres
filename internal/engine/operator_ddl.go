@@ -776,14 +776,14 @@ func (e *Engine) stageAlterOperatorLocked(op *Operation, auth AuthorizationView,
 	}
 	switch s.Action {
 	case "owner":
-		target, err := schemaOwner(auth.accessView, s.Target.Text, s.OwnerIdentity)
+		target, err := SchemaOwner(auth.accessView, s.Target.Text, s.OwnerIdentity)
 		if err != nil {
 			return err
 		}
 		if target == d.Owner {
 			return nil
 		}
-		if err = ownershipEligibility(auth.accessView, auth, target, d.Namespace()); err != nil {
+		if err = OwnershipEligibility(auth.accessView, auth, target, d.Namespace()); err != nil {
 			return err
 		}
 		next.Owner = target

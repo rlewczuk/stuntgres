@@ -86,8 +86,8 @@ func foreignMappedRole(auth AuthorizationView, role parser.GrantGrantee) (author
 	if role.Public {
 		return authorization.PrincipalRef{}, nil
 	}
-	name, identity := ownershipRoleOperand(role.Role)
-	return schemaOwner(auth.accessView, name, identity)
+	name, identity := OwnershipRoleOperand(role.Role)
+	return SchemaOwner(auth.accessView, name, identity)
 }
 func foreignMappingAuthority(auth AuthorizationView, server *catalog.ForeignObject, role authorization.PrincipalRef) error {
 	if err := auth.Check(AccessRequirement{Object: foreignRef(auth, server), OwnerOnly: true}); err == nil {
@@ -179,8 +179,8 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 	}
 	var successor authorization.PrincipalRef
 	if s.Owner != nil {
-		targetName, identity := ownershipRoleOperand(*s.Owner)
-		successor, err = schemaOwner(auth.accessView, targetName, identity)
+		targetName, identity := OwnershipRoleOperand(*s.Owner)
+		successor, err = SchemaOwner(auth.accessView, targetName, identity)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -481,7 +481,7 @@ func foreignOwnershipEligibility(auth AuthorizationView, object *catalog.Foreign
 	if err = auth.Check(AccessRequirement{Object: foreignRef(auth, object), OwnerOnly: true}); err != nil {
 		return err
 	}
-	if err = ownershipEligibility(auth.accessView, auth, target, ids.ObjectAddress{}); err != nil {
+	if err = OwnershipEligibility(auth.accessView, auth, target, ids.ObjectAddress{}); err != nil {
 		return err
 	}
 	wrapper, ok := auth.Catalog.Foreign(object.Wrapper)

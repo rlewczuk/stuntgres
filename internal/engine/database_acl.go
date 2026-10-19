@@ -9,9 +9,9 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// databaseRights reads one captured catalog/role pair; callers own its coherence
+// DatabaseRights reads one captured catalog/role pair; callers own its coherence
 // and the engine mutex when observing live roots. It invokes no host callback.
-func databaseRights(ctx context.Context, view catalog.Read, roles authorization.Read, principal authorization.PrincipalRef) (authorization.Privileges, error) {
+func DatabaseRights(ctx context.Context, view catalog.Read, roles authorization.Read, principal authorization.PrincipalRef) (authorization.Privileges, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -39,7 +39,7 @@ func databaseRights(ctx context.Context, view catalog.Read, roles authorization.
 // Identity switches and already admitted operations do not call it.
 func (e *Engine) checkDatabaseConnectLocked(ctx context.Context, authenticated authorization.PrincipalRef) error {
 	view := e.catalog.read(e.catalog.state)
-	rights, err := databaseRights(ctx, view, e.roles.read(e.catalog.owner(), view, e.roles.published), authenticated)
+	rights, err := DatabaseRights(ctx, view, e.roles.read(e.catalog.owner(), view, e.roles.published), authenticated)
 	if err != nil || rights&authorization.ConnectPrivilege != 0 {
 		return err
 	}

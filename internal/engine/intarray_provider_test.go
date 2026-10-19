@@ -65,7 +65,7 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 		if member == nil || member.Namespace() != ext.TargetNamespace || extensionMembership(member) != ext.Address() {
 			t.Fatal("membership", address)
 		}
-		owner, _, _ := descriptorACL(member)
+		owner, _, _ := DescriptorACL(member)
 		if owner != ext.Owner {
 			t.Fatal("owner", address)
 		}

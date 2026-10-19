@@ -115,7 +115,7 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 		if next == old {
 			continue
 		}
-		got, _, _ := descriptorACL(next)
+		got, _, _ := DescriptorACL(next)
 		if got != target {
 			t.Fatal("associated owner", a, got)
 		}

@@ -437,7 +437,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 		if sourceErr != nil || targetErr != nil || sourceOwner.Name != targetOwner.Name {
 			t.Fatal("imported type principal ownership did not remap", address, sourceErr, targetErr)
 		}
-		if err := validateACL(e.Roles(), actual); err != nil {
+		if err := ValidateACL(e.Roles(), actual); err != nil {
 			t.Fatal("imported type principal closure", address, err)
 		}
 		if source.SQLType.IsDomain() {

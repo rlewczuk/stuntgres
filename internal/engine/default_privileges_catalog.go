@@ -96,7 +96,7 @@ func (s *CatalogStage) removeSchemaDefaults(schema ids.ObjectAddress) {
 		s.DefaultACLs[key] = nil
 	}
 }
-func defaultRoleDependencies(view catalog.Read, roles authorization.Read, ref authorization.PrincipalRef, deps *[]roleDependency) bool {
+func DefaultRoleDependencies(view catalog.Read, roles authorization.Read, ref authorization.PrincipalRef, deps *[]RoleDependency) bool {
 	for key, record := range view.State().DefaultACLs() {
 		kind := byte('a')
 		dependent := key.Creator == ref
@@ -126,7 +126,7 @@ func defaultRoleDependencies(view catalog.Read, roles authorization.Read, ref au
 		if kind == 'o' {
 			prefix = "owner of "
 		}
-		*deps = append(*deps, roleDependency{Kind: kind, Description: prefix + description})
+		*deps = append(*deps, RoleDependency{Kind: kind, Description: prefix + description})
 	}
 	return false
 }

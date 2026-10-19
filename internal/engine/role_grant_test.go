@@ -208,9 +208,9 @@ func TestObjectGrantIndexOwnershipUsesParentDependency(t *testing.T) {
 		RelationKind:    catalog.IndexRelation,
 		SQLIndex:        &catalog.IndexDefinition{Parent: address},
 	}
-	var dependencies []roleDependency
-	descriptorRoleDependencies(parent, parent.Owner, &dependencies)
-	descriptorRoleDependencies(index, parent.Owner, &dependencies)
+	var dependencies []RoleDependency
+	DescriptorRoleDependencies(parent, parent.Owner, &dependencies)
+	DescriptorRoleDependencies(index, parent.Owner, &dependencies)
 	if len(dependencies) != 1 || dependencies[0].Address != address || dependencies[0].Kind != 'o' {
 		t.Fatal("redundant index shared-owner dependency", dependencies)
 	}

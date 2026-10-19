@@ -80,7 +80,7 @@ func TestMaterializedAlterOwnerAttachments(t *testing.T) {
 				t.Fatal("dependent type ACL ownership origin not transferred", typ.Name(), typ.ACL)
 			}
 		}
-		if descriptorRoleDependencies(typ, d.Owner, nil) {
+		if DescriptorRoleDependencies(typ, d.Owner, nil) {
 			t.Fatal("dependent type prevents former owner's retirement", typ.Name())
 		}
 	}

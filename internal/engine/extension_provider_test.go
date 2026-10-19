@@ -111,7 +111,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 				t.Fatal("template acquired owner", refs)
 			}
 		} else {
-			owner, _, _ := descriptorACL(d)
+			owner, _, _ := DescriptorACL(d)
 			if owner != ext.Owner {
 				t.Fatal("superuser member ownership")
 			}

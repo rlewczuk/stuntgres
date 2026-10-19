@@ -173,9 +173,9 @@ func extensionOwnershipImportUnits(t *testing.T) {
 	// Central DROP dependencies include extension and every owned member, plus
 	// the destination database's real grantor/grantee references.
 	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	var dependencies []roleDependency
-	descriptorRoleDependencies(ext, owner, &dependencies)
-	if len(dependencies) != 1 || dependencies[0].Address != ext.Address() || dependencies[0].Kind != 'o' || !descriptorRoleDependencies(ext, owner, nil) {
+	var dependencies []RoleDependency
+	DescriptorRoleDependencies(ext, owner, &dependencies)
+	if len(dependencies) != 1 || dependencies[0].Address != ext.Address() || dependencies[0].Kind != 'o' || !DescriptorRoleDependencies(ext, owner, nil) {
 		t.Fatal("extension owner dependency", dependencies)
 	}
 	for _, a := range ext.Members {

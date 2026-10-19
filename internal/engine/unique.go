@@ -285,7 +285,7 @@ func uniqueKeyDetailAllowed(auth AuthorizationView, ref ids.ObjectRef, keys []ca
 	if !ok || !relation {
 		return false, fmt.Errorf("stuntgres: unique disclosure parent is missing")
 	}
-	decision, err := rowSecurityDecision(auth.Roles, parent, auth.State.CurrentUser, catalog.PolicySelect, false)
+	decision, err := RowSecurityDecision(auth.Roles, parent, auth.State.CurrentUser, catalog.PolicySelect, false)
 	if err != nil || decision != rlsUnrestricted {
 		return false, err
 	}

@@ -74,10 +74,10 @@ func (v accessView) Ref(address ids.ObjectAddress) ids.ObjectRef {
 func (v *accessView) Recapture(catalog catalog.Read) {
 	v.Catalog = catalog
 	v.PairedCatalog = catalog
-	v.Roles = roleRead(v.Owner, v.Owner.Principals, catalog, v.RoleRecord)
+	v.Roles = RoleRead(v.Owner, v.Owner.Principals, catalog, v.RoleRecord)
 }
 
-func descriptorACL(d catalog.Descriptor) (authorization.PrincipalRef, authorization.ACLValue, map[int32]authorization.ACLValue) {
+func DescriptorACL(d catalog.Descriptor) (authorization.PrincipalRef, authorization.ACLValue, map[int32]authorization.ACLValue) {
 	switch d := d.(type) {
 	case *catalog.Database:
 		return d.Owner, d.ACL, nil
@@ -111,7 +111,7 @@ func descriptorACL(d catalog.Descriptor) (authorization.PrincipalRef, authorizat
 	}
 	return authorization.PrincipalRef{}, authorization.ACLValue{}, nil
 }
-func classPrivileges(d catalog.Descriptor) authorization.Privileges {
+func ClassPrivileges(d catalog.Descriptor) authorization.Privileges {
 	if d.Kind() == ids.ForeignWrapperObject || d.Kind() == ids.ForeignServerObject {
 		return authorization.UsagePrivilege
 	}
@@ -148,7 +148,7 @@ func classPrivileges(d catalog.Descriptor) authorization.Privileges {
 	return authorization.TableGrantPrivileges
 }
 func (v accessView) object(ref ids.ObjectRef) (catalog.Descriptor, error) {
-	if v.Owner == nil || v.Catalog.Owner() != v.Owner || v.Catalog.State() == nil || !v.Roles.BelongsTo(v.Owner.Principals) || v.Roles != roleRead(v.Owner, v.Owner.Principals, v.Catalog, v.RoleRecord) || v.PairedCatalog != v.Catalog || v.Roles.DatabaseOwner() != v.Catalog.MustDatabase(catalog.CurrentDatabaseAddress).Owner || ref.Domain() != v.Owner.Domain || ref.Epoch != v.Catalog.Epoch() {
+	if v.Owner == nil || v.Catalog.Owner() != v.Owner || v.Catalog.State() == nil || !v.Roles.BelongsTo(v.Owner.Principals) || v.Roles != RoleRead(v.Owner, v.Owner.Principals, v.Catalog, v.RoleRecord) || v.PairedCatalog != v.Catalog || v.Roles.DatabaseOwner() != v.Catalog.MustDatabase(catalog.CurrentDatabaseAddress).Owner || ref.Domain() != v.Owner.Domain || ref.Epoch != v.Catalog.Epoch() {
 		return nil, fmt.Errorf("stuntgres: foreign or stale authorization object")
 	}
 	d, ok := v.Catalog.Descriptor(ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID})
@@ -161,7 +161,7 @@ func (v accessView) object(ref ids.ObjectRef) (catalog.Descriptor, error) {
 			return nil, fmt.Errorf("stuntgres: invalid authorization column")
 		}
 	}
-	owner, _, _ := descriptorACL(d)
+	owner, _, _ := DescriptorACL(d)
 	if _, err := v.Roles.Descriptor(owner); err != nil {
 		return nil, err
 	}
@@ -179,7 +179,7 @@ func (v accessView) Effective(env accessEnvironment, ref ids.ObjectRef, grantOpt
 	if err != nil {
 		return 0, err
 	}
-	owner, acl, columns := descriptorACL(d)
+	owner, acl, columns := DescriptorACL(d)
 	if err := v.Roles.ValidatePrincipal(v.State.CurrentUser); err != nil {
 		return 0, err
 	}
@@ -187,7 +187,7 @@ func (v accessView) Effective(env accessEnvironment, ref ids.ObjectRef, grantOpt
 	if !actorExists && v.State.CurrentUser != v.MissingCurrent {
 		return 0, fmt.Errorf("stuntgres: stale principal")
 	}
-	mask := classPrivileges(d)
+	mask := ClassPrivileges(d)
 	if ref.Address.SubID > 0 {
 		mask = authorization.ColumnGrantPrivileges
 	}
@@ -198,7 +198,7 @@ func (v accessView) Effective(env accessEnvironment, ref ids.ObjectRef, grantOpt
 	// current role. Keep this ordinary namespace authority separate from object
 	// ACLs, namespace ownership and delegation, and from private maintenance.
 	if ns, ok := d.(*catalog.Namespace); ok && !grantOptions && ownsTemporaryNamespace(env, ns) {
-		return v.ownTemporaryPrivileges(env)
+		return v.OwnTemporaryPrivileges(env)
 	}
 	principals := []authorization.PrincipalRef{v.State.CurrentUser}
 	if actorExists {
@@ -228,14 +228,14 @@ func (v accessView) Effective(env accessEnvironment, ref ids.ObjectRef, grantOpt
 		rights |= authorization.ACLRights(columns[ref.Address.SubID], authorization.PrincipalRef{}, principals, mask, grantOptions)
 	}
 	if !grantOptions && actorExists {
-		rights |= predefinedPrivileges(d, principals)
+		rights |= PredefinedPrivileges(d, principals)
 	}
 	return rights & mask, nil
 }
 
 // Own TEMP namespaces remain usable after revocation, but CREATE is contingent
 // on the current effective role's database TEMP privilege, not authentication.
-func (v accessView) ownTemporaryPrivileges(env accessEnvironment) (authorization.Privileges, error) {
+func (v accessView) OwnTemporaryPrivileges(env accessEnvironment) (authorization.Privileges, error) {
 	rights, err := v.Effective(env, v.Ref(catalog.CurrentDatabaseAddress), false)
 	if err != nil {
 		return 0, err
@@ -261,7 +261,7 @@ func (v accessView) Check(env accessEnvironment, req AccessRequirement) error {
 	if _, exists := v.Roles.Find(v.State.CurrentUser); !exists && v.State.CurrentUser != v.MissingCurrent {
 		return fmt.Errorf("stuntgres: stale principal")
 	}
-	owner, _, _ := descriptorACL(d)
+	owner, _, _ := DescriptorACL(d)
 	if req.OwnerOnly {
 		if req.Privileges != 0 {
 			return fmt.Errorf("stuntgres: owner check has ordinary mask")
@@ -320,7 +320,7 @@ func (v accessView) Check(env accessEnvironment, req AccessRequirement) error {
 		name := d.Name()
 		return sqlError("42501", fmt.Sprintf("must be owner of %s %s", kind, name))
 	}
-	mask := classPrivileges(d)
+	mask := ClassPrivileges(d)
 	if req.Object.Address.SubID > 0 {
 		mask = authorization.ColumnGrantPrivileges
 	}
@@ -437,7 +437,7 @@ func (v accessView) CheckColumns(env accessEnvironment, ref ids.ObjectRef, relat
 	return nil
 }
 
-func validateACL(r authorization.Read, d catalog.Descriptor) error {
+func ValidateACL(r authorization.Read, d catalog.Descriptor) error {
 	// Immutable builtin identities have no principal or role-owned ACL.
 	switch t := d.(type) {
 	case *catalog.ForeignObject:
@@ -450,7 +450,7 @@ func validateACL(r authorization.Read, d catalog.Descriptor) error {
 	case *catalog.TSTemplate:
 		return nil
 	}
-	owner, acl, cols := descriptorACL(d)
+	owner, acl, cols := DescriptorACL(d)
 	if _, err := r.Descriptor(owner); err != nil {
 		return err
 	}
@@ -467,7 +467,7 @@ func validateACL(r authorization.Read, d catalog.Descriptor) error {
 			}
 		}
 	}
-	if err := authorization.ValidateACL(r, acl, classPrivileges(d)); err != nil {
+	if err := authorization.ValidateACL(r, acl, ClassPrivileges(d)); err != nil {
 		return err
 	}
 	for sub, a := range cols {
