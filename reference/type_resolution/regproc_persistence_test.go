@@ -57,17 +57,10 @@ func TestReferenceRegProcPersistence(t *testing.T) {
 	regprocScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, r *fixture.Recorder) {
 		regprocPersistentSetup(t, p, c, r)
 		regprocPersistentCheck(t, p, c, r)
-		result, dependencyErr := c.ExecContext(p.Ctx, "DROP EXTENSION unaccent RESTRICT")
-		if result != nil {
-			t.Error("restricted provider drop exposed result")
-		}
-		if b.PG {
-			regprocError(t, dependencyErr, "2BP01", "cannot drop extension unaccent because other objects depend on it", "DROP EXTENSION unaccent RESTRICT", "stored-dependency", "")
-		} else {
-			want := fixture.ControlsReferenceDiagnostic("0A000", "statement is unsupported")
-			want.Position = "1"
-			fixture.AssertDiagnostic(t, dependencyErr, &want)
-		}
+		want := fixture.ControlsReferenceDiagnostic("2BP01", "cannot drop extension unaccent because other objects depend on it")
+		want.Detail = "default value for column p of table defaults_subject depends on function unaccent(text)\nview constant_view depends on function unaccent(text)"
+		want.Hint = "Use DROP ... CASCADE to drop the dependent objects too."
+		fixture.RunStep(t, p.Ctx, c, r, fixture.ErrorDiagnostic("DROP EXTENSION unaccent RESTRICT", want))
 		regprocPersistentCheck(t, p, c, r)
 		// This expression is also the required overload-safe dump spelling.
 		regprocBoth(t, p, c, r, fixture.Select("SELECT 'pg_catalog.abs(integer)'::regprocedure::regproc AS r", []string{"r"}, []string{"REGPROC"}, [][]any{{"pg_catalog.abs"}}))

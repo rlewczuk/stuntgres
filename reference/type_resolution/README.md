@@ -726,16 +726,20 @@ string/textual-byte/typed-nil/NULL frames, exact fixed identities and signatures
 six complete diagnostic routes, casts, all-path overload visibility, real unaccent
 authority, expression versus data-only dependencies, atomic late-row failure,
 tables/defaults/views/domains/arrays, retained outputs and native replacement.
-Schema authority setup deliberately uses real PostgreSQL USAGE grants versus
-supported native schema ownership transfer; it does not admit native GRANT/REVOKE
-SQL or transfer bootstrap-owned tables.
-`DROP EXTENSION` is likewise an existing native utility boundary, not delivered
-by routine aliases. PreparedAuthority and Persistence assert its exact native
-`0A000` / `statement is unsupported` / Position `1` diagnostic and unchanged
-alias values, then continue supported path/role authority and persistence phases.
-Real PostgreSQL retains the complete drop/reinstall, dangling data identity,
-held-literal retention and dependency Detail/Hint assertions. Private real catalog
-removal supplements native identity-lifetime coverage without claiming SQL support.
+Schema authority setup uses real GRANT USAGE on both backends, without transferring
+namespace or bootstrap-owned member ownership. PreparedAuthority shares the
+complete DROP/reinstall contract: inert stored numeric alias identities and a
+retained literal survive referent removal, fresh resolution fails, and reinstall
+allocates genuine new members. Effective-path or namespace-authority invalidation
+reanalyzes the held literal; if analysis fails, restoring the old environment must
+still resolve the current replacement rather than revive the retired capture.
+Persistence shares exact RESTRICT dependency Detail/Hint assertions and preserves
+native control phases.
+Selected removal/authority proof (each command also with `REFERENCE=1`):
+
+```sh
+make check RUN='^TestReferenceRegProc(SearchPath|PreparedAuthority|Persistence)$'
+```
 
 Signature witnesses include canonical aliases, schema-qualified types, modifiers,
 arrays, zero arity, aggregate sum and
@@ -869,7 +873,7 @@ selector; repeat each in both modes):
 | `regproc_diagnostics_test.go` | `TestReferenceRegProcDiagnostics` | A | New complete six-route diagnostics |
 | `regproc_values_test.go` | `TestReferenceRegProcCasts` | A | New casts, comparisons and assignment boundaries |
 | `regproc_authority_test.go` | `TestReferenceRegProcSearchPath` | B | New path/namespace authority and qualified output |
-| `regproc_authority_test.go` | `TestReferenceRegProcPreparedAuthority` | B | Held identity/input lifecycle, supported path/role recovery and explicit native DROP boundary; full PG drop/reinstall |
+| `regproc_authority_test.go` | `TestReferenceRegProcPreparedAuthority` | B | Shared DROP/reinstall, inert held identities until true invalidation, and failed path/role reanalysis recovery to current members |
 | `regproc_persistence_test.go` | `TestReferenceRegProcPersistence` | B | Native controls, owned REGPROC/REGPROCEDURE retained raw cells, remap/dependencies, DROP boundary and actual stream replay |
 | `regproc_persistence_test.go` | `TestReferenceRegProcFeatureSmoke` | B and exact smoke | New feature acceptance smoke |
 | `regproc_mixed_controls_test.go` | `TestReferenceRegProcMixedRolePersistence` | B and remedy smoke | Supported routine/role composite row/default/view serialization, displaced target-role identity and actual emitted-stream replay |

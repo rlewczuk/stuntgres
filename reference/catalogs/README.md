@@ -6,6 +6,61 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Extension removal
+
+The nine new removal definitions independently specify PostgreSQL18.6
+installed-manifest retirement, missing/owner/read-only diagnostics, name-list
+atomicity, RESTRICT/CASCADE closure, rollback/savepoint callable identity,
+generic installed types/arrays/aggregates, automatic materialized attachments
+and survivor native control replay. Native controls are explicitly native-only;
+the SQL scenarios share one body. No discovery filters remain.
+
+The domain CHECK witness additionally requires the actual constraint-to-function
+normal pg_depend edge, exact RESTRICT/23514/CASCADE diagnostics, Hotel/NULL
+enforcement, identity restoration after rollback and surviving domain/table/rows
+after committed CHECK pruning. The normal edge is owned by the constraint OID,
+not inferred from the domain name or assigned to its type OID.
+
+Late-consumer scheduling belongs to private engine seams, not a claimed public
+PostgreSQL locking schedule. Six real publication/outer-commit cells cover views,
+query_int columns and domain CHECKs; two explicitly unsupported query_int[] cells
+assert the native 0A000 admission boundary with no mutation. Genuine alias
+predicate/retirement and supported domain-array lifetime controls supplement,
+but do not replace, those six fences.
+
+Run every selector below both as written and with `REFERENCE=1`; use an
+external900-second deadline for each command:
+
+```sh
+make check RUN='^TestReferenceExtensionDrop(Basic|Dependencies|Diagnostics|Lists)$'
+make check RUN='^TestReferenceExtensionDrop(Transactions|Controls|Providers|DomainChecks)$'
+make check RUN='^TestReferenceMaterializedExtensionDrop$'
+make check RUN='^(TestReferencePGExtensionCommandBoundaries|TestReferencePGAggregateIntaggIdentity|TestReferencePGTypeFamilies)$'
+make check RUN='^TestReferenceRegProc(SearchPath|PreparedAuthority|Persistence)$'
+make check RUN='^(TestReferenceExtension(VersionSchemaAndPrivilege|Transactions|Controls)|TestReferencePgcryptoRandomIdentity)$'
+make check RUN='^(TestReferenceDomainCheck(Metadata|Diagnostics|ConversionsNull|Ancestors)|TestReferencePGTypeInstalledDomains|TestReferenceExtensionSchemaDependencies|TestReferenceRoleOwnershipExtensionDrop)$'
+```
+
+Package-only invariant and selected deterministic interleaving/race proof:
+
+```sh
+make check RUN='^TestExtensionDrop(Manifest|Publication|PublicationCandidate|RollbackIdentity|Diagnostics)$'
+make check RUN='^TestPGDependDomainCheckDependencies$'
+make check RACE=1 RUN='^(TestExtensionDropPublication(Candidate)?|TestPGDependDomainCheckDependencies|TestReferenceExtensionDropTransactions|TestReferenceExtensionTransactions)$'
+```
+
+Feature smoke is the first two removal selectors plus Controls: expect Hotel
+and typed NULL before removal/after rollback; RESTRICT2BP01 with intact
+identities; CASCADE pruning defaults/checks and views while preserving rows,
+schemas and a bound soundex survivor; native Dump/Reset/Restore and independent
+Driver import keep A500 callable without resurrecting unaccent. The existing
+public standalone smoke supplied with the part plan exercises the same lifecycle.
+
+The focused domain smoke is `make check RUN='^TestReferenceExtensionDropDomainChecks$'`
+in both modes: expect the authentic edge count1 before RESTRICT, count0 after
+private/committed CHECK pruning, the same edge/identities after rollback,
+unchanged Hotel/NULL rows and Hôtel acceptance only after CHECK removal.
+
 ### Type catalog metadata and proof
 
 `TestReferencePGTypeShape`, `TestReferencePGTypeBuiltins`,
@@ -59,10 +114,10 @@ and actual Prepare attempts preserve the existing explicit-transaction utility
 0A000 boundary and leave no domain identity behind.
 Installed `query_int` retains its full32 goldens across namespace changes:
 PostgreSQL uses `ALTER EXTENSION SET SCHEMA`, while native uses supported
-`ALTER SCHEMA` and asserts its exact unsupported extension-alter/drop boundaries
-without changing either type row. PostgreSQL SQL drop/reinstall and actual
-native Reset/reinstall both remove the old pair, establish new independent
-REGTYPE/REGPROC identities and preserve an unread pre-replacement catalog row.
+`ALTER SCHEMA` and asserts the unsupported extension-alter boundary without
+changing either type row. Common SQL DROP/reinstall removes the old pair,
+establishes new independent REGTYPE/REGPROC identities and preserves an unread
+pre-removal catalog row.
 `TestReferencePGTypeInstalledDomains` independently specifies composition over
 the installed type: a domain and nested domain inherit the actual `bqarr_out`
 identity, retain immediate bases, use domain_in2597/domain_recv2598/send0, and
@@ -1727,7 +1782,8 @@ semantics, and additionally compare an installed row with its published descript
 Missing-provider CREATE prepares successfully and fails at execution with
 `0A000` on both backends. PostgreSQL's system-installation Hint is pinned only on
 PostgreSQL; native exposes its truthful registered-only availability boundary.
-Unchanged ALTER/DROP/LOAD command boundaries remain separately asserted.
+Unchanged ALTER/LOAD command boundaries remain separately asserted; missing DROP
+now asserts common installed-catalog resolution diagnostics.
 
 Review2 tests-first checkpoint pins eighteen member-catalog attribute nullability
 records as named bags, not physical attnum order. PostgreSQL's pq Nullable
@@ -1962,9 +2018,9 @@ an unrelated closed-source UUID→TEXT cast. Relocation retains genuine unread
 eager database/sql.Rows and independently checks their value/type/metadata
 through successful and refused replay. This does not rebind SQL HOLD portals:
 their old FETCH/MOVE execution remains fenced by native catalog replacement.
-Trusted installer coverage uses PostgreSQL DROP EXTENSION versus native Reset
-before reinstalling, preserving the existing native extension-retirement boundary
-and explicit installed-schema ownership without adding schema ACL SQL.
+Trusted installer coverage uses common DROP EXTENSION before reinstalling,
+preserving unrelated schema/data state and genuine native replacement-control
+phases. Schema visibility uses actual GRANT USAGE, not ownership transfer.
 
 fips_mode returns actual active Go crypto/fips140.Enabled() in native mode, not
 algorithm availability, certification, host flags or query-time GODEBUG parsing.

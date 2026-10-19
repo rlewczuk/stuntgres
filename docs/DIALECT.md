@@ -38,6 +38,21 @@ position conversion, limits and NULL/empty behavior; the
 [reference inventory](../reference/types/README.md#text-search-scalar-io)
 includes independently asserted metadata, diagnostics and native controls.
 
+## Extension removal
+
+`DROP EXTENSION` accepts installed extension name lists, IF EXISTS, and
+RESTRICT/CASCADE through the existing catalog/transaction authority. It removes
+actual provider manifests, including automatic type aliases; it neither loads
+unavailable providers nor broadens their bounded member inventories. Extension
+ownership authorizes removal independently of member or schema ownership.
+RESTRICT rejects external stored dependencies; CASCADE removes their closure,
+not unrelated objects or installation schemas. Transaction rollback restores
+the original callable member identities. Native Dump/Reset/Restore retains only
+surviving persistent installations, plus the existing authentic live TEMP
+provenance rules. ALTER EXTENSION and arbitrary module loading remain outside
+the native boundary.
+See [removal proof](../reference/catalogs/README.md#extension-removal).
+
 ## Comparison resolution and predicates
 
 Executable type/shape admission is separate from operator admission. Comparison

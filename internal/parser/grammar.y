@@ -433,7 +433,7 @@ package parser
 %type <collationOptions> collation_options
 %type <collationOption> collation_option
 %type <tok> collation_name_word
-%type <stmt> create_extension
+%type <stmt> create_extension drop_extension
 %type <stmt> create_tablespace
 %type <grantor> tablespace_owner
 %type <tok> tablespace_location
@@ -742,7 +742,7 @@ statement: create | create_sequence | alter_sequence | drop_sequence | alter_ind
  | set_constraints
  | declare_cursor | fetch_cursor | close_cursor
  | prepare_sql | execute_sql | deallocate_sql | discard
- | create_extension
+ | create_extension | drop_extension
  | create_tablespace
  | alter_collation | drop_collation | alter_enum
  | alter_conversion | drop_conversion
@@ -2953,6 +2953,8 @@ drop_schema: DROP SCHEMA names drop_behavior { $$=&DropSchema{Names:$3,Cascade:$
  | DROP SCHEMA IF EXISTS names drop_behavior { $$=&DropSchema{Names:$5,IfExists:true,Cascade:$6} } ;
 create_extension: CREATE EXTENSION name extension_options { $$=&CreateExtension{Name:Identifier{Text:$3.text,Pos:$3.pos},Options:$4,Pos:$1.pos} }
  | CREATE EXTENSION IF NOT EXISTS name extension_options { $$=&CreateExtension{Name:Identifier{Text:$6.text,Pos:$6.pos},IfNotExists:true,Options:$7,Pos:$1.pos} } ;
+drop_extension: DROP EXTENSION view_names drop_mode { $$=&DropExtension{Names:$3,Mode:$4,Pos:$1.pos} }
+ | DROP EXTENSION IF EXISTS view_names drop_mode { $$=&DropExtension{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos} } ;
 extension_options: extension_option_list { $$=$1 } | WITH extension_option_list { $$=$2 } ;
 extension_option_list: /* empty */ { $$=nil } | extension_option_list extension_option { $$=append($1,$2) } ;
 extension_option: SCHEMA name { $$=ExtensionOption{Name:"schema",Value:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }

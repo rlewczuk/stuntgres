@@ -142,6 +142,18 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 					add(d.Address(), ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(d.SQLType.DomainBase().Collation.ID)}, 'n')
 				}
 			}
+			for _, check := range d.DomainChecks {
+				if err := ctx.Err(); err != nil {
+					return nil, err
+				}
+				owner := ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}
+				for _, dependency := range check.Dependencies {
+					if err := ctx.Err(); err != nil {
+						return nil, err
+					}
+					add(owner, dependency.Ref.Address, 'n')
+				}
+			}
 		case *catalog.Relation:
 			if d.Foreign != nil {
 				add(d.Address(), d.Foreign.Server, 'n')

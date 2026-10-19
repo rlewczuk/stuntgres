@@ -2,7 +2,6 @@ package reference_test
 
 import (
 	"fmt"
-	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -213,17 +212,15 @@ func TestReferencePGTypeFamilies(t *testing.T) {
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("CREATE EXTENSION intarray", 0))
 			relocatedSchema := false
 			defer func() {
-				if !b.PG {
-					if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
-						t.Error(err)
-					}
-					return
-				}
 				if _, err := b.DB.ExecContext(p.Ctx, "DROP EXTENSION intarray"); err != nil {
 					t.Error(err)
 				}
 				if relocatedSchema {
-					if _, err := b.DB.ExecContext(p.Ctx, "DROP SCHEMA pt18_qi_relocated"); err != nil {
+					cleanup := "DROP SCHEMA pt18_qi_relocated"
+					if !b.PG {
+						cleanup = "ALTER SCHEMA pt18_qi_relocated RENAME TO public"
+					}
+					if _, err := b.DB.ExecContext(p.Ctx, cleanup); err != nil {
 						t.Error(err)
 					}
 				}
@@ -247,9 +244,9 @@ func TestReferencePGTypeFamilies(t *testing.T) {
 				relocatedSchema = true
 				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("ALTER EXTENSION intarray SET SCHEMA pt18_qi_relocated", 0))
 			} else {
-				// Native extension relocation/drop are existing parser boundaries;
-				// schema rename is the supported installed-type namespace route.
-				for _, q := range []string{"ALTER EXTENSION intarray SET SCHEMA pt18_qi_relocated", "DROP EXTENSION intarray"} {
+				// Extension relocation remains outside this part; schema rename
+				// is the supported native installed-type namespace route.
+				for _, q := range []string{"ALTER EXTENSION intarray SET SCHEMA pt18_qi_relocated"} {
 					for _, prepared := range []bool{false, true} {
 						s := fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported", Position: "1"})
 						s.Prepared, s.ErrorStage = prepared, "execute"
@@ -262,6 +259,7 @@ func TestReferencePGTypeFamilies(t *testing.T) {
 					}
 				}
 				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("ALTER SCHEMA public RENAME TO pt18_qi_relocated", 0))
+				relocatedSchema = true
 			}
 			var relocatedNamespace int64
 			if err := b.DB.QueryRowContext(p.Ctx, "SELECT oid FROM pg_namespace WHERE nspname='pt18_qi_relocated'").Scan(&relocatedNamespace); err != nil {
@@ -281,23 +279,13 @@ func TestReferencePGTypeFamilies(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer retained.Close()
-			if b.PG {
-				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("DROP EXTENSION intarray", 0))
-			} else {
-				if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
-					t.Fatal(err)
-				}
-			}
+			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("DROP EXTENSION intarray", 0))
 			fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid FROM pg_type WHERE oid=$1::oid OR oid=$2::oid", []string{"oid"}, []string{"OID"}, nil, id, array))
-			if !b.PG {
-				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("CREATE SCHEMA pt18_qi_relocated", 0))
-			}
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("CREATE EXTENSION intarray WITH SCHEMA pt18_qi_relocated", 0))
 			next, nextArray := pgTypeID(t, p, b, "pt18_qi_relocated.query_int"), pgTypeID(t, p, b, "pt18_qi_relocated.query_int[]")
-			// Receiving identities are resolved from the actual installation,
-			// not required to differ numerically from a discarded catalog.
-			if next == nextArray {
-				t.Fatal("installed type aliases its canonical array", next)
+			// SQL DROP retires genuine identities without replacing the catalog.
+			if next == nextArray || next == id || nextArray == array {
+				t.Fatal("reinstall reused retired type identity", next, nextArray, id, array)
 			}
 			if err := b.DB.QueryRowContext(p.Ctx, "SELECT oid FROM pg_namespace WHERE nspname='pt18_qi_relocated'").Scan(&namespace); err != nil {
 				t.Fatal(err)

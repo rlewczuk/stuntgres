@@ -28,6 +28,7 @@ type regtypeAnalysis struct {
 	database          string
 	types, collations bool
 	collationPath     []ids.ObjectAddress
+	invalidated       bool // A failed reanalysis must not revive these captures.
 }
 
 type regObjectReference struct {
@@ -61,6 +62,9 @@ func (e *Engine) regtypeAnalysisLocked(auth AuthorizationView, constants []regty
 }
 
 func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtypeAnalysis) (bool, error) {
+	if cell != nil && cell.invalidated {
+		return false, nil
+	}
 	if cell == nil {
 		return true, nil
 	}

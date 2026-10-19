@@ -214,9 +214,6 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 		t.Fatal("failed mixed reanalysis published partial capture or signature")
 	}
 	sessionSQL(t, admin, "ALTER SCHEMA routine_types OWNER TO routine_operand_a")
-	if !regoperatorPreparedCellValid(t, e, s, d.regtypes) {
-		t.Fatal("restored qualified operand authority did not recover shared cell")
-	}
 	result, err := sequencePreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal("held mixed statement did not recover", err)

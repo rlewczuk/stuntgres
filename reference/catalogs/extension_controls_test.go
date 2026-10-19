@@ -81,16 +81,9 @@ func extensionControlsFailures(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fi
 func extensionNamedOwnerControls(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
 	t.Helper()
 	run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, r, s) }
-	if pg {
-		run(fixture.Exec("DROP VIEW translated", 0))
-		run(fixture.Exec("DROP TABLE source", 0))
-		run(fixture.Exec("DROP EXTENSION unaccent", 0))
-	} else {
-		if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
-			t.Fatal(err)
-		}
-		run(fixture.Exec("CREATE SCHEMA ext_addon", 0))
-	}
+	run(fixture.Exec("DROP VIEW translated", 0))
+	run(fixture.Exec("DROP TABLE source", 0))
+	run(fixture.Exec("DROP EXTENSION unaccent", 0))
 	run(fixture.Exec("CREATE USER ext_installer SUPERUSER", 0))
 	run(fixture.Exec("SET SESSION AUTHORIZATION ext_installer", 0))
 	run(fixture.Exec("CREATE EXTENSION unaccent SCHEMA ext_addon", 0))

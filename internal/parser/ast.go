@@ -210,6 +210,15 @@ type CreateExtension struct {
 
 func (*CreateExtension) statement() {}
 
+type DropExtension struct {
+	Names    []Identifier
+	IfExists bool
+	Mode     DropMode
+	Pos      Position
+}
+
+func (*DropExtension) statement() {}
+
 // TypeName is syntax, not a resolved catalog type.
 type TypeName struct {
 	Name        string

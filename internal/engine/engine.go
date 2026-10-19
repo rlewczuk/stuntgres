@@ -344,7 +344,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, nil
 	case *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator:
 		return StatementDescription{}, nil
-	case *parser.CreateExtension:
+	case *parser.CreateExtension, *parser.DropExtension:
 		return StatementDescription{}, nil
 	case *parser.RoleMembership, *parser.ObjectGrant, *parser.AlterDefaultPrivileges:
 		return StatementDescription{}, nil

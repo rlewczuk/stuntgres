@@ -77,13 +77,8 @@ func TestReferenceExtensionVersionSchemaAndPrivilege(t *testing.T) {
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 		run(fixture.Exec("REVOKE CREATE ON DATABASE "+target+" FROM ext_installer", 0))
 		run(fixture.Select("SELECT v FROM sentinel", []string{"v"}, []string{"INT4"}, [][]any{{int64(77)}}))
-		if pg {
-			run(fixture.Exec("DROP EXTENSION unaccent", 0))
-		} else {
-			if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
-				t.Fatal(err)
-			}
-		}
+		run(fixture.Exec("DROP EXTENSION unaccent", 0))
+		run(fixture.Select("SELECT v FROM sentinel", []string{"v"}, []string{"INT4"}, [][]any{{int64(77)}}))
 		run(fixture.Exec("SET SESSION AUTHORIZATION ext_installer", 0))
 		run(fixture.ImplicitError("CREATE EXTENSION unaccent SCHEMA public", fixture.Diagnostic{Code: "42501", Message: `permission denied to create extension "unaccent"`, Hint: "Must have CREATE privilege on current database to create this extension."}))
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))

@@ -312,6 +312,8 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 // Inspect only committed descriptors changed since a captured retirement.
 // Candidate overrides matter: an owner removed or rewired by this transaction
 // must not impersonate a surviving edge into an absent provider.
+// Existing expression/ownership observations also fence retained-message
+// admission before removals are overlaid; only new type edges require absence.
 func catalogDependencyPreflight(current, candidate *catalog.State, observations []catalogDependencyObservation, originals map[ids.ObjectAddress]catalog.Descriptor) error {
 	for _, observation := range observations {
 		if current == observation.base {
@@ -321,25 +323,24 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 			if descriptor == observation.base.Get(address) {
 				continue
 			}
-			relation, _ := descriptor.(*catalog.Relation)
 			owner := candidate.Get(address)
 			for _, target := range observation.targets {
-				if relation != nil {
-					if viewDepends(relation, target) || materializedExtensionDepends(relation, target) || checkDepends(relation, target) || defaultDepends(relation, target) || generationDepends(relation, target) || indexExpressionDepends(relation, target) {
-						return catalog.Conflict{}
+				switch owner := owner.(type) {
+				case *catalog.Type:
+					if candidate.Get(target) != nil {
+						continue
 					}
-					if relation.Sequence != nil && relation.Sequence.Owned == target {
-						// Identity TYPE refreshes this exact internal link under
-						// its SRX grant; preserve the existing original fence.
-						if !relation.Sequence.Identity || originals[address] != descriptor {
-							return catalog.Conflict{}
+					for _, check := range owner.DomainChecks {
+						for _, dependency := range check.Dependencies {
+							if dependency.Ref.Address == target {
+								return catalog.Conflict{}
+							}
 						}
 					}
-				}
-				if candidate.Get(target) != nil {
-					continue
-				}
-				switch owner := owner.(type) {
+					if owner.SQLType.IsDomain() && usageDependsOn(owner.SQLType.DomainBase(), target) ||
+						owner.SQLType.IsArray() && target == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(owner.SQLType.Element().ID())}) {
+						return catalog.Conflict{}
+					}
 				case *catalog.ForeignObject:
 					for _, dependency := range foreignDependencyAddresses(owner) {
 						if dependency != (ids.ObjectAddress{}) && dependency == target {
@@ -347,6 +348,23 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 						}
 					}
 				case *catalog.Relation:
+					if viewDepends(owner, target) || materializedExtensionDepends(owner, target) || checkDepends(owner, target) || defaultDepends(owner, target) || generationDepends(owner, target) || indexExpressionDepends(owner, target) {
+						return catalog.Conflict{}
+					}
+					if candidate.Get(target) == nil {
+						for _, column := range owner.Columns {
+							if usageDependsOn(column.Usage, target) {
+								return catalog.Conflict{}
+							}
+						}
+					}
+					if owner.Sequence != nil && owner.Sequence.Owned == target {
+						// Identity TYPE refreshes this exact internal link under
+						// its SRX grant; preserve the existing original fence.
+						if !owner.Sequence.Identity || originals[address] != descriptor {
+							return catalog.Conflict{}
+						}
+					}
 					if owner.Foreign != nil && owner.Foreign.Server == target {
 						return catalog.Conflict{}
 					}

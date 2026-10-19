@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"stuntgres"
 	"stuntgres/reference/fixture"
 )
 
@@ -116,17 +115,8 @@ func TestReferencePgcryptoRandomIdentity(t *testing.T) {
 		run(fixture.ImplicitError("SELECT pgcrypto_part.gen_random_bytes(1)", fixture.Diagnostic{Code: "42501", Message: "permission denied for schema pgcrypto_part", Position: "8"}))
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 		// Trusted non-superuser install splits extension and member owners.
-		if pg {
-			run(fixture.Exec("DROP EXTENSION pgcrypto", 0))
-			run(fixture.Exec("ALTER SCHEMA pgcrypto_part OWNER TO pgcrypto_owner", 0))
-		} else {
-			// Native extension retirement uses its existing public control;
-			// Reset retains principals, but removes the installed schema.
-			if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
-				t.Fatal(err)
-			}
-			run(fixture.Exec("CREATE SCHEMA pgcrypto_part AUTHORIZATION pgcrypto_owner", 0))
-		}
+		run(fixture.Exec("DROP EXTENSION pgcrypto", 0))
+		run(fixture.Exec("ALTER SCHEMA pgcrypto_part OWNER TO pgcrypto_owner", 0))
 		var database string
 		if err := c.QueryRowContext(p.Ctx, "SELECT current_database()").Scan(&database); err != nil {
 			t.Fatal(err)

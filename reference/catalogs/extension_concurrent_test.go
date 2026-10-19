@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"runtime"
-	"stuntgres"
 	"stuntgres/reference/fixture"
 	"testing"
 	"time"
@@ -12,13 +11,7 @@ import (
 
 func extensionConcurrentInstall(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool, db *sql.DB, peer *sql.Conn) {
 	t.Helper()
-	if pg {
-		fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("DROP EXTENSION unaccent", 0))
-	} else {
-		if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
-			t.Fatal(err)
-		}
-	}
+	fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("DROP EXTENSION unaccent", 0))
 	ctx, cancel := context.WithTimeout(p.Ctx, 15*time.Second)
 	defer cancel()
 	first, err := c.BeginTx(ctx, nil)

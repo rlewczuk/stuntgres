@@ -157,30 +157,13 @@ func dependencyObject(view catalog.Read, target ids.ObjectAddress, path []ids.Ob
 		if !visible {
 			name = catalog.DependencyIdentifier(view.Get(d.Namespace()).Name()) + "." + name
 		}
-		var arguments string
-		switch d.Signature {
-		case "23":
-			arguments = "integer"
-		case "1007":
-			arguments = "integer[]"
-		case catalog.ForeignHandlerSignature:
-			arguments = ""
-		case catalog.ForeignValidatorSignature:
-			arguments = "text[],oid"
-		case catalog.UnaccentTextSignature:
-			arguments = "text"
-		case catalog.UnaccentDictionarySignature:
-			arguments = "regdictionary,text"
-		case catalog.UnaccentInitSignature:
-			arguments = "internal"
-		case catalog.UnaccentLexizeSignature:
-			arguments = "internal,internal,internal,internal"
-		case catalog.ConversionSignature:
-			arguments = "integer,integer,cstring,internal,integer,boolean"
-		default:
-			panic("stuntgres: invalid installed procedure signature")
-		}
-		return "function " + name + "(" + arguments + ")"
+		var text strings.Builder
+		text.WriteString("function ")
+		text.WriteString(name)
+		text.WriteByte('(')
+		writeRoutineArguments(&text, view, path, d.Signature, true)
+		text.WriteByte(')')
+		return text.String()
 	}
 	if d, ok := view.TSDictionary(base); ok {
 		name := catalog.DependencyIdentifier(d.Name())

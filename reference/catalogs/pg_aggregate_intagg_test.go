@@ -101,18 +101,14 @@ func TestReferencePGAggregateIntaggIdentity(t *testing.T) {
 				s.SelectRows, s.ErrorStage = true, "execute"
 				fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
 			}
-			s := fixture.ImplicitError("DROP EXTENSION intagg", fixture.Diagnostic{Code: "0A000", Message: "statement is unsupported", Position: "1"})
-			s.ErrorStage = "execute"
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
-		} else {
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("DROP EXTENSION intagg", 0))
-			pgAggregateBoth(t, p, b, c, fixture.Select(fmt.Sprintf("SELECT aggfnoid::oid AS id FROM pg_aggregate WHERE aggfnoid::oid=%d", ids[0]), []string{"id"}, []string{"OID"}, [][]any{}))
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("CREATE EXTENSION intagg SCHEMA pga_identity_addon", 0))
-			replacement := pgAggregateIntaggCheck(t, p, b, c, "pga_identity_addon")
-			for i := range ids {
-				if replacement[i] == ids[i] {
-					t.Fatal("reinstall retained retired identity", ids, replacement)
-				}
+		}
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("DROP EXTENSION intagg", 0))
+		pgAggregateBoth(t, p, b, c, fixture.Select(fmt.Sprintf("SELECT aggfnoid::oid AS id FROM pg_aggregate WHERE aggfnoid::oid=%d", ids[0]), []string{"id"}, []string{"OID"}, [][]any{}))
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("CREATE EXTENSION intagg SCHEMA pga_identity_addon", 0))
+		replacement := pgAggregateIntaggCheck(t, p, b, c, "pga_identity_addon")
+		for i := range ids {
+			if replacement[i] == ids[i] {
+				t.Fatal("reinstall retained retired identity", ids, replacement)
 			}
 		}
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("DROP SCHEMA pga_identity_addon CASCADE", 0))

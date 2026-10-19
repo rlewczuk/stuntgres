@@ -4746,9 +4746,24 @@ Normal REGCLASS/search_path/prepared queries and native Dump/Reset/Restore use
 the existing relation authority. Fixed relation3079 differs from the reused
 allocated native rowtype10074/array10073; no cross-server type allocator promise,
 physical system index or TOAST implementation is implied.
-Registered unaccent, selected-type intarray, selected-function fuzzystrmatch and bounded pgcrypto CREATE are supported; unavailable providers fail0A000 at
-execution, including after successful Prepare. ALTER/DROP EXTENSION and module
+Registered provider CREATE is supported; unavailable providers fail0A000 at
+execution, including after successful Prepare. ALTER EXTENSION and module
 loading retain their unsupported boundaries.
+
+**Extension removal change note:** `DROP EXTENSION [IF EXISTS] name [, ...]`
+supports default/explicit RESTRICT and CASCADE. Extension ownership (including
+inherited ownership or superuser authority), not installation-schema or member
+ownership, authorizes removal. Authentic provider members and automatic aliases
+retire together. External stored consumers block RESTRICT with2BP01; CASCADE
+removes only their dependency closure, pruning defaults/checks or typed columns
+while preserving surviving tables, data, schemas and unrelated providers.
+Lists are atomic; missing IF EXISTS targets emit notices. Rollback/savepoint
+rollback retain original member identities and callable bindings, not reinstalled
+same-name replacements. Dump after committed removal contains only genuine
+survivors; Reset/Restore remains replacement and does not resurrect removed
+providers. This applies to the existing bounded unaccent, intarray, intagg,
+fuzzystrmatch, pgcrypto and uuid-ossp implementations, not arbitrary module loading.
+See [selected removal proof and smoke](reference/catalogs/README.md#extension-removal).
 See [exact shape, installed authority and errors](https://www.postgresql.org/docs/18/catalogs.html).
 Feature smoke: `make check RUN='^TestReferencePGExtensionFeatureSmoke$'`;
 pinned counterpart: `make check REFERENCE=1 RUN='^TestReferencePGExtensionFeatureSmoke$'`.

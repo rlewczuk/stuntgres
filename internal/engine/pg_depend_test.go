@@ -194,6 +194,76 @@ func TestPGDependDomainTopologyAndPinning(t *testing.T) {
 	}
 	pgDependUnitBag(t, got, []pgDependEdge{pgDependUnitEdge(1247, 47001, 0, 2615, 47000, 0, 'n'), pgDependUnitEdge(1247, 47002, 0, 2615, 47000, 0, 'n'), pgDependUnitEdge(1247, 47002, 0, 1247, 47001, 0, 'n'), pgDependUnitEdge(1247, 47003, 0, 1247, 47001, 0, 'i'), pgDependUnitEdge(1247, 47004, 0, 2615, 47000, 0, 'n')})
 }
+func TestPGDependDomainCheckDependencies(t *testing.T) {
+	e, op, ext, procedure := extensionDropUnitProvider(t, "domain_check")
+	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN pg_depend_checked AS text CONSTRAINT pg_depend_check CHECK (unaccent(VALUE)=unaccent(VALUE))"))
+	before := e.CatalogRead()
+	domain := domainUnitType(t, before, "pg_depend_checked")
+	if len(domain.DomainChecks) != 1 {
+		t.Fatal("missing genuinely bound domain CHECK")
+	}
+	check := domain.DomainChecks[0]
+	owner := ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}
+	provider := before.Get(procedure)
+	if provider == nil || extensionMembership(provider) != ext.Address() {
+		t.Fatal("missing genuine installed CHECK provider")
+	}
+	references := 0
+	for _, dependency := range check.Dependencies {
+		if dependency.Ref.Address == procedure {
+			references++
+			if dependency.Revision != provider.Revision() {
+				t.Fatal("CHECK did not capture provider revision")
+			}
+		}
+	}
+	if references != 1 {
+		t.Fatal("repeated calls must share one bound provider dependency", references)
+	}
+	assertEdges := func(view catalog.Read, present bool) {
+		t.Helper()
+		edges, err := collectPGDepend(context.Background(), view)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []pgDependEdge
+		for _, edge := range edges {
+			if pgDependPinned(view, edge.referenced) {
+				t.Fatal("pinned reference escaped collector policy", edge)
+			}
+			if edge.dependent == owner {
+				got = append(got, edge)
+			}
+			if edge.dependent == domain.Address() && edge.referenced == procedure {
+				t.Fatal("CHECK dependency incorrectly owned by domain type", edge)
+			}
+		}
+		var want []pgDependEdge
+		if present {
+			want = []pgDependEdge{{owner, procedure, 'n'}}
+		}
+		pgDependUnitBag(t, got, want)
+	}
+	assertEdges(before, true)
+	stage := e.BeginCatalogStage(before)
+	defer e.DiscardCatalogStage(stage)
+	if err := stage.removeDomainCheck(domain, check.OID); err != nil {
+		t.Fatal(err)
+	}
+	domainUnitPublish(t, e, stage)
+	after := e.CatalogRead()
+	if len(after.MustType(domain.Address()).DomainChecks) != 0 || after.Get(procedure) != provider {
+		t.Fatal("CHECK pruning removed provider or retained CHECK")
+	}
+	assertEdges(after, false)
+	assertEdges(before, true)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if edges, err := collectPGDepend(ctx, before); !errors.Is(err, context.Canceled) || edges != nil {
+		t.Fatal("canceled CHECK collection exposed partial rows", edges, err)
+	}
+}
+
 func TestPGDependCanceledCapture(t *testing.T) {
 	e := New()
 	catalog := e.CatalogRead()

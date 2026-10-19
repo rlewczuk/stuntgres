@@ -1,0 +1,532 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"maps"
+	"slices"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+	"testing"
+)
+
+func extensionDropUnitStatement(name string) *parser.DropExtension {
+	return &parser.DropExtension{Names: []parser.Identifier{{Text: name}}, Mode: parser.DropCascade}
+}
+
+func TestExtensionDropManifest(t *testing.T) {
+	e, ext, base := intarrayUnitInstalled(t)
+	op, done := roleOperation(t, e, "postgres")
+	defer done()
+	members := slices.Clone(ext.Members)
+	roots := []ids.ObjectAddress{ext.Address(), ext.Address(), base.Address()}
+	original := slices.Clone(roots)
+	expanded := extensionRemovalRoots(e.CatalogRead(), roots)
+	if !slices.Equal(roots, original) || !slices.Equal(ext.Members, members) {
+		t.Fatal("published manifest or caller input mutated")
+	}
+	seen := map[ids.ObjectAddress]bool{}
+	for _, a := range expanded {
+		if seen[a] {
+			t.Fatal("duplicate retirement root", a)
+		}
+		seen[a] = true
+	}
+	for _, a := range members {
+		if !seen[a] {
+			t.Fatal("authentic member omitted", a)
+		}
+	}
+	array, ok := e.CatalogRead().LookupArray(base.SQLType)
+	if !ok {
+		t.Fatal("missing authentic array alias")
+	}
+	alias := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())}
+	if err := extensionUnitExecute(t, e, op, extensionDropUnitStatement("intarray")); err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range append(expanded, alias) {
+		if e.CatalogRead().Get(a) != nil {
+			t.Fatal("committed manifest or automatic alias survived", a)
+		}
+	}
+	if !slices.Equal(ext.Members, members) {
+		t.Fatal("retained descriptor mutated by retirement")
+	}
+}
+
+func TestExtensionDropRollbackIdentity(t *testing.T) {
+	for _, savepoint := range []bool{false, true} {
+		t.Run(map[bool]string{false: "rollback", true: "savepoint"}[savepoint], func(t *testing.T) {
+			e, op, ext := extensionUnitInstalled(t)
+			before := e.CatalogRead()
+			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+			raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unaccent"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Hôtel"}}}}
+			node, err := b.bindFunctionProvider(raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bound := node.(installedFunctionExpression)
+			tx, err := e.Begin(op, TxOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer e.Rollback(op, tx)
+			point := &parser.SavepointControl{Name: parser.Identifier{Text: "keep_provider"}}
+			if savepoint {
+				if err := extensionUnitExecute(t, e, op, point); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := extensionUnitExecute(t, e, op, extensionDropUnitStatement("unaccent")); err != nil {
+				t.Fatal(err)
+			}
+			e.mu.Lock()
+			private := e.privateCatalogLocked(txOwnerOf(tx).catalog)
+			e.mu.Unlock()
+			for _, a := range extensionRemovalRoots(before, []ids.ObjectAddress{ext.Address()}) {
+				if private.Get(a) != nil || e.CatalogRead().Get(a) != before.Get(a) {
+					t.Fatal("private retirement leaked", a)
+				}
+			}
+			if savepoint {
+				point.Kind = parser.RollbackSavepoint
+				err = extensionUnitExecute(t, e, op, point)
+			} else {
+				_, err = e.Rollback(op, tx)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			restored := e.CatalogRead()
+			if savepoint {
+				e.mu.Lock()
+				restored = e.privateCatalogLocked(txOwnerOf(tx).catalog)
+				e.mu.Unlock()
+			}
+			for _, a := range extensionRemovalRoots(before, []ids.ObjectAddress{ext.Address()}) {
+				if restored.Get(a) != before.Get(a) {
+					t.Fatal("rollback reconstructed provider identity", a)
+				}
+			}
+			if restored.Get(bound.procedure.Address()) != bound.procedure || restored.Get(bound.dictionary.Address()) != bound.dictionary || restored.Get(bound.template.Address()) != bound.template {
+				t.Fatal("bound callable no longer authentic")
+			}
+			value, err := node.Eval(&EvalContext{Context: context.Background()})
+			text, _ := value.Text()
+			if err != nil || text != "Hotel" {
+				t.Fatal("retained callable", text, err)
+			}
+		})
+	}
+}
+
+func TestExtensionDropPublication(t *testing.T) {
+	for _, outer := range []bool{false, true} {
+		for _, consumer := range []string{"view", "query_int_column", "query_int_array_column_unsupported", "domain_check"} {
+			t.Run(map[bool]string{false: "validated_publication", true: "outer_commit"}[outer]+"/"+consumer, func(t *testing.T) {
+				e, op, ext, target := extensionDropUnitProvider(t, consumer)
+				peer, done := roleOperation(t, e, "postgres")
+				defer done()
+				// Both schedules capture retirement before a genuine peer publication.
+				if outer {
+					tx, err := e.Begin(op, TxOptions{})
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer e.Rollback(op, tx)
+					if err := extensionUnitExecute(t, e, op, extensionDropUnitStatement(ext.Name())); err != nil {
+						t.Fatal(err)
+					}
+					e.mu.Lock()
+					observations := txOwnerOf(tx).catalog.dependencies
+					e.mu.Unlock()
+					extensionDropUnitCaptured(t, observations, target)
+					if consumer == "query_int_array_column_unsupported" {
+						extensionDropUnitArrayBoundary(t, e, peer, ext, target)
+						before := e.CatalogRead()
+						if _, err := e.Rollback(op, tx); err != nil {
+							t.Fatal(err)
+						}
+						extensionDropUnitPreserved(t, e, before, ext, before.Get(target))
+						return
+					}
+					owner := extensionDropUnitConsumer(t, e, peer, consumer, target)
+					before := e.CatalogRead()
+					unchanged := extensionDropUnitStorage(t, e)
+					_, err = e.Commit(op, tx)
+					extensionDropUnitRejected(t, e, before, ext, owner, err)
+					unchanged()
+					return
+				}
+				stage := extensionDropUnitRetirement(t, e, ext)
+				defer e.DiscardCatalogStage(stage)
+				prepared, err := e.ValidateCatalogStage(context.Background(), stage)
+				if err != nil {
+					t.Fatal(err)
+				}
+				extensionDropUnitCaptured(t, stage.identityDependencies, target)
+				if consumer == "query_int_array_column_unsupported" {
+					extensionDropUnitArrayBoundary(t, e, peer, ext, target)
+					return
+				}
+				owner := extensionDropUnitConsumer(t, e, peer, consumer, target)
+				before := e.CatalogRead()
+				unchanged := extensionDropUnitStorage(t, e)
+				_, err = e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+				extensionDropUnitRejected(t, e, before, ext, owner, err)
+				unchanged()
+			})
+		}
+	}
+}
+
+func extensionDropUnitProvider(t *testing.T, consumer string) (*Engine, *Operation, *catalog.Extension, ids.ObjectAddress) {
+	t.Helper()
+	if consumer == "query_int_column" || consumer == "query_int_array_column_unsupported" {
+		e, ext, base := intarrayUnitInstalled(t)
+		op, done := roleOperation(t, e, "postgres")
+		t.Cleanup(done)
+		domainUnitTable(t, e, op, "CREATE TABLE ext_drop_sentinel(v integer PRIMARY KEY)")
+		target := base.Address()
+		if consumer == "query_int_array_column_unsupported" {
+			array, ok := e.CatalogRead().LookupArray(base.SQLType)
+			if !ok {
+				t.Fatal("missing authentic automatic array")
+			}
+			target = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())}
+		}
+		return e, op, ext, target
+	}
+	e, op, ext := extensionUnitInstalled(t)
+	domainUnitTable(t, e, op, "CREATE TABLE ext_drop_sentinel(v integer PRIMARY KEY)")
+	for _, address := range ext.Members {
+		if p, ok := e.CatalogRead().Get(address).(*catalog.Procedure); ok && p.Name() == "unaccent" && p.Signature == catalog.UnaccentTextSignature {
+			return e, op, ext, address
+		}
+	}
+	t.Fatal("missing authentic unaccent(text)")
+	return nil, nil, nil, ids.ObjectAddress{}
+}
+
+func extensionDropUnitRetirement(t *testing.T, e *Engine, ext *catalog.Extension) *CatalogStage {
+	t.Helper()
+	stage := e.BeginCatalogStage(e.CatalogRead())
+	roots := extensionRemovalRoots(stage.Base, []ids.ObjectAddress{ext.Address()})
+	for _, address := range roots {
+		if err := stage.removeObject(e.catalog.Domain.Ref(stage.Base.Epoch(), address), false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := stageExpressionDependencies(context.Background(), stage, roots, parser.DropCascade, nil, nil, nil, ext.Address()); err != nil {
+		t.Fatal(err)
+	}
+	return stage
+}
+
+func extensionDropUnitCaptured(t *testing.T, observations []catalogDependencyObservation, target ids.ObjectAddress) {
+	t.Helper()
+	for _, observation := range observations {
+		if slices.Contains(observation.targets, target) {
+			return
+		}
+	}
+	t.Fatal("authentic provider omitted from retirement observation", target)
+}
+
+func extensionDropUnitArrayBoundary(t *testing.T, e *Engine, op *Operation, ext *catalog.Extension, target ids.ObjectAddress) {
+	t.Helper()
+	before := e.CatalogRead()
+	alias := before.MustType(target)
+	unchanged := extensionDropUnitStorage(t, e)
+	raw := statement(t, "CREATE TABLE ext_drop_late(v query_int[])").(*parser.CreateTable)
+	e.mu.Lock()
+	auth, err := e.authorizationLocked(op)
+	var stage *CatalogStage
+	if err == nil {
+		stage = e.BeginCatalogStage(auth.Catalog)
+		err = e.schemaTableLocked(op, auth, stage, raw, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+	}
+	e.mu.Unlock()
+	if stage != nil {
+		e.DiscardCatalogStage(stage)
+	}
+	var diagnostic *sqlstate.Error
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != "unsupported column type" {
+		t.Fatalf("native query_int[] admission boundary: got %T %v", err, err)
+	}
+	extensionDropUnitPreserved(t, e, before, ext, alias)
+	unchanged()
+}
+
+func extensionDropUnitConsumer(t *testing.T, e *Engine, op *Operation, consumer string, target ids.ObjectAddress) catalog.Descriptor {
+	t.Helper()
+	if consumer == "domain_check" {
+		domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN ext_drop_late AS text CONSTRAINT ext_drop_late_check CHECK (unaccent(VALUE)=VALUE)"))
+		d := domainUnitType(t, e.CatalogRead(), "ext_drop_late")
+		if len(d.DomainChecks) != 1 {
+			t.Fatal("missing bound domain CHECK")
+		}
+		for _, dependency := range d.DomainChecks[0].Dependencies {
+			if dependency.Ref.Address == target {
+				if e.CatalogRead().Get(target) == nil {
+					t.Fatal("domain CHECK provider absent")
+				}
+				return d
+			}
+		}
+		t.Fatal("domain CHECK did not bind authentic installed procedure")
+	}
+	if consumer == "view" {
+		extensionDropUnitLateView(t, e, op)
+		addresses := e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ext_drop_late"})
+		if len(addresses) != 1 || !viewDepends(e.CatalogRead().MustRelation(addresses[0]), target) {
+			t.Fatal("view did not bind authentic installed procedure")
+		}
+		return e.CatalogRead().Get(addresses[0])
+	}
+	r := domainUnitTable(t, e, op, "CREATE TABLE ext_drop_late(v query_int)")
+	provider := e.CatalogRead().MustType(target)
+	if len(r.Columns) != 1 || r.Columns[0].Usage.Type != provider.SQLType || !usageDependsOn(r.Columns[0].Usage, target) {
+		t.Fatal("column did not bind authentic installed type", target)
+	}
+	return r
+}
+
+func extensionDropUnitRejected(t *testing.T, e *Engine, before catalog.Read, ext *catalog.Extension, owner catalog.Descriptor, err error) {
+	t.Helper()
+	var conflict catalog.Conflict
+	if !errors.As(err, &conflict) {
+		t.Errorf("late consumer must cause catalog.Conflict, got %T: %v", err, err)
+	}
+	extensionDropUnitPreserved(t, e, before, ext, owner)
+}
+
+func extensionDropUnitPreserved(t *testing.T, e *Engine, before catalog.Read, ext *catalog.Extension, owner catalog.Descriptor) {
+	t.Helper()
+	after := e.CatalogRead()
+	if after.State() != before.State() || after.Epoch() != before.Epoch() {
+		t.Error("failed retirement replaced committed root or epoch")
+	}
+	for address, descriptor := range before.Descriptors() {
+		if after.Get(address) != descriptor {
+			t.Error("failed retirement changed committed descriptor", address)
+		}
+	}
+	if after.Get(ext.Address()) != ext || after.Get(owner.Address()) != owner {
+		t.Error("failed retirement removed provider or peer consumer")
+	}
+}
+
+func extensionDropUnitStorage(t *testing.T, e *Engine) func() {
+	t.Helper()
+	relations := maps.Clone(e.storage.Relations)
+	shapes := make(map[ids.ObjectAddress]catalogStorageChange, len(relations))
+	for address, store := range relations {
+		if store != nil {
+			shapes[address] = catalogStorageChange{original: store, root: store.Versions, ends: store.Ends, generation: store.Generation}
+		}
+	}
+	indexes := maps.Clone(e.storage.IndexRoots)
+	return func() {
+		t.Helper()
+		if !maps.Equal(relations, e.storage.Relations) || !maps.Equal(indexes, e.storage.IndexRoots) {
+			t.Error("failed retirement changed committed storage or index roots")
+		}
+		for address, shape := range shapes {
+			store := e.storage.Relations[address]
+			if store != shape.original || store.Generation != shape.generation || store.Ends != shape.ends || !sameVersionRoot(store.Versions, shape.root) {
+				t.Error("failed retirement changed committed row root", address)
+			}
+		}
+	}
+}
+
+func TestExtensionDropPublicationCandidate(t *testing.T) {
+	for _, consumer := range []string{"query_int_column", "domain_check"} {
+		for _, control := range []string{"absent", "rewired", "still_dependent", "provider_retained", "unrelated", "stale_original"} {
+			t.Run(consumer+"/"+control, func(t *testing.T) {
+				e, op, ext, target := extensionDropUnitProvider(t, consumer)
+				stage := extensionDropUnitRetirement(t, e, ext)
+				defer e.DiscardCatalogStage(stage)
+				prepared, err := e.ValidateCatalogStage(context.Background(), stage)
+				if err != nil {
+					t.Fatal(err)
+				}
+				extensionDropUnitCaptured(t, stage.identityDependencies, target)
+				if control == "unrelated" {
+					domainUnitTable(t, e, op, "CREATE TABLE ext_drop_unrelated(v integer)")
+					if _, err := e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+						t.Fatal("unrelated peer publication rejected", err)
+					}
+					return
+				}
+				owner := extensionDropUnitConsumer(t, e, op, consumer, target)
+				current := e.CatalogRead()
+				candidate := catalog.CloneState(current.State())
+				for _, observation := range stage.identityDependencies {
+					for _, address := range observation.targets {
+						candidate.RemoveDescriptor(address)
+					}
+				}
+				switch control {
+				case "absent":
+					candidate.RemoveDescriptor(owner.Address())
+				case "rewired", "still_dependent":
+					switch d := owner.(type) {
+					case *catalog.Relation:
+						replacement := *d
+						replacement.Columns = slices.Clone(d.Columns)
+						replacement.ObjectRevision++
+						if control == "rewired" {
+							integer, _ := current.LookupType(sqltype.Int4)
+							replacement.Columns[0].Usage = integer.Usage()
+						}
+						candidate.SetDescriptor(d.Address(), &replacement)
+					case *catalog.Type:
+						if control == "rewired" {
+							rewire := e.BeginCatalogStage(current)
+							defer e.DiscardCatalogStage(rewire)
+							if err := rewire.removeDomainCheck(d, d.DomainChecks[0].OID); err != nil {
+								t.Fatal(err)
+							}
+							candidate.SetDescriptor(d.Address(), rewire.Descriptors[d.Address()])
+						} else {
+							replacement := *d
+							replacement.ObjectRevision++
+							candidate.SetDescriptor(d.Address(), &replacement)
+						}
+					}
+				case "provider_retained":
+					candidate.SetDescriptor(target, current.Get(target))
+				case "stale_original":
+					// Predicate acceptance never bypasses the real predecessor fence.
+					stale := e.BeginCatalogStage(current)
+					defer e.DiscardCatalogStage(stale)
+					changed := e.BeginCatalogStage(current)
+					defer e.DiscardCatalogStage(changed)
+					switch d := owner.(type) {
+					case *catalog.Relation:
+						first, second := *d, *d
+						first.ObjectRevision++
+						second.ObjectRevision++
+						if err = stale.Replace(&first); err == nil {
+							err = changed.Replace(&second)
+						}
+					case *catalog.Type:
+						first, second := *d, *d
+						first.ObjectRevision++
+						second.ObjectRevision++
+						if err = stale.Replace(&first); err == nil {
+							err = changed.Replace(&second)
+						}
+					}
+					if err != nil {
+						t.Fatal(err)
+					}
+					stalePrepared, err := e.ValidateCatalogStage(context.Background(), stale)
+					if err != nil {
+						t.Fatal(err)
+					}
+					domainUnitPublish(t, e, changed)
+					before := e.CatalogRead()
+					_, err = e.PublishCatalog(stalePrepared, PublicationToken{Epoch: stale.Base.Epoch()})
+					extensionDropUnitRejected(t, e, before, ext, before.Get(owner.Address()), err)
+					return
+				}
+				err = catalogDependencyPreflight(current.State(), candidate, stage.identityDependencies, nil)
+				var conflict catalog.Conflict
+				if control == "still_dependent" {
+					if !errors.As(err, &conflict) {
+						t.Fatalf("surviving candidate dependency: got %T %v", err, err)
+					}
+				} else if err != nil {
+					t.Fatal("non-surviving candidate dependency rejected", err)
+				}
+				if e.CatalogRead().State() != current.State() || current.Get(owner.Address()) != owner {
+					t.Fatal("candidate inspection mutated committed source")
+				}
+				if r, ok := owner.(*catalog.Relation); ok && !usageDependsOn(r.Columns[0].Usage, target) {
+					t.Fatal("rewire mutated original column")
+				}
+				if d, ok := owner.(*catalog.Type); ok && len(d.DomainChecks) != 1 {
+					t.Fatal("rewire mutated original domain CHECK")
+				}
+			})
+		}
+	}
+	t.Run("automatic_array_usage", func(t *testing.T) {
+		e, _, ext, target := extensionDropUnitProvider(t, "query_int_array_column_unsupported")
+		before := e.CatalogRead()
+		alias := before.MustType(target)
+		base := before.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(alias.SQLType.Element().ID())})
+		array, ok := before.LookupArray(base.SQLType)
+		if !ok || array != alias.SQLType || before.Get(base.Address()) != base || before.Get(ext.Address()) != ext {
+			t.Fatal("automatic alias did not retain authentic installation identity")
+		}
+		if !usageDependsOn(alias.SQLType.Usage(), target) || usageDependsOn(alias.SQLType.Usage(), base.Address()) || usageDependsOn(alias.SQLType.Usage(), ext.Address()) {
+			t.Fatal("type usage must match exact automatic alias, not its base or unrelated owner")
+		}
+		stage := extensionDropUnitRetirement(t, e, ext)
+		defer e.DiscardCatalogStage(stage)
+		extensionDropUnitCaptured(t, stage.identityDependencies, target)
+		if before.Get(target) != alias || before.MustType(target).SQLType != array {
+			t.Fatal("retirement mutated retained automatic alias")
+		}
+	})
+}
+
+func extensionDropUnitLateView(t *testing.T, e *Engine, op *Operation) {
+	t.Helper()
+	call := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unaccent"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Hôtel"}}}}
+	stmt := &parser.CreateView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "ext_drop_late"}}}, Query: &parser.Select{Targets: []parser.Expr{call}, Labels: []parser.Identifier{{Text: "v"}}}}
+	if err := extensionUnitExecute(t, e, op, stmt); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestExtensionDropDiagnostics(t *testing.T) {
+	e := New()
+	op, done := roleOperation(t, e, "postgres")
+	defer done()
+	if err := extensionUnitExecute(t, e, op, &parser.CreateExtension{Name: parser.Identifier{Text: "fuzzystrmatch"}}); err != nil {
+		t.Fatal(err)
+	}
+	args := []parser.Expr{
+		parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "kitten"}},
+		parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "sitting"}},
+	}
+	for _, n := range []int64{1, 1, 1, 3} {
+		args = append(args, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: n}})
+	}
+	call := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "levenshtein_less_equal"}}}, Args: args}
+	consumer := &parser.CreateView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "ext_drop_generic"}}}, Query: &parser.Select{Targets: []parser.Expr{call}, Labels: []parser.Identifier{{Text: "distance"}}}}
+	if err := extensionUnitExecute(t, e, op, consumer); err != nil {
+		t.Fatal(err)
+	}
+	before := e.catalog.state
+	stmt := extensionDropUnitStatement("fuzzystrmatch")
+	stmt.Mode = parser.DropRestrict
+	err := extensionUnitExecute(t, e, op, stmt)
+	var diagnostic *sqlstate.Error
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "2BP01" || diagnostic.Detail != "view ext_drop_generic depends on function levenshtein_less_equal(text,text,integer,integer,integer,integer)" {
+		t.Fatal("generic stored consumer must reject retirement without renderer panic", err)
+	}
+	if e.catalog.state != before {
+		t.Fatal("failed generic retirement mutated committed identities")
+	}
+	stmt.Mode = parser.DropCascade
+	if err := extensionUnitExecute(t, e, op, stmt); err != nil {
+		t.Fatal(err)
+	}
+	for a, d := range before.Descriptors() {
+		if _, ok := d.(*catalog.Extension); ok || extensionMembership(d) != (ids.ObjectAddress{}) || d.Name() == "ext_drop_generic" {
+			if e.CatalogRead().Get(a) != nil {
+				t.Fatal("generic dependency closure survived cascade", a)
+			}
+		}
+	}
+}

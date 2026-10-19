@@ -5,6 +5,56 @@
 Follow the [shared testing guide](../../docs/TESTING.md) for common policy and
 public/private test placement. Run these commands from the repository root.
 
+Dependency function diagnostics render every validated installed signature using
+canonical builtin type names and the captured diagnostic path for other types,
+without changing regprocedure output or function-name qualification. Internal
+coverage preserves conversion `cstring`/`internal` spelling and generic extension
+signatures. Prepared mixed routine/operator captures recover only after successful
+atomic Execute reanalysis; restoring authority alone does not revive an invalid
+shared analysis cell. Failure atomicity, exact datums, dependencies and result
+signatures remain asserted.
+
+```sh
+make check RUN='^(TestConversionDescriptorNoopAndPinBoundaries|TestRoutineMixedOperatorCompoundCapture|TestExtensionDropDiagnostics)$'
+```
+
+Extension retirement captures the complete authentic target set, including
+automatic aliases. The shared incoming-dependency preflight separately inspects
+changed committed owners through their effective candidate descriptors: removed
+or genuinely rewired owners and retained providers are not dangling edges.
+Surviving column usages, domain base/array identities and bound domain CHECK
+references join the existing expression/foreign/sequence fences. Rejection is
+`catalog.Conflict` before mutation, never adoption or a second cascade; original,
+epoch, storage and index predecessor fences remain independent.
+Existing expression/attachment/ownership observations remain conservative
+retirement fences during retained-message admission, before removals are
+overlaid. Candidate target presence gates only the added type-usage and
+domain-CHECK checks; it does not disable those established observations.
+
+`TestExtensionDropPublication` exercises six genuine late-consumer schedules:
+view, query_int column and domain CHECK at validated publication and outer
+commit. Its two explicitly unsupported query_int[] column cells instead prove
+native 0A000 admission and unchanged committed state; array storage is not added.
+Candidate controls cover removal, real rewiring, dependent replacements, retained
+providers and stale originals. Authentic LookupArray usage/retirement controls,
+manifest retirement and supported domain-array lifetime tests supplement these
+six fences without fabricating query_int[] consumers.
+
+`TestPGDependDomainCheckDependencies` binds and publishes a real domain CHECK
+with repeated installed-function calls. Existing stored dependencies project
+one normal edge from its actual constraint OID, not from the domain type, through
+the collector's pinning/cancellation policy; real CHECK pruning removes it while
+retained snapshots keep it. The public domain witness covers CASCADE/rollback
+identity and exact diagnostics.
+
+```sh
+make check RUN='^TestExtensionDropPublication(Candidate)?$'
+make check RUN='^(TestPGDepend(Shape|ConstructionBags|DomainTopologyAndPinning|DomainCheckDependencies|CanceledCapture|CancellationDuringWalk|ExpressionReferences|QuerySourceSuppression|RegtypeValueReferences|SetArmCoercionReferences)|TestDomainCheck(BindingIdentityInternal|EvaluationFrameInternal|RetirementAndRemapInternal)|TestDomainPublicationFencesBaseAndConcurrentColumns|TestArrayDomainDependencyClosureAndLifetime|TestExtensionDropManifest)$'
+make check RUN='^(TestCatalogDrop(PublicationAndRetainedReads|ReferenceAndConflictFences|ChangedDescriptorAndUnrelatedRemoval|CanceledGroupAndRestoreEpochFence)|TestDropOwned(UnionRestrictAndCascade|TypeACLAndCancellation))$'
+make check RACE=1 RUN='^(TestExtensionDropPublication(Candidate)?|TestPGDependDomainCheckDependencies|TestReferenceExtensionDropTransactions|TestReferenceExtensionTransactions)$'
+```
+
+
 Transaction identity, commit order, commit timestamps, snapshot views and SSI
 belong to `visibility.Registry` (`Engine.visibility`) under Engine.mu; see
 [visibility/README.md](visibility/README.md), which also lists the identity

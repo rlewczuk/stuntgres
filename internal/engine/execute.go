@@ -35,6 +35,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return Result{}, scope.stageTruncate()
 	case *parser.CreateExtension:
 		return e.executeExtension(scope, stmt.(*parser.CreateExtension), count)
+	case *parser.DropExtension:
+		return e.executeDropExtension(scope, stmt.(*parser.DropExtension), count)
 	case *parser.Discard:
 		return scope.executeDiscard(stmt.(*parser.Discard), count)
 	case *parser.PrepareSQL:
@@ -254,6 +256,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, er
 		}
 		if !regtypeValid {
+			// Invalidation survives failed analysis. Restoring the old path
+			// must not make its retired literal captures reusable again.
+			expected.regtypes.invalidated = true
 			candidate.regtypes = nil
 		}
 		if replan {
