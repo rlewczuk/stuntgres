@@ -5,12 +5,12 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `6421cbaca`.
+Last verified against `master` at `ddd427ae3`.
 
 ## Next ready sub-steps
 
 - **6c** — `storage` aliases removed (needs 6b ✓) *(broad rewrite)*.
-- **B0** — `access` refined and approved, no code changes (needs 5e ✓).
+- **B1** — `roleStore` role state ownership (needs B0 ✓).
 
 They may run in parallel on separate branches (§8).
 
@@ -154,10 +154,10 @@ They may run in parallel on separate branches (§8).
     - [x] A1 — Pure helpers moved, README rewritten (`e932fc381`,
       `96ee8d96b`, docs `31aa39dfb`)
   - [ ] Part B
-    - [ ] B0 — `access` refined and approved (no code changes)
-    - [ ] B1 — Authorization state grouped
-    - [ ] B2 — Checks ported to functions over catalog and authorization
-      reads
+    - [x] B0 — `access` refined and approved (docs only, then the docs
+      commit)
+    - [ ] B1 — `roleStore` role state ownership
+    - [ ] B2 — `accessView` and `accessEnvironment`; checks ported in place
     - [ ] B3 — `access` created and code moved
     - [ ] B4 — Aliases removed *(broad rewrite)*
 - [ ] **Later waves** ([ENGINE-SPLIT.md §6](ENGINE-SPLIT.md#6-later-waves-sketch);

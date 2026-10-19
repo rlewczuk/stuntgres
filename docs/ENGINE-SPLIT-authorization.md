@@ -24,7 +24,10 @@ The shallow part is the engine side: about 6k lines of enforcement code
 (`authorization.go`, `acl*`, `role*`, `ownership.go`,
 `default_privileges*`, `AuthorizationView`, policy selection). At
 `a2252c0b1`, only about 270 of its lines were free of catalog types. The rest
-reads descriptors, `CatalogRead`, `CatalogStage` and the `Engine`.
+reads descriptors, `CatalogRead`, `CatalogStage` and the `Engine`. B0
+re-measured the area: of about 7.7k lines, only about 750 are enforcement.
+The rest is orchestration, ACL SQL functions, system-relation projections,
+Dump/Restore code and policy DDL (see "B0 outcome" below).
 
 This enforcement code cannot move into `authorization`. `catalog` imports
 `authorization`, so if enforcement in `authorization` imported `catalog`, the
@@ -60,38 +63,130 @@ above `catalog` (Part B). Part A only tidies the leaf.
 
 ### B0 — Refine (no code changes)
 
-- Measure the engine-side authorization code on the current tree: files,
-  declarations, external references, and which `Engine`, `Session` and
-  `StatementScope` dependencies remain after step 5.
-- Propose the contents of `access`. Expect `AuthorizationView` capture,
-  privilege checks on catalog objects, default-privilege resolution, RLS
-  policy selection and ownership checks. Role publication and
-  `GRANT`/`REVOKE` statement execution are orchestration and likely stay in
-  the engine.
-- Write the refined plan into this file as sub-steps B1–B4, update the
-  `access` row in ENGINE-SPLIT.md §6, and get approval.
+Done; see "B0 outcome" in the Status section. B1–B4 below are the refined
+plan.
 
-### B1 — State ownership in place
+### Target shape
 
-Group the authorization state on `Engine`: `authorizationDomain`,
-`aclAuthority`, `roles`, `nextPrincipal`, `importTargets` and
-`roleReferences`. Restore staging fields may belong to Restore instead; decide
-in B0. Move methods that only touch this state onto the group.
+- **`access.View`** is the immutable captured pair: the catalog owner
+  (`*catalog.Owner`, which replaces the `engine` back-pointer), the
+  `catalog.Read` and its paired read, the role publication record
+  (`RoleRecord`, today `roleCatalog`), the `authorization.Read`, the database
+  predecessor, the effective and session `RoleState`, the session
+  authorization revision and `missingCurrent`. Its methods are `Effective`,
+  `Check`, `CanUse`, `CheckCreate`, `Recapture` (today `recaptureCatalog`),
+  `Stamp`, `Roles` and `Ref(address)` (today
+  `engine.catalog.Domain.Ref(epoch, address)`).
+- **`access.Environment`** is a narrow capability that the engine implements,
+  as in §3 rule 5. It has two methods: `TemporaryNamespace()`, which returns
+  the session's own TEMP namespace, and `ReferencePath()`, which returns the
+  search path used for type diagnostic names. Checks that need them take an
+  `Environment` parameter. Both are read lazily at call time, as today:
+  `ReferencePath` reads live session settings under `sessionSettings.mu`.
+  Never capture them as values, and never add methods that turn the
+  interface into a service locator.
+- **The engine's `AuthorizationView` stays** as statement-level authority. It
+  embeds `access.View` and keeps `session`, `settings`, `definition` and the
+  path inputs (`pathPrefix`, `namespaceUser`, `stagedTemporary`,
+  `materializedPopulation`). Its `Check`, `CanUse`, `CheckCreate` and
+  `Effective` become one-line entry points that pass the view itself as the
+  `Environment`. They are permanent entry points, not aliases, so the call
+  sites (103 `Check`, 33 `CheckCreate`, 24 `CanUse` and 23 `Effective` in
+  production) do not change.
+- **`access` also holds:**
+  - the ownership checks (`ownershipSuccessor`, `ownershipEligibility`,
+    `ownershipDatabaseCreate`), plus `schemaOwner` and
+    `ownershipRoleOperand`, which share the `current_user`/`session_user`
+    string protocol;
+  - RLS policy selection (`rlsDisposition`, `rowSecurityApplies`,
+    `rowSecurityDecision`, `rowSecurityGroups`, `rowSecurityPrincipal`,
+    `rowSecurityExpressionError`, `rowSecurityProposal`);
+  - role dependency scans (`roleDependency`, `descriptorRoleDependencies`,
+    `aclRoleDependencies`, `recordRoleDependency`,
+    `defaultRoleDependencies`);
+  - the supporting pure helpers (`descriptorACL`, `classPrivileges`,
+    `validateACL`, `databaseRights`, `predefinedPrivileges`, `rawObjectACL`,
+    `objectACLClass`).
+- **Stays in the engine:**
+  - view capture (`authorizationLocked`, `statementAuthorizationLocked` with
+    its Restore elevation, `Operation.Authorization`);
+  - role publication (`roleStore`, B1) and the `catalogAuthority` fences;
+  - role DDL, GRANT and REVOKE resolution and publication, ALTER DEFAULT
+    PRIVILEGES and the ownership statements;
+  - `SetObjectACL` and `SetRoleReferences`;
+  - search path resolution (`schema_path.go`) and `temporaryNamespace`;
+  - RLS configuration (`configureRowSecurityLocked`,
+    `rowSecurityInputLocked`) and the RLS DDL flags;
+  - the definition reader;
+  - the binding walkers (`checkBinding`, `checkQuerySources`, `checkColumns`,
+    `checkViewWrite`, `checkViewRowMarks*`). They read `binding`,
+    `queryLeaf`, `queryRowMark` and `viewDefinition`, and lock modes (`lock`
+    is not an `access` import), so they wait for the `plan`/`exec` wave and
+    call `access` for each object.
+- **Imports:** `access` imports `catalog`, `authorization`, `ids`, `sqltype`,
+  `parser`, `sqlstate` and the standard library, and `expr` only if policy
+  selection needs it. It keeps its own `sqlError` and identifier quoting, as
+  `authorization`, `functions` and `lock` do.
+
+### B1 — Role state ownership in place
+
+- Group `authorizationDomain`, `aclAuthority`, `roles` (the current
+  `*roleCatalog`), `nextPrincipal` and `roleReferences` into one engine-local
+  `roleStore`. `Engine` holds it by value and never replaces it whole,
+  because `catalog.Owner.Principals`, `catalog.Owner.ACLAuthority` and
+  `Root.Reprovenance` keep pointers into it. No mutex: `Engine.mu` guards it,
+  and mutating methods carry the `Locked` suffix.
+- Move onto the store:
+  - `initializeRoles` and `nextRolePrincipalLocked`;
+  - `advanceRoleRevision`;
+  - the registry update in `SetRoleReferences`;
+  - the role-reference scan shared by `dropRolesLocked` and
+    `roleRetirementPreflightLocked`;
+  - `roleRead`, which takes the catalog owner it checks against.
+- Keep on `Engine`: `operationRolesLocked`, `sessionRolesLocked`,
+  `installOperationRolesLocked` and `touchOperationIdentityLocked`, which read
+  session and transaction state, and every publication and Restore path.
+- `importTargets` is not authorization state. All of its roughly 25 uses are
+  Restore staging, most of them nil checks meaning "this is a Restore
+  stage". It stays on `Engine` for the `control` wave (see the notes below).
+- Rewrite the selectors with a `go/types` tool and compare a before/after
+  per-field census, as 6a did.
 
 ### B2 — Port the checks in place
 
-Turn privilege-check `Engine` methods into functions over `catalog.Read`,
-`authorization.Read` and the captured view. Entry points that need sessions or
-statements stay in the engine and call them.
+1. Introduce an engine-local `accessView` with the pure fields of
+   *Target shape*. `AuthorizationView` embeds it. Replace
+   `engine.catalog.Domain.Ref` with `Ref`, and `engine.catalog.owner()` and
+   `&engine.authorizationDomain` with the captured owner. Keep the
+   statement-level identity checks (`auth.engine != e`,
+   `auth.session != op.session`) on the wrapper.
+2. Add the `accessEnvironment` capability. `Effective` and `Check` reach the
+   TEMP namespace and the search path only through it.
+3. Turn these into functions over `accessView`, or over `(catalog.Read,
+   authorization.Read, RoleState)`:
+   - the ownership checks and `schemaOwner`;
+   - the role dependency scans;
+   - RLS selection. `rowSecurityDecision` tests the `Using` and `Check`
+     payloads for nil instead of calling `policyExpressionOf`.
+     `rowSecurityPrincipal` takes the view-owner and invoker pairs that the
+     engine collects from `binding.viewWrite`.
+4. Give `checkColumns` a core over `(ObjectRef, *catalog.Relation)`. The
+   binding walkers stay.
+5. Pass the type diagnostic name helpers (`typeDiagnosticNameAt`,
+   `dependencyIdentifier`) as values, or copy their quoting rule.
 
 ### B3 — Create `access` and move
 
-`access` imports only `catalog`, `authorization`, `ids`, `expr` (policy
-expressions), `sqltype`, `parser` and `sqlstate`. Leave aliases.
+- Move the *Target shape* set into `internal/engine/access`. Leave aliases in
+  the engine: `AccessRequirement`, `AuthorizationStamp`, `roleCatalog`,
+  `accessView`, `accessEnvironment`, `rlsDisposition` and its constants.
+- Unit tests for moved code move with it.
+- Check the imports with `go list` (§8.2).
 
 ### B4 — Remove the aliases
 
-Remove them with a tool aware of `go/types` (§8 on broad rewrites).
+Remove them with a tool aware of `go/types`. This is a broad rewrite: do not
+run it in parallel with 6c or with another broad rewrite (§8).
 
 ## Invariants
 
@@ -103,21 +198,35 @@ Remove them with a tool aware of `go/types` (§8 on broad rewrites).
   no cached ACL decision.
 - Zero, foreign and stale principals are rejected before any superuser
   shortcut.
+- A view still rejects foreign engines and stale catalogs. Once the `engine`
+  pointer is gone, `access` compares catalog owners instead.
+- The TEMP namespace and the search path are read through `Environment` at
+  call time, never captured early. `Environment` stays two methods wide.
+- Role publication and principal allocation keep their order, their revision
+  headroom and their exhaustion messages.
 
 ## Targeted tests
 
 - The `authorization` package tests and the engine selectors listed in its
-  README, with `RACE=1` for the concurrent ones.
-- Part B: reference selections for role membership, role switching,
-  predefined roles, default privileges, object GRANT/REVOKE, RLS policies and
-  ownership changes, run with `REFERENCE=1` and in quick mode. The
-  `authorization` README lists a starting set. Never edit `reference/`.
+  README, with `RACE=1` for the concurrent ones (all sub-steps).
+- B1: also the Restore, Dump and role DDL unit tests that touch principal
+  allocation (grep `nextPrincipal` and `roleReferences` in `*_test.go`).
+- B2 and B3: reference selections for role membership, role switching,
+  predefined roles, default privileges, object GRANT/REVOKE, RLS and
+  ownership, run with `REFERENCE=1` and in quick mode. Start from the
+  `authorization` README set, plus `TestReferenceAccessRoleRLS.*`,
+  `TestReferenceForeignActionsAuthorization.*`,
+  `TestReferenceSchemaAuthorization` and
+  `TestReferenceTypedTableAuthorization`. Never edit `reference/`.
 
 ## Documentation
 
 - Part A: the `authorization` README rewrite above.
-- Part B: create `internal/engine/access/README.md`, and point the
-  `authorization` README at it.
+- Part B: B1 documents `roleStore` in its doc comment, as `catalogStore` and
+  `storageStore` do. B3 creates `internal/engine/access/README.md`
+  (the *Target shape*, the `Environment` contract, what stays in the engine,
+  and `## Testing`), and changes the "What stays in the engine" and
+  "Enforcement" lines of the `authorization` README to point at it.
 - Design notes and docs: `PG18-ARCH-AUTHORIZATION.md` and
   `docs/AUTHORIZATION.md` (it links the internal package), then
   `PG18-ARCH-SESSION.md` and `PG18-ARCH-ROUTINE-EXECUTION.md` where they name
@@ -130,17 +239,19 @@ Remove them with a tool aware of `go/types` (§8 on broad rewrites).
 
 - **Part A:** the pure helpers live in `authorization` and the README
   describes the package as it is.
-- **Part B:** `access` holds enforcement and imports nothing above `catalog`.
-  The engine keeps only orchestration and entry points. The checks in §8.3
-  pass.
+- **Part B:** `access` holds the *Target shape* set and imports nothing above
+  `catalog`. The engine keeps only orchestration, the binding walkers and the
+  entry points. `Engine` holds one `roleStore` instead of five fields. The
+  checks in §8.3 pass.
 
 ## Status
 
 - [x] A1 — Pure helpers moved, README rewritten (`e932fc381`, `96ee8d96b`,
   docs in the following commit)
-- [ ] B0 — `access` refined and approved
-- [ ] B1 — Authorization state grouped
-- [ ] B2 — Checks ported to functions over catalog and authorization reads
+- [x] B0 — `access` refined and approved (docs only, the commit that records
+  this status)
+- [ ] B1 — `roleStore` role state ownership
+- [ ] B2 — `accessView` and `accessEnvironment`; checks ported in place
 - [ ] B3 — `access` created and code moved
 - [ ] B4 — Aliases removed
 
@@ -176,3 +287,83 @@ Notes for later steps:
   `schemaOwner`; move it with that function into `access`.
   `capturedRegroleInput` belongs to `regrole` input, not `access`. The
   `pg_has_role` node now only gathers arguments and authority.
+
+B0 outcome. Measured on `master` at `6421cbaca` with a `go/types`
+declaration census and file sums:
+
+- **Size.** About 50 production files with authorization-like names hold
+  7,763 lines. The *Target shape* set is about 740 declaration lines:
+  - checks, about 480;
+  - ownership, about 60;
+  - RLS selection, about 100;
+  - role dependency scans, about 100.
+
+  The rest splits as follows:
+
+  | Code | Lines | Destination |
+  |---|---|---|
+  | View capture, role DDL, GRANT/REVOKE, ALTER DEFAULT PRIVILEGES, ownership statements, publication and fences | about 2.5k | Stays in the engine (orchestration) |
+  | Binding walkers | about 320 | Stays in the engine until `plan`/`exec` |
+  | ACL SQL function nodes | about 1,460 | `functions` Tier C |
+  | `information_schema` and `pg_*` projections | about 440 | `pgcatalog` |
+  | Dump, Restore and remap | about 1,150 | `control` |
+  | Policy DDL, binding and validation | about 650 | Policy feature package |
+  | Code that is not authorization despite its name | about 210 | Unaffected |
+- **Default privileges.** Resolution already moved to `catalog` in step 5
+  (`catalog.CreationDefaultACL`, `ValidateDefaultACLs`), so `access` has no
+  default-privilege resolution of its own.
+- **References into the set from the rest of the engine.** `AuthorizationView`
+  appears 407 times in 181 production files and 66 times in tests, and 328
+  functions take or return it. Only `Engine.Roles` and `ResolveLogin` are used
+  outside `internal/engine` (the driver and `cmd/stuntgres`).
+- **References out of the set.** The census found only the blockers that B2
+  removes:
+  - `AuthorizationView` fields;
+  - `sqlError`;
+  - `Engine.referencePath`, `ownTemporaryNamespace` and `catalogStore.owner`;
+  - `typeDiagnosticNameAt` and `dependencyIdentifier`;
+  - `policyExpressionOf`;
+  - the view-write types used by `rowSecurityPrincipal`.
+- **`AuthorizationView.engine`.** It has 101 uses:
+  - 22 build `ObjectRef`s through `catalog.Domain.Ref`;
+  - 10 call `referencePath`;
+  - 7 are identity checks;
+  - the rest pass the engine on (17 to `capturedACLItemOutput`) or reach
+    `catalog.owner()`, `authorizationDomain` and `roleRead`.
+
+  All of them except `referencePath` and the pass-throughs reduce to the
+  `catalog.Owner` record of 5b.
+- **`AuthorizationView.session`.** It has about 100 uses (token, transactions,
+  database name, TEMP namespace, sequence path), all at engine call sites.
+  Inside the checks, only the TEMP namespace (`Effective`) and the search path
+  (`Check`, for type diagnostic names) depend on the session. That is why
+  `Environment` has exactly two methods.
+
+Notes for later steps (B0):
+
+- **Step 3 Tier C:** besides the A1 list, `acl_values.go`, `object_acl.go`
+  (except `rawObjectACL` and `objectACLClass`, which go to `access`),
+  `access_inquiry.go` (`pg_has_role`, `has_*_privilege`,
+  `row_security_active`), `acl_explode.go`, and the aclitem and regrole input
+  and output adapters. `row_security_active` will call
+  `access.RowSecurityApplies`.
+- **`pgcatalog`:** `table_privileges.go`, `data_type_privileges.go`,
+  `pg_roles.go` and `pg_parameter_acl.go`.
+- **`control`:** `principal_remap.go`, `extension_owners.go`,
+  `inheritance_owner_restore.go`, `aclitem_dump.go`, `aclitem_remap.go`,
+  `policy_dump.go`, `policy_remap.go` and `rls_base_dump.go`. `importTargets`
+  (Restore staging) moves with Restore. Its many nil checks should go behind
+  one "restore stage" accessor at that point.
+- **Policy feature package:** `policy.go`, `policy_payload.go`,
+  `policy_ddl.go`, `policy_dependencies.go`, `policy_expression.go` and
+  `policy_validation.go`. `validatePolicies` and `policyDepends` are pure
+  catalog invariants and could become `catalog` functions first.
+- **Catalog:** `CatalogStage.creationACL`, `creationTypeACL`,
+  `defaultPreflight` and `removeSchemaDefaults` touch only the embedded
+  `catalog.Candidate`, so they can become `Candidate` methods.
+- **Misnamed files:** `identity_owner.go`, `foreign_scan_owner.go`,
+  `query_authority.go` and `inheritance_dml_authority.go` hold transaction,
+  foreign-scan and statement plumbing, not authorization. Leave them out of
+  `access`.
+- **B2:** `descriptorReferences` has no production callers, only tests.
+  Delete it, or move it with its test.
