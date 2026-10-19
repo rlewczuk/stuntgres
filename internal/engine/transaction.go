@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"sync"
@@ -315,7 +316,7 @@ type StatementScope struct {
 	command                        ids.CommandID
 	ownWrites                      map[ids.ObjectAddress][]rowVersion
 	ownDeletes                     map[ids.ObjectAddress]*privateDeletionRoot
-	existingIndexOutputs           map[ids.ObjectAddress]map[indexRowIdentity]indexRowOutput
+	existingIndexOutputs           map[ids.ObjectAddress]map[indexRowIdentity]storage.IndexOutput
 	exclusionModes                 exclusionModes
 	exclusionStarted               bool
 	inheritanceRelations           []queryLeaf  // Exact physical SELECT grants, separate from SQL occurrences.

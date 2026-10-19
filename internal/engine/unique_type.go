@@ -5,6 +5,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -12,14 +13,14 @@ import (
 // and NULL hash keys that intentionally have no physical index entry.
 type indexBuildCapture struct {
 	index   *catalog.Relation
-	outputs []indexRowOutput
+	outputs []storage.IndexOutput
 }
 
 type alterIndexBuild struct {
-	root    *logicalIndexRoot
+	root    *storage.IndexRoot
 	index   *catalog.Relation
 	store   *relationStorage
-	outputs []indexRowOutput
+	outputs []storage.IndexOutput
 }
 
 // A TYPE action rebuilds each affected constraint/backing relation as one
@@ -231,7 +232,7 @@ func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, c
 			named = true
 		}
 		if index.SQLIndex.HasRuntimeDomainConversion() || len(writes) != 0 {
-			capture = &indexBuildCapture{index: index, outputs: make([]indexRowOutput, len(validationStore.Versions))}
+			capture = &indexBuildCapture{index: index, outputs: make([]storage.IndexOutput, len(validationStore.Versions))}
 		}
 		root, err := buildIndexRoot(evaluation, parent, index.SQLIndex, validationStore, capture)
 		if err != nil {

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -56,7 +57,7 @@ func TestLogicalGiSTNonadjacentOverlap(t *testing.T) {
 		if root.Hash != nil || len(root.Entries) != 3 || root.Entries[1].Row != 2 {
 			t.Fatal("membership reordered", root)
 		}
-		before := append([]logicalIndexEntry(nil), root.Entries...)
+		before := append([]storage.IndexEntry(nil), root.Entries...)
 		err = validateExclusionRoot(context.Background(), parent, index, root, "public", sqltype.OutputEnvironment{}, nil, true)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "23P01" {
@@ -76,7 +77,7 @@ func TestLogicalGiSTDeltaImmutable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	before := append([]logicalIndexEntry(nil), root.Entries...)
+	before := append([]storage.IndexEntry(nil), root.Entries...)
 	publication := &rowPublication{writes: []rowVersion{row(3, "10.0.0.1", "[3,7)")}, singleSlot: -1}
 	_, err = mergeIndexRoot(evaluation, parent, index, root.Entries, publication, true, true, false, "public", sqltype.OutputEnvironment{}, nil)
 	var diagnostic *sqlstate.Error
@@ -134,10 +135,10 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 				t.Fatal(err)
 			}
 			e.storage.Relations[parent.Address()] = store
-			e.storage.IndexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.Address(): root}
+			e.storage.IndexRoots = map[ids.ObjectAddress]*storage.IndexRoot{index.Address(): root}
 			before := indexMaintenanceCapture(e)
 			storeBefore := uniquePublicationStore(store)
-			entriesBefore := append([]logicalIndexEntry(nil), root.Entries...)
+			entriesBefore := append([]storage.IndexEntry(nil), root.Entries...)
 			for i := range entriesBefore {
 				entriesBefore[i].Keys = append([]sqltype.Value(nil), entriesBefore[i].Keys...)
 			}
@@ -186,7 +187,7 @@ func TestLogicalGiSTUnchangedPublicationNonadjacentOverlap(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			entriesBefore := append([]logicalIndexEntry(nil), root.Entries...)
+			entriesBefore := append([]storage.IndexEntry(nil), root.Entries...)
 			for i := range entriesBefore {
 				entriesBefore[i].Keys = append([]sqltype.Value(nil), entriesBefore[i].Keys...)
 			}

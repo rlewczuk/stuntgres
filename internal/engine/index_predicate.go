@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -43,7 +44,7 @@ func prepareIndexRecipe(evaluation *EvalContext, expression expr.Expr, dependenc
 
 // SQL constant planning is demanded by the first real tuple, before predicate
 // truth. Nonconstant key initialization still waits for a true predicate.
-func (p *indexExecutionPreparation) prepareConstants(evaluation *EvalContext, parent *catalog.Relation, definition *catalog.IndexDefinition, ordering *indexOrdering, hash *hashIndexBinding) error {
+func (p *indexExecutionPreparation) prepareConstants(evaluation *EvalContext, parent *catalog.Relation, definition *catalog.IndexDefinition, ordering *indexOrdering, hash *storage.HashBinding) error {
 	if p.constantsPrepared {
 		return nil
 	}
@@ -76,7 +77,7 @@ func (p *indexExecutionPreparation) prepareConstants(evaluation *EvalContext, pa
 	return nil
 }
 
-func (p *indexExecutionPreparation) keyProgram(i int, ordering *indexOrdering, hash *hashIndexBinding) expr.Expr {
+func (p *indexExecutionPreparation) keyProgram(i int, ordering *indexOrdering, hash *storage.HashBinding) expr.Expr {
 	if hash != nil {
 		return hash.Expression
 	}
@@ -86,7 +87,7 @@ func (p *indexExecutionPreparation) keyProgram(i int, ordering *indexOrdering, h
 	return p.ordinary[i]
 }
 
-func (p *indexExecutionPreparation) prepareKeys(evaluation *EvalContext, parent *catalog.Relation, definition *catalog.IndexDefinition, ordering *indexOrdering, hash *hashIndexBinding) error {
+func (p *indexExecutionPreparation) prepareKeys(evaluation *EvalContext, parent *catalog.Relation, definition *catalog.IndexDefinition, ordering *indexOrdering, hash *storage.HashBinding) error {
 	if p.keysPrepared {
 		return nil
 	}
@@ -156,7 +157,7 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 // Shared build/maintenance/private-admission contract:
 // absent includes; only TRUE includes; errors and cancellation veto publication.
 // The caller owns the evaluation frame and row, with no per-row allocation.
-func (p *indexExecutionPreparation) predicateMatches(evaluation *EvalContext, parent *catalog.Relation, definition *catalog.IndexDefinition, row []sqltype.Value, ordering *indexOrdering, hash *hashIndexBinding) (bool, error) {
+func (p *indexExecutionPreparation) predicateMatches(evaluation *EvalContext, parent *catalog.Relation, definition *catalog.IndexDefinition, row []sqltype.Value, ordering *indexOrdering, hash *storage.HashBinding) (bool, error) {
 	if err := evaluationContext(evaluation); err != nil {
 		return false, err
 	}
@@ -186,8 +187,8 @@ func (p *indexExecutionPreparation) predicateMatches(evaluation *EvalContext, pa
 	return truth == True, err
 }
 
-func newLogicalIndexRoot(d *catalog.IndexDefinition, entries []logicalIndexEntry) *logicalIndexRoot {
-	root := &logicalIndexRoot{Entries: entries}
+func newLogicalIndexRoot(d *catalog.IndexDefinition, entries []storage.IndexEntry) *storage.IndexRoot {
+	root := &storage.IndexRoot{Entries: entries}
 	if d.Predicate != nil {
 		root.Membership = make(map[ids.RowID]ids.VersionID, len(entries))
 		for _, entry := range entries {

@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -25,8 +26,8 @@ func bindIndexProvider(parent *catalog.Relation, d *catalog.IndexDefinition) err
 	}
 }
 
-func bindHashIndex(parent *catalog.Relation, d *catalog.IndexDefinition) (hashIndexBinding, error) {
-	var b hashIndexBinding
+func bindHashIndex(parent *catalog.Relation, d *catalog.IndexDefinition) (storage.HashBinding, error) {
+	var b storage.HashBinding
 	if d.Method != catalog.HashMethod || len(d.Keys) != 1 || len(d.Include) != 0 || d.Unique {
 		return b, fmt.Errorf("stuntgres: invalid hash index definition")
 	}
@@ -75,7 +76,7 @@ func extractIndexKey(slot int, expression expr.Expr, values []sqltype.Value, eva
 	return expression.Eval(evaluation)
 }
 
-func buildHashIndexRoot(evaluation *EvalContext, parent *catalog.Relation, d *catalog.IndexDefinition, store *relationStorage, materialize bool, capture *indexBuildCapture) (*logicalIndexRoot, error) {
+func buildHashIndexRoot(evaluation *EvalContext, parent *catalog.Relation, d *catalog.IndexDefinition, store *relationStorage, materialize bool, capture *indexBuildCapture) (*storage.IndexRoot, error) {
 	ctx := evaluation.Context
 	binding, err := bindHashIndex(parent, d) // Eager even on empty/all-NULL input.
 	if err != nil {
@@ -84,9 +85,9 @@ func buildHashIndexRoot(evaluation *EvalContext, parent *catalog.Relation, d *ca
 	if store == nil {
 		return nil, fmt.Errorf("stuntgres: missing hash index storage")
 	}
-	var root *hashIndexRoot
+	var root *storage.HashRoot
 	if materialize {
-		root = &hashIndexRoot{Buckets: make(map[uint64][]hashIndexEntry), Binding: binding, Storage: store.IndexIdentity(), Generation: store.Generation, Prefix: len(store.Versions), Ends: store.Ends}
+		root = &storage.HashRoot{Buckets: make(map[uint64][]storage.HashEntry), Binding: binding, Storage: store.IndexIdentity(), Generation: store.Generation, Prefix: len(store.Versions), Ends: store.Ends}
 	}
 	var preparation indexExecutionPreparation
 	for position, row := range store.Versions {
@@ -101,7 +102,7 @@ func buildHashIndexRoot(evaluation *EvalContext, parent *catalog.Relation, d *ca
 			return nil, err
 		}
 		if capture != nil {
-			capture.outputs[position] = indexRowOutput{Index: capture.index, Member: matches}
+			capture.outputs[position] = storage.IndexOutput{Index: capture.index, Member: matches}
 		}
 		if !matches {
 			continue
@@ -124,7 +125,7 @@ func buildHashIndexRoot(evaluation *EvalContext, parent *catalog.Relation, d *ca
 			return nil, err
 		}
 		if materialize {
-			root.Buckets[h] = append(root.Buckets[h], hashIndexEntry{Key: key, Row: row.Row, Version: row.Version, Position: position})
+			root.Buckets[h] = append(root.Buckets[h], storage.HashEntry{Key: key, Row: row.Row, Version: row.Version, Position: position})
 		}
 	}
 	if !materialize {
@@ -133,7 +134,7 @@ func buildHashIndexRoot(evaluation *EvalContext, parent *catalog.Relation, d *ca
 	if err := root.CaptureRowEntries(ctx, d); err != nil {
 		return nil, err
 	}
-	return &logicalIndexRoot{Hash: root}, ctx.Err()
+	return &storage.IndexRoot{Hash: root}, ctx.Err()
 }
 
 func publicationSlot(p *rowPublication, i int) int {
@@ -146,13 +147,13 @@ func publicationSlot(p *rowPublication, i int) int {
 	return len(p.root) + i
 }
 
-func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation, old *logicalIndexRoot, p *rowPublication, reconstruct, materialize bool) (*logicalIndexRoot, error) {
+func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation, old *storage.IndexRoot, p *rowPublication, reconstruct, materialize bool) (*storage.IndexRoot, error) {
 	ctx := evaluation.Context
 	d := index.SQLIndex
 	if d.Method != catalog.HashMethod || len(d.Keys) != 1 || len(d.Include) != 0 || d.Unique {
 		return nil, fmt.Errorf("stuntgres: invalid hash merge definition")
 	}
-	var binding hashIndexBinding
+	var binding storage.HashBinding
 	var preparation indexExecutionPreparation
 	if old == nil || old.Hash == nil {
 		if materialize {
@@ -187,7 +188,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 	}
 	var ended map[ids.RowID]ids.VersionID
 	var touched map[uint64]bool
-	var added map[uint64][]hashIndexEntry
+	var added map[uint64][]storage.HashEntry
 	touch := func(h uint64) {
 		if touched == nil {
 			touched = make(map[uint64]bool)
@@ -273,9 +274,9 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 		if materialize {
 			touch(h)
 			if added == nil {
-				added = make(map[uint64][]hashIndexEntry)
+				added = make(map[uint64][]storage.HashEntry)
 			}
-			added[h] = append(added[h], hashIndexEntry{Key: key, Row: row.Row, Version: row.Version, Position: publicationSlot(p, i)})
+			added[h] = append(added[h], storage.HashEntry{Key: key, Row: row.Row, Version: row.Version, Position: publicationSlot(p, i)})
 		}
 	}
 	if p.deletion != nil && materialize {
@@ -313,7 +314,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 	}
 	buckets := old.Hash.Buckets
 	if len(touched) != 0 {
-		buckets = make(map[uint64][]hashIndexEntry, len(old.Hash.Buckets)+len(added))
+		buckets = make(map[uint64][]storage.HashEntry, len(old.Hash.Buckets)+len(added))
 		for h, bucket := range old.Hash.Buckets {
 			if err := ctx.Err(); err != nil {
 				return nil, err
@@ -323,7 +324,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 	}
 	for h := range touched {
 		bucket := old.Hash.Buckets[h]
-		next := make([]hashIndexEntry, 0, len(bucket)+len(added[h]))
+		next := make([]storage.HashEntry, 0, len(bucket)+len(added[h]))
 		for _, entry := range bucket {
 			if err := ctx.Err(); err != nil {
 				return nil, err
@@ -343,9 +344,9 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 	if p.nextEnds != nil {
 		ends = p.nextEnds
 	}
-	root := &hashIndexRoot{Buckets: buckets, Binding: binding, Storage: p.store, Generation: p.generation + 1, Prefix: len(p.next), Ends: ends}
+	root := &storage.HashRoot{Buckets: buckets, Binding: binding, Storage: p.store, Generation: p.generation + 1, Prefix: len(p.next), Ends: ends}
 	if err := root.CaptureRowEntries(ctx, d); err != nil {
 		return nil, err
 	}
-	return &logicalIndexRoot{Hash: root}, ctx.Err()
+	return &storage.IndexRoot{Hash: root}, ctx.Err()
 }

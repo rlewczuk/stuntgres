@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -57,11 +58,11 @@ func TestForeignKeyIndexProbeVisitBounds(t *testing.T) {
 				t.Fatal(err)
 			}
 			compared, visited := 0, 0
-			var located logicalIndexEntry
-			err := probeForeignKeyIndex(root, func(entry logicalIndexEntry) (int, error) {
+			var located storage.IndexEntry
+			err := probeForeignKeyIndex(root, func(entry storage.IndexEntry) (int, error) {
 				compared++
 				return foreignKeyIndexOrder(context.Background(), index, comparisons, entry, key, sqltype.InputEnvironment{})
-			}, func(entry logicalIndexEntry) (bool, error) {
+			}, func(entry storage.IndexEntry) (bool, error) {
 				visited++
 				located = entry
 				return true, nil

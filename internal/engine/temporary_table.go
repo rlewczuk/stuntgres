@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
 
@@ -304,7 +305,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 			changes.indexCandidates = make(map[ids.ObjectAddress]indexRootCandidate)
 		}
 		if changes.uniqueRoots == nil {
-			changes.uniqueRoots = make(map[ids.ObjectAddress]*logicalIndexRoot)
+			changes.uniqueRoots = make(map[ids.ObjectAddress]*storage.IndexRoot)
 		}
 		changes.indexCandidates[address], changes.uniqueRoots[address] = candidate, candidate.root
 	}

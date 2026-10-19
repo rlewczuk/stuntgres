@@ -8,12 +8,13 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func insertConflictWantHints(t *testing.T, root *logicalIndexRoot, store *relationStorage, want map[ids.RowID]int) {
+func insertConflictWantHints(t *testing.T, root *storage.IndexRoot, store *relationStorage, want map[ids.RowID]int) {
 	t.Helper()
 	if root == nil || len(root.Entries) != len(want) {
 		t.Fatal("wrong hint membership", root, want)
@@ -195,7 +196,7 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 	}
 	f := insertConflictUniqueFixture(t)
 	entry := f.e.storage.IndexRoots[f.index.Address()].Entries[0]
-	for _, change := range []func(*logicalIndexEntry){func(e *logicalIndexEntry) { e.Position = -1 }, func(e *logicalIndexEntry) { e.Position = len(f.store.Versions) }, func(e *logicalIndexEntry) { e.Row++ }, func(e *logicalIndexEntry) { e.Version++ }} {
+	for _, change := range []func(*storage.IndexEntry){func(e *storage.IndexEntry) { e.Position = -1 }, func(e *storage.IndexEntry) { e.Position = len(f.store.Versions) }, func(e *storage.IndexEntry) { e.Row++ }, func(e *storage.IndexEntry) { e.Version++ }} {
 		bad := entry
 		change(&bad)
 		if _, err := conflictEntryVersion(f.store.Versions, bad); !errors.Is(err, ids.ErrCatalogReplaced) {

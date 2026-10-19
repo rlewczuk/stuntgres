@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/functions"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -499,7 +500,7 @@ type querySource struct {
 	// Set only after contextual owner/provider proof at source capture.
 	storedRef        ids.ObjectRef
 	committed, own   []rowVersion
-	partialMask      *logicalIndexRoot
+	partialMask      *storage.IndexRoot
 	singleton        bool
 	rlsDenied        bool
 	needsBirthFilter bool // Current TRUNCATE vector at a retained older frontier.

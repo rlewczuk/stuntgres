@@ -7,18 +7,19 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
 type indexMaintenanceSnapshot struct {
 	catalog *catalog.State
-	roots   map[ids.ObjectAddress]*logicalIndexRoot
+	roots   map[ids.ObjectAddress]*storage.IndexRoot
 	stores  map[ids.ObjectAddress]*relationStorage
 }
 
 func indexMaintenanceCapture(e *Engine) indexMaintenanceSnapshot {
-	s := indexMaintenanceSnapshot{catalog: e.catalog.state, roots: make(map[ids.ObjectAddress]*logicalIndexRoot, len(e.storage.IndexRoots)), stores: make(map[ids.ObjectAddress]*relationStorage, len(e.storage.Relations))}
+	s := indexMaintenanceSnapshot{catalog: e.catalog.state, roots: make(map[ids.ObjectAddress]*storage.IndexRoot, len(e.storage.IndexRoots)), stores: make(map[ids.ObjectAddress]*relationStorage, len(e.storage.Relations))}
 	for a, r := range e.storage.IndexRoots {
 		s.roots[a] = r
 	}
@@ -71,7 +72,7 @@ func TestIndexMaintenanceSelectedAndTableRoots(t *testing.T) {
 	if e.storage.IndexRoots[renamed.Address()] == newN || e.storage.IndexRoots[si.Address()] == oldS || e.storage.IndexRoots[ei.Address()] == oldE || e.storage.IndexRoots[unique.Address()] != oldU {
 		t.Fatal("table rebuild is partial or touched another table")
 	}
-	for _, pair := range [][2]*logicalIndexRoot{{e.storage.IndexRoots[renamed.Address()], newN}, {e.storage.IndexRoots[si.Address()], oldS}, {e.storage.IndexRoots[ei.Address()], oldE}} {
+	for _, pair := range [][2]*storage.IndexRoot{{e.storage.IndexRoots[renamed.Address()], newN}, {e.storage.IndexRoots[si.Address()], oldS}, {e.storage.IndexRoots[ei.Address()], oldE}} {
 		if !reflect.DeepEqual(pair[0].Entries, pair[1].Entries) {
 			t.Fatal("rebuild reminted/dropped live duplicate versions")
 		}

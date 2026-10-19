@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -69,7 +70,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			f.e.storage.IndexRoots = map[ids.ObjectAddress]*logicalIndexRoot{local.Address(): oldRoot}
+			f.e.storage.IndexRoots = map[ids.ObjectAddress]*storage.IndexRoot{local.Address(): oldRoot}
 			beforeStore := uniquePublicationStore(store)
 			beforeEntries := slices.Clone(oldRoot.Entries)
 			beforeCatalog, beforeRoots := f.e.catalog.state, maps.Clone(f.e.storage.IndexRoots)

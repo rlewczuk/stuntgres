@@ -5,6 +5,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -235,7 +236,7 @@ func (b *uniqueBoundKey) matches(evaluation *EvalContext, values, key []sqltype.
 	if err := b.fillKeys(values, b.scratch, evaluation); err != nil {
 		return false, err
 	}
-	cmp, err := b.ordering.compareKeys(evaluation.Context, logicalIndexEntry{Keys: key}, logicalIndexEntry{Keys: b.scratch})
+	cmp, err := b.ordering.compareKeys(evaluation.Context, storage.IndexEntry{Keys: key}, storage.IndexEntry{Keys: b.scratch})
 	return cmp == 0, err
 }
 
@@ -464,7 +465,7 @@ retry:
 		lo, hi := 0, len(root.Entries)
 		for lo < hi {
 			mid := lo + (hi-lo)/2
-			cmp, err := bound.ordering.compareKeys(ctx, root.Entries[mid], logicalIndexEntry{Keys: key})
+			cmp, err := bound.ordering.compareKeys(ctx, root.Entries[mid], storage.IndexEntry{Keys: key})
 			if err != nil {
 				return uniqueConflict{}, err
 			}
@@ -476,7 +477,7 @@ retry:
 		}
 		for at := lo; at < len(root.Entries); at++ {
 			entry := root.Entries[at]
-			cmp, err := bound.ordering.compareKeys(ctx, entry, logicalIndexEntry{Keys: key})
+			cmp, err := bound.ordering.compareKeys(ctx, entry, storage.IndexEntry{Keys: key})
 			if err != nil {
 				return uniqueConflict{}, err
 			}
@@ -582,7 +583,7 @@ retry:
 	return uniqueConflict{}, nil
 }
 
-func conflictEntryVersion(versions []rowVersion, entry logicalIndexEntry) (rowVersion, error) {
+func conflictEntryVersion(versions []rowVersion, entry storage.IndexEntry) (rowVersion, error) {
 	if entry.Position < 0 || entry.Position >= len(versions) {
 		return rowVersion{}, ids.ErrCatalogReplaced
 	}

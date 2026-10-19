@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -258,7 +259,7 @@ func (s *StatementScope) projectExclusionDeletionLocked(e *Engine, candidate del
 
 type exclusionScan struct {
 	generation      uint64
-	root            *logicalIndexRoot
+	root            *storage.IndexRoot
 	pending         map[*lock.Ticket]*exclusionProjection
 	auth            AuthorizationView
 	view            catalog.Read
@@ -398,7 +399,7 @@ func (s *StatementScope) probeExclusion(ref ids.ObjectRef, binding *uniqueWriteB
 				var keys [1]sqltype.Value
 				for _, bucket := range scan.root.Hash.Buckets {
 					for _, entry := range bucket {
-						row, err := conflictEntryVersion(scan.versions, logicalIndexEntry{Row: entry.Row, Version: entry.Version, Position: entry.Position})
+						row, err := conflictEntryVersion(scan.versions, storage.IndexEntry{Row: entry.Row, Version: entry.Version, Position: entry.Position})
 						if err != nil {
 							return uniqueConflict{}, false, err
 						}

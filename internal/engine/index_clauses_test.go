@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -134,8 +135,8 @@ func TestIndexClausesClassRoots(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := logicalIndexEntry{Keys: []sqltype.Value{sqltype.String(types[sqltype.Text], "a")}}
-	b := logicalIndexEntry{Keys: []sqltype.Value{sqltype.String(types[sqltype.Text], "a ")}}
+	a := storage.IndexEntry{Keys: []sqltype.Value{sqltype.String(types[sqltype.Text], "a")}}
+	b := storage.IndexEntry{Keys: []sqltype.Value{sqltype.String(types[sqltype.Text], "a ")}}
 	if cmp, err := ordering.compareKeys(ctx, a, b); err != nil || cmp != 0 {
 		t.Fatal("bpchar class lost padding semantics", cmp, err)
 	}
@@ -330,9 +331,9 @@ func TestIndexClausesReplacement(t *testing.T) {
 	e.storage.SetFrontierLocked(100, 200)
 	e.catalog.state = catalog
 	e.storage.Relations[parent.Address()] = source
-	e.storage.IndexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.Address(): original}
+	e.storage.IndexRoots = map[ids.ObjectAddress]*storage.IndexRoot{index.Address(): original}
 	e.commitSeq = 1
-	snapshot, err := e.captureIndexSnapshot(ctx, e.catalog.read(catalog), map[ids.ObjectAddress]*relationStorage{parent.Address(): source}, map[ids.ObjectAddress]*logicalIndexRoot{index.Address(): original}, 1)
+	snapshot, err := e.captureIndexSnapshot(ctx, e.catalog.read(catalog), map[ids.ObjectAddress]*relationStorage{parent.Address(): source}, map[ids.ObjectAddress]*storage.IndexRoot{index.Address(): original}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -496,7 +497,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 				{Row: 1, Version: 1, Values: []sqltype.Value{value(0), value(-1), sqltype.String(text.Type, "a "), sqltype.String(text.Type, "space")}},
 				{Row: 2, Version: 2, Values: []sqltype.Value{value(0), value(1), sqltype.String(text.Type, "a"), sqltype.String(text.Type, "plain")}},
 			}}
-			root := func(owner, index *catalog.Relation, storage *relationStorage) *logicalIndexRoot {
+			root := func(owner, index *catalog.Relation, storage *relationStorage) *storage.IndexRoot {
 				r, err := buildIndexRoot(&EvalContext{Context: ctx, Scope: 1, Frame: 1}, owner, index.SQLIndex, storage, nil)
 				if err != nil {
 					t.Fatal(err)

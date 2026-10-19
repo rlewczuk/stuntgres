@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"sync/atomic"
 	"testing"
@@ -26,8 +27,8 @@ type serializableStorageSnapshot struct {
 	endRows    map[ids.RowID]rowEnd
 }
 type serializableIndexSnapshot struct {
-	pointer *logicalIndexRoot
-	entries []logicalIndexEntry
+	pointer *storage.IndexRoot
+	entries []storage.IndexEntry
 }
 type serializablePublicationSnapshot struct {
 	catalog             *catalog.State
@@ -58,7 +59,7 @@ func serializableSnapshotPublication(e *Engine) serializablePublicationSnapshot 
 		s.storage[address] = serializableStorageSnapshot{store, store.Generation, store.Ends, rows, ends}
 	}
 	for address, root := range e.storage.IndexRoots {
-		entries := append([]logicalIndexEntry(nil), root.Entries...)
+		entries := append([]storage.IndexEntry(nil), root.Entries...)
 		for i := range entries {
 			entries[i].Keys = append([]sqltype.Value(nil), entries[i].Keys...)
 		}

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -134,14 +135,14 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 	concurrent := stmt.Concurrent.Character != 0
 	var indices []*catalog.Relation
 	var previous relationStorage
-	var oldEntries []logicalIndexEntry
+	var oldEntries []storage.IndexEntry
 	var ownRows []rowVersion
 	var ownDeletes *privateDeletionRoot
 	frontier := e.commitSeq
 	if concurrent {
 		indices = materializedEligibleIndexes(caller.catalog, d)
 		previous = *scope.lockedStorage
-		var root *logicalIndexRoot
+		var root *storage.IndexRoot
 		if len(indices) != 0 {
 			root = e.storage.IndexRoots[indices[0].Address()]
 			if scope.owner.catalog != nil && scope.owner.catalog.uniqueRoots[indices[0].Address()] != nil {

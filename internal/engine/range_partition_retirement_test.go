@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
 
@@ -230,7 +231,7 @@ func TestRangePartitionRetirementPhysicalState(t *testing.T) {
 	}
 	peerDescriptors := make(map[ids.ObjectAddress]catalog.Descriptor)
 	peerStorage := make(map[ids.ObjectAddress]*relationStorage)
-	peerIndexes := make(map[ids.ObjectAddress]*logicalIndexRoot)
+	peerIndexes := make(map[ids.ObjectAddress]*storage.IndexRoot)
 	for a, d := range base.Descriptors() {
 		if ns, ok := base.Namespace(d.Namespace()); ok && ns.Temporary == peer.token {
 			peerDescriptors[a], peerStorage[a], peerIndexes[a] = d, e.storage.Relations[a], e.storage.IndexRoots[a]

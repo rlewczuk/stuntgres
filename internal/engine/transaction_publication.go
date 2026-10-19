@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 // Prepare immutable replacement heads/end roots outside final locks. Appends
@@ -286,7 +287,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		if indexCatalog == nil {
 			indexCatalog = current
 		}
-		var indexRoots map[ids.ObjectAddress]*logicalIndexRoot
+		var indexRoots map[ids.ObjectAddress]*storage.IndexRoot
 		if len(indexPredecessors) != 0 || c != nil {
 			buildStores := indexStores
 			var rebuildIndexes map[ids.ObjectAddress]bool

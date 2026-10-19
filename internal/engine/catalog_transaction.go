@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 // Transactional descriptors, row shapes and generators share one private overlay.
@@ -20,7 +21,7 @@ type catalogChanges struct {
 	defaultReads        map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
 	generators          map[ids.ObjectAddress]*sequenceGenerator
 	storage             map[ids.ObjectAddress]catalogStorageChange
-	uniqueRoots         map[ids.ObjectAddress]*logicalIndexRoot
+	uniqueRoots         map[ids.ObjectAddress]*storage.IndexRoot
 	indexCandidates     map[ids.ObjectAddress]indexRootCandidate // Private produced DDL roots and their exact baseline pins.
 	dependencies        []catalogDependencyObservation
 	extensionAuthority  []extensionAuthorityObservation
@@ -38,7 +39,7 @@ type catalogChanges struct {
 	truncateFences      []truncateGraphFence
 	materializedSources []materializedSourceFence
 	domainValidations   []*domainValidationFence
-	domainIndexRoots    map[ids.ObjectAddress]*logicalIndexRoot
+	domainIndexRoots    map[ids.ObjectAddress]*storage.IndexRoot
 	domainChanged       bool
 }
 
@@ -79,7 +80,7 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 		n.storage[a] = shape
 	}
 	if c.uniqueRoots != nil {
-		n.uniqueRoots = make(map[ids.ObjectAddress]*logicalIndexRoot, len(c.uniqueRoots))
+		n.uniqueRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(c.uniqueRoots))
 		for a, root := range c.uniqueRoots {
 			n.uniqueRoots[a] = root
 		}
@@ -113,7 +114,7 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	n.extensionAuthority = append(n.extensionAuthority, c.extensionAuthority...)
 	n.domainValidations = append(n.domainValidations, c.domainValidations...)
 	if c.domainIndexRoots != nil {
-		n.domainIndexRoots = make(map[ids.ObjectAddress]*logicalIndexRoot, len(c.domainIndexRoots))
+		n.domainIndexRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(c.domainIndexRoots))
 		for address, root := range c.domainIndexRoots {
 			n.domainIndexRoots[address] = root
 		}

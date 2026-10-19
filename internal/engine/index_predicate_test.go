@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -51,11 +52,11 @@ func newPartialIndexFixture(t testing.TB) partialIndexFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.storage.IndexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.Address(): root}
+	e.storage.IndexRoots = map[ids.ObjectAddress]*storage.IndexRoot{index.Address(): root}
 	return partialIndexFixture{e, parent, index, column, store}
 }
 
-func partialWantMembership(t *testing.T, root *logicalIndexRoot, want map[ids.RowID]ids.VersionID) {
+func partialWantMembership(t *testing.T, root *storage.IndexRoot, want map[ids.RowID]ids.VersionID) {
 	t.Helper()
 	if !reflect.DeepEqual(root.Membership, want) || len(root.Entries) != len(want) {
 		t.Fatal("wrong membership", root.Membership, want, root.Entries)

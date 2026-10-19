@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -36,8 +37,8 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 	e.storage.Relations[table.Address()], e.storage.Relations[peerTable.Address()] = store, peerStore
 	generator := &sequenceGenerator{Last: options.Start, Generation: 1}
 	e.storage.Sequences[sequence.Address()] = generator
-	root := &logicalIndexRoot{}
-	e.storage.IndexRoots = map[ids.ObjectAddress]*logicalIndexRoot{}
+	root := &storage.IndexRoot{}
+	e.storage.IndexRoots = map[ids.ObjectAddress]*storage.IndexRoot{}
 	e.storage.IndexRoots[index.Address()] = root
 	epoch := e.catalog.state.Epoch()
 	if err := e.endTemporarySession(op.session); err != nil {

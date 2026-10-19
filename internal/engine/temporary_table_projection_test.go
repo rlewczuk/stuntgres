@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -72,7 +73,7 @@ func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
 			stage, indexes := temporaryProjectionStage(t, e, provider)
 			captured := e.catalog.state
 			var unrelated ids.ObjectAddress
-			var unrelatedRoot *logicalIndexRoot
+			var unrelatedRoot *storage.IndexRoot
 			switch mode {
 			case "CurrentRows":
 				sessionSQL(t, owner, "INSERT INTO public.shape_survivor(a,z) VALUES(11,13)")

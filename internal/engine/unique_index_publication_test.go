@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -27,8 +28,8 @@ type uniquePublicationFixture struct {
 	roles          *roleCatalog
 	stores         map[ids.ObjectAddress]*relationStorage
 	storeSnapshots map[ids.ObjectAddress]relationStorage
-	roots          map[ids.ObjectAddress]*logicalIndexRoot
-	entries        map[ids.ObjectAddress][]logicalIndexEntry
+	roots          map[ids.ObjectAddress]*storage.IndexRoot
+	entries        map[ids.ObjectAddress][]storage.IndexEntry
 	nextRow        uint64
 	nextVersion    uint64
 	frontier       ids.CommitSeq
@@ -128,7 +129,7 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
 		t.Fatal(err)
 	}
-	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), roles: e.roles.published, stores: maps.Clone(e.storage.Relations), storeSnapshots: make(map[ids.ObjectAddress]relationStorage), roots: maps.Clone(e.storage.IndexRoots), entries: make(map[ids.ObjectAddress][]logicalIndexEntry), nextRow: e.storage.RowFrontier(), nextVersion: e.storage.VersionFrontier(), frontier: e.commitSeq}
+	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), roles: e.roles.published, stores: maps.Clone(e.storage.Relations), storeSnapshots: make(map[ids.ObjectAddress]relationStorage), roots: maps.Clone(e.storage.IndexRoots), entries: make(map[ids.ObjectAddress][]storage.IndexEntry), nextRow: e.storage.RowFrontier(), nextVersion: e.storage.VersionFrontier(), frontier: e.commitSeq}
 	for address, store := range f.stores {
 		f.storeSnapshots[address] = uniquePublicationStore(store)
 	}
@@ -180,7 +181,7 @@ func (f *uniquePublicationFixture) unchanged(t *testing.T) {
 	}
 }
 
-func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, store *relationStorage, rebuild, materialize bool, writes []rowVersion, deletion *privateDeletionRoot) (map[ids.ObjectAddress]*logicalIndexRoot, error) {
+func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, store *relationStorage, rebuild, materialize bool, writes []rowVersion, deletion *privateDeletionRoot) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
 	t.Helper()
 	if store == nil {
 		store = f.stores[f.parent.Address()]
@@ -209,7 +210,7 @@ func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, st
 	return roots, err
 }
 
-func (f *uniquePublicationFixture) duplicate(t *testing.T, roots map[ids.ObjectAddress]*logicalIndexRoot, err error, building bool, detail string) {
+func (f *uniquePublicationFixture) duplicate(t *testing.T, roots map[ids.ObjectAddress]*storage.IndexRoot, err error, building bool, detail string) {
 	t.Helper()
 	if roots != nil {
 		t.Fatal("failed preparation returned installation roots")
@@ -221,7 +222,7 @@ func (f *uniquePublicationFixture) duplicate(t *testing.T, roots map[ids.ObjectA
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: message, Detail: detail, Schema: "public", Table: "ui_t", Constraint: "ui_index"})
 }
 
-func (f *uniquePublicationFixture) membership(t *testing.T, roots map[ids.ObjectAddress]*logicalIndexRoot, materialize bool, rows []rowVersion) {
+func (f *uniquePublicationFixture) membership(t *testing.T, roots map[ids.ObjectAddress]*storage.IndexRoot, materialize bool, rows []rowVersion) {
 	t.Helper()
 	if !materialize {
 		if roots != nil {
@@ -236,7 +237,7 @@ func (f *uniquePublicationFixture) membership(t *testing.T, roots map[ids.Object
 	if root == nil {
 		t.Fatal("completion omitted substantive root")
 	}
-	want := make([]logicalIndexEntry, len(rows))
+	want := make([]storage.IndexEntry, len(rows))
 	nextPosition := len(f.stores[f.parent.Address()].Versions)
 	for i, row := range rows {
 		_, position, found := rowByID(f.stores[f.parent.Address()].Versions, row.Row, -1)
@@ -244,7 +245,7 @@ func (f *uniquePublicationFixture) membership(t *testing.T, roots map[ids.Object
 			position = nextPosition
 			nextPosition++
 		}
-		want[i] = logicalIndexEntry{Row: row.Row, Version: row.Version, Position: position, Keys: slices.Clone(row.Values[:f.keys])}
+		want[i] = storage.IndexEntry{Row: row.Row, Version: row.Version, Position: position, Keys: slices.Clone(row.Values[:f.keys])}
 	}
 	if !reflect.DeepEqual(root.Entries, want) {
 		t.Fatal("wrong completion membership", root.Entries, want)

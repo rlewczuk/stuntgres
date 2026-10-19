@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"unicode/utf8"
@@ -368,7 +369,7 @@ type CatalogStage struct {
 	domainBases        []catalog.Descriptor
 	domainValidation   *domainValidationFence
 	domainAlter        context.Context
-	domainIndexRoots   map[ids.ObjectAddress]*logicalIndexRoot
+	domainIndexRoots   map[ids.ObjectAddress]*storage.IndexRoot
 	// Physical retirement alone may saturate dependent descriptor/store/index
 	// counters; fresh identities and exact predecessor fences remain mandatory.
 	terminalCleanup bool
@@ -1019,7 +1020,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		}
 		sourceRoots := indexPredecessors
 		if len(s.indexCandidates) != 0 {
-			sourceRoots = make(map[ids.ObjectAddress]*logicalIndexRoot, len(indexPredecessors)+len(s.indexCandidates))
+			sourceRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(indexPredecessors)+len(s.indexCandidates))
 			for a, root := range indexPredecessors {
 				sourceRoots[a] = root
 			}

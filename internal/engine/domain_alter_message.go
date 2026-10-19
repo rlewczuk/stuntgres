@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 // Stage observations describe the exact private entry roots. Outer publication
@@ -40,7 +41,7 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 	if len(stage.domainIndexRoots) != 0 {
 		changes.domainIndexRoots = maps.Clone(changes.domainIndexRoots)
 		if changes.domainIndexRoots == nil {
-			changes.domainIndexRoots = make(map[ids.ObjectAddress]*logicalIndexRoot)
+			changes.domainIndexRoots = make(map[ids.ObjectAddress]*storage.IndexRoot)
 		}
 		for address, root := range stage.domainIndexRoots {
 			if e.domainStageIndexRootLocked(stage, address) != root {
@@ -52,7 +53,7 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 	return nil
 }
 
-func (e *Engine) domainStageIndexRootLocked(stage *CatalogStage, address ids.ObjectAddress) *logicalIndexRoot {
+func (e *Engine) domainStageIndexRootLocked(stage *CatalogStage, address ids.ObjectAddress) *storage.IndexRoot {
 	if stage.authSession != nil && stage.authSession.transactions.retainsTransaction() {
 		if changes := stage.authSession.transactions.catalog; changes != nil {
 			if root := changes.uniqueRoots[address]; root != nil {

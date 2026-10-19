@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -148,8 +149,8 @@ type preparedBoundarySnapshot struct {
 	storage         map[ids.ObjectAddress]relationStorage
 	generators      map[ids.ObjectAddress]*sequenceGenerator
 	generatorValues map[ids.ObjectAddress]sequenceGenerator
-	indexes         map[ids.ObjectAddress]*logicalIndexRoot
-	indexValues     map[ids.ObjectAddress][]logicalIndexEntry
+	indexes         map[ids.ObjectAddress]*storage.IndexRoot
+	indexValues     map[ids.ObjectAddress][]storage.IndexEntry
 	registry        map[string]*preparedTransaction
 	entries         map[string]preparedTransaction
 	ssi             map[ids.TxRef]serializableTransaction
@@ -168,7 +169,7 @@ func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoun
 		counters:        [10]uint64{uint64(e.catalog.state.Epoch()), e.catalog.state.NamespaceGeneration(), uint64(e.catalog.nextOID), uint64(e.catalog.nextRevision), e.storage.RowFrontier(), e.storage.VersionFrontier(), uint64(e.commitSeq), uint64(e.diagnosticTx), e.serializable.order, e.roles.nextPrincipal},
 		storagePointers: maps.Clone(e.storage.Relations), storage: map[ids.ObjectAddress]relationStorage{},
 		generators: maps.Clone(e.storage.Sequences), generatorValues: map[ids.ObjectAddress]sequenceGenerator{},
-		indexes: maps.Clone(e.storage.IndexRoots), indexValues: map[ids.ObjectAddress][]logicalIndexEntry{},
+		indexes: maps.Clone(e.storage.IndexRoots), indexValues: map[ids.ObjectAddress][]storage.IndexEntry{},
 		registry: maps.Clone(e.prepared), entries: map[string]preparedTransaction{},
 		ssi: map[ids.TxRef]serializableTransaction{}, creators: maps.Clone(e.serializable.creators),
 		owners: lockState.Owners, resources: lockState.Journals[entry.ticket], locks: map[lock.Resource]lock.ResourceState{},

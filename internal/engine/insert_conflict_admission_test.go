@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -99,7 +100,7 @@ func TestInsertConflictExistingOutputPreservesProposalKey(t *testing.T) {
 				{"proposal", key, proposal[0]},
 				{"existing", existing, own.Values[0]},
 			} {
-				cmp, err := bound.ordering.compareKeys(evaluation.Context, logicalIndexEntry{Keys: comparison.got}, logicalIndexEntry{Keys: []sqltype.Value{comparison.want}})
+				cmp, err := bound.ordering.compareKeys(evaluation.Context, storage.IndexEntry{Keys: comparison.got}, storage.IndexEntry{Keys: []sqltype.Value{comparison.want}})
 				if err != nil || cmp != 0 {
 					t.Fatal(comparison.name+" key was overwritten", cmp, err)
 				}

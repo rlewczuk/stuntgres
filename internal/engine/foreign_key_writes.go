@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -21,7 +22,7 @@ type foreignKeyRows struct {
 	shadow                       map[ids.RowID]uint8
 	frontier                     ids.CommitSeq
 	index                        ids.ObjectAddress
-	root                         *logicalIndexRoot
+	root                         *storage.IndexRoot
 }
 
 func (r foreignKeyRows) each(visit func(rowVersion) (bool, error)) error {

@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -253,7 +254,7 @@ func TestUniquePrivateBaselineRootsAndBindingLifetime(t *testing.T) {
 	sessionSQL(t, a, "ALTER TABLE t ALTER k TYPE BIGINT")
 	changes := a.transactions.catalog
 	var rebuilt ids.ObjectAddress
-	var root *logicalIndexRoot
+	var root *storage.IndexRoot
 	for address, candidate := range changes.uniqueRoots {
 		rebuilt, root = address, candidate
 	}

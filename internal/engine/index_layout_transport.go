@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 // evolveIndexRevision records this only for its explicit slot-only path, with
@@ -75,7 +76,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 	}
 	type capture struct {
 		lineage indexLayoutLineage
-		root    *logicalIndexRoot
+		root    *storage.IndexRoot
 	}
 	var captures []capture
 	e := stage.owner
@@ -187,7 +188,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 			if err := next.CaptureRowEntries(evaluation.Context, lineage.target.SQLIndex); err != nil {
 				return nil, false, err
 			}
-			root = &logicalIndexRoot{Hash: &next}
+			root = &storage.IndexRoot{Hash: &next}
 		} else {
 			for _, entry := range root.Entries {
 				if err := evaluation.Context.Err(); err != nil {
@@ -233,7 +234,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 		if !ok {
 			return nil, false, ids.ErrCatalogReplaced
 		}
-		var outputs map[ids.ObjectAddress]indexRowOutput
+		var outputs map[ids.ObjectAddress]storage.IndexOutput
 		for _, captured := range captures {
 			lineage := captured.lineage
 			output, ok := sourceWrites[position].IndexOutputs[lineage.source.Address()]
@@ -246,7 +247,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 			if outputs == nil {
 				outputs = maps.Clone(row.IndexOutputs)
 				if outputs == nil {
-					outputs = make(map[ids.ObjectAddress]indexRowOutput)
+					outputs = make(map[ids.ObjectAddress]storage.IndexOutput)
 				}
 			}
 			output.Index = lineage.target
@@ -298,13 +299,13 @@ func transportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, ch
 			delete(changes.indexCandidates, index.Address())
 			continue
 		}
-		var root *logicalIndexRoot
+		var root *storage.IndexRoot
 		if index.SQLIndex.Method == catalog.HashMethod {
 			binding, err := bindHashIndex(parent, index.SQLIndex)
 			if err != nil {
 				return err
 			}
-			root = &logicalIndexRoot{Hash: &hashIndexRoot{Buckets: make(map[uint64][]hashIndexEntry), Binding: binding, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends}}
+			root = &storage.IndexRoot{Hash: &storage.HashRoot{Buckets: make(map[uint64][]storage.HashEntry), Binding: binding, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends}}
 		} else {
 			if err := bindIndexProvider(parent, index.SQLIndex); err != nil {
 				return err

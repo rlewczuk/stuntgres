@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 )
 
 // Engine.mu is held. Reuse the native snapshot scalar/key transport, retaining
@@ -20,7 +21,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 	for address := range stores {
 		sources[address] = e.stageStorageLocked(stage, address)
 	}
-	sourceRoots := make(map[ids.ObjectAddress]*logicalIndexRoot)
+	sourceRoots := make(map[ids.ObjectAddress]*storage.IndexRoot)
 	for address, descriptor := range stage.Base.Descriptors() {
 		if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil && sources[index.SQLIndex.Parent] != nil {
 			sourceRoots[address] = e.domainStageIndexRootLocked(stage, address)
@@ -58,7 +59,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 		stage.indexCandidates = make(map[ids.ObjectAddress]indexRootCandidate, len(roots))
 	}
 	if stage.domainIndexRoots == nil {
-		stage.domainIndexRoots = make(map[ids.ObjectAddress]*logicalIndexRoot, len(roots))
+		stage.domainIndexRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(roots))
 	}
 	for address, root := range roots {
 		index := next.MustRelation(address)

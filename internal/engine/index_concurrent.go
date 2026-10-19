@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
 
 // A supplied phase root is a detached candidate fenced against its exact source.
 // Catalog publication alone owns installation, revision and root-map authority.
 type indexRootCandidate struct {
-	root       *logicalIndexRoot
+	root       *storage.IndexRoot
 	index      *catalog.Relation
 	storage    *relationStorage
 	generation uint64
