@@ -5,7 +5,8 @@
 Follow the [shared testing guide](../../docs/TESTING.md) for common policy and
 public/private test placement. Run these commands from the repository root.
 
-Transaction identity uses the sole canonical full-XID allocator under Engine.mu.
+Transaction identity uses the sole canonical full-XID allocator, owned by
+`visibilityRegistry` (`Engine.visibility`) under Engine.mu.
 Sparse retained status and optional timestamp reservations index that full identity;
 low32 mirrors remain explicit consumers, and an exact atomic full phase mirror
 prevents old status from following a later index phase with the same low bits.

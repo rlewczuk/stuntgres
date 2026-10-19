@@ -5,15 +5,18 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `7df7894b8`.
+Last verified against `master` at `94a9c9e2b`.
 
 ## Next ready sub-steps
 
-- **7a** — `visibilityRegistry` state ownership (needs 4 ✓ and 6 ✓).
+- **7b** — `visibility` created and types moved (needs 7a ✓). Exporting
+  the registry and tracker fields in place may be broad; see the 7a notes in
+  the prompt file.
 - **B3** — `access` created and code moved (needs B2 ✓). Its field
   accessor rewrite is broad; see the B2 notes in the prompt file.
 
-They may run in parallel on separate branches (§8).
+They may run in parallel on separate branches, but not two broad rewrites
+at the same time (§8).
 
 ## Task tree
 
@@ -148,7 +151,9 @@ They may run in parallel on separate branches (§8).
     request)*
 - [ ] **Step 7 — `visibility`** ([prompt](ENGINE-SPLIT-visibility.md); needs
   4 and 6 complete)
-  - [ ] 7a — `visibilityRegistry` state ownership
+  - [x] 7a — `visibilityRegistry` state ownership (`f556f670c`,
+    `e2745162f`, `89aed2c58`, then the docs commit) *(racecheck skipped at
+    user request; targeted RACE=1 runs passed)*
   - [ ] 7b — `visibility` created and types moved
   - [ ] 7c — Aliases removed *(broad rewrite)*
 - [ ] **Authorization and `access`**
