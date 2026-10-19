@@ -97,7 +97,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	e := New()
 	catalogView := e.CatalogRead()
 	d, ref := pgTypeUnitSource(t, e)
-	roles := e.roleRead(catalogView, e.roles.published)
+	roles := e.roles.read(e.catalog.owner(), catalogView, e.roles.published)
 	if len(d.Columns) != 32 || d.RowType != 71 || !d.History.HasIndexes {
 		t.Fatal("source definition", d)
 	}
@@ -153,7 +153,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	foreign := other.CatalogRead()
 	s, err := e.capturePGType(t.Context(), foreign, roles, ref, d)
 	ordinary(s, err)
-	s, err = e.capturePGType(t.Context(), catalogView, other.roleRead(foreign, other.roles.published), ref, d)
+	s, err = e.capturePGType(t.Context(), catalogView, other.roles.read(other.catalog.owner(), foreign, other.roles.published), ref, d)
 	ordinary(s, err)
 	s, err = e.capturePGType(t.Context(), catalogView, roles, ref, nil)
 	ordinary(s, err)
@@ -224,7 +224,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	}
 	fresh, freshRef := pgTypeUnitSource(t, e)
 	freshCatalog := e.CatalogRead()
-	s, err = e.capturePGType(t.Context(), freshCatalog, e.roleRead(freshCatalog, e.roles.published), freshRef, fresh)
+	s, err = e.capturePGType(t.Context(), freshCatalog, e.roles.read(e.catalog.owner(), freshCatalog, e.roles.published), freshRef, fresh)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +235,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	if fresh == d || fresh.Columns[0].Usage.Type == d.Columns[0].Usage.Type {
 		t.Fatal("replacement did not reown source")
 	}
-	s, err = e.capturePGType(t.Context(), freshCatalog, e.roleRead(freshCatalog, e.roles.published), freshRef, d)
+	s, err = e.capturePGType(t.Context(), freshCatalog, e.roles.read(e.catalog.owner(), freshCatalog, e.roles.published), freshRef, d)
 	ordinary(s, err)
 	s, err = e.capturePGType(t.Context(), catalogView, roles, ref, d)
 	if err != nil {
@@ -260,7 +260,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 	install()
 	catalogView := e.CatalogRead()
 	source, ref := pgTypeUnitSource(t, e)
-	roles := e.roleRead(catalogView, e.roles.published)
+	roles := e.roles.read(e.catalog.owner(), catalogView, e.roles.published)
 	captured, err := e.capturePGType(t.Context(), catalogView, roles, ref, source)
 	if err != nil {
 		t.Fatal(err)
@@ -367,7 +367,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 	install()
 	fresh := e.CatalogRead()
 	freshSource, freshRef := pgTypeUnitSource(t, e)
-	newCapture, err := e.capturePGType(t.Context(), fresh, e.roleRead(fresh, e.roles.published), freshRef, freshSource)
+	newCapture, err := e.capturePGType(t.Context(), fresh, e.roles.read(e.catalog.owner(), fresh, e.roles.published), freshRef, freshSource)
 	if err != nil {
 		t.Fatal(err)
 	}

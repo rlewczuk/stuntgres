@@ -27,7 +27,7 @@ func pgDatabaseUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) *query
 	t.Helper()
 	source, ref := pgDatabaseUnitSource(t, e, catalog)
 	e.mu.Lock()
-	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roleRead(catalog, e.roles.published), ref, source)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roles.read(e.catalog.owner(), catalog, e.roles.published), ref, source)
 	e.mu.Unlock()
 	if err != nil || rows == nil || rows.ref != ref || rows.count() != 1 || len(rows.anonymous[0]) != 18 {
 		t.Fatal("one captured database", rows, err)
@@ -146,17 +146,17 @@ func TestPGDatabaseCapture(t *testing.T) {
 		}
 	}
 	isolated := e.catalog.read(private)
-	if got, err := e.capturePGDatabase(context.Background(), isolated, e.roleRead(isolated, e.roles.published), ref, d); got == nil || err != nil || got.count() != 1 {
+	if got, err := e.capturePGDatabase(context.Background(), isolated, e.roles.read(e.catalog.owner(), isolated, e.roles.published), ref, d); got == nil || err != nil || got.count() != 1 {
 		t.Fatal("unrelated relations affect current row", got, err)
 	}
 	invalidDB := *database
 	invalidDB.Owner = foreign.roles.domain.Principal(10)
 	private.SetDescriptor(catalog.CurrentDatabaseAddress, &invalidDB)
-	if got, err := e.capturePGDatabase(context.Background(), isolated, e.roleRead(isolated, e.roles.published), ref, d); got != nil || err == nil {
+	if got, err := e.capturePGDatabase(context.Background(), isolated, e.roles.read(e.catalog.owner(), isolated, e.roles.published), ref, d); got != nil || err == nil {
 		t.Fatal("foreign owner admitted", got, err)
 	}
 	invalidDB.Owner = e.roles.domain.Principal(999999)
-	if got, err := e.capturePGDatabase(context.Background(), isolated, e.roleRead(isolated, e.roles.published), ref, d); got != nil || err == nil {
+	if got, err := e.capturePGDatabase(context.Background(), isolated, e.roles.read(e.catalog.owner(), isolated, e.roles.published), ref, d); got != nil || err == nil {
 		t.Fatal("stale owner admitted", got, err)
 	}
 	unchanged()

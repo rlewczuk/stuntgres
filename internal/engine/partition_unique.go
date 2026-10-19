@@ -241,7 +241,7 @@ func stagePartitionDescriptor(stage *CatalogStage, d *catalog.Relation) error {
 
 func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, table, parentIndex, child *catalog.Relation, allowIncompleteVirtual bool) (*catalog.Relation, error) {
 	view := e.stageRead(stage)
-	ctx := aclItemOutputContext(op.Context(), capturedACLItemOutput{owner: e, roles: e.roleRead(view, e.operationRolesLocked(op))})
+	ctx := aclItemOutputContext(op.Context(), capturedACLItemOutput{owner: e, roles: e.roles.read(e.catalog.owner(), view, e.operationRolesLocked(op))})
 	if stage.Base.Get(parentIndex.Address()) != nil {
 		stage.domainBases = append(stage.domainBases, parentIndex)
 	}

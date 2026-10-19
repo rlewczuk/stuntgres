@@ -30,7 +30,7 @@ func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 	database.Owner = next
 	candidate.SetDescriptor(catalog.CurrentDatabaseAddress, &database)
 	after := e.catalog.read(candidate)
-	oldRead, newRead := e.roleRead(before, roles), e.roleRead(after, roles)
+	oldRead, newRead := e.roles.read(e.catalog.owner(), before, roles), e.roles.read(e.catalog.owner(), after, roles)
 	oldView, newView := catalogAuthorization(e, before), catalogAuthorization(e, after)
 	oldView.roleRecord, oldView.roles = roles, oldRead
 	newView.roleRecord, newView.roles = roles, newRead
@@ -58,7 +58,7 @@ func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 	for _, flags := range [][2]bool{{false, false}, {true, false}, {false, true}, {true, true}} {
 		graph := cloneRoleFixture(roles)
 		setFixtureEdges(graph, []authorization.Membership{{Role: next, Member: member, Grantor: previous, Inherit: flags[0], Set: flags[1]}})
-		read := e.roleRead(after, graph)
+		read := e.roles.read(e.catalog.owner(), after, graph)
 		closure, err := read.RoleClosure(context.Background(), member, false)
 		if err != nil || !reflect.DeepEqual(closure, []authorization.PrincipalRef{member, next, implicit}) {
 			t.Fatal("MEMBER owner hop", flags, closure, err)

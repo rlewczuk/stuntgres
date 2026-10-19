@@ -1,7 +1,12 @@
 package engine
 
 import (
+	"context"
+	"fmt"
+	"slices"
+
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
 )
 
@@ -22,4 +27,84 @@ type roleStore struct {
 	published     *roleCatalog
 	nextPrincipal uint64
 	references    map[string][]authorization.PrincipalRef
+}
+
+// initialize seeds the predefined roles and the principal allocator. It runs
+// once, while the engine is not yet shared.
+func (s *roleStore) initialize() {
+	s.published = &roleCatalog{root: authorization.Seed(&s.domain), revision: 1}
+	s.nextPrincipal = authorization.LastPredefinedRoleID + 1
+}
+
+// principalCandidateLocked returns a private candidate; only successful
+// publication advances allocation.
+func (s *roleStore) principalCandidateLocked() (authorization.PrincipalRef, error) {
+	id := s.nextPrincipal
+	if id == 0 || id == ^uint64(0) {
+		return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: principal identity or authorization revision exhausted")
+	}
+	if id <= authorization.LastPredefinedRoleID {
+		id = authorization.LastPredefinedRoleID + 1
+	}
+	ref := s.domain.Principal(id)
+	if _, exists := s.published.root.Read(authorization.PrincipalRef{}).Find(ref); exists {
+		return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: principal identity already allocated")
+	}
+	return ref, nil
+}
+
+// read returns the role view of root as seen by view's current database
+// owner. It is empty unless view belongs to owner, the catalog owner this
+// store backs, and root belongs to this store's domain.
+func (s *roleStore) read(owner *catalog.Owner, view catalog.Read, root *roleCatalog) authorization.Read {
+	if view.Owner() != owner || view.State() == nil || root == nil {
+		return authorization.Read{}
+	}
+	database, ok := view.Database(catalog.CurrentDatabaseAddress)
+	if !ok {
+		return authorization.Read{}
+	}
+	read := root.root.Read(database.Owner)
+	if !read.BelongsTo(&s.domain) {
+		return authorization.Read{}
+	}
+	return read
+}
+
+// setReferencesLocked replaces one feature's copied role references and
+// advances the committed role revision. An empty payload unregisters the
+// feature. The registry map is copied, never mutated in place; nothing
+// changes on revision exhaustion or cancellation.
+func (s *roleStore) setReferencesLocked(ctx context.Context, feature string, refs []authorization.PrincipalRef) error {
+	if s.published.revision == ^uint64(0) {
+		return fmt.Errorf("stuntgres: authorization revision exhausted")
+	}
+	next := make(map[string][]authorization.PrincipalRef, len(s.references)+1)
+	for key, payload := range s.references {
+		next[key] = payload
+	}
+	if len(refs) == 0 {
+		delete(next, feature)
+	} else {
+		next[feature] = append([]authorization.PrincipalRef(nil), refs...)
+	}
+	roles := s.published.advance()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.references = next
+	s.published = roles
+	return nil
+}
+
+// referencingFeatures returns, in no particular order, the features whose
+// registered references include ref.
+func (s *roleStore) referencingFeatures(ref authorization.PrincipalRef) []string {
+	var features []string
+	for feature, refs := range s.references {
+		if slices.Contains(refs, ref) {
+			features = append(features, feature)
+		}
+	}
+	return features
 }

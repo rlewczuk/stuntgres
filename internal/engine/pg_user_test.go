@@ -54,7 +54,7 @@ func pgUserUnitRows(t *testing.T, source *querySource) map[uint32][]sqltype.Valu
 
 func pgUserUnitRole(e *Engine, state *roleCatalog, id uint64, name string) authorization.PrincipalRef {
 	e.roles.nextPrincipal = id
-	ref, err := e.nextRolePrincipalLocked()
+	ref, err := e.roles.principalCandidateLocked()
 	if err != nil {
 		panic(err)
 	}
@@ -118,7 +118,7 @@ func TestPGUserTypedProjectionAndIdentityWidth(t *testing.T) {
 	role.ValidUntil = 123456789
 	role.ConnectionLimit = 0
 	putFixtureRole(state, role)
-	source, err := capturePGUser(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), state), ref, d)
+	source, err := capturePGUser(context.Background(), e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +166,7 @@ func TestPGUserTypedProjectionAndIdentityWidth(t *testing.T) {
 		t.Fatal("detached expiry changed")
 	}
 	retireFixtureRole(updated, low)
-	fresh, err := capturePGUser(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), updated), ref, d)
+	fresh, err := capturePGUser(context.Background(), e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), updated), ref, d)
 	if err != nil || pgUserUnitRows(t, fresh)[20000] != nil {
 		t.Fatal("high identity resurrected removed low", err)
 	}
@@ -259,7 +259,7 @@ func TestPGUserCancellationAndUnknownProvider(t *testing.T) {
 	pgUserUnitRole(e, state, 20001, "second")
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, roles := range []authorization.Read{e.roleRead(e.catalog.read(e.catalog.state), emptyRoleFixture(e)), e.roleRead(e.catalog.read(e.catalog.state), state)} {
+	for _, roles := range []authorization.Read{e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), emptyRoleFixture(e)), e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state)} {
 		source, err := capturePGUser(canceled, roles, ref, d)
 		if source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("canceled admission published rows", err)
@@ -267,7 +267,7 @@ func TestPGUserCancellationAndUnknownProvider(t *testing.T) {
 	}
 	for _, at := range []int{2, 3, 5} {
 		ctx := &pgShDescriptionCancelContext{Context: context.Background(), cancelAt: at}
-		source, err := capturePGUser(ctx, e.roleRead(e.catalog.read(e.catalog.state), state), ref, d)
+		source, err := capturePGUser(ctx, e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state), ref, d)
 		if source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("iteration/final cancellation published partial rows", at, err)
 		}
@@ -275,7 +275,7 @@ func TestPGUserCancellationAndUnknownProvider(t *testing.T) {
 	invalid := *d
 	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[1].Usage.Type = testUsage(e, sqltype.Int4).Type
-	if source, err := capturePGUser(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), state), ref, &invalid); err == nil || source != nil {
+	if source, err := capturePGUser(context.Background(), e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state), ref, &invalid); err == nil || source != nil {
 		t.Fatal("invalid OID construction published rows")
 	}
 	unknown := *d

@@ -26,7 +26,7 @@ func namespaceUnitCapture(t *testing.T, e *Engine, c catalog.Read) *querySource 
 	t.Helper()
 	d, ref := namespaceUnitSource(t, e, c)
 	e.mu.Lock()
-	rows, err := e.capturePGNamespace(context.Background(), c, e.roleRead(c, e.roles.published), ref, d)
+	rows, err := e.capturePGNamespace(context.Background(), c, e.roles.read(e.catalog.owner(), c, e.roles.published), ref, d)
 	e.mu.Unlock()
 	if err != nil || rows == nil || rows.ref != ref {
 		t.Fatal(rows, err)

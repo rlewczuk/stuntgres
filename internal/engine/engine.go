@@ -170,7 +170,7 @@ func newEngine(providers []catalog.Provider, definitions []SettingDefinition, da
 	e.assignedXID, e.commitTimestampBase = 2, 3
 	e.locks = lock.New(e.catalog.Domain)
 	e.storage.Sequences = make(map[ids.ObjectAddress]*sequenceGenerator)
-	e.initializeRoles()
+	e.roles.initialize()
 	e.initializeSettings(definitions)
 	for _, p := range providers {
 		if err := e.RegisterCatalogProvider(p); err != nil {

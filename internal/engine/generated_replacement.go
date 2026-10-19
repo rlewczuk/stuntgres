@@ -40,7 +40,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	}
 	candidate := catalog.CloneState(next)
 	stage.mu.Lock()
-	_, err := stage.remapPreparedCatalog(candidate, e.roleRead(e.catalog.read(next), roles), stage.roleRead(stage.catalog.read(stage.catalog.state), stage.roles.published), nil)
+	_, err := stage.remapPreparedCatalog(candidate, e.roles.read(e.catalog.owner(), e.catalog.read(next), roles), stage.roles.read(stage.catalog.owner(), stage.catalog.read(stage.catalog.state), stage.roles.published), nil)
 	if err == nil {
 		// remapCatalogExpressions targets the next epoch. Preserve final numeric
 		// identities while projecting only engine/principal ownership.

@@ -245,7 +245,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 		roles = c.roles
 	}
 	view := e.privateCatalogLocked(c)
-	read := e.roleRead(view, roles)
+	read := e.roles.read(e.catalog.owner(), view, roles)
 	if err := catalog.ValidateDefaultACLs(read, view); err != nil {
 		return err
 	}

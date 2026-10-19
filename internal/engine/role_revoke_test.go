@@ -141,7 +141,7 @@ func TestObjectRevokePublicationFence(t *testing.T) {
 		t.Run(failure, func(t *testing.T) {
 			e, op, _, _, _, _ := objectRevokeUnitFixture(t)
 			if failure == "revision" {
-				e.roles.published = advanceRoleRevision(e.roles.published)
+				e.roles.published = e.roles.published.advance()
 				saturated := *e.roles.published
 				saturated.revision = ^uint64(0)
 				e.roles.published = &saturated

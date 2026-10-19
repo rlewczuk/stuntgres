@@ -197,7 +197,7 @@ func TestMembershipCancelledCandidate(t *testing.T) {
 	cancel()
 	// Closure is also used inside planning; cancellation cannot return a prefix.
 	old := e.roles.published
-	refs, err := (e.roleRead(e.catalog.read(e.catalog.state), e.roles.published)).RoleClosure(ctx, e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), false)
+	refs, err := (e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)).RoleClosure(ctx, e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), false)
 	if err != context.Canceled || refs != nil || !reflect.DeepEqual(e.roles.published, old) {
 		t.Fatal(fmt.Sprint(refs), err)
 	}

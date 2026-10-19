@@ -92,7 +92,7 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 	if err == nil {
 		nextRevision := e.catalog.nextRevision
 		for _, descriptor := range next.Descriptors() {
-			if err = validateACL(e.roleRead(e.catalog.read(next), e.roles.published), descriptor); err != nil {
+			if err = validateACL(e.roles.read(e.catalog.owner(), e.catalog.read(next), e.roles.published), descriptor); err != nil {
 				break
 			}
 			if revision := descriptor.Revision(); revision >= nextRevision {

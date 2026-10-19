@@ -67,7 +67,7 @@ func TestObjectGrantParameterPublication(t *testing.T) {
 				t.Fatal("copied parameter descriptor accepted as authority")
 			}
 			copy.Owner = authorization.PrincipalRef{}
-			if err := validateACL(e.roleRead(e.catalog.read(e.catalog.state), e.roles.published), &copy); err == nil {
+			if err := validateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), &copy); err == nil {
 				t.Fatal("parameter zero owner accepted")
 			}
 			stable, stableRoles := e.catalog.state, e.roles.published
@@ -135,7 +135,7 @@ func TestObjectGrantTablespacePublication(t *testing.T) {
 				t.Fatal("copied tablespace descriptor accepted as authority")
 			}
 			copy.Owner = authorization.PrincipalRef{}
-			if err := validateACL(e.roleRead(e.catalog.read(e.catalog.state), e.roles.published), &copy); err == nil {
+			if err := validateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), &copy); err == nil {
 				t.Fatal("tablespace zero owner accepted")
 			}
 			stable, roles := e.catalog.state, e.roles.published
@@ -170,7 +170,7 @@ func TestObjectGrantTablespaceCapturedACL(t *testing.T) {
 		}
 		ref := e.catalog.Domain.Ref(catalog.Epoch(), address)
 		e.mu.Lock()
-		rows, err := e.capturePGTablespace(context.Background(), catalog, e.roleRead(catalog, e.roles.published), ref, source)
+		rows, err := e.capturePGTablespace(context.Background(), catalog, e.roles.read(e.catalog.owner(), catalog, e.roles.published), ref, source)
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

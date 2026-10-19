@@ -28,7 +28,7 @@ func pgAttributeUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) *quer
 	t.Helper()
 	d, ref := pgAttributeUnitSource(t, e, catalog)
 	e.mu.Lock()
-	rows, err := e.capturePGAttribute(context.Background(), catalog, e.roleRead(catalog, e.roles.published), ref, d)
+	rows, err := e.capturePGAttribute(context.Background(), catalog, e.roles.read(e.catalog.owner(), catalog, e.roles.published), ref, d)
 	e.mu.Unlock()
 	if err != nil || rows == nil || rows.ref != ref {
 		t.Fatal(rows, err)

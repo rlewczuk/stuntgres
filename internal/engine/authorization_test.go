@@ -21,7 +21,7 @@ import (
 // Host catalog fixtures resolve as the real bootstrap principal, not as a
 // zero/default-allow authorization view. Caller holds e.mu.
 func catalogAuthorization(e *Engine, view catalog.Read) AuthorizationView {
-	return AuthorizationView{engine: e, pairedCatalog: view, roleRecord: e.roles.published, catalog: view, roles: e.roleRead(view, e.roles.published), state: authorization.RoleState{CurrentUser: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}}
+	return AuthorizationView{engine: e, pairedCatalog: view, roleRecord: e.roles.published, catalog: view, roles: e.roles.read(e.catalog.owner(), view, e.roles.published), state: authorization.RoleState{CurrentUser: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}}
 }
 
 func roleTableRef(t *testing.T, e *Engine, name string) ids.ObjectRef {

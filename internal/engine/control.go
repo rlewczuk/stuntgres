@@ -116,7 +116,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	tables := make([]dumpRelation, 0)
 	catalogView := e.catalog.read(e.catalog.state)
 	originalCatalog := catalogView
-	originalRoles := e.roleRead(originalCatalog, e.roles.published)
+	originalRoles := e.roles.read(e.catalog.owner(), originalCatalog, e.roles.published)
 	recipePlan, err := capturedGenerationReplayPlan(originalCatalog)
 	if err != nil {
 		e.mu.Unlock()
@@ -131,7 +131,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	// Declarations bind private key names until the terminal renames. Later
 	// definitions and values must render against the original captured names.
 	catalogView, constraintReplay := partitionConstraintDumpCatalog(catalogView)
-	domainRoles := e.roleRead(catalogView, e.roles.published)
+	domainRoles := e.roles.read(e.catalog.owner(), catalogView, e.roles.published)
 	if err := e.validateTemporaryCollationDump(ctx, catalogView); err != nil {
 		e.mu.Unlock()
 		return err

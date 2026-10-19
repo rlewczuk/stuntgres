@@ -222,7 +222,7 @@ func (s *StatementScope) commentEngine() *Engine {
 func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
 	if scope.commentCatalog.State() == nil {
 		scope.commentCatalog = e.privateCatalogLocked(scope.owner.catalog)
-		scope.commentRoles = e.roleRead(scope.commentCatalog, e.operationRolesLocked(scope.op))
+		scope.commentRoles = e.roles.read(e.catalog.owner(), scope.commentCatalog, e.operationRolesLocked(scope.op))
 	}
 	scope.output.ACLItem = scope
 	scope.output.Regrole = scope

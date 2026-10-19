@@ -24,7 +24,7 @@ func ownershipCleanupStage(t *testing.T) (*Engine, *CatalogStage, *catalog.Names
 	ownershipUnitPublish(t, e, setup)
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	stage.roleRevision = e.roles.published.revision
-	if err := stageOwnedCleanup(context.Background(), stage, e.roleRead(stage.Base, e.roles.published), e.roles.published, map[authorization.PrincipalRef]bool{source: true}); err != nil {
+	if err := stageOwnedCleanup(context.Background(), stage, e.roles.read(e.catalog.owner(), stage.Base, e.roles.published), e.roles.published, map[authorization.PrincipalRef]bool{source: true}); err != nil {
 		t.Fatal(err)
 	}
 	if stage.roleCandidate == nil || stage.Descriptors[ns.Address()] == nil {

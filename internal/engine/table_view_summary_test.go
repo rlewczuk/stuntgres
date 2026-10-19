@@ -204,7 +204,7 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 		}
 	}
 	e.mu.Lock()
-	captured, err := e.captureTableViewSummary(context.Background(), catalogView, e.roleRead(catalogView, e.roles.published), ids.ObjectRef{}, source, viewPresentation{})
+	captured, err := e.captureTableViewSummary(context.Background(), catalogView, e.roles.read(e.catalog.owner(), catalogView, e.roles.published), ids.ObjectRef{}, source, viewPresentation{})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -239,7 +239,7 @@ func TestTableSummaryColumnACLNeutrality(t *testing.T) {
 		catalog := e.CatalogRead()
 		source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003})
 		e.mu.Lock()
-		captured, err := e.captureTableViewSummary(context.Background(), catalog, e.roleRead(catalog, e.roles.published), ids.ObjectRef{}, source, viewPresentation{})
+		captured, err := e.captureTableViewSummary(context.Background(), catalog, e.roles.read(e.catalog.owner(), catalog, e.roles.published), ids.ObjectRef{}, source, viewPresentation{})
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -277,7 +277,7 @@ func TestTableSummaryOwnerReplacement(t *testing.T) {
 	capture := func(catalog catalog.Read) []sqltype.Value {
 		source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003})
 		e.mu.Lock()
-		captured, err := e.captureTableViewSummary(context.Background(), catalog, e.roleRead(catalog, e.roles.published), ids.ObjectRef{}, source, viewPresentation{})
+		captured, err := e.captureTableViewSummary(context.Background(), catalog, e.roles.read(e.catalog.owner(), catalog, e.roles.published), ids.ObjectRef{}, source, viewPresentation{})
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

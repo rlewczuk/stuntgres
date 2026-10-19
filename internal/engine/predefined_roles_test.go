@@ -105,7 +105,7 @@ func TestPredefinedRoleAllocation(t *testing.T) {
 	roleAttributeFailure(t, e, op, &parser.CreateRole{Name: parser.Identifier{Text: "revision_exhausted"}}, "")
 	floor := New()
 	floor.roles.nextPrincipal = 3373
-	candidate, err := floor.nextRolePrincipalLocked()
+	candidate, err := floor.roles.principalCandidateLocked()
 	if err != nil || candidate != (floor.roles.domain.Principal(6393)) || floor.roles.nextPrincipal != 3373 {
 		t.Fatal("private checked candidate", candidate, err)
 	}
@@ -134,7 +134,7 @@ func TestPredefinedImplicitDatabaseOwner(t *testing.T) {
 	d.Superuser = false // Exercise the implicit rule, not the independent SU bypass.
 	putFixtureRole(n, d)
 	setFixtureEdges(n, nil)
-	r := e.roleRead(e.catalog.read(e.catalog.state), n)
+	r := e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), n)
 	for _, inherit := range []bool{false, true} {
 		got, err := r.RoleClosure(context.Background(), bootstrap, inherit)
 		if err != nil || !reflect.DeepEqual(got, []authorization.PrincipalRef{bootstrap, owner}) {

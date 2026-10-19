@@ -67,7 +67,7 @@ func pgCollationUnitCapture(t *testing.T, e *Engine, view catalog.Read) *querySo
 	descriptors, names := maps.Collect(state.Descriptors()), maps.Collect(state.Names())
 	capturedDescriptors, capturedNames := maps.Collect(view.State().Descriptors()), maps.Collect(view.State().Names())
 	e.mu.Lock()
-	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roleRead(view, e.roles.published), ref, d)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.read(e.catalog.owner(), view, e.roles.published), ref, d)
 	e.mu.Unlock()
 	if err != nil || rows == nil || rows.ref != ref {
 		t.Fatal("capture", rows, err)

@@ -19,7 +19,7 @@ func ownershipUnitRoles() (e *Engine, owner, source, target, reader authorizatio
 	publication := cloneRoleFixture(e.roles.published)
 	for i, destination := range refs {
 		e.roles.nextPrincipal = uint64(100001 + i)
-		ref, err := e.nextRolePrincipalLocked()
+		ref, err := e.roles.principalCandidateLocked()
 		if err != nil {
 			panic(err)
 		}
@@ -220,7 +220,7 @@ func TestRoleOwnershipInitialSourceCanonicalIdentity(t *testing.T) {
 	putFixtureRole(graph, authorization.RoleDescriptor{Ref: ordinary, Name: "postgres", Superuser: true, Inherit: true})
 
 	auth := catalogAuthorization(e, e.CatalogRead())
-	auth.roles = e.roleRead(auth.catalog, graph)
+	auth.roles = e.roles.read(e.catalog.owner(), auth.catalog, graph)
 	auth.roleRecord = graph
 	retained := e.roles.published
 	for _, reassign := range []bool{false, true} {

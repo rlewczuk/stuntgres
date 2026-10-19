@@ -49,7 +49,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 			ref  authorization.PrincipalRef
 			want authorization.Privileges
 		}{{owner, tc.ownerRights}, {reader, tc.readerRights}} {
-			rights, err := databaseRights(context.Background(), catalog, e.roleRead(catalog, roles), item.ref)
+			rights, err := databaseRights(context.Background(), catalog, e.roles.read(e.catalog.owner(), catalog, roles), item.ref)
 			if err != nil || rights != item.want {
 				t.Fatal("NULL/empty/legacy policy", item.ref, rights, item.want, err)
 			}
@@ -64,7 +64,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if rights, err := databaseRights(ctx, base, e.roleRead(base, e.roles.published), owner); rights != 0 || !errors.Is(err, context.Canceled) {
+	if rights, err := databaseRights(ctx, base, e.roles.read(e.catalog.owner(), base, e.roles.published), owner); rights != 0 || !errors.Is(err, context.Canceled) {
 		t.Fatal("superuser must not bypass cancellation", rights, err)
 	}
 }
@@ -73,7 +73,7 @@ func TestDatabaseACLDelegationCancellation(t *testing.T) {
 	e, owner, source, target, _ := ownershipUnitRoles()
 	db := e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
 	baseline := authorization.MaterializeDatabaseACL(db.ACL, db.Owner)
-	roles := e.roleRead(e.CatalogRead(), e.roles.published)
+	roles := e.roles.read(e.catalog.owner(), e.CatalogRead(), e.roles.published)
 	delegated, _, err := authorization.ChangeObjectACL(context.Background(), roles, baseline, owner, owner, []authorization.ACLGrantee{{Role: source}}, authorization.DatabasePrivileges, true, false, false, false)
 	if err != nil {
 		t.Fatal(err)

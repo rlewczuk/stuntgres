@@ -113,7 +113,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 	if err := stockFuzzystrmatch.ValidateExtension(view, &duplicate); err == nil {
 		t.Fatal("full-size duplicate inventory admitted")
 	}
-	metadata, err := extensionOwnerMetadata(view, e.roleRead(view, e.roles.published), ext)
+	metadata, err := extensionOwnerMetadata(view, e.roles.read(e.catalog.owner(), view, e.roles.published), ext)
 	if err != nil {
 		t.Fatal(err)
 	}

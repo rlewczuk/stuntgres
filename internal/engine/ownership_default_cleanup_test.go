@@ -33,7 +33,7 @@ func TestDropOwnedDefaultCanonicalCleanup(t *testing.T) {
 	stage.roleRevision = f.e.roles.published.revision
 	// Namespace AUTO tombstones precede cleanup and must not be resurrected.
 	stage.removeSchemaDefaults(f.schema)
-	if err := stageOwnedCleanup(context.Background(), stage, f.e.roleRead(stage.Base, f.e.roles.published), f.e.roles.published, map[authorization.PrincipalRef]bool{f.owner: true}); err != nil {
+	if err := stageOwnedCleanup(context.Background(), stage, f.e.roles.read(f.e.catalog.owner(), stage.Base, f.e.roles.published), f.e.roles.published, map[authorization.PrincipalRef]bool{f.owner: true}); err != nil {
 		t.Fatal(err)
 	}
 	if !ownedCleanupAddsDeletionRoot(stage, map[authorization.PrincipalRef]bool{f.owner: true}) {

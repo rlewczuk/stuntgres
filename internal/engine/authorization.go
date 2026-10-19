@@ -12,7 +12,7 @@ import (
 func (e *Engine) Roles() authorization.Read {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.roleRead(e.catalog.read(e.catalog.state), e.roles.published)
+	return e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)
 }
 func (e *Engine) ResolveLogin(name string) (authorization.PrincipalRef, error) {
 	d, ok := e.Roles().Lookup(name)
@@ -34,29 +34,11 @@ func (e *Engine) SetRoleReferences(ctx context.Context, feature string, refs []a
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for _, ref := range refs {
-		if _, err := (e.roleRead(e.catalog.read(e.catalog.state), e.roles.published)).Descriptor(ref); err != nil {
+		if _, err := (e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)).Descriptor(ref); err != nil {
 			return err
 		}
 	}
-	if e.roles.published.revision == ^uint64(0) {
-		return fmt.Errorf("stuntgres: authorization revision exhausted")
-	}
-	next := make(map[string][]authorization.PrincipalRef, len(e.roles.references)+1)
-	for key, payload := range e.roles.references {
-		next[key] = payload
-	}
-	if len(refs) == 0 {
-		delete(next, feature)
-	} else {
-		next[feature] = append([]authorization.PrincipalRef(nil), refs...)
-	}
-	roles := advanceRoleRevision(e.roles.published)
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	e.roles.references = next
-	e.roles.published = roles
-	return nil
+	return e.roles.setReferencesLocked(ctx, feature, refs)
 }
 
 type sessionAuthorization struct {
@@ -222,7 +204,7 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 	if s.transactions != nil {
 		view = e.privateCatalogLocked(s.transactions.catalog)
 	}
-	r := e.roleRead(view, e.operationRolesLocked(op))
+	r := e.roles.read(e.catalog.owner(), view, e.operationRolesLocked(op))
 	if _, err := r.Descriptor(a.state.Authenticated); err != nil {
 		return AuthorizationView{}, err
 	}
@@ -317,7 +299,7 @@ func classPrivileges(d catalog.Descriptor) authorization.Privileges {
 	return authorization.TableGrantPrivileges
 }
 func (v AuthorizationView) object(ref ids.ObjectRef) (catalog.Descriptor, error) {
-	if v.engine == nil || v.catalog.Owner() != v.engine.catalog.owner() || v.catalog.State() == nil || !v.roles.BelongsTo(&v.engine.roles.domain) || v.roles != v.engine.roleRead(v.catalog, v.roleRecord) || v.pairedCatalog != v.catalog || v.roles.DatabaseOwner() != v.catalog.MustDatabase(catalog.CurrentDatabaseAddress).Owner || ref.Domain() != v.engine.catalog.Domain || ref.Epoch != v.catalog.Epoch() {
+	if v.engine == nil || v.catalog.Owner() != v.engine.catalog.owner() || v.catalog.State() == nil || !v.roles.BelongsTo(&v.engine.roles.domain) || v.roles != v.engine.roles.read(v.engine.catalog.owner(), v.catalog, v.roleRecord) || v.pairedCatalog != v.catalog || v.roles.DatabaseOwner() != v.catalog.MustDatabase(catalog.CurrentDatabaseAddress).Owner || ref.Domain() != v.engine.catalog.Domain || ref.Epoch != v.catalog.Epoch() {
 		return nil, fmt.Errorf("stuntgres: foreign or stale authorization object")
 	}
 	d, ok := v.catalog.Descriptor(ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID})
@@ -867,7 +849,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 	default:
 		return fmt.Errorf("stuntgres: unsupported ACL object")
 	}
-	if err := validateACL(e.roleRead(e.catalog.read(e.catalog.state), e.roles.published), next); err != nil {
+	if err := validateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), next); err != nil {
 		return err
 	}
 	if e.roles.published.revision == ^uint64(0) {
@@ -879,7 +861,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 	} else {
 		state.SetDescriptor(addr, next)
 	}
-	roles := advanceRoleRevision(e.roles.published)
+	roles := e.roles.published.advance()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -900,26 +882,11 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 	return nil
 }
 
-func (e *Engine) roleRead(view catalog.Read, root *roleCatalog) authorization.Read {
-	if view.Owner() != e.catalog.owner() || view.State() == nil || root == nil {
-		return authorization.Read{}
-	}
-	database, ok := view.Database(catalog.CurrentDatabaseAddress)
-	if !ok {
-		return authorization.Read{}
-	}
-	read := root.root.Read(database.Owner)
-	if !read.BelongsTo(&e.roles.domain) {
-		return authorization.Read{}
-	}
-	return read
-}
-
 // recaptureCatalog binds a substituted catalog to the same immutable role root.
 func (v *AuthorizationView) recaptureCatalog(catalog catalog.Read) {
 	v.catalog = catalog
 	v.pairedCatalog = catalog
-	v.roles = v.engine.roleRead(catalog, v.roleRecord)
+	v.roles = v.engine.roles.read(v.engine.catalog.owner(), catalog, v.roleRecord)
 }
 
 // roleCatalog is an immutable engine-owned publication stamp. All principal,
@@ -929,6 +896,8 @@ type roleCatalog struct {
 	revision uint64
 }
 
-func advanceRoleRevision(r *roleCatalog) *roleCatalog {
+// advance returns a record with the same root and the next revision. Callers
+// check revision exhaustion first.
+func (r *roleCatalog) advance() *roleCatalog {
 	return &roleCatalog{root: r.root, revision: r.revision + 1}
 }

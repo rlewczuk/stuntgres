@@ -108,7 +108,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		if d.Address().ObjectID == ids.ParameterClassID {
 			roles = scope.commentRoles
 		} else {
-			roles = e.roleRead(catalog, scope.deparseAuth.roleRecord)
+			roles = e.roles.read(e.catalog.owner(), catalog, scope.deparseAuth.roleRecord)
 		}
 		if d.Address().ObjectID == 12002 {
 			auth, err := e.authorizationLocked(scope.op)
