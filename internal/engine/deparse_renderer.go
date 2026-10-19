@@ -7,7 +7,6 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -576,8 +575,14 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		}
 		return "(" + text + ")", nil
 	case coercionExpression:
-		if constructor, ok := n.child.(functions.SQLJSON); ok && n.plan.IsJSONReturning() {
-			return r.sqlJSON(ctx, constructor, n.Usage)
+		if n.plan.IsJSONReturning() {
+			spec, supported, err := jsonReturningRendering(n.child)
+			if err != nil {
+				return "", err
+			}
+			if supported {
+				return r.renderingWithReturning(ctx, n.child, spec, parent, n.Usage)
+			}
 		}
 		// Identifier leaves already retain their scalar annotation. A transparent
 		// relabel must not duplicate it around a genuine enclosing conversion.
@@ -862,8 +867,6 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 			return "", fmt.Errorf("stuntgres: missing installed function namespace")
 		}
 		return function(r.identifier(namespace.Name())+"."+r.identifier(n.procedure.Name()), []expr.Expr{n.Arg}, true)
-	case functions.SQLJSON:
-		return r.sqlJSON(ctx, n, sqltype.Usage{})
 	case visibilityInquiryExpression:
 		u := n.ResultUsage()
 		if n.kind.class() == 0 || u.Type == nil || u != u.Type.Usage() || u.Type.ID() != n.kind.result() || n.arg == nil {

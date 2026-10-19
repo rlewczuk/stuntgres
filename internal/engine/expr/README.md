@@ -151,6 +151,15 @@ without a hook gets the switch's previous generic behavior:
   or cast NAME, typed or ambiguously spelled literals, or type NULL intervals.
   Binary and string operators state their `pg_catalog` schema, which display
   shows bare and replay qualifies.
+  SQL/JSON constructors use the same template protocol: `JSONConstructor`
+  marks their representation boundary (ordinary call names do not), and
+  `JSONReturning` permits a named `Piece.Returning` type slot. The engine
+  supplies that slot only from the enclosing constructor-owned conversion;
+  without it the whole piece, including its prefix and FORMAT/ENCODING suffix,
+  is absent. `RenderArg.JSONFormattedSource` requests the original child of
+  exactly one recognized formatted-input conversion, never an arbitrary cast.
+  The engine retains conversion plans, catalog/typmod/domain declarations,
+  literal transport and validation; the description stores no engine callback.
 - **`GroupIdentity`** (`SameGroup`): whether another expression is the same
   grouping expression (GROUP BY matching, DISTINCT ON, CHECK definition
   equality). The node compares its own identity and calls the engine's `same`
@@ -209,9 +218,10 @@ until a compatibility fix. The uuid closed-DEFAULT check keeps explicit cases
 for `date_trunc`, `date_bin` and the zone calendar calls, which only it looks
 through. Function sources use the explicit capabilities in `source.go`; the
 engine retains query scheduling, lexical-frame boundaries, layout and installed
-identity authority. Explicit `SQLJSON` deparse and stored SQL cases remain
-separate work. Literal capture uses `Capturable` only after engine-owned
-wrappers, coercions, constructors and query-frame boundaries.
+identity authority. SQLJSON display and stored SQL use `Renderable`; its query
+form, coercions and raw stored-view occurrence capture remain engine-owned.
+Literal capture uses `Capturable` only after engine-owned wrappers, coercions,
+constructors and query-frame boundaries.
 
 ## Closed function sources
 
@@ -306,3 +316,12 @@ characterization and post-adoption selected proof, smoke and quickcheck passed.
 Full racecheck timed out; racecheck and finalcheck are explicitly waived by the
 user, not reported as passing. The current instruction permits only quickcheck
 for remaining verification; see functions Testing for the retained evidence.
+
+SQLJSON's actual bound-renderer/coercion boundary proof lives in the engine,
+alongside its real catalog fixtures; the constructor protocol tests remain in
+`functions`. Exact SQL display/replay assertions supplement unchanged public
+reference definitions rather than replacing them:
+
+```sh
+make check RUN='^Test(SQLJSONProtocol|JSONPredicateProtocol|SQLJSONRendererBoundaries|SQLJSONReturningOwnershipRebind)$'
+```

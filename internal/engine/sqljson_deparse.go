@@ -1,23 +1,34 @@
 package engine
 
 import (
-	"context"
-	"strings"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
-	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
 
-// sqlJSONResult retains enclosing casts at the constructor's representation boundary.
-// RETURNING ownership comes from the conversion plan, never its assignment mode.
+// sqlJSONResult retains enclosing casts at a protocol constructor's
+// representation boundary. Ordinary callable spelling conveys no such identity.
 func sqlJSONResult(node expr.Expr) bool {
 	if conversion, ok := node.(coercionExpression); ok && conversion.plan.IsJSONReturning() {
 		node = conversion.child
 	}
-	_, ok := node.(functions.SQLJSON)
-	return ok
+	renderable, ok := node.(expr.Renderable)
+	if !ok {
+		return false
+	}
+	spec, err := renderable.Render()
+	return err == nil && spec.JSONConstructor
+}
+
+// jsonReturningRendering asks the child for its existing syntax description,
+// never its result type or raw RETURNING spelling. A missing capability leaves
+// the conversion to the ordinary engine cast path.
+func jsonReturningRendering(node expr.Expr) (expr.Rendering, bool, error) {
+	renderable, ok := node.(expr.Renderable)
+	if !ok {
+		return expr.Rendering{}, false, nil
+	}
+	spec, err := renderable.Render()
+	return spec, spec.JSONConstructor && spec.JSONReturning, err
 }
 
 func sqlJSONSource(arg expr.Expr) expr.Expr {
@@ -27,96 +38,6 @@ func sqlJSONSource(arg expr.Expr) expr.Expr {
 	return arg
 }
 
-func sqlJSONRecipe(raw parser.SQLJSONExpr, parts []string, query, returning string) string {
-	text := query
-	if raw.Query == nil {
-		if raw.Kind == "json_object" {
-			members := make([]string, 0, len(parts)/2)
-			for i := 0; i < len(parts); i += 2 {
-				members = append(members, "("+parts[i]+") VALUE "+parts[i+1])
-			}
-			text = strings.Join(members, ", ")
-		} else {
-			text = strings.Join(parts, ", ")
-		}
-	} else if len(raw.Formats) > 0 {
-		text += jsonAggregateFormatSQL(raw.Formats[0])
-	}
-	objectMembers := raw.Kind == "json_object" && len(parts) != 0
-	if raw.Query == nil && (raw.Kind == "json_array" || objectMembers) {
-		if raw.Absent {
-			text += " ABSENT ON NULL"
-		} else {
-			text += " NULL ON NULL"
-		}
-	}
-	if raw.Unique && (raw.Kind != "json_object" || objectMembers) {
-		text += " WITH UNIQUE KEYS"
-	}
-	if returning != "" {
-		if text != "" {
-			text += " "
-		}
-		text += "RETURNING " + returning + jsonAggregateFormatSQL(raw.Output)
-	}
-	return strings.ToUpper(raw.Kind) + "(" + text + ")"
-}
-func (r pgRenderer) sqlJSON(ctx context.Context, n functions.SQLJSON, returning sqltype.Usage) (string, error) {
-	parts := make([]string, len(n.Args))
-	for i, arg := range n.Args {
-		var err error
-		parts[i], err = r.sql(ctx, sqlJSONSource(arg), pgRenderParent{functionArgument: true})
-		if err != nil {
-			return "", err
-		}
-		if i < len(n.Raw.Formats) {
-			parts[i] += jsonAggregateFormatSQL(n.Raw.Formats[i])
-		}
-	}
-	declaration := ""
-	if returning.Type != nil {
-		var err error
-		declaration, err = r.typeSQL(returning)
-		if err != nil {
-			return "", err
-		}
-	}
-	return sqlJSONRecipe(n.Raw, parts, "", declaration), nil
-}
 func jsonPredicateRecipe(child, kind string, unique, not bool) string {
 	return "(" + child + functions.JSONPredicateSuffix(kind, unique, not)
-}
-
-func (r scalarRenderer) sqlJSON(ctx context.Context, view catalog.Read, n functions.SQLJSON, returning sqltype.Usage) (string, error) {
-	parts := make([]string, len(n.Args))
-	for i, arg := range n.Args {
-		text, err := r.sql(ctx, view, sqlJSONSource(arg))
-		if err != nil {
-			return "", err
-		}
-		parts[i] = text
-		if i < len(n.Raw.Formats) {
-			parts[i] += jsonAggregateFormatSQL(n.Raw.Formats[i])
-		}
-	}
-	declaration := ""
-	if returning.Type != nil {
-		var err error
-		declaration, err = catalogTypeDeclarationAt(view, r.definition, returning)
-		if err != nil {
-			return "", err
-		}
-	}
-	return sqlJSONRecipe(n.Raw, parts, "", declaration), nil
-}
-
-func jsonAggregateFormatSQL(format *parser.JSONFormat) string {
-	if format == nil {
-		return ""
-	}
-	text := " FORMAT JSON"
-	if format.Encoding != "" {
-		text += " ENCODING " + format.Encoding
-	}
-	return text
 }

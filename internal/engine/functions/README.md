@@ -671,12 +671,20 @@ Nodes also implement the optional `expr` hooks that the engine's switches ask
   builders: `callRendering`, `writtenArgs`/`writtenCall` for written-order
   calls with labels, `infixRendering`, and `syntaxPieces`/`trimPieces` for
   OVERLAY, SUBSTRING, POSITION and TRIM. `Render` runs the validation either
-  renderer ran before. `JSONPredicate` renders through the template form;
-  `SQLJSON` has only a node-tree form, because the engine renders its SQL
-  (arguments through their formatted-input coercions, RETURNING from the
-  enclosing coercion). The extension nodes (`Soundex`, `Metaphone`,
-  `Levenshtein`, `Pgcrypto`) have no `Render`: only their engine wrappers
-  display, with the installed procedure's schema.
+  renderer ran before. `JSONPredicate` and all five argument/member SQLJSON
+  constructors render through the template form. SQLJSON requests the original
+  formatted-input source through `RenderArg.JSONFormattedSource`, keeps implicit
+  casts hidden and operands in function-argument position, and marks its
+  representation boundary with `JSONConstructor`. Only ARRAY, OBJECT and
+  SERIALIZE expose `JSONReturning` and a named optional type slot. The engine
+  supplies that usage only from the constructor-owned RETURNING conversion;
+  JSON/SCALAR and genuine enclosing casts never acquire a RETURNING clause.
+  `SQLJSONPieces` is the shared syntax-only recipe for bound presentation and
+  raw stored views, including empty OBJECT/ARRAY whitespace, member VALUE syntax
+  and FORMAT/ENCODING suffixes. Tree headers and children are unchanged.
+  The extension nodes (`Soundex`, `Metaphone`, `Levenshtein`, `Pgcrypto`) have
+  no `Render`: only their engine wrappers display, with the installed
+  procedure's schema.
 
 A new node implements `Children`, `Rebuild`, `Substitute`,
 `IntrinsicVolatility`, `Render` and `SameGroup`, and each other hook whose
@@ -701,9 +709,14 @@ validation and stored identity; registered bind code reaches them only through
 with the engine's DEFAULT binder and stored-expression validator. Registered
 function nodes replay through `expr.Rendering` (`Replay` in the `expr` README);
 engine SQL routine wrappers retain their checked descriptor/reference instead.
-The SQL/JSON constructor's query form, RETURNING coercion and SQL rendering
-(`sqljson_expression.go`, `sqljson_query.go`, `sqljson_deparse.go`) stay in
-the engine; capture hooks request formatted-input unwrapping without owning it.
+The SQL/JSON constructor's query form and RETURNING conversion stay in
+`sqljson_expression.go` and `sqljson_query.go` in the engine. Generic display
+and replay interpret its `Rendering`; `sqljson_deparse.go` retains only
+protocol-boundary and formatted-source helpers plus predicate assembly.
+The engine owns conversion provenance, catalog-qualified declarations,
+typmods/domains, literal transport, raw occurrence/capture maps and query
+rendering. Capture and presentation request formatted-input unwrapping without
+owning the coercion or stripping genuine user casts.
 
 Ordinary calls whose spelling resembles an aggregate or type are normalized
 locally by the engine binder after shared namespace/signature selection, before
@@ -1057,6 +1070,32 @@ make check RUN='^Test(SQLJSON|JSONPredicate)Protocol$'
 make check RUN='^TestReference(JSON|SQLJSON|ObjectGrant.*JSON|Array|Range(Operator|More)|Enum|Comparison|StringConcat|View|Generated|Default|Check|Deparse)'
 make check REFERENCE=1 RUN='^TestReference(JSON|SQLJSON|ObjectGrant.*JSON|Array|Range(Operator|More)|Enum|Comparison|StringConcat|View|Generated|Default|Check|Deparse)'
 ```
+
+SQLJSON rendering cutover (real bound constructors/coercions, exact native SQL,
+ordinary-call identity, immutable children and non-evaluation of a volatile
+operand) has a focused private matrix. Only the obsolete FormNone conjunct in
+`TestSQLJSONProtocol` was removed; its tree/children/rebuild/volatility checks
+remain. No tests moved or were deleted; public reference assertions are unchanged.
+
+```sh
+make check RUN='^Test(SQLJSONProtocol|JSONPredicateProtocol|SQLJSONRendererBoundaries|SQLJSONReturningOwnershipRebind)$'
+make check RUN='^TestReferenceSQLJSON(Stored|Controls|EmptyObjectControls|AssignmentControls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceSQLJSON(Stored|Controls|EmptyObjectControls|AssignmentControls|FeatureSmoke)$'
+make check RUN='^TestReferenceSQLJSON(Format|Returning|OutputEncoding|Diagnostics|Metadata)$'
+make check REFERENCE=1 RUN='^TestReferenceSQLJSON(Format|Returning|OutputEncoding|Diagnostics|Metadata)$'
+```
+
+The cutover's private matrix and actual public database/sql smoke passed; all
+emitted definitions and native Dump bytes matched the pre-cutover fixture,
+with independent direct/prepared values, metadata and restored defaults.
+Selected pinned18.6 dual-mode checks and full quickcheck also passed. Three full
+racecheck attempts hit their 900-second deadlines; a fourth was cancelled when
+the user waived all remaining non-quickcheck gates, including post-integration
+finalcheck. No full-racecheck or finalcheck pass is claimed.
+An earlier documentation-only quickcheck rerun failed in the unchanged
+`TestReferenceRegexpActualCancellation` provider-observation witness. The user
+explicitly waived that failure for integration; no clean final quickcheck is
+claimed and no regexp test or behavior was changed.
 
 Math family (registry, kernels; the engine's `TestMath*` cover analyzer
 switches; reference tests in both modes):

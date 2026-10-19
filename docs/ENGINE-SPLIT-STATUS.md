@@ -79,7 +79,9 @@ Steps 1, 2 and 4–7 and `access` are done.
       racecheck/finalcheck waived at user request)*
     - [x] function sources, with `seriesExpression` and `unnestExpression`
       *(broad; quickcheck and public smoke; remaining checks waived at user request)*
-    - [ ] `SQLJSON` rendering
+    - [x] `SQLJSON` rendering *(protocol cutover; exact public byte smoke,
+      selected dual-mode and quickcheck passed; remaining checks, including
+      full racecheck/finalcheck, waived by user)*
     - [x] result nullability hook (`query_bind.go`, `returning.go`; explicit
       SELECT/RETURNING protocol; racecheck/finalcheck waived at user request)
     - [x] conditional closure hook (closed-DEFAULT check; selected proof and
@@ -313,8 +315,10 @@ in the prompt file's Status section.
    Earlier quickcheck, selected dual-mode/race proof and replay smoke passed.
    Latest quickcheck LIKE-observer failure and further tests, including
    racecheck/finalcheck, explicitly waived at user request.
-3. [ ] Functions F2: `SQLJSON` rendering —
-   [functions](ENGINE-SPLIT-functions.md) F2 · needs —
+3. [x] Functions F2: `SQLJSON` rendering —
+   [functions](ENGINE-SPLIT-functions.md) F2 · needs — · protocol cutover;
+   selected dual-mode/quickcheck passed; remaining checks, including full
+   racecheck/finalcheck, waived by user
 4. [x] Functions F2: result nullability hook — explicit SELECT/RETURNING protocol;
    racecheck/finalcheck waived · [functions](ENGINE-SPLIT-functions.md) F2 · needs —
 5. [x] Functions F2: conditional closure hook —

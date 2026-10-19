@@ -1076,17 +1076,13 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 				return "", err
 			}
 			parts[i] = text
-			if i < len(e.Formats) {
-				parts[i] += jsonAggregateFormatSQL(e.Formats[i])
-			}
 		}
-		query := ""
 		if e.Query != nil {
-			var err error
-			query, err = v.selectQuerySQL(ctx, catalogView, e.Query, v.queries[e.Query])
+			query, err := v.selectQuerySQL(ctx, catalogView, e.Query, v.queries[e.Query])
 			if err != nil {
 				return "", err
 			}
+			parts = []string{query}
 		}
 		declaration := ""
 		if e.Returning != nil {
@@ -1100,7 +1096,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 				return "", err
 			}
 		}
-		return sqlJSONRecipe(e, parts, query, declaration), nil
+		return templateSQL(functions.SQLJSONPieces(e, len(parts)), parts, declaration, rawSyntaxWord)
 	case parser.AggregateExpr:
 		name := e.Name
 		if e.Schema != nil {
@@ -1150,7 +1146,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 			}
 		}
 		if e.JSON != nil {
-			text += jsonAggregateFormatSQL(e.JSON.Input)
+			text += functions.JSONFormatSQL(e.JSON.Input)
 		}
 		if len(e.Order) > 0 {
 			if e.Within {
@@ -1202,7 +1198,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 				if err != nil {
 					return "", err
 				}
-				text += " RETURNING " + declaration + jsonAggregateFormatSQL(e.JSON.Output)
+				text += " RETURNING " + declaration + functions.JSONFormatSQL(e.JSON.Output)
 			}
 		}
 		text = name + "(" + text + ")"
@@ -1439,7 +1435,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 			if err != nil {
 				return "", err
 			}
-			return templateSQL(pieces, []string{source, set}, rawSyntaxWord)
+			return templateSQL(pieces, []string{source, set}, "", rawSyntaxWord)
 		}
 		if e.Syntax == parser.SQLFunctionSyntax && name == "extract" {
 			if len(e.Args) != 2 {
@@ -1478,7 +1474,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 			if err != nil {
 				return "", err
 			}
-			return templateSQL(pieces, parts, rawSyntaxWord)
+			return templateSQL(pieces, parts, "", rawSyntaxWord)
 		}
 		if name == "position" {
 			text, err := args(e.Args)

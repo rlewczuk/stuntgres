@@ -49,6 +49,12 @@ type Rendering struct {
 	// SimpleCast is set for calls whose explicit cast the deparser displays
 	// without parentheses around the call in pretty mode.
 	SimpleCast bool
+	// JSONConstructor marks a SQL/JSON representation boundary, independently
+	// of call spelling or SQL form.
+	JSONConstructor bool
+	// JSONReturning permits the enclosing constructor-owned conversion to
+	// supply a type usage for Returning pieces. Ordinary casts never supply it.
+	JSONReturning bool
 
 	// Replay is how stored scalar SQL writes the node where that differs from
 	// the display form above.
@@ -148,6 +154,9 @@ type RenderArg struct {
 	// HideImplicit hides the argument's implicit coercions, as keyword syntax
 	// and operator operands do; call arguments show them.
 	HideImplicit bool
+	// JSONFormattedSource renders the original child of one recognized
+	// formatted-JSON input conversion. The engine owns that conversion.
+	JSONFormattedSource bool
 	// Listed renders the argument in a function-argument position, where
 	// pretty mode drops parentheses around COLLATE and nested casts.
 	Listed bool
@@ -217,6 +226,10 @@ type Piece struct {
 	Identifier bool
 	Arg        int
 	Value      bool
+	// Returning is an optional engine-supplied type declaration, surrounded by
+	// Text and Suffix. Without a declaration the entire piece is omitted.
+	Returning bool
+	Suffix    string
 }
 
 // TextPiece is literal SQL text.

@@ -11,8 +11,8 @@ import (
 
 // SQLJSON is a SQL/JSON constructor without its query form: JSON_ARRAY,
 // JSON_OBJECT, JSON, JSON_SCALAR or JSON_SERIALIZE. Its RETURNING clause is
-// an enclosing engine coercion, and the engine renders its SQL because the
-// arguments display through their formatted-input coercions.
+// an enclosing engine coercion; rendering describes syntax and requests the
+// engine-owned formatted-input source and RETURNING usage.
 type SQLJSON struct {
 	expr.Info
 	Raw  parser.SQLJSONExpr
@@ -92,9 +92,18 @@ func (e SQLJSON) IntrinsicVolatility() expr.Volatility { return e.Property.Volat
 func (e SQLJSON) ValidateStoredProvider() error { return nil }
 
 func (e SQLJSON) Render() (expr.Rendering, error) {
+	args := make([]expr.RenderArg, len(e.Args))
+	for i, arg := range e.Args {
+		args[i] = expr.RenderArg{Expr: arg, HideImplicit: true, Listed: true, JSONFormattedSource: true}
+	}
 	return expr.Rendering{
-		Tree:   fmt.Sprintf("SQLJSON %s absent %t unique %t", e.Raw.Kind, e.Raw.Absent, e.Raw.Unique),
-		Inputs: e.Args,
+		Tree:            fmt.Sprintf("SQLJSON %s absent %t unique %t", e.Raw.Kind, e.Raw.Absent, e.Raw.Unique),
+		Inputs:          e.Args,
+		Form:            expr.FormTemplate,
+		Args:            args,
+		Pieces:          SQLJSONPieces(e.Raw, len(args)),
+		JSONConstructor: true,
+		JSONReturning:   e.Raw.Kind == "json_array" || e.Raw.Kind == "json_object" || e.Raw.Kind == "json_serialize",
 	}, nil
 }
 

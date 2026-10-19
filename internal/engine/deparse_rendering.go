@@ -6,12 +6,17 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/sqltype"
 )
 
 // rendering displays a protocol node from its expr.Rendering. The node states
 // its shape; this renderer owns quoting, casts and parenthesization. r is the
 // renderer after sql reset its implicit-cast display.
 func (r pgRenderer) rendering(ctx context.Context, node expr.Expr, spec expr.Rendering, parent pgRenderParent) (string, error) {
+	return r.renderingWithReturning(ctx, node, spec, parent, sqltype.Usage{})
+}
+
+func (r pgRenderer) renderingWithReturning(ctx context.Context, node expr.Expr, spec expr.Rendering, parent pgRenderParent, returning sqltype.Usage) (string, error) {
 	switch spec.Form {
 	case expr.FormLeaf:
 		return spec.Text, nil
@@ -36,6 +41,18 @@ func (r pgRenderer) rendering(ctx context.Context, node expr.Expr, spec expr.Ren
 	case expr.FormTemplate:
 		var text strings.Builder
 		for _, piece := range spec.Pieces {
+			if piece.Returning {
+				if returning.Type != nil {
+					declaration, err := r.typeSQL(returning)
+					if err != nil {
+						return "", err
+					}
+					text.WriteString(piece.Text)
+					text.WriteString(declaration)
+					text.WriteString(piece.Suffix)
+				}
+				continue
+			}
 			if piece.Identifier {
 				text.WriteString(r.identifier(piece.Text))
 				continue
@@ -104,6 +121,9 @@ func (r pgRenderer) renderingInfix(ctx context.Context, spec expr.Rendering, par
 }
 
 func (r pgRenderer) renderingArg(ctx context.Context, spec expr.Rendering, arg expr.RenderArg, parent pgRenderParent) (string, error) {
+	if arg.JSONFormattedSource {
+		arg.Expr = sqlJSONSource(arg.Expr)
+	}
 	argRenderer := r
 	argRenderer.showImplicit = !arg.HideImplicit
 	if spec.UnknownTexts {

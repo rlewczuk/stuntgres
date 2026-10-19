@@ -72,14 +72,17 @@ checks have one protocol branch each, and `Arguments()` no longer duplicates
 `Children()`. View literal capture subsequently adopted explicit raw-kind
 admission and written operands through `expr.Capturable`, with indexed access
 for fixed receiver storage. Function sources now use explicit source capabilities
-and provider-local cursors; explicit `SQLJSON` rendering remains separate work.
+and provider-local cursors. SQLJSON now supplies its display/replay template
+through `Rendering`; its query/coercion/catalog/capture authority remains in the
+engine. Its private renderer matrix, full-byte public smoke, selected pinned18.6
+dual-mode proof and quickcheck passed. Remaining checks were waived by the user.
 
-Remaining F2 items (details in "Later-wave refresh" at the end of Status):
-`SQLJSON` rendering. The conditional closed-DEFAULT hook is implemented with
-passing selected proof and quickcheck; racecheck/finalcheck are waived by the
-user. See the current adoption note below. The broad function-source conversion
-is complete, including the engine's `seriesExpression`, `subscriptsExpression`
-and `unnestExpression` markers.
+The F2 function-source conversion is complete, including the engine's
+`seriesExpression`, `subscriptsExpression` and `unnestExpression` markers.
+SQLJSON rendering is also complete. The conditional closed-DEFAULT hook is
+implemented with passing selected proof and quickcheck; racecheck/finalcheck
+are waived by the user. See the current adoption note below and the
+"Later-wave refresh" evidence at the end of Status.
 
 The result-nullability cutover asks `expr.ResultNullability` at explicit
 SELECT/RETURNING sites, independently of Composite. Nine owners answer beside
@@ -184,7 +187,9 @@ Tier C has a refined plan.
   [x] grouping identity [x] grouping rewrite and aggregate occurrence
   [x] preflight [x] index key display [x] closed DEFAULT checks
   [x] `Arguments()` [x] view literal capture [x] function sources
-  (with series/subscripts/unnest; remaining checks waived) [ ] `SQLJSON` rendering
+  (with series/subscripts/unnest; remaining checks waived) [x] `SQLJSON` rendering
+  (selected dual-mode/quickcheck passed; remaining checks, including full
+  racecheck/finalcheck, waived by user)
   [x] result nullability hook (racecheck/finalcheck waived at user request)
   [x] conditional closure hook (selected proof and quickcheck passed;
   racecheck/finalcheck waived by user; session 4: `063fe2d1e` identity, `622b3d3ba`
@@ -1261,8 +1266,9 @@ F2 session 3 record (stored scalar SQL), measured at its start on
 - Function-node cases removed: 37 in `scalarFunctionSQL` and 16 in
   `scalarRenderer.sql` (plus 34 function types from its shared case list).
   `sql` routes a final `case expr.Renderable:` to `scalarFunctionSQL`, whose
-  explicit SQLJSON, installed-wrapper and engine-node cases precede its own
-  protocol branch; `scalar_rendering.go` interprets the `Rendering`.
+  installed-wrapper and engine-node cases precede its own protocol branch;
+  `scalar_rendering.go` interprets the `Rendering`. SQLJSON initially retained
+  an explicit case, removed by the later SQLJSON rendering cutover below.
   `scalarFunctionSQL` lost its unused usage parameter.
 - Protocol: `Rendering.Replay` and three `RenderArg` fields (see the `expr`
   README). `Replay.Validate` is lazy: the stored checks rebind providers
@@ -1282,8 +1288,8 @@ F2 session 3 record (stored scalar SQL), measured at its start on
   which display already shows bare. Set-returning nodes that the old
   `default.go` list left out (RegexpSet, JSONBPathQuery, the JSON key, each
   and element sets, JSONBRecord) refuse through `Replay.Validate` with the
-  old "unsupported stored default node". SQLJSON keeps its explicit case, as
-  the JSON operators record expected.
+  old "unsupported stored default node". SQLJSON initially kept its explicit
+  case; the later SQLJSON rendering cutover removes that exception.
 - Messages changed only for corrupted nodes: a foreign pg_sleep clock type is
   now "foreign stored function type", and nodes whose `Render` already
   validated report that error before the replay checks.
@@ -1370,11 +1376,12 @@ at its start on `91357248c` (after every other Tier A family):
   JSON aggregates. `BindSQLJSON` returns the RETURNING usage and the engine
   wrapper applies it in the old order (capture, plan, `coercionInfo`). The
   engine also keeps the invalid-kind check and the subquery form
-  `JSON_ARRAY(SELECT ...)`. `SQLJSON` has no SQL `Rendering`: its arguments
-  display through the engine's formatted-input coercion unwrap
-  (`sqlJSONSource`), and its RETURNING comes from the enclosing coercion. So
-  the deparse and stored-SQL cases stay explicit. Formatted input reuses the
-  `JSONFormattedArgument` intent; `SQLJSONInput` also replaces the aggregates'
+  `JSON_ARRAY(SELECT ...)`. SQLJSON initially retained explicit deparse and
+  stored-SQL cases because formatted-input source selection and RETURNING
+  remained engine-owned. The later SQLJSON rendering cutover supplies these
+  through bounded protocol facts while keeping both authorities in the engine.
+  Formatted input reuses the `JSONFormattedArgument` intent; `SQLJSONInput`
+  also replaces the aggregates'
   `formatJSONInput`, which was the `format != nil` case of the same code.
   `JSON_OBJECT` keys keep an untyped parameter unfinalized only when it is a
   parameter, so `RetainUntypedParameter` now returns whether it retained one
@@ -1384,12 +1391,9 @@ at its start on `91357248c` (after every other Tier A family):
   (three), retag, remap, node tree and the IS JSON deparse case. The old
   conditional, retag and remap cases matched the protocol defaults: fold as
   a constant only when immutable with literal children, never strict, rebuild
-  on change. Explicit cases on the exported types remain in the switches that
-  have no protocol branch: `aggregate_bind.go` (grouping identity, rewrite,
-  walk), preflight in `expression.go`, `default.go`, `scalar_function_sql.go`,
-  `index_control.go`, the DEFAULT closures in `transaction_time.go` and
-  `uuid_generation.go`, `view_literals.go`, the deparser's SQLJSON and
-  RETURNING-coercion cases and `sqljson_deparse.go`.
+  on change. Later F2 switches adopted the remaining protocols. The SQLJSON
+  rendering cutover removes the concrete deparse/stored-SQL/classifier
+  exceptions, not engine-owned query, coercion or capture boundaries.
 - Byte identity. A throwaway probe (not committed) bound 42 expressions:
   every constructor form with FORMAT/ENCODING/RETURNING/ABSENT/UNIQUE, every
   IS JSON form, and every JSON operator, including error cases. It put them
@@ -1414,10 +1418,10 @@ the user's request.
 
 Notes for later steps (JSON operators and SQL/JSON):
 
-- F2 stored scalar SQL: `SQLJSON` needs a rendering that knows the
-  formatted-input coercion and RETURNING, or the engine keeps
-  `sqljson_deparse.go`. `jsonPredicateRecipe` now reuses
-  `functions.JSONPredicateSuffix`.
+- F2 SQLJSON rendering now shares `functions.SQLJSONPieces` between the bound
+  protocol and raw view syntax. `sqljson_deparse.go` retains only engine-owned
+  protocol/coercion boundary helpers and `jsonPredicateRecipe`, which reuses
+  `functions.JSONPredicateSuffix`; duplicate bound constructor renderers are gone.
 - The `JSON_ARRAY(SELECT ...)` subquery form and the constructor's RETURNING
   coercion stay with the engine's query and coercion nodes.
 
@@ -1759,6 +1763,41 @@ the catalog/session/blocking inquiry kinds.
   before cancellation was issued; the user explicitly waived that failure for
   integration. Earlier post-rebase quickcheck passed; the failed retry remains
   recorded rather than represented as passing.
+- **F2 SQLJSON rendering completed:**
+  `SQLJSON.Render` supplies a template with unchanged Tree/Inputs. The small
+  capabilities are `RenderArg.JSONFormattedSource`, `Rendering.JSONConstructor`
+  and `JSONReturning`, and an optional `Piece.Returning` prefix/type/suffix slot.
+  Both generic interpreters consume it; ordinary calls, including the quoted
+  legacy `"json_object"`, cannot acquire constructor identity by spelling.
+  Only `IsJSONFormattedInput()` unwraps one source and only `IsJSONReturning()`
+  supplies RETURNING usage. ARRAY/OBJECT/SERIALIZE accept the slot; JSON/SCALAR
+  never do. `HideImplicit:true` preserves old `pgRenderer.sql` behavior, which
+  cleared the inherited flag before rendering constructor operands; `Listed`
+  preserves pretty-mode nested cast/COLLATE position.
+  Query construction, conversions/Rebind validation, catalog type identity,
+  typmods/domains, typed-TEXT transport, quoting and raw occurrence/capture maps
+  remain engine-owned. No Eval path changed.
+  Added `TestSQLJSONRendererBoundaries` against real constructors/coercions,
+  published domain and volatile operand. Adapted `TestSQLJSONProtocol` only by
+  deleting its obsolete FormNone conjunct; tree/children/rebuild/volatility
+  assertions remain. No tests moved or were deleted, and reference assertions
+  are unchanged. The private matrix passed before and after cutover; the
+  identical public database/sql probe passed with full stdout byte equality
+  for actual definitions/Dump plus independent direct/prepared rows/types,
+  retained cursor metadata, Restore/redump and restored-default insertion.
+  Pre-cutover test corrections (Integer/VarChar APIs, published domain authority
+  and visibility, keyword quoting, typed-NULL array transport and bare bound
+  BYTEA versus genuine raw-view cast) are fixture fixes, not production
+  compatibility changes. Selected pinned18.6 dual-mode, build, quickcheck,
+  selected race and deps gates passed. Three whole-project race attempts hit
+  the required 900-second deadline without reporting an assertion failure;
+  a fourth was cancelled when the user requested only quickcheck. All remaining
+  non-quickcheck gates, including post-integration finalcheck, were explicitly
+  waived. No standalone benchmark was needed for this rendering-only change.
+  An earlier documentation-only quickcheck rerun failed in the unchanged
+  `TestReferenceRegexpActualCancellation` provider-observation witness. The user
+  explicitly waived that specific failure for integration; no clean final
+  quickcheck is claimed and no regexp test or behavior was changed.
 - **F3 aliases.** `routine_declaration.go` keeps `type routineProvider =
   functions.RoutineProvider` and 23 constant aliases, "temporary aliases for
   the provider vocabulary that moved to functions in F3". They have about

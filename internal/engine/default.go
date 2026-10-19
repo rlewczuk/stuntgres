@@ -534,8 +534,14 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		if r.commentSnapshot != nil && (plan.RequiresCatalogOutput() || (u.Type.ContainsRegrole() || u.Type.ContainsRegObject()) && plan.SessionDependent()) {
 			*r.commentSnapshot = true
 		}
-		if constructor, ok := n.child.(functions.SQLJSON); ok && n.plan.IsJSONReturning() {
-			return r.sqlJSON(ctx, view, constructor, u)
+		if n.plan.IsJSONReturning() {
+			spec, supported, err := jsonReturningRendering(n.child)
+			if err != nil {
+				return "", err
+			}
+			if supported {
+				return r.renderingWithReturning(ctx, view, spec, u)
+			}
 		}
 		child, err := r.sql(ctx, view, n.child)
 		if err != nil || n.mode != sqltype.Explicit && !sqlJSONResult(n.child) {

@@ -47,7 +47,7 @@ func TestSQLJSONProtocol(t *testing.T) {
 		t.Fatal(err)
 	}
 	spec := renderOf(t, node)
-	if spec.Tree != "SQLJSON json_array absent true unique false" || !reflect.DeepEqual(spec.Inputs, []expr.Expr{first, second}) || spec.Form != expr.FormNone {
+	if spec.Tree != "SQLJSON json_array absent true unique false" || !reflect.DeepEqual(spec.Inputs, []expr.Expr{first, second}) {
 		t.Fatalf("rendering = %#v", spec)
 	}
 }

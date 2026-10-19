@@ -6,7 +6,6 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 )
 
@@ -69,8 +68,6 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.procedure.Name()), n.Args)
-	case functions.SQLJSON:
-		return r.sqlJSON(ctx, view, n, sqltype.Usage{})
 	case installedUUIDOsspFunctionExpression:
 		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || r.descriptor(view, n.ref.Address) != n.procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored uuid-ossp reference")

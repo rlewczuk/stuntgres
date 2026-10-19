@@ -65,8 +65,9 @@ earlier post-rebase quickcheck passed. No passing latest retry is claimed.
 Stored literal capture pairs raw normalized preorder with explicitly admitted
 `expr.Capturable` written operands. Engine-owned wrappers run first; structural
 query/clause/target/node/source/row keys, selected-parent argument annotations,
-catalog identities, coercions, SQLJSON RETURNING, constructors and frame ownership
-remain engine responsibilities. Hooks never evaluate or reconstruct definitions.
+catalog identities, coercions, SQLJSON RETURNING/query construction and frame
+ownership remain engine responsibilities. Hooks never evaluate or reconstruct
+definitions; SQLJSON syntax itself comes from the functions rendering protocol.
 Capture validates all operands before any annotation write. Source-aware
 `Check`/`At` reuse the original boxed Capturable; fixed-array nodes use indexed
 access instead of borrowing value-receiver array copies. Safe slices and two
@@ -85,6 +86,36 @@ make check RUN='^TestCaptureOperands(WrittenSlots|RawKinds|SpecialAnnotations|No
 The boundary test binds a real nested query/function source and remaps its frozen
 presentation to fresh type descriptors. Existing stored-consumer reference tests
 remain unchanged and require both selected native and real PostgreSQL proof.
+
+SQLJSON display and stored replay interpret the same `expr.Rendering` as other
+function nodes. The engine unwraps only a recognized formatted-input conversion,
+supplies a RETURNING type usage only from its owning conversion, and retains
+genuine outer casts and typed-TEXT transport. Raw view rendering still owns its
+query/captured operands and type usages, sharing only the pure constructor syntax
+recipe with functions. Catalog qualification, typmods/domains, descriptor
+validation and coercion Rebind/Equal checks remain here.
+
+`TestSQLJSONRendererBoundaries` constructs real constructors, plans and a
+published domain without issuing public SQL. It checks exact display/replay,
+pretty/nonpretty explicit/implicit cast boundaries, empty grammar, UTF8 suffixes,
+ordinary call identity, immutable nodes and rendering a real volatile operand
+without an evaluation context. The private matrix and identical public smoke
+passed after cutover, including full emitted-definition/Dump byte equality and
+independent values/types/defaults. Selected pinned18.6 dual-mode, selected race,
+build/dependency and full quickcheck gates also passed. Whole-project race runs
+hit their 900-second deadlines; the user then waived all remaining checks except
+quickcheck, including post-integration finalcheck. No full-race pass is claimed.
+An earlier documentation-only quickcheck rerun failed in the unchanged regexp
+cancellation provider-observation test; the user explicitly waived that failure
+for integration. No clean final quickcheck is claimed.
+
+```sh
+make check RUN='^Test(SQLJSONProtocol|JSONPredicateProtocol|SQLJSONRendererBoundaries|SQLJSONReturningOwnershipRebind)$'
+make check RUN='^TestReferenceSQLJSON(Stored|Controls|EmptyObjectControls|AssignmentControls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceSQLJSON(Stored|Controls|EmptyObjectControls|AssignmentControls|FeatureSmoke)$'
+make check RUN='^TestReferenceSQLJSON(Format|Returning|OutputEncoding|Diagnostics|Metadata)$'
+make check REFERENCE=1 RUN='^TestReferenceSQLJSON(Format|Returning|OutputEncoding|Diagnostics|Metadata)$'
+```
 
 Dependency function diagnostics render every validated installed signature using
 canonical builtin type names and the captured diagnostic path for other types,

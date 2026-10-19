@@ -15,6 +15,10 @@ import (
 // checks against engine state. Arguments render in order before the form is
 // assembled, so literal capture and dependencies follow the argument order.
 func (r scalarRenderer) rendering(ctx context.Context, view catalog.Read, spec expr.Rendering) (string, error) {
+	return r.renderingWithReturning(ctx, view, spec, sqltype.Usage{})
+}
+
+func (r scalarRenderer) renderingWithReturning(ctx context.Context, view catalog.Read, spec expr.Rendering, returning sqltype.Usage) (string, error) {
 	replay := spec.Replay
 	if replay.RelationOnly && r.owner == nil {
 		return "", fmt.Errorf("stuntgres: volatile stored default")
@@ -64,8 +68,16 @@ func (r scalarRenderer) rendering(ctx context.Context, view catalog.Read, spec e
 		}
 		parts[i] = text
 	}
+	declaration := ""
+	if returning.Type != nil {
+		var err error
+		declaration, err = catalogTypeDeclarationAt(view, r.definition, returning)
+		if err != nil {
+			return "", err
+		}
+	}
 	if replay.Pieces != nil {
-		return r.replayTemplate(replay.Pieces, args, parts)
+		return r.replayTemplate(replay.Pieces, args, parts, declaration)
 	}
 	switch spec.Form {
 	case expr.FormLeaf:
@@ -105,15 +117,15 @@ func (r scalarRenderer) rendering(ctx context.Context, view catalog.Read, spec e
 		}
 		return "(" + parts[0] + " " + op + " " + parts[1] + ")", nil
 	case expr.FormTemplate:
-		return r.replayTemplate(spec.Pieces, args, parts)
+		return r.replayTemplate(spec.Pieces, args, parts, declaration)
 	default:
 		return "", fmt.Errorf("stuntgres: unsupported stored default node")
 	}
 }
 
 // replayTemplate assembles keyword syntax over the rendered arguments.
-func (r scalarRenderer) replayTemplate(pieces []expr.Piece, args []expr.RenderArg, parts []string) (string, error) {
-	return templateSQL(pieces, parts, func(piece expr.Piece) (string, error) {
+func (r scalarRenderer) replayTemplate(pieces []expr.Piece, args []expr.RenderArg, parts []string, returning string) (string, error) {
+	return templateSQL(pieces, parts, returning, func(piece expr.Piece) (string, error) {
 		if piece.Identifier {
 			return pgIdentifier(piece.Text), nil
 		}
@@ -127,10 +139,17 @@ func (r scalarRenderer) replayTemplate(pieces []expr.Piece, args []expr.RenderAr
 
 // templateSQL assembles template pieces over already rendered arguments; word
 // renders identifier and value pieces.
-func templateSQL(pieces []expr.Piece, parts []string, word func(expr.Piece) (string, error)) (string, error) {
+func templateSQL(pieces []expr.Piece, parts []string, returning string, word func(expr.Piece) (string, error)) (string, error) {
 	var text strings.Builder
 	for _, piece := range pieces {
 		switch {
+		case piece.Returning:
+			if returning != "" {
+				text.WriteString(piece.Text)
+				text.WriteString(returning)
+				text.WriteString(piece.Suffix)
+			}
+			continue
 		case piece.Identifier:
 		case piece.Text != "":
 			text.WriteString(piece.Text)
@@ -153,6 +172,9 @@ func templateSQL(pieces []expr.Piece, parts []string, word func(expr.Piece) (str
 // replayArgument renders one argument with the transport that keeps its type
 // on replay.
 func (r scalarRenderer) replayArgument(ctx context.Context, view catalog.Read, arg expr.RenderArg) (string, error) {
+	if arg.JSONFormattedSource {
+		arg.Expr = sqlJSONSource(arg.Expr)
+	}
 	argRenderer := r
 	if arg.Transport == expr.TransportIntervalNulls {
 		argRenderer.uuidShiftIntervalNulls = true
