@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -72,7 +73,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *Operation, aut
 			}
 			currentAuth, err := e.statementAuthorizationLocked(op, raw)
 			if err == nil && !preparatory && (index == 0 || inheritanceEntryOwner(incoming)) {
-				err = currentAuth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
+				err = currentAuth.Check(access.Requirement{Object: ref, OwnerOnly: true})
 			}
 			e.mu.Unlock()
 			if err != nil {
@@ -100,7 +101,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *Operation, aut
 			}
 			if index != 0 && !inheritanceEntryOwner(incoming) && len(planned) != 0 {
 				e.mu.Lock()
-				err = currentAuth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
+				err = currentAuth.Check(access.Requirement{Object: ref, OwnerOnly: true})
 				e.mu.Unlock()
 				if err != nil {
 					return err

@@ -90,7 +90,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 		if err != nil || got != mask {
 			t.Fatal(d.Name(), got, mask, err)
 		}
-		if err := view.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+		if err := view.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			t.Fatal(d.Name(), err)
 		}
 		before := e.CatalogRead().State()
@@ -131,14 +131,14 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 			t.Fatal(err)
 		}
 		mask := access.ClassPrivileges(d)
-		if err := view.Check(AccessRequirement{Object: ref, Privileges: mask}); err != nil {
+		if err := view.Check(access.Requirement{Object: ref, Privileges: mask}); err != nil {
 			t.Fatal("all inherited bits", d.Name(), err)
 		}
 		got, err := view.Effective(ref, true)
 		if err != nil || got != mask {
 			t.Fatal("inherited options", d.Name(), got, mask, err)
 		}
-		if err := view.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err == nil {
+		if err := view.Check(access.Requirement{Object: ref, OwnerOnly: true}); err == nil {
 			t.Fatal("nonowner ACL became ownership", d.Name())
 		}
 	}

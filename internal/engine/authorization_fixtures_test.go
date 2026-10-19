@@ -10,39 +10,39 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func cloneRoleFixture(r *roleCatalog) *roleCatalog {
-	return &roleCatalog{Root: r.Root, Revision: r.Revision + 1}
+func cloneRoleFixture(r *access.RoleRecord) *access.RoleRecord {
+	return &access.RoleRecord{Root: r.Root, Revision: r.Revision + 1}
 }
-func emptyRoleFixture(e *Engine) *roleCatalog {
+func emptyRoleFixture(e *Engine) *access.RoleRecord {
 	root := authorization.Seed(&e.roles.domain)
 	targets := make(map[authorization.PrincipalRef]authorization.RoleDescriptor)
 	for ref, d := range root.Read(authorization.PrincipalRef{}).RoleEntries() {
 		targets[ref] = d
 	}
-	return &roleCatalog{Root: root.Retire(targets), Revision: 1}
+	return &access.RoleRecord{Root: root.Retire(targets), Revision: 1}
 }
-func fixtureRole(r *roleCatalog, ref authorization.PrincipalRef) authorization.RoleDescriptor {
+func fixtureRole(r *access.RoleRecord, ref authorization.PrincipalRef) authorization.RoleDescriptor {
 	d, _ := r.Root.Read(authorization.PrincipalRef{}).Find(ref)
 	return d
 }
-func putFixtureRole(r *roleCatalog, d authorization.RoleDescriptor) {
+func putFixtureRole(r *access.RoleRecord, d authorization.RoleDescriptor) {
 	root, err := r.Root.PutDescriptor(d)
 	if err != nil {
 		panic(err)
 	}
 	r.Root = root
 }
-func retireFixtureRole(r *roleCatalog, ref authorization.PrincipalRef) {
+func retireFixtureRole(r *access.RoleRecord, ref authorization.PrincipalRef) {
 	d := fixtureRole(r, ref)
 	r.Root = r.Root.Retire(map[authorization.PrincipalRef]authorization.RoleDescriptor{ref: d})
 }
-func fixtureEdges(r *roleCatalog) []authorization.Membership {
+func fixtureEdges(r *access.RoleRecord) []authorization.Membership {
 	return r.Root.Read(authorization.PrincipalRef{}).Memberships()
 }
 
 // Build private graph fixtures through genuine storage and membership candidates.
 // Temporary descriptor names/flags exist only on unpublished roots and are restored.
-func setFixtureEdges(r *roleCatalog, edges []authorization.Membership) {
+func setFixtureEdges(r *access.RoleRecord, edges []authorization.Membership) {
 	candidate := *r
 	destination := r
 	r = &candidate

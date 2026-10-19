@@ -401,7 +401,7 @@ func foreignKeyDiagnostic(ctx context.Context, auth AuthorizationView, child, pa
 	if err != nil {
 		return err
 	}
-	if disposition != rlsUnrestricted {
+	if disposition != access.RLSUnrestricted {
 		d.Detail = "Key" + suffix
 		return d
 	}

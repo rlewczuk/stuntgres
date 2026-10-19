@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"slices"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -28,7 +29,7 @@ func TestMaterializedRefreshAuthorization(t *testing.T) {
 	owner, caller := refreshUnitPrincipals(e)
 	d.Owner = owner
 	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
-	auth := AuthorizationView{accessView: accessView{Owner: e.catalog.owner(), PairedCatalog: e.CatalogRead(), RoleRecord: e.roles.published, Catalog: e.CatalogRead(), Roles: e.Roles(), State: authorization.RoleState{CurrentUser: caller, SessionUser: caller, Authenticated: caller}}, engine: e}
+	auth := AuthorizationView{View: access.View{Owner: e.catalog.owner(), PairedCatalog: e.CatalogRead(), RoleRecord: e.roles.published, Catalog: e.CatalogRead(), Roles: e.Roles(), State: authorization.RoleState{CurrentUser: caller, SessionUser: caller, Authenticated: caller}}, engine: e}
 	for _, privilege := range []authorization.Privileges{authorization.SelectPrivilege, authorization.MaintainPrivilege} {
 		d.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, caller, privilege, 0)}}
 		err := materializedRefreshAccess(auth, ref)

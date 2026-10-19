@@ -191,7 +191,7 @@ func TestDomainBaseUsageAndOwnerAuthorizationInternal(t *testing.T) {
 	if err := auth.CanUse(ref); err != nil {
 		t.Fatal("default PUBLIC USAGE", err)
 	}
-	domainUnitDiagnostic(t, auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}), "42501", "must be owner of type a")
+	domainUnitDiagnostic(t, auth.Check(access.Requirement{Object: ref, OwnerOnly: true}), "42501", "must be owner of type a")
 	stage := e.BeginCatalogStage(auth.Catalog)
 	next := *a
 	next.ACL = authorization.ACLValue{Explicit: true}

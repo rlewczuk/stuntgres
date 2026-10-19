@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -165,10 +166,10 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 				if er != nil {
 					return nil, er
 				}
-				owner := auth.Check(AccessRequirement{Object: foreignRef(auth, server), OwnerOnly: true}) == nil
+				owner := auth.Check(access.Requirement{Object: foreignRef(auth, server), OwnerOnly: true}) == nil
 				visible := actor.Superuser || d.MappedRole == (authorization.PrincipalRef{}) && owner
 				if d.MappedRole == auth.State.CurrentUser {
-					visible = visible || owner || auth.Check(AccessRequirement{Object: foreignRef(auth, server), Privileges: authorization.UsagePrivilege}) == nil
+					visible = visible || owner || auth.Check(access.Requirement{Object: foreignRef(auth, server), Privileges: authorization.UsagePrivilege}) == nil
 				}
 				if visible {
 					row[5], err = foreignOptionsValue(source.Columns[5].Usage.Type, d.Options)

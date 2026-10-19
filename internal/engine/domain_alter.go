@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -39,7 +40,7 @@ func (e *Engine) resolveAlterDomainLocked(auth AuthorizationView, name parser.Ob
 		if !d.SQLType.IsDomain() {
 			return nil, ref, sqlError("42809", d.SQLType.DiagnosticName()+" is not a domain")
 		}
-		if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+		if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
 				err = sqlError("42501", "must be owner of type "+typeDiagnosticNameAt(auth.Catalog, d, diagnosticPath))
 			}

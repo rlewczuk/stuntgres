@@ -159,7 +159,7 @@ func (e *Engine) operatorRoutine(auth AuthorizationView, name parser.ObjectName,
 	if d.RoutineKind != 'f' {
 		return nil, sqlError("42809", objectNameText(name)+" is not a function")
 	}
-	if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
+	if err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
 		return nil, err
 	}
 	return d, nil
@@ -230,7 +230,7 @@ func (e *Engine) operatorEstimator(auth AuthorizationView, name parser.ObjectNam
 			return 0, sqlError("42809", objectNameText(name)+" is not a function")
 		}
 		result = d.Result
-		if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
+		if err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
 			return 0, err
 		}
 		builtin = d.Seeded()
@@ -540,7 +540,7 @@ func (e *Engine) resolveOperatorLink(auth AuthorizationView, stage *CatalogStage
 	} else if peer.Address() != d.Address() {
 		peerAuth := auth
 		peerAuth.Recapture(view)
-		if err = peerAuth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), peer.Address()), OwnerOnly: true}); err != nil {
+		if err = peerAuth.Check(access.Requirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), peer.Address()), OwnerOnly: true}); err != nil {
 			return nil, err
 		}
 	}
@@ -699,7 +699,7 @@ func (e *Engine) stageCreateOperatorLocked(op *Operation, auth AuthorizationView
 		if old.Function != 0 {
 			return sqlError("42723", "operator "+symbol+" already exists")
 		}
-		if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), old.Address()), OwnerOnly: true}); err != nil {
+		if err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), old.Address()), OwnerOnly: true}); err != nil {
 			return err
 		}
 		next.ObjectAddress = old.Address()
@@ -769,7 +769,7 @@ func (e *Engine) stageAlterOperatorLocked(op *Operation, auth AuthorizationView,
 		}
 		next.ObjectNamespace = ns.Address
 	}
-	if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), OwnerOnly: true}); err != nil {
+	if err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), OwnerOnly: true}); err != nil {
 		return err
 	}
 	if operatorSeeded(d) {
@@ -777,14 +777,14 @@ func (e *Engine) stageAlterOperatorLocked(op *Operation, auth AuthorizationView,
 	}
 	switch s.Action {
 	case "owner":
-		target, err := access.SchemaOwner(auth.accessView, s.Target.Text, s.OwnerIdentity)
+		target, err := access.SchemaOwner(auth.View, s.Target.Text, s.OwnerIdentity)
 		if err != nil {
 			return err
 		}
 		if target == d.Owner {
 			return nil
 		}
-		if err = access.OwnershipEligibility(auth.accessView, auth, target, d.Namespace()); err != nil {
+		if err = access.OwnershipEligibility(auth.View, auth, target, d.Namespace()); err != nil {
 			return err
 		}
 		next.Owner = target
@@ -853,9 +853,9 @@ func (e *Engine) stageDropOperatorLocked(op *Operation, auth AuthorizationView, 
 			}
 			return err
 		}
-		namespaceOwner := auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Namespace()), OwnerOnly: true}) == nil
+		namespaceOwner := auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Namespace()), OwnerOnly: true}) == nil
 		if !namespaceOwner {
-			if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), OwnerOnly: true}); err != nil {
+			if err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), OwnerOnly: true}); err != nil {
 				if diag, ok := err.(*sqlstate.Error); ok && diag.Code == "42501" {
 					return sqlError("42501", "must be owner of operator "+objectNameText(sig.Name))
 				}

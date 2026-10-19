@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -57,7 +58,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 		if ref != scope.lockedRef || parent != scope.lockedDescriptor {
 			return nil, ids.ErrCatalogReplaced
 		}
-		if err = parentAuth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+		if err = parentAuth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			return nil, err
 		}
 		if parent.Partition == nil {

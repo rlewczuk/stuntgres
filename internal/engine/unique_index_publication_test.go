@@ -7,6 +7,7 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -25,7 +26,7 @@ type uniquePublicationFixture struct {
 	catalog        *catalog.State
 	descriptors    map[ids.ObjectAddress]catalog.Descriptor
 	names          map[ids.NameKey]ids.ObjectAddress
-	roles          *roleCatalog
+	roles          *access.RoleRecord
 	stores         map[ids.ObjectAddress]*storage.Relation
 	storeSnapshots map[ids.ObjectAddress]storage.Relation
 	roots          map[ids.ObjectAddress]*storage.IndexRoot

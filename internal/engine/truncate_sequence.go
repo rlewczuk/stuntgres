@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -60,7 +61,7 @@ func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
 			if auth.Catalog.Get(observed.ref.Address) != observed.relation || e.sequenceGeneratorLocked(s, observed.ref.Address) != observed.generator || observed.generator == nil || e.storage.Sequences[observed.ref.Address] != observed.committed {
 				err = ids.ErrCatalogReplaced
 			} else {
-				err = auth.Check(AccessRequirement{Object: observed.ref, OwnerOnly: true})
+				err = auth.Check(access.Requirement{Object: observed.ref, OwnerOnly: true})
 			}
 		}
 		e.mu.Unlock()
@@ -85,7 +86,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 		if auth.Catalog.Get(a) != sequence.relation || e.sequenceGeneratorLocked(s, a) != sequence.generator || e.storage.Sequences[a] != sequence.committed {
 			return nil, ids.ErrCatalogReplaced
 		}
-		if err := auth.Check(AccessRequirement{Object: sequence.ref, OwnerOnly: true}); err != nil {
+		if err := auth.Check(access.Requirement{Object: sequence.ref, OwnerOnly: true}); err != nil {
 			return nil, err
 		}
 		observed[a] = sequence.committed

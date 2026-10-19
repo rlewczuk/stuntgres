@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqlstate"
@@ -112,11 +113,11 @@ func TestRoleOwnershipDatabaseDiagnosticNouns(t *testing.T) {
 	auth.State.CurrentUser = reader
 	ref := e.catalog.Domain.Ref(candidate.Epoch(), catalog.CurrentDatabaseAddress)
 	for _, tc := range []struct {
-		requirement AccessRequirement
+		requirement access.Requirement
 		message     string
 	}{
-		{AccessRequirement{Object: ref, OwnerOnly: true}, `must be owner of database ownership "odd" database`},
-		{AccessRequirement{Object: ref, Privileges: authorization.CreatePrivilege}, `permission denied for database "ownership ""odd"" database"`},
+		{access.Requirement{Object: ref, OwnerOnly: true}, `must be owner of database ownership "odd" database`},
+		{access.Requirement{Object: ref, Privileges: authorization.CreatePrivilege}, `permission denied for database "ownership ""odd"" database"`},
 	} {
 		err := auth.Check(tc.requirement)
 		expected := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: tc.message}

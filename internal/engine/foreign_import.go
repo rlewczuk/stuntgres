@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -46,7 +47,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if err = auth.Check(AccessRequirement{Object: foreignRef(auth, server), Privileges: authorization.UsagePrivilege}); err != nil {
+	if err = auth.Check(access.Requirement{Object: foreignRef(auth, server), Privileges: authorization.UsagePrivilege}); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}

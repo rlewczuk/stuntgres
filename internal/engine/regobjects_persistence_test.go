@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -14,7 +15,7 @@ func TestRegObjectAliasCapturedAuthority(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	catalog := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
-	r := capturedRegObjectInput{auth: AuthorizationView{accessView: accessView{Catalog: view}}, path: []ids.ObjectAddress{catalog}}
+	r := capturedRegObjectInput{auth: AuthorizationView{View: access.View{Catalog: view}}, path: []ids.ObjectAddress{catalog}}
 	if id, err := r.ResolveRegnamespace(context.Background(), " PG_CATALOG "); err != nil || id != 11 {
 		t.Fatal("namespace catalog lookup", id, err)
 	}

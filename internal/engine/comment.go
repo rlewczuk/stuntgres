@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -96,7 +97,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		if err := publicationOperationLocked(e, op); err != nil {
 			return nil, err
 		}
-		e.installOperationRolesLocked(op, &roleCatalog{Root: next, Revision: auth.RoleRecord.Revision + 1})
+		e.installOperationRolesLocked(op, &access.RoleRecord{Root: next, Revision: auth.RoleRecord.Revision + 1})
 		return nil, nil
 	}
 	var ref ids.ObjectRef
@@ -139,7 +140,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 	default:
 		return nil, sqlError("0A000", "COMMENT object kind is unsupported")
 	}
-	if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+	if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		return nil, err
 	}
 	a := ref.Address

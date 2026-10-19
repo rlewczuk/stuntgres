@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
@@ -26,7 +27,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 		err = ids.ErrCatalogReplaced
 	}
 	if err == nil {
-		err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
+		err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true})
 	}
 	if err != nil {
 		return fail(err)

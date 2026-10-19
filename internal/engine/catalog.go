@@ -362,7 +362,7 @@ type CatalogStage struct {
 	databaseAuthority    catalog.Descriptor
 	// Optional DROP OWNED membership deletions join this publication, not a
 	// separate role installation. Every other catalog caller leaves it nil.
-	roleCandidate      *roleCatalog
+	roleCandidate      *access.RoleRecord
 	schemaCascadeNames []string
 	viewCascadeNames   []string
 	dependencyPath     []ids.ObjectAddress
@@ -1187,8 +1187,8 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Lock()
 			}
-			auth := AuthorizationView{accessView: accessView{Owner: e.catalog.owner(), PairedCatalog: e.catalog.read(e.catalog.state), RoleRecord: e.roles.published, Catalog: e.catalog.read(e.catalog.state), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), State: s.authSession.authorization.state}, engine: e}
-			err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(e.catalog.state.Epoch(), s.materializedReplacement.original.Address()), Privileges: authorization.MaintainPrivilege})
+			auth := AuthorizationView{View: access.View{Owner: e.catalog.owner(), PairedCatalog: e.catalog.read(e.catalog.state), RoleRecord: e.roles.published, Catalog: e.catalog.read(e.catalog.state), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), State: s.authSession.authorization.state}, engine: e}
+			err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(e.catalog.state.Epoch(), s.materializedReplacement.original.Address()), Privileges: authorization.MaintainPrivilege})
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Unlock()
 			}

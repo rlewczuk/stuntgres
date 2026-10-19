@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -295,7 +296,7 @@ func (e *Engine) restoreStage() *Engine {
 		}
 	}
 	stage.catalog.state.SetDescriptor(catalog.CurrentDatabaseAddress, &retainedDatabase)
-	stage.roles.published = &roleCatalog{Root: roles, Revision: sourceRoles.Revision}
+	stage.roles.published = &access.RoleRecord{Root: roles, Revision: sourceRoles.Revision}
 	stage.roles.nextPrincipal = nextPrincipal
 	return stage
 }

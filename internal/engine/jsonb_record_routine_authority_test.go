@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -439,7 +440,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 		}
 		for _, dep := range original {
 			if dep.Ref.Address == captured.Address() {
-				if err := ownerAuth.Check(AccessRequirement{Object: dep.Ref, Privileges: authorization.ExecutePrivilege}); err != nil {
+				if err := ownerAuth.Check(access.Requirement{Object: dep.Ref, Privileges: authorization.ExecutePrivilege}); err != nil {
 					t.Fatal("fresh current-owner permission", err)
 				}
 			}

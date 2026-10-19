@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"slices"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -59,7 +60,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		return err
 	}
 	child := auth.Catalog.MustRelation(childRef.Address)
-	if err = auth.Check(AccessRequirement{Object: childRef, OwnerOnly: true}); err == nil {
+	if err = auth.Check(access.Requirement{Object: childRef, OwnerOnly: true}); err == nil {
 		err = tableKind(child, "ADD CONSTRAINT")
 	}
 	if err == nil {

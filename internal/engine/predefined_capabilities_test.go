@@ -41,7 +41,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	for _, tc := range descriptors {
 		state.SetDescriptor(tc.d.Address(), tc.d)
 	}
-	v := AuthorizationView{accessView: accessView{Owner: e.catalog.owner(), PairedCatalog: e.catalog.read(state), RoleRecord: e.roles.published, Catalog: e.catalog.read(state), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(state), e.roles.published), State: authorization.RoleState{CurrentUser: reader.Ref}}, engine: e}
+	v := AuthorizationView{View: access.View{Owner: e.catalog.owner(), PairedCatalog: e.catalog.read(state), RoleRecord: e.roles.published, Catalog: e.catalog.read(state), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(state), e.roles.published), State: authorization.RoleState{CurrentUser: reader.Ref}}, engine: e}
 	for _, tc := range descriptors {
 		ref := e.catalog.Domain.Ref(state.Epoch(), tc.d.Address())
 		got, err := v.Effective(ref, false)
@@ -52,7 +52,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 		if err != nil || options != 0 {
 			t.Fatal("capability became grant option", tc.d.Name(), options, err)
 		}
-		if err := v.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err == nil {
+		if err := v.Check(access.Requirement{Object: ref, OwnerOnly: true}); err == nil {
 			t.Fatal("capability became ownership", tc.d.Name())
 		}
 	}

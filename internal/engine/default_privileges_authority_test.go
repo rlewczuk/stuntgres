@@ -105,14 +105,14 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	auth.State.CurrentUser = f.reader
 	ref := f.e.catalog.Domain.Ref(state.Epoch(), f.schema)
 	for _, privilege := range []authorization.Privileges{authorization.UsagePrivilege, authorization.CreatePrivilege, authorization.UsagePrivilege | authorization.CreatePrivilege} {
-		if err := auth.Check(AccessRequirement{Object: ref, Privileges: privilege}); err != nil {
+		if err := auth.Check(access.Requirement{Object: ref, Privileges: privilege}); err != nil {
 			t.Fatal("physical namespace authority depended on current actor", privilege, err)
 		}
 	}
 	if rights, err := auth.Effective(ref, true); err != nil || rights != 0 {
 		t.Fatal("physical authority invented namespace delegation", rights, err)
 	}
-	defaultUnitDiagnostic(t, auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}), "42501", "must be owner of schema "+namespace.Name())
+	defaultUnitDiagnostic(t, auth.Check(access.Requirement{Object: ref, OwnerOnly: true}), "42501", "must be owner of schema "+namespace.Name())
 	for _, token := range []ids.SessionToken{
 		{},
 		f.e.catalog.Domain.Session(f.op.session.token.ID() + 1),
@@ -160,5 +160,5 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	table := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20111}, ObjectNamespace: f.schema, ObjectName: "temp_acl_denied", Owner: f.owner, ObjectRevision: 1, RelationKind: catalog.TableRelation, Security: catalog.RelationSecurity{ACL: authorization.ACLValue{Explicit: true}}}
 	state.SetDescriptor(table.Address(), table)
 	tableRef := f.e.catalog.Domain.Ref(state.Epoch(), table.Address())
-	defaultUnitDiagnostic(t, auth.Check(AccessRequirement{Object: tableRef, Privileges: authorization.SelectPrivilege}), "42501", "permission denied for table temp_acl_denied")
+	defaultUnitDiagnostic(t, auth.Check(access.Requirement{Object: tableRef, Privileges: authorization.SelectPrivilege}), "42501", "permission denied for table temp_acl_denied")
 }

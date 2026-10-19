@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -92,7 +93,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 		err = e.partitionAttachName(auth, raw.Partition, candidate)
 	}
 	if err == nil {
-		err = auth.Check(AccessRequirement{Object: scope.lockedRef, OwnerOnly: true, OwnerNoun: "table"})
+		err = auth.Check(access.Requirement{Object: scope.lockedRef, OwnerOnly: true, OwnerNoun: "table"})
 	}
 	if err == nil {
 		err = scope.validateLockedRelation(e)

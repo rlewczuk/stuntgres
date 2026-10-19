@@ -6,6 +6,7 @@ import (
 	"errors"
 	"maps"
 	"reflect"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -55,7 +56,7 @@ func ownershipManualName(parts ...string) parser.ObjectName {
 // A database-only replacement must not mask an installed descriptor or row root.
 type ownershipManualSnapshot struct {
 	roots           indexMaintenanceSnapshot
-	roles           *roleCatalog
+	roles           *access.RoleRecord
 	revision        uint64
 	generators      map[ids.ObjectAddress]*storage.SequenceGenerator
 	generatorValues map[ids.ObjectAddress]storage.SequenceGenerator

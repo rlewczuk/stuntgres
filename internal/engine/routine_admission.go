@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -41,7 +42,7 @@ func admitRoutineDescriptor(auth AuthorizationView, dependencies []catalog.Expre
 		if current.Revision() != dependency.Revision {
 			return catalog.Conflict{}
 		}
-		return auth.Check(AccessRequirement{Object: ref, Privileges: authorization.ExecutePrivilege})
+		return auth.Check(access.Requirement{Object: ref, Privileges: authorization.ExecutePrivilege})
 	}
 	return fmt.Errorf("stuntgres: missing routine lifetime manifest")
 }
@@ -156,7 +157,7 @@ func checkRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, depend
 			// This exact retained recipe's established epoch bridge does not
 			// change the object identity or create a reference from an address.
 			ref.Epoch = auth.Catalog.Epoch()
-			return auth.Check(AccessRequirement{Object: ref, Privileges: authorization.ExecutePrivilege})
+			return auth.Check(access.Requirement{Object: ref, Privileges: authorization.ExecutePrivilege})
 		}
 		return fmt.Errorf("stuntgres: missing stored routine lifetime manifest")
 	}

@@ -381,7 +381,7 @@ func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.D
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
-	e.installOperationRolesLocked(op, &roleCatalog{Root: n, Revision: v.RoleRecord.Revision + 1})
+	e.installOperationRolesLocked(op, &access.RoleRecord{Root: n, Revision: v.RoleRecord.Revision + 1})
 	if t := op.session.transactions; t.retainsTransaction() {
 		// installOperationRolesLocked cloned the same catalog owner; no saved
 		// candidate shares this mutable set. Standalone publication needs none.

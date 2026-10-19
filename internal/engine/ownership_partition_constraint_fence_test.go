@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -90,7 +91,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 				if private && auth.Catalog.Get(catalog.CurrentDatabaseAddress) == committed {
 					t.Fatal("private authority is not distinct from committed predecessor")
 				}
-				if err := auth.Check(AccessRequirement{Object: root, OwnerOnly: true}); err != nil {
+				if err := auth.Check(access.Requirement{Object: root, OwnerOnly: true}); err != nil {
 					t.Fatal("selected DB owner did not authorize actual partition", err)
 				}
 				oldRoles, sessionRevision, epoch := e.roles.published, session.authorization.revision, e.catalog.state.Epoch()

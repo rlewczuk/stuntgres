@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -664,7 +665,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 				_, exists := current.LookupName(key)
 				same := current.Epoch() == base.Epoch() && current.Get(parent.Address()) != nil
 				if authErr == nil && same && exists {
-					authErr = currentAuth.Check(AccessRequirement{Object: scope.lockedRef, OwnerOnly: true})
+					authErr = currentAuth.Check(access.Requirement{Object: scope.lockedRef, OwnerOnly: true})
 				}
 				if authErr == nil && same && exists {
 					authErr = currentAuth.CheckCreate(ns)

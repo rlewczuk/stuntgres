@@ -71,7 +71,7 @@ func (e *Engine) foreignProcedureLocked(auth AuthorizationView, name *parser.Obj
 		}
 		return nil, sqlError("42883", "function "+objectNameText(*name)+"("+args+") does not exist")
 	}
-	if err := auth.Check(AccessRequirement{Object: foreignRef(auth, p), Privileges: authorization.ExecutePrivilege}); err != nil {
+	if err := auth.Check(access.Requirement{Object: foreignRef(auth, p), Privileges: authorization.ExecutePrivilege}); err != nil {
 		return nil, err
 	}
 	result := ids.OID(3115)
@@ -88,14 +88,14 @@ func foreignMappedRole(auth AuthorizationView, role parser.GrantGrantee) (author
 		return authorization.PrincipalRef{}, nil
 	}
 	name, identity := access.OwnershipRoleOperand(role.Role)
-	return access.SchemaOwner(auth.accessView, name, identity)
+	return access.SchemaOwner(auth.View, name, identity)
 }
 func foreignMappingAuthority(auth AuthorizationView, server *catalog.ForeignObject, role authorization.PrincipalRef) error {
-	if err := auth.Check(AccessRequirement{Object: foreignRef(auth, server), OwnerOnly: true}); err == nil {
+	if err := auth.Check(access.Requirement{Object: foreignRef(auth, server), OwnerOnly: true}); err == nil {
 		return nil
 	}
 	if role == auth.State.CurrentUser {
-		return auth.Check(AccessRequirement{Object: foreignRef(auth, server), Privileges: authorization.UsagePrivilege})
+		return auth.Check(access.Requirement{Object: foreignRef(auth, server), Privileges: authorization.UsagePrivilege})
 	}
 	return sqlError("42501", "must be owner of foreign server "+server.Name())
 }
@@ -181,7 +181,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 	var successor authorization.PrincipalRef
 	if s.Owner != nil {
 		targetName, identity := access.OwnershipRoleOperand(*s.Owner)
-		successor, err = access.SchemaOwner(auth.accessView, targetName, identity)
+		successor, err = access.SchemaOwner(auth.View, targetName, identity)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -258,7 +258,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 				return nil, nil, er
 			}
 			if class != ids.ForeignMappingClassID {
-				if er = auth.Check(AccessRequirement{Object: foreignRef(auth, d), OwnerOnly: true}); er != nil {
+				if er = auth.Check(access.Requirement{Object: foreignRef(auth, d), OwnerOnly: true}); er != nil {
 					return nil, nil, er
 				}
 			}
@@ -291,7 +291,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 	var next catalog.ForeignObject
 	if old != nil {
 		if class != ids.ForeignMappingClassID && s.Owner == nil {
-			if err = auth.Check(AccessRequirement{Object: foreignRef(auth, old), OwnerOnly: true}); err != nil {
+			if err = auth.Check(access.Requirement{Object: foreignRef(auth, old), OwnerOnly: true}); err != nil {
 				return nil, nil, err
 			}
 		}
@@ -338,7 +338,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 			if err != nil {
 				return nil, nil, err
 			}
-			if err = auth.Check(AccessRequirement{Object: foreignRef(auth, wrapper), Privileges: authorization.UsagePrivilege}); err != nil {
+			if err = auth.Check(access.Requirement{Object: foreignRef(auth, wrapper), Privileges: authorization.UsagePrivilege}); err != nil {
 				return nil, nil, err
 			}
 			next.Wrapper = wrapper.Address()
@@ -479,10 +479,10 @@ func foreignOwnershipEligibility(auth AuthorizationView, object *catalog.Foreign
 	if object.Owner == target || actor.Superuser {
 		return nil
 	}
-	if err = auth.Check(AccessRequirement{Object: foreignRef(auth, object), OwnerOnly: true}); err != nil {
+	if err = auth.Check(access.Requirement{Object: foreignRef(auth, object), OwnerOnly: true}); err != nil {
 		return err
 	}
-	if err = access.OwnershipEligibility(auth.accessView, auth, target, ids.ObjectAddress{}); err != nil {
+	if err = access.OwnershipEligibility(auth.View, auth, target, ids.ObjectAddress{}); err != nil {
 		return err
 	}
 	wrapper, ok := auth.Catalog.Foreign(object.Wrapper)
@@ -491,5 +491,5 @@ func foreignOwnershipEligibility(auth AuthorizationView, object *catalog.Foreign
 	}
 	recipient := auth
 	recipient.State.CurrentUser = target
-	return recipient.Check(AccessRequirement{Object: foreignRef(recipient, wrapper), Privileges: authorization.UsagePrivilege})
+	return recipient.Check(access.Requirement{Object: foreignRef(recipient, wrapper), Privileges: authorization.UsagePrivilege})
 }

@@ -9,13 +9,13 @@ import (
 
 // Engine.mu protects committed and pending immutable role roots; statement
 // admission prevents concurrent mutation of this session's transaction overlay.
-func (e *Engine) operationRolesLocked(op *Operation) *roleCatalog {
+func (e *Engine) operationRolesLocked(op *Operation) *access.RoleRecord {
 	if op != nil {
 		return e.sessionRolesLocked(op.session)
 	}
 	return e.roles.published
 }
-func (e *Engine) sessionRolesLocked(session *Session) *roleCatalog {
+func (e *Engine) sessionRolesLocked(session *Session) *access.RoleRecord {
 	if session != nil && session.transactions != nil {
 		if c := session.transactions.catalog; c != nil && c.roles != nil {
 			return c.roles
@@ -25,7 +25,7 @@ func (e *Engine) sessionRolesLocked(session *Session) *roleCatalog {
 }
 
 // The operation/session publication preflight has passed before this call.
-func (e *Engine) installOperationRolesLocked(op *Operation, next *roleCatalog) {
+func (e *Engine) installOperationRolesLocked(op *Operation, next *access.RoleRecord) {
 	t := op.session.transactions
 	if !t.retainsTransaction() {
 		e.roles.published = next

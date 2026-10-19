@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -91,7 +92,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 	actor := auth.Roles.LookupRef("pg_monitor")
 	auth.State.CurrentUser = actor
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375})
-	if err := auth.Check(AccessRequirement{Object: ref, Privileges: authorization.ExecutePrivilege}); err != nil {
+	if err := auth.Check(access.Requirement{Object: ref, Privileges: authorization.ExecutePrivilege}); err != nil {
 		t.Fatal("real PUBLIC EXECUTE default", err)
 	}
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {

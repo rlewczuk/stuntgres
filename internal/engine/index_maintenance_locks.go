@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -55,7 +56,7 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 			if s.Action != "rename" && d.RelationKind != catalog.IndexRelation {
 				return indexWrongKind(d, false)
 			}
-			if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+			if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 				return err
 			}
 			if s.Action == "rename" {

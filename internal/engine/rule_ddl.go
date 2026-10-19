@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -48,7 +49,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 		}
 		return fail(ruleMissing(name, old))
 	}
-	if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+	if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		return fail(err)
 	}
 	if old.RelationKind == catalog.MaterializedViewRelation {

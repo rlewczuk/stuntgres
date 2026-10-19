@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -39,7 +40,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	if err != nil {
 		return fail(err)
 	}
-	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+	if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		return fail(err)
 	}
 	old := scope.lockedDescriptor.(*catalog.Relation)
@@ -116,7 +117,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	if current != ref || auth.Catalog.Get(ref.Address) != old {
 		return fail(ids.ErrCatalogReplaced)
 	}
-	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+	if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		return fail(err)
 	}
 	liveDestination, err := e.creationNamespace(auth, parser.ObjectName{Parts: []parser.Identifier{s.Schema, {Text: old.Name()}}})

@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -39,7 +40,7 @@ func TestAlterNullabilityAuthorizationLifetime(t *testing.T) {
 		op.Done()
 		t.Fatal(err)
 	}
-	denied := auth.Check(AccessRequirement{Object: table, OwnerOnly: true})
+	denied := auth.Check(access.Requirement{Object: table, OwnerOnly: true})
 	op.Done()
 	if !exists || state.CurrentUser != role.Ref || state.SessionUser != role.Ref || after <= before || denied == nil {
 		t.Fatal("authorization capability did not select an unauthorized nonowner", state, before, after, denied)

@@ -9,6 +9,7 @@ import (
 	"io"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -21,7 +22,7 @@ import (
 // Host catalog fixtures resolve as the real bootstrap principal, not as a
 // zero/default-allow authorization view. Caller holds e.mu.
 func catalogAuthorization(e *Engine, view catalog.Read) AuthorizationView {
-	return AuthorizationView{accessView: accessView{Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.roles.published, Catalog: view, Roles: e.roles.read(e.catalog.owner(), view, e.roles.published), State: authorization.RoleState{CurrentUser: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}}, engine: e}
+	return AuthorizationView{View: access.View{Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.roles.published, Catalog: view, Roles: e.roles.read(e.catalog.owner(), view, e.roles.published), State: authorization.RoleState{CurrentUser: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}}, engine: e}
 }
 
 func roleTableRef(t *testing.T, e *Engine, name string) ids.ObjectRef {
@@ -57,13 +58,13 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := retained.Check(AccessRequirement{Object: ref, Privileges: authorization.SelectPrivilege | authorization.InsertPrivilege}); err != nil {
+	if err := retained.Check(access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege | authorization.InsertPrivilege}); err != nil {
 		t.Fatal("old view changed", err)
 	}
-	if err := view.Check(AccessRequirement{Object: ref, Privileges: authorization.SelectPrivilege}); err == nil {
+	if err := view.Check(access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}); err == nil {
 		t.Fatal("explicit empty owner rights")
 	}
-	if err := view.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+	if err := view.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		t.Fatal("owner authority revoked", err)
 	}
 	options, err := view.Effective(ref, true)
@@ -89,13 +90,13 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := view.Check(AccessRequirement{Object: column, Privileges: authorization.SelectPrivilege | authorization.InsertPrivilege}); err == nil {
+	if err := view.Check(access.Requirement{Object: column, Privileges: authorization.SelectPrivilege | authorization.InsertPrivilege}); err == nil {
 		t.Fatal("any-bit check")
 	}
-	if err := view.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err == nil {
+	if err := view.Check(access.Requirement{Object: ref, OwnerOnly: true}); err == nil {
 		t.Fatal("nonowner authority")
 	}
-	for _, req := range []AccessRequirement{{Object: ref}, {Object: ref, Privileges: authorization.UsagePrivilege}, {Object: New().catalog.Domain.Ref(ref.Epoch, ref.Address), Privileges: authorization.SelectPrivilege}} {
+	for _, req := range []access.Requirement{{Object: ref}, {Object: ref, Privileges: authorization.UsagePrivilege}, {Object: New().catalog.Domain.Ref(ref.Epoch, ref.Address), Privileges: authorization.SelectPrivilege}} {
 		if err := view.Check(req); err == nil {
 			t.Fatal("invalid requirement", req)
 		}
@@ -523,7 +524,7 @@ func TestAuthorizationOwnerDiagnosticAndInvalidACLs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = view.Check(AccessRequirement{Object: ref, OwnerOnly: true})
+	err = view.Check(access.Requirement{Object: ref, OwnerOnly: true})
 	state(t, err, "42501")
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) {

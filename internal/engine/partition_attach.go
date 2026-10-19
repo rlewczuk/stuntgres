@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -91,7 +92,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	}
 	candidate, err := e.resolveRelationReference(lookupAuth, raw.Partition, true)
 	if err == nil {
-		err = lookupAuth.Check(AccessRequirement{Object: candidate, OwnerOnly: true, OwnerNoun: "table"})
+		err = lookupAuth.Check(access.Requirement{Object: candidate, OwnerOnly: true, OwnerNoun: "table"})
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -125,10 +126,10 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 		err = e.partitionAttachName(lookupAuth, raw.Partition, candidate)
 	}
 	if err == nil {
-		err = lookupAuth.Check(AccessRequirement{Object: scope.lockedRef, OwnerOnly: true, OwnerNoun: "table"})
+		err = lookupAuth.Check(access.Requirement{Object: scope.lockedRef, OwnerOnly: true, OwnerNoun: "table"})
 	}
 	if err == nil {
-		err = lookupAuth.Check(AccessRequirement{Object: candidate, OwnerOnly: true, OwnerNoun: "table"})
+		err = lookupAuth.Check(access.Requirement{Object: candidate, OwnerOnly: true, OwnerNoun: "table"})
 	}
 	if err == nil {
 		err = scope.validateLockedRelation(e)

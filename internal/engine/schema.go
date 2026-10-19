@@ -380,7 +380,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 	}
 	own := func(d *catalog.Namespace) error {
 		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
-		return auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
+		return auth.Check(access.Requirement{Object: ref, OwnerOnly: true})
 	}
 	switch s := stmt.(type) {
 	case *parser.CreateComposite:
@@ -436,7 +436,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			return nil, err
 		}
 	case *parser.CreateSchema:
-		owner, err := access.SchemaOwner(auth.accessView, s.Authorization, s.AuthorizationIdentity)
+		owner, err := access.SchemaOwner(auth.View, s.Authorization, s.AuthorizationIdentity)
 		if err != nil {
 			return nil, err
 		}
@@ -516,7 +516,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			}
 			next.ObjectName = s.NewName
 		} else {
-			target, err := access.SchemaOwner(auth.accessView, s.Owner, s.OwnerIdentity)
+			target, err := access.SchemaOwner(auth.View, s.Owner, s.OwnerIdentity)
 			if err != nil {
 				return nil, err
 			}
@@ -526,10 +526,10 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			if err = own(old); err != nil {
 				return nil, err
 			}
-			if err = access.OwnershipSuccessor(auth.accessView, target); err != nil {
+			if err = access.OwnershipSuccessor(auth.View, target); err != nil {
 				return nil, err
 			}
-			if err = access.OwnershipDatabaseCreate(auth.accessView, auth); err != nil {
+			if err = access.OwnershipDatabaseCreate(auth.View, auth); err != nil {
 				return nil, err
 			}
 			next.Owner = target

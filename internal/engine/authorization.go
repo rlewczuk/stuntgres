@@ -78,7 +78,7 @@ func (op *Operation) RoleState() authorization.RoleState {
 // inputs. Its Check, CanUse, CheckCreate, Effective and checkColumns are entry
 // points that pass the view itself as the accessEnvironment.
 type AuthorizationView struct {
-	accessView
+	access.View
 	engine     *Engine
 	definition definitionReader // Cooking-only sparse effects; never SQL execution authority.
 	settings   *sessionSettings
@@ -93,15 +93,15 @@ type AuthorizationView struct {
 }
 
 func (v AuthorizationView) Effective(ref ids.ObjectRef, grantOptions bool) (authorization.Privileges, error) {
-	return v.accessView.Effective(v, ref, grantOptions)
+	return v.View.Effective(v, ref, grantOptions)
 }
-func (v AuthorizationView) Check(req AccessRequirement) error { return v.accessView.Check(v, req) }
-func (v AuthorizationView) CanUse(ref ids.ObjectRef) error    { return v.accessView.CanUse(v, ref) }
+func (v AuthorizationView) Check(req access.Requirement) error { return v.View.Check(v, req) }
+func (v AuthorizationView) CanUse(ref ids.ObjectRef) error     { return v.View.CanUse(v, ref) }
 func (v AuthorizationView) CheckCreate(ref ids.ObjectRef) error {
-	return v.accessView.CheckCreate(v, ref)
+	return v.View.CheckCreate(v, ref)
 }
 func (v AuthorizationView) checkColumns(b binding, mask authorization.Privileges, indices []int) error {
-	return v.accessView.CheckColumns(v, b.ref, b.relation, mask, indices)
+	return v.View.CheckColumns(v, b.ref, b.relation, mask, indices)
 }
 
 // TemporaryNamespace implements accessEnvironment: the session's own TEMP
@@ -220,7 +220,7 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 		}
 		identity.CurrentUser = op.materializedOwner
 	}
-	authorization := AuthorizationView{accessView: accessView{Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.operationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.catalog.state.Get(catalog.CurrentDatabaseAddress), State: identity, SessionRoleState: a.state, Revision: a.revision}, engine: e, definition: op.definition, settings: s.settings, session: s, materializedPopulation: op.materializedPopulation}
+	authorization := AuthorizationView{View: access.View{Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.operationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.catalog.state.Get(catalog.CurrentDatabaseAddress), State: identity, SessionRoleState: a.state, Revision: a.revision}, engine: e, definition: op.definition, settings: s.settings, session: s, materializedPopulation: op.materializedPopulation}
 	if _, exists := r.Find(identity.CurrentUser); !exists {
 		authorization.MissingCurrent = identity.CurrentUser
 	}
@@ -265,7 +265,7 @@ func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error 
 		return v.checkQuerySources(b.querySources)
 	case *parser.Merge:
 		if b.merge.hasDelete {
-			if err := v.Check(AccessRequirement{Object: b.ref, Privileges: authorization.DeletePrivilege}); err != nil {
+			if err := v.Check(access.Requirement{Object: b.ref, Privileges: authorization.DeletePrivilege}); err != nil {
 				return err
 			}
 		}
@@ -286,7 +286,7 @@ func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error 
 		}
 		return v.checkQuerySources(b.querySources)
 	case *parser.Delete:
-		if err := v.Check(AccessRequirement{Object: b.ref, Privileges: authorization.DeletePrivilege}); err != nil {
+		if err := v.Check(access.Requirement{Object: b.ref, Privileges: authorization.DeletePrivilege}); err != nil {
 			return err
 		}
 		if len(b.usedColumns) != 0 {

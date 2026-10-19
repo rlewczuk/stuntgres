@@ -116,10 +116,10 @@ func (e *Engine) rowSecurityInputLocked(scope *StatementScope, d *catalog.Relati
 	if err != nil {
 		return false, err
 	}
-	if decision == rlsNeedsExpressions {
+	if decision == access.RLSNeedsExpressions {
 		return false, access.RowSecurityExpressionError()
 	}
-	return decision == rlsDefaultDeny, nil
+	return decision == access.RLSDefaultDeny, nil
 }
 
 // rowSecurityLayers collects the owner and security_invoker flag of each
@@ -138,7 +138,7 @@ func rowSecurityLayers(view catalog.Read, b binding) []access.RowSecurityLayer {
 
 func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, stmt parser.Statement) error {
 	scope.rlsTargetDenied = false
-	scope.rlsProposal, scope.rlsMergeInsert, scope.rlsMergeUpdate = rlsUnrestricted, rlsUnrestricted, rlsUnrestricted
+	scope.rlsProposal, scope.rlsMergeInsert, scope.rlsMergeUpdate = access.RLSUnrestricted, access.RLSUnrestricted, access.RLSUnrestricted
 	if b.relation == nil {
 		return nil
 	}
@@ -178,10 +178,10 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, st
 		if err != nil {
 			return err
 		}
-		if decision == rlsNeedsExpressions {
+		if decision == access.RLSNeedsExpressions {
 			return access.RowSecurityExpressionError()
 		}
-		scope.rlsTargetDenied = decision == rlsDefaultDeny
+		scope.rlsTargetDenied = decision == access.RLSDefaultDeny
 	}
 	proposedRead := b.conflict != nil && len(b.conflict.reads) != 0
 	switch stmt.(type) {

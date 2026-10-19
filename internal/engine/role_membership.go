@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 )
@@ -23,6 +24,6 @@ func (e *Engine) membershipLocked(op *Operation, v AuthorizationView, s *parser.
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
-	e.installOperationRolesLocked(op, &roleCatalog{Root: n, Revision: v.RoleRecord.Revision + 1})
+	e.installOperationRolesLocked(op, &access.RoleRecord{Root: n, Revision: v.RoleRecord.Revision + 1})
 	return Result{}, nil
 }

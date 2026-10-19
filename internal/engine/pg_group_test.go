@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -23,7 +24,7 @@ func pgGroupUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRe
 	return d, e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
 }
 
-func pgGroupUnitRole(e *Engine, state *roleCatalog, id uint64, name string, login bool) authorization.PrincipalRef {
+func pgGroupUnitRole(e *Engine, state *access.RoleRecord, id uint64, name string, login bool) authorization.PrincipalRef {
 	ref := pgRolesUnitRole(e, state, id, name)
 	role := fixtureRole(state, ref)
 	role.Login = login
@@ -144,7 +145,7 @@ func TestPGGroupProjection(t *testing.T) {
 	role.Superuser, role.CreateRole, role.CreateDB, role.Replication, role.BypassRLS = true, true, true, true, true
 	role.Inherit, role.ConnectionLimit, role.HasValidUntil, role.ValidUntil = false, 0, true, sqltype.TimestampNegativeInfinity
 	putFixtureRole(state, role)
-	capture := func(root *roleCatalog) map[uint32][]sqltype.Value {
+	capture := func(root *access.RoleRecord) map[uint32][]sqltype.Value {
 		t.Helper()
 		source, err := capturePGGroup(context.Background(), e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), root), ref, d)
 		if err != nil {
@@ -273,7 +274,7 @@ func TestPGGroupCancellation(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, root := range []*roleCatalog{state, emptyRoleFixture(e)} {
+	for _, root := range []*access.RoleRecord{state, emptyRoleFixture(e)} {
 		if source, err := capturePGGroup(canceled, e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), root), ref, d); source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("precancellation published source", err)
 		}

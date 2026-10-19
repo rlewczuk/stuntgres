@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -137,7 +138,7 @@ func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, st
 			return sqlError("42809", fmt.Sprintf(`"%s" is not a domain`, objectNameText(name)))
 		}
 		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), target.Address())
-		if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+		if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}
 		if seen[ref.Address] {

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"testing"
@@ -19,7 +20,7 @@ func TestPgClassCatalogACLRecheck(t *testing.T) {
 	role := roleAttributeCreate(t, e, admin, "class_metadata_reader", true, parser.RoleOptions{})
 	reader, readerDone := roleOperation(t, e, role.Name)
 	defer readerDone()
-	requirement := AccessRequirement{Object: ref, Privileges: authorization.SelectPrivilege}
+	requirement := access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}
 	retained, err := reader.Authorization()
 	if err != nil {
 		t.Fatal(err)

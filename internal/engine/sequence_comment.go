@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -21,7 +22,7 @@ func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment
 		err = sequenceKind(auth.Catalog.MustRelation(ref.Address))
 	}
 	if err == nil {
-		err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
+		err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true})
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -36,7 +37,7 @@ func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment
 	if err != nil {
 		return Result{}, err
 	}
-	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+	if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		return Result{}, err
 	}
 	old, ok := auth.Catalog.Relation(ref.Address)

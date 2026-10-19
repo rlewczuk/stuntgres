@@ -84,7 +84,7 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 	}
 	for _, command := range []catalog.PolicyCommand{catalog.PolicyUpdate, catalog.PolicyDelete, catalog.PolicySelect} {
 		decision, err := access.RowSecurityDecision(auth.Roles, descriptor, reader, command, false)
-		if err != nil || decision != rlsDefaultDeny {
+		if err != nil || decision != access.RLSDefaultDeny {
 			t.Fatal("effective ordinary principal is not denied", command, decision, err)
 		}
 		source, err := captureDeniedQuerySource(view, leaf.ref)

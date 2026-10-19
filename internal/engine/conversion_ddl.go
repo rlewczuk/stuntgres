@@ -77,7 +77,7 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 	if procedure.Result != 23 {
 		return sqlError("42P17", "encoding conversion function "+functionName+" must return type integer")
 	}
-	if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), procedure.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
+	if err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), procedure.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
 		if d, ok := err.(*sqlstate.Error); ok && d.Code == "42501" {
 			return sqlError("42501", "permission denied for function "+functionName)
 		}
@@ -130,7 +130,7 @@ func (e *Engine) stageAlterConversionLocked(op *Operation, auth AuthorizationVie
 	}
 	var target authorization.PrincipalRef
 	if s.Action == "owner" {
-		target, err = access.SchemaOwner(auth.accessView, s.Target.Text, s.OwnerIdentity)
+		target, err = access.SchemaOwner(auth.View, s.Target.Text, s.OwnerIdentity)
 		if err != nil {
 			return err
 		}
@@ -154,7 +154,7 @@ func (e *Engine) stageAlterConversionLocked(op *Operation, auth AuthorizationVie
 		}
 	}
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
-	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+	if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		return err
 	}
 	next := *d
@@ -170,7 +170,7 @@ func (e *Engine) stageAlterConversionLocked(op *Operation, auth AuthorizationVie
 		}
 		next.ObjectNamespace = destination.Address
 	case "owner":
-		if err = access.OwnershipEligibility(auth.accessView, auth, target, d.Namespace()); err != nil {
+		if err = access.OwnershipEligibility(auth.View, auth, target, d.Namespace()); err != nil {
 			return err
 		}
 		next.Owner = target
@@ -204,7 +204,7 @@ func (e *Engine) stageDropConversionLocked(op *Operation, auth AuthorizationView
 			}
 			return err
 		}
-		if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), OwnerOnly: true}); err != nil {
+		if err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), OwnerOnly: true}); err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
 				return sqlError("42501", "must be owner of conversion "+objectNameText(name))
 			}

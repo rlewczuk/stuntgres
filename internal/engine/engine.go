@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -628,7 +629,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 					if err := auth.CanUse(typeRef); err != nil {
 						return b, err
 					}
-				} else if err := auth.Check(AccessRequirement{Object: ref, Privileges: authorization.SelectPrivilege}); err != nil {
+				} else if err := auth.Check(access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}); err != nil {
 					return b, err
 				}
 				offset := len(columns)

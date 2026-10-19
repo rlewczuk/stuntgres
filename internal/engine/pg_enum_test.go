@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math"
 	"reflect"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -146,7 +147,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := retainedAuth.Check(AccessRequirement{Object: ref, Privileges: authorization.SelectPrivilege}); err != nil {
+	if err := retainedAuth.Check(access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}); err != nil {
 		t.Fatal("PUBLIC catalog ACL", err)
 	}
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
@@ -156,8 +157,8 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	domainUnitDiagnostic(t, currentAuth.Check(AccessRequirement{Object: ref, Privileges: authorization.SelectPrivilege}), "42501", "permission denied for table pg_enum")
-	if err := retainedAuth.Check(AccessRequirement{Object: ref, Privileges: authorization.SelectPrivilege}); err != nil {
+	domainUnitDiagnostic(t, currentAuth.Check(access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}), "42501", "permission denied for table pg_enum")
+	if err := retainedAuth.Check(access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}); err != nil {
 		t.Fatal("ACL update mutated retained authorization", err)
 	}
 	if err := e.SetObjectACL(context.Background(), ref, d.Security.ACL); err != nil {
@@ -167,10 +168,10 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := restoredAuth.Check(AccessRequirement{Object: ref, Privileges: authorization.SelectPrivilege}); err != nil {
+	if err := restoredAuth.Check(access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}); err != nil {
 		t.Fatal("restored PUBLIC catalog ACL", err)
 	}
-	domainUnitDiagnostic(t, currentAuth.Check(AccessRequirement{Object: ref, Privileges: authorization.SelectPrivilege}), "42501", "permission denied for table pg_enum")
+	domainUnitDiagnostic(t, currentAuth.Check(access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}), "42501", "permission denied for table pg_enum")
 	for _, q := range []string{"CREATE TYPE mood AS ENUM ('z','q')", "CREATE TYPE empty AS ENUM ()", "CREATE DOMAIN wrapped AS mood"} {
 		domainUnitPublish(t, e, domainUnitStage(t, e, op, q))
 	}

@@ -189,7 +189,7 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 	if securityErr != nil {
 		return securityErr
 	}
-	if decision != rlsUnrestricted {
+	if decision != access.RLSUnrestricted {
 		return err
 	}
 	rights, checkErr := state.auth.Effective(ref, false)

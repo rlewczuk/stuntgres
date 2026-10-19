@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"reflect"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -75,7 +76,7 @@ func TestPGShDescriptionEmptySource(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		name  string
-		state *roleCatalog
+		state *access.RoleRecord
 	}{
 		{"bootstrap", e.roles.published},
 		{"empty role map", emptyRoleFixture(e)},
@@ -109,7 +110,7 @@ func TestPGShDescriptionEmptySource(t *testing.T) {
 	}
 }
 
-func pgShDescriptionUnitRole(e *Engine, state *roleCatalog, id uint64, name, text string) authorization.PrincipalRef {
+func pgShDescriptionUnitRole(e *Engine, state *access.RoleRecord, id uint64, name, text string) authorization.PrincipalRef {
 	e.roles.nextPrincipal = id
 	ref, err := e.roles.principalCandidateLocked()
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -348,7 +349,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 	evaluation.catalog, evaluation.Output = view, output
 	if auth == nil {
 		// Trusted replacement has catalog identity but no SQL principal.
-		auth = &AuthorizationView{accessView: accessView{Catalog: view}}
+		auth = &AuthorizationView{View: access.View{Catalog: view}}
 	} else {
 		disclosure := *auth
 		disclosure.Catalog = view
