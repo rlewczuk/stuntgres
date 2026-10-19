@@ -402,16 +402,6 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 			e.args = args
 		}
 		expression = e
-	case catalogUserNameExpression:
-		arg, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
-		if failure != nil {
-			return nil, false, failure
-		}
-		e.arg = arg
-		changed = changed || did
-		expression = e
-	case catalogForeignKeysExpression:
-		expression = e
 	case extensionPathsExpression:
 		arg, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
 		if failure != nil {
@@ -442,60 +432,6 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 			return folded, true, nil
 		}
 		expression = e
-	case visibilityInquiryExpression:
-		node, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
-		if failure != nil {
-			return nil, false, failure
-		}
-		if did {
-			e.arg = node
-			changed = true
-		}
-		expression = e
-	case currentSchemasExpression:
-		node, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
-		if failure != nil {
-			return nil, false, failure
-		}
-		if did {
-			e.arg = node
-			changed = true
-		}
-		expression = e
-	case objectAddressExpression:
-		e.Property = expr.Properties{Volatility: expr.Stable}
-		for i, arg := range e.args {
-			node, did, failure := simplifyConditional(c, arg, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.args[i], changed = node, true
-			}
-			e.Property = expr.MergeProperties(e.Property, e.args[i].Properties())
-		}
-		// PostgreSQL eliminates strict scalar calls with a constant NULL,
-		// but leaves RECORD calls and nonconstant NULL inputs intact.
-		// Simplify every child first so reached planning errors retain precedence.
-		if e.op == describeObject {
-			for _, arg := range e.args {
-				if randomLiteralNull(arg) {
-					return literalExpression{foldedExpressionInfo(e), sqltype.Null(e.Usage.Type)}, true, nil
-				}
-			}
-		}
-		expression = e
-	case namespaceInquiryExpression:
-		if e.arg != nil {
-			node, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.arg, changed = node, true
-			}
-		}
-		expression = e
 	case blockingInquiryExpression:
 		node, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
 		if failure != nil {
@@ -506,58 +442,6 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 		}
 		e.Property = e.arg.Properties()
 		e.Property.Volatility = expr.Volatile
-		expression = e
-	case indexPropertyExpression:
-		e.Property = expr.Properties{Volatility: expr.Stable}
-		for i, old := range e.children() {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				e.args[i] = node
-				changed = true
-			}
-			e.Property = expr.MergeProperties(e.Property, e.args[i].Properties())
-		}
-		expression = e
-	case deparseExpression:
-		var args []expr.Expr
-		for i, old := range e.args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				if args == nil {
-					args = append([]expr.Expr(nil), e.args...)
-				}
-				args[i] = node
-				changed = true
-			}
-		}
-		if args != nil {
-			e.args = args
-		}
-		expression = e
-	case commentInquiryExpression:
-		var args []expr.Expr
-		for i, old := range e.args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				if args == nil {
-					args = append([]expr.Expr(nil), e.args...)
-				}
-				args[i] = node
-				changed = true
-			}
-		}
-		if args != nil {
-			e.args = args
-		}
 		expression = e
 	case installedSoundexFunctionExpression:
 		var args []expr.Expr
@@ -751,7 +635,7 @@ func conditionalConstantInputs(node expr.Expr) bool {
 			}
 		}
 		return true
-	case catalogUserNameExpression, catalogForeignKeysExpression, extensionPathsExpression, objectAddressExpression:
+	case extensionPathsExpression:
 		return false
 	case installedSoundexFunctionExpression:
 		for _, arg := range e.Args {

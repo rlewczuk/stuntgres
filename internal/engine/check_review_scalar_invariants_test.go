@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 )
 
@@ -27,7 +28,7 @@ func TestCheckReviewScalarInquiryStoredInvariants(t *testing.T) {
 	if err := validateChecks(view, &badRelation, map[string]bool{}); err == nil {
 		t.Fatal("invalid snapshot demand persisted")
 	}
-	inquiry := relation.Constraints.Check[0].Expression.(nullTestExpression).child.(commentInquiryExpression)
+	inquiry := relation.Constraints.Check[0].Expression.(nullTestExpression).child.(functions.CommentInquiry)
 	intType, ok := view.LookupType(sqltype.Int4)
 	if !ok {
 		t.Fatal("missing int4 type")
@@ -41,23 +42,23 @@ func TestCheckReviewScalarInquiryStoredInvariants(t *testing.T) {
 	}
 	for _, test := range []struct {
 		name   string
-		change func(*commentInquiryExpression)
+		change func(*functions.CommentInquiry)
 	}{
-		{"kind", func(n *commentInquiryExpression) { n.kind = commentInquiryKind(255) }},
-		{"arity", func(n *commentInquiryExpression) { n.args = n.args[:1] }},
-		{"missing-child", func(n *commentInquiryExpression) { n.args[0] = nil }},
-		{"argument-type", func(n *commentInquiryExpression) { n.args[0] = n.args[1] }},
-		{"result-type", func(n *commentInquiryExpression) { n.Usage = intType.Usage() }},
-		{"properties", func(n *commentInquiryExpression) { n.Property.RowDependent = false }},
-		{"foreign-origin", func(n *commentInquiryExpression) {
-			column := n.args[0].(columnExpression)
+		{"kind", func(n *functions.CommentInquiry) { n.Kind = functions.CommentInquiryKind(255) }},
+		{"arity", func(n *functions.CommentInquiry) { n.Args = n.Args[:1] }},
+		{"missing-child", func(n *functions.CommentInquiry) { n.Args[0] = nil }},
+		{"argument-type", func(n *functions.CommentInquiry) { n.Args[0] = n.Args[1] }},
+		{"result-type", func(n *functions.CommentInquiry) { n.Usage = intType.Usage() }},
+		{"properties", func(n *functions.CommentInquiry) { n.Property.RowDependent = false }},
+		{"foreign-origin", func(n *functions.CommentInquiry) {
+			column := n.Args[0].(columnExpression)
 			column.origin.Epoch++
-			n.args[0] = column
+			n.Args[0] = column
 		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			bad := inquiry
-			bad.args = append([]expr.Expr(nil), inquiry.args...)
+			bad.Args = append([]expr.Expr(nil), inquiry.Args...)
 			test.change(&bad)
 			if _, err := renderer.sql(ctx, view, bad); err == nil {
 				t.Fatal("malformed inquiry persisted")

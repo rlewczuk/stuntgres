@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -67,7 +68,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 				}
 			}
 			e.mu.Unlock()
-			getter := namespaceInquiryExpression{Info: expr.Info{Usage: oidType.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, kind: myTempNamespace}
+			getter := functions.NamespaceInquiry{Info: expr.Info{Usage: oidType.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Kind: functions.MyTempNamespace}
 			value, err := getter.Eval(&EvalContext{Context: context.Background(), statementScope: scope})
 			if err != nil {
 				t.Fatal(err)
@@ -80,7 +81,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			if err != nil || toast == (ids.ObjectAddress{}) {
 				t.Fatal("TOAST pair", err)
 			}
-			classifier := namespaceInquiryExpression{Info: expr.Info{Usage: boolType.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, kind: otherTempNamespace, arg: literalExpression{Info: expr.Info{Usage: oidType.Usage()}, value: input}}
+			classifier := functions.NamespaceInquiry{Info: expr.Info{Usage: boolType.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Kind: functions.OtherTempNamespace, Arg: literalExpression{Info: expr.Info{Usage: oidType.Usage()}, value: input}}
 			value, err = classifier.Eval(&EvalContext{Context: context.Background(), statementScope: scope})
 			if err != nil {
 				t.Fatal(err)
@@ -121,38 +122,6 @@ func TestNamespaceIdentityNoPendingFastPath(t *testing.T) {
 	}
 }
 
-func TestNamespaceIdentityStoredValidation(t *testing.T) {
-	e := New()
-	view := e.CatalogRead()
-	oidType, _ := view.LookupType(sqltype.Oid)
-	boolType, _ := view.LookupType(sqltype.Bool)
-	n := namespaceInquiryExpression{Info: expr.Info{Usage: oidType.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, kind: myTempNamespace}
-	if err := n.validateStored(); err != nil {
-		t.Fatal(err)
-	}
-	bad := n
-	bad.Property.Volatility = expr.Immutable
-	if bad.validateStored() == nil {
-		t.Fatal("lost stable volatility accepted")
-	}
-	bad = n
-	bad.Usage = boolType.Usage()
-	if bad.validateStored() == nil {
-		t.Fatal("wrong result accepted")
-	}
-	n.kind = otherTempNamespace
-	n.Usage = boolType.Usage()
-	value, _ := sqltype.OIDValue(oidType, 0)
-	n.arg = literalExpression{Info: expr.Info{Usage: oidType.Usage()}, value: value}
-	if err := n.validateStored(); err != nil {
-		t.Fatal(err)
-	}
-	n.arg = nil
-	if n.validateStored() == nil {
-		t.Fatal("missing operand accepted")
-	}
-}
-
 func TestNamespaceIdentityTypedBinding(t *testing.T) {
 	e := New()
 	s := sessionStart(t, e, nil)
@@ -163,18 +132,18 @@ func TestNamespaceIdentityTypedBinding(t *testing.T) {
 	defer op.Done()
 	query := domainUnitBindSelect(t, e, op, "SELECT pg_my_temp_schema(),pg_is_other_temp_schema($1)")
 	expressions := query.Root.(*projectNode).expressions
-	getter, ok := expressions[0].(namespaceInquiryExpression)
-	if !ok || getter.kind != myTempNamespace || getter.arg != nil || getter.ResultUsage().Type.ID() != sqltype.Oid || getter.Properties().Volatility != expr.Stable {
+	getter, ok := expressions[0].(functions.NamespaceInquiry)
+	if !ok || getter.Kind != functions.MyTempNamespace || getter.Arg != nil || getter.ResultUsage().Type.ID() != sqltype.Oid || getter.Properties().Volatility != expr.Stable {
 		t.Fatal("getter typed node", expressions[0])
 	}
-	classifier, ok := expressions[1].(namespaceInquiryExpression)
-	if !ok || classifier.kind != otherTempNamespace || classifier.arg == nil || classifier.arg.ResultUsage().Type.ID() != sqltype.Oid || classifier.ResultUsage().Type.ID() != sqltype.Bool || classifier.Properties().Volatility != expr.Stable || !classifier.Properties().ParameterDependent {
+	classifier, ok := expressions[1].(functions.NamespaceInquiry)
+	if !ok || classifier.Kind != functions.OtherTempNamespace || classifier.Arg == nil || classifier.Arg.ResultUsage().Type.ID() != sqltype.Oid || classifier.ResultUsage().Type.ID() != sqltype.Bool || classifier.Properties().Volatility != expr.Stable || !classifier.Properties().ParameterDependent {
 		t.Fatal("classifier typed OID inference", expressions[1])
 	}
-	if err := getter.validateStored(); err != nil {
+	if err := getter.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if err := classifier.validateStored(); err != nil {
+	if err := classifier.Validate(); err != nil {
 		t.Fatal(err)
 	}
 }

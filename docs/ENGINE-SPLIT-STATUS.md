@@ -15,10 +15,8 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 3 remainder** — F2 item 3, F3 aliases item 6
-  (broad), and the Tier C parts 7 and 9 (catalog inquiry with session identity,
-  advisory locks with blocking inquiry). One session each. They touch the same
-  switch files; rebase early.
+- **Step 3 remainder** — F3 aliases item 6 (broad), and Tier C item 9
+  (advisory locks with blocking inquiry). They touch shared switches; rebase early.
 - **Optional cleanups** — catalog 5h (item 11), storage 6d (item 12).
 - **Step 8 `settings`** — 8a (item 13) implementation/proof complete;
   review/integration pending. 8b (item 14) follows integration.
@@ -141,7 +139,8 @@ Steps 1, 2 and 4–7 and `access` are done.
     - [x] ACL SQL function nodes (`b3ce43139`, `574de18f1`, `436322070`,
       `75d906ea8`, then the docs commit) *(racecheck skipped at user
       request)*
-    - [ ] catalog inquiry, with session identity (`identityExpression`)
+    - [x] catalog inquiry, with session identity (ten-node protocol/runtime cutover;
+      selected dual-mode, quickcheck, bounded-CPU racecheck and public replay smoke)
     - [x] transaction identity and commit timestamps *(this commit; selected dual-mode, quickcheck, racecheck and driver smoke passed)*
     - [ ] advisory locks, with blocking inquiry
     - [ ] sequence calls
@@ -329,8 +328,14 @@ in the prompt file's Status section.
 6. [ ] Functions F3 aliases removed —
    [functions](ENGINE-SPLIT-functions.md) Status, "Later-wave refresh" ·
    needs — · **broad**
-7. [ ] Tier C: catalog inquiry, with session identity —
+7. [x] Tier C: catalog inquiry, with session identity —
    [functions](ENGINE-SPLIT-functions.md) Tier C · needs — (easier after 4)
+   Ten-node leaf/runtime and complete visitor cutover. All35 selected batches
+   passed quick and real18.6 modes; full quickcheck, focused races, full
+   GOMAXPROCS=8 racecheck, dependency/import checks and public replay smoke passed.
+   Default-CPU racecheck hit two fixture deadlines under contention; preserved
+   evidence, unchanged suite passed with bounded CPU/package concurrency.
+   Startup5152 steady allocations; three of five after samples exceeded1ms.
 8. [x] Tier C: transaction identity and commit timestamps —
    [functions](ENGINE-SPLIT-functions.md) Tier C · needs — · this commit; verified
 9. [ ] Tier C: advisory locks, with blocking inquiry —

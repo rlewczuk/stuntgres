@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -174,7 +175,7 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			inquiry, ok := node.(commentInquiryExpression)
+			inquiry, ok := node.(functions.CommentInquiry)
 			if !ok {
 				t.Fatalf("actual inquiry provider %T", node)
 			}
@@ -189,7 +190,7 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 				if err := admitRoutineCall(evaluation, node, true, false); err != nil {
 					return err
 				}
-				return admitInquiryBody(evaluation, inquiry)
+				return admitInquiryBody(evaluation, inquiry.Info)
 			}
 			first, second := &invoker, &local
 			if firstRI {

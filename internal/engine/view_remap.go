@@ -124,7 +124,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 		next = n
 	case updateOutputExpression:
 		next = n
-	case domainValueExpression, identityExpression:
+	case domainValueExpression:
 		next = n
 	case literalExpression:
 		if ref == nil {
@@ -307,43 +307,11 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 	case conditionalExpression:
 		n.args = args(n.args)
 		next = n
-	case catalogUserNameExpression:
-		n.arg = child(n.arg)
-		next = n
-	case catalogForeignKeysExpression:
-		next = n
 	case extensionPathsExpression:
 		n.arg = child(n.arg)
 		next = n
-	case currentSchemasExpression:
-		n.arg = child(n.arg)
-		next = n
-	case objectAddressExpression:
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
-		}
-		next = n
-	case namespaceInquiryExpression:
-		if n.arg != nil {
-			n.arg = child(n.arg)
-		}
-		next = n
 	case blockingInquiryExpression:
 		n.arg = child(n.arg)
-		next = n
-	case indexPropertyExpression:
-		for i := range n.children() {
-			n.args[i] = child(n.args[i])
-		}
-		next = n
-	case deparseExpression:
-		n.args = args(n.args)
-		next = n
-	case visibilityInquiryExpression:
-		n.arg = child(n.arg)
-		next = n
-	case commentInquiryExpression:
-		n.args = args(n.args)
 		next = n
 	case installedSoundexFunctionExpression:
 		n.Args = args(n.Args)

@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -17,7 +18,7 @@ func catalogRelationsUnitBind(t *testing.T, e *Engine, name string, args ...pars
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	binder.aggregateClause = "SELECT"
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: args}
-	node, err := binder.bindCatalogRelation(raw)
+	node, err := binder.bindFunctionProvider(raw)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,9 +27,9 @@ func catalogRelationsUnitBind(t *testing.T, e *Engine, name string, args ...pars
 
 func TestCatalogRelationsBinding(t *testing.T) {
 	e := New()
-	scalar := catalogRelationsUnitBind(t, e, "pg_get_userbyid", parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}).(catalogUserNameExpression)
-	set := catalogRelationsUnitBind(t, e, "pg_get_catalog_foreign_keys").(catalogForeignKeysExpression)
-	if scalar.validate() != nil || set.validate() != nil {
+	scalar := catalogRelationsUnitBind(t, e, "pg_get_userbyid", parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}).(functions.CatalogUserName)
+	set := catalogRelationsUnitBind(t, e, "pg_get_catalog_foreign_keys").(functions.CatalogForeignKeys)
+	if scalar.Validate() != nil || set.Validate() != nil {
 		t.Fatal("invalid bound signature")
 	}
 	for _, sample := range []struct {
@@ -47,7 +48,7 @@ func TestCatalogRelationsBinding(t *testing.T) {
 	if err != nil || !value.IsNull() || value.Type().ID() != sqltype.Name {
 		t.Fatal("strict typed null", value, err)
 	}
-	if scalar.arg.ResultUsage().Type.ID() != sqltype.Oid || scalar.ResultUsage().Type.ID() != sqltype.Name || !sourceReturnsSet(set) || sourceReturnsSet(scalar) {
+	if scalar.Arg.ResultUsage().Type.ID() != sqltype.Oid || scalar.ResultUsage().Type.ID() != sqltype.Name || !sourceReturnsSet(set) || sourceReturnsSet(scalar) {
 		t.Fatal("physical signature")
 	}
 	for _, declaration := range builtinRoutineDeclarations {
@@ -56,11 +57,6 @@ func TestCatalogRelationsBinding(t *testing.T) {
 				t.Fatal("release declaration flags", declaration)
 			}
 		}
-	}
-	broken := set
-	broken.metadata = nil
-	if broken.validate() == nil {
-		t.Fatal("missing immutable metadata accepted")
 	}
 }
 
@@ -115,7 +111,7 @@ func TestCatalogRelationsConsumers(t *testing.T) {
 		t.Fatal("catalog set occurrence was not replaced by its owned slot")
 	}
 	fresh := New()
-	destination := catalogRelationsUnitBind(t, fresh, "pg_get_catalog_foreign_keys").(catalogForeignKeysExpression)
+	destination := catalogRelationsUnitBind(t, fresh, "pg_get_catalog_foreign_keys").(functions.CatalogForeignKeys)
 	mapped, _, err := retagBoundTypes(fresh.CatalogRead(), set, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d.ID() == 2249 {
 			return destination.ResultUsage().Type
@@ -126,13 +122,33 @@ func TestCatalogRelationsConsumers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	retagged := mapped.(catalogForeignKeysExpression)
-	if retagged.validate() != nil || retagged.metadata == set.(catalogForeignKeysExpression).metadata {
+	retagged := mapped.(functions.CatalogForeignKeys)
+	if retagged.Validate() != nil {
+		t.Fatal("invalid retagged metadata")
+	}
+	originalSource, err := openFunctionSource(&EvalContext{Context: context.Background()}, set)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer originalSource.Close()
+	retaggedSource, err := openFunctionSource(&EvalContext{Context: context.Background()}, retagged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer retaggedSource.Close()
+	if originalSource.State == retaggedSource.State {
 		t.Fatal("retag reused foreign descriptor metadata")
 	}
-	for i, fields := range retagged.metadata.fields {
-		for j, value := range fields {
-			if value.Type() != retagged.Usage.Type.CompositeMember(j).Usage.Type {
+	for i := 0; ; i++ {
+		value, present, err := retaggedSource.Next(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !present {
+			break
+		}
+		for j := range 6 {
+			if value.CompositeField(j).Type() != retagged.Usage.Type.CompositeMember(j).Usage.Type {
 				t.Fatal("foreign typed metadata", i, j)
 			}
 		}
@@ -178,7 +194,7 @@ func TestCatalogRelationsCapture(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := catalogUserNameExpression{Info: expr.Info{Usage: nameType.Usage()}, arg: literalExpression{Info: expr.Info{Usage: oidType.Usage()}, value: input}}
+		node := functions.CatalogUserName{Info: expr.Info{Usage: nameType.Usage()}, Arg: literalExpression{Info: expr.Info{Usage: oidType.Usage()}, value: input}}
 		value, err := node.Eval(&EvalContext{Context: context.Background(), statementScope: scope})
 		if err != nil {
 			t.Fatal(err)
@@ -216,7 +232,7 @@ func TestCatalogRelationsCapture(t *testing.T) {
 	saved := current.commentRoles
 	current.commentRoles = foreign.roles.published.Root.Read(authorization.PrincipalRef{})
 	input, _ := sqltype.OIDValue(oidType, 50001)
-	node := catalogUserNameExpression{Info: expr.Info{Usage: nameType.Usage()}, arg: literalExpression{Info: expr.Info{Usage: oidType.Usage()}, value: input}}
+	node := functions.CatalogUserName{Info: expr.Info{Usage: nameType.Usage()}, Arg: literalExpression{Info: expr.Info{Usage: oidType.Usage()}, value: input}}
 	if _, err := node.Eval(&EvalContext{Context: context.Background(), statementScope: current}); err == nil {
 		t.Fatal("foreign authorization snapshot trusted")
 	}

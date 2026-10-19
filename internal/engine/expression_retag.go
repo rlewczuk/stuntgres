@@ -388,22 +388,6 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 	case tableOIDExpression:
 		n.Info = info
 		rebound = n
-	case indexPropertyExpression:
-		for i := range n.children() {
-			n.args[i] = child(n.args[i])
-		}
-		if err != nil {
-			return nil, false, err
-		}
-		n.Info = info
-		if n.kind != accessMethodProperty {
-			n.oidUsage.Type = retainedType(n.oidUsage.Type)
-			n.oidPlan, err = sqltype.PlanCoercion(n.args[0].ResultUsage(), n.oidUsage, sqltype.Implicit)
-			if err != nil {
-				return nil, false, err
-			}
-		}
-		rebound = n
 	case subqueryExpression:
 		if queryMapper != nil {
 			root, failure := queryMapper(n.queryPlan.Root)
@@ -488,10 +472,6 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 				}
 			}
 		}
-		n.Info = info
-		rebound = n
-	case deparseExpression:
-		n.args = children(n.args)
 		n.Info = info
 		rebound = n
 	case advisoryExpression:
@@ -580,22 +560,6 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 	case cachedOrderExpression:
 		n.Info = info
 		rebound = n
-	case currentSchemasExpression:
-		n.arg = child(n.arg)
-		n.Info = info
-		rebound = n
-	case objectAddressExpression:
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
-		}
-		n.Info = info
-		rebound = n
-	case namespaceInquiryExpression:
-		if n.arg != nil {
-			n.arg = child(n.arg)
-		}
-		n.Info = info
-		rebound = n
 	case blockingInquiryExpression:
 		n.arg = child(n.arg)
 		n.Info = info
@@ -603,26 +567,6 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 	case sequenceCallExpression:
 		n.args = children(n.args)
 		n.Info = info
-		rebound = n
-	case catalogUserNameExpression:
-		n.arg = child(n.arg)
-		if err != nil {
-			return node, false, err
-		}
-		if !changed {
-			return node, false, nil
-		}
-		n.Info = info
-		rebound = n
-	case catalogForeignKeysExpression:
-		if !changed {
-			return node, false, nil
-		}
-		n.Info = info
-		n.metadata, err = newCatalogForeignKeyValues(info.Usage.Type)
-		if err != nil {
-			return node, false, err
-		}
 		rebound = n
 	case extensionPathsExpression:
 		n.arg = child(n.arg)
@@ -636,14 +580,6 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		if err := n.validate(); err != nil {
 			return node, false, err
 		}
-		rebound = n
-	case visibilityInquiryExpression:
-		n.arg = child(n.arg)
-		n.Info = info
-		rebound = n
-	case commentInquiryExpression:
-		n.args = children(n.args)
-		n.Info = info
 		rebound = n
 	case caseExpression:
 		n.test, n.otherwise = child(n.test), child(n.otherwise)
@@ -719,9 +655,6 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 				n.comparison, err = sqltype.BindComparison(left, right, ref, conflict)
 			}
 		}
-		n.Info = info
-		rebound = n
-	case identityExpression:
 		n.Info = info
 		rebound = n
 	case domainValueExpression:

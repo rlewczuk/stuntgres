@@ -38,17 +38,18 @@ func nestedFromSetError(pos parser.Position) error {
 
 func (b *expressionBinder) bindFunctionSource(raw parser.FunctionExpr) (expr.Expr, error) {
 	before := b.fromSetObservation
-	expr, err := b.bindFunction(raw)
+	node, err := b.bindFunction(raw)
 	if err != nil {
 		return nil, err
 	}
-	if _, ok := expr.(objectAddressExpression); ok {
-		b.catalogSnapshot = true
+	if inquiry, ok := node.(expr.SnapshotDemander); ok {
+		demand, _, _ := inquiry.SnapshotDemand(bareInquiryLiteralNull)
+		b.catalogSnapshot = b.catalogSnapshot || demand
 	}
-	if !sourceReturnsSet(expr) && b.fromSetObservation != before {
+	if !sourceReturnsSet(node) && b.fromSetObservation != before {
 		return nil, nestedFromSetError(b.fromSetObservation.pos)
 	}
-	return expr, nil
+	return node, nil
 }
 
 func (b *expressionBinder) stringSetAllowed(pos parser.Position) error {

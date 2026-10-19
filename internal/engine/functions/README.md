@@ -152,6 +152,9 @@ Added for UUID generation, `format` and uuid-ossp (F4/F5):
 - `NoteCatalogText`: the statement renders a catalog-identifier value
   (`regclass` and friends) as text, so execution captures the catalog
   snapshot that output reads. It is statement-level analyzer state.
+- `NoteCatalogSnapshot`: analysis-only catalog demand, distinct from
+  `NoteCatalogText`'s execution flag. Catalog username/linkage binding notes both
+  at its existing successful boundary; neither method captures authority eagerly.
 - `InstalledRoutine`: resolves a name on the function search path (lookup
   errors propagate) and returns the routine that an `Extension` installed
   there with a signature (comma-separated input type OIDs), or nil. The
@@ -292,6 +295,9 @@ applies a planned explicit FORMAT JSON input conversion.
 finalized argument at the raw argument's position, without a cast routine
 identity: `pg_get_acl` and the access inquiries coerce their fixed formals
 that way, and reporting a cast routine would add stored dependencies.
+  Deparse known-child conversion uses the existing `PreserveProperties` request
+  to keep analyzed dependence while omitting cast-routine provenance. Other
+  callers keep the default coercion-property behavior.
 
 `age(xid)` constructs its private transaction-identity node here from the
 datetime resolver's already analyzed/coerced operand. It needs neither an
@@ -331,6 +337,18 @@ it with a compile-time assertion. `expr.Context` does not grow per family.
   use the manager's single existing snapshot clone, then pack owned SQL records
   outside both locks; the capability returns owned values, not manager records
   or a second transfer-member buffer. Nodes retain no execution authority.
+- `CatalogInquiryRuntime` (`catalog_inquiry_runtime.go`): finite username,
+  object-address, visibility, index-property, comment and deparse operations.
+  Nodes pass evaluated typed values, fixed-size value arrays, IDs, result
+  descriptors and immutable provenance, never children or engine structures.
+- `SessionInquiryRuntime` (`session_inquiry_runtime.go`): identity values,
+  physical TEMP namespace getter/classifier and effective schema arrays.
+  `*EvalContext` implements both with compile-time conformance assertions.
+  Captured catalog/roles/comments/paths, authorization recapture, locks,
+  current-schema caches, pending-TEMP staging/publication, FK/rule/view authority,
+  address resolution, deparse engines and serial ownership remain engine-owned.
+  Nodes retain no Session/Engine/StatementScope or executable authority cache.
+  Missing runtime/context and foreign-owner failures remain ordinary Go errors.
 
 ## Registry
 
@@ -354,6 +372,10 @@ Two fields reproduce where a family sat in that chain:
   visibility, bind order.
 - `OwnsLabels` (requires `SharedGates`): skip the label gate; `Bind` owns
   every label diagnostic, as `uuidv7` does for its `shift` label.
+- `OwnsSpelling` (requires `SharedGates`): namespace inquiry alone retains
+  child transformation, builtin visibility, then exact-spelling diagnostics.
+  This does not exempt labels or explicit `ResolutionOnly`, nor make quoted
+  noncanonical spellings succeed.
 
 One more field covers families whose chain branch used a predicate rather than
 a name list:
@@ -633,13 +655,19 @@ Nodes also implement the optional `expr` hooks that the engine's switches ask
   authority/catalogs, allocate or mutate. The hook is independently optional,
   not a requirement of `Composite`; no hook or a declined claim preserves both
   descriptor fields. Engine-owned column/grouping/aggregate/window and
-  OLD/NEW/MERGE precedence remains at the consumers. Engine-resident deparse
-  and index-property owners claim only SELECT; no generic strictness inference
-  or propagation through coercion/COLLATE wrappers is introduced. A literal-NULL
-  folded index inquiry is a literal, not a retained inquiry claim.
+  OLD/NEW/MERGE precedence remains at the consumers. `Deparse` and
+  `IndexProperty` claim only SELECT; `Identity` claims only for current_schema.
+  CurrentSchemas and namespace inquiries retain their both-site answers.
+  No generic strictness inference or wrapper propagation is introduced; a
+  literal-NULL folded index inquiry is a literal, not a retained inquiry claim.
 
 - `IntrinsicVolatility` on every node: the value its planned volatility,
   generated admission and `rewrittenIntrinsicProperties` use.
+  Seven catalog/session owners deliberately return retained analyzed volatility
+  (Identity, CurrentSchemas, NamespaceInquiry, VisibilityInquiry, IndexProperty,
+  CommentInquiry and Deparse), preserving eliminated-arm dependence even in
+  intrinsic-only walks. CatalogUserName, CatalogForeignKeys and ObjectAddress
+  instead supply STABLE plus physical-child inspection.
 - `PlanningFold`: `FoldNever` for stage-owned and never-evaluated calls (JSON
   set and record functions, `RegexpSet`, `jsonb_path_query`,
   `string_to_table`, JSON creation, `format`, random and UUID generation,
@@ -658,6 +686,17 @@ Nodes also implement the optional `expr` hooks that the engine's switches ask
   the engine. Presentation never counts: TRIM spelling, `pg_catalog`
   qualification, redundant VARIADIC. `CurrentDateTime` precision counts only
   for CHECK definition equality.
+- `GroupProperties` on IndexProperty and Deparse merges STABLE with rewritten
+  child properties without forcing stage dependence. This grouping-only hook
+  does not run during substitution, preflight or retagging.
+- `SnapshotDemand` reports only the owner's analysis/catalog-text/visibility
+  demand using the caller's literal-NULL predicate; child demands stay separate.
+  Deparse suppresses its own analysis demand for decisive bare NULL, but its
+  stored Replay.CatalogSnapshot remains unconditional.
+  Retained VisibilityInquiry uses Replay.AlwaysVisibilitySnapshot even for a
+  coercion-wrapped NULL; binary conversions retain NULL-sensitive replay demand.
+- `CallCost` preserves username/visibility cost 10 and comment cost 100 for
+  inline policy; it does not execute or recapture authority.
 - `GroupLeaf` on the three leaves, which the grouping rewrite leaves
   unstaged.
 - `PreflightFold` on nodes whose preflight is not "children, then conditional
@@ -782,6 +821,56 @@ not registered: their operands are analyzed with string intents, and they
 move with the string family. `unnest` and `generate_subscripts` stay with the
 engine's set-returning functions, and the array/range operators with operator
 binding.
+
+### Catalog inquiry and session identity
+
+All ten immutable owners live here: CatalogUserName, CatalogForeignKeys,
+ObjectAddress, NamespaceInquiry, CurrentSchemas, VisibilityInquiry,
+IndexProperty, CommentInquiry, Deparse and Identity. Function-specific binding,
+validation, properties, child evaluation, strictness, grouping, substitution,
+retagging and display/tree/replay recipes move with them. Exported recipe fields
+support genuine retained binder/stored-plan integrations; published recipes must
+not be mutated. Derived index normalization and FK payload remain private.
+
+Ordinary calls use the registry after the engine's SQL-callable selection.
+Username/linkage and object-address binders retain their own gates; identities
+keep their parser predicate, namespace inquiries additionally own spelling, and
+current_schemas, visibility, index, comment and deparse retain exact shared gates.
+`parser.IdentityExpr` uses `BindIdentity`, not ordinary lookup. Keyword identity
+captures `CaptureIdentity`; ordinary-call identity captures `CaptureFunction`.
+Folded view literals retain their original typed written-operand pairing.
+The adjacent pg_extension_update_paths binder/provider stays in the engine.
+
+The source companions for username, linkage and object addresses live here.
+The single attributed 219-link inventory supplies descriptor-owned six-field
+payloads: equivalent substitution borrows them, genuine descriptor retag rebuilds
+them. Cursor position is invocation-private; Close releases the borrowed state.
+Present typed NULL is one row, not EOF. Engine admission, layout, ordinality,
+scheduling and installed/catalog authority are unchanged. Scalar describe uses
+StrictAfter; record address siblings decline that fold, preserving reached-child
+evaluation and import errors. No new per-row adapter or inventory copy is added.
+
+Visibility includes the four path-based inquiries and all three collation
+management kinds: actual-version calls remain VOLATILE TEXT, import VOLATILE
+INT4. Strict NULL, effective-superuser, namespace and unavailable-provider ordering
+remain unchanged; native import never fabricates success. Index AM/name algorithms
+are local, catalog index interpretation is not. Comments retain post-NULL lazy
+routine admission through immutable provenance. Deparse owns all twelve existing
+signatures, including pg_get_serial_sequence, but actual rendering/tree lookup,
+catalog locks, relation/column parsing and serial AUTO/INTERNAL ownership stay
+in the engine. No nextval/currval/setval execution moves.
+
+Ordering is family-specific, not a universal guard-first rule. Address evaluates
+all children once in written order, maps formal slots, then applies strict NULL;
+runtime validates scope/comment snapshot before decoding IDs/arrays. Visibility
+likewise validates scope before OID decoding; index runtime resolves the relation
+before decoding its column ordinal. Username decodes OID before captured-scope/
+role-domain lookup. Namespace/current_schemas decode their primitive input before
+path/TEMP authority. Comments finish all-child NULL handling before lazy admission,
+snapshot and OID decoding; deparse type/NULL checks precede catalog/signature
+decoding. These boundaries preserve error priority and reached child effects,
+without introducing context copies, per-Eval plans or authority caches.
+
 
 ## Family notes
 
@@ -915,6 +1004,42 @@ without allocating code strings, so two empty/no-letter inputs agree4.
 There is no input-length limit, Unicode normalization or transliteration.
 
 ## Testing
+### Catalog inquiry ownership and selected proof
+
+Pure inventory/cursor, AM-name, node validation, nullability, grouping-property
+and volatility units live here. Real analyzer, captured-authority, retag/remap,
+stored CHECK/default and serial/catalog integrations remain engine-owned.
+Public SQL/control witnesses remain in the existing dual-mode reference families.
+No reference definitions or expectations changed in this extraction.
+
+```sh
+make check RUN='^TestCatalogRelations(Inventory|Cursor|MissingMetadata)$'
+make check RUN='^TestIndexProperty(CapabilityMatrix|ExpressionGuardsAndNull)$'
+make check RUN='^TestDeparseConstraintsReviewIdentityMetadata$'
+make check RUN='^TestNamespaceIdentityStoredValidation$'
+make check RUN='^TestResultNullability(Identity|CatalogInquiry)$'
+make check RUN='^TestCatalogInquiry(GroupProperties|IntrinsicVolatility)$'
+make check RUN='^TestReferenceCatalogRelations(Inventory|Shape|Roles)$'
+make check RUN='^TestReferenceCatalogRelations(Inventory|Shape|Roles)$' REFERENCE=1
+make check RUN='^TestReferenceIndexProperties(AccessMethods|IndexDefinitions|Columns|NullAndInvalid|SignaturesAndInputs)$'
+make check RUN='^TestReferenceIndexProperties(AccessMethods|IndexDefinitions|Columns|NullAndInvalid|SignaturesAndInputs)$' REFERENCE=1
+```
+
+Use external 900-second deadlines. Full public selections belong to
+reference/catalogs, sessions, object_address, indexes, patterns_encoding, views,
+sequences and dml READMEs. The current pinned oracle is PostgreSQL18.6 UTF8/C.
+The rebased implementation with the stored-manifest remedy passed build,
+all 70 selected public native/real commands, focused lifecycle races, full
+quickcheck and full GOMAXPROCS=8 racecheck, dependencies/import-layer checks and
+actual direct/SAME-held/native replay smoke (940 dump bytes). The earlier
+default-CPU race failure and startup target misses remain recorded, not waived;
+see [engine proof and limits](../README.md#catalog-inquiry-and-session-identity).
+`TestVisibilityInquiryStoredNullManifest` failed before the narrow replay remedy
+and passed afterward with identical argv. Its real binder/CHECK renderer checks
+persisted manifests, bare-NULL folding, unrelated binary-conversion NULL policy
+and both sibling orders. Review, integration and post-integration finalcheck
+remain separate lifecycle gates recorded in the part reports.
+
 
 ### Transaction inquiry ownership and demand
 
@@ -987,7 +1112,7 @@ cohesive selections. Registry shape and claims:
 Result-nullability recipe/site units and public consumer coverage:
 
 ```sh
-make check RUN='^TestResultNullability(Engine|Functions)$'
+make check RUN='^TestResultNullability(Engine|Functions|Identity|CatalogInquiry)$'
 make check RUN='^TestReferenceResultNullability(Select|Returning)$'
 make check RUN='^TestReferenceResultNullability(Select|Returning)$' REFERENCE=1
 make check RUN='^(TestReferenceAccessRoleNullAndMetadata|TestReferenceObjectACL(Metadata|HeldExecution)|TestReferenceBlockingPidsSignatures)$'

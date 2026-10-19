@@ -68,11 +68,6 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 			out.WriteString(" value ")
 			out.WriteString(strconv.Quote(text))
 		}
-	case identityExpression:
-		if err := validateDeparseIdentity(n); err != nil {
-			return err
-		}
-		fmt.Fprintf(out, "Identity kind %d ordinaryCall %t", n.kind, n.ordinaryCall)
 	case domainValueExpression:
 		fmt.Fprint(out, "DomainValue")
 	case columnExpression:
@@ -183,17 +178,6 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 		if err == nil {
 			err = child(n.otherwise)
 		}
-	case catalogUserNameExpression:
-		if failure := n.validate(); failure != nil {
-			return failure
-		}
-		out.WriteString("CatalogUserName")
-		err = child(n.arg)
-	case catalogForeignKeysExpression:
-		if failure := n.validate(); failure != nil {
-			return failure
-		}
-		out.WriteString("CatalogForeignKeys")
 	case extensionPathsExpression:
 		if failure := n.validate(); failure != nil {
 			return failure
@@ -227,39 +211,6 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 	case installedFunctionExpression:
 		fmt.Fprintf(out, "InstalledFunction %d", n.ref.Address.ObjectID)
 		err = args([]expr.Expr{n.Arg})
-	case visibilityInquiryExpression:
-		if n.kind.class() == 0 || u.Type == nil || u != u.Type.Usage() || u.Type.ID() != n.kind.result() || n.arg == nil {
-			return fmt.Errorf("stuntgres: invalid stored visibility inquiry signature")
-		}
-		argument := n.arg.ResultUsage()
-		if argument.Type == nil || argument != argument.Type.Usage() || argument.Type.ID() != n.kind.formal() {
-			return fmt.Errorf("stuntgres: invalid stored visibility inquiry argument")
-		}
-		properties := n.arg.Properties()
-		properties.Volatility = max(n.kind.volatility(), properties.Volatility)
-		if n.Properties() != properties {
-			return fmt.Errorf("stuntgres: invalid stored visibility inquiry properties")
-		}
-		fmt.Fprintf(out, "VisibilityInquiry %d", n.kind)
-		err = child(n.arg)
-	case commentInquiryExpression:
-		fmt.Fprintf(out, "CommentInquiry %d", n.kind)
-		err = args(n.args)
-	case currentSchemasExpression:
-		out.WriteString("CurrentSchemas")
-		err = child(n.arg)
-	case objectAddressExpression:
-		if err := n.validateStored(); err != nil {
-			return err
-		}
-		fmt.Fprintf(out, "ObjectAddress %d slots %v labels %v", n.op, n.slots, n.labels)
-		err = args(n.args[:])
-	case namespaceInquiryExpression:
-		if err := n.validateStored(); err != nil {
-			return err
-		}
-		fmt.Fprintf(out, "NamespaceInquiry %d", n.kind)
-		err = args(n.arguments())
 	case blockingInquiryExpression:
 		if err := n.validateStored(); err != nil {
 			return err
@@ -268,15 +219,6 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 		err = child(n.arg)
 	case sequenceCallExpression:
 		fmt.Fprintf(out, "Sequence %s oid %d", n.name, n.ref.Address.ObjectID)
-		err = args(n.args)
-	case indexPropertyExpression:
-		if err := validateStoredIndexPropertyExpression(n); err != nil {
-			return err
-		}
-		fmt.Fprintf(out, "IndexProperty kind %d", n.kind)
-		err = args(n.children())
-	case deparseExpression:
-		fmt.Fprintf(out, "Deparse signature %d", n.signature)
 		err = args(n.args)
 	case expr.Renderable:
 		// Function nodes describe themselves; engine wrappers that embed one

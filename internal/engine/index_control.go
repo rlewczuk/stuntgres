@@ -226,13 +226,11 @@ func pgIndexFunctionExpression(node expr.Expr) bool {
 		return true
 	case unnestExpression:
 		return false
-	case indexPropertyExpression:
+	case extensionPathsExpression:
 		return true
-	case catalogUserNameExpression, catalogForeignKeysExpression, extensionPathsExpression:
+	case blockingInquiryExpression:
 		return true
-	case namespaceInquiryExpression, blockingInquiryExpression, objectAddressExpression:
-		return true
-	case advisoryExpression, sequenceCallExpression, currentSchemasExpression, visibilityInquiryExpression, commentInquiryExpression, deparseExpression, conditionalExpression, identityExpression:
+	case advisoryExpression, sequenceCallExpression, conditionalExpression:
 		return true
 	case expr.FunctionSyntax:
 		return n.LooksLikeFunction()

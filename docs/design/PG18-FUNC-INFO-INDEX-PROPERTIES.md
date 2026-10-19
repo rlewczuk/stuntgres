@@ -72,13 +72,19 @@ default. No capability flags are persisted independently of the index definition
 
 ## Typed binding and ownership
 
-One fixed-size expression node holds kind, at most three children and the bound
-REGCLASS-to-OID normalization plan. Binding transforms children before signature
-and namespace diagnostics, resolves unknown operands against the documented
-signature and merges STABLE with every child's dependence. Evaluation uses inline
-values, evaluates each demanded child once and reads the immutable statement
-catalog snapshot already shared with comment/deparse consumers. It never searches
-physical index entries or locks a fresh live catalog per result row.
+`functions.IndexProperty` holds immutable kind, at most three written children,
+and a private REGCLASS-to-OID normalization plan. Binding lives in
+functions through the existing Binder/registry and transforms children before
+signature and namespace diagnostics, resolves unknown operands against the
+documented signature and merges STABLE with every child's dependence. Evaluation
+uses inline typed values and evaluates each demanded child once.
+The finite CatalogInquiryRuntime capability reads the immutable engine-owned
+statement snapshot shared with comment/deparse consumers; no engine/catalog type
+crosses into the leaf. Pure ASCII property-name and AM algorithms live beside the
+node; catalog.IndexDefinition/whole-index/column interpretation stays in engine.
+Runtime checks scope/catalog/relation before decoding a column ordinal, retaining
+missing/nonindex NULL precedence. No physical index search or per-row live-catalog
+lock/replanning is introduced.
 
 Only direct implicit input edges necessary for REGCLASS signatures are added:
 OID, INT2, INT4, INT8, TEXT and VARCHAR to REGCLASS. Narrow integers retain unsigned
@@ -98,6 +104,18 @@ scenarios, including row preservation after every native diagnostic.
 Stored-expression validation checks signature, descriptors, dependence and the
 retained normalization plan; evaluation verifies normalized OID ownership without
 replanning the conversion per row.
+
+Node-owned Composite/substitution/retag, capture, function syntax and
+display/tree/replay hooks replace concrete engine branches. Genuine descriptor
+retag reowns the private normalization plan; equivalent substitution retains it.
+Grouping alone merges STABLE with rewritten-child properties without forcing
+stage dependence; preflight/substitution retain analyzed properties. Intrinsic
+volatility intentionally retains Property.Volatility, including eliminated-arm
+dependence. The pure ResultNullability claim remains SELECT-only; RETURNING and
+folded literal NULL retain their existing metadata behavior and engine provenance
+precedence. SnapshotDemand reports only the node's own non-AM catalog demand,
+not eager authority capture. Item7 ownership is implemented, final proof pending.
+
 
 Existing canonical index, view and CHECK serialization owns Dump/Restore behavior.
 Renames render current object definitions; restore resolves destination identities.
@@ -152,5 +170,5 @@ implementation document records no test execution result.
 - [PostgreSQL REL_18_0 amutils.c](https://github.com/postgres/postgres/blob/REL_18_0/src/backend/utils/adt/amutils.c)
 - [Independent release regression expectations](https://github.com/postgres/postgres/blob/REL_18_0/src/test/regress/expected/amutils.out)
 
-The runtime oracle is the repository fixture's pinned PostgreSQL 18.0 UTF8/C
-image, not local development PostgreSQL sources or a newer server release.
+The runtime oracle is the repository fixture's current pinned PostgreSQL18.6
+UTF8/C image, not local development PostgreSQL sources.

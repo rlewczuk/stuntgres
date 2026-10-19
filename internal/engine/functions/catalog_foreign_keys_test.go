@@ -1,16 +1,16 @@
-package engine
+package functions
 
 import (
 	"context"
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqltype"
 )
 
 func TestCatalogRelationsInventory(t *testing.T) {
-	e := New()
-	call := catalogRelationsUnitBind(t, e, "pg_get_catalog_foreign_keys").(catalogForeignKeysExpression)
+	call := catalogRelationsUnitCall(t)
 	if len(catalogForeignKeys) != 219 {
 		t.Fatal("released linkage count", len(catalogForeignKeys))
 	}
@@ -78,15 +78,14 @@ func TestCatalogRelationsInventory(t *testing.T) {
 }
 
 func TestCatalogRelationsCursor(t *testing.T) {
-	e := New()
-	call := catalogRelationsUnitBind(t, e, "pg_get_catalog_foreign_keys").(catalogForeignKeysExpression)
-	evaluation := &EvalContext{Context: context.Background()}
-	first, err := openFunctionSource(evaluation, call)
+	call := catalogRelationsUnitCall(t)
+	evaluation := &catalogRelationsUnitContext{Context: context.Background()}
+	first, err := call.OpenSource(evaluation)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer first.Close()
-	second, err := openFunctionSource(evaluation, call)
+	second, err := call.OpenSource(evaluation)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +123,7 @@ func TestCatalogRelationsCursor(t *testing.T) {
 	if _, present, err := first.Next(context.Background()); present || err != nil {
 		t.Fatal("EOF is not stable", present, err)
 	}
-	restarted, err := openFunctionSource(evaluation, call)
+	restarted, err := call.OpenSource(evaluation)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,5 +136,38 @@ func TestCatalogRelationsCursor(t *testing.T) {
 	restarted.Close()
 	if restarted.State != nil {
 		t.Fatal("canceled cursor retained metadata")
+	}
+}
+
+type catalogRelationsUnitContext struct {
+	unitCapabilities
+	context.Context
+}
+
+func (c *catalogRelationsUnitContext) FunctionContext() context.Context { return c.Context }
+func catalogRelationsUnitCall(t *testing.T) CatalogForeignKeys {
+	t.Helper()
+	types := formatUnitTypes()
+	names := [6]string{"fktable", "fkcols", "pktable", "pkcols", "is_array", "is_opt"}
+	ids := [6]sqltype.ID{sqltype.Regclass, 1009, sqltype.Regclass, 1009, sqltype.Bool, sqltype.Bool}
+	members := make([]sqltype.CompositeMember, 6)
+	for i := range members {
+		members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: names[i], Usage: types[ids[i]].Usage()}
+	}
+	shape, err := sqltype.RecordShape(members)
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata, err := newCatalogForeignKeyValues(shape)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return CatalogForeignKeys{Info: expr.Info{Usage: shape.Usage()}, metadata: metadata}
+}
+func TestCatalogRelationsMissingMetadata(t *testing.T) {
+	call := catalogRelationsUnitCall(t)
+	call.metadata = nil
+	if call.Validate() == nil {
+		t.Fatal("missing immutable metadata accepted")
 	}
 }

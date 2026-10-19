@@ -14,6 +14,7 @@ const (
 	CaptureTimeZone
 	CaptureLocal
 	CaptureField
+	CaptureIdentity
 )
 
 // Capturable explicitly admits a raw syntax kind. It must not evaluate, render,

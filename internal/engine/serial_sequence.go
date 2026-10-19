@@ -10,7 +10,7 @@ import (
 
 // evalSerialSequence reads the statement's catalog, not defaults or generator
 // state. AUTO (serial/manual) and INTERNAL (identity) share the same owned address.
-func (e deparseExpression) evalSerialSequence(c *EvalContext, values [3]sqltype.Value) (sqltype.Value, error) {
+func (c *EvalContext) evalSerialSequence(values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	scope := c.liveScope()
 	view := scope.commentCatalog
 	table, err := values[0].Text()
@@ -53,7 +53,7 @@ func (e deparseExpression) evalSerialSequence(c *EvalContext, values [3]sqltype.
 		if isSystemColumn(column) {
 			switch relation.RelationKind {
 			case catalog.TableRelation, catalog.SequenceRelation, catalog.CatalogRelation, catalog.IndexRelation:
-				return sqltype.Null(e.Usage.Type), nil
+				return sqltype.Null(result), nil
 			}
 		}
 		return sqltype.Value{}, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, column, relation.Name()))
@@ -70,7 +70,7 @@ func (e deparseExpression) evalSerialSequence(c *EvalContext, values [3]sqltype.
 		if !ok {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: missing owned sequence namespace")
 		}
-		return sqltype.String(e.Usage.Type, pgIdentifier(namespace.Name())+"."+pgIdentifier(sequence.Name())), nil
+		return sqltype.String(result, pgIdentifier(namespace.Name())+"."+pgIdentifier(sequence.Name())), nil
 	}
-	return sqltype.Null(e.Usage.Type), nil
+	return sqltype.Null(result), nil
 }

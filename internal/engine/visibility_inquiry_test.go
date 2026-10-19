@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -85,23 +86,23 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 	if !relation.Constraints.Check[0].VisibilitySnapshot {
 		t.Fatal("missing CHECK capture manifest")
 	}
-	inquiry := relation.Constraints.Check[0].Expression.(nullTestExpression).child.(visibilityInquiryExpression)
+	inquiry := relation.Constraints.Check[0].Expression.(nullTestExpression).child.(functions.VisibilityInquiry)
 	renderer := scalarRenderer{owner: relation}
 	intType, _ := view.LookupType(sqltype.Int4)
 	for _, tc := range []struct {
 		name   string
-		change func(*visibilityInquiryExpression)
+		change func(*functions.VisibilityInquiry)
 	}{
-		{"kind", func(n *visibilityInquiryExpression) { n.kind = 255 }},
-		{"child", func(n *visibilityInquiryExpression) { n.arg = nil }},
-		{"result", func(n *visibilityInquiryExpression) { n.Usage.Type = intType }},
-		{"argument", func(n *visibilityInquiryExpression) {
-			c := n.arg.(columnExpression)
+		{"kind", func(n *functions.VisibilityInquiry) { n.Kind = 255 }},
+		{"child", func(n *functions.VisibilityInquiry) { n.Arg = nil }},
+		{"result", func(n *functions.VisibilityInquiry) { n.Usage.Type = intType }},
+		{"argument", func(n *functions.VisibilityInquiry) {
+			c := n.Arg.(columnExpression)
 			c.Usage = intType.Usage()
-			n.arg = c
+			n.Arg = c
 		}},
-		{"properties", func(n *visibilityInquiryExpression) { n.Property.RowDependent = false }},
-		{"origin", func(n *visibilityInquiryExpression) { c := n.arg.(columnExpression); c.origin.Epoch++; n.arg = c }},
+		{"properties", func(n *functions.VisibilityInquiry) { n.Property.RowDependent = false }},
+		{"origin", func(n *functions.VisibilityInquiry) { c := n.Arg.(columnExpression); c.origin.Epoch++; n.Arg = c }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			n := inquiry
@@ -172,7 +173,7 @@ func TestVisibilityInquiryCapturedFrontier(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	n := visibilityInquiryExpression{Info: expr.Info{Usage: boolean.Usage()}, kind: tableVisibility, arg: literalExpression{Info: expr.Info{Usage: oid.Usage()}, value: value}}
+	n := functions.VisibilityInquiry{Info: expr.Info{Usage: boolean.Usage()}, Kind: functions.TableVisibility, Arg: literalExpression{Info: expr.Info{Usage: oid.Usage()}, value: value}}
 	got, err := n.Eval(&EvalContext{Context: ctx, statementScope: scope})
 	if err != nil {
 		t.Fatal(err)

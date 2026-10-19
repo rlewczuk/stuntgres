@@ -73,6 +73,16 @@ func (s *functionSetInvocation) close() {
 	}
 	s.cursors = nil
 }
+func strictScalarFunctionSource(call expr.Expr) bool {
+	source, admitted := call.(expr.Source)
+	strict, folds := call.(expr.StrictFolding)
+	if !admitted || !folds || strict.StrictNull() != expr.StrictAfter {
+		return false
+	}
+	allowed, set := source.SourceAdmission()
+	return allowed && !set && call.ResultUsage().Type != nil && !call.ResultUsage().Type.IsComposite()
+}
+
 func preflightFunctionFrom(c *EvalContext, n *functionFromNode) (LogicalNode, error) {
 	// Plan every child before simplifying a source call. Keep the analyzed
 	// call carrier: it owns aliases, record expansion and the fixed stage width.
@@ -84,9 +94,8 @@ func preflightFunctionFrom(c *EvalContext, n *functionFromNode) (LogicalNode, er
 	}
 	source := planned.(*functionFromNode)
 	var scalarNull []bool
-	for i, expr := range source.calls {
-		call, ok := expr.(objectAddressExpression)
-		if !ok || call.op != describeObject {
+	for i, call := range source.calls {
+		if !strictScalarFunctionSource(call) {
 			continue
 		}
 		next, _, err := simplifyConditional(c, call, false)
@@ -388,8 +397,7 @@ func validateFunctionFromLayout(n *functionFromNode) error {
 	offset := 0
 	for i, call := range n.calls {
 		if n.scalarNull != nil && n.scalarNull[i] {
-			scalar, ok := call.(objectAddressExpression)
-			if !ok || scalar.op != describeObject || call.ResultUsage().Type.ID() != sqltype.Text {
+			if !strictScalarFunctionSource(call) {
 				return fmt.Errorf("stuntgres: invalid function source scalar plan")
 			}
 		}

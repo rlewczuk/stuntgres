@@ -7,7 +7,6 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -31,10 +30,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 		return definition.Bind(b, raw)
 	}
 	if parser.CatalogRelationFunctionName(name) {
-		return b.bindCatalogRelation(raw)
-	}
-	if parser.ObjectAddressFunctionName(name) {
-		return b.bindObjectAddress(raw)
+		return b.bindExtensionUpdatePaths(raw)
 	}
 	if raw.Syntax == parser.SimilarEscapeFunctionSyntax {
 		return functions.BindSimilarEscape(b, raw)
@@ -72,21 +68,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 	if raw.ResolutionOnly {
 		return nil, b.formatDiagnosticSignatureError(raw)
 	}
-	if parser.IdentityFunctionName(name) {
-		return b.bindIdentityFunction(raw)
-	}
-	if parser.NamespaceInquiryFunctionName(name) {
-		return b.bindNamespaceInquiry(raw)
-	}
-	if name == "current_schemas" {
-		return b.bindCurrentSchemas(raw)
-	}
-	switch name {
-	case "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "pg_collation_actual_version", "pg_database_collation_actual_version", "pg_import_system_collations":
-		return b.bindVisibilityInquiry(raw)
-	case "pg_indexam_has_property", "pg_index_has_property", "pg_index_column_has_property":
-		return b.bindIndexProperty(raw)
-	}
 	visible, err := b.builtinVisible(raw.Name, functionLookup)
 	if err != nil {
 		return nil, err
@@ -95,8 +76,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 	switch name {
 	case "enum_first", "enum_last", "enum_range":
 		return b.bindEnumFunction(raw, visible)
-	case "pg_get_constraintdef", "pg_get_expr", "pg_get_indexdef", "pg_get_viewdef", "pg_get_serial_sequence":
-		return b.bindDeparse(raw, visible)
 	case "overlaps":
 		node, err := functions.BindDatetimeOverlaps(b, raw, visible)
 		if err != nil {
@@ -106,8 +85,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 		e := node.(functions.DatetimeOverlaps)
 		e.WrapperContext = !overlapsInlineSafe(e)
 		return e, nil
-	case "col_description", "obj_description", "shobj_description":
-		return b.bindCommentInquiry(raw, visible)
 	case "pg_size_bytes", "pg_size_pretty":
 		return b.bindSize(raw, visible)
 	case "pg_advisory_lock", "pg_advisory_lock_shared", "pg_advisory_unlock", "pg_advisory_unlock_shared", "pg_advisory_unlock_all", "pg_try_advisory_lock", "pg_try_advisory_lock_shared", "pg_advisory_xact_lock", "pg_advisory_xact_lock_shared", "pg_try_advisory_xact_lock", "pg_try_advisory_xact_lock_shared":
@@ -193,70 +170,14 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 	return functions.NullCount{Info: info, Kind: kind, Args: args}, nil
 }
 
-type currentSchemasExpression struct {
-	expr.Info
-	arg expr.Expr
-}
-
-func (currentSchemasExpression) ResultNullability(expr.ResultSite) (nullable, known bool) {
-	return true, true
-}
-
-func (e currentSchemasExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
-	v, err := e.arg.Eval(c)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	if v.IsNull() {
-		return sqltype.Null(e.Usage.Type), nil
-	}
-	implicit, err := v.Boolean()
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	scope := c.liveScope()
-	if scope == nil {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: current_schemas lacks statement authority")
-	}
-	results := scope.searchPathResults
-	if scope.searchPathResults[0].Type() == nil || scope.foreignActionAuth != nil || scope.ruleActionAuth != nil {
-		engine := scope.op.session.Engine()
-		engine.mu.Lock()
-		defer engine.mu.Unlock()
-		auth, explicit, err := scope.schemaInquiryPathLocked(engine)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		effective := engine.effectivePath(auth, explicit, relationLookup)
-		names := make([]string, len(effective))
-		for i, path := range [2][]ids.ObjectAddress{explicit, effective} {
-			for j, a := range path {
-				names[j] = auth.Catalog.Get(a).Name()
-			}
-			results[i], err = sqltype.Names(e.Usage.Type, names[:len(path)])
-			if err != nil {
-				return sqltype.Value{}, err
-			}
-		}
-		if scope.foreignActionAuth == nil && scope.ruleActionAuth == nil {
-			scope.searchPathResults = results
-		}
-	}
-	if implicit {
-		return results[1], nil
-	}
-	return results[0], nil
-}
-
 // sharedCallGates applies, for a registered family, the label and
 // ResolutionOnly gates that the name chain applies before its final switch.
-// Other spellings of a case-insensitively claimed name resolve only.
+// Other spellings resolve only unless the family owns that diagnostic boundary.
 func (b *expressionBinder) sharedCallGates(raw parser.FunctionExpr, definition functions.Definition) error {
 	if len(raw.ArgNames) != 0 && !definition.OwnsLabels {
 		return b.functionSignatureError(raw)
 	}
-	if raw.ResolutionOnly || !slices.Contains(definition.Names, raw.Name.Parts[len(raw.Name.Parts)-1].Text) {
+	if raw.ResolutionOnly || !definition.OwnsSpelling && !slices.Contains(definition.Names, raw.Name.Parts[len(raw.Name.Parts)-1].Text) {
 		return b.formatDiagnosticSignatureError(raw)
 	}
 	return nil
@@ -362,33 +283,6 @@ func (b *expressionBinder) functionResolutionErrorForTypes(name parser.ObjectNam
 
 // Temporary alias: the pure builder moved to functions (F4/F5 math).
 var functionResolutionErrorForTypes = functions.ResolutionError
-
-func (b *expressionBinder) bindCurrentSchemas(raw parser.FunctionExpr) (expr.Expr, error) {
-	visible, err := b.builtinVisible(raw.Name, functionLookup)
-	if err != nil {
-		return nil, err
-	}
-	if !visible || len(raw.Args) != 1 || raw.Variadic {
-		return nil, b.functionSignatureError(raw)
-	}
-	arg, err := b.bind(raw.Args[0], expressionPolicy{context: functionArgumentContext, expected: b.typ(sqltype.Bool).Usage(), mode: sqltype.Implicit})
-	if err != nil {
-		if d, ok := err.(*sqlstate.Error); ok && (d.Code == "42804" || d.Code == "42846") {
-			return nil, b.functionSignatureError(raw)
-		}
-		return nil, err
-	}
-	typ := b.typ(sqltype.NameArray)
-	p := arg.Properties()
-	if p.Volatility < expr.Stable {
-		p.Volatility = expr.Stable
-	}
-	info, err := b.builtinRoutineInfo(b.info(typ.Usage(), raw.Pos, p), catalogRoutineProvider, "current_schemas", sqltype.Bool)
-	if err != nil {
-		return nil, err
-	}
-	return currentSchemasExpression{info, arg}, nil
-}
 
 // unknownNullSyntax recognizes provenance carriers, not a concrete UNKNOWN type.
 // Callers still resolve any annotation through the ordinary catalog/type path.

@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/engine/catalog"
+import (
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
+)
 
 // All SQL query/cursor evaluation borrowing queryAuthority is serialized by the
 // existing transactionOwner.admission lease through StatementScope.Finish (and
@@ -18,7 +21,7 @@ type commandRoutineProgram struct {
 	admission routineAdmissionProgram
 }
 
-func admitInquiryBody(c *EvalContext, node commentInquiryExpression) error {
+func admitInquiryBody(c *EvalContext, node expr.Info) error {
 	scope := c.liveScope()
 	if scope == nil {
 		return nil

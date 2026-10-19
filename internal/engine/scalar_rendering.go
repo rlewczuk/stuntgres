@@ -43,6 +43,9 @@ func (r scalarRenderer) renderingWithReturning(ctx context.Context, view catalog
 	if replay.CatalogSnapshot && r.commentSnapshot != nil {
 		*r.commentSnapshot = true
 	}
+	if replay.AlwaysVisibilitySnapshot && r.visibilitySnapshot != nil {
+		*r.visibilitySnapshot = true
+	}
 	if replay.VisibilitySnapshot && r.visibilitySnapshot != nil {
 		// A literal NULL argument decides the call without reading.
 		demand := true

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -33,7 +34,7 @@ func TestBooleanCallPredicateBinding(t *testing.T) {
 			}
 			found := false
 			walkBoundExpression(node, func(child expr.Expr) {
-				if _, ok := child.(visibilityInquiryExpression); ok {
+				if _, ok := child.(functions.VisibilityInquiry); ok {
 					found = true
 				}
 			})

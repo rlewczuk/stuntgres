@@ -106,7 +106,8 @@ func (b *expressionBinder) RetainUntypedParameter(arg expr.Expr) bool {
 	return true
 }
 
-func (b *expressionBinder) NoteCatalogText() { b.regclassConcat = true }
+func (b *expressionBinder) NoteCatalogText()     { b.regclassConcat = true }
+func (b *expressionBinder) NoteCatalogSnapshot() { b.catalogSnapshot = true }
 
 func (b *expressionBinder) BuiltinOperatorRoutineInfo(info expr.Info, operator string, left, right sqltype.ID) (expr.Info, error) {
 	return b.builtinOperatorRoutineInfo(info, operator, left, right)

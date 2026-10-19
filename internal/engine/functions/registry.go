@@ -18,12 +18,16 @@ type Definition struct {
 	ExactSpelling bool
 	// SharedGates asks the engine to apply its shared call gates before Bind:
 	// argument labels are rejected, then ResolutionOnly calls get the
-	// missing-signature diagnostics. On a case-insensitive definition, other
-	// spellings of a claimed name are treated as ResolutionOnly.
+	// missing-signature diagnostics. Other spellings of a case-insensitively
+	// claimed name resolve only unless OwnsSpelling retains the family's boundary.
 	SharedGates bool
 	// OwnsLabels exempts the definition from the shared label gate; Bind then
 	// owns every argument-label diagnostic. It requires SharedGates.
 	OwnsLabels bool
+	// OwnsSpelling retains a claimed family's own exact-spelling diagnostic
+	// boundary after child transformation and namespace lookup. It requires
+	// SharedGates; labels and ResolutionOnly still pass those shared gates.
+	OwnsSpelling bool
 	// Claims, when set, is the engine chain's admission predicate for the
 	// family and replaces Names matching; Names still lists every claimed
 	// name. It keeps the chain's exact, folded or lowercased comparison.
@@ -39,6 +43,12 @@ type Definition struct {
 var definitions = [...]Definition{
 	{Names: []string{"mxid_age", "pg_current_xact_id", "pg_current_xact_id_if_assigned", "pg_xact_status", "pg_get_multixact_members"}, Claims: parser.TransactionIdentityFunctionName, Bind: bindTransactionIdentity},
 	{Names: []string{"pg_xact_commit_timestamp", "pg_xact_commit_timestamp_origin", "pg_last_committed_xact"}, Claims: parser.CommitTimestampFunctionName, Bind: bindCommitTimestamp},
+	{Names: []string{"pg_get_constraintdef", "pg_get_expr", "pg_get_indexdef", "pg_get_viewdef", "pg_get_serial_sequence"}, ExactSpelling: true, SharedGates: true, Bind: bindDeparse},
+	{Names: []string{"col_description", "obj_description", "shobj_description"}, ExactSpelling: true, SharedGates: true, Bind: bindCommentInquiry},
+	{Names: []string{"pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "pg_collation_actual_version", "pg_database_collation_actual_version", "pg_import_system_collations"}, ExactSpelling: true, SharedGates: true, Bind: bindVisibilityInquiry},
+	{Names: []string{"pg_indexam_has_property", "pg_index_has_property", "pg_index_column_has_property"}, ExactSpelling: true, SharedGates: true, Bind: bindIndexProperty},
+	{Names: []string{"pg_identify_object", "pg_identify_object_as_address", "pg_get_object_address", "pg_describe_object"}, Claims: parser.ObjectAddressFunctionName, Bind: bindObjectAddress},
+	{Names: []string{"pg_get_userbyid", "pg_get_catalog_foreign_keys"}, Bind: bindCatalogRelation},
 	{Names: []string{"uuid_extract_timestamp", "uuid_extract_version"}, Bind: bindUUIDExtract},
 	{Names: jsonCallNames[:], Claims: jsonCallClaims, Bind: bindJSONCall, ProbeCall: probeJSONCall},
 	{Names: mathNames[:], ExactSpelling: true, SharedGates: true, Bind: bindMath, ProbeCall: probeThresholdBucket},
@@ -73,6 +83,9 @@ var definitions = [...]Definition{
 	{Names: []string{"acldefault", "makeaclitem", "aclexplode"}, Bind: bindACLValue},
 	{Names: []string{"pg_get_acl"}, Bind: bindObjectACL},
 	{Names: []string{"pg_has_role", "row_security_active"}, Bind: bindAccessInquiry},
+	{Names: []string{"current_catalog", "current_database", "current_role", "current_user", "session_user", "user", "system_user", "current_schema"}, Claims: parser.IdentityFunctionName, SharedGates: true, Bind: bindIdentityFunction},
+	{Names: []string{"current_schemas"}, ExactSpelling: true, SharedGates: true, Bind: bindCurrentSchemas},
+	{Names: []string{"pg_my_temp_schema", "pg_is_other_temp_schema"}, Claims: parser.NamespaceInquiryFunctionName, SharedGates: true, OwnsSpelling: true, Bind: bindNamespaceInquiry},
 }
 
 // Lookup returns the definition that claims an unqualified function name.

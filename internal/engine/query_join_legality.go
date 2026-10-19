@@ -652,7 +652,7 @@ func joinExpressionSides(node expr.Expr, leftWidth, rightWidth int) (uint8, erro
 	}
 	var children []expr.Expr
 	switch e := node.(type) {
-	case literalExpression, parameterExpression, identityExpression:
+	case literalExpression, parameterExpression:
 		return 0, nil
 	case rowExpression:
 		children = e.fields
@@ -736,21 +736,11 @@ func joinExpressionSides(node expr.Expr, leftWidth, rightWidth int) (uint8, erro
 		children = []expr.Expr{e.child}
 	case conditionalExpression:
 		children = e.args
-	case catalogUserNameExpression:
-		return joinExpressionSides(e.arg, leftWidth, rightWidth)
-	case catalogForeignKeysExpression:
-		return 0, nil
 	case extensionPathsExpression:
 		return joinExpressionSides(e.arg, leftWidth, rightWidth)
 	case advisoryExpression:
 		children = e.args
 	case sequenceCallExpression:
-		children = e.args
-	case indexPropertyExpression:
-		children = e.children()
-	case deparseExpression:
-		children = e.args
-	case commentInquiryExpression:
 		children = e.args
 	case installedSoundexFunctionExpression:
 		children = e.Args
@@ -764,16 +754,8 @@ func joinExpressionSides(node expr.Expr, leftWidth, rightWidth int) (uint8, erro
 		children = e.Args
 	case installedFunctionExpression:
 		children = []expr.Expr{e.Arg}
-	case currentSchemasExpression:
-		children = []expr.Expr{e.arg}
-	case objectAddressExpression:
-		children = e.args[:]
-	case namespaceInquiryExpression:
-		children = e.arguments()
 	case blockingInquiryExpression:
 		children = e.arguments()
-	case visibilityInquiryExpression:
-		children = []expr.Expr{e.arg}
 	case caseExpression:
 		if err := child(e.test); err != nil {
 			return 0, err

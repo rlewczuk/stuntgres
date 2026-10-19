@@ -11,6 +11,24 @@ design notes in `docs/design/`. Those notes are background only: where they
 disagree with a clearer split, this document takes precedence. Update them
 after the step they describe lands.
 
+Current Group A Item7 ownership update: the ten catalog inquiry/session identity
+nodes, function-specific binders and node protocols now live in functions.
+CatalogInquiryRuntime and SessionInquiryRuntime retain engine orchestration,
+locks, captured authority, TEMP staging/path caches, address resolution, deparse
+engines and serial ownership lookup. Source/capture/nullability hooks belong
+beside the nodes; admission/layout/scheduling and stored catalog authority do not.
+This includes seven visibility kinds and twelve deparse signatures, not sequence
+execution or extension-update-path extraction. Item7's build, focused private
+and lifecycle races, all35 bounded public batches in quick/real18.6 modes,
+full quickcheck, bounded-CPU full racecheck, dependency/import checks and actual
+strengthened public smoke passed. Default-CPU full racecheck hit two fixture
+deadlines under contention; the unchanged suite passed with GOMAXPROCS=8 and the
+same coverage/deadlines. Steady startup allocations remain5152; three of five
+after samples exceeded1ms. Review, integration and finalcheck remain separate
+lifecycle gates. Neighboring historical waivers are not Item7 waivers; no
+adjacent item is marked complete by this update.
+
+
 ## 1. Summary
 
 `internal/engine` is one Go package: 736 production files and about 188k

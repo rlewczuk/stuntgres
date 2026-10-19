@@ -421,13 +421,11 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 			switch n.(type) {
 			case subqueryExpression:
 				b.subqueryDemand = true
-			case catalogUserNameExpression, catalogForeignKeysExpression, extensionPathsExpression:
+			case extensionPathsExpression:
 				// This binding flag owns nonquery catalog/role capture in
 				// executeBoundCommandLocked; expressionBinder.catalogSnapshot is
 				// analysis-only and is not a field of binding.
 				b.regclassConcat = true
-			case visibilityInquiryExpression:
-				b.visibilitySnapshot = true
 			case functions.Binary:
 				node := n.(functions.Binary)
 				if !node.Plan.Immutable() {
@@ -440,6 +438,10 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 					}
 					b.visibilitySnapshot = b.visibilitySnapshot || demand
 				}
+			case expr.SnapshotDemander:
+				_, catalogText, visibility := n.(expr.SnapshotDemander).SnapshotDemand(randomLiteralNull)
+				b.regclassConcat = b.regclassConcat || catalogText
+				b.visibilitySnapshot = b.visibilitySnapshot || visibility
 			}
 			old, absent := false, false
 			var c columnExpression

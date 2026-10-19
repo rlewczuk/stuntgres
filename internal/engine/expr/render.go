@@ -91,6 +91,9 @@ type Replay struct {
 	// VisibilitySnapshot marks a call that reads visibility state unless a
 	// literal NULL argument decides it.
 	VisibilitySnapshot bool
+	// AlwaysVisibilitySnapshot preserves unconditional stored demand for a
+	// retained call, independently of NULL arguments and execution folding.
+	AlwaysVisibilitySnapshot bool
 	// RelationOnly accepts the call only in an expression a relation owns;
 	// elsewhere stored SQL reports a volatile stored default.
 	RelationOnly bool

@@ -190,9 +190,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			return b.captureSubqueryLeft(r.Left, n, path, ordinal)
 		}
 	case parser.IdentityExpr:
-		if _, ok := bound.(identityExpression); ok {
-			return nil
-		}
+		return protocol(expr.CaptureIdentity, nil)
 	case parser.CurrentDateTimeExpr:
 		return protocol(expr.CaptureCurrentDateTime, nil)
 	case parser.LiteralExpr, parser.TypedLiteralExpr:
@@ -597,29 +595,8 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			b.captureViewComposite(path, compositeSelection, n.base, []int32{n.attribute})
 			return child(r.Args[0], n.base)
 		}
-		if _, ok := bound.(identityExpression); ok && len(r.Args) == 0 {
-			return nil
-		}
 		if n, ok := bound.(advisoryExpression); ok {
 			return children(r.Args, n.args)
-		}
-		if n, ok := bound.(indexPropertyExpression); ok {
-			return children(r.Args, n.children())
-		}
-		if n, ok := bound.(deparseExpression); ok {
-			return children(r.Args, n.args)
-		}
-		if n, ok := bound.(visibilityInquiryExpression); ok && len(r.Args) == 1 {
-			return child(r.Args[0], n.arg)
-		}
-		if n, ok := bound.(objectAddressExpression); ok {
-			return children(r.Args, n.args[:])
-		}
-		if n, ok := bound.(namespaceInquiryExpression); ok {
-			if n.arg != nil && len(r.Args) == 1 {
-				return child(r.Args[0], n.arg)
-			}
-			return nil
 		}
 		if n, ok := bound.(blockingInquiryExpression); ok {
 			return children(r.Args, n.arguments())
@@ -627,21 +604,18 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if n, ok := bound.(literalExpression); ok && n.value.IsNull() {
 			switch r.Name.Parts[len(r.Name.Parts)-1].Text {
 			case "pg_indexam_has_property", "pg_index_has_property", "pg_index_column_has_property":
-				node, err := b.bindIndexPropertyStructure(r, false)
+				node, err := functions.BindIndexPropertyStructure(b, r, false)
 				if err != nil {
 					return err
 				}
-				return children(r.Args, node.(indexPropertyExpression).children())
+				return children(r.Args, node.(expr.Composite).Children())
 			case "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "pg_collation_actual_version", "pg_database_collation_actual_version", "pg_import_system_collations":
-				structure, err := b.bindVisibilityInquiryStructure(r)
+				structure, err := functions.BindVisibilityInquiryStructure(b, r)
 				if err != nil {
 					return err
 				}
-				return child(r.Args[0], structure.arg)
+				return children(r.Args, structure.Children())
 			}
-		}
-		if n, ok := bound.(commentInquiryExpression); ok {
-			return children(r.Args, n.args)
 		}
 		if n, ok := bound.(literalExpression); ok && n.value.IsNull() && n.value.Type().ID() == sqltype.Text {
 			switch r.Name.Parts[len(r.Name.Parts)-1].Text {
@@ -652,23 +626,14 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 				}
 				// Reconstruct only for typed literal/column capture. Keep the
 				// executable NULL fold, with no child evaluation or preflight.
-				structure, err := b.bindCommentInquiryStructure(r, visible)
+				structure, err := functions.BindCommentInquiryStructure(b, r, visible)
 				if err != nil {
 					return err
 				}
-				return children(r.Args, structure.args)
+				return children(r.Args, structure.Children())
 			}
 		}
-		if n, ok := bound.(catalogUserNameExpression); ok && len(r.Args) == 1 {
-			return child(r.Args[0], n.arg)
-		}
-		if _, ok := bound.(catalogForeignKeysExpression); ok && len(r.Args) == 0 {
-			return nil
-		}
 		if n, ok := bound.(extensionPathsExpression); ok && len(r.Args) == 1 {
-			return child(r.Args[0], n.arg)
-		}
-		if n, ok := bound.(currentSchemasExpression); ok && len(r.Args) == 1 {
 			return child(r.Args[0], n.arg)
 		}
 		return protocol(expr.CaptureFunction, r.Args)

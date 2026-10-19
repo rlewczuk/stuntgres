@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -129,7 +130,7 @@ func pgShDescriptionUnitInquiry(t *testing.T, e *Engine, roles authorization.Rea
 	if err != nil {
 		t.Fatal(err)
 	}
-	expr := commentInquiryExpression{Info: expr.Info{Usage: textUsage}, kind: sharedDescription, args: []expr.Expr{
+	expr := functions.CommentInquiry{Info: expr.Info{Usage: textUsage}, Kind: functions.SharedDescription, Args: []expr.Expr{
 		literalExpression{Info: expr.Info{Usage: oidUsage}, value: oid},
 		literalExpression{Info: expr.Info{Usage: nameUsage}, value: sqltype.String(nameUsage.Type, "pg_authid")},
 	}}

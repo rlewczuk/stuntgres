@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -118,7 +119,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 			if current != "refresh_unit_owner" || session != "refresh_unit_caller" {
 				t.Fatal(current, session)
 			}
-			value, err := (identityExpression{Info: expr.Info{Usage: name.Usage()}, kind: identityCurrentSchema}).Eval(c)
+			value, err := (functions.Identity{Info: expr.Info{Usage: name.Usage()}, Kind: functions.IdentityCurrentSchema}).Eval(c)
 			if err != nil {
 				return sqltype.Value{}, err
 			}

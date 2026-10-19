@@ -118,23 +118,6 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(proc.Name()), []expr.Expr{n.Arg})
-	case catalogUserNameExpression:
-		if r.commentSnapshot != nil {
-			*r.commentSnapshot = true
-		}
-		if err := n.validate(); err != nil {
-			return "", err
-		}
-		args := [1]expr.Expr{n.arg}
-		return r.functionSQL(ctx, view, "pg_catalog.pg_get_userbyid", args[:])
-	case catalogForeignKeysExpression:
-		if r.commentSnapshot != nil {
-			*r.commentSnapshot = true
-		}
-		if err := n.validate(); err != nil {
-			return "", err
-		}
-		return r.functionSQL(ctx, view, "pg_catalog.pg_get_catalog_foreign_keys", nil)
 	case extensionPathsExpression:
 		if r.commentSnapshot != nil {
 			*r.commentSnapshot = true

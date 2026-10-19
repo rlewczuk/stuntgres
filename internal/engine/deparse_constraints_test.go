@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -275,14 +276,14 @@ func TestDeparseConstraintsStrictnessAndSuppliedAttributes(t *testing.T) {
 		if constraint {
 			args = []expr.Expr{literal(zero), literal(sqltype.Boolean(boolType, false))}
 		}
-		signature := deparseExprPretty
+		signature := functions.DeparseExprPretty
 		if constraint {
-			signature = deparseConstraintPretty
+			signature = functions.DeparseConstraintPretty
 		}
 		for nullable := range args {
 			test := append([]expr.Expr(nil), args...)
 			test[nullable] = literal(sqltype.Null(test[nullable].ResultUsage().Type))
-			node := deparseExpression{Info: expr.Info{Usage: textType.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, signature: signature, args: test}
+			node := functions.Deparse{Info: expr.Info{Usage: textType.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Signature: signature, Args: test}
 			value, err := node.Eval(&EvalContext{Context: context.Background()})
 			if err != nil || !value.IsNull() || value.Type() != textType {
 				t.Fatal(constraint, nullable, value, err)

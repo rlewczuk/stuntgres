@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -32,8 +33,8 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			node, binder, evaluation := strictNullUnitBind(t, e, op, scope, tc.expression)
-			carrier, ok := node.(objectAddressExpression)
-			if !ok || carrier.slots != tc.slots || carrier.validateStored() != nil {
+			carrier, ok := node.(functions.ObjectAddress)
+			if !ok || carrier.Slots != tc.slots || carrier.Validate() != nil {
 				t.Fatal("canonical named-slot carrier", node)
 			}
 			captured, err := expressionRoutineDescriptor(node)

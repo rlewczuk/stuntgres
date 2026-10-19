@@ -73,10 +73,8 @@ func overlapsNodeCost(node expr.Expr) int {
 			cost++
 		}
 		return cost
-	case catalogUserNameExpression, visibilityInquiryExpression:
-		return 10
-	case commentInquiryExpression:
-		return 100
+	case expr.CallCoster:
+		return n.CallCost()
 	case functions.DatetimeAgeFinite:
 		if n.Plan.Name() == "age" && n.Count == 1 {
 			return 3

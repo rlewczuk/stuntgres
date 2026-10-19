@@ -1,4 +1,4 @@
-package engine
+package functions
 
 import (
 	"context"
@@ -8,25 +8,31 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e catalogForeignKeysExpression) Children() []expr.Expr {
+func (e CatalogForeignKeys) Children() []expr.Expr {
 	return nil
 }
 
-func (e catalogForeignKeysExpression) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+func (e CatalogForeignKeys) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	next, err := e.Substitute(info, children)
 	if err != nil {
 		return nil, err
 	}
-	rebuilt := next.(catalogForeignKeysExpression)
-	if err := rebuilt.validate(); err != nil {
+	rebuilt := next.(CatalogForeignKeys)
+	if e.Usage.Type != info.Usage.Type {
+		rebuilt.metadata, err = newCatalogForeignKeyValues(info.Usage.Type)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if err := rebuilt.Validate(); err != nil {
 		return nil, err
 	}
 	return rebuilt, nil
 }
 
-func (e catalogForeignKeysExpression) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+func (e CatalogForeignKeys) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	if len(children) != len(e.Children()) {
-		return nil, fmt.Errorf("stuntgres: invalid catalogForeignKeysExpression arguments")
+		return nil, fmt.Errorf("stuntgres: invalid CatalogForeignKeys arguments")
 	}
 	for _, child := range children {
 		if child == nil {
@@ -37,19 +43,19 @@ func (e catalogForeignKeysExpression) Substitute(info expr.Info, children []expr
 	return e, nil
 }
 
-func (e catalogForeignKeysExpression) SourceAdmission() (bool, bool) { return true, true }
+func (e CatalogForeignKeys) SourceAdmission() (bool, bool) { return true, true }
 
-func (e catalogForeignKeysExpression) SameSourceOccurrence(other expr.Expr) bool {
-	o, ok := other.(catalogForeignKeysExpression)
+func (e CatalogForeignKeys) SameSourceOccurrence(other expr.Expr) bool {
+	o, ok := other.(CatalogForeignKeys)
 	return ok && sqltype.SameRecordUsage(e.ResultUsage(), o.ResultUsage())
 }
 
-func (e catalogForeignKeysExpression) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
-	c := evalContext(ctx)
-	if err := evaluationContext(c); err != nil {
+func (e CatalogForeignKeys) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
+	c := ctx
+	if _, err := evaluationContext(c); err != nil {
 		return expr.SourceCursor{}, err
 	}
-	if err := e.validate(); err != nil {
+	if err := e.Validate(); err != nil {
 		return expr.SourceCursor{}, err
 	}
 	return expr.NewSourceCursor(expr.SourceCursor{

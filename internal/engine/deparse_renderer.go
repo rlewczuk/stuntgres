@@ -47,30 +47,6 @@ func (r pgRenderer) attribute(relation *catalog.Relation, attr int32) (string, e
 	return text, err
 }
 
-func validateDeparseIdentity(n identityExpression) error {
-	if n.kind > identityCurrentSchema {
-		return fmt.Errorf("stuntgres: invalid deparse identity kind")
-	}
-	if n.ordinaryCall {
-		switch n.kind {
-		case identityDatabase, identityCurrentUser, identitySessionUser, identitySystemUser, identityCurrentSchema:
-		default:
-			return fmt.Errorf("stuntgres: invalid deparse identity call")
-		}
-	} else if n.kind == identityDatabase {
-		return fmt.Errorf("stuntgres: invalid deparse identity keyword")
-	}
-	typ := sqltype.Name
-	if n.kind == identitySystemUser {
-		typ = sqltype.Text
-	}
-	if n.Usage.Type == nil || n.Usage.Type.ID() != typ || n.Usage != n.Usage.Type.Usage() ||
-		n.Property != (expr.Properties{Volatility: expr.Stable}) || n.UnknownNull {
-		return fmt.Errorf("stuntgres: invalid deparse identity metadata")
-	}
-	return nil
-}
-
 func pgType(u sqltype.Usage) (string, error) {
 	declaration, err := u.Declaration()
 	if err != nil {
@@ -458,31 +434,6 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 	switch n := node.(type) {
 	case literalExpression:
 		return r.literal(ctx, n)
-	case identityExpression:
-		if err := validateDeparseIdentity(n); err != nil {
-			return "", err
-		}
-		if n.ordinaryCall {
-			return r.identifier(n.kind.spelling()) + "()", nil
-		}
-		switch n.kind {
-		case identityCatalog:
-			return "CURRENT_CATALOG", nil
-		case identityRole:
-			return "CURRENT_ROLE", nil
-		case identityCurrentUser:
-			return "CURRENT_USER", nil
-		case identitySessionUser:
-			return "SESSION_USER", nil
-		case identityUser:
-			return "USER", nil
-		case identitySystemUser:
-			return "SYSTEM_USER", nil
-		case identityCurrentSchema:
-			return "CURRENT_SCHEMA", nil
-		default:
-			return "", fmt.Errorf("stuntgres: invalid deparse identity keyword")
-		}
 	case domainValueExpression:
 		return "VALUE", nil
 	case columnExpression:
@@ -806,11 +757,6 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 			return "", fmt.Errorf("stuntgres: missing SQL routine namespace")
 		}
 		return function(r.identifier(namespace.Name())+"."+r.identifier(n.procedure.Name()), n.args, true)
-	case catalogUserNameExpression:
-		args := [1]expr.Expr{n.arg}
-		return function("pg_get_userbyid", args[:], true)
-	case catalogForeignKeysExpression:
-		return function("pg_get_catalog_foreign_keys", nil, true)
 	case extensionPathsExpression:
 		args := [1]expr.Expr{n.arg}
 		return function("pg_extension_update_paths", args[:], true)
@@ -855,43 +801,6 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 			return "", fmt.Errorf("stuntgres: missing installed function namespace")
 		}
 		return function(r.identifier(namespace.Name())+"."+r.identifier(n.procedure.Name()), []expr.Expr{n.Arg}, true)
-	case visibilityInquiryExpression:
-		u := n.ResultUsage()
-		if n.kind.class() == 0 || u.Type == nil || u != u.Type.Usage() || u.Type.ID() != n.kind.result() || n.arg == nil {
-			return "", fmt.Errorf("stuntgres: invalid stored visibility inquiry signature")
-		}
-		argument := n.arg.ResultUsage()
-		if argument.Type == nil || argument != argument.Type.Usage() || argument.Type.ID() != n.kind.formal() {
-			return "", fmt.Errorf("stuntgres: invalid stored visibility inquiry argument")
-		}
-		properties := n.arg.Properties()
-		properties.Volatility = max(n.kind.volatility(), properties.Volatility)
-		if n.Properties() != properties {
-			return "", fmt.Errorf("stuntgres: invalid stored visibility inquiry properties")
-		}
-		return function(n.kind.name(), []expr.Expr{n.arg}, true)
-	case commentInquiryExpression:
-		name := "obj_description"
-		if n.kind == columnDescription {
-			name = "col_description"
-		}
-		if n.kind == sharedDescription {
-			name = "shobj_description"
-		}
-		return function(name, n.args, true)
-	case currentSchemasExpression:
-		return function("current_schemas", []expr.Expr{n.arg}, true)
-	case objectAddressExpression:
-		return n.sql(r.identifier(n.op.name()), func(arg expr.Expr) (string, error) {
-			argRenderer := r
-			argRenderer.showImplicit = true
-			return argRenderer.sql(ctx, arg, pgRenderParent{})
-		})
-	case namespaceInquiryExpression:
-		if err := n.validateStored(); err != nil {
-			return "", err
-		}
-		return function(n.kind.name(), n.arguments(), true)
 	case blockingInquiryExpression:
 		if err := n.validateStored(); err != nil {
 			return "", err
@@ -899,16 +808,6 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		return function(n.kind.name(), n.arguments(), true)
 	case sequenceCallExpression:
 		return function(n.name, n.args, true)
-	case indexPropertyExpression:
-		if err := validateStoredIndexPropertyExpression(n); err != nil {
-			return "", err
-		}
-		return function(n.kind.name(), n.children(), true)
-	case deparseExpression:
-		if err := validateDeparseExpression(n); err != nil {
-			return "", err
-		}
-		return function(deparseSignatures[n.signature].name, n.args, true)
 	case expr.Renderable:
 		// Function nodes describe themselves; engine wrappers that embed one
 		// keep their explicit cases above.

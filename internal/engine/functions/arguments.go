@@ -164,10 +164,12 @@ const (
 )
 
 type CoercionRequest struct {
-	Intent             CoercionIntent
-	Target             sqltype.Usage
-	Plan               sqltype.CoercionPlan
-	Planned            bool
+	Intent  CoercionIntent
+	Target  sqltype.Usage
+	Plan    sqltype.CoercionPlan
+	Planned bool
+	// PreserveProperties retains analyzed argument flags instead of deriving
+	// conversion flags. BareFormalArgument still omits cast routine provenance.
 	PreserveProperties bool
 	AtRaw              bool
 	Label              string

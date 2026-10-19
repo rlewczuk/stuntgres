@@ -112,12 +112,6 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 		return session(children(n.left, n.right), n.equality.SessionDependent())
 	case conditionalExpression:
 		return session(children(n.args...), n.comparison.SessionDependent())
-	case objectAddressExpression:
-		return merge(children(n.args[:]...), expr.Stable)
-	case catalogUserNameExpression:
-		return merge(children(n.arg), expr.Stable)
-	case catalogForeignKeysExpression:
-		return expr.Stable
 	case extensionPathsExpression:
 		return merge(children(n.arg), expr.Stable)
 	case installedSoundexFunctionExpression:

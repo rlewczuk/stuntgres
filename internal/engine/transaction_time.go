@@ -53,9 +53,7 @@ func closedTransactionTimeDefault(node expr.Expr) bool {
 		valid := true
 		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
-	case catalogUserNameExpression:
-		return closedTransactionTimeDefault(n.arg)
-	case catalogForeignKeysExpression, extensionPathsExpression:
+	case extensionPathsExpression:
 		return false
 	case scalarArrayComparisonExpression:
 		valid := true

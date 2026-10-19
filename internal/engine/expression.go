@@ -580,67 +580,12 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			e.args = args
 		}
 		return e, args != nil, nil
-	case catalogUserNameExpression:
-		arg, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
-		if err != nil {
-			return nil, false, err
-		}
-		e.arg = arg
-		return e, changed, nil
-	case catalogForeignKeysExpression:
-		return e, false, nil
 	case extensionPathsExpression:
 		arg, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
 		e.arg = arg
-		return e, changed, nil
-	case visibilityInquiryExpression:
-		arg, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
-		if err != nil {
-			return nil, false, err
-		}
-		if changed {
-			e.arg = arg
-		}
-		return e, changed, nil
-	case currentSchemasExpression:
-		arg, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
-		if err != nil {
-			return nil, false, err
-		}
-		if changed {
-			e.arg = arg
-		}
-		return e, changed, nil
-	case objectAddressExpression:
-		changed := false
-		for i, arg := range e.args {
-			next, did, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
-			if err != nil {
-				return nil, false, err
-			}
-			if did {
-				e.args[i], changed = next, true
-			}
-		}
-		if e.op == describeObject {
-			next, simplified, err := simplifyConditional(c, e, decisiveDefaults)
-			return next, changed || simplified, err
-		}
-		return e, changed, nil
-	case namespaceInquiryExpression:
-		if e.arg == nil {
-			return e, false, nil
-		}
-		arg, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
-		if err != nil {
-			return nil, false, err
-		}
-		if changed {
-			e.arg = arg
-		}
 		return e, changed, nil
 	case blockingInquiryExpression:
 		arg, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
@@ -1050,59 +995,6 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			return folded, true, nil
 		}
 		return e, args != nil, nil
-	case indexPropertyExpression:
-		did := false
-		e.Property = expr.Properties{Volatility: expr.Stable}
-		for i, arg := range e.children() {
-			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
-			if err != nil {
-				return nil, false, err
-			}
-			if changed {
-				e.args[i] = folded
-				did = true
-			}
-			e.Property = expr.MergeProperties(e.Property, e.args[i].Properties())
-		}
-		if did {
-			return e, true, nil
-		}
-	case deparseExpression:
-		var args []expr.Expr
-		for i, arg := range e.args {
-			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
-			if err != nil {
-				return nil, false, err
-			}
-			if changed {
-				if args == nil {
-					args = append([]expr.Expr(nil), e.args...)
-				}
-				args[i] = folded
-			}
-		}
-		if args != nil {
-			e.args = args
-			return e, true, nil
-		}
-	case commentInquiryExpression:
-		var args []expr.Expr
-		for i, arg := range e.args {
-			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
-			if err != nil {
-				return nil, false, err
-			}
-			if changed {
-				if args == nil {
-					args = append([]expr.Expr(nil), e.args...)
-				}
-				args[i] = folded
-			}
-		}
-		if args != nil {
-			e.args = args
-			return e, true, nil
-		}
 	case expr.Composite:
 		// Function nodes name their fold; installed-routine wrappers keep
 		// their cases above.
@@ -1658,7 +1550,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 		case parser.IdentityExpr:
 			var err error
-			node, err = b.bindIdentity(r.Name, r.Pos)
+			node, err = functions.BindIdentity(b, r.Name, r.Pos)
 			if err != nil {
 				return nil, err
 			}
@@ -1810,21 +1702,11 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, err
 			}
 			switch inquiry := node.(type) {
-			case catalogUserNameExpression, catalogForeignKeysExpression, extensionPathsExpression, commentInquiryExpression, objectAddressExpression:
+			case extensionPathsExpression:
 				b.catalogSnapshot = true
-			case deparseExpression:
-				// This family retains STRICT nodes rather than folding them; a
-				// known NULL eliminates only this node's own catalog demand.
-				demand := true
-				for _, child := range inquiry.args {
-					if literal, ok := child.(literalExpression); ok && literal.value.IsNull() {
-						demand = false
-						break
-					}
-				}
+			case expr.SnapshotDemander:
+				demand, _, _ := inquiry.SnapshotDemand(bareInquiryLiteralNull)
 				b.catalogSnapshot = b.catalogSnapshot || demand
-			case indexPropertyExpression:
-				b.catalogSnapshot = b.catalogSnapshot || inquiry.kind != accessMethodProperty
 			}
 			if r.Window != nil {
 				return nil, expr.ErrorAt("42809", "OVER specified, but "+objectNameText(r.Name)+" is not a window function nor an aggregate function", r.Pos)
@@ -2956,7 +2838,11 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 		if node == nil || !request.Planned {
 			return nil, fmt.Errorf("stuntgres: invalid bare function argument coercion")
 		}
-		return coercionExpression{b.info(request.Target, argument.Raw.SourcePosition(), coercionProperties(node, request.Plan)), node, request.Plan, sqltype.Implicit, false}, nil
+		properties := coercionProperties(node, request.Plan)
+		if request.PreserveProperties {
+			properties = node.Properties()
+		}
+		return coercionExpression{b.info(request.Target, argument.Raw.SourcePosition(), properties), node, request.Plan, sqltype.Implicit, false}, nil
 	case functions.AssignmentFormalArgument:
 		if !b.selectedCallArguments || argument.Expression == nil || argument.Usage.Type == nil {
 			return b.bind(argument.Raw, expressionPolicy{context: assignmentContext, expected: request.Target, mode: sqltype.Implicit})

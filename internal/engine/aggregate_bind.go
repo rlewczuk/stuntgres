@@ -124,9 +124,6 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			}
 		}
 		return true
-	case identityExpression:
-		o, ok := other.(identityExpression)
-		return ok && e.kind == o.kind && (!checkDefinitionEquality || e.ordinaryCall == o.ordinaryCall)
 	case aggregateExpression:
 		o, ok := other.(aggregateExpression)
 		return ok && e.slot == o.slot && comparison.sameFrame(e.frame, o.frame)
@@ -153,23 +150,6 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 	case groupExpression:
 		o, ok := other.(groupExpression)
 		return ok && e.slot == o.slot && comparison.sameFrame(e.frame, o.frame)
-	case currentSchemasExpression:
-		o, ok := other.(currentSchemasExpression)
-		return ok && same(e.arg, o.arg)
-	case objectAddressExpression:
-		o, ok := other.(objectAddressExpression)
-		if !ok || e.op != o.op || e.slots != o.slots || e.labels != o.labels {
-			return false
-		}
-		for i, arg := range e.args {
-			if !same(arg, o.args[i]) {
-				return false
-			}
-		}
-		return true
-	case namespaceInquiryExpression:
-		o, ok := other.(namespaceInquiryExpression)
-		return ok && e.kind == o.kind && (e.arg == nil && o.arg == nil || e.arg != nil && o.arg != nil && same(e.arg, o.arg))
 	case blockingInquiryExpression:
 		o, ok := other.(blockingInquiryExpression)
 		return ok && e.kind == o.kind && same(e.arg, o.arg)
@@ -309,54 +289,12 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			}
 		}
 		return true
-	case catalogUserNameExpression:
-		o, ok := other.(catalogUserNameExpression)
-		return ok && same(e.arg, o.arg)
 	case extensionPathsExpression:
 		o, ok := other.(extensionPathsExpression)
 		return ok && same(e.arg, o.arg)
-	case catalogForeignKeysExpression:
-		_, ok := other.(catalogForeignKeysExpression)
-		return ok
 	case advisoryExpression:
 		o, ok := other.(advisoryExpression)
 		if !ok || e.name != o.name || len(e.args) != len(o.args) {
-			return false
-		}
-		for i := range e.args {
-			if !same(e.args[i], o.args[i]) {
-				return false
-			}
-		}
-		return true
-	case indexPropertyExpression:
-		o, ok := other.(indexPropertyExpression)
-		if !ok || e.kind != o.kind {
-			return false
-		}
-		for i, arg := range e.children() {
-			if !same(arg, o.args[i]) {
-				return false
-			}
-		}
-		return true
-	case deparseExpression:
-		o, ok := other.(deparseExpression)
-		if !ok || e.signature != o.signature || len(e.args) != len(o.args) {
-			return false
-		}
-		for i := range e.args {
-			if !same(e.args[i], o.args[i]) {
-				return false
-			}
-		}
-		return true
-	case visibilityInquiryExpression:
-		o, ok := other.(visibilityInquiryExpression)
-		return ok && e.kind == o.kind && same(e.arg, o.arg)
-	case commentInquiryExpression:
-		o, ok := other.(commentInquiryExpression)
-		if !ok || e.kind != o.kind || len(e.args) != len(o.args) {
 			return false
 		}
 		for i := range e.args {
@@ -476,22 +414,6 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 			}
 			e.comparisons = comparisons
 		}
-		bound = e
-	case currentSchemasExpression:
-		e.arg = rewrite(e.arg)
-		stage(&e.Info)
-		bound = e
-	case objectAddressExpression:
-		for i := range e.args {
-			e.args[i] = rewrite(e.args[i])
-		}
-		stage(&e.Info)
-		bound = e
-	case namespaceInquiryExpression:
-		if e.arg != nil {
-			e.arg = rewrite(e.arg)
-		}
-		stage(&e.Info)
 		bound = e
 	case blockingInquiryExpression:
 		e.arg = rewrite(e.arg)
@@ -661,50 +583,11 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		}
 		stage(&e.Info)
 		bound = e
-	case catalogUserNameExpression:
-		e.arg = rewrite(e.arg)
-		stage(&e.Info)
-		bound = e
 	case extensionPathsExpression:
 		e.arg = rewrite(e.arg)
 		stage(&e.Info)
 		bound = e
-	case catalogForeignKeysExpression:
-		stage(&e.Info)
-		bound = e
 	case advisoryExpression:
-		e.args = append([]expr.Expr(nil), e.args...)
-		for i := range e.args {
-			e.args[i] = rewrite(e.args[i])
-		}
-		stage(&e.Info)
-		bound = e
-	case indexPropertyExpression:
-		e.Property = expr.Properties{Volatility: expr.Stable}
-		for i := range e.children() {
-			e.args[i] = rewrite(e.args[i])
-			if err != nil {
-				return nil, err
-			}
-			e.Property = expr.MergeProperties(e.Property, e.args[i].Properties())
-		}
-		bound = e
-	case deparseExpression:
-		e.args = append([]expr.Expr(nil), e.args...)
-		e.Property = expr.Properties{Volatility: expr.Stable}
-		for i := range e.args {
-			e.args[i] = rewrite(e.args[i])
-			if err != nil {
-				return nil, err
-			}
-			e.Property = expr.MergeProperties(e.Property, e.args[i].Properties())
-		}
-		bound = e
-	case visibilityInquiryExpression:
-		e.arg = rewrite(e.arg)
-		stage(&e.Info)
-		bound = e
-	case commentInquiryExpression:
 		e.args = append([]expr.Expr(nil), e.args...)
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
@@ -759,8 +642,8 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 	case expr.GroupLeaf:
 		// Childless leaf calls keep their metadata.
 	case expr.Composite:
-		// Function nodes take their rewritten children and become stage
-		// dependent; installed-routine wrappers keep their cases above.
+		// Function nodes take rewritten children and their grouping-site
+		// metadata policy; installed-routine wrappers keep precedence above.
 		children := append([]expr.Expr(nil), e.Children()...)
 		for i := range children {
 			children[i] = rewrite(children[i])
@@ -769,7 +652,11 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 			return nil, err
 		}
 		info := expr.InfoOf(e)
-		stage(&info)
+		if hook, ok := e.(expr.GroupPropertyRewriter); ok {
+			info.Property = hook.GroupProperties(children)
+		} else {
+			stage(&info)
+		}
 		next, failure := expr.Substitute(e, info, children)
 		if failure != nil {
 			return nil, failure
@@ -801,16 +688,6 @@ func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 		for _, s := range e.subscripts {
 			walk(s.lower)
 			walk(s.upper)
-		}
-	case currentSchemasExpression:
-		walk(e.arg)
-	case objectAddressExpression:
-		for _, arg := range e.args {
-			walk(arg)
-		}
-	case namespaceInquiryExpression:
-		if e.arg != nil {
-			walk(e.arg)
 		}
 	case blockingInquiryExpression:
 		walk(e.arg)
@@ -877,26 +754,9 @@ func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 		for _, arg := range e.args {
 			walk(arg)
 		}
-	case catalogUserNameExpression:
-		walk(e.arg)
 	case extensionPathsExpression:
 		walk(e.arg)
-	case catalogForeignKeysExpression:
 	case advisoryExpression:
-		for _, arg := range e.args {
-			walk(arg)
-		}
-	case indexPropertyExpression:
-		for _, arg := range e.children() {
-			walk(arg)
-		}
-	case deparseExpression:
-		for _, arg := range e.args {
-			walk(arg)
-		}
-	case visibilityInquiryExpression:
-		walk(e.arg)
-	case commentInquiryExpression:
 		for _, arg := range e.args {
 			walk(arg)
 		}

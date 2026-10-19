@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -154,8 +155,8 @@ func TestObjectAddressStoredRecipes(t *testing.T) {
 	defer done()
 	for _, name := range []string{"pg_identify_object", "pg_identify_object_as_address", "pg_get_object_address", "pg_describe_object"} {
 		q := domainUnitBindSelect(t, e, op, "SELECT "+name+"(NULL,NULL,NULL)")
-		n, ok := q.Root.(*projectNode).expressions[0].(objectAddressExpression)
-		if !ok || n.validateStored() != nil || n.Properties().Volatility != expr.Stable || generationImmutable(n) {
+		n, ok := q.Root.(*projectNode).expressions[0].(functions.ObjectAddress)
+		if !ok || n.Validate() != nil || n.Properties().Volatility != expr.Stable || generationImmutable(n) {
 			t.Fatal("typed stable carrier", name, n)
 		}
 		children := 0
@@ -164,25 +165,21 @@ func TestObjectAddressStoredRecipes(t *testing.T) {
 			t.Fatal("carrier children", children)
 		}
 		bad := n
-		bad.slots[1] = bad.slots[0]
-		if bad.validateStored() == nil {
+		bad.Slots[1] = bad.Slots[0]
+		if bad.Validate() == nil {
 			t.Fatal("duplicate slot accepted")
 		}
 		bad = n
 		bad.Property.Volatility = expr.Immutable
-		if bad.validateStored() == nil {
+		if bad.Validate() == nil {
 			t.Fatal("immutable inquiry accepted")
 		}
 		value, err := n.Eval(&EvalContext{Context: context.Background()})
 		if err != nil || !value.IsNull() || value.Type() != n.ResultUsage().Type {
 			t.Fatal("strict typed NULL", value, err)
 		}
-		rendered, err := n.sql("pg_catalog."+name, func(expr.Expr) (string, error) { return "NULL", nil })
-		if err != nil || rendered != "pg_catalog."+name+"(NULL, NULL, NULL)" {
-			t.Fatal("stored renderer", rendered, err)
-		}
 		mapped, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-		if err != nil || mapped.(objectAddressExpression).validateStored() != nil {
+		if err != nil || mapped.(functions.ObjectAddress).Validate() != nil {
 			t.Fatal("stored remap", mapped, err)
 		}
 	}

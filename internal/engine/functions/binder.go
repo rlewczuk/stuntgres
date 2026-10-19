@@ -66,6 +66,9 @@ type Binder interface {
 	// NoteCatalogText records that the statement renders a catalog-identifier
 	// value as text, so execution captures the catalog snapshot it reads.
 	NoteCatalogText()
+	// NoteCatalogSnapshot records analysis-only catalog demand, separately from
+	// NoteCatalogText's execution binding flag.
+	NoteCatalogSnapshot()
 	// InstalledRoutine resolves name on the function search path, propagating
 	// lookup errors, and returns the routine that extension installed there
 	// with the signature (comma-separated input type OIDs), or nil.

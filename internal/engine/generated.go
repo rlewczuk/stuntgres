@@ -228,9 +228,7 @@ func generationImmutable(node expr.Expr) bool {
 		return true
 	case unnestExpression:
 		return false
-	case objectAddressExpression:
-		return false
-	case catalogUserNameExpression, catalogForeignKeysExpression, extensionPathsExpression:
+	case extensionPathsExpression:
 		return false
 	case installedSoundexFunctionExpression:
 		return args(n.Args)
@@ -420,12 +418,6 @@ func generationHasTableOID(node expr.Expr) bool {
 				return true
 			}
 		}
-		return false
-	case objectAddressExpression:
-		return args(n.args[:])
-	case catalogUserNameExpression:
-		return generationHasTableOID(n.arg)
-	case catalogForeignKeysExpression:
 		return false
 	case extensionPathsExpression:
 		return generationHasTableOID(n.arg)
@@ -772,18 +764,6 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 			}
 		}
 		return nil
-	case objectAddressExpression:
-		if err := n.validateStored(); err != nil {
-			return err
-		}
-		return args(n.args[:])
-	case catalogUserNameExpression:
-		if err := n.validate(); err != nil {
-			return err
-		}
-		return validateGenerationPlan(view, d, n.arg)
-	case catalogForeignKeysExpression:
-		return n.validate()
 	case extensionPathsExpression:
 		if err := n.validate(); err != nil {
 			return err

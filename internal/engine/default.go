@@ -242,25 +242,6 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		return r.arraySQL(ctx, view, n)
 	case subscriptExpression:
 		return r.subscriptSQL(ctx, view, n)
-	case indexPropertyExpression:
-		if r.owner == nil {
-			return "", fmt.Errorf("stuntgres: index property inquiries are unsupported in stored defaults")
-		}
-		if err := validateStoredIndexPropertyExpression(n); err != nil {
-			return "", err
-		}
-		if n.kind != accessMethodProperty && r.commentSnapshot != nil {
-			*r.commentSnapshot = true
-		}
-		return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), n.children())
-	case deparseExpression:
-		if err := validateDeparseExpression(n); err != nil {
-			return "", err
-		}
-		if r.commentSnapshot != nil {
-			*r.commentSnapshot = true
-		}
-		return r.functionSQL(ctx, view, "pg_catalog."+deparseSignatures[n.signature].name, n.args)
 	case tableOIDExpression:
 		if r.owner == nil || !storedReferenceEpochValid(view, r.owner, n.owner) || n.owner.Address != r.owner.Address() || u.Type.ID() != sqltype.Oid {
 			return "", fmt.Errorf("stuntgres: invalid generated tableoid owner")
@@ -281,81 +262,8 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 			return "", fmt.Errorf("stuntgres: invalid stored advisory signature")
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+n.name, n.args)
-	case sqlRoutineExpression, catalogUserNameExpression, catalogForeignKeysExpression, extensionPathsExpression, installedFunctionExpression, installedUUIDOsspFunctionExpression, installedCryptoFunctionExpression, installedSoundexFunctionExpression, installedMetaphoneFunctionExpression, installedLevenshteinFunctionExpression:
+	case sqlRoutineExpression, extensionPathsExpression, installedFunctionExpression, installedUUIDOsspFunctionExpression, installedCryptoFunctionExpression, installedSoundexFunctionExpression, installedMetaphoneFunctionExpression, installedLevenshteinFunctionExpression:
 		return r.scalarFunctionSQL(ctx, view, node)
-	case visibilityInquiryExpression:
-		if r.owner == nil {
-			return "", fmt.Errorf("stuntgres: visibility inquiries are unsupported in stored defaults")
-		}
-		if n.kind.class() == 0 || u.Type == nil || u != u.Type.Usage() || u.Type.ID() != n.kind.result() || n.arg == nil {
-			return "", fmt.Errorf("stuntgres: invalid stored visibility inquiry signature")
-		}
-		argument := n.arg.ResultUsage()
-		if argument.Type == nil || argument != argument.Type.Usage() || argument.Type.ID() != n.kind.formal() {
-			return "", fmt.Errorf("stuntgres: invalid stored visibility inquiry argument")
-		}
-		properties := n.arg.Properties()
-		properties.Volatility = max(n.kind.volatility(), properties.Volatility)
-		if p != properties {
-			return "", fmt.Errorf("stuntgres: invalid stored visibility inquiry properties")
-		}
-		if r.visibilitySnapshot != nil {
-			*r.visibilitySnapshot = true
-		}
-		return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), []expr.Expr{n.arg})
-	case commentInquiryExpression:
-		if r.owner == nil {
-			return "", fmt.Errorf("stuntgres: comment inquiries are unsupported in stored defaults")
-		}
-		name, arity, second := "obj_description", 2, sqltype.Name
-		switch n.kind {
-		case columnDescription:
-			name, second = "col_description", sqltype.Int4
-		case objectDescription:
-		case legacyDescription:
-			arity = 1
-		case sharedDescription:
-			name = "shobj_description"
-		default:
-			return "", fmt.Errorf("stuntgres: invalid stored comment inquiry kind")
-		}
-		if len(n.args) != arity || u != u.Type.Usage() || u.Type.ID() != sqltype.Text {
-			return "", fmt.Errorf("stuntgres: invalid stored comment inquiry signature")
-		}
-		properties := expr.Properties{Volatility: expr.Stable}
-		for i, arg := range n.args {
-			id := sqltype.Oid
-			if i == 1 {
-				id = second
-			}
-			if arg == nil || arg.ResultUsage().Type == nil || arg.ResultUsage() != arg.ResultUsage().Type.Usage() || arg.ResultUsage().Type.ID() != id {
-				return "", fmt.Errorf("stuntgres: invalid stored comment inquiry argument")
-			}
-			child := arg.Properties()
-			properties.Volatility = max(properties.Volatility, child.Volatility)
-			properties.RowDependent = properties.RowDependent || child.RowDependent
-			properties.ParameterDependent = properties.ParameterDependent || child.ParameterDependent
-			properties.StageDependent = properties.StageDependent || child.StageDependent
-			properties.DomainDependent = properties.DomainDependent || child.DomainDependent
-			properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || child.RuntimeDomainConversion
-		}
-		if p != properties {
-			return "", fmt.Errorf("stuntgres: invalid stored comment inquiry properties")
-		}
-		if r.commentSnapshot != nil {
-			*r.commentSnapshot = true
-		}
-		return r.functionSQL(ctx, view, "pg_catalog."+name, n.args)
-	case currentSchemasExpression:
-		if n.arg == nil || n.arg.ResultUsage().Type == nil || n.arg.ResultUsage().Type.ID() != sqltype.Bool || u.Type.ID() != sqltype.NameArray {
-			return "", fmt.Errorf("stuntgres: invalid stored current_schemas signature")
-		}
-		return r.functionSQL(ctx, view, "pg_catalog.current_schemas", []expr.Expr{n.arg})
-	case objectAddressExpression:
-		if r.commentSnapshot != nil {
-			*r.commentSnapshot = true
-		}
-		return n.sql("pg_catalog."+n.op.name(), func(arg expr.Expr) (string, error) { return r.sql(ctx, view, arg) })
 	case functions.ObjectACL:
 		if r.owner == nil {
 			return "", fmt.Errorf("stuntgres: object ACL inquiries are unsupported in stored defaults")
@@ -366,11 +274,6 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 			return "", fmt.Errorf("stuntgres: access inquiries are unsupported in stored defaults")
 		}
 		return r.scalarFunctionSQL(ctx, view, n)
-	case namespaceInquiryExpression:
-		if err := n.validateStored(); err != nil {
-			return "", err
-		}
-		return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), n.arguments())
 	case blockingInquiryExpression:
 		if err := n.validateStored(); err != nil {
 			return "", err
@@ -440,11 +343,6 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		return r.functionSQL(ctx, view, "pg_catalog."+n.name, args)
 	case caseExpression, conditionalExpression:
 		return r.conditionalSQL(ctx, view, node)
-	case identityExpression:
-		if n.ordinaryCall {
-			return "pg_catalog." + n.kind.spelling() + "()", nil
-		}
-		return n.kind.spelling(), nil
 	case literalExpression:
 		if err := validateRegroleStoredLiteral(n.value); err != nil {
 			return "", err

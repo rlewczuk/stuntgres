@@ -84,6 +84,9 @@ package-level variable. Evaluation always receives a non-nil `Context`.
   Render, Rebuild, rebind or mutate. Selected/call implicit usages, substring kind,
   formatted JSON sources and dot-builtin spelling are annotation requests only:
   the engine owns structural paths, maps, coercions, catalog identity and frames.
+  Identity keywords explicitly admit `CaptureIdentity` with zero operands;
+  ordinary-call identities admit `CaptureFunction` instead. This preserves
+  spelling and routine provenance without a concrete engine identity switch.
 
 Optional hooks (`hooks.go`), each answering one switch's question; a node
 without a hook gets the switch's previous generic behavior:
@@ -106,6 +109,23 @@ without a hook gets the switch's previous generic behavior:
   excluding children. Planned volatility merges it with the children;
   generated-column admission requires it to be `Immutable` and admits every
   child.
+  Catalog/session preservation has a deliberate retained-analysis exception:
+  Identity, CurrentSchemas, NamespaceInquiry, VisibilityInquiry, IndexProperty,
+  CommentInquiry and Deparse return their stored Property.Volatility, including
+  eliminated-arm dependence. Username/linkage/object-address supply STABLE and
+  retain physical-child merging; the generic walker policy is unchanged.
+- **`SnapshotDemander`** reports only an owner's immutable analysis-catalog,
+  execution-catalog-text and visibility demand using the caller's literal-NULL
+  predicate, never capturing authority. Children retain independent demands.
+  This is distinct from stored Replay manifests: deparse's stored catalog demand
+  remains unconditional even when bare NULL suppresses its own analysis demand.
+  Retained visibility inquiries request `Replay.AlwaysVisibilitySnapshot`,
+  including coercion-wrapped NULL; bare-NULL executable folding stays separate.
+- **`CallCoster`** retains inline-policy procost distinctions (username/visibility
+  10, comments 100), without evaluation or a catalog lookup.
+- **`GroupPropertyRewriter`** merges already rewritten children at grouping only.
+  IndexProperty/Deparse merge STABLE without forced stage dependence; absence
+  retains generic staging. Substitution, preflight and retag do not invoke it.
 - **`Folding`** (`PlanningFold`): `FoldConstant` (default) folds an immutable
   call with literal children; `FoldNever` leaves the call to execution and
   never counts it as constant inputs; `FoldOverlapsRoute` and
@@ -144,9 +164,10 @@ without a hook gets the switch's previous generic behavior:
   replay `Name`/`Text`, a replay template (`Pieces` over `Args`, for POSIX
   `SUBSTRING ... FROM`, EXTRACT's field literal, `SIMILAR TO ... ESCAPE` over an
   `Absorbed` normalizer and the `num_nulls` field notation), `QuoteNamespace`
-  for written operator schemas, the `CatalogSnapshot` and `VisibilitySnapshot`
-  demands, `RelationOnly` (random calls) and carried `Types` that must belong
-  to the definition's catalog (the pg_sleep clock). Each `RenderArg` names a
+  for written operator schemas, `CatalogSnapshot`, NULL-sensitive
+  `VisibilitySnapshot` and unconditional `AlwaysVisibilitySnapshot` demands,
+  `RelationOnly` (random calls) and carried `Types` that must belong to the
+  definition's catalog (the pg_sleep clock). Each `RenderArg` names a
   `Transport` that keeps its type on replay: always cast to `TransportType`,
   or cast NAME, typed or ambiguously spelled literals, or type NULL intervals.
   Binary and string operators state their `pg_catalog` schema, which display
@@ -264,6 +285,11 @@ The concrete nodes (column, parameter, coercion, CASE, row, subquery and the
 rest), the plan IR, `EvalContext` and its private state, binding, and the
 recovery helper `evalContext`. Engine nodes recover `*EvalContext` from the
 `Context` they receive.
+Catalog/session function nodes instead live in `functions` and recover its
+CatalogInquiryRuntime/SessionInquiryRuntime from this Context. Those finite
+capabilities keep engine authority and state out of the leaf without extending
+Context per family. Source admission/layout/scheduling stays engine-owned;
+username/linkage/address source hooks and cursors stay beside their nodes.
 
 Engine nodes embed `expr.Info` and the engine and `functions` use the
 `expr` names directly; step 2d removed the temporary aliases. Since step 3
@@ -291,9 +317,10 @@ Result descriptor kind/site boundaries (including immutable value/pointer
 recipes) and public direct/same-held SELECT and all four RETURNING consumers:
 
 ```sh
-make check RUN='^TestResultNullability(Engine|Functions)$'
+make check RUN='^TestResultNullability(Engine|Functions|Identity|CatalogInquiry)$'
 make check RUN='^TestReferenceResultNullability(Select|Returning)$'
 make check RUN='^TestReferenceResultNullability(Select|Returning)$' REFERENCE=1
+make check RUN='^TestCatalogInquiry(GroupProperties|RetainedVolatility|IntrinsicVolatility)$'
 ```
 
 The public matrix checks metadata before iteration, including empty results,

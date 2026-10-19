@@ -11,7 +11,7 @@ import (
 
 // The cross-package interface is an identity carrier, not catalog authority.
 // Dynamic extraction rejects arbitrary implementations and typed nil pointers.
-func expressionRoutineDescriptor(node expr.Expr) (*catalog.Procedure, error) {
+func expressionRoutineDescriptor(node any) (*catalog.Procedure, error) {
 	call, ok := node.(interface {
 		CallRoutineReference() expr.RoutineReference
 	})
@@ -67,7 +67,7 @@ func sameRoutineDeclaration(current, captured *catalog.Procedure) bool {
 		current.Conversion == captured.Conversion && current.SQL == captured.SQL
 }
 
-func expressionRecipeDescriptor(node expr.Expr) (*catalog.Relation, error) {
+func expressionRecipeDescriptor(node any) (*catalog.Relation, error) {
 	carrier, ok := node.(interface {
 		CallRoutineRecipeReference() expr.RoutineRecipeReference
 	})

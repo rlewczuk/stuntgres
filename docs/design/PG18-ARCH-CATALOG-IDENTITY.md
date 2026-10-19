@@ -106,6 +106,21 @@ These specify the complete target contract; current CatalogRead (`catalog.Read`)
 
 Registration occurs at initialization, rejects duplicate class IDs and has no publication side effects. Provider validation is pure; typed CatalogRows uses existing engine values and projects exact supported columns from the supplied view. SQL pg_class/pg_attribute/pg_namespace/pg_depend are projections, not separately writable/synthetic stores. Apply access filtering only where that SQL surface requires it, not an invented universal raw-catalog filter. Cache by view/ref revision. Initialize public/pg_catalog and supported fixed builtins through validation; unsupported objects/providers remain absent. No provider callback during final publication.
 
+Current inquiry ownership does not relocate this descriptor authority:
+`internal/engine/functions` owns immutable CatalogUserName/CatalogForeignKeys,
+ObjectAddress, NamespaceInquiry/CurrentSchemas, VisibilityInquiry, IndexProperty,
+CommentInquiry, Deparse and Identity nodes, their binders and node protocols.
+The attributed linkage inventory and provider-local source cursors live there;
+engine source admission/layout/scheduling remains here. Finite
+CatalogInquiryRuntime/SessionInquiryRuntime operations borrow captured
+roles/catalog/comments/paths through *EvalContext, with locks and authorization
+recapture at the engine owner. They expose typed values/IDs/result descriptors,
+not CatalogRead or engine structures. Actual address resolution, index-definition
+interpretation, lazy routine admission, deparse engines and serial ownership
+lookup remain engine-owned. No new catalog projection or permission policy is
+introduced; Item7 final verification is pending.
+
+
 ## 5. Staged DDL and deletion
 
 ```go
@@ -180,6 +195,19 @@ Session owns original SQL/parameters/initial result contract and replaceable bin
 Foreign plan/ref ownership is an error, not a reanalysis/adoption trigger. Local epoch invalidation may trigger source reanalysis, which mints a complete current owner-bound binding through the shared resolver.
 
 State: Unbound → Valid → NeedsReanalysis → Valid or RebindError; Close prevents reuse. Analyze unchanged original text with one current coherent view/context. Install only a complete successful binding; failure never executes stale pointers or mutates the public contract. Later use can reanalyze again, not automatically retry a statement. Public database/sql and SQL PREPARE retain parameter count/types and fixed result count/labels/type identity/typmod/collation when supported: incompatible shape gives **0A000**, `cached plan must not change result type`. Do not re-infer fixed parameters/NumInput. Direct statements analyze fresh; returned cursor metadata stays immutable. Prepared validity is ephemeral, never pg_depend and never a DROP RESTRICT blocker. Stored views follow identity; reanalyzed prepared text may fail or bind a new shadow.
+
+Inquiry nodes never retain a live Session/StatementScope or cache executable
+authority. A new execution borrows fresh captured identity/path/catalog authority;
+held prepared invalidation and native replacement fences remain engine policy.
+Current-schema execution caches, schemaInquiryPathLocked, pending TEMP
+staging/publication and FK/rule/view expression-authority overrides stay at their
+existing owners. Node-local capture/render/replay/retag recipes preserve stored
+literal pairing, logical identities and snapshot-demand manifests; deparse's
+stored catalog demand remains unconditional despite bare-NULL analysis demand
+suppression. Keyword identity retains parser.IdentityExpr/CaptureIdentity,
+distinct from ordinary function lookup/capture. This ownership cutover does not
+alter the prepared/public metadata contract above.
+
 
 ## 7. Publication and native replacement
 

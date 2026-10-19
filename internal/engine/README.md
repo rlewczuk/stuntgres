@@ -44,18 +44,77 @@ hook is exposed. Existing public reference scenarios are unchanged. Complete
 8a proof requirements and evidence status live in
 [the split prompt](../../docs/ENGINE-SPLIT-settings.md#status).
 
+### Catalog inquiry and session identity
+
+`functions` owns the ten immutable inquiry/identity nodes, their binders,
+registry definitions and node-owned protocols, including all seven visibility
+kinds and twelve deparse signatures. Keyword identity keeps its distinct parser
+route. `catalog_inquiry_runtime.go` and `session_inquiry_runtime.go` implement
+the narrow functions capabilities on `*EvalContext`, not forwarding engine nodes.
+The leaf imports no engine/catalog/storage/lock/visibility state packages.
+
+Engine retains SQL-callable precedence, analyzer/coercion authority, statement
+catalog/role/comment/visibility snapshots, locks and authorization recapture,
+schemaInquiryPathLocked and pending-TEMP staging/publication, schema execution
+caches and FK/rule/view expression authority. It also owns address lookup,
+catalog index interpretation, post-NULL successful-only lazy routine admission,
+deparse/tree engines and serial ownership lookup. Sequence execution and
+pg_extension_update_paths are not part of the move.
+
+Generic visitors consume node-owned capture, source, demand, cost, grouping,
+volatility and rendering hooks; installed/catalog wrappers still win. Stored
+literal pairing, logical identities/remapping, prepared invalidation, snapshot
+manifests and native catalog-replacement fences stay here. Pure node units moved
+to functions; real binder/captured-authority/stored/serial integrations did not.
+
+```sh
+make check RUN='^TestCatalogRelations(Binding|Consumers|Capture)$'
+make check RUN='^TestNamespaceIdentity(TypedBinding|StagedAuthorityAndFinishVeto|NoPendingFastPath)$'
+make check RUN='^TestCatalogInquiryRetainedVolatility$'
+make check RUN='^TestVisibilityInquiryStoredNullManifest$'
+make check RUN='^TestObjectAddress(RoutineOriginalAuthority|SourceNullOriginalGraph|ScalarNullPreflightInfo|SourceFalseDemand|StoredRecipes)$'
+make check RUN='^TestSerialSequence(Ownership|NameInput|Expression)$'
+make check RUN='^TestReferenceObjectAddress(Signatures|RoundTrips|Nulls|Metadata|StrictEvaluation|StoredBoundaries)$'
+make check RUN='^TestReferenceObjectAddress(Signatures|RoundTrips|Nulls|Metadata|StrictEvaluation|StoredBoundaries)$' REFERENCE=1
+make check RUN='^TestReferenceObjectAddress(StoredDemand|StrictConstantNull|StrictConstantNullFrom|TypeArgumentOrder|DiagnosticParameterMatrix)$'
+make check RUN='^TestReferenceObjectAddress(StoredDemand|StrictConstantNull|StrictConstantNullFrom|TypeArgumentOrder|DiagnosticParameterMatrix)$' REFERENCE=1
+make check RUN='^Test(CatalogRelations(Capture|Cursor)|ReferenceCatalogRelations(Held|Lifecycle))$' RACE=1
+make check RUN='^TestReferenceNamespaceIdentity(FeatureSmoke|PendingTemp|Ownership|Retirement)$' RACE=1
+```
+
+Use external 900-second deadlines. Complete public selectors remain in the owning
+reference READMEs; each affected selection needs native and real pinned
+PostgreSQL18.6 UTF8/C proof. After the concurrent split rebase and visibility
+manifest remedy, production build, all 70 bounded public native/real commands,
+focused lifecycle races, dependencies/import-layer checks and actual public
+direct/SAME-held role/path/native replay smoke passed (940 dump bytes).
+Full quickcheck passed in 128s and unchanged GOMAXPROCS=8 racecheck in 490s.
+An earlier default-CPU race run hit two 30-second fixture deadlines under
+contention; it remains failed evidence, not a skipped or weakened test.
+Latest default-CPU startup samples were 0.844–1.314ms, with one of five above
+the <1ms target and 5152 steady allocations (first sample 5161). The original
+5152-allocation baseline's five 1.008–1.704ms samples all missed that target;
+shared-machine timings do not establish a speedup.
+The wrapped-NULL stored-manifest unit failed before the narrow replay remedy
+and passed afterward with identical argv. It preserves unconditional demand for
+a retained visibility node, bare-NULL folding, binary-conversion NULL suppression
+and sibling demand in both orders, including persisted-manifest validation.
+Review, integration and post-integration finalcheck are separate lifecycle gates,
+recorded in the catalog part's reports; no neighboring waiver applies.
+
 ### Closed function-source protocol
 
 `string_set_query.go` owns invocation scheduling, zip/lateral demand, layout,
 ordinality and cleanup, not provider dispatch. `SourceAdmission` separates
 closed FROM eligibility from target-set cardinality; OUT names do not control
 record expansion. `openFunctionSource` requires explicit admission and opening.
-Catalog/object-address/extension providers retain their original engine
-state/validation authority. Transaction inquiry nodes now live in `functions`;
-their `TransactionInquiryRuntime` adapter retains live scope, catalog fences,
-canonical visibility and lock-manager authority here. Unnest retains real intagg
-procedure, object-ref, owner-domain/epoch and revision checks in installed
-remap/retag, render, dependency and stored-admission routes.
+Catalog username/linkage/object-address nodes and provider-local source hooks
+live in `functions`; engine catalog/extension runtime operations retain their
+original state/validation authority. Transaction inquiry nodes also live in
+`functions`; their `TransactionInquiryRuntime` adapter retains live scope,
+catalog fences, canonical visibility and lock-manager authority here. Unnest
+retains real intagg procedure, object-ref, owner-domain/epoch and revision checks
+in installed remap/retag, render, dependency and stored-admission routes.
 
 Series/subscripts/unnest now expose immutable lexical children, substitution,
 grouping, volatility, no-fold/preflight and rendering hooks. Equivalent stage

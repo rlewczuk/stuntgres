@@ -65,17 +65,7 @@ func boundExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
 		walk(e.child)
 	case collationExpression:
 		walk(e.child)
-	case currentSchemasExpression:
-		walk(e.arg)
-	case objectAddressExpression:
-		args(e.args[:])
-	case namespaceInquiryExpression:
-		if e.arg != nil {
-			walk(e.arg)
-		}
 	case blockingInquiryExpression:
-		walk(e.arg)
-	case visibilityInquiryExpression:
 		walk(e.arg)
 	case arithmeticExpression:
 		walk(e.left)
@@ -116,17 +106,8 @@ func boundExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
 		// No argument children.
 	case installedFunctionExpression:
 		walk(e.Arg)
-	case indexPropertyExpression:
-		args(e.children())
-	case catalogUserNameExpression:
-		walk(e.arg)
-	case catalogForeignKeysExpression:
 	case extensionPathsExpression:
 		walk(e.arg)
-	case deparseExpression:
-		args(e.args)
-	case commentInquiryExpression:
-		args(e.args)
 	case advisoryExpression:
 		args(e.args)
 	case sequenceCallExpression:

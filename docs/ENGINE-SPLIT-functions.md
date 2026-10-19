@@ -249,9 +249,9 @@ Tier C has a refined plan.
 - [ ] Tier C refined (after steps 4, 5 and 7; plan in "Tier C refinement"
   below): [x] ACL SQL function nodes (`b3ce43139` seam, `574de18f1` port,
   `436322070` move, `75d906ea8` protocol hooks, then the docs commit)
-  [ ] catalog inquiry (with session identity) [x] transaction identity and
-  commit timestamps [ ] advisory locks (with blocking inquiry) [ ] sequence
-  calls
+  [x] catalog inquiry (with session identity; verified ownership cutover,
+  record below) [x] transaction identity and commit timestamps
+  [ ] advisory locks (with blocking inquiry) [ ] sequence calls
 
 `Binder` methods added beyond the F3 set: `AnalyzeFilter` (F3, for the
 pilot's shared call envelope; FILTER analysis is used by 27 glue files, so it
@@ -1560,24 +1560,25 @@ Tier C refinement, measured on `5cc6fe6e5` with the ACL part done first:
   implements with a compile-time assertion. The interface takes values
   (OIDs, names, text), and the engine method keeps the lock, authorization
   recapture and error order of the old `Eval`. `expr.Context` does not grow
-  per family. Bind code uses `Binder`; registry entries keep the chain's
-  position (these branches sit before the shared gates).
-- **What stays in the engine** for every part: the capability implementation,
-  live authority, query scheduling/function scans, OUT layout and statement
-  input/output adapters such as aclitem and regrole resolvers/formatters.
-  Function sources, capture, nullability and closure now have shipped node
-  protocols; callers retain explicit engine-wrapper and lexical-boundary
-  precedence rather than concrete transaction inquiry cases.
+  per family. Bind code uses Binder; registry entries preserve each original
+  predicate and shared-gate position, not a blanket before-gates rule.
+- **What stays in the engine** for every part: capability implementations,
+  live authority, set-returning admission, function scan scheduling/layout,
+  actual descriptor consumers, raw/bound view literal pairing, closed-DEFAULT
+  admission and statement input/output adapters such as aclitem and regrole
+  resolvers/formatters. Node-local source opening/cursor, ResultNullability,
+  capture and closure hooks now exist and move with their owners; callers retain
+  explicit engine-wrapper and lexical-boundary precedence rather than concrete
+  transaction inquiry cases. The historical no-source-hook and
+  central-nullability-table claims are obsolete.
 - **Parts**, one session each, can run in parallel: they touch the same
   switch files, `function.go` and these docs, so rebase early.
   - ACL SQL function nodes: done (record below).
-  - Catalog inquiry: `catalogUserNameExpression`,
-    `catalogForeignKeysExpression`, `objectAddressExpression`,
-    `namespaceInquiryExpression`, `currentSchemasExpression`,
-    `visibilityInquiryExpression`, `indexPropertyExpression`,
-    `commentInquiryExpression` and `deparseExpression`. They read the
-    statement's catalog snapshot and search path: a catalog inquiry
-    capability.
+  - Catalog inquiry: all ten owners now live in functions as CatalogUserName,
+    CatalogForeignKeys, ObjectAddress, NamespaceInquiry, CurrentSchemas,
+    VisibilityInquiry, IndexProperty, CommentInquiry, Deparse and Identity.
+    CatalogInquiryRuntime/SessionInquiryRuntime borrow statement authority;
+    selected dual-mode, full quick/race and actual public replay proof passed.
   - Transaction identity and commit timestamps: private
     `transactionIdentityExpression` and `commitTimestampExpression` now live in
     `functions`, including age(xid), binders and source/protocol operations.
@@ -1591,10 +1592,57 @@ Tier C refinement, measured on `5cc6fe6e5` with the ACL part done first:
   - `blockingInquiryExpression` (`pg_blocking_pids` and friends) goes with
     the advisory part (decided at the later-wave refresh: it reads the lock
     manager's state, like advisory locks).
-  - `identityExpression` (`session_identity.go`: `current_user`,
-    `session_user`, `current_schema` and friends) was not listed; it reads
-    the statement identity snapshot and goes with the catalog inquiry part
-    (decided at the later-wave refresh).
+  - Session identity is included in catalog inquiry, with distinct keyword and
+    ordinary-call binding/capture. Its snapshots, path caches and expression
+    authority remain engine-owned.
+
+Item7 catalog/session ownership record:
+
+- All ten binders and immutable node operations are in the leaf, with existing
+  registry/shared-gate/SQL-callable precedence. Namespace alone OwnsSpelling;
+  keyword identity uses BindIdentity/CaptureIdentity. Binder.NoteCatalogSnapshot
+  separates analysis demand from execution NoteCatalogText; deparse known-child
+  BareFormalArgument honors PreserveProperties without cast-routine provenance.
+- Generic protocols replace selected concrete visitor branches. SnapshotDemander
+  preserves caller-specific demand and unconditional stored deparse manifests;
+  CallCoster keeps 10/100 policy; grouping-only IndexProperty/Deparse properties
+  merge STABLE and rewritten children without forced stage. Seven owners retain
+  analyzed volatility, while username/linkage/address merge physical children.
+  SELECT-only deparse/index nullability and current_schema-only identity claims
+  are unchanged.
+- Source companions and the single attributed 219-link inventory move with
+  username/linkage/address. Payloads are borrowed for equivalent substitution,
+  rebuilt for descriptor retag, with private cursors and typed NULL versus EOF.
+  Engine keeps scheduling, admission, layout, ordinality and catalog authority.
+- Runtime capabilities take typed values/IDs/descriptors, never engine structures.
+  Locks, authorization, role/catalog/comment/path snapshots, pending TEMP
+  staging/publication and FK/rule/view authority remain engine-owned, as do
+  address resolution, index interpretation, lazy comment-body admission, actual
+  deparse/tree engines and serial ownership lookup. All seven visibility kinds
+  (including three collation-management kinds) and twelve deparse signatures
+  (including pg_get_serial_sequence) are included. No sequence execution or
+  extension-update-path provider moves.
+- Pure inventory/cursor, AM-name, malformed-node, metadata and property units
+  move; actual analyzer/authority/stored/serial integrations remain engine-owned.
+  The obsolete object-address private sql helper callback-to-NULL assertion was
+  removed, not replaced with mock echo. Actual public StoredBoundaries/StoredDemand
+  and real scalar renderer/roundtrip tests retain behavior coverage.
+- Root observed production build, focused linkage/capture units and strengthened
+  public direct/SAME-held role/path, typed NULL/error recovery, full retained
+  serial metadata, six-field linkage and same/fresh-driver replay smoke passing.
+  All35 bounded public batches passed quick mode and pinned18.6 mode; focused
+  private/race selections, full quickcheck, module-only deps/import layering and
+  full GOMAXPROCS=8 racecheck passed. Default-CPU racecheck hit two30s fixture
+  deadlines under contention; the unchanged suite passed with bounded CPU/package
+  concurrency, without test/deadline/coverage changes. Earlier compile failures
+  and the failed race run remain in the part's verification evidence.
+  Five default-CPU after startup samples measured920030–1165897ns/op, with5152
+  steady allocations (first cold sample5161); three exceeded1ms. Baseline samples
+  were1008174–1703888ns/op with5152 steady allocations (first5160). Shared-machine
+  timings do not establish a speedup; no startup-allocation regression observed.
+  Independent review, integration and post-integration finalcheck are separate
+  lifecycle gates, not covered by neighboring waivers.
+
 
 Tier C ACL record, measured at its start on `5cc6fe6e5` and rebased onto
 `6f71c048e` (F2 session 4 and the access-names cleanup):
@@ -1712,27 +1760,27 @@ Notes for later steps (Tier C ACL):
 Later-wave refresh, measured at `75fe0d710` while planning steps 8–17
 (docs only; no code changed):
 
-The historical inventory below predates the result-nullability and transaction
-inquiry cutovers. `query_bind.go` and `returning.go` now ask node-owned hooks
-rather than enumerate the catalog/session/blocking inquiry kinds. Transaction
-identity/timestamp nodes have moved; their central concrete cases are removed.
+The inventory below is historical, before result-nullability/source protocols
+and Item7/Item8 ownership implementation. `query_bind.go` and `returning.go`
+consume node-owned hooks rather than enumerate catalog/session/blocking inquiry
+kinds. The ten catalog/session nodes and transaction identity/timestamp nodes,
+including their source hooks, now live in functions; their central concrete
+cases are removed. Only advisory/blocking and sequence owners remain engine-node
+moves in this historical inventory.
 
-- **Historical Tier C engine inventory** (before the transaction inquiry move;
-  current Item8 ownership is recorded below). These nodes were named by 12
+- **Historical central caller inventory** (not remaining Item7/Item8 concrete cases):
+  the same 12 central
   switch files: `aggregate_bind.go`, `conditional_plan.go`, `default.go`,
   `deparse_renderer.go`, `deparse_tree.go`, `expression.go`,
   `expression_retag.go`, `index_control.go`, `query_expression_walk.go`,
   `query_join_legality.go`, `view_literals.go`, `view_remap.go`. Extra
   files per part:
-  - catalog inquiry: `query_bind.go` and `returning.go` (nullability, for
-    `namespaceInquiryExpression`, `currentSchemasExpression`,
-    `indexPropertyExpression`, `deparseExpression`); `view_write.go`,
-    `datetime_overlaps_context.go`, `routine_inquiry.go`,
-    `serial_sequence.go` (`deparseExpression.evalSerialSequence`);
-    `expression_volatility.go`, `generated.go`, `scalar_function_sql.go`,
-    `string_set_query.go`, `string_table_bind.go` and `transaction_time.go`
-    for `catalogUserNameExpression`, `catalogForeignKeysExpression` and
-    `objectAddressExpression`;
+  - catalog inquiry callers now use protocols: view_write.go,
+    datetime_overlaps_context.go, routine_inquiry.go, serial_sequence.go,
+    expression_volatility.go, generated.go, scalar_function_sql.go,
+    string_set_query.go, string_table_bind.go and transaction_time.go.
+    Actual catalog/session runtime operations stay in engine; node recipes,
+    source hooks and site-specific nullability stay beside functions owners;
   - transaction identity and commit timestamps: superseded by Item8 below;
     these nodes use generic consumers and explicit source capabilities, not
     the historical concrete-switch inventory;
@@ -1741,13 +1789,12 @@ identity/timestamp nodes have moved; their central concrete cases are removed.
   - sequence calls: `default_replay.go`, `expression_volatility.go`,
     `insert_binding.go`, `serial.go`, `view_write_insert.go`,
     `pg_depend_expression.go`.
-- **What each `Eval` reads** (appendix tool; the capability each part needs):
-  `catalogUserNameExpression` reads `Engine.roles` and the scope's comment
-  catalog and roles; `namespaceInquiryExpression` and
-  `currentSchemasExpression` read `Engine.mu`, the session token and the
-  scope's search-path results and rule/FK authorities; `identityExpression`
-  reads the scope's identity snapshot and current-schema result;
-  transaction inquiry nodes now read `TransactionInquiryRuntime`; its engine
+- **State authority retained by runtime capabilities** (historical Eval reads):
+  username borrows captured roles/catalog; namespace/current_schemas borrow
+  physical session token, paths and rule/FK authority; Identity borrows statement
+  identity/current-schema authority. These are engine implementations of the
+  functions capabilities, not engine function nodes.
+  Transaction inquiry nodes now read `TransactionInquiryRuntime`; its engine
   adapter reads catalog/visibility under `Engine.mu`, or the manager with the
   actual live scope ticket outside that mutex. Timestamp/last reads snapshot
   canonical tracking/history together; `advisoryExpression` reads

@@ -27,6 +27,16 @@ type ResultNullability interface {
 	ResultNullability(ResultSite) (nullable, known bool)
 }
 
+// SnapshotDemander reports only a node's own immutable recipe demand. The
+// caller supplies its existing literal-NULL predicate; children retain their
+// independent demands. This hook never captures authority or evaluates inputs.
+type SnapshotDemander interface {
+	SnapshotDemand(literalNull func(Expr) bool) (analysisCatalog, executionCatalogText, visibility bool)
+}
+
+// CallCoster supplies an existing builtin procost distinction to inline policy.
+type CallCoster interface{ CallCost() int }
+
 // Intrinsic reports a node's own planned volatility, excluding its children.
 // Planning merges it with the children's planned volatility, so dependence that
 // analysis retained from eliminated CASE or COALESCE arms does not leak into
@@ -126,10 +136,18 @@ type GroupIdentity interface {
 	SameGroup(other Expr, same func(a, b Expr) bool, definition bool) bool
 }
 
+// GroupPropertyRewriter preserves a node's grouping-site property rule over
+// already rewritten children. It never runs during preflight or retagging.
+// Without this hook grouping retains its ordinary stage-dependent policy.
+type GroupPropertyRewriter interface {
+	GroupProperties(children []Expr) Properties
+}
+
 // GroupLeaf marks a childless call that grouping leaves unchanged when it
 // rewrites an expression above its keys: the SQL value functions, the
 // transaction clocks and version information. Grouping rebuilds every other
-// call over its rewritten children and marks it stage dependent.
+// call over its rewritten children, normally marking it stage dependent.
+// GroupPropertyRewriter preserves a node's distinct grouping-site rule.
 type GroupLeaf interface {
 	GroupLeaf()
 }

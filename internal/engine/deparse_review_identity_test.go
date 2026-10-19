@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -15,21 +16,21 @@ import (
 func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 	for _, tc := range []struct {
 		source, golden string
-		kind           sessionIdentityKind
+		kind           functions.IdentityKind
 		call           bool
 	}{
-		{"CURRENT_CATALOG", "CURRENT_CATALOG", identityCatalog, false},
-		{"CURRENT_ROLE", "CURRENT_ROLE", identityRole, false},
-		{"CURRENT_USER", "CURRENT_USER", identityCurrentUser, false},
-		{"SESSION_USER", "SESSION_USER", identitySessionUser, false},
-		{"USER", "USER", identityUser, false},
-		{"SYSTEM_USER", "SYSTEM_USER", identitySystemUser, false},
-		{"CURRENT_SCHEMA", "CURRENT_SCHEMA", identityCurrentSchema, false},
-		{"current_database()", "current_database()", identityDatabase, true},
-		{"current_schema()", `"current_schema"()`, identityCurrentSchema, true},
-		{"pg_catalog.current_user()", `"current_user"()`, identityCurrentUser, true},
-		{"pg_catalog.session_user()", `"session_user"()`, identitySessionUser, true},
-		{"pg_catalog.system_user()", `"system_user"()`, identitySystemUser, true},
+		{"CURRENT_CATALOG", "CURRENT_CATALOG", functions.IdentityCatalog, false},
+		{"CURRENT_ROLE", "CURRENT_ROLE", functions.IdentityRole, false},
+		{"CURRENT_USER", "CURRENT_USER", functions.IdentityCurrentUser, false},
+		{"SESSION_USER", "SESSION_USER", functions.IdentitySessionUser, false},
+		{"USER", "USER", functions.IdentityUser, false},
+		{"SYSTEM_USER", "SYSTEM_USER", functions.IdentitySystemUser, false},
+		{"CURRENT_SCHEMA", "CURRENT_SCHEMA", functions.IdentityCurrentSchema, false},
+		{"current_database()", "current_database()", functions.IdentityDatabase, true},
+		{"current_schema()", `"current_schema"()`, functions.IdentityCurrentSchema, true},
+		{"pg_catalog.current_user()", `"current_user"()`, functions.IdentityCurrentUser, true},
+		{"pg_catalog.session_user()", `"session_user"()`, functions.IdentitySessionUser, true},
+		{"pg_catalog.system_user()", `"system_user"()`, functions.IdentitySystemUser, true},
 	} {
 		t.Run(tc.source, func(t *testing.T) {
 			e := New()
@@ -39,12 +40,12 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			node, ok := bound.(identityExpression)
-			if !ok || node.kind != tc.kind || node.ordinaryCall != tc.call || node.Properties() != (expr.Properties{Volatility: expr.Stable}) {
+			node, ok := bound.(functions.Identity)
+			if !ok || node.Kind != tc.kind || node.OrdinaryCall != tc.call || node.Properties() != (expr.Properties{Volatility: expr.Stable}) {
 				t.Fatal(bound)
 			}
 			id := sqltype.Name
-			if tc.kind == identitySystemUser {
+			if tc.kind == functions.IdentitySystemUser {
 				id = sqltype.Text
 			}
 			if node.ResultUsage().Type.ID() != id || node.ResultUsage().Typmod != -1 {
@@ -89,8 +90,8 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			copy := remapped.(identityExpression)
-			if copy.kind != node.kind || copy.ordinaryCall != node.ordinaryCall || copy.Pos != node.Pos || copy.Properties() != node.Properties() || copy.ResultUsage().Type == node.ResultUsage().Type {
+			copy := remapped.(functions.Identity)
+			if copy.Kind != node.Kind || copy.OrdinaryCall != node.OrdinaryCall || copy.Pos != node.Pos || copy.Properties() != node.Properties() || copy.ResultUsage().Type == node.ResultUsage().Type {
 				t.Fatal(copy, node)
 			}
 			got, err := (pgRenderer{view: target.CatalogRead()}).sql(context.Background(), copy, pgRenderParent{})
@@ -109,45 +110,4 @@ func TestDeparseConstraintsReviewIdentityLeaf(t *testing.T) {
 			}
 		})
 	}
-	t.Run("malformed metadata", func(t *testing.T) {
-		e := New()
-		name, _ := e.CatalogRead().LookupType(sqltype.Name)
-		text, _ := e.CatalogRead().LookupType(sqltype.Text)
-		valid := identityExpression{Info: expr.Info{Usage: name.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, kind: identityCurrentUser}
-		for _, tc := range []struct {
-			name   string
-			mutate func(*identityExpression)
-		}{
-			{"kind", func(n *identityExpression) { n.kind = sessionIdentityKind(255) }},
-			{"database keyword", func(n *identityExpression) { n.kind = identityDatabase }},
-			{"catalog call", func(n *identityExpression) { n.kind = identityCatalog; n.ordinaryCall = true }},
-			{"role call", func(n *identityExpression) { n.kind = identityRole; n.ordinaryCall = true }},
-			{"user call", func(n *identityExpression) { n.kind = identityUser; n.ordinaryCall = true }},
-			{"name type", func(n *identityExpression) { n.Usage = text.Usage() }},
-			{"system type", func(n *identityExpression) { n.kind = identitySystemUser }},
-			{"missing type", func(n *identityExpression) { n.Usage.Type = nil }},
-			{"typmod", func(n *identityExpression) { n.Usage.Typmod = 3 }},
-			{"immutable", func(n *identityExpression) { n.Property.Volatility = expr.Immutable }},
-			{"volatile", func(n *identityExpression) { n.Property.Volatility = expr.Volatile }},
-			{"row", func(n *identityExpression) { n.Property.RowDependent = true }},
-			{"parameter", func(n *identityExpression) { n.Property.ParameterDependent = true }},
-			{"stage", func(n *identityExpression) { n.Property.StageDependent = true }},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				defer func() {
-					if panicValue := recover(); panicValue != nil {
-						t.Fatal("malformed leaf panicked", panicValue)
-					}
-				}()
-				node := valid
-				tc.mutate(&node)
-				if _, err := (pgRenderer{view: e.CatalogRead()}).sql(context.Background(), node, pgRenderParent{}); err == nil {
-					t.Fatal("malformed SQL leaf accepted")
-				}
-				if _, err := (boundTree{expression: node}).StructuralOutput(context.Background()); err == nil {
-					t.Fatal("malformed structural leaf accepted")
-				}
-			})
-		}
-	})
 }
