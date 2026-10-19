@@ -5,17 +5,14 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `3734198bb`.
+Last verified against `master` at `b9579b397`.
 
 ## Next ready sub-steps
 
-- **5g** — optional `catalog.Relation` regrouping (needs 5f ✓) *(needs
-  user approval)*.
 - **6b** — `storage` created and types moved (needs 6a ✓).
 - **B0** — `access` refined and approved, no code changes (needs 5e ✓).
 
-They may run in parallel on separate branches, except that 5g is a broad
-rewrite and must not run alongside another broad rewrite (§8).
+They may run in parallel on separate branches (§8).
 
 ## Task tree
 
@@ -112,7 +109,7 @@ rewrite and must not run alongside another broad rewrite (§8).
   - [x] 4c — Aliases removed (`78796c5df`, `27ae525e7`, `0462d4b61`, then
     the docs commit) *(racecheck skipped at user request; targeted RACE=1
     runs passed)*
-- [ ] **Step 5 — `catalog`** ([prompt](ENGINE-SPLIT-catalog.md); needs 1,
+- [x] **Step 5 — `catalog`** ([prompt](ENGINE-SPLIT-catalog.md); needs 1,
   2b)
   - [x] 5a — `catalogStore` state ownership (`41d5fbda9`, `9a0e50246`,
     then the docs commit) *(full racecheck skipped at user request; targeted
@@ -134,7 +131,10 @@ rewrite and must not run alongside another broad rewrite (§8).
   - [x] 5f — Aliases removed (`2772419e7`, `c4b8068fc`, `0b9103f6d`,
     `69fb93a49`, `353528e2d`, `78ec4daeb`, then the docs commit)
     *(racecheck skipped at user request)*
-  - [ ] 5g — Optional `catalog.Relation` regrouping *(needs user approval)*
+  - [x] 5g — `catalog.Relation` regrouped into value sub-records
+    (`43c6b86ec`, `47a4495b2`, `089bf7856`, `3ef61771b`, `90f6a9b52`, then
+    the docs commit) *(racecheck skipped at user request; targeted RACE=1
+    runs passed)*
 - [ ] **Step 6 — `storage`** ([prompt](ENGINE-SPLIT-storage.md); needs 5e)
   - [x] 6a — `storageStore` state ownership (`79c8a6f3a`, `d6bbc8a3e`,
     then the docs commit) *(racecheck skipped at user request; targeted
