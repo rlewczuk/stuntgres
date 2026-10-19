@@ -291,7 +291,8 @@ Notes for later steps:
   `aclPrivilegeLabels` and `aclDefaultMasks` serve only the ACL SQL function
   nodes and use raw `aclitem` bits. Move them with those nodes. `functions`
   cannot import `authorization`, so `aclDefaultMasks` keeps its own copy of the
-  default masks in `aclitem` layout.
+  default masks in `aclitem` layout. (Done in the step 3 Tier C ACL part:
+  they are in `functions/acl_items.go`.)
 - **Step 5:** `overlayDefaultACLs`, `cloneDefaultACLs` and the default-ACL
   record keys are catalog storage keyed by `ObjectAddress`.
 - **Dump/deparse owner:** `containsEmptyACL` walks `sqltype` values; it is not
@@ -359,7 +360,9 @@ Notes for later steps (B0):
   `access_inquiry.go` (`pg_has_role`, `has_*_privilege`,
   `row_security_active`), `acl_explode.go`, and the aclitem and regrole input
   and output adapters. `row_security_active` will call
-  `access.RowSecurityApplies`.
+  `access.RowSecurityApplies`. (Done in the step 3 Tier C ACL part, except
+  the aclitem and regrole input and output adapters, which are statement
+  presentation state and stay in the engine; see the functions prompt file.)
 - **`pgcatalog`:** `table_privileges.go`, `data_type_privileges.go`,
   `pg_roles.go` and `pg_parameter_acl.go`.
 - **`control`:** `principal_remap.go`, `extension_owners.go`,

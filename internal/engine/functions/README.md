@@ -6,7 +6,8 @@ algorithms and, family by family, the bind code and its registry entry. It is
 a leaf library: it imports [`expr`](../expr/README.md), `ids`, `sqltype`,
 `parser` and `sqlstate`, never the root engine or the engine's catalog,
 storage, lock or visibility state. It reaches the engine only through
-`Binder` at bind time and `expr.Context` at evaluation time. `expr` owns
+`Binder` at bind time and `expr.Context` at evaluation time, including the
+narrow capability interfaces recovered from it (below). `expr` owns
 `RoutineReference`, `RoutineRecipeReference`, `RandomOwner` and
 `IntrinsicPropertyRule`; this package uses them under their `expr` names.
 
@@ -213,6 +214,10 @@ annotation (which changes deparse and grouping identity, for example of
 assignment context to its formal, as the statement-level `current_setting`
 and `set_config` calls do (`BindSettingCall`). `JSONFormattedArgument`
 applies a planned explicit FORMAT JSON input conversion.
+`BareFormalArgument` applies a planned implicit conversion to an already
+finalized argument at the raw argument's position, without a cast routine
+identity: `pg_get_acl` and the access inquiries coerce their fixed formals
+that way, and reporting a cast routine would add stored dependencies.
 
 Engine state that bind code needs at a single point is passed as a value
 instead of a method: `age(xid)` receives the engine's transaction-identity
@@ -220,6 +225,24 @@ node builder.
 
 Prefer passing values to adding methods. A new method needs a reason here:
 either a genuine analyzer capability or a leak that a later step removes.
+
+## Evaluation capabilities
+
+`expr.Context` carries the runtime services every family may use. Tier C
+families, whose evaluation reads engine state owned by a subsystem, get a
+narrow capability interface here instead; a node recovers it from
+`expr.Context` by type assertion, and the engine's `*EvalContext` implements
+it with a compile-time assertion. `expr.Context` does not grow per family.
+
+- `ACLRuntime` (`acl_runtime.go`, the ACL SQL functions): `ACLAuthority`
+  (also `ACLAuthoritySource`, which the aclitem algorithms take) is the
+  executing statement's role-store ACL identity, nil without a live
+  statement scope. `ObjectACL` is `pg_get_acl`'s raw ACL read,
+  `RoleMembership` is `pg_has_role` (a nil actor is the expression's current
+  user) and `RowSecurityActive` is `row_security_active`. Each inquiry
+  borrows the statement's authorization, private catalog and role snapshot
+  under the engine mutex for one call (`internal/engine/acl_runtime.go`);
+  the node passes values (OIDs, names, privilege text) and caches nothing.
 
 ## Registry
 
@@ -281,6 +304,9 @@ Registered families:
 | Sleep | `datetime_sleep_bind.go` | `pg_sleep`, `pg_sleep_for`, `pg_sleep_until` | `ExactSpelling`, `SharedGates` |
 | Clocks | `transaction_time_bind.go` | `now`, `transaction_timestamp`, `statement_timestamp`, `clock_timestamp`, `timeofday` | none |
 | intagg | `intagg_bind.go` | `int_array_aggregate`, `int_array_enum` | none |
+| ACL values | `acl_value_bind.go` | `acldefault`, `makeaclitem`, `aclexplode` | none |
+| Object ACL | `object_acl_bind.go` | `pg_get_acl` | none |
+| Access inquiries | `access_inquiry_bind.go` | `pg_has_role`, `row_security_active` | none |
 
 `datetimeNames` covers extract/date_part, date_trunc, date_bin,
 timezone/date_add/date_subtract, justify_* and to_char/to_date/to_timestamp.
@@ -543,6 +569,21 @@ The SQL/JSON constructor's query form, RETURNING coercion and SQL rendering
 (`sqljson_expression.go`, `sqljson_query.go`, `sqljson_deparse.go`) stay in
 the engine; view literal capture names `SQLJSON`/`JSONPredicate` explicitly.
 
+The ACL SQL functions keep these engine parts: the `ACLRuntime`
+implementation; `aclexplode`'s set-returning admission and function scan,
+which open the node's `ACLExplodeCursor` (`string_set_query.go`,
+`string_table_bind.go`, `string_set_lower.go`); the `@>` selection in array
+membership, which calls `BindACLContains`; result nullability
+(`query_bind.go`, `returning.go`); raw/bound view literal pairing
+(`view_literals.go`); the closed-DEFAULT check (`aclexplode` is never
+closed); and the stored-default guard that rejects `pg_get_acl` and the
+access inquiries outside a relation-owned definition (`default.go`). The
+aclitem and regrole input and output adapters (`aclitem_input.go`,
+`aclitem_output.go`, `regrole_input.go`, `regrole_output.go`) are statement
+input and output state over the role store, not function nodes, and stay
+with the engine's presentation code; `containsEmptyACL` (`acl_empty.go`)
+serves Dump and deparse.
+
 Physical-session RNG, UUID clock/entropy and SQL time ownership stay in the
 engine: `random.go`, the `EvalContext` clock and sleep methods in
 `transaction_time.go`, and the closed DEFAULT admission of clock and sleep
@@ -570,6 +611,19 @@ engine's set-returning functions, and the array/range operators with operator
 binding.
 
 ## Family notes
+
+The ACL SQL functions (`acl_value.go`, `object_acl.go`, `access_inquiry.go`,
+`acl_items.go`) bind and evaluate here. `acl_items.go` holds the aclitem
+algorithms over raw bits: privilege names (`makeaclitem`), the `acldefault`
+masks (its own copy, since this package cannot import `authorization`),
+array validation, containment and the `aclexplode` cursor, all checking
+cancellation every 256 items. Every node renders schema-qualified or
+labelled as before (the `@>` operator through a template, so an explicit
+`OPERATOR(pg_catalog.@>)` survives display and replay), never folds during
+planning, only preflights its children, keeps its kind, notation, slots and
+labels in its grouping identity, and answers index key syntax; only
+`ACLValue` is a stored generation provider. `inquiry_call.go` holds the
+shared envelope of `pg_get_acl` and the access inquiries.
 
 `DaitchMokotoff` owns the complete PostgreSQL REL_18_0 phoneme chart, narrow
 UTF8/Latin1 scanner and correlated digit-prefix state machine. Codes retain
@@ -690,6 +744,17 @@ make check RUN='^Test(AggregateDefinitionsAreWellFormed|LookupAggregateClaimsReg
 make check RUN='^Test(Sum|Avg|Count|Extrema|AnyValue|Boolean|Bitwise|Statistical|StringAggregate|ArrayAggregate|RangeAggregate|JSONObject|SQLJSONObject|OrderedSet|Hypothetical|AggregateModifiers|QueryAggregate|QueryWindow|Setting)'
 make check RUN='^TestReference(CountExpression|NumericSum|NumericAvg|Extrema|AnyValue|BooleanAggregate|BitwiseAggregate|StatisticalAggregate|StringAgg|ArrayAgg|RangeAggregate|JSONArrayAggregate|JSONObjectAggregate|SQLJSON|OrderedSet|HypotheticalAggregate|AggregateModifiers|QueryAggregate|QueryWindow|GroupingSets|Settings)'
 make check REFERENCE=1 RUN='^TestReference(CountExpression|NumericSum|NumericAvg|Extrema|AnyValue|BooleanAggregate|BitwiseAggregate|StatisticalAggregate|StringAgg|ArrayAgg|RangeAggregate|JSONArrayAggregate|JSONObjectAggregate|SQLJSON|OrderedSet|HypotheticalAggregate|AggregateModifiers|QueryAggregate|QueryWindow|GroupingSets|Settings)'
+```
+
+ACL SQL functions (aclitem algorithms, node protocol and evaluation through
+a fake `ACLRuntime` here; the engine's `TestACLValue*`, `TestAccessInquiry*`
+and `TestObjectACL*` bind through the analyzer; reference tests in both
+modes):
+
+```sh
+make check RUN='^Test(ACLValues|ACLValue|ACLNodes|ObjectACL|AccessInquiry|PGParameterACL)'
+make check RUN='^TestReference(ACLValues|ACLItem|ObjectACL|AccessRole|ObjectGrant(AccessInquiry|ACLGetter|ACLValue|TypeRawACL)|ObjectAddressRoutineFacts)'
+make check REFERENCE=1 RUN='^TestReference(ACLValues|ACLItem|ObjectACL|AccessRole|ObjectGrant(AccessInquiry|ACLGetter|ACLValue|TypeRawACL)|ObjectAddressRoutineFacts)'
 ```
 
 Node protocol on function nodes:

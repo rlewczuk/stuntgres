@@ -5,14 +5,15 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `c1e0fcbe2`.
+Last verified against `master` at `6f71c048e`.
 
 ## Next ready sub-steps
 
-- **Step 3 Tier C refined** — catalog, ACL, xid, advisory-lock and
-  sequence inquiry functions (needs steps 4, 5 and 7 ✓). Refinement first:
-  narrow `functions` capabilities or homes in the owning subsystem; see the
-  functions prompt file.
+- **Step 3 Tier C parts** — catalog inquiry, transaction identity and
+  commit timestamps, advisory locks, sequence calls (needs steps 4, 5 and
+  7 ✓). One session per part, following the ACL part's capability pattern;
+  see "Tier C refinement" in the functions prompt file. Parts may run in
+  parallel but touch the same switch files; rebase early.
 - **F2 remainder** — view literal capture and function sources, the last
   engine switches that list function nodes, plus the `SQLJSON` rendering
   (broad rewrite; see the F2 session 4 notes in the functions prompt file).
@@ -117,6 +118,13 @@ files yet.
     `ff28e5996`, `a18766bcc`, `c4a15e187`, then the docs commit)
     *(racecheck skipped at user request)*
   - [ ] Tier C refined *(after steps 4, 5 and 7)*
+    - [x] ACL SQL function nodes (`b3ce43139`, `574de18f1`, `436322070`,
+      `75d906ea8`, then the docs commit) *(racecheck skipped at user
+      request)*
+    - [ ] catalog inquiry
+    - [ ] transaction identity and commit timestamps
+    - [ ] advisory locks
+    - [ ] sequence calls
 - [x] **Step 4 — `lock`** ([prompt](ENGINE-SPLIT-lock.md); needs 1)
   - [x] 4a — Cut 11, `EndReason`, mutex encapsulation, lock-order audit
     (`78265dd49`, `d4a96abb9`, `e9c2356cd`, docs `ad4693205`)
