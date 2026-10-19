@@ -253,11 +253,14 @@ run it in parallel with 6c or with another broad rewrite (§8).
 - [x] B1 — `roleStore` role state ownership (`e4174a713`, `e91c6d175`,
   then the commit that records this status) *(racecheck skipped at user
   request; targeted RACE=1 runs passed)*
-- [ ] B2 — `accessView` and `accessEnvironment`; checks ported in place
+- [x] B2 — `accessView` and `accessEnvironment`; checks ported in place
+  (`8e41e7091`, `a0fa8edec`, `7d5e526b8`, `809a3ed62`, then the commit that
+  records this status) *(racecheck skipped at user request; targeted RACE=1
+  runs passed)*
 - [ ] B3 — `access` created and code moved
 - [ ] B4 — Aliases removed
 
-Outstanding aliases: none (Part A and B1 added none).
+Outstanding aliases: none (Part A, B1 and B2 added none).
 
 A1 outcome. The re-measure (`go/types`, free declarations) found that most
 listed candidates are not authorization algorithms, and found others that are:
@@ -431,3 +434,101 @@ Notes for later steps (B1):
   the record, so B3 can turn it into an `access` function over
   `(*catalog.Owner, *authorization.Domain, catalog.Read, *RoleRecord)`;
   the store keeps a one-line method.
+
+B2 results:
+
+- **Seam.** `access_view.go` holds `accessView`: the catalog owner
+  (`*catalog.Owner`, new), `catalog`, `pairedCatalog`, `roleRecord`,
+  `roles`, `databasePredecessor`, `state`, `sessionRoleState`, `revision`
+  and `missingCurrent`. Its methods are `Effective`, `Check`, `CanUse`,
+  `CheckCreate` and `CheckColumns` (the core of `checkColumns`), each
+  taking an `accessEnvironment`, plus `Ref`, `Stamp`, `Roles` and
+  `Recapture` (renamed from `recaptureCatalog`, 128 calls). `object`
+  compares catalog owners instead of reaching the engine. `descriptorACL`,
+  `classPrivileges` and `validateACL` moved into the same file.
+  `accessEnvironment` has `TemporaryNamespace` and `ReferencePath`;
+  `AuthorizationView` implements both and embeds `accessView`, keeping
+  `engine`, `definition`, `settings`, the path inputs, `session` and
+  `materializedPopulation`. Its `Check`, `CanUse`, `CheckCreate`,
+  `Effective` and `checkColumns` are one-line entry points. `roleRead` is
+  the body of `roleStore.read` over an explicit principal domain; the store
+  method delegates with `&s.domain`.
+- **Selectors.** A go/types rewrite changed the view-reached engine
+  selectors: `X.engine.catalog.Domain.Ref(X.catalog.Epoch(), A)` to
+  `X.Ref(A)` (17), `X.engine.catalog.Domain` to `X.owner.Domain` (4),
+  `X.engine.catalog.owner()` to `X.owner` (3) and `X.engine.roles.domain`
+  to `X.owner.Principals` (2). The other 69 `AuthorizationView.engine` uses
+  are identity checks and pass-throughs (`capturedACLItemOutput`,
+  `resolve*`, `referencePath`) and stay on the wrapper.
+- **Ported.** `access_ownership.go`: `ownershipSuccessor` and `schemaOwner`
+  over `accessView`, `ownershipDatabaseCreate` and `ownershipEligibility`
+  over `(accessView, accessEnvironment, ...)`, and `ownershipRoleOperand`.
+  `access_rls.go`: `rlsDisposition`, `rowSecurityApplies`,
+  `rowSecurityDecision` and `rowSecurityGroups` over `authorization.Read`
+  (`rowSecurityDecision` tests the payloads for nil), `rowSecurityProposal`,
+  `rowSecurityExpressionError`, and `rowSecurityPrincipal` over the view
+  layers' `{owner, invoker}` pairs, which the engine collects in
+  `rowSecurityLayers`. The role dependency scans were already functions
+  over `(catalog.Read, authorization.Read)` and did not change.
+- **Deviations.** Item 5 is deferred at the user's request:
+  `typeDiagnosticNameAt` and `dependencyIdentifier` stay engine helpers, and
+  B3 copies them into `access`. The engine's `ownTemporaryNamespace` keeps
+  its `AuthorizationView` parameter, and the checks use their own
+  `ownsTemporaryNamespace(env, ns)`; taking the interface in the engine
+  helper would box the view on every search-path entry.
+- **Cost of the environment.** Passing `AuthorizationView` as the
+  environment boxes the view once per entry-point call (`v escapes to
+  heap`). The checks reuse that one value internally, so `CheckColumns`
+  pays once per relation. A throwaway driver benchmark as a column-granted
+  role measured 247 to 256 allocations (+3.6%) per SELECT and 114 to 117
+  per INSERT, with latency within noise. If that matters, a later step can
+  pass the environment lazily, so that only TEMP namespace and type-denial
+  paths box the view.
+- **Tests.** New seam tests in `access_view_test.go`:
+  `TestAccessViewRejectsForeignOwner`,
+  `TestAccessViewTemporaryNamespaceFromEnvironment` and
+  `TestAccessViewTypeDenialQualifiesByReferencePath`. Adapted: the
+  `AuthorizationView` literals in 10 test files (nested `accessView`, with
+  `owner` wherever `engine` is set), `TestDatabaseTemporaryCapturedRights`
+  (calls the core `ownTemporaryPrivileges`), `TestDataTypePrivilegesCapture`
+  (a foreign owner replaces the foreign-engine mutation) and the RLS tests
+  (pass the role read). `descriptorReferences` had no production callers
+  and moved to `authorization_fixtures_test.go`. None deleted.
+- **Verification.** `make build` and targeted `make check` selections
+  (authorization, roles, ownership, RLS, policies, schemas, foreign
+  objects, collations, conversions, operators, sequences, temporary
+  namespaces, default privileges, privilege projections, rules, views and
+  partitions) passed after each commit. `RACE=1` passed for the README
+  concurrency set, the seam tests and the role store tests. `quickcheck`
+  passed. The README reference set plus `TestReferenceAccessRole.*`,
+  `TestReferenceForeignActionsAuthorization.*`,
+  `TestReferenceSchemaAuthorization` and
+  `TestReferenceTypedTableAuthorization` passed in quick mode. With
+  `REFERENCE=1`, everything passed except
+  `TestReferenceSchemaAuthorization` (memory database name) and
+  `TestReferenceTypedTableAuthorization` (the pinned PostgreSQL rejects the
+  fixture with "permission denied for type pair"). Both fail identically on
+  `master` at `7df7894b8`, so they are PostgreSQL 18.6 oracle drift, not
+  B2. The full `racecheck` was skipped at the user's request. `make bench`:
+  1.75–1.93 ms/op and 7,768 allocations on `master`, 1.70–1.97 ms/op and
+  7,769 allocations after (the extra one is the boxed environment of one
+  check during Ping; the <1 ms target is already missed on `master`).
+  `make deps` lists only module paths.
+
+Notes for later steps (B2):
+
+- **B3:** copy `typeDiagnosticNameAt` and `dependencyIdentifier` (with
+  `quoteIdentifier`) into `access`, next to its own `sqlError`. The
+  checks also call `predefinedPrivileges` (`predefined_roles.go`), which
+  moves with them.
+- **B3:** the engine reads the `accessView` fields about 2,000 times
+  (`catalog` about 1,360, `state` about 330, `roles` about 240,
+  `roleRecord` about 55). Once `access.View` lives in another package,
+  those reads need exported fields or accessors, and `roleCatalog`'s
+  `root` and `revision` likewise. That is a broad rewrite: refine it at the
+  start of B3, and do not run it in parallel with another broad rewrite.
+- **B3:** the move set is the files `access_view.go`, `access_ownership.go`
+  and `access_rls.go`, plus `roleRead`, `roleCatalog` and the pure helpers
+  listed in *Target shape* that are still in other files (`databaseRights`,
+  `predefinedPrivileges`, `rawObjectACL`, `objectACLClass`, the role
+  dependency scans).

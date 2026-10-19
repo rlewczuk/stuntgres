@@ -76,9 +76,13 @@ SQL behavior and native limits are described in
 - **Catalog data:** ACL fields on descriptors, default-privilege records and
   their keys, and typed projections such as `pg_roles`, `pg_group` and
   `relacl`.
-- **Enforcement:** `AuthorizationView`, privilege and ownership checks on
-  catalog objects and RLS policy selection. Default-privilege resolution
-  lives in `catalog` (`CreationDefaultACL`).
+- **Enforcement:** `accessView` (`access_view.go`) is the captured pair with
+  the privilege checks; it reads the session's TEMP namespace and search path
+  only through the two-method `accessEnvironment`. The ownership checks
+  (`access_ownership.go`) and RLS policy selection (`access_rls.go`) work on
+  it or on the role read. `AuthorizationView` embeds it as statement-level
+  authority and is the environment. Default-privilege resolution lives in
+  `catalog` (`CreationDefaultACL`).
 - **Statements:** GRANT, REVOKE, ALTER DEFAULT PRIVILEGES, role DDL, SET ROLE
   and session startup.
 - **ACL SQL functions** (`aclexplode`, `acldefault`, `makeaclitem`, `aclitem`
@@ -107,7 +111,7 @@ timeout 900s make check RUN='^(TestAuthorizationDescriptorCandidateImmutability|
 Engine consumers:
 
 ```sh
-timeout 900s make check RUN='^(TestAuthorizationStampRetainsRolePublication|TestRoleOwnershipDatabaseImmutableRolePair|TestRoleOwnershipDatabaseRejectsMixedAuthorization|TestCollationBootstrapPrincipalNameReuse|TestRoleOwnershipInitialSourceCanonicalIdentity|TestRoleAttributesMembershipNonInheritanceAndAdminTraversal|TestRoleStoreReadRequiresOwnCatalogAndRoot|TestRoleStoreSetReferencesFailuresLeaveStateUnchanged)$'
+timeout 900s make check RUN='^(TestAuthorizationStampRetainsRolePublication|TestRoleOwnershipDatabaseImmutableRolePair|TestRoleOwnershipDatabaseRejectsMixedAuthorization|TestCollationBootstrapPrincipalNameReuse|TestRoleOwnershipInitialSourceCanonicalIdentity|TestRoleAttributesMembershipNonInheritanceAndAdminTraversal|TestRoleStoreReadRequiresOwnCatalogAndRoot|TestRoleStoreSetReferencesFailuresLeaveStateUnchanged|TestAccessView.*)$'
 timeout 900s make check RUN='^(TestPGGroupProjection|TestPGGroupRoleRoot|TestPGGroupCancellation|TestAccessInquiryRoleOIDs|TestDatabaseACLBaselineTransitions|TestPgClassACLTranslation)$'
 timeout 900s make check RACE=1 RUN='^(TestMembershipConcurrentCyclePublication|TestAuthorizationInitializationFencesDeletedPrincipal|TestRoleAttributesConnectionLimitRaces|TestRoleAttributesPasswordCancellationLifecycle)$'
 ```

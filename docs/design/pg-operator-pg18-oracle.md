@@ -565,7 +565,7 @@ these direct staged paths without public SQL or fabricated routine providers.
 
 Authorization views retain paired catalog and role provenance. Replacing the
 catalog for staged peer ownership checks or a post-publication unit fixture
-uses `recaptureCatalog`, not assignment to only the catalog field.
+uses `Recapture`, not assignment to only the catalog field.
 
 The shared catalog-row witness uses `OidReferenceRows` to validate native int64
 and PostgreSQL decimal-byte transport independently before comparing numeric

@@ -5,13 +5,13 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `af324f738`.
+Last verified against `master` at `7df7894b8`.
 
 ## Next ready sub-steps
 
 - **7a** — `visibilityRegistry` state ownership (needs 4 ✓ and 6 ✓).
-- **B2** — `accessView` and `accessEnvironment`; checks ported in place
-  (needs B1 ✓).
+- **B3** — `access` created and code moved (needs B2 ✓). Its field
+  accessor rewrite is broad; see the B2 notes in the prompt file.
 
 They may run in parallel on separate branches (§8).
 
@@ -162,7 +162,10 @@ They may run in parallel on separate branches (§8).
     - [x] B1 — `roleStore` role state ownership (`e4174a713`, `e91c6d175`,
       then the docs commit) *(racecheck skipped at user request; targeted
       RACE=1 runs passed)*
-    - [ ] B2 — `accessView` and `accessEnvironment`; checks ported in place
+    - [x] B2 — `accessView` and `accessEnvironment`; checks ported in place
+      (`8e41e7091`, `a0fa8edec`, `7d5e526b8`, `809a3ed62`, then the docs
+      commit) *(racecheck skipped at user request; targeted RACE=1 runs
+      passed)*
     - [ ] B3 — `access` created and code moved
     - [ ] B4 — Aliases removed *(broad rewrite)*
 - [ ] **Later waves** ([ENGINE-SPLIT.md §6](ENGINE-SPLIT.md#6-later-waves-sketch);
