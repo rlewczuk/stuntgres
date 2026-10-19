@@ -35,13 +35,9 @@ func TestReferenceRLSBaseFreshAuthority(t *testing.T) {
 		s.actor("")
 		s.exec("GRANT rls_owner TO rls_reader WITH INHERIT TRUE")
 		s.actor("rls_reader")
-		// Pinned PG18 retains this denied plan through this membership grant.
-		// Native independently consults current owner inheritance each Execute.
-		if s.backend.PG {
-			read("inherited_owner_membership_cached_pg", nil)
-		} else {
-			read("inherited_owner_membership_fresh_native", rlsBaseSeedRows())
-		}
+		// PostgreSQL 18.6 invalidates role-dependent plans after membership
+		// changes (CVE-2026-14666); both backends observe current inheritance.
+		read("inherited_owner_membership_fresh", rlsBaseSeedRows())
 		fixture.RunStep(s.t, s.p.Ctx, s.c, s.record, fixture.Select(held.SQL, []string{"id"}, []string{"INT4"}, rlsBaseSeedRows()))
 		fresh := predefinedHeld(s, held.SQL)
 		fixture.RunStep(s.t, s.p.Ctx, fresh, s.record, fixture.Select(fresh.SQL, []string{"id"}, []string{"INT4"}, rlsBaseSeedRows()))

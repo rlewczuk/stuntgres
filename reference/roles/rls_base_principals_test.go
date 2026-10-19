@@ -73,13 +73,9 @@ func TestReferenceRLSBaseFreshness(t *testing.T) {
 		s.actor("")
 		s.exec("ALTER ROLE rls_reader BYPASSRLS")
 		s.actor("rls_reader")
-		// Pinned PG18 keeps this already-planned denied statement after a
-		// direct role-attribute change; native intentionally checks fresh.
-		if s.backend.PG {
-			check("direct_bypass_attribute_cached_pg", nil)
-		} else {
-			check("direct_bypass_attribute_fresh_native", rlsBaseSeedRows())
-		}
+		// PostgreSQL 18.6 invalidates role-dependent plans after attribute
+		// changes (CVE-2026-14666); both backends observe direct BYPASSRLS.
+		check("direct_bypass_attribute_fresh", rlsBaseSeedRows())
 		// Exercise an actually unprepared read and a distinct new handle,
 		// independently of this scenario's direct/prepared route.
 		fixture.RunStep(s.t, s.p.Ctx, s.c, s.record, fixture.Select("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, rlsBaseSeedRows()))

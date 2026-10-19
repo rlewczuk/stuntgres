@@ -20,11 +20,12 @@ type sessionSettings struct {
 	session          *Session
 	defaults, values map[string]string
 	// typed contains only overrides; captured defaults never require reparsing.
-	typed, defaultTyped map[string]settingValue
-	placeholders        map[string]bool
-	ended               bool
-	actions             map[string]settingAction
-	roleAction          roleSettingAction
+	typed, defaultTyped        map[string]settingValue
+	placeholders               map[string]bool
+	ended                      bool
+	rowSecurityProviderDefault bool // Immutable native startup-default provenance.
+	actions                    map[string]settingAction
+	roleAction                 roleSettingAction
 	// Read-only projections of the transaction owner, published owner-first
 	// under this mutex. These are never session overrides or journal actions.
 	currentIsolation  string
@@ -199,6 +200,9 @@ func (s *sessionSettings) initialize(ctx context.Context, definitions map[string
 				return err
 			}
 			if present {
+				if name == "row_security" {
+					s.rowSecurityProviderDefault = true
+				}
 				v, err = d.parse(input)
 				if err != nil {
 					return err

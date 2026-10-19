@@ -51,6 +51,47 @@ cannot mutate; privileged custom definitions and logging statistics remain
 deny-only. Monitoring-role membership does not grant protected locale/logging
 mutation authority, statistics providers or data-directory metadata.
 
+## Row security and pg_settings
+
+`row_security` is a session/user-settable Boolean, boot default `on`, description
+`Enables row security.`. Ordinary users may set either value; invalid Boolean
+input raises 22023. Each admitted statement captures the effective value once.
+Fresh Prepare and held execution check current applicability: `off` raises
+42501 when policies would affect the query, including default deny and empty
+inputs. It is an error guard, not a policy bypass. Direct superuser/BYPASSRLS
+and non-FORCE owners still bypass; inherited ownership participates, but
+BYPASSRLS attributes are not inherited. Views retain their existing definer/
+invoker principal chain. `row_security_active` remains setting-independent.
+`on` preserves native default-deny and the explicit unsupported
+policy-expression enforcement error; no evaluator or physical PostgreSQL
+planner/storage mechanism is implied.
+
+Auto-updatable view mutations check the physical target while retaining the
+logical view's definer/invoker authority. Rule actions use their event owner's
+authority; all applicable off guards precede executor table ACLs. Nonempty
+rule replacements retain the caller's original relation checks even when
+the original write is suppressed. Unconditional INSTEAD NOTHING leaves no
+executable command, so no original off guard or executor ACL check runs.
+These setting checks do not define rule-change invalidation for cached plans.
+
+The read-only typed `pg_catalog.pg_settings` virtual view currently publishes
+**only row_security**, with all 17 PostgreSQL columns. It does not fabricate
+metadata for other settings or implement UPDATE rules/pg_show_all_settings.
+SHOW ALL still exposes the entire native registry. The row reports canonical
+on/off, context `user`, vartype `bool`, category
+`Client Connection Defaults / Statement Behavior`, boot_val `on`, and the
+physical session's captured default as reset_val. Unit/bounds/enumvals and
+sourcefile/sourceline are NULL; pending_restart is false.
+
+Source reflects provenance, not equality to boot text: absent SQL override is
+`default`; any SQL override is `session`, even explicit SET on. A default
+supplied by native SessionDefaultProvider maps to `client` until overridden;
+RESET/DEFAULT restores that captured default and source without another
+callback. This is an explicit native startup-API provenance mapping, not a
+PostgreSQL Go callback or configuration-file claim. Existing transaction and
+savepoint journals restore override presence and therefore source. Captured
+rows are immutable; prepared handles never cache GUC or principal authority.
+
 ## Parameter ACLs
 
 `GRANT SET` / `GRANT ALTER SYSTEM ON PARAMETER` uses genuine sparse class-6243

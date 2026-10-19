@@ -59,17 +59,27 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 		e.mu.Unlock()
 		return Result{}, sqlError("25006", "cannot execute "+tag+" in a read-only transaction")
 	}
-	// Original caller checks precede the extra rule-owner authority checks.
-	if err := auth.checkBinding(b, stmt); err != nil {
-		e.mu.Unlock()
-		return Result{}, err
-	}
 	for i := range program.commands {
 		command := &program.commands[i]
 		if err := e.normalizeRuleCTEsLocked(scope, command.auth, command.syntax, &command.binding); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
+	}
+	if err := checkRowSecurityRuleProgram(scope, auth, b, program); err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
+	// Empty suppression has no executor. Nonempty actions retain caller ACL
+	// obligations, after every original/action row-security rewrite guard.
+	if len(program.commands) != 0 {
+		if err := auth.checkBinding(b, stmt); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+	}
+	for i := range program.commands {
+		command := &program.commands[i]
 		if err := command.auth.checkBinding(command.binding, command.syntax); err != nil {
 			e.mu.Unlock()
 			return Result{}, err

@@ -380,6 +380,9 @@ func (e *Engine) initializeCatalogSources() error {
 	if err := e.initializeTablePrivileges(); err != nil {
 		return err
 	}
+	if err := e.initializePGSettings(); err != nil {
+		return err
+	}
 	return e.initializeDataTypePrivileges()
 }
 

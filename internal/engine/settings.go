@@ -85,6 +85,7 @@ var applicationName = SettingDefinition{
 }
 var builtinSettings = []SettingDefinition{
 	applicationName,
+	{Name: "row_security", Type: SettingBoolean, BootDefault: "on", Description: "Enables row security."},
 	{Name: "track_commit_timestamp", Type: SettingBoolean, Access: settingStartupOnly, BootDefault: "off", Description: "Collects transaction commit time."},
 	{Name: "default_transaction_isolation", Type: SettingEnum, BootDefault: "read committed", EnumValues: []string{"read committed", "read uncommitted", "repeatable read", "serializable"}, Description: "Sets the transaction isolation level of each new transaction."},
 	{Name: "transaction_isolation", Type: SettingEnum, BootDefault: "read committed", EnumValues: []string{"read committed", "read uncommitted", "repeatable read", "serializable"}, Description: "Sets the current transaction's isolation level."},

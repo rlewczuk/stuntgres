@@ -130,6 +130,14 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 			e.mu.Unlock()
 			return nil, err
 		}
+		if err := checkRowSecurityBinding(scope, caller, *rewrite.definition.mutation); err != nil {
+			e.mu.Unlock()
+			return nil, err
+		}
+	}
+	for _, rewrite := range b.ruleCTEs {
+		caller := fresh
+		caller.State.CurrentUser = rewrite.caller.State.CurrentUser
 		if err := caller.checkBinding(*rewrite.definition.mutation, rewrite.definition.statement); err != nil {
 			e.mu.Unlock()
 			return nil, err

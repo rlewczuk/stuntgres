@@ -835,9 +835,15 @@ SELECT permission do not change its answer or trigger unsupported enforcement.
 TEXT uses execution-time relation-name parsing/search path and schema access;
 numeric-looking text remains a name. Missing TEXT names error; missing OIDs
 and disabled non-table/catalog relations return false. NULL returns BOOL NULL.
-Native has no `row_security` setting; PostgreSQL's off-setting does not alter
-this metadata inquiry. Stored recipes reevaluate in the destination execution
-context; Dump serializes neither current answers nor cluster membership.
+The USERSET `row_security` Boolean defaults to on. Off rejects RLS-applicable
+queries with 42501 before table/column execution ACLs or policy selection;
+schema resolution remains earlier. It does not bypass policies or alter this
+metadata inquiry. Effective owners subject to FORCE receive the exact hint
+`To disable the policy for the table's owner, use ALTER TABLE NO FORCE ROW LEVEL SECURITY.`
+Stored recipes reevaluate in the destination execution context; Dump serializes
+neither current answers nor cluster membership. Statement capture, SESSION/LOCAL
+restoration and the bounded pg_settings provider are described in
+[settings](SETTINGS.md#row-security-and-pg_settings).
 
 
 Dump captures raw protected rows, persistent definitions and flags coherently;

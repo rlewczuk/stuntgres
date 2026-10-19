@@ -31,6 +31,10 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		return source, err
 	case catalog.CatalogRelation:
 		switch d.Address().ObjectID {
+		case pgSettingsOID:
+			settings := scope.op.session.settings
+			e.mu.Unlock()
+			return capturePGSettings(ctx, ref, d, settings)
 		case pgLocksOID:
 			return e.capturePGLocksLocked(ctx, ref, d)
 		case ids.ForeignWrapperClassID, ids.ForeignServerClassID, ids.ForeignMappingClassID, ids.ForeignTableClassID, pgUserMappingsOID:

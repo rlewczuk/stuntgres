@@ -282,6 +282,7 @@ type StatementScope struct {
 	owner          *transactionOwner
 	op             *Operation
 	ruleActionAuth *AuthorizationView
+	rowSecurity    bool // Immutable effective setting for this admitted statement.
 	authority      *queryAuthority
 	// Borrowed only during this statement's admission/execution. Admission
 	// refreshes this coherent snapshot serially before publishing parallel reads;
@@ -433,6 +434,10 @@ func newStatementScope(op *Operation, owner *transactionOwner, start time.Time) 
 	s.stage.scope = s
 	s.stage.self = &s.stage
 	s.input, s.output = sessionPresentation(op.session)
+	settings := op.session.settings
+	settings.mu.Lock()
+	s.rowSecurity = settings.value("row_security") == "on"
+	settings.mu.Unlock()
 	return s
 }
 

@@ -113,6 +113,9 @@ func (e *Engine) rowSecurityInputLocked(scope *StatementScope, d *catalog.Relati
 	if principal == (authorization.PrincipalRef{}) {
 		principal = auth.State.CurrentUser
 	}
+	if err := access.RowSecuritySettingGuard(scope.rowSecurity, auth.Roles, d, principal); err != nil {
+		return false, err
+	}
 	decision, err := access.RowSecurityGroups(auth.Roles, d, principal, command, false, selectRead)
 	if err != nil {
 		return false, err
@@ -170,6 +173,9 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, st
 	auth.Catalog = e.privateCatalogLocked(scope.owner.catalog)
 	auth.Recapture(auth.Catalog)
 	principal := access.RowSecurityPrincipal(auth.State.CurrentUser, rowSecurityLayers(auth.Catalog, b))
+	if err := access.RowSecuritySettingGuard(scope.rowSecurity, auth.Roles, b.relation, principal); err != nil {
+		return err
+	}
 	reads := b.returning != nil || len(b.usedColumns) != 0
 	if b.viewWrite != nil {
 		reads = reads || len(b.viewWrite.logical.usedColumns) != 0

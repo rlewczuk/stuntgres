@@ -141,6 +141,7 @@ func settingsSnapshotExpectedRows() [][]string {
 		{"log_statement_stats", "off", "Writes cumulative performance statistics to the server log."},
 		{"max_parallel_workers_per_gather", "2", "Sets the maximum number of parallel processes per executor node."},
 		{"quote_all_identifiers", "off", "When generating SQL fragments, quote all identifiers."},
+		{"row_security", "on", "Enables row security."},
 		{"search_path", `"$user", public`, "Sets the schema search order for names that are not schema-qualified."},
 		{"server_encoding", "UTF8", "Shows the server (database) character set encoding."},
 		{"standard_conforming_strings", "on", "Causes '...' strings to treat backslashes literally."},

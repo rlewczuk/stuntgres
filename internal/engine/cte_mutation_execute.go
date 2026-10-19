@@ -60,6 +60,10 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 		e.mu.Unlock()
 		return Result{}, err
 	}
+	if err := checkRowSecurityBinding(scope, auth, b); err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
 	// Normalized rule auxiliaries select one preparation policy for the entire
 	// auxiliary/primary program, even when the primary has no rules of its own.
 	if len(b.ruleCTEs) != 0 {

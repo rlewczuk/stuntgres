@@ -321,6 +321,19 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, nil
 	case *parser.ExecuteSQL:
 		if entry := op.session.preparedSQL.entries[s.Name.Text]; entry != nil {
+			if !scope.rowSecurity && preparableBody(entry.body) {
+				// Reuse the named statement's analyzed identities without changing
+				// its session definition or executing its argument expressions.
+				expected, parameters := scope.Expected, scope.initialParameters
+				description := entry.description
+				scope.Expected = &description
+				scope.initialParameters = description.Parameters.Types
+				_, err := scope.Describe(entry.body)
+				scope.Expected, scope.initialParameters = expected, parameters
+				if err != nil {
+					return StatementDescription{}, err
+				}
+			}
 			return StatementDescription{Results: entry.description.Results}, nil
 		}
 		return StatementDescription{}, nil
@@ -409,6 +422,15 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		if _, err := e.expandRulesLocked(scope, auth, stmt, b, nil, &program); err != nil {
 			return StatementDescription{}, err
 		}
+		for i := range program.commands {
+			command := &program.commands[i]
+			if err := e.normalizeRuleCTEsLocked(scope, command.auth, command.syntax, &command.binding); err != nil {
+				return StatementDescription{}, err
+			}
+		}
+		if err := checkRowSecurityRuleProgram(scope, auth, b, program); err != nil {
+			return StatementDescription{}, err
+		}
 		b.dependencies = append(b.dependencies, program.events...)
 		for _, command := range program.commands {
 			if command.binding.relation != nil {
@@ -418,6 +440,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 			b.sequenceConstants = append(b.sequenceConstants, command.binding.sequenceConstants...)
 			b.regtypeConstants = append(b.regtypeConstants, command.binding.regtypeConstants...)
 		}
+	} else if err := checkRowSecurityBinding(scope, auth, b); err != nil {
+		return StatementDescription{}, err
 	}
 	var results []catalog.Column
 	if b.query != nil && !b.commandQuery {

@@ -134,7 +134,7 @@ func TestReferenceTimezoneBuiltinRegistryDescriptions(t *testing.T) {
 		for _, prepared := range []bool{false, true} {
 			query := "SHOW ALL"
 			if backend.Name == "postgres" {
-				query = "SELECT name,setting,short_desc FROM pg_settings WHERE name IN ('DateStyle','TimeZone','timezone_abbreviations','track_commit_timestamp','default_transaction_deferrable','transaction_deferrable','client_encoding','lc_messages','lc_monetary','lc_numeric','lc_time','icu_validation_level','extra_float_digits','transaction_timeout','idle_in_transaction_session_timeout','idle_session_timeout','quote_all_identifiers','max_parallel_workers_per_gather') ORDER BY name"
+				query = "SELECT name,setting,short_desc FROM pg_settings WHERE name IN ('DateStyle','TimeZone','timezone_abbreviations','track_commit_timestamp','default_transaction_deferrable','transaction_deferrable','client_encoding','lc_messages','lc_monetary','lc_numeric','lc_time','icu_validation_level','extra_float_digits','transaction_timeout','idle_in_transaction_session_timeout','idle_session_timeout','quote_all_identifiers','max_parallel_workers_per_gather','row_security') ORDER BY name"
 			}
 			var rows *sql.Rows
 			var err error
@@ -193,6 +193,7 @@ func TestReferenceTimezoneBuiltinRegistryDescriptions(t *testing.T) {
 			want["quote_all_identifiers"] = [2]string{"off", "When generating SQL fragments, quote all identifiers."}
 			want["max_parallel_workers_per_gather"] = [2]string{"2", "Sets the maximum number of parallel processes per executor node."}
 			want["track_commit_timestamp"] = [2]string{"off", "Collects transaction commit time."}
+			want["row_security"] = [2]string{"on", "Enables row security."}
 			expectedNames := map[string]bool{
 				"DateStyle": true, "IntervalStyle": true, "TimeZone": true, "application_name": true,
 				"bytea_output": true, "client_min_messages": true, "default_transaction_isolation": true,
@@ -207,6 +208,7 @@ func TestReferenceTimezoneBuiltinRegistryDescriptions(t *testing.T) {
 				"quote_all_identifiers":           true,
 				"max_parallel_workers_per_gather": true,
 				"track_commit_timestamp":          true,
+				"row_security":                    true,
 			}
 			count, last := 0, ""
 			for rows.Next() {
@@ -237,7 +239,7 @@ func TestReferenceTimezoneBuiltinRegistryDescriptions(t *testing.T) {
 				rows.Close()
 				t.Fatal("registry completeness", rows.Err(), want)
 			}
-			if !backend.PG && (count != 32 || len(expectedNames) != 0) {
+			if !backend.PG && (count != 33 || len(expectedNames) != 0) {
 				rows.Close()
 				t.Fatal("builtin cardinality/set", count, expectedNames)
 			}

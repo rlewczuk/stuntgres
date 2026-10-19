@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/sqlstate"
 )
 
 // RLSDisposition is the row-security outcome for one relation and command:
@@ -40,6 +41,28 @@ func RowSecurityApplies(roles authorization.Read, d *catalog.Relation, principal
 		}
 	}
 	return true, nil
+}
+
+// RowSecuritySettingGuard rejects queries whose logical result would depend on
+// RLS when the executing session disables policy application. It never bypasses
+// policies and deliberately leaves the metadata-only applicability API intact.
+func RowSecuritySettingGuard(enabled bool, roles authorization.Read, d *catalog.Relation, principal authorization.PrincipalRef) error {
+	if enabled {
+		return nil
+	}
+	applies, err := RowSecurityApplies(roles, d, principal)
+	if err != nil || !applies {
+		return err
+	}
+	owner, err := roles.InheritsRole(principal, d.Owner)
+	if err != nil {
+		return err
+	}
+	diagnostic := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: fmt.Sprintf(`query would be affected by row-level security policy for table "%s"`, d.Name())}
+	if owner {
+		diagnostic.Hint = "To disable the policy for the table's owner, use ALTER TABLE NO FORCE ROW LEVEL SECURITY."
+	}
+	return diagnostic
 }
 
 // RowSecurityDecision selects the permissive policies of d that apply to

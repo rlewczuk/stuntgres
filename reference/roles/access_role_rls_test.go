@@ -63,11 +63,9 @@ func TestReferenceAccessRoleRLSPolicies(t *testing.T) {
 			// No SELECT ACL, no rows scanned, no policy expression evaluation.
 			accessRoleBool(s, "SELECT row_security_active('ar_t') AS v", true)
 			predefinedFailure(s, "SELECT id FROM ar_t", fixture.Diagnostic{Code: "42501", Message: "permission denied for table ar_t"}, true, "execute")
-			if s.backend.PG {
-				s.exec("SET row_security=off")
-				accessRoleBool(s, "SELECT row_security_active('ar_t') AS v", true)
-				s.exec("SET row_security=on")
-			}
+			s.exec("SET row_security=off")
+			accessRoleBool(s, "SELECT row_security_active('ar_t') AS v", true)
+			s.exec("SET row_security=on")
 			s.actor("")
 			if policy != "" {
 				s.exec("DROP POLICY ar_policy ON ar_t")

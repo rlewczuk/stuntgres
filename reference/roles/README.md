@@ -15,7 +15,7 @@ inheritance, SET and ADMIN paths, policy-independent row-security eligibility,
 full diagnostics and held execution freshness. Shared SQL exercises direct and
 prepared routes. Controls include a native-only unchanged Dump/Restore phase;
 role/membership state is not exported. PostgreSQL-only supplements cover role
-rename and `row_security=off`; neither adds a native DDL/setting capability.
+rename; row_security=off inquiry independence now runs on both backends.
 
 `TestReferenceAccessRoleDecorations` checks full direct/prepared Query/Exec
 analysis diagnostics for scalar DISTINCT, call-local ORDER BY and FILTER,
@@ -48,6 +48,50 @@ Feature smoke requires MEMBER/USAGE/SET/ADMIN = true/false/false/true through
 independent NAME/OID axes, typed NULLs, owner/FORCE/superuser RLS decisions and
 same-held execution observing DISABLE. It neither executes policy expressions
 nor requires table SELECT permission.
+
+### Client row_security
+
+`TestReferenceRowSecurityValues`, `Effects`, `PrepareAndPrecedence`, `Metadata`,
+`Principals`, `Transactions`, `HeldHandles`, `ViewMutations`, `RuleActions`,
+`RuleOriginalOrdering`, `RuleCTEActions` and `FeatureSmoke` use the shared roles fixture with
+`prepared=false|true/memory|postgres` routing. Expectations
+independently cover canonical Boolean values, ordinary USERSET authority,
+default-deny on versus off/42501, FORCE owner hints, current held authority,
+dead/empty sources, exact pg_settings metadata/provenance and transactional
+restoration. The pg_settings inventory is intentionally row_security only;
+native applicable policy expressions with on retain the explicit 0A000 boundary.
+See [settings](../../docs/SETTINGS.md#row-security-and-pg_settings).
+
+Rewritten mutations distinguish physical RLS targets from logical view
+principals, and rule-action owners from original callers. The rule ordering
+witness keeps a separate genuine on-prepared handle for each installed shape:
+empty suppression, NEW-based replacement, constant-only replacement and ALSO.
+Only settings/ACLs change within a held phase; rule-plan invalidation is not
+part of this witness. `TestRowSecurityProviderLifecycle` separately exercises
+the internal startup-default, settings publication and journal seams, metadata
+provenance and statement guard projection; there is no public provider API or
+invented PostgreSQL provider control.
+
+Run selected proof in both modes with an external 900-second deadline:
+
+```sh
+make check RUN='^TestReferenceRowSecurity'
+make check REFERENCE=1 RUN='^TestReferenceRowSecurity'
+make check RACE=1 RUN='^TestReferenceRowSecurity(Transactions|HeldHandles|Metadata|ViewMutations|RuleActions|RuleOriginalOrdering|RuleCTEActions)$'
+make check RUN='^TestRowSecuritySetting(Guard|sCapture|Provenance)$|^TestRowSecurityProviderLifecycle$'
+```
+
+Actual feature smoke:
+
+```sh
+make check RUN='^TestReferenceRowSecurityFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceRowSecurityFeatureSmoke$'
+```
+
+Assertions observe on/empty, off/42501 on the same held handle, exact metadata,
+owner bypass versus FORCE hint, savepoint-restored effect, unaffected peer and
+unchanged seeded rows. These commands describe required proof, not a passing
+verification claim.
 
 ### Non-table object grants
 

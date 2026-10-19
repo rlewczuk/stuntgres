@@ -608,13 +608,30 @@ inquiry semantics even for absent role identities without granting authority.
 `row_security_active(text|oid)` returns BOOL from current metadata and expression
 identity: enabled RLS applies unless the effective user has direct superuser /
 BYPASSRLS or inherited owner authority without FORCE. Policies and table SELECT
-permission are not consulted. This does not add policy-expression enforcement
-or a native `row_security` setting. Both functions are strict, STABLE, typed
+permission are not consulted. The native `row_security` setting defaults to on;
+off rejects affected queries rather than bypassing RLS, and never changes this
+inquiry's answer. Both functions are strict, STABLE, typed
 expressions; held calls re-evaluate live metadata, and stored views retain real
 recipes through native Dump/Restore without serializing role or inquiry state.
 See [inquiry contracts and selected proof](reference/roles/README.md#role-membership-and-row-security-inquiries).
 Feature smoke: `make check RUN='^TestReferenceAccessRoleFeatureSmoke$'`
 and the same command with `REFERENCE=1`.
+
+### Client row_security setting — change note
+
+Ordinary users can SET `row_security` on or off. Off raises `42501` when RLS
+applies, including empty/dead inputs and fresh Prepare; held handles use the
+current statement setting. Owners bypass unless FORCE applies, while direct
+superuser/BYPASSRLS bypass even FORCE. Forced owners receive PostgreSQL's
+NO FORCE hint. On preserves default-deny and the explicit native `0A000`
+policy-expression enforcement boundary, not an invented expression evaluator.
+SESSION/LOCAL, rollback and savepoints use the existing settings journal.
+The typed `pg_catalog.pg_settings` provider currently exposes only the
+`row_security` row; SHOW ALL continues listing every supported setting.
+See [settings and provenance](docs/SETTINGS.md#row-security-and-pg_settings).
+Feature smoke: `make check RUN='^TestReferenceRowSecurityFeatureSmoke$'`
+and the same command with `REFERENCE=1`.
+
 
 ## Blocking session information — change note
 

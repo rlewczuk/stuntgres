@@ -144,6 +144,14 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 			e.mu.Unlock()
 			return nil, err
 		}
+		commands[i].auth = current
+		if err := checkRowSecurityBinding(scope, current, commands[i].binding); err != nil {
+			e.mu.Unlock()
+			return nil, err
+		}
+	}
+	for i := range commands {
+		current := commands[i].auth
 		if err := current.checkBinding(commands[i].binding, commands[i].syntax); err != nil {
 			e.mu.Unlock()
 			return nil, err
