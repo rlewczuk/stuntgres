@@ -52,7 +52,7 @@ func TestParseScratchRetainedASTAndType(t *testing.T) {
 func TestParseScratchOptionsReentryAndCancellation(t *testing.T) {
 	for _, standard := range []bool{false, true, false} {
 		var inner []Statement
-		outer, err := ParseWithOptions("-- outer\nINSERT INTO t VALUES('a\\nb',E'c\\n')", Options{StandardConformingStrings: standard, LineComment: func(comment string) error {
+		outer, err := ParseWithOptions("-- outer\nINSERT INTO t VALUES('a\\nb',E'c\\n')", Options{StandardConformingStrings: standard, LineComment: func(comment string, _ Position) error {
 			if !strings.Contains(comment, "outer") {
 				return fmt.Errorf("wrong callback input: %q", comment)
 			}
@@ -76,13 +76,13 @@ func TestParseScratchOptionsReentryAndCancellation(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	statements, err := ParseWithOptions("-- cancel during lexing\nSELECT 1", Options{Context: ctx, StandardConformingStrings: true, LineComment: func(string) error { cancel(); return nil }})
+	statements, err := ParseWithOptions("-- cancel during lexing\nSELECT 1", Options{Context: ctx, StandardConformingStrings: true, LineComment: func(string, Position) error { cancel(); return nil }})
 	var diagnostic *sqlstate.Error
 	if statements != nil || !errors.Is(err, context.Canceled) || errors.As(err, &diagnostic) {
 		t.Fatal(statements, err)
 	}
 	failure := errors.New("private import rejected")
-	statements, err = ParseWithOptions("-- private import\nSELECT 1", Options{LineComment: func(string) error { return failure }})
+	statements, err = ParseWithOptions("-- private import\nSELECT 1", Options{LineComment: func(string, Position) error { return failure }})
 	if statements != nil || !errors.Is(err, failure) {
 		t.Fatal(statements, err)
 	}
@@ -109,7 +109,7 @@ func TestParseScratchTypeErrorsAndCallbackPanic(t *testing.T) {
 				t.Fatalf("callback panic changed: %v", got)
 			}
 		}()
-		_, _ = ParseWithOptions("-- panic\nSELECT 1", Options{LineComment: func(string) error { panic(failure) }})
+		_, _ = ParseWithOptions("-- panic\nSELECT 1", Options{LineComment: func(string, Position) error { panic(failure) }})
 		t.Fatal("callback panic was suppressed")
 	}()
 	fresh, err := ParseTypeName(context.Background(), "integer", nil)
@@ -174,7 +174,7 @@ CREATE TYPE pair AS (x numeric(8,3),y varchar(11));
 ALTER TABLE owned ADD COLUMN IF NOT EXISTS c numeric(10,4) DEFAULT 5 NOT NULL, ADD d varchar(13), ALTER COLUMN a TYPE numeric(12,5), DROP CONSTRAINT IF EXISTS old_key;
 CREATE TABLE copied AS SELECT count(*) OVER -- nested parse while the outer stack owns an aggregate
 (ORDER BY a RANGE BETWEEN 3 PRECEDING AND 4 FOLLOWING),count(*) OVER w FROM owned WINDOW w AS (ORDER BY b RANGE BETWEEN 5 PRECEDING AND CURRENT ROW) WITH NO DATA`
-	statements, err := ParseWithOptions(query, Options{StandardConformingStrings: true, LineComment: func(string) error {
+	statements, err := ParseWithOptions(query, Options{StandardConformingStrings: true, LineComment: func(string, Position) error {
 		_, err := Parse("CREATE TEMP TABLE noise(n numeric(99,9)) ON COMMIT DROP; CREATE TYPE noise_pair AS (x varchar(1)); ALTER TABLE noise ADD z numeric(2,1)")
 		return err
 	}})
@@ -249,7 +249,7 @@ func TestParseScratchRetainedCollationSource(t *testing.T) {
 CREATE COLLATION next_copy (FROM=pg_catalog."POSIX")`
 	const nestedQuery = `CREATE COLLATION nested_copy FROM pg_catalog."POSIX"`
 	var nested []Statement
-	statements, err := ParseWithOptions(query, Options{StandardConformingStrings: true, LineComment: func(string) error {
+	statements, err := ParseWithOptions(query, Options{StandardConformingStrings: false, LineComment: func(string, Position) error {
 		var err error
 		nested, err = ParseWithOptions(nestedQuery, Options{StandardConformingStrings: false})
 		return err

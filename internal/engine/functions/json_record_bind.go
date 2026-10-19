@@ -114,8 +114,8 @@ func bindJSONRecord(b Binder, raw parser.FunctionExpr, visible bool) (expr.Expr,
 		}
 		properties.StageDependent = true
 	}
-	properties.DomainDependent = properties.DomainDependent || sqltype.ContainsDomainChecks(usage.Type)
-	properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || sqltype.ContainsDomainChecks(usage.Type)
+	properties.DomainDependent = properties.DomainDependent || sqltype.ContainsDomainConstraints(usage.Type)
+	properties.RuntimeDomainConversion = properties.RuntimeDomainConversion || sqltype.ContainsDomainConstraints(usage.Type)
 	info := b.Info(usage, raw.Pos, properties)
 	record, err := NewJSONRecord(info, name, baseIndex, args)
 	if err != nil {

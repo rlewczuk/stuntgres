@@ -24,7 +24,8 @@ type Options struct {
 	Context                   context.Context
 	Notice                    func(sqlstate.Error)
 	// LineComment is a trusted import hook; ordinary SQL leaves it nil.
-	LineComment func(string) error
+	// Position identifies the first byte/character after the -- opener.
+	LineComment func(string, Position) error
 }
 
 func ParseWithOptions(query string, options Options) ([]Statement, error) {

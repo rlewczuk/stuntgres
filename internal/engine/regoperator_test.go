@@ -47,7 +47,7 @@ func TestRegOperatorInventory(t *testing.T) {
 		if err := (operatorProvider{}).Validate(view, d); err != nil {
 			t.Fatal(err)
 		}
-		if !pgDependPinned(view, address) {
+		if !pgDependPinned(view, nil, address) {
 			t.Fatal("builtin operator not pinned", address)
 		}
 		expected[ids.OID(oid)] = true

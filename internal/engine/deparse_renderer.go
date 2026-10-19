@@ -504,7 +504,13 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		}
 		text := "ROW(" + strings.Join(parts, ", ") + ")"
 		if n.Usage.Type.ID() != 2249 {
-			return r.cast(text, n.Usage, true)
+			typ, err := r.typeSQL(n.Usage)
+			if err != nil {
+				return "", err
+			}
+			// ROW(...) already delimits its arguments and is a simple cast
+			// operand, including in non-pretty catalog expressions.
+			return text + "::" + typ, nil
 		}
 		return text, nil
 	case fieldExpression:

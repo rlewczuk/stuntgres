@@ -120,9 +120,11 @@ named arguments; to-record does not accept the from_json name.
 
 The same regression bodies run on every available backend. The
 `Discovery`-named entrypoints retain the descriptor/domain/definition contracts.
-Native domain NOT NULL declaration failures are explicitly asserted; shared
-CHECK(VALUE IS NOT NULL) cases exercise actual NULL constraint enforcement.
-Real PostgreSQL retains the separate genuine NOT NULL conversion witnesses.
+Shared CHECK and NOT NULL domain declarations succeed on both backends.
+Fresh NULL casts, NULL domain-composite bases, and explicit/missing required
+fields independently require complete Execute-stage23502 domain diagnostics.
+Non-NULL domain-composite bases and fields retain direct/prepared values and
+metadata; CHECK(VALUE IS NOT NULL) remains a separate23514 contract.
 
 Descriptors also pins runtime anonymous-row layout mismatches and contextual
 `NULL::record` success. Its shared direct/prepared scan-order matrix checks
@@ -192,12 +194,27 @@ metadata before iteration and same-held statement recovery.
 The same scenario bodies run on every available backend. Independent full
 diagnostic and metadata expectations include absent fields, execution phases
 and failed output publication. Shared CHECK domains exercise field, whole-row,
-inherited and missing/null checks. A separately asserted native domain-NOT-NULL
-DDL boundary does not bypass those shared conversion witnesses. Validity
+inherited and missing/null checks. Shared NOT NULL declarations also succeed:
+validity returns false for fresh missing/NULL fields and true for supplied or
+preserved non-NULL values; ordinary conversion independently requires full
+Execute-stage23502 records or the exact successful field values. Validity
 distinguishes saved conversion/constraint failures from exceptions raised by
 CHECK expressions, including nested text array/composite input. Native-only
 control phases exercise the public Reset/Dump/Restore APIs without inventing
 PostgreSQL control equivalents.
+
+Focused domain-boundary proof and smoke (root runs both with an external
+900-second deadline; these commands are not a claim of exercised verification):
+
+```sh
+make check RUN='^TestReference(JSONRecordDiscoveryDomains|JSONBRecordValid)$' REFERENCE=1
+make check RUN='^TestReference(JSONRecordDiscoveryDomains|JSONBRecordValid)$'
+```
+
+Expected observations: successful NOT NULL DDL, non-NULL composite/field values,
+and exact23502 English domain errors with schema/type and empty unrelated
+diagnostic fields; validity reports false without replacing ordinary errors.
+
 `UnresolvedExpansion` distinguishes unknown static layouts from named empty
 records and runtime-registered ROW() values. `ComposedLayout` independently
 checks scalar/expansion/FROM phases, nested set placement, transitive inner

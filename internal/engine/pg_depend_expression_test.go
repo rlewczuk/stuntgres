@@ -109,7 +109,7 @@ func TestPGDependQuerySourceSuppression(t *testing.T) {
 	ref := e.catalog.Domain.Ref(view.State().Epoch(), table)
 	source := &sourceNode{ref: ref}
 	relationOnly := &BoundQuery{Root: source}
-	got, err := pgDependQueryRefs(context.Background(), view, relationOnly)
+	got, err := pgDependQueryRefs(context.Background(), view, nil, relationOnly)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func TestPGDependQuerySourceSuppression(t *testing.T) {
 	ref.Address = column
 	variable := columnExpression{Info: expr.Info{Usage: integer.Usage()}, origin: ref}
 	query := &BoundQuery{Root: &projectNode{child: source, expressions: []expr.Expr{variable, variable}}}
-	got, err = pgDependQueryRefs(context.Background(), view, query)
+	got, err = pgDependQueryRefs(context.Background(), view, nil, query)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestPGDependQuerySourceSuppression(t *testing.T) {
 	}
 	pgDependUnitRefs(t, got, []ids.ObjectAddress{column})
 	aggregate := &BoundQuery{Root: &projectNode{child: &aggregateNode{child: source, keys: []expr.Expr{variable}, calls: []aggregateCall{{argument: variable, order: []sortKey{{expression: variable}}}}}, expressions: []expr.Expr{groupExpression{}, aggregateExpression{}}}}
-	got, err = pgDependQueryRefs(context.Background(), view, aggregate)
+	got, err = pgDependQueryRefs(context.Background(), view, nil, aggregate)
 	if err != nil {
 		t.Fatal(err)
 	}

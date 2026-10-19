@@ -68,7 +68,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	if err == nil {
-		err = e.stageCreateDomainLocked(op, auth, staged, statement(t, "CREATE DOMAIN public.staged AS INT").(*parser.CreateDomain), sqltype.InputEnvironment{})
+		err = e.stageCreateDomainLocked(op, auth, staged, statement(t, "CREATE DOMAIN public.staged AS INT").(*parser.CreateDomain), sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -136,7 +136,7 @@ func TestArrayDomainDependencyClosureAndLifetime(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	stage, err = e.stageSchemaLocked(op, raw, scope.input)
+	stage, err = e.stageSchemaLocked(op, raw, scope.input, scope.output)
 	e.mu.Unlock()
 	if err == nil {
 		err = scope.stageDomainDependents(stage, parser.DropCascade)

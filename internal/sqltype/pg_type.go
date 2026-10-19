@@ -44,7 +44,7 @@ func (d *Descriptor) PGTypeDomainMetadata(base PGTypeMetadata) PGTypeMetadata {
 	base.Subscript, base.Input, base.Receive, base.ModIn, base.ModOut = 0, 2597, 2598, 0, 0
 	base.Modifier, base.Collation = d.base.Typmod, d.base.Collation.ID
 	if d.IsBuiltin() && d.id == 13254 {
-		// Pinned18.6 oracle: stored metadata, not inherited-default execution.
+		// Preserve the pinned18.6 builtin inventory tree alongside its cooked recipe.
 		base.DefaultTree = "{SQLVALUEFUNCTION :op 4 :type 1184 :typmod 2 :location -1}"
 		base.Default = "CURRENT_TIMESTAMP(2)"
 		base.HasDefaultTree, base.HasDefault = true, true

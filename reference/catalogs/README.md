@@ -1290,9 +1290,9 @@ physical history, and logical dumps do not replay dropped-column tombstones.
 
 CopiedRoutes pins partition rank0, initial typed rank0, and explicit typed
 ALTER/ADD CASCADE ranks2/3. The merged explicit inherited declaration is also
-oracle-pinned rank0. Unconstrained domains share the ordinary metadata matrix;
-domain NOT NULL remains a real-only observation plus the existing exact native
-constraint-admission exclusion, not a new type feature.
+oracle-pinned rank0. Unconstrained and NOT NULL domains share the ordinary metadata
+matrix: a domain's NOT NULL does not set its column's `attnotnull`, while an
+explicit column NOT NULL does.
 RepresentedBoundary independently checks the existing primitive native
 table_privileges schema against PostgreSQL's actual domain-backed view, without
 fabricating domain execution or relabeling native descriptor types.

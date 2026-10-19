@@ -75,9 +75,16 @@ func (b *expressionBinder) inComparisonOperand(raw parser.Expr) (inComparisonOpe
 	result := inComparisonOperand{scalar: operand}
 	if row, ok := operand.node.(rowExpression); ok && row.raw != nil && !row.Usage.Type.IsDomain() {
 		result.constructor, result.expansions = true, row.expansions
-		result.fields = make([]comparisonOperand, len(row.fields))
+		result.fields = make([]comparisonOperand, row.Usage.Type.BaseType().CompositeLen())
 		for i, field := range row.fields {
-			result.fields[i] = comparisonOperand{node: field}
+			slot := i
+			if row.fieldProjection != nil {
+				slot = row.fieldProjection[i].slot
+				if slot < 0 {
+					continue
+				}
+			}
+			result.fields[slot] = comparisonOperand{node: field}
 		}
 	}
 	return result, err

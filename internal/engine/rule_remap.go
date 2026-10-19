@@ -413,7 +413,7 @@ func (e *Engine) checkTemporaryRuleSourcesReplacementLocked() error {
 		for _, rule := range rulesOf(d) {
 			for _, address := range rule.references {
 				address.SubID = 0
-				if pgDependPinned(view, address) {
+				if pgDependPinned(view, nil, address) {
 					continue
 				}
 				provider := e.catalog.state.Get(address)

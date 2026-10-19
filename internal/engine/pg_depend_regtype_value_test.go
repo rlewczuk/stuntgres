@@ -123,7 +123,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 		t.Fatal(err)
 	}
 	pgDependUnitRefs(t, refs, want)
-	refs, err = pgDependQueryRefs(context.Background(), view, &BoundQuery{Root: &projectNode{expressions: []expr.Expr{literal}}})
+	refs, err = pgDependQueryRefs(context.Background(), view, nil, &BoundQuery{Root: &projectNode{expressions: []expr.Expr{literal}}})
 	if err != nil {
 		t.Fatal(err)
 	}

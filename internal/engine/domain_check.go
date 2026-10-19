@@ -58,7 +58,12 @@ func (e *Engine) initializeBuiltinDomainChecks() error {
 			return err
 		}
 	}
-	return nil
+	stamp := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13254})
+	auth := AuthorizationView{engine: e, View: access.View{
+		Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.roles.published, Catalog: view,
+		Roles: e.roles.read(e.catalog.owner(), view, e.roles.published), State: authorization.RoleState{CurrentUser: stamp.Owner},
+	}}
+	return e.bindDomainDefault(context.Background(), nil, auth, nil, stamp, parser.CurrentDateTimeExpr{Kind: parser.CurrentTimestamp, HasPrecision: true, Precision: 2}, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 }
 
 func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
@@ -147,6 +152,17 @@ func (c *EvalContext) CheckDomain(ctx context.Context, target *sqltype.Descripto
 	if err := c.prepareDomainChecks(d); err != nil {
 		return err
 	}
+	if candidate.IsNull() && target.DomainNotNull() {
+		name := target.SQLName()
+		if c.Input.TypeDiagnosticName != nil {
+			if captured := c.Input.TypeDiagnosticName(target.ID()); captured != "" {
+				name = captured
+			}
+		}
+		diagnostic := sqlError("23502", fmt.Sprintf("domain %s does not allow null values", name)).(*sqlstate.Error)
+		diagnostic.Schema, diagnostic.DataType = view.Get(d.ObjectNamespace).Name(), d.Name()
+		return diagnostic
+	}
 	return c.evaluateDomainChecks(view, d, d, candidate)
 }
 
@@ -156,7 +172,7 @@ func (c *EvalContext) prepareDomainConversion(source, target *sqltype.Descriptor
 	if source == target {
 		return nil
 	}
-	if target.IsDomain() && target.HasDomainChecks() {
+	if target.IsDomain() && target.HasDomainConstraints() {
 		view := c.domainCatalog()
 		if view.State() == nil {
 			return fmt.Errorf("stuntgres: missing domain CHECK catalog")
@@ -367,6 +383,9 @@ func validateDomainCheckDefinitions(view catalog.Read, domain *catalog.Type) err
 	base := domain.SQLType.DomainBase()
 	if domain.SQLType.HasDomainChecks() != (len(domain.DomainChecks) != 0 || base.Type.HasDomainChecks()) {
 		return fmt.Errorf("stuntgres: inconsistent domain CHECK ancestry")
+	}
+	if domain.SQLType.DomainNotNull() != (domain.SQLType.OwnDomainNotNull() || base.Type.DomainNotNull()) {
+		return fmt.Errorf("stuntgres: inconsistent domain NOT NULL ancestry")
 	}
 	previous := ""
 	for _, check := range domain.DomainChecks {

@@ -14,11 +14,12 @@ func (l *lexer) policyOptionError(option lexeme) {
 }
 
 type lexer struct {
-	input              string
-	offset             int
-	positionOffset     int
-	positionCharacters int
-	current            lexeme
+	input                                            string
+	offset                                           int
+	positionOffset                                   int
+	positionCharacters                               int
+	commentPositionOffset, commentPositionCharacters int
+	current                                          lexeme
 	// Scanner/lookahead reuse current; this records only tokens returned to yacc.
 	previousToken int
 	// Contextual role payload words are not global SQL keywords.
@@ -167,7 +168,13 @@ func (l *lexer) skip(allowBlock bool) bool {
 				l.offset++
 			}
 			if l.options.LineComment != nil {
-				if err := l.options.LineComment(l.input[start:l.offset]); err != nil {
+				if start >= l.commentPositionOffset {
+					l.commentPositionCharacters += utf8.RuneCountInString(l.input[l.commentPositionOffset:start])
+				} else {
+					l.commentPositionCharacters = utf8.RuneCountInString(l.input[:start])
+				}
+				l.commentPositionOffset = start
+				if err := l.options.LineComment(l.input[start:l.offset], Position{Offset: start, Character: l.commentPositionCharacters + 1}); err != nil {
 					l.err = err
 					return newline
 				}

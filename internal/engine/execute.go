@@ -432,7 +432,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	scope.routineAuth = auth
 	scope.routineDependencies = b.dependencies
 	for _, usage := range b.parameters.Types {
-		if sqltype.ContainsDomainChecks(usage.Type) {
+		if sqltype.ContainsDomainConstraints(usage.Type) {
 			evaluation.Input.DomainChecks = &evaluation
 			break
 		}

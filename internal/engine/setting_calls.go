@@ -73,7 +73,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 		scope.domainInputCatalog = view
 	}
 	for _, usage := range info.Types {
-		if sqltype.ContainsDomainChecks(usage.Type) {
+		if sqltype.ContainsDomainConstraints(usage.Type) {
 			input.DomainChecks = &evaluation
 			break
 		}

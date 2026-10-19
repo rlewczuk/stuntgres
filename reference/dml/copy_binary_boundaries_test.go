@@ -8,27 +8,6 @@ import (
 	"testing"
 )
 
-// DEFAULT and NOT NULL remain domain DDL boundaries. CHECK domains instead
-// reach the shared receiver/publication cases and their full fixed expectations.
-func copyBinaryDomainBoundary(t *testing.T, c copyTextConnection, q string) bool {
-	t.Helper()
-	if c.pg || !strings.HasPrefix(q, "CREATE DOMAIN ") {
-		return false
-	}
-	at := -1
-	for _, token := range []string{"NOT NULL", "DEFAULT"} {
-		if n := strings.Index(q, token); n >= 0 && (at < 0 || n < at) {
-			at = n
-		}
-	}
-	if at < 0 {
-		return false
-	}
-	_, err := c.conn.ExecContext(c.ctx, q)
-	fixture.AssertDiagnostic(t, err, &fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "domain constraints and defaults are unsupported", Position: strconv.Itoa(at + 1)})
-	return true
-}
-
 // Assert existing native storage admission before exercising the genuine PG
 // receiver. These are explicit provider/DDL boundaries, not binary capability gates.
 func copyBinaryTableBoundary(t *testing.T, c copyTextConnection, q, typ string) bool {

@@ -164,7 +164,7 @@ func (e *Engine) cookAlterDefaultLocked(scope *StatementScope, op *Operation, au
 		}
 		return catalog.ColumnDefault{}, err
 	}
-	if structuralNull(definition.Expression) {
+	if omitColumnDefault(auth.Catalog, definition.Expression, old.Columns[slot].Usage) {
 		return catalog.ColumnDefault{}, nil
 	}
 	definition.OID, err = e.catalog.allocateOIDLocked()

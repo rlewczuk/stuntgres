@@ -263,7 +263,7 @@ func reownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 				}
 				typ, err = d.SQLType.RebindDomain(base, declaration)
 			} else {
-				typ, err = sqltype.Domain(sqltype.ID(target.ObjectID), d.Name(), declaration, base, len(d.DomainChecks) != 0)
+				typ, err = sqltype.Domain(sqltype.ID(target.ObjectID), d.Name(), declaration, base, len(d.DomainChecks) != 0, d.SQLType.OwnDomainNotNull())
 			}
 			if err != nil {
 				return err

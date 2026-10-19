@@ -295,9 +295,29 @@ func TestReferenceInfoTimeStampIdentity(t *testing.T) {
 		infoTimeStampSeed(t, p, conn, recorder)
 		infoTimeStampBoth(t, p, conn, recorder, infoTimeStampIdentityStep())
 		infoTimeStampBoth(t, p, conn, recorder, fixture.Select("SELECT t.typtype AS kind,n.nspname AS domain_schema,t.typname AS domain_name,b.oid::integer AS base_oid,bn.nspname AS base_schema,b.typname AS base_name,t.typtypmod AS precision,t.typnotnull AS required,t.typndims AS dimensions,(t.oid>0 AND t.oid<>b.oid AND t.typarray>0 AND t.typarray<>t.oid AND a.typelem=t.oid AND a.typnamespace=t.typnamespace) AS identity FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace JOIN pg_type b ON b.oid=t.typbasetype JOIN pg_namespace bn ON bn.oid=b.typnamespace JOIN pg_type a ON a.oid=t.typarray WHERE n.nspname='information_schema' AND t.typname='time_stamp'", []string{"kind", "domain_schema", "domain_name", "base_oid", "base_schema", "base_name", "precision", "required", "dimensions", "identity"}, []string{"CHAR", "NAME", "NAME", "INT4", "NAME", "NAME", "INT4", "BOOL", "INT4", "BOOL"}, [][]any{{"d", "information_schema", "time_stamp", int64(1184), "pg_catalog", "timestamptz", int64(2), false, int64(0), true}}))
+		tx, err := conn.BeginTx(p.Ctx, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback()
+		var inherited time.Time
+		if err := tx.QueryRowContext(p.Ctx, "SELECT CURRENT_TIMESTAMP(2)").Scan(&inherited); err != nil {
+			t.Fatal(err)
+		}
+		inherited = inherited.UTC()
+		for i, prepared := range []bool{false, true} {
+			s := fixture.Exec("INSERT INTO public.info_time_stamp_witness(id) VALUES ($1)", 1, int64(i+3))
+			s.Prepared = prepared
+			fixture.RunStep(t, p.Ctx, tx, recorder, s)
+			s = infoTimeStampRows(backend.PG, "SELECT v FROM public.info_time_stamp_witness WHERE id=$1", [][]any{{inherited}})
+			s.Args = []any{int64(i + 3)}
+			infoTimeStampBoth(t, p, tx, recorder, s)
+		}
+		if err := tx.Commit(); err != nil {
+			t.Fatal(err)
+		}
+		infoTimeStampBoth(t, p, conn, recorder, infoTimeStampRows(backend.PG, "SELECT v FROM public.info_time_stamp_witness WHERE id=2", [][]any{{nil}}))
 		if !backend.PG {
-			fixture.RunStep(t, p.Ctx, conn, recorder, fixture.Exec("INSERT INTO public.info_time_stamp_witness(id) VALUES (3)", 1))
-			infoTimeStampBoth(t, p, conn, recorder, infoTimeStampRows(false, "SELECT v FROM public.info_time_stamp_witness WHERE id=3", [][]any{{nil}}))
 			return
 		}
 		for _, s := range []fixture.Step{
@@ -306,8 +326,5 @@ func TestReferenceInfoTimeStampIdentity(t *testing.T) {
 		} {
 			infoTimeStampBoth(t, p, conn, recorder, s)
 		}
-		fixture.RunStep(t, p.Ctx, conn, recorder, fixture.Exec("INSERT INTO public.info_time_stamp_witness(id) VALUES (3)", 1))
-		infoTimeStampBoth(t, p, conn, recorder, fixture.Select("SELECT v IS NOT NULL AS inherited FROM public.info_time_stamp_witness WHERE id=3", []string{"inherited"}, []string{"BOOL"}, [][]any{{true}}))
-		infoTimeStampBoth(t, p, conn, recorder, infoTimeStampRows(true, "SELECT v FROM public.info_time_stamp_witness WHERE id=2", [][]any{{nil}}))
 	})
 }

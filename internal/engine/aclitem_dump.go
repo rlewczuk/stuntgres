@@ -67,6 +67,9 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, view catalog.Read, ou
 		})
 	}
 	for _, descriptor := range view.Descriptors() {
+		if domain, ok := descriptor.(*catalog.Type); ok && domain.DomainDefault != nil {
+			expression(domain.DomainDefault.Expression)
+		}
 		relation, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue

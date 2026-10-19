@@ -11,21 +11,29 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// A retained named ROW keeps written children for metadata and dependencies.
+// Only a real shape change installs this immutable stable-attribute projection.
+type rowFieldProjection struct {
+	attribute int32
+	slot      int // Current live member, or -1 when that original attribute retired.
+}
+
 type rowExpression struct {
 	expr.Info
-	fields         []expr.Expr
-	raw            *parser.RowExpr
-	sources        []int
-	wholeNames     []string
-	wholeName      string
-	wholeSource    wholeRowSource
-	presenceSlot   int
-	presenceFrame  uint32
-	mergeSource    bool
-	returningWhole bool   // Direct whole-row member projection uses the RETURNING output frame.
-	returningNull  bool   // DELETE's scalar NEW whole row is NULL, independently of projection.
-	ruleSide       uint32 // Resolved OLD/NEW whole-row identity, including zero members.
-	expansions     map[int]compositeExpansionBinding
+	fields          []expr.Expr
+	fieldProjection []rowFieldProjection
+	raw             *parser.RowExpr
+	sources         []int
+	wholeNames      []string
+	wholeName       string
+	wholeSource     wholeRowSource
+	presenceSlot    int
+	presenceFrame   uint32
+	mergeSource     bool
+	returningWhole  bool   // Direct whole-row member projection uses the RETURNING output frame.
+	returningNull   bool   // DELETE's scalar NEW whole row is NULL, independently of projection.
+	ruleSide        uint32 // Resolved OLD/NEW whole-row identity, including zero members.
+	expansions      map[int]compositeExpansionBinding
 }
 
 func (n rowExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
@@ -43,15 +51,82 @@ func (n rowExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if absent {
 		return sqltype.Null(n.Usage.Type), nil
 	}
-	values := make([]sqltype.Value, len(n.fields))
+	size := len(n.fields)
+	if n.fieldProjection != nil {
+		size = n.Usage.Type.BaseType().CompositeLen()
+	}
+	values := make([]sqltype.Value, size)
 	for i, child := range n.fields {
+		slot := i
+		if n.fieldProjection != nil {
+			slot = n.fieldProjection[i].slot
+			if slot < 0 {
+				continue
+			}
+		}
 		v, err := child.Eval(c)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		values[i] = v
+		values[slot] = v
 	}
 	return sqltype.OwnedCompositeValue(n.Usage.Type, values)
+}
+
+// Planning-only lookup; field evaluation retains its already resolved child.
+func (n rowExpression) fieldSourceIndex(live int) int {
+	if n.fieldProjection == nil {
+		return live
+	}
+	for source, projection := range n.fieldProjection {
+		if projection.slot == live {
+			return source
+		}
+	}
+	return -1
+}
+
+func (n rowExpression) retagFieldProjection(shape *sqltype.Descriptor) (rowExpression, bool, error) {
+	old := n.Usage.Type.BaseType()
+	if n.raw == nil || old.ID() == 2249 || !old.IsComposite() || !shape.IsComposite() {
+		return n, false, nil
+	}
+	if n.fieldProjection == nil && shape.CompositeLen() >= old.CompositeLen() {
+		return n, false, nil
+	}
+	projection := n.fieldProjection
+	changed := false
+	if projection == nil {
+		if len(n.fields) != old.CompositeLen() {
+			return n, false, fmt.Errorf("stuntgres: invalid retained row source shape")
+		}
+		projection = make([]rowFieldProjection, len(n.fields))
+		changed = true
+		for i := range projection {
+			projection[i].attribute = old.CompositeMember(i).Attribute
+		}
+	}
+	live := 0
+	for i, original := range projection {
+		slot, present := shape.CompositeAttributeIndex(original.attribute)
+		if !present {
+			slot = -1
+		} else {
+			live++
+		}
+		if !changed && original.slot != slot {
+			projection = append([]rowFieldProjection(nil), projection...)
+			changed = true
+		}
+		if changed {
+			projection[i].slot = slot
+		}
+	}
+	if live != shape.CompositeLen() {
+		return n, false, fmt.Errorf("stuntgres: incompatible retained row shape")
+	}
+	n.fieldProjection = projection
+	return n, changed, nil
 }
 
 type fieldExpression struct {
@@ -243,6 +318,7 @@ func (b *expressionBinder) compositeFieldAt(base expr.Expr, index int, pos parse
 	var field expr.Expr
 	switch row := base.(type) {
 	case rowExpression:
+		index = row.fieldSourceIndex(index)
 		if row.returningWhole {
 			field = row.fields[index]
 		}

@@ -223,6 +223,16 @@ func domainDumpStatement(ctx context.Context, view catalog.Read, roles authoriza
 		collation = " COLLATE " + name
 	}
 	var checks strings.Builder
+	if d.DomainDefaultOwn {
+		text, err := (scalarRenderer{currentRowShape: true}).sql(ctx, view, d.DomainDefault.Expression)
+		if err != nil {
+			return dumpDomain{}, err
+		}
+		checks.WriteString(" DEFAULT " + text)
+	}
+	if d.SQLType.OwnDomainNotNull() {
+		checks.WriteString(" NOT NULL")
+	}
 	for _, check := range d.DomainChecks {
 		if check.NotValid {
 			continue

@@ -12,10 +12,11 @@ import (
 // A collection is one PostgreSQL dependency-recording pass. Whole-relation
 // references are redundant with attributes only within that pass.
 type pgDependRefs struct {
-	ctx       context.Context
-	catalog   catalog.Read
-	addresses map[ids.ObjectAddress]struct{}
-	err       error
+	ctx        context.Context
+	catalog    catalog.Read
+	definition definitionReader
+	addresses  map[ids.ObjectAddress]struct{}
+	err        error
 }
 
 func (r *pgDependRefs) add(address ids.ObjectAddress) {
@@ -25,12 +26,12 @@ func (r *pgDependRefs) add(address ids.ObjectAddress) {
 	if r.err = r.ctx.Err(); r.err != nil {
 		return
 	}
-	if address.ObjectID == 0 || pgDependPinned(r.catalog, address) {
+	if address.ObjectID == 0 || pgDependPinned(r.catalog, r.definition, address) {
 		return
 	}
 	whole := address
 	whole.SubID = 0
-	d, ok := r.catalog.Descriptor(whole)
+	d, ok := definitionDescriptorAt(r.catalog, r.definition, whole)
 	if !ok {
 		r.err = fmt.Errorf("stuntgres: missing dependency provider")
 		return
@@ -80,19 +81,19 @@ func (r *pgDependRefs) expression(expr expr.Expr) {
 		}
 		r.add(n.RegclassRef.Address)
 		if r.err == nil {
-			r.err = walkCatalogAliasDependencies(r.catalog, n.value, func(address ids.ObjectAddress) error {
+			r.err = walkCatalogAliasDependenciesAt(r.catalog, r.definition, n.value, func(address ids.ObjectAddress) error {
 				r.add(address)
 				return r.err
 			})
 		}
 		if r.err == nil {
-			r.err = walkOperatorReferences(r.catalog, n.value, func(address ids.ObjectAddress) error {
+			r.err = walkOperatorReferencesAt(r.catalog, r.definition, n.value, func(address ids.ObjectAddress) error {
 				r.add(address)
 				return r.err
 			})
 		}
 		if r.err == nil {
-			r.err = walkRegTSReferences(r.catalog, n.value, func(address ids.ObjectAddress) error {
+			r.err = walkRegTSReferencesAt(r.catalog, r.definition, n.value, func(address ids.ObjectAddress) error {
 				r.add(address)
 				return r.err
 			})
@@ -193,8 +194,8 @@ func pgDependExpressionRefs(ctx context.Context, catalog catalog.Read, expressio
 	return r.finish()
 }
 
-func pgDependQueryRefs(ctx context.Context, catalog catalog.Read, query *BoundQuery) ([]ids.ObjectAddress, error) {
-	r := pgDependRefs{ctx: ctx, catalog: catalog}
+func pgDependQueryRefs(ctx context.Context, catalog catalog.Read, reader definitionReader, query *BoundQuery) ([]ids.ObjectAddress, error) {
+	r := pgDependRefs{ctx: ctx, catalog: catalog, definition: reader}
 	if query != nil {
 		r.query(query.Root)
 	}

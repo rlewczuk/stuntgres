@@ -137,6 +137,9 @@ func (typeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) e
 			return err
 		}
 	}
+	if err := validateDomainDefault(view, t); err != nil {
+		return err
+	}
 	if t.SQLType.IsArray() {
 		element := t.SQLType.Element()
 		actual, exists := view.LookupType(element.ID())

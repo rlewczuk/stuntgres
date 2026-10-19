@@ -204,9 +204,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 			continue
 		}
 		defaultEvaluation := evaluation
-		defaultEvaluation.routineRecipe, defaultEvaluation.routineGraft = true, false
-		defaultEvaluation.routineReferences = b.relation.ColumnMeta.Defaults[b.relation.Attributes[i]].Dependencies
-		defaultEvaluation.routineConsumer = b.relation
+		b.defaultOriginAt(i).apply(&defaultEvaluation)
 		folded, _, planErr := preflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 		if planErr != nil {
 			return 0, planErr
@@ -215,7 +213,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 			return 0, planErr
 		}
 		b.defaults[i] = folded
-		if constant, ok := folded.(literalExpression); ok && constant.value.IsNull() {
+		if constant, ok := folded.(literalExpression); ok && constant.value.IsNull() && b.defaultOriginAt(i).definition.Expression == nil {
 			b.defaults[i] = nil
 		}
 	}

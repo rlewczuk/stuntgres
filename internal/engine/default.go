@@ -92,7 +92,7 @@ func bindCreateDefaults(b *expressionBinder, columns []catalog.Column, declarati
 		if err != nil {
 			return nil, err
 		}
-		if structuralNull(node) {
+		if omitColumnDefault(view, node, columns[slot].Usage) {
 			continue
 		}
 		definition := catalog.ColumnDefault{Expression: node}
@@ -119,7 +119,10 @@ type scalarRenderer struct {
 	aclOutput  sqltype.ACLItemFormatter
 	// Only provider validation may discard identity-only text. Real SQL output
 	// and construction labels require explicit captured role presentation.
-	validation             bool
+	validation bool
+	// Native domain-default logical replay emits the executable live row
+	// shape; source catalog metadata retains every original written child.
+	currentRowShape        bool
 	owner                  *catalog.Relation
 	domainValue            *sqltype.Usage
 	dependencies           *[]ids.ObjectRef
@@ -173,7 +176,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 	if err := r.recordStoredRoutine(view, node); err != nil {
 		return "", err
 	}
-	r.recordStoredType(view, view.Owner().Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())}))
+	r.recordStoredReference(view, view.Owner().Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())}))
 	switch n := node.(type) {
 	case domainValueExpression:
 		if r.domainValue == nil || *r.domainValue != n.Usage {
@@ -181,13 +184,24 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		}
 		return "VALUE", nil
 	case rowExpression:
-		parts := make([]string, len(n.fields))
+		count := len(n.fields)
+		if r.currentRowShape && n.fieldProjection != nil {
+			count = u.Type.BaseType().CompositeLen()
+		}
+		parts := make([]string, count)
 		for i, field := range n.fields {
+			slot := i
+			if r.currentRowShape && n.fieldProjection != nil {
+				slot = n.fieldProjection[i].slot
+				if slot < 0 {
+					continue
+				}
+			}
 			text, err := r.sql(ctx, view, field)
 			if err != nil {
 				return "", err
 			}
-			parts[i] = text
+			parts[slot] = text
 		}
 		text := "ROW(" + strings.Join(parts, ", ") + ")"
 		if u.Type.ID() != 2249 {
@@ -203,9 +217,25 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		if err != nil {
 			return "", err
 		}
-		index, ok := n.base.ResultUsage().Type.BaseType().CompositeAttributeIndex(n.attribute)
+		composite := n.base.ResultUsage().Type.BaseType()
+		index, ok := composite.CompositeAttributeIndex(n.attribute)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: retired field in stored expression")
+		}
+		if composite.ID() != 2249 {
+			descriptor, _ := definitionDescriptorAt(view, r.definition, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(composite.ID())})
+			typ, valid := descriptor.(*catalog.Type)
+			if !valid || typ.SQLType != composite || typ.OwningRelation == (ids.ObjectAddress{}) {
+				return "", fmt.Errorf("stuntgres: invalid stored composite field type")
+			}
+			descriptor, _ = definitionDescriptorAt(view, r.definition, typ.OwningRelation)
+			relation, valid := descriptor.(*catalog.Relation)
+			if !valid || !compositeAttributeProvider(typ, relation, n.attribute) {
+				return "", fmt.Errorf("stuntgres: invalid stored composite attribute")
+			}
+			address := relation.Address()
+			address.SubID = n.attribute
+			r.recordStoredReference(view, view.Owner().Domain.Ref(view.Epoch(), address))
 		}
 		return "(" + text + ")." + pgIdentifier(n.base.ResultUsage().Type.BaseType().CompositeMember(index).Name), nil
 	case arrayExpression:

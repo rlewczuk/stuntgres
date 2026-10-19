@@ -33,13 +33,13 @@ func pgTypeAdmitted(catalog catalog.Read, d *catalog.Type) bool {
 	return ok
 }
 
-func pgTypeFacts(catalog catalog.Read, d *catalog.Type) (sqltype.PGTypeMetadata, error) {
+func pgTypeFacts(ctx context.Context, catalog catalog.Read, d *catalog.Type, output sqltype.OutputEnvironment) (sqltype.PGTypeMetadata, error) {
 	if d.SQLType.IsArray() {
 		element, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
 		if !ok || element.SQLType != d.SQLType.Element() || element.Array != d.SQLType.ID() {
 			return sqltype.PGTypeMetadata{}, fmt.Errorf("stuntgres: foreign type array authority")
 		}
-		fact, err := pgTypeFacts(catalog, element)
+		fact, err := pgTypeFacts(ctx, catalog, element, output)
 		if err != nil {
 			return fact, err
 		}
@@ -51,11 +51,14 @@ func pgTypeFacts(catalog catalog.Read, d *catalog.Type) (sqltype.PGTypeMetadata,
 		if !ok || base.SQLType != usage.Type {
 			return sqltype.PGTypeMetadata{}, fmt.Errorf("stuntgres: foreign domain base authority")
 		}
-		fact, err := pgTypeFacts(catalog, base)
+		fact, err := pgTypeFacts(ctx, catalog, base, output)
 		if err != nil {
 			return fact, err
 		}
-		return d.SQLType.PGTypeDomainMetadata(fact), nil
+		result := d.SQLType.PGTypeDomainMetadata(fact)
+		result.HasDefault, result.HasDefaultTree = d.DomainDefault != nil, d.DomainDefault != nil
+		result.Default = d.DomainDefaultText
+		return result, nil
 	}
 	if d.OwningRelation != (ids.ObjectAddress{}) {
 		relation, ok := catalog.Relation(d.OwningRelation)
@@ -78,8 +81,8 @@ func pgTypeFacts(catalog catalog.Read, d *catalog.Type) (sqltype.PGTypeMetadata,
 	return f, nil
 }
 
-// A released stored metadata expression, not executable/inherited-default SQL.
-// Its immutable string is grounded by the pinned18.6 discovery scenario.
+// Released builtin metadata preserves its existing nodeToString witness. User
+// defaults use catalogTree's genuine native structural representation instead.
 type pgTypeDefaultTree string
 
 func (s pgTypeDefaultTree) StructuralOutput(ctx context.Context) (string, error) {
@@ -142,7 +145,11 @@ func (e *Engine) capturePGType(ctx context.Context, view catalog.Read, roles aut
 		if d.Owner.ID() > math.MaxUint32 {
 			return nil, fmt.Errorf("stuntgres: unrepresentable type owner")
 		}
-		f, err := pgTypeFacts(view, d)
+		f, err := pgTypeFacts(ctx, view, d, sqltype.OutputEnvironment{
+			Regclass: catalogRegclassOutput{view: view},
+			Regrole:  capturedRegroleOutput{owner: e, roles: roles},
+			ACLItem:  capturedACLItemOutput{owner: e, roles: roles},
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -177,6 +184,8 @@ func (e *Engine) capturePGType(ctx context.Context, view catalog.Read, roles aut
 					value = f.Preferred
 				case 9:
 					value = true
+				case 24:
+					value = d.SQLType.OwnDomainNotNull()
 				}
 				row[i] = sqltype.Boolean(column.Usage.Type, value)
 			case sqltype.Name:
@@ -199,7 +208,11 @@ func (e *Engine) capturePGType(ctx context.Context, view catalog.Read, roles aut
 			case sqltype.PgNodeTree:
 				row[i] = sqltype.Null(column.Usage.Type)
 				if f.HasDefaultTree {
-					row[i], err = sqltype.Tree(column.Usage.Type, pgTypeDefaultTree(f.DefaultTree))
+					if d.DomainDefault != nil && !d.SQLType.IsBuiltin() {
+						row[i], err = catalogTree(column.Usage.Type, d.DomainDefault.Expression)
+					} else {
+						row[i], err = sqltype.Tree(column.Usage.Type, pgTypeDefaultTree(f.DefaultTree))
+					}
 				}
 			case sqltype.Text:
 				row[i] = sqltype.Null(column.Usage.Type)

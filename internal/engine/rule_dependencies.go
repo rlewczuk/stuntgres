@@ -61,7 +61,7 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 				add([]ids.ObjectAddress{b.ref.Address})
 			}
 		}
-		items, err := pgDependQueryRefs(ctx, catalog, b.query)
+		items, err := pgDependQueryRefs(ctx, catalog, nil, b.query)
 		if err != nil {
 			return err
 		}
@@ -88,14 +88,14 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 			if err := expr(b.update.predicate); err != nil {
 				return err
 			}
-			items, err := pgDependQueryRefs(ctx, catalog, &BoundQuery{Root: b.update.from})
+			items, err := pgDependQueryRefs(ctx, catalog, nil, &BoundQuery{Root: b.update.from})
 			if err != nil {
 				return err
 			}
 			add(items)
 		}
 		if b.deleteUsing != nil {
-			items, err := pgDependQueryRefs(ctx, catalog, &BoundQuery{Root: b.deleteUsing})
+			items, err := pgDependQueryRefs(ctx, catalog, nil, &BoundQuery{Root: b.deleteUsing})
 			if err != nil {
 				return err
 			}

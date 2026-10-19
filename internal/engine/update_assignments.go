@@ -36,6 +36,19 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 			}
 		}
 		if _, requested := a.Value.(parser.DefaultExpr); requested {
+			if slot, ok := b.relation.Index[a.Target.Text]; ok && b.relation.Columns[slot].Usage.Type.IsDomain() {
+				node, origin := columnDefault(binder.bindingCatalog(), b.relation, slot)
+				if node == nil {
+					node = domainNullInputExpression(b.relation.Columns[slot].Usage)
+				}
+				u.assignments[i] = node
+				if u.defaultOrigins == nil {
+					u.defaultOrigins = make([]defaultOrigin, len(assignments))
+				}
+				origin.requested = true
+				u.defaultOrigins[i] = origin
+				continue
+			}
 			if b.relation.RelationKind == catalog.ViewRelation {
 				continue // Rewrite diagnoses computed/generated destinations.
 			}
@@ -146,6 +159,9 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 		}
 	}
 	b.update = u
+	if u.defaultOrigins != nil {
+		return binder.captureRetainedWriteInput(u.assignments, nil, nil)
+	}
 	return nil
 }
 
@@ -163,6 +179,8 @@ func evaluateUpdateAssignments(eval *EvalContext, action *boundUpdate, targets [
 		var err error
 		if len(action.arrayTargets) != 0 && action.arrayTargets[i] != nil {
 			value, err = action.arrayTargets[i].applyExpression(eval, row[target], expr)
+		} else if len(action.defaultOrigins) != 0 && action.defaultOrigins[i].requested {
+			value, err = evalDefaultExpression(eval, expr, action.defaultOrigins[i])
 		} else {
 			value, err = expr.Eval(eval)
 		}

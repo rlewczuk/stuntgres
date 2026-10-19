@@ -1,7 +1,6 @@
 package reference_test
 
 import (
-	"strconv"
 	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
@@ -38,15 +37,7 @@ func TestReferenceMultirangeDomains(t *testing.T) {
 					fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, check)
 					fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, guard)
 				}
-				// Existing native domain-constraint boundary is distinct from
-				// supported NOT NULL on a column over this same concrete base.
-				q := "CREATE DOMAIN constrained AS " + typ + " NOT NULL"
-				if backend.PG {
-					fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Exec(q, 0))
-				} else {
-					want := fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "domain constraints and defaults are unsupported", Position: strconv.Itoa(strings.Index(q, "NOT NULL") + 1)}
-					fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.ErrorDiagnostic(q, want))
-				}
+				fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Exec("CREATE DOMAIN constrained AS "+typ+" NOT NULL", 0))
 			}
 		})
 	}

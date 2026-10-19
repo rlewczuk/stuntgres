@@ -30,9 +30,6 @@ func copyBinaryProviders(t *testing.T, cases []copyBinaryProviderCase, expected 
 			copyBinaryScenario(t, func(t *testing.T, c copyTextConnection) {
 				c.exec(t, "SET TIME ZONE 'UTC'")
 				for _, sql := range tc.setup {
-					if copyBinaryDomainBoundary(t, c, sql) {
-						return
-					}
 					c.exec(t, sql)
 				}
 				tableSQL := "CREATE TABLE copy_binary_probe(v " + tc.typ + ")"

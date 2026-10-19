@@ -193,13 +193,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 				continue
 			}
 			defaultEvaluation := evaluation
-			physical := b.physicalBinding()
-			attribute := physical.relation.Attributes[i]
-			defaultEvaluation.quoteOrigin = quoteOrigin{owner: physical.ref, attribute: attribute, definition: physical.relation.ColumnMeta.Defaults[attribute].OID}
-			defaultEvaluation.routineRecipe, defaultEvaluation.routineGraft = true, false
-			defaultEvaluation.routineChecks = nil
-			defaultEvaluation.routineReferences = physical.relation.ColumnMeta.Defaults[attribute].Dependencies
-			defaultEvaluation.routineConsumer = physical.relation
+			b.defaultOriginAt(i).apply(&defaultEvaluation)
 			folded, changed, foldErr := preflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 			if foldErr != nil {
 				return Result{}, foldErr
@@ -610,7 +604,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 				row[j] = sqltype.Null(c.Usage.Type)
 			}
 			if len(b.insertProjection) != 0 {
-				if err = evaluateIdentityValuesRow(auth.Catalog, &b, expressions[i], source, row, len(b.insertRows) > 1, &evaluation); err != nil {
+				if err = evaluateInsertValuesRow(auth.Catalog, &b, expressions[i], source, row, len(b.insertRows) > 1, &evaluation); err != nil {
 					return Result{}, err
 				}
 				schema := auth.Catalog.Get(b.relation.Namespace()).Name()
@@ -639,7 +633,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 				}
 				for j, expression := range b.defaults {
 					if expression != nil && row[j].Type() != nil {
-						row[j], err = expression.Eval(&evaluation)
+						row[j], err = b.evalDefault(&evaluation, j, expression)
 						if err != nil {
 							return Result{}, err
 						}

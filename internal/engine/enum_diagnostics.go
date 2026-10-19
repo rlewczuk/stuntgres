@@ -129,7 +129,7 @@ func hasEnumInput(typ *sqltype.Descriptor) bool {
 	if typ == nil {
 		return false
 	}
-	if typ.HasDomainChecks() {
+	if typ.HasDomainConstraints() {
 		return true
 	}
 	typ = typ.BaseType()
@@ -153,7 +153,7 @@ func needsTypeDiagnosticInput(typ *sqltype.Descriptor) bool {
 	if typ == nil {
 		return false
 	}
-	if typ.IsUserDefined() || typ.HasDomainChecks() {
+	if typ.IsUserDefined() || typ.HasDomainConstraints() {
 		return true
 	}
 	typ = typ.BaseType()
@@ -208,7 +208,7 @@ func captureRetainedExpressionInput(node expr.Expr, element func() error, diagno
 	case coercionExpression:
 		target := node.ResultUsage().Type
 		characterInput := sqltype.IsCharacter(node.child.ResultUsage().Type.BaseType().ID())
-		if characterInput || sqltype.ContainsDomainChecks(target) {
+		if characterInput || sqltype.ContainsDomainConstraints(target) {
 			if characterInput && target.ContainsCatalogIdentifier() {
 				if err := element(); err != nil {
 					return err

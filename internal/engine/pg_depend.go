@@ -15,21 +15,22 @@ type pgDependEdge struct {
 }
 
 // Pinning follows represented bootstrap authorities, never an OID cutoff.
-func pgDependPinned(view catalog.Read, address ids.ObjectAddress) bool {
+func pgDependPinned(view catalog.Read, reader definitionReader, address ids.ObjectAddress) bool {
 	if address.ClassID == ids.NamespaceClassID {
 		return address.ObjectID == ids.PGCatalogNamespaceOID || address.ObjectID == ids.PGToastNamespaceOID
 	}
 	whole := address
 	whole.SubID = 0
-	d, ok := view.Descriptor(whole)
+	d, ok := definitionDescriptorAt(view, reader, whole)
 	if !ok {
 		return false
 	}
 	switch d := d.(type) {
 	case *catalog.Type:
 		if d.OwningRelation != (ids.ObjectAddress{}) {
-			relation, ok := view.Relation(d.OwningRelation)
-			return !ok || relation.RelationKind == catalog.CatalogRelation
+			descriptor, ok := definitionDescriptorAt(view, reader, d.OwningRelation)
+			relation, relationOK := descriptor.(*catalog.Relation)
+			return !ok || !relationOK || relation.RelationKind == catalog.CatalogRelation
 		}
 		// Lookup-only array codecs do not imply bootstrap lifetime. Automatic
 		// arrays retain their owned element's dependency even without storage.
@@ -54,7 +55,7 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 	}
 	var edges []pgDependEdge
 	add := func(dependent, referenced ids.ObjectAddress, flavor byte) {
-		if referenced.ObjectID != 0 && !pgDependPinned(view, referenced) {
+		if referenced.ObjectID != 0 && !pgDependPinned(view, nil, referenced) {
 			edges = append(edges, pgDependEdge{dependent, referenced, flavor})
 		}
 	}
@@ -125,7 +126,7 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 				add(d.Address(), d.Handler, 'n')
 			}
 		case *catalog.Type:
-			if pgDependPinned(view, d.Address()) {
+			if pgDependPinned(view, nil, d.Address()) {
 				continue
 			}
 			add(d.Address(), d.Extension, 'e')
@@ -140,6 +141,11 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 				if d.SQLType.IsDomain() {
 					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.DomainBase().Type.ID())}, 'n')
 					add(d.Address(), ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(d.SQLType.DomainBase().Collation.ID)}, 'n')
+					if d.DomainDefault != nil {
+						for _, ref := range d.DomainDefault.Dependencies {
+							add(d.Address(), ref.Address, 'n')
+						}
+					}
 				}
 			}
 			for _, check := range d.DomainChecks {
@@ -422,7 +428,7 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 			if d.View != nil {
 				owner := ids.ObjectAddress{ClassID: 2618, ObjectID: d.View.RuleOID()}
 				add(owner, d.Address(), 'i')
-				refs, err := pgDependQueryRefs(ctx, view, viewOf(d).query)
+				refs, err := pgDependQueryRefs(ctx, view, nil, viewOf(d).query)
 				if err != nil {
 					return nil, err
 				}

@@ -13,7 +13,7 @@ import (
 )
 
 // Domain declarations use the same private catalog publication as schema DDL.
-func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateDomain, input sqltype.InputEnvironment) error {
+func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateDomain, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
 	ns, err := e.creationNamespace(auth, s.Name)
 	if err != nil {
 		return err
@@ -42,15 +42,35 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	if !available || relationTypeNameOccupied(auth.Catalog, ns.Address, name) {
 		return sqlError("42710", fmt.Sprintf(`type "%s" already exists`, name))
 	}
+	var defaultRaw parser.Expr
+	seenNull, ownNotNull := false, false
 	for _, c := range s.Constraints {
+		declarationPos := c.Pos
+		if c.NamedDeclarationPos.Character > 0 {
+			declarationPos = c.NamedDeclarationPos
+		}
 		if c.Unique != nil {
 			return expr.ErrorAt("42601", "unique constraints not possible for domains", c.Unique.Pos)
 		}
 		if c.ForeignKey != nil {
 			return expr.ErrorAt("42601", "foreign key constraints not possible for domains", c.Pos)
 		}
-		if c.NotNull || c.Default != nil || c.Identity != nil || c.Generation != nil || c.Name.Text != "" && c.Check == nil {
+		if c.Identity != nil || c.Generation != nil {
 			return expr.ErrorAt("0A000", "domain constraints and defaults are unsupported", c.Pos)
+		}
+		if c.Default != nil {
+			if defaultRaw != nil {
+				return expr.ErrorAt("42601", "multiple default expressions", declarationPos)
+			}
+			defaultRaw = c.Default
+		} else if c.Check == nil && c.Unique == nil && c.ForeignKey == nil {
+			if seenNull && ownNotNull != c.NotNull {
+				return expr.ErrorAt("42601", "conflicting NULL/NOT NULL constraints", declarationPos)
+			}
+			if seenNull && c.NotNull {
+				return expr.ErrorAt("42P17", "redundant NOT NULL constraint definition", declarationPos)
+			}
+			seenNull, ownNotNull = true, c.NotNull
 		}
 	}
 	base, err := e.resolveAnnotationTypeMode(s.Base, op, false, true)
@@ -83,7 +103,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	for _, constraint := range s.Constraints {
 		hasChecks = hasChecks || constraint.Check != nil
 	}
-	typ, err := sqltype.Domain(sqltype.ID(oid), name, declaration, base, hasChecks)
+	typ, err := sqltype.Domain(sqltype.ID(oid), name, declaration, base, hasChecks, ownNotNull)
 	if err != nil {
 		return err
 	}
@@ -103,6 +123,9 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 		}
 	}
 	domain := &catalog.Type{SQLType: typ, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.State.CurrentUser, ACL: acl, ACLSyntheticDefault: synthetic, Dimensions: int32(len(s.Base.ArrayBounds)), Array: array.ID()}
+	if err := e.bindDomainDefault(op.Context(), op, auth, stage, domain, defaultRaw, input, output); err != nil {
+		return err
+	}
 	if err := e.bindDomainChecks(op, auth, stage, domain, s.Constraints, input); err != nil {
 		return err
 	}

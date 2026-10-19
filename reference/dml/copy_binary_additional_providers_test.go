@@ -119,9 +119,6 @@ func TestReferenceCopyBinaryAdditionalProviders(t *testing.T) {
 	}
 	t.Run("nested_domain_not_null", func(t *testing.T) {
 		copyTextScenario(t, func(t *testing.T, _ *fixture.Pair, _ fixture.Backend, c copyTextConnection) {
-			if copyBinaryDomainBoundary(t, c, "CREATE DOMAIN copy_required AS int4 NOT NULL") {
-				return
-			}
 			c.exec(t, "CREATE DOMAIN copy_required AS int4 NOT NULL")
 			c.exec(t, "CREATE TABLE copy_binary_required(v copy_required[])")
 			c.exec(t, "INSERT INTO copy_binary_required VALUES('{99}')")

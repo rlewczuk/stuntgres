@@ -311,8 +311,7 @@ func preflightMerge(c *EvalContext, merge *boundMerge, catalog catalog.Read) err
 				continue
 			}
 			defaultOwner := owner
-			attribute := arm.input.relation.Attributes[j]
-			defaultOwner.quoteOrigin = quoteOrigin{owner: arm.input.ref, attribute: attribute, definition: arm.input.relation.ColumnMeta.Defaults[attribute].OID}
+			arm.input.defaultOriginAt(j).apply(&defaultOwner)
 			arm.input.defaults[j], _, err = preflightCoercionsWithPolicy(&defaultOwner, expression, true)
 			if err != nil {
 				return err

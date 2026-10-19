@@ -25,7 +25,7 @@ func TestPgcryptoOwnerMetadata(t *testing.T) {
 	var records []extensionOwnerRecord
 	_, err = parser.ParseWithOptions("CREATE EXTENSION pgcrypto;\n"+metadata, parser.Options{
 		Context: context.Background(), StandardConformingStrings: true,
-		LineComment: func(comment string) error {
+		LineComment: func(comment string, _ parser.Position) error {
 			record, found, err := decodeExtensionOwners(comment)
 			if err == nil && found {
 				records = append(records, record)

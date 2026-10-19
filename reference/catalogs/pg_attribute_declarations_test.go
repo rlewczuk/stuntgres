@@ -1,7 +1,6 @@
 package reference_test
 
 import (
-	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -142,25 +141,13 @@ func TestReferencePGAttributeFlags(t *testing.T) {
 		want[3][12], want[6][12], want[7][12], want[9][12] = true, true, true, true
 		want[4][14], want[5][14], want[6][15], want[7][15] = "a", "d", "s", "v"
 		pgAttributeRead(t, p, b, b.DB, id, " AND attnum>0", want)
-		constrained := "CREATE DOMAIN pa18_nn_domain AS integer NOT NULL"
-		if b.PG {
-			pgClassExec(t, p, b, b.DB, constrained, "CREATE TABLE pa18_nn_table(a pa18_nn_domain,b pa18_nn_domain NOT NULL)")
-			var nnDomain int64
-			if err := b.DB.QueryRowContext(p.Ctx, "SELECT 'pa18_nn_domain'::regtype::oid").Scan(&nnDomain); err != nil {
-				t.Fatal(err)
-			}
-			nnID := pgAttributeID(t, p, b.DB, "pa18_nn_table")
-			pgAttributeRead(t, p, b, b.DB, nnID, " AND attnum>0", [][]any{pgAttributeRow(nnID, "a", nnDomain, 4, 1, -1, 0, true, "i", "p", false, 0), pgAttributeRow(nnID, "b", nnDomain, 4, 2, -1, 0, true, "i", "p", true, 0)})
-		} else {
-			d := fixture.ControlsReferenceDiagnostic("0A000", "domain constraints and defaults are unsupported")
-			d.Position = fixture.Position(strings.Index(constrained, "NOT NULL") + 1)
-			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.ErrorDiagnostic(constrained, d))
-			pgAttributeRead(t, p, b, b.DB, id, " AND attnum>0", want)
-			pgAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT relname FROM pg_class WHERE relname='pa18_nn_table'", []string{"relname"}, []string{"NAME"}, nil))
-			absent := fixture.ImplicitError("SELECT 'pa18_nn_domain'::regtype::oid", fixture.Diagnostic{Code: "42704", Message: "type \"pa18_nn_domain\" does not exist", Position: "8"})
-			absent.SelectRows = true
-			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, absent)
+		pgClassExec(t, p, b, b.DB, "CREATE DOMAIN pa18_nn_domain AS integer NOT NULL", "CREATE TABLE pa18_nn_table(a pa18_nn_domain,b pa18_nn_domain NOT NULL)")
+		var nnDomain int64
+		if err := b.DB.QueryRowContext(p.Ctx, "SELECT 'pa18_nn_domain'::regtype::oid").Scan(&nnDomain); err != nil {
+			t.Fatal(err)
 		}
+		nnID := pgAttributeID(t, p, b.DB, "pa18_nn_table")
+		pgAttributeRead(t, p, b, b.DB, nnID, " AND attnum>0", [][]any{pgAttributeRow(nnID, "a", nnDomain, 4, 1, -1, 0, true, "i", "p", false, 0), pgAttributeRow(nnID, "b", nnDomain, 4, 2, -1, 0, true, "i", "p", true, 0)})
 		for _, tc := range []struct {
 			name    string
 			local   bool

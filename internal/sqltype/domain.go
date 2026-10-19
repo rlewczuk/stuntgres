@@ -12,7 +12,8 @@ func Domain(id ID, name, declaration string, base Usage, checks ...bool) (*Descr
 		return nil, fmt.Errorf("invalid domain descriptor")
 	}
 	ownChecks := len(checks) != 0 && checks[0]
-	return &Descriptor{id: id, name: name, sql: declaration, database: base.Type.BaseType().database, base: base, ownDomainChecks: ownChecks, domainChecks: ownChecks || base.Type.HasDomainChecks()}, nil
+	ownNotNull := len(checks) > 1 && checks[1]
+	return &Descriptor{id: id, name: name, sql: declaration, database: base.Type.BaseType().database, base: base, ownDomainChecks: ownChecks, domainChecks: ownChecks || base.Type.HasDomainChecks(), ownDomainNotNull: ownNotNull, domainNotNull: ownNotNull || base.Type.DomainNotNull()}, nil
 }
 
 // RebindDomain reowns a concrete domain's base without losing its immutable
@@ -28,6 +29,7 @@ func (d *Descriptor) RebindDomain(base Usage, declaration string) (*Descriptor, 
 	*validated = *d
 	validated.base, validated.database, validated.sql = base, base.Type.BaseType().database, declaration
 	validated.domainChecks = d.ownDomainChecks || base.Type.HasDomainChecks()
+	validated.domainNotNull = d.ownDomainNotNull || base.Type.DomainNotNull()
 	return validated, nil
 }
 
@@ -44,8 +46,14 @@ func (d *Descriptor) DomainBase() Usage { return d.base }
 // HasDomainChecks is immutable conversion authority, including ancestors.
 func (d *Descriptor) HasDomainChecks() bool { return d != nil && d.domainChecks }
 
-func ContainsDomainChecks(d *Descriptor) bool {
-	if d.HasDomainChecks() {
+// DomainNotNull and OwnDomainNotNull distinguish effective conversion authority
+// from the declaration's own pg_type flag.
+func (d *Descriptor) DomainNotNull() bool        { return d != nil && d.domainNotNull }
+func (d *Descriptor) OwnDomainNotNull() bool     { return d != nil && d.ownDomainNotNull }
+func (d *Descriptor) HasDomainConstraints() bool { return d.HasDomainChecks() || d.DomainNotNull() }
+
+func ContainsDomainConstraints(d *Descriptor) bool {
+	if d.HasDomainConstraints() {
 		return true
 	}
 	if d == nil {
@@ -53,11 +61,11 @@ func ContainsDomainChecks(d *Descriptor) bool {
 	}
 	d = d.BaseType()
 	if d.IsArray() {
-		return ContainsDomainChecks(d.Element())
+		return ContainsDomainConstraints(d.Element())
 	}
 	if d.IsComposite() {
 		for i := range d.CompositeLen() {
-			if ContainsDomainChecks(d.CompositeMember(i).Usage.Type) {
+			if ContainsDomainConstraints(d.CompositeMember(i).Usage.Type) {
 				return true
 			}
 		}
@@ -82,11 +90,11 @@ type DomainCheckEvaluator interface {
 // CheckDomainInput validates fresh physical input before attaching its logical
 // domain tag. Already-domain values, output and Retag do not use this seam.
 func (d *Descriptor) CheckDomainInput(ctx context.Context, v Value, env InputEnvironment) error {
-	if !d.HasDomainChecks() {
+	if !d.HasDomainConstraints() {
 		return nil
 	}
 	if env.DomainChecks == nil {
-		return fmt.Errorf("missing domain CHECK evaluation environment")
+		return fmt.Errorf("missing domain constraint evaluation environment")
 	}
 	return env.DomainChecks.CheckDomain(ctx, d, v)
 }
@@ -142,7 +150,7 @@ func (p CoercionPlan) Apply(ctx context.Context, v Value, input InputEnvironment
 	if value.typ != p.target.Type {
 		return Value{}, fmt.Errorf("invalid domain coercion result")
 	}
-	if p.logicalTarget != p.logicalSource && p.logicalTarget.HasDomainChecks() {
+	if p.logicalTarget != p.logicalSource && p.logicalTarget.HasDomainConstraints() {
 		if err := p.logicalTarget.CheckDomainInput(ctx, value, input); err != nil {
 			return Value{}, err
 		}

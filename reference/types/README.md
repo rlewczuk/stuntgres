@@ -1031,6 +1031,9 @@ selected checks and smoke readiness are not observed verification.
 Permanent untagged `reference/types/multirange_*_test.go` scenarios cover all
 three concrete companions through shared direct/prepared SQL, raw transports,
 metadata, full diagnostics, ACLs and nested domains/column NOT NULL.
+`TestReferenceMultirangeDomains` also creates NOT NULL domains over each concrete
+multirange in both backends; column NOT NULL diagnostics and failed multirow
+statement atomicity retain their independent expectations.
 Oracle discovery filters are removed before native-red; they are not a final
 capability distinction. Native process-local control subphases additionally
 execute the actual emitted SQL on pinned PostgreSQL18.0.
@@ -1110,6 +1113,151 @@ unpopulated PostgreSQL materialized view uses the shared full55000 diagnostic
 and REFRESH hint, then refreshes successfully. Positive view metadata retains
 declared native nullability rather than computed-expression nullability.
 
+### Domain defaults and nullability
+
+The shared CREATE DOMAIN default/nullability contract is organized as D1–D9:
+
+- D1 `TestReferenceDomainDefaultPrecedence`: column/domain/base precedence,
+  explicit NULL masks, typmods, direct/prepared and held insert reuse.
+- D2 `TestReferenceDomainNullability`: fresh conversions, named and inherited
+  NOT NULL, error identity/order, atomic writes and already-domain NULL bypass.
+- D3 `TestReferenceDomainDefaultDiagnostics`: variable-free default restrictions,
+  conflicting declarations, complete diagnostics/stages and failed-DDL
+  atomicity, including constrained immediate-base cooking.
+- D4 `TestReferenceDomainDefaultCallers`: INSERT SELECT, UPDATE DEFAULT, MERGE,
+  view writes, COPY omission/default markers and ADD COLUMN row demand.
+- D5 `TestReferenceDomainDefaultBuiltinInheritance`: predefined
+  `information_schema.time_stamp` inheritance compared with transaction time.
+- D6 `TestReferenceDomainDefaultMetadata` and
+  `TestReferenceDomainDefaultDependencies`: base driver descriptors, own versus
+  inherited flags, default/tree metadata and provider drop closure.
+  `TestReferenceDomainDefaultNullMetadata` distinguishes the elided final bare
+  builtin Const NULL from retained inherited-domain and numeric-typmod NULL
+  recipes, with exact text/tree presence and omitted values on both routes.
+- D7 `TestReferenceDomainDefaultNativeControls`: shared SQL witnesses and explicit
+  native-only same/fresh Driver Dump/Reset/Restore with newly defaulted inserts,
+  enforcement, provider/owner reownership and atomic failed replacement.
+- D8 `TestReferenceDomainDefaultNullReplay`: independently specified public
+  already-domain NULL values in scalar/domain/array/composite carriers, exact
+  multidimensional/nested bounds, a materialized snapshot and fresh-input errors.
+  Native-only same/fresh replay, new omitted writes and malformed-record atomic
+  preservation exercise the host interface without granting ordinary SQL a bypass.
+- D9 `TestReferenceDomainDefaultCompositeFieldDependencies`: own/inherited selected
+  composite fields, actual stable-attribute/type edges, complete RESTRICT and
+  ordered CASCADE diagnostics, atomic failed DDL, retained data and successful
+  sibling defaults after dropping an earlier attribute. Explicit native-only
+  same/fresh replay preserves those results and new omissions; source deparse
+  retains `ROW(17, 18)` while restored deparse normalizes to `ROW(18)`.
+  `TestReferenceDomainDefaultStoredDeparseVisibility` separately fixes the released
+  creation-time text contract: visible public names versus qualified hidden
+  names, unchanged stored text after path changes/provider renames, and exact
+  inherited copies even when the child's creation path differs.
+  The type-renaming control succeeds on PostgreSQL; native execution asserts its
+  existing exact42601 TO-token boundary on direct/prepared routes instead of
+  introducing adjacent utility syntax. Path and inherited-text phases are shared.
+
+Selected root proof/smoke commands (external 900-second deadlines):
+
+```sh
+make check RUN='^TestReferenceDomain(DefaultPrecedence|Nullability)$' REFERENCE=1
+make check RUN='^TestReferenceDomainDefault(Diagnostics|Callers)$' REFERENCE=1
+make check RUN='^TestReferenceDomainDefault(BuiltinInheritance|Metadata)$' REFERENCE=1
+make check RUN='^TestReferenceDomainDefault(Dependencies|NativeControls)$' REFERENCE=1
+make check RUN='^TestReferenceDomainDefaultNullReplay$' REFERENCE=1
+make check RUN='^TestReferenceDomainDefaultCompositeFieldDependencies$' REFERENCE=1
+make check RUN='^TestReferenceDomainDefaultStoredDeparseVisibility$' REFERENCE=1
+make check RUN='^TestReferenceDomainDefaultNullMetadata$' REFERENCE=1
+make check RUN='^TestReferenceDomainDiagnostics$' REFERENCE=1
+```
+The package invariant selector is
+`make check RUN='^TestDomainDefaultCompositeFieldDependenciesInternal$'`.
+It covers authentic attribute references, immutable predecessor snapshots,
+repeated shape migration, selected-child demand, full-row live projection and
+rejection of forged/foreign retained associations.
+`make check RUN='^TestDomainDefault(ViewSQLDependencies|DependencyPreparedProjection)Internal$'`
+additionally distinguishes passive column datatype captures from explicit SQL
+type edges, preserving full lifetime manifests. Actual prepared CASCADE effects
+must omit the retired rowtype dependency without reviving its opaque numeric
+alias, retain the genuine surviving alias and reject a removed bound column;
+the captured predecessor still retains its original dependency.
+`make check RUN='^TestDomainDefault(BareNull|LogicalSelection|Recipes)Internal$'`
+covers exact NULL normalization, retained conversion/CASE nodes, inherited mask
+selection, stored-text coherence and unchanged fresh NOT NULL enforcement.
+`make check RUN='^TestGeneratedCompositeAttributeProviders$'` covers existing stored
+generation consumers of named composite fields. Capture and validation share the
+same live stable-attribute/backing-rowtype checks; exact manifests, epochs and
+same-row data authority remain required. Missing/foreign/forged providers and
+unrelated live metadata cannot authorize another table's data expression.
+
+
+Repeat each selector without `REFERENCE=1` for native proof. Both modes use the
+same definitions with explicit expected rows, metadata, diagnostics and stages.
+Existing domain diagnostics migrate DEFAULT/NOT NULL to shared positive
+assertions; ALTER default and native utility transaction boundaries remain
+explicit. Native controls are not PostgreSQL pg_dump, physical or wire
+interoperability.
+
+User-domain `typdefaultbin` uses the existing native `boundTree` representation:
+typed Const/Coerce nodes, not PostgreSQL nodeToString. D6 asserts native concrete
+root kinds separately from released PostgreSQL CONST/FUNCEXPR/COERCETODOMAIN
+predicates; neither accepts the other's layout. Deparse, presence and own flags
+remain exact. D7 additionally distinguishes an unchanged inherited recipe's
+target-domain error from an explicit default's immediate-base conversion error
+before and after native restore.
+Catalog name assertions use the actual `NAME` descriptor rather than expanding
+the separate explicit NAME-to-TEXT cast boundary. Inherited default dependencies
+retain their direct provider edge even when traversal reaches the child through
+its parent first. Native owner privilege checks apply their ordinary schema
+USAGE grant after the dump/replay phase; explicit namespace ACL serialization is
+not part of this contract.
+
+Native captured NULL provenance validates the live domain identity even when
+CHECK declarations are still deferred until after data replay. Closed replay
+expressions retain their original binding's routine lifetime manifest, including
+materialized snapshots; a matching routine address alone never grants authority.
+
+Domain/default VALUES rows reuse the existing destination-attribute projection:
+single-row input checks an earlier supplied domain value before demanding a later
+omitted provider default. Multirow input retains the existing source-first
+schedule. The same rule applies after logical-to-physical view mapping.
+NativeControls asserts the unchanged sequence state in the shared SQL phase,
+before Dump. Named DEFAULT/NULL/NOT NULL declaration diagnostics separately retain
+the CONSTRAINT token's UTF8 source position without replacing clause positions.
+
+Selected existing persistence regressions (both modes, same expectations):
+
+```sh
+make check RUN='^(TestReferencePGAggregate(IdentityPersistence|FeatureSmoke)|TestReferenceRegProcMaterializedPersistence|TestReferenceMaterializedViewTemporalSnapshots|TestReferenceDomainAlterConstraintNativeControls)$' REFERENCE=1
+make check RUN='^(TestReferencePGAggregate(IdentityPersistence|FeatureSmoke)|TestReferenceRegProcMaterializedPersistence|TestReferenceMaterializedViewTemporalSnapshots|TestReferenceDomainAlterConstraintNativeControls)$'
+```
+
+
+Internal descriptor/binder/remap supplements:
+
+```sh
+make check RUN='^(TestDomainNullabilityAuthority|TestDomainDefault(RecipesInternal|LogicalSelectionInternal|RemapInternal|DependencyReasonInternal|ValuesSchedulingInternal|ReplayAdmissionInternal|ReplayPairingInternal|ReplayDeferredChecksInternal|ReplayRoutineManifestInternal)|TestDomainDeclarationClausesAtomicInternal|TestDomainNamedDeclarationPositions|TestDomainCheck(InputVersusIdentity|NestedInputAndTypmod)|TestInfoTimeStampCatalogRemap|TestPGTypeInstalledDomainAuthority)$'
+```
+
+The shared projection's existing identity demand guards remain selected:
+
+```sh
+make check RUN='^TestIdentity(EarlyRowFailureConstrainsCompleteProjection|DiscardedRuntimeConversionDemandBinding)$'
+```
+
+The internal line-comment callback now carries `(string, parser.Position)` for
+immutable source pairing; no public parser mode or compatibility hook was added.
+Selected callback consumer regressions (and their `RACE=1` counterparts):
+
+```sh
+make check RUN='^Test(MaterializedViewRestoreComments|LineCommentPositions)$'
+make check RUN='^TestParseScratch(OptionsReentryAndCancellation|TypeErrorsAndCallbackPanic|FullReset)$'
+make check RUN='^TestParseScratch(RetainedDeclarationCarriers|RetainedCollationSource|RetainedParametersAndPositions|ConcurrentCancellation)$'
+make check RUN='^Test(PgcryptoOwnerMetadata|DaitchMokotoffProviderIdentity|IntarrayProviderIdentity)$'
+```
+
+Selected race proof uses the same command with `RACE=1`. These private units do
+not replace the selected native and pinned reference definitions above.
+
 ### Predefined timestamp domain
 
 The shared predefined-domain witnesses select
@@ -1131,10 +1279,16 @@ metadata/emitted ordered prefixes, permit ordinary cancellation/ErrBadConn, and
 require full rows on clean EOF. Native pre-cancellation requires context.Canceled
 without a cursor. Separate cancellation handles preserve an untouched write
 atomicity observer. This adapter distinction never weakens domain SQL diagnostics.
-Native inherited-domain defaults, sibling-domain/implicit-array executability
-and general information-schema views remain excluded. The bounded pg_type source
-does expose the exact seeded default/tree metadata and genuine type relationships;
-metadata visibility does not enable default execution or lookup-only codecs.
+Inherited-domain defaults execute through the same cooked recipe selection,
+including transaction `CURRENT_TIMESTAMP(2)` and explicit column NULL masks.
+`TestReferenceInfoTimeStampIdentity` checks omitted values on direct and prepared
+inserts against SQL `CURRENT_TIMESTAMP(2)` captured in the same transaction, with
+exact raw timestamp and base metadata assertions rather than wall-clock tolerance.
+Only the general information-schema column/domain projections remain PostgreSQL-only.
+Sibling-domain/implicit-array executability and general information-schema views
+retain their independent exclusions. The bounded pg_type source preserves the
+seeded released tree and genuine type relationships; lookup-only codec visibility
+does not enable input or storage.
 
 ### INET and CIDR
 

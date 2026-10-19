@@ -145,9 +145,10 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 		if row, ok := e.base.(rowExpression); ok && row.raw != nil && e.index >= 0 && e.index < len(row.fields) {
 			shape := row.ResultUsage().Type.BaseType()
 			index, valid := shape.CompositeAttributeIndex(e.attribute)
-			if valid && index == e.index && shape.CompositeMember(index).Usage == e.ResultUsage() &&
-				row.fields[index].ResultUsage() == e.ResultUsage() {
-				return plannedConditionalResult(e.Info, row.fields[index]), true, nil
+			source := row.fieldSourceIndex(index)
+			if valid && source == e.index && shape.CompositeMember(index).Usage == e.ResultUsage() &&
+				row.fields[source].ResultUsage() == e.ResultUsage() {
+				return plannedConditionalResult(e.Info, row.fields[source]), true, nil
 			}
 		}
 		expression = e

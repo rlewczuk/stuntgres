@@ -42,11 +42,14 @@ func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.Ob
 	// Retagging resolves captured provider descriptors in the destination.
 	// Remap source references first, exactly once, before that lookup.
 	for address, descriptor := range next.Descriptors() {
-		if domain, ok := descriptor.(*catalog.Type); ok && len(domain.DomainChecks) != 0 {
+		if domain, ok := descriptor.(*catalog.Type); ok && (len(domain.DomainChecks) != 0 || domain.DomainDefault != nil) {
 			if typesOnly {
 				changed := false
 				for _, check := range domain.DomainChecks {
 					walkQueryArgumentExpression(check.Expression, func(node expr.Expr) { changed = changed || node.ResultUsage().Type != typ(node.ResultUsage().Type) })
+				}
+				if domain.DomainDefault != nil {
+					walkQueryArgumentExpression(domain.DomainDefault.Expression, func(node expr.Expr) { changed = changed || node.ResultUsage().Type != typ(node.ResultUsage().Type) })
 				}
 				if !changed {
 					continue
@@ -74,6 +77,23 @@ func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.Ob
 						check.Dependencies[j].Revision = provider.Revision()
 					}
 				}
+			}
+			if domain.DomainDefault != nil {
+				definition := *domain.DomainDefault
+				node, err := remapBoundExpression(definition.Expression, ref, nil)
+				if err != nil {
+					return err
+				}
+				node, _, err = retagBoundTypes(view, node, typ, collation)
+				if err != nil {
+					return err
+				}
+				definition.Expression = node
+				definition.Dependencies = append([]ids.ObjectRef(nil), definition.Dependencies...)
+				for i := range definition.Dependencies {
+					definition.Dependencies[i] = ref(definition.Dependencies[i])
+				}
+				copy.DomainDefault = &definition
 			}
 			next.SetDescriptor(address, &copy)
 			continue

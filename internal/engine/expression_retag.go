@@ -326,6 +326,11 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		var replaced bool
 		n, replaced, err = mapRowAnalysis(n, mapChild)
 		changed = changed || replaced
+		if err == nil {
+			var projected bool
+			n, projected, err = n.retagFieldProjection(info.Usage.Type.BaseType())
+			changed = changed || projected
+		}
 		n.Info = info
 		rebound = n
 	case fieldExpression:
@@ -336,6 +341,12 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		index, ok := n.base.ResultUsage().Type.BaseType().CompositeAttributeIndex(n.attribute)
 		if !ok {
 			return nil, false, fmt.Errorf("stuntgres: retired remapped field")
+		}
+		if row, constructor := n.base.(rowExpression); constructor {
+			index = row.fieldSourceIndex(index)
+			if index < 0 {
+				return nil, false, fmt.Errorf("stuntgres: missing retained row field")
+			}
 		}
 		changed = changed || index != n.index
 		n.index = index

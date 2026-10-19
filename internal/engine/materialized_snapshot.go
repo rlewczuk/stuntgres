@@ -213,7 +213,18 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 			return fmt.Errorf("stuntgres: invalid materialized view snapshot target %s.%s", record.Schema, record.Name)
 		}
 		seen[address] = true
-		statements, err := parser.ParseWithOptions(record.Rows, parser.Options{Context: ctx, StandardConformingStrings: true})
+		var domainReplays []positionedDomainReplay
+		statements, err := parser.ParseWithOptions(record.Rows, parser.Options{Context: ctx, StandardConformingStrings: true, LineComment: func(comment string, position parser.Position) error {
+			record, recognized, err := decodeDomainReplay(comment)
+			if err == nil && recognized {
+				domainReplays = append(domainReplays, positionedDomainReplay{record: record, end: position.Offset + len(comment)})
+			}
+			return err
+		}})
+		if err != nil {
+			return err
+		}
+		domainReplayPairs, err := pairDomainReplay(record.Rows, statements, domainReplays)
 		if err != nil {
 			return err
 		}
@@ -240,39 +251,15 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 					}
 				}
 			}
-			e.mu.Lock()
-			b, err := e.describe(ctx, s, auth, e.catalog.Domain.Ref(auth.Catalog.Epoch(), address), input, op, nil, nil)
-			e.mu.Unlock()
+			var replay *domainReplayRecord
+			if captured, ok := domainReplayPairs[s]; ok {
+				replay = &captured
+			}
+			values, err := e.importMaterializedSnapshotRow(ctx, op, auth, d, s, input, replay)
 			if err != nil {
 				return err
 			}
-			if b.parameters.Count != 0 || len(b.querySources) != 0 || len(b.defaults) != 0 {
-				return fmt.Errorf("stuntgres: invalid materialized view snapshot row binding")
-			}
-			environment := input
-			environment.Regclass, environment.Regtype = b.regclassInput, b.regtypeInput
-			environment.Regrole = b.regroleInput
-			environment.Operator = b.operatorInput
-			environment.Regproc = b.regprocInput
-			environment.Regcollation, environment.Regnamespace = b.regcollationInput, b.regnamespaceInput
-			environment.RegTS = b.regTSInput
-			environment.ACLItem = b.aclitemInput
-			environment.FTS = b.ftsInput
-			evaluation := EvalContext{Context: ctx, Input: environment}
-			for _, expressions := range b.expressions {
-				values := make([]sqltype.Value, len(d.Columns))
-				for i, expression := range expressions {
-					value, err := expression.Eval(&evaluation)
-					if err != nil {
-						return err
-					}
-					if value.Type() != d.Columns[i].Usage.Type {
-						return fmt.Errorf("stuntgres: invalid materialized view snapshot value type")
-					}
-					values[i] = value
-				}
-				rows = append(rows, values)
-			}
+			rows = append(rows, values...)
 		}
 		imports = append(imports, imported{d, rows, record.Populated})
 	}
@@ -301,4 +288,74 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 	}
 	e.catalog.state = next
 	return nil
+}
+
+// Captured cells use the same exact INSERT binder transport as ordinary private
+// table replay. A real statement scope also retains normal CHECK providers for
+// all other non-NULL conversions; no constraint suppression is introduced here.
+func (e *Engine) importMaterializedSnapshotRow(ctx context.Context, op *Operation, auth AuthorizationView, d *catalog.Relation, s *parser.Insert, input sqltype.InputEnvironment, replay *domainReplayRecord) (rows [][]sqltype.Value, err error) {
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		err = scope.Finish(err)
+		if err != nil {
+			rows = nil
+		}
+	}()
+	if err = scope.gate(s); err != nil {
+		return nil, err
+	}
+	scope.input = input
+	scope.routineAuth = auth
+	if replay != nil {
+		capture, captureErr := e.captureDomainReplay(scope, s, *replay, auth, d)
+		if captureErr != nil {
+			return nil, captureErr
+		}
+		if op.restoreDomainReplay != nil {
+			return nil, fmt.Errorf("stuntgres: nested native replay transport")
+		}
+		op.restoreDomainReplay = capture
+		defer func() { op.restoreDomainReplay = nil }()
+	}
+	e.mu.Lock()
+	b, err := e.describe(ctx, s, auth, e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), input, op, nil, nil)
+	e.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	if b.parameters.Count != 0 || len(b.querySources) != 0 || len(b.defaults) != 0 {
+		return nil, fmt.Errorf("stuntgres: invalid materialized view snapshot row binding")
+	}
+	environment := input
+	environment.Regclass, environment.Regtype = b.regclassInput, b.regtypeInput
+	environment.Regrole, environment.Operator, environment.Regproc = b.regroleInput, b.operatorInput, b.regprocInput
+	environment.Regcollation, environment.Regnamespace = b.regcollationInput, b.regnamespaceInput
+	environment.RegTS, environment.ACLItem = b.regTSInput, b.aclitemInput
+	environment.FTS = b.ftsInput
+	environment.TypeDiagnosticName, environment.EnumMemberSafe = b.typeDiagnosticName, b.enumMemberSafe
+	scope.routineDependencies = b.dependencies
+	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, statementScope: scope, Input: environment, Output: scope.output, catalog: auth.Catalog, routineAuthority: &auth, routineRecipe: true, routineChecks: b.dependencies}
+	evaluation.Input.DomainChecks = &evaluation
+	for _, expressions := range b.expressions {
+		values := make([]sqltype.Value, len(d.Columns))
+		for i, expression := range expressions {
+			expression, _, err = preflightCoercionsWithPolicy(&evaluation, expression, false)
+			if err != nil {
+				return nil, err
+			}
+			value, evalErr := expression.Eval(&evaluation)
+			if evalErr != nil {
+				return nil, evalErr
+			}
+			if value.Type() != d.Columns[i].Usage.Type {
+				return nil, fmt.Errorf("stuntgres: invalid materialized view snapshot value type")
+			}
+			values[i] = value
+		}
+		rows = append(rows, values)
+	}
+	return rows, nil
 }

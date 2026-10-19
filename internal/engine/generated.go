@@ -589,7 +589,12 @@ func validateGenerationProviders(view catalog.Read, d *catalog.Relation) error {
 			}
 			provider, ok := view.Descriptor(address)
 			relation, relationProvider := provider.(*catalog.Relation)
-			if !ok || provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.OperatorObject && provider.Kind() != ids.NamespaceObject && provider.Kind() != ids.TSDictionaryObject && provider.Kind() != ids.ProcedureObject && (!relationProvider || ref.Address.SubID != 0 || relation.Address().ClassID != ids.RelationClassID) || provider.Kind() == ids.NamespaceObject && ref.Address.SubID != 0 {
+			validRelation := relationProvider && relation.Address().ClassID == ids.RelationClassID
+			if validRelation && ref.Address.SubID != 0 {
+				rowType, exists := view.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
+				validRelation = exists && compositeAttributeProvider(rowType, relation, ref.Address.SubID)
+			}
+			if !ok || provider.Kind() != ids.TypeObject && provider.Kind() != ids.CollationObject && provider.Kind() != ids.OperatorObject && provider.Kind() != ids.NamespaceObject && provider.Kind() != ids.TSDictionaryObject && provider.Kind() != ids.ProcedureObject && !validRelation || provider.Kind() == ids.NamespaceObject && ref.Address.SubID != 0 {
 				return fmt.Errorf("stuntgres: invalid generation provider")
 			}
 			if provider.Kind() == ids.ProcedureObject {
@@ -648,12 +653,40 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 	switch n := node.(type) {
 	case rowExpression:
 		shape := n.Usage.Type.BaseType()
-		if !shape.IsComposite() || len(n.fields) != shape.CompositeLen() || n.presenceSlot < 0 || n.wholeNames == nil && (n.presenceSlot != 0 || n.presenceFrame != 0) || n.wholeNames != nil && (len(n.wholeNames) != len(n.fields) || n.presenceFrame == 0) {
+		if !shape.IsComposite() || n.fieldProjection == nil && len(n.fields) != shape.CompositeLen() || n.fieldProjection != nil && len(n.fieldProjection) != len(n.fields) || n.presenceSlot < 0 || n.wholeNames == nil && (n.presenceSlot != 0 || n.presenceFrame != 0) || n.wholeNames != nil && (len(n.wholeNames) != len(n.fields) || n.presenceFrame == 0) {
 			return fmt.Errorf("stuntgres: invalid composite row plan")
 		}
-		for i, field := range n.fields {
-			if field == nil || !sqltype.SameRecordUsage(field.ResultUsage(), shape.CompositeMember(i).Usage) {
-				return fmt.Errorf("stuntgres: incompatible composite row member")
+		if n.fieldProjection == nil {
+			for i, field := range n.fields {
+				if field == nil || !sqltype.SameRecordUsage(field.ResultUsage(), shape.CompositeMember(i).Usage) {
+					return fmt.Errorf("stuntgres: incompatible composite row member")
+				}
+			}
+		} else {
+			if n.raw == nil {
+				return fmt.Errorf("stuntgres: retained row projection has no constructor")
+			}
+			seen := make(map[int32]bool, len(n.fieldProjection))
+			live := 0
+			for i, projection := range n.fieldProjection {
+				if n.fields[i] == nil || projection.attribute <= 0 || seen[projection.attribute] {
+					return fmt.Errorf("stuntgres: invalid retained row attribute")
+				}
+				seen[projection.attribute] = true
+				slot, present := shape.CompositeAttributeIndex(projection.attribute)
+				if !present {
+					if projection.slot != -1 {
+						return fmt.Errorf("stuntgres: invalid retired row slot")
+					}
+					continue
+				}
+				if slot != projection.slot || !sqltype.SameRecordUsage(n.fields[i].ResultUsage(), shape.CompositeMember(slot).Usage) {
+					return fmt.Errorf("stuntgres: incompatible retained row member")
+				}
+				live++
+			}
+			if live != shape.CompositeLen() {
+				return fmt.Errorf("stuntgres: incomplete retained row shape")
 			}
 		}
 		return args(n.fields)
@@ -663,7 +696,11 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 		}
 		shape := n.base.ResultUsage().Type.BaseType()
 		index, ok := shape.CompositeAttributeIndex(n.attribute)
-		if !ok || index != n.index || !sqltype.SameRecordUsage(n.Usage, shape.CompositeMember(index).Usage) {
+		source := index
+		if row, constructor := n.base.(rowExpression); constructor {
+			source = row.fieldSourceIndex(index)
+		}
+		if !ok || source != n.index || !sqltype.SameRecordUsage(n.Usage, shape.CompositeMember(index).Usage) {
 			return fmt.Errorf("stuntgres: invalid composite field plan")
 		}
 		return child(n.base)

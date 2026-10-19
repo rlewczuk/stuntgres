@@ -83,7 +83,7 @@ func ordinaryColumnDrop(provider *dropProvider, old *catalog.Relation, ref ids.O
 		return nil, err
 	}
 	if old.RelationKind == catalog.CompositeRelation {
-		if err := provider.compositeFieldChecks(old, target.SubID, a.Mode); err != nil {
+		if err := provider.compositeFieldDependencies(old, target.SubID, a.Mode); err != nil {
 			return nil, err
 		}
 	}

@@ -121,7 +121,7 @@ func validateCapturedInputBinding(captured, current catalog.Read, dependencies [
 }
 
 func (b *expressionBinder) decodeLiteralInput(text string, typ *sqltype.Descriptor, typmod int32, input sqltype.InputEnvironment) (sqltype.Value, error) {
-	if !sqltype.ContainsDomainChecks(typ) {
+	if !sqltype.ContainsDomainConstraints(typ) {
 		return typ.InputWithEnvironment(b.ctx, text, typmod, input)
 	}
 	owner, ok := input.LockedDomainInput.(*StatementScope)

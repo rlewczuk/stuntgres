@@ -52,6 +52,30 @@ See [scalar contract](docs/TYPES.md#text-search-scalar-values),
 [explicit boundaries](docs/DIALECT.md#text-search-scalar-boundaries) and
 [selected proof and feature smoke](reference/types/README.md#text-search-scalar-io).
 
+## Domain defaults and nullability — change note
+
+`CREATE DOMAIN` supports variable-free `DEFAULT`, compatibility `NULL`, and
+named or unnamed `NOT NULL`. Omitted/defaulted column values select the column
+recipe, then the domain's inherited recipe, then fresh NULL; explicit DEFAULT
+NULL masks an inherited default, while supplied NULL never requests a default.
+Fresh conversions enforce ancestor NOT NULL with domain SQLSTATE23502 and empty
+Constraint/Detail, including named declarations. Already-domain NULL retains the
+documented conversion bypass. The existing `information_schema.time_stamp`
+default uses transaction `CURRENT_TIMESTAMP(2)` and is inherited normally.
+Native Dump/Restore preserves executable recipes, nullability and legally stored
+already-domain NULLs, including nested carrier values and exact array bounds.
+New defaulted inserts and fresh NULL enforcement still apply after restore.
+Own/inherited composite-field defaults retain real attribute dependencies:
+RESTRICT is atomic, CASCADE retires consuming objects, and surviving sibling
+defaults keep their selected values. Native replay normalizes historical row
+constructors to the current live shape without changing source metadata.
+Composite ALTER dependency diagnostics retain the utility's captured namespace
+visibility for the root, dependent details and cascade notices.
+ALTER DOMAIN default/nullability changes and PostgreSQL pg_dump/physical
+interoperability remain outside this feature.
+See [domain semantics](docs/TYPES.md) and
+[selected proof and smoke](reference/types/README.md#domain-defaults-and-nullability).
+
 ## IP address formatting, masks and networks — change note
 
 `abbrev(inet/cidr)`, `host`, `text(inet)`, `family`, `masklen`,
@@ -3278,8 +3302,8 @@ catalog overlay. Canonical native Dump/Restore retains current definitions,
 rows and representable table/column comments, not rename history.
 Graph CHECK/NOT NULL ALTER remains an explicit boundary; admitted local
 UNIQUE/PRIMARY KEY/EXCLUDE graph definitions retain their existing allowance.
-Domain DEFAULT/NOT NULL/ALTER, FK/constraint triggers and PostgreSQL physical storage,
-WAL and external pg_dump mechanisms are not implemented; network access uses the
+ALTER DOMAIN default/nullability changes, FK/constraint triggers and PostgreSQL
+physical storage, WAL and external pg_dump mechanisms are not implemented; network access uses the
 bounded [Phase 2 server](#phase-2-server--change-note).
 Selected proof: `make check RUN='^TestReferenceConstraintRename'`;
 repeat with `REFERENCE=1` for the pinned oracle.
@@ -3391,17 +3415,18 @@ Feature smokes:
 `make check RUN='^TestReferenceSerializable'`
 and `make check REFERENCE=1 RUN='^TestReferenceSerializable'`.
 
-Change note: `CREATE DOMAIN [schema.]name [AS] base_type [NULL]` declares a
+Change note: `CREATE DOMAIN [schema.]name [AS] base_type` declares a
 catalog-owned logical type over a supported scalar or array base, with optional
-named or unnamed CHECK clauses.
+DEFAULT, NULL/NOT NULL and named or unnamed CHECK clauses.
 Domain columns, direct/prepared input, inherited base typmods, operators/functions
 and explicit assignment/cast-back retain the distinction between logical identity
 and physical codecs. `DROP DOMAIN [IF EXISTS] ... [RESTRICT | CASCADE]` follows
 real type/column/stored-expression dependencies: CASCADE removes dependent columns
 and views, not unrelated tables or surviving rows. Native Dump/Restore preserves
-qualified declarations, chains, owners, named/generated CHECKs and data. Domain
-DEFAULT/NOT NULL, array operators/functions and transactional domain DDL remain
-excluded. See [domains](https://www.postgresql.org/docs/18/domains.html).
+qualified declarations, chains, owners, default recipes, nullability,
+named/generated CHECKs and data. Array operators/functions, ALTER DOMAIN
+default/nullability changes and transactional domain DDL remain excluded.
+See [domains](https://www.postgresql.org/docs/18/domains.html).
 Feature smokes:
 `make check RUN='^TestReferenceDomain(BaseValues|Expressions|Metadata|Arrays)$'`,
 `make check RUN='^TestReferenceDomain(Diagnostics|Dependencies|PreparedLifecycle|NativeControls)$'`,
@@ -3466,8 +3491,8 @@ Change note: the predefined `information_schema.time_stamp` domain accepts
 supplied timestamptz values and explicit/bound NULL through the authoritative
 catalog/domain path. It retains distinct qualified identity, rounds to precision2,
 exports TIMESTAMPTZ metadata and survives native Dump/Reset/Restore.
-PostgreSQL's inherited `DEFAULT current_timestamp(2)` remains outside native
-support: omitted values use a column default or typed NULL. No sibling-domain,
+Its inherited `DEFAULT CURRENT_TIMESTAMP(2)` executes through the transaction-time
+provider and can be masked by an explicit column constant or NULL. No sibling-domain,
 implicit `_time_stamp` array storage or general information-schema view support
 is implied. See [domain contracts](https://www.postgresql.org/docs/18/domains.html).
 Feature smoke: `make check RUN='^TestReferenceInfoTimeStampFeatureSmoke$'`;

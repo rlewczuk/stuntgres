@@ -49,7 +49,7 @@ func storedReferenceEpochValid(view catalog.Read, consumer *catalog.Relation, re
 			return false
 		}
 		if target.Seeded() {
-			return pgDependPinned(view, ref.Address) && (catalog.CollationProvider{}).Validate(view, target) == nil
+			return pgDependPinned(view, nil, ref.Address) && (catalog.CollationProvider{}).Validate(view, target) == nil
 		}
 		ns, ok := view.Namespace(target.Namespace())
 		return ok && ns.Temporary == namespace.Temporary && (catalog.CollationProvider{}).Validate(view, target) == nil
@@ -60,7 +60,7 @@ func storedReferenceEpochValid(view catalog.Read, consumer *catalog.Relation, re
 		if target.Builtin != nil {
 			// Only the genuine immutable release declaration can bridge a
 			// retained TEMP recipe; ACL authority is recaptured separately.
-			return pgDependPinned(view, ref.Address) && (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, target) == nil
+			return pgDependPinned(view, nil, ref.Address) && (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, target) == nil
 		}
 		ns, ok := view.Namespace(target.Namespace())
 		return ok && ns.Temporary == namespace.Temporary && (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, target) == nil
@@ -99,7 +99,7 @@ func storedViewReferenceValid(view catalog.Read, consumer *catalog.Relation, ref
 		return false
 	}
 	if relation, ok := target.(*catalog.Relation); ok && relation.RelationKind == catalog.CatalogRelation {
-		return target == captured && pgDependPinned(view, address) && (ref.Address.SubID == 0 || relation.HasAttribute(ref.Address.SubID))
+		return target == captured && pgDependPinned(view, nil, address) && (ref.Address.SubID == 0 || relation.HasAttribute(ref.Address.SubID))
 	}
 	if !storedReferenceEpochValid(view, consumer, ref) {
 		return false
@@ -171,9 +171,10 @@ func (r scalarRenderer) retainedConsumer() *catalog.Relation {
 	return r.provenance
 }
 
-// Type refs have no node-local captured ObjectRef. Choose the already recorded
-// immutable manifest ref only after sql has checked exact builtin Type/Usage.
-func (r scalarRenderer) recordStoredType(view catalog.Read, ref ids.ObjectRef) {
+// Type and composite-attribute refs have no node-local captured ObjectRef. Choose
+// the retained manifest ref only after sql validates the genuine current codec
+// and, for a field, its backing relation and stable attribute identity.
+func (r scalarRenderer) recordStoredReference(view catalog.Read, ref ids.ObjectRef) {
 	for _, old := range r.capturedManifest {
 		if old.Address == ref.Address && storedReferenceEpochValid(view, r.retainedConsumer(), old) {
 			r.record(old)

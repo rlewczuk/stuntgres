@@ -30,7 +30,7 @@ func (b *expressionBinder) completeFunctionDefinitions(raw parser.FunctionExpr, 
 		}
 		info := jsonb.Info
 		info.Usage = usage
-		info.Property.DomainDependent = info.Property.DomainDependent || sqltype.ContainsDomainChecks(usage.Type)
+		info.Property.DomainDependent = info.Property.DomainDependent || sqltype.ContainsDomainConstraints(usage.Type)
 		jsonb.Definitions, jsonb.Unresolved = true, false
 		return jsonb.Reconstruct(info, jsonb.Args)
 	}
@@ -53,8 +53,8 @@ func (b *expressionBinder) completeFunctionDefinitions(raw parser.FunctionExpr, 
 	}
 	info := record.Info
 	info.Usage = shape.Usage()
-	info.Property.DomainDependent = info.Property.DomainDependent || sqltype.ContainsDomainChecks(shape)
-	info.Property.RuntimeDomainConversion = info.Property.RuntimeDomainConversion || sqltype.ContainsDomainChecks(shape)
+	info.Property.DomainDependent = info.Property.DomainDependent || sqltype.ContainsDomainConstraints(shape)
+	info.Property.RuntimeDomainConversion = info.Property.RuntimeDomainConversion || sqltype.ContainsDomainConstraints(shape)
 	record.Defined = true
 	return record.Reconstruct(info, record.Args)
 }

@@ -22,9 +22,6 @@ func TestReferenceCopyBinaryAtomicity(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			copyTextScenario(t, func(t *testing.T, _ *fixture.Pair, _ fixture.Backend, c copyTextConnection) {
 				for _, q := range tc.setup {
-					if copyBinaryDomainBoundary(t, c, q) {
-						return
-					}
 					c.exec(t, q)
 				}
 				c.exec(t, tc.ddl)

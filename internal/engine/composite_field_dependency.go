@@ -27,20 +27,45 @@ func expressionUsesCompositeField(node expr.Expr, id sqltype.ID, attribute int32
 	return found
 }
 
-func stageCompositeFieldChecks(stage *CatalogStage, source *catalog.Relation, attribute int32, mode parser.DropMode, scope *StatementScope) error {
-	return stageDropProvider(nil, stage, scope, nil, nil).compositeFieldChecks(source, attribute, mode)
+func stageCompositeFieldDependencies(stage *CatalogStage, source *catalog.Relation, attribute int32, mode parser.DropMode, scope *StatementScope) error {
+	return stageDropProvider(nil, stage, scope, nil, nil).compositeFieldDependencies(source, attribute, mode)
 }
 
-func (provider *dropProvider) compositeFieldChecks(source *catalog.Relation, attribute int32, mode parser.DropMode) error {
+func (provider *dropProvider) compositeFieldDependencies(source *catalog.Relation, attribute int32, mode parser.DropMode) error {
 	var relations []*catalog.Relation
 	var domains []*catalog.Type
-	for _, descriptor := range provider.descriptors() {
+	target := source.Address()
+	target.SubID = attribute
+	defaultDependent := false
+	for address, descriptor := range provider.descriptors() {
+		if provider.removed(address) {
+			continue
+		}
+		if current := provider.replacement(address); current != nil {
+			descriptor = current
+		}
 		if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Constraints.Check) != 0 {
 			relations = append(relations, relation)
 		}
-		if domain, ok := descriptor.(*catalog.Type); ok && len(domain.DomainChecks) != 0 {
-			domains = append(domains, domain)
+		if domain, ok := descriptor.(*catalog.Type); ok && (len(domain.DomainChecks) != 0 || domain.DomainDefault != nil) {
+			if len(domain.DomainChecks) != 0 {
+				domains = append(domains, domain)
+			}
+			if domain.DomainDefault != nil {
+				for _, ref := range domain.DomainDefault.Dependencies {
+					if ref.Address == target {
+						defaultDependent = true
+						break
+					}
+				}
+			}
 		}
+	}
+	if defaultDependent {
+		// Defaults own their type, unlike a separately removable CHECK. Use
+		// the ordinary authenticated whole-domain/column/view closure before
+		// the composite descriptor and its stored expressions are retagged.
+		return provider.expressionDependencies([]ids.ObjectAddress{target}, mode, target)
 	}
 	slices.SortFunc(relations, func(a, b *catalog.Relation) int {
 		if a.Address().ObjectID < b.Address().ObjectID {
@@ -154,4 +179,72 @@ func typedFieldCheckOwner(stage *CatalogStage, relation *catalog.Relation) bool 
 		}
 	}
 	return false
+}
+
+// Lifetime captures include a selected column's datatype. SQL dependency
+// recording does not turn that passive capture into a direct type-to-view edge.
+// The scoped composite-default walk instead reaches such a view through its
+// genuine retiring column; explicit SQL datatype references remain direct.
+func (provider *dropProvider) passiveViewTypeDependency(relation *catalog.Relation, target ids.ObjectAddress) (bool, error) {
+	if target.ClassID != ids.TypeClassID {
+		return false, nil
+	}
+	domain, ok := provider.descriptor(target).(*catalog.Type)
+	if !ok || !domain.SQLType.IsDomain() {
+		return false, nil
+	}
+	view := viewOf(relation)
+	if view == nil || view.query == nil {
+		return false, nil
+	}
+	column := false
+	for _, dependency := range view.dependencies {
+		ref := dependency.Ref
+		if ref.Address.ClassID != ids.RelationClassID || ref.Address.SubID <= 0 || ref.Domain() != provider.base.Owner().Domain || ref.Epoch != provider.base.Epoch() {
+			continue
+		}
+		address := ref.Address
+		address.SubID = 0
+		source, ok := provider.descriptor(address).(*catalog.Relation)
+		if !ok {
+			continue
+		}
+		slot := source.IndexForAttribute(ref.Address.SubID)
+		if slot >= 0 && usageDependsOn(source.Columns[slot].Usage, target) {
+			column = true
+			break
+		}
+	}
+	if !column {
+		return false, nil
+	}
+	var reader definitionReader
+	if provider.prepared != nil {
+		reader = provider.prepared
+	} else if provider.stage != nil {
+		reader = stageDefinitionReader{stage: provider.stage}
+	} else {
+		return false, fmt.Errorf("stuntgres: missing view dependency projection")
+	}
+	refs, err := pgDependQueryRefs(provider.ctx, provider.base, reader, view.query)
+	if err != nil {
+		return false, err
+	}
+	return !slices.Contains(refs, target), nil
+}
+
+// Both stored-expression capture and provider validation require the same live
+// stable member of the actual named rowtype/backing-relation pair. This is
+// metadata authority only; it does not authorize reading another table's rows.
+func compositeAttributeProvider(typ *catalog.Type, relation *catalog.Relation, attribute int32) bool {
+	if typ == nil || typ.SQLType == nil || relation == nil || attribute <= 0 || relation.Address().ClassID != ids.RelationClassID || typ.OwningRelation != relation.Address() || relation.RowType != typ.SQLType.ID() || !typ.SQLType.IsComposite() {
+		return false
+	}
+	index, exists := typ.SQLType.CompositeAttributeIndex(attribute)
+	slot := relation.IndexForAttribute(attribute)
+	if !exists || slot < 0 {
+		return false
+	}
+	member := typ.SQLType.CompositeMember(index)
+	return relation.Columns[slot].Name == member.Name && relation.Columns[slot].Usage == member.Usage
 }

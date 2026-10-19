@@ -49,7 +49,7 @@ func TestMaterializedViewGrammar(t *testing.T) {
 func TestMaterializedViewRestoreComments(t *testing.T) {
 	text := "SELECT '-- stuntgres-matview-v1 quoted'::text; /* outer -- stuntgres-matview-v1 block /* nested */ */\n-- stuntgres-matview-v1 actual\nSELECT 2; -- ordinary\n"
 	var comments []string
-	statements, err := ParseWithOptions(text, Options{StandardConformingStrings: true, LineComment: func(comment string) error { comments = append(comments, comment); return nil }})
+	statements, err := ParseWithOptions(text, Options{StandardConformingStrings: true, LineComment: func(comment string, _ Position) error { comments = append(comments, comment); return nil }})
 	if err != nil || len(statements) != 2 {
 		t.Fatalf("opt-in comment parsing: %v", err)
 	}
@@ -60,7 +60,25 @@ func TestMaterializedViewRestoreComments(t *testing.T) {
 		t.Fatalf("ordinary SQL comments changed behavior: %v", err)
 	}
 	failure := errors.New("bad private snapshot")
-	if _, err := ParseWithOptions("-- stuntgres-matview-v1 bad\nSELECT 1", Options{LineComment: func(string) error { return failure }}); !errors.Is(err, failure) {
+	if _, err := ParseWithOptions("-- stuntgres-matview-v1 bad\nSELECT 1", Options{LineComment: func(string, Position) error { return failure }}); !errors.Is(err, failure) {
 		t.Fatalf("callback error lost: %v", err)
+	}
+}
+
+func TestLineCommentPositions(t *testing.T) {
+	type comment struct {
+		text string
+		pos  Position
+	}
+	var got []comment
+	statements, err := ParseWithOptions("-- é\n-- 二\n-- z\nSELECT 1", Options{LineComment: func(text string, pos Position) error {
+		got = append(got, comment{text, pos})
+		// Reentry must not alter the outer callback's byte/character frontier.
+		_, err := Parse("-- nested\nSELECT 2")
+		return err
+	}})
+	want := []comment{{" é", Position{Offset: 2, Character: 3}}, {" 二", Position{Offset: 8, Character: 8}}, {" z", Position{Offset: 15, Character: 13}}}
+	if err != nil || len(statements) != 1 || !reflect.DeepEqual(got, want) {
+		t.Fatalf("positioned comments: %#v, %v", got, err)
 	}
 }

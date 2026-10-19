@@ -74,19 +74,15 @@ func TestReferenceDomainDiagnostics(t *testing.T) {
 		} {
 			run(fixture.Exec(q, 0))
 		}
-		// DEFAULT/NOT NULL and later changes remain explicit native boundaries.
-		boundaries := []struct{ name, suffix string }{
-			{"defaulted", " DEFAULT 7"}, {"required", " NOT NULL"},
-		}
-		for _, tc := range boundaries {
-			q := "CREATE DOMAIN domain_s." + tc.name + " AS integer" + tc.suffix
-			if backend.PG {
-				run(fixture.Exec(q, 0))
-				run(fixture.Exec("DROP DOMAIN domain_s."+tc.name, 0))
-			} else {
-				run(fixture.Error(q, "0A000"))
-				run(fixture.Error("CREATE TABLE domain_s.probe (v domain_s."+tc.name+")", "42704"))
-			}
+		// DEFAULT/NOT NULL are shared positive contracts, not native boundaries.
+		run(fixture.Exec("CREATE DOMAIN domain_s.defaulted AS integer DEFAULT 7", 0))
+		run(fixture.Exec("CREATE DOMAIN domain_s.required AS integer CONSTRAINT required_name NOT NULL", 0))
+		run(fixture.Exec("CREATE TABLE domain_s.positive (v domain_s.defaulted,r domain_s.required)", 0))
+		run(fixture.Exec("INSERT INTO domain_s.positive(r) VALUES(9)", 1))
+		run(fixture.Prepared(fixture.Exec("INSERT INTO domain_s.positive(v,r) VALUES(DEFAULT,$1)", 1, int64(10))))
+		run(fixture.Select("SELECT v,r FROM domain_s.positive ORDER BY r", []string{"v", "r"}, []string{"INT4", "INT4"}, [][]any{{int64(7), int64(9)}, {int64(7), int64(10)}}))
+		for _, prepared := range []bool{false, true} {
+			run(domainDefaultFailure("INSERT INTO domain_s.positive(r) VALUES(NULL)", domainNotNullDiagnostic("domain_s", "required"), prepared, false))
 		}
 		if backend.PG {
 			run(fixture.Exec("CREATE DOMAIN domain_s.altered AS integer", 0))

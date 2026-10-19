@@ -94,27 +94,11 @@ func TestReferenceJSONArrayAggregateReturning(t *testing.T) {
 
 func jsonArrayAggregateConstrainedReturning(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	t.Helper()
-	for _, declaration := range []struct{ q, token string }{
-		{"CREATE DOMAIN ja_notnull AS json NOT NULL", "NOT NULL"},
-		{"CREATE DOMAIN ja_only_empty AS text CHECK(VALUE='[]')", "CHECK"},
+	for _, q := range []string{
+		"CREATE DOMAIN ja_notnull AS json NOT NULL",
+		"CREATE DOMAIN ja_only_empty AS text CHECK(VALUE='[]')",
 	} {
-		if b.PG || declaration.token == "CHECK" {
-			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(declaration.q, 0))
-		} else {
-			d := fixture.ControlsReferenceDiagnostic("0A000", "domain constraints and defaults are unsupported")
-			d.Position = jsonArrayAggregatePosition(declaration.q, declaration.token)
-			jsonArrayAggregateError(t, p, b, declaration.q, d, true)
-		}
-	}
-	if !b.PG {
-		// Domain NOT NULL remains outside native admission; CHECK now uses the
-		// ordinary aggregate RETURNING conversion below on both backends.
-		for _, name := range []string{"ja_notnull"} {
-			q := "SELECT NULL::" + name + " AS v"
-			d := fixture.ControlsReferenceDiagnostic("42704", `type "`+name+`" does not exist`)
-			d.Position = jsonArrayAggregatePosition(q, name)
-			jsonArrayAggregateError(t, p, b, q, d, true)
-		}
+		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec(q, 0))
 	}
 	for _, tc := range []struct {
 		expr, from string
@@ -125,13 +109,12 @@ func jsonArrayAggregateConstrainedReturning(t *testing.T, p *fixture.Pair, b fix
 	} {
 		jsonArrayAggregateRoutes(t, p, b, jsonArrayAggregateSelect("SELECT "+tc.expr+" AS v"+tc.from, "TEXT", tc.want))
 	}
+	jsonArrayAggregateRoutes(t, p, b, jsonArrayAggregateSelect("SELECT json_arrayagg(1 RETURNING ja_notnull) AS v", "JSON", "[1]"))
 	for _, tc := range []struct{ q, code, message, datatype, constraint string }{
 		{"SELECT json_arrayagg(1 RETURNING ja_only_empty) AS v", "23514", `value for domain ja_only_empty violates check constraint "ja_only_empty_check"`, "ja_only_empty", "ja_only_empty_check"},
 		{"SELECT json_arrayagg(1 RETURNING ja_notnull) AS v WHERE FALSE", "23502", "domain ja_notnull does not allow null values", "ja_notnull", ""},
+		{"SELECT NULL::ja_notnull AS v", "23502", "domain ja_notnull does not allow null values", "ja_notnull", ""},
 	} {
-		if !b.PG && tc.datatype == "ja_notnull" {
-			continue
-		}
 		d := fixture.ControlsReferenceDiagnostic(tc.code, tc.message)
 		d.Schema, d.DataType, d.Constraint = "public", tc.datatype, tc.constraint
 		jsonArrayAggregateError(t, p, b, tc.q, d, false)

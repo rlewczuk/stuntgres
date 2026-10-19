@@ -256,7 +256,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		var dependencies []ids.ObjectRef
 		catalogSnapshot := false
 		_, err := (scalarRenderer{validation: true, provenance: r, capturedManifest: definition.Dependencies, dependencies: &dependencies, commentSnapshot: &catalogSnapshot}).sql(context.Background(), v, definition.Expression)
-		if err != nil || !slices.Equal(dependencies, definition.Dependencies) || catalogSnapshot != definition.CatalogSnapshot || structuralNull(definition.Expression) {
+		if err != nil || !slices.Equal(dependencies, definition.Dependencies) || catalogSnapshot != definition.CatalogSnapshot || omitColumnDefault(v, definition.Expression, r.Columns[slot].Usage) {
 			return fmt.Errorf("stuntgres: invalid column default expression")
 		}
 	}

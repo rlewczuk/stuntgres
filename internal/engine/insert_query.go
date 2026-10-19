@@ -476,7 +476,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 		}
 		for j, expression := range b.defaults {
 			if expression != nil && (defaultSource == nil || defaultSource.rowDefaults()[j]) {
-				row[j], err = expression.Eval(&evaluation)
+				row[j], err = b.evalDefault(&evaluation, j, expression)
 				if err != nil {
 					return indexWriteBatch{}, err
 				}

@@ -52,7 +52,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 		}
 		b.arrayTargets[i] = partial
 	}
-	e.bindInsertDefaults(b, auth, s.Override)
+	domainScheduling := e.bindInsertDefaults(b, auth, s.Override)
 	if s.Source != nil {
 		if err := e.bindInsertSource(b, binder, auth, s); err != nil {
 			return err
@@ -114,6 +114,13 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 			// Analyze source occurrences once before destination types constrain
 			// shared parameters. Unknown literals retain destination authority.
 			for j, v := range row {
+				if captured, handled, err := b.capturedDomainReplayCell(binder.op, s, rowIndex, j); handled || err != nil {
+					if err != nil {
+						return err
+					}
+					b.expressions[rowIndex][j] = captured
+					continue
+				}
 				if expanded != nil && expanded[j] != nil {
 					b.expressions[rowIndex][j] = expanded[j]
 					continue
@@ -166,7 +173,9 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 			}
 			var plan expr.Expr
 			var err error
-			if expanded != nil && expanded[j] != nil {
+			if captured, handled, captureErr := b.capturedDomainReplayCell(binder.op, s, rowIndex, j); handled || captureErr != nil {
+				plan, err = captured, captureErr
+			} else if expanded != nil && expanded[j] != nil {
 				plan, err = binder.assignOutput(expanded[j], c)
 			} else if stringRow {
 				plan, err = binder.assignOutput(b.expressions[rowIndex][j], c)
@@ -240,7 +249,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 			return err
 		}
 	}
-	if len(b.relation.ColumnMeta.Identities) != 0 {
+	if len(b.relation.ColumnMeta.Identities) != 0 || domainScheduling && len(b.defaults) != 0 {
 		b.insertProjection = make([]int, len(b.relation.Columns))
 		for i := range b.insertProjection {
 			b.insertProjection[i] = -1
@@ -252,20 +261,28 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 	return binder.captureRetainedWriteInput(b.defaults, nil, nil)
 }
 
-// Both INSERT and COPY consume these catalog-owned default and identity plans.
-func (e *Engine) bindInsertDefaults(b *binding, auth AuthorizationView, override parser.InsertOverride) {
-	hasDomains := false
+// INSERT, COPY and foreign actions share catalog-owned default/identity plans.
+// The result tells VALUES binding whether domain inputs/defaults require the
+// existing destination-attribute projection rather than default-first demand.
+func (e *Engine) bindInsertDefaults(b *binding, auth AuthorizationView, override parser.InsertOverride) bool {
+	hasDomains, hasTypeDefaults, hasDomainInput := false, false, false
 	for _, column := range b.relation.Columns {
-		hasDomains = hasDomains || column.Usage.Type.HasDomainChecks()
+		hasDomains = hasDomains || column.Usage.Type.HasDomainConstraints()
+		hasTypeDefaults = hasTypeDefaults || typeDefault(auth.Catalog, column.Usage.Type) != nil
+		hasDomainInput = hasDomainInput || sqltype.ContainsDomainConstraints(column.Usage.Type)
 	}
-	if len(b.relation.ColumnMeta.Defaults) == 0 && len(b.relation.ColumnMeta.Identities) == 0 && !hasDomains {
-		return
+	if len(b.relation.ColumnMeta.Defaults) == 0 && len(b.relation.ColumnMeta.Identities) == 0 && !hasDomains && !hasTypeDefaults {
+		return hasDomainInput
 	}
 	b.defaults = make([]expr.Expr, len(b.relation.Columns))
+	if hasTypeDefaults {
+		b.defaultOrigins = make([]defaultOrigin, len(b.relation.Columns))
+	}
 	for i, attribute := range b.relation.Attributes {
-		b.defaults[i] = b.relation.ColumnMeta.Defaults[attribute].Expression
-		if b.defaults[i] == nil && b.relation.Columns[i].Usage.Type.HasDomainChecks() {
-			b.defaults[i] = domainNullInputExpression(b.relation.Columns[i].Usage)
+		node, origin := columnDefault(auth.Catalog, b.relation, i)
+		b.defaults[i] = node
+		if b.defaultOrigins != nil {
+			b.defaultOrigins[i] = origin
 		}
 		if identity, ok := b.relation.ColumnMeta.Identities[attribute]; ok {
 			b.defaults[i] = sequenceCallExpression{Info: expr.Info{Usage: b.relation.Columns[i].Usage, Property: expr.Properties{Volatility: expr.Volatile}}, name: "nextval", ref: e.catalog.Domain.Ref(auth.Catalog.Epoch(), identity.Sequence), identity: true}
@@ -277,4 +294,5 @@ func (e *Engine) bindInsertDefaults(b *binding, auth AuthorizationView, override
 			_, b.identityDiscard[i] = b.relation.ColumnMeta.Identities[attribute]
 		}
 	}
+	return hasDomainInput || hasTypeDefaults
 }

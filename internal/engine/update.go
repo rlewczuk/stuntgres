@@ -14,11 +14,12 @@ import (
 )
 
 type boundUpdate struct {
-	assignments  []expr.Expr
-	arrayTargets []*arrayAssignmentTarget
-	predicate    expr.Expr
-	from         LogicalNode
-	sourceWidth  int
+	assignments    []expr.Expr
+	defaultOrigins []defaultOrigin
+	arrayTargets   []*arrayAssignmentTarget
+	predicate      expr.Expr
+	from           LogicalNode
+	sourceWidth    int
 }
 
 // Reuse the shared coercion traversal; only changed execution branches are
@@ -40,7 +41,14 @@ func preflightUpdateWithPlanning(c *EvalContext, original *boundUpdate, planCons
 		result = &private
 	}
 	for i, expression := range original.assignments {
-		folded, changed, err := preflightUpdateExpression(c, expression, planConstants)
+		owner := c
+		var recipe EvalContext
+		if len(original.defaultOrigins) != 0 && original.defaultOrigins[i].requested {
+			recipe = *c
+			original.defaultOrigins[i].apply(&recipe)
+			owner = &recipe
+		}
+		folded, changed, err := preflightUpdateExpression(owner, expression, planConstants)
 		if err != nil {
 			return nil, err
 		}

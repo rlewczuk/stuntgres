@@ -18063,12 +18063,12 @@ sqldefault:
 	case 1134:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.constraint = ColumnConstraint{Name: Identifier{Text: sqlDollar[2].tok.text, Pos: sqlDollar[2].tok.pos}, Pos: sqlDollar[3].tok.pos}
+			sqlVAL.constraint = ColumnConstraint{Name: Identifier{Text: sqlDollar[2].tok.text, Pos: sqlDollar[2].tok.pos}, Pos: sqlDollar[3].tok.pos, NamedDeclarationPos: sqlDollar[1].tok.pos}
 		}
 	case 1135:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
-			sqlVAL.constraint = ColumnConstraint{NotNull: true, Name: Identifier{Text: sqlDollar[2].tok.text, Pos: sqlDollar[2].tok.pos}, Pos: sqlDollar[3].tok.pos}
+			sqlVAL.constraint = ColumnConstraint{NotNull: true, Name: Identifier{Text: sqlDollar[2].tok.text, Pos: sqlDollar[2].tok.pos}, Pos: sqlDollar[3].tok.pos, NamedDeclarationPos: sqlDollar[1].tok.pos}
 		}
 	case 1136:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
@@ -18092,7 +18092,7 @@ sqldefault:
 			if !sqllex.(*lexer).defaultIndexPropertyAllowed(sqlDollar[4].expr) {
 				return 1
 			}
-			sqlVAL.constraint = ColumnConstraint{Default: sqlDollar[4].expr, Name: Identifier{Text: sqlDollar[2].tok.text, Pos: sqlDollar[2].tok.pos}, Pos: sqlDollar[3].tok.pos}
+			sqlVAL.constraint = ColumnConstraint{Default: sqlDollar[4].expr, Name: Identifier{Text: sqlDollar[2].tok.text, Pos: sqlDollar[2].tok.pos}, Pos: sqlDollar[3].tok.pos, NamedDeclarationPos: sqlDollar[1].tok.pos}
 		}
 	case 1138:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]

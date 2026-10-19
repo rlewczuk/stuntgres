@@ -115,3 +115,35 @@ func TestDomainNameArrayProducerAssignmentSyntax(t *testing.T) {
 		}
 	}
 }
+
+func TestDomainNamedDeclarationPositions(t *testing.T) {
+	for _, clause := range []string{"DEFAULT 7", "NULL", "NOT NULL"} {
+		for _, table := range []bool{false, true} {
+			query := `CREATE DOMAIN public."é domain" AS integer `
+			if table {
+				query = `CREATE TABLE public."é table"(v integer `
+			}
+			query += `CONSTRAINT /* name gap */ "κ name" /* clause gap */ ` + clause
+			if table {
+				query += ")"
+			}
+			statements, err := Parse(query)
+			if err != nil || len(statements) != 1 {
+				t.Fatal(query, statements, err)
+			}
+			var constraint ColumnConstraint
+			if table {
+				constraint = statements[0].(*CreateTable).Elements[0].Column.Constraints[0]
+			} else {
+				constraint = statements[0].(*CreateDomain).Constraints[0]
+			}
+			declaration := strings.Index(query, "CONSTRAINT")
+			keyword := strings.LastIndex(query, strings.Fields(clause)[0])
+			wantDeclaration := Position{Offset: declaration, Character: utf8.RuneCountInString(query[:declaration]) + 1}
+			wantClause := Position{Offset: keyword, Character: utf8.RuneCountInString(query[:keyword]) + 1}
+			if constraint.NamedDeclarationPos != wantDeclaration || constraint.Pos != wantClause || constraint.Name.Text != "κ name" {
+				t.Fatal(query, constraint, wantDeclaration, wantClause)
+			}
+		}
+	}
+}

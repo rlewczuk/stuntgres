@@ -66,6 +66,18 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 	}
 	var result []domainDependency
 	resultSlots := make(map[ids.ObjectAddress]int)
+	// Only composite-attribute roots with real domain-default edges use the
+	// released reverse-postorder walk. CHECK-only and other provider routes
+	// retain their established traversal and notice contracts.
+	compositeAttributeRoot := false
+	if len(targets) == 1 && targets[0].ClassID == ids.RelationClassID && targets[0].SubID > 0 {
+		address := targets[0]
+		address.SubID = 0
+		relation, ok := provider.descriptor(address).(*catalog.Relation)
+		compositeAttributeRoot = ok && relation.RelationKind == catalog.CompositeRelation && relation.IndexForAttribute(targets[0].SubID) >= 0
+	}
+	compositeDefaultOrder := false
+	var postorder []int
 	mergedDescriptors := provider.descriptorCount() != provider.base.DescriptorCount()
 	var visit func(ids.ObjectAddress, ids.ObjectAddress) error
 	visit = func(target, root ids.ObjectAddress) error {
@@ -168,8 +180,28 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 						}
 					}
 				}
-				if d.SQLType.IsDomain() && usageDependsOn(d.SQLType.DomainBase(), target) {
-					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: "type " + catalog.TypeDiagnosticNameAt(provider.base, d, provider.path)})
+				defaultDependency, defaultRootDependency := false, false
+				if d.DomainDefault != nil {
+					for _, ref := range d.DomainDefault.Dependencies {
+						defaultDependency = defaultDependency || ref.Address == target
+						defaultRootDependency = defaultRootDependency || ref.Address == root
+						if defaultDependency && defaultRootDependency {
+							break
+						}
+					}
+				}
+				if compositeAttributeRoot && target == root && defaultDependency {
+					compositeDefaultOrder = true
+				}
+				if d.SQLType.IsDomain() && (usageDependsOn(d.SQLType.DomainBase(), target) || defaultDependency) {
+					dependencyTarget := target
+					// DFS can reach an inherited recipe through its parent before
+					// visiting its direct provider edge. Retain that genuine root
+					// dependency instead of reporting merely the ancestry path.
+					if defaultRootDependency {
+						dependencyTarget = root
+					}
+					direct = append(direct, domainDependency{address: a, target: dependencyTarget, root: root, oid: a.ObjectID, label: "type " + catalog.TypeDiagnosticNameAt(provider.base, d, provider.path)})
 				}
 				if d.SQLType.IsArray() && target == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())}) {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true})
@@ -228,6 +260,15 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 				}
 				if d.View != nil {
 					if viewDepends(d, target) {
+						if compositeDefaultOrder {
+							passive, err := provider.passiveViewTypeDependency(d, target)
+							if err != nil {
+								return err
+							}
+							if passive {
+								continue
+							}
+						}
 						if name == "" {
 							name = dependencyRelationName(provider.base, d, provider.path)
 						}
@@ -312,6 +353,15 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 			}
 		}
 		sort.Slice(direct, func(i, j int) bool {
+			if compositeDefaultOrder {
+				if direct[i].address.ObjectID != direct[j].address.ObjectID {
+					return direct[i].address.ObjectID > direct[j].address.ObjectID
+				}
+				if direct[i].address.ClassID != direct[j].address.ClassID {
+					return direct[i].address.ClassID < direct[j].address.ClassID
+				}
+				return direct[i].address.SubID < direct[j].address.SubID
+			}
 			if direct[i].oid != direct[j].oid {
 				return direct[i].oid < direct[j].oid
 			}
@@ -333,6 +383,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 				continue
 			}
 			seen[edge.address] = true
+			slot := len(result)
 			resultSlots[edge.address] = len(result)
 			result = append(result, edge)
 			if edge.address.ClassID == ids.TypeClassID || edge.address.ClassID == ids.RelationClassID || edge.address.ClassID == ids.ExtensionClassID || edge.address.ClassID == ids.ProcedureClassID || edge.address.ClassID == ids.TSTemplateClassID || edge.address.ClassID == ids.TSDictionaryClassID || edge.address.ClassID == ids.ForeignWrapperClassID || edge.address.ClassID == ids.ForeignServerClassID || edge.address.ClassID == ids.ForeignMappingClassID {
@@ -340,12 +391,28 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 					return err
 				}
 			}
+			if compositeDefaultOrder {
+				postorder = append(postorder, slot)
+			}
 		}
 		return nil
 	}
 	for _, root := range targets {
 		if err := visit(root, root); err != nil {
 			return nil, err
+		}
+	}
+	if compositeDefaultOrder {
+		// Keep original slots throughout DFS so repeated/automatic edges use
+		// the same authority. Then apply reverse postorder in place, without
+		// a second dependency graph or duplicate descriptor/edge buffers.
+		for position, slot := range postorder {
+			resultSlots[result[slot].address] = len(result) - 1 - position
+		}
+		for i := range result {
+			for destination := resultSlots[result[i].address]; destination != i; destination = resultSlots[result[i].address] {
+				result[i], result[destination] = result[destination], result[i]
+			}
 		}
 	}
 	return result, nil
@@ -756,7 +823,7 @@ func (provider *dropProvider) removeDomainCheck(d *catalog.Type, oid ids.OID) er
 		}
 	}
 	var err error
-	next.SQLType, err = sqltype.Domain(d.SQLType.ID(), d.Name(), d.SQLType.SQLName(), d.SQLType.DomainBase(), len(next.DomainChecks) != 0)
+	next.SQLType, err = sqltype.Domain(d.SQLType.ID(), d.Name(), d.SQLType.SQLName(), d.SQLType.DomainBase(), len(next.DomainChecks) != 0, d.SQLType.OwnDomainNotNull())
 	if err != nil {
 		return err
 	}

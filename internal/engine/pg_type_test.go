@@ -306,7 +306,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 				Kind:                     "d", Category: "U", Base: pair.base.SQLType.ID(),
 				Input: 2597, Output: output, Receive: 2598, Modifier: -1,
 			}
-			got, err := pgTypeFacts(view, pair.d)
+			got, err := pgTypeFacts(context.Background(), view, pair.d, sqltype.OutputEnvironment{})
 			if err != nil || got != want {
 				t.Fatal("installed immediate-domain facts", got, want, err)
 			}
@@ -316,7 +316,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 				Kind:                     "b", Category: "A", Element: pair.d.SQLType.ID(), Subscript: 6179,
 				Input: 750, Output: 751, Receive: 2400, Send: 2401, Analyze: 3816, Modifier: -1,
 			}
-			gotArray, err := pgTypeFacts(view, a)
+			gotArray, err := pgTypeFacts(context.Background(), view, a, sqltype.OutputEnvironment{})
 			if err != nil || gotArray != wantArray {
 				t.Fatal("installed domain companion facts", gotArray, wantArray, err)
 			}
@@ -358,7 +358,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 				}
 				bad := e.catalog.read(root)
 				for _, d := range []*catalog.Type{nested, array(t, catalogView, nested)} {
-					facts, err := pgTypeFacts(bad, d)
+					facts, err := pgTypeFacts(context.Background(), bad, d, sqltype.OutputEnvironment{})
 					if err == nil || facts != (sqltype.PGTypeMetadata{}) {
 						t.Fatal("accepted missing/foreign immediate base", facts, err)
 					}

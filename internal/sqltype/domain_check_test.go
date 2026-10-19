@@ -20,7 +20,7 @@ func TestDomainCheckInputVersusIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !checked.HasDomainChecks() || !inherited.HasDomainChecks() || !ContainsDomainChecks(inherited) {
+	if !checked.HasDomainChecks() || !inherited.HasDomainChecks() || !ContainsDomainConstraints(inherited) {
 		t.Fatal("lost check ancestry")
 	}
 	input, err := PlanCoercion(integer.Usage(), checked.Usage(), Assignment)
@@ -95,7 +95,7 @@ func TestDomainCheckNestedInputAndTypmod(t *testing.T) {
 		typ  *Descriptor
 		text string
 	}{{array, "{NULL}"}, {record, "()"}} {
-		if !ContainsDomainChecks(tc.typ) {
+		if !ContainsDomainConstraints(tc.typ) {
 			t.Fatal("nested type lost checked-member authority")
 		}
 		if _, err := tc.typ.InputWithEnvironment(ctx, tc.text, -1, InputEnvironment{}); err == nil {

@@ -328,7 +328,7 @@ func (e coercionExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 			input.Regcollation, input.Regnamespace = scope.input.Regcollation, scope.input.Regnamespace
 		}
 	}
-	if sqltype.ContainsDomainChecks(e.Usage.Type) {
+	if sqltype.ContainsDomainConstraints(e.Usage.Type) {
 		input.DomainChecks = c
 	}
 	return e.plan.Apply(c.Context, v, input, output)
@@ -1936,7 +1936,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 					u = b.typ(sqltype.Text).Usage()
 				}
 				if u.Type.IsDomain() {
-					u = u.BaseUsage()
+					// Fresh NULL is an unconstrained physical input. The outer
+					// assignment owns inherited typmods and domain constraints.
+					u = u.BaseUsage().Type.Usage()
 				}
 				value = sqltype.Null(u.Type)
 			case parser.BitStringValue:

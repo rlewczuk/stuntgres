@@ -422,8 +422,8 @@ JSON null becomes typed SQL NULL, including domain checks. Missing fields retain
 an existing base member or become checked typed NULL; nested objects preserve
 unspecified nested base members and arrays replace rather than merge.
 Physical source-table CHECK/NOT NULL/default declarations do not apply to its
-standalone row type. Existing domain CHECKs do apply; domain NOT NULL/default
-DDL retains its separate native exclusion.
+standalone row type. Domain CHECK and NOT NULL constraints apply on fresh member
+conversion; domain defaults are not requested by record conversion.
 Validity saves destination-input failures and a domain's own constraint
 violation; it does not catch errors raised while executing a CHECK expression,
 even when their SQLSTATE also describes invalid input or another domain.
@@ -1030,17 +1030,62 @@ same checked conversion; this syntax does not admit additional non-domain
 literal providers. Unquoted, separated E/B/X string prefixes retain their
 existing boundary; quoted nominal names use domain-only binding, while
 contiguous escape/bit literal tokens retain their existing lexer semantics.
-Omitted columns and `DEFAULT VALUES` use checked fresh NULL
-input when no column default exists. Foreign-action assignments use their
+Omitted columns and `DEFAULT VALUES` select a column recipe, then the declared
+domain's effective inherited recipe, then checked fresh NULL.
+Foreign-action assignments use their
 captured type visibility and conversion authority, including fresh NULL from
 SET NULL or SET DEFAULT; they do not validate already-domain rows globally.
 Consequently fresh NULL is checked while already-domain NULL produced by an
 outer join or empty scalar subquery can bypass conversion. Native Dump/Restore
 preserves explicit/generated names and expression providers; CHECK-only provider
 CASCADE removes the dependent CHECK, not its containing domain or stored data.
-Domain DEFAULT/NOT NULL/ALTER remain unavailable; supplied-value support for
-`information_schema.time_stamp` does not implement its PostgreSQL inherited
-default. Changed type/domain ACLs make Dump fail rather than lose
+CREATE DOMAIN supports variable-free DEFAULT, NULL and named/unnamed NOT NULL.
+Column defaults override domain/base defaults; explicit DEFAULT NULL masks
+inherited recipes. Supplied NULL, casts and already-domain values never request a
+default. An explicit child NULL does not waive inherited NOT NULL. Domain23502
+reports the actual conversion target with empty Constraint/Table/Column/Detail,
+even when named; CHECK initialization still precedes candidate truth.
+`pg_type.typnotnull` reports only the own declaration, not inherited enforcement
+or driver Nullable knowledge. `typdefault` is presentation captured once from the
+cooked recipe at declaration, using the actual creation-time visibility. Child
+domains copy the parent's text exactly; later search-path changes or provider
+renames do not rewrite it. This text is not executable authority: the typed
+expression, real dependencies and native replay remain independent.
+User `typdefaultbin` uses native structural output, not PostgreSQL's physical node
+layout.
+A final bare builtin Const NULL is normalized to no effective recipe, stored text
+or default tree. This does not remove NOT NULL or skip fresh NULL conversion.
+Real immediate-domain conversions and numeric typmod wrappers remain recipes:
+`NULL::integer` can mask an inherited domain default, and numeric(5,2) DEFAULT
+NULL retains `NULL::numeric`. NULL-producing CASE/runtime expressions are not
+evaluated or folded away by this normalization.
+The predefined `information_schema.time_stamp` and descendants inherit executable
+transaction `CURRENT_TIMESTAMP(2)`; explicit column constants/NULL override it.
+Default-provider CASCADE drops consuming domains and their dependent columns/
+views, unlike CHECK-only provider CASCADE. Native Dump/Restore retains own versus
+inherited default provenance and enforces new defaulted inputs after replay.
+Selected composite fields in own and inherited defaults retain normal dependencies
+on the actual backing relation's stable attribute, as well as the composite type.
+Dropping such an attribute with RESTRICT is atomic; CASCADE retires the dependent
+domains, consuming columns and views. Defaults selecting a surviving sibling
+retain their original written child association through repeated shape changes,
+so removing an earlier field cannot substitute its value. Source `typdefault`
+retains its original captured constructor. Native logical replay emits that
+constructor's current live projection instead; the restored recipe's text is
+therefore normalized (for example `ROW(17, 18)` becomes `ROW(18)` after dropping
+the first field), while selected values, metadata and genuine live dependencies
+are preserved. This does not widen public named-row constructor arity.
+Legally stored already-domain NULLs also survive replay, including composite
+members, domain wrappers and arrays with nondefault or multidimensional bounds.
+Only affected cells carry a strict versioned native record immediately paired
+with their single-row INSERT. The isolated, authenticated-superuser import
+validates the actual target, column/member declarations and domain identities,
+then reconstructs those NULL leaves with their existing domain provenance.
+Non-NULL domain values still undergo ordinary conversions/CHECKs, and ordinary
+row enforcement remains active. The record is not public SQL, a session setting
+or a general constraint bypass; malformed replay cannot replace the destination.
+ALTER DOMAIN default/nullability changes remain unsupported.
+Changed type/domain ACLs make Dump fail rather than lose
 rights. Ownership transfer follows canonical root/array/backing associations
 without rebuilding codecs or value signatures; typed-table owners remain
 independent of their attached composite's owner.

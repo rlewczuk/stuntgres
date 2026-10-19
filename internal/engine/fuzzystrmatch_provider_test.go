@@ -118,7 +118,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	var records []extensionOwnerRecord
-	_, err = parser.ParseWithOptions("CREATE EXTENSION fuzzystrmatch;\n"+metadata, parser.Options{Context: context.Background(), StandardConformingStrings: true, LineComment: func(comment string) error {
+	_, err = parser.ParseWithOptions("CREATE EXTENSION fuzzystrmatch;\n"+metadata, parser.Options{Context: context.Background(), StandardConformingStrings: true, LineComment: func(comment string, _ parser.Position) error {
 		record, found, err := decodeExtensionOwners(comment)
 		if found && err == nil {
 			records = append(records, record)

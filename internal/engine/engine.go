@@ -107,6 +107,7 @@ type binding struct {
 	createInheritance     []createInheritanceInput
 	createLocalColumns    map[string]bool
 	defaults              []expr.Expr
+	defaultOrigins        []defaultOrigin
 	identityDiscard       []bool
 	insertProjection      []int
 	conflict              *boundInsertConflict

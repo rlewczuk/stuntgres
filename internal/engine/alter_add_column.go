@@ -106,12 +106,10 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 	next.Columns = append(next.Columns, definition)
 	next.Attributes = append(next.Attributes, attribute)
 	added := addedColumn{attribute: attribute, column: column, declaration: declaration, value: sqltype.Null(usage.Type)}
-	if usage.Type.HasDomainChecks() {
-		// The omitted value is fresh base-type NULL, not an already checked
-		// domain value. Keep this input conversion execution-private.
-		added.expression = domainNullInputExpression(usage)
-	}
-	if sqltype.ContainsDomainChecks(usage.Type) && scope.input.TypeDiagnosticName == nil {
+	node, origin := columnDefault(auth.Catalog, &next, len(next.Columns)-1)
+	added.expression = node
+	added.dependencies, added.consumer = origin.definition.Dependencies, origin.consumer
+	if sqltype.ContainsDomainConstraints(usage.Type) && scope.input.TypeDiagnosticName == nil {
 		var err error
 		scope.input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
 		if err != nil {
@@ -126,7 +124,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 		if err != nil {
 			return fail(alterCookingError(err))
 		}
-		if !structuralNull(node) {
+		if !omitColumnDefault(auth.Catalog, node, usage) {
 			persisted := catalog.ColumnDefault{Expression: node}
 			if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.Roles}, dependencies: &persisted.Dependencies, commentSnapshot: &persisted.CatalogSnapshot, catalogAliasReferences: &persisted.CatalogAliasReferences}).sql(op.Context(), auth.Catalog, node); err != nil {
 				return fail(alterCookingError(err))

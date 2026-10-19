@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/expr"
@@ -190,6 +191,9 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 	case rowExpression:
 		o, ok := other.(rowExpression)
 		if !ok || len(e.fields) != len(o.fields) || (e.wholeNames == nil) != (o.wholeNames == nil) || e.wholeName != o.wholeName || e.wholeSource != o.wholeSource || e.presenceSlot != o.presenceSlot || e.presenceFrame != o.presenceFrame || e.returningWhole != o.returningWhole || e.returningNull != o.returningNull {
+			return false
+		}
+		if !slices.Equal(e.fieldProjection, o.fieldProjection) {
 			return false
 		}
 		for i, field := range e.fields {

@@ -28,7 +28,7 @@ func domainUnitStage(t *testing.T, e *Engine, op *Operation, q string) *CatalogS
 			err = e.stageCreateEnumLocked(op, auth, stage, enum)
 		}
 	} else {
-		stage, err = e.stageSchemaLocked(op, ast, sqltype.InputEnvironment{})
+		stage, err = e.stageSchemaLocked(op, ast, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -88,7 +88,7 @@ func TestDomainCatalogIdentityBaseAndImmutableReads(t *testing.T) {
 	before := e.CatalogRead().State()
 	duplicate := statement(t, "CREATE DOMAIN public.amount AS missing_base")
 	e.mu.Lock()
-	_, err := e.stageSchemaLocked(op, duplicate, sqltype.InputEnvironment{})
+	_, err := e.stageSchemaLocked(op, duplicate, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	e.mu.Unlock()
 	domainUnitDiagnostic(t, err, "42710", `type "amount" already exists`)
 	if e.CatalogRead().State() != before {
@@ -212,7 +212,7 @@ func TestDomainBaseUsageAndOwnerAuthorizationInternal(t *testing.T) {
 		denied := statement(t, "CREATE DOMAIN public.denied AS public.a").(*parser.CreateDomain)
 		e.mu.Lock()
 		stage = e.BeginCatalogStage(auth.Catalog)
-		err := e.stageCreateDomainLocked(op, auth, stage, denied, sqltype.InputEnvironment{})
+		err := e.stageCreateDomainLocked(op, auth, stage, denied, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 		e.mu.Unlock()
 		domainUnitDiagnostic(t, err, "42501", "permission denied for type a")
 		if e.CatalogRead().State() != before || len(stage.Descriptors) != 0 {
@@ -224,22 +224,28 @@ func TestDomainBaseUsageAndOwnerAuthorizationInternal(t *testing.T) {
 	}
 }
 
-func TestDomainExcludedClausesNeverPublishInternal(t *testing.T) {
+func TestDomainDeclarationClausesAtomicInternal(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	for _, q := range []string{
-		"CREATE DOMAIN public.denied AS integer DEFAULT 7",
-		"CREATE DOMAIN public.denied AS integer NOT NULL",
+	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.defaulted AS integer DEFAULT 7 NOT NULL"))
+	defaulted := domainUnitType(t, e.CatalogRead(), "defaulted")
+	if defaulted.DomainDefault == nil || !defaulted.DomainDefaultOwn || !defaulted.SQLType.OwnDomainNotNull() {
+		t.Fatal("supported declaration lost recipe/nullability")
+	}
+	for _, tc := range []struct{ query, message string }{
+		{"CREATE DOMAIN public.denied AS integer DEFAULT 7 DEFAULT 8", "multiple default expressions"},
+		{"CREATE DOMAIN public.denied AS integer NULL NOT NULL", "conflicting NULL/NOT NULL constraints"},
 	} {
+		q := tc.query
 		raw := statement(t, q)
 		before := e.CatalogRead().State()
 		e.mu.Lock()
-		_, err := e.stageSchemaLocked(op, raw, sqltype.InputEnvironment{})
+		_, err := e.stageSchemaLocked(op, raw, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 		e.mu.Unlock()
-		domainUnitDiagnostic(t, err, "0A000", "domain constraints and defaults are unsupported")
+		domainUnitDiagnostic(t, err, "42601", tc.message)
 		if e.CatalogRead().State() != before {
-			t.Fatal("excluded clause published", q)
+			t.Fatal("invalid declaration published", q)
 		}
 	}
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.nullable AS integer NULL"))
@@ -281,7 +287,7 @@ func TestDomainUniqueASTRejectedWithoutPublication(t *testing.T) {
 			// position to another real token to catch incorrect outer provenance.
 			ast.Constraints[0].Pos = ast.Pos
 			e.mu.Lock()
-			_, err := e.stageSchemaLocked(op, ast, sqltype.InputEnvironment{})
+			_, err := e.stageSchemaLocked(op, ast, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 			e.mu.Unlock()
 			domainUnitDiagnostic(t, err, "42601", "unique constraints not possible for domains")
 			var diagnostic *sqlstate.Error

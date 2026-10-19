@@ -114,7 +114,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 					break
 				}
 			}
-			next.SQLType, err = sqltype.Domain(old.SQLType.ID(), old.Name(), old.SQLType.SQLName(), old.SQLType.DomainBase(), true)
+			next.SQLType, err = sqltype.Domain(old.SQLType.ID(), old.Name(), old.SQLType.SQLName(), old.SQLType.DomainBase(), true, old.SQLType.OwnDomainNotNull())
 		}
 	case parser.DomainDropCheck, parser.DomainValidateCheck:
 		if selected < 0 {

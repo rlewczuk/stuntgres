@@ -1531,12 +1531,30 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
 
 ## Types, expressions and catalogs
 
+- CREATE DOMAIN DEFAULT/NULL/NOT NULL use the existing declaration and coercion
+  machinery. Defaults are variable-free; column/VALUE references, parameters and
+  subqueries are rejected. A column recipe overrides the effective domain/base
+  recipe; an explicit NULL recipe is a real mask. Supplied NULL and casts do not
+  request defaults. Domain recipes are cooked against the immediate base without
+  evaluating its constraints; demand preserves that inner conversion identity.
+  NOT NULL is enforced on fresh conversions before CHECK truth, after existing
+  CHECK initialization. Its23502 diagnostic names the conversion target and has
+  empty Constraint even for a named declaration. Child NULL does not waive an
+  ancestor's NOT NULL. Own `pg_type.typnotnull` is distinct from effective ancestry
+  and driver Nullable knowledge. Logical view defaults precede physical base
+  column defaults. Existing INSERT/UPDATE DEFAULT, MERGE insert, COPY and ADD COLUMN
+  routes share the selected recipe; failures retain statement atomicity.
+  Composite-field default dependencies use the actual backing relation and stable
+  attribute, including inherited recipes. Attribute RESTRICT/CASCADE follows
+  those dependencies without pruning a surviving sibling's written value.
+  Native domain-default replay projects retired constructor fields away; restored
+  deparse normalizes to the current row shape, not the source's historical arity.
+  ALTER DOMAIN default/nullability changes remain unsupported.
 - Domain CHECK uses the admitted shared expression providers and conversion
   routes, including existing nested members; subqueries and non-VALUE variables
   are rejected. TRUE/UNKNOWN pass, FALSE reports domain 23514. Fresh NULL is
   checked, while already-domain NULL can bypass conversion in the documented
-  outer-join/scalar-subquery contexts. Domain NOT NULL and inherited domain
-  defaults remain unavailable. Domain CHECK ADD/DROP/VALIDATE is supported in
+  outer-join/scalar-subquery contexts. Domain CHECK ADD/DROP/VALIDATE is supported in
   autocommit, including NOT VALID's old-data/new-input distinction and selected
   validation. Direct/derived physical uses are scanned once; stored array,
   composite and rowtype containers reject validating changes even when empty.
@@ -1811,8 +1829,8 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   JSON record conversion includes `json_populate_record`, `json_populate_recordset`,
   `json_to_record` and `json_to_recordset`. Named
   composites and explicit typed AS lists support recursive field coercion,
-  rectangular arrays, typmods, plain domains and existing scalar/array/composite
-  domain CHECKs. Domain NOT NULL/default DDL retains its documented boundary.
+  rectangular arrays, typmods, domains and existing scalar/array/composite domain
+  constraints. Domain defaults are not requested by JSON conversion.
   Missing fields preserve a non-NULL base or become SQL NULL; explicit JSON null
   overrides a base. Physical table constraints/defaults are not row-type defaults.
   Only recordsets are SRFs; scalar whole-NULL FROM calls still supply one expanded
@@ -2599,10 +2617,19 @@ released identity links. Existing concrete and lookup-only companion codec
 flags are unchanged: catalog visibility never enables storage, input, casts,
 constructors or invocation of identity-only I/O routines.
 
-The seeded information_schema.time_stamp domain exposes the pinned18.6 stored
-metadata default `CURRENT_TIMESTAMP(2)` and exact SQLVALUEFUNCTION
-op4/type1184/typmod2/location-1 tree. This is metadata, not inherited-default
-execution or new CREATE DOMAIN DEFAULT/NOT NULL support.
+The seeded information_schema.time_stamp domain retains the pinned18.6 metadata
+default `CURRENT_TIMESTAMP(2)` and SQLVALUEFUNCTION op4/type1184/typmod2/location-1
+inventory tree. Its cooked executable default and descendants use the existing
+transaction-time provider. User-domain defaults expose genuine native boundTree
+structural output rather than PostgreSQL nodeToString layout or physical OIDs.
+Native Dump/Restore preserves own default declarations and copies inherited
+recipes through base-first creation, without adding a new inner conversion.
+Legal already-domain NULLs persist through one narrow host-authorized native
+captured-cell representation, including nested composite/array carriers and
+exact bounds. Its versioned comment must pair immediately with the actual
+single-row INSERT and match live declarations in the isolated superuser import.
+Ordinary SQL ignores it; new NULL inputs and all non-NULL conversions retain
+their normal constraint behavior. This is not PostgreSQL dump compatibility.
 
 The predefined `information_schema.yes_or_no` accepts consumer-declared columns
 through the ordinary type resolver and catalog. It is a nullable VARCHAR(3)/C

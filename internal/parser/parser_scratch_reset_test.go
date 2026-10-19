@@ -97,7 +97,7 @@ func TestParseScratchFullReset(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			sentinel := errors.New("original callback failure")
-			callback := func(string) error {
+			callback := func(string, Position) error {
 				switch mode {
 				case "cancel":
 					cancel()
@@ -133,7 +133,7 @@ func TestParseScratchFullReset(t *testing.T) {
 				// Repeat at the public package boundary with a fresh live context.
 				publicCtx, publicCancel := context.WithCancel(context.Background())
 				defer publicCancel()
-				statements, err := ParseWithOptions(l.input, Options{Context: publicCtx, LineComment: func(string) error {
+				statements, err := ParseWithOptions(l.input, Options{Context: publicCtx, LineComment: func(string, Position) error {
 					if mode == "cancel" {
 						publicCancel()
 						return nil
@@ -279,7 +279,7 @@ func TestParseScratchNoticeOwnership(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	if statements, err := ParseWithOptions("-- cancel\nSELECT 7", Options{Context: ctx, LineComment: func(string) error { cancel(); return nil }}); statements != nil || err != context.Canceled {
+	if statements, err := ParseWithOptions("-- cancel\nSELECT 7", Options{Context: ctx, LineComment: func(string, Position) error { cancel(); return nil }}); statements != nil || err != context.Canceled {
 		t.Fatal(statements, err)
 	}
 	requireScratchSeven(t)
@@ -327,7 +327,7 @@ func TestParseScratchConcurrentCancellation(t *testing.T) {
 					return
 				}
 				ctx, cancel := context.WithCancel(context.Background())
-				failed, err := ParseWithOptions("-- cancel\nSELECT 7", Options{Context: ctx, LineComment: func(string) error { cancel(); return nil }})
+				failed, err := ParseWithOptions("-- cancel\nSELECT 7", Options{Context: ctx, LineComment: func(string, Position) error { cancel(); return nil }})
 				cancel()
 				var diagnostic *sqlstate.Error
 				if failed != nil || err != context.Canceled || errors.As(err, &diagnostic) {
@@ -402,7 +402,7 @@ func TestParseScratchRetainedParametersAndPositions(t *testing.T) {
 		}
 		requireScratchDiagnostic(t, err, `syntax error at or near "trailing"`, "9", `invalid type name "integer trailing"`)
 		ctx, cancel := context.WithCancel(context.Background())
-		failed, err = ParseWithOptions("-- cancel\nSELECT 7", Options{Context: ctx, LineComment: func(string) error { cancel(); return nil }})
+		failed, err = ParseWithOptions("-- cancel\nSELECT 7", Options{Context: ctx, LineComment: func(string, Position) error { cancel(); return nil }})
 		cancel()
 		if failed != nil || err != context.Canceled {
 			t.Fatal(failed, err)

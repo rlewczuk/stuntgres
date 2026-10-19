@@ -2,7 +2,6 @@ package reference_test
 
 import (
 	"database/sql"
-	"strings"
 	"testing"
 
 	"stuntgres/reference/fixture"
@@ -21,32 +20,23 @@ func TestReferenceJSONRecordDiscoveryDomains(t *testing.T) {
 		} {
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(q, 0))
 		}
-		// Native CHECK enforcement is real and shared below. NOT NULL DDL is
-		// an existing, explicitly asserted boundary, not a substitute domain.
-		for _, q := range []string{"CREATE DOMAIN jr_pair_nn AS jr_pair NOT NULL", "CREATE DOMAIN jr_required AS integer NOT NULL"} {
-			if b.PG {
-				fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(q, 0))
-			} else {
-				want := jsonRecordDiagnostic("0A000", "domain constraints and defaults are unsupported", strings.Index(q, "NOT NULL")+1)
-				jsonRecordErrorBoth(t, p, b, c, q, want, false)
-			}
+		for _, q := range []string{
+			"CREATE DOMAIN jr_pair_nn AS jr_pair NOT NULL",
+			"CREATE DOMAIN jr_required AS integer NOT NULL",
+			"CREATE TYPE jr_nn_fields AS (a jr_positive,b jr_required)",
+		} {
+			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(q, 0))
 		}
-		if b.PG {
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("CREATE TYPE jr_nn_fields AS (a jr_positive,b jr_required)", 0))
-			for _, tc := range []struct {
-				q    string
-				want fixture.Diagnostic
-			}{
-				{`SELECT json_populate_record(NULL::jr_pair_nn, '{}')`, jsonRecordDomain("23502", "jr_pair_nn", "")},
-				{`SELECT * FROM json_populate_record(NULL::jr_nn_fields, '{"a":1,"b":null}')`, jsonRecordDomain("23502", "jr_required", "")},
-				{`SELECT * FROM json_populate_record(NULL::jr_nn_fields, '{"a":1}')`, jsonRecordDomain("23502", "jr_required", "")},
-			} {
-				jsonRecordErrorBoth(t, p, b, c, tc.q, tc.want, false)
-			}
-		} else {
-			for _, name := range []string{"jr_pair_nn", "jr_required"} {
-				jsonRecordErrorBoth(t, p, b, c, "SELECT NULL::"+name, jsonRecordDiagnostic("42704", `type "`+name+`" does not exist`, 14), true)
-			}
+		for _, tc := range []struct {
+			q    string
+			want fixture.Diagnostic
+		}{
+			{`SELECT json_populate_record(NULL::jr_pair_nn, '{}')`, jsonRecordDomain("23502", "jr_pair_nn", "")},
+			{`SELECT NULL::jr_required`, jsonRecordDomain("23502", "jr_required", "")},
+			{`SELECT * FROM json_populate_record(NULL::jr_nn_fields, '{"a":1,"b":null}')`, jsonRecordDomain("23502", "jr_required", "")},
+			{`SELECT * FROM json_populate_record(NULL::jr_nn_fields, '{"a":1}')`, jsonRecordDomain("23502", "jr_required", "")},
+		} {
+			jsonRecordErrorBoth(t, p, b, c, tc.q, tc.want, false)
 		}
 		// pg_typeof is not an executable native provider. Keep the PostgreSQL
 		// logical identity witnesses, with an explicit native inquiry boundary;
@@ -75,6 +65,8 @@ func TestReferenceJSONRecordDiscoveryDomains(t *testing.T) {
 			{"array-success", fixture.Select(`SELECT * FROM json_populate_record(NULL::jr_domain_array, '{"a":[1,2]}')`, []string{"a"}, []string{"_INT4"}, [][]any{{"{1,2}"}})},
 			{"set-identity", fixture.Select(`SELECT json_populate_recordset(NULL::jr_pair_domain, '[{"a":2}]') AS r`, []string{"r"}, []string{""}, [][]any{{"(2,)"}})},
 			{"set-null", jsonRecordPair(`SELECT * FROM json_populate_recordset(NULL::jr_pair_domain, NULL)`, nil)},
+			{"not-null-base", jsonRecordPair(`SELECT * FROM json_populate_record('(7,keep)'::jr_pair_nn, '{"a":2}')`, [][]any{{int64(2), "keep"}})},
+			{"not-null-field", fixture.Select(`SELECT * FROM json_populate_record(NULL::jr_nn_fields, '{"a":1,"b":2}')`, []string{"a", "b"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(2)}})},
 		} {
 			t.Run(tc.name, func(t *testing.T) { jsonRecordBoth(t, p, b, c, jsonRecordMetadata(tc.step, b.PG)) })
 		}

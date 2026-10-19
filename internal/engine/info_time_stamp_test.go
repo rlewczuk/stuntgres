@@ -84,6 +84,9 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
+	if err := source.reownCatalogExpressions(next, nil, true); err != nil {
+		t.Fatal(err)
+	}
 	view := source.catalog.read(next)
 	rebound := infoTimeStampCatalogType(t, view)
 	base, _ := view.LookupType(sqltype.Timestamptz)

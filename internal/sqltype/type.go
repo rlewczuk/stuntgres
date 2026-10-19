@@ -113,6 +113,7 @@ type Descriptor struct {
 	name, sql, database           string
 	base                          Usage
 	ownDomainChecks, domainChecks bool
+	ownDomainNotNull, domainNotNull bool
 	element                       *Descriptor
 	associatedArray               ID
 	delimiter                     byte
@@ -1300,7 +1301,7 @@ type CoercionPlan struct {
 // ChecksDomain reports runtime CHECK demand, not free VALUE-frame dependence.
 // Identity/downcasts do not check; array element conversions share this rule.
 func (p CoercionPlan) ChecksDomain() bool {
-	return p.logicalTarget != nil && p.logicalTarget != p.logicalSource && p.logicalTarget.HasDomainChecks() ||
+	return p.logicalTarget != nil && p.logicalTarget != p.logicalSource && p.logicalTarget.HasDomainConstraints() ||
 		p.element != nil && p.element.ChecksDomain()
 }
 

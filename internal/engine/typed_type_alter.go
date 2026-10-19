@@ -16,8 +16,10 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
+	var path []ids.ObjectAddress
 	if err == nil {
 		scope.routineAuth = auth
+		path, err = e.referencePath(auth)
 	}
 	var typ *catalog.Type
 	var source *catalog.Relation
@@ -46,6 +48,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
 	stage.authorizeLocked(auth, op.session)
+	stage.dependencyPath = path
 	stage.domainBases = append(stage.domainBases, typ)
 	stage.typedSource = typ.Address()
 	stage.typedObserved = typedClosure(auth.Catalog, typ.Address())
@@ -234,6 +237,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	if err == nil {
+		emitViewCascade(op, stage.viewCascadeNames)
 		scope.completed = true
 	}
 	return Result{}, err

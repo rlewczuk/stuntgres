@@ -404,6 +404,9 @@ type ColumnConstraint struct {
 	Generation *GenerationDefinition
 	Name       Identifier
 	Pos        Position
+	// NamedDeclarationPos retains CONSTRAINT for named DEFAULT/NULL/NOT NULL
+	// diagnostics without replacing the clause keyword's existing Pos.
+	NamedDeclarationPos Position
 }
 
 type NotNullConstraint struct {

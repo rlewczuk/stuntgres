@@ -584,15 +584,18 @@ diagnostics. Provider goldens include raw SELECT/ColumnTypes and independently
 encoded canonical exports; dynamic user OIDs come independently from native
 `regtype::bigint` or the actual PostgreSQL catalog.
 Header/EOF/options and malformed nested precedence were discovered against pinned
-PostgreSQL18 before production. Native unsupported domain-constraint DDL and SQL
-server observation functions are explicitly asserted, never fake parity or skips.
+PostgreSQL18 before production. Domain NOT NULL now reaches the shared scalar and
+nested-array receiver diagnostics and statement-atomicity assertions. Unsupported
+SQL server observation functions remain explicitly asserted, never fake parity
+or skips.
 Private lifecycle units use actual Operation statement/transaction expiry and
 caller cancellation; pinned server phases observe ClientRead/deadlines and release
 complete valid payload/trailer framing before joining. Controls genuinely import
 binary native state, Dump/Reset/Restore, re-export and replay its actual dump on PG.
-`TestReferenceCopyBinaryReviewRegressions` distinguishes actual nullable plain
-domain-array receive/NULL/base-error/OID/metadata proof from constrained-domain
-setup boundaries. It includes pinned canonical NUMERIC infinity/NaN range and
+`TestReferenceCopyBinaryReviewRegressions` provides nullable plain domain-array
+receive/NULL/base-error/OID/metadata proof. Separate NOT NULL domain-array cases
+assert rejection and atomicity. Review regressions include pinned canonical
+NUMERIC infinity/NaN range and
 multirange bytes, raw/direct-prepared consumers, real persistence controls,
 complete-first UTF8 versus later missing array length, declared member truncation,
 and canonical character/temporal/array OID mismatch records. Actual catalog CHAR

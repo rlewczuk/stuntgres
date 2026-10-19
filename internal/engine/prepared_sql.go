@@ -180,7 +180,7 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 		var actualProgram routineAdmissionProgram
 		evaluation := EvalContext{Context: ctx, statementScope: s, catalog: auth.Catalog, Input: input, Output: s.output, routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies, routineProgram: &actualProgram}
 		for _, node := range nodes {
-			if sqltype.ContainsDomainChecks(node.ResultUsage().Type) {
+			if sqltype.ContainsDomainConstraints(node.ResultUsage().Type) {
 				evaluation.Input.DomainChecks = &evaluation
 				break
 			}

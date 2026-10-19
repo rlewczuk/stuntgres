@@ -119,14 +119,8 @@ func TestReferenceJSONBRecordValid(t *testing.T) {
 			d.Schema, d.DataType, d.Constraint = "public", "jbr_valid_child", "jbr_positive_check"
 			fixture.CompositeReferenceError(t, p, c, `SELECT jsonb_populate_record(NULL::jbr_child_row,$1::jsonb)`, "execute", d, `{"d":-1}`)
 		})
-		// NOT NULL domain declarations are an existing native DDL boundary;
-		// CHECK(VALUE IS NOT NULL) above exercises the shared conversion authority.
-		t.Run("domain NOT NULL declaration boundary", func(t *testing.T) {
+		t.Run("domain NOT NULL conversion", func(t *testing.T) {
 			q := `CREATE DOMAIN jbr_notnull_required AS int NOT NULL`
-			if !b.PG {
-				fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Error(q, "0A000"))
-				return
-			}
 			jsonbRecordSetup(t, p, b, c, q, `CREATE TYPE jbr_notnull_row AS (d jbr_notnull_required)`)
 			for _, tc := range []struct {
 				base, input string
@@ -140,6 +134,15 @@ func TestReferenceJSONBRecordValid(t *testing.T) {
 					d.Schema, d.DataType = "public", "jbr_notnull_required"
 					fixture.CompositeReferenceError(t, p, c, `SELECT jsonb_populate_record(`+tc.base+`::jbr_notnull_row,$1::jsonb)`, "execute", d, tc.input)
 				}
+			}
+			for _, tc := range []struct {
+				base, input string
+				want        int64
+			}{
+				{"NULL", `{"d":1}`, 1},
+				{"'(7)'", `{}`, 7},
+			} {
+				jsonEachBoth(t, p, b, c, fixture.Select(`SELECT * FROM jsonb_populate_record(`+tc.base+`::jbr_notnull_row,$1::jsonb)`, []string{"d"}, []string{"INT4"}, [][]any{{tc.want}}, tc.input))
 			}
 		})
 		// Pinned PostgreSQL18.0: absent base plus SQL NULL propagates SQL NULL.

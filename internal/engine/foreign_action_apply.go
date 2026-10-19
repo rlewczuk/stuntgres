@@ -19,6 +19,7 @@ import (
 type foreignActionPlan struct {
 	targets, parentSlots []int
 	defaults             []expr.Expr
+	defaultOrigins       []defaultOrigin
 	conversions          []sqltype.CoercionPlan
 	convert              []bool
 	input                sqltype.InputEnvironment
@@ -46,7 +47,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 	}
 	plan.input = s.input
 	for _, slot := range plan.targets {
-		plan.domainChecks = plan.domainChecks || sqltype.ContainsDomainChecks(job.child.Columns[slot].Usage.Type)
+		plan.domainChecks = plan.domainChecks || sqltype.ContainsDomainConstraints(job.child.Columns[slot].Usage.Type)
 	}
 	if plan.domainChecks {
 		e := s.op.session.Engine()
@@ -67,9 +68,11 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 		e := s.op.session.Engine()
 		e.bindInsertDefaults(&b, auth, parser.OverrideNone)
 		plan.defaults = make([]expr.Expr, len(plan.targets))
+		plan.defaultOrigins = make([]defaultOrigin, len(plan.targets))
 		for i, slot := range plan.targets {
 			if len(b.defaults) != 0 {
 				plan.defaults[i] = b.defaults[slot]
+				plan.defaultOrigins[i] = b.defaultOriginAt(slot)
 			}
 		}
 		// Retained defaults can themselves cast to a checked domain even when
@@ -90,9 +93,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 				continue
 			}
 			defaultEvaluation := evaluation
-			defaultEvaluation.routineRecipe, defaultEvaluation.routineGraft = true, false
-			defaultEvaluation.routineReferences = job.child.ColumnMeta.Defaults[job.child.Attributes[plan.targets[i]]].Dependencies
-			defaultEvaluation.routineConsumer = job.child
+			b.defaultOriginAt(plan.targets[i]).apply(&defaultEvaluation)
 			folded, _, err := preflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 			if err != nil {
 				return nil, err
@@ -106,7 +107,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 	if action == parser.ForeignKeySetNull && plan.domainChecks {
 		plan.defaults = make([]expr.Expr, len(plan.targets))
 		for i, slot := range plan.targets {
-			if job.child.Columns[slot].Usage.Type.HasDomainChecks() {
+			if job.child.Columns[slot].Usage.Type.HasDomainConstraints() {
 				plan.defaults[i] = domainNullInputExpression(job.child.Columns[slot].Usage)
 			}
 		}
@@ -300,7 +301,11 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			case parser.ForeignKeySetNull, parser.ForeignKeySetDefault:
 				row[slot] = sqltype.Null(job.child.Columns[slot].Usage.Type)
 				if len(plan.defaults) != 0 && plan.defaults[i] != nil {
-					row[slot], err = plan.defaults[i].Eval(&evaluation)
+					if len(plan.defaultOrigins) != 0 {
+						row[slot], err = evalDefaultExpression(&evaluation, plan.defaults[i], plan.defaultOrigins[i])
+					} else {
+						row[slot], err = plan.defaults[i].Eval(&evaluation)
+					}
 				}
 			}
 			if err != nil {

@@ -69,6 +69,7 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalogView catalog.Read, e
 		}
 		row := version.Values
 		line.Reset()
+		var replayCells []domainReplayCell
 		if len(t.columns) == 0 {
 			if err := emit("INSERT INTO " + qualified + " DEFAULT VALUES;\n"); err != nil {
 				return err
@@ -104,7 +105,14 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalogView catalog.Read, e
 			var err error
 			destination := t.columns[i].Usage.Type
 			base := destination.BaseType().ID()
-			if destination.IsDomain() && (base == sqltype.Int4Range || base == sqltype.Int8Range || base == sqltype.NumRange || base == sqltype.DateRange || base == sqltype.TimestampRange || base == sqltype.TimestamptzRange || base == sqltype.Int4Multirange || base == sqltype.Int8Multirange || base == sqltype.NumMultirange) {
+			if containsStoredDomainNull(v) {
+				node, captureErr := captureDomainReplayNode(ctx, catalogView, t.columns[i].Usage, v)
+				if captureErr != nil {
+					return captureErr
+				}
+				replayCells = append(replayCells, domainReplayCell{Column: t.columns[i].Name, Value: &node})
+				literal = "NULL"
+			} else if destination.IsDomain() && (base == sqltype.Int4Range || base == sqltype.Int8Range || base == sqltype.NumRange || base == sqltype.DateRange || base == sqltype.TimestampRange || base == sqltype.TimestamptzRange || base == sqltype.Int4Multirange || base == sqltype.Int8Multirange || base == sqltype.NumMultirange) {
 				// The INSERT destination reconstructs the domain via ordinary
 				// contextual input without unsupported range/multirange casts;
 				// non-contextual stored expressions keep catalogLiteralSQL.
@@ -118,6 +126,16 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalogView catalog.Read, e
 			line.WriteString(literal)
 		}
 		line.WriteString(");\n")
+		if len(replayCells) != 0 {
+			record := domainReplayRecord{Schema: catalogView.Get(destination.Namespace()).Name(), Table: destination.Name(), Cells: replayCells}
+			directive, err := encodeDomainReplay(record)
+			if err != nil {
+				return err
+			}
+			if err := emit(directive); err != nil {
+				return err
+			}
+		}
 		if err := emit(line.String()); err != nil {
 			return err
 		}

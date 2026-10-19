@@ -191,7 +191,7 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *catalog.Relat
 // Ordinary single VALUES is a destination-attribute projection. Multirow VALUES
 // first demands the complete source row, like the shared query source cursor.
 // Bound expressions and imported parameters survive USER pruning in both cases.
-func evaluateIdentityValuesRow(read catalog.Read, b *binding, supplied []expr.Expr, syntax []parser.Expr, row []sqltype.Value, sourceFirst bool, evaluation *EvalContext) error {
+func evaluateInsertValuesRow(read catalog.Read, b *binding, supplied []expr.Expr, syntax []parser.Expr, row []sqltype.Value, sourceFirst bool, evaluation *EvalContext) error {
 	if sourceFirst {
 		for i, expression := range supplied {
 			if expression == nil {
@@ -239,7 +239,7 @@ func evaluateIdentityValuesRow(read catalog.Read, b *binding, supplied []expr.Ex
 			continue
 		}
 		if len(b.defaults) != 0 && b.defaults[target] != nil {
-			value, err := b.defaults[target].Eval(evaluation)
+			value, err := b.evalDefault(evaluation, target, b.defaults[target])
 			if err != nil {
 				return err
 			}

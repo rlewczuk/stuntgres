@@ -234,7 +234,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 		}
 	}
 	e.mu.Lock()
-	stage, err := e.stageSchemaLocked(op, stmt, input)
+	stage, err := e.stageSchemaLocked(op, stmt, input, scope.output)
 	e.mu.Unlock()
 	if err != nil || stage == nil {
 		return Result{}, err
@@ -337,7 +337,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	}
 	return Result{created: created}, nil
 }
-func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input sqltype.InputEnvironment) (*CatalogStage, error) {
+func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (*CatalogStage, error) {
 	auth, err := e.authorizationLocked(op)
 	if err != nil {
 		return nil, err
@@ -424,7 +424,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			return nil, err
 		}
 	case *parser.CreateDomain:
-		if err = e.stageCreateDomainLocked(op, auth, stage, s, input); err != nil {
+		if err = e.stageCreateDomainLocked(op, auth, stage, s, input, output); err != nil {
 			return nil, err
 		}
 	case *parser.DropDomain:

@@ -808,6 +808,18 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if predecessor != 0 {
 				viewDependencies[dumpEventKey{oid: id}] = []dumpEventKey{{oid: predecessor}}
 			}
+			if d.DomainDefault != nil {
+				for _, dependency := range d.DomainDefault.Dependencies {
+					predecessor, err := dumpPredecessor(catalogView, dependency.Address, d.Address())
+					if err != nil {
+						return err
+					}
+					event, dependencyEvent := dumpEventKey{oid: id}, dumpEventKey{oid: predecessor}
+					if predecessor != 0 && !slices.Contains(viewDependencies[event], dependencyEvent) {
+						viewDependencies[event] = append(viewDependencies[event], dependencyEvent)
+					}
+				}
+			}
 			for _, check := range d.DomainChecks {
 				if check.NotValid {
 					continue
@@ -1654,7 +1666,16 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	}
 	var snapshots []materializedSnapshot
 	var extensionOwners []extensionOwnerRecord
-	statements, err := parser.ParseWithOptions(string(data), parser.Options{Context: ctx, StandardConformingStrings: true, LineComment: func(comment string) error {
+	var domainReplays []positionedDomainReplay
+	statements, err := parser.ParseWithOptions(string(data), parser.Options{Context: ctx, StandardConformingStrings: true, LineComment: func(comment string, position parser.Position) error {
+		domainRecord, domainRecognized, domainErr := decodeDomainReplay(comment)
+		if domainErr != nil {
+			return domainErr
+		}
+		if domainRecognized {
+			domainReplays = append(domainReplays, positionedDomainReplay{record: domainRecord, end: position.Offset + len(comment)})
+			return nil
+		}
 		ownerRecord, ownerRecognized, ownerErr := decodeExtensionOwners(comment)
 		if ownerErr != nil {
 			return ownerErr
@@ -1669,6 +1690,10 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		}
 		return err
 	}})
+	if err != nil {
+		return err
+	}
+	domainReplayPairs, err := pairDomainReplay(string(data), statements, domainReplays)
 	if err != nil {
 		return err
 	}
@@ -2105,7 +2130,15 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			}
 		}
 		var result Result
-		result, err = stage.Execute(op, stmt, 0, nil)
+		if insertion, ok := stmt.(*parser.Insert); ok {
+			if record, paired := domainReplayPairs[insertion]; paired {
+				result, err = stage.executeDomainReplayInsert(op, insertion, record)
+			} else {
+				result, err = stage.Execute(op, stmt, 0, nil)
+			}
+		} else {
+			result, err = stage.Execute(op, stmt, 0, nil)
+		}
 		op.restoreDefaultReplay = false
 		op.restorePartitionAttach = false
 		op.restorePartitionCheck = nil

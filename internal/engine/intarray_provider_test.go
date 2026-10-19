@@ -55,10 +55,10 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 		t.Fatal("lookup-only reciprocal array")
 	}
 	arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())}
-	if pgDependPinned(view, base.Address()) || pgDependPinned(view, arrayAddress) {
+	if pgDependPinned(view, nil, base.Address()) || pgDependPinned(view, nil, arrayAddress) {
 		t.Fatal("installed base or automatic array classified as bootstrap-pinned")
 	}
-	if !pgDependPinned(view, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1007}) {
+	if !pgDependPinned(view, nil, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1007}) {
 		t.Fatal("builtin int4 array lost bootstrap pinning")
 	}
 	for i, address := range ext.Members {
@@ -109,7 +109,7 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 	var records []extensionOwnerRecord
 	_, err = parser.ParseWithOptions("CREATE EXTENSION intarray;\n"+metadata, parser.Options{
 		Context: context.Background(), StandardConformingStrings: true,
-		LineComment: func(comment string) error {
+		LineComment: func(comment string, _ parser.Position) error {
 			record, found, err := decodeExtensionOwners(comment)
 			if err == nil && found {
 				records = append(records, record)

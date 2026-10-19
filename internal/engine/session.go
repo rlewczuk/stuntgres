@@ -141,6 +141,7 @@ type Operation struct {
 	restorePartitionCheck      *catalog.Relation          // Exact leased private-import physical CHECK target.
 	restorePartitionUsingIndex *partitionUsingIndexReplay // Exact leased private-import physical target/index.
 	restorePartitionUnique     *partitionUniqueReplay     // Exact private virtual definition/subtree lease.
+	restoreDomainReplay        *domainReplayCapture       // Exact private native INSERT's immutable captured cells.
 	discardRoleReset           authorization.RoleState    // nonzero Authenticated only during DISCARD ALL publication
 }
 

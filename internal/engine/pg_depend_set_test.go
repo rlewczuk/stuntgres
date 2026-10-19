@@ -28,13 +28,13 @@ func TestPGDependSetArmCoercionReferences(t *testing.T) {
 	node := &setNode{operation: "union", all: true, left: left, right: right,
 		leftExpressions:  []expr.Expr{coercionExpression{Info: expr.Info{Usage: domains[0].Usage()}, child: literal}},
 		rightExpressions: []expr.Expr{coercionExpression{Info: expr.Info{Usage: domains[1].Usage()}, child: literal}}}
-	got, err := pgDependQueryRefs(context.Background(), view, &BoundQuery{Root: node})
+	got, err := pgDependQueryRefs(context.Background(), view, nil, &BoundQuery{Root: node})
 	if err != nil {
 		t.Fatal(err)
 	}
 	pgDependUnitRefs(t, got, []ids.ObjectAddress{pgDependUnitAddress(1247, 49501, 0), pgDependUnitAddress(1247, 49502, 0)})
 	node.rightExpressions = append(node.rightExpressions, node.leftExpressions[0])
-	got, err = pgDependQueryRefs(context.Background(), view, &BoundQuery{Root: node})
+	got, err = pgDependQueryRefs(context.Background(), view, nil, &BoundQuery{Root: node})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestPGDependSetArmCoercionReferences(t *testing.T) {
 	node.rightExpressions = nil
 	// Result metadata is not itself a Const or coercion target.
 	node.querySchema = querySchema{{Usage: domains[0].Usage()}}
-	got, err = pgDependQueryRefs(context.Background(), view, &BoundQuery{Root: node})
+	got, err = pgDependQueryRefs(context.Background(), view, nil, &BoundQuery{Root: node})
 	if err != nil {
 		t.Fatal(err)
 	}

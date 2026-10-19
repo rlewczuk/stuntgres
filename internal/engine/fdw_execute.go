@@ -98,7 +98,7 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 					row[j] = sqltype.Null(c.Usage.Type)
 				}
 				if len(b.insertProjection) != 0 {
-					if err := evaluateIdentityValuesRow(execution.auth.Catalog, &b, execution.expressions[i], raw, row, len(b.insertRows) > 1, &evaluation); err != nil {
+					if err := evaluateInsertValuesRow(execution.auth.Catalog, &b, execution.expressions[i], raw, row, len(b.insertRows) > 1, &evaluation); err != nil {
 						return Result{}, err
 					}
 				} else {
