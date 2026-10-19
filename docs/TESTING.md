@@ -129,7 +129,7 @@ sockets. Those checks remain enabled in `quickcheck`, `racecheck` and selected
 selected race proof. All test targets regenerate parser and Unicode data and keep
 output quiet. The Makefile imposes no deadline and disables Go's implicit test
 timeout (`-timeout=0`). Agents MUST set external command deadlines of 900 seconds
-for check, quickcheck, racecheck and bench, or 1800 seconds for finalcheck.
+for check, racecheck and bench, or 1800 seconds for quickcheck and finalcheck.
 `refcheck` runs the whole real reference suite for humans only; agents MUST NEVER
 invoke it. Neither whole-project target replaces selected dual-mode pre-review proof.
 

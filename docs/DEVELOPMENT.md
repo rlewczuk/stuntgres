@@ -91,7 +91,7 @@ MUST NEVER invoke it. Commit any post-merge failure remedies separately.
 Suite and selected-check targets regenerate parser and Unicode data; all targets keep output quiet.
 The Makefile imposes no wall-clock deadline and disables Go's implicit test timeout
 with `-timeout=0`. Agents MUST set an external command deadline of 900 seconds
-for `check`, `quickcheck`, `racecheck` and `bench`, or 1800 seconds for `finalcheck`,
+for `check`, `racecheck` and `bench`, or 1800 seconds for `quickcheck` and `finalcheck`,
 including generation and compilation. Slow or hanging tests must be fixed, not exempted.
 Read `Makefile` for non-standard actions.
 
