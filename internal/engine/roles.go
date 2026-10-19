@@ -167,7 +167,7 @@ type roleDependency struct {
 // Admission and final publication share the exact same descriptor classification.
 func descriptorRoleDependencies(d catalog.Descriptor, ref authorization.PrincipalRef, deps *[]roleDependency) bool {
 	if relation, ok := d.(*catalog.Relation); ok {
-		for _, policy := range relation.Policies {
+		for _, policy := range relation.Security.Policies {
 			for _, role := range policy.Roles {
 				if !role.Public && role.Ref == ref {
 					if recordRoleDependency(deps, roleDependency{address: ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}, kind: 'r', policyTable: relation.Address(), policyName: policy.Name}) {

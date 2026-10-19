@@ -91,7 +91,7 @@ func policyPreflight(op *Operation, auth AuthorizationView, stmt parser.Statemen
 }
 
 func policyIndex(d *catalog.Relation, name string) int {
-	return slices.IndexFunc(d.Policies, func(p catalog.PolicyDefinition) bool { return p.Name == name })
+	return slices.IndexFunc(d.Security.Policies, func(p catalog.PolicyDefinition) bool { return p.Name == name })
 }
 
 func policyMissing(name string, d *catalog.Relation) error {
@@ -103,11 +103,11 @@ func policyDuplicate(name string, d *catalog.Relation) error {
 }
 
 func validatePolicies(view catalog.Read, d *catalog.Relation) error {
-	if len(d.Policies) != 0 && d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation {
+	if len(d.Security.Policies) != 0 && d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation {
 		return fmt.Errorf("stuntgres: policies require a table")
 	}
-	for i, p := range d.Policies {
-		if p.OID == 0 || p.Name == "" || len(p.Name) > 63 || !utf8.ValidString(p.Name) || strings.IndexByte(p.Name, 0) >= 0 || i > 0 && d.Policies[i-1].Name >= p.Name || len(p.Roles) == 0 {
+	for i, p := range d.Security.Policies {
+		if p.OID == 0 || p.Name == "" || len(p.Name) > 63 || !utf8.ValidString(p.Name) || strings.IndexByte(p.Name, 0) >= 0 || i > 0 && d.Security.Policies[i-1].Name >= p.Name || len(p.Roles) == 0 {
 			return fmt.Errorf("stuntgres: invalid policy identity")
 		}
 		switch p.Command {

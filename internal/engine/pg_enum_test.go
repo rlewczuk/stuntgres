@@ -130,8 +130,8 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Array != 10044 || row.Owner != d.Owner || array.Owner != d.Owner {
 		t.Fatal("row/array ownership", row, array)
 	}
-	if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal("PUBLIC SELECT", d.ACL)
+	if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal("PUBLIC SELECT", d.Security.ACL)
 	}
 	captured, err := capturePGEnum(context.Background(), e.CatalogRead(), ref, d)
 	if err != nil || captured == nil || captured.ref != ref || captured.anonymous == nil || len(captured.anonymous) != 0 {
@@ -160,7 +160,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if err := retainedAuth.Check(AccessRequirement{Object: ref, Privileges: authorization.SelectPrivilege}); err != nil {
 		t.Fatal("ACL update mutated retained authorization", err)
 	}
-	if err := e.SetObjectACL(context.Background(), ref, d.ACL); err != nil {
+	if err := e.SetObjectACL(context.Background(), ref, d.Security.ACL); err != nil {
 		t.Fatal(err)
 	}
 	restoredAuth, err := readerOp.Authorization()

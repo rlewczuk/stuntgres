@@ -78,7 +78,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 					sessionSQL(t, b, "CREATE POLICY retirement_peer ON retirement_policy TO retired USING(i>0)")
 					address = catalogRef(t, e, e.CatalogRead(), "retirement_policy").Address
 					descriptor = e.catalog.state.Get(address)
-					policies := descriptor.(*catalog.Relation).Policies
+					policies := descriptor.(*catalog.Relation).Security.Policies
 					if len(policies) != 1 || policies[0].OID == 0 || len(policies[0].Roles) != 1 || policies[0].Roles[0].Ref != role.Ref {
 						t.Fatal("peer policy lost its actual identity or selector", policies)
 					}

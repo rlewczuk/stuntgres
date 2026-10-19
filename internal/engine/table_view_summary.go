@@ -125,7 +125,7 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, view catalog.Read,
 			if builtinTable && (relation.Address().ObjectID == 2396 || relation.Address().ObjectID == 1213 || relation.Address().ObjectID == 1262 || relation.Address().ObjectID == 2964 || relation.Address().ObjectID == ids.ParameterClassID) {
 				tablespace = text(3, "pg_global")
 			}
-			rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.Name()), text(2, owner.Name), tablespace, boolean(4, relation.History.HasIndexes || builtinTable), boolean(5, false), boolean(6, false), boolean(7, relation.RLSEnabled)})
+			rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.Name()), text(2, owner.Name), tablespace, boolean(4, relation.History.HasIndexes || builtinTable), boolean(5, false), boolean(6, false), boolean(7, relation.Security.RLSEnabled)})
 		} else {
 			definition := builtinDefinition
 			if relation.View != nil {

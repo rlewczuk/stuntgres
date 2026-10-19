@@ -18,7 +18,7 @@ func TestObjectACLAddressLookup(t *testing.T) {
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	whole := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, owner, authorization.SelectPrivilege, 0)}}
 	column := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}
-	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: 1259, ObjectID: 48001}, Attributes: []int32{1, 3}, ACL: whole, ColumnACL: map[int32]authorization.ACLValue{1: column, 2: whole}}
+	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: 1259, ObjectID: 48001}, Attributes: []int32{1, 3}, Security: catalog.RelationSecurity{ACL: whole, ColumnACL: map[int32]authorization.ACLValue{1: column, 2: whole}}}
 	view = view.WithState(catalog.CloneState(view.State()))
 	view.State().SetDescriptor(relation.Address(), relation)
 	schema := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: 2615, ObjectID: 48002}, ACL: whole}

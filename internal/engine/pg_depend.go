@@ -152,7 +152,7 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 			for _, extension := range d.AutoExtensions {
 				add(d.Address(), extension, 'x')
 			}
-			for _, policy := range d.Policies {
+			for _, policy := range d.Security.Policies {
 				owner := ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}
 				add(owner, d.Address(), 'a')
 				for _, condition := range []*policyExpression{policyExpressionOf(policy.Using), policyExpressionOf(policy.Check)} {

@@ -453,7 +453,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if ns.Temporary != (ids.SessionToken{}) {
 			continue
 		}
-		if r.ACL.Explicit || len(r.ColumnACL) != 0 {
+		if r.Security.ACL.Explicit || len(r.Security.ColumnACL) != 0 {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: dump cannot serialize explicit relation or column ACL")
 		}

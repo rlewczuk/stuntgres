@@ -264,7 +264,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		}
 		columns := e.sequenceColumnsLocked()
 		d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: rev, SequencePlanStamp: rev, Owner: auth.state.CurrentUser, Columns: columns, Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, RelationKind: catalog.SequenceRelation, Sequence: &options}
-		d.ACL = e.creationACLChangesLocked(changes, auth.catalog, d.Owner, d.Namespace(), authorization.DefaultSequences)
+		d.Security.ACL = e.creationACLChangesLocked(changes, auth.catalog, d.Owner, d.Namespace(), authorization.DefaultSequences)
 		d.AttributeHighWater = 3
 		// OWNED BY may refresh auth after waiting for its table. Retain the
 		// authority that actually passed the earlier namespace CREATE check.
@@ -413,7 +413,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 				}
 			}
 			d.Owner = target
-			d.ACL = authorization.SchemaACLOwner(d.ACL, old.Owner, d.Owner)
+			d.Security.ACL = authorization.SchemaACLOwner(d.Security.ACL, old.Owner, d.Owner)
 		case "schema":
 			if options.Owned != (ids.ObjectAddress{}) {
 				a := options.Owned

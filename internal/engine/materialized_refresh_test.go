@@ -63,7 +63,7 @@ func TestMaterializedRefreshPublication(t *testing.T) {
 		}
 		queryCreatePublish(t, e, stage)
 		d = e.catalog.state.MustRelation(d.Address())
-		if d == old || d.View != old.View || d.Address() != old.Address() || d.RowType != old.RowType || viewOf(d).rule != viewOf(old).rule || d.Owner != old.Owner || d.Revision() != old.Revision()+1 || !reflect.DeepEqual(d.ACL, old.ACL) || !reflect.DeepEqual(d.ColumnACL, old.ColumnACL) || !reflect.DeepEqual(d.Columns, old.Columns) || !reflect.DeepEqual(d.Attributes, old.Attributes) {
+		if d == old || d.View != old.View || d.Address() != old.Address() || d.RowType != old.RowType || viewOf(d).rule != viewOf(old).rule || d.Owner != old.Owner || d.Revision() != old.Revision()+1 || !reflect.DeepEqual(d.Security.ACL, old.Security.ACL) || !reflect.DeepEqual(d.Security.ColumnACL, old.Security.ColumnACL) || !reflect.DeepEqual(d.Columns, old.Columns) || !reflect.DeepEqual(d.Attributes, old.Attributes) {
 			t.Fatal("refresh lost immutable identity/metadata")
 		}
 		if e.storage.relations[d.Address()] != candidate || len(candidate.versions) != tc.count || candidate.generation != generation+1 || d.Populated != tc.populated || e.commitSeq != frontier+1 {

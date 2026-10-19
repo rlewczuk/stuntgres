@@ -83,8 +83,8 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 				t.Fatal("attribute facts", i, a)
 			}
 		}
-		if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
-			t.Fatal("PUBLIC SELECT", d.ACL)
+		if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+			t.Fatal("PUBLIC SELECT", d.Security.ACL)
 		}
 		row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10015})
 		array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10014})

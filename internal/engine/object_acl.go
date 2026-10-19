@@ -225,7 +225,7 @@ func rawObjectACL(view catalog.Read, address ids.ObjectAddress) (authorization.A
 		// path, so wrapped zero never becomes a whole-object ACL request.
 		subid := int32(int16(address.SubID))
 		if relation, ok := d.(*catalog.Relation); ok && subid > 0 && relation.HasAttribute(subid) {
-			return relation.ColumnACL[subid], nil
+			return relation.Security.ColumnACL[subid], nil
 		}
 		return authorization.ACLValue{}, nil
 	}

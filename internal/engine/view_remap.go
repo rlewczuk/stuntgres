@@ -966,7 +966,7 @@ func catalogExpressionTypesChanged(d *catalog.Relation, typ func(*sqltype.Descri
 	for _, constraint := range d.CheckConstraints {
 		expression(constraint.Expression)
 	}
-	for _, policy := range d.Policies {
+	for _, policy := range d.Security.Policies {
 		for _, condition := range []*policyExpression{policyExpressionOf(policy.Using), policyExpressionOf(policy.Check)} {
 			if condition != nil {
 				expression(condition.expression)

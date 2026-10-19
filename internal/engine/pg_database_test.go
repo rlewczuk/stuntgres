@@ -56,8 +56,8 @@ func TestPGDatabaseShapeAndOwnership(t *testing.T) {
 	if err := (relationProvider{}).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
-	if !d.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Grantor != owner || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal("PUBLIC SELECT", d.ACL)
+	if !d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Grantor != owner || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal("PUBLIC SELECT", d.Security.ACL)
 	}
 	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1248})
 	array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10052})

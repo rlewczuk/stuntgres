@@ -78,8 +78,8 @@ func TestPGIndexesDescriptors(t *testing.T) {
 	if row.OwningRelation != d.Address() {
 		t.Fatal("row type linkage", row)
 	}
-	if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal(d.ACL)
+	if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal(d.Security.ACL)
 	}
 	s := pgIndexesUnitCapture(t, c, catalogAuthorization(e, c))
 	if s.ref != ref || s.anonymous == nil || len(s.anonymous) != 0 {

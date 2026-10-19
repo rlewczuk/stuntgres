@@ -257,7 +257,7 @@ func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.Ob
 			}
 			next.SetDescriptor(address, d)
 		}
-		if len(d.Policies) != 0 {
+		if len(d.Security.Policies) != 0 {
 			var err error
 			d, err = remapPolicies(view, d, mapping, ref, typ, collation)
 			if err != nil {

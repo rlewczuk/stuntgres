@@ -84,7 +84,7 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 		t.Fatal("type USAGE did not independently authorize source", err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	if destination.Owner != reader.Ref || destination.ACL.Explicit || len(destination.ColumnACL) != 0 || destination.RelationKind != catalog.TableRelation || destination.Address() == source.Address() || destination.RowType == source.RowType {
+	if destination.Owner != reader.Ref || destination.Security.ACL.Explicit || len(destination.Security.ColumnACL) != 0 || destination.RelationKind != catalog.TableRelation || destination.Address() == source.Address() || destination.RowType == source.RowType {
 		t.Fatal("composite authority/identity copied", destination)
 	}
 	if len(destination.Defaults) != 0 || len(destination.Generations) != 0 || len(destination.Identities) != 0 || len(destination.CheckConstraints) != 0 || len(destination.UniqueConstraints) != 0 {

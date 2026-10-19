@@ -78,13 +78,13 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 					}
 					for _, old := range owners {
 						next, ok := stage.Descriptors[old.Address()].(*catalog.Relation)
-						if !ok || len(next.Policies) != 1 || next.Policies[0].Name != "retained" {
+						if !ok || len(next.Security.Policies) != 1 || next.Security.Policies[0].Name != "retained" {
 							t.Fatal("wrong surviving policy owner", old.Name(), next)
 						}
 						if _, removed := stage.Removals[old.Address()]; removed {
 							t.Fatal("lock target became a physical deletion", old.Name())
 						}
-						if len(old.Policies) != 3 || e.CatalogRead().State() != base.State() {
+						if len(old.Security.Policies) != 3 || e.CatalogRead().State() != base.State() {
 							t.Fatal("staging mutated published roots")
 						}
 					}

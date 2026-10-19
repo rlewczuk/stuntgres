@@ -188,25 +188,25 @@ func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapsh
 			if err != nil {
 				return nil, err
 			}
-			n.ACL, err = acl(d.ACL)
+			n.Security.ACL, err = acl(d.Security.ACL)
 			if err != nil {
 				return nil, err
 			}
-			if len(d.ColumnACL) != 0 {
-				n.ColumnACL = make(map[int32]authorization.ACLValue, len(d.ColumnACL))
-				for sub, a := range d.ColumnACL {
-					n.ColumnACL[sub], err = acl(a)
+			if len(d.Security.ColumnACL) != 0 {
+				n.Security.ColumnACL = make(map[int32]authorization.ACLValue, len(d.Security.ColumnACL))
+				for sub, a := range d.Security.ColumnACL {
+					n.Security.ColumnACL[sub], err = acl(a)
 					if err != nil {
 						return nil, err
 					}
 				}
 			}
-			if len(d.Policies) != 0 {
-				n.Policies = append([]catalog.PolicyDefinition(nil), d.Policies...)
-				for i := range n.Policies {
-					n.Policies[i].Roles = append([]catalog.PolicyRole(nil), d.Policies[i].Roles...)
-					for j := range n.Policies[i].Roles {
-						role := &n.Policies[i].Roles[j]
+			if len(d.Security.Policies) != 0 {
+				n.Security.Policies = append([]catalog.PolicyDefinition(nil), d.Security.Policies...)
+				for i := range n.Security.Policies {
+					n.Security.Policies[i].Roles = append([]catalog.PolicyRole(nil), d.Security.Policies[i].Roles...)
+					for j := range n.Security.Policies[i].Roles {
+						role := &n.Security.Policies[i].Roles[j]
 						if role.Public {
 							continue
 						}

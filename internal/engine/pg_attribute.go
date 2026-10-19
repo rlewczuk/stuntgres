@@ -163,7 +163,7 @@ func (e *Engine) pgAttributeRow(roles authorization.Read, source, relation *cata
 	null := func(i int) sqltype.Value { return sqltype.Null(source.Columns[i].Usage.Type) }
 	acl := null(21)
 	if metadata.Number > 0 && !metadata.Dropped {
-		if value, exists := relation.ColumnACL[metadata.Number]; exists {
+		if value, exists := relation.Security.ColumnACL[metadata.Number]; exists {
 			acl = checked(e.pgClassACL(roles, source.Columns[21].Usage.Type, value))
 		}
 	}

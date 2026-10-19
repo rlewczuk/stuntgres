@@ -81,7 +81,7 @@ func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.Principa
 		next++
 		d := *original
 		d.ObjectAddress, d.ObjectName, d.Owner, d.RelationKind = ref.Address, name, owner, catalog.ViewRelation
-		d.Columns, d.Attributes, d.ColumnACL = query.Root.Schema(), []int32{1}, nil
+		d.Columns, d.Attributes, d.Security.ColumnACL = query.Root.Schema(), []int32{1}, nil
 		d.View = &viewDefinition{query: &BoundQuery{Root: root}, sources: leaves, invoker: invoker}
 		e.catalog.state.SetDescriptor(ref.Address, &d)
 		refs[name] = ref

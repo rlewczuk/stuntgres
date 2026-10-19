@@ -86,7 +86,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 		}
 	}
 	next := *old
-	next.Policies = slices.Clone(old.Policies)
+	next.Security.Policies = slices.Clone(old.Security.Policies)
 	if create {
 		if index >= 0 {
 			return fail(policyDuplicate(name, old))
@@ -96,7 +96,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 			return fail(err)
 		}
 		s := stmt.(*parser.CreatePolicy)
-		next.Policies = append(next.Policies, catalog.PolicyDefinition{
+		next.Security.Policies = append(next.Security.Policies, catalog.PolicyDefinition{
 			OID: oid, Name: name, Permissive: s.Permissive, Command: catalog.PolicyCommand(s.Command),
 			Roles: roles, Using: policyPayloadOf(using), Check: policyPayloadOf(check),
 		})
@@ -108,10 +108,10 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 		if index < 0 {
 			return fail(policyMissing(name, old))
 		}
-		if err = policyClauses(old.Policies[index].Command, rawUsing, rawCheck, false); err != nil {
+		if err = policyClauses(old.Security.Policies[index].Command, rawUsing, rawCheck, false); err != nil {
 			return fail(err)
 		}
-		p := &next.Policies[index]
+		p := &next.Security.Policies[index]
 		if s.Rename != nil {
 			p.Name = s.Rename.Text
 		}
@@ -125,16 +125,16 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 			p.Check = policyPayloadOf(check)
 		}
 	} else {
-		next.Policies = append(next.Policies[:index], next.Policies[index+1:]...)
+		next.Security.Policies = append(next.Security.Policies[:index], next.Security.Policies[index+1:]...)
 	}
-	slices.SortFunc(next.Policies, func(a, b catalog.PolicyDefinition) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortFunc(next.Security.Policies, func(a, b catalog.PolicyDefinition) int { return strings.Compare(a.Name, b.Name) })
 	next.ObjectRevision, err = e.catalog.revisionLocked()
 	if err != nil {
 		return fail(err)
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
-	for _, p := range next.Policies {
+	for _, p := range next.Security.Policies {
 		for _, expression := range []*policyExpression{policyExpressionOf(p.Using), policyExpressionOf(p.Check)} {
 			if expression == nil {
 				continue

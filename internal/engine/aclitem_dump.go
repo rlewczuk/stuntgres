@@ -128,7 +128,7 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, view catalog.Read, ou
 				check(datum.Value)
 			}
 		}
-		for _, policy := range relation.Policies {
+		for _, policy := range relation.Security.Policies {
 			if policy.Using != nil {
 				expression(policyExpressionOf(policy.Using).expression)
 			}

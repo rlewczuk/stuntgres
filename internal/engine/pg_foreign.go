@@ -32,7 +32,7 @@ func (e *Engine) initializeForeignCatalogSources() error {
 	} {
 		d := e.catalogSourceDescriptor(spec.oid, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, spec.name, len(spec.columns))
 		if spec.oid == ids.ForeignMappingClassID {
-			d.ACL = authorization.ACLValue{}
+			d.Security.ACL = authorization.ACLValue{}
 		}
 		d.VirtualView = spec.oid == pgUserMappingsOID
 		for i, column := range spec.columns {

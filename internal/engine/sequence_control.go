@@ -110,7 +110,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		if !ok {
 			continue
 		}
-		for _, policy := range relation.Policies {
+		for _, policy := range relation.Security.Policies {
 			for _, condition := range []*policyExpression{policyExpressionOf(policy.Using), policyExpressionOf(policy.Check)} {
 				if condition == nil {
 					continue
@@ -189,7 +189,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 			for _, definition := range relation.CheckConstraints {
 				retainExpression(definition.Expression)
 			}
-			for _, policy := range relation.Policies {
+			for _, policy := range relation.Security.Policies {
 				for _, condition := range []*policyExpression{policyExpressionOf(policy.Using), policyExpressionOf(policy.Check)} {
 					if condition != nil {
 						walkQueryArgumentExpression(condition.expression, func(node expr.Expr) { retainBuiltin(node.ResultUsage().Type) })
@@ -544,7 +544,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	next.SetOperatorNames(operators.Index)
 	for address, descriptor := range temporary {
 		relation, ok := descriptor.(*catalog.Relation)
-		if !ok || len(relation.Policies) == 0 && len(rulesOf(relation)) == 0 {
+		if !ok || len(relation.Security.Policies) == 0 && len(rulesOf(relation)) == 0 {
 			continue
 		}
 		view := e.catalog.read(next)
@@ -553,7 +553,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		// Replacement preflight certified these exact TEMP providers. They
 		// enter the candidate after imported expressions have been remapped,
 		// so advance their frozen definition refs without applying import IDs.
-		if len(relation.Policies) != 0 {
+		if len(relation.Security.Policies) != 0 {
 			replacement, err := remapPolicies(view, relation, nil, remap, typ, nil)
 			if err != nil {
 				return err
@@ -586,7 +586,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		return err
 	}
 	for _, descriptor := range next.Descriptors() {
-		if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Policies) != 0 {
+		if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Security.Policies) != 0 {
 			if err := validatePolicies(e.catalog.read(next), relation); err != nil {
 				return err
 			}
@@ -772,11 +772,11 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalog.State, tempora
 				return fail()
 			}
 			candidate, ok := next.Relation(address)
-			if !ok || candidate.RelationKind != old.RelationKind || candidate.Namespace() != old.Namespace() || candidate.Name() != old.Name() || candidate.Owner != old.Owner || candidate.VirtualView != old.VirtualView || candidate.History.HasIndexes != old.History.HasIndexes || candidate.History.HasSubclasses != old.History.HasSubclasses || candidate.AttributeHighWater != old.AttributeHighWater || !slices.Equal(candidate.Attributes, old.Attributes) || len(candidate.Columns) != len(old.Columns) || candidate.ACL.Explicit != old.ACL.Explicit || !slices.Equal(candidate.ACL.Entries, old.ACL.Entries) || len(candidate.ColumnACL) != len(old.ColumnACL) {
+			if !ok || candidate.RelationKind != old.RelationKind || candidate.Namespace() != old.Namespace() || candidate.Name() != old.Name() || candidate.Owner != old.Owner || candidate.VirtualView != old.VirtualView || candidate.History.HasIndexes != old.History.HasIndexes || candidate.History.HasSubclasses != old.History.HasSubclasses || candidate.AttributeHighWater != old.AttributeHighWater || !slices.Equal(candidate.Attributes, old.Attributes) || len(candidate.Columns) != len(old.Columns) || candidate.Security.ACL.Explicit != old.Security.ACL.Explicit || !slices.Equal(candidate.Security.ACL.Entries, old.Security.ACL.Entries) || len(candidate.Security.ColumnACL) != len(old.Security.ColumnACL) {
 				return fail()
 			}
-			for attribute, acl := range old.ColumnACL {
-				other, ok := candidate.ColumnACL[attribute]
+			for attribute, acl := range old.Security.ColumnACL {
+				other, ok := candidate.Security.ColumnACL[attribute]
 				if !ok || other.Explicit != acl.Explicit || !slices.Equal(other.Entries, acl.Entries) {
 					return fail()
 				}

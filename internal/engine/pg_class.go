@@ -111,7 +111,7 @@ func (e *Engine) pgClassRow(ctx context.Context, view catalog.Read, roles author
 	if relation.RelationKind != catalog.CatalogRelation && (kind == "r" || kind == "m" || kind == "p") {
 		replica = "d"
 	}
-	acl, err := e.pgClassACL(roles, source.Columns[31].Usage.Type, relation.ACL)
+	acl, err := e.pgClassACL(roles, source.Columns[31].Usage.Type, relation.Security.ACL)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +138,7 @@ func (e *Engine) pgClassRow(ctx context.Context, view catalog.Read, roles author
 		integer(11, 0), integer(12, 0), oid(13, 0), boolean(14, relation.History.HasIndexes), boolean(15, shared),
 		text(16, pgClassPersistence(view, relation)), text(17, kind), integer(18, int64(relation.AttributeHighWater)), integer(19, int64(len(relation.CheckConstraints))),
 		boolean(20, len(rulesOf(relation)) != 0 || relation.View != nil || relation.RelationKind == catalog.CatalogRelation && kind == "v"), boolean(21, false), boolean(22, relation.History.HasSubclasses),
-		boolean(23, relation.RLSEnabled), boolean(24, relation.RLSForced), boolean(25, relation.RelationKind != catalog.MaterializedViewRelation || relation.Populated),
+		boolean(23, relation.Security.RLSEnabled), boolean(24, relation.Security.RLSForced), boolean(25, relation.RelationKind != catalog.MaterializedViewRelation || relation.Populated),
 		text(26, replica), boolean(27, relation.Membership != nil || relation.SQLIndex != nil && relation.SQLIndex.PartitionParent != (ids.ObjectAddress{})), oid(28, 0),
 		checked(sqltype.XIDValue(source.Columns[29].Usage.Type, 0)), checked(sqltype.XIDValue(source.Columns[30].Usage.Type, 0)), acl, options, bound,
 	}

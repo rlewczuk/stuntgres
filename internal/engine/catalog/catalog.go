@@ -51,17 +51,13 @@ type Relation struct {
 	DroppedAttributes              map[int32]AttributeMetadata
 	CatalogAttributes              []CatalogAttribute
 	Owner                          authorization.PrincipalRef
-	ACL                            authorization.ACLValue
-	ColumnACL                      map[int32]authorization.ACLValue
 	Comment                        string
+	Security                       RelationSecurity
 	ColumnComments                 map[int32]string
 	NotNullConstraints             []NotNullConstraint
 	PhysicalNotNull                map[int32]PhysicalNotNullProof
 	CheckConstraints               []CheckConstraint
-	Policies                       []PolicyDefinition
 	Rules                          RulesPayload
-	RLSEnabled                     bool
-	RLSForced                      bool
 	UniqueConstraints              []UniqueConstraint
 	ExclusionConstraints           []ExclusionConstraint
 	ForeignKeys                    []ForeignKeyConstraint
@@ -83,6 +79,16 @@ type Relation struct {
 	RowType                        sqltype.ID
 	OfType                         ids.ObjectAddress
 	Foreign                        *ForeignTableDefinition
+}
+
+// RelationSecurity holds a relation's access control: its ACL, column ACLs
+// and row-level security.
+type RelationSecurity struct {
+	ACL        authorization.ACLValue
+	ColumnACL  map[int32]authorization.ACLValue
+	Policies   []PolicyDefinition
+	RLSEnabled bool
+	RLSForced  bool
 }
 
 // PublicationHistory records sticky facts about a relation's earlier

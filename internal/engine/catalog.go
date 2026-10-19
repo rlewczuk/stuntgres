@@ -130,7 +130,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 			return err
 		}
 	}
-	if (r.RLSEnabled || r.RLSForced) && r.RelationKind != catalog.TableRelation && r.RelationKind != catalog.PartitionedRelation {
+	if (r.Security.RLSEnabled || r.Security.RLSForced) && r.RelationKind != catalog.TableRelation && r.RelationKind != catalog.PartitionedRelation {
 		return fmt.Errorf("stuntgres: row-security flags require a table")
 	}
 	if err := validatePolicies(v, r); err != nil {
@@ -1079,7 +1079,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 					return ChangeSet{}, err
 				}
 			}
-			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Policies) != 0 {
+			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Security.Policies) != 0 {
 				if err := validatePolicies(e.catalog.read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}

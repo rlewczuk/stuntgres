@@ -143,8 +143,8 @@ func TestPGCursorsCatalog(t *testing.T) {
 			t.Fatal("invalid logical consumer descriptor", i, column)
 		}
 	}
-	if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal("catalog view lacks public SELECT", d.ACL)
+	if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal("catalog view lacks public SELECT", d.Security.ACL)
 	}
 	// These native builtin row/array IDs are independent identities, not
 	// PostgreSQL-generated relation OIDs. Both types must belong to this view

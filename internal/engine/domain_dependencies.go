@@ -253,7 +253,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 						}
 					}
 				}
-				for _, policy := range d.Policies {
+				for _, policy := range d.Security.Policies {
 					if policyDepends(policy, target) {
 						direct = append(direct, domainDependency{address: ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}, target: target, root: root, oid: policy.OID, label: "policy " + dependencyIdentifier(policy.Name) + " on table " + name, relation: d})
 					}

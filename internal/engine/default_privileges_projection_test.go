@@ -72,9 +72,9 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 		{"proof_composite", catalog.CompositeRelation, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}},
 	}
 	for i, spec := range specs {
-		d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(20100 + i)}, ObjectNamespace: f.schema, ObjectName: spec.name, Owner: f.owner, ObjectRevision: 2, RelationKind: spec.kind, ACL: spec.acl}
+		d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(20100 + i)}, ObjectNamespace: f.schema, ObjectName: spec.name, Owner: f.owner, ObjectRevision: 2, RelationKind: spec.kind, Security: catalog.RelationSecurity{ACL: spec.acl}}
 		if spec.name == "proof_column_only" {
-			d.ColumnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}}
+			d.Security.ColumnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}}
 		}
 		state.SetDescriptor(d.Address(), d)
 	}
@@ -150,7 +150,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	}
 	changed := catalog.CloneState(state)
 	named := *changed.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20101})
-	named.ACL = authorization.ACLValue{Explicit: true}
+	named.Security.ACL = authorization.ACLValue{Explicit: true}
 	changed.SetDescriptor(named.Address(), &named)
 	actor := cloneRoleFixture(roles)
 	renamed := fixtureRole(actor, f.reader)

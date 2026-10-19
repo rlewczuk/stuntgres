@@ -88,7 +88,7 @@ func TestObjectAddressIdentity(t *testing.T) {
 	d.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 48016}}
 	d.Generations = map[int32]catalog.ColumnGeneration{3: {OID: 48017}}
 	d.Rules = rulesPayloadOf([]ruleDefinition{{OID: 48018, Name: "rule_unit"}})
-	d.Policies = []catalog.PolicyDefinition{{OID: 48019, Name: "policy_unit"}}
+	d.Security.Policies = []catalog.PolicyDefinition{{OID: 48019, Name: "policy_unit"}}
 	d.View = &viewDefinition{rule: 48022}
 	for _, tc := range []struct {
 		class, id ids.OID

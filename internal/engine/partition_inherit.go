@@ -40,7 +40,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	if err != nil {
 		return nil, err
 	}
-	d.ACL = stage.creationACL(d.Owner, namespace, authorization.DefaultTables)
+	d.Security.ACL = stage.creationACL(d.Owner, namespace, authorization.DefaultTables)
 	for i := range d.Columns {
 		d.Columns[i].DeclaredDimensions = 0
 	}

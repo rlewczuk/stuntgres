@@ -78,7 +78,7 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 			t.Fatal(column, d.Attributes, d.Index)
 		}
 	}
-	if len(d.NotNullConstraints)+len(d.CheckConstraints)+len(d.UniqueConstraints)+len(d.Defaults)+len(d.Generations)+len(d.Identities)+len(d.ColumnACL) != 0 || !reflect.DeepEqual(d.ACL, authorization.ACLValue{}) || d.Owner != auth.state.CurrentUser {
+	if len(d.NotNullConstraints)+len(d.CheckConstraints)+len(d.UniqueConstraints)+len(d.Defaults)+len(d.Generations)+len(d.Identities)+len(d.Security.ColumnACL) != 0 || !reflect.DeepEqual(d.Security.ACL, authorization.ACLValue{}) || d.Owner != auth.state.CurrentUser {
 		t.Fatal("source table decorations inherited", d)
 	}
 	queryCreatePublish(t, e, stage)

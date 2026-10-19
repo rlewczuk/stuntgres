@@ -433,7 +433,7 @@ func ownedAddressName(d *catalog.Relation, a ids.ObjectAddress) (string, int32) 
 			}
 		}
 	case 3256:
-		for _, x := range d.Policies {
+		for _, x := range d.Security.Policies {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}

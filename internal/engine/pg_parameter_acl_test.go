@@ -96,8 +96,8 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 	if err := (relationProvider{}).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
-	if !d.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Grantor != owner || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal("PUBLIC SELECT", d.ACL)
+	if !d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Grantor != owner || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal("PUBLIC SELECT", d.Security.ACL)
 	}
 	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10097})
 	array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10096})
@@ -383,14 +383,14 @@ func TestPGParameterACLAuthorization(t *testing.T) {
 		d, _ := pgParameterACLUnitSource(t, e, base)
 		next := *d
 		next.ObjectRevision++
-		next.ACL = authorization.ACLValue{Explicit: true}
-		next.ColumnACL = nil
+		next.Security.ACL = authorization.ACLValue{Explicit: true}
+		next.Security.ColumnACL = nil
 		entry := authorization.ACLEntry{Grantor: d.Owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}
 		if table {
-			next.ACL.Entries = []authorization.ACLEntry{entry}
+			next.Security.ACL.Entries = []authorization.ACLEntry{entry}
 		}
 		if column {
-			next.ColumnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{entry}}}
+			next.Security.ColumnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{entry}}}
 		}
 		stage := e.BeginCatalogStage(base)
 		defer e.DiscardCatalogStage(stage)

@@ -171,14 +171,14 @@ func stageOwnership(stage *CatalogStage, d catalog.Descriptor, target authorizat
 		next := *old
 		next.Owner = target
 		next.ObjectRevision = revision
-		next.ACL = authorization.SchemaACLOwner(old.ACL, old.Owner, target)
+		next.Security.ACL = authorization.SchemaACLOwner(old.Security.ACL, old.Owner, target)
 		if old.Sequence != nil {
 			next.SequencePlanStamp = revision
 		}
-		if len(old.ColumnACL) != 0 {
-			next.ColumnACL = make(map[int32]authorization.ACLValue, len(old.ColumnACL))
-			for sub, acl := range old.ColumnACL {
-				next.ColumnACL[sub] = authorization.SchemaACLOwner(acl, old.Owner, target)
+		if len(old.Security.ColumnACL) != 0 {
+			next.Security.ColumnACL = make(map[int32]authorization.ACLValue, len(old.Security.ColumnACL))
+			for sub, acl := range old.Security.ColumnACL {
+				next.Security.ColumnACL[sub] = authorization.SchemaACLOwner(acl, old.Owner, target)
 			}
 		}
 		// Replace synchronizes the row type and its array against this owner.

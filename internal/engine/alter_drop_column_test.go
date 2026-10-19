@@ -71,7 +71,7 @@ func alterDropTestStage(t *testing.T, e *Engine) (*CatalogStage, ids.ObjectRef, 
 	next.Columns = append([]catalog.Column(nil), old.Columns[0])
 	next.Attributes = []int32{1}
 	next.Index = map[string]int{"a": 0}
-	next.ColumnACL = nil
+	next.Security.ColumnACL = nil
 	original := e.storage.relations[ref.Address]
 	replacement := &relationStorage{versions: make([]rowVersion, len(original.versions)), ends: original.ends}
 	for i, row := range original.versions {
@@ -202,8 +202,8 @@ func TestAlterDropColumnACLCleanupAndSurvivorAuthority(t *testing.T) {
 	old := e.catalog.state.MustRelation(ref.Address)
 	roleExecute(t, e, op, "ALTER TABLE t DROP b CASCADE")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if len(next.ColumnACL) != 1 || !reflect.DeepEqual(next.ColumnACL[3], old.ColumnACL[3]) || len(old.ColumnACL) != 2 {
-		t.Fatal(old.ColumnACL, next.ColumnACL)
+	if len(next.Security.ColumnACL) != 1 || !reflect.DeepEqual(next.Security.ColumnACL[3], old.Security.ColumnACL[3]) || len(old.Security.ColumnACL) != 2 {
+		t.Fatal(old.Security.ColumnACL, next.Security.ColumnACL)
 	}
 	roleExecute(t, e, op, "DROP ROLE dropped_grantee")
 	_, err := e.Execute(op, statement(t, "DROP ROLE survivor_grantee"), 0, nil)
@@ -218,7 +218,7 @@ func TestAlterDropColumnACLCleanupAndSurvivorAuthority(t *testing.T) {
 	if e.SetObjectACL(context.Background(), dead, authorization.ACLValue{Explicit: true}) == nil {
 		t.Fatal("dead ACL accepted")
 	}
-	if err = e.SetObjectACL(context.Background(), live, next.ColumnACL[3]); err != nil {
+	if err = e.SetObjectACL(context.Background(), live, next.Security.ColumnACL[3]); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION survivor_grantee")

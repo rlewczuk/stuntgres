@@ -39,7 +39,7 @@ func policyDumpGroups(ctx context.Context, view catalog.Read, roles authorizatio
 	var groups []dumpPolicyGroup
 	for _, descriptor := range view.Descriptors() {
 		d, ok := descriptor.(*catalog.Relation)
-		if !ok || len(d.Policies) == 0 {
+		if !ok || len(d.Security.Policies) == 0 {
 			continue
 		}
 		ns := view.MustNamespace(d.Namespace())
@@ -52,7 +52,7 @@ func policyDumpGroups(ctx context.Context, view catalog.Read, roles authorizatio
 		}
 		table := quoteIdentifier(ns.Name()) + "." + quoteIdentifier(d.Name())
 		var sql strings.Builder
-		for _, policy := range d.Policies {
+		for _, policy := range d.Security.Policies {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}

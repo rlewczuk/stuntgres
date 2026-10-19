@@ -254,19 +254,19 @@ func dropColumnMetadata(ctx context.Context, view catalog.Read, descriptor func(
 			}
 		}
 	}
-	if _, exists := old.ColumnACL[old.Attributes[slot]]; exists {
-		next.ColumnACL = nil
-		for sub, acl := range old.ColumnACL {
+	if _, exists := old.Security.ColumnACL[old.Attributes[slot]]; exists {
+		next.Security.ColumnACL = nil
+		for sub, acl := range old.Security.ColumnACL {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
 			if sub == old.Attributes[slot] {
 				continue
 			}
-			if next.ColumnACL == nil {
-				next.ColumnACL = make(map[int32]authorization.ACLValue, len(old.ColumnACL)-1)
+			if next.Security.ColumnACL == nil {
+				next.Security.ColumnACL = make(map[int32]authorization.ACLValue, len(old.Security.ColumnACL)-1)
 			}
-			next.ColumnACL[sub] = acl
+			next.Security.ColumnACL[sub] = acl
 		}
 	}
 	if _, exists := old.ColumnComments[old.Attributes[slot]]; exists {

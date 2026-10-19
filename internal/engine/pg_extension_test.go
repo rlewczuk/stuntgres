@@ -42,8 +42,8 @@ func pgExtensionUnitShape(t *testing.T, e *Engine) *catalog.Relation {
 	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal(err)
 	}
-	if len(d.ACL.Entries) != 1 || !d.ACL.Explicit || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Grantor != owner || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal("PUBLIC SELECT", d.ACL)
+	if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Explicit || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Grantor != owner || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal("PUBLIC SELECT", d.Security.ACL)
 	}
 	if d.RowType != 10074 {
 		t.Fatal("existing native rowtype", d.RowType)

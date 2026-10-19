@@ -99,7 +99,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 		var policies []catalog.PolicyDefinition
 		if relation, ok := descriptor.(*catalog.Relation); ok {
 			var different bool
-			policies, different = ownedPolicies(relation.Policies, sources)
+			policies, different = ownedPolicies(relation.Security.Policies, sources)
 			changed = changed || different
 		}
 		if !changed {
@@ -147,11 +147,11 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 			err = stage.Replace(&next)
 		case *catalog.Relation:
 			next := *old
-			next.ACL = nextACL
+			next.Security.ACL = nextACL
 			next.ObjectRevision = revision
-			next.Policies = policies
+			next.Security.Policies = policies
 			if nextColumns != nil {
-				next.ColumnACL = nextColumns
+				next.Security.ColumnACL = nextColumns
 			}
 			err = stage.Replace(&next)
 		default:
@@ -219,7 +219,7 @@ func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization
 	for address, descriptor := range stage.Descriptors {
 		next, ok := descriptor.(*catalog.Relation)
 		original, existed := stage.Base.Relation(address)
-		if ok && existed && len(next.Policies) < len(original.Policies) {
+		if ok && existed && len(next.Security.Policies) < len(original.Security.Policies) {
 			return true
 		}
 	}
@@ -239,7 +239,7 @@ func ownedCleanupAddsDeletionRoot(stage *CatalogStage, sources map[authorization
 		if !ok {
 			continue
 		}
-		for _, policy := range relation.Policies {
+		for _, policy := range relation.Security.Policies {
 			selected := len(policy.Roles) > 0
 			for _, role := range policy.Roles {
 				if role.Public || !sources[role.Ref] {

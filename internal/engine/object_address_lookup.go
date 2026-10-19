@@ -542,7 +542,7 @@ func ownedAddressByName(d *catalog.Relation, class ids.OID, name string) ids.OID
 			}
 		}
 	case 3256:
-		for _, x := range d.Policies {
+		for _, x := range d.Security.Policies {
 			if x.Name == name {
 				return x.OID
 			}

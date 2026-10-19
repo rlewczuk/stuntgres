@@ -33,7 +33,7 @@ func TestRLSPolicyRegtypeCascadeRetirement(t *testing.T) {
 					row := base.MustType(rowAddress)
 					arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)}
 					storage := e.storage.relations[old.Address()]
-					retained := old.Policies[1]
+					retained := old.Security.Policies[1]
 					stage := e.BeginCatalogStage(base)
 					defer e.DiscardCatalogStage(stage)
 					if err := stage.Remove(providerRef); err != nil {
@@ -43,7 +43,7 @@ func TestRLSPolicyRegtypeCascadeRetirement(t *testing.T) {
 						t.Fatal(err)
 					}
 					next, ok := stage.Descriptors[old.Address()].(*catalog.Relation)
-					if !ok || len(next.Policies) != 1 || !reflect.DeepEqual(next.Policies[0], retained) || next.Revision() <= old.Revision() {
+					if !ok || len(next.Security.Policies) != 1 || !reflect.DeepEqual(next.Security.Policies[0], retained) || next.Revision() <= old.Revision() {
 						t.Fatal("wrong surviving policy collection", next)
 					}
 					if _, removed := stage.Removals[old.Address()]; removed {
@@ -55,9 +55,9 @@ func TestRLSPolicyRegtypeCascadeRetirement(t *testing.T) {
 					view := e.stageRead(stage)
 					// Validation must still reject the unpruned old condition; the
 					// fix changes retirement authority, not validator strictness.
-					condition := policyExpressionOf(old.Policies[0].Using)
+					condition := policyExpressionOf(old.Security.Policies[0].Using)
 					if clause == "WITH CHECK" {
-						condition = policyExpressionOf(old.Policies[0].Check)
+						condition = policyExpressionOf(old.Security.Policies[0].Check)
 					}
 					if err := validatePolicyExpression(view, next, condition); err == nil {
 						t.Fatal("stale represented provider accepted")
@@ -66,7 +66,7 @@ func TestRLSPolicyRegtypeCascadeRetirement(t *testing.T) {
 					if err != nil {
 						t.Fatal("cleaned retirement failed validation", err)
 					}
-					if e.CatalogRead().State() != base.State() || len(old.Policies) != 2 || e.storage.relations[old.Address()] != storage {
+					if e.CatalogRead().State() != base.State() || len(old.Security.Policies) != 2 || e.storage.relations[old.Address()] != storage {
 						t.Fatal("private retirement mutated published roots/storage")
 					}
 					if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
@@ -81,7 +81,7 @@ func TestRLSPolicyRegtypeCascadeRetirement(t *testing.T) {
 							t.Fatal("old immutable root lost provider", address)
 						}
 					}
-					if e.storage.relations[old.Address()] != storage || len(old.Policies) != 2 {
+					if e.storage.relations[old.Address()] != storage || len(old.Security.Policies) != 2 {
 						t.Fatal("retirement changed survivor storage or old policies")
 					}
 					roleExecute(t, e, op, "ALTER POLICY retained ON t")

@@ -75,7 +75,7 @@ func TestPGRolesDescriptor(t *testing.T) {
 			t.Fatal("exact pg_roles metadata", i, c)
 		}
 	}
-	if !d.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.ACL.Entries[0].Grantor != d.Owner {
+	if !d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.Security.ACL.Entries[0].Grantor != d.Owner {
 		t.Fatal("PUBLIC SELECT")
 	}
 	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {

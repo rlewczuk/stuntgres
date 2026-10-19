@@ -114,8 +114,8 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 			t.Fatal("column", i, c)
 		}
 	}
-	if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal("PUBLIC SELECT", d.ACL)
+	if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal("PUBLIC SELECT", d.Security.ACL)
 	}
 	for _, id := range []sqltype.ID{10009, 10008} {
 		row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})

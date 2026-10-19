@@ -33,7 +33,7 @@ func TestTableLikeIndexClone(t *testing.T) {
 		}
 		count++
 		definition := index.SQLIndex
-		if definition.Parent != destination.Address() || index.Owner != destination.Owner || !definition.Ready || !definition.Valid || !definition.Live || index.ACL.Explicit {
+		if definition.Parent != destination.Address() || index.Owner != destination.Owner || !definition.Ready || !definition.Valid || !definition.Live || index.Security.ACL.Explicit {
 			t.Fatal(index)
 		}
 		switch index.Name() {

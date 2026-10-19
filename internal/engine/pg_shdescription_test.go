@@ -164,8 +164,8 @@ func TestPGShDescriptionDescriptor(t *testing.T) {
 			t.Fatal("exact shared descriptor", i, c)
 		}
 	}
-	if !d.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.ACL.Entries[0].Grantor != d.Owner {
-		t.Fatal("PUBLIC SELECT", d.ACL)
+	if !d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.Security.ACL.Entries[0].Grantor != d.Owner {
+		t.Fatal("PUBLIC SELECT", d.Security.ACL)
 	}
 	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal(err)

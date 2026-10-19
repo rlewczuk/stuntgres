@@ -256,7 +256,7 @@ func (e *Engine) initializeCatalogSources() error {
 		d.History.HasIndexes = representedCatalogHasIndexes(spec.oid)
 		if spec.oid == 1213 || spec.oid == ids.ParameterClassID {
 			d.Owner = e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
-			d.ACL.Entries[0].Grantor = d.Owner
+			d.Security.ACL.Entries[0].Grantor = d.Owner
 		}
 		d.VirtualView = spec.oid == pgLocksOID || spec.oid == pgCursorsOID || spec.oid == 12081 || spec.oid == 12085 || spec.oid == 12048 || spec.oid == 12005 || spec.oid == 12004 || spec.oid == 12014 || spec.oid == 12007 || spec.oid == 12008
 		for i, column := range spec.columns {
@@ -374,7 +374,7 @@ func (e *Engine) initializeCatalogSources() error {
 
 func (e *Engine) catalogSourceDescriptor(oid ids.OID, namespace ids.ObjectAddress, name string, count int) *catalog.Relation {
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, RelationKind: catalog.CatalogRelation, Owner: owner, Index: make(map[string]int, count), Attributes: make([]int32, count), Columns: make([]catalog.Column, count), AttributeHighWater: int32(count), ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}}
+	return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, RelationKind: catalog.CatalogRelation, Owner: owner, Index: make(map[string]int, count), Attributes: make([]int32, count), Columns: make([]catalog.Column, count), AttributeHighWater: int32(count), Security: catalog.RelationSecurity{ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}}}
 }
 
 func (e *Engine) registerCatalogSource(d *catalog.Relation) {

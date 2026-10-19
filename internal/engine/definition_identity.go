@@ -115,7 +115,7 @@ func definitionOIDUsed(descriptor catalog.Descriptor, id ids.OID) bool {
 			return true
 		}
 	}
-	for _, p := range d.Policies {
+	for _, p := range d.Security.Policies {
 		if p.OID == id {
 			return true
 		}
@@ -181,7 +181,7 @@ func reserveDefinitionOIDs(reserved map[ids.OID]bool, descriptor catalog.Descrip
 	for _, r := range rulesOf(d) {
 		reserved[r.OID] = true
 	}
-	for _, p := range d.Policies {
+	for _, p := range d.Security.Policies {
 		reserved[p.OID] = true
 	}
 	for _, c := range d.NotNullConstraints {
@@ -248,7 +248,7 @@ func validateDefinitionOIDs(view catalog.Read) error {
 				return err
 			}
 		}
-		for _, p := range d.Policies {
+		for _, p := range d.Security.Policies {
 			if err := claim(p.OID); err != nil {
 				return err
 			}
@@ -330,7 +330,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
 			for _, r := range rulesOf(d) {
 				claimed[r.OID] = true
 			}
-			for _, p := range d.Policies {
+			for _, p := range d.Security.Policies {
 				claimed[p.OID] = true
 			}
 			for _, definition := range d.NotNullConstraints {
@@ -411,7 +411,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
 		if ns, ok := next.Namespace(old.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
 			continue
 		}
-		if len(old.NotNullConstraints)+len(old.CheckConstraints)+len(old.UniqueConstraints)+len(old.ExclusionConstraints)+len(old.ForeignKeys)+len(old.Defaults)+len(old.Generations)+len(old.Policies)+len(rulesOf(old)) == 0 {
+		if len(old.NotNullConstraints)+len(old.CheckConstraints)+len(old.UniqueConstraints)+len(old.ExclusionConstraints)+len(old.ForeignKeys)+len(old.Defaults)+len(old.Generations)+len(old.Security.Policies)+len(rulesOf(old)) == 0 {
 			continue
 		}
 		d := *old
@@ -430,7 +430,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
 			rulesOf(&d)[i].OID = id
 			changed = true
 		}
-		for i, p := range old.Policies {
+		for i, p := range old.Security.Policies {
 			id, err := remint(p.OID)
 			if err != nil {
 				return err
@@ -438,10 +438,10 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalog.State) error {
 			if id == p.OID {
 				continue
 			}
-			if len(d.Policies) != 0 && &d.Policies[0] == &old.Policies[0] {
-				d.Policies = append([]catalog.PolicyDefinition(nil), old.Policies...)
+			if len(d.Security.Policies) != 0 && &d.Security.Policies[0] == &old.Security.Policies[0] {
+				d.Security.Policies = append([]catalog.PolicyDefinition(nil), old.Security.Policies...)
 			}
-			d.Policies[i].OID = id
+			d.Security.Policies[i].OID = id
 			changed = true
 		}
 		for i, def := range old.NotNullConstraints {

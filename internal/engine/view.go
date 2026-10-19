@@ -441,7 +441,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		d.Index = make(map[string]int, len(d.Columns))
 	}
 	if old == nil {
-		d.ACL = stage.creationACL(d.Owner, d.Namespace(), authorization.DefaultTables)
+		d.Security.ACL = stage.creationACL(d.Owner, d.Namespace(), authorization.DefaultTables)
 	}
 	if scope.viewPersistence == "temporary" {
 		definition.consumer = d.Address()

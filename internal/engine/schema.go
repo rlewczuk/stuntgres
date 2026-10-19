@@ -106,7 +106,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 		d.OfType = b.createOfType.Address()
 		stage.domainBases = append(stage.domainBases, b.createOfType)
 	}
-	d.ACL = stage.creationACL(owner, ns, authorization.DefaultTables)
+	d.Security.ACL = stage.creationACL(owner, ns, authorization.DefaultTables)
 	if err := e.stageRowTypeLocked(stage, d); err != nil {
 		return err
 	}

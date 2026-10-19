@@ -28,7 +28,7 @@ func TestSchemaTableIntegration(t *testing.T) {
 	}
 	clone := roleTableRef(t, e, "sti_second.qualified_clone")
 	d := e.catalog.state.MustRelation(clone.Address)
-	if len(d.Columns) != 3 || d.Columns[1].Name != "id" || d.Columns[1].Nullable || !d.Columns[1].NullabilityKnown || d.ACL.Explicit || len(d.ColumnACL) != 0 {
+	if len(d.Columns) != 3 || d.Columns[1].Name != "id" || d.Columns[1].Nullable || !d.Columns[1].NullabilityKnown || d.Security.ACL.Explicit || len(d.Security.ColumnACL) != 0 {
 		t.Fatal("expanded clone shape/authority", d)
 	}
 	for i, c := range d.Columns {
@@ -44,7 +44,7 @@ func TestSchemaTableIntegration(t *testing.T) {
 	owner, _ := e.Roles().Lookup("sti_owner")
 	for _, name := range []string{"source", "clone", "z", "zl"} {
 		d := e.catalog.state.MustRelation(roleTableRef(t, e, "sti_nested."+name).Address)
-		if d.Owner != owner.Ref || d.ACL.Explicit || len(d.ColumnACL) != 0 {
+		if d.Owner != owner.Ref || d.Security.ACL.Explicit || len(d.Security.ColumnACL) != 0 {
 			t.Fatal("nested table owner/ACL", name, d)
 		}
 	}

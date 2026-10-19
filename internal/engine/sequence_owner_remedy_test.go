@@ -105,7 +105,7 @@ func TestSequenceOwnerTransitionAuthority(t *testing.T) {
 				t.Fatal("same-owner without CREATE", err)
 			}
 			after := e.catalog.state.MustRelation(ref.Address)
-			if after.Owner != owner.Ref || after.SequencePlanStamp != before.SequencePlanStamp || !reflect.DeepEqual(after.ACL, before.ACL) || *e.storage.sequences[ref.Address] != state {
+			if after.Owner != owner.Ref || after.SequencePlanStamp != before.SequencePlanStamp || !reflect.DeepEqual(after.Security.ACL, before.Security.ACL) || *e.storage.sequences[ref.Address] != state {
 				t.Fatal("same-owner changed owner, plan stamp, ACL or generator")
 			}
 			err := sequenceOwnerCommand(t, e, op, "ALTER SEQUENCE private.s OWNER TO seq_target", prepared)
@@ -119,7 +119,7 @@ func TestSequenceOwnerTransitionAuthority(t *testing.T) {
 			}
 			after = e.catalog.state.MustRelation(ref.Address)
 			wantACL := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: target.Ref, Grantee: authorization.ACLGrantee{Role: target.Ref}, Privileges: authorization.UsagePrivilege}, {Grantor: target.Ref, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
-			if after.Owner != target.Ref || after.SequencePlanStamp == before.SequencePlanStamp || !reflect.DeepEqual(after.ACL, wantACL) || *e.storage.sequences[ref.Address] != state {
+			if after.Owner != target.Ref || after.SequencePlanStamp == before.SequencePlanStamp || !reflect.DeepEqual(after.Security.ACL, wantACL) || *e.storage.sequences[ref.Address] != state {
 				t.Fatalf("transfer owner/stamp/ACL/state: %#v", after)
 			}
 			roleExecute(t, e, op, "SET SESSION AUTHORIZATION seq_target")

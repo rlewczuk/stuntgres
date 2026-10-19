@@ -85,8 +85,8 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 				t.Fatal("column ownership", i, c)
 			}
 		}
-		if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
-			t.Fatal("PUBLIC read", d.ACL)
+		if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+			t.Fatal("PUBLIC read", d.Security.ACL)
 		}
 		row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10101})
 		array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10100})

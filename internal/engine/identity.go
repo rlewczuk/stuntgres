@@ -168,7 +168,7 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *catalog.Relat
 	options.Owned.SubID = table.Attributes[slot]
 	options.Identity = true
 	d := &catalog.Relation{ObjectAddress: address, ObjectNamespace: table.Namespace(), ObjectName: name, ObjectRevision: rev, SequencePlanStamp: rev, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, AttributeHighWater: 3, RelationKind: catalog.SequenceRelation, Sequence: &options}
-	d.ACL = stage.creationACL(table.Owner, table.Namespace(), authorization.DefaultSequences)
+	d.Security.ACL = stage.creationACL(table.Owner, table.Namespace(), authorization.DefaultSequences)
 	if err := stage.Create(d); err != nil {
 		return err
 	}
