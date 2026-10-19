@@ -78,9 +78,9 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 			want = append(want, []any{id})
 		}
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid FROM pg_type ORDER BY oid", []string{"oid"}, []string{"OID"}, want))
-		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid FROM pg_type WHERE oid IN (22,30,142,143,600,1017,1006,1013,1790,2201,3614,3643,3615,3645,4533,4534,4535,6152,6153,6155) ORDER BY oid", []string{"oid"}, []string{"OID"}, nil))
+		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid FROM pg_type WHERE oid IN (22,30,142,143,600,1017,1006,1013,1790,2201,4533,4534,4535,6152,6153,6155) ORDER BY oid", []string{"oid"}, []string{"OID"}, nil))
 		// Lookup identity is deliberately broader than SQL catalog/codec admission.
-		for _, id := range []int64{142, 600, 3614, 3615, 4533} {
+		for _, id := range []int64{142, 600, 4533} {
 			literal := fmt.Sprint(id)
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT '"+literal+"'::regtype::bigint AS identity", []string{"identity"}, []string{"INT8"}, [][]any{{id}}))
 		}

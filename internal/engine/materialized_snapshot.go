@@ -257,6 +257,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 			environment.Regcollation, environment.Regnamespace = b.regcollationInput, b.regnamespaceInput
 			environment.RegTS = b.regTSInput
 			environment.ACLItem = b.aclitemInput
+			environment.FTS = b.ftsInput
 			evaluation := EvalContext{Context: ctx, Input: environment}
 			for _, expressions := range b.expressions {
 				values := make([]sqltype.Value, len(d.Columns))

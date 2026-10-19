@@ -125,6 +125,7 @@ type binding struct {
 	regnamespaceInput     sqltype.RegnamespaceResolver
 	regTSInput            sqltype.RegTSResolver
 	aclitemInput          sqltype.ACLItemResolver
+	ftsInput              sqltype.FTSInputNotices
 	typeDiagnosticName    func(sqltype.ID) string
 	enumMemberSafe        func(sqltype.ID, int64) bool
 }
@@ -823,6 +824,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 	b.regcollationInput, b.regnamespaceInput = binder.input.Regcollation, binder.input.Regnamespace
 	b.regTSInput = binder.input.RegTS
 	b.aclitemInput = binder.input.ACLItem
+	b.ftsInput = binder.input.FTS
 	b.typeDiagnosticName = binder.input.TypeDiagnosticName
 	b.enumMemberSafe = binder.input.EnumMemberSafe
 	return b, nil

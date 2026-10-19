@@ -413,7 +413,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 		"timetz",
 		"timestamptz", "xml",
 		"name", "macaddr", "macaddr8", "point", "line",
-		"lseg", "box", "path", "polygon", "circle", "tsvector", "tsquery", "record":
+		"lseg", "box", "path", "polygon", "circle", "record":
 		return true
 	}
 	if !raw.Quoted {

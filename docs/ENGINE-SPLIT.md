@@ -198,6 +198,7 @@ functions, `pg_*` projections, Dump/Restore and policy DDL
 ## 3. Target architecture
 
 ```text
+ L-1 engine/fts            immutable FTS codecs (imports stdlib, sqlstate only)
  L0  parser   sqltype   sqlstate                         (existing leaves)
  L1  engine/ids            identity values and provenance domain
  L1  engine/authorization  role graph and ACL algorithms (existing)
@@ -212,6 +213,12 @@ functions, `pg_*` projections, Dump/Restore and policy DDL
 ```
 
 Package names are proposals (§7).
+`engine/fts` is intentionally below `sqltype`, despite directory nesting. SQL
+type descriptors import this stateless codec leaf; it never imports `sqltype`,
+the SQL parser, catalogs, expressions, storage, engine orchestration or driver.
+Its private immutable payloads contain no session/operation/notice authority.
+`sqltype` owns SQL IO integration, and the root engine queues operation notices.
+
 
 ### Dependency rules
 

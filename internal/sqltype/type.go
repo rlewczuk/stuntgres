@@ -10,6 +10,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"stuntgres/internal/engine/fts"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -71,6 +72,8 @@ const (
 	TimestamptzRange ID = 3910
 	DateRange        ID = 3912
 	Int8Range        ID = 3926
+	TSVector         ID = 3614
+	TSQuery          ID = 3615
 	JSONPath         ID = 4072
 	Int4Multirange   ID = 4451
 	NumMultirange    ID = 4532
@@ -252,6 +255,8 @@ func Builtins() []*Descriptor {
 		{id: JSON, name: "json", sql: "JSON", database: "JSON", associatedArray: 199},
 		{id: JSONB, name: "jsonb", sql: "JSONB", database: "JSONB", associatedArray: 3807},
 		{id: JSONPath, name: "jsonpath", sql: "JSONPATH", database: "JSONPATH", associatedArray: 4073},
+		{id: TSVector, name: "tsvector", sql: "TSVECTOR", database: "TSVECTOR", associatedArray: 3643},
+		{id: TSQuery, name: "tsquery", sql: "TSQUERY", database: "TSQUERY", associatedArray: 3645},
 		{id: PgNodeTree, name: "pg_node_tree", sql: "PG_NODE_TREE", database: "PG_NODE_TREE"},
 		{id: BPChar, name: "bpchar", sql: "BPCHAR", database: "BPCHAR", associatedArray: 1014},
 		{id: VarChar, name: "varchar", sql: "VARCHAR", database: "VARCHAR", associatedArray: 1015},
@@ -359,6 +364,8 @@ type Value struct {
 	network         networkDatum
 	aclitem         aclitemDatum
 	queryInt        *queryIntPayload
+	ftsVector       *fts.Vector
+	ftsQuery        *fts.Query
 }
 
 func (v Value) Type() *Descriptor { return v.typ }
@@ -399,6 +406,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	}
 	if !v.null && d.BaseType().id == JSONPath && v.jsonpath == nil {
 		return Value{}, fmt.Errorf("missing JSONPath payload")
+	}
+	if !v.null && IsFTS(d.BaseType().id) && !v.validFTS() {
+		return Value{}, fmt.Errorf("missing FTS payload")
 	}
 	if !v.null && isRange(d.BaseType().id) && !v.validRange() {
 		return Value{}, fmt.Errorf("invalid range datum")
@@ -632,7 +642,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.id == PgNodeTree {
 		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
 	}
-	if d.IsQueryInt() || IsCharacter(d.id) || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
+	if IsFTS(d.id) || d.IsQueryInt() || IsCharacter(d.id) || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
 		if err := ValidateTextInput(text); err != nil {
 			return Value{}, err
 		}
@@ -646,6 +656,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.queryIntInput(ctx, text)
 	}
 	switch d.id {
+	case TSVector, TSQuery:
+		return d.ftsInput(ctx, text, env)
 	case Tid:
 		return d.tidInput(ctx, text)
 	case ACLItem:
@@ -914,6 +926,8 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return d.queryIntOutput(ctx, v)
 	}
 	switch d.id {
+	case TSVector, TSQuery:
+		return d.ftsOutput(v)
 	case Tid:
 		return tidOutput(v)
 	case ACLItem:
@@ -1105,6 +1119,18 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "'" + text + "'", nil
 	}
 	switch d.id {
+	case TSVector, TSQuery:
+		text, err := d.ftsOutput(v)
+		if err != nil {
+			return "", err
+		}
+		if d.id == TSQuery {
+			text, err = v.ftsQuery.InputText(ctx)
+			if err != nil {
+				return "", err
+			}
+		}
+		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
 	case Tid:
 		text, err := tidOutput(v)
 		if err != nil {
@@ -1471,6 +1497,8 @@ func BaselineCastType(id ID) bool {
 // Admission of a type does not add conversion edges to PlanCoercion.
 func StoredScalarCastType(id ID) bool {
 	switch id {
+	case TSVector, TSQuery:
+		return true
 	case Bool, Int2, Int4, Int8, Oid, Tid, Xid, Cid, Xid8, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
 		Numeric, Money, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary, Inet, Cidr, ACLItem:
 		return true
@@ -1529,6 +1557,16 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		return p, err
 	}
 	p := CoercionPlan{source: source, target: target, context: context}
+	if IsFTS(source.Type.id) || IsFTS(target.Type.id) {
+		if source.Type == target.Type {
+			return p, nil
+		}
+		if context == Explicit && (source.Type.id == Text || target.Type.id == Text) {
+			p.method = viaIO
+			return p, nil
+		}
+		return p, failure("42804", "incompatible source and destination types")
+	}
 	if source.Type.id == Tid || target.Type.id == Tid {
 		switch {
 		case source.Type == target.Type:

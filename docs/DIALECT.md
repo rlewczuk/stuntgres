@@ -8,6 +8,36 @@ not a claim about the current engine. The boundaries below describe native
 implementation limits, not a supported-syntax inventory. A recognized construct,
 catalog identity or stored value does not imply that every operation on it exists.
 
+## Text-search scalar boundaries
+
+TSVECTOR/TSQUERY storage, input and canonical output use the ordinary type,
+binder, parameter, metadata and logical-control paths. They do not enable
+normalization, dictionaries/configuration, matching (`@@`), ranking, constructors,
+FTS arrays, generalized comparison/grouping, or FTS index/operator providers.
+Fixed type/companion/routine identities do not promise binary receive/send or
+callable IO implementations.
+
+The codec reproduces the released fixed32 pending-operator stack separately
+for every parenthesis frame. Parsing/rendering are iterative: native legal
+32767/32769-node flat queries do not imitate the pinned server's machine
+C-stack54001. There is no invented32768-node cap or native max_stack_depth
+setting/Hint. Oversized query operands enforce the real released byte limit;
+the pinned pq adapter exposes an ordinary malformed ErrorResponse transport
+error for these megabyte messages. Reference proof obtains the actual server
+54000/full primary through PostgreSQL-only `pg_input_error_info`, while native
+asserts its complete logical error. That oracle mechanism does not implement
+the inquiry function natively or turn a transport failure into SQLSTATE parity.
+
+Selected unknown/typed literal and typed-bind empty-query notices match their
+actual input phases. Explicit runtime TEXT casts keep existing native
+per-execution evaluation, whereas PostgreSQL folds a held constant cast at its
+first execution. This is an optimizer/evaluation boundary, not notice state
+on values, a successful no-op conversion or a second prepared cache.
+The [scalar contract](TYPES.md#text-search-scalar-values) documents exact
+position conversion, limits and NULL/empty behavior; the
+[reference inventory](../reference/types/README.md#text-search-scalar-io)
+includes independently asserted metadata, diagnostics and native controls.
+
 ## Comparison resolution and predicates
 
 Executable type/shape admission is separate from operator admission. Comparison

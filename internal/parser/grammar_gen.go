@@ -19290,7 +19290,7 @@ sqldefault:
 				sqllex.(*lexer).failAt("0A000", "typed literals are unsupported", sqlDollar[1].tok.pos.Offset)
 				return 1
 			}
-			requiresDomain := sqlDollar[1].tok.text != "tid" && sqlDollar[1].tok.text != "inet" && sqlDollar[1].tok.text != "cidr" && sqlDollar[1].tok.text != "date" && sqlDollar[1].tok.text != "timestamptz" && sqlDollar[1].tok.text != "timetz" && sqlDollar[1].tok.text != "json" && sqlDollar[1].tok.text != "jsonb" && sqlDollar[1].tok.text != "jsonpath" && sqlDollar[1].tok.text != "money"
+			requiresDomain := sqlDollar[1].tok.text != "tsvector" && sqlDollar[1].tok.text != "tsquery" && sqlDollar[1].tok.text != "tid" && sqlDollar[1].tok.text != "inet" && sqlDollar[1].tok.text != "cidr" && sqlDollar[1].tok.text != "date" && sqlDollar[1].tok.text != "timestamptz" && sqlDollar[1].tok.text != "timetz" && sqlDollar[1].tok.text != "json" && sqlDollar[1].tok.text != "jsonb" && sqlDollar[1].tok.text != "jsonpath" && sqlDollar[1].tok.text != "money"
 			sqlVAL.expr = TypedLiteralExpr{TypeName: columnType(sqlDollar[1].tok), Text: sqlDollar[2].tok.text, Pos: sqlDollar[2].tok.pos, RequiresDomain: requiresDomain}
 		}
 	case 1364:

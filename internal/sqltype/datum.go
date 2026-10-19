@@ -55,6 +55,12 @@ func SameDatum(a, b Value) bool {
 		return true
 	}
 	switch a.typ.BaseType().id {
+	case TSVector, TSQuery:
+		if !a.validFTS() || !b.validFTS() {
+			return false
+		}
+		same, err := a.sameFTS(context.Background(), b)
+		return err == nil && same
 	case ACLItem:
 		return a.aclitem.valid() && b.aclitem.valid() && a.aclitem == b.aclitem
 	case Inet, Cidr:

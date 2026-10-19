@@ -378,6 +378,15 @@ idle budget, then unchanged identity and eventual57P05 after budget+100ms
 without intervening owner activity. Exhausted timing/context bounds fail,
 never skip. The original30s scenario context remains; each candidate reserves
 three half-budget waits, final expiry and3s for bounded probes before starting.
+After that unchanged idle stimulus, the reset cases observe actual termination
+without SQL activity: native polls `driver.Validator.IsValid` through the public
+physical `sql.Conn.Raw` route, while PostgreSQL uses the existing incarnation-
+scoped FATAL log observer. Both observations retain the existing2s oracle bound
+within the unchanged scenario deadline and reserved probe headroom. A delayed
+timer callback can otherwise lose its generation to a newly admitted SQL probe,
+so elapsed wall time alone is not a termination barrier. Only after observing
+termination do the unchanged first-query FATAL diagnostic and dead-handle
+assertions run; an owner whose idle callback never fires still fails.
 
 Selected proof (external900-second deadline per command):
 

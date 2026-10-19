@@ -244,6 +244,7 @@ func (e *Engine) materializedRefreshRowsLocked(scope *StatementScope, ref ids.Ob
 		candidate := input
 		candidate.Regclass, candidate.Regtype, candidate.Regrole = nil, nil, nil
 		candidate.Operator, candidate.Regproc, candidate.ACLItem = nil, nil, nil
+		candidate.FTS = nil
 		candidate.TypeDiagnosticName = nil
 		captureEnumOperationSafety(op, &candidate)
 		err = captureRetainedDefinitionInput(auth.Catalog, viewOf(d),

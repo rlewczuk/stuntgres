@@ -36,6 +36,7 @@ type InputEnvironment struct {
 	Regnamespace                              RegnamespaceResolver
 	RegTS                                     RegTSResolver
 	ACLItem                                   ACLItemResolver
+	FTS                                       FTSInputNotices
 	NumericLocale, MonetaryLocale, TimeLocale Locale
 	// TypeDiagnosticName captures coherent catalog visibility for child input
 	// errors. A nil callback or empty spelling uses immutable descriptor naming.
@@ -116,6 +117,8 @@ func (d *Descriptor) CheckModifierSupport() error {
 		return failure("42601", fmt.Sprintf(`type modifier is not allowed for type "%s"`, d.DiagnosticName()))
 	}
 	switch d.id {
+	case TSVector, TSQuery:
+		return failure("42601", fmt.Sprintf(`type modifier is not allowed for type "%s"`, d.DiagnosticName()))
 	case Bit, VarBit, Numeric, Timestamp, Time, Timestamptz, Timetz, Interval, BPChar, VarChar:
 		return nil
 	case Tid:

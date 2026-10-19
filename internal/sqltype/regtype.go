@@ -59,6 +59,9 @@ func (d *Descriptor) ContainsCatalogIdentifier() bool {
 // ParameterInput associates provider notices with the actual portal input slot.
 // Runtime text IO uses the unchanged environment and has no portal context.
 func (input InputEnvironment) ParameterInput(slot int, empty bool) InputEnvironment {
+	if input.FTS != nil {
+		input.FTS = input.FTS.FTSParameter(slot, empty)
+	}
 	if resolver, ok := input.Regtype.(interface {
 		RegtypeParameter(int, bool) RegtypeResolver
 	}); ok {
@@ -85,6 +88,9 @@ func (input InputEnvironment) ParameterInput(slot int, empty bool) InputEnvironm
 // LiteralInput associates codec notices with the enclosing SQL literal, including
 // array children and warnings emitted before a later input error.
 func (input InputEnvironment) LiteralInput(position int) InputEnvironment {
+	if input.FTS != nil {
+		input.FTS = input.FTS.FTSLiteral(position)
+	}
 	if resolver, ok := input.Regproc.(interface {
 		RoutineLiteral(int) RoutineResolver
 	}); ok {

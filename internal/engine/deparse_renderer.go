@@ -261,6 +261,8 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 		return quote(text) + "::" + typ, nil
 	}
 	switch u.Type.ID() {
+	case sqltype.TSVector, sqltype.TSQuery:
+		return quote(text) + "::" + typ, nil
 	case sqltype.Bool:
 		value, err := v.Boolean()
 		if err != nil {

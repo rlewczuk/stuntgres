@@ -86,6 +86,9 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		if target.Type.ContainsRegproc() {
 			return sqltype.Null(target.Type), nil
 		}
+		if sqltype.IsFTS(target.Type.ID()) {
+			return sqltype.Null(target.Type), nil
+		}
 		if target.Type.ID() == sqltype.Tid {
 			return sqltype.Null(target.Type), nil
 		}
@@ -217,6 +220,8 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	}
 	switch v.Type().ID() {
+	case sqltype.TSVector, sqltype.TSQuery:
+		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.ACLItem:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.Tid, sqltype.Inet, sqltype.Cidr:
@@ -279,6 +284,8 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 		return reflect.TypeFor[string]()
 	}
 	switch d.BaseType().ID() {
+	case sqltype.TSVector, sqltype.TSQuery:
+		return reflect.TypeFor[string]()
 	case sqltype.ACLItem:
 		return reflect.TypeFor[string]()
 	case sqltype.Tid, sqltype.Inet, sqltype.Cidr:

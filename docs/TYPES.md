@@ -54,6 +54,7 @@ use the catalog array name for copied rank-zero declarations.
 | UUID, TID, INET, CIDR, BIT, VARBIT | Canonical `string` |
 | JSON | Exact source `string` |
 | JSONB, JSONPath | Canonical `string` |
+| TSVECTOR, TSQUERY | Cached canonical `string` |
 | DATE, TIME, TIMETZ, INTERVAL | `string` |
 | Finite TIMESTAMP, TIMESTAMPTZ | `time.Time` |
 | Timestamp infinities | Fresh owned `[]byte` |
@@ -105,6 +106,64 @@ buffer cannot alter storage or retained rows. Native BYTEA ScanType is `[]byte`,
 with no Length or DecimalSize. Native empty output is nonnil `[]byte`; pq's
 escape decoder can instead return typed-nil bytes, distinct from NULL's nil
 interface. Metadata remains available after EOF and Close.
+
+## Text-search scalar values
+
+TSVECTOR (OID3614) and TSQUERY (OID3615) are concrete, immutable scalar
+descriptors. Columns, contextual/unqualified/pg_catalog-qualified typed
+literals, `::`/CAST and direct/prepared parameters share their type-owned
+codecs. Native nonnull output and ScanType are string; PostgreSQL's pinned
+pq adapter returns bytes with interface{} ScanType. SQL NULL and typed nil
+bytes stay NULL; nonnil empty bytes produce empty nonnull values. UTF8/NUL
+validation precedes FTS grammar. Explicit TEXT↔FTS casts use the existing IO
+coercion path; numeric and FTS-family-to-family conversions are not admitted.
+
+Vectors sort lexemes bytewise with shorter prefixes first, without case folding
+or stemming. Quoting preserves spaces, apostrophes, backslashes and Unicode.
+Duplicate lexemes merge positions; positions are sorted/deduplicated, weights
+A>B>C>D, default D suppressed, lowercase weights uppercased and `*` means A.
+There are at most256 retained positions. The released cutoff keeps the first
+installed weight of the 256th distinct position rather than merging subsequent
+ties. Inputs1–16383 retain their positions; larger ordinary positions clamp.
+Huge decimal positions intentionally follow the pinned 64-bit libc conversion:
+signed64 saturation, signed32 narrowing, upper clamp, low14-bit storage and
+zero rejection. For example2147483648/4294967296 reject, while4294967295 and
+18446744073709551616 map to16383; this is not mathematical decimal saturation.
+
+Queries preserve repeated operands/NOTs and operator association, with
+NOT>phrase>AND>OR precedence, right-associative NOT and left-associative binary
+operators. `<1>` prints `<->`; phrase distances0–16384 are admitted. Operand
+weight/prefix modifiers print in `*ABCD` order. A private flat arena retains
+structure independently of text. Each parenthesis frame has the released
+32-pending-operator limit, not a32-node/nesting limit.
+
+Both codecs allow2046 decoded bytes per lexeme. Vector raw token starts and
+final sorted aligned lexeme/position storage allow1048575 bytes; query operand
+starts must be below1048575, including one NUL byte per preceding operand.
+Oversized words/storage use54000; malformed syntax/positions use42601, invalid
+phrase distance22023, and the fixed query operator-stack overflowXX000. Errors
+retain exact English messages, source character positions for eager literals
+and portal context for typed binds. Output never reparses stored payloads.
+
+Empty query decoding emits NOTICE00000 with the original input, including its
+whitespace. Selected literals notify during analysis/Prepare, not repeated held
+Execute; typed binds notify on every decode. NULL and stored output are silent;
+`client_min_messages=warning` suppresses notices. Explicit runtime TEXT casts
+remain real native conversions: unlike PostgreSQL's first-execution folding of
+a held constant TEXT cast, native evaluates/notifies on every execution. No
+notice-only suppression or generalized prepared folding/cache is added.
+
+Native Dump/Restore uses self-typed literals and existing atomic staging.
+Captured FTS view literals own their exact typed annotation, so repeated replay
+does not accumulate redundant leaf casts; real outer conversions remain intact.
+Its query input encoding parenthesizes binary nodes to retain association even
+when PostgreSQL-canonical output erases redundant AND/OR grouping. Retained
+cursors preserve old values/descriptors across replacement. Arrays
+3643/3645 are catalog-visible through recursive metadata closure but remain
+non-Concrete/lookup-only for executable values. Input/output/receive/send routine
+OIDs are also metadata facts, not array codecs or callable FTS providers. See the
+[native boundaries](DIALECT.md#text-search-scalar-boundaries) and
+[independent proof inventory](../reference/types/README.md#text-search-scalar-io).
 
 ## ACL items
 

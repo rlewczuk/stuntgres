@@ -2346,6 +2346,9 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	target = info.Usage
 	plan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
 	if err != nil {
+		if sqltype.IsFTS(source.Type.BaseType().ID()) || sqltype.IsFTS(target.Type.BaseType().ID()) {
+			return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.diagnosticTypeName(source.Type), b.diagnosticTypeName(target.Type)), raw.Pos)
+		}
 		if source.Type.BaseType().ID() == sqltype.Tid || target.Type.BaseType().ID() == sqltype.Tid {
 			if raw.Syntax == parser.FunctionCast {
 				return nil, functionCastError(raw, source.Type.DiagnosticName(), false)
@@ -2539,6 +2542,13 @@ func expressionName(raw parser.Expr, usage sqltype.Usage, bound expr.Expr) (stri
 	}
 }
 func inputErrorAt(err error, pos parser.Position) error {
+	if d, ok := err.(*sqlstate.Error); ok && (d.Code == "54000" || d.Code == "XX000") {
+		copy := *d
+		if pos.Character > 0 {
+			copy.Position = strconv.Itoa(pos.Character)
+		}
+		return &copy
+	}
 	if d, ok := err.(*sqlstate.Error); ok && (d.Code == "42704" || d.Code == "42622" || d.Code == "55P04" || d.Code == "0A000" || d.Code == "22P02" || d.Code == "22P05" || d.Code == "22000" || d.Code == "22001" || d.Code == "2201B" || d.Code == "2202E" || d.Code == "22003" || d.Code == "22007" || d.Code == "22008" || d.Code == "22009" || d.Code == "22015" || d.Code == "22023" || d.Code == "42601") {
 		copy := *d
 		if pos.Character > 0 {
@@ -2630,7 +2640,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		}
 		return node.(literalExpression).value, nil
 	}
-	if u.Type.BaseType().IsQueryInt() || u.Type.ContainsACLItem() || u.Type.ContainsRegrole() || u.Type.BaseType().IsEnum() || u.Type.BaseType().IsArray() || u.Type.BaseType().IsComposite() || u.Type.BaseType().ID() == sqltype.DateRange || u.Type.BaseType().ID() == sqltype.TimestampRange || u.Type.BaseType().ID() == sqltype.TimestamptzRange {
+	if sqltype.IsFTS(u.Type.BaseType().ID()) || u.Type.BaseType().IsQueryInt() || u.Type.ContainsACLItem() || u.Type.ContainsRegrole() || u.Type.BaseType().IsEnum() || u.Type.BaseType().IsArray() || u.Type.BaseType().IsComposite() || u.Type.BaseType().ID() == sqltype.DateRange || u.Type.BaseType().ID() == sqltype.TimestampRange || u.Type.BaseType().ID() == sqltype.TimestamptzRange {
 		if u.Type.BaseType().IsArray() && u.Type.ContainsRegtype() {
 			return b.regtypeArrayConstant(text, u, pos)
 		}

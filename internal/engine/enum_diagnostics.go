@@ -79,6 +79,9 @@ func (e *Engine) captureEnumOperationInput(auth AuthorizationView, input *sqltyp
 }
 
 func (b *expressionBinder) captureTypeDiagnosticInput(typ *sqltype.Descriptor) error {
+	if sqltype.IsFTS(typ.BaseType().ID()) && b.input.FTS == nil {
+		b.input.FTS = capturedFTSInput{op: b.op}
+	}
 	acl := typ.ContainsACLItem() && b.input.ACLItem == nil
 	naming := b.input.TypeDiagnosticName == nil && needsTypeDiagnosticInput(typ)
 	if !acl && !naming {
@@ -92,6 +95,9 @@ func (b *expressionBinder) captureTypeDiagnosticInput(typ *sqltype.Descriptor) e
 }
 
 func (e *Engine) captureTypeDiagnosticInput(auth AuthorizationView, op *Operation, input *sqltype.InputEnvironment, typ *sqltype.Descriptor) error {
+	if sqltype.IsFTS(typ.BaseType().ID()) && input.FTS == nil {
+		input.FTS = capturedFTSInput{op: op}
+	}
 	if typ.ContainsACLItem() && input.ACLItem == nil {
 		input.ACLItem = e.captureACLItemInput(auth, op)
 	}

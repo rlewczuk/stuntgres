@@ -8,6 +8,9 @@ import "stuntgres/internal/sqltype"
 func (s *StatementScope) captureFormalInputLocked(auth AuthorizationView, types []sqltype.Usage) (err error) {
 	e, op := s.op.session.Engine(), s.op
 	for _, usage := range types {
+		if sqltype.IsFTS(usage.Type.BaseType().ID()) && s.input.FTS == nil {
+			s.input.FTS = capturedFTSInput{op: op}
+		}
 		if usage.Type.ContainsRegclass() && s.input.Regclass == nil {
 			s.input.Regclass, err = e.captureRegclassInput(auth)
 			if err != nil {

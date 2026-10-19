@@ -340,6 +340,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	if b.aclitemInput != nil {
 		scope.input.ACLItem = b.aclitemInput
 	}
+	if b.ftsInput != nil {
+		scope.input.FTS = b.ftsInput
+	}
 	if b.typeDiagnosticName != nil {
 		scope.input.TypeDiagnosticName = b.typeDiagnosticName
 	}

@@ -1,6 +1,7 @@
 package reference_test
 
 import (
+	"context"
 	"database/sql"
 	"database/sql/driver"
 	"stuntgres/reference/fixture"
@@ -287,6 +288,36 @@ func timeoutReferenceIdleResetAttempt(t *testing.T, f timeoutReferenceFixture, k
 		t.Fatal("activity replaced physical owner")
 	}
 	timeoutReferenceIdle(t, f.p.Ctx, idle+100*time.Millisecond)
+	// Elapsed wall time does not prove the asynchronous timer callback ran.
+	// A SQL probe can admit new activity first and invalidate that callback's
+	// generation. Observe termination without owner activity before asserting
+	// the unchanged first-FATAL and dead-handle contract.
+	if f.b.PG {
+		f.serverFatal("57P05")
+	} else {
+		// Match the existing oracle observer's bound, within the unchanged
+		// scenario deadline and the attempt's reserved probe headroom.
+		ctx, cancel := context.WithTimeout(f.p.Ctx, 2*time.Second)
+		defer cancel()
+		for {
+			var terminated bool
+			err := f.owner.Raw(func(raw any) error {
+				validator, ok := raw.(driver.Validator)
+				if !ok {
+					t.Fatal("idle-reset owner lacks physical liveness observer")
+				}
+				terminated = !validator.IsValid()
+				return nil
+			})
+			if err != nil {
+				t.Fatal("observing idle-reset owner termination", err)
+			}
+			if terminated {
+				break
+			}
+			timeoutReferenceIdle(t, ctx, 10*time.Millisecond)
+		}
+	}
 	f.fatalProbe("57P05")
 	return 0
 }

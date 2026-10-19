@@ -6,6 +6,47 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Text-search scalar IO
+
+`TestReferenceFTSTypesValues`, `Binds`, `Query`, `Boundaries`, `Diagnostics`,
+`Notices`, `Metadata`, `Controls`, `Scope` and `FeatureSmoke` use the common
+fixture and public APIs. The contract covers canonical vector lexemes,
+positions/weights, Boolean/phrase query structure and flags, literals/binds,
+NULL versus empty values, full diagnostic fields/phases, NOTICE phases and
+suppression, exact catalog/driver metadata, atomic failures and real native
+logical round trips. No discovery filter, logging or learned golden remains.
+
+Root runs each selection in quick and pinned18.6 modes with external900-second
+deadlines; commands shown without REFERENCE must also run with `REFERENCE=1`:
+
+```sh
+make check RUN='^TestReferenceFTSTypes(Values|Binds|Query)$'
+make check RUN='^TestReferenceFTSTypes(Boundaries|Diagnostics|Notices)$'
+make check RUN='^TestReferenceFTSTypes(Metadata|Controls|Scope)$'
+make check RUN='^TestReferenceFTSTypesFeatureSmoke$'
+make check RUN='^TestFTS(VectorCanonical|VectorLimits|QueryGrammar|QueryStructure|QueryLimits|CodecCancellation)$'
+make check RUN='^TestFTSTyped(Value|Metadata|Scope)$'
+make check RUN='^TestPGTypeBuiltinFacts$'
+make check RUN='^TestReferencePGType(Builtins|Admission)$'
+```
+
+Feature smoke expects affected1 inserts for weighted/positioned vector and
+compound-query rows, held bytes/string/NULL/empty inputs, exact canonical
+ordered rows and metadata, the actual empty-query NOTICE, full malformed and
+NOT NULL errors without partial insertion, and deterministic native
+Dump/Reset/Restore with retained cursor output. Real mode executes the actual
+native dump on PostgreSQL and independently checks its resulting rows/types.
+
+Backend-specific evidence is explicit: native string versus pq byte raw
+values/ScanTypes; PostgreSQL machine-stack54001 versus native iterative large
+queries; first-held PostgreSQL runtime-TEXT constant folding versus native
+per-execution evaluation; and oversized pq ErrorResponse failure versus actual
+server54000 obtained using PG-only `pg_input_error_info`. Native excludes that
+function, companion arrays, matching/operators and FTS index execution.
+The query arena's fixed32 pending-operator limit remains shared grammar, not
+one of those physical distinctions. Selected proof does not replace root's
+whole-project Docker-free quickcheck or post-integration finalcheck.
+
 ### Information-schema sql_identifier selected proof
 
 The untagged shared `TestReferenceInfoSQLIdentifier` scenarios cover qualified

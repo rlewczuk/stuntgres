@@ -35,6 +35,8 @@ func TestAnyValueProviderDatums(t *testing.T) {
 		sqltype.JSON:     {"null", ` {"a":1,"a":2} `},
 		sqltype.JSONB:    {"null", ` {"a":1,"a":2} `},
 		sqltype.JSONPath: {"$", `strict $.a ? (@ > 1)`},
+		sqltype.TSVector: {"", "a:3B,1D,3A a:2c", "'a''b' 'space word'"},
+		sqltype.TSQuery:  {"", "a & (b & c)", "a | (b | c)", "'a''b':*ac <2> !!z"},
 		sqltype.Bit:      {"", "0010"}, sqltype.VarBit: {"", "00001111"},
 		sqltype.Int4Range:        {"[1,4]", "empty", "[,]", "[-2147483648,2147483647)"},
 		sqltype.Int8Range:        {"(1,4]", "empty", "[,]", "[-9223372036854775808,9223372036854775807)"},

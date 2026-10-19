@@ -22,6 +22,13 @@ func (v Value) SamePayload(ctx context.Context, other Value) (bool, error) {
 		return false, nil
 	}
 	v.floating, other.floating = 0, 0
+	if v.ftsVector != nil || other.ftsVector != nil || v.ftsQuery != nil || other.ftsQuery != nil {
+		same, err := v.sameFTS(ctx, other)
+		if err != nil || !same {
+			return same, err
+		}
+		v.ftsVector, other.ftsVector, v.ftsQuery, other.ftsQuery = nil, nil, nil, nil
+	}
 	if v == other {
 		return true, nil
 	}

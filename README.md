@@ -39,6 +39,19 @@ large-object storage and physical tablespace placement retain their native bound
 See [native contracts](docs/DIALECT.md#object-privilege-grants) and
 [selected proof and smoke](reference/object_grants/README.md#non-table-object-revocation).
 
+## Text-search scalar storage — change note
+
+`tsvector` and `tsquery` now use immutable typed scalar payloads for columns,
+unknown/typed literals, string/textual-byte parameters, NULL and native logical
+Dump/Restore. Vector output sorts/deduplicates lexemes and preserves positions
+and weights; query output preserves Boolean/phrase structure, masks and prefix
+flags without normalization or matching. Empty query input uses the ordinary
+operation NOTICE channel. Companion arrays, FTS operators/functions, matching,
+configuration and index execution remain outside this scalar IO surface.
+See [scalar contract](docs/TYPES.md#text-search-scalar-values),
+[explicit boundaries](docs/DIALECT.md#text-search-scalar-boundaries) and
+[selected proof and feature smoke](reference/types/README.md#text-search-scalar-io).
+
 ## IP address formatting, masks and networks — change note
 
 `abbrev(inet/cidr)`, `host`, `text(inet)`, `family`, `masklen`,
