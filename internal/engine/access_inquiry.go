@@ -3,12 +3,8 @@ package engine
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -152,66 +148,30 @@ func (n accessInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if null {
 		return sqltype.Null(n.Usage.Type), nil
 	}
-	scope := c.liveScope()
-	if scope == nil {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: access inquiry lacks statement authority")
-	}
-	e := scope.op.session.Engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := scope.writeAuthorizationLocked(e)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	if scope.catalog != nil {
-		auth.Recapture(e.privateCatalogLocked(scope.catalog))
-	}
-	principal := c.expressionPrincipal()
 	var result bool
+	var err error
 	if n.rowSecurity {
-		// Schema lookup belongs to this expression's user as well, not a rule or
-		// view's independent relation-authorization identity.
-		auth.State.CurrentUser = principal
-		var d *catalog.Relation
-		if n.args[0].ResultUsage().Type.ID() == sqltype.Oid {
-			oid, failure := values[0].OID()
-			if failure != nil {
-				return sqltype.Value{}, failure
-			}
-			d, _ = auth.Catalog.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)})
+		relation := functions.AccessRelation{ByOID: n.args[0].ResultUsage().Type.ID() == sqltype.Oid}
+		if relation.ByOID {
+			relation.OID, err = values[0].OID()
 		} else {
-			text, failure := values[0].Text()
-			if failure != nil {
-				return sqltype.Value{}, failure
-			}
-			name, failure := parser.ParseRegclassName(text)
-			if failure != nil {
-				return sqltype.Value{}, sqlError("42602", "invalid name syntax")
-			}
-			name, failure = regclassQualifiedName(name, text, auth.session.databaseName)
-			if failure != nil {
-				return sqltype.Value{}, failure
-			}
-			ref, failure := e.resolveRelationReference(auth, name, true)
-			if failure != nil {
-				return sqltype.Value{}, failure
-			}
-			d, _ = auth.Catalog.Relation(ref.Address)
+			relation.Name, err = values[0].Text()
 		}
-		if d != nil {
-			result, err = access.RowSecurityApplies(auth.Roles, d, principal)
+		if err != nil {
+			return sqltype.Value{}, err
 		}
+		result, err = c.RowSecurityActive(relation)
 	} else {
-		actor := uint64(principal.ID())
+		var actor *functions.AccessRole
 		targetIndex := 0
 		if n.count == 3 {
-			actor, err = accessRoleArgument(auth, n.args[0], values[0])
-			if err != nil {
-				return sqltype.Value{}, err
+			role, failure := accessRoleValue(n.args[0], values[0])
+			if failure != nil {
+				return sqltype.Value{}, failure
 			}
-			targetIndex = 1
+			actor, targetIndex = &role, 1
 		}
-		target, failure := accessRoleArgument(auth, n.args[targetIndex], values[targetIndex])
+		target, failure := accessRoleValue(n.args[targetIndex], values[targetIndex])
 		if failure != nil {
 			return sqltype.Value{}, failure
 		}
@@ -219,11 +179,7 @@ func (n accessInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		if failure != nil {
 			return sqltype.Value{}, failure
 		}
-		mask, failure := authorization.ParseRolePrivileges(privilege)
-		if failure != nil {
-			return sqltype.Value{}, failure
-		}
-		result, err = authorization.HasRole(c.Context, auth.Roles, &e.roles.domain, actor, target, mask)
+		result, err = c.RoleMembership(actor, target, privilege)
 	}
 	if err != nil {
 		return sqltype.Value{}, err
@@ -231,20 +187,16 @@ func (n accessInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return sqltype.Boolean(n.Usage.Type, result), nil
 }
 
-func accessRoleArgument(auth AuthorizationView, arg expr.Expr, value sqltype.Value) (uint64, error) {
+func accessRoleValue(arg expr.Expr, value sqltype.Value) (functions.AccessRole, error) {
+	var role functions.AccessRole
+	var err error
 	if arg.ResultUsage().Type.ID() == sqltype.Oid {
-		oid, err := value.OID()
-		return uint64(oid), err
+		role.ByOID = true
+		role.OID, err = value.OID()
+	} else {
+		role.Name, err = value.Text()
 	}
-	name, err := value.Text()
-	if err != nil {
-		return 0, err
-	}
-	role, ok := auth.Roles.Lookup(name)
-	if !ok {
-		return 0, sqlError("42704", fmt.Sprintf(`role "%s" does not exist`, name))
-	}
-	return role.Ref.ID(), nil
+	return role, err
 }
 
 func (n accessInquiryExpression) validateStored() error {

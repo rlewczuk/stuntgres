@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -166,25 +165,7 @@ func (n objectACLExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	scope := c.liveScope()
-	if scope == nil {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: object ACL inquiry lacks statement authority")
-	}
-	e := scope.op.session.Engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := scope.writeAuthorizationLocked(e)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	if scope.catalog != nil {
-		auth.Recapture(e.privateCatalogLocked(scope.catalog))
-	}
-	acl, err := access.RawObjectACL(auth.Catalog, ids.ObjectAddress{ClassID: ids.OID(class), ObjectID: ids.OID(object), SubID: int32(subid)})
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	return e.pgClassACL(auth.Roles, n.Usage.Type, acl)
+	return c.ObjectACL(ids.ObjectAddress{ClassID: ids.OID(class), ObjectID: ids.OID(object), SubID: int32(subid)}, n.Usage.Type)
 }
 
 func (n objectACLExpression) validateStored() error {
