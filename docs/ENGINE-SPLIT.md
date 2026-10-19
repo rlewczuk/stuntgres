@@ -1,10 +1,12 @@
 # Splitting `internal/engine` — analysis and first steps
 
 Status: approved; implementation runs one session per sub-step (§8). The first
-steps (§5) are refined with file-level detail at the start of each session.
-Later waves (§6) are only sketched.
+steps (§5, steps 1–7) are done. §6 plans the first ten later-wave packages
+(steps 8–17) in the same detail and lists the postponed ones. Every step is
+still refined with file-level detail at the start of its session.
 
-The analysis is based on the production code at commit `a2252c0b1`, not on the
+The analysis of §2.1–§2.5 is based on the production code at commit
+`a2252c0b1`; §2.6 and §6 were measured at `75fe0d710`. Neither relies on the
 design notes in `docs/design/`. Those notes are background only: where they
 disagree with a clearer split, this document takes precedence. Update them
 after the step they describe lands.
@@ -40,7 +42,15 @@ ids, expr → catalog → storage → visibility
 
 After these steps the root `engine` package is still the facade and the
 orchestrator (sessions, statements, binder, executor, DDL/DML features). Later
-waves split those (§6).
+waves split those (§6). Each later wave first untangles a shared struct in
+place (`EvalContext`, `binding`, `expressionBinder`, `StatementScope`), so the
+root package becomes readable even before code moves:
+
+```text
+settings → pgcatalog
+plan → exec → analyze → session → feature packages (part B) → control
+feature packages (part A: records and algorithms) can start now
+```
 
 ## 2. Analysis
 
@@ -195,6 +205,54 @@ about 750 of those lines are enforcement; the rest is orchestration, ACL SQL
 functions, `pg_*` projections, Dump/Restore and policy DDL
 ([ENGINE-SPLIT-authorization.md](ENGINE-SPLIT-authorization.md), B0 outcome).
 
+### 2.6 The root package after steps 1–7
+
+Measured at `75fe0d710` with the appendix method: a `go/types` pass over the
+production files of `internal/engine`, recording each top-level declaration's
+references, method calls and field uses. "Clean" means the declaration never
+reaches one of the nine god structs below, directly or through other engine
+declarations.
+
+- **Size.** 688 production files, about 170k lines, 4,700 top-level
+  declarations. The ten subpackages hold about 40k lines.
+- **God structs.**
+
+  | Struct | Declared at | Fields | Methods | Note |
+  |---|---|---:|---:|---|
+  | `Engine` | `engine.go:23` | 24 | 553 | Subsystem stores are already grouped (`catalog`, `storage`, `visibility`, `roles`, `locks`) |
+  | `StatementScope` | `transaction.go:276` | 119 + 21 embedded | 290 | Over 50 fields are used by one feature only (§6 step 13) |
+  | `expressionBinder` | `expression.go:1204` | 101 | 348 in 103 files | Flags for every statement kind and consumer |
+  | `binding` | `engine.go:61` | 69 | — | One struct for SELECT, INSERT, UPDATE, DELETE, MERGE, CREATE TABLE and view capture |
+  | `EvalContext` | `expression.go:20` | 43 | 49 | Frame, statement runtime and routine admission mixed |
+  | `CatalogStage` | `catalog.go:340` | 39 | — | Index, domain, typed-table and materialized fields |
+  | `Operation` | `session.go:110` | 35 | — | 12 Restore replay flags |
+  | `transactionOwner` | `transaction.go:49` | 39 | — | Includes FDW participants |
+  | `Session` | `session.go:70` | 35 | — | |
+
+- **The plan IR is already clean.** `LogicalNode`, `BoundQuery`, the 20 plan
+  node types and their records reach no god struct, except
+  `cteDefinition.mutation *binding`. All 54 concrete expression node types are
+  clean as types; only their `Eval` methods are not, because they recover
+  `*EvalContext` through `evalContext(ctx)`. Most of them read only the
+  cancellation context and the input/output environments, which `expr.Context`
+  already offers.
+- **Builtin inventories are clean.** The builtin routine and operator tables
+  and their metadata (about 3.2k lines in `routine_inventory.go`,
+  `operator_inventory.go`, `operator_metadata.go`, `operator_routines.go`)
+  reach no god struct.
+- **System catalog producers are nearly clean.** 30 of the producers in
+  `pg_*.go` are dirty only because they return a `*querySource`, which holds a
+  `*StatementScope`. The rest check catalog provenance against `Engine` fields
+  that `catalog.Owner` already holds.
+- **Settings definitions are clean.** About 700 of the 950 lines in
+  `settings.go` and `settings_format_encoding.go` reach no god struct; the
+  per-session store (`session_settings.go`) does.
+- **Feature areas, cross-referenced.** Counting identifiers defined in one
+  area and used in another: operators/routines are used most by all others
+  (about 620 references in), types next (about 190), then index. Index,
+  partition, inheritance, views and DML use many other areas. The order of the
+  feature steps in §6 follows from this.
+
 ## 3. Target architecture
 
 ```text
@@ -211,6 +269,25 @@ functions, `pg_*` projections, Dump/Restore and policy DDL
  L5  engine/visibility     xids, commit order, snapshots, SSI  (imports storage, catalog, lock)
  L6  engine                facade, sessions, statements, binder, executor, features
 ```
+
+The later waves (§6) refine L6 into these layers:
+
+```text
+ L1  engine/settings       setting definitions, values, validation (sqltype, sqlstate)    step 8
+ L5  engine/pgcatalog      system relation producers (catalog, authorization, lock, settings) step 9
+ L6  engine/plan           plan IR and concrete expression node types (expr, functions, catalog, lock) step 10
+ L7  engine/exec           executor runtime, the concrete evaluation context (plan, storage, visibility, access) step 11
+ L8  engine/analyze        binder and statement binding (plan; exec only for constant evaluation) step 12
+ L9  engine/session        sessions, operations, statement scope, transaction owner (exec, analyze, settings) step 13
+ L10 engine/<feature>      routine, typedef, extension, sequence, then the postponed features  steps 14–17
+ L11 engine/control        native Reset/Dump/Restore driver (postponed)
+ L12 engine                public facade and statement dispatch
+```
+
+`engine/proc` (SQL routine definitions and invocation frames) arrives with the
+`PG18-ROUTINE-CORE` feature work. It imports only `parser`, `sqltype` and
+`sqlstate`, and `catalog` holds its definitions, so it sits at L1. It is not
+the step 14 `routine` package (§6).
 
 Package names are proposals (§7).
 `engine/fts` is intentionally below `sqltype`, despite directory nesting. SQL
@@ -244,6 +321,13 @@ Its private immutable payloads contain no session/operation/notice authority.
    `parser` and `sqlstate`, never `catalog`, `storage`, `lock` or `visibility`.
    When a function needs engine state, it declares a narrow capability that the
    binder or evaluation context implements.
+6. **Feature packages do not import each other** unless §6 says so. Shared
+   needs go down into a core package or up into the root dispatch.
+7. **Lower layers never name upper-layer types.** When a lower package must
+   carry an upper-layer value (a feature's statement state, a journal fence,
+   a CTE's mutation binding), it holds a lower-layer interface or an opaque
+   payload, and the owner recovers the concrete type with one checked helper
+   (as `viewOf` did in 5c).
 
 ## 4. Migration method
 
@@ -294,6 +378,43 @@ Rules for tests during the split:
 - Documentation, including `AGENTS.md`, is updated with every sub-step under
   the rules in §8.4. The current `functions` and `authorization` READMEs
   describe the shallow split and need rewriting once the matching steps land.
+
+### 4.1 Patterns for the later waves
+
+The first steps proved four patterns. Every step in §6 names the ones it uses.
+
+1. **State ownership in place** (5a, 6a, 7a, B1). Group a subsystem's fields
+   into one engine-local struct, turn the methods that only touch it into its
+   methods, then move it. The struct has no mutex; mutating methods carry the
+   `Locked` suffix.
+2. **Slot.** A field of a shared struct (`StatementScope`, `CatalogStage`,
+   the `catalogChanges` journal, `Operation`, `transactionOwner`) that only
+   one feature uses moves into a feature-owned struct. The shared struct keeps
+   one pointer to it, allocated on first use by one accessor
+   (`s.truncateState()`). Reset (`transaction_finish.go`) and copy
+   (`sql_cursor_hold.go`) code then handle the slot as one unit. Before the
+   shared struct moves to a lower package, its slot fields become lower-layer
+   interfaces (rule 7 of §3).
+3. **Capability.** When moved code needs engine state at run time, its
+   package declares a narrow interface of value-taking methods. The engine
+   implements it with a compile-time assertion, and the moved code recovers
+   it from a context it already receives (`expr.Context`, a producer input).
+   `functions.ACLRuntime` (Tier C) is the model. Capabilities never return
+   engine structs and never grow into service locators.
+4. **Refine first.** When a step's file-level plan depends on earlier steps
+   that have not landed, its first sub-step is a docs-only refinement (as B0
+   was): re-measure with the appendix tool, write the move set, host
+   interface and commit sequence into the prompt file, and wait for approval.
+
+Two more rules apply to the feature packages (§6 steps 14–17):
+
+- **Two parts.** Part A runs before `session` moves: feature state leaves the
+  shared structs (slots), and the records and algorithms that reach no god
+  struct move into the package. Part B runs after `session` has moved: the
+  DDL and DML handlers move behind a host interface.
+- **Clean sets are measured, not guessed.** Each Part A session re-runs the
+  appendix tool and moves only declarations that reach no god struct, plus
+  those the in-place sub-step made clean.
 
 ## 5. First steps
 
@@ -692,24 +813,332 @@ savepoints, the `catalogChanges` journal, prepared transactions and
 above, which become `Registry` methods, and statement or transaction-owner
 entry points, which stay in the engine.
 
-## 6. Later waves (sketch)
+## 6. Later waves
 
-| Package | Content | Needs | Why this order |
-|---|---|---|---|
-| `access` | Authorization enforcement on catalog objects (~750 lines): the captured view (`access.View`, plus an `Environment` capability for the TEMP namespace and search path), privilege and ownership checks, RLS policy selection and role dependency scans. Capture, role publication, GRANT/REVOKE and the binding walkers stay in the engine; default-privilege resolution already lives in `catalog` | `catalog`, `authorization` | Created in B3, aliases removed in B4, diagnostic name helpers shared through `catalog` ([README](../internal/engine/access/README.md), [prompt file](ENGINE-SPLIT-authorization.md)) |
-| `pgcatalog` | System relations `pg_*` (34 files, ~4k lines) | `catalog`, a row-producer contract | Leaf consumers of the catalog |
-| `settings` | GUC definitions, typed values, validation, formatting (~1.4k lines); session storage stays with sessions | `catalog` (types) | Nearly independent |
-| `plan`, `exec` | Logical plan IR (`BoundQuery`, `LogicalNode` and nodes), executor (`query_*`, CTE, sets, windows), concrete engine expression nodes | `expr`, `catalog`, `storage`, `visibility`; `EvalContext` split | Removes the second-largest knot |
-| `analyze` | `expressionBinder` and statement binding; break up `binding` per statement kind | `plan`, `functions` | After the plan IR has a home |
-| `session` | `Session`, `Operation`, prepared SQL, portals, cursors, notifications, timeouts; transaction owner, savepoints, journal, 2PC | Most of the above | The facade core; last of the shared pieces |
-| Feature packages | Index, partition, inheritance, sequence, types (domain, enum, composite, range, collation, conversion), views/rules/policies (owner of the stored-query payload), FDW, extensions, operators/routines, DML | Core packages | Each owns its DDL and dump/remap code |
-| `control` | Native Reset/Dump/Restore, through a catalog-level remap protocol instead of central switches | Feature packages | Last |
+The later waves split the rest of the root package. They follow the method of
+§4 and the patterns of §4.1. This section plans the first ten packages, picked
+in dependency order (steps 8–17). The rest are postponed (see "Postponed
+packages" below) and get the same treatment once these land. `access` was the
+first later wave and is done
+([README](../internal/engine/access/README.md),
+[prompt file](ENGINE-SPLIT-authorization.md)).
 
-Two patterns from the first steps carry over to every wave. First, a
-`StatementScope` field used by one feature becomes that feature's statement
-state, reached through one typed slot, so the shared struct stops growing.
-Second, central type switches are replaced by per-node or per-payload
-protocols.
+Step 8 and step 9 are independent leaves and can start now. Steps 10–13 are
+the core track: each starts with an in-place untangling sub-step that can also
+run now, and each move needs the previous core move. Feature steps 14–17 run
+Part A now and Part B after step 13.
+
+```text
+ 8 settings ──▶ 9 pgcatalog
+10 plan ──▶ 11 exec ──▶ 12 analyze ──▶ 13 session ──▶ Part B of 14–17
+in place now: 10a EvalContext, 12a binding, 12b binder fields, 13a/13b slots
+Part A now:   14 routine ──▶ 15 typedef ──▶ 16 extension;  Tier C sequence ──▶ 17 sequence
+```
+
+### Step 8 — `engine/settings`: setting definitions
+
+**Moves.** `SettingDefinition`, `SettingType`, `SettingAccess`, `SettingUnit`
+and their constants, `settingValue`, parsing, formatting, unit conversion and
+validation (`settings.go`), the builtin table `builtinSettings`, the encoding
+and locale normalizers (`settings_format_encoding.go`), `parseSearchPath`
+(`schema_path.go`) and the `client_min_messages` normalizer (`notices.go`).
+Names lose their stutter in the move (`settings.Definition`, `settings.Type`,
+`settings.Value`).
+
+**In-place port (8a).** `Engine.settingsDefinitions` and `settingsOrder`
+become one immutable `settingsRegistry`, built once by a pure constructor that
+takes `trackCommitTimestamps` instead of reading `e.visibility`. Direct reads
+of `bootValue` (`schema_path.go`, `sequence_prepared.go`) go through an
+accessor. `parameterProvider` takes the registry.
+
+**Stays in the engine** until step 13: per-session storage
+(`sessionSettings`, the SET LOCAL action stack, savepoint `settingsMark`),
+SET/RESET/SHOW execution, `current_setting`/`set_config`, command admission,
+`sessionPresentation`, RESET ALL and timeout publication. They all read
+`Session`, `Operation` or the transaction owner.
+
+**Doable because** the definition code imports only `sqltype` and `sqlstate`
+already; about 700 of its 950 lines reach no god struct.
+
+**Done when** `settings` imports only `sqltype`, `sqlstate` and the standard
+library, `Engine` holds one registry, and the root driver and `cmd/stuntgres`
+name `settings.` directly. Prompt file:
+[ENGINE-SPLIT-settings.md](ENGINE-SPLIT-settings.md).
+
+### Step 9 — `engine/pgcatalog`: system relations
+
+**Moves.** The row producers of the `pg_*` relations and the two
+`information_schema` views (`pg_*.go`, `catalog_sources.go`,
+`extension_sources.go`, `available_extension_sources.go`,
+`timezone_sources.go`, `prepared_source.go`, `table_view_summary.go`,
+`table_privileges.go`, `data_type_privileges.go`), their static column specs
+(`initializeCatalogSources` and the smaller spec tables) and their pure helpers
+(`pgLockRows`, `pgConstraintBuilder`, `pgTypeFacts`, `pgDependPinned`, ...).
+
+**In-place port (9a).**
+
+- Files in `pg_*` that are not producers move out first:
+  `pg_class_history.go` and the index-history half of `table_view_summary.go`
+  (catalog publication), `pg_sequences_admission.go` (query admission) and
+  `pg_depend_expression.go` (an expression and plan walker that rules and
+  policies also use).
+- One producer contract replaces the five signatures in use today: a
+  function from an input record (`catalog.Read`, `authorization.Read`,
+  `*catalog.Owner`, the relation ref and descriptor, and a runtime capability)
+  to rows (`[][]sqltype.Value`). Producers no longer build `*querySource`;
+  the engine wraps the rows.
+- One OID registry replaces the two dispatch chains (`openRelationSourceLocked`
+  in `view_source.go` and `captureCatalogSourceLocked` in
+  `catalog_sources.go`), keeping the current precedence.
+- Producers that check provenance against `e.catalog` and `e.roles` take the
+  `*catalog.Owner` from the input; `Engine.pgClassACL` becomes a function.
+- A capability (pattern 3) serves the producers that need more than the
+  catalog: cursors, prepared transactions, the timezone input environment,
+  the database name, column privilege checks for the privilege views,
+  expression references for `pg_depend` and `pg_constraint`, and view and
+  index definition SQL.
+
+**Stays in the engine.** The `querySource` wrapping and view-source
+authorization; `pg_locks` capture, which releases and retakes `Engine.mu`;
+`pg_sequences`, whose lazy completion acquires sequence locks through the
+statement scope; `pg_sequence`'s transaction-journal overlay; descriptor
+registration during catalog seeding.
+
+**Doable because** 30 producers are dirty only through `*querySource`, and
+the rest only through provenance checks that `catalog.Owner` can answer.
+
+**Done when** `pgcatalog` imports only `catalog`, `authorization`, `lock`,
+`settings`, `expr`, `ids`, `sqltype`, `sqlstate` and the standard library, and
+the engine dispatches system relations through one registry lookup. Prompt
+file: [ENGINE-SPLIT-pgcatalog.md](ENGINE-SPLIT-pgcatalog.md).
+
+### Step 10 — `engine/plan`: plan IR and expression nodes
+
+**Moves.** `LogicalNode`, `BoundQuery`, `querySchema`, the 20 plan node types
+(`sourceNode` … `windowNode`) and their records (`sortKey`, `queryGrouping`,
+`aggregateCall`, `windowCall`, `boundWindowSpec`, `searchRecipe`,
+`cycleRecipe`, `cteDefinition`, `functionCorrelation`, `querySetTemplate`,
+`queryRowMark`), and the concrete engine expression nodes (column, parameter,
+literal, coercion, arithmetic, comparison, CASE, row, field, array, subscript,
+subquery, aggregate, window, returning, MERGE action, domain value, ...). The
+Tier C inquiry nodes are excluded: they move to `functions` in step 3.
+
+**In-place port.**
+
+- **10a — split `EvalContext`** into three named groups: the frame (row,
+  frame and scope numbers, outer link, presence, query links, merge and
+  domain values), the statement runtime (cancellation context, parameters,
+  input and output environments, quote captures, plan flags, prepared check
+  caches, statement scope, catalog) and routine admission (the `routine*`
+  fields and `domainPhase`). This is a pure regrouping; value copies keep
+  their meaning.
+- **10b — cuts.** `cteDefinition.mutation *binding` becomes an opaque payload
+  (rule 7 of §3). Node `Eval` methods stop recovering `*EvalContext`: nodes
+  that read only cancellation and environments use `expr.Context`; nodes that
+  read frame state or run subqueries use a node runtime capability (pattern
+  3), which `*EvalContext` implements. The shared prologue
+  (`evaluationContext`: nil check, domain-check wiring, cancellation) keeps its
+  order.
+
+**Stays in the engine** until step 11: execution (`openQueryNode` and the node
+openers), `queryState`, `querySource`, `EvalContext` itself, and the central
+switches that list node types (deparse, remap, retag, walk; they name `plan.`
+types after the move).
+
+**Doable because** every plan node type and every expression node type is
+already clean as a type (§2.6); only `cteDefinition.mutation` and the `Eval`
+recoveries reach a god struct.
+
+**Done when** `plan` imports only `expr`, `functions`, `catalog`, `lock`,
+`ids`, `parser`, `sqltype`, `sqlstate` and the standard library, and no node
+`Eval` names `*EvalContext`. Prompt file:
+[ENGINE-SPLIT-plan.md](ENGINE-SPLIT-plan.md).
+
+### Step 11 — `engine/exec`: the executor
+
+**Moves.** `queryState`, `querySource`, `indexedStage`, `finalRows`, the
+`openQueryNode` switch and the node openers (joins, hashing, sets, distinct,
+limit, recursion, CTE scans, windows, aggregation, function sources, row
+locks), the `RowCursor` implementations, and `EvalContext` as `exec.Context`
+(it implements `expr.Context`, the step-10 node runtime and the `functions`
+capabilities).
+
+**In-place port.**
+
+- **11a — refine** (pattern 4) after step 10: measure `querySource.scope`
+  (41 uses in 16 files), `queryState`'s `*EvalContext` links, the 37 files
+  that call `liveScope()`, and the `Engine` and `StatementScope` methods the
+  executor calls.
+- **11b — host seam.** An `execHost` interface replaces the `*StatementScope`
+  back-pointers in `querySource`, `queryState` and the evaluation context:
+  lock admission, private catalog and storage overlays, snapshot capture,
+  authorization, comment snapshots, foreign owners and sequence acquisition.
+  The Tier C capability implementations (`acl_runtime.go` and the later parts)
+  reach the engine through it too.
+
+**Stays in the engine.** Statement dispatch (`execute.go`,
+`execute_bound.go`), the DML executors (postponed DML package), CTE mutation
+execution, CREATE TABLE AS, SQL cursors and protocol portals (step 13).
+
+**Doable because** after step 10 the plan IR has a home, and the executor's
+coupling to the statement scope is one back-pointer per runtime record.
+
+**Done when** `exec` imports nothing above L7 and the root package no longer
+opens plan nodes. Prompt file: [ENGINE-SPLIT-exec.md](ENGINE-SPLIT-exec.md).
+
+### Step 12 — `engine/analyze`: binding
+
+**Moves.** `expressionBinder` and its 348 methods, `binding`, `describe` /
+`describeWithRule`, the query, FROM, CTE, aggregate, window and DML-target
+binding files, function and operator call resolution (`function*.go`,
+`operator_binding.go`, `operator_routine_binding.go`) and the binder halves of
+the type features (composite, enum and range binding).
+
+**In-place port.**
+
+- **12a — split `binding` per statement kind.** A header keeps what every
+  kind uses (target relation and ref, targets, dependencies, parameters,
+  RETURNING, query, query sources, view write). Payloads take the rest:
+  INSERT, DELETE and CREATE TABLE payloads next to the existing UPDATE and
+  MERGE ones, plus three shared value groups: `viewCapture` (11 maps),
+  `preparedCaptures` (temporal, composite, sequence and regtype constants) and
+  `resolverInputs` (10 statement input resolvers).
+- **12b — group `expressionBinder` fields** into target, parameter, consumer,
+  clause, grouping and window, query scope and CTE state, reusing the 12a
+  capture types.
+- **12c — refine, then host seam** (pattern 4): cut `expressionBinder.engine`
+  (42 uses in 18 files) and `op` (35 uses in 12 files) into an
+  `analyzeHost` interface. Decide whether constant evaluation imports `exec`.
+
+**Stays in the engine** until their features move: rule rewriting, view and
+policy capture consumers, materialized snapshots, and statement dispatch.
+
+**Doable because** 12a and 12b make the binder's state explicit, and after
+step 11 the binder's outputs (plan IR) and its constant evaluation have homes.
+
+**Done when** `analyze` imports nothing above L8, `binding` has no
+kind-specific header fields, and the root package calls one describe entry
+point. Prompt file: [ENGINE-SPLIT-analyze.md](ENGINE-SPLIT-analyze.md).
+
+### Step 13 — `engine/session`: sessions and statement scope
+
+**Moves** (refined in 13c). `Session`, `Operation`, the statement scope
+core, the transaction owner, savepoints, the `catalogChanges` journal, 2PC,
+notifications, timeouts, SQL cursors and portals, the prepared SQL registry
+and the per-session settings store.
+
+**In-place port.**
+
+- **13a — scope slots.** Every single-feature `StatementScope` field moves
+  into a slot (pattern 2): protocol, prepared rebind, inquiry snapshot,
+  presentation caches, TRUNCATE, foreign-key actions, view creation,
+  materialized refresh, inheritance, index and exclusion, partition, foreign
+  tables and domains. About 70 fields leave the header.
+- **13b — operation, journal and stage slots.** `Operation`'s Restore replay
+  flags become one slot. The journal's and `CatalogStage`'s feature fields
+  (index candidates and fences, partition read fences, TRUNCATE fences,
+  materialized sources, domain validation, enum generations, typed-table
+  observation) become feature slots, and the journal fences one fence
+  interface. The transaction owner's FDW participants become a slot.
+- **13c — refine** after steps 11 and 12: decide what moves and the boundary
+  with the root dispatch.
+
+**Stays in the engine.** Statement dispatch (`executeStatement`) and the
+feature handlers until Part B of their feature steps.
+
+**Doable because** 13a and 13b remove every feature type from the shared
+structs, so `session` imports no feature package.
+
+**Done when** `session` imports no feature package and nothing above L9.
+Prompt file: [ENGINE-SPLIT-session.md](ENGINE-SPLIT-session.md).
+
+### Step 14 — `engine/routine`: builtin routines and operators
+
+**Part A (14a, 14b).** The builtin routine and operator inventories and
+metadata (`routine_inventory.go`, `operator_inventory.go`,
+`operator_metadata.go`, `operator_routines.go`, about 3.2k lines, all clean),
+builtin declaration lookup, operator descriptor validation, operator DDL
+option validation, operator dump formatting and routine body edges. Builtin
+seeding becomes pure constructors that the engine installs.
+
+**Part B (14c, 14d)** after step 13: CREATE/ALTER/DROP OPERATOR staging and
+the SQL routine DDL that `PG18-ROUTINE-CORE` adds (`sql_routine_ddl.go`).
+
+**Stays elsewhere.** Call resolution belongs to `analyze` (step 12), routine
+call admission (`routine_admission.go`, `routine_body_admission.go`,
+`routine_program.go`) to `exec` (step 11), SQL routine definitions and frames
+to `proc` (L1).
+
+**Needs** `PG18-ROUTINE-CORE` merged (it touches the same files). Prompt
+file: [ENGINE-SPLIT-routine.md](ENGINE-SPLIT-routine.md).
+
+### Step 15 — `engine/typedef`: user-defined types
+
+**Part A (15a, 15b).** Domains, enums, composites, ranges, collations and
+conversions: dump and remap helpers (`domain_remap.go`, `collation_remap.go`,
+`conversion_dump.go`, ...), validation (`collation_validation.go`), builtin
+conversion tables, domain-alter discovery, typed-table inheritance planning
+and the domain check program records. About 2.5k clean lines.
+
+**Part B (15c, 15d)** after step 13: CREATE/ALTER/DROP for each type kind,
+ALTER DOMAIN validation runs, typed-table mutation, TEMP collation lifetime.
+
+**Stays elsewhere.** Domain check evaluation (`EvalContext` methods) goes to
+`exec`; composite, enum and range binding to `analyze`; `StatementDescription`
+(in `types.go`, part of the public facade) to `analyze`.
+
+**Needs** 14b (operators and types reference each other; 14b settles the
+cut). Prompt file: [ENGINE-SPLIT-typedef.md](ENGINE-SPLIT-typedef.md).
+
+### Step 16 — `engine/extension`: installed extensions
+
+**Part A (16a, 16b).** Extension provider records and control data
+(fuzzystrmatch, intagg, intarray, pgcrypto, unaccent, uuid-ossp), member
+validation, membership and owner metadata decoding, extension remap.
+
+**Part B (16c, 16d)** after step 13: CREATE/DROP EXTENSION, provider staging,
+owner import.
+
+**Stays elsewhere.** The installed-function expression wrappers stay with the
+engine's node code (their catalog identity is engine state, see the `expr`
+README); `extension_database.go` is database GRANT, not extension code.
+
+**Needs** 15b (`intarray` validation goes through type validation). Prompt
+file: [ENGINE-SPLIT-extension.md](ENGINE-SPLIT-extension.md).
+
+### Step 17 — `engine/sequence`: sequence objects
+
+**Part A (17a, 17b).** Sequence option binding and limits
+(`sequence_options.go`, all clean), the physical-session memory records,
+sequence dump formatting, identity and serial naming helpers. 17a also renames
+files whose names mislead: `sequence_temp.go` and most of
+`sequence_control.go` are TEMP-session and Restore code, `owned*.go` is
+REASSIGN/DROP OWNED and `identity_owner.go` is owner-handle code.
+
+**Part B (17c, 17d)** after step 13: CREATE/ALTER/DROP SEQUENCE, identity
+columns, serial columns and sequence comments.
+
+**Stays elsewhere.** The generator (`storage.SequenceGenerator`) stays in
+`storage`; `nextval`/`currval`/`setval` move to `functions` in Tier C.
+
+**Needs** Tier C sequence calls (step 3). Prompt file:
+[ENGINE-SPLIT-sequence.md](ENGINE-SPLIT-sequence.md).
+
+### Postponed packages
+
+These packages get prompt files after the steps above. Each needs `session`
+(step 13) for its handlers; the Part A rule applies to them too.
+
+| Package | Content | Why it waits |
+|---|---|---|
+| `index` | Index DDL, unique and exclusion maintenance (41 files, ~9.3k lines) | DML uses it more than any other area (134 references); its journal and stage state goes through 13b first |
+| `partition` | Partition DDL, routing, proofs, replay (32 files, ~7.2k lines) | Depends on views (115 references) and index |
+| `inheritance` | Inheritance DDL, queries and Restore repair (21 files, ~5.1k lines) | Depends on table/alter (93 references) |
+| `table` | CREATE/ALTER TABLE, NOT NULL, CHECK, foreign keys (~11k lines with `physical_not_null*`) | Missing from the first sketch; depends on index, partition and inheritance |
+| `view` | Views, rules, policies, materialized views; owner of the stored-query payload (67 files, ~17.9k lines) | Needs `analyze` for capture and rewriting |
+| `fdw` | Foreign data wrappers, foreign tables and writes | Depends on table (55 references) and session participants |
+| `dml` | INSERT, UPDATE, DELETE, MERGE, COPY, TRUNCATE, RETURNING (33 files, ~8.7k lines) | Depends on index, exec and analyze |
+| `control` | Native Reset/Dump/Restore through a remap protocol instead of central switches | Last: needs every feature's dump and remap code in its package |
 
 ## 7. Open decisions
 
@@ -729,6 +1158,30 @@ protocols.
    adapt or delete, record follow-ups, never edit `reference/`.
 5. **Tooling.** Whether to commit the dependency-graph tool, and a layering
    check that fails when a subpackage imports upward.
+6. **Later-wave package names.** Proposed: `settings`, `pgcatalog`, `plan`,
+   `exec`, `analyze`, `session`, `routine` (not `proc`, which the routine
+   feature work already uses for SQL routine definitions), `typedef` (not
+   `types`, which reads like `go/types` and `sqltype`), `extension`,
+   `sequence`. Each step confirms its name in its first sub-step.
+7. **Slot typing.** Before `session` moves, scope and journal slots name
+   engine types; after it moves they must be lower-layer interfaces (§3 rule
+   7). Settle in 13c whether that is one interface per slot or a typed key
+   (`session.Slot[T]`).
+8. **Host interfaces.** `exec` (11b), `analyze` (12c) and the feature Part B
+   steps each declare a host interface that the root package implements.
+   Settle in 11a whether they share one statement-host type in the root
+   package.
+9. **Where `Eval` lives.** Step 10 keeps node types and `Eval` in `plan`,
+   with engine state behind a node runtime capability; the alternative is to
+   keep `Eval` for frame-reading nodes in `exec`. Settle in 10b against
+   `make bench`.
+10. **Settings session store.** Whether `sessionSettings` (with its SET LOCAL
+    stack) moves into `settings` or `session`. It reads session authorization
+    and timeouts today, so step 8 leaves it for 13c.
+11. **Facade types.** `RegistrationError`, `SettingDefinition`, `RowResult`
+    and `StatementDescription` are named by the root driver. Settle per step
+    whether the driver imports the subpackage directly (as it does `catalog`
+    and `ids`) or the engine keeps a permanent facade alias (§3 rule 2).
 
 ## 8. Implementation sessions
 
@@ -740,16 +1193,29 @@ package-specific scope. This section holds the rules every session follows.
 |---|---|---|---|
 | 1 | [`ENGINE-SPLIT-ids.md`](ENGINE-SPLIT-ids.md) | — | done (1a–1d) |
 | 2 | [`ENGINE-SPLIT-expr.md`](ENGINE-SPLIT-expr.md) | 1 | done (2a–2d) |
-| 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3, F4/F5 Tier A, Tier B, and aggregates and windows done; F2 done except view literal capture, function sources and `SQLJSON` rendering; Tier C refined, ACL part done, catalog/xid/advisory/sequence parts next |
+| 3 | [`ENGINE-SPLIT-functions.md`](ENGINE-SPLIT-functions.md) | 2 | F1, F3, F4/F5 Tier A, Tier B, and aggregates and windows done; F2 done except view literal capture, function sources, `SQLJSON` rendering and the nullability and conditional closure hooks; Tier C refined, ACL part done, catalog/xid/advisory/sequence parts next |
 | 4 | [`ENGINE-SPLIT-lock.md`](ENGINE-SPLIT-lock.md) | 1 | done (4a–4c) |
-| 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | done (5a–5g) |
-| 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | done (6a–6c) |
+| 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | done (5a–5g); optional 5h open |
+| 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | done (6a–6c); optional 6d open |
 | 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | done (7a–7c) |
-| A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | done (A1, B0–B4, names cleanup) |
+| A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | done (A1, B0–B4, names cleanup); B5 after 12d |
+| 8 | [`ENGINE-SPLIT-settings.md`](ENGINE-SPLIT-settings.md) | — | planned (8a–8c) |
+| 9 | [`ENGINE-SPLIT-pgcatalog.md`](ENGINE-SPLIT-pgcatalog.md) | 5, B4; 8b for 9b | planned (9a–9c) |
+| 10 | [`ENGINE-SPLIT-plan.md`](ENGINE-SPLIT-plan.md) | 2, 3 F1, 5 | planned (10a–10d) |
+| 11 | [`ENGINE-SPLIT-exec.md`](ENGINE-SPLIT-exec.md) | 10c, 13a | planned (11a–11d) |
+| 12 | [`ENGINE-SPLIT-analyze.md`](ENGINE-SPLIT-analyze.md) | 12a–12b: —; 12c: 10c | planned (12a–12e) |
+| 13 | [`ENGINE-SPLIT-session.md`](ENGINE-SPLIT-session.md) | 13a–13b: —; 13c: 11c, 12d, 8b | planned (13a–13e) |
+| 14 | [`ENGINE-SPLIT-routine.md`](ENGINE-SPLIT-routine.md) | A: `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item of step 3; B: 13d | planned (14a–14d) |
+| 15 | [`ENGINE-SPLIT-typedef.md`](ENGINE-SPLIT-typedef.md) | A: 14b; B: 13d | planned (15a–15d) |
+| 16 | [`ENGINE-SPLIT-extension.md`](ENGINE-SPLIT-extension.md) | A: 15b; B: 13d | planned (16a–16d) |
+| 17 | [`ENGINE-SPLIT-sequence.md`](ENGINE-SPLIT-sequence.md) | A: step 3 Tier C sequence calls; B: 13d | planned (17a–17d) |
 
 Tracks may run in parallel only on separate branches. Do not run two broad
-mechanical rewrites at the same time (F1, F2, 5b, 5d, or any alias removal):
-they touch hundreds of the same files. Rebase and re-verify before integration.
+mechanical rewrites at the same time (F1, F2, 5b, 5d, any alias removal, and
+in the later waves 10a, 10c, 11c, 12a, 12b, 12d, 13a, 13b and 13d): they touch
+hundreds of the same files. Rebase and re-verify before integration. The
+numbered "Linear plan" in [`ENGINE-SPLIT-STATUS.md`](ENGINE-SPLIT-STATUS.md)
+orders every open sub-step and marks which ones may run in parallel.
 
 ### 8.1 Session protocol
 
@@ -760,8 +1226,10 @@ they touch hundreds of the same files. Rebase and re-verify before integration.
 2. **Check prerequisites** against the table above and `git log`. If a
    prerequisite is not done, stop and report.
 3. **Pick the work.** Take the first unchecked sub-step in the prompt file's
-   Status section. Do one sub-step per session unless the prompt file says
-   otherwise.
+   Status section, or the linear-plan item you were given. Do one sub-step per
+   session unless the prompt file says otherwise. A refine sub-step (§4.1
+   pattern 4) changes only docs: its result is the refined plan written into
+   the prompt file, approved by the user.
 4. **Refine before editing.** Names, counts and file lists in these documents
    were measured at commit `a2252c0b1` and may be stale, so re-measure on the
    current code. Then present a file-level plan: the declarations that move,

@@ -108,6 +108,29 @@ Group its fields into sub-records (column metadata, constraints, security,
 kind payloads) as a separate readability change. Done with user approval;
 see 5g results (kind payloads stayed top-level).
 
+### 5h — Optional: close the remaining catalog write paths
+
+Added when the later waves were planned (measured at `75fe0d710`). Two small
+readability changes that need no other step:
+
+1. **One revision-frontier helper.** The loop "advance past
+   `descriptorRevisionFrontier`, saturating at the maximum" is written out in
+   `catalog.go` (three times: `publishCatalog` and twice in
+   `replaceCatalog`, around lines 1230, 1419 and 1536),
+   `transaction_publication.go:414`, `sequence_temp.go:310` and
+   `alter_schema.go:165`. Give `catalogStore` one method that owns it, keep
+   each caller's exhaustion message, and call it from all six sites.
+2. **`Candidate` overlay behind methods.** `catalog.Candidate`
+   (`catalog/candidate.go:14`) exposes `Descriptors`, `Names`, `Touched`,
+   `Removals`, `OldNames`, `DefaultACLs` and `DefaultReads` as exported
+   maps. Measure the engine's direct writes to them (`CatalogStage` embeds
+   the candidate), route each through a `Candidate` method, and unexport the
+   maps if no reader outside `catalog` remains. Reads may stay as accessors.
+
+The relation, type, extension, operator and parameter validators that 5e
+left in the engine stay until a stored-SQL rendering seam exists (step 12
+and the postponed `view` package); see the notes for later steps.
+
 ## Invariants
 
 - Published `State` values stay immutable. Publication stays atomic across
@@ -185,6 +208,8 @@ startup regression. 5f completes the step; optional 5g is done too.
   (`43c6b86ec`, `47a4495b2`, `089bf7856`, `3ef61771b`, `90f6a9b52`, then
   the commit that records this status) *(racecheck skipped at user
   request; targeted RACE=1 runs passed)*
+- [ ] 5h — Optional: one revision-frontier helper; `Candidate` overlay
+  behind methods
 
 Exported names chosen (5d; applied by 5e's move, with engine aliases):
 

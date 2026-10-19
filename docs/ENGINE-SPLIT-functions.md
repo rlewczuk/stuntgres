@@ -74,6 +74,14 @@ checks have one protocol branch each, and `Arguments()` no longer duplicates
 `string_set_query.go` and its classifiers) and the explicit `SQLJSON` deparse
 and stored SQL cases; see the session 4 notes.
 
+Remaining F2 items, refreshed at `75fe0d710` (details in "Later-wave refresh"
+at the end of the Status section): view literal capture; function sources,
+which also covers the engine's `seriesExpression` and `unnestExpression`
+markers; `SQLJSON` rendering; a result nullability hook that removes the
+per-node cases in `query_bind.go` and `returning.go`; and a conditional
+closure hook for the closed-DEFAULT check. Each is one session; view literal
+capture and function sources are broad.
+
 ### F3 — Binder interface and registry, with a pilot family
 
 - Define `functions.Binder`, starting from the methods that function glue uses
@@ -169,13 +177,18 @@ Tier C has a refined plan.
   [x] grouping identity [x] grouping rewrite and aggregate occurrence
   [x] preflight [x] index key display [x] closed DEFAULT checks
   [x] `Arguments()` [ ] view literal capture [ ] function sources
-  [ ] `SQLJSON` rendering (session 4: `063fe2d1e` identity, `622b3d3ba`
+  (with `seriesExpression` and `unnestExpression`) [ ] `SQLJSON` rendering
+  [ ] result nullability hook [ ] conditional closure hook (session 4: `063fe2d1e` identity, `622b3d3ba`
   rewrite, `a187f7f5d` preflight, `39c887998` index, `b2675f4c2`
   substitution, `632814b91` DEFAULT closure, `25fcad768` `Arguments()`,
   then the docs commit)
 - [x] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot family:
   UUID extraction (`60dc1cedd` seam, `cd4a88387` port, `5d59e5737` move,
   docs `9bca9b2b6`)
+- [ ] F3 aliases removed — `routine_declaration.go` still holds the temporary
+  `routineProvider = functions.RoutineProvider` alias and 23 provider
+  constants (about 1,290 uses at `75fe0d710`); broad rewrite (see "Later-wave
+  refresh" below)
 - [x] F4/F5 Tier A: [x] math (`3078b889f` seam, `d5dc34c59` port,
   `0f3c7e5a2` move, docs `96e11f662`) [x] string [x] LIKE/SIMILAR/regex
   [x] datetime (datetime: `5c5928497` seam, `5a293c0b3` port, `4acb5e42b`
@@ -212,8 +225,9 @@ Tier C has a refined plan.
 - [ ] Tier C refined (after steps 4, 5 and 7; plan in "Tier C refinement"
   below): [x] ACL SQL function nodes (`b3ce43139` seam, `574de18f1` port,
   `436322070` move, `75d906ea8` protocol hooks, then the docs commit)
-  [ ] catalog inquiry [ ] transaction identity and commit timestamps
-  [ ] advisory locks [ ] sequence calls
+  [ ] catalog inquiry (with session identity) [ ] transaction identity and
+  commit timestamps [ ] advisory locks (with blocking inquiry) [ ] sequence
+  calls
 
 `Binder` methods added beyond the F3 set: `AnalyzeFilter` (F3, for the
 pilot's shared call envelope; FILTER analysis is used by 27 glue files, so it
@@ -1547,7 +1561,12 @@ Tier C refinement, measured on `5cc6fe6e5` with the ACL part done first:
   - Sequence calls: `sequenceCallExpression`, with its prepared-literal and
     DEFAULT rules from `AGENTS.md`; the most constrained part, last.
   - `blockingInquiryExpression` (`pg_blocking_pids` and friends) goes with
-    the advisory or catalog part, whichever reads its state.
+    the advisory part (decided at the later-wave refresh: it reads the lock
+    manager's state, like advisory locks).
+  - `identityExpression` (`session_identity.go`: `current_user`,
+    `session_user`, `current_schema` and friends) was not listed; it reads
+    the statement identity snapshot and goes with the catalog inquiry part
+    (decided at the later-wave refresh).
 
 Tier C ACL record, measured at its start on `5cc6fe6e5` and rebased onto
 `6f71c048e` (F2 session 4 and the access-names cleanup):
@@ -1657,6 +1676,66 @@ Notes for later steps (Tier C ACL):
   in a task that may edit `reference/`.
 - `has_*_privilege` is catalog identity only; executing it is a feature,
   not part of the split.
+
+Later-wave refresh, measured at `75fe0d710` while planning steps 8–17
+(docs only; no code changed):
+
+- **Tier C nodes still in the engine** (all 14 listed in the refinement,
+  plus `identityExpression`). Every one is named by the same 12 central
+  switch files: `aggregate_bind.go`, `conditional_plan.go`, `default.go`,
+  `deparse_renderer.go`, `deparse_tree.go`, `expression.go`,
+  `expression_retag.go`, `index_control.go`, `query_expression_walk.go`,
+  `query_join_legality.go`, `view_literals.go`, `view_remap.go`. Extra
+  files per part:
+  - catalog inquiry: `query_bind.go` and `returning.go` (nullability, for
+    `namespaceInquiryExpression`, `currentSchemasExpression`,
+    `indexPropertyExpression`, `deparseExpression`); `view_write.go`,
+    `datetime_overlaps_context.go`, `routine_inquiry.go`,
+    `serial_sequence.go` (`deparseExpression.evalSerialSequence`);
+    `expression_volatility.go`, `generated.go`, `scalar_function_sql.go`,
+    `string_set_query.go`, `string_table_bind.go` and `transaction_time.go`
+    for `catalogUserNameExpression`, `catalogForeignKeysExpression` and
+    `objectAddressExpression`;
+  - transaction identity and commit timestamps: the same six files as the
+    catalog relations nodes (`expression_volatility.go`, `generated.go`,
+    `scalar_function_sql.go`, `string_set_query.go`, `string_table_bind.go`,
+    `transaction_time.go`);
+  - advisory locks: the core 12 only; `blockingInquiryExpression` adds
+    `query_bind.go` and `returning.go`;
+  - sequence calls: `default_replay.go`, `expression_volatility.go`,
+    `insert_binding.go`, `serial.go`, `view_write_insert.go`,
+    `pg_depend_expression.go`.
+- **What each `Eval` reads** (appendix tool; the capability each part needs):
+  `catalogUserNameExpression` reads `Engine.roles` and the scope's comment
+  catalog and roles; `namespaceInquiryExpression` and
+  `currentSchemasExpression` read `Engine.mu`, the session token and the
+  scope's search-path results and rule/FK authorities; `identityExpression`
+  reads the scope's identity snapshot and current-schema result;
+  `transactionIdentityExpression` reads `Engine.catalog`, `locks`, `mu`,
+  `visibility` and the scope's ticket and TxRef; `commitTimestampExpression`
+  reads `Engine.mu` and `visibility`; `advisoryExpression` reads
+  `Engine.locks` and `Session.advisory`; `blockingInquiryExpression` reads
+  `Engine.mu` and the session; `sequenceCallExpression` reads
+  `Engine.catalog`, the session's sequence memories and the transaction
+  owner.
+- **F2 leftovers still present:** `captureNormalizedViewLiteralTree`
+  (`view_literals.go:56`, 1,481-line file, 71 `functions.` references);
+  `isQuerySet`, `validFunctionSourceCall`, `functionCallArguments`,
+  `withFunctionCallArguments` (`string_table_bind.go`, 45 references);
+  `sameQuerySetOccurrence` (`string_set_lower.go`); `openFunctionCall` and
+  `functionSetCursor` (`string_set_query.go:205` and `:88`; the cursor has 97
+  uses in 3 files). The engine's `seriesExpression` (`series_expression.go`,
+  a retained target marker) and `unnestExpression` (`range_more.go`) are set
+  sources handled by the same switches; the function-sources item covers
+  them.
+- **F3 aliases.** `routine_declaration.go` keeps `type routineProvider =
+  functions.RoutineProvider` and 23 constant aliases, "temporary aliases for
+  the provider vocabulary that moved to functions in F3". They have about
+  1,290 uses in production code. Remove them with the 5f/6c alias tool
+  before step 14b (`routine`) moves the builtin inventories that use them.
+- **Effect on later steps.** Step 10 (`plan`) excludes the Tier C nodes from
+  its move set; each Tier C part that lands removes their cases from the
+  central switches before those switches move.
 
 The PostgreSQL 18.6 oracle drift listed in these records (UUIDv7 shifts,
 `json_strip_nulls`, EXTRACT quoting, final sigma, Hangul TBASE, lock rechecks
