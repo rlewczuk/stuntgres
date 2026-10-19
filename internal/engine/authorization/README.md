@@ -76,23 +76,17 @@ SQL behavior and native limits are described in
 - **Catalog data:** ACL fields on descriptors, default-privilege records and
   their keys, and typed projections such as `pg_roles`, `pg_group` and
   `relacl`.
-- **Enforcement:** `accessView` (`access_view.go`) is the captured pair with
-  the privilege checks; it reads the session's TEMP namespace and search path
-  only through the two-method `accessEnvironment`. The ownership checks
-  (`access_ownership.go`) and RLS policy selection (`access_rls.go`) work on
-  it or on the role read. `AuthorizationView` embeds it as statement-level
-  authority and is the environment. Default-privilege resolution lives in
-  `catalog` (`CreationDefaultACL`).
 - **Statements:** GRANT, REVOKE, ALTER DEFAULT PRIVILEGES, role DDL, SET ROLE
   and session startup.
 - **ACL SQL functions** (`aclexplode`, `acldefault`, `makeaclitem`, `aclitem`
   input and output). They work on raw `aclitem` bits and move with the other
   builtin functions in step 3.
 
-Enforcement reads catalog descriptors, so it cannot live here without an
-import cycle. Part B of
-[ENGINE-SPLIT-authorization.md](../../../docs/ENGINE-SPLIT-authorization.md)
-moves it to a new `internal/engine/access` package above `catalog`.
+**Enforcement** reads catalog descriptors, so it cannot live here without an
+import cycle. It lives in [`access`](../access/README.md), above `catalog`:
+the captured view and its privilege checks, the ownership checks, RLS policy
+selection and the role dependency scans. Default-privilege resolution lives
+in `catalog` (`CreationDefaultACL`).
 
 ## Testing
 

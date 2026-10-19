@@ -5,18 +5,19 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `94a9c9e2b`.
+Last verified against `master` at `ce0c3d233`.
 
 ## Next ready sub-steps
 
 - **7b** — `visibility` created and types moved (needs 7a ✓). Exporting
   the registry and tracker fields in place may be broad; see the 7a notes in
   the prompt file.
-- **B3** — `access` created and code moved (needs B2 ✓). Its field
-  accessor rewrite is broad; see the B2 notes in the prompt file.
+- **B4** — `access` aliases removed (needs B3 ✓). Broad rewrite; see the
+  B3 notes in the prompt file.
 
 They may run in parallel on separate branches, but not two broad rewrites
-at the same time (§8).
+at the same time (§8): if 7b exports the registry fields broadly, run it
+and B4 one after the other.
 
 ## Task tree
 
@@ -171,7 +172,9 @@ at the same time (§8).
       (`8e41e7091`, `a0fa8edec`, `7d5e526b8`, `809a3ed62`, then the docs
       commit) *(racecheck skipped at user request; targeted RACE=1 runs
       passed)*
-    - [ ] B3 — `access` created and code moved
+    - [x] B3 — `access` created and code moved (`8e529feda`, `0d549283e`,
+      `9cfb1306b`, `a168628d4`, then the docs commit) *(racecheck skipped
+      at user request; targeted RACE=1 runs passed)*
     - [ ] B4 — Aliases removed *(broad rewrite)*
 - [ ] **Later waves** ([ENGINE-SPLIT.md §6](ENGINE-SPLIT.md#6-later-waves-sketch);
   sketch only, no prompt files yet)

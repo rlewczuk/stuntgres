@@ -206,6 +206,7 @@ functions, `pg_*` projections, Dump/Restore and policy DDL
  L3  engine/functions      builtin functions                   (imports expr, ids)
  L3  engine/catalog        descriptors, State, Read, Candidate (imports ids, expr, authorization)
  L4  engine/storage        row versions, storage and index roots (imports catalog, expr)
+ L4  engine/access         authorization enforcement (imports catalog, authorization)
  L5  engine/visibility     xids, commit order, snapshots, SSI  (imports storage, catalog, lock)
  L6  engine                facade, sessions, statements, binder, executor, features
 ```
@@ -686,7 +687,7 @@ entry points, which stay in the engine.
 
 | Package | Content | Needs | Why this order |
 |---|---|---|---|
-| `access` | Authorization enforcement on catalog objects (~750 lines): the captured view (`access.View`, plus an `Environment` capability for the TEMP namespace and search path), privilege and ownership checks, RLS policy selection and role dependency scans. Capture, role publication, GRANT/REVOKE and the binding walkers stay in the engine; default-privilege resolution already lives in `catalog` | `catalog`, `authorization` | Refined in B0; B1–B4 in [the prompt file](ENGINE-SPLIT-authorization.md) |
+| `access` | Authorization enforcement on catalog objects (~750 lines): the captured view (`access.View`, plus an `Environment` capability for the TEMP namespace and search path), privilege and ownership checks, RLS policy selection and role dependency scans. Capture, role publication, GRANT/REVOKE and the binding walkers stay in the engine; default-privilege resolution already lives in `catalog` | `catalog`, `authorization` | Created in B3 ([README](../internal/engine/access/README.md)); B4 removes the aliases ([prompt file](ENGINE-SPLIT-authorization.md)) |
 | `pgcatalog` | System relations `pg_*` (34 files, ~4k lines) | `catalog`, a row-producer contract | Leaf consumers of the catalog |
 | `settings` | GUC definitions, typed values, validation, formatting (~1.4k lines); session storage stays with sessions | `catalog` (types) | Nearly independent |
 | `plan`, `exec` | Logical plan IR (`BoundQuery`, `LogicalNode` and nodes), executor (`query_*`, CTE, sets, windows), concrete engine expression nodes | `expr`, `catalog`, `storage`, `visibility`; `EvalContext` split | Removes the second-largest knot |
@@ -735,7 +736,7 @@ package-specific scope. This section holds the rules every session follows.
 | 5 | [`ENGINE-SPLIT-catalog.md`](ENGINE-SPLIT-catalog.md) | 1, 2 | done (5a–5g) |
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | done (6a–6c) |
 | 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | 7a done; 7b next |
-| A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | A1, B0, B1 and B2 done; B3 next |
+| A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | A1, B0, B1, B2 and B3 done; B4 next |
 
 Tracks may run in parallel only on separate branches. Do not run two broad
 mechanical rewrites at the same time (F1, F2, 5b, 5d, or any alias removal):

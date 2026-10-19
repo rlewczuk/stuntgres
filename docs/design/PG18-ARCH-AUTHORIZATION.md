@@ -94,6 +94,8 @@ type AuthorizationView interface {
 func (op *Operation) Authorization() AuthorizationView
 ```
 
+The implemented view and checks: [`internal/engine/access`](../../internal/engine/access/README.md).
+
 `HasRole(member,role,mode)` includes self, then traverses unconditional, all-INHERIT or all-SET paths. `CanAdmin(actor,role)` applies ADMIN/grantor rules, not ordinary transitive ACL rights or implicit self-ADMIN. SUPERUSER/LOGIN/CREATEDB/CREATEROLE/BYPASSRLS come from the effective principal, never ordinary inheritance. Membership mutation evaluates provenance/dependencies as well as reachability.
 
 The engine binds one immutable view to the operation's coherent catalog/auth read and target: `Operation.Authorization()` equals `Operation.Resolution().Access`. One Authorization attachment owns validated session state; EndSession releases it, not shared roles or SQL effects. Borrowed slices/descriptors cannot outlive their operation/frame.

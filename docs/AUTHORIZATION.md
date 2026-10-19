@@ -73,8 +73,10 @@ retain that exact record and its paired catalog, including the actual attached
 database owner; stamps describe the captured publication, not later engine state.
 Read capture copies neither records nor backing graphs. Private candidates return
 root values, and only the engine installs or advances their publication revision.
-Catalog namespaces/default-policy storage, object/column checks, typed summaries,
-session journals and class-specific cleanup remain with their existing owners.
+Object and column checks, ownership checks and RLS policy selection live in the
+[access package](../internal/engine/access/README.md) above the catalog. Catalog
+namespaces/default-policy storage, typed summaries, session journals and
+class-specific cleanup remain with their existing owners.
 This package cutover adds no SQL syntax, provider or authentication capability.
 
 For `pg_group`, child `Read.GroupRole` validates the already-enumerated role's
