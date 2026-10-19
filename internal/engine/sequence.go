@@ -155,11 +155,11 @@ func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationV
 	if err != nil {
 		return ids.ObjectAddress{}, err
 	}
-	fresh.catalog = e.privateCatalogLocked(changes)
-	fresh.Recapture(fresh.catalog)
+	fresh.Catalog = e.privateCatalogLocked(changes)
+	fresh.Recapture(fresh.Catalog)
 	*auth = fresh
 	// Keep the captured incarnation, not a replacement now found by name.
-	r, ok := auth.catalog.Relation(ref.Address)
+	r, ok := auth.Catalog.Relation(ref.Address)
 	if !ok {
 		return ids.ObjectAddress{}, ids.ErrCatalogReplaced
 	}
@@ -218,8 +218,8 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		auth.catalog = e.privateCatalogLocked(changes)
-		auth.Recapture(auth.catalog)
+		auth.Catalog = e.privateCatalogLocked(changes)
+		auth.Recapture(auth.Catalog)
 		if table, ok := changes.descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
 			auth.stagedTemporary = table.Address()
 		}
@@ -232,12 +232,12 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		if nsd, ok := auth.catalog.Namespace(ns.Address); ok && nsd.Temporary == op.session.token {
+		if nsd, ok := auth.Catalog.Namespace(ns.Address); ok && nsd.Temporary == op.session.token {
 			scope.owner.accessedTemporary = true
 		}
 		name := s.Name.Parts[len(s.Name.Parts)-1].Text
 		key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}
-		if _, ok := auth.catalog.LookupName(key); ok {
+		if _, ok := auth.Catalog.LookupName(key); ok {
 			e.mu.Unlock()
 			if s.IfNotExists {
 				op.existingRelationNotice(name)
@@ -264,8 +264,8 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			return Result{}, err
 		}
 		columns := e.sequenceColumnsLocked()
-		d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: rev, SequencePlanStamp: rev, Owner: auth.state.CurrentUser, Columns: columns, Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, RelationKind: catalog.SequenceRelation, Sequence: &options}
-		d.Security.ACL = e.creationACLChangesLocked(changes, auth.catalog, d.Owner, d.Namespace(), authorization.DefaultSequences)
+		d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: rev, SequencePlanStamp: rev, Owner: auth.State.CurrentUser, Columns: columns, Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, RelationKind: catalog.SequenceRelation, Sequence: &options}
+		d.Security.ACL = e.creationACLChangesLocked(changes, auth.Catalog, d.Owner, d.Namespace(), authorization.DefaultSequences)
 		d.ColumnMeta.HighWater = 3
 		// OWNED BY may refresh auth after waiting for its table. Retain the
 		// authority that actually passed the earlier namespace CREATE check.
@@ -306,7 +306,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			}
 			return Result{}, err
 		}
-		old := auth.catalog.MustRelation(ref.Address)
+		old := auth.Catalog.MustRelation(ref.Address)
 		err = sequenceKind(old)
 		if err == nil {
 			err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
@@ -328,7 +328,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if err != nil {
 			return Result{}, err
 		}
-		current, ok := auth.catalog.Relation(ref.Address)
+		current, ok := auth.Catalog.Relation(ref.Address)
 		if !ok {
 			return Result{}, ids.ErrCatalogReplaced
 		}
@@ -367,7 +367,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 				if old.Sequence.Identity {
 					a := old.Sequence.Owned
 					a.SubID = 0
-					table := auth.catalog.MustRelation(a)
+					table := auth.Catalog.MustRelation(a)
 					return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot change ownership of identity sequence", Detail: fmt.Sprintf(`Sequence "%s" is linked to table "%s".`, old.Name(), table.Name())}
 				}
 				options.Owned, err = e.ownedSequenceLocked(scope, &auth, changes, &d, option.Owned)
@@ -384,7 +384,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			d.ObjectName = s.Target.Text
 		case "logged", "unlogged":
 			if old.Sequence.Persistence == "temporary" {
-				ns := auth.catalog.MustNamespace(old.Namespace())
+				ns := auth.Catalog.MustNamespace(old.Namespace())
 				diagnostic := sqlError("42P16", fmt.Sprintf(`cannot change logged status of table "%s" because it is temporary`, old.Name())).(*sqlstate.Error)
 				diagnostic.Schema, diagnostic.Table = ns.Name(), old.Name()
 				return Result{}, diagnostic
@@ -395,12 +395,12 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			if options.Owned != (ids.ObjectAddress{}) {
 				a := options.Owned
 				a.SubID = 0
-				return Result{}, sequenceLinkedError(&d, auth.catalog.MustRelation(a), false)
+				return Result{}, sequenceLinkedError(&d, auth.Catalog.MustRelation(a), false)
 			}
-			actor, _ := auth.roles.Descriptor(auth.state.CurrentUser)
+			actor, _ := auth.Roles.Descriptor(auth.State.CurrentUser)
 			if !actor.Superuser {
-				role, _ := auth.roles.Descriptor(target)
-				allowed, err := auth.roles.CanSetRole(actor.Ref, target)
+				role, _ := auth.Roles.Descriptor(target)
+				allowed, err := auth.Roles.CanSetRole(actor.Ref, target)
 				if err != nil {
 					return Result{}, err
 				}
@@ -408,7 +408,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 					return Result{}, sqlError("42501", fmt.Sprintf(`must be able to SET ROLE "%s"`, role.Name))
 				}
 				targetAuth := auth
-				targetAuth.state.CurrentUser = target
+				targetAuth.State.CurrentUser = target
 				if err = targetAuth.CheckCreate(e.catalog.Domain.Ref(ref.Epoch, d.Namespace())); err != nil {
 					return Result{}, err
 				}
@@ -419,7 +419,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			if options.Owned != (ids.ObjectAddress{}) {
 				a := options.Owned
 				a.SubID = 0
-				return Result{}, sequenceLinkedError(&d, auth.catalog.MustRelation(a), true)
+				return Result{}, sequenceLinkedError(&d, auth.Catalog.MustRelation(a), true)
 			}
 			destination := &parser.CreateSequence{Name: parser.ObjectName{Parts: []parser.Identifier{s.Target, {Text: d.Name()}}}, Persistence: "logged"}
 			ns, err := e.relationCreationNamespaceLocked(auth, destination.Name, destination.Persistence, changes)
@@ -428,8 +428,8 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			}
 			// pg_temp may stage a namespace. Resolve permissions and endpoints
 			// against that same private catalog, without publishing on rejection.
-			auth.catalog = e.privateCatalogLocked(changes)
-			auth.Recapture(auth.catalog)
+			auth.Catalog = e.privateCatalogLocked(changes)
+			auth.Recapture(auth.Catalog)
 			if table, ok := changes.descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
 				auth.stagedTemporary = table.Address()
 			}
@@ -439,8 +439,8 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			if _, err = adjustRelationCreationPersistence(auth, ns, destination.Persistence); err != nil {
 				return Result{}, err
 			}
-			oldNamespace := auth.catalog.MustNamespace(d.Namespace())
-			newNamespace := auth.catalog.MustNamespace(ns.Address)
+			oldNamespace := auth.Catalog.MustNamespace(d.Namespace())
+			newNamespace := auth.Catalog.MustNamespace(ns.Address)
 			if oldNamespace.Temporary != (ids.SessionToken{}) || newNamespace.Temporary != (ids.SessionToken{}) {
 				return Result{}, sqlError("0A000", "cannot move objects into or out of temporary schemas")
 			}
@@ -455,7 +455,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			d.SequencePlanStamp = rev
 		}
 		key := catalog.DescriptorNameKey(&d)
-		if a, exists := auth.catalog.LookupName(key); exists && a != d.Address() {
+		if a, exists := auth.Catalog.LookupName(key); exists && a != d.Address() {
 			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, d.Name()))
 		}
 		e.catalogChangeLocked(changes, d.Address(), &d)
@@ -501,7 +501,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			}
 			return Result{}, er
 		}
-		d := auth.catalog.MustRelation(ref.Address)
+		d := auth.Catalog.MustRelation(ref.Address)
 		if d.RelationKind != catalog.SequenceRelation {
 			if d.RelationKind == catalog.IndexRelation {
 				e.mu.Unlock()
@@ -516,7 +516,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		}
 		if d.Sequence.Identity {
 			e.mu.Unlock()
-			return Result{}, identitySequenceDropError(auth.catalog, d)
+			return Result{}, identitySequenceDropError(auth.Catalog, d)
 		}
 		refs = append(refs, ref)
 	}
@@ -538,7 +538,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		targets[i] = ref.Address
 	}
 	// Every stored-expression owner shares one private dependency closure.
-	checkStage := e.BeginCatalogStage(auth.catalog)
+	checkStage := e.BeginCatalogStage(auth.Catalog)
 	checkStage.authorizeLocked(auth, scope.op.session)
 	defer e.DiscardCatalogStage(checkStage)
 	checkStage.dependencyPath, err = e.referencePath(auth)
@@ -555,11 +555,11 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if auth.catalog.Epoch() != e.catalog.state.Epoch() {
+	if auth.Catalog.Epoch() != e.catalog.state.Epoch() {
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	for address := range checkStage.Descriptors {
-		expected := auth.catalog.Get(address)
+		expected := auth.Catalog.Get(address)
 		if original, private := changes.originals[address]; private {
 			expected = original
 		}
@@ -568,7 +568,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		}
 	}
 	for address := range checkStage.Removals {
-		expected := auth.catalog.Get(address)
+		expected := auth.Catalog.Get(address)
 		if original, private := changes.originals[address]; private {
 			expected = original
 		}
@@ -584,7 +584,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	}
 	cascade := checkStage.viewCascadeNames
 	for _, ref := range refs {
-		d, ok := auth.catalog.Relation(ref.Address)
+		d, ok := auth.Catalog.Relation(ref.Address)
 		if !ok {
 			return Result{}, ids.ErrCatalogReplaced
 		}
@@ -592,14 +592,14 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			return Result{}, err
 		}
 		if d.Sequence.Identity {
-			return Result{}, identitySequenceDropError(auth.catalog, d)
+			return Result{}, identitySequenceDropError(auth.Catalog, d)
 		}
 		e.catalogChangeLocked(changes, ref.Address, nil)
 		delete(changes.generators, ref.Address)
 	}
 	for address, descriptor := range checkStage.Descriptors {
 		next, ok := descriptor.(*catalog.Relation)
-		old, oldOK := auth.catalog.Relation(address)
+		old, oldOK := auth.Catalog.Relation(address)
 		if !ok || !oldOK {
 			continue
 		}
@@ -614,7 +614,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	for address := range checkStage.Removals {
 		targets = append(targets, address)
 	}
-	changes.dependencies = append(changes.dependencies, catalogDependencyObservation{base: auth.catalog.State(), targets: targets})
+	changes.dependencies = append(changes.dependencies, catalogDependencyObservation{base: auth.Catalog.State(), targets: targets})
 	scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 	scope.catalog = changes
 	emitViewCascade(scope.op, cascade)
@@ -628,7 +628,7 @@ func relationDropOwner(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Rel
 	if _, validationErr := auth.object(ref); validationErr != nil {
 		return validationErr
 	}
-	ns, ok := auth.catalog.Namespace(d.Namespace())
+	ns, ok := auth.Catalog.Namespace(d.Namespace())
 	if !ok {
 		return fmt.Errorf("stuntgres: invalid sequence namespace")
 	}

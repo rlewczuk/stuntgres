@@ -55,9 +55,9 @@ func (s *StatementScope) selectPreparedAnalysis(stmt parser.Statement) error {
 	if err != nil {
 		return err
 	}
-	s.preparedNamespace = auth.catalog.State().NamespaceGeneration()
+	s.preparedNamespace = auth.Catalog.State().NamespaceGeneration()
 	s.preparedPrivate = auth.session.transactions.catalog
-	s.preparedEpoch = auth.catalog.Epoch()
+	s.preparedEpoch = auth.Catalog.Epoch()
 	if s.Expected == nil {
 		return nil
 	}
@@ -70,12 +70,12 @@ func (s *StatementScope) selectPreparedAnalysis(stmt parser.Statement) error {
 }
 
 func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *preparedAnalysis, path sequenceEnvironment) bool {
-	if analysis == nil || analysis.needsReanalysis || analysis.domain != e.catalog.Domain || analysis.epoch != auth.catalog.Epoch() || analysis.session != auth.session.token || analysis.private != auth.session.transactions.catalog || analysis.namespace != auth.catalog.State().NamespaceGeneration() || !sameSequenceEnvironment(analysis.path, path) {
+	if analysis == nil || analysis.needsReanalysis || analysis.domain != e.catalog.Domain || analysis.epoch != auth.Catalog.Epoch() || analysis.session != auth.session.token || analysis.private != auth.session.transactions.catalog || analysis.namespace != auth.Catalog.State().NamespaceGeneration() || !sameSequenceEnvironment(analysis.path, path) {
 		return false
 	}
 	for _, dep := range analysis.dependencies {
-		d := auth.catalog.Get(dep.Ref.Address)
-		if d == nil || dep.Ref.Domain() != e.catalog.Domain || dep.Ref.Epoch != auth.catalog.Epoch() || preparedDefinitionStamp(d, auth.session) != dep.Revision {
+		d := auth.Catalog.Get(dep.Ref.Address)
+		if d == nil || dep.Ref.Domain() != e.catalog.Domain || dep.Ref.Epoch != auth.Catalog.Epoch() || preparedDefinitionStamp(d, auth.session) != dep.Revision {
 			return false
 		}
 	}
@@ -118,14 +118,14 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 			return nil
 		}
 		seen[ref] = true
-		d := auth.catalog.Get(ref.Address)
-		if d == nil || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.catalog.Epoch() {
+		d := auth.Catalog.Get(ref.Address)
+		if d == nil || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.Catalog.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
 		cell.dependencies = append(cell.dependencies, catalog.ExpressionDependency{Ref: ref, Revision: preparedDefinitionStamp(d, auth.session)})
 		if relation, ok := d.(*catalog.Relation); ok && relation.RelationKind == catalog.ViewRelation && relation.View != nil {
 			for _, leaf := range viewOf(relation).sources {
-				child, err := storedViewUseReference(auth.catalog, relation, leaf.ref)
+				child, err := storedViewUseReference(auth.Catalog, relation, leaf.ref)
 				if err != nil {
 					return err
 				}
@@ -134,7 +134,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 				}
 			}
 			for _, dep := range viewOf(relation).dependencies {
-				child, err := storedViewUseReference(auth.catalog, relation, dep.Ref)
+				child, err := storedViewUseReference(auth.Catalog, relation, dep.Ref)
 				if err != nil {
 					return err
 				}
@@ -193,8 +193,8 @@ func (e *Engine) admittedReference(auth AuthorizationView, name parser.ObjectNam
 	if ref.Domain() == nil {
 		return e.resolveReference(auth, name)
 	}
-	d, ok := auth.catalog.Relation(ref.Address)
-	if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.catalog.Epoch() {
+	d, ok := auth.Catalog.Relation(ref.Address)
+	if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.Catalog.Epoch() {
 		return ids.ObjectRef{}, ids.ErrCatalogReplaced
 	}
 	ns := e.catalog.Domain.Ref(ref.Epoch, d.Namespace())
@@ -207,7 +207,7 @@ func (e *Engine) admittedReference(auth AuthorizationView, name parser.ObjectNam
 		return ids.ObjectRef{}, err
 	}
 	if auth.session != nil {
-		if namespace, ok := auth.catalog.Namespace(d.Namespace()); ok && namespace.Temporary == auth.session.token {
+		if namespace, ok := auth.Catalog.Namespace(d.Namespace()); ok && namespace.Temporary == auth.session.token {
 			auth.session.transactions.accessedTemporary = true
 		}
 	}

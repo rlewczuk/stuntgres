@@ -232,10 +232,10 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 				}
 			}
 			changed := *evaluation.routineAuthority
-			changed.catalog = changed.catalog.WithState(catalog.CloneState(changed.catalog.State()))
+			changed.Catalog = changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 			replacement := *captured
 			replacement.Strict = !captured.Strict
-			changed.catalog.State().SetDescriptor(address, &replacement)
+			changed.Catalog.State().SetDescriptor(address, &replacement)
 			probe = evaluation
 			probe.routineAuthority = &changed
 			if err := admitRoutineCall(&probe, call, false, false); err == nil {
@@ -402,7 +402,7 @@ func TestJSONBRecordRoutineFailedConstructor(t *testing.T) {
 func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 	e, op, scope := jsonbRecordRoutineUnitFixture(t)
 	other := New()
-	foreignOwner := other.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	foreignOwner := other.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	for _, expression := range []string{
 		"jsonb_populate_record(NULL::strict_null_rows,'{}'::jsonb)",
 		"jsonb_populate_recordset(NULL::strict_null_rows,'[]'::jsonb)",
@@ -419,7 +419,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 		base := e.CatalogRead()
 		// Reusing a live, same-domain principal is a genuine owner-COW, even
 		// though the SQL surface does not offer ALTER FUNCTION OWNER here.
-		target := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("jsonb_authority_owner")
+		target := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("jsonb_authority_owner")
 		stage := e.BeginCatalogStage(base)
 		if err := stageOwnership(stage, captured, target); err != nil {
 			t.Fatal(err)
@@ -434,7 +434,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 		ownerOp, ownerDone := roleOperation(t, e, "jsonb_authority_owner")
 		ownerAuth := eMustJSONBRoutineAuthority(t, e, ownerOp)
 		ownerDone()
-		if got, err := validateRoutineDescriptor(auth.catalog, auth.roles, captured); err != nil || got != current {
+		if got, err := validateRoutineDescriptor(auth.Catalog, auth.Roles, captured); err != nil || got != current {
 			t.Fatal("compatible owner declaration", err)
 		}
 		for _, dep := range original {
@@ -479,7 +479,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 				t.Fatal(err)
 			}
 			bad := badStage.Descriptors[current.Address()].(*catalog.Procedure)
-			if _, err := validateRoutineDescriptor(auth.catalog, auth.roles, bad); err == nil {
+			if _, err := validateRoutineDescriptor(auth.Catalog, auth.Roles, bad); err == nil {
 				t.Fatal("zero/foreign staged owner provenance accepted")
 			}
 			if _, err := e.ValidateCatalogStage(context.Background(), badStage); err == nil {
@@ -500,7 +500,7 @@ func TestJSONBRecordRoutineACLCOW(t *testing.T) {
 	e, op, scope := jsonbRecordRoutineUnitFixture(t)
 	readerOp, readerDone := roleOperation(t, e, "jsonb_authority_reader")
 	defer readerDone()
-	reader := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("jsonb_authority_reader")
+	reader := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("jsonb_authority_reader")
 	for _, expression := range []string{
 		"jsonb_populate_record(NULL::strict_null_rows,NULL::jsonb)",
 		"jsonb_populate_recordset(NULL::strict_null_rows,NULL::jsonb)",
@@ -540,7 +540,7 @@ func TestJSONBRecordRoutineACLCOW(t *testing.T) {
 			if current == captured || current.Revision() != captured.Revision() {
 				t.Fatal("ACL COW changed original definition identity")
 			}
-			if got, err := validateRoutineDescriptor(auth.catalog, auth.roles, captured); err != nil || got != current {
+			if got, err := validateRoutineDescriptor(auth.Catalog, auth.Roles, captured); err != nil || got != current {
 				t.Fatal("ACL COW declaration compatibility", err)
 			}
 			probe := evaluation

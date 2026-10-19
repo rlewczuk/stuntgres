@@ -167,7 +167,7 @@ func TestDriverBatchRoleRetirementCandidateRestoration(t *testing.T) {
 	}
 	a.transactions.catalog = cloneCatalogChanges(before)
 	sessionSQL(t, b, "CREATE SCHEMA restoration_peer AUTHORIZATION restored")
-	if retirement.roles == nil || retirement.roles.root.Read(authorization.PrincipalRef{}).LookupRef("restored") != (authorization.PrincipalRef{}) {
+	if retirement.roles == nil || retirement.roles.Root.Read(authorization.PrincipalRef{}).LookupRef("restored") != (authorization.PrincipalRef{}) {
 		t.Fatal("retirement fork did not carry the private deletion")
 	}
 	if err := m.end(nil); err != nil {

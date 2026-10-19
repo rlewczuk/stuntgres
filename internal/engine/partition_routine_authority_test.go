@@ -36,7 +36,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	}
 	auth := capture(reader)
 	var owner *catalog.Relation
-	for _, descriptor := range auth.catalog.Descriptors() {
+	for _, descriptor := range auth.Catalog.Descriptors() {
 		if relation, ok := descriptor.(*catalog.Relation); ok && relation.Name() == "partition_original" {
 			owner = relation
 		}
@@ -65,9 +65,9 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	sentinel := []sqltype.Value{text("outer")}
 	newEvaluation := func(auth AuthorizationView) EvalContext {
 		scope := &StatementScope{routineAuth: auth}
-		return EvalContext{Context: context.Background(), Row: sentinel, Scope: 7, Frame: 9, statementScope: scope, catalog: auth.catalog, routineAuthority: &auth}
+		return EvalContext{Context: context.Background(), Row: sentinel, Scope: 7, Frame: 9, statementScope: scope, catalog: auth.Catalog, routineAuthority: &auth}
 	}
-	for _, descriptor := range auth.catalog.Descriptors() {
+	for _, descriptor := range auth.Catalog.Descriptors() {
 		if plain, ok := descriptor.(*catalog.Relation); ok && plain.Name() == "partition_plain" {
 			local := newEvaluation(auth)
 			var buffer [32]catalog.PartitionDatum
@@ -140,11 +140,11 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	retagged, _, err := retagBoundTypes(otherAuth.catalog, original.Definition, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+	retagged, _, err := retagBoundTypes(otherAuth.Catalog, original.Definition, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if old == nil {
 			return nil
 		}
-		current, _ := otherAuth.catalog.LookupType(old.ID())
+		current, _ := otherAuth.Catalog.LookupType(old.ID())
 		return current
 	})
 	if err != nil {
@@ -158,13 +158,13 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	// A genuinely bound old expression must reject a newer declaration even
 	// when its address, engine and epoch all still match.
 	staleAuth := auth
-	state := *auth.catalog.State()
+	state := *auth.Catalog.State()
 	state.CloneDescriptors()
 	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 1811}
 	declaration := *state.MustProcedure(address)
 	declaration.ObjectRevision++
 	state.SetDescriptor(address, &declaration)
-	staleAuth.catalog = staleAuth.catalog.WithState(&state)
+	staleAuth.Catalog = staleAuth.Catalog.WithState(&state)
 	staleEvaluation := newEvaluation(staleAuth)
 	if _, err := evaluatePartitionRecipe(&staleEvaluation, owner, 0, row); err == nil {
 		t.Fatal("stale declaration revision was rescued by address")

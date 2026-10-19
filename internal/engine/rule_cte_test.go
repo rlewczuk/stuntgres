@@ -65,7 +65,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		selection := &cteDefinition{query: provider, owner: 1}
 		for _, protected := range []*cteDefinition{definition, selection} {
 			scan := &derivedNode{querySchema: querySchema(src.Columns), query: protected.query, cte: protected, scanFrame: 1}
-			mapped, err := newRuleTreeMapper(auth.catalog, func(frame uint32) uint32 { return frame + 7 }, 4, []*cteDefinition{protected}).query(scan)
+			mapped, err := newRuleTreeMapper(auth.Catalog, func(frame uint32) uint32 { return frame + 7 }, 4, []*cteDefinition{protected}).query(scan)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -83,11 +83,11 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		action := binding{ctes: []*cteDefinition{local}, query: &BoundQuery{Root: &projectNode{querySchema: querySchema(sink.Columns), frame: 1, child: scan, expressions: provider.Root.(*projectNode).expressions, analysisExpressions: []expr.Expr{subqueryExpression{queryPlan: provider, cteDefinition: true}}}}}
 		parent := original.binding
 		parent.ctes = []*cteDefinition{definition}
-		mapped, err := isolateRuleCTEFrames(auth.catalog, parent, action, &parser.Insert{})
+		mapped, err := isolateRuleCTEFrames(auth.Catalog, parent, action, &parser.Insert{})
 		if err != nil {
 			t.Fatal(err)
 		}
-		mapped, err = offsetRuleSources(auth.catalog, mapped, 3, parent.ctes)
+		mapped, err = offsetRuleSources(auth.Catalog, mapped, 3, parent.ctes)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -100,7 +100,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		if result.query.Root.(*projectNode).frame == 2 || result.query.Root.(*projectNode).child.(*sourceNode).occurrence != 4 {
 			t.Fatal("provider frame/occurrence was not mapped exactly once")
 		}
-		final, err := finalizeRuleQuery(auth.catalog, project)
+		final, err := finalizeRuleQuery(auth.Catalog, project)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -146,7 +146,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		root := &projectNode{querySchema: querySchema(sink.Columns), frame: 1, child: scan, expressions: []expr.Expr{ruleUnitInt(sink, 1), ruleUnitInt(sink, 10)}, analysisExpressions: []expr.Expr{subqueryExpression{queryPlan: provider, cteDefinition: true}}}
 		finalized := make(map[LogicalNode]bool)
 		finishCount := 0
-		mapper := newRuleTreeMapper(auth.catalog, nil, 0, nil, ruleTreeMapping{
+		mapper := newRuleTreeMapper(auth.Catalog, nil, 0, nil, ruleTreeMapping{
 			leaf: func(expr expr.Expr) (expr.Expr, bool, error) {
 				if column, ok := expr.(columnExpression); ok && column.scope == rulePseudoScope {
 					return ruleUnitInt(sink, 11), true, nil
@@ -155,7 +155,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 			},
 			finish: func(root LogicalNode) (LogicalNode, error) {
 				finishCount++
-				result, err := finalizeRuleQuery(auth.catalog, root, finalized)
+				result, err := finalizeRuleQuery(auth.Catalog, root, finalized)
 				if err == nil {
 					finalized[result] = true
 				}
@@ -192,7 +192,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		owned := &cteDefinition{statement: auxiliary.syntax, mutation: &auxiliary.binding, owner: 1, name: "ignored"}
 		b := original.binding
 		b.ctes = []*cteDefinition{owned}
-		mapped, err := remapRuleBinding(auth.catalog, b, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
+		mapped, err := remapRuleBinding(auth.Catalog, b, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -273,7 +273,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	// Mutate the actual normalized execution binding, not a stand-alone clone.
 	firstConflict.markAffected(ids.RowID(42), 0)
 	firstConflict.selected = []ids.ObjectAddress{sink.Address()}
-	firstConflict.catalog = auth.catalog.State()
+	firstConflict.catalog = auth.Catalog.State()
 	firstConflict.checkpoint = make(lock.Checkpoint)
 	firstConflict.statementKeys = make(lock.Checkpoint)
 	firstConflict.frame = make([]sqltype.Value, 4)

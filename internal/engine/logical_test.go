@@ -213,7 +213,7 @@ func TestLogicalDependenciesMetadataAndAuthorization(t *testing.T) {
 	column := roleTableRef(t, aclEngine, "secret")
 	column.Address.SubID = 1
 	reader, _ := aclEngine.Roles().Lookup("reader")
-	if err := aclEngine.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: aclEngine.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
+	if err := aclEngine.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: aclEngine.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, aclEngine, owner, "SET SESSION AUTHORIZATION reader")

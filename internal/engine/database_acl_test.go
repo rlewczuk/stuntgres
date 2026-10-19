@@ -110,7 +110,7 @@ func TestDatabaseTemporaryCapturedRights(t *testing.T) {
 	e, owner, _, _, reader := ownershipUnitRoles()
 	base := e.CatalogRead()
 	auth := catalogAuthorization(e, base)
-	auth.state.CurrentUser = reader
+	auth.State.CurrentUser = reader
 	if rights, err := auth.accessView.ownTemporaryPrivileges(auth); err != nil || rights != authorization.UsagePrivilege|authorization.CreatePrivilege {
 		t.Fatal("PUBLIC TEMP baseline", rights, err)
 	}
@@ -119,7 +119,7 @@ func TestDatabaseTemporaryCapturedRights(t *testing.T) {
 	next.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.DatabasePrivileges}}}
 	candidate.SetDescriptor(catalog.CurrentDatabaseAddress, &next)
 	fresh := catalogAuthorization(e, e.catalog.read(candidate))
-	fresh.state.CurrentUser = reader
+	fresh.State.CurrentUser = reader
 	if rights, err := fresh.accessView.ownTemporaryPrivileges(fresh); err != nil || rights != authorization.UsagePrivilege {
 		t.Fatal("revoked own namespace keeps USAGE only", rights, err)
 	}
@@ -128,11 +128,11 @@ func TestDatabaseTemporaryCapturedRights(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := databaseRights(ctx, fresh.catalog, fresh.roles, reader); !errors.Is(err, context.Canceled) {
+	if _, err := databaseRights(ctx, fresh.Catalog, fresh.Roles, reader); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	foreign := New().roles.domain.Principal(reader.ID())
-	if _, err := databaseRights(context.Background(), fresh.catalog, fresh.roles, foreign); err == nil {
+	if _, err := databaseRights(context.Background(), fresh.Catalog, fresh.Roles, foreign); err == nil {
 		t.Fatal("foreign principal accepted")
 	}
 }
@@ -152,7 +152,7 @@ func TestDatabaseTemporaryDeniedAllocation(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	auth.state.CurrentUser = reader
+	auth.State.CurrentUser = reader
 	base, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
 	changes := cloneCatalogChanges(s.transactions.catalog)
 	ref, err := e.relationCreationNamespaceLocked(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: "database_denied"}}}, "temporary", changes)

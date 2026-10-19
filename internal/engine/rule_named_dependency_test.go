@@ -126,7 +126,7 @@ func TestRuleNamedConstraintRetirement(t *testing.T) {
 						mode = "CASCADE"
 					}
 					actions := statement(t, "ALTER TABLE sink DROP CONSTRAINT sink_key "+mode).(*parser.AlterTable).Actions
-					next, err := notNullCandidate(op, auth.catalog, parent, actions[0], notNullDirect)
+					next, err := notNullCandidate(op, auth.Catalog, parent, actions[0], notNullDirect)
 					if err != nil {
 						t.Fatal(err)
 					}

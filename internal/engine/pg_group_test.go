@@ -104,7 +104,7 @@ func TestPGGroupDescriptor(t *testing.T) {
 			t.Fatal("exact group metadata", i, c)
 		}
 	}
-	if !d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.Security.ACL.Entries[0].Grantor != d.Owner || d.Owner != e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
+	if !d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.Security.ACL.Entries[0].Grantor != d.Owner || d.Owner != e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 		t.Fatal("PUBLIC SELECT/owner")
 	}
 	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {
@@ -219,7 +219,7 @@ func TestPGGroupRoleRoot(t *testing.T) {
 	open := func(s *StatementScope, r ids.ObjectRef) *querySource {
 		t.Helper()
 		e.mu.Lock()
-		source, err := e.openRelationSourceLocked(s, r, e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
+		source, err := e.openRelationSourceLocked(s, r, e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -285,7 +285,7 @@ func TestPGGroupCancellation(t *testing.T) {
 		if source, err := capturePGGroup(ctx, e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state), ref, d); source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("mid-pass cancellation published partial source", at, err)
 		}
-		if len(fixtureEdges(state)) != 8 || state.root.Read(authorization.PrincipalRef{}).RoleCount() != 10 {
+		if len(fixtureEdges(state)) != 8 || state.Root.Read(authorization.PrincipalRef{}).RoleCount() != 10 {
 			t.Fatal("cancellation mutated role root")
 		}
 	}

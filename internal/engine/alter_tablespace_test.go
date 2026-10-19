@@ -14,7 +14,7 @@ import (
 
 func TestAlterTablespacePreparation(t *testing.T) {
 	e, scope, auth, old := alterAddUnitScope(t)
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), old.Address())
+	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), old.Address())
 	prepare := func(actions []parser.AlterTableAction) (alterTablePreparation, error) {
 		e.mu.Lock()
 		defer e.mu.Unlock()
@@ -87,7 +87,7 @@ func TestAlterTablespaceNoop(t *testing.T) {
 	before, roles, store, revision, epoch := e.catalog.state, e.roles.published, e.storage.Relations[old.Address()], old.Revision(), e.catalog.state.Epoch()
 	actions := []parser.AlterTableAction{{Action: parser.SetTablespace, Tablespace: parser.Identifier{Text: "pg_default"}}}
 	e.mu.Lock()
-	prepared, err := e.prepareAlterTableActions(candidateScope, candidateScope.op, auth, old, e.catalog.Domain.Ref(auth.catalog.Epoch(), old.Address()), actions)
+	prepared, err := e.prepareAlterTableActions(candidateScope, candidateScope.op, auth, old, e.catalog.Domain.Ref(auth.Catalog.Epoch(), old.Address()), actions)
 	e.mu.Unlock()
 	work, destination := prepared.actions, prepared.destination
 	if err != nil || len(work) != 0 || e.catalog.state != before || e.roles.published != roles || e.storage.Relations[old.Address()] != store || old.Revision() != revision || e.catalog.state.Epoch() != epoch {
@@ -120,7 +120,7 @@ func TestAlterTablespaceNoop(t *testing.T) {
 
 func TestAlterTablespaceTypeCapture(t *testing.T) {
 	e, scope, auth, old := alterAddUnitScope(t)
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), old.Address())
+	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), old.Address())
 	before, roles, revision := e.catalog.state, e.roles.published, old.Revision()
 	prepare := func(query string) (alterTablePreparation, error) {
 		statements, err := parser.Parse(query)

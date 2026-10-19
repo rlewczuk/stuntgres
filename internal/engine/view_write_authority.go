@@ -16,7 +16,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 	if err := v.checkBinding(logical, stmt); err != nil {
 		return err
 	}
-	invoker := v.state.CurrentUser
+	invoker := v.State.CurrentUser
 	mask := authorization.UpdatePrivilege
 	switch stmt.(type) {
 	case *parser.Insert:
@@ -26,16 +26,16 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 	}
 	reads := b.returning != nil || len(logical.usedColumns) != 0 || logical.conflict != nil && len(logical.conflict.reads) != 0
 	for _, layer := range w.layers {
-		current, ok := v.catalog.Relation(layer.ref.Address)
+		current, ok := v.Catalog.Relation(layer.ref.Address)
 		if !ok || current.View != layer.relation.View {
 			return ids.ErrCatalogReplaced
 		}
 		authority := v
-		authority.state.CurrentUser = current.Owner
+		authority.State.CurrentUser = current.Owner
 		if viewOf(current).invoker {
-			authority.state.CurrentUser = invoker
+			authority.State.CurrentUser = invoker
 		}
-		source, ok := v.catalog.Relation(layer.sourceRef.Address)
+		source, ok := v.Catalog.Relation(layer.sourceRef.Address)
 		if !ok || !sameRelationRowShape(source, layer.source) {
 			return ids.ErrCatalogReplaced
 		}
@@ -54,11 +54,11 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 			if occurrence == layer.mainOccurrence && !reads {
 				continue
 			}
-			relation, ok := v.catalog.Relation(leaf.ref.Address)
+			relation, ok := v.Catalog.Relation(leaf.ref.Address)
 			if !ok {
 				return ids.ErrCatalogReplaced
 			}
-			use, err := storedViewUseReference(v.catalog, current, leaf.ref)
+			use, err := storedViewUseReference(v.Catalog, current, leaf.ref)
 			if err != nil {
 				return err
 			}

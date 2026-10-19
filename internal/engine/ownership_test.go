@@ -158,7 +158,7 @@ func TestRoleOwnershipBuiltinRootsAndRevisionHeadroom(t *testing.T) {
 			}
 		}
 	}
-	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 200000}, ObjectName: "ownership_overflow", ObjectRevision: ids.DefinitionRevision(^uint64(0)), Owner: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 200000}, ObjectName: "ownership_overflow", ObjectRevision: ids.DefinitionRevision(^uint64(0)), Owner: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Create(ns); err != nil {
 		t.Fatal(err)
@@ -221,8 +221,8 @@ func TestRoleOwnershipInitialSourceCanonicalIdentity(t *testing.T) {
 	putFixtureRole(graph, authorization.RoleDescriptor{Ref: ordinary, Name: "postgres", Superuser: true, Inherit: true})
 
 	auth := catalogAuthorization(e, e.CatalogRead())
-	auth.roles = e.roles.read(e.catalog.owner(), auth.catalog, graph)
-	auth.roleRecord = graph
+	auth.Roles = e.roles.read(e.catalog.owner(), auth.Catalog, graph)
+	auth.RoleRecord = graph
 	retained := e.roles.published
 	for _, reassign := range []bool{false, true} {
 		refs, protected, err := ownedSources(auth, []parser.RoleSpec{{Name: "postgres"}, {Name: "renamed_initial"}, {Name: "renamed_initial"}}, reassign)

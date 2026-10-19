@@ -91,7 +91,7 @@ func TestObjectGrantAtomicPublicationAndStableSubID(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := e.catalog.state.MustRelation(address)
-	if next == before.Get(address) || next.Security.ColumnACL[3].Entries[0].Grantee.Role != reader || len(next.Security.ColumnACL[1].Entries) != 0 || e.roles.published.revision != roles.revision+1 {
+	if next == before.Get(address) || next.Security.ColumnACL[3].Entries[0].Grantee.Role != reader || len(next.Security.ColumnACL[1].Entries) != 0 || e.roles.published.Revision != roles.Revision+1 {
 		t.Fatal("wrong immutable/stable publication", next)
 	}
 	if len(before.MustRelation(address).Security.ColumnACL) != 0 {
@@ -149,7 +149,7 @@ func TestObjectGrantRevisionExhaustionAndSessionFence(t *testing.T) {
 	e, op, _, _ := objectGrantUnitFixture(t)
 	originalRoles := e.roles.published
 	saturated := *originalRoles
-	saturated.revision = ^uint64(0)
+	saturated.Revision = ^uint64(0)
 	e.roles.published = &saturated
 	before := e.catalog.state
 	err := applyObjectGrantUnit(e, op, objectGrantUnitRequest())
@@ -211,7 +211,7 @@ func TestObjectGrantIndexOwnershipUsesParentDependency(t *testing.T) {
 	var dependencies []roleDependency
 	descriptorRoleDependencies(parent, parent.Owner, &dependencies)
 	descriptorRoleDependencies(index, parent.Owner, &dependencies)
-	if len(dependencies) != 1 || dependencies[0].address != address || dependencies[0].kind != 'o' {
+	if len(dependencies) != 1 || dependencies[0].Address != address || dependencies[0].Kind != 'o' {
 		t.Fatal("redundant index shared-owner dependency", dependencies)
 	}
 	e.mu.Lock()

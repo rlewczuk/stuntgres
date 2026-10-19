@@ -69,7 +69,7 @@ func (e *Engine) bindIndexKey(op *Operation, auth AuthorizationView, u sqltype.U
 			return key, sqlError("42804", "collations are not supported by type "+u.Type.DiagnosticName())
 		}
 		key.Collation = id
-		d := auth.catalog.MustCollation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)})
+		d := auth.Catalog.MustCollation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)})
 		key.CollationRef, err = d.Usage()
 		if err != nil {
 			return key, err

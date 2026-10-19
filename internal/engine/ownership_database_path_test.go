@@ -18,18 +18,18 @@ func TestRoleOwnershipDatabasePreparedPathIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	roles := cloneRoleFixture(auth.roleRecord)
-	bootstrap := fixtureRole(roles, auth.state.CurrentUser)
+	roles := cloneRoleFixture(auth.RoleRecord)
+	bootstrap := fixtureRole(roles, auth.State.CurrentUser)
 	bootstrap.Superuser = false
 	putFixtureRole(roles, bootstrap)
 	successor := e.roles.domain.Principal(100001)
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: successor, Name: "successor", Inherit: true})
-	before := catalog.CloneState(auth.catalog.State())
+	before := catalog.CloneState(auth.Catalog.State())
 	address := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	namespace := *before.MustNamespace(address)
 	namespace.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: namespace.Owner, Grantee: authorization.ACLGrantee{Role: namespace.Owner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
 	before.SetDescriptor(address, &namespace)
-	auth.roleRecord = roles
+	auth.RoleRecord = roles
 	auth.Recapture(e.catalog.read(before))
 	warm, err := e.sequenceEnvironmentLocked(auth)
 	if err != nil || !slices.Contains(warm.namespaces, address) {
@@ -41,8 +41,8 @@ func TestRoleOwnershipDatabasePreparedPathIdentity(t *testing.T) {
 	database.Owner = successor
 	after.SetDescriptor(catalog.CurrentDatabaseAddress, &database)
 	fresh := auth
-	fresh.catalog = e.catalog.read(after)
-	fresh.Recapture(fresh.catalog)
+	fresh.Catalog = e.catalog.read(after)
+	fresh.Recapture(fresh.Catalog)
 	revoked, err := e.sequenceEnvironmentLocked(fresh)
 	if err != nil || slices.Contains(revoked.namespaces, address) {
 		t.Fatal("warm path retained former database-owner authority", revoked, err)
@@ -55,7 +55,7 @@ func TestRoleOwnershipDatabasePreparedPathIdentity(t *testing.T) {
 	if err != nil || !slices.Contains(retained.namespaces, address) {
 		t.Fatal("retained pair followed live database", retained, err)
 	}
-	fresh.state.CurrentUser = successor
+	fresh.State.CurrentUser = successor
 	owned, err := e.sequenceEnvironmentLocked(fresh)
 	if err != nil || !slices.Contains(owned.namespaces, address) {
 		t.Fatal("successor did not acquire actual owner path", owned, err)

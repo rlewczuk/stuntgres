@@ -76,8 +76,8 @@ func TestSchemaExplicitCatalogPlacement(t *testing.T) {
 	// Real catalog fixture, never permission to expose system table creation SQL.
 	e.mu.Lock()
 	auth := catalogAuthorization(e, e.catalog.read(e.catalog.state))
-	stage := e.BeginCatalogStage(auth.catalog)
-	err := e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE t(id INT)").(*parser.CreateTable), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), sqltype.InputEnvironment{}, nil)
+	stage := e.BeginCatalogStage(auth.Catalog)
+	err := e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE t(id INT)").(*parser.CreateTable), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), sqltype.InputEnvironment{}, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

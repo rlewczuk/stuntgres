@@ -200,12 +200,12 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth.catalog = e.privateCatalogLocked(candidate)
-	auth.Recapture(auth.catalog)
-	stage := e.BeginCatalogStage(auth.catalog)
+	auth.Catalog = e.privateCatalogLocked(candidate)
+	auth.Recapture(auth.Catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
 	stage.authorizeLocked(auth, s)
-	if err := e.schemaTableLocked(m.op, auth, stage, definition, ns.Address, auth.state.CurrentUser, m.scope.input, nil); err != nil {
+	if err := e.schemaTableLocked(m.op, auth, stage, definition, ns.Address, auth.State.CurrentUser, m.scope.input, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := e.captureCatalogStageLocked(stage, candidate, before, nil); err != nil {

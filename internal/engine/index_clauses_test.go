@@ -453,12 +453,12 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 				parent.Columns[i].Nullable, parent.Columns[i].NullabilityKnown = true, true
 				parent.Columns[i].OriginTable, parent.Columns[i].OriginAttribute = 20000, int16(i+1)
 			}
-			setup := e.BeginCatalogStage(auth.catalog)
+			setup := e.BeginCatalogStage(auth.Catalog)
 			if err := setup.Create(parent); err != nil {
 				t.Fatal(err)
 			}
-			auth.catalog = e.stageRead(setup)
-			auth.Recapture(auth.catalog)
+			auth.Catalog = e.stageRead(setup)
+			auth.Recapture(auth.Catalog)
 			bind := func(name, query string, oid ids.OID) *catalog.Relation {
 				raw, err := parser.Parse(query)
 				if err != nil {
@@ -479,8 +479,8 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 			unsigned := bind("unsigned", "CREATE INDEX unsigned ON t((n+0) oid_ops) INCLUDE(p)", 20001)
 			cover := bind("cover", `CREATE INDEX cover ON t(lower(s) COLLATE "POSIX" bpchar_ops DESC NULLS LAST,lower(s) COLLATE "default" text_ops) INCLUDE(p)`, 20002)
 			view := e.stageRead(setup)
-			auth.catalog = view
-			auth.Recapture(auth.catalog)
+			auth.Catalog = view
+			auth.Recapture(auth.Catalog)
 			for _, index := range []*catalog.Relation{unsigned, cover} {
 				if err := validateIndexDefinition(view, index); err != nil {
 					t.Fatal(err)
@@ -581,8 +581,8 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 			if err := stage.Replace(&final); err != nil {
 				t.Fatal(err)
 			}
-			auth.catalog = compactedView
-			auth.Recapture(auth.catalog)
+			auth.Catalog = compactedView
+			auth.Recapture(auth.Catalog)
 			if err := e.rebindAlterTypeIndexes(scope, auth, &final, stage, queue); err != nil {
 				t.Fatal(err)
 			}

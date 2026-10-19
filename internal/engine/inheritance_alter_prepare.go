@@ -87,7 +87,7 @@ phases:
 			if action.Action == parser.AddUsingIndex {
 				captured := prepared.usingIndexes[attachmentIndex]
 				attachmentIndex++
-				actual, err := e.prepareUsingIndexMetadata(op, auth.catalog, reader, next, captured)
+				actual, err := e.prepareUsingIndexMetadata(op, auth.Catalog, reader, next, captured)
 				if err != nil {
 					return nil, err
 				}
@@ -121,7 +121,7 @@ phases:
 					additions = append(additions, step.added)
 				}
 			case parser.SetNotNull, parser.AddNotNull, parser.DropNotNull, parser.DropConstraint:
-				next, err = notNullCandidate(op, auth.catalog, next, action, scope.inheritanceNotNullMode(action.Column.Text))
+				next, err = notNullCandidate(op, auth.Catalog, next, action, scope.inheritanceNotNullMode(action.Column.Text))
 			case parser.DropIdentity:
 				step.identity, err = e.prepareIdentityDropDefinition(scope, auth, next, action)
 				if err == nil {
@@ -190,7 +190,7 @@ phases:
 				action := parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: added.column.Name}, Constraint: parser.Identifier{Text: added.declaration.columnName}}
 				before := next
 				var err error
-				next, err = notNullCandidate(op, auth.catalog, next, action, notNullDirect)
+				next, err = notNullCandidate(op, auth.Catalog, next, action, notNullDirect)
 				prepared.inline = append(prepared.inline, inheritancePreparedAction{old: before, next: next, err: err})
 				if err != nil {
 					next = before
@@ -202,7 +202,7 @@ phases:
 			for i, captured := range prepared.usingIndexes {
 				before := next
 				var err error
-				next, err = usingIndexNotNullCandidate(op, auth.catalog, reader, next, captured)
+				next, err = usingIndexNotNullCandidate(op, auth.Catalog, reader, next, captured)
 				if err == nil {
 					err = scope.inheritanceOnlyCreatedConstraint(before, next)
 				}

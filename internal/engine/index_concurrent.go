@@ -131,12 +131,12 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 			e.mu.Unlock()
 			return 0, err
 		}
-		stage := e.BeginCatalogStage(auth.catalog)
+		stage := e.BeginCatalogStage(auth.Catalog)
 		stage.authorizeLocked(auth, scope.op.session)
 		stage.indexParents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
-		namespace := auth.catalog.Get(parent.Namespace()).Name()
+		namespace := auth.Catalog.Get(parent.Namespace()).Name()
 		e.mu.Unlock()
-		evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: auth.catalog}
+		evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: auth.Catalog}
 		evaluation.routineAuthority = &auth
 		root, err := buildIndexRoot(&evaluation, parent, &definition, &snapshot, nil)
 		if err == nil {
@@ -152,7 +152,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 			var prepared *PreparedCatalogPublication
 			prepared, err = e.ValidateCatalogStage(scope.op.Context(), stage)
 			if err == nil {
-				_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: auth.catalog.Epoch()})
+				_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()})
 			}
 		}
 		e.DiscardCatalogStage(stage)
@@ -198,7 +198,7 @@ func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *pars
 			e.mu.Unlock()
 			return err
 		}
-		stage := e.BeginCatalogStage(auth.catalog)
+		stage := e.BeginCatalogStage(auth.Catalog)
 		stage.authorizeLocked(auth, scope.op.session)
 		stage.indexParents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
 		e.mu.Unlock()
@@ -207,7 +207,7 @@ func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *pars
 			var prepared *PreparedCatalogPublication
 			prepared, err = e.ValidateCatalogStage(scope.op.Context(), stage)
 			if err == nil {
-				_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: auth.catalog.Epoch()})
+				_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()})
 			}
 		}
 		e.DiscardCatalogStage(stage)

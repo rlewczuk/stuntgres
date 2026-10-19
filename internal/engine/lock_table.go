@@ -80,7 +80,7 @@ func (s *StatementScope) acquireExplicitLocks(stmt *parser.LockTable) error {
 		if err == nil {
 			ref, err = e.resolveRelationReference(auth, target.Name, true)
 		}
-		invoker := auth.state.CurrentUser
+		invoker := auth.State.CurrentUser
 		e.mu.Unlock()
 		if err != nil {
 			return err
@@ -109,13 +109,13 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 		if err != nil {
 			return nil, err
 		}
-		auth.state.CurrentUser = actor
-		d, ok := auth.catalog.Relation(ref.Address)
+		auth.State.CurrentUser = actor
+		d, ok := auth.Catalog.Relation(ref.Address)
 		if !ok {
 			return nil, ids.ErrCatalogReplaced
 		}
 		if !only || d.View != nil {
-			if err := inheritanceTargetGuard(auth.catalog, d); err != nil {
+			if err := inheritanceTargetGuard(auth.Catalog, d); err != nil {
 				return nil, err
 			}
 		}

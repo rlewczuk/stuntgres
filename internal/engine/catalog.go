@@ -412,9 +412,9 @@ func (e *Engine) BeginCatalogStage(base catalog.Read) *CatalogStage {
 // Retain selected private authority separately from the committed predecessor
 // already captured by authorizationLocked; building a stage needs no live read.
 func (s *CatalogStage) authorizeLocked(auth AuthorizationView, session *Session) {
-	s.authSession, s.authRevision, s.roleRevision = session, auth.revision, auth.roleRecord.revision
-	s.databaseAuthority = auth.catalog.Get(catalog.CurrentDatabaseAddress)
-	s.databasePredecessor = auth.databasePredecessor
+	s.authSession, s.authRevision, s.roleRevision = session, auth.Revision, auth.RoleRecord.Revision
+	s.databaseAuthority = auth.Catalog.Get(catalog.CurrentDatabaseAddress)
+	s.databasePredecessor = auth.DatabasePredecessor
 }
 
 func (s *CatalogStage) Create(d catalog.Descriptor) error {
@@ -1174,7 +1174,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				s.authSession.mu.Lock()
 			}
 			auth := s.authSession.authorization
-			valid := auth != nil && auth.revision == s.authRevision && e.roles.published.revision == s.roleRevision
+			valid := auth != nil && auth.revision == s.authRevision && e.roles.published.Revision == s.roleRevision
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Unlock()
 			}
@@ -1186,7 +1186,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Lock()
 			}
-			auth := AuthorizationView{accessView: accessView{owner: e.catalog.owner(), pairedCatalog: e.catalog.read(e.catalog.state), roleRecord: e.roles.published, catalog: e.catalog.read(e.catalog.state), roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), state: s.authSession.authorization.state}, engine: e}
+			auth := AuthorizationView{accessView: accessView{Owner: e.catalog.owner(), PairedCatalog: e.catalog.read(e.catalog.state), RoleRecord: e.roles.published, Catalog: e.catalog.read(e.catalog.state), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), State: s.authSession.authorization.state}, engine: e}
 			err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(e.catalog.state.Epoch(), s.materializedReplacement.original.Address()), Privileges: authorization.MaintainPrivilege})
 			if op == nil || s.authSession != op.session {
 				s.authSession.mu.Unlock()

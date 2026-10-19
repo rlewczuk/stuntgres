@@ -503,10 +503,10 @@ func (scope *StatementScope) prepareDropDefinitionProvider(auth AuthorizationVie
 	if err := scope.op.Context().Err(); err != nil {
 		return nil, err
 	}
-	if scope.finished || auth.engine != e || auth.session != scope.op.session || auth.catalog.Owner() != e.catalog.owner() || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() || old == nil || old.Address() != ref.Address || ref.Address.SubID != 0 || !scope.holdsColumnDropGrant(ref) {
+	if scope.finished || auth.engine != e || auth.session != scope.op.session || auth.Catalog.Owner() != e.catalog.owner() || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.Catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() || old == nil || old.Address() != ref.Address || ref.Address.SubID != 0 || !scope.holdsColumnDropGrant(ref) {
 		return nil, ids.ErrCatalogReplaced
 	}
-	if _, present := auth.catalog.Relation(ref.Address); !present {
+	if _, present := auth.Catalog.Relation(ref.Address); !present {
 		return nil, ids.ErrCatalogReplaced
 	}
 	if prior != nil && (prior.scope != scope || prior.txRef != scope.txRef || prior.ref != ref || prior.next == nil) {
@@ -518,11 +518,11 @@ func (scope *StatementScope) prepareDropDefinitionProvider(auth AuthorizationVie
 	if err != nil {
 		return nil, err
 	}
-	prepared := &preparedDrop{old: old, ref: ref, prior: prior, scope: scope, txRef: scope.txRef, base: auth.catalog, discovery: auth.catalog, input: auth.definition}
+	prepared := &preparedDrop{old: old, ref: ref, prior: prior, scope: scope, txRef: scope.txRef, base: auth.Catalog, discovery: auth.Catalog, input: auth.definition}
 	if reader, present := prepared.input.(interface{ discoveryReader() definitionReader }); present {
 		prepared.input = reader.discoveryReader()
 	}
-	provider := &dropProvider{base: auth.catalog, owner: e, path: path, prepared: prepared, ctx: scope.op.Context(), scope: scope}
+	provider := &dropProvider{base: auth.Catalog, owner: e, path: path, prepared: prepared, ctx: scope.op.Context(), scope: scope}
 	provider.observe(ref.Address)
 	return provider, nil
 }

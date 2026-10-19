@@ -28,7 +28,7 @@ func ownershipManualCreationFixture(t *testing.T, e *Engine, actor authorization
 	table := roleTableRef(t, e, "ownership_fence_creation.owned_table")
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	namespace := *stage.Base.MustNamespace(ns)
-	namespace.Owner = e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
+	namespace.Owner = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 	namespace.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(namespace.Owner, namespace.Owner, authorization.UsagePrivilege|authorization.CreatePrivilege, 0)}}
 	namespace.ObjectRevision++
 	if err := stage.Replace(&namespace); err != nil {
@@ -97,8 +97,8 @@ func ownershipManualStart(t *testing.T, e *Engine, session *Session, sequence id
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
-	if err != nil || actor.Superuser || !actor.Login || auth.pairedCatalog != auth.catalog || auth.catalog.MustDatabase(catalog.CurrentDatabaseAddress).Owner != actor.Ref {
+	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
+	if err != nil || actor.Superuser || !actor.Login || auth.PairedCatalog != auth.Catalog || auth.Catalog.MustDatabase(catalog.CurrentDatabaseAddress).Owner != actor.Ref {
 		t.Fatal("manual utility fixture lacks ordinary paired selected DB authority", err)
 	}
 	result, err := message.step(statement(t, "SELECT nextval('ownership_fence_seq')"))
@@ -127,7 +127,7 @@ func ownershipManualReplaceDatabase(t *testing.T, e *Engine, session *Session, b
 	if private {
 		database.Owner = session.authorization.state.CurrentUser
 	} else {
-		database.Owner = e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		database.Owner = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	}
 	database.ObjectRevision++
 	if err := stage.Replace(&database); err != nil {
@@ -163,7 +163,7 @@ func ownershipManualReplaceDatabase(t *testing.T, e *Engine, session *Session, b
 
 func ownershipManualRetainedUnchanged(t *testing.T, e *Engine, session *Session, sequence ids.ObjectRef, auth AuthorizationView, committed catalog.Descriptor, old *catalog.Relation, retainedACL authorization.ACLValue, retainedOptions catalog.SequenceOptions, before ownershipManualSnapshot, dropped bool) {
 	t.Helper()
-	if e.roles.published != before.roles || session.authorization.revision != before.revision || e.catalog.state.Epoch() != auth.catalog.Epoch() || auth.databasePredecessor != committed || auth.catalog.Get(sequence.Address) != old || old.Owner != auth.roles.LookupRef("pg_database_owner") || old.Comment != "retained sequence comment" || !reflect.DeepEqual(old.Security.ACL, retainedACL) || *old.Sequence != retainedOptions {
+	if e.roles.published != before.roles || session.authorization.revision != before.revision || e.catalog.state.Epoch() != auth.Catalog.Epoch() || auth.DatabasePredecessor != committed || auth.Catalog.Get(sequence.Address) != old || old.Owner != auth.Roles.LookupRef("pg_database_owner") || old.Comment != "retained sequence comment" || !reflect.DeepEqual(old.Security.ACL, retainedACL) || *old.Sequence != retainedOptions {
 		t.Fatal("manual utility mutated retained sequence/ACL/paired authority")
 	}
 	if session.sequences[sequence.Address] != before.memory || *before.memory != before.memoryValue || session.lastSequence != before.last {
@@ -198,16 +198,16 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 					ownershipUnitPublish(t, e, setup)
 					e.DiscardCatalogStage(setup)
 					message, auth, before := ownershipManualStart(t, e, session, sequence, changes)
-					selectedDB := auth.catalog.Get(catalog.CurrentDatabaseAddress)
-					if auth.databasePredecessor != committed || private && selectedDB == committed || !private && selectedDB != committed {
+					selectedDB := auth.Catalog.Get(catalog.CurrentDatabaseAddress)
+					if auth.DatabasePredecessor != committed || private && selectedDB == committed || !private && selectedDB != committed {
 						t.Fatal("dishonest selected/committed DB pair")
 					}
-					if err := auth.CheckCreate(e.catalog.Domain.Ref(auth.catalog.Epoch(), ns)); err != nil {
+					if err := auth.CheckCreate(e.catalog.Domain.Ref(auth.Catalog.Epoch(), ns)); err != nil {
 						t.Fatal("canonical DB owner cannot CREATE in strict namespace", err)
 					}
 					withoutDB := auth
-					withoutDB.state.CurrentUser = auth.roles.LookupRef("ownership_reader")
-					if err := withoutDB.CheckCreate(e.catalog.Domain.Ref(auth.catalog.Epoch(), ns)); err == nil {
+					withoutDB.State.CurrentUser = auth.Roles.LookupRef("ownership_reader")
+					if err := withoutDB.CheckCreate(e.catalog.Domain.Ref(auth.Catalog.Epoch(), ns)); err == nil {
 						t.Fatal("namespace PUBLIC/direct rights bypass DB-derived CREATE")
 					}
 					retainedACL := authorization.ACLValue{Explicit: old.Security.ACL.Explicit, Entries: append([]authorization.ACLEntry(nil), old.Security.ACL.Entries...)}
@@ -240,7 +240,7 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 								created = d
 							}
 						}
-						if created == nil || created.Namespace() != ns || created.Owner != auth.state.CurrentUser || created.Sequence.Start != 51 || created.Sequence.Increment != 2 || created.Sequence.Cache != 4 || created.Sequence.Owned != (ids.ObjectAddress{}) || created.Security.ACL.Explicit {
+						if created == nil || created.Namespace() != ns || created.Owner != auth.State.CurrentUser || created.Sequence.Start != 51 || created.Sequence.Increment != 2 || created.Sequence.Cache != 4 || created.Sequence.Owned != (ids.ObjectAddress{}) || created.Security.ACL.Explicit {
 							t.Fatal("CREATE did not stage actual options/owner/default ACL")
 						}
 						g := candidate.generators[created.Address()]
@@ -268,10 +268,10 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 						array = candidate.descriptors[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(enum.Array)}].(*catalog.Type)
 						members := enum.SQLType.EnumMembers()
 						wantTypeACL := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
-							objectACLUnitEntry(auth.state.CurrentUser, auth.state.CurrentUser, authorization.UsagePrivilege, 0),
-							{Grantor: auth.state.CurrentUser, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
+							objectACLUnitEntry(auth.State.CurrentUser, auth.State.CurrentUser, authorization.UsagePrivilege, 0),
+							{Grantor: auth.State.CurrentUser, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
 						}}
-						if len(members) != 2 || members[0].Label != "first" || members[1].Label != "second" || members[0].ID == members[1].ID || enum.ObjectNamespace != ns || enum.Owner != auth.state.CurrentUser || !candidate.enumCreated[enum.Address()] || array.ObjectNamespace != ns || array.Owner != enum.Owner || !array.SQLType.IsArray() || array.SQLType.Element().ID() != enum.SQLType.ID() || !reflect.DeepEqual(enum.ACL, wantTypeACL) || !reflect.DeepEqual(array.ACL, wantTypeACL) {
+						if len(members) != 2 || members[0].Label != "first" || members[1].Label != "second" || members[0].ID == members[1].ID || enum.ObjectNamespace != ns || enum.Owner != auth.State.CurrentUser || !candidate.enumCreated[enum.Address()] || array.ObjectNamespace != ns || array.Owner != enum.Owner || !array.SQLType.IsArray() || array.SQLType.Element().ID() != enum.SQLType.ID() || !reflect.DeepEqual(enum.ACL, wantTypeACL) || !reflect.DeepEqual(array.ACL, wantTypeACL) {
 							t.Fatal("CREATE ENUM lost actual members/array linkage/ACL/safety bookkeeping")
 						}
 					}
@@ -332,7 +332,7 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 						}
 					}
 					ownershipManualRetainedUnchanged(t, e, session, sequence, auth, committed, &old, retainedACL, retainedOptions, before, utility == "drop-sequence" && phase == "healthy")
-					if auth.catalog.Get(catalog.CurrentDatabaseAddress) != selectedDB {
+					if auth.Catalog.Get(catalog.CurrentDatabaseAddress) != selectedDB {
 						t.Fatal("manual utility followed live DB instead of retained selected root")
 					}
 				})
@@ -362,11 +362,11 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 				ownershipUnitPublish(t, e, setup)
 				e.DiscardCatalogStage(setup)
 				message, auth, before := ownershipManualStart(t, e, session, sequence, changes)
-				selectedDB := auth.catalog.Get(catalog.CurrentDatabaseAddress)
-				if auth.databasePredecessor != committed || private && selectedDB == committed || !private && selectedDB != committed {
+				selectedDB := auth.Catalog.Get(catalog.CurrentDatabaseAddress)
+				if auth.DatabasePredecessor != committed || private && selectedDB == committed || !private && selectedDB != committed {
 					t.Fatal("OWNED fixture lacks honest selected/predecessor pair")
 				}
-				if err := auth.CheckCreate(e.catalog.Domain.Ref(auth.catalog.Epoch(), ns)); err != nil || auth.catalog.MustRelation(table.Address).Owner != auth.state.CurrentUser {
+				if err := auth.CheckCreate(e.catalog.Domain.Ref(auth.Catalog.Epoch(), ns)); err != nil || auth.Catalog.MustRelation(table.Address).Owner != auth.State.CurrentUser {
 					t.Fatal("OWNED fixture lacks DB-derived CREATE and directly owned table", err)
 				}
 				blockerSession := sessionStart(t, e, nil)
@@ -436,7 +436,7 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if replace && !private && fresh.CheckCreate(e.catalog.Domain.Ref(fresh.catalog.Epoch(), ns)) == nil {
+				if replace && !private && fresh.CheckCreate(e.catalog.Domain.Ref(fresh.Catalog.Epoch(), ns)) == nil {
 					t.Fatal("DB-only replacement did not remove earlier schema CREATE authority")
 				}
 				candidate := message.scope.catalog
@@ -447,8 +447,8 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 					}
 				}
 				owned := table.Address
-				owned.SubID = auth.catalog.MustRelation(table.Address).Attributes[0]
-				if created == nil || created.Owner != auth.state.CurrentUser || created.Namespace() != ns || created.Sequence.Owned != owned || created.Sequence.Start != 71 || candidate.generators[created.Address()] == nil || candidate.generators[created.Address()].Called || candidate.generators[created.Address()].Last != 71 || e.catalog.state != before.roots.catalog {
+				owned.SubID = auth.Catalog.MustRelation(table.Address).Attributes[0]
+				if created == nil || created.Owner != auth.State.CurrentUser || created.Namespace() != ns || created.Sequence.Owned != owned || created.Sequence.Start != 71 || candidate.generators[created.Address()] == nil || candidate.generators[created.Address()].Called || candidate.generators[created.Address()].Last != 71 || e.catalog.state != before.roots.catalog {
 					t.Fatal("real OWNED helper did not stage otherwise-valid associated sequence without prefix")
 				}
 				finishErr := message.scope.Finish(nil)
@@ -472,7 +472,7 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 				}
 				retainedACL := authorization.ACLValue{Explicit: old.Security.ACL.Explicit, Entries: append([]authorization.ACLEntry(nil), old.Security.ACL.Entries...)}
 				ownershipManualRetainedUnchanged(t, e, session, sequence, auth, committed, &old, retainedACL, *old.Sequence, before, false)
-				if auth.catalog.Get(catalog.CurrentDatabaseAddress) != selectedDB {
+				if auth.Catalog.Get(catalog.CurrentDatabaseAddress) != selectedDB {
 					t.Fatal("OWNED wait mutated retained selected authority")
 				}
 			})

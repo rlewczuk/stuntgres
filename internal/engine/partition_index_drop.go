@@ -22,16 +22,16 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 		if !slices.Contains(g.parents, parentRef) {
 			g.parents = append(g.parents, parentRef)
 		}
-		if table := auth.catalog.MustRelation(address); table.Partition != nil || index.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
+		if table := auth.Catalog.MustRelation(address); table.Partition != nil || index.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
 			g.partition = true
 		}
-		g.descriptors[address] = auth.catalog.MustRelation(address)
+		g.descriptors[address] = auth.Catalog.MustRelation(address)
 	}
 	if _, drop := stmt.(*parser.DropIndex); drop {
 		selected := false
 		for _, target := range g.targets {
 			index := g.descriptors[target.Address]
-			table := auth.catalog.MustRelation(index.SQLIndex.Parent)
+			table := auth.Catalog.MustRelation(index.SQLIndex.Parent)
 			if table.Partition != nil || index.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
 				selected = true
 				break
@@ -44,7 +44,7 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 		return nil
 	}
 	indexes := make([]*catalog.Relation, 0, len(g.indexes))
-	for _, descriptor := range auth.catalog.Descriptors() {
+	for _, descriptor := range auth.Catalog.Descriptors() {
 		if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil {
 			indexes = append(indexes, index)
 		}
@@ -66,9 +66,9 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 				if index.SQLIndex.Constraint != nil && drop.Mode != parser.DropCascade {
 					root := index
 					for !slices.ContainsFunc(g.targets, func(target ids.ObjectRef) bool { return target.Address == root.Address() }) {
-						root = auth.catalog.MustRelation(root.SQLIndex.PartitionParent)
+						root = auth.Catalog.MustRelation(root.SQLIndex.PartitionParent)
 					}
-					table := auth.catalog.Get(index.SQLIndex.Parent)
+					table := auth.Catalog.Get(index.SQLIndex.Parent)
 					return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop index %s because other objects depend on it", root.Name()), Detail: fmt.Sprintf("constraint %s on table %s depends on index %s", index.SQLIndex.Constraint.Name, table.Name(), root.Name()), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 				}
 			}
@@ -81,7 +81,7 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 		// before taking any lock. No names are resolved after a wait.
 		root := g.descriptors[g.targets[0].Address]
 		for root.SQLIndex.PartitionParent != (ids.ObjectAddress{}) {
-			root = auth.catalog.MustRelation(root.SQLIndex.PartitionParent)
+			root = auth.Catalog.MustRelation(root.SQLIndex.PartitionParent)
 		}
 		roots[root.Address()] = true
 		for {
@@ -103,7 +103,7 @@ func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, 
 		return nil
 	}
 	for address := range roots {
-		add(auth.catalog.MustRelation(address))
+		add(auth.Catalog.MustRelation(address))
 	}
 	return nil
 }
@@ -201,7 +201,7 @@ func partitionConstraintDropActions(table *catalog.Relation, actions []parser.Al
 
 // The caller owns Engine.mu; all exits release it before candidate validation.
 func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, auth AuthorizationView, table *catalog.Relation, syntax *parser.AlterTable) (Result, error) {
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.session)
 	stage.indexOutput = scope.output
 	for _, observed := range scope.partitionRelations {

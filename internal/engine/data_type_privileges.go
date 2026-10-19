@@ -44,7 +44,7 @@ func captureDataTypePrivileges(ctx context.Context, view catalog.Read, auth Auth
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if view.Owner() == nil || view.State() == nil || auth.owner != view.Owner() || auth.catalog != view || auth.roleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != dataTypePrivilegesOID || view.Get(ref.Address) != source {
+	if view.Owner() == nil || view.State() == nil || auth.Owner != view.Owner() || auth.Catalog != view || auth.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != dataTypePrivilegesOID || view.Get(ref.Address) != source {
 		return nil, fmt.Errorf("stuntgres: invalid data_type_privileges capture")
 	}
 	// Validate paired roles/catalog/ref even if the inventory contains only
@@ -52,7 +52,7 @@ func captureDataTypePrivileges(ctx context.Context, view catalog.Read, auth Auth
 	if _, err := auth.object(ref); err != nil {
 		return nil, err
 	}
-	if err := auth.roles.ValidatePrincipal(auth.state.CurrentUser); err != nil {
+	if err := auth.Roles.ValidatePrincipal(auth.State.CurrentUser); err != nil {
 		return nil, err
 	}
 	var rows [][]sqltype.Value
@@ -65,7 +65,7 @@ func captureDataTypePrivileges(ctx context.Context, view catalog.Read, auth Auth
 		rows = append(rows, row)
 	}
 	visible := func(address ids.ObjectAddress, owner authorization.PrincipalRef, mask authorization.Privileges) (bool, error) {
-		owns, err := auth.roles.InheritsRole(auth.state.CurrentUser, owner)
+		owns, err := auth.Roles.InheritsRole(auth.State.CurrentUser, owner)
 		if err != nil || owns {
 			return owns, err
 		}
@@ -106,7 +106,7 @@ func captureDataTypePrivileges(ctx context.Context, view catalog.Read, auth Auth
 			ownerVisible := kind == "c"
 			if !ownerVisible {
 				var err error
-				ownerVisible, err = auth.roles.InheritsRole(auth.state.CurrentUser, d.Owner)
+				ownerVisible, err = auth.Roles.InheritsRole(auth.State.CurrentUser, d.Owner)
 				if err != nil {
 					return nil, err
 				}

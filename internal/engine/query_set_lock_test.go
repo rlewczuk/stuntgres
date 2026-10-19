@@ -131,7 +131,7 @@ func TestQuerySetStoredLockAuthority(t *testing.T) {
 	check := func(name string, inherited queryRowMark, denied string) {
 		t.Helper()
 		auth := catalogAuthorization(e, e.CatalogRead())
-		auth.state.CurrentUser = reader
+		auth.State.CurrentUser = reader
 		d := e.catalog.state.MustRelation(refs[name].Address)
 		err := auth.checkViewRowMarks(d, inherited, reader)
 		if denied == "" {
@@ -168,7 +168,7 @@ func TestQuerySetStoredLockAuthority(t *testing.T) {
 			check(name, queryRowMark{mode: lock.ForUpdate}, tc.name)
 		}
 		// Restore this arm before checking the other arm's independent denial.
-		if err := e.SetObjectACL(context.Background(), tc.ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.SelectPrivilege}}}); err != nil {
+		if err := e.SetObjectACL(context.Background(), tc.ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -121,56 +121,56 @@ func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Stateme
 		return AuthorizationView{}, err
 	}
 	if _, view := stmt.(*parser.CreateView); view && op.restoreTableDestination {
-		bootstrap, err := auth.roles.Descriptor(auth.state.Authenticated)
+		bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
 		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore view authority")
 		}
-		auth.namespaceUser = auth.state.CurrentUser
-		auth.state.CurrentUser = bootstrap.Ref
+		auth.namespaceUser = auth.State.CurrentUser
+		auth.State.CurrentUser = bootstrap.Ref
 	}
 	if creation, ok := stmt.(*parser.CreateQueryTable); ok && creation.Form == parser.CreateMaterializedView && op.restoreTableDestination {
-		bootstrap, err := auth.roles.Descriptor(auth.state.Authenticated)
+		bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
 		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore materialized view authority")
 		}
-		auth.namespaceUser = auth.state.CurrentUser
-		auth.state.CurrentUser = bootstrap.Ref
+		auth.namespaceUser = auth.State.CurrentUser
+		auth.State.CurrentUser = bootstrap.Ref
 	}
 	if _, index := stmt.(*parser.CreateIndex); index && op.restoreTableDestination {
-		bootstrap, err := auth.roles.Descriptor(auth.state.Authenticated)
+		bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
 		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore index authority")
 		}
-		auth.namespaceUser = auth.state.CurrentUser
-		auth.state.CurrentUser = bootstrap.Ref
+		auth.namespaceUser = auth.State.CurrentUser
+		auth.State.CurrentUser = bootstrap.Ref
 	}
 	if _, policy := stmt.(*parser.CreatePolicy); policy && op.restoreTableDestination {
-		bootstrap, err := auth.roles.Descriptor(auth.state.Authenticated)
+		bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
 		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore policy authority")
 		}
-		auth.namespaceUser = auth.state.CurrentUser
-		auth.state.CurrentUser = bootstrap.Ref
+		auth.namespaceUser = auth.State.CurrentUser
+		auth.State.CurrentUser = bootstrap.Ref
 	}
 	if _, insert := stmt.(*parser.Insert); insert && op.restoreInsertAuthority {
-		bootstrap, err := auth.roles.Descriptor(auth.state.Authenticated)
+		bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
 		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore insertion authority")
 		}
-		auth.namespaceUser = auth.state.CurrentUser
-		auth.state.CurrentUser = bootstrap.Ref
+		auth.namespaceUser = auth.State.CurrentUser
+		auth.State.CurrentUser = bootstrap.Ref
 	}
 	if op.restoreCommentAuthority {
 		comment, ok := stmt.(*parser.Comment)
 		if !ok || (comment.Kind != parser.CommentTable && comment.Kind != parser.CommentColumn && comment.Kind != parser.CommentSchema) {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore comment target")
 		}
-		bootstrap, err := auth.roles.Descriptor(auth.state.Authenticated)
+		bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
 		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore comment authority")
 		}
-		auth.namespaceUser = auth.state.CurrentUser
-		auth.state.CurrentUser = bootstrap.Ref
+		auth.namespaceUser = auth.State.CurrentUser
+		auth.State.CurrentUser = bootstrap.Ref
 	}
 	return auth, nil
 }
@@ -219,9 +219,9 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 		}
 		identity.CurrentUser = op.materializedOwner
 	}
-	authorization := AuthorizationView{accessView: accessView{owner: e.catalog.owner(), pairedCatalog: view, roleRecord: e.operationRolesLocked(op), catalog: view, roles: r, databasePredecessor: e.catalog.state.Get(catalog.CurrentDatabaseAddress), state: identity, sessionRoleState: a.state, revision: a.revision}, engine: e, definition: op.definition, settings: s.settings, session: s, materializedPopulation: op.materializedPopulation}
+	authorization := AuthorizationView{accessView: accessView{Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.operationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.catalog.state.Get(catalog.CurrentDatabaseAddress), State: identity, SessionRoleState: a.state, Revision: a.revision}, engine: e, definition: op.definition, settings: s.settings, session: s, materializedPopulation: op.materializedPopulation}
 	if _, exists := r.Find(identity.CurrentUser); !exists {
-		authorization.missingCurrent = identity.CurrentUser
+		authorization.MissingCurrent = identity.CurrentUser
 	}
 	return authorization, nil
 }
@@ -316,8 +316,8 @@ func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
 		}
 		sourceAuth := v
 		if source.principal != (authorization.PrincipalRef{}) {
-			sourceAuth.state.CurrentUser = source.principal
-			if err := sourceAuth.roles.ValidatePrincipal(source.principal); err != nil {
+			sourceAuth.State.CurrentUser = source.principal
+			if err := sourceAuth.Roles.ValidatePrincipal(source.principal); err != nil {
 				return err
 			}
 		}
@@ -328,8 +328,8 @@ func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
 	for _, source := range sources {
 		sourceAuth := v
 		if source.principal != (authorization.PrincipalRef{}) {
-			sourceAuth.state.CurrentUser = source.principal
-			if err := sourceAuth.roles.ValidatePrincipal(source.principal); err != nil {
+			sourceAuth.State.CurrentUser = source.principal
+			if err := sourceAuth.Roles.ValidatePrincipal(source.principal); err != nil {
 				return err
 			}
 		}
@@ -338,8 +338,8 @@ func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
 				return err
 			}
 		}
-		if source.relation.RelationKind == catalog.ViewRelation && (source.mark.mode != 0 || viewHasStoredRowMarks(source.relation, v.catalog)) {
-			if err := sourceAuth.checkViewRowMarks(source.relation, source.mark, sourceAuth.state.CurrentUser); err != nil {
+		if source.relation.RelationKind == catalog.ViewRelation && (source.mark.mode != 0 || viewHasStoredRowMarks(source.relation, v.Catalog)) {
+			if err := sourceAuth.checkViewRowMarks(source.relation, source.mark, sourceAuth.State.CurrentUser); err != nil {
 				return err
 			}
 		}
@@ -434,7 +434,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 	if err := validateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), next); err != nil {
 		return err
 	}
-	if e.roles.published.revision == ^uint64(0) {
+	if e.roles.published.Revision == ^uint64(0) {
 		return fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
 	state := catalog.CloneState(e.catalog.state)
@@ -443,7 +443,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 	} else {
 		state.SetDescriptor(addr, next)
 	}
-	roles := e.roles.published.advance()
+	roles := e.roles.published.Advance()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -467,12 +467,12 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 // roleCatalog is an immutable engine-owned publication stamp. All principal,
 // descriptor, name and edge storage belongs to its embedded child root.
 type roleCatalog struct {
-	root     authorization.Root
-	revision uint64
+	Root     authorization.Root
+	Revision uint64
 }
 
 // advance returns a record with the same root and the next revision. Callers
 // check revision exhaustion first.
-func (r *roleCatalog) advance() *roleCatalog {
-	return &roleCatalog{root: r.root, revision: r.revision + 1}
+func (r *roleCatalog) Advance() *roleCatalog {
+	return &roleCatalog{Root: r.Root, Revision: r.Revision + 1}
 }

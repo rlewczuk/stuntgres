@@ -22,7 +22,7 @@ func (e *Engine) stageRowSecurityFlagsLocked(scope *StatementScope, op *Operatio
 		return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	next.ObjectRevision = old.Revision() + 1
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Replace(next); err != nil {
 		return Result{}, err

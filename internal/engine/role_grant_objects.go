@@ -20,7 +20,7 @@ func (e *Engine) resolveGrantObject(v AuthorizationView, name parser.ObjectName,
 	var address ids.ObjectAddress
 	if kind == "schema" {
 		if len(name.Parts) == 1 {
-			address = v.catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Parts[0].Text})
+			address = v.Catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Parts[0].Text})
 			if name.Parts[0].Text == "pg_temp" {
 				address = temporaryNamespace(v)
 			}
@@ -34,7 +34,7 @@ func (e *Engine) resolveGrantObject(v AuthorizationView, name parser.ObjectName,
 			return ids.ObjectRef{}, err
 		}
 		for i := range path.count() {
-			found := v.catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
+			found := v.Catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
 			if len(found) == 1 {
 				address = found[0]
 				break
@@ -43,7 +43,7 @@ func (e *Engine) resolveGrantObject(v AuthorizationView, name parser.ObjectName,
 		if address == (ids.ObjectAddress{}) {
 			return ids.ObjectRef{}, sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)))
 		}
-		t := v.catalog.MustType(address)
+		t := v.Catalog.MustType(address)
 		if kind == "domain" && !t.SQLType.IsDomain() {
 			return ids.ObjectRef{}, sqlError("42809", fmt.Sprintf(`"%s" is not a domain`, objectNameText(name)))
 		}
@@ -53,13 +53,13 @@ func (e *Engine) resolveGrantObject(v AuthorizationView, name parser.ObjectName,
 			return ids.ObjectRef{}, diagnostic
 		}
 	}
-	return e.catalog.Domain.Ref(v.catalog.Epoch(), address), nil
+	return e.catalog.Domain.Ref(v.Catalog.Epoch(), address), nil
 }
 
 // Nonrelation classes share the same source selection, ACL mutation and final
 // catalog publication as relation grants, without materializing table defaults.
 func changeNonRelationGrant(op *Operation, v AuthorizationView, d catalog.Descriptor, s *parser.ObjectGrant, grantees []authorization.ACLGrantee, principals []authorization.PrincipalRef, super bool, requested authorization.Privileges, all bool) (catalog.Descriptor, error) {
-	if err := validateACL(v.roles, d); err != nil {
+	if err := validateACL(v.Roles, d); err != nil {
 		return nil, err
 	}
 	owner, old, _ := descriptorACL(d)
@@ -94,7 +94,7 @@ func changeNonRelationGrant(op *Operation, v AuthorizationView, d catalog.Descri
 	if available == 0 {
 		return nil, nil
 	}
-	nextACL, changed, err := authorization.ChangeObjectACL(op.Context(), v.roles, baseline, owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
+	nextACL, changed, err := authorization.ChangeObjectACL(op.Context(), v.Roles, baseline, owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +125,7 @@ func changeNonRelationGrant(op *Operation, v AuthorizationView, d catalog.Descri
 		n.ACL = nextACL
 		next = &n
 	}
-	if err := validateACL(v.roles, next); err != nil {
+	if err := validateACL(v.Roles, next); err != nil {
 		return nil, err
 	}
 	return next, nil

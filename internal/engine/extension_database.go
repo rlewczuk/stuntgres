@@ -19,7 +19,7 @@ func (e *Engine) initializeDatabase(name string) {
 	if err == nil {
 		e.databaseName, _ = value.Text()
 	}
-	owner := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	db := &catalog.Database{ObjectAddress: catalog.CurrentDatabaseAddress, ObjectRevision: 1, ObjectName: e.databaseName, Owner: owner}
 	e.catalog.state.SetDescriptor(db.Address(), db)
 	e.catalog.state.BindName(catalog.DescriptorNameKey(db), db.Address())
@@ -68,11 +68,11 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 		}
 	}
 	if s.Grantor != nil {
-		grantor, err := authorization.MembershipRole(v.roles, v.state, *s.Grantor)
+		grantor, err := authorization.MembershipRole(v.Roles, v.State, *s.Grantor)
 		if err != nil {
 			return Result{}, err
 		}
-		if grantor != v.state.CurrentUser {
+		if grantor != v.State.CurrentUser {
 			return Result{}, sqlError("0A000", "grantor must be current user")
 		}
 	}
@@ -84,22 +84,22 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 			}
 			grantees[i].Public = true
 		} else {
-			role, err := authorization.MembershipRole(v.roles, v.state, spec.Role)
+			role, err := authorization.MembershipRole(v.Roles, v.State, spec.Role)
 			if err != nil {
 				return Result{}, err
 			}
 			grantees[i].Role = role
 		}
 	}
-	actor, err := v.roles.Descriptor(v.state.CurrentUser)
+	actor, err := v.Roles.Descriptor(v.State.CurrentUser)
 	if err != nil {
 		return Result{}, err
 	}
-	principals, err := v.roles.RoleClosure(op.Context(), actor.Ref, true)
+	principals, err := v.Roles.RoleClosure(op.Context(), actor.Ref, true)
 	if err != nil {
 		return Result{}, err
 	}
-	db := v.catalog.MustDatabase(catalog.CurrentDatabaseAddress)
+	db := v.Catalog.MustDatabase(catalog.CurrentDatabaseAddress)
 	baseline := authorization.MaterializeDatabaseACL(db.ACL, db.Owner)
 	source, available, err := authorization.ObjectGrantSource(op.Context(), db.Owner, db.ACL, authorization.ACLValue{}, principals, actor.Superuser, requested)
 	if err != nil {
@@ -112,7 +112,7 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 	if available == 0 {
 		return Result{}, nil
 	}
-	acl, changed, err := authorization.ChangeObjectACL(op.Context(), v.roles, baseline, db.Owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
+	acl, changed, err := authorization.ChangeObjectACL(op.Context(), v.Roles, baseline, db.Owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
 	if err != nil || !changed && db.ACL.Explicit {
 		return Result{}, err
 	}
@@ -122,7 +122,7 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 	if err != nil {
 		return Result{}, err
 	}
-	if err := validateACL(v.roles, &next); err != nil {
+	if err := validateACL(v.Roles, &next); err != nil {
 		return Result{}, err
 	}
 	changes := cloneCatalogChanges(scope.owner.catalog)

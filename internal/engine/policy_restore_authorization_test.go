@@ -45,16 +45,16 @@ func TestRLSPolicyRestoreAuthorization(t *testing.T) {
 		}
 	}
 	ordinary := capture()
-	if ordinary.state != ordinary.sessionRoleState || ordinary.sessionRoleState != op.RoleState() {
+	if ordinary.State != ordinary.SessionRoleState || ordinary.SessionRoleState != op.RoleState() {
 		t.Fatal("ordinary capture lost actual session state")
 	}
-	assertTargets(ordinary, ordinary.state.CurrentUser)
+	assertTargets(ordinary, ordinary.State.CurrentUser)
 	op.restoreTableDestination = true
 	trusted := capture()
-	if trusted.state.CurrentUser != ordinary.state.Authenticated || trusted.sessionRoleState != ordinary.state || op.RoleState() != ordinary.state {
+	if trusted.State.CurrentUser != ordinary.State.Authenticated || trusted.SessionRoleState != ordinary.State || op.RoleState() != ordinary.State {
 		t.Fatal("trusted capture did not separate authority and session semantics")
 	}
-	assertTargets(trusted, ordinary.state.CurrentUser)
+	assertTargets(trusted, ordinary.State.CurrentUser)
 	// A fresh execution capture must observe a subsequent real session change;
 	// the immutable earlier preflight snapshot must not change retroactively.
 	op.restoreTableDestination = false
@@ -62,12 +62,12 @@ func TestRLSPolicyRestoreAuthorization(t *testing.T) {
 	roleExecute(t, stage, op, "SET SESSION AUTHORIZATION next_owner")
 	op.restoreTableDestination = true
 	fresh := capture()
-	if fresh.revision == trusted.revision || fresh.sessionRoleState.CurrentUser == trusted.sessionRoleState.CurrentUser || fresh.state.CurrentUser != trusted.state.CurrentUser {
+	if fresh.Revision == trusted.Revision || fresh.SessionRoleState.CurrentUser == trusted.SessionRoleState.CurrentUser || fresh.State.CurrentUser != trusted.State.CurrentUser {
 		t.Fatal("fresh capture reused old semantics or lost trusted authority")
 	}
 	assertTargets(fresh, op.RoleState().CurrentUser)
-	assertTargets(trusted, ordinary.state.CurrentUser)
-	if trusted.sessionRoleState != ordinary.state {
+	assertTargets(trusted, ordinary.State.CurrentUser)
+	if trusted.SessionRoleState != ordinary.State {
 		t.Fatal("retained semantic snapshot mutated")
 	}
 	// The flag alone still grants no trusted authority on a live engine.

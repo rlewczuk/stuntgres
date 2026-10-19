@@ -133,7 +133,7 @@ func inheritanceMetadataChild(t *testing.T, e *Engine, parent *catalog.Relation,
 	var stage *CatalogStage
 	var child *catalog.Relation
 	if err == nil {
-		stage = e.BeginCatalogStage(auth.catalog)
+		stage = e.BeginCatalogStage(auth.Catalog)
 		err = e.schemaTableLocked(op, auth, stage, raw, parent.Namespace(), owner, sqltype.InputEnvironment{}, nil)
 	}
 	if err == nil {
@@ -172,7 +172,7 @@ func inheritanceMetadataWorker(t *testing.T, command *inheritanceMetadataAdmissi
 		}
 	})
 	lockPending(t, command.e, 1)
-	ref := command.e.catalog.Domain.Ref(command.auth.catalog.Epoch(), child.Address())
+	ref := command.e.catalog.Domain.Ref(command.auth.Catalog.Epoch(), child.Address())
 	lockState := command.e.locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == command.scope.ticket && entry.Pending[0].Mode == lock.AccessExclusive
@@ -332,7 +332,7 @@ func TestInheritanceMetadataAdmissionFences(t *testing.T) {
 					result, joined := inheritanceMetadataWorker(t, command, holder, child)
 					owner := child.Owner
 					if fence == "new_descendant_owner" {
-						owner = e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("metadata_other")
+						owner = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("metadata_other")
 					}
 					inheritanceMetadataChild(t, e, child, "late_grandchild", 40, owner)
 					if fence == "subsequent_replacement" {

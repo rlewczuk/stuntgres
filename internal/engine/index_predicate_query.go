@@ -15,7 +15,7 @@ func (b *expressionBinder) partialIndexCandidate(parent ids.ObjectRef, query exp
 		return nil
 	}
 	var chosen *catalog.Relation
-	for _, descriptor := range b.queryAuth.catalog.Descriptors() {
+	for _, descriptor := range b.queryAuth.Catalog.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address || index.SQLIndex.Predicate == nil {
 			continue

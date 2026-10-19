@@ -35,8 +35,8 @@ func (s *StatementScope) DecodeLockedDomainInput(ctx context.Context, typ *sqlty
 	// Preserve the actual trusted caller captured before input, including a
 	// local RI actor; later session capture cannot substitute another principal.
 	if eval.routineAuthority != nil {
-		current.state.CurrentUser = eval.routineAuthority.state.CurrentUser
-		if err := current.roles.ValidatePrincipal(current.state.CurrentUser); err != nil {
+		current.State.CurrentUser = eval.routineAuthority.State.CurrentUser
+		if err := current.Roles.ValidatePrincipal(current.State.CurrentUser); err != nil {
 			return sqltype.Value{}, err
 		}
 	}
@@ -46,11 +46,11 @@ func (s *StatementScope) DecodeLockedDomainInput(ctx context.Context, typ *sqlty
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if current.catalog.Owner() != eval.catalog.Owner() || current.catalog.Epoch() != eval.catalog.Epoch() {
+	if current.Catalog.Owner() != eval.catalog.Owner() || current.Catalog.Epoch() != eval.catalog.Epoch() {
 		return sqltype.Value{}, ids.ErrCatalogReplaced
 	}
 	for _, provider := range providers {
-		if current.catalog.Get(provider.Address()) != provider {
+		if current.Catalog.Get(provider.Address()) != provider {
 			return sqltype.Value{}, catalog.Conflict{}
 		}
 	}
@@ -139,8 +139,8 @@ func (b *expressionBinder) decodeLiteralInput(text string, typ *sqltype.Descript
 		}
 	}
 	if owner.routineAuth.engine != nil && owner.foreignActionAuth == nil {
-		auth.state.CurrentUser = owner.routineAuth.state.CurrentUser
-		if err := auth.roles.ValidatePrincipal(auth.state.CurrentUser); err != nil {
+		auth.State.CurrentUser = owner.routineAuth.State.CurrentUser
+		if err := auth.Roles.ValidatePrincipal(auth.State.CurrentUser); err != nil {
 			return sqltype.Value{}, err
 		}
 	} else if owner.routineAuth.engine == nil {

@@ -58,7 +58,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 		}
 		plan.input.TypeDiagnosticName = name
 	}
-	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, statementScope: s, catalog: auth.catalog, Input: plan.input, Output: s.output, routineAuthority: &auth}
+	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, statementScope: s, catalog: auth.Catalog, Input: plan.input, Output: s.output, routineAuthority: &auth}
 	if plan.domainChecks {
 		evaluation.Input.DomainChecks = &evaluation
 	}
@@ -97,7 +97,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 			if err != nil {
 				return nil, err
 			}
-			if err := validateExpressionJoinExecution(&defaultEvaluation, folded, auth.catalog); err != nil {
+			if err := validateExpressionJoinExecution(&defaultEvaluation, folded, auth.Catalog); err != nil {
 				return nil, err
 			}
 			plan.defaults[i] = folded
@@ -143,7 +143,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 
 func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreignKeyJob, event foreignActionTransition, action parser.ForeignKeyAction) error {
 	e := s.op.session.Engine()
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), job.child.Address())
+	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), job.child.Address())
 	if err := s.admitForeignAction(ref, job, action != parser.ForeignKeyRestrict); err != nil {
 		return err
 	}
@@ -194,7 +194,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 	if !deletion {
 		plan, err = s.planForeignAction(ownerAuth, job, event, action)
 		if err != nil {
-			return s.foreignActionError(err, job, event, action, auth.catalog)
+			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}
 	}
 	children, retained, err := s.captureForeignActionRows(ref)
@@ -239,18 +239,18 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 	if plan != nil {
 		input = plan.input
 	}
-	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, statementScope: s, catalog: ownerAuth.catalog, Input: input, Output: s.output, routineAuthority: &ownerAuth}
+	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, statementScope: s, catalog: ownerAuth.Catalog, Input: input, Output: s.output, routineAuthority: &ownerAuth}
 	if plan != nil && plan.domainChecks {
 		evaluation.Input.DomainChecks = &evaluation
 	}
-	schema := auth.catalog.Get(job.child.Namespace()).Name()
+	schema := auth.Catalog.Get(job.child.Namespace()).Name()
 	for _, candidate := range candidates {
 		mode := lock.ForNoKeyUpdate
 		if deletion {
 			mode = lock.ForUpdate
 		}
 		if err = s.foreignKeyGrant(ref, candidate.Row, mode, children.storage); err != nil {
-			return s.foreignActionError(err, job, event, action, auth.catalog)
+			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}
 		e.mu.Lock()
 		current := e.privateCatalogLocked(s.owner.catalog)
@@ -261,7 +261,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 		}
 		old, live, rowErr := s.foreignActionRow(ref, candidate)
 		if rowErr != nil {
-			return s.foreignActionError(rowErr, job, event, action, auth.catalog)
+			return s.foreignActionError(rowErr, job, event, action, auth.Catalog)
 		}
 		if !live {
 			continue
@@ -272,7 +272,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 				return err
 			}
 			if err := s.physicalRowEvent(ref, old, lockMode, 0); err != nil {
-				return s.foreignActionError(err, job, event, action, auth.catalog)
+				return s.foreignActionError(err, job, event, action, auth.Catalog)
 			}
 		}
 		match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, old.Values, event.old.Values, s.input)
@@ -284,7 +284,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 		}
 		if deletion {
 			if err = s.stage.deleteForeignAction(ref, old); err != nil {
-				return s.foreignActionError(err, job, event, action, auth.catalog)
+				return s.foreignActionError(err, job, event, action, auth.Catalog)
 			}
 			continue
 		}
@@ -304,24 +304,24 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 				}
 			}
 			if err != nil {
-				return s.foreignActionError(err, job, event, action, auth.catalog)
+				return s.foreignActionError(err, job, event, action, auth.Catalog)
 			}
 		}
 		b := binding{ref: ref, relation: job.child, targets: plan.targets}
 		if err = e.validateMutationRow(s, b, schema, row, &evaluation); err != nil {
-			return s.foreignActionError(err, job, event, action, auth.catalog)
+			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}
 		keyChanged, err := s.uniqueKeyChanged(ref, old.Values, row)
 		if err != nil {
-			return s.foreignActionError(err, job, event, action, auth.catalog)
+			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}
 		if keyChanged {
 			if err = s.foreignKeyGrant(ref, old.Row, lock.ForUpdate, children.storage); err != nil {
-				return s.foreignActionError(err, job, event, action, auth.catalog)
+				return s.foreignActionError(err, job, event, action, auth.Catalog)
 			}
 		}
 		if err = s.claimUniqueRow(ref, old); err != nil {
-			return s.foreignActionError(err, job, event, action, auth.catalog)
+			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}
 		old.PendingKeyChange = old.PendingKeyChange || keyChanged
 		actionMode := lock.MultiNoKeyAction
@@ -329,18 +329,18 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			actionMode = lock.MultiUpdateAction
 		}
 		if err := s.physicalRowEvent(ref, old, actionMode, 0); err != nil {
-			return s.foreignActionError(err, job, event, action, auth.catalog)
+			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}
 		predecessor := [1]storage.RowVersion{old}
 		proposal := indexWriteCandidate{values: row}
 		if err = s.checkUniqueRow(ref, &proposal, predecessor[:], indexWriteBatch{}); err != nil {
-			return s.foreignActionError(err, job, event, action, auth.catalog)
+			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}
 		replacement := [1][]sqltype.Value{row}
 		batch := indexWriteBatch{values: replacement[:], actionMode: actionMode}
 		batch.set(0, proposal)
 		if err = s.stage.replace(ref, predecessor[:], batch); err != nil {
-			return s.foreignActionError(err, job, event, action, auth.catalog)
+			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}
 	}
 	if action == parser.ForeignKeySetDefault {
@@ -350,7 +350,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 		if err != nil {
 			return err
 		}
-		parentRef := e.catalog.Domain.Ref(auth.catalog.Epoch(), job.parent.Address())
+		parentRef := e.catalog.Domain.Ref(auth.Catalog.Epoch(), job.parent.Address())
 		parents, err := s.captureForeignKeyRows(parentRef, job.definition.Index)
 		if err != nil {
 			return err

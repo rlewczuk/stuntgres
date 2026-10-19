@@ -58,7 +58,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 	if ref != scope.lockedRef {
 		return fail(ids.ErrCatalogReplaced)
 	}
-	old := auth.catalog.MustRelation(ref.Address)
+	old := auth.Catalog.MustRelation(ref.Address)
 	index := policyIndex(old, name)
 	if drop && index < 0 {
 		if stmt.(*parser.DropPolicy).IfExists {
@@ -132,7 +132,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 	if err != nil {
 		return fail(err)
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
 	for _, p := range next.Security.Policies {
 		for _, expression := range []*policyExpression{policyExpressionOf(p.Using), policyExpressionOf(p.Check)} {
@@ -140,7 +140,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 				continue
 			}
 			for _, leaf := range expression.presentation.sources {
-				if descriptor, ok := auth.catalog.Descriptor(leaf.ref.Address); ok {
+				if descriptor, ok := auth.Catalog.Descriptor(leaf.ref.Address); ok {
 					stage.querySources = append(stage.querySources, descriptor)
 				}
 			}

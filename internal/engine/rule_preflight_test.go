@@ -229,7 +229,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			if !joined.correlatedRight || !joined.right.(*projectNode).ruleInvocation {
 				t.Fatal("unit did not reach the real correlated rule invocation")
 			}
-			planning := EvalContext{Context: context.Background(), catalog: auth.catalog, planStaticOperators: true}
+			planning := EvalContext{Context: context.Background(), catalog: auth.Catalog, planStaticOperators: true}
 			prepared, err := preflightQuery(&planning, composed.query.Root)
 			if err != nil {
 				t.Fatalf("row-dependent payload was evaluated during planning: %v", err)

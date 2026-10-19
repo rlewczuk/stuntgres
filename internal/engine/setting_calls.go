@@ -122,7 +122,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 		e.mu.Unlock()
 		return Result{}, captureErr
 	}
-	if current.catalog.Owner() != view.Owner() || current.catalog.Epoch() != view.Epoch() {
+	if current.Catalog.Owner() != view.Owner() || current.Catalog.Epoch() != view.Epoch() {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
@@ -138,7 +138,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 		walkBoundExpression(expression, func(node expr.Expr) {
 			address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(node.ResultUsage().Type.ID())}
 			if provider, exists := view.Descriptor(address); exists {
-				validInputs = validInputs && current.catalog.Get(address) == provider
+				validInputs = validInputs && current.Catalog.Get(address) == provider
 			}
 		})
 	}

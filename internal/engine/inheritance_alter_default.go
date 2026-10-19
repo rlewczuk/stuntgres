@@ -16,7 +16,7 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 	if err != nil {
 		return Result{}, err
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
@@ -82,7 +82,7 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
-		_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: auth.catalog.Epoch()})
+		_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()})
 	}
 	if err == nil {
 		scope.completed = true

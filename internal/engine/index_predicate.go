@@ -126,7 +126,7 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 	if err := rejectVirtualIndexUses(parent, binder.querySources[0].uses); err != nil {
 		return nil, err
 	}
-	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: binder.input, catalog: auth.catalog}
+	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: binder.input, catalog: auth.Catalog}
 	evaluation.routineAuthority, evaluation.routineChecks = &auth, binder.dependencies
 	evaluation.routineRecipe = true
 	execution, _, err := preflightCoercionsWithPolicy(&evaluation, definition, true)
@@ -137,7 +137,7 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 		return nil, sqlError("42P17", "functions in index predicate must be marked IMMUTABLE")
 	}
 	var dependencies []ids.ObjectRef
-	if _, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: parent, dependencies: &dependencies}).sql(op.Context(), auth.catalog, definition); err != nil {
+	if _, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.Roles}, owner: parent, dependencies: &dependencies}).sql(op.Context(), auth.Catalog, definition); err != nil {
 		return nil, err
 	}
 	// Match the analyzed catalog shape, not the execution tree after folding.

@@ -64,7 +64,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 				}
 				copied := old
 				copied.OID = 0
-				if err := validateCookedDefaultTemporary(copied.Expression, auth.catalog.MustNamespace(d.Namespace()).Temporary); err != nil {
+				if err := validateCookedDefaultTemporary(copied.Expression, auth.Catalog.MustNamespace(d.Namespace()).Temporary); err != nil {
 					return err
 				}
 				if d.ColumnMeta.Defaults == nil {
@@ -73,11 +73,11 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 				d.ColumnMeta.Defaults[target] = copied
 			}
 			if old, ok := in.source.ColumnMeta.Generations[sourceAttribute]; ok && declaration.generation == nil {
-				node, err := mapper.remap(old.Expression, d, auth.catalog)
+				node, err := mapper.remap(old.Expression, d, auth.Catalog)
 				if err != nil {
 					return err
 				}
-				planned, err := mapper.remap(old.Planned, d, auth.catalog)
+				planned, err := mapper.remap(old.Planned, d, auth.Catalog)
 				if err != nil {
 					return err
 				}
@@ -88,7 +88,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 					generationConflicts[target] = true
 				}
 				copied := catalog.ColumnGeneration{Kind: old.Kind, Expression: node, Planned: planned}
-				if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &copied.Dependencies, commentSnapshot: &copied.CatalogSnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
+				if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.Roles}, owner: d, dependencies: &copied.Dependencies, commentSnapshot: &copied.CatalogSnapshot}).sql(op.Context(), auth.Catalog, node); err != nil {
 					return err
 				}
 				if d.ColumnMeta.Generations == nil {
@@ -101,7 +101,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 			if old.NoInherit {
 				continue
 			}
-			node, err := mapper.remap(old.Expression, d, auth.catalog)
+			node, err := mapper.remap(old.Expression, d, auth.Catalog)
 			if err != nil {
 				return err
 			}
@@ -117,14 +117,14 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 			}
 			copied := catalog.CheckConstraint{Name: old.Name, Ordinal: len(d.Constraints.Check), Expression: node}
 			var dependencies []ids.ObjectRef
-			if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &dependencies, commentSnapshot: &copied.CommentSnapshot, visibilitySnapshot: &copied.VisibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
+			if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.Roles}, owner: d, dependencies: &dependencies, commentSnapshot: &copied.CommentSnapshot, visibilitySnapshot: &copied.VisibilitySnapshot}).sql(op.Context(), auth.Catalog, node); err != nil {
 				return err
 			}
 			for _, ref := range dependencies {
 				address := ref.Address
 				address.SubID = 0
 				revision := d.Revision()
-				if provider, ok := auth.catalog.Descriptor(address); ok {
+				if provider, ok := auth.Catalog.Descriptor(address); ok {
 					revision = provider.Revision()
 				}
 				copied.Dependencies = append(copied.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: revision})

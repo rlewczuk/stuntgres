@@ -59,12 +59,12 @@ func TestDefaultPrivilegesRevision(t *testing.T) {
 	state.SetDescriptor(namespace.Address(), &namespace)
 	state.BindName(catalog.DescriptorNameKey(&namespace), namespace.Address())
 	f.e.catalog.state = state
-	oldRevision := f.e.roles.published.revision
+	oldRevision := f.e.roles.published.Revision
 	s := defaultUnitStatement("tables", "select", []string{"default_owner", "default_owner"}, []string{"default_schema", "default_other_schema", "default_schema"}, []string{"default_reader", "default_reader"})
 	if err := f.apply(s); err != nil {
 		t.Fatal(err)
 	}
-	if f.e.roles.published.revision != oldRevision+1 || f.e.catalog.state.DefaultACLCount() != 2 {
+	if f.e.roles.published.Revision != oldRevision+1 || f.e.catalog.state.DefaultACLCount() != 2 {
 		t.Fatal("multiple schemas/repeated operands not one publication")
 	}
 	firstCatalog, firstRoles := f.e.catalog.state, f.e.roles.published
@@ -78,11 +78,11 @@ func TestDefaultPrivilegesRevision(t *testing.T) {
 	if err := f.apply(s); err != nil {
 		t.Fatal(err)
 	}
-	if f.e.catalog.state.DefaultACLCount() != 0 || f.e.roles.published.revision != oldRevision+2 {
+	if f.e.catalog.state.DefaultACLCount() != 0 || f.e.roles.published.Revision != oldRevision+2 {
 		t.Fatal("baseline reversal")
 	}
 	roles := *f.e.roles.published
-	roles.revision = ^uint64(0)
+	roles.Revision = ^uint64(0)
 	f.e.roles.published = &roles
 	firstCatalog, firstRoles = f.e.catalog.state, f.e.roles.published
 	s.Revoke = false

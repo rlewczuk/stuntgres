@@ -23,7 +23,7 @@ func domainUnitStage(t *testing.T, e *Engine, op *Operation, q string) *CatalogS
 		var auth AuthorizationView
 		auth, err = e.authorizationLocked(op)
 		if err == nil {
-			stage = e.BeginCatalogStage(auth.catalog)
+			stage = e.BeginCatalogStage(auth.Catalog)
 			err = e.stageCreateEnumLocked(op, auth, stage, enum)
 		}
 	} else {
@@ -145,9 +145,9 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 	rawTable := statement(t, "CREATE TABLE public.concurrent(v public.a)").(*parser.CreateTable)
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
-	table := e.BeginCatalogStage(auth.catalog)
+	table := e.BeginCatalogStage(auth.Catalog)
 	if err == nil {
-		err = e.schemaTableLocked(op, auth, table, rawTable, a.Namespace(), auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
+		err = e.schemaTableLocked(op, auth, table, rawTable, a.Namespace(), auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -185,13 +185,13 @@ func TestDomainBaseUsageAndOwnerAuthorizationInternal(t *testing.T) {
 	e.roles.published = roles
 	e.mu.Unlock()
 	auth := catalogAuthorization(e, e.CatalogRead())
-	auth.state.CurrentUser = reader
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), a.Address())
+	auth.State.CurrentUser = reader
+	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), a.Address())
 	if err := auth.CanUse(ref); err != nil {
 		t.Fatal("default PUBLIC USAGE", err)
 	}
 	domainUnitDiagnostic(t, auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}), "42501", "must be owner of type a")
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	next := *a
 	next.ACL = authorization.ACLValue{Explicit: true}
 	next.ACLSyntheticDefault = false
@@ -201,16 +201,16 @@ func TestDomainBaseUsageAndOwnerAuthorizationInternal(t *testing.T) {
 	}
 	domainUnitPublish(t, e, stage)
 	auth = catalogAuthorization(e, e.CatalogRead())
-	auth.state.CurrentUser = reader
-	ref.Epoch = auth.catalog.Epoch()
+	auth.State.CurrentUser = reader
+	ref.Epoch = auth.Catalog.Epoch()
 	domainUnitDiagnostic(t, auth.CanUse(ref), "42501", "permission denied for type a")
 	withPublicSchemaUnitOwner(t, e, "reader", func() {
 		auth = catalogAuthorization(e, e.CatalogRead())
-		auth.state.CurrentUser = reader
+		auth.State.CurrentUser = reader
 		before := e.CatalogRead().State()
 		denied := statement(t, "CREATE DOMAIN public.denied AS public.a").(*parser.CreateDomain)
 		e.mu.Lock()
-		stage = e.BeginCatalogStage(auth.catalog)
+		stage = e.BeginCatalogStage(auth.Catalog)
 		err := e.stageCreateDomainLocked(op, auth, stage, denied, sqltype.InputEnvironment{})
 		e.mu.Unlock()
 		domainUnitDiagnostic(t, err, "42501", "permission denied for type a")

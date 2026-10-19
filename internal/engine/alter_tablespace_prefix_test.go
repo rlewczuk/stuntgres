@@ -195,7 +195,7 @@ func TestAlterTablespacePrefixErrorOwnership(t *testing.T) {
 				if shared {
 					// Supply the existing shared-stage contract at descendant
 					// reentry: this branch must leave disposal to its outer owner.
-					stage = e.BeginCatalogStage(c.auth.catalog)
+					stage = e.BeginCatalogStage(c.auth.Catalog)
 					stage.authorizeLocked(c.auth, c.op.session)
 					scope.inheritanceAlter = &inheritanceAlterState{stage: stage, descendant: true}
 					t.Cleanup(func() { scope.inheritanceAlter = nil; e.DiscardCatalogStage(stage) })

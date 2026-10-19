@@ -73,18 +73,18 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 	if kind == 0 {
 		return fail(sqlError("42704", fmt.Sprintf(`constraint "%s" for table "%s" does not exist`, raw.Constraint.Text, parent.Name())))
 	}
-	if (kind == 'n' || kind == 'c') && inheritanceParticipant(auth.catalog, parent) {
+	if (kind == 'n' || kind == 'c') && inheritanceParticipant(auth.Catalog, parent) {
 		return e.renameInheritanceConstraintLocked(scope, op, auth, raw, parent, kind)
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
 	if backing != (ids.ObjectAddress{}) {
-		index, ok := auth.catalog.Relation(backing)
+		index, ok := auth.Catalog.Relation(backing)
 		if !ok {
 			e.DiscardCatalogStage(stage)
 			return fail(ids.ErrCatalogReplaced)
 		}
-		if _, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: raw.NewName.Text}); exists {
+		if _, exists := auth.Catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: raw.NewName.Text}); exists {
 			e.DiscardCatalogStage(stage)
 			return fail(sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, raw.NewName.Text)))
 		}

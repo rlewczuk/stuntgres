@@ -14,7 +14,7 @@ import (
 // descriptor identifies the declaration; neither its ACL nor its address alone
 // supplies authority. Admission borrows the immutable manifest without copying.
 func admitRoutineDescriptor(auth AuthorizationView, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure, consumer *catalog.Relation) error {
-	current, err := validateRoutineDescriptor(auth.catalog, auth.roles, captured)
+	current, err := validateRoutineDescriptor(auth.Catalog, auth.Roles, captured)
 	if err != nil {
 		return err
 	}
@@ -27,12 +27,12 @@ func admitRoutineDescriptor(auth AuthorizationView, dependencies []catalog.Expre
 		}
 		ref := dependency.Ref
 		if consumer != nil {
-			if !storedReferenceEpochValid(auth.catalog, consumer, ref) {
+			if !storedReferenceEpochValid(auth.Catalog, consumer, ref) {
 				return ids.ErrCatalogReplaced
 			}
-			ref.Epoch = auth.catalog.Epoch()
+			ref.Epoch = auth.Catalog.Epoch()
 		}
-		if ref.Epoch != auth.catalog.Epoch() {
+		if ref.Epoch != auth.Catalog.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
 		if _, err := auth.object(ref); err != nil {
@@ -143,19 +143,19 @@ func checkRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, depend
 		return admitRoutineDescriptor(auth, c.routineChecks, captured, c.routineConsumer)
 	}
 	if c.routineReferences != nil {
-		if _, err := validateRoutineDescriptor(auth.catalog, auth.roles, captured); err != nil {
+		if _, err := validateRoutineDescriptor(auth.Catalog, auth.Roles, captured); err != nil {
 			return err
 		}
 		for _, ref := range c.routineReferences {
 			if ref.Address != captured.Address() {
 				continue
 			}
-			if !storedReferenceEpochValid(auth.catalog, c.routineConsumer, ref) {
+			if !storedReferenceEpochValid(auth.Catalog, c.routineConsumer, ref) {
 				return ids.ErrCatalogReplaced
 			}
 			// This exact retained recipe's established epoch bridge does not
 			// change the object identity or create a reference from an address.
-			ref.Epoch = auth.catalog.Epoch()
+			ref.Epoch = auth.Catalog.Epoch()
 			return auth.Check(AccessRequirement{Object: ref, Privileges: authorization.ExecutePrivilege})
 		}
 		return fmt.Errorf("stuntgres: missing stored routine lifetime manifest")
@@ -205,12 +205,12 @@ func admitRoutineReference(c *EvalContext, ref ids.ObjectRef, noun string) error
 			continue
 		}
 		if c.routineConsumer != nil {
-			if !storedReferenceEpochValid(auth.catalog, c.routineConsumer, ref) {
+			if !storedReferenceEpochValid(auth.Catalog, c.routineConsumer, ref) {
 				return ids.ErrCatalogReplaced
 			}
-			ref.Epoch = auth.catalog.Epoch()
+			ref.Epoch = auth.Catalog.Epoch()
 		}
-		if ref.Epoch != auth.catalog.Epoch() {
+		if ref.Epoch != auth.Catalog.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
 		d, err := auth.object(ref)

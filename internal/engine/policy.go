@@ -54,7 +54,7 @@ func resolvePolicyRoles(auth AuthorizationView, raw []parser.GrantGrantee) ([]ca
 		if role.Role.Name == "none" {
 			return nil, false, sqlError("42939", `role name "none" is reserved`)
 		}
-		ref, err := authorization.MembershipRole(auth.roles, auth.sessionRoleState, role.Role)
+		ref, err := authorization.MembershipRole(auth.Roles, auth.SessionRoleState, role.Role)
 		if err != nil {
 			return nil, false, err
 		}

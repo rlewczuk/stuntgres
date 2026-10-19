@@ -334,8 +334,8 @@ func (s *StatementScope) validateAlterForeignKeys(view catalog.Read, address ids
 	if err != nil {
 		return err
 	}
-	auth.catalog = view
-	auth.Recapture(auth.catalog)
+	auth.Catalog = view
+	auth.Recapture(auth.Catalog)
 	e := s.op.session.Engine()
 	for _, descriptor := range view.Descriptors() {
 		child, ok := descriptor.(*catalog.Relation)
@@ -416,8 +416,8 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 	}
 	e := stage.owner
 	e.mu.Lock()
-	auth.catalog = e.privateCatalogLocked(s.owner.catalog)
-	auth.Recapture(auth.catalog)
+	auth.Catalog = e.privateCatalogLocked(s.owner.catalog)
+	auth.Recapture(auth.Catalog)
 	e.mu.Unlock()
 	for address, descriptor := range stage.Descriptors {
 		child, ok := descriptor.(*catalog.Relation)
@@ -434,11 +434,11 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 			if _, external := stage.Base.Find(f.Target); !external {
 				continue
 			}
-			parent, ok := auth.catalog.Relation(f.Target)
+			parent, ok := auth.Catalog.Relation(f.Target)
 			if !ok {
 				return ids.ErrCatalogReplaced
 			}
-			index, ok := auth.catalog.Relation(f.Index)
+			index, ok := auth.Catalog.Relation(f.Index)
 			if !ok {
 				return ids.ErrCatalogReplaced
 			}
@@ -449,7 +449,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 			if !eligible {
 				return ids.ErrCatalogReplaced
 			}
-			if _, err := bindForeignKeyComparison(auth.catalog, child, parent, index, f); err != nil {
+			if _, err := bindForeignKeyComparison(auth.Catalog, child, parent, index, f); err != nil {
 				return err
 			}
 			if err := foreignKeyReferencesAllowed(auth, parent, f.Referenced); err != nil {

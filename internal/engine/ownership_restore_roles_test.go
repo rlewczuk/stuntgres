@@ -17,7 +17,7 @@ func TestRoleOwnershipDatabaseRestoreRoleGraph(t *testing.T) {
 	graph := cloneRoleFixture(e.roles.published)
 	// Preserve a revoked seed edge and independent ordinary edge origins/options;
 	// reconstructing the default graph would produce different authority.
-	setFixtureEdges(graph, append(fixtureEdges(graph)[1:], authorization.Membership{Role: source.Ref, Member: member.Ref, Grantor: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Admin: true, Inherit: false, Set: true}))
+	setFixtureEdges(graph, append(fixtureEdges(graph)[1:], authorization.Membership{Role: source.Ref, Member: member.Ref, Grantor: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Admin: true, Inherit: false, Set: true}))
 	e.roles.published = graph
 	current := catalog.CloneState(e.catalog.state)
 	database := *current.MustDatabase(catalog.CurrentDatabaseAddress)
@@ -28,7 +28,7 @@ func TestRoleOwnershipDatabaseRestoreRoleGraph(t *testing.T) {
 	edges := append([]authorization.Membership(nil), fixtureEdges(graph)...)
 	entries := append([]authorization.ACLEntry(nil), database.ACL.Entries...)
 	stage := e.restoreStage()
-	if stage.roles.published.revision != graph.revision || len(fixtureEdges(stage.roles.published)) != len(edges) {
+	if stage.roles.published.Revision != graph.Revision || len(fixtureEdges(stage.roles.published)) != len(edges) {
 		t.Fatal("restore reseeded or dropped membership graph")
 	}
 	for i, expected := range edges {

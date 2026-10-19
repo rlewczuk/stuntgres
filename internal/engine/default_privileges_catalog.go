@@ -126,7 +126,7 @@ func defaultRoleDependencies(view catalog.Read, roles authorization.Read, ref au
 		if kind == 'o' {
 			prefix = "owner of "
 		}
-		*deps = append(*deps, roleDependency{kind: kind, description: prefix + description})
+		*deps = append(*deps, roleDependency{Kind: kind, Description: prefix + description})
 	}
 	return false
 }

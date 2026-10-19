@@ -134,7 +134,7 @@ func (n namespaceInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error
 	if n.kind != otherTempNamespace {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid namespace inquiry")
 	}
-	ns, _ := auth.catalog.Namespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(oid)})
+	ns, _ := auth.Catalog.Namespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(oid)})
 	other := ns != nil && ns.Temporary != (ids.SessionToken{}) && ns.Temporary != auth.session.token
 	return sqltype.Boolean(n.Usage.Type, other), nil
 }

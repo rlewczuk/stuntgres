@@ -56,11 +56,11 @@ func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth Author
 			}
 		}
 		if pass == 0 {
-			checks, err := captureAlterTypeChecks(op, auth.catalog, old, mutation.next, raw)
+			checks, err := captureAlterTypeChecks(op, auth.Catalog, old, mutation.next, raw)
 			if err != nil {
 				return mutation, err
 			}
-			indexes, err := captureAlterTypeIndexes(scope, auth.catalog, old, mutation.next, raw)
+			indexes, err := captureAlterTypeIndexes(scope, auth.Catalog, old, mutation.next, raw)
 			if err != nil {
 				return mutation, err
 			}
@@ -124,7 +124,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 	// candidate preserves every Usage and descriptor pointer. Keep semantic
 	// admission ahead of the no-physical-change fast path.
 	if len(mutation.transforms) != 0 {
-		if err := rowRewriteError(auth.catalog, old); err != nil {
+		if err := rowRewriteError(auth.Catalog, old); err != nil {
 			return err
 		}
 	}
@@ -151,7 +151,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		rewrite = rewrite || transform.rewrite
 	}
 	if perRowAdd {
-		if err := rowRewriteError(auth.catalog, old); err != nil {
+		if err := rowRewriteError(auth.Catalog, old); err != nil {
 			return err
 		}
 	}
@@ -168,7 +168,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 			return err
 		}
 	}
-	schema := auth.catalog.Get(old.Namespace()).Name()
+	schema := auth.Catalog.Get(old.Namespace()).Name()
 	validator := newAlterRowValidator(next, schema)
 	if len(mutation.checks) != 0 {
 		checks := *next

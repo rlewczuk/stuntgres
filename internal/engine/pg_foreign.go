@@ -65,7 +65,7 @@ func foreignOptionsValue(typ *sqltype.Descriptor, options []catalog.ForeignOptio
 
 func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationView, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	var descriptors []catalog.Descriptor
-	for _, d := range auth.catalog.Descriptors() {
+	for _, d := range auth.Catalog.Descriptors() {
 		if foreign, ok := d.(*catalog.ForeignObject); ok {
 			if foreign.Address().ClassID == source.Address().ObjectID || source.Address().ObjectID == pgUserMappingsOID && foreign.Address().ClassID == ids.ForeignMappingClassID {
 				descriptors = append(descriptors, d)
@@ -112,7 +112,7 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 						return nil, err
 					}
 				}
-				row[5], err = e.pgClassACL(auth.roles, source.Columns[5].Usage.Type, d.ACL)
+				row[5], err = e.pgClassACL(auth.Roles, source.Columns[5].Usage.Type, d.ACL)
 				if err != nil {
 					return nil, err
 				}
@@ -131,7 +131,7 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 				if d.Version != nil {
 					putString(5, *d.Version)
 				}
-				row[6], err = e.pgClassACL(auth.roles, source.Columns[6].Usage.Type, d.ACL)
+				row[6], err = e.pgClassACL(auth.Roles, source.Columns[6].Usage.Type, d.ACL)
 				if err != nil {
 					return nil, err
 				}
@@ -145,7 +145,7 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 				}
 				row[3], err = foreignOptionsValue(source.Columns[3].Usage.Type, d.Options)
 			case pgUserMappingsOID:
-				server, ok := auth.catalog.Foreign(d.Server)
+				server, ok := auth.Catalog.Foreign(d.Server)
 				if !ok {
 					return nil, ids.ErrCatalogReplaced
 				}
@@ -158,16 +158,16 @@ func (e *Engine) captureForeignCatalog(ctx context.Context, auth AuthorizationVi
 				}
 				if d.MappedRole == (authorization.PrincipalRef{}) {
 					putString(4, "public")
-				} else if role, ok := auth.roles.Find(d.MappedRole); ok {
+				} else if role, ok := auth.Roles.Find(d.MappedRole); ok {
 					putString(4, role.Name)
 				}
-				actor, er := auth.roles.Descriptor(auth.state.CurrentUser)
+				actor, er := auth.Roles.Descriptor(auth.State.CurrentUser)
 				if er != nil {
 					return nil, er
 				}
 				owner := auth.Check(AccessRequirement{Object: foreignRef(auth, server), OwnerOnly: true}) == nil
 				visible := actor.Superuser || d.MappedRole == (authorization.PrincipalRef{}) && owner
-				if d.MappedRole == auth.state.CurrentUser {
+				if d.MappedRole == auth.State.CurrentUser {
 					visible = visible || owner || auth.Check(AccessRequirement{Object: foreignRef(auth, server), Privileges: authorization.UsagePrivilege}) == nil
 				}
 				if visible {

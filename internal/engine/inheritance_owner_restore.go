@@ -36,22 +36,22 @@ func (e *Engine) captureInheritedOwner(op *Operation, created ids.ObjectRef, own
 	if !trusted || !capturedRole {
 		return restoredInheritedOwner{}, sqlError("0A000", restoreInheritedOwnerBoundary)
 	}
-	table, ok := auth.catalog.Relation(created.Address)
+	table, ok := auth.Catalog.Relation(created.Address)
 	if !ok || table.Inheritance == nil || table.RelationKind != catalog.TableRelation {
 		return restoredInheritedOwner{}, sqlError("0A000", restoreInheritedOwnerBoundary)
 	}
-	namespace, ok := auth.catalog.Namespace(table.Namespace())
-	if !ok || namespace.Temporary != (ids.SessionToken{}) || validateInheritance(auth.catalog, table) != nil {
+	namespace, ok := auth.Catalog.Namespace(table.Namespace())
+	if !ok || namespace.Temporary != (ids.SessionToken{}) || validateInheritance(auth.Catalog, table) != nil {
 		return restoredInheritedOwner{}, sqlError("0A000", restoreInheritedOwnerBoundary)
 	}
-	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
 		return restoredInheritedOwner{}, err
 	}
 	if !actor.Superuser || table.Owner != actor.Ref {
 		return restoredInheritedOwner{}, sqlError("0A000", restoreInheritedOwnerBoundary)
 	}
-	if _, err := auth.roles.Descriptor(owner); err != nil {
+	if _, err := auth.Roles.Descriptor(owner); err != nil {
 		return restoredInheritedOwner{}, err
 	}
 	return restoredInheritedOwner{created, owner, actor.Ref}, nil
@@ -74,14 +74,14 @@ func (e *Engine) restoreInheritedOwner(op *Operation, raw *parser.AlterOwner, pa
 	if !partitionConstraintReplayImport(e, op, auth) {
 		return reject()
 	}
-	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
 		return err
 	}
 	if !actor.Superuser || actor.Ref != pair.creator {
 		return reject()
 	}
-	role, err := auth.roles.Descriptor(pair.owner)
+	role, err := auth.Roles.Descriptor(pair.owner)
 	if err != nil {
 		return err
 	}
@@ -95,12 +95,12 @@ func (e *Engine) restoreInheritedOwner(op *Operation, raw *parser.AlterOwner, pa
 	if ref != pair.ref {
 		return reject()
 	}
-	table, ok := auth.catalog.Relation(ref.Address)
+	table, ok := auth.Catalog.Relation(ref.Address)
 	if !ok || table.Inheritance == nil || table.Owner != pair.creator {
 		return reject()
 	}
-	namespace, ok := auth.catalog.Namespace(table.Namespace())
-	if !ok || namespace.Temporary != (ids.SessionToken{}) || validateInheritance(auth.catalog, table) != nil {
+	namespace, ok := auth.Catalog.Namespace(table.Namespace())
+	if !ok || namespace.Temporary != (ids.SessionToken{}) || validateInheritance(auth.Catalog, table) != nil {
 		return reject()
 	}
 	return nil

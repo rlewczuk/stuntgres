@@ -43,14 +43,14 @@ func (e *Engine) initializeBuiltinDomainChecks() error {
 		return err
 	}
 	auth := AuthorizationView{engine: e, accessView: accessView{
-		owner: e.catalog.owner(), pairedCatalog: view, roleRecord: e.roles.published, catalog: view,
-		roles: e.roles.read(e.catalog.owner(), view, e.roles.published), state: authorization.RoleState{CurrentUser: d.Owner},
+		Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.roles.published, Catalog: view,
+		Roles: e.roles.read(e.catalog.owner(), view, e.roles.published), State: authorization.RoleState{CurrentUser: d.Owner},
 	}}
 	return e.bindDomainCheckRecipes(context.Background(), nil, auth, nil, d, raw[0].(*parser.CreateDomain).Constraints, sqltype.InputEnvironment{})
 }
 
 func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
-	used := constraintNames(auth.catalog, d.ObjectNamespace, nil)
+	used := constraintNames(auth.Catalog, d.ObjectNamespace, nil)
 	installed := make(map[string]bool)
 	for _, check := range d.DomainChecks {
 		installed[check.Name] = true
@@ -86,7 +86,7 @@ func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth
 			return alterCookingError(err)
 		}
 		var refs []ids.ObjectRef
-		if _, err := (scalarRenderer{domainValue: &base, dependencies: &refs}).sql(ctx, auth.catalog, node); err != nil {
+		if _, err := (scalarRenderer{domainValue: &base, dependencies: &refs}).sql(ctx, auth.Catalog, node); err != nil {
 			return err
 		}
 		oid, err := e.catalog.allocateOIDLocked()
@@ -97,7 +97,7 @@ func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth
 		for _, ref := range refs {
 			address := ref.Address
 			address.SubID = 0
-			provider, ok := auth.catalog.Descriptor(address)
+			provider, ok := auth.Catalog.Descriptor(address)
 			if !ok {
 				return fmt.Errorf("stuntgres: missing domain CHECK provider")
 			}
@@ -199,14 +199,14 @@ func (c *EvalContext) prepareOwnDomainChecks(d *catalog.Type) error {
 	// Only the existing trusted RI phase establishes owner provenance. A
 	// borrowed local capture for input/view admission is still an invoker phase.
 	ri := scope != nil && scope.foreignActionAuth != nil &&
-		scope.foreignActionAuth.state.CurrentUser == auth.state.CurrentUser
+		scope.foreignActionAuth.State.CurrentUser == auth.State.CurrentUser
 	programme, exists := c.preparedDomainChecks[d]
 	for _, phase := range programme.phases {
-		if phase.number == c.domainPhase && phase.actor == auth.state.CurrentUser && phase.ri == ri {
+		if phase.number == c.domainPhase && phase.actor == auth.State.CurrentUser && phase.ri == ri {
 			return nil // Same initialized programme phase; never a per-row ACL lookup.
 		}
 	}
-	phase := domainCheckPhase{number: c.domainPhase, actor: auth.state.CurrentUser, ri: ri}
+	phase := domainCheckPhase{number: c.domainPhase, actor: auth.State.CurrentUser, ri: ri}
 	if exists {
 		if err := phase.admission.initializePhase(&programme.phases[0].admission, auth); err != nil {
 			return err

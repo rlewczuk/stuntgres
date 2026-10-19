@@ -85,7 +85,7 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 			}
 			c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: definition.OID}
 			c.namedIndex = definition.Index
-			index, ok := auth.catalog.Relation(definition.Index)
+			index, ok := auth.Catalog.Relation(definition.Index)
 			if !ok {
 				return fmt.Errorf("stuntgres: missing named exclusion index")
 			}

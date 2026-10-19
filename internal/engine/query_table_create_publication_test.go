@@ -19,7 +19,7 @@ func queryCreateStage(t *testing.T, e *Engine, name string, width int) (*Catalog
 		columns[i] = catalog.Column{Name: "i", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}
 	}
 	e.mu.Lock()
-	d, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name, e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), columns, nil)
+	d, err := e.newTableDescriptorLocked(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name, e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), columns, nil)
 	stage := e.BeginCatalogStage(e.catalog.read(e.catalog.state))
 	if err == nil {
 		err = stage.Create(d)
@@ -226,8 +226,8 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 				auth, authErr := e.authorizationLocked(op)
 				if authErr == nil {
 					stage.authSession = op.session
-					stage.authRevision = auth.revision
-					stage.roleRevision = e.roles.published.revision
+					stage.authRevision = auth.Revision
+					stage.roleRevision = e.roles.published.Revision
 				}
 				e.mu.Unlock()
 				if authErr != nil {

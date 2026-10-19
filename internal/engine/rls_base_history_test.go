@@ -44,8 +44,8 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	auth.catalog = e.privateCatalogLocked(scope.owner.catalog)
-	auth.Recapture(auth.catalog)
+	auth.Catalog = e.privateCatalogLocked(scope.owner.catalog)
+	auth.Recapture(auth.Catalog)
 	b, err := e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
 	if err != nil {
 		e.mu.Unlock()
@@ -53,7 +53,7 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 	}
 	leaf := b.querySources[0]
 	view, err := scope.acquireDataViewLocked(e, leaf.ref)
-	reader := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("rls_history_reader")
+	reader := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_history_reader")
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -82,7 +82,7 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 		t.Fatal("fixture lacks actual published RLS flags")
 	}
 	for _, command := range []catalog.PolicyCommand{catalog.PolicyUpdate, catalog.PolicyDelete, catalog.PolicySelect} {
-		decision, err := rowSecurityDecision(auth.roles, descriptor, reader, command, false)
+		decision, err := rowSecurityDecision(auth.Roles, descriptor, reader, command, false)
 		if err != nil || decision != rlsDefaultDeny {
 			t.Fatal("effective ordinary principal is not denied", command, decision, err)
 		}

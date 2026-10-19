@@ -26,7 +26,7 @@ func queryCreateDomain(t *testing.T, e *Engine) *catalog.Type {
 	if err != nil {
 		t.Fatal(err)
 	}
-	descriptor := &catalog.Type{SQLType: typ, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	descriptor := &catalog.Type{SQLType: typ, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err = stage.Create(descriptor); err != nil {
 		t.Fatal(err)
@@ -78,7 +78,7 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 			t.Fatal(column, d.Attributes, d.Index)
 		}
 	}
-	if len(d.Constraints.NotNull)+len(d.Constraints.Check)+len(d.Constraints.Unique)+len(d.ColumnMeta.Defaults)+len(d.ColumnMeta.Generations)+len(d.ColumnMeta.Identities)+len(d.Security.ColumnACL) != 0 || !reflect.DeepEqual(d.Security.ACL, authorization.ACLValue{}) || d.Owner != auth.state.CurrentUser {
+	if len(d.Constraints.NotNull)+len(d.Constraints.Check)+len(d.Constraints.Unique)+len(d.ColumnMeta.Defaults)+len(d.ColumnMeta.Generations)+len(d.ColumnMeta.Identities)+len(d.Security.ColumnACL) != 0 || !reflect.DeepEqual(d.Security.ACL, authorization.ACLValue{}) || d.Owner != auth.State.CurrentUser {
 		t.Fatal("source table decorations inherited", d)
 	}
 	queryCreatePublish(t, e, stage)

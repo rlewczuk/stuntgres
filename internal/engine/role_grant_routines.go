@@ -62,7 +62,7 @@ func (e *Engine) resolveGrantRoutine(op *Operation, v AuthorizationView, target 
 		// With no argument list PostgreSQL filters by SQL kind before deciding
 		// uniqueness. Native currently has no user-procedure creator/runtime.
 		for i := range path.count() {
-			for _, descriptor := range v.catalog.Descriptors() {
+			for _, descriptor := range v.Catalog.Descriptors() {
 				p, ok := descriptor.(*catalog.Procedure)
 				if ok && p.Namespace() == path.at(i) && p.Name() == name && p.RoutineKind == catalog.ProcedureRoutine {
 					selected = catalog.RoutineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}
@@ -71,7 +71,7 @@ func (e *Engine) resolveGrantRoutine(op *Operation, v AuthorizationView, target 
 			}
 		}
 	} else {
-		selected, count = selectRoutine(v.catalog, path, name, exact)
+		selected, count = selectRoutine(v.Catalog, path, name, exact)
 	}
 	noun := "function"
 	if kind == "procedure" {
@@ -93,7 +93,7 @@ func (e *Engine) resolveGrantRoutine(op *Operation, v AuthorizationView, target 
 		return ids.ObjectRef{}, diagnostic
 	}
 	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: selected.ID}
-	p, ok := v.catalog.Procedure(address)
+	p, ok := v.Catalog.Procedure(address)
 	if !ok {
 		// Lookup-only inventory cannot manufacture an owning ACL descriptor or
 		// an execution capability.
@@ -102,7 +102,7 @@ func (e *Engine) resolveGrantRoutine(op *Operation, v AuthorizationView, target 
 	if !grantRoutineKindMatches(kind, p.RoutineKind) {
 		return ids.ObjectRef{}, sqlError("42809", display+"("+grantRoutineArgumentDisplay(v, inputTypes[:inputCount])+") is not a "+noun)
 	}
-	return e.catalog.Domain.Ref(v.catalog.Epoch(), address), nil
+	return e.catalog.Domain.Ref(v.Catalog.Epoch(), address), nil
 }
 
 func grantRoutineArgumentDisplay(v AuthorizationView, inputs []ids.OID) string {
@@ -112,9 +112,9 @@ func grantRoutineArgumentDisplay(v AuthorizationView, inputs []ids.OID) string {
 		if i != 0 {
 			display.WriteString(", ")
 		}
-		typ := v.catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
+		typ := v.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
 		if typ.SQLType.IsUserDefined() {
-			display.WriteString(typeDiagnosticNameAt(v.catalog, typ, path))
+			display.WriteString(typeDiagnosticNameAt(v.Catalog, typ, path))
 		} else {
 			display.WriteString(typ.SQLType.DiagnosticName())
 		}

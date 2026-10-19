@@ -61,7 +61,7 @@ func TestCollationCatalogAuthority(t *testing.T) {
 		}
 	}
 	foreignOwner := *d
-	foreignOwner.Owner = New().roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	foreignOwner.Owner = New().roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	foreignOwner.ObjectRevision++
 	stage = e.BeginCatalogStage(view)
 	if err := stage.Replace(&foreignOwner); err != nil {
@@ -181,8 +181,8 @@ func TestCollationOwnerMembershipRequiresDestinationCreate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth.state.CurrentUser = actor.Ref
-	stage = e.BeginCatalogStage(auth.catalog)
+	auth.State.CurrentUser = actor.Ref
+	stage = e.BeginCatalogStage(auth.Catalog)
 	change := &parser.AlterCollation{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "private"}, {Text: "owned"}}}, Action: "owner", Target: parser.Identifier{Text: "target"}}
 	e.mu.Lock()
 	err = e.stageAlterCollationLocked(admin, auth, stage, change)
@@ -191,8 +191,8 @@ func TestCollationOwnerMembershipRequiresDestinationCreate(t *testing.T) {
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != "permission denied for schema private" || len(stage.Descriptors) != 0 {
 		t.Fatal("membership waived target CREATE", err)
 	}
-	auth.state.CurrentUser = bootstrap.Ref
-	stage = e.BeginCatalogStage(auth.catalog)
+	auth.State.CurrentUser = bootstrap.Ref
+	stage = e.BeginCatalogStage(auth.Catalog)
 	e.mu.Lock()
 	err = e.stageAlterCollationLocked(admin, auth, stage, change)
 	e.mu.Unlock()

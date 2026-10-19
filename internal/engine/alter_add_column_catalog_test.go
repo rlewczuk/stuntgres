@@ -22,7 +22,7 @@ func TestAlterAddColumnDescriptorValidation(t *testing.T) {
 		d := *original
 		d.ColumnMeta.HighWater = tc.high
 		d.Attributes = []int32{tc.attribute}
-		stage := e.BeginCatalogStage(auth.catalog)
+		stage := e.BeginCatalogStage(auth.Catalog)
 		if err := stage.Create(&d); err != nil {
 			t.Fatal(err)
 		}
@@ -63,7 +63,7 @@ func TestAlterAddColumnSparseCheckOrdinalsAndOwnership(t *testing.T) {
 	if err != nil || old.Constraints.Check[0].OID != 0 || next.Constraints.Check[0].OID == 0 {
 		t.Fatal("OID mutation reached source", err)
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Create(&next); err != nil {
 		t.Fatal(err)
@@ -114,7 +114,7 @@ func TestAlterAddColumnNativeImportPreservesCeilingAndSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stage := source.BeginCatalogStage(auth.catalog)
+	stage := source.BeginCatalogStage(auth.Catalog)
 	defer source.DiscardCatalogStage(stage)
 	if err := stage.Create(next); err != nil {
 		t.Fatal(err)
@@ -123,7 +123,7 @@ func TestAlterAddColumnNativeImportPreservesCeilingAndSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := source.PublishCatalog(prepared, PublicationToken{Epoch: auth.catalog.Epoch()}); err != nil {
+	if _, err := source.PublishCatalog(prepared, PublicationToken{Epoch: auth.Catalog.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	before := source.CatalogRead()

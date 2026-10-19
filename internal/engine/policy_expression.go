@@ -12,14 +12,14 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	if raw == nil {
 		return nil, nil
 	}
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
+	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
 	columns := make([]queryColumn, len(d.Columns))
 	for i, c := range d.Columns {
 		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
 	}
 	ns := queryNamespace{
 		columns:    columns,
-		qualifiers: []queryQualifier{{name: d.Name(), original: d.Name(), schema: auth.catalog.Get(d.Namespace()).Name(), ref: ref, columns: columns}},
+		qualifiers: []queryQualifier{{name: d.Name(), original: d.Name(), schema: auth.Catalog.Get(d.Namespace()).Name(), ref: ref, columns: columns}},
 		frame:      d.Columns,
 	}
 	b := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
@@ -55,7 +55,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	}
 	frozen.frames[1] = root
 	frozen.expressionSyntax = raw
-	refs, err := pgDependExpressionRefs(scope.op.Context(), auth.catalog, node)
+	refs, err := pgDependExpressionRefs(scope.op.Context(), auth.Catalog, node)
 	if err != nil {
 		return nil, err
 	}
@@ -64,8 +64,8 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 		whole := address
 		whole.SubID = 0
 		frozen.dependencies = append(frozen.dependencies, catalog.ExpressionDependency{
-			Ref:      e.catalog.Domain.Ref(auth.catalog.Epoch(), address),
-			Revision: auth.catalog.Get(whole).Revision(),
+			Ref:      e.catalog.Domain.Ref(auth.Catalog.Epoch(), address),
+			Revision: auth.Catalog.Get(whole).Revision(),
 		})
 	}
 	return &policyExpression{syntax: raw, expression: node, presentation: frozen}, nil

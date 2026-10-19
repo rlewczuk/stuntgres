@@ -53,14 +53,14 @@ func strictNullUnitBind(t *testing.T, e *Engine, op *Operation, scope *Statement
 	}
 	b := newExpressionBinder(context.Background(), e, scope.input, op, nil)
 	b.queryAuth, b.ref = &auth, ref
-	b.relation = auth.catalog.MustRelation(ref.Address)
+	b.relation = auth.Catalog.MustRelation(ref.Address)
 	b.aggregateClause = "SELECT"
 	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal("actual provider binding", text, err)
 	}
-	return node, b, EvalContext{Context: context.Background(), Scope: 1, Frame: 1, statementScope: scope, catalog: auth.catalog, Input: scope.input, Output: scope.output, routineAuthority: &auth, routineRecipe: true, routineChecks: b.dependencies}
+	return node, b, EvalContext{Context: context.Background(), Scope: 1, Frame: 1, statementScope: scope, catalog: auth.Catalog, Input: scope.input, Output: scope.output, routineAuthority: &auth, routineRecipe: true, routineChecks: b.dependencies}
 }
 
 func TestStrictParameterNullPlanning(t *testing.T) {

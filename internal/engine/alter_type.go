@@ -53,7 +53,7 @@ func (e *Engine) stageAlterIdentityTypes(scope *StatementScope, op *Operation, a
 				if scope.inheritanceAlter != nil {
 					stage = scope.inheritanceAlter.stage
 				} else {
-					stage = e.BeginCatalogStage(auth.catalog)
+					stage = e.BeginCatalogStage(auth.Catalog)
 					stage.authorizeLocked(auth, op.session)
 				}
 			}
@@ -71,7 +71,7 @@ func alterTypeNamespace(auth AuthorizationView, original *catalog.Relation, ref 
 	for i, column := range original.Columns {
 		columns[i] = queryColumn{descriptor: column, slot: i, leaf: queryTargetLeaf, physical: i}
 	}
-	qualifier := queryQualifier{name: original.Name(), original: original.Name(), schema: auth.catalog.Get(original.Namespace()).Name(), ref: ref, columns: columns}
+	qualifier := queryQualifier{name: original.Name(), original: original.Name(), schema: auth.Catalog.Get(original.Namespace()).Name(), ref: ref, columns: columns}
 	return &queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: original.Columns}
 }
 
@@ -171,7 +171,7 @@ func (e *Engine) completeAlterTypeLocked(scope *StatementScope, auth Authorizati
 	usage := prepared.usage
 	node := prepared.transformation.expression
 	input, annotations := domainCoercionInput(node, usage)
-	info, err := storageCoercionInfo(auth.catalog, expr.Info{Usage: usage, Property: input.Properties()}, input)
+	info, err := storageCoercionInfo(auth.Catalog, expr.Info{Usage: usage, Property: input.Properties()}, input)
 	if err != nil {
 		return fail(err)
 	}
@@ -249,30 +249,30 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 	}
 	target := ref.Address
 	target.SubID = original.Attributes[source]
-	if err := policyTypeChangeError(auth.catalog, target); err != nil {
+	if err := policyTypeChangeError(auth.Catalog, target); err != nil {
 		return fail(err)
 	}
 	if path, pathErr := e.lookupPath(auth, relationLookup); pathErr != nil {
 		return fail(pathErr)
-	} else if dependents := ruleDependentLabels(auth.catalog, []ids.ObjectAddress{target}, path); len(dependents) != 0 {
+	} else if dependents := ruleDependentLabels(auth.Catalog, []ids.ObjectAddress{target}, path); len(dependents) != 0 {
 		d := sqlError("0A000", "cannot alter type of a column used by a view or rule").(*sqlstate.Error)
 		d.Detail = fmt.Sprintf(`%s depends on column "%s"`, dependents[0].label, a.Column.Text)
 		return fail(d)
 	}
-	if edges := viewDependencyClosure(auth.catalog, []ids.ObjectAddress{target}, stage); len(edges) != 0 {
+	if edges := viewDependencyClosure(auth.Catalog, []ids.ObjectAddress{target}, stage); len(edges) != 0 {
 		view := edges[0].view
 		name := view.Name()
 		if parser.IdentifierNeedsQuotes(name) {
 			name = quoteIdentifier(name)
 		}
-		namespace := auth.catalog.Get(view.Namespace()).Name()
+		namespace := auth.Catalog.Get(view.Namespace()).Name()
 		path, err := e.lookupPath(auth, relationLookup)
 		if err != nil {
 			return fail(err)
 		}
 		visible := false
 		for _, schema := range path {
-			found := auth.catalog.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: schema, Name: view.Name()})
+			found := auth.Catalog.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: schema, Name: view.Name()})
 			if len(found) != 0 {
 				visible = len(found) == 1 && found[0] == view.Address()
 				break
@@ -322,7 +322,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 			expression = wrapper.child
 		}
 		input, annotations := domainCoercionInput(expression, usage)
-		info, err := storageCoercionInfo(auth.catalog, expr.Info{Usage: usage, Property: input.Properties()}, input)
+		info, err := storageCoercionInfo(auth.Catalog, expr.Info{Usage: usage, Property: input.Properties()}, input)
 		if err != nil {
 			return fail(err)
 		}
@@ -338,7 +338,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		}
 		definition.Dependencies = nil
 		definition.CatalogSnapshot = false
-		_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot}).sql(op.Context(), auth.catalog, expression)
+		_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.Roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot}).sql(op.Context(), auth.Catalog, expression)
 		if err != nil {
 			return fail(err)
 		}
@@ -407,7 +407,7 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *catalog.Re
 			replaced[row.Row] = true
 		}
 	}
-	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: scope.routineAuth.catalog}
+	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: scope.routineAuth.Catalog}
 	preparedTransforms := false
 	var generationProgram []expr.Expr
 	preparedGeneration := false

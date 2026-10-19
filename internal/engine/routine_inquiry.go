@@ -41,11 +41,11 @@ func admitInquiryBody(c *EvalContext, node commentInquiryExpression) error {
 	if err != nil || auth.engine == nil {
 		return err
 	}
-	ri := scope.foreignActionAuth != nil && scope.foreignActionAuth.state.CurrentUser == auth.state.CurrentUser
+	ri := scope.foreignActionAuth != nil && scope.foreignActionAuth.State.CurrentUser == auth.State.CurrentUser
 	for _, programme := range scope.routinePrograms {
 		if programme.outer == outer && programme.consumer == local.routineConsumer &&
 			programme.ri == ri && len(programme.admission.calls) != 0 &&
-			programme.admission.calls[0].actor == auth.state.CurrentUser {
+			programme.admission.calls[0].actor == auth.State.CurrentUser {
 			return nil
 		}
 	}

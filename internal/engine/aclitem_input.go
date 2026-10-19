@@ -20,7 +20,7 @@ type capturedACLItemInput struct {
 }
 
 func (e *Engine) captureACLItemInput(auth AuthorizationView, op *Operation) capturedACLItemInput {
-	return capturedACLItemInput{roles: auth.roles, authority: &e.roles.aclAuthority, op: op}
+	return capturedACLItemInput{roles: auth.Roles, authority: &e.roles.aclAuthority, op: op}
 }
 func (r capturedACLItemInput) ACLItemAuthority() *sqltype.ACLAuthority { return r.authority }
 func (r capturedACLItemInput) ResolveACLRole(ctx context.Context, name string) (uint32, error) {

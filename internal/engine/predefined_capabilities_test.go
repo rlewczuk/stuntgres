@@ -21,7 +21,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	for _, role := range []string{"pg_read_all_data", "pg_write_all_data", "pg_maintain"} {
 		roleAttributeApply(t, e, op, predefinedMembership(role, reader.Name))
 	}
-	owner := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	// Private immutable descriptors isolate class masks from public SQL syntax.
 	descriptors := []struct {
 		d    catalog.Descriptor
@@ -40,7 +40,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	for _, tc := range descriptors {
 		state.SetDescriptor(tc.d.Address(), tc.d)
 	}
-	v := AuthorizationView{accessView: accessView{owner: e.catalog.owner(), pairedCatalog: e.catalog.read(state), roleRecord: e.roles.published, catalog: e.catalog.read(state), roles: e.roles.read(e.catalog.owner(), e.catalog.read(state), e.roles.published), state: authorization.RoleState{CurrentUser: reader.Ref}}, engine: e}
+	v := AuthorizationView{accessView: accessView{Owner: e.catalog.owner(), PairedCatalog: e.catalog.read(state), RoleRecord: e.roles.published, Catalog: e.catalog.read(state), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(state), e.roles.published), State: authorization.RoleState{CurrentUser: reader.Ref}}, engine: e}
 	for _, tc := range descriptors {
 		ref := e.catalog.Domain.Ref(state.Epoch(), tc.d.Address())
 		got, err := v.Effective(ref, false)
@@ -71,8 +71,8 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	withColumn.Security.ColumnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.ReferencesPrivilege, GrantOptions: authorization.ReferencesPrivilege}}}}
 	withColumnState := catalog.CloneState(state)
 	withColumnState.SetDescriptor(table.Address(), &withColumn)
-	v.catalog = e.catalog.read(withColumnState)
-	v.Recapture(v.catalog)
+	v.Catalog = e.catalog.read(withColumnState)
+	v.Recapture(v.Catalog)
 	if got, err := v.Effective(column, false); err != nil || got != authorization.SelectPrivilege|authorization.InsertPrivilege|authorization.UpdatePrivilege|authorization.ReferencesPrivilege {
 		t.Fatal("ACL plus capability", got, err)
 	}
@@ -85,8 +85,8 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 		roleAttributeApply(t, e, op, revoke)
 	}
 	fresh := v
-	fresh.roleRecord = e.roles.published
-	fresh.roles = e.roles.read(e.catalog.owner(), fresh.catalog, e.roles.published)
+	fresh.RoleRecord = e.roles.published
+	fresh.Roles = e.roles.read(e.catalog.owner(), fresh.Catalog, e.roles.published)
 	if got, err := fresh.Effective(e.catalog.Domain.Ref(state.Epoch(), table.Address()), false); err != nil || got != 0 {
 		t.Fatal("fresh authority retained capability", got, err)
 	}
@@ -98,14 +98,14 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 			t.Fatal("capability accepted invalid object", ref)
 		}
 	}
-	fresh.state.CurrentUser = New().roles.domain.Principal(reader.Ref.ID())
+	fresh.State.CurrentUser = New().roles.domain.Principal(reader.Ref.ID())
 	if _, err := fresh.Effective(e.catalog.Domain.Ref(state.Epoch(), table.Address()), false); err == nil {
 		t.Fatal("capability accepted foreign actor")
 	}
 	roleAttributeApply(t, e, op, &parser.DropRole{Names: []string{reader.Name}})
-	fresh.roles = e.Roles()
-	fresh.roleRecord = e.roles.published
-	fresh.state.CurrentUser = reader.Ref
+	fresh.Roles = e.Roles()
+	fresh.RoleRecord = e.roles.published
+	fresh.State.CurrentUser = reader.Ref
 	if _, err := fresh.Effective(e.catalog.Domain.Ref(state.Epoch(), table.Address()), false); err == nil {
 		t.Fatal("capability accepted retired actor")
 	}
@@ -258,7 +258,7 @@ func TestPredefinedCapabilityGrantSource(t *testing.T) {
 	if rights, err := view.Effective(ref, true); err != nil || rights != 0 {
 		t.Fatal("capability gained options", rights, err)
 	}
-	view.state.CurrentUser = recipient.Ref
+	view.State.CurrentUser = recipient.Ref
 	if rights, err := view.Effective(ref, false); err != nil || rights != 0 {
 		t.Fatal("recipient gained rights", rights, err)
 	}

@@ -37,14 +37,14 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 	if len(raw) == 0 {
 		return nil
 	}
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
+	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
 	columns := make([]queryColumn, len(d.Columns))
 	for i, c := range d.Columns {
 		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
 	}
-	qualifier := queryQualifier{name: d.Name(), original: d.Name(), schema: auth.catalog.Get(d.Namespace()).Name(), ref: ref, columns: columns}
+	qualifier := queryQualifier{name: d.Name(), original: d.Name(), schema: auth.Catalog.Get(d.Namespace()).Name(), ref: ref, columns: columns}
 	ns := queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: d.Columns}
-	used := constraintNames(auth.catalog, d.Namespace(), d)
+	used := constraintNames(auth.Catalog, d.Namespace(), d)
 	installed := make(map[string]bool, len(d.Constraints.NotNull)+len(d.Constraints.Check))
 	start := 0
 	for _, c := range d.Constraints.Check {
@@ -81,7 +81,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		binder.querySources = []queryLeaf{{ref: ref, relation: d}}
 		if altering {
 			e.mu.Lock()
-			if auth.catalog.Epoch() != e.catalog.state.Epoch() {
+			if auth.Catalog.Epoch() != e.catalog.state.Epoch() {
 				e.mu.Unlock()
 				return ids.ErrCatalogReplaced
 			}
@@ -151,14 +151,14 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		current[name], used[name] = true, true
 		definition := catalog.CheckConstraint{Name: name, NoInherit: c.NoInherit, NotValid: c.NotValid, Ordinal: ordinal, Expression: node}
 		var dependencies []ids.ObjectRef
-		if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &dependencies, commentSnapshot: &definition.CommentSnapshot, visibilitySnapshot: &definition.VisibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
+		if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.Roles}, owner: d, dependencies: &dependencies, commentSnapshot: &definition.CommentSnapshot, visibilitySnapshot: &definition.VisibilitySnapshot}).sql(op.Context(), auth.Catalog, node); err != nil {
 			return err
 		}
 		for _, ref := range dependencies {
 			address := ref.Address
 			address.SubID = 0
 			revision := d.Revision()
-			if descriptor, ok := auth.catalog.Descriptor(address); ok {
+			if descriptor, ok := auth.Catalog.Descriptor(address); ok {
 				revision = descriptor.Revision()
 			}
 			definition.Dependencies = append(definition.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: revision})
@@ -356,13 +356,13 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		e.mu.Lock()
 		auth, err := e.authorizationLocked(s.op)
 		if err == nil {
-			provider, ok := auth.catalog.Relation(ref.Address)
+			provider, ok := auth.Catalog.Relation(ref.Address)
 			original, existed := stage.Base.Relation(ref.Address)
 			if !ok && existed {
 				// The provider existed when the definition was analyzed and was
 				// dropped while this statement waited for it (PostgreSQL 18.6).
 				err = sqlError("42704", "referenced relation was concurrently dropped")
-			} else if !ok || !existed || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.catalog.Epoch() || provider.RelationKind != original.RelationKind || retained[ref.Address] != nil && provider != retained[ref.Address] {
+			} else if !ok || !existed || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.Catalog.Epoch() || provider.RelationKind != original.RelationKind || retained[ref.Address] != nil && provider != retained[ref.Address] {
 				err = fmt.Errorf("stuntgres: definition provider disappeared before publication")
 			}
 		}
@@ -377,7 +377,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 	if err != nil {
 		return err
 	}
-	return stage.validateLikeSources(auth.catalog)
+	return stage.validateLikeSources(auth.Catalog)
 }
 
 func validateChecks(view catalog.Read, d *catalog.Relation, names map[string]bool) error {

@@ -41,7 +41,7 @@ func (e *Engine) regtypeAnalysisLocked(auth AuthorizationView, constants []regty
 	if len(constants) == 0 {
 		return nil, nil
 	}
-	cell := &regtypeAnalysis{constants: slices.Clone(constants), role: auth.state.CurrentUser, database: auth.session.databaseName}
+	cell := &regtypeAnalysis{constants: slices.Clone(constants), role: auth.State.CurrentUser, database: auth.session.databaseName}
 	for _, constant := range constants {
 		if constant.operator != 0 || constant.value.Type() == nil || constant.value.Type().ContainsRegtype() || constant.value.Type().ContainsOperatorAlias() || constant.value.Type().ContainsRegproc() {
 			cell.types = true
@@ -69,7 +69,7 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 		if err != nil {
 			return false, err
 		}
-		if cell.role != auth.state.CurrentUser || cell.database != auth.session.databaseName || !sameSequenceEnvironment(cell.path, path) {
+		if cell.role != auth.State.CurrentUser || cell.database != auth.session.databaseName || !sameSequenceEnvironment(cell.path, path) {
 			return false, nil
 		}
 	}
@@ -78,7 +78,7 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 		if err != nil {
 			return false, err
 		}
-		if cell.role != auth.state.CurrentUser || cell.database != auth.session.databaseName || !slices.Equal(cell.collationPath, path) {
+		if cell.role != auth.State.CurrentUser || cell.database != auth.session.databaseName || !slices.Equal(cell.collationPath, path) {
 			return false, nil
 		}
 	}
@@ -86,22 +86,22 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 	// Collation/namespace aliases additionally reanalyze changed captured names.
 	for _, constant := range cell.constants {
 		for _, operand := range constant.operands {
-			d := auth.catalog.Get(operand.Ref.Address)
-			if d == nil || operand.Ref.Domain() != e.catalog.Domain || operand.Ref.Epoch != auth.catalog.Epoch() || d.Revision() != operand.Revision {
+			d := auth.Catalog.Get(operand.Ref.Address)
+			if d == nil || operand.Ref.Domain() != e.catalog.Domain || operand.Ref.Epoch != auth.Catalog.Epoch() || d.Revision() != operand.Revision {
 				return false, nil
 			}
 		}
 		for _, reference := range constant.references {
-			d := auth.catalog.Get(reference.address)
+			d := auth.Catalog.Get(reference.address)
 			if d == nil || d.Name() != reference.name || d.Namespace() != reference.namespace {
 				return false, nil
 			}
 			if reference.address.ClassID == ids.CollationClassID {
-				ns := auth.catalog.Get(reference.namespace)
+				ns := auth.Catalog.Get(reference.namespace)
 				if ns == nil || ns.Name() != reference.namespaceName {
 					return false, nil
 				}
-				if err := auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), reference.namespace)); err != nil {
+				if err := auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), reference.namespace)); err != nil {
 					if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
 						return false, nil
 					}
@@ -110,10 +110,10 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 			}
 		}
 		for _, namespace := range constant.qualified {
-			if auth.catalog.Get(namespace) == nil {
+			if auth.Catalog.Get(namespace) == nil {
 				return false, nil
 			}
-			if err := auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), namespace)); err != nil {
+			if err := auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), namespace)); err != nil {
 				if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
 					return false, nil
 				}

@@ -144,9 +144,9 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 	}); allocations != 0 {
 		t.Fatal("already admitted safety allocated again", allocations)
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	raw := statement(t, "CREATE TABLE captured_default(v mood DEFAULT 'q')").(*parser.CreateTable)
-	failure := e.schemaTableLocked(op, auth, stage, raw, domainUnitType(t, auth.catalog, "mood").ObjectNamespace, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
+	failure := e.schemaTableLocked(op, auth, stage, raw, domainUnitType(t, auth.Catalog, "mood").ObjectNamespace, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	if d, ok := failure.(*sqlstate.Error); !ok || d.Code != "55P04" {
 		t.Fatal("CREATE candidate binder lost admitted safety transport", failure)
 	}

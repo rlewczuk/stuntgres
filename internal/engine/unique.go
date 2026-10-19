@@ -280,12 +280,12 @@ func uniqueHasNull(key []sqltype.Value) bool {
 func uniqueKeyDetailAllowed(auth AuthorizationView, ref ids.ObjectRef, keys []catalog.IndexKey) (bool, error) {
 	// RLS applicability is captured metadata/role authority, not a policy-row
 	// evaluation. Table SELECT alone cannot reveal a hidden physical key.
-	descriptor, ok := auth.catalog.Descriptor(ref.Address)
+	descriptor, ok := auth.Catalog.Descriptor(ref.Address)
 	parent, relation := descriptor.(*catalog.Relation)
 	if !ok || !relation {
 		return false, fmt.Errorf("stuntgres: unique disclosure parent is missing")
 	}
-	decision, err := rowSecurityDecision(auth.roles, parent, auth.state.CurrentUser, catalog.PolicySelect, false)
+	decision, err := rowSecurityDecision(auth.Roles, parent, auth.State.CurrentUser, catalog.PolicySelect, false)
 	if err != nil || decision != rlsUnrestricted {
 		return false, err
 	}
@@ -423,7 +423,7 @@ func validateUniquePair(ctx context.Context, parent, index *catalog.Relation, pr
 	if cmp == 0 {
 		allowed := auth == nil || auth.engine == nil // Trusted publication has no SQL principal.
 		if auth != nil && auth.engine != nil {
-			ref := auth.catalog.Owner().Domain.Ref(auth.catalog.Epoch(), parent.Address())
+			ref := auth.Catalog.Owner().Domain.Ref(auth.Catalog.Epoch(), parent.Address())
 			allowed, err = uniqueKeyDetailAllowed(*auth, ref, d.Keys)
 			if err != nil {
 				return err
@@ -437,7 +437,7 @@ func validateUniquePair(ctx context.Context, parent, index *catalog.Relation, pr
 		}
 		var catalog catalog.Read
 		if auth != nil {
-			catalog = auth.catalog
+			catalog = auth.Catalog
 		}
 		return uniqueDiagnostic(ctx, parent, index, key, schema, output, allowed, building, catalog)
 	}

@@ -124,8 +124,8 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *binding)
 	if err != nil {
 		return err
 	}
-	auth.catalog = e.privateCatalogLocked(scope.owner.catalog)
-	auth.Recapture(auth.catalog)
+	auth.Catalog = e.privateCatalogLocked(scope.owner.catalog)
+	auth.Recapture(auth.Catalog)
 	original := len(b.viewWrite.logical.querySources)
 	for i := original; i < len(b.querySources); i++ {
 		rewritten := false
@@ -148,10 +148,10 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *binding)
 				if viewOf(layer.relation) != key.definition {
 					continue
 				}
-				current := auth.catalog.MustRelation(layer.ref.Address)
+				current := auth.Catalog.MustRelation(layer.ref.Address)
 				source.principal = current.Owner
 				if viewOf(current).invoker {
-					source.principal = auth.state.CurrentUser
+					source.principal = auth.State.CurrentUser
 				}
 				break
 			}

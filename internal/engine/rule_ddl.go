@@ -40,7 +40,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 	if ref != scope.lockedRef {
 		return fail(ids.ErrCatalogReplaced)
 	}
-	old := auth.catalog.MustRelation(ref.Address)
+	old := auth.Catalog.MustRelation(ref.Address)
 	index := ruleIndex(old, name)
 	if s, ok := stmt.(*parser.DropRule); ok && index < 0 && !(old.View != nil && name == "_RETURN") {
 		if s.IfExists {
@@ -135,7 +135,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			}
 			if definition.conditionPresentation != nil {
 				for _, source := range definition.conditionPresentation.sources {
-					d := auth.catalog.MustRelation(source.ref.Address)
+					d := auth.Catalog.MustRelation(source.ref.Address)
 					sources = append(sources, queryLeaf{ref: source.ref, relation: d})
 				}
 			}
@@ -165,7 +165,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 	if next.View != old.View {
 		viewOf(&next).quoteRevision = next.Revision()
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.session)
 	for _, source := range sources {
 		stage.querySources = append(stage.querySources, source.relation)

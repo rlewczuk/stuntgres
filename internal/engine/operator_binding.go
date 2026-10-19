@@ -87,8 +87,8 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 	if _, comparison := comparisonOperator(spelling); !unary && comparison {
 		available, custom := false, false
 		for i := 0; i < path.count() && !custom; i++ {
-			for _, address := range auth.catalog.State().OperatorNames().Buckets[catalog.OperatorNameKey{path.at(i), spelling}] {
-				d := auth.catalog.MustOperator(address)
+			for _, address := range auth.Catalog.State().OperatorNames().Buckets[catalog.OperatorNameKey{path.at(i), spelling}] {
+				d := auth.Catalog.MustOperator(address)
 				if d.Left == 0 {
 					continue
 				}
@@ -100,7 +100,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 			}
 		}
 		if !custom {
-			return operatorCandidateSet{catalog: auth.catalog, available: available}, nil
+			return operatorCandidateSet{catalog: auth.Catalog, available: available}, nil
 		}
 		// Even a masked custom descriptor requires ordered signature masking below.
 	}
@@ -108,8 +108,8 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 	seen := make(map[operatorSignature]bool)
 	custom := false
 	for i := range path.count() {
-		for _, address := range auth.catalog.State().OperatorNames().Buckets[catalog.OperatorNameKey{path.at(i), spelling}] {
-			d := auth.catalog.MustOperator(address)
+		for _, address := range auth.Catalog.State().OperatorNames().Buckets[catalog.OperatorNameKey{path.at(i), spelling}] {
+			d := auth.Catalog.MustOperator(address)
 			if (d.Left == 0) != unary {
 				continue
 			}
@@ -122,7 +122,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 			custom = custom || !operatorSeeded(d)
 		}
 	}
-	return operatorCandidateSet{catalog: auth.catalog, descriptors: candidates, hasCustom: custom, available: len(candidates) != 0}, nil
+	return operatorCandidateSet{catalog: auth.Catalog, descriptors: candidates, hasCustom: custom, available: len(candidates) != 0}, nil
 }
 
 func (b *expressionBinder) selectCatalogOperator(set operatorCandidateSet, raw parser.OperatorExpr, left, right *sqltype.Descriptor, unary bool) (*catalog.Operator, error) {

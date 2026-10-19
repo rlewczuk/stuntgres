@@ -34,7 +34,7 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 		e.mu.Lock()
 		auth, err := e.authorizationLocked(op)
 		if err == nil {
-			err = e.stageCreateEnumLocked(op, auth, e.BeginCatalogStage(auth.catalog), raw.(*parser.CreateEnum))
+			err = e.stageCreateEnumLocked(op, auth, e.BeginCatalogStage(auth.Catalog), raw.(*parser.CreateEnum))
 		}
 		e.mu.Unlock()
 		var diagnostic *sqlstate.Error
@@ -66,21 +66,21 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 	e.roles.published = roles
 	e.mu.Unlock()
 	auth := catalogAuthorization(e, e.CatalogRead())
-	auth.state.CurrentUser = reader
+	auth.State.CurrentUser = reader
 	// Grant schema access through the authority fixture, without adding SQL GRANT.
-	ns := *auth.catalog.MustNamespace(mood.Namespace())
+	ns := *auth.Catalog.MustNamespace(mood.Namespace())
 	ns.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.Owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
-	namespaceStage := e.BeginCatalogStage(auth.catalog)
+	namespaceStage := e.BeginCatalogStage(auth.Catalog)
 	ns.ObjectRevision++
 	if err := namespaceStage.Replace(&ns); err != nil {
 		t.Fatal(err)
 	}
 	domainUnitPublish(t, e, namespaceStage)
 	auth = catalogAuthorization(e, e.CatalogRead())
-	auth.state.CurrentUser = reader
+	auth.State.CurrentUser = reader
 	dependent := statement(t, "CREATE DOMAIN public.consumer AS public.mood").(*parser.CreateDomain)
 	e.mu.Lock()
-	consumer := e.BeginCatalogStage(auth.catalog)
+	consumer := e.BeginCatalogStage(auth.Catalog)
 	err = e.stageCreateDomainLocked(op, auth, consumer, dependent, sqltype.InputEnvironment{})
 	e.mu.Unlock()
 	if err != nil {
@@ -99,9 +99,9 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 	}
 	domainUnitPublish(t, e, revoke)
 	auth = catalogAuthorization(e, e.CatalogRead())
-	auth.state.CurrentUser = reader
+	auth.State.CurrentUser = reader
 	e.mu.Lock()
-	denied := e.BeginCatalogStage(auth.catalog)
+	denied := e.BeginCatalogStage(auth.Catalog)
 	err = e.stageCreateDomainLocked(op, auth, denied, dependent, sqltype.InputEnvironment{})
 	e.mu.Unlock()
 	domainUnitDiagnostic(t, err, "42501", "permission denied for type mood")

@@ -10,12 +10,12 @@ import (
 )
 
 func ownershipSuccessor(auth accessView, target authorization.PrincipalRef) error {
-	allowed, err := auth.roles.CanSetRole(auth.state.CurrentUser, target)
+	allowed, err := auth.Roles.CanSetRole(auth.State.CurrentUser, target)
 	if err != nil {
 		return err
 	}
 	if !allowed {
-		role, _ := auth.roles.Descriptor(target)
+		role, _ := auth.Roles.Descriptor(target)
 		return sqlError("42501", fmt.Sprintf(`must be able to SET ROLE "%s"`, role.Name))
 	}
 	return nil
@@ -29,7 +29,7 @@ func ownershipDatabaseCreate(auth accessView, env accessEnvironment) error {
 // object's namespace. The namespace check runs as target with the caller's
 // environment; a namespace CREATE check never reads the reference path.
 func ownershipEligibility(auth accessView, env accessEnvironment, target authorization.PrincipalRef, namespace ids.ObjectAddress) error {
-	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
 		return err
 	}
@@ -40,7 +40,7 @@ func ownershipEligibility(auth accessView, env accessEnvironment, target authori
 		return err
 	}
 	targetAuth := auth
-	targetAuth.state.CurrentUser = target
+	targetAuth.State.CurrentUser = target
 	if namespace == (ids.ObjectAddress{}) {
 		return nil
 	}
@@ -57,17 +57,17 @@ func ownershipRoleOperand(spec parser.RoleSpec) (string, bool) {
 }
 func schemaOwner(auth accessView, name string, identity bool) (authorization.PrincipalRef, error) {
 	if name == "" {
-		return auth.state.CurrentUser, nil
+		return auth.State.CurrentUser, nil
 	}
 	if identity {
 		switch name {
 		case "current_user", "current_role":
-			return auth.state.CurrentUser, nil
+			return auth.State.CurrentUser, nil
 		case "session_user":
-			return auth.state.SessionUser, nil
+			return auth.State.SessionUser, nil
 		}
 	}
-	role, ok := auth.roles.Lookup(name)
+	role, ok := auth.Roles.Lookup(name)
 	if !ok {
 		return authorization.PrincipalRef{}, sqlError("42704", fmt.Sprintf(`role "%s" does not exist`, name))
 	}

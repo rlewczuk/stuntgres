@@ -26,25 +26,25 @@ func TestDefaultPrivilegesArrayAuthority(t *testing.T) {
 			})
 		}
 		if err == nil {
-			auth.catalog = f.e.stageRead(stage)
-			auth.Recapture(auth.catalog)
+			auth.Catalog = f.e.stageRead(stage)
+			auth.Recapture(auth.Catalog)
 		}
 		f.e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
-		base := auth.catalog.MustType(auth.catalog.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: f.schema, Name: name}))
-		array := auth.catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)})
+		base := auth.Catalog.MustType(auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: f.schema, Name: name}))
+		array := auth.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)})
 		if !authorization.MatchesDefaultBaseline(array.ACL, f.owner, authorization.DefaultTypes, false) || descriptorRoleDependencies(array, f.reader, nil) {
 			t.Fatal("associated enum array consumed selected TYPES ACL", array.ACL)
 		}
-		auth.state.CurrentUser = f.reader
+		auth.State.CurrentUser = f.reader
 		return auth, base, array
 	}
 	check := func(auth AuthorizationView, base, array *catalog.Type, allowed bool) {
 		t.Helper()
 		for _, descriptor := range []*catalog.Type{base, array} {
-			ref := f.e.catalog.Domain.Ref(auth.catalog.Epoch(), descriptor.Address())
+			ref := f.e.catalog.Domain.Ref(auth.Catalog.Epoch(), descriptor.Address())
 			err := auth.CanUse(ref)
 			if allowed {
 				if err != nil {
@@ -99,9 +99,9 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth.catalog = f.e.catalog.read(state)
-	auth.Recapture(auth.catalog)
-	auth.state.CurrentUser = f.reader
+	auth.Catalog = f.e.catalog.read(state)
+	auth.Recapture(auth.Catalog)
+	auth.State.CurrentUser = f.reader
 	ref := f.e.catalog.Domain.Ref(state.Epoch(), f.schema)
 	for _, privilege := range []authorization.Privileges{authorization.UsagePrivilege, authorization.CreatePrivilege, authorization.UsagePrivilege | authorization.CreatePrivilege} {
 		if err := auth.Check(AccessRequirement{Object: ref, Privileges: privilege}); err != nil {
@@ -130,8 +130,8 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 		invalidNamespace.Temporary = token
 		candidate.SetDescriptor(f.schema, &invalidNamespace)
 		invalid := auth
-		invalid.catalog = f.e.catalog.read(candidate)
-		invalid.Recapture(invalid.catalog)
+		invalid.Catalog = f.e.catalog.read(candidate)
+		invalid.Recapture(invalid.Catalog)
 		invalid.session = &Session{token: token}
 		defaultUnitDiagnostic(t, invalid.CanUse(ref), "42501", "permission denied for schema "+namespace.Name())
 	}
@@ -143,8 +143,8 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	permanent.Temporary = ids.SessionToken{}
 	ordinary.SetDescriptor(f.schema, &permanent)
 	ordinaryAuth := auth
-	ordinaryAuth.catalog = f.e.catalog.read(ordinary)
-	ordinaryAuth.Recapture(ordinaryAuth.catalog)
+	ordinaryAuth.Catalog = f.e.catalog.read(ordinary)
+	ordinaryAuth.Recapture(ordinaryAuth.Catalog)
 	defaultUnitDiagnostic(t, ordinaryAuth.CanUse(ref), "42501", "permission denied for schema "+namespace.Name())
 	foreign := ref
 	foreign = New().catalog.Domain.Ref(foreign.Epoch, foreign.Address)
@@ -152,7 +152,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 		t.Fatal("physical namespace authority admitted foreign object")
 	}
 	staleActor := auth
-	staleActor.state.CurrentUser = f.e.roles.domain.Principal(999999)
+	staleActor.State.CurrentUser = f.e.roles.domain.Principal(999999)
 	if err := staleActor.CanUse(ref); err == nil {
 		t.Fatal("physical namespace authority admitted stale actor")
 	}

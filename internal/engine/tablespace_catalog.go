@@ -18,7 +18,7 @@ func (e *Engine) initializeTablespaces() {
 }
 
 func resolveGrantTablespace(v AuthorizationView, name string) (ids.ObjectRef, error) {
-	address := v.catalog.NameAddress(ids.NameKey{ClassID: ids.TablespaceClassID, Name: name})
+	address := v.Catalog.NameAddress(ids.NameKey{ClassID: ids.TablespaceClassID, Name: name})
 	if address == (ids.ObjectAddress{}) {
 		return ids.ObjectRef{}, sqlError("42704", fmt.Sprintf(`tablespace "%s" does not exist`, name))
 	}

@@ -250,7 +250,7 @@ func intarrayUnitTemporaryNamespace(t *testing.T, e *Engine, op *Operation) *cat
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
 	for _, descriptor := range changes.descriptors {
 		if err := stage.Create(descriptor); err != nil {

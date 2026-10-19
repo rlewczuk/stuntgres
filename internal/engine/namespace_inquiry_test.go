@@ -58,8 +58,8 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal("repeated inquiry allocated or lost overlay", err)
 			}
-			oidType, _ := auth.catalog.LookupType(sqltype.Oid)
-			boolType, _ := auth.catalog.LookupType(sqltype.Bool)
+			oidType, _ := auth.Catalog.LookupType(sqltype.Oid)
+			boolType, _ := auth.Catalog.LookupType(sqltype.Bool)
 			var toast ids.ObjectAddress
 			for a, d := range candidate.descriptors {
 				if n, ok := d.(*catalog.Namespace); ok && n.TemporaryToast && n.Temporary == s.token {

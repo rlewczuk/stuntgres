@@ -27,11 +27,11 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 		return Result{}, err
 	}
 	if s.Grantor != nil {
-		grantor, er := authorization.MembershipRole(auth.roles, auth.state, *s.Grantor)
+		grantor, er := authorization.MembershipRole(auth.Roles, auth.State, *s.Grantor)
 		if er != nil {
 			return Result{}, er
 		}
-		if grantor != auth.state.CurrentUser {
+		if grantor != auth.State.CurrentUser {
 			return Result{}, sqlError("0A000", "grantor must be current user")
 		}
 	}
@@ -48,18 +48,18 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 			}
 			grantees[i].Public = true
 		} else {
-			role, er := authorization.MembershipRole(auth.roles, auth.state, grantee.Role)
+			role, er := authorization.MembershipRole(auth.Roles, auth.State, grantee.Role)
 			if er != nil {
 				return Result{}, er
 			}
 			grantees[i].Role = role
 		}
 	}
-	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
 		return Result{}, err
 	}
-	principals, err := auth.roles.RoleClosure(op.Context(), actor.Ref, true)
+	principals, err := auth.Roles.RoleClosure(op.Context(), actor.Ref, true)
 	if err != nil {
 		return Result{}, err
 	}
@@ -72,7 +72,7 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 		if len(name.Parts) != 1 {
 			return Result{}, sqlError("42601", "SQL/MED global names cannot be qualified")
 		}
-		d, er := findForeign(auth.catalog, class, name.Parts[0].Text)
+		d, er := findForeign(auth.Catalog, class, name.Parts[0].Text)
 		if er != nil {
 			return Result{}, er
 		}
@@ -95,7 +95,7 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 			// Materialize only ordinary owner USAGE; owner grant options remain implicit.
 			baseline = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: d.Owner, Grantee: authorization.ACLGrantee{Role: d.Owner}, Privileges: authorization.UsagePrivilege}}}
 		}
-		acl, changed, er := authorization.ChangeObjectACL(op.Context(), auth.roles, baseline, d.Owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
+		acl, changed, er := authorization.ChangeObjectACL(op.Context(), auth.Roles, baseline, d.Owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
 		if er != nil {
 			return Result{}, er
 		}
@@ -108,7 +108,7 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 		if er != nil {
 			return Result{}, er
 		}
-		if er = validateACL(auth.roles, &next); er != nil {
+		if er = validateACL(auth.Roles, &next); er != nil {
 			return Result{}, er
 		}
 		e.catalogChangeLocked(changes, d.Address(), &next)

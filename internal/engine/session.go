@@ -169,7 +169,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	e.mu.Lock()
 	authenticated := start.Authenticated
 	if authenticated == (authorization.PrincipalRef{}) {
-		authenticated = e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		authenticated = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	}
 	role, authErr := (e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)).Descriptor(authenticated)
 	e.mu.Unlock()

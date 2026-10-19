@@ -34,7 +34,7 @@ func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
 	e.mu.Lock()
 	auth, err := e.statementAuthorizationLocked(s.op, stmt)
 	if err == nil {
-		for a, descriptor := range auth.catalog.Descriptors() {
+		for a, descriptor := range auth.Catalog.Descriptors() {
 			d, ok := descriptor.(*catalog.Relation)
 			if !ok || !truncateOwnsSequence(d, s.truncateSelected) {
 				continue
@@ -57,7 +57,7 @@ func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
 		e.mu.Lock()
 		auth, err = e.statementAuthorizationLocked(s.op, stmt)
 		if err == nil {
-			if auth.catalog.Get(observed.ref.Address) != observed.relation || e.sequenceGeneratorLocked(s, observed.ref.Address) != observed.generator || observed.generator == nil || e.storage.Sequences[observed.ref.Address] != observed.committed {
+			if auth.Catalog.Get(observed.ref.Address) != observed.relation || e.sequenceGeneratorLocked(s, observed.ref.Address) != observed.generator || observed.generator == nil || e.storage.Sequences[observed.ref.Address] != observed.committed {
 				err = ids.ErrCatalogReplaced
 			} else {
 				err = auth.Check(AccessRequirement{Object: observed.ref, OwnerOnly: true})
@@ -82,7 +82,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 	}
 	for _, sequence := range s.truncateSequences {
 		a := sequence.ref.Address
-		if auth.catalog.Get(a) != sequence.relation || e.sequenceGeneratorLocked(s, a) != sequence.generator || e.storage.Sequences[a] != sequence.committed {
+		if auth.Catalog.Get(a) != sequence.relation || e.sequenceGeneratorLocked(s, a) != sequence.generator || e.storage.Sequences[a] != sequence.committed {
 			return nil, ids.ErrCatalogReplaced
 		}
 		if err := auth.Check(AccessRequirement{Object: sequence.ref, OwnerOnly: true}); err != nil {
@@ -92,7 +92,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 	}
 	// Host publication need not honor SQL locks. Do not silently omit an owned
 	// sequence added between closure capture and staging, even for an empty set.
-	for a, descriptor := range auth.catalog.Descriptors() {
+	for a, descriptor := range auth.Catalog.Descriptors() {
 		if d, ok := descriptor.(*catalog.Relation); ok && truncateOwnsSequence(d, s.truncateSelected) {
 			if _, captured := observed[a]; !captured {
 				return nil, catalog.Conflict{}

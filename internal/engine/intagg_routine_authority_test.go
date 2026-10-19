@@ -191,11 +191,11 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				func(d *catalog.Procedure) { d.RoutineKind = catalog.ProcedureRoutine },
 			} {
 				auth := *evaluation.routineAuthority
-				auth.catalog = auth.catalog.WithState(catalog.CloneState(auth.catalog.State()))
+				auth.Catalog = auth.Catalog.WithState(catalog.CloneState(auth.Catalog.State()))
 				bad := *captured
 				mutate(&bad)
-				auth.catalog.State().SetDescriptor(ref.Address, &bad)
-				if _, err := validateRoutineDescriptor(auth.catalog, auth.roles, captured); err == nil {
+				auth.Catalog.State().SetDescriptor(ref.Address, &bad)
+				if _, err := validateRoutineDescriptor(auth.Catalog, auth.Roles, captured); err == nil {
 					t.Fatal("incompatible provider/kind declaration accepted")
 				}
 				if !aggregate {
@@ -408,7 +408,7 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 		t.Fatal("named owner roundtrip", roundtrip, err)
 	}
 	foreign := New()
-	foreignOwner := foreign.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	foreignOwner := foreign.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	for _, owner := range []authorization.PrincipalRef{{}, foreignOwner} {
 		state := catalog.CloneState(e.catalog.state)
 		for _, a := range ext.Members {

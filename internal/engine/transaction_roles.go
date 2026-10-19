@@ -60,7 +60,7 @@ func (e *Engine) roleRetirementPreflightLocked(c *catalogChanges, catalog *catal
 				return ids.ErrCatalogReplaced
 			}
 		}
-		for edge := range c.roles.root.Read(authorization.PrincipalRef{}).Edges() {
+		for edge := range c.roles.Root.Read(authorization.PrincipalRef{}).Edges() {
 			if edge.Role == ref || edge.Member == ref || edge.Grantor == ref {
 				return ids.ErrCatalogReplaced
 			}

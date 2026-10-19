@@ -13,7 +13,7 @@ func TestCommentInquiryLegacyCollision(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
-	owner := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	if err := stage.Create(&catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, Owner: owner, ObjectName: "collision", ObjectRevision: 1, Comment: "namespace candidate"}); err != nil {
 		t.Fatal(err)
 	}

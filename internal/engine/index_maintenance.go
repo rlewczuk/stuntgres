@@ -52,7 +52,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	if s, ok := stmt.(*parser.AlterIndex); ok && s.Action == "rename" {
 		return e.renameRelationLocked(scope, scope.op, auth, s.Name, "", s.Target.Text, s.IfExists, false, false, false, count)
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.session)
 	stage.indexOutput = scope.output
 	stage.indexParents = make(map[ids.ObjectAddress]*catalog.Relation, len(g.parents))
@@ -126,7 +126,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		err := e.stageCatalogOverlay(scope, stage, cloneCatalogChanges(scope.owner.catalog))
 		return Result{}, err
 	}
-	_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: auth.catalog.Epoch()})
+	_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()})
 	if err != nil {
 		return Result{}, err
 	}

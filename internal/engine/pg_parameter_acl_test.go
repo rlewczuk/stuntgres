@@ -272,7 +272,7 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 	if err := applyObjectGrantUnit(e, op, request); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.state == before.State() || e.roles.published == scope.deparseAuth.roleRecord {
+	if e.catalog.state == before.State() || e.roles.published == scope.deparseAuth.RoleRecord {
 		t.Fatal("distinguishing live publication missing")
 	}
 	e.mu.Lock()

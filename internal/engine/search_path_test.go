@@ -26,11 +26,11 @@ func TestSearchPathLookupKinds(t *testing.T) {
 	names := func(path []ids.ObjectAddress) []string {
 		result := make([]string, len(path))
 		for i, a := range path {
-			result[i] = auth.catalog.Get(a).Name()
+			result[i] = auth.Catalog.Get(a).Name()
 		}
 		return result
 	}
-	temp := auth.catalog.Get(temporaryNamespace(auth)).Name()
+	temp := auth.Catalog.Get(temporaryNamespace(auth)).Name()
 	for _, tc := range []struct {
 		kind lookupKind
 		want []string
@@ -57,7 +57,7 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "reader", Login: true, Inherit: true, ConnectionLimit: -1})
 	e.roles.published = roles
 	e.mu.Unlock()
-	if err := e.SetObjectACL(context.Background(), schemaRef(t, e, "visible"), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.UsagePrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), schemaRef(t, e, "visible"), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.bounded(id pg_catalog._name)")
@@ -118,7 +118,7 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 	}
 	var names []string
 	for _, a := range path {
-		names = append(names, auth.catalog.Get(a).Name())
+		names = append(names, auth.Catalog.Get(a).Name())
 	}
 	if !reflect.DeepEqual(names, []string{"visible", "public"}) {
 		t.Fatal(names)
@@ -182,8 +182,8 @@ func TestSearchPathExplicitTempPlacementAndForeignFiltering(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	temp := auth.catalog.Get(temporaryNamespace(auth)).Name()
-	foreign := other.catalog.Get(temporaryNamespace(other)).Name()
+	temp := auth.Catalog.Get(temporaryNamespace(auth)).Name()
+	foreign := other.Catalog.Get(temporaryNamespace(other)).Name()
 	e.mu.Unlock()
 	roleExecute(t, e, op, "SET search_path TO b,pg_catalog,pg_temp,"+temp+","+foreign+",a")
 	e.mu.Lock()
@@ -207,7 +207,7 @@ func TestSearchPathExplicitTempPlacementAndForeignFiltering(t *testing.T) {
 		}
 		got := make([]string, len(path))
 		for i, a := range path {
-			got[i] = auth.catalog.Get(a).Name()
+			got[i] = auth.Catalog.Get(a).Name()
 		}
 		if !reflect.DeepEqual(got, tc.want) {
 			t.Fatal(tc.kind, got, tc.want)

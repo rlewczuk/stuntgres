@@ -214,7 +214,7 @@ func TestCatalogRelationsCapture(t *testing.T) {
 	lookup(current, 0, "unknown (OID=0)")
 	foreign := New()
 	saved := current.commentRoles
-	current.commentRoles = foreign.roles.published.root.Read(authorization.PrincipalRef{})
+	current.commentRoles = foreign.roles.published.Root.Read(authorization.PrincipalRef{})
 	input, _ := sqltype.OIDValue(oidType, 50001)
 	node := catalogUserNameExpression{Info: expr.Info{Usage: nameType.Usage()}, arg: literalExpression{Info: expr.Info{Usage: oidType.Usage()}, value: input}}
 	if _, err := node.Eval(&EvalContext{Context: context.Background(), statementScope: current}); err == nil {

@@ -170,10 +170,10 @@ func (e *Engine) refreshIdentitySequenceLocked(scope *StatementScope, stage *Cat
 	if err != nil {
 		return err
 	}
-	if fresh.catalog.Epoch() != stage.Base.Epoch() {
+	if fresh.Catalog.Epoch() != stage.Base.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	descriptor := fresh.catalog.Get(address)
+	descriptor := fresh.Catalog.Get(address)
 	if staged, exists := stage.Descriptors[address]; exists {
 		descriptor = staged
 	}
@@ -186,6 +186,6 @@ func (e *Engine) refreshIdentitySequenceLocked(scope *StatementScope, stage *Cat
 	if _, captured := stage.identityOriginals[address]; !captured {
 		stage.identityOriginals[address] = e.catalog.state.Get(address)
 	}
-	stage.Base = fresh.catalog
+	stage.Base = fresh.Catalog
 	return nil
 }

@@ -48,8 +48,8 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		return err
 	}
 	e.mu.Lock()
-	auth.catalog = e.privateCatalogLocked(s.owner.catalog)
-	auth.Recapture(auth.catalog)
+	auth.Catalog = e.privateCatalogLocked(s.owner.catalog)
+	auth.Recapture(auth.Catalog)
 	childRef, err := e.resolveRelationReference(auth, raw.Name, true)
 	if err != nil {
 		e.mu.Unlock()
@@ -58,12 +58,12 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		}
 		return err
 	}
-	child := auth.catalog.MustRelation(childRef.Address)
+	child := auth.Catalog.MustRelation(childRef.Address)
 	if err = auth.Check(AccessRequirement{Object: childRef, OwnerOnly: true}); err == nil {
 		err = tableKind(child, "ADD CONSTRAINT")
 	}
 	if err == nil {
-		err = inheritanceAlterActionsGuard(auth.catalog, child, raw.Actions)
+		err = inheritanceAlterActionsGuard(auth.Catalog, child, raw.Actions)
 	}
 	if err != nil {
 		e.mu.Unlock()
@@ -85,7 +85,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		captures[i].target = ref
 		captures[i].storage = e.privateStorageLocked(s.owner.catalog, ref.Address)
 		if ref != childRef {
-			parent, ok := auth.catalog.Relation(ref.Address)
+			parent, ok := auth.Catalog.Relation(ref.Address)
 			if ok && parent.RelationKind == catalog.TableRelation {
 				var attributes []int32
 				if len(action.ForeignKey.Referenced) == 0 {
@@ -99,7 +99,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 					attributes, _ = foreignKeyAttributes(parent, action.ForeignKey.Referenced)
 				}
 				if len(attributes) != 0 {
-					if index, keyErr := foreignKeyIndex(auth.catalog, parent, attributes); keyErr == nil {
+					if index, keyErr := foreignKeyIndex(auth.Catalog, parent, attributes); keyErr == nil {
 						captures[i].index = index.Address()
 					}
 				}
@@ -128,8 +128,8 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	auth.catalog = e.privateCatalogLocked(s.owner.catalog)
-	auth.Recapture(auth.catalog)
+	auth.Catalog = e.privateCatalogLocked(s.owner.catalog)
+	auth.Recapture(auth.Catalog)
 	sameName := func(name parser.ObjectName, expected ids.ObjectRef) error {
 		current, resolveErr := e.resolveReference(auth, name)
 		if resolveErr != nil {
@@ -156,7 +156,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 			return err
 		}
 		if captures[i].index != (ids.ObjectAddress{}) {
-			if _, ok := auth.catalog.Relation(captures[i].index); !ok {
+			if _, ok := auth.Catalog.Relation(captures[i].index); !ok {
 				return ids.ErrCatalogReplaced
 			}
 		}
@@ -176,8 +176,8 @@ func (s *StatementScope) validateAddedForeignKeys(view catalog.Read, child *cata
 	if err != nil {
 		return err
 	}
-	auth.catalog = view
-	auth.Recapture(auth.catalog)
+	auth.Catalog = view
+	auth.Recapture(auth.Catalog)
 	e := s.op.session.Engine()
 	for _, f := range child.Constraints.ForeignKeys {
 		if f.NotValid || !slices.Contains(added, f.OID) {

@@ -20,7 +20,7 @@ func guardedCatalogRelation(d *catalog.Relation) bool {
 // the coherent effective actor at execution, including held SET ROLE commands.
 // System-catalog TRUNCATE has its own released English diagnostic.
 func guardedCatalogMutationError(auth AuthorizationView, d *catalog.Relation, truncate bool) error {
-	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
 		return err
 	}

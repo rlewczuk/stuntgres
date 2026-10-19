@@ -232,7 +232,7 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 	if parser.HasModifyingCTE(view.Query) {
 		return sqlError("0A000", "views must not contain data-modifying statements in WITH")
 	}
-	persistence := requestedViewPersistence(auth.catalog, view, b.querySources)
+	persistence := requestedViewPersistence(auth.Catalog, view, b.querySources)
 	if persistence == "temporary" && view.Persistence != "temporary" {
 		s.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`view "%s" will be a temporary view`, view.Name.Parts[len(view.Name.Parts)-1].Text)})
 	}
@@ -250,8 +250,8 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 	if err != nil {
 		return err
 	}
-	auth.catalog = e.privateCatalogLocked(changes)
-	auth.Recapture(auth.catalog)
+	auth.Catalog = e.privateCatalogLocked(changes)
+	auth.Recapture(auth.Catalog)
 	if table, ok := changes.descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == s.op.session.token {
 		auth.stagedTemporary = table.Address()
 	}
@@ -283,8 +283,8 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	}
 	ns := scope.viewCreationNamespace
 	if scope.viewChanges != nil {
-		auth.catalog = e.privateCatalogLocked(scope.viewChanges)
-		auth.Recapture(auth.catalog)
+		auth.Catalog = e.privateCatalogLocked(scope.viewChanges)
+		auth.Recapture(auth.Catalog)
 		if table, ok := scope.viewChanges.descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
 			auth.stagedTemporary = table.Address()
 		}
@@ -292,7 +292,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	if err == nil {
 		err = auth.CheckCreate(ns)
 		if op.restoreTableDestination {
-			bootstrap, guardErr := auth.roles.Descriptor(auth.state.Authenticated)
+			bootstrap, guardErr := auth.Roles.Descriptor(auth.State.Authenticated)
 			if guardErr != nil || !bootstrap.Superuser || e.importTargets == nil {
 				e.mu.Unlock()
 				return Result{}, fmt.Errorf("stuntgres: invalid trusted restore destination authority")
@@ -308,13 +308,13 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	}
 	name := view.Name.Parts[len(view.Name.Parts)-1].Text
 	var old *catalog.Relation
-	if address, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}); exists {
+	if address, exists := auth.Catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}); exists {
 		if !view.Replace {
 			e.mu.Unlock()
 			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 		}
-		old = auth.catalog.MustRelation(address)
-		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), address)
+		old = auth.Catalog.MustRelation(address)
+		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), address)
 		if ref != scope.lockedRef {
 			e.mu.Unlock()
 			return Result{}, ids.ErrCatalogReplaced
@@ -355,7 +355,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		if err := checkViewPrefix(auth.catalog, old.Columns, b.query.Root.Schema()); err != nil {
+		if err := checkViewPrefix(auth.Catalog, old.Columns, b.query.Root.Schema()); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -390,7 +390,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 			return Result{}, err
 		}
 	}
-	base := auth.catalog
+	base := auth.Catalog
 	stage := e.BeginCatalogStage(base)
 	stage.authorizeLocked(auth, op.session)
 	defer e.DiscardCatalogStage(stage)
@@ -431,7 +431,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	definition.checkOption = mode
 	definition.options = transformViewOptions(nil, view.Options, false)
 	definition.quoteRevision = revision
-	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: revision, Owner: auth.state.CurrentUser, RelationKind: catalog.ViewRelation, View: viewPayloadOf(definition), Columns: append([]catalog.Column(nil), b.query.Root.Schema()...), Index: make(map[string]int), Attributes: make([]int32, len(b.query.Root.Schema()))}
+	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: revision, Owner: auth.State.CurrentUser, RelationKind: catalog.ViewRelation, View: viewPayloadOf(definition), Columns: append([]catalog.Column(nil), b.query.Root.Schema()...), Index: make(map[string]int), Attributes: make([]int32, len(b.query.Root.Schema()))}
 	if old != nil {
 		*d = *old
 		d.ObjectRevision, d.View = revision, viewPayloadOf(definition)

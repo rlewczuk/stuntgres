@@ -120,10 +120,10 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			// A catalog-local replacement with an incompatible declaration is
 			// not rescued by an equal numeric address either.
 			changed := *evaluation.routineAuthority
-			changed.catalog = changed.catalog.WithState(catalog.CloneState(changed.catalog.State()))
+			changed.Catalog = changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 			replacement := *captured
 			replacement.Strict = false
-			changed.catalog.State().SetDescriptor(address, &replacement)
+			changed.Catalog.State().SetDescriptor(address, &replacement)
 			probe = evaluation
 			probe.routineAuthority = &changed
 			if err := admitRoutineCall(&probe, node, true, false); err == nil {

@@ -55,11 +55,11 @@ func TestDataTypePrivilegesCapture(t *testing.T) {
 		}
 	}
 	for _, change := range []func(*AuthorizationView){
-		func(a *AuthorizationView) { a.owner = New().catalog.owner() },
-		func(a *AuthorizationView) { a.roleRecord = nil },
-		func(a *AuthorizationView) { a.pairedCatalog = catalog.Read{} },
-		func(a *AuthorizationView) { a.roles = New().roles.published.root.Read(authorization.PrincipalRef{}) },
-		func(a *AuthorizationView) { a.state.CurrentUser = authorization.PrincipalRef{} },
+		func(a *AuthorizationView) { a.Owner = New().catalog.owner() },
+		func(a *AuthorizationView) { a.RoleRecord = nil },
+		func(a *AuthorizationView) { a.PairedCatalog = catalog.Read{} },
+		func(a *AuthorizationView) { a.Roles = New().roles.published.Root.Read(authorization.PrincipalRef{}) },
+		func(a *AuthorizationView) { a.State.CurrentUser = authorization.PrincipalRef{} },
 	} {
 		bad := auth
 		change(&bad)
@@ -107,7 +107,7 @@ func TestDataTypePrivilegesVisibility(t *testing.T) {
 	state.SetDescriptor(relation.Address(), relation)
 	view := f.e.catalog.read(state)
 	auth := dtpUnitAuthority(t, f, view)
-	auth.state.CurrentUser = f.reader
+	auth.State.CurrentUser = f.reader
 	held, err := dtpUnitCapture(context.Background(), view, auth)
 	if err != nil {
 		t.Fatal(err)
@@ -135,17 +135,17 @@ func TestDataTypePrivilegesVisibility(t *testing.T) {
 	revoked.Security.ColumnACL = nil
 	changed.SetDescriptor(relation.Address(), &revoked)
 	auth.Recapture(f.e.catalog.read(changed))
-	fresh, err := dtpUnitCapture(context.Background(), auth.catalog, auth)
+	fresh, err := dtpUnitCapture(context.Background(), auth.Catalog, auth)
 	if err != nil || len(selectIDs(fresh)) != 0 || !reflect.DeepEqual(before, held.anonymous) {
 		t.Fatal("capture lifetime", err)
 	}
-	auth.state.CurrentUser = f.owner
-	owned, err := dtpUnitCapture(context.Background(), auth.catalog, auth)
+	auth.State.CurrentUser = f.owner
+	owned, err := dtpUnitCapture(context.Background(), auth.Catalog, auth)
 	if err != nil || !reflect.DeepEqual(selectIDs(owned), []string{"1", "3", "4"}) {
 		t.Fatal("owner independent of ordinary ACL", err)
 	}
-	auth.state.CurrentUser = f.member
-	inherited, err := dtpUnitCapture(context.Background(), auth.catalog, auth)
+	auth.State.CurrentUser = f.member
+	inherited, err := dtpUnitCapture(context.Background(), auth.Catalog, auth)
 	if err != nil || !reflect.DeepEqual(selectIDs(inherited), []string{"1", "3", "4"}) {
 		t.Fatal("inherited owner", err)
 	}

@@ -24,7 +24,7 @@ func TestRLSBaseDecision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	owner, reader, bypass, member := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_owner"), e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_reader"), e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_bypass"), e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_member")
+	owner, reader, bypass, member := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_owner"), e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_reader"), e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_bypass"), e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_member")
 	using, err := policyUnitBind(t, e, op, d, "TRUE")
 	if err != nil {
 		t.Fatal(err)
@@ -33,7 +33,7 @@ func TestRLSBaseDecision(t *testing.T) {
 	next.Owner = owner
 	check := func(label string, p authorization.PrincipalRef, command catalog.PolicyCommand, proposed bool, want rlsDisposition) {
 		t.Helper()
-		got, err := rowSecurityDecision(auth.roles, &next, p, command, proposed)
+		got, err := rowSecurityDecision(auth.Roles, &next, p, command, proposed)
 		if err != nil || got != want {
 			t.Fatalf("%s got %v,%v want %v", label, got, err, want)
 		}
@@ -58,7 +58,7 @@ func TestRLSBaseDecision(t *testing.T) {
 	check("ALL check falls back", member, catalog.PolicyInsert, true, rlsNeedsExpressions)
 	next.Security.Policies[0].Command = catalog.PolicySelect
 	check("command inapplicable", member, catalog.PolicyInsert, true, rlsDefaultDeny)
-	got, err := rowSecurityGroups(auth.roles, &next, member, catalog.PolicyUpdate, false, true)
+	got, err := rowSecurityGroups(auth.Roles, &next, member, catalog.PolicyUpdate, false, true)
 	if err != nil || got != rlsDefaultDeny {
 		t.Fatal("same-phase false conjunction", got, err)
 	}
@@ -67,7 +67,7 @@ func TestRLSBaseDecision(t *testing.T) {
 	next.Security.Policies[0].Command = catalog.PolicyInsert
 	next.Security.Policies[0].Check = policyPayloadOf(using)
 	check("explicit check", member, catalog.PolicyInsert, true, rlsNeedsExpressions)
-	got, err = rowSecurityGroups(auth.roles, &next, member, catalog.PolicyInsert, true, true)
+	got, err = rowSecurityGroups(auth.Roles, &next, member, catalog.PolicyInsert, true, true)
 	if err != nil || got != rlsDefaultDeny {
 		t.Fatal("proposed SELECT conjunction", got, err)
 	}

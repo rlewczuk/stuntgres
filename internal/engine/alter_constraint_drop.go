@@ -42,8 +42,8 @@ func (e *Engine) stageDroppedConstraintIndexes(scope *StatementScope, auth Autho
 		return next, stage, nil
 	}
 	if stage == nil {
-		stage = e.BeginCatalogStage(auth.catalog)
-		stage.authSession, stage.authRevision, stage.roleRevision = scope.op.session, auth.revision, auth.roleRecord.revision
+		stage = e.BeginCatalogStage(auth.Catalog)
+		stage.authSession, stage.authRevision, stage.roleRevision = scope.op.session, auth.Revision, auth.RoleRecord.Revision
 	}
 	next, err := dropConstraintIndexes(stageDropProvider(scope.op.Context(), stage, scope, changes, nil), old, next, actions)
 	return next, stage, err

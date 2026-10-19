@@ -18,15 +18,15 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			actor, ok := auth.roles.Lookup("pg_monitor")
+			actor, ok := auth.Roles.Lookup("pg_monitor")
 			if !ok {
 				t.Fatal("missing actor role")
 			}
-			owner, ok := auth.roles.Lookup("pg_signal_backend")
+			owner, ok := auth.Roles.Lookup("pg_signal_backend")
 			if !ok {
 				t.Fatal("missing view owner role")
 			}
-			bootstrap := auth.state.CurrentUser
+			bootstrap := auth.State.CurrentUser
 			base.Owner = bootstrap
 			grant := func(role authorization.PrincipalRef) authorization.ACLValue {
 				return authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantee: authorization.ACLGrantee{Role: role}, Privileges: authorization.SelectPrivilege, Grantor: bootstrap}}}
@@ -58,7 +58,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			}
 			base.Security.ACL = grant(reader)
 			auth.Recapture(e.catalog.read(e.catalog.state))
-			auth.state.CurrentUser = owner.Ref
+			auth.State.CurrentUser = owner.Ref
 			leaf := queryLeaf{ref: ruleUnitRef(e, root), relation: root, principal: actor.Ref}
 			collect := func(view AuthorizationView, invoker authorization.PrincipalRef, leaves ...queryLeaf) ([]ids.ObjectRef, error) {
 				t.Helper()

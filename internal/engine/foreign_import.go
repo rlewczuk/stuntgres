@@ -11,13 +11,13 @@ import (
 )
 
 func foreignMappingFor(auth AuthorizationView, server *catalog.ForeignObject) (*catalog.ForeignObject, error) {
-	for _, role := range []authorization.PrincipalRef{auth.state.CurrentUser, {}} {
+	for _, role := range []authorization.PrincipalRef{auth.State.CurrentUser, {}} {
 		key := ids.NameKey{ClassID: ids.ForeignMappingClassID, Name: catalog.ForeignMappingName(server.Address(), role)}
-		if d, ok := auth.catalog.Foreign(auth.catalog.NameAddress(key)); ok {
+		if d, ok := auth.Catalog.Foreign(auth.Catalog.NameAddress(key)); ok {
 			return d, nil
 		}
 	}
-	role, err := auth.roles.Descriptor(auth.state.CurrentUser)
+	role, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +41,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	server, err := findForeign(auth.catalog, ids.ForeignServerClassID, s.Server.Text)
+	server, err := findForeign(auth.Catalog, ids.ForeignServerClassID, s.Server.Text)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -58,12 +58,12 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	wrapper, ok := auth.catalog.Foreign(server.Wrapper)
+	wrapper, ok := auth.Catalog.Foreign(server.Wrapper)
 	if !ok {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
-	handler, err := foreignHandlerFor(auth.catalog, wrapper)
+	handler, err := foreignHandlerFor(auth.Catalog, wrapper)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -83,7 +83,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	role, err := auth.roles.Descriptor(auth.state.CurrentUser)
+	role, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -92,9 +92,9 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 	for _, table := range s.ImportFilter {
 		request.Tables = append(request.Tables, table.Text)
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.session)
-	stage.domainBases = append(stage.domainBases, server, wrapper, mapping, auth.catalog.Get(wrapper.Handler), auth.catalog.Get(ns.Address))
+	stage.domainBases = append(stage.domainBases, server, wrapper, mapping, auth.Catalog.Get(wrapper.Handler), auth.Catalog.Get(ns.Address))
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if scope.replacementRead {

@@ -12,11 +12,11 @@ import (
 )
 
 func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
-	if auth.session == nil || auth.catalog.State() == nil || auth.session.token == (ids.SessionToken{}) || auth.session.token.Domain() != domainOf(auth.engine) || privateSessionOf(auth.session.token) != nil {
+	if auth.session == nil || auth.Catalog.State() == nil || auth.session.token == (ids.SessionToken{}) || auth.session.token.Domain() != domainOf(auth.engine) || privateSessionOf(auth.session.token) != nil {
 		return ids.ObjectAddress{}
 	}
 	table := func(a ids.ObjectAddress) bool {
-		ns, ok := auth.catalog.Namespace(a)
+		ns, ok := auth.Catalog.Namespace(a)
 		return ok && !ns.TemporaryToast && ns.Temporary == auth.session.token
 	}
 	if table(auth.stagedTemporary) {
@@ -26,7 +26,7 @@ func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
 		return auth.session.temporaryNamespace
 	}
 	if owner := auth.session.transactions; owner != nil && owner.catalog != nil {
-		for a, d := range auth.catalog.Descriptors() {
+		for a, d := range auth.Catalog.Descriptors() {
 			if ns, ok := d.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == auth.session.token {
 				return a
 			}
@@ -69,12 +69,12 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 	if a := temporaryNamespace(auth); a != (ids.ObjectAddress{}) {
 		return e.catalog.Domain.Ref(e.catalog.state.Epoch(), a), nil
 	}
-	rights, err := databaseRights(context.Background(), auth.catalog, auth.roles, auth.state.CurrentUser)
+	rights, err := databaseRights(context.Background(), auth.Catalog, auth.Roles, auth.State.CurrentUser)
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}
 	if rights&authorization.TemporaryPrivilege == 0 {
-		db := auth.catalog.MustDatabase(catalog.CurrentDatabaseAddress)
+		db := auth.Catalog.MustDatabase(catalog.CurrentDatabaseAddress)
 		return ids.ObjectRef{}, sqlError("42501", fmt.Sprintf(`permission denied to create temporary tables in database "%s"`, db.Name()))
 	}
 	oid, err := e.catalog.allocateOIDLocked()
@@ -109,7 +109,7 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 // Creation permission precedes persistence adjustment, including for SET SCHEMA.
 // Callers supply the coherent catalog containing any privately staged namespace.
 func adjustRelationCreationPersistence(auth AuthorizationView, ref ids.ObjectRef, requested string) (string, error) {
-	ns := auth.catalog.MustNamespace(ref.Address)
+	ns := auth.Catalog.MustNamespace(ref.Address)
 	temporary := ns.Temporary != (ids.SessionToken{})
 	own := ownTemporaryNamespace(auth, ns)
 	switch requested {

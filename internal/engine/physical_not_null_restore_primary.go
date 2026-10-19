@@ -70,7 +70,7 @@ func (e *Engine) prepareDeferredPhysicalPrimary(op *Operation, raw *parser.Alter
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if !partitionConstraintReplayImport(e, op, auth) || auth.roleRecord != pair.authority.roleRecord || auth.catalog.Get(pair.ref.Address) != pair.current || created[pair.ref.Address] != pair.ref || pair.ref.Epoch != auth.catalog.Epoch() {
+	if !partitionConstraintReplayImport(e, op, auth) || auth.RoleRecord != pair.authority.RoleRecord || auth.Catalog.Get(pair.ref.Address) != pair.current || created[pair.ref.Address] != pair.ref || pair.ref.Epoch != auth.Catalog.Epoch() {
 		return reject()
 	}
 	ref, err := e.resolveRelationReference(auth, raw.Name, false)
@@ -78,7 +78,7 @@ func (e *Engine) prepareDeferredPhysicalPrimary(op *Operation, raw *parser.Alter
 		return nil, err
 	}
 	old := pair.current
-	if ref != pair.ref || old.RelationKind != catalog.TableRelation || old.Partition != nil || old.Membership != nil || inheritanceHasChildren(auth.catalog, old.Address()) || slices.ContainsFunc(old.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Primary }) {
+	if ref != pair.ref || old.RelationKind != catalog.TableRelation || old.Partition != nil || old.Membership != nil || inheritanceHasChildren(auth.Catalog, old.Address()) || slices.ContainsFunc(old.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Primary }) {
 		return reject()
 	}
 	for _, column := range definition.Columns {

@@ -78,7 +78,7 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 				changed.ObjectRevision++
 				if kind == "owner" {
 					aclUnitRoles(e, "domain_alter_owner")
-					changed.Owner = e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("domain_alter_owner")
+					changed.Owner = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("domain_alter_owner")
 				}
 				state.SetDescriptor(d.Address(), &changed)
 				e.catalog.state = state

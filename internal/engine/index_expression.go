@@ -10,12 +10,12 @@ import (
 )
 
 func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation) *expressionBinder {
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), parent.Address())
+	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), parent.Address())
 	columns := make([]queryColumn, len(parent.Columns))
 	for i, c := range parent.Columns {
 		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
 	}
-	namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: parent.Name(), original: parent.Name(), schema: auth.catalog.Get(parent.Namespace()).Name(), ref: ref, columns: columns}}, frame: parent.Columns}
+	namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: parent.Name(), original: parent.Name(), schema: auth.Catalog.Get(parent.Namespace()).Name(), ref: ref, columns: columns}}, frame: parent.Columns}
 	binder := newExpressionBinder(op.Context(), e, input, op, nil)
 	binder.indexConsumer, binder.noParameters, binder.queryAuth = true, true, &auth
 	binder.queryNamespace = &namespace
@@ -37,7 +37,7 @@ func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironme
 	if err := rejectVirtualIndexUses(parent, binder.querySources[0].uses); err != nil {
 		return nil, "", err
 	}
-	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: binder.input, catalog: auth.catalog}
+	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: binder.input, catalog: auth.Catalog}
 	evaluation.routineAuthority, evaluation.routineChecks = &auth, binder.dependencies
 	evaluation.routineRecipe = true
 	execution, _, err := preflightCoercionsWithPolicy(&evaluation, definition, true)
@@ -54,7 +54,7 @@ func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironme
 		return nil, "", sqlError("42P17", "functions in index expression must be marked IMMUTABLE")
 	}
 	key := &catalog.DerivedIndexKey{Definition: definition, Execution: execution, Attributes: parent.Attributes}
-	if _, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: parent, dependencies: &key.Dependencies}).sql(op.Context(), auth.catalog, definition); err != nil {
+	if _, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.Roles}, owner: parent, dependencies: &key.Dependencies}).sql(op.Context(), auth.Catalog, definition); err != nil {
 		return nil, "", err
 	}
 	label := "expr"

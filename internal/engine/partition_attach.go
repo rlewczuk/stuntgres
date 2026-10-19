@@ -45,7 +45,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	if err = e.partitionAttachName(lookupAuth, raw.Name, scope.lockedRef); err != nil {
 		return fail(err)
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
 	bound, err := preparePartitionBounds(parent, raw.Bound)
 	if err != nil {
@@ -65,7 +65,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	// can elide descendant admission; candidate descendants always receive AX.
 	var defaultScans []partitionAttachScan
 	if !bound.DefaultBound && parent.Partition.DefaultChild != (ids.ObjectAddress{}) {
-		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), parent.Partition.DefaultChild)
+		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), parent.Partition.DefaultChild)
 		if err = scope.acquirePartitionLock(ref, lock.AccessExclusive); err != nil {
 			return Result{}, err
 		}
@@ -137,25 +137,25 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if auth.catalog.Get(parent.Address()) != parent {
+	if auth.Catalog.Get(parent.Address()) != parent {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
-	child = auth.catalog.MustRelation(candidate.Address)
+	child = auth.Catalog.MustRelation(candidate.Address)
 	e.DiscardCatalogStage(pending.stage)
-	stage = e.BeginCatalogStage(auth.catalog)
+	stage = e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
 	stage.indexOutput = scope.output
 	pending.stage, pending.auth, pending.child = stage, auth, child
 	for address := range scope.partitionRelations {
-		stage.domainBases = append(stage.domainBases, auth.catalog.Get(address))
+		stage.domainBases = append(stage.domainBases, auth.Catalog.Get(address))
 	}
 	stage.domainBases = append(stage.domainBases, parent, child)
 	e.mu.Unlock()
-	if err = partitionAttachEligibility(auth.catalog, parent, child); err != nil {
+	if err = partitionAttachEligibility(auth.Catalog, parent, child); err != nil {
 		return Result{}, err
 	}
-	next, err := partitionAttachSchema(scope, auth.catalog, parent, child)
+	next, err := partitionAttachSchema(scope, auth.Catalog, parent, child)
 	if err != nil {
 		return Result{}, err
 	}
@@ -164,7 +164,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 		return Result{}, err
 	}
 	if bound.DefaultBound && parent.Partition.DefaultChild != (ids.ObjectAddress{}) {
-		old := auth.catalog.MustRelation(parent.Partition.DefaultChild)
+		old := auth.Catalog.MustRelation(parent.Partition.DefaultChild)
 		return Result{}, expr.ErrorAt("42P17", fmt.Sprintf(`partition "%s" conflicts with existing default partition "%s"`, child.Name(), old.Name()), raw.Bound.Pos)
 	}
 	if !bound.DefaultBound {
@@ -172,15 +172,15 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 			return Result{}, err
 		}
 	}
-	candidateScans, err := scope.partitionAttachFrontier(auth.catalog, parent, child, bound, false, false)
+	candidateScans, err := scope.partitionAttachFrontier(auth.Catalog, parent, child, bound, false, false)
 	if err != nil {
 		return Result{}, err
 	}
 	jobs := append(defaultScans, candidateScans...)
-	if err = e.partitionAttachCapture(scope, stage, auth.catalog, child, jobs); err != nil {
+	if err = e.partitionAttachCapture(scope, stage, auth.Catalog, child, jobs); err != nil {
 		return Result{}, err
 	}
-	if err = partitionAttachValidateRows(scope, auth.catalog, parent, bound, jobs); err != nil {
+	if err = partitionAttachValidateRows(scope, auth.Catalog, parent, bound, jobs); err != nil {
 		return Result{}, err
 	}
 	if parent.Revision() == ids.DefinitionRevision(^uint64(0)) || next.Revision() == ids.DefinitionRevision(^uint64(0)) {
@@ -202,7 +202,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 		return Result{}, err
 	}
 	e.mu.Lock()
-	for _, index := range partitionIndexDeclarationOrder(auth.catalog, parent) {
+	for _, index := range partitionIndexDeclarationOrder(auth.Catalog, parent) {
 		current := e.stageRead(stage).MustRelation(child.Address())
 		if _, err = e.stagePartitionIndexChild(op, stage, parent, index, current, false); err != nil {
 			break
@@ -249,16 +249,16 @@ func (e *Engine) partitionAttachAuthorization(op *Operation, auth AuthorizationV
 	if !op.restorePartitionAttach {
 		return auth, nil
 	}
-	if op.self != op || op.session == nil || op.session.Engine() != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.catalog.Owner() == nil || auth.catalog.Owner().Domain != e.catalog.Domain || auth.catalog.State() != e.catalog.state {
+	if op.self != op || op.session == nil || op.session.Engine() != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore partition attachment authority")
 	}
 	if err := e.validateOperation(op); err != nil {
 		return AuthorizationView{}, err
 	}
-	bootstrap, err := auth.roles.Descriptor(auth.state.Authenticated)
+	bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
 	if err != nil || !bootstrap.Superuser {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore partition attachment authority")
 	}
-	auth.state.CurrentUser = bootstrap.Ref
+	auth.State.CurrentUser = bootstrap.Ref
 	return auth, nil
 }

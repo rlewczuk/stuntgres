@@ -178,12 +178,12 @@ func (e *Engine) captureInheritedForeignKey(op *Operation, raw *parser.AlterTabl
 	if err != nil {
 		return restoredForeignKeys{}, false, err
 	}
-	source, sourceOK := auth.catalog.Relation(sourceRef.Address)
-	target, targetOK := auth.catalog.Relation(targetRef.Address)
-	if !sourceOK || !targetOK || created[sourceRef.Address] != sourceRef || created[targetRef.Address] != targetRef || source.RelationKind != catalog.TableRelation || target.RelationKind != catalog.TableRelation || source.Partition != nil || source.Membership != nil || target.Partition != nil || target.Membership != nil || sourceRef == targetRef || !inheritedForeignKeyDescendant(auth.catalog, target, source.Address()) {
+	source, sourceOK := auth.Catalog.Relation(sourceRef.Address)
+	target, targetOK := auth.Catalog.Relation(targetRef.Address)
+	if !sourceOK || !targetOK || created[sourceRef.Address] != sourceRef || created[targetRef.Address] != targetRef || source.RelationKind != catalog.TableRelation || target.RelationKind != catalog.TableRelation || source.Partition != nil || source.Membership != nil || target.Partition != nil || target.Membership != nil || sourceRef == targetRef || !inheritedForeignKeyDescendant(auth.Catalog, target, source.Address()) {
 		return reject()
 	}
-	if auth.catalog.MustNamespace(source.Namespace()).Temporary != (ids.SessionToken{}) || auth.catalog.MustNamespace(target.Namespace()).Temporary != (ids.SessionToken{}) {
+	if auth.Catalog.MustNamespace(source.Namespace()).Temporary != (ids.SessionToken{}) || auth.Catalog.MustNamespace(target.Namespace()).Temporary != (ids.SessionToken{}) {
 		return reject()
 	}
 	if err := auth.Check(AccessRequirement{Object: sourceRef, OwnerOnly: true}); err != nil {
@@ -224,7 +224,7 @@ func (e *Engine) captureInheritedForeignKey(op *Operation, raw *parser.AlterTabl
 	for i, column := range receipt.referenced {
 		attributes[i] = column.attribute
 	}
-	for address, descriptor := range auth.catalog.Descriptors() {
+	for address, descriptor := range auth.Catalog.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != target.Address() {
 			continue
@@ -260,9 +260,9 @@ func inheritedForeignRelationUnchanged(current, before *catalog.Relation) bool {
 // observations. No later key, owner, type or provider incarnation can reuse them.
 func (receipt *restoredInheritedForeignKey) validate(e *Engine, op *Operation, declaration restoredForeignKeys, view catalog.Read) error {
 	auth := declaration.auth
-	auth.catalog = view
+	auth.Catalog = view
 	auth.Recapture(view)
-	if receipt.source != declaration.child || receipt.source.Domain() != e.catalog.Domain || receipt.target.Domain() != e.catalog.Domain || receipt.source.Epoch != view.Epoch() || receipt.target.Epoch != view.Epoch() || declaration.auth.roleRecord != e.roles.published || !partitionConstraintReplayImport(e, op, auth) {
+	if receipt.source != declaration.child || receipt.source.Domain() != e.catalog.Domain || receipt.target.Domain() != e.catalog.Domain || receipt.source.Epoch != view.Epoch() || receipt.target.Epoch != view.Epoch() || declaration.auth.RoleRecord != e.roles.published || !partitionConstraintReplayImport(e, op, auth) {
 		return ids.ErrCatalogReplaced
 	}
 	source, _ := view.Relation(receipt.source.Address)

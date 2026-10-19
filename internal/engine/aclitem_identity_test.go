@@ -35,7 +35,7 @@ func aclUnitType(t *testing.T, e *Engine, id sqltype.ID) *sqltype.Descriptor {
 func aclUnitValue(t *testing.T, e *Engine, text string) sqltype.Value {
 	t.Helper()
 	d := aclUnitType(t, e, sqltype.ACLItem)
-	v, err := d.InputWithEnvironment(context.Background(), text, -1, sqltype.InputEnvironment{ACLItem: e.captureACLItemInput(AuthorizationView{accessView: accessView{roles: e.Roles()}}, nil)})
+	v, err := d.InputWithEnvironment(context.Background(), text, -1, sqltype.InputEnvironment{ACLItem: e.captureACLItemInput(AuthorizationView{accessView: accessView{Roles: e.Roles()}}, nil)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 	if err != nil || text != "acl_unit_renamed=rw*/acl_unit_b" {
 		t.Fatal("prepared current output", text, err)
 	}
-	if _, err := d.InputWithEnvironment(context.Background(), "acl_unit_a=r/acl_unit_b", -1, sqltype.InputEnvironment{ACLItem: e.captureACLItemInput(AuthorizationView{accessView: accessView{roles: e.Roles()}}, nil)}); err == nil {
+	if _, err := d.InputWithEnvironment(context.Background(), "acl_unit_a=r/acl_unit_b", -1, sqltype.InputEnvironment{ACLItem: e.captureACLItemInput(AuthorizationView{accessView: accessView{Roles: e.Roles()}}, nil)}); err == nil {
 		t.Fatal("fresh bind adopted renamed source spelling")
 	}
 	retained := make([]sqltype.Value, 2)
@@ -116,7 +116,7 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 		bootstrapEngine := New()
 		typeACL := aclUnitType(t, bootstrapEngine, sqltype.ACLItem)
 		old := bootstrapEngine.Roles()
-		value, err := typeACL.InputWithEnvironment(context.Background(), "=r", -1, sqltype.InputEnvironment{ACLItem: bootstrapEngine.captureACLItemInput(AuthorizationView{accessView: accessView{roles: old}}, nil)})
+		value, err := typeACL.InputWithEnvironment(context.Background(), "=r", -1, sqltype.InputEnvironment{ACLItem: bootstrapEngine.captureACLItemInput(AuthorizationView{accessView: accessView{Roles: old}}, nil)})
 		if err != nil {
 			t.Fatal(err)
 		}

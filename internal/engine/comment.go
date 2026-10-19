@@ -68,11 +68,11 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		text = ""
 	}
 	if s.Kind == parser.CommentRole {
-		target, ok := auth.roles.Lookup(s.Name.Parts[0].Text)
+		target, ok := auth.Roles.Lookup(s.Name.Parts[0].Text)
 		if !ok {
 			return nil, sqlError("42704", fmt.Sprintf(`role "%s" does not exist`, s.Name.Parts[0].Text))
 		}
-		actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+		actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 		if err != nil {
 			return nil, err
 		}
@@ -83,11 +83,11 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 			}
 			return nil, roleDiagnostic("42501", "permission denied", "The current user must have the "+attribute+" attribute.")
 		}
-		if auth.roleRecord.revision == ^uint64(0) {
+		if auth.RoleRecord.Revision == ^uint64(0) {
 			return nil, fmt.Errorf("stuntgres: authorization revision exhausted")
 		}
 		target.Comment = text
-		next, err := auth.roleRecord.root.PutDescriptor(target)
+		next, err := auth.RoleRecord.Root.PutDescriptor(target)
 		if err != nil {
 			return nil, err
 		}
@@ -96,23 +96,23 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		if err := publicationOperationLocked(e, op); err != nil {
 			return nil, err
 		}
-		e.installOperationRolesLocked(op, &roleCatalog{root: next, revision: auth.roleRecord.revision + 1})
+		e.installOperationRolesLocked(op, &roleCatalog{Root: next, Revision: auth.RoleRecord.Revision + 1})
 		return nil, nil
 	}
 	var ref ids.ObjectRef
 	switch s.Kind {
 	case parser.CommentSchema:
-		a, ok := auth.catalog.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: s.Name.Parts[0].Text})
+		a, ok := auth.Catalog.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: s.Name.Parts[0].Text})
 		if !ok {
 			return nil, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, s.Name.Parts[0].Text))
 		}
-		ref = e.catalog.Domain.Ref(auth.catalog.Epoch(), a)
+		ref = e.catalog.Domain.Ref(auth.Catalog.Epoch(), a)
 	case parser.CommentTable, parser.CommentColumn:
 		ref = scope.lockedRef
 		if ref.Domain() == nil {
 			return nil, fmt.Errorf("stuntgres: COMMENT relation lock is missing")
 		}
-		relation := auth.catalog.MustRelation(ref.Address)
+		relation := auth.Catalog.MustRelation(ref.Address)
 		operation := "comment table"
 		if s.Kind == parser.CommentColumn {
 			operation = "comment column"
@@ -149,7 +149,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		return nil, err
 	}
 	var updated catalog.Descriptor
-	switch d := auth.catalog.Get(a).(type) {
+	switch d := auth.Catalog.Get(a).(type) {
 	case *catalog.Namespace:
 		n := *d
 		n.Comment = text
@@ -173,7 +173,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		}
 		updated = &n
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
 	if err := stage.Replace(updated); err != nil {
 		return nil, err

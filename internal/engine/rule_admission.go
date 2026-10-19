@@ -64,12 +64,12 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 			}
 		}
 		collectAuth := command.auth
-		collectAuth.Recapture(scope.inheritanceRead(command.auth.catalog))
+		collectAuth.Recapture(scope.inheritanceRead(command.auth.Catalog))
 		principal := func(leaf queryLeaf) authorization.PrincipalRef {
 			if leaf.principal != (authorization.PrincipalRef{}) {
 				return leaf.principal
 			}
-			return command.auth.state.CurrentUser
+			return command.auth.State.CurrentUser
 		}
 		var queryRefs []ids.ObjectRef
 		for start := 0; start < len(command.binding.querySources); {
@@ -78,7 +78,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 			for end < len(command.binding.querySources) && principal(command.binding.querySources[end]) == invoker {
 				end++
 			}
-			collectAuth.state.CurrentUser = invoker
+			collectAuth.State.CurrentUser = invoker
 			var err error
 			queryRefs, err = e.queryTableRefsLocked(collectAuth, invoker, command.binding.querySources[start:end], queryRefs, scope.op.session.token, queryRowMark{})
 			if err != nil {
@@ -127,20 +127,20 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 		return nil, err
 	}
 	for _, event := range events {
-		current, ok := fresh.catalog.Find(event.Ref.Address)
-		if !ok || event.Ref.Epoch != fresh.catalog.Epoch() || current.Revision() != event.Revision {
+		current, ok := fresh.Catalog.Find(event.Ref.Address)
+		if !ok || event.Ref.Epoch != fresh.Catalog.Epoch() || current.Revision() != event.Revision {
 			e.mu.Unlock()
 			return nil, ids.ErrCatalogReplaced
 		}
 	}
 	for i := range commands {
-		principal := commands[i].auth.state.CurrentUser
+		principal := commands[i].auth.State.CurrentUser
 		current := fresh
-		current.state.CurrentUser = principal
+		current.State.CurrentUser = principal
 		if i < len(program.commands) {
 			program.commands[i].auth = current
 		}
-		if err := current.roles.ValidatePrincipal(principal); err != nil {
+		if err := current.Roles.ValidatePrincipal(principal); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}

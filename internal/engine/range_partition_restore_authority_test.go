@@ -28,9 +28,9 @@ func TestRangePartitionPublicationTrustedImporterProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	original := auth.state.CurrentUser
+	original := auth.State.CurrentUser
 	parentAuth, err := stage.partitionParentAuthorization(op, auth, create)
-	if err != nil || parentAuth.state.CurrentUser != auth.state.Authenticated || auth.state.CurrentUser != original || parentAuth.session != auth.session || parentAuth.catalog != auth.catalog || parentAuth.roles != auth.roles {
+	if err != nil || parentAuth.State.CurrentUser != auth.State.Authenticated || auth.State.CurrentUser != original || parentAuth.session != auth.session || parentAuth.Catalog != auth.Catalog || parentAuth.Roles != auth.Roles {
 		t.Fatal("parent-only private authority did not preserve named child frontier", parentAuth, err)
 	}
 	if !partitionDefaultReplayAllowed(stage, op, auth, alter) {
@@ -42,12 +42,12 @@ func TestRangePartitionPublicationTrustedImporterProvenance(t *testing.T) {
 	}{
 		{"foreign engine", func(a *AuthorizationView, o *Operation) *Engine { return source }},
 		{"nonbootstrap authenticated", func(a *AuthorizationView, o *Operation) *Engine {
-			a.state.Authenticated = a.state.CurrentUser
+			a.State.Authenticated = a.State.CurrentUser
 			return stage
 		}},
 		{"copied operation", func(a *AuthorizationView, o *Operation) *Engine { return stage }},
-		{"foreign catalog", func(a *AuthorizationView, o *Operation) *Engine { a.catalog = source.CatalogRead(); return stage }},
-		{"foreign roles", func(a *AuthorizationView, o *Operation) *Engine { a.roles = source.Roles(); return stage }},
+		{"foreign catalog", func(a *AuthorizationView, o *Operation) *Engine { a.Catalog = source.CatalogRead(); return stage }},
+		{"foreign roles", func(a *AuthorizationView, o *Operation) *Engine { a.Roles = source.Roles(); return stage }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			a := auth
@@ -67,7 +67,7 @@ func TestRangePartitionPublicationTrustedImporterProvenance(t *testing.T) {
 	}
 	op.restoreTableDestination = false
 	ordinary, err := stage.partitionParentAuthorization(op, auth, create)
-	if err != nil || ordinary.state.CurrentUser != original {
+	if err != nil || ordinary.State.CurrentUser != original {
 		t.Fatal("ordinary authority was elevated", err)
 	}
 	op.restoreTableDestination = true

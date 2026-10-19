@@ -34,7 +34,7 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 	if !hierarchyRelation(target) {
 		return nil
 	}
-	state := &partitionInsertState{catalog: auth.catalog, auth: auth, target: target}
+	state := &partitionInsertState{catalog: auth.Catalog, auth: auth, target: target}
 	var captureLayouts func(*catalog.Relation) error
 	captureLayout := func(d *catalog.Relation) error {
 		if s.output.RegTS == nil && d.Partition != nil {
@@ -65,7 +65,7 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 		}
 		if d.Partition != nil {
 			for _, address := range d.Partition.Children {
-				if err := captureLayouts(auth.catalog.MustRelation(address)); err != nil {
+				if err := captureLayouts(auth.Catalog.MustRelation(address)); err != nil {
 					return err
 				}
 			}
@@ -76,13 +76,13 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 		return err
 	}
 	for child := target; child.Membership != nil; {
-		parent := auth.catalog.MustRelation(child.Membership.Parent)
+		parent := auth.Catalog.MustRelation(child.Membership.Parent)
 		if err := captureLayout(parent); err != nil {
 			return err
 		}
 		child = parent
 	}
-	if err := partitionPhysicalDescendants(auth.catalog, target, func(leaf *catalog.Relation) error {
+	if err := partitionPhysicalDescendants(auth.Catalog, target, func(leaf *catalog.Relation) error {
 		if err := e.captureCheckCommentSnapshotLocked(s, leaf); err != nil {
 			return err
 		}
@@ -184,7 +184,7 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 	err.Schema, err.Table = state.catalog.Get(parent.Namespace()).Name(), parent.Name()
 	// Routing/integrity errors remain real, but an actor subject to RLS must
 	// not receive key values even when ordinary SELECT ACLs are present.
-	decision, securityErr := rowSecurityDecision(state.auth.roles, state.target, state.auth.state.CurrentUser, catalog.PolicyInsert, true)
+	decision, securityErr := rowSecurityDecision(state.auth.Roles, state.target, state.auth.State.CurrentUser, catalog.PolicyInsert, true)
 	if securityErr != nil {
 		return securityErr
 	}

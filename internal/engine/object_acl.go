@@ -181,11 +181,11 @@ func (n objectACLExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if scope.catalog != nil {
 		auth.Recapture(e.privateCatalogLocked(scope.catalog))
 	}
-	acl, err := rawObjectACL(auth.catalog, ids.ObjectAddress{ClassID: ids.OID(class), ObjectID: ids.OID(object), SubID: int32(subid)})
+	acl, err := rawObjectACL(auth.Catalog, ids.ObjectAddress{ClassID: ids.OID(class), ObjectID: ids.OID(object), SubID: int32(subid)})
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.pgClassACL(auth.roles, n.Usage.Type, acl)
+	return e.pgClassACL(auth.Roles, n.Usage.Type, acl)
 }
 
 // REL_18_0 ObjectProperty, not the native provider inventory. A catalog without

@@ -58,11 +58,11 @@ func TestSessionIdentityRolePublicationAndSessionAuthority(t *testing.T) {
 	}
 	before := op.RoleState()
 	revision := op.session.authorization.revision
-	catalogRevision := e.roles.published.revision
+	catalogRevision := e.roles.published.Revision
 	execute("SET ROLE b")
 	after := op.RoleState()
 	b, _ := e.Roles().Lookup("b")
-	if after.CurrentUser != b.Ref || after.SessionUser != before.SessionUser || after.Authenticated != before.Authenticated || after.ResetRole != before.ResetRole || op.session.authorization.revision != revision+1 || e.roles.published.revision != catalogRevision {
+	if after.CurrentUser != b.Ref || after.SessionUser != before.SessionUser || after.Authenticated != before.Authenticated || after.ResetRole != before.ResetRole || op.session.authorization.revision != revision+1 || e.roles.published.Revision != catalogRevision {
 		t.Fatal(before, after)
 	}
 	// A session superuser is still authoritative while CurrentUser is ordinary.

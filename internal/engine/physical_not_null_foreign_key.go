@@ -74,12 +74,12 @@ func (e *Engine) capturePhysicalForeignKeyProvider(op *Operation, name parser.Ob
 	if err != nil {
 		return nil, err
 	}
-	old, ok := auth.catalog.Relation(ref.Address)
+	old, ok := auth.Catalog.Relation(ref.Address)
 	if !ok || created[ref.Address] != ref || len(old.Constraints.PhysicalNotNull) == 0 || old.Partition != nil || old.Membership != nil {
 		return nil, nil
 	}
 	for attribute, proof := range old.Constraints.PhysicalNotNull {
-		if !physicalNotNullOriginValid(auth.catalog, old, attribute, proof) || proof.Cause.Origin != ref || proof.Cause.Kind != catalog.PhysicalNotNullImportCleanup && proof.Cause.Kind != catalog.PhysicalNotNullImportFlag {
+		if !physicalNotNullOriginValid(auth.Catalog, old, attribute, proof) || proof.Cause.Origin != ref || proof.Cause.Kind != catalog.PhysicalNotNullImportCleanup && proof.Cause.Kind != catalog.PhysicalNotNullImportFlag {
 			return nil, sqlError("0A000", restorePhysicalNotNullBoundary)
 		}
 	}
@@ -89,7 +89,7 @@ func (e *Engine) capturePhysicalForeignKeyProvider(op *Operation, name parser.Ob
 			continue
 		}
 		support := capturePhysicalPrimarySupport(old, primary)
-		if !physicalPrimarySupportValid(auth.catalog, old, primary, support) {
+		if !physicalPrimarySupportValid(auth.Catalog, old, primary, support) {
 			return nil, sqlError("0A000", restorePhysicalNotNullBoundary)
 		}
 		return &restoredPhysicalForeignKeyProvider{op: op, authority: auth, ref: ref, current: old, primary: support}, nil
@@ -121,13 +121,13 @@ func (e *Engine) capturePhysicalSelfForeignKey(op *Operation, raw *parser.AlterT
 		return restoredForeignKeys{}, false, err
 	}
 	e.mu.Lock()
-	valid := partitionConstraintReplayImport(e, op, auth) && auth.roleRecord == provider.authority.roleRecord && created[provider.ref.Address] == provider.ref && provider.ref.Epoch == auth.catalog.Epoch() && auth.catalog.Get(provider.ref.Address) == provider.current
+	valid := partitionConstraintReplayImport(e, op, auth) && auth.RoleRecord == provider.authority.RoleRecord && created[provider.ref.Address] == provider.ref && provider.ref.Epoch == auth.Catalog.Epoch() && auth.Catalog.Get(provider.ref.Address) == provider.current
 	e.mu.Unlock()
 	if !valid {
 		return reject()
 	}
 	old := provider.current
-	namespace := auth.catalog.Get(old.Namespace())
+	namespace := auth.Catalog.Get(old.Namespace())
 	if namespace == nil || namespace.Name() != raw.Name.Parts[0].Text || old.Name() != raw.Name.Parts[1].Text {
 		return reject()
 	}
@@ -160,7 +160,7 @@ func (e *Engine) capturePhysicalSelfForeignKey(op *Operation, raw *parser.AlterT
 		for i, key := range provider.primary.Keys {
 			attributes[i] = key.Attribute
 		}
-		for _, descriptor := range auth.catalog.Descriptors() {
+		for _, descriptor := range auth.Catalog.Descriptors() {
 			index, ok := descriptor.(*catalog.Relation)
 			if !ok || index.Address() == provider.primary.Index {
 				continue

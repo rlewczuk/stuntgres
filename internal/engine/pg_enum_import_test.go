@@ -44,8 +44,8 @@ func TestPGEnumImportMetadata(t *testing.T) {
 	source.mu.Lock()
 	auth, err := source.authorizationLocked(op)
 	if err == nil {
-		stage = source.BeginCatalogStage(auth.catalog)
-		err = source.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE saved(v public.mood DEFAULT 'q'::public.mood,d public.wrapped,c public.box)").(*parser.CreateTable), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
+		stage = source.BeginCatalogStage(auth.Catalog)
+		err = source.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE saved(v public.mood DEFAULT 'q'::public.mood,d public.wrapped,c public.box)").(*parser.CreateTable), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	}
 	source.mu.Unlock()
 	if err != nil {

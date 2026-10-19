@@ -58,7 +58,7 @@ func TestJSONBRecordBinding(t *testing.T) {
 	for _, d := range sqltype.Builtins() {
 		fresh[d.ID()] = d
 	}
-	mapped, changed, err := retagBoundTypes(auth.catalog, call, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+	mapped, changed, err := retagBoundTypes(auth.Catalog, call, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if next := fresh[d.ID()]; next != nil {
 			return next
 		}
@@ -261,7 +261,7 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	oldSource := []queryColumn{column("x", 5, first.Usage), column("y", 6, second.Usage)}
 	oldColumns := []queryColumn{left, oldSource[0], oldSource[1], column("n", 7, first.Usage)}
 	star := parser.StarExpr{Pos: parser.Position{Offset: 7}}
-	b := expressionBinder{engine: e, queryAuth: &AuthorizationView{accessView: accessView{catalog: view}}}
+	b := expressionBinder{engine: e, queryAuth: &AuthorizationView{accessView: accessView{Catalog: view}}}
 	out, err := b.jsonbRecordCallStar(oldColumns, oldSource, star, callFor(original))
 	if err != nil || len(out) != 4 {
 		t.Fatal("initial star", out, err)
@@ -493,7 +493,7 @@ func TestJSONBRecordLayout(t *testing.T) {
 		} else if call.Args[0].ResultUsage().Type.CompositeMember(0).Name != "f1" {
 			t.Fatal("caller labels replaced runtime field names")
 		}
-		value, err := call.Eval(&EvalContext{Context: ctx, catalog: auth.catalog})
+		value, err := call.Eval(&EvalContext{Context: ctx, catalog: auth.Catalog})
 		if err != nil || value.Type() != call.ResultUsage().Type {
 			t.Fatal(value, err)
 		}
@@ -509,7 +509,7 @@ func TestJSONBRecordLayout(t *testing.T) {
 	if err != nil || !jsonbRecordUnresolved(base) {
 		t.Fatal("lost transitive static layout state", base, err)
 	}
-	if _, err := base.Eval(&EvalContext{Context: ctx, catalog: auth.catalog}); err == nil {
+	if _, err := base.Eval(&EvalContext{Context: ctx, catalog: auth.Catalog}); err == nil {
 		t.Fatal("inner unresolved expression was erased")
 	}
 }

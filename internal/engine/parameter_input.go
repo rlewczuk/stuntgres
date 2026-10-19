@@ -21,7 +21,7 @@ func (s *StatementScope) captureFormalInputLocked(auth AuthorizationView, types 
 			}
 		}
 		if usage.Type.ContainsRegrole() && s.input.Regrole == nil {
-			s.input.Regrole = capturedRegroleInput{roles: auth.roles}
+			s.input.Regrole = capturedRegroleInput{roles: auth.Roles}
 		}
 		if usage.Type.ContainsOperatorAlias() && s.input.Operator == nil {
 			s.input.Operator, err = e.captureOperatorInput(auth, op)
@@ -71,7 +71,7 @@ func (s *StatementScope) prepareProtocolUtilityInput(types []sqltype.Usage) erro
 		err = e.captureEnumOperationInput(auth, &s.input)
 	}
 	if err == nil {
-		s.domainInputCatalog = auth.catalog
+		s.domainInputCatalog = auth.Catalog
 	}
 	e.mu.Unlock()
 	if err == nil {

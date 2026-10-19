@@ -27,7 +27,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *Operation, aut
 	original := scope.statementMutation
 	locked := map[ids.ObjectAddress]bool{state.root.Address(): true}
 	processed := make(map[ids.ObjectAddress]bool)
-	state.definition = inheritanceDefinitionReader{base: auth.catalog}
+	state.definition = inheritanceDefinitionReader{base: auth.Catalog}
 	if !preparatory {
 		state.prepared = make(map[ids.ObjectAddress]*inheritancePreparedNode)
 		state.preparing = true
@@ -36,7 +36,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *Operation, aut
 	for {
 		e.mu.Lock()
 		current := e.privateCatalogLocked(scope.owner.catalog)
-		if current.Epoch() != auth.catalog.Epoch() {
+		if current.Epoch() != auth.Catalog.Epoch() {
 			e.mu.Unlock()
 			return ids.ErrCatalogReplaced
 		}
@@ -66,7 +66,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *Operation, aut
 			e.mu.Lock()
 			actualCatalog := e.privateCatalogLocked(scope.owner.catalog)
 			actual, _ := actualCatalog.Relation(observed.Address())
-			if actualCatalog.Epoch() != auth.catalog.Epoch() || !inheritanceMarkerPublication(observed, actual) {
+			if actualCatalog.Epoch() != auth.Catalog.Epoch() || !inheritanceMarkerPublication(observed, actual) {
 				e.mu.Unlock()
 				return ids.ErrCatalogReplaced
 			}

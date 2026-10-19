@@ -214,9 +214,9 @@ func newEngine(providers []catalog.Provider, definitions []SettingDefinition, da
 		oid  ids.OID
 		name string
 	}{{ids.PGCatalogNamespaceOID, "pg_catalog"}, {ids.PGToastNamespaceOID, "pg_toast"}, {ids.PublicNamespaceOID, "public"}, {13229, "information_schema"}} {
-		owner := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 		if ns.oid == ids.PublicNamespaceOID {
-			owner = e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
+			owner = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 		}
 		d := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ns.oid}, ObjectName: ns.name, ObjectRevision: 1, Owner: owner}
 		if ns.oid != ids.PGToastNamespaceOID {
@@ -442,7 +442,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 			return StatementDescription{}, err
 		}
 	}
-	return StatementDescription{Parameters: b.parameters, Results: results, catalogOwner: auth.catalog.Owner(), catalogEpoch: auth.catalog.Epoch(), temporals: b.temporals, composites: b.composites, sequences: cell, regtypes: regtypes, analysis: prepared, planOwner: op.session.token, planGeneration: op.session.discardPlansGeneration}, nil
+	return StatementDescription{Parameters: b.parameters, Results: results, catalogOwner: auth.Catalog.Owner(), catalogEpoch: auth.Catalog.Epoch(), temporals: b.temporals, composites: b.composites, sequences: cell, regtypes: regtypes, analysis: prepared, planOwner: op.session.token, planGeneration: op.session.discardPlansGeneration}, nil
 }
 func objectNameText(n parser.ObjectName) string {
 	parts := make([]string, len(n.Parts))
@@ -600,7 +600,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 					}
 					return b, err
 				}
-				source := auth.catalog.MustRelation(ref.Address)
+				source := auth.Catalog.MustRelation(ref.Address)
 				if source.RelationKind != catalog.TableRelation && source.RelationKind != catalog.ForeignRelation && source.RelationKind != catalog.ViewRelation && source.RelationKind != catalog.CompositeRelation {
 					kind := "relations of this kind"
 					if source.RelationKind == catalog.SequenceRelation {
@@ -618,9 +618,9 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 				}
 				var sourceType *catalog.Type
 				if source.RelationKind == catalog.CompositeRelation {
-					typeRef := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
+					typeRef := e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
 					var ok bool
-					sourceType, ok = auth.catalog.Type(typeRef.Address)
+					sourceType, ok = auth.Catalog.Type(typeRef.Address)
 					if !ok || sourceType.OwningRelation != source.Address() || sourceType.SQLType.ID() != source.RowType {
 						return b, fmt.Errorf("stuntgres: invalid LIKE composite type provider")
 					}
@@ -665,7 +665,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 		if err != nil {
 			return b, err
 		}
-		b.createUniques, err = bindCreateUniques(s, b.createColumnIndex, b.createLikes, auth.catalog)
+		b.createUniques, err = bindCreateUniques(s, b.createColumnIndex, b.createLikes, auth.Catalog)
 		if err != nil {
 			return b, err
 		}
@@ -734,7 +734,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 		}
 		for _, query := range queries {
 			activateCTESources(query.Root, b.querySources)
-			query.Root, err = foldCTERestrictions(auth.catalog, query.Root)
+			query.Root, err = foldCTERestrictions(auth.Catalog, query.Root)
 			if err != nil {
 				return b, err
 			}
@@ -745,13 +745,13 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 			return b, sqlError("0A000", "materialized views may not be defined using bound parameters")
 		}
 		for _, source := range binder.querySources {
-			if ns := auth.catalog.MustNamespace(source.relation.Namespace()); ns.Temporary != (ids.SessionToken{}) {
+			if ns := auth.Catalog.MustNamespace(source.relation.Namespace()); ns.Temporary != (ids.SessionToken{}) {
 				return b, sqlError("0A000", "materialized views must not use temporary tables or views")
 			}
 		}
 	}
 	if len(b.querySources) != 0 && view == nil {
-		if _, err := validateViewReadGraph(auth.catalog, b.querySources); err != nil {
+		if _, err := validateViewReadGraph(auth.Catalog, b.querySources); err != nil {
 			return b, err
 		}
 	}
@@ -845,14 +845,14 @@ func (e *Engine) resolveReference(auth AuthorizationView, name parser.ObjectName
 // Utility lookup checks a qualified namespace before the relation and reports
 // namespace denial without the position attached by DML analysis.
 func (e *Engine) resolveRelationReference(auth AuthorizationView, name parser.ObjectName, utility bool) (ids.ObjectRef, error) {
-	if err := e.catalog.validateCatalogViewLocked(auth.catalog); err != nil {
+	if err := e.catalog.validateCatalogViewLocked(auth.Catalog); err != nil {
 		return ids.ObjectRef{}, err
 	}
 	return e.resolveRelationSnapshot(auth, name, utility)
 }
 
 func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.ObjectName, utility bool) (ids.ObjectRef, error) {
-	view := auth.catalog
+	view := auth.Catalog
 	if len(name.Parts) < 1 || len(name.Parts) > 2 {
 		return ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid relation name")
 	}

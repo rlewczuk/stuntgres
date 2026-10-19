@@ -32,7 +32,7 @@ func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *catalog.Relatio
 	next.SetDescriptor(src.Address(), src)
 	next.SetDescriptor(sink.Address(), sink)
 	e.catalog.state = next
-	return e, AuthorizationView{accessView: accessView{owner: e.catalog.owner(), catalog: e.catalog.read(next)}, engine: e}, src, sink
+	return e, AuthorizationView{accessView: accessView{Owner: e.catalog.owner(), Catalog: e.catalog.read(next)}, engine: e}, src, sink
 }
 
 func ruleUnitRef(e *Engine, d *catalog.Relation) ids.ObjectRef {
@@ -75,7 +75,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		t.Fatal("mutated stored template")
 	}
 	condition := ruleDefinition{event: "INSERT", instead: true, condition: pseudo}
-	condition.condition = literalExpression{Info: expr.Info{Usage: func() sqltype.Usage { typ, _ := auth.catalog.LookupType(sqltype.Bool); return typ.Usage() }()}, value: func() sqltype.Value { typ, _ := auth.catalog.LookupType(sqltype.Bool); return sqltype.Null(typ) }()}
+	condition.condition = literalExpression{Info: expr.Info{Usage: func() sqltype.Usage { typ, _ := auth.Catalog.LookupType(sqltype.Bool); return typ.Usage() }()}, value: func() sqltype.Value { typ, _ := auth.Catalog.LookupType(sqltype.Bool); return sqltype.Null(typ) }()}
 	residual, err := ruleResidual(auth, original, "INSERT", []ruleDefinition{condition})
 	if err != nil {
 		t.Fatal(err)
@@ -136,7 +136,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		selectBinding := original
 		selectBinding.query, selectBinding.expressions = &BoundQuery{Root: source}, nil
 		selectBinding.insertSubquerySource = true
-		producer, err := makeRuleProducer(auth.catalog, selectBinding, "INSERT", []int{0})
+		producer, err := makeRuleProducer(auth.Catalog, selectBinding, "INSERT", []int{0})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -152,7 +152,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		pure.expressions = []expr.Expr{source.expressions[0], ruleUnitInt(src, 99)}
 		pure.querySchema = querySchema(src.Columns)
 		selectBinding.query = &BoundQuery{Root: &pure}
-		producer, err = makeRuleProducer(auth.catalog, selectBinding, "INSERT", []int{0})
+		producer, err = makeRuleProducer(auth.Catalog, selectBinding, "INSERT", []int{0})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -174,7 +174,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		}
 		valuesBinding := selectBinding
 		valuesBinding.insertSubquerySource = false
-		producer, err = makeRuleProducer(auth.catalog, valuesBinding, "INSERT")
+		producer, err = makeRuleProducer(auth.Catalog, valuesBinding, "INSERT")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -219,7 +219,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 			t.Fatal("rewrite erased runtime domain authority")
 		}
 		properties.ParameterDependent = true
-		mapped, _, err := mapBoundExpression(auth.catalog, leaf, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
+		mapped, _, err := mapBoundExpression(auth.Catalog, leaf, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 			copy := expr.(domainValueExpression)
 			copy.Property = properties
 			return copy, true, nil
@@ -254,7 +254,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		}
 		identityType := func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }
 		for _, parent := range []expr.Expr{absolute, format} {
-			mapped, _, err := mapBoundExpression(auth.catalog, parent, identityType, nil, nil, replaceFormal)
+			mapped, _, err := mapBoundExpression(auth.Catalog, parent, identityType, nil, nil, replaceFormal)
 			if err != nil || mapped.Properties().Volatility != expr.Volatile || mapped.Properties().RowDependent {
 				t.Fatalf("generic parent lost fresh child demand: %v %v", mapped, err)
 			}
@@ -262,7 +262,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 				t.Fatal("mutated original formal-dependent function")
 			}
 			if _, formatting := mapped.(functions.Format); formatting {
-				stable, _, err := mapBoundExpression(auth.catalog, mapped, identityType, nil, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
+				stable, _, err := mapBoundExpression(auth.Catalog, mapped, identityType, nil, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 					if _, random := expr.(functions.Random); random {
 						return ruleUnitInt(src, 11), true, nil
 					}
@@ -276,7 +276,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	})
 	t.Run("single_values_macro", func(t *testing.T) {
 		single := ruleUnitInsert(e, src, 1, 10).binding
-		producer, err := makeRuleProducer(auth.catalog, single, "INSERT")
+		producer, err := makeRuleProducer(auth.Catalog, single, "INSERT")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -449,7 +449,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 		outer := ruleUnitInsert(e, src, 1, 10)
 		auxiliary := ruleUnitInsert(e, sink, 7, 70)
 		outer.binding.ctes = []*cteDefinition{{statement: auxiliary.syntax, mutation: &auxiliary.binding, owner: 1}}
-		refs, err := ruleReferences(context.Background(), auth.catalog, ruleDefinition{actions: []ruleAction{outer}})
+		refs, err := ruleReferences(context.Background(), auth.Catalog, ruleDefinition{actions: []ruleAction{outer}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -465,7 +465,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 	ref.Address.SubID = 1
 	condition := columnExpression{Info: ruleColumnInfo(src.Columns[0]), origin: ref, scope: rulePseudoScope, frame: 2}
 	r := ruleDefinition{OID: 900101, Name: "r", event: "INSERT", condition: condition, actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}
-	refs, err := ruleReferences(context.Background(), auth.catalog, r)
+	refs, err := ruleReferences(context.Background(), auth.Catalog, r)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -476,7 +476,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 	}
 	r.references = refs
 	src.Rules = rulesPayloadOf([]ruleDefinition{r})
-	edges, err := collectPGDepend(context.Background(), auth.catalog)
+	edges, err := collectPGDepend(context.Background(), auth.Catalog)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -485,7 +485,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 		t.Fatal("rule lacks AUTO event edge")
 	}
 	t.Run("mixed_drop_closure", func(t *testing.T) {
-		stage := e.BeginCatalogStage(auth.catalog)
+		stage := e.BeginCatalogStage(auth.Catalog)
 		defer e.DiscardCatalogStage(stage)
 		dependents, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{sink.Address()})
 		if err != nil {
@@ -516,7 +516,7 @@ func TestRuleDefinitionRemap(t *testing.T) {
 	newSrc, newSink := *src, *sink
 	newSrc.ObjectAddress.ObjectID += 10
 	newSink.ObjectAddress.ObjectID += 10
-	next := catalog.CloneState(auth.catalog.State())
+	next := catalog.CloneState(auth.Catalog.State())
 	next.SetDescriptor(newSrc.Address(), &newSrc)
 	next.SetDescriptor(newSink.Address(), &newSink)
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{src.Address(): newSrc.Address(), sink.Address(): newSink.Address()}

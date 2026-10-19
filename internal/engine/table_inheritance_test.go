@@ -12,7 +12,7 @@ import (
 )
 
 func inheritanceUnitRelation(e *Engine, name string, id ids.OID, names ...string) *catalog.Relation {
-	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, Owner: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Index: make(map[string]int)}
+	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, Owner: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Index: make(map[string]int)}
 	for i, name := range names {
 		d.Index[name] = i
 		d.Attributes = append(d.Attributes, int32(i+1))
@@ -74,8 +74,8 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth.catalog = view
-	auth.Recapture(auth.catalog)
+	auth.Catalog = view
+	auth.Recapture(auth.Catalog)
 	stage := e.BeginCatalogStage(view)
 	b := binding{createInheritance: []createInheritanceInput{{source: p}, {source: q}}, createLocalColumns: map[string]bool{"z": true}, createDeclarations: make([]createColumnDeclaration, 3)}
 	if err := e.stageInheritance(op, auth, stage, child, b); err != nil {
@@ -176,8 +176,8 @@ func TestInheritanceMergeDefaultOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth.catalog = view
-	auth.Recapture(auth.catalog)
+	auth.Catalog = view
+	auth.Recapture(auth.Catalog)
 	for _, kind := range []string{"absent", "explicit", "copied"} {
 		override := kind == "explicit"
 		child := inheritanceUnitRelation(e, "c", 22002, "a")
@@ -290,8 +290,8 @@ func TestInheritanceGenerationDeclarationProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth.catalog = view
-	auth.Recapture(auth.catalog)
+	auth.Catalog = view
+	auth.Recapture(auth.Catalog)
 	for _, explicit := range []bool{false, true} {
 		child := inheritanceUnitRelation(e, "c", 22001, "g")
 		b := binding{createInheritance: []createInheritanceInput{{source: parent}}, createLocalColumns: map[string]bool{"g": true}, createDeclarations: make([]createColumnDeclaration, 1)}

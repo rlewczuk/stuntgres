@@ -265,7 +265,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 		}
 	}
 	for _, observation := range c.extensionAuthority {
-		if e.roles.published.revision != observation.roles || observation.namespace == nil || observation.database == nil ||
+		if e.roles.published.Revision != observation.roles || observation.namespace == nil || observation.database == nil ||
 			e.catalog.state.Get(observation.namespace.Address()) != observation.namespace ||
 			e.catalog.state.Get(observation.database.Address()) != observation.database {
 			return catalog.Conflict{}

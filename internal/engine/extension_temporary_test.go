@@ -320,7 +320,7 @@ func TestExtensionTemporaryLookup(t *testing.T) {
 		t.Fatal("authorized foreign installed path omitted", path, err)
 	}
 	selected, err := e.lookupNamespaces(foreignAuth, qualified, installedFunctionLookup)
-	if err != nil || procedureInNamespaces(foreignAuth.catalog, selected, "unaccent", catalog.UnaccentTextSignature) == nil {
+	if err != nil || procedureInNamespaces(foreignAuth.Catalog, selected, "unaccent", catalog.UnaccentTextSignature) == nil {
 		t.Fatal("real foreign member lookup", selected, err)
 	}
 	for _, kind := range []lookupKind{relationLookup, typeLookup, functionLookup, operatorLookup, collationLookup, conversionLookup} {

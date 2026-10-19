@@ -41,16 +41,16 @@ func TestAccessViewRejectsForeignOwner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	public := auth.Ref(accessViewNamespace(t, auth.catalog, "public"))
+	public := auth.Ref(accessViewNamespace(t, auth.Catalog, "public"))
 	if err := auth.CanUse(public); err != nil {
 		t.Fatalf("own owner: %v", err)
 	}
 	stolen := auth
-	stolen.owner = foreign.catalog.owner()
+	stolen.Owner = foreign.catalog.owner()
 	if err := stolen.CanUse(public); err == nil || !strings.Contains(err.Error(), "foreign or stale") {
 		t.Fatalf("foreign owner: %v", err)
 	}
-	stolen.owner = nil
+	stolen.Owner = nil
 	if _, err := stolen.Effective(public, false); err == nil || !strings.Contains(err.Error(), "foreign or stale") {
 		t.Fatalf("missing owner: %v", err)
 	}
@@ -119,9 +119,9 @@ func TestAccessViewTypeDenialQualifiesByReferencePath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	schema := accessViewNamespace(t, auth.catalog, "moods")
-	public := accessViewNamespace(t, auth.catalog, "public")
-	address, ok := auth.catalog.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: schema, Name: "mood"})
+	schema := accessViewNamespace(t, auth.Catalog, "moods")
+	public := accessViewNamespace(t, auth.Catalog, "public")
+	address, ok := auth.Catalog.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: schema, Name: "mood"})
 	if !ok {
 		t.Fatal("missing type")
 	}

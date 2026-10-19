@@ -18,7 +18,7 @@ func TestLockModesViews(t *testing.T) {
 	}
 	owner, _ := e.Roles().Lookup("view_owner")
 	reader, _ := e.Roles().Lookup("view_reader")
-	grantor := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grantor := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	entry := func(p authorization.PrincipalRef, r authorization.Privileges) authorization.ACLEntry {
 		return authorization.ACLEntry{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: p}, Privileges: r}
 	}

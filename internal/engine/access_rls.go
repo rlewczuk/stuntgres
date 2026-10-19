@@ -112,8 +112,8 @@ func rowSecurityProposal(decision rlsDisposition, table string) error {
 // the outermost view inward: the view's owner and whether it runs with
 // security_invoker.
 type rowSecurityLayer struct {
-	owner   authorization.PrincipalRef
-	invoker bool
+	Owner   authorization.PrincipalRef
+	Invoker bool
 }
 
 // rowSecurityPrincipal returns the role whose policies apply to the base
@@ -122,8 +122,8 @@ type rowSecurityLayer struct {
 func rowSecurityPrincipal(current authorization.PrincipalRef, layers []rowSecurityLayer) authorization.PrincipalRef {
 	principal := current
 	for _, layer := range layers {
-		principal = layer.owner
-		if layer.invoker {
+		principal = layer.Owner
+		if layer.Invoker {
 			principal = current
 		}
 	}

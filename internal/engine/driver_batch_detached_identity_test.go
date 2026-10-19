@@ -57,15 +57,15 @@ func TestDriverBatchDetachedPrincipalAuthority(t *testing.T) {
 			}
 			auth, err := op.Authorization()
 			op.Done()
-			if err != nil || auth.roleRecord != e.roles.published || auth.state.CurrentUser != entry.owner || auth.missingCurrent != entry.owner {
+			if err != nil || auth.RoleRecord != e.roles.published || auth.State.CurrentUser != entry.owner || auth.MissingCurrent != entry.owner {
 				t.Fatal("numeric authority did not admit missing effective name", err)
 			}
-			if _, exists := auth.roles.Lookup("detached"); exists {
+			if _, exists := auth.Roles.Lookup("detached"); exists {
 				t.Fatal("detached private role name leaked into new command")
 			}
 			batchUnitDiagnostic(t, auth.Check(AccessRequirement{Object: table, Privileges: authorization.SelectPrivilege}), "42501", "permission denied for table t")
 			unadmitted := auth
-			unadmitted.missingCurrent = authorization.PrincipalRef{}
+			unadmitted.MissingCurrent = authorization.PrincipalRef{}
 			if _, err := unadmitted.Effective(table, false); err == nil {
 				t.Fatal("unadmitted missing actor acquired numeric authority")
 			}
@@ -73,7 +73,7 @@ func TestDriverBatchDetachedPrincipalAuthority(t *testing.T) {
 				t.Fatal("unadmitted missing actor bypassed privilege preflight")
 			}
 			foreign := auth
-			foreign.state.CurrentUser = New().roles.domain.Principal(entry.owner.ID())
+			foreign.State.CurrentUser = New().roles.domain.Principal(entry.owner.ID())
 			if _, err := foreign.Effective(table, false); err == nil {
 				t.Fatal("foreign numeric principal bypassed authority")
 			}

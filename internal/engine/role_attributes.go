@@ -14,7 +14,7 @@ func (e *Engine) validateRoleAttributesLocked(op *Operation, stmt parser.Stateme
 	if err != nil {
 		return v, authorization.RoleDescriptor{}, authorization.RoleDescriptor{}, parser.RoleOptions{}, err
 	}
-	actor, target, o, err := authorization.ValidateRoleAttributes(v.roles, v.state, stmt)
+	actor, target, o, err := authorization.ValidateRoleAttributes(v.Roles, v.State, stmt)
 	if err != nil {
 		return v, actor, target, o, err
 	}
@@ -23,7 +23,7 @@ func (e *Engine) validateRoleAttributesLocked(op *Operation, stmt parser.Stateme
 			return v, actor, target, o, err
 		}
 	}
-	if v.roleRecord.revision == ^uint64(0) {
+	if v.RoleRecord.Revision == ^uint64(0) {
 		return v, actor, target, o, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
 	return v, actor, target, o, op.Context().Err()
@@ -84,7 +84,7 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 			return Result{}, err
 		}
 	}
-	n, notices, err := authorization.AttributeCandidate(op.Context(), v.roles, v.state, actor, d, create, op.notices, op.noticeThreshold <= levelNotice, op.noticeThreshold <= levelWarning)
+	n, notices, err := authorization.AttributeCandidate(op.Context(), v.Roles, v.State, actor, d, create, op.notices, op.noticeThreshold <= levelNotice, op.noticeThreshold <= levelWarning)
 	op.notices = notices
 	if err != nil {
 		return Result{}, err
@@ -97,7 +97,7 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 	if _, creating := stmt.(*parser.CreateRole); creating {
 		e.roles.nextPrincipal = d.Ref.ID() + 1
 	}
-	e.installOperationRolesLocked(op, &roleCatalog{root: n, revision: v.roleRecord.revision + 1})
+	e.installOperationRolesLocked(op, &roleCatalog{Root: n, Revision: v.RoleRecord.Revision + 1})
 	emitPasswordNotice(op, notice)
 	return Result{}, nil
 }

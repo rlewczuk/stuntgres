@@ -17,7 +17,7 @@ func (b *expressionBinder) mutationTargetNamespace() queryNamespace {
 	if b.targetAlias != "" {
 		name = b.targetAlias
 	}
-	qualifier := queryQualifier{name: name, original: b.targetName, alias: b.targetAlias, ref: b.ref, columns: columns, schema: b.queryAuth.catalog.Get(b.relation.Namespace()).Name(), lateralForbidden: true}
+	qualifier := queryQualifier{name: name, original: b.targetName, alias: b.targetAlias, ref: b.ref, columns: columns, schema: b.queryAuth.Catalog.Get(b.relation.Namespace()).Name(), lateralForbidden: true}
 	return queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: b.relation.Columns}
 }
 
@@ -43,7 +43,7 @@ func checkTemporaryStorageAccess(catalog catalog.Read, relation *catalog.Relatio
 // Expand recursive view bases before the first capture. Capture callers pass
 // any already-required target refs, preserving a single statement frontier.
 func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorization.PrincipalRef, leaves []queryLeaf, refs []ids.ObjectRef, token ids.SessionToken, inherited queryRowMark) ([]ids.ObjectRef, error) {
-	view := auth.catalog
+	view := auth.Catalog
 	if auth.engine != e || view.Owner() != e.catalog.owner() || view.State() == nil {
 		return nil, ids.ErrCatalogReplaced
 	}

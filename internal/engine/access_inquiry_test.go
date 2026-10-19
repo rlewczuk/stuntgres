@@ -73,8 +73,8 @@ func TestAccessInquiryRoleOIDs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	actor, _ := auth.roles.Lookup("ar_unit_actor")
-	target, _ := auth.roles.Lookup("ar_unit_target")
+	actor, _ := auth.Roles.Lookup("ar_unit_actor")
+	target, _ := auth.Roles.Lookup("ar_unit_target")
 	for _, tc := range []struct {
 		a, b uint64
 		mask authorization.RolePrivileges
@@ -90,9 +90,9 @@ func TestAccessInquiryRoleOIDs(t *testing.T) {
 		{4294967295, 4294967295, authorization.RoleSet, true},
 		{0, 4294967295, authorization.RoleMember, false},
 		{actor.Ref.ID(), 4294967295, authorization.RoleMember, false},
-		{auth.state.CurrentUser.ID(), 4294967295, authorization.RoleAdmin, true},
+		{auth.State.CurrentUser.ID(), 4294967295, authorization.RoleAdmin, true},
 	} {
-		got, err := authorization.HasRole(context.Background(), auth.roles, &e.roles.domain, tc.a, tc.b, tc.mask)
+		got, err := authorization.HasRole(context.Background(), auth.Roles, &e.roles.domain, tc.a, tc.b, tc.mask)
 		if err != nil || got != tc.want {
 			t.Fatalf("raw boundary %+v: %v %v", tc, got, err)
 		}
@@ -100,13 +100,13 @@ func TestAccessInquiryRoleOIDs(t *testing.T) {
 	// SQL shortcuts do not weaken any trusted authority entry point.
 	foreign := authorization.Domain{}
 	for _, ref := range []authorization.PrincipalRef{e.roles.domain.Principal(0), foreign.Principal(actor.Ref.ID()), e.roles.domain.Principal(4294967295)} {
-		if _, err := auth.roles.InheritsRole(ref, ref); err == nil {
+		if _, err := auth.Roles.InheritsRole(ref, ref); err == nil {
 			t.Fatal("trusted inheritance accepted invalid self")
 		}
-		if _, err := auth.roles.CanSetRole(ref, ref); err == nil {
+		if _, err := auth.Roles.CanSetRole(ref, ref); err == nil {
 			t.Fatal("trusted SET accepted invalid self")
 		}
-		if _, err := auth.roles.AdminOfRole(ref, ref); err == nil {
+		if _, err := auth.Roles.AdminOfRole(ref, ref); err == nil {
 			t.Fatal("trusted ADMIN accepted invalid self")
 		}
 	}
@@ -124,9 +124,9 @@ func TestAccessInquiryRLSDecision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	owner, _ := auth.roles.Lookup("ar_unit_owner")
-	bypass, _ := auth.roles.Lookup("ar_unit_bypass")
-	reader, _ := auth.roles.Lookup("ar_unit_reader")
+	owner, _ := auth.Roles.Lookup("ar_unit_owner")
+	bypass, _ := auth.Roles.Lookup("ar_unit_bypass")
+	reader, _ := auth.Roles.Lookup("ar_unit_reader")
 	next := *d
 	next.Owner = owner.Ref
 	using, err := policyUnitBind(t, e, op, d, "TRUE")
@@ -136,21 +136,21 @@ func TestAccessInquiryRLSDecision(t *testing.T) {
 	for _, enabled := range []bool{false, true} {
 		for _, forced := range []bool{false, true} {
 			next.Security.RLSEnabled, next.Security.RLSForced = enabled, forced
-			for _, actor := range []authorization.PrincipalRef{owner.Ref, reader.Ref, bypass.Ref, auth.state.CurrentUser} {
-				want := enabled && forced && actor != bypass.Ref && actor != auth.state.CurrentUser
+			for _, actor := range []authorization.PrincipalRef{owner.Ref, reader.Ref, bypass.Ref, auth.State.CurrentUser} {
+				want := enabled && forced && actor != bypass.Ref && actor != auth.State.CurrentUser
 				// A policy's provider may be irrelevant or even stale; eligibility must
 				// never traverse its roles or demand expression enforcement.
 				next.Security.Policies = []catalog.PolicyDefinition{{Permissive: true, Command: catalog.PolicyAll, Roles: []catalog.PolicyRole{{Public: true}}, Using: policyPayloadOf(using)}}
-				active, err := rowSecurityApplies(auth.roles, &next, actor)
+				active, err := rowSecurityApplies(auth.Roles, &next, actor)
 				if err != nil || active != want {
 					t.Fatalf("eligibility %v/%v/%v: %v %v", enabled, forced, actor, active, err)
 				}
-				disposition, err := rowSecurityDecision(auth.roles, &next, actor, catalog.PolicySelect, false)
+				disposition, err := rowSecurityDecision(auth.Roles, &next, actor, catalog.PolicySelect, false)
 				if err != nil || (disposition != rlsUnrestricted) != active {
 					t.Fatal("enforcement eligibility diverged", disposition, active, err)
 				}
 				next.Security.Policies[0].Roles = []catalog.PolicyRole{{Ref: e.roles.domain.Principal(4294967295)}}
-				active, err = rowSecurityApplies(auth.roles, &next, actor)
+				active, err = rowSecurityApplies(auth.Roles, &next, actor)
 				if err != nil || active != want {
 					t.Fatal("inquiry inspected policy", active, err)
 				}

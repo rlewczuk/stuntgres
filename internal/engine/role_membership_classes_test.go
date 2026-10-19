@@ -62,7 +62,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 		acl.Entries = append([]authorization.ACLEntry(nil), acl.Entries...)
 		next.ACL = acl
 		next.ACLSyntheticDefault = false
-		stage := e.BeginCatalogStage(view.catalog)
+		stage := e.BeginCatalogStage(view.Catalog)
 		defer e.DiscardCatalogStage(stage)
 		if err = stage.Replace(&next); err != nil {
 			return err

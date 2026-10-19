@@ -16,7 +16,7 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 	}
 	trustedDestination := op != nil && op.restoreTableDestination
 	if trustedDestination {
-		bootstrap, guardErr := auth.roles.Descriptor(auth.state.Authenticated)
+		bootstrap, guardErr := auth.Roles.Descriptor(auth.State.Authenticated)
 		if guardErr != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return fmt.Errorf("stuntgres: invalid trusted restore enum destination authority")
 		}
@@ -27,7 +27,7 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 			return err
 		}
 	}
-	if err = checkPersistentCreationNamespace(auth.catalog, ns.Address); err != nil {
+	if err = checkPersistentCreationNamespace(auth.Catalog, ns.Address); err != nil {
 		return err
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
@@ -35,7 +35,7 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 	if err != nil {
 		return err
 	}
-	if !available || relationTypeNameOccupied(auth.catalog, ns.Address, name) {
+	if !available || relationTypeNameOccupied(auth.Catalog, ns.Address, name) {
 		return sqlError("42710", fmt.Sprintf(`type "%s" already exists`, name))
 	}
 	oid, err := e.catalog.allocateOIDLocked()
@@ -69,12 +69,12 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 	if err != nil {
 		return err
 	}
-	namespace := auth.catalog.Get(ns.Address).Name()
+	namespace := auth.Catalog.Get(ns.Address).Name()
 	typ, err := sqltype.EnumWithMembers(sqltype.ID(oid), name, dependencyIdentifier(namespace)+"."+dependencyIdentifier(name), members)
 	if err != nil {
 		return err
 	}
-	acl, synthetic := stage.creationTypeACL(auth.state.CurrentUser, ns.Address)
+	acl, synthetic := stage.creationTypeACL(auth.State.CurrentUser, ns.Address)
 	arrayOID, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return err
@@ -83,8 +83,8 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 	if err != nil {
 		return err
 	}
-	if err := stage.Create(&catalog.Type{SQLType: typ, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.state.CurrentUser, ACL: acl, ACLSyntheticDefault: synthetic, Array: array.ID()}); err != nil {
+	if err := stage.Create(&catalog.Type{SQLType: typ, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.State.CurrentUser, ACL: acl, ACLSyntheticDefault: synthetic, Array: array.ID()}); err != nil {
 		return err
 	}
-	return stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.state.CurrentUser, ACL: authorization.DefaultBaseline(auth.state.CurrentUser, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
+	return stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.State.CurrentUser, ACL: authorization.DefaultBaseline(auth.State.CurrentUser, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
 }

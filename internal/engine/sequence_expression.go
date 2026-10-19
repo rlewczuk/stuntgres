@@ -298,7 +298,7 @@ func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ids.Object
 		if err != nil {
 			return ids.ObjectRef{}, err
 		}
-		return e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}), nil
+		return e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}), nil
 	}
 	name, err := parser.ParseRegclassName(text)
 	if err != nil {
@@ -446,17 +446,17 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	e.mu.Lock()
 	before, beforeErr := scope.writeAuthorizationLocked(e)
 	if beforeErr == nil && scope.catalog != nil {
-		before.catalog = e.privateCatalogLocked(scope.catalog)
-		before.Recapture(before.catalog)
+		before.Catalog = e.privateCatalogLocked(scope.catalog)
+		before.Recapture(before.Catalog)
 	}
-	if beforeErr == nil && ref.Epoch != before.catalog.Epoch() && x.temporary == scope.op.session.token && temporarySequenceEpochValid(before.catalog, ref, x.temporary) {
-		ref.Epoch = before.catalog.Epoch()
+	if beforeErr == nil && ref.Epoch != before.Catalog.Epoch() && x.temporary == scope.op.session.token && temporarySequenceEpochValid(before.Catalog, ref, x.temporary) {
+		ref.Epoch = before.Catalog.Epoch()
 	}
-	if beforeErr == nil && (ref.Domain() != e.catalog.Domain || ref.Epoch != before.catalog.Epoch()) {
+	if beforeErr == nil && (ref.Domain() != e.catalog.Domain || ref.Epoch != before.Catalog.Epoch()) {
 		beforeErr = ids.ErrCatalogReplaced
 	}
 	if beforeErr == nil {
-		d, ok := before.catalog.Relation(ref.Address)
+		d, ok := before.Catalog.Relation(ref.Address)
 		if !ok {
 			if x.name == "lastval" {
 				beforeErr = sqlError("55000", "lastval is not yet defined in this session")
@@ -481,10 +481,10 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if scope.catalog != nil {
-		auth.catalog = e.privateCatalogLocked(scope.catalog)
-		auth.Recapture(auth.catalog)
+		auth.Catalog = e.privateCatalogLocked(scope.catalog)
+		auth.Recapture(auth.Catalog)
 	}
-	d, ok := auth.catalog.Relation(ref.Address)
+	d, ok := auth.Catalog.Relation(ref.Address)
 	if !ok {
 		if x.name == "lastval" {
 			return sqltype.Value{}, sqlError("55000", "lastval is not yet defined in this session")
@@ -494,7 +494,7 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if err = sequenceKind(d); err != nil {
 		return sqltype.Value{}, err
 	}
-	if ns, ok := auth.catalog.Namespace(d.Namespace()); ok && ns.Temporary == scope.op.session.token {
+	if ns, ok := auth.Catalog.Namespace(d.Namespace()); ok && ns.Temporary == scope.op.session.token {
 		scope.owner.accessedTemporary = true
 	}
 	mask := authorization.UsagePrivilege | authorization.SelectPrivilege
@@ -510,7 +510,7 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		}
 	}
 	if scope.owner.readOnly && (x.name == "nextval" || x.name == "setval") {
-		ns, _ := auth.catalog.Namespace(d.Namespace())
+		ns, _ := auth.Catalog.Namespace(d.Namespace())
 		if ns == nil || ns.Temporary != scope.op.session.token {
 			return sqltype.Value{}, sqlError("25006", "cannot execute "+x.name+"() in a read-only transaction")
 		}

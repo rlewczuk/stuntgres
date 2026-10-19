@@ -124,7 +124,7 @@ func TestRegOperatorPreparedMixedIdentity(t *testing.T) {
 		if i == 3 {
 			pos.Offset = 8
 		}
-		typ, _ := auth.catalog.LookupType(id)
+		typ, _ := auth.Catalog.LookupType(id)
 		var value sqltype.Value
 		var failure error
 		if id == sqltype.Regtype {

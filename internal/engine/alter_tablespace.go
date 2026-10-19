@@ -145,7 +145,7 @@ func (e *Engine) alterAllTablespaceLocked(scope *StatementScope, auth Authorizat
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	for _, role := range s.Owners {
-		if _, err := authorization.MembershipRole(auth.roles, auth.state, role); err != nil {
+		if _, err := authorization.MembershipRole(auth.Roles, auth.State, role); err != nil {
 			return Result{}, err
 		}
 	}

@@ -202,7 +202,7 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []query
 			if err != nil {
 				return nil, err
 			}
-			invoker = auth.state.CurrentUser
+			invoker = auth.State.CurrentUser
 			break
 		}
 	}
@@ -236,7 +236,7 @@ func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
 			return err
 		}
 		auth.Recapture(scope.commentCatalog)
-		scope.commentRoles = auth.roles
+		scope.commentRoles = auth.Roles
 		scope.deparseAuth = auth
 		scope.deparsePath, err = e.referencePath(auth)
 		if err != nil {

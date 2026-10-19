@@ -27,7 +27,7 @@ func temporaryCatalogCandidate(t *testing.T, action parser.OnCommitAction) (*Eng
 	}
 	t.Cleanup(op.Done)
 	c := newCatalogChanges()
-	namespace := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, ObjectName: "pg_temp_candidate", ObjectRevision: 1, Owner: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Temporary: session.token}
+	namespace := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, ObjectName: "pg_temp_candidate", ObjectRevision: 1, Owner: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Temporary: session.token}
 	table := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: namespace.Address(), ObjectName: "candidate", ObjectRevision: 1, Owner: namespace.Owner, OnCommit: action, Columns: []catalog.Column{{Name: "v", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}}, Index: map[string]int{"v": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 	e.mu.Lock()
 	e.catalogChangeLocked(c, namespace.Address(), namespace)
@@ -177,8 +177,8 @@ func TestTemporaryTableStagedNamespaceAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth.catalog = e.privateCatalogLocked(c)
-	auth.Recapture(auth.catalog)
+	auth.Catalog = e.privateCatalogLocked(c)
+	auth.Recapture(auth.Catalog)
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_temp"}, {Text: "explicit_identity"}}}
 	if _, err := e.creationNamespace(auth, name); err == nil {
 		t.Fatal("generic creation gained TEMP alias authority")

@@ -19,7 +19,7 @@ func ownedMembershipCandidate(ctx context.Context, roles authorization.Read, rev
 	if err != nil {
 		return nil, err
 	}
-	return &roleCatalog{root: root, revision: revision + 1}, nil
+	return &roleCatalog{Root: root, Revision: revision + 1}, nil
 }
 func ownedPolicies(policies []catalog.PolicyDefinition, sources map[authorization.PrincipalRef]bool) ([]catalog.PolicyDefinition, bool) {
 	needed := false
@@ -58,7 +58,7 @@ func ownedPolicies(policies []catalog.PolicyDefinition, sources map[authorizatio
 	return out, true
 }
 func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authorization.Read, publication *roleCatalog, sources map[authorization.PrincipalRef]bool) error {
-	candidate, err := ownedMembershipCandidate(ctx, roles, publication.revision, sources)
+	candidate, err := ownedMembershipCandidate(ctx, roles, publication.Revision, sources)
 	if err != nil {
 		return err
 	}
@@ -261,17 +261,17 @@ func (s *CatalogStage) validateRoleCandidate(current *roleCatalog) error {
 	if s.roleCandidate == nil {
 		return nil
 	}
-	if current.revision != s.roleRevision {
+	if current.Revision != s.roleRevision {
 		return fmt.Errorf("stuntgres: authorization changed before publication")
 	}
-	if current.revision == ^uint64(0) {
+	if current.Revision == ^uint64(0) {
 		return fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
 	next := s.roleCandidate
-	if next.revision != current.revision+1 {
+	if next.Revision != current.Revision+1 {
 		return fmt.Errorf("stuntgres: invalid ownership role candidate")
 	}
-	return current.root.ValidateDeletionCandidate(&next.root)
+	return current.Root.ValidateDeletionCandidate(&next.Root)
 }
 func (s *CatalogStage) roleRead(current *roleCatalog, catalog catalog.Read) authorization.Read {
 	if s.roleCandidate != nil {

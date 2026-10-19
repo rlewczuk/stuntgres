@@ -179,11 +179,11 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 	auth, err := e.authorizationLocked(op)
 	if err == nil {
 		var bootstrap authorization.RoleDescriptor
-		bootstrap, err = auth.roles.Descriptor(auth.state.Authenticated)
+		bootstrap, err = auth.Roles.Descriptor(auth.State.Authenticated)
 		if err == nil && (!bootstrap.Superuser || e.importTargets == nil) {
 			err = fmt.Errorf("stuntgres: invalid materialized view import authority")
 		}
-		auth.state.CurrentUser = bootstrap.Ref
+		auth.State.CurrentUser = bootstrap.Ref
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -241,7 +241,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 				}
 			}
 			e.mu.Lock()
-			b, err := e.describe(ctx, s, auth, e.catalog.Domain.Ref(auth.catalog.Epoch(), address), input, op, nil, nil)
+			b, err := e.describe(ctx, s, auth, e.catalog.Domain.Ref(auth.Catalog.Epoch(), address), input, op, nil, nil)
 			e.mu.Unlock()
 			if err != nil {
 				return err

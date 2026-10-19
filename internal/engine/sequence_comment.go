@@ -18,7 +18,7 @@ func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment
 		ref, err = e.resolveRelationReference(auth, s.Name, true)
 	}
 	if err == nil {
-		err = sequenceKind(auth.catalog.MustRelation(ref.Address))
+		err = sequenceKind(auth.Catalog.MustRelation(ref.Address))
 	}
 	if err == nil {
 		err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
@@ -39,7 +39,7 @@ func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment
 	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 		return Result{}, err
 	}
-	old, ok := auth.catalog.Relation(ref.Address)
+	old, ok := auth.Catalog.Relation(ref.Address)
 	if !ok {
 		return Result{}, ids.ErrCatalogReplaced
 	}

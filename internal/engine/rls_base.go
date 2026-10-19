@@ -106,12 +106,12 @@ func (e *Engine) rowSecurityInputLocked(scope *StatementScope, d *catalog.Relati
 	if err != nil {
 		return false, err
 	}
-	auth.catalog = e.privateCatalogLocked(scope.owner.catalog)
-	auth.Recapture(auth.catalog)
+	auth.Catalog = e.privateCatalogLocked(scope.owner.catalog)
+	auth.Recapture(auth.Catalog)
 	if principal == (authorization.PrincipalRef{}) {
-		principal = auth.state.CurrentUser
+		principal = auth.State.CurrentUser
 	}
-	decision, err := rowSecurityGroups(auth.roles, d, principal, command, false, selectRead)
+	decision, err := rowSecurityGroups(auth.Roles, d, principal, command, false, selectRead)
 	if err != nil {
 		return false, err
 	}
@@ -130,7 +130,7 @@ func rowSecurityLayers(view catalog.Read, b binding) []rowSecurityLayer {
 	layers := make([]rowSecurityLayer, 0, len(b.viewWrite.layers))
 	for _, layer := range b.viewWrite.layers {
 		current := view.MustRelation(layer.ref.Address)
-		layers = append(layers, rowSecurityLayer{owner: current.Owner, invoker: viewOf(current).invoker})
+		layers = append(layers, rowSecurityLayer{Owner: current.Owner, Invoker: viewOf(current).invoker})
 	}
 	return layers
 }
@@ -163,17 +163,17 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, st
 		return err
 	}
 	if scope.ruleActionAuth != nil {
-		auth.state.CurrentUser = scope.ruleActionAuth.state.CurrentUser
+		auth.State.CurrentUser = scope.ruleActionAuth.State.CurrentUser
 	}
-	auth.catalog = e.privateCatalogLocked(scope.owner.catalog)
-	auth.Recapture(auth.catalog)
-	principal := rowSecurityPrincipal(auth.state.CurrentUser, rowSecurityLayers(auth.catalog, b))
+	auth.Catalog = e.privateCatalogLocked(scope.owner.catalog)
+	auth.Recapture(auth.Catalog)
+	principal := rowSecurityPrincipal(auth.State.CurrentUser, rowSecurityLayers(auth.Catalog, b))
 	reads := b.returning != nil || len(b.usedColumns) != 0
 	if b.viewWrite != nil {
 		reads = reads || len(b.viewWrite.logical.usedColumns) != 0
 	}
 	if command != catalog.PolicyInsert {
-		decision, err := rowSecurityGroups(auth.roles, b.relation, principal, command, false, reads)
+		decision, err := rowSecurityGroups(auth.Roles, b.relation, principal, command, false, reads)
 		if err != nil {
 			return err
 		}
@@ -185,13 +185,13 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, st
 	proposedRead := b.conflict != nil && len(b.conflict.reads) != 0
 	switch stmt.(type) {
 	case *parser.Insert:
-		scope.rlsProposal, err = rowSecurityGroups(auth.roles, b.relation, principal, catalog.PolicyInsert, true, proposedRead)
+		scope.rlsProposal, err = rowSecurityGroups(auth.Roles, b.relation, principal, catalog.PolicyInsert, true, proposedRead)
 	case *parser.Update:
-		scope.rlsProposal, err = rowSecurityGroups(auth.roles, b.relation, principal, catalog.PolicyUpdate, true, reads)
+		scope.rlsProposal, err = rowSecurityGroups(auth.Roles, b.relation, principal, catalog.PolicyUpdate, true, reads)
 	case *parser.Merge:
-		scope.rlsMergeInsert, err = rowSecurityGroups(auth.roles, b.relation, principal, catalog.PolicyInsert, true, false)
+		scope.rlsMergeInsert, err = rowSecurityGroups(auth.Roles, b.relation, principal, catalog.PolicyInsert, true, false)
 		if err == nil {
-			scope.rlsMergeUpdate, err = rowSecurityGroups(auth.roles, b.relation, principal, catalog.PolicyUpdate, true, true)
+			scope.rlsMergeUpdate, err = rowSecurityGroups(auth.Roles, b.relation, principal, catalog.PolicyUpdate, true, true)
 		}
 	}
 	return err

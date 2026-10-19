@@ -2155,7 +2155,7 @@ func (b *expressionBinder) dependency(ref ids.ObjectRef, revision ids.Definition
 }
 func (b *expressionBinder) bindingCatalog() catalog.Read {
 	if b.queryAuth != nil {
-		return b.queryAuth.catalog
+		return b.queryAuth.Catalog
 	}
 	return b.engine.catalog.read(b.engine.catalog.state)
 }
@@ -2779,8 +2779,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 					return nil, err
 				}
 				address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}
-				if descriptor, exists := auth.catalog.Descriptor(address); exists {
-					b.dependency(b.engine.catalog.Domain.Ref(auth.catalog.Epoch(), address), descriptor.Revision())
+				if descriptor, exists := auth.Catalog.Descriptor(address); exists {
+					b.dependency(b.engine.catalog.Domain.Ref(auth.Catalog.Epoch(), address), descriptor.Revision())
 				}
 			}
 		case parser.TypedLiteralExpr:
@@ -3564,7 +3564,7 @@ func (e *Engine) captureElementInput(auth AuthorizationView, op *Operation, inpu
 		input.Regproc, err = e.captureRoutineInput(auth, input.Regtype.(capturedRegtypeInput))
 	}
 	if input.Regrole == nil {
-		input.Regrole = capturedRegroleInput{roles: auth.roles}
+		input.Regrole = capturedRegroleInput{roles: auth.Roles}
 	}
 	if err == nil && input.Operator == nil {
 		input.Operator, err = e.captureOperatorInput(auth, op)

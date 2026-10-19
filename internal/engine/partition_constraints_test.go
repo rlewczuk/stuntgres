@@ -776,7 +776,7 @@ func partitionConstraintAttachStage(t *testing.T, e *Engine, op *Operation) *Cat
 	stage.authSession, stage.authRevision = op.session, op.session.authorization.revision
 	op.session.mu.Unlock()
 	e.mu.Lock()
-	stage.roleRevision = e.roles.published.revision
+	stage.roleRevision = e.roles.published.Revision
 	err := e.stagePartitionIndexAttach(op, stage, parent, child)
 	e.mu.Unlock()
 	if err != nil {
@@ -1175,7 +1175,7 @@ func partitionConstraintDropPublicationStage(t *testing.T, key bool) (*Engine, *
 	stage.authSession, stage.authRevision = op.session, op.session.authorization.revision
 	op.session.mu.Unlock()
 	e.mu.Lock()
-	stage.roleRevision = e.roles.published.revision
+	stage.roleRevision = e.roles.published.Revision
 	e.mu.Unlock()
 	if key {
 		root := base.MustRelation(roleTableRef(t, e, "root_key").Address)

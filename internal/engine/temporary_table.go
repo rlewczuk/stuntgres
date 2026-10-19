@@ -16,7 +16,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	changes := cloneCatalogChanges(scope.owner.catalog)
-	originalCatalog := auth.catalog
+	originalCatalog := auth.Catalog
 	persistence := s.Persistence
 	if persistence == "" {
 		persistence = "logged"
@@ -26,13 +26,13 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 		e.mu.Unlock()
 		return Result{}, creationError(err, s.Name)
 	}
-	auth.catalog = e.privateCatalogLocked(changes)
-	auth.Recapture(auth.catalog)
+	auth.Catalog = e.privateCatalogLocked(changes)
+	auth.Recapture(auth.Catalog)
 	if table, ok := changes.descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
 		auth.stagedTemporary = table.Address()
 	}
 	if op.restoreTableDestination {
-		bootstrap, er := auth.roles.Descriptor(auth.state.Authenticated)
+		bootstrap, er := auth.Roles.Descriptor(auth.State.Authenticated)
 		if er != nil || !bootstrap.Superuser || e.importTargets == nil {
 			e.mu.Unlock()
 			return Result{}, fmt.Errorf("stuntgres: invalid trusted restore destination authority")
@@ -59,8 +59,8 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	if !temporary {
 		// Permanent CREATE does not need the TEMP namespace overlay. Preserve
 		// its admitted catalog identity for the existing importer/publication fences.
-		auth.catalog = originalCatalog
-		auth.Recapture(auth.catalog)
+		auth.Catalog = originalCatalog
+		auth.Recapture(auth.Catalog)
 	}
 	if !temporary && s.OnCommit != parser.OnCommitUnspecified {
 		e.mu.Unlock()
@@ -71,7 +71,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 		return Result{}, sqlError("0A000", "statement is unsupported in an explicit transaction")
 	}
 	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
-	if _, exists := auth.catalog.LookupName(key); exists {
+	if _, exists := auth.Catalog.LookupName(key); exists {
 		e.mu.Unlock()
 		if s.IfNotExists {
 			op.existingRelationNotice(key.Name)
@@ -83,7 +83,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 		e.mu.Unlock()
 		return Result{}, sqlError("42P17", "cannot create partitioned table as inheritance child")
 	}
-	base := auth.catalog
+	base := auth.Catalog
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	stage.authorizeLocked(auth, op.session)
@@ -91,7 +91,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	if s.PartitionBy != nil || s.PartitionOf != nil {
 		partition, err = e.schemaPartitionTableLocked(scope, auth, stage, s, ns.Address)
 	} else {
-		err = e.schemaTableLocked(op, auth, stage, s, ns.Address, auth.state.CurrentUser, scope.input, scope.foreignKeyTargets)
+		err = e.schemaTableLocked(op, auth, stage, s, ns.Address, auth.State.CurrentUser, scope.input, scope.foreignKeyTargets)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -236,7 +236,7 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	if err == nil && scope.txRef.Epoch() != e.catalog.state.Epoch() {
 		err = ids.ErrCatalogReplaced
 	}
-	if err == nil && stage.authSession != nil && (stage.authSession != scope.op.session || scope.op.session.authorization.revision != stage.authRevision || e.operationRolesLocked(scope.op).revision != stage.roleRevision) {
+	if err == nil && stage.authSession != nil && (stage.authSession != scope.op.session || scope.op.session.authorization.revision != stage.authRevision || e.operationRolesLocked(scope.op).Revision != stage.roleRevision) {
 		err = fmt.Errorf("stuntgres: authorization changed before publication")
 	}
 	if err == nil {
@@ -336,7 +336,7 @@ func temporaryDataTarget(auth AuthorizationView, b *binding, stmt parser.Stateme
 		return true
 	case *parser.Copy, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 		if b.relation != nil {
-			ns, ok := auth.catalog.Namespace(b.relation.Namespace())
+			ns, ok := auth.Catalog.Namespace(b.relation.Namespace())
 			return ok && ownTemporaryNamespace(auth, ns)
 		}
 	}

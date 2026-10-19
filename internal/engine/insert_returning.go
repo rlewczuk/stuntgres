@@ -141,8 +141,8 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 	if err != nil {
 		return false, false, err
 	}
-	auth.catalog = catalog
-	auth.Recapture(auth.catalog)
+	auth.Catalog = catalog
+	auth.Recapture(auth.Catalog)
 	b := s.insertReturning.binding
 	if b.viewWrite == nil && s.partitionInsert == nil {
 		b.ref, b.relation = ref, parent

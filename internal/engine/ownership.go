@@ -168,7 +168,7 @@ func stageOwnership(stage *CatalogStage, d catalog.Descriptor, target authorizat
 	return nil
 }
 func (e *Engine) ownershipStage(auth AuthorizationView, op *Operation) *CatalogStage {
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
 	return stage
 }
@@ -216,7 +216,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 	if ref != scope.lockedRef {
 		return fail(ids.ErrCatalogReplaced)
 	}
-	old := auth.catalog.MustRelation(ref.Address)
+	old := auth.Catalog.MustRelation(ref.Address)
 	if kind == "materialized view" {
 		if err := alterViewAuthority(auth, ref, &parser.AlterView{Materialized: true, Action: "owner"}); err != nil {
 			return fail(err)
@@ -244,7 +244,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 	if old.Sequence != nil && old.Sequence.Owned != (ids.ObjectAddress{}) {
 		parent := old.Sequence.Owned
 		parent.SubID = 0
-		return fail(sequenceLinkedError(old, auth.catalog.MustRelation(parent), false))
+		return fail(sequenceLinkedError(old, auth.Catalog.MustRelation(parent), false))
 	}
 	if err = ownershipEligibility(auth.accessView, auth, target, old.Namespace()); err != nil {
 		return fail(err)
@@ -295,9 +295,9 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 	}
 	var old *catalog.Type
 	for i := range path.count() {
-		a := auth.catalog.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: s.Name.Parts[len(s.Name.Parts)-1].Text})
+		a := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: s.Name.Parts[len(s.Name.Parts)-1].Text})
 		if a != (ids.ObjectAddress{}) {
-			old = auth.catalog.MustType(a)
+			old = auth.Catalog.MustType(a)
 			break
 		}
 	}
@@ -305,17 +305,17 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 		return fail(sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(s.Name))))
 	}
 	diagnosticPath, _ := e.referencePath(auth)
-	display := typeDiagnosticNameAt(auth.catalog, old, diagnosticPath)
+	display := typeDiagnosticNameAt(auth.Catalog, old, diagnosticPath)
 	if s.Kind == "domain" && !old.SQLType.IsDomain() {
 		return fail(sqlError("42809", display+" is not a domain"))
 	}
 	if old.SQLType.IsArray() {
-		element := auth.catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.SQLType.Element().ID())})
-		elementName := typeDiagnosticNameAt(auth.catalog, element, diagnosticPath)
+		element := auth.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.SQLType.Element().ID())})
+		elementName := typeDiagnosticNameAt(auth.Catalog, element, diagnosticPath)
 		return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: "cannot alter array type " + display, Hint: "You can alter type " + elementName + ", which will alter the array type as well."})
 	}
 	if old.OwningRelation != (ids.ObjectAddress{}) {
-		r := auth.catalog.MustRelation(old.OwningRelation)
+		r := auth.Catalog.MustRelation(old.OwningRelation)
 		if r.RelationKind != catalog.CompositeRelation {
 			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: display + " is a table's row type", Hint: "Use ALTER TABLE instead."})
 		}
@@ -332,7 +332,7 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 		scope.completed = true
 		return Result{}, scope.op.Context().Err()
 	}
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), old.Address())
+	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), old.Address())
 	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true, OwnerNoun: "type"}); err != nil {
 		return fail(err)
 	}
@@ -373,7 +373,7 @@ func (e *Engine) executeDatabaseOwnership(scope *StatementScope, s *parser.Alter
 	if err != nil {
 		return fail(err)
 	}
-	database := auth.catalog.MustDatabase(catalog.CurrentDatabaseAddress)
+	database := auth.Catalog.MustDatabase(catalog.CurrentDatabaseAddress)
 	if len(s.Name.Parts) != 1 || s.Name.Parts[0].Text != database.Name() {
 		return fail(sqlError("3D000", fmt.Sprintf(`database "%s" does not exist`, s.Name.Parts[len(s.Name.Parts)-1].Text)))
 	}
@@ -382,13 +382,13 @@ func (e *Engine) executeDatabaseOwnership(scope *StatementScope, s *parser.Alter
 		scope.completed = true
 		return Result{}, scope.op.Context().Err()
 	}
-	if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.catalog.Epoch(), database.Address()), OwnerOnly: true}); err != nil {
+	if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), database.Address()), OwnerOnly: true}); err != nil {
 		return fail(err)
 	}
 	if err = ownershipSuccessor(auth.accessView, target); err != nil {
 		return fail(err)
 	}
-	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
 		return fail(err)
 	}

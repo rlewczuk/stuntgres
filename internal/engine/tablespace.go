@@ -52,7 +52,7 @@ func (e *Engine) executeCreateTablespace(op *Operation, stmt *parser.CreateTable
 	if err != nil {
 		return Result{}, err
 	}
-	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
 		return Result{}, err
 	}
@@ -63,7 +63,7 @@ func (e *Engine) executeCreateTablespace(op *Operation, stmt *parser.CreateTable
 	if stmt.Owner != nil {
 		owner = *stmt.Owner
 	}
-	if _, err := authorization.MembershipRole(auth.roles, auth.state, owner); err != nil {
+	if _, err := authorization.MembershipRole(auth.Roles, auth.State, owner); err != nil {
 		return Result{}, err
 	}
 	if _, err := tablespaceLocation(stmt.Location); err != nil {

@@ -105,8 +105,8 @@ func TestDefaultPrivilegesDependencies(t *testing.T) {
 	defaultRoleDependencies(f.e.CatalogRead(), f.e.Roles(), f.reader, &got)
 	descriptions := make([]string, len(got))
 	for i, dep := range got {
-		descriptions[i] = dep.description
-		if dep.kind != 'a' {
+		descriptions[i] = dep.Description
+		if dep.Kind != 'a' {
 			t.Fatal("recipient dependency kind", dep)
 		}
 	}
@@ -122,7 +122,7 @@ func TestDefaultPrivilegesDependencies(t *testing.T) {
 		t.Fatal("creator default dependencies", got)
 	}
 	for _, dep := range got {
-		if dep.kind != 'o' {
+		if dep.Kind != 'o' {
 			t.Fatal("creator not owner dependency", dep)
 		}
 	}
@@ -192,7 +192,7 @@ func TestDefaultPrivilegesSchemaLifecycle(t *testing.T) {
 	defaultRoleDependencies(f.e.CatalogRead(), f.e.Roles(), f.reader, &dependencies)
 	found := false
 	for _, dep := range dependencies {
-		if dep.description == "privileges for default privileges on new relations belonging to role default_owner in schema renamed" {
+		if dep.Description == "privileges for default privileges on new relations belonging to role default_owner in schema renamed" {
 			found = true
 		}
 	}

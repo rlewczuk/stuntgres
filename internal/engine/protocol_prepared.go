@@ -70,7 +70,7 @@ func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (Pro
 			if oid == 0 || oid == uint32(sqltype.Unknown) {
 				continue
 			}
-			typ, ok := auth.catalog.LookupType(sqltype.ID(oid))
+			typ, ok := auth.Catalog.LookupType(sqltype.ID(oid))
 			if !ok {
 				err = sqlError("42704", fmt.Sprintf("type with OID %d does not exist", oid))
 				break

@@ -32,7 +32,7 @@ func TestObjectGrantSchemaTypePublication(t *testing.T) {
 			}
 			next := e.catalog.state.Get(address)
 			owner, acl, _ := descriptorACL(next)
-			if next == original || e.roles.published.revision != roles.revision+1 || authorization.ACLRights(acl, owner, []authorization.PrincipalRef{reader}, want, true) != want {
+			if next == original || e.roles.published.Revision != roles.Revision+1 || authorization.ACLRights(acl, owner, []authorization.PrincipalRef{reader}, want, true) != want {
 				t.Fatal("wrong immutable class publication", acl)
 			}
 			if !slices.Contains(descriptorReferences(next), reader) {

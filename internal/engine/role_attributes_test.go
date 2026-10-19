@@ -121,7 +121,7 @@ func TestRoleAttributesAuthority(t *testing.T) {
 	before := e.Roles()
 	target := roleAttributeCreate(t, e, op, "owned", false, parser.RoleOptions{})
 	edges := e.Roles().Memberships()
-	wantEdge := authorization.Membership{Role: target.Ref, Member: actor.Ref, Grantor: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Admin: true}
+	wantEdge := authorization.Membership{Role: target.Ref, Member: actor.Ref, Grantor: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Admin: true}
 	if len(edges) != 4 || edges[3] != wantEdge || len(before.Memberships()) != 3 {
 		t.Fatal("creator ADMIN not atomic", edges)
 	}
@@ -251,7 +251,7 @@ func TestRoleAttributesPublicationAndSnapshots(t *testing.T) {
 	e.roles.nextPrincipal = savedNext
 	savedRoot := e.roles.published
 	exhaustedRoot := *savedRoot
-	exhaustedRoot.revision = ^uint64(0)
+	exhaustedRoot.Revision = ^uint64(0)
 	e.roles.published = &exhaustedRoot
 	roleAttributeFailure(t, e, admin, roleAttributeAlter("snapshot", parser.RoleOptions{Present: parser.RoleLogin}), "")
 	e.roles.published = savedRoot

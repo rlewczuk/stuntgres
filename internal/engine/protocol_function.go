@@ -48,9 +48,9 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 		e.mu.Unlock()
 		return ProtocolField{}, err
 	}
-	d, ok := auth.catalog.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(oid)})
+	d, ok := auth.Catalog.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(oid)})
 	if !ok {
-		identity, found := routineIdentityByOID(auth.catalog, ids.OID(oid))
+		identity, found := routineIdentityByOID(auth.Catalog, ids.OID(oid))
 		e.mu.Unlock()
 		if found {
 			return ProtocolField{}, sqlError("0A000", fmt.Sprintf("function \"%s\" is not supported", identity.Name))
@@ -61,9 +61,9 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 		e.mu.Unlock()
 		return ProtocolField{}, sqlError("0A000", fmt.Sprintf("cannot call function \"%s\" via fastpath interface", d.Name()))
 	}
-	ns := auth.catalog.Get(d.Namespace())
-	nsRef := auth.catalog.Owner().Domain.Ref(auth.catalog.Epoch(), d.Namespace())
-	ref := auth.catalog.Owner().Domain.Ref(auth.catalog.Epoch(), d.Address())
+	ns := auth.Catalog.Get(d.Namespace())
+	nsRef := auth.Catalog.Owner().Domain.Ref(auth.Catalog.Epoch(), d.Namespace())
+	ref := auth.Catalog.Owner().Domain.Ref(auth.Catalog.Epoch(), d.Address())
 	if err = auth.Check(AccessRequirement{Object: nsRef, Privileges: authorization.UsagePrivilege}); err == nil {
 		err = auth.Check(AccessRequirement{Object: ref, Privileges: authorization.ExecutePrivilege})
 	}
@@ -79,7 +79,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 				e.mu.Unlock()
 				return ProtocolField{}, parseErr
 			}
-			typ, found := auth.catalog.LookupType(sqltype.ID(id))
+			typ, found := auth.Catalog.LookupType(sqltype.ID(id))
 			if !found {
 				e.mu.Unlock()
 				return ProtocolField{}, sqlError("0A000", "function argument type is unavailable")
@@ -117,8 +117,8 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	}
 	s.routineAuth, s.routineDependencies = auth, binder.dependencies
 	s.input = binder.input
-	s.domainInputCatalog = auth.catalog
-	evaluation := EvalContext{Context: s.op.Context(), Parameters: make([]sqltype.Value, len(usages)), Input: s.input, Output: s.output, statementScope: s, catalog: auth.catalog}
+	s.domainInputCatalog = auth.Catalog
+	evaluation := EvalContext{Context: s.op.Context(), Parameters: make([]sqltype.Value, len(usages)), Input: s.input, Output: s.output, statementScope: s, catalog: auth.Catalog}
 	evaluation.Input.DomainChecks = &evaluation
 	e.mu.Unlock()
 	formats, err := protocolFormats(input)
@@ -169,7 +169,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	rows := newFinalRows(nil, 1)
 	rows.values = []sqltype.Value{value}
 	rows.output = s.output
-	if err = s.captureSQLCursorOutput(rows, auth.catalog); err != nil {
+	if err = s.captureSQLCursorOutput(rows, auth.Catalog); err != nil {
 		return ProtocolField{}, err
 	}
 	output := rows.output

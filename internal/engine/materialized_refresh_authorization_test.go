@@ -28,7 +28,7 @@ func TestMaterializedRefreshAuthorization(t *testing.T) {
 	owner, caller := refreshUnitPrincipals(e)
 	d.Owner = owner
 	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
-	auth := AuthorizationView{accessView: accessView{owner: e.catalog.owner(), pairedCatalog: e.CatalogRead(), roleRecord: e.roles.published, catalog: e.CatalogRead(), roles: e.Roles(), state: authorization.RoleState{CurrentUser: caller, SessionUser: caller, Authenticated: caller}}, engine: e}
+	auth := AuthorizationView{accessView: accessView{Owner: e.catalog.owner(), PairedCatalog: e.CatalogRead(), RoleRecord: e.roles.published, Catalog: e.CatalogRead(), Roles: e.Roles(), State: authorization.RoleState{CurrentUser: caller, SessionUser: caller, Authenticated: caller}}, engine: e}
 	for _, privilege := range []authorization.Privileges{authorization.SelectPrivilege, authorization.MaintainPrivilege} {
 		d.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, caller, privilege, 0)}}
 		err := materializedRefreshAccess(auth, ref)
@@ -109,8 +109,8 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 			if err != nil {
 				return sqltype.Value{}, err
 			}
-			if auth.state.CurrentUser != owner || auth.state.SessionUser != caller || !auth.materializedPopulation {
-				t.Fatal("producer did not run as owner", auth.state)
+			if auth.State.CurrentUser != owner || auth.State.SessionUser != caller || !auth.materializedPopulation {
+				t.Fatal("producer did not run as owner", auth.State)
 			}
 			current, _ := scope.identity.current.Text()
 			session, _ := scope.identity.session.Text()
@@ -126,7 +126,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 				t.Fatal(schema)
 			}
 			captured, ok := c.Input.Regtype.(capturedRegtypeInput)
-			if !ok || captured.auth.state.CurrentUser != owner || captured.auth.state.SessionUser != caller || !captured.auth.materializedPopulation ||
+			if !ok || captured.auth.State.CurrentUser != owner || captured.auth.State.SessionUser != caller || !captured.auth.materializedPopulation ||
 				!slices.Equal(captured.path, []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}) ||
 				c.Input.Regclass == nil || c.Input.Regrole == nil || c.Input.Operator == nil || c.Input.Regproc == nil ||
 				c.Input.TypeDiagnosticName != nil || !c.Input.ExactSnapshot {
@@ -162,7 +162,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 		}
 		restored := scope.input.Regtype.(capturedRegtypeInput)
 		before := beforeInput.Regtype.(capturedRegtypeInput)
-		if restored.auth.state != before.auth.state || !slices.Equal(restored.path, before.path) ||
+		if restored.auth.State != before.auth.State || !slices.Equal(restored.path, before.path) ||
 			scope.input.TypeDiagnosticName == nil || scope.input.TypeDiagnosticName(sqltype.Regprocedure) != "caller-naming" ||
 			scope.input.ExactSnapshot != beforeInput.ExactSnapshot {
 			t.Fatal("population leaked input context")

@@ -191,11 +191,11 @@ func inheritanceOnlyActions(root *catalog.Relation, children bool, actions []par
 func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTable, count int, tablespace ids.ObjectRef, types []alterTypePreparation) (Result, error) {
 	root := scope.lockedDescriptor.(*catalog.Relation)
 	actions := raw.Actions
-	if err := inheritanceAlterActionsGuard(auth.catalog, root, actions); err != nil {
+	if err := inheritanceAlterActionsGuard(auth.Catalog, root, actions); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	children := inheritanceChildren(auth.catalog, root.Address())
+	children := inheritanceChildren(auth.Catalog, root.Address())
 	if raw.Only {
 		for _, a := range raw.Actions {
 			if a.Action == parser.AddUnique && a.Unique.Primary && len(children) != 0 {
@@ -220,7 +220,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 	})
 	targets := []*catalog.Relation{root}
 	if recurse {
-		targets = inheritanceAlterOrder(auth.catalog, root)
+		targets = inheritanceAlterOrder(auth.Catalog, root)
 	}
 	original := scope.statementMutation
 	var stage *CatalogStage
@@ -314,12 +314,12 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 			continue
 		}
 		command := *raw
-		command.Name = parser.ObjectName{Parts: []parser.Identifier{{Text: auth.catalog.Get(old.Namespace()).Name()}, {Text: old.Name()}}}
+		command.Name = parser.ObjectName{Parts: []parser.Identifier{{Text: auth.Catalog.Get(old.Namespace()).Name()}, {Text: old.Name()}}}
 		command.Actions = planned
 		command.Only = true
 		childAuth := auth
-		childAuth.catalog = e.stageRead(stage)
-		childAuth.Recapture(childAuth.catalog)
+		childAuth.Catalog = e.stageRead(stage)
+		childAuth.Recapture(childAuth.Catalog)
 		e.mu.Lock()
 		if _, err := e.alterTableLocked(scope, op, childAuth, &command, count); err != nil {
 			return Result{}, err

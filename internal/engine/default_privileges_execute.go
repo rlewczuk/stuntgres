@@ -35,7 +35,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 			publicGrantOption = s.GrantOption
 			continue
 		}
-		role, err := authorization.MembershipRole(v.roles, v.state, spec.Role)
+		role, err := authorization.MembershipRole(v.Roles, v.State, spec.Role)
 		if err != nil {
 			return Result{}, err
 		}
@@ -62,11 +62,11 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 	}
 	var updates map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
 	for _, spec := range creators {
-		creator, err := authorization.MembershipRole(v.roles, v.state, spec)
+		creator, err := authorization.MembershipRole(v.Roles, v.State, spec)
 		if err != nil {
 			return Result{}, err
 		}
-		allowed, err := v.roles.InheritsRole(v.state.CurrentUser, creator)
+		allowed, err := v.Roles.InheritsRole(v.State.CurrentUser, creator)
 		if err != nil {
 			return Result{}, err
 		}
@@ -79,7 +79,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 			var schema ids.ObjectAddress
 			if schemas != nil {
 				name := schemas[i].Text
-				schema = v.catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name})
+				schema = v.Catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name})
 				if schema == (ids.ObjectAddress{}) {
 					return Result{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, name))
 				}
@@ -96,7 +96,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 			key := catalog.DefaultACLKey{Creator: creator, Schema: schema, Class: class}
 			old, exists := updates[key]
 			if !exists {
-				old = v.catalog.State().DefaultACL(key)
+				old = v.Catalog.State().DefaultACL(key)
 			}
 			var acl authorization.ACLValue
 			if old != nil {
@@ -104,7 +104,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 			} else {
 				acl = authorization.DefaultBaseline(creator, class, schema != (ids.ObjectAddress{}))
 			}
-			next, changed, err := authorization.ChangeObjectACL(op.Context(), v.roles, acl, creator, creator, grantees, mask, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
+			next, changed, err := authorization.ChangeObjectACL(op.Context(), v.Roles, acl, creator, creator, grantees, mask, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
 			if err != nil {
 				return Result{}, err
 			}
@@ -122,7 +122,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 		}
 	}
 	for key, record := range updates {
-		old := v.catalog.State().DefaultACL(key)
+		old := v.Catalog.State().DefaultACL(key)
 		if old == record || old != nil && record != nil && authorization.EqualACL(old.ACL, record.ACL) {
 			delete(updates, key)
 		}
@@ -130,17 +130,17 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 	if len(updates) == 0 {
 		return Result{}, op.Context().Err()
 	}
-	candidate := *v.catalog.State()
-	candidate.OverlayDefaultACLs(v.catalog.State(), updates)
+	candidate := *v.Catalog.State()
+	candidate.OverlayDefaultACLs(v.Catalog.State(), updates)
 	candidateCatalog := e.catalog.read(&candidate)
-	candidateRoles := e.roles.read(e.catalog.owner(), candidateCatalog, v.roleRecord)
+	candidateRoles := e.roles.read(e.catalog.owner(), candidateCatalog, v.RoleRecord)
 	if err := catalog.ValidateDefaultACLs(candidateRoles, candidateCatalog); err != nil {
 		return Result{}, err
 	}
-	if v.roleRecord.revision == ^uint64(0) {
+	if v.RoleRecord.Revision == ^uint64(0) {
 		return Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
-	nextRoles := v.roleRecord.advance()
+	nextRoles := v.RoleRecord.Advance()
 	op.session.mu.Lock()
 	defer op.session.mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {

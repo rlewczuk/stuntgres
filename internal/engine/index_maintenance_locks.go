@@ -27,16 +27,16 @@ type indexMaintenanceGrant struct {
 
 func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statement, strict bool) error {
 	for address, observed := range g.descriptors {
-		current, ok := auth.catalog.Relation(address)
+		current, ok := auth.Catalog.Relation(address)
 		if !ok || strict && current != observed {
 			return ids.ErrCatalogReplaced
 		}
 	}
 	for _, ref := range g.targets {
-		if ref.Domain() != auth.owner.Domain || ref.Epoch != auth.catalog.Epoch() {
+		if ref.Domain() != auth.Owner.Domain || ref.Epoch != auth.Catalog.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
-		d := auth.catalog.MustRelation(ref.Address)
+		d := auth.Catalog.MustRelation(ref.Address)
 		switch s := stmt.(type) {
 		case *parser.DropIndex:
 			if d.RelationKind != catalog.IndexRelation {
@@ -45,11 +45,11 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 			if err := relationDropOwner(auth, ref, d); err != nil {
 				return err
 			}
-			if err := partitionIndexDropDependency(auth.catalog, d); err != nil {
+			if err := partitionIndexDropDependency(auth.Catalog, d); err != nil {
 				return err
 			}
 			if d.SQLIndex.Constraint != nil {
-				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop index %s because constraint %s on table %s requires it", d.Name(), d.SQLIndex.Constraint.Name, auth.catalog.Get(d.SQLIndex.Parent).Name()), Hint: "You can drop constraint " + d.SQLIndex.Constraint.Name + " on table " + auth.catalog.Get(d.SQLIndex.Parent).Name() + " instead."}
+				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop index %s because constraint %s on table %s requires it", d.Name(), d.SQLIndex.Constraint.Name, auth.Catalog.Get(d.SQLIndex.Parent).Name()), Hint: "You can drop constraint " + d.SQLIndex.Constraint.Name + " on table " + auth.Catalog.Get(d.SQLIndex.Parent).Name() + " instead."}
 			}
 		case *parser.AlterIndex:
 			if s.Action != "rename" && d.RelationKind != catalog.IndexRelation {
@@ -69,7 +69,7 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 				if d.RelationKind != catalog.IndexRelation {
 					return indexWrongKind(d, false)
 				}
-				parent = auth.catalog.MustRelation(d.SQLIndex.Parent)
+				parent = auth.Catalog.MustRelation(d.SQLIndex.Parent)
 			} else if d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation {
 				return sqlError("42809", fmt.Sprintf(`"%s" is not a table or materialized view`, d.Name()))
 			}
@@ -86,14 +86,14 @@ func (g *indexMaintenanceGrant) check(auth AuthorizationView, stmt parser.Statem
 		}
 	}
 	for _, ref := range g.indexes {
-		d := auth.catalog.MustRelation(ref.Address)
+		d := auth.Catalog.MustRelation(ref.Address)
 		if d.SQLIndex == nil || g.descriptors[d.SQLIndex.Parent] == nil {
 			return ids.ErrCatalogReplaced
 		}
 	}
 	for parent, count := range g.indexSets {
 		actual := 0
-		for address, descriptor := range auth.catalog.Descriptors() {
+		for address, descriptor := range auth.Catalog.Descriptors() {
 			d, ok := descriptor.(*catalog.Relation)
 			if !ok || d.SQLIndex == nil || d.SQLIndex.Parent != parent {
 				continue
@@ -179,7 +179,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		if g.descriptors[ref.Address] != nil {
 			continue
 		}
-		d := auth.catalog.MustRelation(ref.Address)
+		d := auth.Catalog.MustRelation(ref.Address)
 		g.targets = append(g.targets, ref)
 		g.descriptors[ref.Address] = d
 	}
@@ -196,7 +196,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 			parent := d.SQLIndex.Parent
 			if g.descriptors[parent] == nil {
 				g.parents = append(g.parents, ref.Domain().Ref(ref.Epoch, parent))
-				g.descriptors[parent] = auth.catalog.MustRelation(parent)
+				g.descriptors[parent] = auth.Catalog.MustRelation(parent)
 			}
 		case *parser.Reindex:
 			parent := d.Address()
@@ -205,10 +205,10 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 				g.indexes = append(g.indexes, ref)
 			}
 			g.parents = append(g.parents, ref.Domain().Ref(ref.Epoch, parent))
-			g.descriptors[parent] = auth.catalog.MustRelation(parent)
+			g.descriptors[parent] = auth.Catalog.MustRelation(parent)
 			if v.Kind.Text == "table" {
 				g.indexSets = map[ids.ObjectAddress]int{parent: 0}
-				for address, descriptor := range auth.catalog.Descriptors() {
+				for address, descriptor := range auth.Catalog.Descriptors() {
 					index, ok := descriptor.(*catalog.Relation)
 					if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent {
 						continue
@@ -225,7 +225,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		if err != nil {
 			return fail(err)
 		}
-		child := auth.catalog.MustRelation(ref.Address)
+		child := auth.Catalog.MustRelation(ref.Address)
 		if child.SQLIndex == nil {
 			diagnostic := indexWrongKind(child, false).(*sqlstate.Error)
 			diagnostic.Code = "42P17"
@@ -235,7 +235,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		g.descriptors[ref.Address] = child
 		g.indexes = append(g.indexes, ref)
 		parent := g.descriptors[g.targets[0].Address]
-		if err := partitionIndexAttachCheck(s.op, auth.catalog, parent, child); err != nil {
+		if err := partitionIndexAttachCheck(s.op, auth.Catalog, parent, child); err != nil {
 			return fail(err)
 		}
 	}
@@ -293,7 +293,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 			return err
 		}
 		for address, observed := range g.descriptors {
-			current := auth.catalog.MustRelation(address)
+			current := auth.Catalog.MustRelation(address)
 			if g.partition && current != observed {
 				return ids.ErrCatalogReplaced
 			}

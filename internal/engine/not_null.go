@@ -65,7 +65,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		for i := range command.Actions {
 			if command.Actions[i].Action == parser.SetNotNull {
 				a := &command.Actions[i]
-				a.NoInherit = len(inheritanceChildren(auth.catalog, old.Address())) != 0
+				a.NoInherit = len(inheritanceChildren(auth.Catalog, old.Address())) != 0
 				if slot, ok := old.Index[a.Column.Text]; ok {
 					for _, c := range old.Constraints.NotNull {
 						if c.Attribute == old.Attributes[slot] && c.NoInherit {
@@ -129,11 +129,11 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		command.Actions = work
 		s = &command
 	}
-	if scope.inheritanceAlter == nil && !rowSecurityActions(s.Actions) && inheritanceParticipant(auth.catalog, old) {
+	if scope.inheritanceAlter == nil && !rowSecurityActions(s.Actions) && inheritanceParticipant(auth.Catalog, old) {
 		return e.alterInheritanceLocked(scope, op, auth, s, count, destination, prepared)
 	}
 	if scope.inheritanceAlter == nil || !scope.inheritanceAlter.descendant {
-		if err := inheritanceAlterActionsGuard(auth.catalog, old, s.Actions); err != nil {
+		if err := inheritanceAlterActionsGuard(auth.Catalog, old, s.Actions); err != nil {
 			return fail(err)
 		}
 	}
@@ -166,7 +166,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	versions, ends, frontier := store.Versions, store.Ends, e.visibility.commitSeq
 	snapshot, snapshotExists := scope.owner.roots[ref.Address]
 	grantCatalog := e.catalog.state
-	schema := auth.catalog.Get(old.Namespace()).Name()
+	schema := auth.Catalog.Get(old.Namespace()).Name()
 	var stage *CatalogStage
 	if scope.inheritanceAlter == nil || !scope.inheritanceAlter.descendant {
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
@@ -230,7 +230,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				}
 			} else if action.Action == parser.AddIdentity || action.Action == parser.DropIdentity || action.Action == parser.SetIdentity {
 				if stage == nil {
-					stage = e.BeginCatalogStage(auth.catalog)
+					stage = e.BeginCatalogStage(auth.Catalog)
 					stage.authorizeLocked(auth, op.session)
 				}
 				next, err = e.identityCandidate(scope, auth, stage, next, action)
@@ -242,7 +242,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				}
 			} else if action.Action == parser.DropColumn {
 				if _, exists := next.Index[action.Column.Text]; exists && stage == nil {
-					stage = e.BeginCatalogStage(auth.catalog)
+					stage = e.BeginCatalogStage(auth.Catalog)
 					stage.authorizeLocked(auth, op.session)
 				}
 				next, err = scope.dropColumnCandidate(stage, next, ref, action, changes)
@@ -265,8 +265,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				attachmentIndex++
 			} else if action.Action == parser.AddUnique {
 				if stage == nil {
-					stage = e.BeginCatalogStage(auth.catalog)
-					stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roleRecord.revision
+					stage = e.BeginCatalogStage(auth.Catalog)
+					stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.Revision, auth.RoleRecord.Revision
 				}
 				next, err = e.stageAddedUnique(op, auth, stage, next, action.Unique)
 				if err == nil {
@@ -274,7 +274,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				}
 			} else if action.Action == parser.AddExclusion {
 				if stage == nil {
-					stage = e.BeginCatalogStage(auth.catalog)
+					stage = e.BeginCatalogStage(auth.Catalog)
 					stage.authorizeLocked(auth, op.session)
 				}
 				copy := *next
@@ -287,7 +287,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 					addedIndexes = append(addedIndexes, next.Constraints.Exclusion[len(next.Constraints.Exclusion)-1].Index)
 				}
 			} else {
-				next, err = notNullCandidate(op, auth.catalog, next, action, scope.inheritanceNotNullMode(action.Column.Text))
+				next, err = notNullCandidate(op, auth.Catalog, next, action, scope.inheritanceNotNullMode(action.Column.Text))
 			}
 			if err == nil && action.Action == parser.AddNotNull {
 				err = scope.inheritanceOnlyCreatedConstraint(before, next)
@@ -314,16 +314,16 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				next = releaseRetiredTypeConstraints(next, s.Actions)
 			}
 			if err == nil {
-				pendingChecks, err = captureAlterTypeChecks(op, auth.catalog, old, next, s.Actions)
+				pendingChecks, err = captureAlterTypeChecks(op, auth.Catalog, old, next, s.Actions)
 			}
 			if err == nil {
-				pendingIndexes, err = captureAlterTypeIndexes(scope, auth.catalog, old, next, s.Actions)
+				pendingIndexes, err = captureAlterTypeIndexes(scope, auth.Catalog, old, next, s.Actions)
 			}
 		} else if pass == 1 {
 			next, typeChecks, err = e.rebindAlterTypeChecks(scope, op, auth, ref, next, pendingChecks)
 			if err == nil && len(pendingIndexes) > 0 {
 				if stage == nil {
-					stage = e.BeginCatalogStage(auth.catalog)
+					stage = e.BeginCatalogStage(auth.Catalog)
 					stage.authorizeLocked(auth, op.session)
 				}
 				err = e.rebindAlterTypeIndexes(scope, auth, next, stage, pendingIndexes)
@@ -331,7 +331,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 		if err == nil && pass == 1 && hasAttachments {
 			if stage == nil {
-				stage = e.BeginCatalogStage(auth.catalog)
+				stage = e.BeginCatalogStage(auth.Catalog)
 			}
 			err = stage.Replace(next)
 			if definition != nil && !definition.phaseZeroOnly {
@@ -371,7 +371,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 							next = preparedInline.next
 						}
 					} else {
-						next, err = notNullCandidate(op, auth.catalog, next, parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: added.column.Name}, Constraint: parser.Identifier{Text: added.declaration.columnName}}, notNullDirect)
+						next, err = notNullCandidate(op, auth.Catalog, next, parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: added.column.Name}, Constraint: parser.Identifier{Text: added.declaration.columnName}}, notNullDirect)
 					}
 					if err != nil {
 						break
@@ -393,7 +393,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 						next = prepared.next
 					}
 				} else {
-					next, err = usingIndexNotNullCandidate(op, auth.catalog, stageDefinitionReader{stage}, next, captured)
+					next, err = usingIndexNotNullCandidate(op, auth.Catalog, stageDefinitionReader{stage}, next, captured)
 					if err == nil {
 						err = scope.inheritanceOnlyCreatedConstraint(before, next)
 					}
@@ -425,8 +425,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				slices.SortFunc(raw, func(a, b *parser.CheckConstraint) int { return a.Pos.Offset - b.Pos.Offset })
 			}
 			if len(raw) != 0 && stage == nil {
-				stage = e.BeginCatalogStage(auth.catalog)
-				stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roleRecord.revision
+				stage = e.BeginCatalogStage(auth.Catalog)
+				stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.Revision, auth.RoleRecord.Revision
 			}
 			next, err = e.stageAddedChecks(scope, op, auth, stage, next, raw, &addedChecks)
 		}
@@ -528,7 +528,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 	}
 	if stage == nil {
-		stage = e.BeginCatalogStage(auth.catalog)
+		stage = e.BeginCatalogStage(auth.Catalog)
 		stage.authorizeLocked(auth, op.session)
 	}
 	if err := stage.Replace(next); err != nil {
@@ -584,7 +584,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		return Result{}, err
 	}
 	if changedValues {
-		if err := scope.acquireForeignKeyTypeProviders(auth.catalog, old.Address()); err != nil {
+		if err := scope.acquireForeignKeyTypeProviders(auth.Catalog, old.Address()); err != nil {
 			return Result{}, err
 		}
 	}
@@ -619,7 +619,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		rowRewrite = rowRewrite || !fill.IsNull()
 	}
 	if rowRewrite {
-		if err := rowRewriteError(auth.catalog, old); err != nil {
+		if err := rowRewriteError(auth.Catalog, old); err != nil {
 			return Result{}, err
 		}
 	}
@@ -717,8 +717,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	var disclosure AuthorizationView
 	if err == nil {
 		disclosure, err = e.authorizationLocked(op)
-		disclosure.catalog = e.privateCatalogLocked(scope.owner.catalog)
-		disclosure.Recapture(disclosure.catalog)
+		disclosure.Catalog = e.privateCatalogLocked(scope.owner.catalog)
+		disclosure.Recapture(disclosure.Catalog)
 	}
 	e.mu.Unlock()
 	if err != nil {

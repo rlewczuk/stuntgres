@@ -68,8 +68,8 @@ func TestSequenceTemporaryNamespacePairAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, a := range []ids.ObjectAddress{table, toast} {
-		ns := auth.catalog.MustNamespace(a)
-		rights, err := auth.Effective(e.catalog.Domain.Ref(auth.catalog.Epoch(), a), false)
+		ns := auth.Catalog.MustNamespace(a)
+		rights, err := auth.Effective(e.catalog.Domain.Ref(auth.Catalog.Epoch(), a), false)
 		want := authorization.Privileges(0)
 		if a == table {
 			want = authorization.UsagePrivilege | authorization.CreatePrivilege
@@ -122,10 +122,10 @@ func TestSequenceTemporaryNamespacePairPrivate(t *testing.T) {
 			op.Done()
 			t.Fatal(err)
 		}
-		private := namespaceUnitCapture(t, e, auth.catalog)
+		private := namespaceUnitCapture(t, e, auth.Catalog)
 		committed := namespaceUnitCapture(t, e, e.CatalogRead())
 		count := 0
-		for _, d := range auth.catalog.Descriptors() {
+		for _, d := range auth.Catalog.Descriptors() {
 			if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == creator.token {
 				count++
 				namespaceUnitRow(t, private, uint32(ns.Address().ObjectID))

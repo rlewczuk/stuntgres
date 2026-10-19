@@ -17,7 +17,7 @@ func capturePGIndexes(ctx context.Context, view catalog.Read, auth Authorization
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if view.Owner() == nil || view.State() == nil || auth.owner != view.Owner() || auth.catalog.State() != view.State() || auth.catalog.Owner() != view.Owner() || ref.Domain() != view.Owner().Domain || ref.Epoch != view.Epoch() || ref.Address.SubID != 0 || source == nil || source.Address() != ref.Address || source.Address().ObjectID != 12002 || view.Get(ref.Address) != source {
+	if view.Owner() == nil || view.State() == nil || auth.Owner != view.Owner() || auth.Catalog.State() != view.State() || auth.Catalog.Owner() != view.Owner() || ref.Domain() != view.Owner().Domain || ref.Epoch != view.Epoch() || ref.Address.SubID != 0 || source == nil || source.Address() != ref.Address || source.Address().ObjectID != 12002 || view.Get(ref.Address) != source {
 		return nil, fmt.Errorf("stuntgres: invalid pg_indexes capture")
 	}
 	rows := make([][]sqltype.Value, 0)

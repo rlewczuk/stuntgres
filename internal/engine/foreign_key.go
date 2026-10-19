@@ -158,8 +158,8 @@ func foreignKeyReferencesAllowed(auth AuthorizationView, parent *catalog.Relatio
 
 func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, child *catalog.Relation, raw parser.ForeignKeyConstraint, target, supporting ids.ObjectAddress) error {
 	view := e.stageRead(stage)
-	auth.catalog = view
-	auth.Recapture(auth.catalog)
+	auth.Catalog = view
+	auth.Recapture(auth.Catalog)
 	ref := e.catalog.Domain.Ref(view.Epoch(), target)
 	var err error
 	if target == (ids.ObjectAddress{}) {
@@ -297,8 +297,8 @@ func (e *Engine) stageCreateForeignKeys(auth AuthorizationView, stage *CatalogSt
 	for i, raw := range declarations {
 		var target ids.ObjectAddress
 		if len(targets) != 0 {
-			auth.catalog = e.stageRead(stage)
-			auth.Recapture(auth.catalog)
+			auth.Catalog = e.stageRead(stage)
+			auth.Recapture(auth.Catalog)
 			current, err := e.resolveReference(auth, raw.Target)
 			if err != nil {
 				return err
@@ -385,7 +385,7 @@ func foreignKeyNullState(comparisons []foreignKeyComparison, row []sqltype.Value
 
 func foreignKeyDiagnostic(ctx context.Context, auth AuthorizationView, child, parent *catalog.Relation, f catalog.ForeignKeyConstraint, values []sqltype.Value, parentSide, partial bool, output sqltype.OutputEnvironment) error {
 	d := sqlError("23503", fmt.Sprintf(`insert or update on table "%s" violates foreign key constraint "%s"`, child.Name(), f.Name)).(*sqlstate.Error)
-	d.Schema = auth.catalog.Get(child.Namespace()).Name()
+	d.Schema = auth.Catalog.Get(child.Namespace()).Name()
 	d.Table, d.Constraint = child.Name(), f.Name
 	if partial {
 		d.Detail = "MATCH FULL does not allow mixing of null and nonnull key values."
@@ -396,7 +396,7 @@ func foreignKeyDiagnostic(ctx context.Context, auth AuthorizationView, child, pa
 		d.Message = fmt.Sprintf(`update or delete on table "%s" violates foreign key constraint "%s" on table "%s"`, parent.Name(), f.Name, child.Name())
 		violating, attributes, suffix = parent, f.Referenced, fmt.Sprintf(` is still referenced from table "%s".`, child.Name())
 	}
-	disposition, err := rowSecurityDecision(auth.roles, violating, auth.state.CurrentUser, catalog.PolicySelect, false)
+	disposition, err := rowSecurityDecision(auth.Roles, violating, auth.State.CurrentUser, catalog.PolicySelect, false)
 	if err != nil {
 		return err
 	}

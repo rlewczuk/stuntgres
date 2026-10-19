@@ -243,7 +243,7 @@ func (e currentSchemasExpression) Eval(ctx expr.Context) (sqltype.Value, error) 
 		names := make([]string, len(effective))
 		for i, path := range [2][]ids.ObjectAddress{explicit, effective} {
 			for j, a := range path {
-				names[j] = auth.catalog.Get(a).Name()
+				names[j] = auth.Catalog.Get(a).Name()
 			}
 			results[i], err = sqltype.Names(e.Usage.Type, names[:len(path)])
 			if err != nil {

@@ -2148,7 +2148,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			if authErr != nil {
 				return authErr
 			}
-			actor, roleErr := auth.roles.Descriptor(auth.state.CurrentUser)
+			actor, roleErr := auth.Roles.Descriptor(auth.State.CurrentUser)
 			if roleErr != nil {
 				return roleErr
 			}

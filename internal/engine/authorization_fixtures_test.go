@@ -10,7 +10,7 @@ import (
 )
 
 func cloneRoleFixture(r *roleCatalog) *roleCatalog {
-	return &roleCatalog{root: r.root, revision: r.revision + 1}
+	return &roleCatalog{Root: r.Root, Revision: r.Revision + 1}
 }
 func emptyRoleFixture(e *Engine) *roleCatalog {
 	root := authorization.Seed(&e.roles.domain)
@@ -18,25 +18,25 @@ func emptyRoleFixture(e *Engine) *roleCatalog {
 	for ref, d := range root.Read(authorization.PrincipalRef{}).RoleEntries() {
 		targets[ref] = d
 	}
-	return &roleCatalog{root: root.Retire(targets), revision: 1}
+	return &roleCatalog{Root: root.Retire(targets), Revision: 1}
 }
 func fixtureRole(r *roleCatalog, ref authorization.PrincipalRef) authorization.RoleDescriptor {
-	d, _ := r.root.Read(authorization.PrincipalRef{}).Find(ref)
+	d, _ := r.Root.Read(authorization.PrincipalRef{}).Find(ref)
 	return d
 }
 func putFixtureRole(r *roleCatalog, d authorization.RoleDescriptor) {
-	root, err := r.root.PutDescriptor(d)
+	root, err := r.Root.PutDescriptor(d)
 	if err != nil {
 		panic(err)
 	}
-	r.root = root
+	r.Root = root
 }
 func retireFixtureRole(r *roleCatalog, ref authorization.PrincipalRef) {
 	d := fixtureRole(r, ref)
-	r.root = r.root.Retire(map[authorization.PrincipalRef]authorization.RoleDescriptor{ref: d})
+	r.Root = r.Root.Retire(map[authorization.PrincipalRef]authorization.RoleDescriptor{ref: d})
 }
 func fixtureEdges(r *roleCatalog) []authorization.Membership {
-	return r.root.Read(authorization.PrincipalRef{}).Memberships()
+	return r.Root.Read(authorization.PrincipalRef{}).Memberships()
 }
 
 // Build private graph fixtures through genuine storage and membership candidates.
@@ -45,7 +45,7 @@ func setFixtureEdges(r *roleCatalog, edges []authorization.Membership) {
 	candidate := *r
 	destination := r
 	r = &candidate
-	read := r.root.Read(authorization.PrincipalRef{})
+	read := r.Root.Read(authorization.PrincipalRef{})
 	origins := make(map[authorization.PrincipalRef]bool)
 	for edge := range read.Edges() {
 		origins[edge.Grantor] = true
@@ -55,11 +55,11 @@ func setFixtureEdges(r *roleCatalog, edges []authorization.Membership) {
 		if err != nil {
 			panic(err)
 		}
-		r.root = root
+		r.Root = root
 	}
 	for _, edge := range edges {
 		original := fixtureRole(r, edge.Grantor)
-		oldBootstrap, hasBootstrap := r.root.Read(authorization.PrincipalRef{}).Lookup("postgres")
+		oldBootstrap, hasBootstrap := r.Root.Read(authorization.PrincipalRef{}).Lookup("postgres")
 		if hasBootstrap && oldBootstrap.Ref != original.Ref {
 			temp := oldBootstrap
 			temp.Name = fmt.Sprintf("fixture_bootstrap_%d", temp.Ref.ID())
@@ -72,19 +72,19 @@ func setFixtureEdges(r *roleCatalog, edges []authorization.Membership) {
 		target := fixtureRole(r, edge.Role)
 		member := fixtureRole(r, edge.Member)
 		request := &parser.RoleMembership{Targets: []parser.RoleSpec{{Name: target.Name}}, Members: []parser.RoleSpec{{Name: member.Name}}, Options: []parser.MembershipOption{{Name: "admin", Value: edge.Admin}, {Name: "inherit", Value: edge.Inherit}, {Name: "set", Value: edge.Set}}}
-		root, changed, _, err := authorization.MembershipCandidate(context.Background(), r.root.Read(authorization.PrincipalRef{}), authorization.RoleState{CurrentUser: edge.Grantor, SessionUser: edge.Grantor}, request, nil, false, false)
+		root, changed, _, err := authorization.MembershipCandidate(context.Background(), r.Root.Read(authorization.PrincipalRef{}), authorization.RoleState{CurrentUser: edge.Grantor, SessionUser: edge.Grantor}, request, nil, false, false)
 		if err != nil {
 			panic(err)
 		}
 		if changed {
-			r.root = root
+			r.Root = root
 		}
 		putFixtureRole(r, original)
 		if hasBootstrap && oldBootstrap.Ref != original.Ref {
 			putFixtureRole(r, oldBootstrap)
 		}
 	}
-	destination.root = candidate.root
+	destination.Root = candidate.Root
 }
 
 func objectACLUnitEntry(source, target authorization.PrincipalRef, use, options authorization.Privileges) authorization.ACLEntry {

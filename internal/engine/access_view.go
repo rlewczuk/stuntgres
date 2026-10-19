@@ -20,21 +20,21 @@ import (
 // from an accessEnvironment at call time. AuthorizationView embeds an
 // accessView and passes itself as that environment.
 type accessView struct {
-	owner         *catalog.Owner
-	catalog       catalog.Read
-	pairedCatalog catalog.Read
-	roleRecord    *roleCatalog
-	roles         authorization.Read
+	Owner         *catalog.Owner
+	Catalog       catalog.Read
+	PairedCatalog catalog.Read
+	RoleRecord    *roleCatalog
+	Roles         authorization.Read
 	// Committed predecessor captured under Engine.mu, distinct from private
 	// database authority retained by catalog/roles.
-	databasePredecessor catalog.Descriptor
-	state               authorization.RoleState
+	DatabasePredecessor catalog.Descriptor
+	State               authorization.RoleState
 	// Actual session identities remain distinct from trusted import authority.
-	sessionRoleState authorization.RoleState
-	revision         uint64
+	SessionRoleState authorization.RoleState
+	Revision         uint64
 	// Only command admission can retain an actually installed, unnamed role ID.
 	// Arbitrary stale/retired actor substitutions do not acquire this authority.
-	missingCurrent authorization.PrincipalRef
+	MissingCurrent authorization.PrincipalRef
 }
 
 // accessEnvironment supplies the session inputs of the privilege checks.
@@ -58,24 +58,23 @@ type AuthorizationStamp struct {
 	Roles, Session uint64
 }
 
-func (v accessView) Roles() authorization.Read { return v.roles }
 func (v accessView) Stamp() AuthorizationStamp {
-	if v.roleRecord == nil {
+	if v.RoleRecord == nil {
 		return AuthorizationStamp{}
 	}
-	return AuthorizationStamp{v.catalog.Epoch(), v.roleRecord.revision, v.revision}
+	return AuthorizationStamp{v.Catalog.Epoch(), v.RoleRecord.Revision, v.Revision}
 }
 
 // Ref returns the reference to address in the view's catalog epoch.
 func (v accessView) Ref(address ids.ObjectAddress) ids.ObjectRef {
-	return v.owner.Domain.Ref(v.catalog.Epoch(), address)
+	return v.Owner.Domain.Ref(v.Catalog.Epoch(), address)
 }
 
 // Recapture binds a substituted catalog to the same immutable role root.
 func (v *accessView) Recapture(catalog catalog.Read) {
-	v.catalog = catalog
-	v.pairedCatalog = catalog
-	v.roles = roleRead(v.owner, v.owner.Principals, catalog, v.roleRecord)
+	v.Catalog = catalog
+	v.PairedCatalog = catalog
+	v.Roles = roleRead(v.Owner, v.Owner.Principals, catalog, v.RoleRecord)
 }
 
 func descriptorACL(d catalog.Descriptor) (authorization.PrincipalRef, authorization.ACLValue, map[int32]authorization.ACLValue) {
@@ -149,10 +148,10 @@ func classPrivileges(d catalog.Descriptor) authorization.Privileges {
 	return authorization.TableGrantPrivileges
 }
 func (v accessView) object(ref ids.ObjectRef) (catalog.Descriptor, error) {
-	if v.owner == nil || v.catalog.Owner() != v.owner || v.catalog.State() == nil || !v.roles.BelongsTo(v.owner.Principals) || v.roles != roleRead(v.owner, v.owner.Principals, v.catalog, v.roleRecord) || v.pairedCatalog != v.catalog || v.roles.DatabaseOwner() != v.catalog.MustDatabase(catalog.CurrentDatabaseAddress).Owner || ref.Domain() != v.owner.Domain || ref.Epoch != v.catalog.Epoch() {
+	if v.Owner == nil || v.Catalog.Owner() != v.Owner || v.Catalog.State() == nil || !v.Roles.BelongsTo(v.Owner.Principals) || v.Roles != roleRead(v.Owner, v.Owner.Principals, v.Catalog, v.RoleRecord) || v.PairedCatalog != v.Catalog || v.Roles.DatabaseOwner() != v.Catalog.MustDatabase(catalog.CurrentDatabaseAddress).Owner || ref.Domain() != v.Owner.Domain || ref.Epoch != v.Catalog.Epoch() {
 		return nil, fmt.Errorf("stuntgres: foreign or stale authorization object")
 	}
-	d, ok := v.catalog.Descriptor(ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID})
+	d, ok := v.Catalog.Descriptor(ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID})
 	if !ok || ref.Address.SubID < 0 {
 		return nil, fmt.Errorf("stuntgres: invalid authorization object")
 	}
@@ -163,7 +162,7 @@ func (v accessView) object(ref ids.ObjectRef) (catalog.Descriptor, error) {
 		}
 	}
 	owner, _, _ := descriptorACL(d)
-	if _, err := v.roles.Descriptor(owner); err != nil {
+	if _, err := v.Roles.Descriptor(owner); err != nil {
 		return nil, err
 	}
 	return d, nil
@@ -181,11 +180,11 @@ func (v accessView) Effective(env accessEnvironment, ref ids.ObjectRef, grantOpt
 		return 0, err
 	}
 	owner, acl, columns := descriptorACL(d)
-	if err := v.roles.ValidatePrincipal(v.state.CurrentUser); err != nil {
+	if err := v.Roles.ValidatePrincipal(v.State.CurrentUser); err != nil {
 		return 0, err
 	}
-	actor, actorExists := v.roles.Find(v.state.CurrentUser)
-	if !actorExists && v.state.CurrentUser != v.missingCurrent {
+	actor, actorExists := v.Roles.Find(v.State.CurrentUser)
+	if !actorExists && v.State.CurrentUser != v.MissingCurrent {
 		return 0, fmt.Errorf("stuntgres: stale principal")
 	}
 	mask := classPrivileges(d)
@@ -201,9 +200,9 @@ func (v accessView) Effective(env accessEnvironment, ref ids.ObjectRef, grantOpt
 	if ns, ok := d.(*catalog.Namespace); ok && !grantOptions && ownsTemporaryNamespace(env, ns) {
 		return v.ownTemporaryPrivileges(env)
 	}
-	principals := []authorization.PrincipalRef{v.state.CurrentUser}
+	principals := []authorization.PrincipalRef{v.State.CurrentUser}
 	if actorExists {
-		principals, err = v.roles.RoleClosure(context.Background(), actor.Ref, true)
+		principals, err = v.Roles.RoleClosure(context.Background(), actor.Ref, true)
 		if err != nil {
 			return 0, err
 		}
@@ -256,10 +255,10 @@ func (v accessView) Check(env accessEnvironment, req AccessRequirement) error {
 		req.Object.Address.ObjectID = ids.OID(t.SQLType.Element().ID())
 		return v.Check(env, req)
 	}
-	if err := v.roles.ValidatePrincipal(v.state.CurrentUser); err != nil {
+	if err := v.Roles.ValidatePrincipal(v.State.CurrentUser); err != nil {
 		return err
 	}
-	if _, exists := v.roles.Find(v.state.CurrentUser); !exists && v.state.CurrentUser != v.missingCurrent {
+	if _, exists := v.Roles.Find(v.State.CurrentUser); !exists && v.State.CurrentUser != v.MissingCurrent {
 		return fmt.Errorf("stuntgres: stale principal")
 	}
 	owner, _, _ := descriptorACL(d)
@@ -267,9 +266,9 @@ func (v accessView) Check(env accessEnvironment, req AccessRequirement) error {
 		if req.Privileges != 0 {
 			return fmt.Errorf("stuntgres: owner check has ordinary mask")
 		}
-		allowed := v.state.CurrentUser == owner
-		if _, exists := v.roles.Find(v.state.CurrentUser); exists && !allowed {
-			allowed, err = v.roles.InheritsRole(v.state.CurrentUser, owner)
+		allowed := v.State.CurrentUser == owner
+		if _, exists := v.Roles.Find(v.State.CurrentUser); exists && !allowed {
+			allowed, err = v.Roles.InheritsRole(v.State.CurrentUser, owner)
 			if err != nil {
 				return err
 			}
@@ -280,7 +279,7 @@ func (v accessView) Check(env accessEnvironment, req AccessRequirement) error {
 		kind := "table"
 		if t, ok := d.(*catalog.Type); ok {
 			path, _ := env.ReferencePath()
-			return sqlError("42501", "must be owner of type "+typeDiagnosticNameAt(v.catalog, t, path))
+			return sqlError("42501", "must be owner of type "+typeDiagnosticNameAt(v.Catalog, t, path))
 		}
 		if d.Kind() == ids.NamespaceObject {
 			kind = "schema"
@@ -341,7 +340,7 @@ func (v accessView) Check(env accessEnvironment, req AccessRequirement) error {
 			return sqlError("42501", "permission denied for type "+t.SQLType.DiagnosticName())
 		}
 		path, _ := env.ReferencePath()
-		return sqlError("42501", "permission denied for type "+typeDiagnosticNameAt(v.catalog, t, path))
+		return sqlError("42501", "permission denied for type "+typeDiagnosticNameAt(v.Catalog, t, path))
 	}
 	if d.Kind() == ids.NamespaceObject {
 		kind = "schema"

@@ -618,8 +618,8 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 			if !ok || namespace.Name() != wantNamespace {
 				t.Fatal("input namespace authority", namespace, wantNamespace)
 			}
-			if tc.custom != nil && inputOwner.Owner != auth.state.CurrentUser {
-				t.Fatal("custom input principal authority", inputOwner.Owner, auth.state.CurrentUser)
+			if tc.custom != nil && inputOwner.Owner != auth.State.CurrentUser {
+				t.Fatal("custom input principal authority", inputOwner.Owner, auth.State.CurrentUser)
 			}
 			usage := input.Usage()
 			if tc.id == sqltype.VarChar {

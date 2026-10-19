@@ -117,11 +117,11 @@ func (e *Engine) preparePhysicalCompetingUnique(op *Operation, raw *parser.Alter
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if !partitionConstraintReplayImport(e, op, auth) || auth.roleRecord != provider.authority.roleRecord || created[provider.ref.Address] != provider.ref || auth.catalog.Get(provider.ref.Address) != provider.current {
+	if !partitionConstraintReplayImport(e, op, auth) || auth.RoleRecord != provider.authority.RoleRecord || created[provider.ref.Address] != provider.ref || auth.Catalog.Get(provider.ref.Address) != provider.current {
 		return reject()
 	}
 	old := provider.current
-	namespace := auth.catalog.Get(old.Namespace())
+	namespace := auth.Catalog.Get(old.Namespace())
 	if namespace == nil || namespace.Name() != raw.Name.Parts[0].Text || old.Name() != raw.Name.Parts[1].Text {
 		return reject()
 	}

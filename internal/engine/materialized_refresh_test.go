@@ -157,9 +157,9 @@ func TestMaterializedRefreshPublicationFences(t *testing.T) {
 				op, done := roleOperation(t, e, "postgres")
 				defer done()
 				stage.authSession = op.session
-				stage.authRevision, stage.roleRevision = op.session.authorization.revision, e.roles.published.revision
+				stage.authRevision, stage.roleRevision = op.session.authorization.revision, e.roles.published.Revision
 				if phase == "role" {
-					e.roles.published.revision++
+					e.roles.published.Revision++
 				} else {
 					op.session.authorization.revision++
 				}

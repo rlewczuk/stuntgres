@@ -158,7 +158,7 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 	raw := statement(t, "CREATE DOMAIN public.unused AS integer CONSTRAINT positive CHECK(FALSE)").(*parser.CreateDomain)
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	next := *d
 	if err == nil {
 		err = e.bindDomainChecks(op, auth, stage, &next, raw.Constraints, sqltype.InputEnvironment{})

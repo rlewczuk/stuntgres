@@ -90,8 +90,8 @@ func pgConstraintUnitTableStage(t *testing.T, e *Engine, op *Operation, q string
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
-	err = e.schemaTableLocked(op, auth, stage, syntax, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
+	stage := e.BeginCatalogStage(auth.Catalog)
+	err = e.schemaTableLocked(op, auth, stage, syntax, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

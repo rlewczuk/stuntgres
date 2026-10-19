@@ -82,7 +82,7 @@ func bindCreateDefaults(b *expressionBinder, columns []catalog.Column, declarati
 	if err != nil {
 		return nil, err
 	}
-	view := auth.catalog
+	view := auth.Catalog
 	for slot := range declarations {
 		raw := declarations[slot].defaultExpr
 		if raw == nil {
@@ -96,7 +96,7 @@ func bindCreateDefaults(b *expressionBinder, columns []catalog.Column, declarati
 			continue
 		}
 		definition := catalog.ColumnDefault{Expression: node}
-		_, err = (scalarRenderer{definition: b.definitionReader(), aclOutput: capturedACLItemOutput{owner: b.engine, roles: auth.roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(b.ctx, view, node)
+		_, err = (scalarRenderer{definition: b.definitionReader(), aclOutput: capturedACLItemOutput{owner: b.engine, roles: auth.Roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(b.ctx, view, node)
 		if err != nil {
 			return nil, err
 		}

@@ -105,7 +105,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 			}
 			return nil, nil, nil, err
 		}
-		source := auth.catalog.MustRelation(ref.Address)
+		source := auth.Catalog.MustRelation(ref.Address)
 		if source.RelationKind == catalog.CompositeRelation {
 			d := sqlError("42809", fmt.Sprintf(`cannot open relation "%s"`, source.Name())).(*sqlstate.Error)
 			d.Detail = "This operation is not supported for composite types."
@@ -126,7 +126,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 		if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 			return nil, nil, nil, err
 		}
-		parentNS := auth.catalog.MustNamespace(source.Namespace())
+		parentNS := auth.Catalog.MustNamespace(source.Namespace())
 		if parentNS.Temporary != (ids.SessionToken{}) && syntax.Persistence != "temporary" && auth.stagedTemporary == (ids.ObjectAddress{}) {
 			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`cannot inherit from temporary relation "%s"`, source.Name()))
 		}
@@ -139,7 +139,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 			definition, isGenerated := source.ColumnMeta.Generations[source.Attributes[sourceSlot]]
 			if slot, ok := index[c.Name]; ok {
 				op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`merging multiple inherited definitions of column "%s"`, c.Name)})
-				if err := inheritanceColumnConflict(auth.catalog, merged[slot], c, false); err != nil {
+				if err := inheritanceColumnConflict(auth.Catalog, merged[slot], c, false); err != nil {
 					return nil, nil, nil, err
 				}
 				if generated[c.Name] != isGenerated {
@@ -172,7 +172,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 				detail = "User-specified column moved to the position of the inherited column."
 			}
 			op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
-			if err := inheritanceColumnConflict(auth.catalog, merged[slot], c, true); err != nil {
+			if err := inheritanceColumnConflict(auth.Catalog, merged[slot], c, true); err != nil {
 				return nil, nil, nil, err
 			}
 		} else {
