@@ -104,9 +104,9 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 			message := batchUnitStart(t, session, ctx)
 			defer message.end(context.Canceled)
 			oldCatalog, oldRoles := f.e.catalog.state, f.e.roles.published
-			storage := make(map[ids.ObjectAddress]*storage.Relation, len(f.e.storage.Relations))
+			relations := make(map[ids.ObjectAddress]*storage.Relation, len(f.e.storage.Relations))
 			for address, root := range f.e.storage.Relations {
-				storage[address] = root
+				relations[address] = root
 			}
 			sessionRevision := session.authorization.revision
 			prefix := defaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader"})
@@ -166,10 +166,10 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 					t.Fatal("missing final DB predecessor veto", err)
 				}
 			}
-			if f.e.catalog.state != current || f.e.roles.published != oldRoles || current.DefaultACLCount() != 0 || len(f.e.storage.Relations) != len(storage) {
+			if f.e.catalog.state != current || f.e.roles.published != oldRoles || current.DefaultACLCount() != 0 || len(f.e.storage.Relations) != len(relations) {
 				t.Fatal("veto published catalog, role or default-policy prefix")
 			}
-			for address, root := range storage {
+			for address, root := range relations {
 				if f.e.storage.Relations[address] != root {
 					t.Fatal("veto published a storage prefix")
 				}

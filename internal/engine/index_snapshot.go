@@ -27,8 +27,8 @@ type indexSnapshotSource struct {
 }
 
 // captureIndexSnapshot captures the indexes of catalog, which e must own.
-func (e *Engine) captureIndexSnapshot(ctx context.Context, catalog catalog.Read, storage map[ids.ObjectAddress]*storage.Relation, roots map[ids.ObjectAddress]*storage.IndexRoot, frontier ids.CommitSeq) (*indexSnapshot, error) {
-	return e.captureIndexSnapshotParents(ctx, catalog, storage, roots, frontier, nil, nil)
+func (e *Engine) captureIndexSnapshot(ctx context.Context, catalog catalog.Read, relations map[ids.ObjectAddress]*storage.Relation, roots map[ids.ObjectAddress]*storage.IndexRoot, frontier ids.CommitSeq) (*indexSnapshot, error) {
+	return e.captureIndexSnapshotParents(ctx, catalog, relations, roots, frontier, nil, nil)
 }
 
 func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view catalog.Read, relations map[ids.ObjectAddress]*storage.Relation, roots map[ids.ObjectAddress]*storage.IndexRoot, frontier ids.CommitSeq, parents map[ids.ObjectAddress]*storage.Relation, private *catalogChanges) (*indexSnapshot, error) {
@@ -200,8 +200,8 @@ func (snapshot *indexSnapshot) datum(value sqltype.Value, target *sqltype.Descri
 
 // Row identities in positions are the source identities saved before remint.
 // No predicate, expression or domain conversion is executed by this transport.
-func (snapshot *indexSnapshot) transport(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*storage.Relation, positions map[ids.ObjectAddress]map[indexRowIdentity]int) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
-	return snapshot.transportRows(ctx, next, storage, positions, false)
+func (snapshot *indexSnapshot) transport(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, positions map[ids.ObjectAddress]map[indexRowIdentity]int) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
+	return snapshot.transportRows(ctx, next, relations, positions, false)
 }
 
 // Same-logical-ID domain generation changes retain every physical version and

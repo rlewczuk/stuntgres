@@ -361,7 +361,7 @@ func (s *CatalogStage) validateMaterializedReplacement() error {
 	return nil
 }
 
-func (s *CatalogStage) materializedReplacementCurrent(snapshot *catalog.State, storage *storage.Relation) error {
+func (s *CatalogStage) materializedReplacementCurrent(snapshot *catalog.State, stored *storage.Relation) error {
 	r := s.materializedReplacement
 	if r == nil {
 		return nil
@@ -369,7 +369,7 @@ func (s *CatalogStage) materializedReplacementCurrent(snapshot *catalog.State, s
 	if s.Descriptors[r.original.Address()] != r.descriptor {
 		return catalog.Conflict{}
 	}
-	if snapshot.Epoch() != s.Base.Epoch() || snapshot.Get(r.original.Address()) != r.original || storage != r.predecessor || r.predecessor.Generation != r.generation || len(r.predecessor.Versions) != r.length || r.predecessor.Ends != r.ends {
+	if snapshot.Epoch() != s.Base.Epoch() || snapshot.Get(r.original.Address()) != r.original || stored != r.predecessor || r.predecessor.Generation != r.generation || len(r.predecessor.Versions) != r.length || r.predecessor.Ends != r.ends {
 		return catalog.Conflict{}
 	}
 	// The effective diff depends on every eligible key; root publication also

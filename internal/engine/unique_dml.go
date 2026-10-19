@@ -442,8 +442,8 @@ retry:
 		}
 		var versions []storage.RowVersion
 		if action != nil && (action.update != nil || stableIsolation(s.owner.isolation) || index.SQLIndex.HasRuntimeDomainKeyConversion()) {
-			if storage := e.privateStorageLocked(s.owner.catalog, ref.Address); storage != nil {
-				versions = storage.Versions
+			if stored := e.privateStorageLocked(s.owner.catalog, ref.Address); stored != nil {
+				versions = stored.Versions
 			}
 		}
 		e.mu.Unlock()

@@ -1555,7 +1555,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 // replacementMu and mu and has validated capacity, descriptors and authority.
 // Storage vectors and sequence generator scalars are private copies; payload
 // values remain immutable. All prepared containers publish at the same boundary.
-func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared remintedIndexStorage) error {
+func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, nextRevision ids.DefinitionRevision, prepared remintedIndexStorage) error {
 	if prepared.catalog != next || prepared.baseCatalog != e.catalog.state || prepared.baseRow != e.storage.RowFrontier() || prepared.baseVersion != e.storage.VersionFrontier() || prepared.frontier != e.commitSeq {
 		return ids.ErrCatalogReplaced
 	}
@@ -1567,7 +1567,7 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.
 	e.commitSeq++
 	next.SetEpoch(e.catalog.state.Epoch() + 1)
 	e.catalog.state = next
-	e.storage.Relations = storage
+	e.storage.Relations = relations
 	e.exclusionPending = nil
 	e.exclusionGeneration++
 	e.storage.Sequences = sequences

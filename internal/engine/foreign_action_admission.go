@@ -178,8 +178,8 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 	if uniqueRowDeleted(old.Row, s.ownDeletes[ref.Address], w.deletes[ref.Address]) {
 		return nil
 	}
-	storage := s.foreignActionAdmissions[ref.Address].storage
-	candidate := deleteCandidate{ref: ref, storage: storage, row: old.Row, version: old.Version, base: old.Base, own: old.Born == 0}
+	stored := s.foreignActionAdmissions[ref.Address].storage
+	candidate := deleteCandidate{ref: ref, storage: stored, row: old.Row, version: old.Version, base: old.Base, own: old.Born == 0}
 	if old.Born != 0 {
 		candidate.base = old.Version
 	}

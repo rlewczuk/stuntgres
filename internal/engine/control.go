@@ -557,12 +557,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				options + " AS " + body + ";\n"
 			if r.RelationKind == catalog.MaterializedViewRelation {
 				sql = "CREATE MATERIALIZED VIEW " + quoteIdentifier(ns.Name()) + "." + quoteIdentifier(r.Name()) + columns + " AS " + body + " WITH NO DATA;\n"
-				storage := e.storage.Relations[a]
-				if storage == nil {
+				stored := e.storage.Relations[a]
+				if stored == nil {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: materialized view storage is missing")
 				}
-				materialized = append(materialized, dumpRelation{owner: principal.Name, schema: ns.Name(), name: r.Name(), columns: r.Columns, attributes: r.Attributes, versions: storage.Versions, ends: storage.Ends, frontier: e.commitSeq, descriptor: r})
+				materialized = append(materialized, dumpRelation{owner: principal.Name, schema: ns.Name(), name: r.Name(), columns: r.Columns, attributes: r.Attributes, versions: stored.Versions, ends: stored.Ends, frontier: e.commitSeq, descriptor: r})
 			}
 			// Capture every source occurrence and expression dependency from the
 			// same immutable catalog used to render the definition. Attribute

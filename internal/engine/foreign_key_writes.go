@@ -108,7 +108,7 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.Obje
 	return r, nil
 }
 
-func (s *StatementScope) foreignKeyGrant(ref ids.ObjectRef, row ids.RowID, mode lock.Mode, storage *storage.Relation) error {
+func (s *StatementScope) foreignKeyGrant(ref ids.ObjectRef, row ids.RowID, mode lock.Mode, stored *storage.Relation) error {
 	e := s.op.session.Engine()
 	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
 	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref, Row: row}, mode, policy)
@@ -138,7 +138,7 @@ func (s *StatementScope) foreignKeyGrant(ref ids.ObjectRef, row ids.RowID, mode 
 	if _, ok := e.privateCatalogLocked(changes).Find(ref.Address); !ok {
 		return ids.ErrCatalogReplaced
 	}
-	if storage != nil && e.privateStorageLocked(changes, ref.Address) != storage {
+	if stored != nil && e.privateStorageLocked(changes, ref.Address) != stored {
 		return ids.ErrCatalogReplaced
 	}
 	return s.validateLockedRelation(e)

@@ -46,7 +46,7 @@ func TestNetworkDomainCatalogRemap(t *testing.T) {
 				t.Fatal(err)
 			}
 			original := &storage.Relation{Generation: 2, Versions: []storage.RowVersion{{Row: 1, Version: 2, Born: 1, Values: []sqltype.Value{value}}}}
-			storage := map[ids.ObjectAddress]*storage.Relation{table.Address(): original}
+			relations := map[ids.ObjectAddress]*storage.Relation{table.Address(): original}
 			next := catalog.CloneState(e.CatalogRead().State())
 			physical, _ := New().CatalogRead().LookupType(tc.id)
 			builtinAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(tc.id)}
@@ -61,7 +61,7 @@ func TestNetworkDomainCatalogRemap(t *testing.T) {
 			if err != nil || !changed {
 				t.Fatal(changed, err)
 			}
-			if err := reownCatalogScalarTypes(next, storage, mapping); err != nil {
+			if err := reownCatalogScalarTypes(next, relations, mapping); err != nil {
 				t.Fatal(err)
 			}
 			importedDirect := next.MustType(direct.Address())
@@ -78,7 +78,7 @@ func TestNetworkDomainCatalogRemap(t *testing.T) {
 					t.Fatal("remapped array constructor admitted")
 				}
 			}
-			restored := storage[table.Address()]
+			restored := relations[table.Address()]
 			if restored == original || restored.Versions[0].Values[0].Type() != importedChain.SQLType || next.MustRelation(table.Address()).Columns[0].Usage.Type != importedChain.SQLType {
 				t.Fatal("scalar storage remap")
 			}

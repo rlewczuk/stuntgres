@@ -116,12 +116,12 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 		if scope.materializedSourceView != snapshot || snapshot == nil || snapshot.frontier != frontier || len(snapshot.committed) != 2 {
 			t.Fatal("physical mixed producer manifest changed", snapshot)
 		}
-		for address, storage := range map[ids.ObjectAddress]*storage.Relation{inner.Address(): innerStorage, gate.Address(): gateStorage} {
+		for address, stored := range map[ids.ObjectAddress]*storage.Relation{inner.Address(): innerStorage, gate.Address(): gateStorage} {
 			versions, ends := innerVersions, innerEnds
 			if address == gate.Address() {
 				versions, ends = gateVersions, gateEnds
 			}
-			if snapshot.generationAt(address) != storage || !sameVersionRoot(snapshot.committed[address], versions) ||
+			if snapshot.generationAt(address) != stored || !sameVersionRoot(snapshot.committed[address], versions) ||
 				snapshot.ends[address] != ends || snapshot.frontierAt(address) != frontier {
 				t.Fatal("physical source did not retain captured storage/versions/ends/frontier", address)
 			}

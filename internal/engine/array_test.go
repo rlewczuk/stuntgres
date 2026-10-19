@@ -211,7 +211,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	original := &storage.Relation{Generation: 2, Versions: []storage.RowVersion{{Row: 42, Version: 99, Born: 1, Values: []sqltype.Value{value}}}}
-	storage := map[ids.ObjectAddress]*storage.Relation{table.Address(): original}
+	relations := map[ids.ObjectAddress]*storage.Relation{table.Address(): original}
 	next := catalog.CloneState(e.catalog.state)
 	fresh := New()
 	regclassAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}
@@ -228,10 +228,10 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	if err := reownCatalogScalarTypes(next, storage, mapping); err != nil {
+	if err := reownCatalogScalarTypes(next, relations, mapping); err != nil {
 		t.Fatal(err)
 	}
-	imported := storage[table.Address()].Versions[0].Values[0]
+	imported := relations[table.Address()].Versions[0].Values[0]
 	expected := next.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(nestedArray.ID())}).SQLType
 	if imported.Type() != expected || imported.ArrayElement(0).Type().ID() != 60005 || imported.ArrayElement(1).Type().ID() != 60005 || imported.ArrayElement(0).ArrayElement(0).Type().ID() != 60003 || imported.ArrayElement(0).ArrayElement(0).ArrayElement(0).Type().ID() != 60001 {
 		t.Fatal("nested element generations", imported)
@@ -244,7 +244,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	if err != nil || oid != "60021" {
 		t.Fatal("nested REGCLASS identity", oid, err)
 	}
-	if storage[table.Address()] == original || original.Versions[0].Values[0].Type() != nestedArray || table.Columns[0].Usage.Type != nestedArray || value.ArrayElement(0).ArrayElement(0).ArrayElement(0).Type() != rc.SQLType {
+	if relations[table.Address()] == original || original.Versions[0].Values[0].Type() != nestedArray || table.Columns[0].Usage.Type != nestedArray || value.ArrayElement(0).ArrayElement(0).ArrayElement(0).Type() != rc.SQLType {
 		t.Fatal("source payload/provider mutated")
 	}
 	descriptors := make(map[ids.ObjectAddress]catalog.Descriptor, next.DescriptorCount())
