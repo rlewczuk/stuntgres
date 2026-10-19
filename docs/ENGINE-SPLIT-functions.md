@@ -1246,7 +1246,7 @@ F2 session 3 record (stored scalar SQL), measured at its start on
   order before assembling the form, because the POSITION and TRIM templates
   reference arguments out of order and NORMALIZE's form literal is still
   captured though not printed (CHECK-literal `$n` numbering and dependency
-  order depend on it). Replay always quotes labels (`quoteIdentifier`), while
+  order depend on it). Replay always quotes labels (`catalog.QuoteIdentifier`), while
   display quotes them when needed. Operator schemas differ by node: array and
   range operators always quote a written schema, POSIX operators quote it when
   needed, and binary and string operators always write

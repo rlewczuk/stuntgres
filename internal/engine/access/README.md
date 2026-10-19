@@ -45,8 +45,8 @@ algorithms it applies live in [`authorization`](../authorization/README.md).
 - **Privileges** (`privileges.go`): `DatabaseRights`, `PredefinedPrivileges`,
   `RawObjectACL` and `ObjectACLClass`.
 
-`access` keeps its own `sqlError` and copies of the engine's diagnostic name
-helpers (`names.go`); keep those copies identical to the engine's.
+`access` keeps its own `sqlError`. Type and identifier names in its messages
+come from the `catalog` diagnostic name helpers it shares with the engine.
 
 ## Invariants
 

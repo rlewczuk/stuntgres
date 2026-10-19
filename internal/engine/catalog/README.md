@@ -75,6 +75,12 @@ standard library, and never the engine or its sibling `functions`.
   `OperatorIndexEdit` and `RebuildOperatorNames`; default ACL helpers
   (`OverlayDefaultACLs`, `PruneNamespaceDefaults`, `RemapDefaultSchemas`,
   `ValidateDefaultACLs`, ...).
+- **Diagnostic names** (`diagnostic_names.go`). `QuoteIdentifier` always
+  quotes; `DependencyIdentifier` quotes like PostgreSQL 18
+  `quote_identifier` (every keyword except unreserved ones, independent of
+  the parser's smaller grammar); `TypeDiagnosticNameAt` names a type bare
+  when the search path finds it first and schema-qualified otherwise. The
+  engine and `access` share them.
 
 ## Invariants
 
@@ -106,5 +112,6 @@ Follow the [shared testing guide](../../../docs/TESTING.md). Run from the
 repository root.
 
 - Read and write API: `make check RUN='^TestCatalog(ReadTypedAccessors|ReadUntypedAndNameAccessors|ReadAccessorsRequirePopulatedRead|StateWritesStayOnTheirState)$'`.
+- Diagnostic names: `make check RUN='^Test(DependencyIdentifierQuotesLikeQuoteIdentifier|TypeDiagnosticNameAtQualifiesHiddenTypes)$'`.
 - Engine-side catalog seams (registry, payload accessors, operator index,
   publication): `make check RUN='^Test(CatalogAllocatorAndProviderBoundaries|CatalogProviderRegistersBeforeInitialization|CatalogPayloadAccessors|UserOperatorIndex)'`.

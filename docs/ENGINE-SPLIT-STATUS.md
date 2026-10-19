@@ -5,7 +5,7 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `5cc6fe6e5`.
+Last verified against `master` at `c1e0fcbe2`.
 
 ## Next ready sub-steps
 
@@ -193,6 +193,9 @@ files yet.
       at user request; targeted RACE=1 runs passed)*
     - [x] B4 — Aliases removed (`68be6bf5a`, `4130fa669`, then the docs
       commit) *(racecheck skipped at user request)*
+    - [x] Names cleanup — diagnostic name helpers moved to `catalog`
+      (`9a73852a6`, `416945ecb`, then the docs commit) *(racecheck skipped
+      at user request)*
 - [ ] **Later waves** ([ENGINE-SPLIT.md §6](ENGINE-SPLIT.md#6-later-waves-sketch);
   sketch only, no prompt files yet)
   - [ ] `pgcatalog` — system relations `pg_*` (needs 5)
