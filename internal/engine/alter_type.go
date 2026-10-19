@@ -186,7 +186,7 @@ func (e *Engine) completeAlterTypeLocked(scope *StatementScope, auth Authorizati
 			}
 			identifier := a.Column.Text
 			if parser.IdentifierNeedsQuotes(identifier) {
-				identifier = quoteIdentifier(identifier)
+				identifier = catalog.QuoteIdentifier(identifier)
 			}
 			d.Hint = fmt.Sprintf(`You might need to specify "USING %s::%s".`, identifier, strings.ToLower(declaration))
 			if a.Using != nil {
@@ -264,7 +264,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		view := edges[0].view
 		name := view.Name()
 		if parser.IdentifierNeedsQuotes(name) {
-			name = quoteIdentifier(name)
+			name = catalog.QuoteIdentifier(name)
 		}
 		namespace := auth.Catalog.Get(view.Namespace()).Name()
 		path, err := e.lookupPath(auth, relationLookup)
@@ -281,7 +281,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		}
 		if !visible {
 			if parser.IdentifierNeedsQuotes(namespace) {
-				namespace = quoteIdentifier(namespace)
+				namespace = catalog.QuoteIdentifier(namespace)
 			}
 			name = namespace + "." + name
 		}

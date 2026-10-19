@@ -22,7 +22,7 @@ func ruleRelationSQL(view catalog.Read, ref ids.ObjectRef) (string, error) {
 	if !ok {
 		return "", ids.ErrCatalogReplaced
 	}
-	return quoteIdentifier(ns.Name()) + "." + quoteIdentifier(d.Name()), nil
+	return catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(d.Name()), nil
 }
 
 func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, action ruleAction, sourceRoots ...LogicalNode) (string, error) {
@@ -70,9 +70,9 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 			return side + "." + name, nil
 		}
 		if column.queryOccurrence > 0 {
-			return quoteIdentifier("_rule_source_"+strconv.Itoa(column.queryOccurrence-1)) + "." + name, nil
+			return catalog.QuoteIdentifier("_rule_source_"+strconv.Itoa(column.queryOccurrence-1)) + "." + name, nil
 		}
-		return quoteIdentifier(d.Name()) + "." + name, nil
+		return catalog.QuoteIdentifier(d.Name()) + "." + name, nil
 	}
 	r.nodeSQL = func(expr expr.Expr) (string, bool, error) {
 		subquery, ok := expr.(subqueryExpression)
@@ -140,7 +140,7 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root LogicalNode, actio
 		if err != nil {
 			return "", err
 		}
-		return name + " AS " + quoteIdentifier("_rule_source_"+strconv.Itoa(n.occurrence)), nil
+		return name + " AS " + catalog.QuoteIdentifier("_rule_source_"+strconv.Itoa(n.occurrence)), nil
 	case *joinNode:
 		left, err := ruleFromSQL(ctx, view, n.left, action)
 		if err != nil {
@@ -169,7 +169,7 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root LogicalNode, actio
 		return "(" + left + " " + kind + " JOIN " + right + " ON " + predicate + ")", nil
 	case *derivedNode:
 		if n.cte != nil {
-			return quoteIdentifier(n.cte.name) + " AS " + quoteIdentifier("_rule_source_"+strconv.Itoa(n.ordinal)), nil
+			return catalog.QuoteIdentifier(n.cte.name) + " AS " + catalog.QuoteIdentifier("_rule_source_"+strconv.Itoa(n.ordinal)), nil
 		}
 		project, ok := n.query.Root.(*projectNode)
 		if !ok || project.syntax == nil || action.presentation == nil {
@@ -180,7 +180,7 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root LogicalNode, actio
 		if err != nil {
 			return "", err
 		}
-		return "(" + text + ") AS " + quoteIdentifier("_rule_source_"+strconv.Itoa(n.ordinal)), nil
+		return "(" + text + ") AS " + catalog.QuoteIdentifier("_rule_source_"+strconv.Itoa(n.ordinal)), nil
 	case *functionFromNode:
 		parts := make([]string, len(n.calls))
 		for i, call := range n.calls {
@@ -199,9 +199,9 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root LogicalNode, actio
 		}
 		names := make([]string, len(n.Schema()))
 		for i, column := range n.Schema() {
-			names[i] = quoteIdentifier(column.Name)
+			names[i] = catalog.QuoteIdentifier(column.Name)
 		}
-		return text + " AS " + quoteIdentifier("_rule_function_"+strconv.Itoa(n.viewOrdinal)) + "(" + strings.Join(names, ", ") + ")", nil
+		return text + " AS " + catalog.QuoteIdentifier("_rule_function_"+strconv.Itoa(n.viewOrdinal)) + "(" + strings.Join(names, ", ") + ")", nil
 	case *valuesNode:
 		var rows []string
 		for _, row := range n.rows {
@@ -217,9 +217,9 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root LogicalNode, actio
 		}
 		names := make([]string, len(n.Schema()))
 		for i, column := range n.Schema() {
-			names[i] = quoteIdentifier(column.Name)
+			names[i] = catalog.QuoteIdentifier(column.Name)
 		}
-		return "(VALUES " + strings.Join(rows, ", ") + ") AS " + quoteIdentifier("_rule_values") + "(" + strings.Join(names, ", ") + ")", nil
+		return "(VALUES " + strings.Join(rows, ", ") + ") AS " + catalog.QuoteIdentifier("_rule_values") + "(" + strings.Join(names, ", ") + ")", nil
 	case *singletonNode:
 		return "", nil
 	}
@@ -325,7 +325,7 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 				if canonicalName == "" {
 					return "", fmt.Errorf("stuntgres: missing named rule constraint")
 				}
-				sql.WriteString(" ON CONSTRAINT " + quoteIdentifier(canonicalName))
+				sql.WriteString(" ON CONSTRAINT " + catalog.QuoteIdentifier(canonicalName))
 			} else if len(b.conflict.keys) != 0 {
 				parts := make([]string, len(b.conflict.keys))
 				for i, key := range b.conflict.keys {
@@ -342,7 +342,7 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 						parts[i] += " COLLATE " + collationSQLName(view, key.collation)
 					}
 					if key.class.Name != "" {
-						parts[i] += " " + quoteIdentifier("pg_catalog") + "." + quoteIdentifier(key.class.Name)
+						parts[i] += " " + catalog.QuoteIdentifier("pg_catalog") + "." + catalog.QuoteIdentifier(key.class.Name)
 					}
 				}
 				sql.WriteString(" (" + strings.Join(parts, ", ") + ")")
@@ -496,7 +496,7 @@ func ruleDumpGroups(ctx context.Context, view catalog.Read, roles authorization.
 					return nil, fmt.Errorf("stuntgres: dump cannot serialize a rule referencing a temporary relation")
 				}
 			}
-			sql.WriteString("CREATE RULE " + quoteIdentifier(r.Name) + " AS ON " + r.event + " TO " + table)
+			sql.WriteString("CREATE RULE " + catalog.QuoteIdentifier(r.Name) + " AS ON " + r.event + " TO " + table)
 			if r.condition != nil {
 				renderer := newViewRenderer(r.conditionPresentation)
 				renderer.frame = r.conditionPresentation.query.Root.(*projectNode).frame

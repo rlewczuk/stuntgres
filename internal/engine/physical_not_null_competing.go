@@ -72,7 +72,7 @@ func emitPhysicalCompetingUniques(view catalog.Read, table *catalog.Relation, ow
 	if partitionReplaySeparateConstraint(view, primaryIndex) != separate {
 		return nil
 	}
-	qualified := quoteIdentifier(view.Get(table.Namespace()).Name()) + "." + quoteIdentifier(table.Name())
+	qualified := catalog.QuoteIdentifier(view.Get(table.Namespace()).Name()) + "." + catalog.QuoteIdentifier(table.Name())
 	for i := range table.Constraints.Unique {
 		constraint := &table.Constraints.Unique[i]
 		index := view.MustRelation(constraint.Index)
@@ -93,7 +93,7 @@ func emitPhysicalCompetingUniques(view catalog.Read, table *catalog.Relation, ow
 		if err := setOwner(owner); err != nil {
 			return err
 		}
-		if err := emit("ALTER TABLE ONLY " + qualified + " ADD CONSTRAINT " + quoteIdentifier(constraint.Name) + " " + text + ";\n"); err != nil {
+		if err := emit("ALTER TABLE ONLY " + qualified + " ADD CONSTRAINT " + catalog.QuoteIdentifier(constraint.Name) + " " + text + ";\n"); err != nil {
 			return err
 		}
 	}

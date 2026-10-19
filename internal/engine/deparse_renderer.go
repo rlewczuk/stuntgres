@@ -28,14 +28,14 @@ type pgRenderer struct {
 
 func pgIdentifier(name string) string {
 	if parser.IdentifierNeedsQuotes(name) {
-		return quoteIdentifier(name)
+		return catalog.QuoteIdentifier(name)
 	}
 	return name
 }
 
 func (r pgRenderer) identifier(name string) string {
 	if r.output.QuoteAllIdentifiers {
-		return quoteIdentifier(name)
+		return catalog.QuoteIdentifier(name)
 	}
 	return pgIdentifier(name)
 }
@@ -43,7 +43,7 @@ func (r pgRenderer) identifier(name string) string {
 func (r pgRenderer) attribute(relation *catalog.Relation, attr int32) (string, error) {
 	text, err := deparseAttribute(relation, attr)
 	if err == nil && r.output.QuoteAllIdentifiers && !strings.HasPrefix(text, "\"") {
-		text = quoteIdentifier(text)
+		text = catalog.QuoteIdentifier(text)
 	}
 	return text, err
 }
@@ -135,7 +135,7 @@ func (r pgRenderer) typeSQL(u sqltype.Usage) (string, error) {
 		}
 		return r.identifier(r.view.Get(d.Namespace()).Name()) + "." + name, nil
 	}
-	return typeDiagnosticNameAt(r.view, d, r.path), nil
+	return catalog.TypeDiagnosticNameAt(r.view, d, r.path), nil
 }
 
 func (r pgRenderer) cast(child string, usage sqltype.Usage, simple bool) (string, error) {
@@ -616,7 +616,7 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing selected operator namespace")
 		}
-		op := "OPERATOR(" + quoteIdentifier(namespace.Name()) + "." + d.Name() + ")"
+		op := "OPERATOR(" + catalog.QuoteIdentifier(namespace.Name()) + "." + d.Name() + ")"
 		var operands [2]expr.Expr
 		count := 0
 		boundExpressionChildren(n.provider, func(arg expr.Expr) {

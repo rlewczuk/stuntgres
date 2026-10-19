@@ -22,7 +22,7 @@ func emitPhysicalPrimaryCleanup(view catalog.Read, table *catalog.Relation, prim
 	if !hasPhysicalKey {
 		return nil
 	}
-	qualified := quoteIdentifier(view.Get(table.Namespace()).Name()) + "." + quoteIdentifier(table.Name())
+	qualified := catalog.QuoteIdentifier(view.Get(table.Namespace()).Name()) + "." + catalog.QuoteIdentifier(table.Name())
 	keys := make([]string, len(primary.Attributes))
 	for i, attribute := range primary.Attributes {
 		keys[i] = table.Columns[table.IndexForAttribute(attribute)].Name
@@ -48,7 +48,7 @@ func (t *dumpRelation) emitPhysicalNotNull(view catalog.Read, emit func(string) 
 	if len(t.descriptor.Constraints.PhysicalNotNull) == 0 {
 		return nil
 	}
-	qualified := quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name)
+	qualified := catalog.QuoteIdentifier(t.schema) + "." + catalog.QuoteIdentifier(t.name)
 	for _, attribute := range t.attributes {
 		if _, physical := t.descriptor.Constraints.PhysicalNotNull[attribute]; !physical || physicalPrimaryForAttribute(t.descriptor, attribute) != nil {
 			continue
@@ -57,7 +57,7 @@ func (t *dumpRelation) emitPhysicalNotNull(view catalog.Read, emit func(string) 
 		if err := setOwner(t.owner); err != nil {
 			return err
 		}
-		if err := emit("ALTER TABLE ONLY " + qualified + " ALTER COLUMN " + quoteIdentifier(column) + " SET NOT NULL;\n"); err != nil {
+		if err := emit("ALTER TABLE ONLY " + qualified + " ALTER COLUMN " + catalog.QuoteIdentifier(column) + " SET NOT NULL;\n"); err != nil {
 			return err
 		}
 		if err := setOwner("postgres"); err != nil {
@@ -86,7 +86,7 @@ func (t *dumpRelation) emitPhysicalNotNull(view catalog.Read, emit func(string) 
 		if err := setOwner(t.owner); err != nil {
 			return err
 		}
-		if err := emit("ALTER TABLE ONLY " + qualified + " ADD CONSTRAINT " + quoteIdentifier(primary.Name) + " " + text + ";\n"); err != nil {
+		if err := emit("ALTER TABLE ONLY " + qualified + " ADD CONSTRAINT " + catalog.QuoteIdentifier(primary.Name) + " " + text + ";\n"); err != nil {
 			return err
 		}
 		if err := emitPhysicalPrimaryCleanup(view, t.descriptor, primary, emit, setOwner); err != nil {

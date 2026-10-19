@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -459,7 +460,7 @@ func (n aclValueExpression) sql(render func(expr.Expr) (string, error)) (string,
 	if n.kind == aclContains {
 		op := "@>"
 		if n.namespace != "" {
-			op = "OPERATOR(" + quoteIdentifier(n.namespace) + ".@>)"
+			op = "OPERATOR(" + catalog.QuoteIdentifier(n.namespace) + ".@>)"
 		}
 		return "(" + parts[0] + " " + op + " " + parts[1] + ")", nil
 	}

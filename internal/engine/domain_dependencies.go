@@ -162,14 +162,14 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 					for _, check := range d.DomainChecks {
 						for _, dep := range check.Dependencies {
 							if dep.Ref.Address == target {
-								direct = append(direct, domainDependency{address: ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}, target: target, root: root, oid: check.OID, label: "constraint " + dependencyIdentifier(check.Name), domain: d})
+								direct = append(direct, domainDependency{address: ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}, target: target, root: root, oid: check.OID, label: "constraint " + catalog.DependencyIdentifier(check.Name), domain: d})
 								break
 							}
 						}
 					}
 				}
 				if d.SQLType.IsDomain() && usageDependsOn(d.SQLType.DomainBase(), target) {
-					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: "type " + typeDiagnosticNameAt(provider.base, d, provider.path)})
+					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: "type " + catalog.TypeDiagnosticNameAt(provider.base, d, provider.path)})
 				}
 				if d.SQLType.IsArray() && target == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())}) {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true})
@@ -223,7 +223,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 						if name == "" {
 							name = dependencyRelationName(provider.base, d, provider.path)
 						}
-						direct = append(direct, domainDependency{address: ids.ObjectAddress{ClassID: 2618, ObjectID: rule.OID}, target: target, root: root, oid: rule.OID, label: "rule " + dependencyIdentifier(rule.Name) + " on " + relationDiagnosticKind(d) + " " + name, relation: d})
+						direct = append(direct, domainDependency{address: ids.ObjectAddress{ClassID: 2618, ObjectID: rule.OID}, target: target, root: root, oid: rule.OID, label: "rule " + catalog.DependencyIdentifier(rule.Name) + " on " + relationDiagnosticKind(d) + " " + name, relation: d})
 					}
 				}
 				if d.View != nil {
@@ -255,14 +255,14 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 				}
 				for _, policy := range d.Security.Policies {
 					if policyDepends(policy, target) {
-						direct = append(direct, domainDependency{address: ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}, target: target, root: root, oid: policy.OID, label: "policy " + dependencyIdentifier(policy.Name) + " on table " + name, relation: d})
+						direct = append(direct, domainDependency{address: ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}, target: target, root: root, oid: policy.OID, label: "policy " + catalog.DependencyIdentifier(policy.Name) + " on table " + name, relation: d})
 					}
 				}
 				for i, c := range d.Columns {
 					column := a
 					column.SubID = d.Attributes[i]
 					if usageDependsOn(c.Usage, target) {
-						direct = append(direct, domainDependency{address: column, target: target, root: root, oid: a.ObjectID, ordinal: column.SubID, label: "column " + dependencyIdentifier(c.Name) + " of " + relationDiagnosticKind(d) + " " + name, relation: d, column: c.Name})
+						direct = append(direct, domainDependency{address: column, target: target, root: root, oid: a.ObjectID, ordinal: column.SubID, label: "column " + catalog.DependencyIdentifier(c.Name) + " of " + relationDiagnosticKind(d) + " " + name, relation: d, column: c.Name})
 					}
 					if droppedColumns[column] {
 						continue
@@ -270,7 +270,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 					if definition, ok := d.ColumnMeta.Defaults[column.SubID]; ok {
 						for _, ref := range definition.Dependencies {
 							if ref.Address == target {
-								direct = append(direct, domainDependency{address: ids.ObjectAddress{ClassID: 2604, ObjectID: definition.OID}, target: target, root: root, oid: definition.OID, label: "default value for column " + dependencyIdentifier(c.Name) + " of table " + name, relation: d})
+								direct = append(direct, domainDependency{address: ids.ObjectAddress{ClassID: 2604, ObjectID: definition.OID}, target: target, root: root, oid: definition.OID, label: "default value for column " + catalog.DependencyIdentifier(c.Name) + " of table " + name, relation: d})
 								break
 							}
 						}
@@ -278,7 +278,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 					if definition, generated := d.ColumnMeta.Generations[column.SubID]; generated && target != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(c.Usage.Type.ID())}) {
 						for _, ref := range definition.Dependencies {
 							if ref.Address == target {
-								direct = append(direct, domainDependency{address: column, target: target, root: root, oid: a.ObjectID, ordinal: column.SubID, label: "column " + dependencyIdentifier(c.Name) + " of table " + name, relation: d, column: c.Name})
+								direct = append(direct, domainDependency{address: column, target: target, root: root, oid: a.ObjectID, ordinal: column.SubID, label: "column " + catalog.DependencyIdentifier(c.Name) + " of table " + name, relation: d, column: c.Name})
 								break
 							}
 						}
@@ -296,7 +296,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 						if target.ClassID == ids.RelationClassID {
 							orderOID, ordinal = a.ObjectID, int32(check.Ordinal)
 						}
-						direct = append(direct, domainDependency{address: ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}, target: target, root: root, oid: orderOID, ordinal: ordinal, label: "constraint " + dependencyIdentifier(check.Name) + " on table " + name, relation: d})
+						direct = append(direct, domainDependency{address: ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}, target: target, root: root, oid: orderOID, ordinal: ordinal, label: "constraint " + catalog.DependencyIdentifier(check.Name) + " on table " + name, relation: d})
 					}
 				}
 				for _, f := range d.Constraints.ForeignKeys {
@@ -306,7 +306,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 					}
 					automatic := target.ClassID == d.Address().ClassID && target.ObjectID == d.Address().ObjectID && (target.SubID == 0 || slices.Contains(f.Attributes, target.SubID))
 					if depends || automatic {
-						direct = append(direct, domainDependency{address: ids.ObjectAddress{ClassID: 2606, ObjectID: f.OID}, target: target, root: root, oid: f.OID, label: "constraint " + dependencyIdentifier(f.Name) + " on table " + name, relation: d, automatic: automatic})
+						direct = append(direct, domainDependency{address: ids.ObjectAddress{ClassID: 2606, ObjectID: f.OID}, target: target, root: root, oid: f.OID, label: "constraint " + catalog.DependencyIdentifier(f.Name) + " on table " + name, relation: d, automatic: automatic})
 					}
 				}
 			}
@@ -709,7 +709,7 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 			namespaceAddress = extension.TargetNamespace
 		}
 		namespace := stage.Base.Get(namespaceAddress).Name()
-		details = append(details, label+" depends on schema "+dependencyIdentifier(namespace))
+		details = append(details, label+" depends on schema "+catalog.DependencyIdentifier(namespace))
 		stage.schemaCascadeNames = append(stage.schemaCascadeNames, "drop cascades to "+label)
 		for _, edge := range edges {
 			root := edge.root == d.Address()
@@ -724,7 +724,7 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 	if !cascade {
 		message := "cannot drop desired object(s) because other objects depend on them"
 		if len(schemas) == 1 {
-			message = "cannot drop schema " + dependencyIdentifier(schemas[0].Name()) + " because other objects depend on it"
+			message = "cannot drop schema " + catalog.DependencyIdentifier(schemas[0].Name()) + " because other objects depend on it"
 		}
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: message, Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 	}

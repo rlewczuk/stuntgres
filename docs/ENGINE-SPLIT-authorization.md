@@ -263,6 +263,9 @@ run it in parallel with 6c or with another broad rewrite (§8).
 - [x] B4 — Aliases removed (`68be6bf5a`, `4130fa669`, then the commit
   that records this status) *(racecheck skipped at user request; targeted
   RACE=1 runs passed)*
+- [x] Names cleanup — diagnostic name helpers moved to `catalog`, the
+  `access` copy deleted (`9a73852a6`, `416945ecb`, then the commit that
+  records this status) *(racecheck skipped at user request)*
 
 No aliases remain: B4 removed the nine B3 aliases and deleted
 `internal/engine/access_aliases.go`. Part A, B1 and B2 added none.
@@ -620,7 +623,7 @@ Notes for later steps (B3):
 - **Later:** `access/names.go` duplicates the engine's diagnostic name
   helpers. A shared home below both (for example `catalog`, which already
   owns the type descriptors) would remove the copy; the engine has about 80
-  uses.
+  uses. Done in the names cleanup (see its results below).
 
 B4 results:
 
@@ -665,4 +668,33 @@ Notes for later steps (B4):
   remap for `control`, policy DDL for the policy feature package and the
   binding walkers for `plan`/`exec`.
 - `access/names.go` still duplicates the engine's diagnostic name helpers
-  (see the B3 notes).
+  (see the B3 notes). Done in the names cleanup below.
+
+Names cleanup results:
+
+- **Move.** `internal/engine/catalog/diagnostic_names.go` holds
+  `QuoteIdentifier`, `DependencyIdentifier` and `TypeDiagnosticNameAt`,
+  moved verbatim from the engine (`control.go`, `roles.go`, `domain.go`).
+  `access/names.go` is deleted and `access/view.go` calls the `catalog`
+  helpers. `catalog` gains only the `strings` import.
+- **Rewrite.** The engine's three definitions are gone. Their 393 uses in
+  76 files (`quoteIdentifier` 305 including 7 in four test files,
+  `dependencyIdentifier` 73, `typeDiagnosticNameAt` 15, comments included)
+  now name `catalog.X`; four files gained the `catalog` import.
+  Seventeen locals and parameters named `catalog` shadowed the package
+  where a helper was called; `gopls rename` renamed each to `catalogView`.
+  Other parameters named `catalog` stay.
+- **Tests.** New `catalog/diagnostic_names_test.go`:
+  `TestDependencyIdentifierQuotesLikeQuoteIdentifier` and
+  `TestTypeDiagnosticNameAtQualifiesHiddenTypes` (nil, empty and shadowing
+  paths, a quoted schema, arrays). No engine test moved or was deleted;
+  four engine tests changed only by the rewrite.
+- **Verification.** `make build` after each commit. Targeted `make check`
+  (the new tests, `catalog` and `access` package tests, `TestView.*`,
+  Dump/Restore tests, and the typed-table, table-LIKE composite ACL,
+  range-partition type ACL, domain, composite and enum diagnostics
+  reference tests) passed in quick mode and with `REFERENCE=1`.
+  `quickcheck` passed. The full `racecheck` was skipped at the user's
+  request; no locks or goroutines changed. `make bench` was not run: no
+  startup path changed. `make deps` lists only module paths. `AGENTS.md`
+  stays at 100 lines.

@@ -64,7 +64,7 @@ func (e *Engine) resolveAlterEnumLocked(auth AuthorizationView, name parser.Obje
 				if err != nil {
 					return nil, ref, err
 				}
-				display = typeDiagnosticNameAt(auth.Catalog, d, path)
+				display = catalog.TypeDiagnosticNameAt(auth.Catalog, d, path)
 			}
 			return nil, ref, sqlError("42809", display+" is not an enum")
 		}

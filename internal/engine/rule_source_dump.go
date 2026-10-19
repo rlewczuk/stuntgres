@@ -43,13 +43,13 @@ func ruleSourceColumnSQL(view catalog.Read, root LogicalNode, slot int, action r
 		if err != nil {
 			return "", err
 		}
-		return quoteIdentifier("_rule_source_"+strconv.Itoa(node.occurrence)) + "." + column, nil
+		return catalog.QuoteIdentifier("_rule_source_"+strconv.Itoa(node.occurrence)) + "." + column, nil
 	case *functionFromNode:
-		return quoteIdentifier("_rule_function_"+strconv.Itoa(node.viewOrdinal)) + "." + quoteIdentifier(node.Schema()[slot].Name), nil
+		return catalog.QuoteIdentifier("_rule_function_"+strconv.Itoa(node.viewOrdinal)) + "." + catalog.QuoteIdentifier(node.Schema()[slot].Name), nil
 	case *derivedNode:
-		return quoteIdentifier("_rule_source_"+strconv.Itoa(node.ordinal)) + "." + quoteIdentifier(node.Schema()[slot].Name), nil
+		return catalog.QuoteIdentifier("_rule_source_"+strconv.Itoa(node.ordinal)) + "." + catalog.QuoteIdentifier(node.Schema()[slot].Name), nil
 	case *valuesNode:
-		return quoteIdentifier("_rule_values") + "." + quoteIdentifier(node.Schema()[slot].Name), nil
+		return catalog.QuoteIdentifier("_rule_values") + "." + catalog.QuoteIdentifier(node.Schema()[slot].Name), nil
 	}
 	return "", fmt.Errorf("stuntgres: missing rule source namespace for %T", root)
 }

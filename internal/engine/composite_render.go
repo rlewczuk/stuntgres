@@ -16,7 +16,7 @@ func (v *viewRenderer) wholeRowSQL(captured compositeOccurrence) (string, error)
 	return rendered.sql, nil
 }
 
-func (v *viewRenderer) frozenCompositeFields(ctx context.Context, catalog catalog.Read, captured compositeOccurrence, base string) ([]string, error) {
+func (v *viewRenderer) frozenCompositeFields(ctx context.Context, catalogView catalog.Read, captured compositeOccurrence, base string) ([]string, error) {
 	shape := captured.base.Type.BaseType()
 	fields := make([]string, len(captured.attributes))
 	var exposed []string
@@ -46,7 +46,7 @@ func (v *viewRenderer) frozenCompositeFields(ctx context.Context, catalog catalo
 			if index >= len(scalarColumns) {
 				return nil, fmt.Errorf("stuntgres: missing rendered scalar namespace member")
 			}
-			text, err := v.slotSQL(ctx, catalog, scalarRoot, scalarColumns[index].slot)
+			text, err := v.slotSQL(ctx, catalogView, scalarRoot, scalarColumns[index].slot)
 			if err != nil {
 				return nil, err
 			}
@@ -60,7 +60,7 @@ func (v *viewRenderer) frozenCompositeFields(ctx context.Context, catalog catalo
 			}
 			name = exposed[index]
 		}
-		fields[i] = "(" + base + ")." + quoteIdentifier(name)
+		fields[i] = "(" + base + ")." + catalog.QuoteIdentifier(name)
 	}
 	return fields, nil
 }

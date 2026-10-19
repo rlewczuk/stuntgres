@@ -78,7 +78,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 		// Parse in CHECK context so selected calls remain functions, rather than
 		// the general scalar grammar's function-style casts. Only the extracted
 		// expression is bound; this wrapper never creates catalog metadata.
-		syntax, err := parser.ParseWithOptions("CREATE TABLE "+quoteIdentifier(next.Name())+" (CHECK ("+pending.sql+"))", parser.Options{Context: op.Context(), StandardConformingStrings: true})
+		syntax, err := parser.ParseWithOptions("CREATE TABLE "+catalog.QuoteIdentifier(next.Name())+" (CHECK ("+pending.sql+"))", parser.Options{Context: op.Context(), StandardConformingStrings: true})
 		if err != nil {
 			return nil, nil, alterTypeCheckReparseError(err)
 		}

@@ -21,7 +21,7 @@ type restoredNotNull struct {
 // before any descendant declaration can inherit it. SET is genuine supported
 // PostgreSQL syntax; only the narrowly paired catalog repair is importer-only.
 func (t *dumpRelation) emitNoInheritNotNull(emit func(string) error, setOwner func(string) error) error {
-	qualified := quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name)
+	qualified := catalog.QuoteIdentifier(t.schema) + "." + catalog.QuoteIdentifier(t.name)
 	for _, constraint := range t.notNullConstraints {
 		if !constraint.NoInherit {
 			continue
@@ -33,7 +33,7 @@ func (t *dumpRelation) emitNoInheritNotNull(emit func(string) error, setOwner fu
 		if err := setOwner(t.owner); err != nil {
 			return err
 		}
-		if err := emit("ALTER TABLE ONLY " + qualified + " ALTER COLUMN " + quoteIdentifier(column) + " SET NOT NULL;\n"); err != nil {
+		if err := emit("ALTER TABLE ONLY " + qualified + " ALTER COLUMN " + catalog.QuoteIdentifier(column) + " SET NOT NULL;\n"); err != nil {
 			return err
 		}
 		if err := setOwner("postgres"); err != nil {

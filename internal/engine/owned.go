@@ -190,7 +190,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			}
 			if extension != (ids.ObjectAddress{}) && !pending[extension] {
 				d := auth.Catalog.MustExtension(extension)
-				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(auth.Catalog, a, path) + " because extension " + dependencyIdentifier(d.Name()) + " requires it", Hint: "You can drop extension " + dependencyIdentifier(d.Name()) + " instead."})
+				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(auth.Catalog, a, path) + " because extension " + catalog.DependencyIdentifier(d.Name()) + " requires it", Hint: "You can drop extension " + catalog.DependencyIdentifier(d.Name()) + " instead."})
 			}
 		}
 		end := len(roots)

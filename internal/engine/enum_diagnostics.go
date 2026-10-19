@@ -31,7 +31,7 @@ func (b *expressionBinder) diagnosticTypeName(typ *sqltype.Descriptor) string {
 	if err != nil {
 		return typ.DiagnosticName()
 	}
-	return typeDiagnosticNameAt(auth.Catalog, descriptor, path)
+	return catalog.TypeDiagnosticNameAt(auth.Catalog, descriptor, path)
 }
 
 // captureTypeDiagnosticName freezes input and demanded-comparison naming against
@@ -41,9 +41,9 @@ func (e *Engine) captureTypeDiagnosticName(auth AuthorizationView) (func(sqltype
 	if err != nil {
 		return nil, err
 	}
-	catalog := auth.Catalog
+	catalogView := auth.Catalog
 	return func(id sqltype.ID) string {
-		descriptor, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
+		descriptor, ok := catalogView.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
 		if !ok {
 			return ""
 		}
@@ -52,7 +52,7 @@ func (e *Engine) captureTypeDiagnosticName(auth AuthorizationView) (func(sqltype
 			// as int4, and do not identifier-quote builtin names such as json.
 			return descriptor.SQLType.DiagnosticName()
 		}
-		return typeDiagnosticNameAt(catalog, descriptor, path)
+		return catalog.TypeDiagnosticNameAt(catalogView, descriptor, path)
 	}, nil
 }
 

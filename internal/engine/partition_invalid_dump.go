@@ -242,7 +242,7 @@ func partitionInvalidDumpEvents(view catalog.Read, graph map[dumpEventKey][]dump
 
 func (r partitionInvalidReplay) sql(ctx context.Context, view catalog.Read, phase dumpPhase) (string, error) {
 	qualified := func(d *catalog.Relation) string {
-		return quoteIdentifier(view.Get(d.Namespace()).Name()) + "." + quoteIdentifier(d.Name())
+		return catalog.QuoteIdentifier(view.Get(d.Namespace()).Name()) + "." + catalog.QuoteIdentifier(d.Name())
 	}
 	parent := qualified(r.table)
 	if r.child != nil {
@@ -251,7 +251,7 @@ func (r partitionInvalidReplay) sql(ctx context.Context, view catalog.Read, phas
 		}
 		return partitionAttachDumpSQL(ctx, view, r.child)
 	}
-	child := quoteIdentifier(view.Get(r.table.Namespace()).Name()) + "." + quoteIdentifier(r.scratch)
+	child := catalog.QuoteIdentifier(view.Get(r.table.Namespace()).Name()) + "." + catalog.QuoteIdentifier(r.scratch)
 	if phase == dumpInvalidIndexPreparation {
 		return "CREATE TABLE " + child + " PARTITION OF " + parent + " DEFAULT;\n", nil
 	}

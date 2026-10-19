@@ -13,7 +13,7 @@ import (
 )
 
 func conversionSQLName(view catalog.Read, d *catalog.Conversion) string {
-	return quoteIdentifier(view.Get(d.Namespace()).Name()) + "." + quoteIdentifier(d.Name())
+	return catalog.QuoteIdentifier(view.Get(d.Namespace()).Name()) + "." + catalog.QuoteIdentifier(d.Name())
 }
 
 func conversionDefinition(view catalog.Read, d *catalog.Conversion, name string) (string, error) {
@@ -25,7 +25,7 @@ func conversionDefinition(view catalog.Read, d *catalog.Conversion, name string)
 	if d.DefaultConversion {
 		prefix = "CREATE DEFAULT CONVERSION "
 	}
-	routine := quoteIdentifier(view.Get(procedure.Namespace()).Name()) + "." + quoteIdentifier(procedure.Name())
+	routine := catalog.QuoteIdentifier(view.Get(procedure.Namespace()).Name()) + "." + catalog.QuoteIdentifier(procedure.Name())
 	return prefix + name + " FOR '" + sqltype.EncodingName(d.Source) + "' TO '" + sqltype.EncodingName(d.Destination) + "' FROM " + routine + ";\n", nil
 }
 
@@ -76,15 +76,15 @@ func conversionDumpStatements(ctx context.Context, view catalog.Read, roles auth
 				helper = base + "_" + strconv.Itoa(n)
 			}
 			occupiedSchemas[helper] = true
-			schemas = append(schemas, "CREATE SCHEMA "+quoteIdentifier(helper)+" AUTHORIZATION "+quoteIdentifier(owner.Name)+";\n")
-			name = quoteIdentifier(helper) + "." + quoteIdentifier(d.Name())
+			schemas = append(schemas, "CREATE SCHEMA "+catalog.QuoteIdentifier(helper)+" AUTHORIZATION "+catalog.QuoteIdentifier(owner.Name)+";\n")
+			name = catalog.QuoteIdentifier(helper) + "." + catalog.QuoteIdentifier(d.Name())
 		}
 		definition, definitionErr := conversionDefinition(view, d, name)
 		if definitionErr != nil {
 			return nil, nil, definitionErr
 		}
 		if helper != "" {
-			definition += "ALTER CONVERSION " + name + " SET SCHEMA " + quoteIdentifier(view.Get(d.Namespace()).Name()) + ";\nDROP SCHEMA " + quoteIdentifier(helper) + ";\n"
+			definition += "ALTER CONVERSION " + name + " SET SCHEMA " + catalog.QuoteIdentifier(view.Get(d.Namespace()).Name()) + ";\nDROP SCHEMA " + catalog.QuoteIdentifier(helper) + ";\n"
 		}
 		if d.DefaultConversion {
 			occupiedPairs[key] = true
@@ -101,7 +101,7 @@ func conversionSeedDumpStatements(ctx context.Context, view catalog.Read, roles 
 	if catalogNamespace == nil {
 		return nil, fmt.Errorf("stuntgres: missing bootstrap conversion namespace")
 	}
-	initial := quoteIdentifier(catalogNamespace.Name())
+	initial := catalog.QuoteIdentifier(catalogNamespace.Name())
 	type delta struct {
 		d                       *catalog.Conversion
 		fixed, temporary, owner string
@@ -151,24 +151,24 @@ func conversionSeedDumpStatements(ctx context.Context, view catalog.Read, roles 
 	var statements []string
 	for _, change := range changes {
 		if change.temporary != "" {
-			statements = append(statements, "ALTER CONVERSION "+initial+"."+quoteIdentifier(change.fixed)+" RENAME TO "+quoteIdentifier(change.temporary)+";\n")
+			statements = append(statements, "ALTER CONVERSION "+initial+"."+catalog.QuoteIdentifier(change.fixed)+" RENAME TO "+catalog.QuoteIdentifier(change.temporary)+";\n")
 		}
 	}
 	for _, change := range changes {
 		if change.temporary == "" {
 			continue
 		}
-		from := initial + "." + quoteIdentifier(change.temporary)
+		from := initial + "." + catalog.QuoteIdentifier(change.temporary)
 		if change.d.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
-			namespace := quoteIdentifier(view.Get(change.d.Namespace()).Name())
+			namespace := catalog.QuoteIdentifier(view.Get(change.d.Namespace()).Name())
 			statements = append(statements, "ALTER CONVERSION "+from+" SET SCHEMA "+namespace+";\n")
-			from = namespace + "." + quoteIdentifier(change.temporary)
+			from = namespace + "." + catalog.QuoteIdentifier(change.temporary)
 		}
-		statements = append(statements, "ALTER CONVERSION "+from+" RENAME TO "+quoteIdentifier(change.d.Name())+";\n")
+		statements = append(statements, "ALTER CONVERSION "+from+" RENAME TO "+catalog.QuoteIdentifier(change.d.Name())+";\n")
 	}
 	for _, change := range changes {
 		if change.owner != "postgres" || change.d.Owner.ID() != authorization.BootstrapPrincipalID {
-			statements = append(statements, "ALTER CONVERSION "+conversionSQLName(view, change.d)+" OWNER TO "+quoteIdentifier(change.owner)+";\n")
+			statements = append(statements, "ALTER CONVERSION "+conversionSQLName(view, change.d)+" OWNER TO "+catalog.QuoteIdentifier(change.owner)+";\n")
 		}
 	}
 	return statements, nil

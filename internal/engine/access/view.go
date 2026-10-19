@@ -296,7 +296,7 @@ func (v View) Check(env Environment, req Requirement) error {
 		kind := "table"
 		if t, ok := d.(*catalog.Type); ok {
 			path, _ := env.ReferencePath()
-			return sqlError("42501", "must be owner of type "+typeDiagnosticNameAt(v.Catalog, t, path))
+			return sqlError("42501", "must be owner of type "+catalog.TypeDiagnosticNameAt(v.Catalog, t, path))
 		}
 		if d.Kind() == ids.NamespaceObject {
 			kind = "schema"
@@ -357,7 +357,7 @@ func (v View) Check(env Environment, req Requirement) error {
 			return sqlError("42501", "permission denied for type "+t.SQLType.DiagnosticName())
 		}
 		path, _ := env.ReferencePath()
-		return sqlError("42501", "permission denied for type "+typeDiagnosticNameAt(v.Catalog, t, path))
+		return sqlError("42501", "permission denied for type "+catalog.TypeDiagnosticNameAt(v.Catalog, t, path))
 	}
 	if d.Kind() == ids.NamespaceObject {
 		kind = "schema"
@@ -384,7 +384,7 @@ func (v View) Check(env Environment, req Requirement) error {
 	}
 	name := d.Name()
 	if d.Kind() == ids.DatabaseObject {
-		name = dependencyIdentifier(name)
+		name = catalog.DependencyIdentifier(name)
 	}
 	return sqlError("42501", fmt.Sprintf("permission denied for %s %s", kind, name))
 }

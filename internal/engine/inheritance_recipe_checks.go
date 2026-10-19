@@ -182,14 +182,14 @@ func inheritanceRecipeEvents(ctx context.Context, view catalog.Read, graph map[d
 }
 
 func (t *dumpRelation) emitInheritedGenerations(ctx context.Context, view catalog.Read, emit func(string) error) error {
-	prefix := "ALTER TABLE ONLY " + quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name) + " ALTER COLUMN "
+	prefix := "ALTER TABLE ONLY " + catalog.QuoteIdentifier(t.schema) + "." + catalog.QuoteIdentifier(t.name) + " ALTER COLUMN "
 	for i, column := range t.columns {
 		if definition, exists := t.descriptor.ColumnMeta.Generations[t.attributes[i]]; exists {
 			text, err := (scalarRenderer{owner: t.descriptor}).sql(ctx, view, definition.Expression)
 			if err != nil {
 				return err
 			}
-			if err := emit(prefix + quoteIdentifier(column.Name) + " SET EXPRESSION AS (" + text + ");\n"); err != nil {
+			if err := emit(prefix + catalog.QuoteIdentifier(column.Name) + " SET EXPRESSION AS (" + text + ");\n"); err != nil {
 				return err
 			}
 		}
@@ -210,7 +210,7 @@ func (t *dumpRelation) emitInheritedChecks(ctx context.Context, view catalog.Rea
 		if check.NoInherit {
 			suffix = " NO INHERIT"
 		}
-		if err := emit("ALTER TABLE " + quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name) + " ADD CONSTRAINT " + quoteIdentifier(check.Name) + " CHECK (" + text + ")" + suffix + ";\n"); err != nil {
+		if err := emit("ALTER TABLE " + catalog.QuoteIdentifier(t.schema) + "." + catalog.QuoteIdentifier(t.name) + " ADD CONSTRAINT " + catalog.QuoteIdentifier(check.Name) + " CHECK (" + text + ")" + suffix + ";\n"); err != nil {
 			return err
 		}
 	}

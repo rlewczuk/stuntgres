@@ -56,11 +56,11 @@ func retainInheritedRecipes(view catalog.Read, child *catalog.Relation, attribut
 // Inline redeclarations would change attislocal. These are the same supported
 // physical ALTER actions used by callers, before children/data observe recipes.
 // Captured-reference defaults retain the existing provider-dependent phase.
-func (t *dumpRelation) emitInheritedDefaults(ctx context.Context, catalog catalog.Read, deferDefaults bool, emit func(string) error) error {
+func (t *dumpRelation) emitInheritedDefaults(ctx context.Context, catalogView catalog.Read, deferDefaults bool, emit func(string) error) error {
 	if len(t.recipes) == 0 {
 		return nil
 	}
-	prefix := "ALTER TABLE ONLY " + quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name) + " ALTER COLUMN "
+	prefix := "ALTER TABLE ONLY " + catalog.QuoteIdentifier(t.schema) + "." + catalog.QuoteIdentifier(t.name) + " ALTER COLUMN "
 	for i, column := range t.columns {
 		attribute := t.attributes[i]
 		provenance := t.recipes[attribute]
@@ -70,13 +70,13 @@ func (t *dumpRelation) emitInheritedDefaults(ctx context.Context, catalog catalo
 		if provenance.ExplicitDefault && !(deferDefaults && t.deferredDefinitions[attribute]) {
 			clause := " DROP DEFAULT"
 			if definition, exists := t.defaults[attribute]; exists {
-				text, err := defaultSQL(ctx, catalog, definition.Expression)
+				text, err := defaultSQL(ctx, catalogView, definition.Expression)
 				if err != nil {
 					return err
 				}
 				clause = " SET DEFAULT " + text
 			}
-			if err := emit(prefix + quoteIdentifier(column.Name) + clause + ";\n"); err != nil {
+			if err := emit(prefix + catalog.QuoteIdentifier(column.Name) + clause + ";\n"); err != nil {
 				return err
 			}
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -14,21 +15,21 @@ func (e *Engine) InspectIndex(ctx context.Context, schema, name string) (bool, b
 		return false, false, false, false, false, err
 	}
 	e.mu.Lock()
-	catalog := e.catalog.read(e.catalog.state)
-	namespace, ok := catalog.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: schema})
+	catalogView := e.catalog.read(e.catalog.state)
+	namespace, ok := catalogView.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: schema})
 	if !ok {
 		e.mu.Unlock()
-		return false, false, false, false, false, fmt.Errorf("stuntgres: index schema %s does not exist", quoteIdentifier(schema))
+		return false, false, false, false, false, fmt.Errorf("stuntgres: index schema %s does not exist", catalog.QuoteIdentifier(schema))
 	}
-	address, ok := catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
+	address, ok := catalogView.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
 	if !ok {
 		e.mu.Unlock()
-		return false, false, false, false, false, fmt.Errorf("stuntgres: index %s.%s does not exist", quoteIdentifier(schema), quoteIdentifier(name))
+		return false, false, false, false, false, fmt.Errorf("stuntgres: index %s.%s does not exist", catalog.QuoteIdentifier(schema), catalog.QuoteIdentifier(name))
 	}
-	index, ok := catalog.Relation(address)
+	index, ok := catalogView.Relation(address)
 	if !ok || index.SQLIndex == nil {
 		e.mu.Unlock()
-		return false, false, false, false, false, fmt.Errorf("stuntgres: relation %s.%s is not an index", quoteIdentifier(schema), quoteIdentifier(name))
+		return false, false, false, false, false, fmt.Errorf("stuntgres: relation %s.%s is not an index", catalog.QuoteIdentifier(schema), catalog.QuoteIdentifier(name))
 	}
 	ready, valid, live := index.SQLIndex.PublicationState()
 	wait, admitted := e.indexBuildWaits[address]

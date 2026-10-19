@@ -26,7 +26,7 @@ func policyExpressionSQL(ctx context.Context, view catalog.Read, expression *pol
 	for i, attribute := range leaf.attributes {
 		for j, current := range d.Attributes {
 			if current == attribute {
-				slots[i] = quoteIdentifier(d.Name()) + "." + quoteIdentifier(d.Columns[j].Name)
+				slots[i] = catalog.QuoteIdentifier(d.Name()) + "." + catalog.QuoteIdentifier(d.Columns[j].Name)
 				break
 			}
 		}
@@ -50,7 +50,7 @@ func policyDumpGroups(ctx context.Context, view catalog.Read, roles authorizatio
 		if err != nil {
 			return nil, err
 		}
-		table := quoteIdentifier(ns.Name()) + "." + quoteIdentifier(d.Name())
+		table := catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(d.Name())
 		var sql strings.Builder
 		for _, policy := range d.Security.Policies {
 			if err := ctx.Err(); err != nil {
@@ -60,7 +60,7 @@ func policyDumpGroups(ctx context.Context, view catalog.Read, roles authorizatio
 			if !policy.Permissive {
 				option = "RESTRICTIVE"
 			}
-			sql.WriteString("CREATE POLICY " + quoteIdentifier(policy.Name) + " ON " + table + " AS " + option + " FOR " + strings.ToUpper(string(policy.Command)) + " TO ")
+			sql.WriteString("CREATE POLICY " + catalog.QuoteIdentifier(policy.Name) + " ON " + table + " AS " + option + " FOR " + strings.ToUpper(string(policy.Command)) + " TO ")
 			for i, role := range policy.Roles {
 				if i != 0 {
 					sql.WriteString(", ")
@@ -72,7 +72,7 @@ func policyDumpGroups(ctx context.Context, view catalog.Read, roles authorizatio
 					if err != nil {
 						return nil, err
 					}
-					sql.WriteString(quoteIdentifier(principal.Name))
+					sql.WriteString(catalog.QuoteIdentifier(principal.Name))
 				}
 			}
 			for _, clause := range []struct {

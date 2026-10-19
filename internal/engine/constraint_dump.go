@@ -28,22 +28,22 @@ func (t *dumpRelation) hasInvalidConstraints() bool {
 
 // Invalid definitions follow all ordinary rows: no validation bypass, no
 // validity promotion, and the same captured owner as their table definition.
-func (t *dumpRelation) emitInvalidConstraints(ctx context.Context, catalog catalog.Read, emit func(string) error) error {
-	prefix := "ALTER TABLE " + quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name) + " ADD CONSTRAINT "
+func (t *dumpRelation) emitInvalidConstraints(ctx context.Context, catalogView catalog.Read, emit func(string) error) error {
+	prefix := "ALTER TABLE " + catalog.QuoteIdentifier(t.schema) + "." + catalog.QuoteIdentifier(t.name) + " ADD CONSTRAINT "
 	for _, n := range t.notNullConstraints {
-		if !n.NotValid || !dumpNotNullDeclaration(catalog, t.descriptor, n.Attribute) {
+		if !n.NotValid || !dumpNotNullDeclaration(catalogView, t.descriptor, n.Attribute) {
 			continue
 		}
 		slot := t.descriptor.IndexForAttribute(n.Attribute)
-		if err := emit(prefix + quoteIdentifier(n.Name) + " NOT NULL " + quoteIdentifier(t.columns[slot].Name) + " NOT VALID;\n"); err != nil {
+		if err := emit(prefix + catalog.QuoteIdentifier(n.Name) + " NOT NULL " + catalog.QuoteIdentifier(t.columns[slot].Name) + " NOT VALID;\n"); err != nil {
 			return err
 		}
 	}
 	for _, c := range orderedChecks(t.descriptor) {
-		if !c.NotValid || !dumpCheckDeclaration(catalog, t.descriptor, c) {
+		if !c.NotValid || !dumpCheckDeclaration(catalogView, t.descriptor, c) {
 			continue
 		}
-		text, err := (scalarRenderer{owner: t.descriptor, checkReplayPrecision: true}).sql(ctx, catalog, c.Expression)
+		text, err := (scalarRenderer{owner: t.descriptor, checkReplayPrecision: true}).sql(ctx, catalogView, c.Expression)
 		if err != nil {
 			return err
 		}
@@ -51,7 +51,7 @@ func (t *dumpRelation) emitInvalidConstraints(ctx context.Context, catalog catal
 		if c.NoInherit {
 			clause += " NO INHERIT"
 		}
-		if err := emit(prefix + quoteIdentifier(c.Name) + clause + " NOT VALID;\n"); err != nil {
+		if err := emit(prefix + catalog.QuoteIdentifier(c.Name) + clause + " NOT VALID;\n"); err != nil {
 			return err
 		}
 	}
@@ -59,11 +59,11 @@ func (t *dumpRelation) emitInvalidConstraints(ctx context.Context, catalog catal
 		if !f.NotValid {
 			continue
 		}
-		text, err := (pgRenderer{view: catalog}).foreignKeyConstraintSQL(t.descriptor, f)
+		text, err := (pgRenderer{view: catalogView}).foreignKeyConstraintSQL(t.descriptor, f)
 		if err != nil {
 			return err
 		}
-		if err := emit(prefix + quoteIdentifier(f.Name) + " " + text + ";\n"); err != nil {
+		if err := emit(prefix + catalog.QuoteIdentifier(f.Name) + " " + text + ";\n"); err != nil {
 			return err
 		}
 	}

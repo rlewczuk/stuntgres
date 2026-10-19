@@ -620,12 +620,12 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		if len(dependent) > 0 && !s.Cascade {
 			message := "cannot drop desired object(s) because other objects depend on them"
 			if len(schemas) == 1 {
-				message = "cannot drop schema " + dependencyIdentifier(schemas[0].Name()) + " because other objects depend on it"
+				message = "cannot drop schema " + catalog.DependencyIdentifier(schemas[0].Name()) + " because other objects depend on it"
 			}
 			details := make([]string, len(dependent))
 			for i, r := range dependent {
 				ns := auth.Catalog.Get(r.Namespace()).Name()
-				details[i] = relationDiagnosticKind(r) + " " + relationDiagnosticName(auth, r) + " depends on schema " + dependencyIdentifier(ns)
+				details[i] = relationDiagnosticKind(r) + " " + relationDiagnosticName(auth, r) + " depends on schema " + catalog.DependencyIdentifier(ns)
 			}
 			return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: message, Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 		}

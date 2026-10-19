@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -200,7 +201,7 @@ func (b *expressionBinder) domainTypeName(typ *sqltype.Descriptor) (string, erro
 		return "", err
 	}
 	d := auth.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
-	return typeDiagnosticNameAt(auth.Catalog, d, path), nil
+	return catalog.TypeDiagnosticNameAt(auth.Catalog, d, path), nil
 }
 
 func (b *expressionBinder) JSONReturningType(raw parser.TypeName) (sqltype.Usage, error) {

@@ -571,7 +571,7 @@ func TestUserOperatorCatalogOrphanShellDumpNameCollision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	prefix := quoteIdentifier("public") + "."
+	prefix := catalog.QuoteIdentifier("public") + "."
 	if strings.Contains(declaration.sql, "CREATE OPERATOR "+prefix+"#~~# ") ||
 		!strings.Contains(declaration.sql, "CREATE OPERATOR "+prefix+"#~!# ") ||
 		!strings.Contains(declaration.sql, "DROP OPERATOR "+prefix+"#~!# ") {

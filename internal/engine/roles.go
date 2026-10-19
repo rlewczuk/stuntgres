@@ -156,50 +156,6 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 	return Result{}, fmt.Errorf("stuntgres: invalid role statement")
 }
 
-// PostgreSQL 18 quote_identifier quotes every keyword except UNRESERVED.
-// Keep this independent of the intentionally much smaller supported grammar.
-func dependencyIdentifier(name string) string {
-	safe := name != ""
-	for i := range len(name) {
-		c := name[i]
-		if !(c == '_' || c >= 'a' && c <= 'z' || i > 0 && c >= '0' && c <= '9') {
-			safe = false
-			break
-		}
-	}
-	if !safe {
-		return quoteIdentifier(name)
-	}
-	switch name {
-	case "all", "analyse", "analyze", "and", "any", "array", "as", "asc", "asymmetric",
-		"authorization", "between", "bigint", "binary", "bit", "boolean", "both",
-		"case", "cast", "char", "character", "check", "coalesce", "collate", "collation",
-		"column", "concurrently", "constraint", "create", "cross", "current_catalog",
-		"current_date", "current_role", "current_schema", "current_time",
-		"current_timestamp", "current_user", "dec", "decimal", "default", "deferrable",
-		"desc", "distinct", "do", "else", "end", "except", "exists", "extract", "false",
-		"fetch", "float", "for", "foreign", "freeze", "from", "full", "grant", "greatest",
-		"group", "grouping", "having", "ilike", "in", "initially", "inner", "inout",
-		"int", "integer", "intersect", "interval", "into", "is", "isnull", "join",
-		"json", "json_array", "json_arrayagg", "json_exists", "json_object",
-		"json_objectagg", "json_query", "json_scalar", "json_serialize", "json_table",
-		"json_value", "lateral", "leading", "least", "left", "like", "limit",
-		"localtime", "localtimestamp", "merge_action", "national", "natural", "nchar",
-		"none", "normalize", "not", "notnull", "null", "nullif", "numeric", "offset",
-		"on", "only", "or", "order", "out", "outer", "overlaps", "overlay", "placing",
-		"position", "precision", "primary", "real", "references", "returning", "right",
-		"row", "select", "session_user", "setof", "similar", "smallint", "some",
-		"substring", "symmetric", "system_user", "table", "tablesample", "then", "time",
-		"timestamp", "to", "trailing", "treat", "trim", "true", "union", "unique",
-		"user", "using", "values", "varchar", "variadic", "verbose", "when", "where",
-		"window", "with", "xmlattributes", "xmlconcat", "xmlelement", "xmlexists",
-		"xmlforest", "xmlnamespaces", "xmlparse", "xmlpi", "xmlroot", "xmlserialize", "xmltable":
-		return quoteIdentifier(name)
-	default:
-		return name
-	}
-}
-
 func relationDiagnosticName(auth AuthorizationView, relation *catalog.Relation) string {
 	path, _ := auth.engine.referencePath(auth)
 	return relationDiagnosticNameAt(auth.Catalog, relation, path)
@@ -214,19 +170,19 @@ func relationVisibleAt(catalog catalog.Read, relation *catalog.Relation, path []
 	return false
 }
 
-func relationDiagnosticNameAt(catalog catalog.Read, relation *catalog.Relation, path []ids.ObjectAddress) string {
-	name := dependencyIdentifier(relation.Name())
-	if relationVisibleAt(catalog, relation, path) {
+func relationDiagnosticNameAt(catalogView catalog.Read, relation *catalog.Relation, path []ids.ObjectAddress) string {
+	name := catalog.DependencyIdentifier(relation.Name())
+	if relationVisibleAt(catalogView, relation, path) {
 		return name
 	}
-	return dependencyIdentifier(catalog.Get(relation.Namespace()).Name()) + "." + name
+	return catalog.DependencyIdentifier(catalogView.Get(relation.Namespace()).Name()) + "." + name
 }
 
 func dependencyDescription(auth AuthorizationView, dep access.RoleDependency) string {
 	view := auth.Catalog
 	if dep.Kind == 'r' {
 		relation := view.MustRelation(dep.PolicyTable)
-		return "target of policy " + dependencyIdentifier(dep.PolicyName) + " on table " + relationDiagnosticName(auth, relation)
+		return "target of policy " + catalog.DependencyIdentifier(dep.PolicyName) + " on table " + relationDiagnosticName(auth, relation)
 	}
 	if dep.Description != "" {
 		return dep.Description
@@ -234,7 +190,7 @@ func dependencyDescription(auth AuthorizationView, dep access.RoleDependency) st
 	address := dep.Address
 	address.SubID = 0
 	d := view.Get(address)
-	name := dependencyIdentifier(d.Name())
+	name := catalog.DependencyIdentifier(d.Name())
 	if _, ok := d.(*catalog.Namespace); ok {
 		name = d.Name()
 	}
@@ -259,7 +215,7 @@ func dependencyDescription(auth AuthorizationView, dep access.RoleDependency) st
 		if foreign.Address().ClassID == ids.ForeignMappingClassID {
 			kind = "user mapping for "
 			mapped, _ := auth.Roles.Descriptor(foreign.MappedRole)
-			name = dependencyIdentifier(mapped.Name) + " on server " + dependencyIdentifier(view.Get(foreign.Server).Name())
+			name = catalog.DependencyIdentifier(mapped.Name) + " on server " + catalog.DependencyIdentifier(view.Get(foreign.Server).Name())
 		}
 	}
 	if d.Kind() == ids.ProcedureObject || d.Kind() == ids.TSDictionaryObject {
@@ -282,13 +238,13 @@ func dependencyDescription(auth AuthorizationView, dep access.RoleDependency) st
 		if relation.RelationKind == catalog.CompositeRelation {
 			path, _ := auth.engine.referencePath(auth)
 			typ := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
-			kind, name = "type ", typeDiagnosticNameAt(view, typ, path)
+			kind, name = "type ", catalog.TypeDiagnosticNameAt(view, typ, path)
 		}
 	}
 	if typ, ok := d.(*catalog.Type); ok && (typ.SQLType.IsUserDefined() || typ.SQLType.IsArray() && typ.SQLType.Element().IsDomain()) {
 		path, _ := auth.engine.referencePath(auth)
 		kind = "type "
-		name = typeDiagnosticNameAt(view, typ, path)
+		name = catalog.TypeDiagnosticNameAt(view, typ, path)
 	}
 	if c, ok := d.(*catalog.Collation); ok {
 		path, _ := auth.engine.referencePath(auth)

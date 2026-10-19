@@ -29,7 +29,7 @@ func rowSecurityDumpGroups(ctx context.Context, view catalog.Read, roles authori
 		if err != nil {
 			return nil, err
 		}
-		table := quoteIdentifier(ns.Name()) + "." + quoteIdentifier(d.Name())
+		table := catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(d.Name())
 		var sql strings.Builder
 		if d.Security.RLSEnabled {
 			sql.WriteString("ALTER TABLE " + table + " ENABLE ROW LEVEL SECURITY;\n")

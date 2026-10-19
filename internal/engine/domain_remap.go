@@ -44,7 +44,7 @@ func reownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 			if !ok {
 				return fmt.Errorf("stuntgres: missing query_int namespace")
 			}
-			declaration := dependencyIdentifier(ns.Name()) + "." + dependencyIdentifier(d.Name())
+			declaration := catalog.DependencyIdentifier(ns.Name()) + "." + catalog.DependencyIdentifier(d.Name())
 			associated := d.Array
 			if to, ok := mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(associated)}]; ok {
 				associated = sqltype.ID(to.ObjectID)
@@ -74,7 +74,7 @@ func reownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 			if !ok {
 				return fmt.Errorf("stuntgres: missing enum namespace")
 			}
-			declaration := dependencyIdentifier(ns.Name()) + "." + dependencyIdentifier(d.Name())
+			declaration := catalog.DependencyIdentifier(ns.Name()) + "." + catalog.DependencyIdentifier(d.Name())
 			associated := d.Array
 			if destination, ok := mapping[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(associated)}]; ok {
 				associated = sqltype.ID(destination.ObjectID)
@@ -117,7 +117,7 @@ func reownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 			if ns == nil {
 				return fmt.Errorf("stuntgres: missing composite namespace")
 			}
-			declaration := dependencyIdentifier(ns.Name()) + "." + dependencyIdentifier(relation.Name())
+			declaration := catalog.DependencyIdentifier(ns.Name()) + "." + catalog.DependencyIdentifier(relation.Name())
 			rebuild := importing || identity != address || namespace != d.ObjectNamespace || owner != d.OwningRelation || associated != d.Array || declaration != d.SQLType.SQLName() || d.SQLType.CompositeLen() != len(relation.Columns)
 			var members []sqltype.CompositeMember
 			for i, c := range relation.Columns {
@@ -232,7 +232,7 @@ func reownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 		if !ok {
 			return fmt.Errorf("stuntgres: missing domain namespace")
 		}
-		declaration := dependencyIdentifier(ns.Name()) + "." + dependencyIdentifier(d.Name())
+		declaration := catalog.DependencyIdentifier(ns.Name()) + "." + catalog.DependencyIdentifier(d.Name())
 		if d.SQLType.IsDomain() && !d.SQLType.Concrete() {
 			// Seeded domains carry lookup provenance, not a stored declaration.
 			// Preserve their spelling while rebinding the catalog base generation.

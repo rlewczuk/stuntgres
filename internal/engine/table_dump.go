@@ -34,14 +34,14 @@ type dumpRelation struct {
 	identitySequences   map[ids.ObjectAddress]dumpSequence
 }
 
-func (t *dumpRelation) emitDeferredDefaults(ctx context.Context, catalog catalog.Read, emit func(string) error) error {
-	qualified := quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name)
+func (t *dumpRelation) emitDeferredDefaults(ctx context.Context, catalogView catalog.Read, emit func(string) error) error {
+	qualified := catalog.QuoteIdentifier(t.schema) + "." + catalog.QuoteIdentifier(t.name)
 	for i, c := range t.columns {
 		definition, exists := t.defaults[t.attributes[i]]
 		if !exists || !t.deferredDefinitions[t.attributes[i]] {
 			continue
 		}
-		text, err := defaultSQL(ctx, catalog, definition.Expression)
+		text, err := defaultSQL(ctx, catalogView, definition.Expression)
 		if err != nil {
 			return err
 		}
@@ -49,16 +49,16 @@ func (t *dumpRelation) emitDeferredDefaults(ctx context.Context, catalog catalog
 		if t.descriptor.Partition == nil && t.descriptor.Membership == nil {
 			prefix += "ONLY "
 		}
-		if err := emit(prefix + qualified + " ALTER COLUMN " + quoteIdentifier(c.Name) + " SET DEFAULT " + text + ";\n"); err != nil {
+		if err := emit(prefix + qualified + " ALTER COLUMN " + catalog.QuoteIdentifier(c.Name) + " SET DEFAULT " + text + ";\n"); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (t *dumpRelation) emitRows(ctx context.Context, catalog catalog.Read, emit func(string) error) error {
-	destination := partitionHashReplayTarget(catalog, t.descriptor)
-	qualified := quoteIdentifier(catalog.Get(destination.Namespace()).Name()) + "." + quoteIdentifier(destination.Name())
+func (t *dumpRelation) emitRows(ctx context.Context, catalogView catalog.Read, emit func(string) error) error {
+	destination := partitionHashReplayTarget(catalogView, t.descriptor)
+	qualified := catalog.QuoteIdentifier(catalogView.Get(destination.Namespace()).Name()) + "." + catalog.QuoteIdentifier(destination.Name())
 	var line strings.Builder
 	for _, version := range t.versions {
 		if err := ctx.Err(); err != nil {
@@ -84,7 +84,7 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalog catalog.Read, emit 
 				if i != 0 {
 					line.WriteString(", ")
 				}
-				line.WriteString(quoteIdentifier(column.Name))
+				line.WriteString(catalog.QuoteIdentifier(column.Name))
 			}
 			line.WriteString(")")
 		}
@@ -110,7 +110,7 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalog catalog.Read, emit 
 				// non-contextual stored expressions keep catalogLiteralSQL.
 				literal, err = destination.SQLLiteral(ctx, v)
 			} else {
-				literal, err = catalogLiteralSQL(ctx, catalog, literalExpression{Info: expr.Info{Usage: t.columns[i].Usage}, value: v})
+				literal, err = catalogLiteralSQL(ctx, catalogView, literalExpression{Info: expr.Info{Usage: t.columns[i].Usage}, value: v})
 			}
 			if err != nil {
 				return err

@@ -660,7 +660,7 @@ func sequenceDumpStatements(sequences []dumpSequence) (creation, completion []st
 			suffix = append(suffix, directive)
 			owner = s.owner
 		}
-		name := quoteIdentifier(s.schema) + "." + quoteIdentifier(s.name)
+		name := catalog.QuoteIdentifier(s.schema) + "." + catalog.QuoteIdentifier(s.name)
 		persistence := ""
 		if s.options.Persistence == "unlogged" {
 			persistence = "UNLOGGED "
@@ -673,7 +673,7 @@ func sequenceDumpStatements(sequences []dumpSequence) (creation, completion []st
 		if !s.options.Identity {
 			prefix = append(prefix, fmt.Sprintf("CREATE %sSEQUENCE %s AS %s INCREMENT BY %d MINVALUE %d MAXVALUE %d START WITH %d CACHE %d %s;\n", persistence, name, strings.ToUpper(typ), s.options.Increment, s.options.Min, s.options.Max, s.options.Start, s.options.Cache, cycle))
 			if s.ownedTable != "" {
-				suffix = append(suffix, "ALTER SEQUENCE "+name+" OWNED BY "+s.ownedTable+"."+quoteIdentifier(s.ownedColumn)+";\n")
+				suffix = append(suffix, "ALTER SEQUENCE "+name+" OWNED BY "+s.ownedTable+"."+catalog.QuoteIdentifier(s.ownedColumn)+";\n")
 			}
 		} else {
 			if s.divergent {

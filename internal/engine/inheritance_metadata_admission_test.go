@@ -127,7 +127,7 @@ func inheritanceMetadataChild(t *testing.T, e *Engine, parent *catalog.Relation,
 	// Copying the parent's bound default or NN fact is not a CREATE operation.
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	raw := statement(t, "CREATE TABLE public."+quoteIdentifier(name)+" () INHERITS (public."+quoteIdentifier(parent.Name())+")").(*parser.CreateTable)
+	raw := statement(t, "CREATE TABLE public."+catalog.QuoteIdentifier(name)+" () INHERITS (public."+catalog.QuoteIdentifier(parent.Name())+")").(*parser.CreateTable)
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	var stage *CatalogStage

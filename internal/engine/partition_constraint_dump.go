@@ -177,8 +177,8 @@ func (r *partitionConstraintReplay) membershipRenames(view catalog.Read, table *
 	var sql strings.Builder
 	for _, rename := range renames {
 		target := r.temporary[rename.index.Address()]
-		schema := quoteIdentifier(view.Get(rename.index.Namespace()).Name())
-		sql.WriteString("ALTER INDEX " + schema + "." + quoteIdentifier(rename.generated) + " RENAME TO " + quoteIdentifier(target) + ";\n")
+		schema := catalog.QuoteIdentifier(view.Get(rename.index.Namespace()).Name())
+		sql.WriteString("ALTER INDEX " + schema + "." + catalog.QuoteIdentifier(rename.generated) + " RENAME TO " + catalog.QuoteIdentifier(target) + ";\n")
 		used := r.occupied[rename.index.Namespace()]
 		delete(used, rename.generated)
 		used[target] = true
@@ -205,11 +205,11 @@ func (r *partitionConstraintReplay) finalRenameSQL(index *catalog.Relation) stri
 	}
 	delete(used, r.temporary[index.Address()])
 	used[index.Name()] = true
-	schema := quoteIdentifier(r.original.Get(index.Namespace()).Name())
-	return "ALTER INDEX " + schema + "." + quoteIdentifier(r.temporary[index.Address()]) + " RENAME TO " + quoteIdentifier(index.Name()) + ";\n"
+	schema := catalog.QuoteIdentifier(r.original.Get(index.Namespace()).Name())
+	return "ALTER INDEX " + schema + "." + catalog.QuoteIdentifier(r.temporary[index.Address()]) + " RENAME TO " + catalog.QuoteIdentifier(index.Name()) + ";\n"
 }
 
 func partitionIndexDumpAttachmentSQL(view catalog.Read, index *catalog.Relation) string {
 	parent := view.MustRelation(index.SQLIndex.PartitionParent)
-	return "ALTER INDEX " + quoteIdentifier(view.Get(parent.Namespace()).Name()) + "." + quoteIdentifier(parent.Name()) + " ATTACH PARTITION " + quoteIdentifier(view.Get(index.Namespace()).Name()) + "." + quoteIdentifier(index.Name()) + ";\n"
+	return "ALTER INDEX " + catalog.QuoteIdentifier(view.Get(parent.Namespace()).Name()) + "." + catalog.QuoteIdentifier(parent.Name()) + " ATTACH PARTITION " + catalog.QuoteIdentifier(view.Get(index.Namespace()).Name()) + "." + catalog.QuoteIdentifier(index.Name()) + ";\n"
 }

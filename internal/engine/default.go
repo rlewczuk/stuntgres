@@ -242,7 +242,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 			return "", fmt.Errorf("stuntgres: invalid stored row origin")
 		}
 		r.record(n.origin)
-		return quoteIdentifier(r.owner.Columns[n.slot].Name), nil
+		return catalog.QuoteIdentifier(r.owner.Columns[n.slot].Name), nil
 	case advisoryExpression:
 		if r.owner == nil {
 			return "", fmt.Errorf("stuntgres: volatile stored default")
@@ -403,7 +403,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 			if !ok {
 				return "", fmt.Errorf("stuntgres: missing stored sequence namespace")
 			}
-			name := quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(sequence.Name())
+			name := catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(sequence.Name())
 			parts := []string{"CAST('" + strings.ReplaceAll(name, "'", "''") + "' AS regclass)"}
 			for _, arg := range args[1:] {
 				text, err := r.sql(ctx, view, arg)
@@ -569,7 +569,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		}
 		operator := [...]string{"&", "|", "#", "~", "<<", ">>"}[n.operator]
 		if n.namespace != "" {
-			operator = "OPERATOR(" + quoteIdentifier(n.namespace) + "." + operator + ")"
+			operator = "OPERATOR(" + catalog.QuoteIdentifier(n.namespace) + "." + operator + ")"
 		}
 		operandSQL := func(child expr.Expr) (string, error) {
 			text, err := r.sql(ctx, view, child)
@@ -605,7 +605,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 			return "", fmt.Errorf("stuntgres: missing default operator")
 		}
 		namespace := view.Get(d.Namespace()).Name()
-		op := "OPERATOR(" + quoteIdentifier(namespace) + "." + d.Name() + ")"
+		op := "OPERATOR(" + catalog.QuoteIdentifier(namespace) + "." + d.Name() + ")"
 		var operands []expr.Expr
 		boundExpressionChildren(n.provider, func(arg expr.Expr) {
 			if arg != nil {
@@ -657,7 +657,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 			return "", fmt.Errorf("stuntgres: invalid default arithmetic operator")
 		}
 		if n.namespace != "" {
-			operator = "OPERATOR(" + quoteIdentifier(n.namespace) + "." + operator + ")"
+			operator = "OPERATOR(" + catalog.QuoteIdentifier(n.namespace) + "." + operator + ")"
 		}
 		operandSQL := func(child expr.Expr) (string, error) {
 			text, err := r.sql(ctx, view, child)
@@ -721,7 +721,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		if err != nil || !predicate.Equal(n.predicate) {
 			return "", fmt.Errorf("stuntgres: invalid scalar-array predicate binding")
 		}
-		return renderScalarArrayComparison(n, func(child expr.Expr) (string, error) { return r.sql(ctx, view, child) }, quoteIdentifier)
+		return renderScalarArrayComparison(n, func(child expr.Expr) (string, error) { return r.sql(ctx, view, child) }, catalog.QuoteIdentifier)
 	case comparisonExpression:
 		if u.Type.ID() != sqltype.Bool || n.left == nil || n.right == nil {
 			return "", fmt.Errorf("stuntgres: invalid default predicate")
@@ -758,7 +758,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		}
 		spelling := n.operator
 		if n.namespace != "" {
-			spelling = "OPERATOR(" + quoteIdentifier(n.namespace) + "." + spelling + ")"
+			spelling = "OPERATOR(" + catalog.QuoteIdentifier(n.namespace) + "." + spelling + ")"
 		}
 		return "(" + left + " " + spelling + " " + right + ")", nil
 	case nullTestExpression:

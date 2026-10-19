@@ -1,18 +1,17 @@
-package access
+package catalog
 
 import (
 	"strings"
 
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
-// The diagnostic name helpers below copy the engine's dependencyIdentifier,
-// typeDiagnosticNameAt and quoteIdentifier; keep the copies identical.
+// Diagnostic name helpers shared by the engine and access.
 
-// PostgreSQL 18 quote_identifier quotes every keyword except UNRESERVED.
-// Keep this independent of the intentionally much smaller supported grammar.
-func dependencyIdentifier(name string) string {
+// DependencyIdentifier quotes like PostgreSQL 18 quote_identifier: every
+// keyword except UNRESERVED is quoted. Keep this independent of the
+// intentionally much smaller supported grammar.
+func DependencyIdentifier(name string) string {
 	safe := name != ""
 	for i := range len(name) {
 		c := name[i]
@@ -22,7 +21,7 @@ func dependencyIdentifier(name string) string {
 		}
 	}
 	if !safe {
-		return quoteIdentifier(name)
+		return QuoteIdentifier(name)
 	}
 	switch name {
 	case "all", "analyse", "analyze", "and", "any", "array", "as", "asc", "asymmetric",
@@ -48,20 +47,22 @@ func dependencyIdentifier(name string) string {
 		"user", "using", "values", "varchar", "variadic", "verbose", "when", "where",
 		"window", "with", "xmlattributes", "xmlconcat", "xmlelement", "xmlexists",
 		"xmlforest", "xmlnamespaces", "xmlparse", "xmlpi", "xmlroot", "xmlserialize", "xmltable":
-		return quoteIdentifier(name)
+		return QuoteIdentifier(name)
 	default:
 		return name
 	}
 }
 
-func typeDiagnosticNameAt(view catalog.Read, d *catalog.Type, path []ids.ObjectAddress) string {
+// TypeDiagnosticNameAt names a type for error messages: bare when path finds
+// it first (or path is nil), schema-qualified otherwise; arrays get "[]".
+func TypeDiagnosticNameAt(view Read, d *Type, path []ids.ObjectAddress) string {
 	if d.SQLType.IsArray() {
 		element, ok := view.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
 		if ok {
-			return typeDiagnosticNameAt(view, element.(*catalog.Type), path) + "[]"
+			return TypeDiagnosticNameAt(view, element.(*Type), path) + "[]"
 		}
 	}
-	name := dependencyIdentifier(d.Name())
+	name := DependencyIdentifier(d.Name())
 	if path == nil {
 		return name
 	}
@@ -73,7 +74,8 @@ func typeDiagnosticNameAt(view catalog.Read, d *catalog.Type, path []ids.ObjectA
 			break
 		}
 	}
-	return dependencyIdentifier(view.Get(d.Namespace()).Name()) + "." + name
+	return DependencyIdentifier(view.Get(d.Namespace()).Name()) + "." + name
 }
 
-func quoteIdentifier(s string) string { return `"` + strings.ReplaceAll(s, `"`, `""`) + `"` }
+// QuoteIdentifier always double-quotes s, doubling embedded quotes.
+func QuoteIdentifier(s string) string { return `"` + strings.ReplaceAll(s, `"`, `""`) + `"` }

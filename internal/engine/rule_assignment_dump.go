@@ -16,7 +16,7 @@ func ruleAssignmentSQL(ctx context.Context, view catalog.Read, column string, ta
 			if !ok {
 				return "", fmt.Errorf("stuntgres: retired rule assignment attribute")
 			}
-			sql.WriteString("." + quoteIdentifier(target.container.Type.BaseType().CompositeMember(index).Name))
+			sql.WriteString("." + catalog.QuoteIdentifier(target.container.Type.BaseType().CompositeMember(index).Name))
 			continue
 		}
 		for _, sub := range target.node.subscripts {

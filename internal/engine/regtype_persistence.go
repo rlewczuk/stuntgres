@@ -19,7 +19,7 @@ func regtypeReference(view catalog.Read, id uint32) string {
 		}
 	}
 	if d, ok := view.Find(address); ok {
-		return quoteIdentifier(view.Get(d.Namespace()).Name()) + "." + quoteIdentifier(d.Name())
+		return catalog.QuoteIdentifier(view.Get(d.Namespace()).Name()) + "." + catalog.QuoteIdentifier(d.Name())
 	}
 	return regtypeSpelling(view, nil, ids.OID(id))
 }

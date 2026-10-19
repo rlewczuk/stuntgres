@@ -27,7 +27,6 @@ func (e *Engine) Reset(ctx context.Context) error {
 	_, err := e.ReplaceCatalog(ctx, fresh, fresh.CatalogRead())
 	return err
 }
-func quoteIdentifier(s string) string { return `"` + strings.ReplaceAll(s, `"`, `""`) + `"` }
 
 // Namespace ACL entry order and split entries do not affect reproducibility.
 // Principal/grantor references do: losing them would change DROP dependencies.
@@ -112,7 +111,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	}
 	if invalid != nil {
 		e.mu.Unlock()
-		return fmt.Errorf("stuntgres: dump cannot serialize invalid index %s.%s", quoteIdentifier(invalidSchema), quoteIdentifier(invalid.Name()))
+		return fmt.Errorf("stuntgres: dump cannot serialize invalid index %s.%s", catalog.QuoteIdentifier(invalidSchema), catalog.QuoteIdentifier(invalid.Name()))
 	}
 	tables := make([]dumpRelation, 0)
 	catalogView := e.catalog.read(e.catalog.state)
@@ -186,7 +185,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	}{{ids.PublicNamespaceOID, "public"}, {ids.PGCatalogNamespaceOID, "pg_catalog"}, {ids.PGToastNamespaceOID, "pg_toast"}, {13229, "information_schema"}} {
 		d, exists := e.catalog.state.Find(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: b.oid})
 		if !exists {
-			preamble = append(preamble, "DROP SCHEMA "+quoteIdentifier(b.name)+";\n")
+			preamble = append(preamble, "DROP SCHEMA "+catalog.QuoteIdentifier(b.name)+";\n")
 			continue
 		}
 		ns := d.(*catalog.Namespace)
@@ -224,7 +223,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if occupied {
 				continue
 			}
-			preamble = append(preamble, "ALTER SCHEMA "+quoteIdentifier(b.original)+" RENAME TO "+quoteIdentifier(b.name)+";\n")
+			preamble = append(preamble, "ALTER SCHEMA "+catalog.QuoteIdentifier(b.original)+" RENAME TO "+catalog.QuoteIdentifier(b.name)+";\n")
 			b.moved = true
 			remaining--
 			progress = true
@@ -246,14 +245,14 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					break
 				}
 			}
-			preamble = append(preamble, "ALTER SCHEMA "+quoteIdentifier(b.original)+" RENAME TO "+quoteIdentifier(temporary)+";\n")
+			preamble = append(preamble, "ALTER SCHEMA "+catalog.QuoteIdentifier(b.original)+" RENAME TO "+catalog.QuoteIdentifier(temporary)+";\n")
 			b.original = temporary
 			break
 		}
 	}
 	for _, b := range builtins {
 		if b.owner != b.baselineOwner {
-			preamble = append(preamble, "ALTER SCHEMA "+quoteIdentifier(b.name)+" OWNER TO "+quoteIdentifier(b.owner)+";\n")
+			preamble = append(preamble, "ALTER SCHEMA "+catalog.QuoteIdentifier(b.name)+" OWNER TO "+catalog.QuoteIdentifier(b.owner)+";\n")
 		}
 	}
 	for a, d := range e.catalog.state.Descriptors() {
@@ -356,7 +355,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					e.mu.Unlock()
 					return err
 				}
-				text := "CREATE EXTENSION " + quoteIdentifier(t.Name()) + " WITH SCHEMA " + quoteIdentifier(ns.Name()) + " VERSION '" + strings.ReplaceAll(t.Version, "'", "''") + "';\n" + metadata
+				text := "CREATE EXTENSION " + catalog.QuoteIdentifier(t.Name()) + " WITH SCHEMA " + catalog.QuoteIdentifier(ns.Name()) + " VERSION '" + strings.ReplaceAll(t.Version, "'", "''") + "';\n" + metadata
 				viewDependencies[dumpEventKey{oid: t.Address().ObjectID}] = nil
 				viewIndices[t.Address().ObjectID] = len(views)
 				views = append(views, dumpView{principal.Name, text})
@@ -497,7 +496,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if r.SQLIndex.Constraint.Primary {
 					kind = "PRIMARY KEY"
 				}
-				sql += "ALTER TABLE " + quoteIdentifier(ns.Name()) + "." + quoteIdentifier(parent.Name()) + " ADD CONSTRAINT " + quoteIdentifier(r.Name()) + " " + kind + " USING INDEX " + quoteIdentifier(r.Name()) + ";\n"
+				sql += "ALTER TABLE " + catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(parent.Name()) + " ADD CONSTRAINT " + catalog.QuoteIdentifier(r.Name()) + " " + kind + " USING INDEX " + catalog.QuoteIdentifier(r.Name()) + ";\n"
 			}
 			event := dumpEventKey{oid: oid}
 			viewDependencies[event] = []dumpEventKey{{oid: r.SQLIndex.Parent.ObjectID}}
@@ -538,7 +537,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			var labels []string
 			for _, column := range r.Columns {
-				labels = append(labels, quoteIdentifier(column.Name))
+				labels = append(labels, catalog.QuoteIdentifier(column.Name))
 			}
 			columns := ""
 			if len(labels) > 0 {
@@ -549,14 +548,14 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				installed := make([]string, len(viewOf(r).options))
 				for i, option := range viewOf(r).options {
 					name, value, _ := strings.Cut(option, "=")
-					installed[i] = quoteIdentifier(name) + "=" + commentLiteral(value)
+					installed[i] = catalog.QuoteIdentifier(name) + "=" + commentLiteral(value)
 				}
 				options = " WITH (" + strings.Join(installed, ", ") + ")"
 			}
-			sql := "CREATE VIEW " + quoteIdentifier(ns.Name()) + "." + quoteIdentifier(r.Name()) + columns +
+			sql := "CREATE VIEW " + catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(r.Name()) + columns +
 				options + " AS " + body + ";\n"
 			if r.RelationKind == catalog.MaterializedViewRelation {
-				sql = "CREATE MATERIALIZED VIEW " + quoteIdentifier(ns.Name()) + "." + quoteIdentifier(r.Name()) + columns + " AS " + body + " WITH NO DATA;\n"
+				sql = "CREATE MATERIALIZED VIEW " + catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(r.Name()) + columns + " AS " + body + " WITH NO DATA;\n"
 				stored := e.storage.Relations[a]
 				if stored == nil {
 					e.mu.Unlock()
@@ -588,7 +587,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					e.mu.Unlock()
 					return err
 				}
-				sql += "ALTER MATERIALIZED VIEW " + quoteIdentifier(ns.Name()) + "." + quoteIdentifier(r.Name()) + " DEPENDS ON EXTENSION " + quoteIdentifier(extension.Name()) + ";\n"
+				sql += "ALTER MATERIALIZED VIEW " + catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(r.Name()) + " DEPENDS ON EXTENSION " + catalog.QuoteIdentifier(extension.Name()) + ";\n"
 			}
 			for _, leaf := range viewOf(r).sources {
 				if err := addPredecessor(leaf.ref.Address); err != nil {
@@ -634,7 +633,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					return fmt.Errorf("stuntgres: sequence ownership target missing")
 				}
 				tableSchema := e.catalog.state.Get(table.Namespace()).Name()
-				sequence.ownedTable = quoteIdentifier(tableSchema) + "." + quoteIdentifier(table.Name())
+				sequence.ownedTable = catalog.QuoteIdentifier(tableSchema) + "." + catalog.QuoteIdentifier(table.Name())
 				for i, sub := range table.Attributes {
 					if sub == owned.SubID {
 						sequence.ownedColumn = table.Columns[i].Name
@@ -985,11 +984,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if s.configured {
 			prefix += "IF NOT EXISTS "
 		}
-		if err := emit(prefix + quoteIdentifier(s.name) + " AUTHORIZATION " + quoteIdentifier(s.owner) + ";\n"); err != nil {
+		if err := emit(prefix + catalog.QuoteIdentifier(s.name) + " AUTHORIZATION " + catalog.QuoteIdentifier(s.owner) + ";\n"); err != nil {
 			return err
 		}
 		if s.configured && s.owner != "postgres" {
-			if err := emit("ALTER SCHEMA " + quoteIdentifier(s.name) + " OWNER TO " + quoteIdentifier(s.owner) + ";\n"); err != nil {
+			if err := emit("ALTER SCHEMA " + catalog.QuoteIdentifier(s.name) + " OWNER TO " + catalog.QuoteIdentifier(s.owner) + ";\n"); err != nil {
 				return err
 			}
 		}
@@ -1015,7 +1014,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if c.text != "" {
 			literal = commentLiteral(c.text)
 		}
-		if err := emit("COMMENT ON SCHEMA " + quoteIdentifier(c.name) + " IS " + literal + ";\n"); err != nil {
+		if err := emit("COMMENT ON SCHEMA " + catalog.QuoteIdentifier(c.name) + " IS " + literal + ";\n"); err != nil {
 			return err
 		}
 	}
@@ -1255,7 +1254,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		} else if err := setOwner(t.owner); err != nil {
 			return err
 		}
-		qualified := quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name)
+		qualified := catalog.QuoteIdentifier(t.schema) + "." + catalog.QuoteIdentifier(t.name)
 		// CREATE TABLE OF cannot declare identity/generation or preserve a
 		// post-creation array rank. Reconstruct ordinary columns, then attach.
 		attachAfterCreate := t.descriptor.OfType != (ids.ObjectAddress{}) && (len(t.identities) != 0 || len(t.descriptor.ColumnMeta.Generations) != 0 || slices.ContainsFunc(t.columns, func(column catalog.Column) bool { return column.DeclaredDimensions != 0 }))
@@ -1267,7 +1266,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if typed {
 				source := catalogView.MustType(t.descriptor.OfType)
 				namespace := catalogView.Get(source.ObjectNamespace).Name()
-				line.WriteString(" OF " + quoteIdentifier(namespace) + "." + quoteIdentifier(source.Name()))
+				line.WriteString(" OF " + catalog.QuoteIdentifier(namespace) + "." + catalog.QuoteIdentifier(source.Name()))
 			}
 			if hasElements {
 				line.WriteString(" (")
@@ -1288,7 +1287,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					line.WriteString(", ")
 				}
 				localElements++
-				line.WriteString(quoteIdentifier(c.Name))
+				line.WriteString(catalog.QuoteIdentifier(c.Name))
 				if typed {
 					line.WriteString(" WITH OPTIONS")
 				} else {
@@ -1338,7 +1337,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 						mode = "BY DEFAULT"
 					}
 					sequence := t.identitySequences[identity.Sequence]
-					line.WriteString(" GENERATED " + mode + " AS IDENTITY (SEQUENCE NAME " + quoteIdentifier(sequence.schema) + "." + quoteIdentifier(sequence.name))
+					line.WriteString(" GENERATED " + mode + " AS IDENTITY (SEQUENCE NAME " + catalog.QuoteIdentifier(sequence.schema) + "." + catalog.QuoteIdentifier(sequence.name))
 					if !identityDumpDivergent(sequence.options, c.Usage.Type.ID()) {
 						line.WriteString(" " + sequenceNumericSQL(sequence.options))
 					}
@@ -1347,7 +1346,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if !c.Nullable && dumpNotNullDeclaration(originalCatalog, t.descriptor, t.attributes[i]) {
 					for _, constraint := range t.notNullConstraints {
 						if constraint.Attribute == t.attributes[i] && !constraint.NotValid {
-							line.WriteString(" CONSTRAINT " + quoteIdentifier(constraint.Name) + " NOT NULL")
+							line.WriteString(" CONSTRAINT " + catalog.QuoteIdentifier(constraint.Name) + " NOT NULL")
 							break
 						}
 					}
@@ -1366,7 +1365,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					}
 					localElements++
 					slot := t.descriptor.IndexForAttribute(constraint.Attribute)
-					line.WriteString("CONSTRAINT " + quoteIdentifier(constraint.Name) + " NOT NULL " + quoteIdentifier(t.columns[slot].Name))
+					line.WriteString("CONSTRAINT " + catalog.QuoteIdentifier(constraint.Name) + " NOT NULL " + catalog.QuoteIdentifier(t.columns[slot].Name))
 				}
 			}
 			for _, c := range orderedChecks(t.descriptor) {
@@ -1384,7 +1383,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					line.WriteString(", ")
 				}
 				localElements++
-				line.WriteString("CONSTRAINT " + quoteIdentifier(c.Name) + " CHECK (" + text + ")")
+				line.WriteString("CONSTRAINT " + catalog.QuoteIdentifier(c.Name) + " CHECK (" + text + ")")
 				if c.NoInherit {
 					line.WriteString(" NO INHERIT")
 				}
@@ -1413,7 +1412,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					line.WriteString(", ")
 				}
 				localElements++
-				line.WriteString("CONSTRAINT " + quoteIdentifier(c.Name) + " " + text)
+				line.WriteString("CONSTRAINT " + catalog.QuoteIdentifier(c.Name) + " " + text)
 			}
 			for _, c := range t.descriptor.Constraints.Exclusion {
 				if c.Parent != 0 {
@@ -1434,7 +1433,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					line.WriteString(", ")
 				}
 				localElements++
-				line.WriteString("CONSTRAINT " + quoteIdentifier(c.Name) + " " + text)
+				line.WriteString("CONSTRAINT " + catalog.QuoteIdentifier(c.Name) + " " + text)
 			}
 			for _, f := range t.descriptor.Constraints.ForeignKeys {
 				if f.NotValid || physicalSelfForeignKeyDeferred(t.descriptor, f) || inheritedForeignKeyDeferred(originalCatalog, t.descriptor, &f) {
@@ -1448,7 +1447,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					line.WriteString(", ")
 				}
 				localElements++
-				line.WriteString("CONSTRAINT " + quoteIdentifier(f.Name) + " " + text)
+				line.WriteString("CONSTRAINT " + catalog.QuoteIdentifier(f.Name) + " " + text)
 			}
 			if hasElements {
 				line.WriteString(")")
@@ -1461,7 +1460,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					}
 					parent := catalogView.MustRelation(address)
 					namespace := catalogView.Get(parent.Namespace()).Name()
-					line.WriteString(quoteIdentifier(namespace) + "." + quoteIdentifier(parent.Name()))
+					line.WriteString(catalog.QuoteIdentifier(namespace) + "." + catalog.QuoteIdentifier(parent.Name()))
 				}
 				line.WriteString(")")
 			}
@@ -1485,7 +1484,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 		if inheritedOwnerReplay {
-			if err := emit("ALTER TABLE " + qualified + " OWNER TO " + quoteIdentifier(t.owner) + ";\n"); err != nil {
+			if err := emit("ALTER TABLE " + qualified + " OWNER TO " + catalog.QuoteIdentifier(t.owner) + ";\n"); err != nil {
 				return err
 			}
 			if err := setOwner(t.owner); err != nil {
@@ -1510,7 +1509,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if attachAfterCreate {
 			source := catalogView.MustType(t.descriptor.OfType)
 			namespace := catalogView.Get(source.ObjectNamespace).Name()
-			if err := emit("ALTER TABLE " + qualified + " OF " + quoteIdentifier(namespace) + "." + quoteIdentifier(source.Name()) + ";\n"); err != nil {
+			if err := emit("ALTER TABLE " + qualified + " OF " + catalog.QuoteIdentifier(namespace) + "." + catalog.QuoteIdentifier(source.Name()) + ";\n"); err != nil {
 				return err
 			}
 		}
@@ -1528,7 +1527,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 		for i, c := range t.columns {
 			if text := t.columnComments[t.attributes[i]]; text != "" {
-				if err := emit("COMMENT ON COLUMN " + qualified + "." + quoteIdentifier(c.Name) + " IS " + commentLiteral(text) + ";\n"); err != nil {
+				if err := emit("COMMENT ON COLUMN " + qualified + "." + catalog.QuoteIdentifier(c.Name) + " IS " + commentLiteral(text) + ";\n"); err != nil {
 					return err
 				}
 			}
@@ -1609,7 +1608,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				rankAuthority = true
 			}
-			qualified := quoteIdentifier(catalogView.Get(table.descriptor.Namespace()).Name()) + "." + quoteIdentifier(table.name)
+			qualified := catalog.QuoteIdentifier(catalogView.Get(table.descriptor.Namespace()).Name()) + "." + catalog.QuoteIdentifier(table.name)
 			if err := emit(fmt.Sprintf("UPDATE pg_catalog.pg_attribute SET attndims=%d WHERE attrelid=%s::regclass AND attname=%s;\n", column.DeclaredDimensions, commentLiteral(qualified), commentLiteral(column.Name))); err != nil {
 				return err
 			}
