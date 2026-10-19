@@ -81,6 +81,16 @@ func (s *catalogStore) allocateOIDLocked() (ids.OID, error) {
 		if usedRule {
 			continue
 		}
+		usedDefault := false
+		for _, record := range s.state.DefaultACLs() {
+			if record != nil && record.OID == n {
+				usedDefault = true
+				break
+			}
+		}
+		if usedDefault {
+			continue
+		}
 		return n, nil
 	}
 	return 0, fmt.Errorf("stuntgres: catalog object identity exhausted")

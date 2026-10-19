@@ -130,6 +130,22 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 	if len(updates) == 0 {
 		return Result{}, op.Context().Err()
 	}
+	// Reserve identities only for final surviving changes, after every logical
+	// target succeeded. Published records are never modified in place.
+	for key, record := range updates {
+		if record == nil {
+			continue
+		}
+		if old := v.Catalog.State().DefaultACL(key); old != nil {
+			record.OID = old.OID
+		} else {
+			oid, err := e.catalog.allocateOIDLocked()
+			if err != nil {
+				return Result{}, err
+			}
+			record.OID = oid
+		}
+	}
 	candidate := *v.Catalog.State()
 	candidate.OverlayDefaultACLs(v.Catalog.State(), updates)
 	candidateCatalog := e.catalog.read(&candidate)

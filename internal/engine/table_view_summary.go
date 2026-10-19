@@ -79,7 +79,7 @@ func normalizeReplacementIndexHistory(ctx context.Context, view catalog.Read) er
 // virtual-source implementation kind, not a PostgreSQL table/view classifier.
 func representedSummaryTable(oid ids.OID) bool {
 	switch oid {
-	case pgTypeOID, 1213, 1249, 1262, 2600, pgAMOID, 2605, 2612, 3079, 2224, 2608, 2609, 2396, 2606, 2604, 1259, 2610, 2618, 2964, pgRangeOID, ids.ParameterClassID:
+	case pgTypeOID, 1213, 1249, 1262, 2600, pgAMOID, 2605, 2612, 3079, 2224, 2608, 2609, 2396, 2606, 2604, 1259, 2610, 2618, 2964, pgRangeOID, ids.ParameterClassID, 826:
 		return true
 	}
 	return false

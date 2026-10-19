@@ -57,6 +57,10 @@ func (e *Engine) initializeCatalogSources() error {
 			name string
 			typ  sqltype.ID
 		}{{"oid", sqltype.Oid}, {"parname", sqltype.Text}, {"paracl", sqltype.ACLItemArray}}},
+		{826, "pg_default_acl", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"oid", sqltype.Oid}, {"defaclrole", sqltype.Oid}, {"defaclnamespace", sqltype.Oid}, {"defaclobjtype", sqltype.Char}, {"defaclacl", sqltype.ACLItemArray}}},
 		{1262, "pg_database", []struct {
 			name string
 			typ  sqltype.ID
@@ -269,6 +273,9 @@ func (e *Engine) initializeCatalogSources() error {
 				return fmt.Errorf("stuntgres: missing catalog source type")
 			}
 			d.Columns[i] = catalog.Column{Name: column.name, Usage: typ.Usage(), Nullable: true, NullabilityKnown: true, OriginTable: uint32(spec.oid), OriginAttribute: int16(i + 1)}
+			if spec.oid == 826 {
+				d.Columns[i].Nullable = false
+			}
 			if spec.oid == pgTypeOID {
 				d.Columns[i].Nullable = i >= 29
 				if i == 29 || i == 30 {
@@ -405,6 +412,9 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, view catalog.Re
 	}
 	if source.Address().ObjectID == ids.ParameterClassID {
 		return e.capturePGParameterACL(ctx, view, roles, ref, source)
+	}
+	if source.Address().ObjectID == 826 {
+		return e.capturePGDefaultACL(ctx, view, roles, ref, source)
 	}
 	if source.Address().ObjectID == 2964 {
 		if err := ctx.Err(); err != nil {

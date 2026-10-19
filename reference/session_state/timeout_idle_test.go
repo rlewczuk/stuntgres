@@ -63,8 +63,7 @@ func TestReferenceTimeoutIdleBoundaries(t *testing.T) {
 					}
 					defer rows.Close()
 					check := settingsTimeoutCursor(t, rows, b.PG)
-					timeoutReferenceIdle(t, p.Ctx, 350*time.Millisecond)
-					f.fatalQuery("57P05")
+					f.awaitIdleFatalQuery("57P05", 250*time.Millisecond)
 					if !b.PG {
 						check()
 					}

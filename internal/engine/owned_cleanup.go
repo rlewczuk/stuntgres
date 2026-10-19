@@ -183,7 +183,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 				continue
 			}
 			if !authorization.MatchesDefaultBaseline(acl, key.Creator, key.Class, key.Schema != (ids.ObjectAddress{})) {
-				next = &catalog.DefaultACLRecord{ACL: acl}
+				next = &catalog.DefaultACLRecord{OID: record.OID, ACL: acl}
 			}
 		}
 		// Creator ownership removes the entire actual record, including a

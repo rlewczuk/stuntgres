@@ -101,18 +101,19 @@ func TestRelationLockWaitsDelayedDeadlines(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	policy := Policy{Timeout: 40 * time.Millisecond, StatementDeadline: time.Now().Add(80 * time.Millisecond)}
+	policy := Policy{Timeout: time.Hour, StatementDeadline: time.Now().Add(2 * time.Hour)}
 	r, err := f.m.StartAcquire(ctx, bt, resource, AccessShare, policy)
 	if err != nil || r == nil {
 		t.Fatal(err)
 	}
-	// Hold the manager mutex so neither deadline callback can run, and let wall
-	// time pass both absolute deadlines. The mutex, not timing, orders the
-	// callbacks after the release below.
+	// Keep the real callbacks in the future, then model both deadlines having
+	// passed while metadata synchronization delayed their delivery. As in the
+	// deadlock deadline tests, install logical past instants under the mutex.
+	// Release must arbitrate the expired lock deadline before transferring.
 	f.m.mu.Lock()
-	time.Sleep(time.Until(policy.StatementDeadline) + time.Millisecond)
-	// Simulate a release transition while both callbacks are delayed by
-	// metadata synchronization. Expired lock deadline must beat transfer.
+	expired := time.Now().Add(-time.Hour)
+	r.deadline = expired
+	r.policy.StatementDeadline = expired.Add(time.Minute)
 	var notify *relationRequest
 	f.m.endLocked(at, ErrOwnerEnded, &notify)
 	f.m.mu.Unlock()

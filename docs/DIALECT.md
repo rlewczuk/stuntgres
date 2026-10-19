@@ -288,6 +288,12 @@ name after rollback-to, not its executor, until Close or actual lifetime retirem
 Simple-query creation also replaces the unnamed portal on CTAS no-data/skip paths.
 Pending wire cancellation preserves real COPY conversion errors and consumed-row
 context before application; it does not change ordinary embedded Go cancellation.
+Native wire input installs its first-record decoding hold before the Start
+callback can publish CopyInResponse, with cleanup covering failed publication
+and callback resume. This selects a permitted scheduling boundary, not a claim
+that PostgreSQL's response universally acknowledges passage through its later
+pre-row interrupt checkpoint; reference proof observes PostgreSQL's actual
+ClientRead wait. Ordinary embedded cancellation and terminal causes are unchanged.
 
 Wire SELECT preparation uses the existing static-operator planning phase before
 starting its real output destination. Planning failures therefore precede row
@@ -1570,8 +1576,9 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   before NULL elements. The rank-one empty column default survives typed
   storage/replay but differs from rank-zero `'{}'::aclitem[]` text input.
   ACL binary receive/send, catalog ACL projections other than the documented
-  `pg_class.relacl`, `pg_database.datacl`, `pg_attribute.attacl` and
-  `pg_namespace.nspacl`, GRANT extensions, role-rename SQL and new generic
+  `pg_class.relacl`, `pg_database.datacl`, `pg_attribute.attacl`,
+  `pg_namespace.nspacl` and `pg_default_acl.defaclacl`, GRANT extensions,
+  role-rename SQL and new generic
   grouping/search/hash providers are not added.
   Numeric constructors accept missing and zero identities as inert data.
   Native Dump requires live nonzero grantors for emitted ACL data/definition
@@ -2342,6 +2349,26 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   `pg_tables` presents this shared catalog in `pg_global`; that logical metadata
   is not physical storage or cross-Engine aggregation. No user tablespaces,
   placement, filesystem inquiries or options validation are provided.
+- `pg_default_acl` is the read-only relation826 with five nonnullable columns:
+  `oid OID`, `defaclrole OID`, `defaclnamespace OID`, `defaclobjtype CHAR`,
+  `defaclacl ACLITEM[]`. It projects only surviving implemented default policies:
+  tables `r`, sequences `S`, routines `f`, types `T`, schemas `n`, large objects
+  `L`. Namespace0 means global; scoped rows identify a real namespace. The creator
+  is not replaced by schema ownership or inherited membership. Baseline policies
+  have no row; a nonbaseline empty global ACL is `{}`, never NULL.
+  Stable producer-owned OIDs survive ACL edits, recipient cleanup and principal/
+  namespace remapping; deletion followed by recreation obtains a new identity.
+  PUBLIC catalog SELECT exposes the whole inventory without a schema-USAGE or
+  creator/grantee row filter. Ordinary permission admission still applies to
+  empty and held queries. Only default-catalog presentation sorts ACL items by
+  released numeric grantee/grantor/mask order; generic object ACL order is unchanged.
+  `pg_class`, `pg_attribute`, reciprocal row/array types and bounded `pg_tables`
+  describe this indexed, database-local table without physical index/TOAST rows.
+  Native DML and row locks remain unsupported. Dump rejects stored defaults before
+  output, unsupported Restore is atomic, and Reset clears policies. No routine or
+  large-object storage, catalog GRANT SQL, or new default-effects/serializer
+  capability is implied. See [selected proof](../reference/catalogs/README.md#pg_default_acl-selected-proof).
+
 
 ## Data type privilege descriptors
 

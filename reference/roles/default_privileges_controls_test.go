@@ -75,7 +75,7 @@ func TestReferenceRoleDefaultPrivilegesTransactions(t *testing.T) {
 func TestReferenceRoleDefaultPrivilegesControls(t *testing.T) {
 	dpScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), prepared bool) {
 		dpTable(run, "dp_control_old", 7)
-		// Default-only absent-provider state must not silently disappear in a Dump.
+		// Default-only catalog state must not silently disappear in a Dump.
 		run(fixture.Exec("ALTER DEFAULT PRIVILEGES GRANT EXECUTE ON ROUTINES TO dp_reader", 0))
 		if !b.PG {
 			var out bytes.Buffer

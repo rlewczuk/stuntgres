@@ -237,8 +237,9 @@ recipient-first baseline removal and owner-first residual-policy cleanup succeed
 in both modes. The owner-first baseline-only case records pinned18.0's actual
 XX000 with the queried real creator-record OID and full diagnostics, then proves
 statement rollback of IDs, owners, rows, policies, memberships and generators.
-Native instead performs complete atomic cleanup; no fabricated OID/default inquiry
-provider, generic unsupported boundary or imitation of stale internal addresses.
+Native instead performs complete atomic cleanup. Both backends now query real
+pg_default_acl identities/counts and preserve surviving policy IDs; the historical
+PostgreSQL error-address supplement remains distinct, not a fabricated native OID.
 Witness-specific cleanup restores DB authority/closes held handles and performs
 real creator-only DROP OWNED phases before the unchanged aggregate helper, including
 fatal paths. This prevents the release defect from masking assertion failures;
@@ -386,6 +387,13 @@ Controls asserts rejected native Restore through the SQLSTATE interface and
 retained data/default-policy consumers, not its evolving utility whitelist text.
 Dump refusal remains an ordinary non-SQL error before any output for stored
 defaults and materialized ACLs.
+The ownership-default helpers query actual pg_default_acl on both backends:
+RestrictAtomicity, Cleanup, SchemaCleanup, GrantSupport and CreatorRecipientUnion
+independently require positive uint32 identities, exact key counts and surviving
+identity stability. Their existing selected commands above require both modes.
+Catalog-specific shape/visibility/lifecycle proof is in
+[`reference/catalogs`](../catalogs/README.md#pg_default_acl-selected-proof).
+
 Selected gates have an external 900-second deadline each; run the first five
 commands natively and again with `REFERENCE=1`:
 

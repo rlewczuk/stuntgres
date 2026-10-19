@@ -66,7 +66,9 @@ func TestRelationLockWaitsFairness(t *testing.T) {
 		defer cancel()
 		policy := lock.Policy{}
 		if timeout {
-			policy.Timeout = 200 * time.Millisecond
+			// Expiration is driven explicitly after both waiters are queued,
+			// not by a race between the observer and an elapsed timer.
+			policy.Timeout = time.Hour
 		}
 		ax, err := e.locks.StartAcquire(ctx, b.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive, policy)
 		if err != nil || ax == nil {
@@ -85,6 +87,9 @@ func TestRelationLockWaitsFairness(t *testing.T) {
 		}
 		if !timeout {
 			cancel()
+		}
+		if timeout {
+			waitsDiagnostic(t, e.locks.ExpireWait(ax, ax.Deadline()), "55P03", "canceling statement due to lock timeout")
 		}
 		err = ax.Wait()
 		cancel()
@@ -164,19 +169,53 @@ func TestRelationLockWaitsTimeout(t *testing.T) {
 			sessionSQL(t, b, "SET statement_timeout='"+tc.statement+"'")
 			ra := transactionBegin(t, a)
 			sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
-			done := waitsCommandAsync(e, b, context.Background(), "SELECT v FROM t", prepare)
-			lockPending(t, e, 1)
-			select {
-			case err := <-done:
-				position := ""
-				if tc.code == "55P03" {
-					position = "15"
+			resource := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t")}
+			holder := a.transactions.ticket
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			done := waitsCommandAsync(e, b, ctx, "SELECT v FROM t", prepare)
+			joined := false
+			defer func() {
+				cancel()
+				if !joined {
+					<-done
 				}
-				waitsDiagnostic(t, err, tc.code, tc.message, position)
-			case <-time.After(5 * time.Second):
-				t.Fatal("wait did not terminate")
+			}()
+			poll := time.NewTicker(time.Millisecond)
+			var outcome error
+			for !joined {
+				select {
+				case outcome = <-done:
+					joined = true
+				case <-ctx.Done():
+					select {
+					case outcome = <-done:
+						joined = true
+					default:
+						poll.Stop()
+						t.Fatal("wait did not terminate", ctx.Err())
+					}
+				case <-poll.C:
+					// A short SQL timeout may already have removed its
+					// request before the parent gets scheduled. Observe
+					// progress, but never require catching that transient.
+					state := e.locks.Inspect()
+					if entry := state.Resources[resource]; entry.Holders[holder].Mode != lock.AccessExclusive || len(entry.Pending) > 1 {
+						poll.Stop()
+						t.Fatal("timeout wait damaged holder or queue")
+					}
+				}
 			}
+			poll.Stop()
+			cancel()
+			position := ""
+			if tc.code == "55P03" {
+				position = "15"
+			}
+			waitsDiagnostic(t, outcome, tc.code, tc.message, position)
 			lockPending(t, e, 0)
+			if state := e.locks.Inspect(); state.Resources[resource].Holders[holder].Mode != lock.AccessExclusive {
+				t.Fatal("timeout released the blocking holder")
+			}
 			transactionEnd(t, a, ra, false)
 			sessionSQL(t, b, "SELECT v FROM t")
 			lockEmpty(t, e)

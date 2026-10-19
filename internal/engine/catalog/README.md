@@ -93,6 +93,13 @@ standard library, and never the engine or its sibling `functions`.
   every unpublished state the engine shares between goroutines.
 - Provenance: a `Read` belongs to the engine whose `Owner` it carries;
   validators compare domains through the owner, never through the engine.
+- `DefaultACLRecord` owns its nonzero, unique persistent row OID together with
+  its immutable ACL. `DefaultACLKey` remains the creator/schema/class unique key.
+  Validation admits only the six implemented default classes and real creator/
+  namespace/ACL authority. The engine's sole catalog allocator assigns identities
+  only to final new policies; updates/remaps/recipient cleanup preserve them,
+  baseline deletion removes them, and reads never allocate identities.
+
 
 ## What stays in the engine
 

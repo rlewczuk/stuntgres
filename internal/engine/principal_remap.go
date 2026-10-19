@@ -235,7 +235,7 @@ func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapsh
 				return nil, err
 			}
 			key.Creator = creator
-			next[key] = &catalog.DefaultACLRecord{ACL: value}
+			next[key] = &catalog.DefaultACLRecord{OID: record.OID, ACL: value}
 		}
 		state.SetDefaultACLs(next)
 	}

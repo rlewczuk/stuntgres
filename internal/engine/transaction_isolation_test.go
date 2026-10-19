@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 )
 
 func TestTransactionIsolationConflicts(t *testing.T) {
@@ -152,8 +153,37 @@ func TestTransactionIsolationStatementTimeout(t *testing.T) {
 	transactionRows(t, a, "SELECT v FROM t", 1)
 	sessionSQL(t, b, "BEGIN")
 	sessionSQL(t, b, "UPDATE t SET v=2")
-	sessionSQL(t, a, "SET statement_timeout='2ms'")
-	done := waitsCommandAsync(e, a, context.Background(), "UPDATE t SET v=3", false)
+	sessionSQL(t, a, "SET statement_timeout='1h'")
+	ctx, cancel := context.WithCancel(context.Background())
+	op, _, err := a.AcquireCommand(ctx)
+	if err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	ast := statement(t, "UPDATE t SET v=3")
+	worker := make(chan error, 1)
+	var done <-chan error = worker
+	go func() {
+		result, err := e.Execute(op, ast, 0, nil)
+		if result.Rows != nil {
+			result.Rows.Close()
+		}
+		err = op.CommandError(err)
+		op.Done()
+		worker <- err
+		close(worker)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-worker:
+		case <-time.After(5 * time.Second):
+			t.Error("statement timeout worker did not join")
+		}
+	})
+	request := timeoutPendingRequest(t, e, op)
+	rowLockQueued(t, e, b.transactions.ticket, lock.ForNoKeyUpdate)
+	timeoutPendingPublish(t, e, request, op.statementDeadline)
 	select {
 	case err := <-done:
 		waitsDiagnostic(t, err, "57014", "canceling statement due to statement timeout")

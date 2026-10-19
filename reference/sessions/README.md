@@ -560,6 +560,12 @@ the start-hook cancellation gap without weakening the exact context assertions.
 `TestProtocolCopyStartCancellation` deterministically covers that boundary;
 selected proof is `make check RUN='^TestProtocolCopyStartCancellation$'` and
 the same command with `RACE=1`.
+Native G publication occurs within that caller-owned input hold; PostgreSQL is
+instead observed in its actual active ClientRead wait. G alone is
+not asserted to acknowledge PostgreSQL's later pre-row interrupt checkpoint.
+The input witness retries short socket-read waits under the fixture's outer
+safety context, retaining partial frame bytes rather than restarting framing.
+Elapsed time and cancellation-connection EOF never stand in for executor entry.
 CopyCancelTerminal uses PostgreSQL's real administrator backend termination;
 native instead stops its whole actual process through the public CLI and restores
 the original committed table. Their FATAL/EOF versus EOF expectations are

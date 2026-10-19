@@ -55,6 +55,49 @@ make check RACE=1 RUN='^(TestExtensionDropPublication(Candidate)?|TestPGDependDo
 ```
 
 
+Relation-lock timeout units observe completion and lock state together in short
+repeated checks; a short SQL timeout need not remain queued until the parent is
+scheduled. Exact diagnostics, holder preservation, empty final queues and session
+recovery remain mandatory. Fairness uses the existing `Manager.ExpireWait` seam
+rather than elapsed sleeps: its hour-long test policy prevents incidental
+wall-clock expiry while an explicit deadline probe proves queue settlement.
+The canonical per-acquisition proof lives in
+[`lock/timeout_test.go`](lock/timeout_test.go), not a second engine duplicate.
+It retains two successful grants across modeled cumulative waits, independently
+brackets each fresh deadline and verifies expiry at a later request's own bound.
+
+```sh
+make check RUN='^TestRelationLockWaits(Timeout|TimeoutPerAcquisition|Fairness)$'
+make check RUN='^TestRelationLockWaits(Timeout|TimeoutPerAcquisition|Fairness)$' RACE=1
+```
+
+Caller-interruption and row-view units observe the actual queued request before
+triggering a controlled caller deadline. Untimed waits and delayed-callback
+arbitration use logical expiration instants, not elapsed sleeps. Statement-timeout
+recovery expires the exact admitted row wait and retains the timeout,
+aborted-transaction, rollback-data and lock-cleanup assertions. Public SQL timeout
+witnesses continue to use real timers.
+
+```sh
+make check RUN='^(TestRowLockViews|TestRowLockViewProvenance|TestRowLockViewStored)$' RACE=1
+make check RUN='^(TestRelationLockWaitsCallerContext|TestRelationLockWaitsUntimedGrant|TestRelationLockWaitsDelayedDeadlines)$' RACE=1
+make check RUN='^TestTransactionIsolationStatementTimeout$' RACE=1
+```
+
+Default-ACL catalog units use real producer ASTs and immutable captured catalog/
+role authority, not public SQL. They cover stable/recreated identities, final-key
+allocation, allocator collisions/exhaustion, private/remapped roots, exact typed
+ACL masks/order, owned captures, invariant rejection, deterministic cancellation
+and actual catalog ACL publication rechecked through direct/fresh/held execution.
+Public dual-mode proof lives in
+[`reference/catalogs`](../../reference/catalogs/README.md#pg_default_acl-selected-proof).
+
+```sh
+make check RUN='^TestPGDefaultACL(Identity|CaptureOwnership|AuthorityAndCancellation|PermissionPublication)$'
+make check RUN='^TestPGDefaultACL(Identity|CaptureOwnership|AuthorityAndCancellation|PermissionPublication)$' RACE=1
+make check RUN='^(TestDropOwnedDefaultCanonicalCleanup|TestDefaultPrivileges(CloneStage|RetainedMessage))$'
+```
+
 Transaction identity, commit order, commit timestamps, snapshot views and SSI
 belong to `visibility.Registry` (`Engine.visibility`) under Engine.mu; see
 [visibility/README.md](visibility/README.md), which also lists the identity
@@ -359,6 +402,13 @@ errors keep their genuine row/column context and take precedence. Successful
 conversion observes pending cancellation before returning a row to assembly.
 The hold is cleared before constraints/application and restored on every exit;
 ordinary Go caller cancellation and native input policy remain unchanged.
+The wire input caller arms the first-record ownership hold and installs its
+cleanup before invoking Start, so immediate frontend cancellation cannot win
+the callback resume check. The callback itself does not arm a second hold.
+Cleanup covers failed Start, failed resume validation, decoder exit and panics
+after ownership begins. `TestProtocolCopyInputStartOwnership` cancels inside the
+actual callback without timing, covering valid/invalid input, embedded
+cancellation, pre-start cancellation, failed publication and ownership cleanup.
 
 `Session.EndRequested` lazily observes canonical ending before lease cleanup,
 without acquiring a lease or changing `WaitEnd`. Session ending directly cancels
@@ -428,6 +478,8 @@ Private mechanisms supplement the real socket tests:
 make check RUN='^TestProtocol(PreparedRegistry|ValueCodecs|CycleRetention|PortalProducer|SimpleDisposalFence|SimplePlanningBounds|FailedExecutorOwnership|CopyCancellationContext|CopyInputContext|EndRequestedWake|CopyHooks|CopyQuerySignatureScope|FunctionInvocation|NotificationPoll)$'
 make check RACE=1 RUN='^TestProtocol(CycleRetention|PortalProducer|SimpleDisposalFence|SimplePlanningBounds|FailedExecutorOwnership|CopyCancellationContext|CopyInputContext|EndRequestedWake|CopyHooks|CopyQuerySignatureScope|NotificationPoll)$'
 make check RUN='^TestPreparedSQLActual(NoSnapshotDemand|ProgramOwnership)$'
+make check RUN='^TestProtocolCopyInputStartOwnership$'
+make check RUN='^TestProtocolCopyInputStartOwnership$' RACE=1
 ```
 
 Public answers, metadata, ACL timing, cancellation and actual pq/psql behavior

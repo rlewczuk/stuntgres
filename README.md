@@ -1306,6 +1306,13 @@ prominent warning. Use only loopback or an independently protected trusted netwo
 Connect using `psql` or `lib/pq`, with `sslmode=disable` (SSL-prefer falls back).
 Keep passwords in a0600 PGPASSFILE or another client credential facility, not argv.
 
+Native wire COPY installs its first-record decoding hold and cleanup before
+`CopyInResponse` can be published. Immediate frontend cancellation cannot hide
+an actual input-conversion error; successfully converted rows still fail with
+cancellation before application. Failed publication releases the hold, while
+ordinary embedded cancellation and terminal causes retain their existing behavior.
+See [COPY cancellation proof](reference/sessions/README.md#phase-2-server-selected-proof).
+
 `start` and `serve -b` reexecute in a Linux daemon session and wait for genuine
 startup readiness. Short options have descriptive long aliases; `-l` means listen,
 `-L` means log directory, and `-p` selects the PID file (default launching
@@ -3595,6 +3602,27 @@ Dump/Restore remain outside this read capability. Dump still rejects parameter
 ACLs before output; Reset clears entries but preserves catalog metadata.
 Feature smoke: `make check RUN='^TestReferencePGParameterACLFeatureSmoke$'`;
 repeat with `REFERENCE=1`. See [selected proof](reference/catalogs/README.md#pg_parameter_acl-selected-proof).
+
+Change note: [`pg_catalog.pg_default_acl`](https://www.postgresql.org/docs/18/catalog-pg-default-acl.html)
+reads actual default-privilege policies through five nonnullable columns:
+`oid OID`, `defaclrole OID`, `defaclnamespace OID`, `defaclobjtype CHAR`,
+and `defaclacl ACLITEM[]`. Relation826 is an indexed, database-local catalog
+table. Policies retain real producer-owned identities through edits and recipient
+cleanup; returning to baseline deletes the row, and recreation has a new identity.
+Namespace0 denotes global defaults; scoped records use the actual namespace OID.
+The creator remains independent of schema ownership and role membership.
+
+Ordinary roles see the complete policy inventory, including inaccessible schemas
+and unrelated NOLOGIN creators, subject to normal catalog SELECT authorization.
+ACL arrays are nonnull (including stored `{}`), preserve exact grantors/options,
+and use PostgreSQL's numeric ACL-item ordering. Reads do not infer baseline rows,
+effective object grants, or unsupported categories. Direct/prepared/held queries
+recapture policy changes; already-open rows retain their owned values. Native
+catalog writes and locks remain unsupported. Default-bearing Dump still rejects
+before output; failed Restore preserves policies and Reset removes them. This
+adds no default-privilege effects or serialization.
+See [selected proof and standalone smoke](reference/catalogs/README.md#pg_default_acl-selected-proof).
+
 
 Change note: table/column GRANT and REVOKE now retain independent grantor
 origins, owner implicit options, PUBLIC and inherited role authority. All eight

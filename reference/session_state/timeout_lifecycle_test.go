@@ -2,6 +2,8 @@ package reference_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"stuntgres/reference/fixture"
 	"testing"
 	"time"
@@ -12,64 +14,126 @@ func TestReferenceTimeoutChainPrepared(t *testing.T) {
 		t.Run(end, func(t *testing.T) {
 			timeoutReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 				f := newTimeoutReferenceFixture(t, p, b)
-				const transactionTimeout = 6 * time.Second
-				const localTimeout = time.Second
-				f.set("transaction_timeout", "6s")
-				beginBefore := time.Now()
-				f.exec(f.owner, "BEGIN", 0)
-				beginAfter := time.Now()
-				f.exec(f.owner, "LOCK TABLE timeout_sentinel IN ACCESS EXCLUSIVE MODE", 0)
-				f.exec(f.owner, "INSERT INTO timeout_sentinel VALUES(8)", 1)
-				f.exec(f.owner, "SET LOCAL transaction_timeout='1s'", 0)
-				command := end
-				aborted := end == "aborted-COMMIT" || end == "aborted-ROLLBACK"
-				if aborted {
-					_, err := f.owner.ExecContext(p.Ctx, "SELECT timeout_missing")
-					want := fixture.ControlsReferenceDiagnostic("42703", `column "timeout_missing" does not exist`)
-					want.Position = "8"
-					fixture.AssertDiagnostic(t, err, &want)
-					command = "COMMIT"
-					if end == "aborted-ROLLBACK" {
-						command = "ROLLBACK"
+				for budget := 200 * time.Millisecond; budget <= 6400*time.Millisecond; budget *= 2 {
+					f.requireAttemptTime(budget)
+					value := fmt.Sprintf("%dms", budget.Milliseconds())
+					localBudget := budget / 4
+					localValue := fmt.Sprintf("%dms", localBudget.Milliseconds())
+					identity := fixture.SettingsPhysical(t, f.owner)
+					f.set("transaction_timeout", value)
+					beginBefore := time.Now()
+					err := f.preparationExec("BEGIN", 0)
+					beginAfter := time.Now()
+					if err == nil {
+						err = f.preparationExec("LOCK TABLE timeout_sentinel IN ACCESS EXCLUSIVE MODE", 0)
 					}
+					if err == nil {
+						err = f.preparationExec("INSERT INTO timeout_sentinel VALUES(8)", 1)
+					}
+					if err == nil {
+						err = f.preparationExec("SET LOCAL transaction_timeout='"+localValue+"'", 0)
+					}
+					command := end
+					if err == nil && (end == "aborted-COMMIT" || end == "aborted-ROLLBACK") {
+						err = f.preparationExec("SELECT timeout_missing", 0)
+						var state interface{ SQLState() string }
+						if errors.As(err, &state) && state.SQLState() == "42703" {
+							want := fixture.ControlsReferenceDiagnostic("42703", `column "timeout_missing" does not exist`)
+							want.Position = "8"
+							fixture.AssertDiagnostic(t, err, &want)
+							err = nil
+						} else if err == nil {
+							t.Fatal("aborting CHAIN preparation unexpectedly succeeded")
+						}
+						command = "COMMIT"
+						if end == "aborted-ROLLBACK" {
+							command = "ROLLBACK"
+						}
+					}
+					if err != nil {
+						f.preparationExpired(err, beginBefore.Add(budget))
+						f.rows(f.peer, 7)
+						f.replaceTimeoutOwner()
+						continue
+					}
+					timeoutReferenceUntil(t, p.Ctx, beginAfter.Add(budget/2))
+					chainBefore := time.Now()
+					if !chainBefore.Before(beginBefore.Add(budget)) && end != "aborted-COMMIT" && end != "aborted-ROLLBACK" {
+						f.awaitTransactionFatal(p.Ctx)
+						f.dead()
+						f.rows(f.peer, 7)
+						f.replaceTimeoutOwner()
+						continue
+					}
+					err = f.preparationExec(command+" AND CHAIN", 0)
+					chainAfter := time.Now()
+					if err != nil {
+						f.preparationExpired(err, beginBefore.Add(budget))
+						f.rows(f.peer, 7)
+						f.replaceTimeoutOwner()
+						continue
+					}
+					err = f.preparationShow(value)
+					if err != nil {
+						f.preparationExpired(err, chainBefore.Add(budget))
+						if end == "COMMIT" {
+							f.rows(f.peer, 7, 8)
+							f.exec(f.peer, "DELETE FROM timeout_sentinel WHERE v=8", 1)
+						}
+						f.rows(f.peer, 7)
+						f.replaceTimeoutOwner()
+						continue
+					}
+					// Crossing both old BEGIN and old LOCAL deadlines is the
+					// discriminating survival witness, not an elapsed-delay guess.
+					survivalAt := beginAfter.Add(budget)
+					if localDeadline := chainAfter.Add(localBudget); localDeadline.After(survivalAt) {
+						survivalAt = localDeadline
+					}
+					survivalAt = survivalAt.Add(time.Millisecond)
+					timeoutReferenceUntil(t, p.Ctx, survivalAt)
+					newEarliest := chainBefore.Add(budget)
+					newLatest := chainAfter.Add(budget)
+					missed := !time.Now().Before(newLatest)
+					if !missed {
+						err = f.preparationShow(value)
+						if err != nil {
+							if time.Now().Before(newLatest) {
+								f.diagnostic(err, "25P04")
+								t.Fatal("CHAIN failed its armed survival assertion")
+							}
+							f.preparationExpired(err, newEarliest)
+							missed = true
+						} else if !time.Now().Before(newEarliest) {
+							if time.Now().Before(newLatest) {
+								t.Fatal("CHAIN survival observation straddled new deadline bracket")
+							}
+							missed = true
+						}
+					}
+					if err == nil {
+						if !missed && fixture.SettingsPhysical(t, f.owner) != identity {
+							t.Fatal("CHAIN replaced physical owner")
+						}
+						timeoutReferenceUntil(t, p.Ctx, newLatest)
+						f.awaitTransactionFatal(p.Ctx)
+						f.dead()
+					}
+					if end == "COMMIT" {
+						f.rows(f.peer, 7, 8)
+					} else {
+						f.rows(f.peer, 7)
+					}
+					if !missed {
+						return
+					}
+					if end == "COMMIT" {
+						f.exec(f.peer, "DELETE FROM timeout_sentinel WHERE v=8", 1)
+						f.rows(f.peer, 7)
+					}
+					f.replaceTimeoutOwner()
 				}
-				timeoutReferenceIdle(t, p.Ctx, max(0, time.Until(beginAfter.Add(3*time.Second))))
-				chainBefore := time.Now()
-				if !chainBefore.Before(beginBefore.Add(transactionTimeout)) {
-					t.Fatalf("inconclusive CHAIN window overrun: BEGIN bracket=[%s, %s], CHAIN start=%s, original budget=%s",
-						beginBefore, beginAfter, chainBefore, transactionTimeout)
-				}
-				f.exec(f.owner, command+" AND CHAIN", 0)
-				chainAfter := time.Now()
-				f.show("transaction_timeout", "6s")
-
-				// Cross the latest possible old BEGIN deadline and the old LOCAL
-				// duration, but stay before the earliest possible new deadline.
-				survivalAt := beginAfter.Add(transactionTimeout)
-				if localDeadline := chainAfter.Add(localTimeout); localDeadline.After(survivalAt) {
-					survivalAt = localDeadline
-				}
-				survivalAt = survivalAt.Add(100 * time.Millisecond)
-				timeoutReferenceIdle(t, p.Ctx, max(0, time.Until(survivalAt)))
-				showBefore := time.Now()
-				newDeadline := chainBefore.Add(transactionTimeout)
-				if showBefore.Before(survivalAt) || !showBefore.Before(newDeadline) {
-					t.Fatalf("inconclusive survival window overrun: BEGIN bracket=[%s, %s], CHAIN bracket=[%s, %s], survival target=%s, SHOW start=%s, earliest chained deadline=%s",
-						beginBefore, beginAfter, chainBefore, chainAfter, survivalAt, showBefore, newDeadline)
-				}
-				f.show("transaction_timeout", "6s")
-				showAfter := time.Now()
-				if !showAfter.Before(newDeadline) {
-					t.Fatalf("inconclusive survival window overrun: BEGIN bracket=[%s, %s], CHAIN bracket=[%s, %s], survival target=%s, SHOW bracket=[%s, %s], earliest chained deadline=%s",
-						beginBefore, beginAfter, chainBefore, chainAfter, survivalAt, showBefore, showAfter, newDeadline)
-				}
-				timeoutReferenceIdle(t, p.Ctx, max(0, time.Until(chainAfter.Add(transactionTimeout+100*time.Millisecond))))
-				f.fatalProbe("25P04")
-				if end == "COMMIT" {
-					f.rows(f.peer, 7, 8)
-				} else {
-					f.rows(f.peer, 7)
-				}
+				t.Fatal("adaptive CHAIN preparation produced no decisive survival witness")
 			})
 		})
 	}
@@ -155,10 +219,12 @@ func TestReferenceTimeoutFatalCleanup(t *testing.T) {
 				if b.PG {
 					fixture.LockWaitBehind(t, p.Ctx, pp, op, fixture.LockOID(t, p.Ctx, "public.timeout_sentinel"), "AccessShareLock")
 				}
-				timeoutReferenceIdle(t, p.Ctx, 500*time.Millisecond)
-				f.fatalProbe(code)
+				// The peer's successful read is the observable release condition.
+				// Await it before probing the owner, rather than assuming timer
+				// delivery and rollback completed during a fixed idle interval.
 				o := await()
 				fixture.LimitLockValues(t, o, b.PG, 7)
+				f.fatalProbe(code)
 				// The catalog witness tests actual TEMP disposal, not merely loss
 				// of lookup through an already unusable physical owner.
 				f.tempAbsent()

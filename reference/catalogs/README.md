@@ -457,6 +457,56 @@ bootstrap-right restoration, never system-catalog DML. These selected commands
 and expected observations are instructions, not claims of passing verification;
 whole-project quickcheck and post-integration finalcheck remain separate gates.
 
+### pg_default_acl selected proof
+
+The seven `TestReferencePGDefaultACL` definitions read actual implemented policies,
+not inferred object privileges. Relation826 has OID/OID/OID/CHAR/_ACLITEM columns,
+all nonnullable, with exact attributes and reciprocal row/array ownership.
+Independent expectations cover all six released class codes, global namespace0
+versus real scoped OIDs, full owner masks without invented stars, PUBLIC and named
+recipients, quoted ACL names, numeric item ordering, nonnull empty `{}`, baseline
+deletion and stable-versus-recreated identities. Generated IDs are checked for
+positive uint32 range, uniqueness and real role/schema relationships, never
+cross-server allocator equality. Relation rows are bags unless explicitly ordered.
+
+Shape checks direct and actual prepared context/plain APIs, held execution and
+retained metadata. PostgreSQL OID/ACL arrays use raw bytes, internal CHAR uses
+string, and pq nullability is unavailable; native OIDs use int64, CHAR/ACL use
+string and all five columns have known nonnull metadata. Visibility is public
+inventory even for an unrelated observer without schema USAGE. Schema rename/
+ownership and REASSIGN OWNED do not change the original policy creator.
+Lifecycle and controls retain actual unread rows across edits/Reset; fresh held
+executions observe changes. Diagnostics assert complete English records and
+prepare/execute stages, UTF8 positions, invalid OID binds and ordinary cancellation.
+PostgreSQL catalog ACL revocation is a real permission witness; native equivalent
+publication is an internal component test, not new catalog GRANT SQL.
+
+Native-only phases preserve read-only DML/row-lock boundaries, prewriter ordinary
+Dump rejection, failed Restore atomicity and empty policies after Reset/pristine
+Restore. The pinned oracle is PostgreSQL18.6 under the shared fixture policy;
+no native control API is invented for PostgreSQL.
+
+Run each selector natively and with `REFERENCE=1`, with an external900-second
+deadline. Commands prescribe proof, not passing claims:
+
+```sh
+make check RUN='^TestReferencePGDefaultACL(Shape|Metadata)$'
+make check RUN='^TestReferencePGDefaultACL(Entries|VisibilityAndScope)$'
+make check RUN='^TestReferencePGDefaultACL(Lifecycle|Diagnostics|NativeControls)$'
+make check RUN='^TestPGDefaultACL(Identity|CaptureOwnership|AuthorityAndCancellation|PermissionPublication)$' RACE=1
+```
+
+Root's standalone public-path smoke is temporarily materialized from the OMP
+session as `/tmp/stuntgres-pg-default-acl-smoke.go`, then run from the worktree with
+`go run /tmp/stuntgres-pg-default-acl-smoke.go` and removed. Expected exit0 emits
+actual identities/counts/ACL observations and requires
+empty five-column metadata, actual global/scoped grants, exact ACL arrays and
+distinct positive IDs, direct/prepared/held freshness, unrelated-role visibility,
+stable edits and baseline deletion, detached old rows, Dump rejection and Reset
+emptiness. Existing focused lifecycle/control scenarios remain permanent; no
+duplicate permanent smoke scenario is added.
+
+
 ### pg_range selected proof
 
 `pg_range_test.go`, `pg_range_linkage_test.go`, `pg_range_diagnostics_test.go`

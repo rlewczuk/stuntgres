@@ -116,6 +116,13 @@ func (f timeoutReferenceFixture) fatalProbe(code string) {
 // The deadline bounds broken timers; unexpected errors still fail immediately.
 func (f timeoutReferenceFixture) awaitIdleFatal(code string, idle time.Duration) {
 	f.t.Helper()
+	f.awaitIdleFatalQuery(code, idle)
+	f.dead()
+}
+
+// Leave retained consumers open until their post-fatal assertions run.
+func (f timeoutReferenceFixture) awaitIdleFatalQuery(code string, idle time.Duration) {
+	f.t.Helper()
 	ctx, cancel := context.WithTimeout(f.p.Ctx, 5*time.Second)
 	defer cancel()
 	for delay := 2 * idle; ; delay = min(2*delay, time.Second) {
@@ -144,8 +151,50 @@ func (f timeoutReferenceFixture) awaitIdleFatal(code string, idle time.Duration)
 			continue
 		}
 		f.diagnostic(err, code)
-		f.dead()
 		return
+	}
+}
+
+// Transaction probes do not restart the BEGIN budget. Observe the terminal
+// condition rather than assuming a timeout callback ran during a fixed delay.
+// Keep this separate from idle probes, whose SQL would restart the idle budget.
+// Do not dispose the owner here: retained Rows must be checked before dead().
+func (f timeoutReferenceFixture) awaitTransactionFatal(ctx context.Context) {
+	f.t.Helper()
+	for {
+		rows, err := f.owner.QueryContext(ctx, "SELECT 1")
+		if err != nil {
+			if rows != nil {
+				rows.Close()
+				f.t.Fatal("fatal transaction probe published rows", err)
+			}
+			if ctx.Err() != nil {
+				f.t.Fatal("waiting for transaction timeout", ctx.Err())
+			}
+			f.diagnostic(err, "25P04")
+			return
+		}
+		var value int
+		if !rows.Next() {
+			rows.Close()
+			f.t.Fatal("live transaction probe omitted row", rows.Err())
+		}
+		if err := rows.Scan(&value); err != nil || value != 1 {
+			rows.Close()
+			f.t.Fatal("live transaction probe value", value, err)
+		}
+		if rows.Next() {
+			rows.Close()
+			f.t.Fatal("live transaction probe returned extra row")
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			f.t.Fatal("transaction probe published Rows before error", err)
+		}
+		if err := rows.Close(); err != nil {
+			f.t.Fatal("closing live transaction probe", err)
+		}
+		timeoutReferenceIdle(f.t, ctx, 10*time.Millisecond)
 	}
 }
 
@@ -274,4 +323,120 @@ func (f timeoutReferenceFixture) tempAbsent() {
 	}
 	fixture.RunStep(f.t, f.p.Ctx, f.peer, f.b.Recorder,
 		fixture.Select(q, []string{"relname"}, []string{"NAME"}, nil))
+}
+
+// These clock brackets describe observations, not the server's unobservable
+// fatal-publication instant. A timed-out preparation is never a passing witness.
+func timeoutReferenceUntil(t *testing.T, ctx context.Context, target time.Time) {
+	t.Helper()
+	for remaining := time.Until(target); remaining > 0; remaining = time.Until(target) {
+		timeoutReferenceIdle(t, ctx, min(remaining, 10*time.Millisecond))
+	}
+}
+
+func (f timeoutReferenceFixture) preparationExec(q string, count int64) error {
+	f.t.Helper()
+	result, err := f.owner.ExecContext(f.p.Ctx, q)
+	if err != nil {
+		if result != nil {
+			f.t.Fatal("failed timeout preparation published result", q, err)
+		}
+		return err
+	}
+	if result == nil {
+		f.t.Fatal("successful timeout preparation omitted result", q)
+	}
+	n, err := result.RowsAffected()
+	if err != nil || n != count {
+		f.t.Fatal("timeout preparation affected count", q, n, err)
+	}
+	return nil
+}
+
+func (f timeoutReferenceFixture) preparationShow(want string) error {
+	f.t.Helper()
+	rows, err := f.owner.QueryContext(f.p.Ctx, "SHOW transaction_timeout")
+	if err != nil {
+		if rows != nil {
+			rows.Close()
+			f.t.Fatal("failed timeout preparation published rows", err)
+		}
+		return err
+	}
+	defer rows.Close()
+	names, err := rows.Columns()
+	if err != nil || len(names) != 1 || names[0] != "transaction_timeout" {
+		f.t.Fatal("timeout preparation SHOW columns", names, err)
+	}
+	settingsTextMetadata(f.t, rows, f.b.PG, false)
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			f.t.Fatal("timeout preparation published Rows before error", err)
+		}
+		f.t.Fatal("timeout preparation SHOW omitted row")
+	}
+	var got string
+	if err := rows.Scan(&got); err != nil || got != want {
+		f.t.Fatal("timeout preparation SHOW value", got, want, err)
+	}
+	if rows.Next() {
+		f.t.Fatal("timeout preparation SHOW returned extra row")
+	}
+	if err := rows.Err(); err != nil {
+		f.t.Fatal("timeout preparation SHOW iteration", err)
+	}
+	if err := rows.Close(); err != nil {
+		f.t.Fatal("timeout preparation SHOW close", err)
+	}
+	return nil
+}
+
+func (f timeoutReferenceFixture) preparationExpired(err error, earliest time.Time) {
+	f.t.Helper()
+	if time.Now().Before(earliest) {
+		f.t.Fatal("timeout preparation failed before earliest configured expiry", err)
+	}
+	f.diagnostic(err, "25P04")
+	f.dead()
+}
+
+func (f *timeoutReferenceFixture) replaceTimeoutOwner() {
+	f.t.Helper()
+	_ = f.owner.Raw(func(any) error { return driver.ErrBadConn })
+	_ = f.owner.Close()
+	owner, err := f.b.DB.Conn(f.p.Ctx)
+	if err != nil {
+		f.t.Fatal("replacing expired timeout preparation owner", err)
+	}
+	f.owner = owner
+	f.t.Cleanup(func() {
+		_ = owner.Raw(func(any) error { return driver.ErrBadConn })
+		_ = owner.Close()
+	})
+	f.captureOwner()
+}
+
+// Return false only when the exact fatal was observed after BOTH possible
+// deadlines. An armed wrong outcome is never an adaptation signal.
+func (f timeoutReferenceFixture) originalExpiry(oldLatest, candidateEarliest, candidateLatest time.Time) bool {
+	f.t.Helper()
+	timeoutReferenceUntil(f.t, f.p.Ctx, oldLatest)
+	f.awaitTransactionFatal(f.p.Ctx)
+	observed := time.Now()
+	f.dead()
+	if observed.Before(candidateEarliest) {
+		return true
+	}
+	if observed.Before(candidateLatest) {
+		f.t.Fatal("timeout observation straddled competing deadline bracket")
+	}
+	return false
+}
+
+func (f timeoutReferenceFixture) requireAttemptTime(budget time.Duration) {
+	f.t.Helper()
+	deadline, ok := f.p.Ctx.Deadline()
+	if !ok || time.Until(deadline) < 2*budget+2*time.Second {
+		f.t.Fatal("no time remains for a decisive adaptive timeout witness", budget)
+	}
 }

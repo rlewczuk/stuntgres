@@ -18,6 +18,9 @@ func TestDefaultPrivilegesCloneStage(t *testing.T) {
 	base := f.e.CatalogRead()
 	key := catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
 	record := base.State().DefaultACL(key)
+	if record == nil || record.OID == 0 {
+		t.Fatal("default row lacks producer-owned identity")
+	}
 	next := catalog.CloneState(base.State())
 	next.OverlayDefaultACLs(next, map[catalog.DefaultACLKey]*catalog.DefaultACLRecord{key: nil})
 	if next.DefaultACL(key) != nil || base.State().DefaultACL(key) != record {
@@ -82,7 +85,7 @@ func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 		t.Fatal("private default output was fenced as committed input")
 	}
 	prepared, err := f.e.preparePrivateCatalog(context.Background(), changes, committedCatalog.Epoch())
-	if err != nil || prepared.DefaultACL(key) == nil || prepared.Get(table.Address()) != table {
+	if err != nil || prepared.DefaultACL(key) == nil || prepared.DefaultACL(key).OID != private.State().DefaultACL(key).OID || prepared.Get(table.Address()) != table {
 		t.Fatal("combined preparation lost default or object", err)
 	}
 	late := defaultUnitStatement("sequences", "usage", []string{"default_owner", "missing"}, nil, []string{"default_reader"})

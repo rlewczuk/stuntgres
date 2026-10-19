@@ -322,21 +322,28 @@ which must remain unpublished and never be replayed. Savepoint restoration of
 the configured positive duration after SET0 leaves SHOW positive but does not
 rearm: independently observe a live owner beyond it, then require off/on expiry.
 
-The timeout family's ordinary delay witnesses retain250ms budgets crossing
-at350ms; shorter limits125ms remain below250ms. The four CHAIN timer-incarnation
-cases use6s session and1s LOCAL budgets, with monotonic timestamps bracketing
-BEGIN and AND CHAIN. Their successful SHOW occurs after both obsolete timer
-windows but strictly before the earliest possible chained deadline; scheduling
-overruns fail with measured brackets rather than accepting premature expiry or
-retrying the transaction. Final25P04 and all peer-row assertions remain exact.
-The positive-positive and same-value transaction assignment cases separately
-use an original6s budget and assign12s or6s at the absolute BEGIN-return+3s
-target. Monotonic BEGIN and SET/SHOW brackets require assignment to finish
-before the earliest original deadline. They retain the same physical owner
-and require exact25P04/dead-owner proof after the latest original deadline
-but before the earliest possible assignment-refreshed deadline; scheduler
-overruns fail explicitly, without retrying or accepting a later expiry.
-Other assignment branches and the fixture's30s context remain unchanged.
+Ordinary boundary witnesses retain their configured250ms/125ms limits where
+those values establish the ordering under test. Commands, positive-positive and
+same-value assignments use adaptive budgets starting at200ms and doubling
+through6400ms, bounded by the unchanged30s fixture context. Positive-positive
+assigns twice the selected budget; same-value retains it. Preparation occurs
+around halfway through the original budget, with exact SHOW metadata and physical
+identity checks. A decisive witness requires exact25P04 after the latest original
+BEGIN deadline but before the earliest assignment- or command-refreshed deadline.
+
+The four CHAIN witnesses use the same adaptive session budgets and LOCAL equal
+to one quarter of the selected budget. Actual BEGIN/CHAIN clock brackets define
+obsolete and new deadline windows. Exact restored SHOW succeeds after CHAIN and
+after the obsolete BEGIN/LOCAL deadlines, before the earliest chained deadline;
+eventual25P04, physical identity and commit/rollback/aborted peer data stay exact.
+
+Only validated setup expiry or an observation after both candidate deadline
+windows permits another attempt on a fresh physical owner. Setup expiry requires
+exact25P04, no published outputs, a dead owner, preserved peer data and a return
+observation no earlier than the earliest configured expiry. Clock brackets
+describe observations, not the server's unobservable fatal-publication timestamp.
+Unexpected outcomes and failed armed assertions are not retried. Exhaustion
+fails; retries alone never pass.
 
 ```sh
 make check RUN='^TestReferenceTimeoutTransactionAssignments$' REFERENCE=1
@@ -347,13 +354,14 @@ make check RUN='^TestReferenceTimeoutTransactionAssignments$' RACE=1
 Run each selected command with an external900-second deadline.
 
 The old500ms budget after300ms has200ms residual in the separate precedence
-witness, beating a newly configured375ms limit. Abort recovery waits1100ms beyond suppressed1s idle
-and600ms beyond restored500ms. Active-idle limits remain100ms while actual
-lock work lasts250ms (2.5 limits); CPU parse witnesses retain1ms. Registry
-normalization/range inputs, observer polls, asynchronous joins and all
-diagnostic/state/atomicity assertions are unchanged. The separate public
-executable retains its independently specified100ms/300ms budgets and650ms
-idle stimuli.
+witness, beating a newly configured375ms limit. Abort recovery waits1100ms beyond
+suppressed1s idle and600ms beyond restored500ms. Active-idle limits remain100ms
+while actual lock work lasts250ms; CPU parse witnesses retain1ms. Transaction
+terminal probes use repeated short condition checks without restarting the
+transaction deadline. Fatal cleanup awaits the peer's successful read as proof
+of actual lock release before probing the terminated owner. Diagnostic, state
+and atomicity assertions remain exact. The separate public executable retains
+its independently specified100ms/300ms budgets and650ms idle stimuli.
 
 `TestReferenceTimeoutChainPrepared/detached-survives-origin-idle` allows eight
 500ms idle intervals with a lock-free `SELECT 1` probe after each interval.
@@ -374,8 +382,9 @@ headroom. Only a measured invalid interval permits disposal of that physical
 owner and a larger-budget attempt on a fresh owner; no SQL, Prepare, Ping or
 identity error is retried. A valid attempt requires all three successful
 activities on the SAME owner, cumulative elapsed time exceeding its SELECTED
-idle budget, then unchanged identity and eventual57P05 after budget+100ms
-without intervening owner activity. Exhausted timing/context bounds fail,
+idle budget, then unchanged identity and eventual exact57P05 after a final
+idle stimulus of budget+100ms and non-admitting termination observation.
+Exhausted timing/context bounds fail,
 never skip. The original30s scenario context remains; each candidate reserves
 three half-budget waits, final expiry and3s for bounded probes before starting.
 After that unchanged idle stimulus, the reset cases observe actual termination
@@ -397,11 +406,10 @@ make check RUN='^TestReferenceTimeoutIdleBoundaries$' RACE=1
 make check RUN='^TestReferenceTimeoutIdleBoundaries$' REFERENCE=1 RACE=1
 ```
 
-The transaction-assignment command witness issues SHOW after two50ms idle
-intervals, then probes expiry after175ms more. Its nominal275ms probe is after
-the original250ms deadline but before an incorrectly rearmed350ms deadline;
-the second successful SHOW has150ms nominal headroom. This test-only window
-correction preserves the nonrearming assertion without changing provider budgets.
+The commands assignment witness issues two successful SHOWs during adaptive
+preparation. Repeated short checks observe exact expiry after the original
+BEGIN budget but before a hypothetical command-refreshed deadline. It no longer
+uses fixed50ms/175ms delay ordering.
 
 The complete pinned run also confirmed actual Go-Tx-held ErrBadConn transport,
 distinct from Conn-held ErrConnDone. Native caller context cancellation retains

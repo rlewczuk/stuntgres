@@ -86,13 +86,8 @@ func ownershipDefaultProjection(s *membershipScenario, where string, rows [][]an
 	dpProjection(s.t, s.p, s.c, s.run, where, rows)
 }
 
-// Only the real PG catalog supplement exposes default record OIDs/keys. The
-// shared test body proves policies through actual creation, authorization and role dependencies.
 func ownershipDefaultIDs(s *membershipScenario, creator string, count int) []int64 {
 	s.t.Helper()
-	if !s.backend.PG {
-		return nil
-	}
 	rows, err := s.c.QueryContext(s.p.Ctx, "SELECT d.oid::BIGINT FROM pg_default_acl d JOIN pg_roles r ON r.oid=d.defaclrole WHERE r.rolname=$1 ORDER BY d.oid", creator)
 	if err != nil {
 		s.t.Fatal(err)
@@ -101,7 +96,7 @@ func ownershipDefaultIDs(s *membershipScenario, creator string, count int) []int
 	var ids []int64
 	for rows.Next() {
 		var id int64
-		if err := rows.Scan(&id); err != nil || id <= 0 {
+		if err := rows.Scan(&id); err != nil || id <= 0 || id > 4294967295 {
 			s.t.Fatal("default identity", id, err)
 		}
 		ids = append(ids, id)
@@ -114,18 +109,12 @@ func ownershipDefaultIDs(s *membershipScenario, creator string, count int) []int
 }
 func ownershipDefaultStable(s *membershipScenario, creator string, ids []int64) {
 	s.t.Helper()
-	if !s.backend.PG {
-		return
-	}
 	for _, id := range ids {
 		ownershipCount(s, fmt.Sprintf("SELECT count(*) FROM pg_default_acl d JOIN pg_roles r ON r.oid=d.defaclrole WHERE d.oid=%d AND r.rolname=%s", id, pq.QuoteLiteral(creator)), 1)
 	}
 }
 func ownershipDefaultKeyCount(s *membershipScenario, creator, schema, code string, want int64) {
 	s.t.Helper()
-	if !s.backend.PG {
-		return
-	}
 	q := "SELECT count(*) FROM pg_default_acl d JOIN pg_roles r ON r.oid=d.defaclrole WHERE r.rolname=" + pq.QuoteLiteral(creator) + " AND d.defaclobjtype=" + pq.QuoteLiteral(code)
 	if schema == "" {
 		q += " AND d.defaclnamespace=0"

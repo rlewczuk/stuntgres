@@ -4,6 +4,7 @@ package reference_test
 
 import (
 	"context"
+	"net"
 	"runtime"
 	"testing"
 	"time"
@@ -42,9 +43,13 @@ func TestReferenceServerCopyCancelInput(t *testing.T) {
 					// text G metadata for one column before returning.
 					serverCopyStart(t, w, "COPY server_copy_cancel_input FROM STDIN", true, 0, 1)
 					serverObserveCopyInput(t, f, b, w)
-					if err := w.SetDeadline(time.Now().Add(20 * time.Second)); err != nil {
+					deadline, _ := f.Ctx.Deadline()
+					if err := w.SetDeadline(deadline); err != nil {
 						t.Fatal(err)
 					}
+					// Retain partial headers/bodies across short read waits.
+					// Only fixture cancellation ends the outer safety budget.
+					w.Conn = &serverCopyInputConn{Conn: w.Conn, ctx: f.Ctx}
 					// EOF on the cancellation connection is not a target-executor
 					// acknowledgement. The primary input/interrupt outcome below
 					// is required before any terminal frontend COPY message.
@@ -74,15 +79,45 @@ func TestReferenceServerCopyCancelInput(t *testing.T) {
 	}
 }
 
-// PostgreSQL exposes its actual socket-read wait. Native has no equivalent
-// public observer; G and the required real ErrorResponse remain shared proof.
+// Read retries only a timeout that delivered no bytes. io.ReadFull above this
+// connection retains every partial frame; a short wait never restarts parsing.
+type serverCopyInputConn struct {
+	net.Conn
+	ctx context.Context
+}
+
+func (c *serverCopyInputConn) Read(dst []byte) (int, error) {
+	for {
+		if err := c.ctx.Err(); err != nil {
+			return 0, err
+		}
+		until := time.Now().Add(100 * time.Millisecond)
+		if deadline, ok := c.ctx.Deadline(); ok && deadline.Before(until) {
+			until = deadline
+		}
+		if err := c.Conn.SetReadDeadline(until); err != nil {
+			return 0, err
+		}
+		n, err := c.Conn.Read(dst)
+		if n > 0 {
+			return n, nil
+		}
+		if timeout, ok := err.(net.Error); ok && timeout.Timeout() {
+			continue
+		}
+		return n, err
+	}
+}
+
+// PostgreSQL exposes its actual socket-read wait. Native publishes G within
+// the caller-owned first-record hold established before Start; neither
+// CancelRequest EOF nor elapsed time is an executor acknowledgement.
 func serverObserveCopyInput(t *testing.T, f *fixture.ServerFixture, b fixture.Backend, w *serverWire) {
 	t.Helper()
 	if !b.PG {
 		return
 	}
-	ctx, cancel := context.WithTimeout(f.Ctx, 10*time.Second)
-	defer cancel()
+	ctx := f.Ctx
 	observer := f.RawPool(t, b)
 	for {
 		var reading bool

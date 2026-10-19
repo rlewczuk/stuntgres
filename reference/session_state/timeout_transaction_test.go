@@ -190,8 +190,8 @@ func TestReferenceTimeoutTransactionAssignments(t *testing.T) {
 			timeoutReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 				f := newTimeoutReferenceFixture(t, p, b)
 				identity := fixture.SettingsPhysical(t, f.owner)
-				if kind == "positive-positive" || kind == "same-value" {
-					f.positiveAssignment(kind, identity)
+				if kind == "positive-positive" || kind == "same-value" || kind == "commands" {
+					f.positiveAssignment(kind)
 					return
 				}
 				if kind == "local-rollback" || kind == "local-commit" || kind == "session-commit" {
@@ -221,11 +221,6 @@ func TestReferenceTimeoutTransactionAssignments(t *testing.T) {
 				f.set("transaction_timeout", "250ms")
 				f.exec(f.owner, "BEGIN", 0)
 				switch kind {
-				case "commands":
-					for range 2 {
-						timeoutReferenceIdle(t, p.Ctx, 50*time.Millisecond)
-						f.show("transaction_timeout", "250ms")
-					}
 				case "disable", "reset", "reset-all":
 					switch kind {
 					case "disable":
@@ -260,74 +255,92 @@ func TestReferenceTimeoutTransactionAssignments(t *testing.T) {
 					timeoutReferenceIdle(t, p.Ctx, 50*time.Millisecond)
 					f.show("transaction_timeout", "250ms")
 				}
-				delay := 350 * time.Millisecond
-				if kind == "commands" {
-					delay = 175 * time.Millisecond
-				}
-				timeoutReferenceIdle(t, p.Ctx, delay)
 				if kind == "savepoint-restore" {
+					timeoutReferenceIdle(t, p.Ctx, 350*time.Millisecond)
 					// Restoring SHOW250 after SET0 does not
 					// rearm the retired budget. A real later off/on still does.
 					f.show("transaction_timeout", "250ms")
 					f.rows(f.owner, 7)
 					f.set("transaction_timeout", "0")
 					f.set("transaction_timeout", "250ms")
-					timeoutReferenceIdle(t, p.Ctx, 350*time.Millisecond)
 				}
-				f.fatalProbe("25P04")
+				f.awaitTransactionFatal(p.Ctx)
+				f.dead()
 				f.rows(f.peer, 7)
 			})
 		})
 	}
 }
 
-func (f timeoutReferenceFixture) positiveAssignment(kind string, identity any) {
+func (f timeoutReferenceFixture) positiveAssignment(kind string) {
 	t := f.t
 	t.Helper()
-	const originalBudget = 6 * time.Second
-	value, assignedBudget := "12s", 12*time.Second
-	if kind == "same-value" {
-		value, assignedBudget = "6s", originalBudget
+	for budget := 200 * time.Millisecond; budget <= 6400*time.Millisecond; budget *= 2 {
+		f.requireAttemptTime(budget)
+		identity := fixture.SettingsPhysical(t, f.owner)
+		value := fmt.Sprintf("%dms", budget.Milliseconds())
+		assignedBudget := budget
+		if kind == "positive-positive" {
+			assignedBudget = 2 * budget
+		}
+		assigned := fmt.Sprintf("%dms", assignedBudget.Milliseconds())
+		f.set("transaction_timeout", value)
+		beginBefore := time.Now()
+		err := f.preparationExec("BEGIN", 0)
+		beginAfter := time.Now()
+		if err != nil {
+			f.preparationExpired(err, beginBefore.Add(budget))
+			f.rows(f.peer, 7)
+			f.replaceTimeoutOwner()
+			continue
+		}
+		// A positive assignment must occur late enough to distinguish an
+		// unchanged BEGIN deadline from an incorrectly refreshed one.
+		timeoutReferenceUntil(t, f.p.Ctx, beginAfter.Add(budget/2))
+		assignmentBefore := time.Now()
+		if !assignmentBefore.Before(beginBefore.Add(budget)) {
+			f.awaitTransactionFatal(f.p.Ctx)
+			f.dead()
+			f.rows(f.peer, 7)
+			f.replaceTimeoutOwner()
+			continue
+		}
+		if kind != "commands" {
+			err = f.preparationExec("SET transaction_timeout='"+assigned+"'", 0)
+		}
+		if err == nil {
+			err = f.preparationShow(assigned)
+		}
+		if err == nil && kind == "commands" {
+			err = f.preparationShow(assigned)
+		}
+		if err != nil {
+			f.preparationExpired(err, beginBefore.Add(budget))
+			f.rows(f.peer, 7)
+			f.replaceTimeoutOwner()
+			continue
+		}
+		if fixture.SettingsPhysical(t, f.owner) != identity {
+			t.Fatal("timeout assignment lost physical owner")
+		}
+		assignmentAfter := time.Now()
+		if !assignmentAfter.Before(beginBefore.Add(budget)) {
+			f.awaitTransactionFatal(f.p.Ctx)
+			f.dead()
+			f.rows(f.peer, 7)
+			f.replaceTimeoutOwner()
+			continue
+		}
+		// Preparation is complete. Assertion failures below are not retried.
+		decisive := f.originalExpiry(beginAfter.Add(budget),
+			assignmentBefore.Add(assignedBudget), assignmentAfter.Add(assignedBudget))
+		f.rows(f.peer, 7)
+		if decisive {
+			return
+		}
+		f.replaceTimeoutOwner()
 	}
-	f.set("transaction_timeout", "6s")
-	beginBefore := time.Now()
-	f.exec(f.owner, "BEGIN", 0)
-	beginAfter := time.Now()
-	originalDeadline := beginBefore.Add(originalBudget)
-	assignAt := beginAfter.Add(3 * time.Second)
-	timeoutReferenceIdle(t, f.p.Ctx, max(0, time.Until(assignAt)))
-	assignmentBefore := time.Now()
-	if assignmentBefore.Before(assignAt) || !assignmentBefore.Before(originalDeadline) {
-		t.Fatalf("inconclusive %s assignment window overrun: BEGIN bracket=[%s, %s], assignment target=%s, SET start=%s, earliest original deadline=%s",
-			kind, beginBefore, beginAfter, assignAt, assignmentBefore, originalDeadline)
-	}
-	f.set("transaction_timeout", value)
-	f.show("transaction_timeout", value)
-	if fixture.SettingsPhysical(t, f.owner) != identity {
-		t.Fatal("positive timeout assignment lost physical owner")
-	}
-	assignmentAfter := time.Now()
-	if !assignmentAfter.Before(originalDeadline) {
-		t.Fatalf("inconclusive %s assignment window overrun: BEGIN bracket=[%s, %s], SET/SHOW/identity bracket=[%s, %s], earliest original deadline=%s",
-			kind, beginBefore, beginAfter, assignmentBefore, assignmentAfter, originalDeadline)
-	}
-
-	// Expiry must still belong to BEGIN, not to a timer refreshed by SET.
-	fatalAt := beginAfter.Add(originalBudget + 100*time.Millisecond)
-	rearmedDeadline := assignmentBefore.Add(assignedBudget)
-	timeoutReferenceIdle(t, f.p.Ctx, max(0, time.Until(fatalAt)))
-	fatalBefore := time.Now()
-	if fatalBefore.Before(fatalAt) || !fatalBefore.Before(rearmedDeadline) {
-		t.Fatalf("inconclusive %s expiry window overrun: BEGIN bracket=[%s, %s], SET/SHOW bracket=[%s, %s], fatal target=%s, probe start=%s, earliest rearmed deadline=%s",
-			kind, beginBefore, beginAfter, assignmentBefore, assignmentAfter, fatalAt, fatalBefore, rearmedDeadline)
-	}
-	f.fatalProbe("25P04")
-	fatalAfter := time.Now()
-	if !fatalAfter.Before(rearmedDeadline) {
-		t.Fatalf("inconclusive %s expiry window overrun: BEGIN bracket=[%s, %s], SET/SHOW bracket=[%s, %s], fatal target=%s, probe bracket=[%s, %s], earliest rearmed deadline=%s",
-			kind, beginBefore, beginAfter, assignmentBefore, assignmentAfter, fatalAt, fatalBefore, fatalAfter, rearmedDeadline)
-	}
-	f.rows(f.peer, 7)
+	t.Fatal("adaptive transaction assignments produced no decisive deadline witness")
 }
 
 func TestReferenceTimeoutTransactionAbortRestore(t *testing.T) {
@@ -379,8 +392,8 @@ func TestReferenceTimeoutTransactionAbortRestore(t *testing.T) {
 						// A real off/on assignment does rearm the recovered owner.
 						f.set("transaction_timeout", "0")
 						f.set("transaction_timeout", "250ms")
-						timeoutReferenceIdle(t, p.Ctx, 350*time.Millisecond)
-						f.fatalProbe("25P04")
+						f.awaitTransactionFatal(p.Ctx)
+						f.dead()
 					} else {
 						f.exec(f.owner, "ROLLBACK", 0)
 						f.show("transaction_timeout", "500ms")

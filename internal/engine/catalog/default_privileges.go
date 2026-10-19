@@ -13,7 +13,11 @@ type DefaultACLKey struct {
 	Class   authorization.DefaultACLClass
 }
 
-type DefaultACLRecord struct{ ACL authorization.ACLValue }
+// DefaultACLRecord owns a stable catalog row identity and immutable ACL.
+type DefaultACLRecord struct {
+	OID ids.OID
+	ACL authorization.ACLValue
+}
 
 func CloneDefaultACLs(source map[DefaultACLKey]*DefaultACLRecord) map[DefaultACLKey]*DefaultACLRecord {
 	next := make(map[DefaultACLKey]*DefaultACLRecord, len(source))
@@ -52,15 +56,20 @@ func CreationDefaultACL(view Read, owner authorization.PrincipalRef, schema ids.
 }
 
 func ValidateDefaultACLs(roles authorization.Read, view Read) error {
+	seen := make(map[ids.OID]struct{}, view.State().DefaultACLCount())
 	for key, record := range view.state.defaultACLs {
-		if record == nil {
+		if record == nil || record.OID == 0 || key.Class < authorization.DefaultTables || key.Class > authorization.DefaultLargeObjects {
 			return fmt.Errorf("stuntgres: invalid default ACL record")
 		}
+		if _, duplicate := seen[record.OID]; duplicate {
+			return fmt.Errorf("stuntgres: duplicate default ACL identity")
+		}
+		seen[record.OID] = struct{}{}
 		if err := authorization.ValidateDefaultACLHeader(roles, key.Creator, key.Class, key.Schema != (ids.ObjectAddress{}), record.ACL); err != nil {
 			return err
 		}
 		if key.Schema != (ids.ObjectAddress{}) {
-			if _, ok := view.Namespace(key.Schema); !ok {
+			if namespace, ok := view.Namespace(key.Schema); !ok || namespace == nil || namespace.Address() != key.Schema {
 				return Conflict{}
 			}
 		}
