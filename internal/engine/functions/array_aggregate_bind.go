@@ -47,10 +47,7 @@ func bindArrayAggregate(b AggregateBinder, raw parser.AggregateExpr, name parser
 		Operation:    operation,
 		IncludeNulls: true,
 	}
-	formal := sqltype.ID(2776)
-	if arrays {
-		formal = sqltype.ID(2277)
-	}
+	formal := arrayAggregateFormal(arg.ResultUsage().Type)
 	call.Routine, err = b.BuiltinRoutineReference(AggregateRoutineProvider, "array_agg", formal)
 	if err != nil {
 		return nil, err
@@ -75,7 +72,7 @@ func resolveArrayAggregateSignature(b Binder, raw parser.AggregateExpr, name par
 	arg := operand.Expression
 	usage := arg.ResultUsage()
 	usage.Typmod = -1
-	arrays := usage.Type.BaseType().IsArray()
+	arrays := arrayAggregateFormal(usage.Type) == 2277
 	if arrays {
 		usage.Type = usage.Type.BaseType()
 		arg, err = coerceConditional(b, operand, usage, raw.Name)

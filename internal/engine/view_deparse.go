@@ -607,6 +607,11 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 	}
 	path.node = *ordinal
 	(*ordinal)++
+	if _, captured := v.routineRefs[path]; captured && intaggRecipeFunction(raw) == "" {
+		if call, ok := raw.(parser.FunctionExpr); !ok || !call.StoredSQLRoutine {
+			return "", fmt.Errorf("stuntgres: mismatched frozen routine occurrence")
+		}
+	}
 	if literal, ok := v.literals[path]; ok {
 		_, identity := v.sequenceRefs[raw.SourcePosition().Offset]
 		if literal.ResultUsage().Type.BaseType().ID() != sqltype.Regclass || !identity {
@@ -668,6 +673,20 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 			return "", err
 		}
 		return "CAST(" + text + " AS " + declaration + ")", nil
+	}
+	if call, ok := raw.(parser.FunctionExpr); ok && call.StoredSQLRoutine {
+		name, err := v.sqlRoutineRecipeName(catalogView, path, call)
+		if err != nil {
+			return "", err
+		}
+		parts := make([]string, len(call.Args))
+		for i, arg := range call.Args {
+			parts[i], err = selectedOperand(i, arg, pgRenderParent{functionArgument: true})
+			if err != nil {
+				return "", err
+			}
+		}
+		return name + "(" + strings.Join(parts, ", ") + ")", nil
 	}
 	switch e := raw.(type) {
 	case parser.GroupingExpr:

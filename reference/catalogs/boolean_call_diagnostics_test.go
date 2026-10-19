@@ -101,25 +101,7 @@ func TestReferenceBooleanCallDiagnostics(t *testing.T) {
 				}
 				for _, name := range []string{fn + "_missing", `"` + strings.ToUpper(fn) + `"`} {
 					q := "SELECT 1 WHERE " + name + "(1)"
-					pg := fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "function " + strings.Trim(name, `"`) + "(integer) does not exist", Position: "16", Hint: hint}
-					native := fixture.Diagnostic{Code: "0A000", Message: "functions are unsupported", Position: "16"}
-					t.Run(q, func(t *testing.T) {
-						for _, prepared := range []bool{false, true} {
-							s := fixture.ImplicitError(q, native)
-							s.PostgresDiagnostic = &pg
-							s.SelectRows, s.Prepared = true, prepared
-							if b.PG {
-								s.State = pg.Code
-							}
-							s.ErrorStage = "execute"
-							if prepared {
-								s.ErrorStage = "prepare"
-							}
-							// These intentionally different complete records have no
-							// parity contract; assert each independently, unrecorded.
-							fixture.RunStep(t, p.Ctx, conn, nil, s)
-						}
-					})
+					check(q, fixture.Diagnostic{Code: "42883", Message: "function " + strings.Trim(name, `"`) + "(integer) does not exist", Position: "16", Hint: hint})
 				}
 			}
 			for _, tc := range []struct {

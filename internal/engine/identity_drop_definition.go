@@ -235,6 +235,22 @@ func (prepared *preparedIdentityDrop) descriptors() iter.Seq2[ids.ObjectAddress,
 		}
 	}
 }
+
+func (prepared *preparedIdentityDrop) proceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
+	return func(yield func(*catalog.Procedure) bool) {
+		for candidate := range prepared.drop.proceduresNamed(namespace, name) {
+			descriptor, present := prepared.descriptor(candidate.Address())
+			if d, ok := descriptor.(*catalog.Procedure); present && ok && d.Namespace() == namespace && d.Name() == name {
+				if !yield(d) {
+					return
+				}
+			}
+		}
+	}
+}
+func (prepared *preparedIdentityDrop) hasSQLProcedureName(name string) bool {
+	return prepared.drop.hasSQLProcedureName(name)
+}
 func (prepared *preparedIdentityDrop) indexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
 	return prepared.drop.indexLayout(address)
 }

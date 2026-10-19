@@ -76,6 +76,8 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		if view.State() != nil {
 			address := captured.Address()
 			switch installed := node.(type) {
+			case sqlRoutineExpression:
+				address = installed.ref.Address
 			case installedFunctionExpression:
 				address = installed.ref.Address
 			case installedCryptoFunctionExpression:
@@ -95,7 +97,11 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			}
 			descriptor, _ := definitionDescriptorAt(view, reader, address)
 			current, ok := descriptor.(*catalog.Procedure)
-			if !ok || current.Name() != captured.Name() || current.Signature != captured.Signature || current.RoutineKind != captured.RoutineKind || current.Builtin != captured.Builtin {
+			sameSignature := ok && current.Signature == captured.Signature
+			if ok && captured.SQL != nil {
+				sameSignature = sameMappedSQLRoutine(current, captured, retainedType)
+			}
+			if !ok || current.Name() != captured.Name() || !sameSignature || current.RoutineKind != captured.RoutineKind || current.Builtin != captured.Builtin {
 				return nil, false, fmt.Errorf("stuntgres: missing remapped routine declaration")
 			}
 			changed = changed || current != captured

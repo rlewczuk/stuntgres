@@ -73,9 +73,9 @@ func TestReferenceAlterGeneratedExpressionBoundaries(t *testing.T) {
 	generatedStoredScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, run func(fixture.Step)) {
 		run(fixture.Exec(`CREATE TABLE g(a INT,b INT GENERATED ALWAYS AS(a+1) VIRTUAL)`, 0))
 		run(fixture.Exec(`INSERT INTO g(a) VALUES(2)`, 1))
-		// Publication catalogs, replication, server-side SQL functions, physical
-		// filenodes/statistics/WAL and external pg_dump/pg_restore are not native
-		// mechanisms. Only PostgreSQL can exercise their release restrictions.
+		// Publication catalogs and SQL function attributes remain native
+		// boundaries. PostgreSQL independently exercises the virtual-expression
+		// restriction after creating the attributed function.
 		if b.PG {
 			run(fixture.Exec(`CREATE PUBLICATION alter_generated_pub FOR TABLE g`, 0))
 			defer b.DB.ExecContext(p.Ctx, `DROP PUBLICATION alter_generated_pub`)
@@ -89,7 +89,11 @@ func TestReferenceAlterGeneratedExpressionBoundaries(t *testing.T) {
 			run(fixture.ImplicitError(q, fixture.Diagnostic{Code: "0A000", Message: "generation expression uses user-defined function", Detail: "Virtual generated columns that make use of user-defined functions are not yet supported."}))
 		} else {
 			run(fixture.ImplicitError(`CREATE PUBLICATION alter_generated_pub FOR TABLE g`, fixture.Diagnostic{Code: "42601", Message: `syntax error at or near "PUBLICATION"`, Position: "8"}))
-			run(fixture.ImplicitError(`CREATE FUNCTION public.alter_generated_udf(INT) RETURNS INT LANGUAGE SQL IMMUTABLE AS 'SELECT $1+1'`, fixture.Diagnostic{Code: "0A000", Message: "CREATE syntax is unsupported", Position: "8"}))
+			// Attribute syntax is excluded; its implementation wording is not
+			// part of the portable contract, but no routine may be published.
+			run(fixture.Error(`CREATE FUNCTION public.alter_generated_udf(INT) RETURNS INT LANGUAGE SQL IMMUTABLE AS 'SELECT $1+1'`, "0A000"))
+			missing := fixture.Diagnostic{Code: "42883", Message: "function public.alter_generated_udf(integer) does not exist", Hint: "No function matches the given name and argument types. You might need to add explicit type casts.", Position: "8"}
+			run(fixture.ImplicitError(`SELECT public.alter_generated_udf(2)`, missing))
 		}
 		run(alterGeneratedRows(`SELECT * FROM g`, []any{int64(2), int64(3)}))
 		run(fixture.Exec(`CREATE TYPE alter_generated_row AS(a INT,b INT)`, 0))

@@ -77,7 +77,7 @@ type binding struct {
 	subqueryDemand        bool
 	viewLiterals          map[viewLiteralPath]literalExpression
 	viewCastUsages        map[viewLiteralPath]sqltype.Usage
-	viewIntaggRefs        map[viewLiteralPath]ids.ObjectRef
+	viewRoutineRefs       map[viewLiteralPath]ids.ObjectRef
 	viewOperatorRefs      map[viewLiteralPath]ids.ObjectRef
 	viewComposites        map[viewLiteralPath]compositeOccurrence
 	viewSimilarSubstrings map[viewLiteralPath]bool
@@ -264,6 +264,7 @@ func newEngine(providers []catalog.Provider, definitions []SettingDefinition, da
 		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
 	e.initializeOperators()
+	e.catalog.state.SetProcedureNames(catalog.RebuildProcedureNames(e.catalog.state.Descriptors()))
 	e.initializeDatabase(database)
 	if err := e.initializeBuiltinDomainChecks(); err != nil {
 		return nil, err
@@ -310,6 +311,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
+	case *parser.CreateFunction:
+		return StatementDescription{}, nil
 	case *parser.ForeignDDL:
 		return StatementDescription{}, nil
 	case *parser.CreateTablespace:
@@ -400,7 +403,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err != nil {
 		return StatementDescription{}, err
 	}
-	b, err := e.describe(op.ctx, stmt, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission, scope.initialParameters)
+	b, err := e.describeScoped(scope, stmt, auth, nil)
 	if err != nil {
 		return StatementDescription{}, err
 	}
@@ -489,10 +492,19 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 }
 
 func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription, admission *queryLockAdmission, rule *ruleNamespace, initial ...[]sqltype.Usage) (binding, error) {
+	return e.describeWithFormals(ctx, stmt, auth, requiredRef, input, op, expected, admission, rule, false, initial...)
+}
+
+func (e *Engine) describeScoped(scope *StatementScope, stmt parser.Statement, auth AuthorizationView, expected *StatementDescription) (binding, error) {
+	return e.describeWithFormals(scope.op.Context(), stmt, auth, scope.lockedRef, scope.input, scope.op, expected, &scope.queryLockAdmission, nil, scope.sqlRoutineScalar, scope.initialParameters)
+}
+
+func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription, admission *queryLockAdmission, rule *ruleNamespace, closed bool, initial ...[]sqltype.Usage) (binding, error) {
 	b := binding{}
 	binder := newExpressionBinder(ctx, e, input, op, expected)
 	binder.ruleNamespace = rule
 	binder.noParameters = rule != nil
+	binder.closedRoutineFormals = closed
 	if len(initial) != 0 && initial[0] != nil {
 		binder.seedParameters(initial[0])
 	}
@@ -805,7 +817,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 	b.regtypeConstants = binder.regtypeConstants
 	b.viewLiterals = binder.viewLiterals
 	b.viewCastUsages = binder.viewCastUsages
-	b.viewIntaggRefs = binder.viewIntaggRefs
+	b.viewRoutineRefs = binder.viewRoutineRefs
 	b.viewOperatorRefs = binder.viewOperatorRefs
 	b.viewComposites = binder.viewComposites
 	b.viewSimilarSubstrings = binder.viewSimilarSubstrings

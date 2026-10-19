@@ -15,14 +15,7 @@ func (b *expressionBinder) captureIntaggReference(path viewLiteralPath, proc *ca
 	if err := validateIntaggIdentity(b.bindingCatalog(), proc, ref, name); err != nil {
 		return err
 	}
-	if b.viewIntaggRefs == nil {
-		b.viewIntaggRefs = make(map[viewLiteralPath]ids.ObjectRef)
-	}
-	if old, exists := b.viewIntaggRefs[path]; exists && old != ref {
-		return fmt.Errorf("stuntgres: conflicting frozen intagg occurrence")
-	}
-	b.viewIntaggRefs[path] = ref
-	return nil
+	return b.captureRoutineReference(path, ref)
 }
 
 func intaggRecipeFunction(raw parser.Expr) string {
@@ -40,7 +33,7 @@ func intaggRecipeFunction(raw parser.Expr) string {
 }
 
 func (v *viewDefinition) intaggRecipeProcedure(catalog catalog.Read, path viewLiteralPath, name string) (*catalog.Procedure, error) {
-	ref, exists := v.intaggRefs[path]
+	ref, exists := v.routineRefs[path]
 	consumer, _ := catalog.Relation(v.consumer)
 	if !exists || ref.Address.ClassID != ids.ProcedureClassID || ref.Address.SubID != 0 || !storedViewReferenceValid(catalog, consumer, ref) || ref.Epoch != catalog.Epoch() && (consumer == nil || viewOf(consumer) != v) {
 		return nil, fmt.Errorf("stuntgres: missing or stale frozen intagg reference")

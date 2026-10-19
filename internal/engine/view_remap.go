@@ -51,6 +51,12 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 	}
 	var next expr.Expr
 	switch n := node.(type) {
+	case sqlRoutineExpression:
+		n.args = args(n.args)
+		if ref != nil {
+			n.ref = ref(n.ref)
+		}
+		next = n
 	case assignmentValueExpression:
 		n.base, n.value = child(n.base), child(n.value)
 		targets, failure := mapRuleAssignmentTargets([]*arrayAssignmentTarget{n.target}, func(expr expr.Expr) (expr.Expr, bool, error) {

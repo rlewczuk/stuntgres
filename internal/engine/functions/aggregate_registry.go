@@ -28,28 +28,31 @@ type AggregateDefinition struct {
 	// aggregate state. It returns the coerced argument and the result usage.
 	// The WITHIN GROUP aggregates have none (see their entry).
 	Window func(b AggregateBinder, raw parser.AggregateExpr, name parser.ObjectName) (expr.Expr, sqltype.Usage, error)
+	// ProbeCall performs pure pseudo-signature applicability before a winner
+	// is handed back to this family's normal aggregate binder.
+	ProbeCall CallShape
 }
 
 // The static table is the registry: no init() registration. Names must not
 // overlap any aggregate the engine still dispatches itself.
 var aggregateDefinitions = [...]AggregateDefinition{
-	{Names: []string{"count"}, Bind: BindCount, Window: windowCount},
+	{Names: []string{"count"}, Bind: BindCount, Window: windowCount, ProbeCall: probeAnyAggregate},
 	{Names: []string{"sum"}, ValuesNamespace: true, Bind: bindSum, Window: windowSum},
 	{Names: []string{"avg"}, Bind: bindAvg, Window: windowAvg},
 	{Names: []string{"min", "max"}, Bind: bindExtrema, Window: windowExtrema},
-	{Names: []string{"any_value"}, Bind: bindAnyValue, Window: windowAnyValue},
+	{Names: []string{"any_value"}, Bind: bindAnyValue, Window: windowAnyValue, ProbeCall: probeAnyAggregate},
 	{Names: []string{"bool_and", "bool_or", "every"}, Bind: bindBooleanAggregate, Window: windowBooleanAggregate},
 	{Names: []string{"bit_and", "bit_or", "bit_xor"}, ValuesNamespace: true, Bind: bindBitwiseAggregate, Window: windowBitwiseAggregate},
 	{Names: statisticalNames[:], Bind: bindStatisticalAggregate, Window: windowStatisticalAggregate},
 	{Names: []string{"string_agg"}, Bind: bindStringAggregate, Window: windowStringAggregate},
-	{Names: []string{"array_agg"}, Bind: bindArrayAggregate, Window: windowArrayAggregate},
-	{Names: []string{"range_agg", "range_intersect_agg"}, Bind: bindRangeAggregate, Window: windowRangeAggregate},
-	{Names: jsonArrayAggregateNames[:], BindReturning: bindJSONArrayAggregate, Window: windowJSONArrayAggregate},
-	{Names: jsonObjectAggregateNames[:], BindReturning: bindJSONObjectAggregate, Window: windowJSONObjectAggregate},
+	{Names: []string{"array_agg"}, Bind: bindArrayAggregate, Window: windowArrayAggregate, ProbeCall: probeArrayAggregate},
+	{Names: []string{"range_agg", "range_intersect_agg"}, Bind: bindRangeAggregate, Window: windowRangeAggregate, ProbeCall: probeRangeAggregate},
+	{Names: jsonArrayAggregateNames[:], BindReturning: bindJSONArrayAggregate, Window: windowJSONArrayAggregate, ProbeCall: probeAnyAggregate},
+	{Names: jsonObjectAggregateNames[:], BindReturning: bindJSONObjectAggregate, Window: windowJSONObjectAggregate, ProbeCall: probeAnyAggregate},
 	{Names: []string{"json_objectagg"}, BindReturning: bindJSONObjectAggregate, Window: windowSQLJSONObjectAggregate},
 	// WITHIN GROUP aggregates reject OVER while binding; the rank family's
 	// window calls bind as window functions.
-	{Names: []string{"percentile_cont", "percentile_disc", "mode", "rank", "dense_rank", "percent_rank", "cume_dist"}, Bind: bindOrderedSet},
+	{Names: []string{"percentile_cont", "percentile_disc", "mode", "rank", "dense_rank", "percent_rank", "cume_dist"}, Bind: bindOrderedSet, ProbeCall: probeAnyAggregate},
 }
 
 // LookupAggregate returns the definition that claims an aggregate name.

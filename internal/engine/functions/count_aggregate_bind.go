@@ -29,7 +29,8 @@ func ResolveCountSignature(b Binder, raw parser.AggregateExpr, name parser.Objec
 	if !visible || fact == CountMismatch {
 		types := make([]string, len(args))
 		for i, arg := range args {
-			types[i] = ArgumentTypeName(raw.Args[i], arg)
+			syntax, _ := OriginalArgument(b, raw.Args[i])
+			types[i] = ArgumentTypeName(syntax, arg)
 		}
 		return ResolutionError(name, raw.Pos, types, false)
 	}

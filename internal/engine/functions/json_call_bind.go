@@ -148,7 +148,7 @@ func bindJSONCreate(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	properties := expr.IntrinsicProperties(JSONCreateIntrinsicRule())
 	for i, o := range operands {
 		arg := o.Expression
-		rawUnknown := JSONCreateRawUnknown(raw.Args[i])
+		rawUnknown := JSONCreateRawUnknown(o.Raw)
 		if rawUnknown {
 			unknown[i/64] |= uint64(1) << uint(i%64)
 		}

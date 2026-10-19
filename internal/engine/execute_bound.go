@@ -748,6 +748,10 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		if scope.protocolBind != nil {
 			return scope.installProtocolProducer(queryRoot, source, canonical)
 		}
+		if scope.sqlRoutineScalar {
+			rows, count, err := finalizeSQLRoutineQuery(ctx, queryRoot, source, canonical)
+			return Result{Count: int64(count), Rows: rows}, err
+		}
 		rows, count, queryErr := finalizeSelectQuery(ctx, queryRoot, source, canonical, op.parallelWorkers)
 		if queryErr != nil {
 			return Result{}, queryErr

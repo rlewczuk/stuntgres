@@ -14,7 +14,7 @@ import (
 // caller closes its held statements or physical connection.
 func BinaryConversionActiveCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, query, provider string, operation func(context.Context) RelationOutcome) {
 	t.Helper()
-	activeProviderCancel(t, p, b, c, query, provider, "", nil, operation)
+	activeProviderCancel(t, p, b, c, query, provider, "", "", nil, operation)
 }
 
 // BinaryConversionActiveCancelAfter additionally observes caller-defined progress
@@ -22,16 +22,23 @@ func BinaryConversionActiveCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn,
 // context and worker cleanup. The callback must not use the busy connection.
 func BinaryConversionActiveCancelAfter(t *testing.T, p *Pair, b Backend, c *sql.Conn, query, provider string, admitted func(context.Context), operation func(context.Context) RelationOutcome) {
 	t.Helper()
-	activeProviderCancel(t, p, b, c, query, provider, "", admitted, operation)
+	activeProviderCancel(t, p, b, c, query, provider, "", "", admitted, operation)
 }
 
 // SleepActiveCancel observes a real wait, rather than a precancelled request.
 func SleepActiveCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, query string, admitted func(context.Context), operation func(context.Context) RelationOutcome) {
 	t.Helper()
-	activeProviderCancel(t, p, b, c, query, "datetimeSleepWaitRemaining", "PgSleep", admitted, operation)
+	activeProviderCancel(t, p, b, c, query, "datetimeSleepWaitRemaining", "PgSleep", "", admitted, operation)
 }
 
-func activeProviderCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, query, provider, waitEvent string, admitted func(context.Context), operation func(context.Context) RelationOutcome) {
+// SleepActiveCancelWithContext preserves the same admission and joined cleanup,
+// while checking a caller's independently observed PostgreSQL error provenance.
+func SleepActiveCancelWithContext(t *testing.T, p *Pair, b Backend, c *sql.Conn, query, postgresContext string, admitted func(context.Context), operation func(context.Context) RelationOutcome) {
+	t.Helper()
+	activeProviderCancel(t, p, b, c, query, "datetimeSleepWaitRemaining", "PgSleep", postgresContext, admitted, operation)
+}
+
+func activeProviderCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, query, provider, waitEvent, postgresContext string, admitted func(context.Context), operation func(context.Context) RelationOutcome) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(p.Ctx, 15*time.Second)
 	defer cancel()
@@ -152,7 +159,7 @@ func activeProviderCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, query, 
 		t.Fatal("active canceled conversion published result")
 	}
 	if b.PG {
-		AssertDiagnostic(t, outcome.Err, &Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "57014", Message: "canceling statement due to user request"})
+		AssertDiagnostic(t, outcome.Err, &Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "57014", Message: "canceling statement due to user request", Context: postgresContext})
 	} else {
 		LexicalOrdinary(t, outcome.Err, context.Canceled)
 	}

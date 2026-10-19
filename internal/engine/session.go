@@ -97,6 +97,7 @@ type Session struct {
 	sequences              map[ids.ObjectAddress]*sequenceMemory
 	lastSequence           ids.ObjectAddress
 	discardPlansGeneration uint64 // serialized by physical-owner statement admission
+	sqlRoutines            map[ids.ObjectAddress]sqlRoutineAnalysis
 	temporaryNamespace     ids.ObjectAddress
 	sequencePath           sequencePathCache
 	random                 randomState
@@ -137,6 +138,7 @@ type Operation struct {
 	materializedPopulation     bool                       // Operation-local execution path, never session settings.
 	materializedOwner          authorization.PrincipalRef // Population-only effective principal; session_user is unchanged.
 	restoreDefaultReplay       bool
+	restoreSQLBodies           bool // Isolated Restore validator deferral, never a session setting.
 	restorePartitionAttach     bool
 	restorePartitionCheck      *catalog.Relation          // Exact leased private-import physical CHECK target.
 	restorePartitionUsingIndex *partitionUsingIndexReplay // Exact leased private-import physical target/index.

@@ -294,12 +294,13 @@ func SelectMath(prepared MathCandidates, name string, variadic bool, args []expr
 
 func CoerceMathArguments(b ArgumentCoercer, name string, raw []parser.Expr, args []expr.Expr, unknown []bool, signature MathSignature, types NumericTypes) error {
 	for i, arg := range args {
-		argument := Argument{Expression: arg, Raw: raw[i]}
+		syntax, _ := OriginalArgument(b, raw[i])
+		argument := Argument{Expression: arg, Raw: syntax}
 		if !unknown[i] {
 			argument.Usage = arg.ResultUsage()
 		}
 		intent := DirectFormalArgument
-		if _, parameter := raw[i].(parser.ParameterExpr); parameter && unknown[i] && selectedLogPower(name) {
+		if _, parameter := syntax.(parser.ParameterExpr); parameter && unknown[i] && selectedLogPower(name) {
 			// Occurrence-sensitive inference uses the existing parameter owner.
 			// Literals and already typed arguments keep ordinary formal coercion.
 			intent = FinalizeArgument

@@ -238,9 +238,11 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 		// Seed metadata is not an invocation descriptor. Dispatch the selected
 		// builtin through its existing real expression provider, reusing the
 		// operands already bound and coerced by catalog resolution.
-		previous := b.selectedOperatorArgs
-		b.selectedOperatorArgs = args
-		defer func() { b.selectedOperatorArgs = previous }()
+		previous, previousSyntax := b.selectedOperatorArgs, b.selectedOperatorSyntax
+		b.selectedOperatorArgs, b.selectedOperatorSyntax = args, raw.Args
+		defer func() {
+			b.selectedOperatorArgs, b.selectedOperatorSyntax = previous, previousSyntax
+		}()
 		raw.Args = make([]parser.Expr, len(args))
 		for i := range args {
 			raw.Args[i] = parser.ParameterExpr{Number: -i - 1, Pos: args[i].SourcePosition()}
@@ -268,9 +270,13 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 // Synthetic argument slots are binder-local, cannot occur in parsed SQL, and
 // are restored even if the selected provider rejects an unsupported signature.
 func (b *expressionBinder) bindSelectedOperatorRoutine(d *catalog.Procedure, args []expr.Expr, pos parser.Position) (expr.Expr, error) {
-	previous := b.selectedOperatorArgs
-	b.selectedOperatorArgs = args
-	defer func() { b.selectedOperatorArgs = previous }()
+	previous, previousSyntax := b.selectedOperatorArgs, b.selectedOperatorSyntax
+	// This entry receives bound operands, not source recipes. Clear any
+	// enclosing SQL-call syntax rather than attributing it to these slots.
+	b.selectedOperatorArgs, b.selectedOperatorSyntax = args, nil
+	defer func() {
+		b.selectedOperatorArgs, b.selectedOperatorSyntax = previous, previousSyntax
+	}()
 	rawArgs := make([]parser.Expr, len(args))
 	for i := range args {
 		rawArgs[i] = parser.ParameterExpr{Number: -i - 1, Pos: args[i].SourcePosition()}

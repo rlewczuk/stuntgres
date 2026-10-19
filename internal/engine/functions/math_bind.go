@@ -139,33 +139,10 @@ func bindThresholdBucket(b Binder, raw parser.FunctionExpr, visible bool) (expr.
 	if !visible || raw.Variadic || len(raw.ArgNames) != 0 {
 		return signature()
 	}
-	// The threshold array contributes its leaf type to the common type.
-	known := make([]sqltype.Usage, 0, len(operands))
-	for i, operand := range operands {
-		usage := operand.Usage
-		if i == 1 && usage.Type != nil {
-			leaf, ok := ArraySearchLeafUsage(usage)
-			if !ok {
-				return signature()
-			}
-			usage = leaf
-		}
-		if usage.Type != nil {
-			known = append(known, usage)
-		}
-	}
-	common := b.CommonUsage(known)
-	array, ok := b.ArrayType(common.Type)
-	if !ok || !array.Concrete() {
+	arrays := [2]bool{false, true}
+	var targets [2]sqltype.Usage
+	if _, ok := compatibleArrayTargets(b, operands, arrays[:], targets[:], false); !ok {
 		return signature()
-	}
-	targets := [2]sqltype.Usage{common, array.Usage()}
-	for i, operand := range operands {
-		if operand.Usage.Type != nil {
-			if _, err := sqltype.PlanCoercion(operand.Usage, targets[i], sqltype.Implicit); err != nil {
-				return signature()
-			}
-		}
 	}
 	if err := mathModifiers(raw, "width_bucket"); err != nil {
 		return nil, err

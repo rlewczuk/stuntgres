@@ -28,7 +28,7 @@ func RelationLockActiveCancel(t *testing.T, p *Pair, b Backend, c *sql.Conn, que
 	if b.PG {
 		pid = LockPID(t, p.Ctx, c)
 	}
-	activeProviderCancel(t, p, b, c, query, "(*relationRequest).wait", "", func(ctx context.Context) {
+	activeProviderCancel(t, p, b, c, query, "(*relationRequest).wait", "", "", func(ctx context.Context) {
 		if b.PG {
 			LockWait(t, ctx, pid)
 		}

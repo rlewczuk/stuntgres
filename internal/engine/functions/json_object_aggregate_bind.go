@@ -84,7 +84,7 @@ func resolveJSONObjectAggregateSignature(b Binder, raw parser.AggregateExpr, nam
 	}
 	for i, o := range operands {
 		arg := o.Expression
-		if literal, ok := raw.Args[i].(parser.LiteralExpr); ok && o.Usage.Type == nil && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
+		if literal, ok := o.Raw.(parser.LiteralExpr); ok && o.Usage.Type == nil && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
 			arg, err = finalizeOperand(b, o, b.Type(sqltype.Text))
 			if err != nil {
 				return args, sqltype.Usage{}, err

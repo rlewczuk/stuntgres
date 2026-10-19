@@ -89,10 +89,10 @@ func intaggUnitTemporaryDependencies(t *testing.T) {
 		if refs.err != nil {
 			t.Fatal("retained query dependency collection", refs.err)
 		}
-		if len(viewOf(consumer).intaggRefs) != 1 {
+		if len(viewOf(consumer).routineRefs) != 1 {
 			t.Fatal("missing real captured procedure")
 		}
-		for path, ref := range viewOf(consumer).intaggRefs {
+		for path, ref := range viewOf(consumer).routineRefs {
 			proc := before.MustProcedure(ref.Address)
 			if view.Get(ref.Address) != proc {
 				t.Fatal("TEMP procedure descriptor changed")

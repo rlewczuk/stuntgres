@@ -33,11 +33,15 @@ func TestReferencePredefinedMonitoringSettings(t *testing.T) {
 			s.actor("")
 			s.exec("REVOKE " + role + " FROM pdef_actor")
 		}
+		s.exec("GRANT pg_monitor TO pdef_actor")
+		s.actor("pdef_actor")
+		predefinedFailure(s, "SELECT pgrowlocks('t')", fixture.Diagnostic{Code: "42883", Message: "function pgrowlocks(unknown) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}, true, "prepare")
+		s.actor("")
+		s.exec("REVOKE pg_monitor FROM pdef_actor")
 		if !s.backend.PG {
 			s.exec("GRANT pg_monitor TO pdef_actor")
 			s.actor("pdef_actor")
 			predefinedFailure(s, "SELECT query FROM pg_stat_activity", fixture.Diagnostic{Code: "42P01", Message: `relation "pg_stat_activity" does not exist`, Position: "19"}, true, "prepare")
-			predefinedMissingFunction(s, "SELECT pgrowlocks('t')", "pgrowlocks(unknown)")
 			s.actor("")
 			return
 		}

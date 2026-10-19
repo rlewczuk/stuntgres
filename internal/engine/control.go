@@ -140,6 +140,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	var collations []*catalog.Collation
 	var conversions []*catalog.Conversion
 	var operators []*catalog.Operator
+	var sqlRoutines []*catalog.Procedure
 	type dumpSchema struct {
 		name, owner string
 		configured  bool
@@ -287,6 +288,14 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				continue
 			case *catalog.Procedure:
+				if t.SQL != nil {
+					if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(catalogView, t); err != nil {
+						e.mu.Unlock()
+						return err
+					}
+					sqlRoutines = append(sqlRoutines, t)
+					continue
+				}
 				if t.Foreign != nil {
 					if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(catalogView, t); err != nil {
 						e.mu.Unlock()
@@ -860,6 +869,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	// Reconstruct final links, not allocation history: asymmetric links remain
 	// in CREATE, reciprocal defined links finish in endpoint-local ALTER events.
 	operatorDumpEvents(catalogView, operators, viewDependencies)
+	if err := sqlRoutineDumpEvents(catalogView, sqlRoutines, viewDependencies); err != nil {
+		return err
+	}
 	for event, predecessors := range viewDependencies {
 		id := event.oid
 		relation, ok := catalogView.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id})
@@ -952,6 +964,13 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	if err != nil {
 		return err
 	}
+	for _, d := range sqlRoutines {
+		declaration, err := sqlRoutineDumpStatement(catalogView, domainRoles, d)
+		if err != nil {
+			return err
+		}
+		declarations[d.Address().ObjectID] = declaration
+	}
 	operatorLinks := make(map[ids.OID]string)
 	for _, d := range operators {
 		if d.Function == 0 && operatorShellGenerator(catalogView, d) != nil {
@@ -984,6 +1003,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return io.ErrShortWrite
 		}
 		return ctx.Err()
+	}
+	if len(sqlRoutines) != 0 {
+		if err := emit(sqlRoutineRestoreDirective + "\n"); err != nil {
+			return err
+		}
 	}
 	for _, line := range preamble {
 		if err := emit(line); err != nil {
@@ -1709,6 +1733,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	}
 	defer op.Done()
 	defer func() {
+		op.restoreSQLBodies = false
 		op.restoreDefaultReplay = false
 		op.restorePartitionAttach = false
 		op.restorePartitionCheck = nil
@@ -1731,6 +1756,10 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	historicalRefs := make(map[ids.ObjectAddress]ids.ObjectRef)
 	historicalAuthority := &restoredHistoryAuthority{facts: make(map[ids.OID]restoredHistoricalFact), archives: make(map[uint64]uint64), sources: make(map[retiredSourceIdentity]retiredSourceDescription), nextArchive: e.retiredArchiveHighWater()}
 	for statementIndex, stmt := range statements {
+		if sqlRoutineReplayDirective(string(data), stmt) {
+			op.restoreSQLBodies = true
+			continue
+		}
 		if pairedPhysical != nil && !pairedPhysical.admits(stmt) {
 			return sqlError("0A000", restorePhysicalNotNullBoundary)
 		}
@@ -1858,6 +1887,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			}
 		case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.CreateEnum, *parser.CreateDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.CreateConversion, *parser.AlterConversion:
 		case *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator:
+		case *parser.CreateFunction:
 		case *parser.CreateExtension:
 		case *parser.AlterView:
 			if !s.Materialized || (s.Action != "depends" && s.Action != "no_depends") || s.IfExists {
@@ -2243,6 +2273,9 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		return err
 	}
 	if err := stage.importMaterializedSnapshots(ctx, op, snapshots); err != nil {
+		return err
+	}
+	if err := stage.validateRestoredSQLRoutines(ctx, op); err != nil {
 		return err
 	}
 	_, err = e.replaceCatalog(ctx, stage, stage.CatalogRead(), op)

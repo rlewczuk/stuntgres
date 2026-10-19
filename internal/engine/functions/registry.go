@@ -29,23 +29,26 @@ type Definition struct {
 	// name. It keeps the chain's exact, folded or lowercased comparison.
 	Claims func(name string) bool
 	Bind   func(b Binder, call parser.FunctionExpr) (expr.Expr, error)
+	// ProbeCall is pure family-owned applicability for pseudo signatures.
+	// It shares the provider's target-selection helpers; it never calls Bind.
+	ProbeCall CallShape
 }
 
 // The static table is the registry: no init() registration. Names must not
 // overlap any family that is still dispatched by the engine's name chain.
 var definitions = [...]Definition{
 	{Names: []string{"uuid_extract_timestamp", "uuid_extract_version"}, Bind: bindUUIDExtract},
-	{Names: jsonCallNames[:], Claims: jsonCallClaims, Bind: bindJSONCall},
-	{Names: mathNames[:], ExactSpelling: true, SharedGates: true, Bind: bindMath},
+	{Names: jsonCallNames[:], Claims: jsonCallClaims, Bind: bindJSONCall, ProbeCall: probeJSONCall},
+	{Names: mathNames[:], ExactSpelling: true, SharedGates: true, Bind: bindMath, ProbeCall: probeThresholdBucket},
 	{Names: []string{"uuidv4"}, ExactSpelling: true, SharedGates: true, Bind: bindUUIDGeneration},
 	{Names: []string{"uuidv7"}, ExactSpelling: true, SharedGates: true, OwnsLabels: true, Bind: bindUUIDGeneration},
-	{Names: []string{"format"}, SharedGates: true, Bind: bindFormat},
+	{Names: []string{"format"}, SharedGates: true, Bind: bindFormat, ProbeCall: probeFormat},
 	{Names: []string{"uuid_generate_v4", "uuid_nil", "uuid_ns_dns", "uuid_ns_url", "uuid_ns_oid", "uuid_ns_x500"}, Bind: bindUUIDOssp},
-	{Names: arrayInspectNames[:], Bind: bindArrayInspect},
-	{Names: arrayRandomNames[:], Bind: bindArrayRandom},
-	{Names: arrayTransformNames[:], Bind: bindArrayTransform},
-	{Names: arraySearchNames[:], Bind: bindArraySearch},
-	{Names: rangeInspectNames[:], Bind: bindRangeInspect},
+	{Names: arrayInspectNames[:], Bind: bindArrayInspect, ProbeCall: probeArrayInput},
+	{Names: arrayRandomNames[:], Bind: bindArrayRandom, ProbeCall: probeArrayInput},
+	{Names: arrayTransformNames[:], Bind: bindArrayTransform, ProbeCall: probeArrayTransform},
+	{Names: arraySearchNames[:], Bind: bindArraySearch, ProbeCall: probeArraySearch},
+	{Names: rangeInspectNames[:], Bind: bindRangeInspect, ProbeCall: probeRangeInspect},
 	{Names: textObjectNames[:], ExactSpelling: true, SharedGates: true, Bind: bindTextObject},
 	{Names: datetimeNames[:], ExactSpelling: true, SharedGates: true, Bind: bindDatetime},
 	{Names: datetimeMakeNames[:], ExactSpelling: true, SharedGates: true, OwnsLabels: true, Bind: bindDatetime},
@@ -54,9 +57,9 @@ var definitions = [...]Definition{
 	{Names: []string{"like_escape"}, ExactSpelling: true, SharedGates: true, Bind: bindLikeEscape},
 	{Names: stringNames[:], ExactSpelling: true, SharedGates: true, Bind: bindStringName},
 	{Names: []string{"string_to_table"}, ExactSpelling: true, SharedGates: true, Bind: bindStringToTable},
-	{Names: stringVariadicNames[:], Claims: StringVariadicFunctionName, Bind: bindStringVariadic},
+	{Names: stringVariadicNames[:], Claims: StringVariadicFunctionName, Bind: bindStringVariadic, ProbeCall: probeStringVariadic},
 	{Names: []string{"parse_ident"}, Bind: bindParseIdent},
-	{Names: []string{"lower", "upper"}, Bind: bindLowerUpper},
+	{Names: []string{"lower", "upper"}, Bind: bindLowerUpper, ProbeCall: probeRangeInspect},
 	{Names: binaryNames[:], ExactSpelling: true, SharedGates: true, Bind: bindBinary},
 	{Names: []string{"random", "random_normal", "setseed"}, ExactSpelling: true, SharedGates: true, Bind: bindRandom},
 	{Names: []string{"pg_sleep", "pg_sleep_for", "pg_sleep_until"}, ExactSpelling: true, SharedGates: true, Bind: bindDatetimeSleep},

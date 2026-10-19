@@ -23,7 +23,7 @@ type viewDefinition struct {
 	sequenceRefs      map[int]ids.ObjectRef
 	literals          map[viewLiteralPath]literalExpression
 	castUsages        map[viewLiteralPath]sqltype.Usage
-	intaggRefs        map[viewLiteralPath]ids.ObjectRef
+	routineRefs       map[viewLiteralPath]ids.ObjectRef
 	operatorRefs      map[viewLiteralPath]ids.ObjectRef
 	composites        map[viewLiteralPath]compositeOccurrence
 	similarSubstrings map[viewLiteralPath]bool

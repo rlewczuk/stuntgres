@@ -21,6 +21,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	ctx := op.Context()
 	switch stmt.(type) {
+	case *parser.CreateFunction:
+		return e.executeCreateFunction(scope, stmt.(*parser.CreateFunction), count)
 	case *parser.Listen, *parser.Unlisten, *parser.Notify:
 		return scope.executeNotification(stmt, count)
 	case *parser.ForeignDDL:
@@ -287,10 +289,17 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		expected = &candidate
 	}
-	b, err := e.describe(ctx, stmt, auth, scope.lockedRef, scope.input, op, expected, &scope.queryLockAdmission)
+	b, err := e.describeScoped(scope, stmt, auth, expected)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
+	}
+	if scope.sqlRoutineScalar {
+		scope.sqlRoutineResultPlan, err = validateSQLRoutineResult(b.query.Root.Schema(), scope.sqlRoutineResult)
+		if err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
 	}
 	// Preserve the raw caller's capture group before attaching stored recipes.
 	// Rewrite metadata must not become caller-owned native lifetime provenance.
@@ -376,6 +385,11 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		if b.returning != nil {
 			results = b.returning.schema
+		}
+		if scope.sqlRoutineScalar {
+			// The caller freezes the declared scalar output. A SQL body's raw
+			// output may change through a valid assignment conversion on reanalysis.
+			results = scope.Expected.Results
 		}
 		if err := checkStatementSignature(*scope.Expected, StatementDescription{Parameters: b.parameters, Results: results, catalogOwner: auth.Catalog.Owner(), catalogEpoch: auth.Catalog.Epoch()}); err != nil {
 			e.mu.Unlock()

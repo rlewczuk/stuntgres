@@ -57,6 +57,8 @@ func (r *pgDependRefs) expression(expr expr.Expr) {
 		return
 	}
 	switch n := expr.(type) {
+	case sqlRoutineExpression:
+		r.add(n.ref.Address)
 	case selectedOperatorExpression:
 		r.add(n.ref.Address)
 	case unnestExpression:

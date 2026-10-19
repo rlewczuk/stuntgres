@@ -42,7 +42,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	capture := binding{
 		query: &BoundQuery{Root: root}, dependencies: b.dependencies, querySources: b.querySources,
 		viewLiterals: b.viewLiterals, viewCastUsages: b.viewCastUsages, viewSimilarSubstrings: b.viewSimilarSubstrings,
-		viewIntaggRefs:      b.viewIntaggRefs,
+		viewRoutineRefs:     b.viewRoutineRefs,
 		viewOperatorRefs:    b.viewOperatorRefs,
 		viewPosixSubstrings: b.viewPosixSubstrings,
 		viewCollations:      b.viewCollations, viewColumns: b.viewColumns, viewStars: b.viewStars,

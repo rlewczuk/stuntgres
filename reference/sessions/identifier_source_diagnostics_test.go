@@ -48,12 +48,6 @@ func TestReferenceIdentifierContextSourceConsumerRoutes(t *testing.T) {
 			r, err := backend.DB.Exec(s.Query)
 			fixture.DeleteReferenceCount(t, r, err, s.Affected)
 		}
-		if backend.PG {
-			for _, name := range []string{`f`, `abort`, `authorization`, `"between"`} {
-				r, err := backend.DB.Exec("CREATE FUNCTION public." + name + "(integer) RETURNS integer LANGUAGE sql IMMUTABLE AS 'SELECT $1'")
-				fixture.DeleteReferenceCount(t, r, err, 0)
-			}
-		}
 		for _, tc := range []struct {
 			q    string
 			want bool
@@ -73,42 +67,53 @@ func TestReferenceIdentifierContextSourceConsumerRoutes(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		for _, tc := range identifierContextCases {
-			want := fixture.ControlsReferenceDiagnostic(tc.code, tc.message)
-			want.Position = tc.position
-			r, err := backend.DB.Exec(tc.q)
-			if backend.PG && tc.code == "0A000" {
-				fixture.DeleteReferenceCount(t, r, err, 1)
-			} else {
-				if r != nil {
-					t.Fatal("failed Exec published result")
+		for _, present := range []bool{false, true} {
+			if present {
+				for _, name := range []string{`f`, `abort`, `authorization`, `"between"`} {
+					r, err := backend.DB.Exec("CREATE FUNCTION public." + name + "(integer) RETURNS integer LANGUAGE sql AS 'SELECT $1'")
+					fixture.DeleteReferenceCount(t, r, err, 0)
 				}
-				fixture.AssertDiagnostic(t, err, &want)
 			}
-			rows, err := backend.DB.Query(tc.q)
-			if backend.PG && tc.code == "0A000" {
-				fixture.DeleteReferenceConsume(t, true, rows, err, fixture.Select(tc.q, []string{tc.column}, []string{tc.typ}, [][]any{{tc.row}}))
-			} else {
-				if rows != nil {
-					rows.Close()
-					t.Fatal("failed Query published rows")
+			for _, tc := range identifierContextCases {
+				want := fixture.ControlsReferenceDiagnostic(tc.code, tc.message)
+				want.Position = tc.position
+				if tc.code == "42883" {
+					want.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
 				}
-				fixture.AssertDiagnostic(t, err, &want)
-			}
-			held, err := backend.DB.Prepare(tc.q)
-			if backend.PG && tc.code == "0A000" {
-				if err != nil {
-					t.Fatal(err)
+				r, err := backend.DB.Exec(tc.q)
+				if present && tc.code == "42883" {
+					fixture.DeleteReferenceCount(t, r, err, 1)
+				} else {
+					if r != nil {
+						t.Fatal("failed Exec published result")
+					}
+					fixture.AssertDiagnostic(t, err, &want)
 				}
-				if err := held.Close(); err != nil {
-					t.Fatal(err)
+				rows, err := backend.DB.Query(tc.q)
+				if present && tc.code == "42883" {
+					fixture.DeleteReferenceConsume(t, backend.PG, rows, err, fixture.Select(tc.q, []string{tc.column}, []string{tc.typ}, [][]any{{tc.row}}))
+				} else {
+					if rows != nil {
+						rows.Close()
+						t.Fatal("failed Query published rows")
+					}
+					fixture.AssertDiagnostic(t, err, &want)
 				}
-			} else {
-				if held != nil {
-					held.Close()
-					t.Fatal("failed Prepare published statement")
+				held, err := backend.DB.Prepare(tc.q)
+				if present && tc.code == "42883" {
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := held.Close(); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					if held != nil {
+						held.Close()
+						t.Fatal("failed Prepare published statement")
+					}
+					fixture.AssertDiagnostic(t, err, &want)
 				}
-				fixture.AssertDiagnostic(t, err, &want)
 			}
 		}
 	}
@@ -121,71 +126,81 @@ func TestReferenceIdentifierLaterCallSourceConsumerRoutes(t *testing.T) {
 			r, err := backend.DB.Exec(s.Query)
 			fixture.DeleteReferenceCount(t, r, err, s.Affected)
 		}
-		if backend.PG {
-			for _, name := range []string{`f`, `abort`, `authorization`, `"between"`} {
-				r, err := backend.DB.Exec("CREATE FUNCTION public." + name + "(integer) RETURNS integer LANGUAGE sql IMMUTABLE AS 'SELECT $1'")
-				fixture.DeleteReferenceCount(t, r, err, 0)
-			}
-		}
 		var before, after bytes.Buffer
 		if !backend.PG {
 			if err := stuntgres.Dump(p.Ctx, p.Native, &before); err != nil {
 				t.Fatal(err)
 			}
 		}
-		for _, tc := range identifierLaterCallCases {
-			want := fixture.ControlsReferenceDiagnostic(tc.code, tc.message)
-			want.Position = tc.position
-			r, err := backend.DB.Exec(tc.q)
-			if backend.PG && tc.code == "0A000" {
+		for _, present := range []bool{false, true} {
+			if present {
+				for _, name := range []string{`f`, `abort`, `authorization`, `"between"`} {
+					r, err := backend.DB.Exec("CREATE FUNCTION public." + name + "(integer) RETURNS integer LANGUAGE sql AS 'SELECT $1'")
+					fixture.DeleteReferenceCount(t, r, err, 0)
+				}
+			}
+			for _, tc := range identifierLaterCallCases {
+				want := fixture.ControlsReferenceDiagnostic(tc.code, tc.message)
+				want.Position = tc.position
+				if tc.code == "42883" {
+					want.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
+				}
+				r, err := backend.DB.Exec(tc.q)
+				if present && tc.code == "42883" {
+					fixture.DeleteReferenceCount(t, r, err, 1)
+				} else {
+					if r != nil {
+						t.Fatal("failed Exec published result")
+					}
+					fixture.AssertDiagnostic(t, err, &want)
+				}
+				rows, err := backend.DB.Query(tc.q)
+				if present && tc.code == "42883" {
+					fixture.DeleteReferenceConsume(t, backend.PG, rows, err, fixture.Select(tc.q, tc.columns, tc.types, tc.rows))
+				} else {
+					if rows != nil {
+						rows.Close()
+						t.Fatal("failed Query published rows")
+					}
+					fixture.AssertDiagnostic(t, err, &want)
+				}
+				held, err := backend.DB.Prepare(tc.q)
+				if present && tc.code == "42883" {
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := held.Close(); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					if held != nil {
+						held.Close()
+						t.Fatal("failed Prepare published statement")
+					}
+					fixture.AssertDiagnostic(t, err, &want)
+				}
+			}
+			r, err := backend.DB.Exec("CREATE TABLE staged (x INT); SELECT x, f(x) FROM t")
+			if present {
 				fixture.DeleteReferenceCount(t, r, err, 1)
+				rows, err := backend.DB.Query("SELECT x FROM staged")
+				fixture.DeleteReferenceConsume(t, backend.PG, rows, err, fixture.Select("SELECT x FROM staged", []string{"x"}, []string{"INT4"}, nil))
 			} else {
 				if r != nil {
-					t.Fatal("failed Exec published result")
+					t.Fatal("failed prefix published result")
 				}
+				want := fixture.ControlsReferenceDiagnostic("42883", "function f(integer) does not exist")
+				want.Position = "40"
+				want.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
 				fixture.AssertDiagnostic(t, err, &want)
-			}
-			rows, err := backend.DB.Query(tc.q)
-			if backend.PG && tc.code == "0A000" {
-				fixture.DeleteReferenceConsume(t, true, rows, err, fixture.Select(tc.q, tc.columns, tc.types, tc.rows))
-			} else {
-				if rows != nil {
-					rows.Close()
-					t.Fatal("failed Query published rows")
+				if !backend.PG {
+					if err := stuntgres.Dump(p.Ctx, p.Native, &after); err != nil {
+						t.Fatal(err)
+					}
+					if !bytes.Equal(before.Bytes(), after.Bytes()) {
+						t.Fatal("later rejection changed catalog")
+					}
 				}
-				fixture.AssertDiagnostic(t, err, &want)
-			}
-			held, err := backend.DB.Prepare(tc.q)
-			if backend.PG && tc.code == "0A000" {
-				if err != nil {
-					t.Fatal(err)
-				}
-				if err := held.Close(); err != nil {
-					t.Fatal(err)
-				}
-			} else {
-				if held != nil {
-					held.Close()
-					t.Fatal("failed Prepare published statement")
-				}
-				fixture.AssertDiagnostic(t, err, &want)
-			}
-		}
-		r, err := backend.DB.Exec("CREATE TABLE staged (x INT); SELECT x, f(x) FROM t")
-		if backend.PG {
-			fixture.DeleteReferenceCount(t, r, err, 1)
-		} else {
-			if r != nil {
-				t.Fatal("failed prefix published result")
-			}
-			want := fixture.ControlsReferenceDiagnostic("0A000", "functions are unsupported")
-			want.Position = "40"
-			fixture.AssertDiagnostic(t, err, &want)
-			if err := stuntgres.Dump(p.Ctx, p.Native, &after); err != nil {
-				t.Fatal(err)
-			}
-			if !bytes.Equal(before.Bytes(), after.Bytes()) {
-				t.Fatal("later rejection changed catalog")
 			}
 		}
 		rows, err := backend.DB.Query("SELECT x FROM t ORDER BY x")

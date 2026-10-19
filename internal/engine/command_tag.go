@@ -110,6 +110,8 @@ func classifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 		base = "ALTER CONVERSION"
 	case *parser.DropConversion:
 		base = "DROP CONVERSION"
+	case *parser.CreateFunction:
+		base = "CREATE FUNCTION"
 	case *parser.CreateOperator:
 		base = "CREATE OPERATOR"
 	case *parser.AlterOperator:

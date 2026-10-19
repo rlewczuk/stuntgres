@@ -79,11 +79,7 @@ func FinishRangeInspect(b Binder, raw parser.FunctionExpr, visible bool, operand
 		properties = expr.MergeProperties(properties, arg.Properties())
 	}
 	result := sqltype.RangeInspectResult(operation, selected).Usage()
-	formalType := sqltype.ID(3831) // Released ANYRANGE formal.
-	switch selected.ID() {
-	case sqltype.Int4Multirange, sqltype.Int8Multirange, sqltype.NumMultirange:
-		formalType = 4537 // Released ANYMULTIRANGE formal.
-	}
+	formalType := rangeCallFormal(selected)
 	formal := [2]sqltype.ID{formalType, formalType}
 	info, err := b.BuiltinRoutineInfo(b.Info(result, raw.Pos, properties), RangeRoutineProvider, name, formal[:len(args)]...)
 	if err != nil {

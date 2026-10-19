@@ -218,6 +218,12 @@ PostgreSQL independently observes its actual query and optional wait event.
 The existing admission deadline remains15 seconds, and every exit cancels and
 joins the worker before held statements or physical connections close.
 
+`SleepActiveCancelWithContext` uses that same admission/cancellation/join path,
+but additionally accepts an independently observed PostgreSQL diagnostic Context.
+The complete other diagnostic fields remain exact. Existing `SleepActiveCancel`
+and binary/relation cancellation consumers continue to require empty PostgreSQL
+Context; native cancellation remains the ordinary `context.Canceled` contract.
+
 `BinaryConversionActiveCancelAfter` uses the same observer, deadline, cancellation
 and worker-join implementation, with an additional progress callback after real
 provider/server admission and before cancellation. The callback uses the supplied

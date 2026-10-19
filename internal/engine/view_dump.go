@@ -43,6 +43,9 @@ func dumpPredecessor(view catalog.Read, address, consumer ids.ObjectAddress) (id
 		return operator.Address().ObjectID, nil
 	}
 	if proc, ok := object.(*catalog.Procedure); ok {
+		if proc.SQL != nil {
+			return proc.Address().ObjectID, nil
+		}
 		ext, ok := view.Extension(proc.Extension)
 		if !ok {
 			return 0, fmt.Errorf("stuntgres: missing installed function dump predecessor")

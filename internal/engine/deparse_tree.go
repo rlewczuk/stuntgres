@@ -244,6 +244,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 	case installedCryptoFunctionExpression:
 		fmt.Fprintf(out, "InstalledCrypto %d %s", n.ref.Address.ObjectID, n.procedure.Signature)
 		err = args(n.Args)
+	case sqlRoutineExpression:
+		fmt.Fprintf(out, "SQLRoutine %d %s", n.ref.Address.ObjectID, n.procedure.Signature)
+		err = args(n.args)
 	case installedFunctionExpression:
 		fmt.Fprintf(out, "InstalledFunction %d", n.ref.Address.ObjectID)
 		err = args([]expr.Expr{n.Arg})

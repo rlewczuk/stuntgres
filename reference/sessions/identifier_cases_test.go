@@ -20,18 +20,18 @@ var identifierNormalizationCases = []struct{ spelling, name string }{
 	{`"` + strings.Repeat("D", 62) + `éZ"`, strings.Repeat("D", 62)},
 }
 
-// PostgreSQL outcomes are independently specified; native capability errors
-// deliberately differ for legal calls, expressions, ordering and aliases.
+// Calls fail with these diagnostics before creation and return the independently
+// specified rows after the same basic SQL functions are installed on both backends.
 var identifierContextCases = []struct {
 	q, code, message, position, column, typ string
 	row                                     any
 }{
 	{"SELECT between(x) FROM t", "42601", "syntax error at or near \"(\"", "15", "", "", nil},
 	{"SELECT integer(x) FROM t", "42601", "syntax error at or near \"(\"", "15", "", "", nil},
-	{"SELECT authorization(x) FROM t", "0A000", "functions are unsupported", "8", "authorization", "INT4", int64(7)},
-	{"SELECT f(x) FROM t", "0A000", "functions are unsupported", "8", "f", "INT4", int64(7)},
-	{"SELECT abort(x) FROM t", "0A000", "functions are unsupported", "8", "abort", "INT4", int64(7)},
-	{"SELECT \"between\"(x) FROM t", "0A000", "functions are unsupported", "8", "between", "INT4", int64(7)},
+	{"SELECT authorization(x) FROM t", "42883", "function authorization(integer) does not exist", "8", "authorization", "INT4", int64(7)},
+	{"SELECT f(x) FROM t", "42883", "function f(integer) does not exist", "8", "f", "INT4", int64(7)},
+	{"SELECT abort(x) FROM t", "42883", "function abort(integer) does not exist", "8", "abort", "INT4", int64(7)},
+	{"SELECT \"between\"(x) FROM t", "42883", "function between(integer) does not exist", "8", "between", "INT4", int64(7)},
 	{"INSERT INTO t VALUES (between(7))", "42601", "syntax error at or near \"(\"", "30", "", "", nil},
 	{"SELECT x FROM t WHERE x=between(7)", "42601", "syntax error at or near \"(\"", "32", "", "", nil},
 	{"SELECT x FROM t ORDER BY x NULLS bogus", "42601", "syntax error at or near \"NULLS\"", "28", "", "", nil},
@@ -48,9 +48,9 @@ var identifierLaterCallCases = []struct {
 	columns, types             []string
 	rows                       [][]any
 }{
-	{"SELECT x, abort(x) FROM t", "0A000", "functions are unsupported", "11", []string{"x", "abort"}, []string{"INT4", "INT4"}, [][]any{{int64(7), int64(7)}}},
-	{"SELECT x, authorization(x) FROM t", "0A000", "functions are unsupported", "11", []string{"x", "authorization"}, []string{"INT4", "INT4"}, [][]any{{int64(7), int64(7)}}},
-	{"SELECT x, \"between\"(x) FROM t", "0A000", "functions are unsupported", "11", []string{"x", "between"}, []string{"INT4", "INT4"}, [][]any{{int64(7), int64(7)}}},
+	{"SELECT x, abort(x) FROM t", "42883", "function abort(integer) does not exist", "11", []string{"x", "abort"}, []string{"INT4", "INT4"}, [][]any{{int64(7), int64(7)}}},
+	{"SELECT x, authorization(x) FROM t", "42883", "function authorization(integer) does not exist", "11", []string{"x", "authorization"}, []string{"INT4", "INT4"}, [][]any{{int64(7), int64(7)}}},
+	{"SELECT x, \"between\"(x) FROM t", "42883", "function between(integer) does not exist", "11", []string{"x", "between"}, []string{"INT4", "INT4"}, [][]any{{int64(7), int64(7)}}},
 	{"SELECT x, between(x) FROM t", "42601", "syntax error at or near \"(\"", "18", nil, nil, nil},
 	{"SELECT x, x, between(x) FROM t", "42601", "syntax error at or near \"(\"", "21", nil, nil, nil},
 }

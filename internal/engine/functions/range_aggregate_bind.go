@@ -85,10 +85,8 @@ func resolveRangeAggregateSignature(b Binder, raw parser.AggregateExpr, name par
 	if input == nil {
 		return nil, aggregateUnknownError(name, raw.Pos)
 	}
-	input = input.BaseType()
-	switch input.ID() {
-	case sqltype.Int4Range, sqltype.Int8Range, sqltype.NumRange, sqltype.Int4Multirange, sqltype.Int8Multirange, sqltype.NumMultirange:
-	default:
+	input = rangeAggregateInput(input)
+	if input == nil {
 		return nil, ResolutionError(name, raw.Pos, types, false)
 	}
 	return coerceConditional(b, operand, input.Usage(), raw.Name)

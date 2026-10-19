@@ -18,10 +18,10 @@ func remapFrozenPresentation(view catalog.Read, original *viewDefinition, mappin
 			definition.columns[path] = column
 		}
 	}
-	if len(original.intaggRefs) != 0 {
-		definition.intaggRefs = make(map[viewLiteralPath]ids.ObjectRef, len(original.intaggRefs))
-		for path, old := range original.intaggRefs {
-			definition.intaggRefs[path] = ref(old)
+	if len(original.routineRefs) != 0 {
+		definition.routineRefs = make(map[viewLiteralPath]ids.ObjectRef, len(original.routineRefs))
+		for path, old := range original.routineRefs {
+			definition.routineRefs[path] = ref(old)
 		}
 	}
 	if len(original.operatorRefs) != 0 {

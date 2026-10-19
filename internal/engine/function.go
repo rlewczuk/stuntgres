@@ -17,6 +17,9 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 	if len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 {
 		return nil, fmt.Errorf("stuntgres: invalid function name")
 	}
+	if node, handled, err := b.bindSQLCallable(raw); handled {
+		return node, err
+	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	// Registered families are name-disjoint from the chain below.
 	if definition, ok := functions.Lookup(name); ok {
@@ -124,7 +127,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 		if kind != 0 {
 			break
 		}
-		return nil, b.functionSignatureError(raw)
+		return nil, b.unavailableFunctionError(raw, visible)
 	}
 	// Over-limit calls still transform every child before resolution, but never
 	// need retained executable argument storage.
@@ -173,7 +176,8 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 		types := make([]string, len(args))
 		for i, arg := range args {
 			types[i] = "unknown"
-			if literal, ok := raw.Args[i].(parser.LiteralExpr); ok && (literal.Value.Kind == parser.NullValue || literal.Value.Kind == parser.StringValue) {
+			syntax, _ := b.OriginalArgument(raw.Args[i])
+			if literal, ok := syntax.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.NullValue || literal.Value.Kind == parser.StringValue) {
 				continue
 			}
 			if arg.ResultUsage().Type != nil {
@@ -309,12 +313,9 @@ func (b *expressionBinder) functionSignatureError(raw parser.FunctionExpr) error
 			return expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 		}
 	}
-	names, composite, err := b.functionArgumentTypeNames(raw)
+	names, _, err := b.functionArgumentTypeNames(raw)
 	if err != nil {
 		return err
-	}
-	if raw.CompositeCandidate && !composite {
-		return expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
 	}
 	return b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 }

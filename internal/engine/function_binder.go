@@ -18,6 +18,15 @@ var _ functions.AggregateBinder = (*expressionBinder)(nil)
 
 func (b *expressionBinder) Type(id sqltype.ID) *sqltype.Descriptor { return b.typ(id) }
 
+// OriginalArgument recovers syntax only through the same private slot that
+// supplies an already-analyzed operand. It never binds or matches source keys.
+func (b *expressionBinder) OriginalArgument(raw parser.Expr) (parser.Expr, bool) {
+	if slot, ok := raw.(parser.ParameterExpr); ok && slot.Number < 0 && -slot.Number <= len(b.selectedOperatorSyntax) {
+		return b.selectedOperatorSyntax[-slot.Number-1], true
+	}
+	return raw, false
+}
+
 func (b *expressionBinder) Info(u sqltype.Usage, pos parser.Position, p expr.Properties) expr.Info {
 	return b.info(u, pos, p)
 }

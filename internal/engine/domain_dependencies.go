@@ -155,6 +155,15 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(provider.base, a, provider.path)})
 				}
 			case *catalog.Procedure:
+				if d.SQL != nil && target.ClassID == ids.TypeClassID {
+					uses := d.Result == target.ObjectID
+					for _, input := range d.SQL.Inputs {
+						uses = uses || ids.OID(input.Type.ID()) == target.ObjectID
+					}
+					if uses {
+						direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(provider.base, a, provider.path)})
+					}
+				}
 				if d.Extension == target {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true})
 				}

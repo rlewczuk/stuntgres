@@ -149,13 +149,6 @@ func TestReferenceIdentifierContextualCapabilities(t *testing.T) {
 	p := fixture.NewScenario(t)
 	p.Step(t, fixture.Exec("CREATE TABLE t (x INT)", 0))
 	p.Step(t, fixture.Exec("INSERT INTO t VALUES (7)", 1))
-	if p.Postgres != nil {
-		for _, name := range []string{`f`, `abort`, `authorization`, `"between"`} {
-			if _, err := p.Postgres.ExecContext(p.Ctx, "CREATE FUNCTION public."+name+"(integer) RETURNS integer LANGUAGE sql IMMUTABLE AS 'SELECT $1'"); err != nil {
-				t.Fatal(err)
-			}
-		}
-	}
 	for _, tc := range []struct {
 		q    string
 		want bool
@@ -165,29 +158,39 @@ func TestReferenceIdentifierContextualCapabilities(t *testing.T) {
 		p.Step(t, s)
 		p.Step(t, fixture.Prepared(s))
 	}
-	for _, tc := range identifierContextCases {
-		for _, backend := range p.Backends() {
-			for _, route := range []string{"exec", "query", "prepare"} {
-				var s fixture.Step
-				if backend.PG && tc.code == "0A000" {
-					s = fixture.Select(tc.q, []string{tc.column}, []string{tc.typ}, [][]any{{tc.row}})
-					if route == "exec" {
-						s = fixture.Exec(tc.q, 1)
-					}
-					s.Prepared = route == "prepare"
-				} else {
-					want := fixture.ControlsReferenceDiagnostic(tc.code, tc.message)
-					want.Position = tc.position
-					s = fixture.ErrorDiagnostic(tc.q, want)
-					s.SelectRows = route == "query"
-					s.Prepared = route == "prepare"
-					if s.Prepared {
-						s.ErrorStage = "prepare"
+	for _, present := range []bool{false, true} {
+		if present {
+			for _, name := range []string{`f`, `abort`, `authorization`, `"between"`} {
+				p.Step(t, fixture.Exec("CREATE FUNCTION public."+name+"(integer) RETURNS integer LANGUAGE sql AS 'SELECT $1'", 0))
+			}
+		}
+		for _, tc := range identifierContextCases {
+			for _, backend := range p.Backends() {
+				for _, route := range []string{"exec", "query", "prepare"} {
+					var s fixture.Step
+					if present && tc.code == "42883" {
+						s = fixture.Select(tc.q, []string{tc.column}, []string{tc.typ}, [][]any{{tc.row}})
+						if route == "exec" {
+							s = fixture.Exec(tc.q, 1)
+						}
+						s.Prepared = route == "prepare"
 					} else {
-						s.ErrorStage = "execute"
+						want := fixture.ControlsReferenceDiagnostic(tc.code, tc.message)
+						want.Position = tc.position
+						if tc.code == "42883" {
+							want.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
+						}
+						s = fixture.ErrorDiagnostic(tc.q, want)
+						s.SelectRows = route == "query"
+						s.Prepared = route == "prepare"
+						if s.Prepared {
+							s.ErrorStage = "prepare"
+						} else {
+							s.ErrorStage = "execute"
+						}
 					}
+					fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, s)
 				}
-				fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, s)
 			}
 		}
 	}
@@ -231,58 +234,61 @@ func TestReferenceIdentifierLaterProjectionCalls(t *testing.T) {
 	p := fixture.NewScenario(t)
 	p.Step(t, fixture.Exec("CREATE TABLE t (x INT)", 0))
 	p.Step(t, fixture.Exec("INSERT INTO t VALUES (7)", 1))
-	if p.Postgres != nil {
-		for _, name := range []string{`abort`, `authorization`, `"between"`} {
-			if _, err := p.Postgres.ExecContext(p.Ctx, "CREATE FUNCTION public."+name+"(integer) RETURNS integer LANGUAGE sql IMMUTABLE AS 'SELECT $1'"); err != nil {
+	for _, present := range []bool{false, true} {
+		if present {
+			for _, name := range []string{`f`, `abort`, `authorization`, `"between"`} {
+				p.Step(t, fixture.Exec("CREATE FUNCTION public."+name+"(integer) RETURNS integer LANGUAGE sql AS 'SELECT $1'", 0))
+			}
+		}
+		for _, tc := range identifierLaterCallCases {
+			for _, backend := range p.Backends() {
+				for _, route := range []string{"exec", "query", "prepare"} {
+					var s fixture.Step
+					if present && tc.code == "42883" {
+						s = fixture.Select(tc.q, tc.columns, tc.types, tc.rows)
+						if route == "exec" {
+							s = fixture.Exec(tc.q, 1)
+						}
+						s.Prepared = route == "prepare"
+					} else {
+						want := fixture.ControlsReferenceDiagnostic(tc.code, tc.message)
+						want.Position = tc.position
+						if tc.code == "42883" {
+							want.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
+						}
+						s = fixture.ErrorDiagnostic(tc.q, want)
+						s.SelectRows = route == "query"
+						s.Prepared = route == "prepare"
+						if s.Prepared {
+							s.ErrorStage = "prepare"
+						} else {
+							s.ErrorStage = "execute"
+						}
+					}
+					fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, s)
+				}
+			}
+		}
+		q := "CREATE TABLE staged (x INT); SELECT x, f(x) FROM t"
+		if present {
+			p.Step(t, fixture.Exec(q, 1))
+			p.Step(t, fixture.Select("SELECT x FROM staged", []string{"x"}, []string{"INT4"}, nil))
+		} else {
+			var before, after bytes.Buffer
+			if err := stuntgres.Dump(p.Ctx, p.Native, &before); err != nil {
 				t.Fatal(err)
 			}
-		}
-	}
-	for _, tc := range identifierLaterCallCases {
-		for _, backend := range p.Backends() {
-			for _, route := range []string{"exec", "query", "prepare"} {
-				var s fixture.Step
-				if backend.PG && tc.code == "0A000" {
-					s = fixture.Select(tc.q, tc.columns, tc.types, tc.rows)
-					if route == "exec" {
-						s = fixture.Exec(tc.q, 1)
-					}
-					s.Prepared = route == "prepare"
-				} else {
-					want := fixture.ControlsReferenceDiagnostic(tc.code, tc.message)
-					want.Position = tc.position
-					s = fixture.ErrorDiagnostic(tc.q, want)
-					s.SelectRows = route == "query"
-					s.Prepared = route == "prepare"
-					if s.Prepared {
-						s.ErrorStage = "prepare"
-					} else {
-						s.ErrorStage = "execute"
-					}
-				}
-				fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, s)
+			want := fixture.ControlsReferenceDiagnostic("42883", "function f(integer) does not exist")
+			want.Position = "40"
+			want.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
+			p.Step(t, fixture.ErrorDiagnostic(q, want))
+			if err := stuntgres.Dump(p.Ctx, p.Native, &after); err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(before.Bytes(), after.Bytes()) {
+				t.Fatal("later call published catalog")
 			}
 		}
-	}
-	var before, after bytes.Buffer
-	if err := stuntgres.Dump(p.Ctx, p.Native, &before); err != nil {
-		t.Fatal(err)
-	}
-	want := fixture.ControlsReferenceDiagnostic("0A000", "functions are unsupported")
-	want.Position = "40"
-	fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, fixture.ErrorDiagnostic("CREATE TABLE staged (x INT); SELECT x, f(x) FROM t", want))
-	if err := stuntgres.Dump(p.Ctx, p.Native, &after); err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(before.Bytes(), after.Bytes()) {
-		t.Fatal("later call published catalog")
-	}
-	if p.Postgres != nil {
-		if _, err := p.Postgres.ExecContext(p.Ctx, "CREATE FUNCTION public.f(integer) RETURNS integer LANGUAGE sql IMMUTABLE AS 'SELECT $1'"); err != nil {
-			t.Fatal(err)
-		}
-		fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, fixture.Exec("CREATE TABLE staged (x INT); SELECT x, f(x) FROM t", 1))
-		fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, fixture.Select("SELECT x FROM staged", []string{"x"}, []string{"INT4"}, nil))
 	}
 	p.Step(t, fixture.Select("SELECT x FROM t ORDER BY x", []string{"x"}, []string{"INT4"}, [][]any{{int64(7)}}))
 }

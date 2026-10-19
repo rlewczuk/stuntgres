@@ -20,6 +20,9 @@ type WindowSignature struct {
 type WindowFunction struct {
 	Names     []string
 	Signature func(b AggregateBinder, raw parser.AggregateExpr, name parser.ObjectName) (WindowSignature, error)
+	// ProbeCall is pure applicability for this window family's pseudo formals.
+	// Window execution and diagnostics stay with Signature and the engine owner.
+	ProbeCall CallShape
 }
 
 // The static table is the registry: no init() registration. The rank family
@@ -27,8 +30,8 @@ type WindowFunction struct {
 var windowFunctions = [...]WindowFunction{
 	{Names: []string{"row_number"}, Signature: rowNumberSignature},
 	{Names: []string{"ntile"}, Signature: ntileSignature},
-	{Names: []string{"first_value", "last_value", "nth_value"}, Signature: windowValueSignature},
-	{Names: []string{"lead", "lag"}, Signature: windowOffsetSignature},
+	{Names: []string{"first_value", "last_value", "nth_value"}, Signature: windowValueSignature, ProbeCall: probeWindowValue},
+	{Names: []string{"lead", "lag"}, Signature: windowOffsetSignature, ProbeCall: probeWindowOffset},
 	{Names: []string{"rank", "dense_rank", "percent_rank", "cume_dist"}, Signature: rankingSignature},
 }
 
@@ -60,7 +63,7 @@ func rowNumberSignature(b AggregateBinder, raw parser.AggregateExpr, name parser
 		if err != nil {
 			return WindowSignature{}, err
 		}
-		types[i] = ArgumentTypeName(child, arg.Expression)
+		types[i] = ArgumentTypeName(arg.Raw, arg.Expression)
 	}
 	if _, err := b.AnalyzeAggregateFilter(raw); err != nil {
 		return WindowSignature{}, err
@@ -189,15 +192,10 @@ func resolveWindowOffsetSignature(b AggregateBinder, raw parser.AggregateExpr, n
 		err = failure
 		return
 	}
-	var valueUsage, offsetUsage sqltype.Usage
-	if len(arguments) > 0 {
-		valueUsage = arguments[0].Usage
-	}
-	if len(arguments) > 1 {
-		offsetUsage = arguments[1].Usage
-	}
 	integer := b.Type(sqltype.Int4).Usage()
-	decision, offsetPlan := ResolveWindowOffset(visible, raw.Star, len(arguments), valueUsage, offsetUsage, integer)
+	var decision Resolution
+	var offsetPlan sqltype.CoercionPlan
+	usage, offsetPlan, decision = windowOffsetTargets(b, arguments, visible, raw.Star)
 	if decision == Missing {
 		err = ResolutionError(name, raw.Pos, types, false)
 		return
@@ -205,32 +203,6 @@ func resolveWindowOffsetSignature(b AggregateBinder, raw parser.AggregateExpr, n
 	if decision == UnknownPolymorphic {
 		err = sqlError("42804", "could not determine polymorphic type because input has type unknown")
 		return
-	}
-	usage = valueUsage
-	if len(arguments) == 3 {
-		// The unlabeled probe over the typed value and default never fails;
-		// a category mismatch yields no type.
-		var known [2]sqltype.Usage
-		count := 0
-		for _, i := range [2]int{0, 2} {
-			if arguments[i].Usage.Type != nil {
-				known[count] = arguments[i].Usage
-				count++
-			}
-		}
-		usage = b.CommonUsage(known[:count])
-		if usage.Type == nil {
-			err = ResolutionError(name, raw.Pos, types, false)
-			return
-		}
-		for _, i := range [2]int{0, 2} {
-			if arguments[i].Usage.Type != nil {
-				if _, failure := sqltype.PlanCoercion(arguments[i].Usage, usage, sqltype.Implicit); failure != nil {
-					err = ResolutionError(name, raw.Pos, types, false)
-					return
-				}
-			}
-		}
 	}
 	// Coerce in argument order, so reused parameter occurrence diagnostics agree
 	// with the formal value, INT4 offset, and common default types.
@@ -243,7 +215,7 @@ func resolveWindowOffsetSignature(b AggregateBinder, raw parser.AggregateExpr, n
 		return
 	}
 	if len(arguments) > 1 {
-		offset, err = b.CoerceArgument(arguments[1], CoercionRequest{Intent: ExactFormalArgument, Target: integer, AtRaw: true, Plan: offsetPlan, Planned: offsetUsage.Type != nil})
+		offset, err = b.CoerceArgument(arguments[1], CoercionRequest{Intent: ExactFormalArgument, Target: integer, AtRaw: true, Plan: offsetPlan, Planned: arguments[1].Usage.Type != nil})
 		if err != nil {
 			return
 		}

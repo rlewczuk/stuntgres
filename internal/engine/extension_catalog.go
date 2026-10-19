@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -50,6 +51,36 @@ func (p extensionCatalogProvider) Validate(v catalog.Read, d catalog.Descriptor)
 			return err
 		}
 	case *catalog.Procedure:
+		if d.SQL != nil {
+			if !d.SQL.Result.Valid() || d.SQL.Query == nil {
+				return invalid()
+			}
+			result, ok := v.LookupType(d.SQL.Result.Type.ID())
+			if !ok || !result.Concrete() {
+				return invalid()
+			}
+			var signature strings.Builder
+			for i, input := range d.SQL.Inputs {
+				if !input.Valid() {
+					return invalid()
+				}
+				typ, ok := v.LookupType(input.Type.ID())
+				if !ok || !typ.Concrete() {
+					return invalid()
+				}
+				if i != 0 {
+					signature.WriteByte(',')
+				}
+				signature.WriteString(strconv.FormatUint(uint64(typ.ID()), 10))
+			}
+			if string(d.Signature) != signature.String() {
+				return invalid()
+			}
+			if d.Builtin != nil || d.Aggregate != nil || d.Foreign != nil || d.Implementation != nil || d.Conversion.Name() != "" || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || len(d.Body) != 0 || d.RoutineKind != catalog.FunctionRoutine || d.Strict || d.Volatility != expr.Volatile || ids.OID(d.SQL.Result.Type.ID()) != d.Result {
+				return invalid()
+			}
+			break
+		}
 		if uuidOsspProviderOf(d) != nil && (d.Aggregate != nil || d.Foreign != nil || d.Builtin != nil) {
 			return invalid()
 		}

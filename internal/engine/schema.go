@@ -411,6 +411,10 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		if err = e.stageDropConversionLocked(op, auth, stage, s); err != nil {
 			return nil, err
 		}
+	case *parser.CreateFunction:
+		if err = e.stageCreateFunctionLocked(op, auth, stage, s, input); err != nil {
+			return nil, err
+		}
 	case *parser.CreateOperator:
 		if err = e.stageCreateOperatorLocked(op, auth, stage, s); err != nil {
 			return nil, err

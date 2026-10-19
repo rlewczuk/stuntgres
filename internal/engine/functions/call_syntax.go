@@ -32,7 +32,7 @@ func ArgumentTypeNames(b Binder, raw parser.FunctionExpr) ([]string, error) {
 			return nil, err
 		}
 		names[i] = "unknown"
-		literal, isLiteral := child.(parser.LiteralExpr)
+		literal, isLiteral := arg.Raw.(parser.LiteralExpr)
 		deferred := isLiteral && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue)
 		if typ := arg.Usage.Type; typ != nil && !deferred && typ.DiagnosticName() != "unknown" {
 			names[i] = b.DiagnosticTypeName(typ)

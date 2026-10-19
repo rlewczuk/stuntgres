@@ -6,6 +6,85 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Scalar SQL routine contract
+
+`TestReferenceRoutineCore*` owns consumer-facing anonymous positional
+`CREATE FUNCTION ... RETURNS scalar LANGUAGE SQL AS 'SELECT ...'`, expression
+calls and native persistence controls. Expectations were established with pinned
+PostgreSQL18.6 UTF8/C before native implementation; no discovery filter remains.
+Ordinary qualified/unqualified names include aggregate- and type-like spellings,
+not a list of specially permitted routine names.
+
+The selected scenarios cover:
+
+- Creation, duplicate identity, zero/multiple arguments, nested calls, quoted
+  names, both clause orders and direct/prepared/held parameter isolation.
+- Namespace masking, exact/implicit/unknown matching, live EXECUTE/invoker
+  authority and missing/wrong/ambiguous signatures.
+- Existing SELECT bodies, no-row typed NULL, nonstrict NULL handling,
+  assignment-only result conversion, FLOAT8/BYTEA ownership, first-row demand,
+  ordinary aggregate/sort semantics and validation without evaluation.
+- Modifying CTE effects across sibling calls, outer-error rollback and retained
+  root FK completion obligations; prepared invalidation, current data,
+  cancellation and held result lifetime.
+- Full expected diagnostic fields/stages for malformed declarations/bodies,
+  invalid returns and runtime failures. Native runtime context is statement 1;
+  PostgreSQL may report its actual SQL-function inlining context.
+- Aggregate/type-name call selection, scalar ALL acceptance, literal cast versus
+  external unknown-parameter resolution and DISTINCT/FILTER rejection.
+- Native Dump/Reset/Restore of functions, a view, defaults, data and a
+  text-body/table-default cycle; invalid/read-failed/canceled Restore atomicity.
+  Real mode additionally executes actual native dump bytes on PostgreSQL.
+
+`TestReferenceRoutineStoredArgumentIdentity` distinguishes a stored view using an
+implicitly selected bigint formal (`1001/INT8`) from a fresh call using a later
+integer overload (`2001/INT8`). Native Dump/Reset/Restore must preserve both
+outcomes, including the stored call's original argument conversion.
+
+Metadata checks are independent of value parity. INT4/INT8/FLOAT8 PostgreSQL
+ScanTypes are int32/int64/float64; native integer ScanTypes are int64.
+Length/decimal metadata is unknown. PostgreSQL nullable metadata is unknown.
+Native scalar calls likewise have unknown nullability, whereas the existing
+COUNT owner reports non-null/known and stored-view columns nullable/known.
+The affected witnesses assert these distinctions explicitly before and after
+replacement rather than applying scalar-call expectations to source columns.
+
+Run from the repository root, with an external 900-second deadline per command:
+
+```sh
+make check RUN='^TestReferenceRoutineCore(CreationAndCalls|Resolution|BodyAndResults|Diagnostics|Lifetime|Persistence|FeatureSmoke|CallableKinds)$'
+make check REFERENCE=1 RUN='^TestReferenceRoutineCore(CreationAndCalls|Resolution|BodyAndResults|Diagnostics|Lifetime|Persistence|FeatureSmoke|CallableKinds)$'
+make check RUN='^TestReferenceRoutineStoredArgumentIdentity$'
+make check REFERENCE=1 RUN='^TestReferenceRoutineStoredArgumentIdentity$'
+make check RACE=1 RUN='^TestSQLRoutine(FrameIsolation|FrameResultOwnership|CallableSelection|StagedLookup|FirstRowDemand|ValidationNoExecution|BodyAnalysisRetention|RestoreStaging|FrozenPresentation|StoredDefaultValidation)$'
+```
+
+The internal selections establish proc frame/result ownership, catalog COW name
+membership, query demand, shared analysis retention, isolated Restore validation,
+frozen occurrence provenance and DEFAULT structural/property invariants.
+The whole-project Docker-free gate remains `make quickcheck`, with an external
+1800-second deadline; selected checks retain 900 seconds and do not substitute
+for the whole-project gate.
+
+Permanent feature smoke:
+
+```sh
+make check RUN='^TestReferenceRoutineCoreFeatureSmoke$'
+make check REFERENCE=1 RUN='^TestReferenceRoutineCoreFeatureSmoke$'
+```
+
+Expected: direct add1(4)=5/INT4; held inputs 4/9 produce 5/10; empty body produces
+typed NULL; the first outer projection over an ordered subquery returns 10;
+FLOAT8 conversion returns 5; restored add1=5 and cycle-default sum=14; missing
+function returns 42883. A separate public `database/sql`/stuntgres-control
+`go run` smoke observed those same native results with temporary, untracked source.
+The ordinary `SELECT 10/x ... ORDER BY x DESC` negative control still divides by
+zero: routine demand does not relocate projection below/above required sorts.
+
+See [native scope](../../docs/DIALECT.md#scalar-sql-routines),
+[replay contract](../../docs/FIXTURES.md#sql-routine-declarations-and-callers) and
+[proc ownership](../../internal/engine/proc/README.md).
+
 ### Internal char conditional equality
 
 Change note: simple CASE now resolves existing catalog-owned internal `"char"`
@@ -466,3 +545,156 @@ Installed CYCLE interoperability regression selectors are
 `^TestReferenceQueryCycle(Metadata|Prepared|Stored|Lifecycle|FeatureSmoke)$`,
 each in native and real pinned modes. After edits root owns generation/formatting,
 selected proof, standalone smoke, whole-project quickcheck and independent review.
+
+### SQL routine resolution review regressions
+
+`routine_resolution_review_test.go` shares direct and prepared definitions for
+same-name SQL overload coexistence with polymorphic `array_append`, variadic
+`concat` and defaultable `parse_ident`. Both actual SQL and builtin winners are
+required, including qualified calls, public parameters, explicit pg_catalog
+placement, later exact signatures and per-signature namespace masking.
+
+Unknown-position coverage includes nonstring category conflicts in both orders,
+string preference, preferred numeric/string types, unanimous known/unknown input
+selection, and the case where all-position category filtering has no survivor.
+Ambiguities require complete 42725 fields (position8 and the standard cast hint),
+direct execute failure and prepared analysis failure. Root observed the initial
+independent winners and diagnostics against pinned PostgreSQL18.6 in tests46/47.
+The added SQL/builtin `concat(NULL,NULL)` ambiguity independently requires42725,
+not successful builtin fallback, and needs fresh selected oracle proof. Earlier
+oracle evidence does not establish a post-remedy native pass.
+
+`OriginalRecipes` additionally preserves the existing native null-count
+arithmetic boundary with a same-name SQL overload, signed-literal admission and
+actual SQL winners. Direct and held builtin calls advance a sequence exactly
+once per execution; preparation and current-value probes do not advance it.
+These added expectations require fresh selected oracle/native proof.
+
+Root-owned selected proof, with an external900-second deadline for each command:
+
+```sh
+make check RUN='^TestReferenceRoutineResolution(ProviderCoexistence|UnknownPositions|OriginalRecipes)$'
+make check RUN='^TestReferenceRoutineResolution(ProviderCoexistence|UnknownPositions|OriginalRecipes)$' REFERENCE=1
+make check RUN='^TestSQLRoutine(ProviderCallShapes|CallableShapeMasking|UnknownCategorySelection|OriginalArgumentRecipes)$'
+```
+
+The first two also serve as feature smoke: builtin array result `{1,2}`, concat
+`ab`, defaulted identifier array `{foo,bar}`, independently fixed SQL/path winner
+values, and order-independent42725 ambiguity. Internal package-function coverage
+checks family applicability without duplicating public SQL witnesses.
+
+### SQL overload and existing window-provider coexistence
+
+`routine_window_review_test.go` adds `RoutineWindowCoexistence`,
+`RoutineWindowPolymorphic` and `RoutineWindowDiagnostics`. Direct and prepared
+calls require builtin `row_number() OVER ()` to return1/INT8 before and after a
+same-name SQL integer overload, while the actual SQL call `row_number(4)`
+returns104/INT4. Qualified controls, explicit search paths and zero-input
+signature masking distinguish namespaces from whole-name shadowing.
+
+Existing first_value and lag providers retain their polymorphic argument and
+default-value shapes alongside nonmatching SQL overloads. Window names, database
+types and cells use the ordinary fixture contract; SQL scalar-only raw scan and
+nullability assumptions are not imposed on existing window descriptors.
+Actual scalar SQL OVER winners and missing OVER retain complete42809 diagnostics
+with direct execution/prepared-analysis stages. Root observed the original three
+definitions against pinned PostgreSQL18.6 in tests64; native reached the genuine
+missing-window-kind regression, not a passing candidate.
+
+Additional independent controls require same-query nested windows to report
+42P20, including a window wrapped in SQL-call actuals, and reject a window in
+WHERE. A window in a child query and a window actual of a real scalar SQL winner
+remain valid. These additions and the remedy require fresh selected oracle and
+native proof; earlier evidence does not establish their passing result.
+
+Root-owned proof/smoke commands, each with an external900-second deadline:
+
+```sh
+make check RUN='^TestReferenceRoutineWindow(Coexistence|Polymorphic|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferenceRoutineWindow(Coexistence|Polymorphic|Diagnostics)$'
+make check RUN='^TestSQLRoutine(ProviderCallShapes|WindowCallShapeTargets)$' RACE=1
+make check RUN='^TestQueryWindow(ValueBindingUnwind|Review4ArgumentOwnerRestoration|MetadataAndOverlayOwnership|OffsetGraph)$'
+```
+
+Expected feature observations are builtin1/INT8, SQL104/INT4, first_value7,
+lag default9 and typedNULL, correct per-signature path winners, scalar-over42809
+and nested/WHERE42P20 without bypassing the existing window owner.
+
+### Routine prebinding and rule qualification review regressions
+
+`routine_nesting_review_test.go` adds `RoutineNestingDiagnostics` and
+`RoutineNestingBoundaries`. Direct and prepared ordinary aggregate and aggregate
+window calls retain nesting checks before and after installing nonmatching SQL
+overloads of sum/count. Qualified builtin calls and windows wrapped in SQL-call
+actuals must retain the complete 42803/42P20 diagnostic fields and analysis
+stages. Child-query windows, callee-body windows and legitimate scalar SQL
+winners remain valid. Known-argument reuse must preserve the existing owner's
+window-occurrence bookkeeping even when a signature discards its bound input.
+Legal COUNT(expr) OVER calls preserve their existing native 0A000 capability
+boundary (PostgreSQL returns 1), checked directly and prepared; supported numeric
+SUM window calls retain their values. Illegal nested-window arguments require
+42P20 before that capability check.
+
+`routine_rule_review_test.go` adds `RoutineRuleQualificationPersistence`.
+Existing INSERT rules use both a direct boolean SQL call and a call nested
+under NOT as qualifications. Actual inserts of -2, 0 and 3 independently require
+input rows -2/0/3, a positive log containing 3, and a nonpositive log containing
+-2/0. Native Dump/Reset/Restore preserves these rows and subsequent inserts -4/5
+must update the appropriate logs. In real mode the exact native-emitted stream
+is replayed on pinned PostgreSQL, its data is independently checked, and new
+inserts -6/7 must execute the restored rules correctly.
+
+Qualification presentation freezes the binder-owned normalized syntax together
+with its matching checked routine captures. It does not mutate the parsed rule
+condition or relax symbolic-rendering validation. Existing
+`TestSQLRoutineFrozenPresentation` covers source immutability and rejected missing,
+extra, unmarked and foreign routine captures.
+
+Root-owned selected proof and feature smoke, with an external 900-second
+deadline for each command:
+
+```sh
+make check RUN='^TestReferenceRoutine(Nesting(Diagnostics|Boundaries)|RuleQualificationPersistence)$' REFERENCE=1
+make check RUN='^TestReferenceRoutine(Nesting(Diagnostics|Boundaries)|RuleQualificationPersistence)$'
+make check RUN='^TestSQLRoutineFrozenPresentation$' RACE=1
+```
+
+Both selected modes are required after the remedies; discovery-only oracle
+results and native pre-remedy failures are not passing verification.
+
+### Selected-provider late child composition
+
+`routine_late_child_review_test.go` adds `RoutineLateChildSelection` and
+`RoutineLateChildUnwind`. FILTER and aggregate ORDER BY expressions containing
+SQL scalar calls must continue to return `1/INT8` before and after an unrelated
+SQL `sum(boolean)` overload is installed. Qualified SUM controls and nested
+SQL/builtin `abs` competition distinguish actual child resolution from fallback.
+The real scalar SQL winner still returns `104/INT4`.
+
+The same late-child expressions occur in a SQL routine body and a stored view.
+Native Dump/Reset/Restore must preserve both consumers and their independently
+specified `1/INT8` results; native controls are a bounded phase of the shared
+SQL scenario, not an invented PostgreSQL API.
+
+Missing children require complete 42883 diagnostics, with the standard hint and
+positions29/23 for FILTER/ORDER BY. A bigint FILTER requires 42804 at position29.
+Each direct failure occurs at execution and each prepared failure at analysis.
+Subsequent sibling SQL calls retain sequence actuals exactly once across direct,
+prepared and held execution; Prepare and current-value probes do not advance it.
+
+The selected occurrence consumes one re-entry suppression bit before its
+provider binds children. Known-argument reuse remains active for the full
+provider frame, preserving original recipes, coercion and window-owner evidence.
+Children retain ordinary callable selection; no decorated-call bypass,
+speculative prebinding or source-key identity matcher is used.
+
+Root-owned selected proof and feature smoke, each under an external900-second
+deadline, must run the same complete definitions in both modes:
+
+```sh
+make check RUN='^TestReferenceRoutineLateChild(Selection|Unwind)$' REFERENCE=1
+make check RUN='^TestReferenceRoutineLateChild(Selection|Unwind)$'
+```
+
+Expected smoke observations are aggregate1/INT8, SQL104/INT4, restored body/view1,
+unchanged full error fields and sibling sequence values1 through8.

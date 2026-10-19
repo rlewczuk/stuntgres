@@ -72,13 +72,10 @@ func (b *expressionBinder) bindSubscripts(raw parser.FunctionExpr, visible bool)
 		return nil, signature()
 	}
 	var targets [3]sqltype.Usage
-	if d := operands[0].descriptor(); d != nil {
-		base := d.BaseType()
-		if !base.IsArray() {
-			return nil, signature()
-		}
-		// Simple anyarray flattens an outer domain, never array element domains.
-		targets[0] = base.Usage()
+	var valid bool
+	targets[0], valid = subscriptInputTarget(operands[0].descriptor())
+	if !valid {
+		return nil, signature()
 	}
 	targets[1], targets[2] = b.typ(sqltype.Int4).Usage(), b.typ(sqltype.Bool).Usage()
 	// Probe all known implicit edges before contextual input conversion.
@@ -141,4 +138,16 @@ func (b *expressionBinder) bindSubscripts(raw parser.FunctionExpr, visible bool)
 		return nil, err
 	}
 	return subscriptsExpression{Info: info, args: args}, nil
+}
+
+func subscriptInputTarget(input *sqltype.Descriptor) (sqltype.Usage, bool) {
+	if input == nil {
+		return sqltype.Usage{}, true
+	}
+	base := input.BaseType()
+	if !base.IsArray() {
+		return sqltype.Usage{}, false
+	}
+	// Simple anyarray flattens an outer domain, never array element domains.
+	return base.Usage(), true
 }

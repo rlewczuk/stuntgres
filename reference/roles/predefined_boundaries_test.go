@@ -30,10 +30,8 @@ func predefinedNativeBoundaries(s *membershipScenario) {
 	predefinedFailure(s, "CREATE SUBSCRIPTION pdef_sub CONNECTION 'host=invalid' PUBLICATION pub WITH(connect=false,slot_name=NONE)", fixture.Diagnostic{Code: "0A000", Message: "CREATE syntax is unsupported", Position: "8"}, false, "prepare")
 	for _, tc := range []struct{ q, signature string }{
 		{"SELECT pg_read_file('/nonexistent')", "pg_read_file(unknown)"},
-		{"SELECT pg_write_file('/nonexistent','x',false)", "pg_write_file(unknown, unknown, boolean)"},
 		{"SELECT pg_cancel_backend(2147483647)", "pg_cancel_backend(integer)"},
 		{"SELECT pg_terminate_backend(2147483647)", "pg_terminate_backend(integer)"},
-		{"SELECT pgrowlocks('t')", "pgrowlocks(unknown)"},
 	} {
 		predefinedMissingFunction(s, tc.q, tc.signature)
 	}
@@ -48,6 +46,8 @@ func TestReferencePredefinedUnavailableCapabilities(t *testing.T) {
 		s.exec("CREATE SCHEMA pdef_ad")
 		s.run(fixture.Exec("CREATE MATERIALIZED VIEW pdef_ad.mv AS SELECT id FROM t", 1))
 		s.actor("pdef_actor")
+		predefinedFailure(s, "SELECT pgrowlocks('t')", fixture.Diagnostic{Code: "42883", Message: "function pgrowlocks(unknown) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}, true, "prepare")
+		predefinedFailure(s, "SELECT pg_write_file('/nonexistent','x',false)", fixture.Diagnostic{Code: "42883", Message: "function pg_write_file(unknown, unknown, boolean) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}, true, "prepare")
 		if !s.backend.PG {
 			predefinedNativeBoundaries(s)
 		} else {
@@ -77,6 +77,8 @@ func TestReferencePredefinedUnavailableCapabilities(t *testing.T) {
 			s.exec("GRANT CREATE ON DATABASE stuntgres_reference TO pdef_actor")
 		}
 		s.actor("pdef_actor")
+		predefinedFailure(s, "SELECT pgrowlocks('t')", fixture.Diagnostic{Code: "42883", Message: "function pgrowlocks(unknown) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}, true, "prepare")
+		predefinedFailure(s, "SELECT pg_write_file('/nonexistent','x',false)", fixture.Diagnostic{Code: "42883", Message: "function pg_write_file(unknown, unknown, boolean) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}, true, "prepare")
 		if !s.backend.PG {
 			predefinedNativeBoundaries(s)
 		} else {

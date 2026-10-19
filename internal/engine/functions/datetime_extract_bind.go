@@ -55,7 +55,8 @@ func bindDatetimeExtract(b Binder, raw parser.FunctionExpr, visible bool) (expr.
 	selected := selection.Selected
 	e := DatetimeExtract{Syntax: raw.Syntax}
 	if raw.Syntax == parser.SQLFunctionSyntax {
-		literal, ok := raw.Args[0].(parser.LiteralExpr)
+		syntax, _ := OriginalArgument(b, raw.Args[0])
+		literal, ok := syntax.(parser.LiteralExpr)
 		if !ok {
 			return nil, fmt.Errorf("invalid extraction syntax field")
 		}

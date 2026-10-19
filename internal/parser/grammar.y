@@ -348,7 +348,7 @@ package parser
 %type <identifier> window_parent
 %type <row> window_partition
 %type <orderKeys> window_order
-%type <tok> window_name
+%type <tok> window_name ordinary_call_keyword
 %type <windowFrame> window_frame
 %type <frameBound> frame_bound
 %type <frameExclusion> window_exclusion
@@ -419,6 +419,9 @@ package parser
 %type <element> typed_element
 %type <stmt> create_collation alter_collation drop_collation
 %type <stmt> create_conversion alter_conversion drop_conversion
+%type <stmt> create_function
+%type <tok> returns_word
+%type <grantRoutineArguments> function_arguments function_declaration_argument_list
 %type <alterConversion> conversion_alter_head
 %type <stmt> create_operator alter_operator drop_operator
 %type <objectName> operator_name
@@ -1272,6 +1275,7 @@ create: create_table { $$=$1 }
  | create_domain { $$=$1 }
  | create_collation { $$=$1 }
  | create_conversion { $$=$1 }
+ | create_function { $$=$1 }
  | create_operator { $$=$1 }
  | create_enum { $$=$1 }
  | create_composite { $$=$1 }
@@ -1376,6 +1380,16 @@ alter_conversion: conversion_alter_head RENAME TO name {$1.Action="rename";$1.Ta
 drop_conversion: DROP CONVERSION relation_names drop_mode {$$=&DropConversion{Names:$3,Mode:$4,Pos:$1.pos}}
  | DROP CONVERSION IF EXISTS relation_names drop_mode {$$=&DropConversion{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos}}
  | DROP DEFAULT {sqllex.(*lexer).syntax($2);return 1} ;
+create_function: CREATE FUNCTION relation_name '(' function_arguments ')' returns_word declared_type LANGUAGE name AS STRING {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$8,Language:Identifier{Text:$10.text,Pos:$10.pos},Body:$12.text,BodyPos:$12.pos,Pos:$1.pos}}
+ | CREATE FUNCTION relation_name '(' function_arguments ')' returns_word declared_type AS STRING LANGUAGE name {$$=&CreateFunction{Name:$3,Arguments:$5,Result:$8,Language:Identifier{Text:$12.text,Pos:$12.pos},Body:$10.text,BodyPos:$10.pos,Pos:$1.pos}}
+ | CREATE FUNCTION relation_name '(' function_arguments ')' returns_word declared_type LANGUAGE name name {sqllex.(*lexer).failAt("0A000","SQL function attributes are unsupported",$11.pos.Offset);return 1}
+ | CREATE OR replace_word FUNCTION {sqllex.(*lexer).failAt("0A000","CREATE OR REPLACE FUNCTION is unsupported",$1.pos.Offset);return 1} ;
+function_arguments: /* empty */ {$$=nil} | function_declaration_argument_list {$$=$1} ;
+function_declaration_argument_list: grant_routine_argument {$$=[]GrantRoutineArgument{$1}}
+ | function_declaration_argument_list ',' grant_routine_argument {$$=append($1,$3)}
+ | grant_routine_argument DEFAULT {sqllex.(*lexer).failAt("0A000","function argument defaults are unsupported",$2.pos.Offset);return 1}
+ | function_declaration_argument_list ',' grant_routine_argument DEFAULT {sqllex.(*lexer).failAt("0A000","function argument defaults are unsupported",$4.pos.Offset);return 1} ;
+returns_word: name {if $1.text!="returns" || $1.keyword==nil {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 create_operator: CREATE OPERATOR operator_name '(' operator_options ')' {$$=&CreateOperator{Name:$3,Options:$5,Pos:$1.pos}} ;
 operator_name: operator_symbol {$$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}}}
  | name '.' operator_symbol {$$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}}} ;
@@ -2074,7 +2088,12 @@ case_else: /* empty */ { $$=nil } | ELSE conditional_value { $$=$2 } ;
 conditional_value: target_or { $$=$1 } ;
 conditional_args: target_or { $$=[]Expr{$1} } | conditional_args ',' target_or { $$=append($1,$3) } ;
 generation_window_spec: /* empty */ {} | ORDER BY order_keys {} | GENERATION_PARTITION BY row_fields {} | GENERATION_PARTITION BY row_fields ORDER BY order_keys {} ;
-cast_function: name '(' { if !sqllex.(*lexer).castFunction($1,$2) { return 1 }; $$=$1 } ;
+/* Type/function keywords are legal ordinary callees, not identifier names in
+ * table/column positions. Their presence does not select an executable provider. */
+ordinary_call_keyword: KW_T | CONCURRENTLY | CROSS | INNER | JOIN | NATURAL
+ | FULL | OUTER | IS | LIKE | ILIKE | AUTHORIZATION | ISNULL | NOTNULL ;
+cast_function: name '(' { if !sqllex.(*lexer).castFunction($1,$2) { return 1 }; $$=$1 }
+ | ordinary_call_keyword '(' { if !sqllex.(*lexer).castFunction($1,$2) { return 1 }; $$=$1 } ;
 /* Qualified calls and precision literals share their opener so a function-call
  * shift cannot consume the precision before the literal STRING continuation. */
 qualified_call_head: name '.' col_label '(' {$$=TypeName{Name:$3.text,Quoted:columnType($3).Quoted,Schema:&Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.pos};if $1.text=="pg_catalog" && ($3.text=="timestamptz" || $3.text=="timetz") {sqllex.(*lexer).genericModifier=true;sqllex.(*lexer).dateLiteralModifier=true}} ;
@@ -2086,21 +2105,7 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | FALSE { $$ = Value{Kind:BooleanValue, Pos:$1.pos} }
  | STRING { $$ = Value{Kind:StringValue, Text:$1.text, Pos:$1.pos} }
  | BITSTRING { $$ = Value{Kind:BitStringValue, Text:$1.text, Pos:$1.pos} }
- | NUMBER { var ok bool; $$, ok = integerValue(sqllex,$1,""); if !ok { return 1 } }
- | KW_T '(' { sqllex.(*lexer).call($1,$2); return 1 }
- | CONCURRENTLY '(' { sqllex.(*lexer).call($1,$2); return 1 }
- | CROSS '(' { sqllex.(*lexer).call($1,$2); return 1 }
- | INNER '(' { sqllex.(*lexer).call($1,$2); return 1 }
- | JOIN '(' { sqllex.(*lexer).call($1,$2); return 1 }
- | NATURAL '(' { sqllex.(*lexer).call($1,$2); return 1 }
- | FULL '(' { sqllex.(*lexer).call($1,$2); return 1 }
- | OUTER '(' { sqllex.(*lexer).call($1,$2); return 1 }
- | IS '(' { sqllex.(*lexer).call($1,$2); return 1 }
- | LIKE '(' { sqllex.(*lexer).call($1,$2); return 1 }
- | ILIKE '(' { sqllex.(*lexer).call($1,$2); return 1 }
- | AUTHORIZATION '(' { sqllex.(*lexer).call($1,$2); return 1 }
- | ISNULL '(' { sqllex.(*lexer).call($1,$2); return 1 }
- | NOTNULL '(' { sqllex.(*lexer).call($1,$2); return 1 } ;
+ | NUMBER { var ok bool; $$, ok = integerValue(sqllex,$1,""); if !ok { return 1 } } ;
 /* Newly admitted FROM trees diagnose a misplaced ON as syntax. Preserve the
  * legacy single-table suffix capability boundary for otherwise excluded SQL. */
 /* Parenthesized set operands preserve arm-local decorations separately from
@@ -2486,14 +2491,14 @@ aggregate_within: aggregate_call { $$=$1 }
 aggregate_application: aggregate_within %prec ')' { $$=$1 }
  | aggregate_within FILTER '(' WHERE target_or ')' { switch call:=$1.(type) {case AggregateExpr:call.Filter=$5;call.FilterPos=$2.pos;$$=call;case FunctionExpr:call.Filter=$5;$$=call;default:sqllex.(*lexer).failAt("0A000","aggregate modifiers are unsupported",$2.pos.Offset);return 1} }
  | aggregate_application over_clause { switch call:=$1.(type) {case AggregateExpr:if call.Window!=nil {sqllex.(*lexer).syntax($2.token);return 1};call.Window=$2.spec;$$=call;case FunctionExpr:if call.Window!=nil {sqllex.(*lexer).syntax($2.token);return 1};call.Window=$2.spec;$$=call;default:sqllex.(*lexer).syntax($2.token);return 1} } ;
-aggregate_call: cast_function target_or ')' { $$=ordinaryCall(sqllex,columnType($1),[]Expr{$2},$1) }
- | qualified_call_head target_or ')' { $$=ordinaryCall(sqllex,$1,[]Expr{$2},lexeme{text:$1.Name,pos:$1.Pos}) }
- | cast_function target_or ',' count_values ')' { $$=ordinaryCall(sqllex,columnType($1),append([]Expr{$2},$4...),$1) }
- | qualified_call_head target_or ',' count_values ')' { $$=ordinaryCall(sqllex,$1,append([]Expr{$2},$4...),lexeme{text:$1.Name,pos:$1.Pos}) }
+aggregate_call: cast_function target_or ')' { $$=ordinaryCall(columnType($1),[]Expr{$2},$1) }
+ | qualified_call_head target_or ')' { $$=ordinaryCall($1,[]Expr{$2},lexeme{text:$1.Name,pos:$1.Pos}) }
+ | cast_function target_or ',' count_values ')' { $$=ordinaryCall(columnType($1),append([]Expr{$2},$4...),$1) }
+ | qualified_call_head target_or ',' count_values ')' { $$=ordinaryCall($1,append([]Expr{$2},$4...),lexeme{text:$1.Name,pos:$1.Pos}) }
  | qualified_call_head '*' ')' { $$=modifiedOrdinaryCall($1,nil,true,false,false,false,nil) }
  | cast_function '*' ')' { $$=modifiedOrdinaryCall(columnType($1),nil,true,false,false,false,nil) }
- | cast_function ')' { $$=ordinaryCall(sqllex,columnType($1),nil,$1) }
- | qualified_call_head ')' { $$=ordinaryCall(sqllex,$1,nil,lexeme{text:$1.Name,pos:$1.Pos}) }
+ | cast_function ')' { $$=ordinaryCall(columnType($1),nil,$1) }
+ | qualified_call_head ')' { $$=ordinaryCall($1,nil,lexeme{text:$1.Name,pos:$1.Pos}) }
  | cast_function ordinary_named_arguments ')' { call:=$2;call.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};call.Pos=$1.pos;call.CompositeCandidate=true;$$=call }
  | qualified_call_head ordinary_named_arguments ')' { call:=$2;call.Name=ObjectName{Parts:[]Identifier{*$1.Schema,{Text:$1.Name,Pos:$1.Pos}}};call.Pos=$1.Pos;call.CompositeCandidate=true;$$=call }
  | cast_function ordinary_mixed_arguments ')' {call:=$2;call.Name=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}};call.Pos=$1.pos;call.CompositeCandidate=true;$$=call}

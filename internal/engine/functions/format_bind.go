@@ -22,7 +22,7 @@ func bindFormat(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		if i == 0 {
 			first = operand
 		} else if err == nil {
-			if FormatUnknownArgument(r, i) {
+			if FormatUnknownArgument(operand.Raw, i) {
 				rawUnknown[i/64] |= uint64(1) << uint(i%64)
 			}
 			b.RetainUntypedParameter(node)
@@ -45,7 +45,8 @@ func bindFormat(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		names := make([]string, len(args))
 		for i, arg := range args {
 			names[i] = "unknown"
-			if literal, ok := raw.Args[i].(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
+			syntax, _ := OriginalArgument(b, raw.Args[i])
+			if literal, ok := syntax.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
 				continue
 			}
 			if arg != nil && arg.ResultUsage().Type != nil {

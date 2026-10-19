@@ -1915,9 +1915,12 @@ type FunctionExpr struct {
 	Variadic           bool
 	ResolutionOnly     bool // Absent ordinary call: diagnostics, never provider dispatch.
 	CompositeCandidate bool // Otherwise-unselected call; only typed composite resolution is admitted.
-	Syntax             FunctionSyntax
-	StringSyntax       StringSyntax
-	Window             *WindowSpec
+	// StoredSQLRoutine marks binder-owned copied syntax for a selected SQL
+	// scalar routine. Source parsing never sets it; it is not dispatch authority.
+	StoredSQLRoutine bool
+	Syntax           FunctionSyntax
+	StringSyntax     StringSyntax
+	Window           *WindowSpec
 	// Selected time providers retain modifiers only for ordinary-function
 	// diagnostics; these fields never authorize aggregate/window execution.
 	Star      bool

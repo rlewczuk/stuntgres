@@ -64,7 +64,7 @@ func sameRoutineDeclaration(current, captured *catalog.Procedure) bool {
 		current.RoutineKind == captured.RoutineKind && current.Result == captured.Result &&
 		current.Strict == captured.Strict && current.Volatility == captured.Volatility &&
 		current.Builtin == captured.Builtin && current.Implementation == captured.Implementation &&
-		current.Conversion == captured.Conversion
+		current.Conversion == captured.Conversion && current.SQL == captured.SQL
 }
 
 func expressionRecipeDescriptor(node expr.Expr) (*catalog.Relation, error) {

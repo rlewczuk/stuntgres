@@ -33,11 +33,13 @@ func persistentReplacementCatalog(view catalog.Read) (catalog.Read, error) {
 	}
 	next := catalog.CloneState(view.State())
 	operators := catalog.OperatorIndexEdit{Index: view.State().OperatorNames()}
+	procedures := catalog.ProcedureIndexEdit{Index: view.State().ProcedureNames()}
 	for a, d := range view.Descriptors() {
 		ns, isNamespace := d.(*catalog.Namespace)
 		parent, hasParent := view.Namespace(d.Namespace())
 		if isNamespace && ns.Temporary != (ids.SessionToken{}) || hasParent && parent.Temporary != (ids.SessionToken{}) {
 			operators.Replace(d, nil)
+			procedures.Replace(d, nil)
 			next.RemoveDescriptor(a)
 		}
 	}
@@ -48,6 +50,7 @@ func persistentReplacementCatalog(view catalog.Read) (catalog.Read, error) {
 		}
 	}
 	next.SetOperatorNames(operators.Index)
+	next.SetProcedureNames(procedures.Index)
 	catalog.PruneNamespaceDefaults(view.State(), next, nil)
 	return view.WithState(next), nil
 }
@@ -496,6 +499,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 			next.BindName(catalog.DescriptorNameKey(d), target)
 		}
 		next.SetOperatorNames(catalog.RebuildOperatorNames(next.Descriptors()))
+		next.SetProcedureNames(catalog.RebuildProcedureNames(next.Descriptors()))
 		// Copy into fresh maps before deleting old keys to avoid remap collisions.
 		oldStorage := make(map[ids.ObjectAddress]*storage.Relation, len(relations))
 		for a, s := range relations {
@@ -521,6 +525,9 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		}
 	}
 	next.SetEpoch(e.catalog.state.Epoch() + 1)
+	if err := rebindSQLRoutineDefinitions(e.catalog.read(next), next, mapping); err != nil {
+		return err
+	}
 	if err := e.remapCatalogExpressions(next, mapping); err != nil {
 		return err
 	}
@@ -531,8 +538,10 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		return err
 	}
 	operators := catalog.OperatorIndexEdit{Index: next.OperatorNames()}
+	procedures := catalog.ProcedureIndexEdit{Index: next.ProcedureNames()}
 	for a, d := range temporary {
 		operators.Replace(next.Get(a), d)
+		procedures.Replace(next.Get(a), d)
 		next.SetDescriptor(a, d)
 		next.BindName(catalog.DescriptorNameKey(d), a)
 		if rows := e.storage.Relations[a]; rows != nil {
@@ -543,6 +552,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		}
 	}
 	next.SetOperatorNames(operators.Index)
+	next.SetProcedureNames(procedures.Index)
 	for address, descriptor := range temporary {
 		relation, ok := descriptor.(*catalog.Relation)
 		if !ok || len(relation.Security.Policies) == 0 && len(rulesOf(relation)) == 0 {
@@ -614,6 +624,7 @@ func (e *Engine) clearPersistentSequenceMemoryLocked() {
 	e.sessionMu.Lock()
 	defer e.sessionMu.Unlock()
 	for _, s := range e.sessions {
+		s.sqlRoutines = nil
 		for a := range s.sequences {
 			r, ok := e.catalog.state.Relation(a)
 			keep := false

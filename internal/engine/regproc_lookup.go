@@ -12,6 +12,19 @@ type routineKey struct {
 
 var routineByOID, routinesByName, routineBySignature = indexBuiltinRoutines()
 
+// Default counts absent from the native provider declaration inventory remain
+// lookup-only metadata, never executable registrations. PostgreSQL REL_18_6:
+// src/backend/catalog/system_functions.sql, pg_terminate_backend(pid integer,
+// timeout int8 DEFAULT 0).
+var builtinRoutineIdentityDefaults = map[ids.OID]uint8{2096: 1}
+
+func routineIdentityDefaults(id ids.OID) uint8 {
+	if declaration := builtinRoutineByOID[id]; declaration != nil {
+		return declaration.Defaults
+	}
+	return builtinRoutineIdentityDefaults[id]
+}
+
 func indexBuiltinRoutines() (map[ids.OID]catalog.RoutineIdentity, map[string][]catalog.RoutineIdentity, map[routineKey]catalog.RoutineIdentity) {
 	byOID := make(map[ids.OID]catalog.RoutineIdentity, len(builtinRoutineIdentities))
 	byName := make(map[string][]catalog.RoutineIdentity)

@@ -5,8 +5,9 @@ The catalog object model and its immutable snapshots: descriptors, `State`,
 copy-on-write overlay `Candidate`. "Catalog" here means the data, not DDL.
 The package sits at layer L3 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It
-imports only `ids`, `expr`, `authorization`, `sqltype`, `parser` and the
-standard library, and never the engine or its sibling `functions`.
+imports only `ids`, `expr`, `authorization`, `proc`, `sqltype`, `parser` and the
+standard library, and never the engine or its sibling `functions`. The lower
+`proc` package owns immutable SQL definitions and private frames, not catalog authority.
 
 ## What it owns
 
@@ -39,7 +40,7 @@ standard library, and never the engine or its sibling `functions`.
   `policyExpressionOf`, `pgcryptoProviderOf`, ...) recover the concrete
   types.
 - **State and Read.** `State` is one catalog snapshot: the epoch, namespace
-  generation, descriptor and name maps, operator name index, default ACL
+  generation, descriptor and name maps, operator/procedure name indexes, default ACL
   records, dump priorities and the replacement-only translations. `Read` is
   a view of a state with its `Owner`. The fields are private; there is no
   other access to the maps.
@@ -75,6 +76,19 @@ standard library, and never the engine or its sibling `functions`.
   `OperatorIndexEdit` and `RebuildOperatorNames`; default ACL helpers
   (`OverlayDefaultACLs`, `PruneNamespaceDefaults`, `RemapDefaultSchemas`,
   `ValidateDefaultACLs`, ...).
+- **Derived procedure membership** (`procedure_index.go`). `ProcedureNameIndex`
+  maps namespace/decoded name to descriptor addresses and carries a SQL-name
+  count for the negative-call fast path. It is not callable or ACL authority.
+  `ProcedureIndexEdit` follows the existing operator COW precedent: detach the
+  membership map and touched buckets once; metadata-only replacements share
+  unchanged membership. Writers apply edits on publication/private overlays;
+  `Candidate.State` includes direct replacements and removals. Reset clears the
+  index, and wholesale import/remapping rebuilds it before expression binders run.
+  Binder definition readers enumerate the indexed base bucket plus only real
+  staged deltas, resolving candidates through current descriptor/removal owners.
+  The shared SQL-name gate includes staged additions and removals; ordinary,
+  aggregate-spelled and function-cast-spelled calls never scan the full base
+  descriptor inventory merely to discover routine candidates.
 - **Diagnostic names** (`diagnostic_names.go`). `QuoteIdentifier` always
   quotes; `DependencyIdentifier` quotes like PostgreSQL 18
   `quote_identifier` (every keyword except unreserved ones, independent of
@@ -87,7 +101,7 @@ standard library, and never the engine or its sibling `functions`.
 - A published `State` is immutable. Writers use the write API only on states
   they are building; publication swaps the whole state.
 - Copy-on-write sharing: clones and merged states copy the descriptor and
-  name maps and share the rest (default ACL records, operator index) until
+  name maps and share the rest (default ACL records, operator/procedure indexes) until
   they change. No deep copies on publication or capture.
 - The package has no mutex. The engine mutex guards the published state and
   every unpublished state the engine shares between goroutines.

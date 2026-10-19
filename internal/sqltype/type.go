@@ -1345,6 +1345,12 @@ func (p CoercionPlan) RequiresCatalogOutput() bool {
 	return p.method == viaIO && p.source.Type.ContainsCatalogIdentifier()
 }
 
+// FunctionCastShortcut reports the existing relabel/I/O paths admitted by
+// PostgreSQL's type-name-call step, distinct from ordinary function casts.
+func (p CoercionPlan) FunctionCastShortcut() bool {
+	return p.method == identity || p.method == viaIO
+}
+
 // EvaluationFunctionCount exposes only the existing coercion representation:
 // a relabel, one cast function, or the output/input pair of an IO coercion.
 // OVERLAPS uses it for the released duplicated-argument inline threshold.

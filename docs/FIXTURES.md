@@ -2,6 +2,41 @@
 
 [README](../README.md) · [Native compatibility limits](DIALECT.md)
 
+## SQL routine declarations and callers
+
+Native Dump emits genuine scalar SQL `CREATE FUNCTION` declarations with current
+qualified identities, canonical input/result types, real owners and original
+body text. It stores neither invocation frames nor evaluated results, executable
+plans, source data snapshots or authorization decisions. Supported view/default
+callers replay checked symbolic routine identities, including implicit argument
+conversions and schema renames, not a later lookup of the original written name.
+
+Signature/result type dependencies precede each declaration; routine providers
+precede their stored callers. Text-body names are runtime analysis facts, not
+hard CREATE-time graph edges. A routine body may therefore read a table whose
+default calls that routine without inventing a dump dependency cycle.
+
+A dump containing SQL routines includes `SET check_function_bodies = false;`.
+This is PostgreSQL-compatible replay SQL. Native Restore recognizes only its
+exact private replay form, stages declarations/data through existing owners,
+then validates all imported bodies before atomic replacement. Invalid bodies,
+read failures and cancellation leave the target and retained rows unchanged.
+The directive does not add a public live SQL setting or arbitrary script replay;
+function-free dumps retain their existing bytes.
+
+The permanent persistence scenario checks native Dump/Reset/Restore, held rows,
+nested functions, a dynamic view, a callable table default and the body/default
+cycle. With `REFERENCE=1` it also executes the actual emitted stream on pinned
+PostgreSQL18.6 and independently checks its values:
+
+```sh
+make check RUN='^TestReferenceRoutineCorePersistence$'
+make check REFERENCE=1 RUN='^TestReferenceRoutineCorePersistence$'
+```
+
+Use an external 900-second deadline for each command. See the
+[routine contract and smoke](../reference/query_core/README.md#scalar-sql-routine-contract).
+
 ## Commit timestamp history
 
 Commit history is process-local runtime state, not portable database data.

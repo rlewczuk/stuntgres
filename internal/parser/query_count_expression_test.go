@@ -26,10 +26,15 @@ func TestCountExpressionArguments(t *testing.T) {
 			t.Fatal(i, call)
 		}
 	}
-	// General predicates are count arguments, not new function-cast operands.
+	// Function-cast spelling retains predicates until routine exact lookup.
+	// The binder keeps the legacy cast boundary when no SQL routine wins.
 	for _, q := range []string{"SELECT text(v IS NULL) FROM t", "SELECT pg_catalog.text(v>1) FROM t"} {
-		if _, err := Parse(q); err == nil {
-			t.Fatal("function cast boundary widened", q)
+		statements, err := Parse(q)
+		if err != nil {
+			t.Fatal("lost deferred function-call operand", q, err)
+		}
+		if call, ok := statements[0].(*Select).Targets[0].(CastExpr); !ok || call.Syntax != FunctionCast {
+			t.Fatal("lost function-cast spelling", q)
 		}
 	}
 	for _, q := range []string{"SELECT text(v) FROM t", "SELECT pg_catalog.text(v) FROM t"} {

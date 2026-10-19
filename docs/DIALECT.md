@@ -72,6 +72,52 @@ ordinary recipes, and a stored rule action may itself perform a grouped UPDATE.
 Native dumps persist live resulting rows and stored grouped rule definitions,
 not assignment history or execution scratch. See [selected contracts](../reference/dml/README.md#row-valued-update-assignments).
 
+## Scalar SQL routines
+
+`CREATE FUNCTION [schema.]name(type, ...) RETURNS type LANGUAGE SQL AS 'body'`
+accepts anonymous positional arguments and one SELECT statement. AS and LANGUAGE
+may appear in either supported order; ordinary and dollar-quoted bodies are
+accepted. Parameters are `$1`, `$2`, etc. Input and result types must be concrete
+supported scalar types, not set, composite or polymorphic declarations.
+Body parameters are bounded by that declared list, including zero arguments;
+references outside it fail with 42P02 without publishing the declaration.
+
+Namespace visibility, signature masking, exact/implicit/unknown argument
+selection and EXECUTE checks use the existing callable authorities. Aggregate-
+and type-like spellings are not reserved from SQL routines: the selected actual
+signature determines scalar versus aggregate execution. Exact typed calls precede
+the existing type-name cast shortcut; unknown literals and external parameters
+retain their distinct resolution rules. Standard CAST syntax is unchanged.
+
+CREATE checks one output column and assignment conversion to the declared result
+without executing the body. Invocation evaluates actual arguments once into a
+private frame, applies implicit input conversion and runs the existing SELECT
+executor. Supported FROM, joins, subqueries, aggregates, sorting and CTEs retain
+their normal semantics. Modifying CTE effects and completion obligations belong
+to the caller's single statement/transaction owner, including failure rollback.
+First-row demand is selected before opening producers; required sort/aggregate
+work is not skipped. No row returns NULL of the declared type.
+On dependency reanalysis, the actual bound terminal SELECT must still satisfy
+the declared width and assignment conversion before any body producer opens,
+even for empty input. Compatible assignment changes retain the caller's declared
+result type. Direct and mutual recursion share a native safety bound of 128 active
+SQL bodies; excess calls fail with 54001 `stack depth limit exceeded` and unwind
+without ending the session. This is not a native `max_stack_depth` setting.
+
+Calls are VOLATILE, nonstrict, invoker-authorized and parallel-unsafe, with fresh
+data and permissions and existing prepared-analysis invalidation. Scalar results
+use assignment conversion, distinct from implicit argument conversion. Existing
+DEFAULT/stored-expression consumers retain symbolic checked routine identities;
+CREATE/default validation does not evaluate bodies.
+
+Named/mode/default/variadic argument declarations, OR REPLACE, procedure/CALL,
+PL/pgSQL, security/other attributes and set/composite returns are not supported.
+CREATE retains the existing native read-only and autocommit-only schema-DDL
+boundaries. This is not a general language runtime, external ABI or full
+`pg_proc`/`pg_language` projection.
+See [logical replay](FIXTURES.md#sql-routine-declarations-and-callers) and
+[selected evidence and smoke](../reference/query_core/README.md#scalar-sql-routine-contract).
+
 ## Comparison resolution and predicates
 
 Executable type/shape admission is separate from operator admission. Comparison
@@ -660,9 +706,9 @@ Genuine selected providers check fresh EXECUTE before actual folding or survivin
 execution admission, including stored consumers. Known released lookup-only
 routine signatures reject `0A000 routine privileges are unsupported for
 unimplemented routines in embedded mode`; genuine conversion/codec ownership
-still supports metadata ACLs without a direct-call provider. No routine creator,
-security-definer execution frame, implicit arbitrary codec permission gate or
-missing provider is introduced.
+still supports metadata ACLs without a direct-call provider. Basic scalar SQL
+routine creation is supported separately; security-definer frames, implicit
+arbitrary codec permission gates and missing providers are not introduced.
 
 Existing SQL invoker wrappers retain their finite released body associations,
 including real function-method casts, not only quote TEXT delegation. This adds
@@ -2634,10 +2680,11 @@ executable validator or an executable `pg_proc` row. NULL `lanacl` means default
 language privileges, not an empty ACL and not a grant to execute internal
 functions. PUBLIC SELECT on the catalog relation is a separate table privilege.
 
-Native `c`, `sql`, `plpgsql` and other external procedural languages are absent:
-bounded builtin/extension providers do not supply a general language runtime.
-Language/routine DDL, DO, handler/validator execution and external native ABI
-loading remain outside this catalog. Catalog INSERT/UPDATE/DELETE fail with
+The native language catalog still has no `c`, `sql` or `plpgsql` rows. The bounded
+[scalar SQL routine facility](#scalar-sql-routines) does not fabricate additional
+language metadata or supply a general procedural runtime. Language DDL, DO,
+handler/validator execution and external native ABI loading remain unavailable.
+Catalog INSERT/UPDATE/DELETE fail with
 `0A000` / `catalog source mutation is unsupported`, even for zero-match
 predicates. Row locks fail with `0A000` /
 `row locking is not supported for virtual catalog relations`. PostgreSQL itself
@@ -2980,8 +3027,9 @@ are supported. Arbitrary function definitions/external conversion ABIs and wire
 transcoding remain excluded. REGPROC and REGPROCEDURE admit named/signature input,
 numeric identities, symbolic output and ordinary storage through the existing
 type owners. Their complete source-fixed identity inventory is lookup-only:
-it neither expands pg_proc SQL rows nor admits execution, CREATE FUNCTION or
-CREATE PROCEDURE. Runtime-allocated information_schema/plpgsql routines are an
+it neither expands pg_proc SQL rows nor authorizes execution. Basic scalar SQL
+CREATE FUNCTION is separate; CREATE PROCEDURE remains unavailable.
+Runtime-allocated information_schema/plpgsql routines are an
 unavailable native catalog capability, not fabricated fixed OIDs. Schema USAGE
 grants are supported independently of schema ownership. Native ABI,
 external procedural runtimes and PostgreSQL physical persistence are not supplied
@@ -3020,8 +3068,8 @@ mixed nested alias containers; fixed builtin and unknown numeric identities keep
 their bits. Native dumps reconstruct definitions, owners, links and shells before
 dependent expressions. An orphan shell uses transient genuine generator DDL;
 if no compatible real provider exists, Dump fails before writer I/O.
-There is no ALTER OPERATOR RENAME, CREATE FUNCTION runtime, invented user-routine
-frame, to_regoper/to_regoperator implementation or physical planner storage.
+There is no ALTER OPERATOR RENAME, to_regoper/to_regoperator implementation or
+physical planner storage. Scalar SQL routines do not supply an external operator ABI.
 Built-in operator mutation remains an explicit native 0A000 boundary.
 The existing read-only-first and explicit-transaction schema-DDL boundaries apply.
 Arbitrary symbolic and explicitly qualified `OPERATOR(schema.symbol)` expressions

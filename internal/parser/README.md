@@ -19,6 +19,25 @@ syntax error at `OPERATOR`. Public SQL direct/Prepare diagnostics remain in
 make check RUN='^TestJSONBPathOpsParser$'
 ```
 
+### Ordinary keyword calls
+
+Type/function-name keywords such as `authorization`, `join`, and `like` use
+the existing ordinary call grammar without becoming legal table or column
+identifiers. Binding—not keyword spelling—selects an executable provider or
+reports a missing signature. Dedicated special-call syntax retains its own
+admission rules.
+
+```sh
+make check RUN='^Test(OrdinaryKeywordCallHeads|CompositeExprParser|QueryLimitZeroWidthContinuation|KeywordDiagnostics|KeywordInventory|KeywordContexts|KeywordLabels)$'
+```
+
+The four `TestReferenceIdentifierContextualCapabilities`,
+`TestReferenceIdentifierLaterProjectionCalls`,
+`TestReferenceIdentifierContextSourceConsumerRoutes`, and
+`TestReferenceIdentifierLaterCallSourceConsumerRoutes` definitions cover absent
+and created ordinary calls through public consumer routes; run their selector
+in native and `REFERENCE=1` modes.
+
 ### Parser scratch reuse
 
 Parser scratch reuse is an internal allocation change, not a parsed-result cache.

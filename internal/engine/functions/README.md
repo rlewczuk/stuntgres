@@ -19,6 +19,55 @@ interprets it. The only remaining type parameter is the private
 `randomInteger` sampler source, a numeric kernel detail rather than part of the
 expression contract.
 
+## Callable competition with SQL overloads
+
+The engine's shared selector keeps existing builtin and installed providers in
+the same namespace/signature competition as SQL declarations. Builtin metadata
+supplies omitted trailing defaults and positional variadic expansion; expanded
+**declared** formals remain the exact/category/preferred ranking inputs.
+Polymorphic target substitution is never an exact concrete signature match.
+
+Scalar, aggregate and window registry entries may expose a pure `ProbeCall` through
+`CallShape`. Its `CallTypeContext` exposes only existing type, array-association
+and common-type authority. It receives already-analyzed arguments plus separate
+declared-input and resolved-target vectors. Family applicability reuses the
+provider's pure target-selection helpers: no speculative Bind, parameter
+inference, value conversion, dependency capture, provider construction or Eval.
+Unknown operands remain deferred until one winner reaches its original binder.
+The engine-owned enum, unnest, subscript and null-count families use their same
+existing pure signature helpers rather than a second provider registry.
+
+The optional `OriginalArgument` analyzer seam recovers syntax through the same
+private slot carrying an already-bound operand, never by matching source keys.
+`Argument.Raw` exposes that original recipe while binding keeps the private
+carrier. Syntax-sensitive null-count admission and literal/parameter diagnostics
+therefore retain their original rules without rebinding or evaluating actuals.
+
+Selected-provider argument reuse and re-entry suppression have different
+lifetimes. `selectedCallArguments` retains known-node coercion reuse throughout
+provider binding. `selectedCallReentry` is consumed once by the immediate
+ordinary-function or aggregate/cast gateway; it does not disable selection in
+the provider's previously unanalyzed FILTER or aggregate ORDER BY children.
+Nested winner frames restore both states together with argument recipes and
+lexical diagnostic spelling, without rebinding actuals or changing ownership.
+
+Compatible array transforms, searches and threshold width_bucket share common
+leaf selection in `compatibleArrayTargets`; simple array families share
+`arrayInputTarget`. Range and aggregate helpers retain their existing supported
+type boundaries. The selected provider still owns coercions, default literals,
+volatility, EXECUTE authority and all call-decoration/runtime diagnostics.
+Resolution failure or ambiguity never triggers an unconditional builtin fallback.
+
+Package-function proof for this interface and atomic unknown-category filtering:
+`make check RUN='^TestSQLRoutine(ProviderCallShapes|CallableShapeMasking|UnknownCategorySelection|OriginalArgumentRecipes)$'`.
+The public direct/prepared definitions and both backend modes are documented in
+[`reference/query_core`](../../../reference/query_core/README.md).
+
+Late-child composition, error recovery and actuals-once proof:
+`make check RUN='^TestReferenceRoutineLateChild(Selection|Unwind)$'` and the same
+selector with `REFERENCE=1`. These definitions also cover SQL routine bodies
+and stored views, including a bounded native Dump/Reset/Restore phase.
+
 ## Binder
 
 `Binder` (`binder.go`) is what bind code may ask of the engine's analyzer; the
@@ -451,6 +500,30 @@ without OVER, before its "requires an OVER clause" error. The rank family is
 in both tables: window function with OVER, hypothetical-set aggregate with
 WITHIN GROUP.
 
+Shared SQL-overload competition includes the existing `WindowRoutine`
+declarations, not only scalar and aggregate declarations. The window table's
+optional `ProbeCall` reuses `ResolveWindowValue` and `windowOffsetTargets`;
+the latter is also the lag/lead `Signature` owner's value/default common-type
+calculation. Concrete zero-argument, ranking and ntile shapes use the same
+declared-input metadata matching as other concrete routines. No signature probe
+binds children, infers parameters or builds an executable window provider.
+
+A selected window identity returns to the existing qualified window binder,
+including its missing-OVER, modifier, clause and same-query nesting checks.
+The missing-OVER primary retains the original lexical callee independently of
+qualified lookup authority. Its scoped spelling is consumed before children are
+bound, so nested diagnostics cannot borrow the enclosing call's name.
+Already-bound actuals retain their existing lexical window-occurrence evidence,
+including through SQL scalar-call arguments; child queries remain separate.
+An actual scalar SQL winner with OVER still reports wrong-kind42809. No
+unconditional OVER bypass or new window executor is introduced.
+
+Public coexistence and diagnostic proof:
+`make check RUN='^TestReferenceRoutineWindow(Coexistence|Polymorphic|Diagnostics)$'`
+and the same selector with `REFERENCE=1`. Package-function target proof:
+`make check RUN='^TestSQLRoutine(ProviderCallShapes|WindowCallShapeTargets)$'`.
+
+
 Providers live here too: the money/interval SUM providers, the JSON object
 provider (`JSONObjectAggregate`, completed by `FinishAggregate` once ORDER BY
 matching settles its input usages) and the WITHIN GROUP providers
@@ -581,13 +654,23 @@ extension routines keep their engine wrapper nodes (for example
 `installedUUIDOsspFunctionExpression`, `installedCryptoFunctionExpression` and
 `installedFunctionExpression` for unaccent and `daitch_mokotoff`), manifest
 validation and stored identity; registered bind code reaches them only through
-`InstalledRoutine`. UUID and pgcrypto DEFAULT admission (`closedUUIDDefault`,
-`closedPgcryptoDefault`) stay with the engine's DEFAULT binder. Stored scalar
-SQL replays function nodes from their `expr.Rendering` (`Replay` in the
-`expr` README); a node states its stored form there, next to its display.
+`InstalledRoutine`. UUID, pgcrypto and genuine SQL routine DEFAULT admission
+(`closedUUIDDefault`, `closedPgcryptoDefault`, `closedSQLRoutineDefault`) stay
+with the engine's DEFAULT binder and stored-expression validator. Registered
+function nodes replay through `expr.Rendering` (`Replay` in the `expr` README);
+engine SQL routine wrappers retain their checked descriptor/reference instead.
 The SQL/JSON constructor's query form, RETURNING coercion and SQL rendering
 (`sqljson_expression.go`, `sqljson_query.go`, `sqljson_deparse.go`) stay in
 the engine; capture hooks request formatted-input unwrapping without owning it.
+
+Ordinary calls whose spelling resembles an aggregate or type are normalized
+locally by the engine binder after shared namespace/signature selection, before
+aggregate-clause rejection or name-only builtin dispatch. Actual aggregate
+winners return to the existing aggregate owner; SQL winners use private proc
+frames and the same root statement effects. There is no second function binder
+or query executor here. Frozen presentation reuses the engine's routine
+occurrence map for both SQL and installed providers; a normalized-only syntax
+marker demands a checked capture but never supplies catalog authority.
 
 The ACL SQL functions keep these engine parts: the `ACLRuntime`
 implementation; `aclexplode`'s set-returning admission and function scan,

@@ -156,6 +156,7 @@ type State struct {
 	descriptors         map[ids.ObjectAddress]Descriptor
 	names               map[ids.NameKey]ids.ObjectAddress
 	operatorNames       *OperatorNameIndex
+	procedureNames      *ProcedureNameIndex
 	defaultACLs         map[DefaultACLKey]*DefaultACLRecord
 	// Sparse replay identity provenance for collision-remapped declarations.
 	// Absent entries use their current OID; dependencies remain the order authority.
@@ -240,6 +241,7 @@ func CloneState(s *State) *State {
 	n := &State{epoch: s.epoch, namespaceGeneration: s.namespaceGeneration, descriptors: make(map[ids.ObjectAddress]Descriptor, s.DescriptorCount()), names: make(map[ids.NameKey]ids.ObjectAddress, s.NameCount())}
 	n.defaultACLs = s.defaultACLs
 	n.operatorNames = s.operatorNames
+	n.procedureNames = s.procedureNames
 	for k, v := range s.Descriptors() {
 		n.SetDescriptor(k, v)
 	}

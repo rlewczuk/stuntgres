@@ -139,8 +139,10 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) catalog.Read {
 	n := catalog.CloneState(e.catalog.state)
 	n.OverlayDefaultACLs(e.catalog.state, c.defaultACLs)
 	operators := catalog.OperatorIndexEdit{Index: e.catalog.state.OperatorNames()}
+	procedures := catalog.ProcedureIndexEdit{Index: e.catalog.state.ProcedureNames()}
 	for a, d := range c.descriptors {
 		operators.Replace(e.catalog.state.Get(a), d)
+		procedures.Replace(e.catalog.state.Get(a), d)
 		if old := n.Get(a); old != nil {
 			n.UnbindName(catalog.DescriptorNameKey(old))
 		}
@@ -157,6 +159,7 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) catalog.Read {
 		}
 	}
 	n.SetOperatorNames(operators.Index)
+	n.SetProcedureNames(procedures.Index)
 	c.cachedBase, c.cached = e.catalog.state, e.catalog.read(n)
 	return c.cached
 }

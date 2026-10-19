@@ -49,9 +49,6 @@ func TestReferenceMergeReturningActionPlacement(t *testing.T) {
 			if call == "merge_action(1)" {
 				d = mergeReturningDiagnostic(q, "1)", "42601", `syntax error at or near "1"`)
 			}
-			if !b.PG && call != "merge_action(1)" {
-				d = mergeReturningDiagnostic(q, call, "0A000", "functions are unsupported")
-			}
 			s := fixture.ImplicitError(q, d)
 			s.Prepared = prepared
 			s.ErrorStage = map[bool]string{false: "execute", true: "prepare"}[prepared]

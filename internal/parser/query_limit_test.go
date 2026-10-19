@@ -114,9 +114,8 @@ func TestQueryLimitZeroWidthContinuation(t *testing.T) {
 			t.Fatal(query, statements, err)
 		}
 	}
-	// Bare LIKE/KW_T starts the existing raw keyword-call guard, whose
-	// production requires '('. An incomplete opener is therefore an EOF
-	// syntax error; a real call must still reach the capability diagnostic.
+	// Bare type/function keywords still require a call opener. Complete
+	// ordinary calls reach binding, which owns missing-signature diagnostics.
 	for _, tc := range []struct{ word, end string }{{"LIKE", "28"}, {"ILIKE", "29"}} {
 		statements, err := Parse("INSERT INTO out SELECT " + tc.word)
 		if statements != nil || err == nil {
@@ -127,12 +126,8 @@ func TestQueryLimitZeroWidthContinuation(t *testing.T) {
 			t.Fatal(tc.word, err)
 		}
 		statements, err = Parse("INSERT INTO out SELECT " + tc.word + "('x')")
-		if statements != nil || err == nil {
+		if err != nil || len(statements) != 1 || statements[0].(*Insert).Source == nil {
 			t.Fatal(tc.word, statements, err)
-		}
-		d, ok = err.(*sqlstate.Error)
-		if !ok || d.Code != "0A000" || d.Message != "functions are unsupported" || d.Position != "24" {
-			t.Fatal(tc.word, err)
 		}
 	}
 }

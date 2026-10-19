@@ -52,6 +52,18 @@ type ArgumentAnalyzer interface {
 	AnalyzeArgument(parser.Expr, AnalysisRequest) (Argument, error)
 }
 
+// OriginalArgument is an optional, pure syntax-recovery seam for an analyzer's
+// private already-bound carrier. Binding continues to use the original input
+// carrier, never the recovered recipe, so operands are not analyzed twice.
+func OriginalArgument(b any, raw parser.Expr) (parser.Expr, bool) {
+	if source, ok := b.(interface {
+		OriginalArgument(parser.Expr) (parser.Expr, bool)
+	}); ok {
+		return source.OriginalArgument(raw)
+	}
+	return raw, false
+}
+
 func ResolveAnyValue(visible, star bool, count int, usage sqltype.Usage) Resolution {
 	if !visible || star || count != 1 {
 		return Missing

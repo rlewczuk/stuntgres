@@ -939,6 +939,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		next := catalog.CloneState(current)
 		next.OverlayDefaultACLs(current, s.DefaultACLs)
 		operators := catalog.OperatorIndexEdit{Index: current.OperatorNames()}
+		procedures := catalog.ProcedureIndexEdit{Index: current.ProcedureNames()}
 		relations := make(map[ids.ObjectAddress]*storage.Relation, len(currentStorage)+len(s.Descriptors))
 		for a, v := range currentStorage {
 			relations[a] = v
@@ -946,6 +947,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		for a, removal := range s.Removals {
 			d := removal.Descriptor
 			operators.Replace(current.Get(a), s.Descriptors[a])
+			procedures.Replace(current.Get(a), s.Descriptors[a])
 			next.RemoveDescriptor(a)
 			next.RemoveDumpPriority(a)
 			next.UnbindName(catalog.DescriptorNameKey(d))
@@ -957,6 +959,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		for a, d := range s.Descriptors {
 			if _, removed := s.Removals[a]; !removed {
 				operators.Replace(current.Get(a), d)
+				procedures.Replace(current.Get(a), d)
 			}
 			next.SetDescriptor(a, d)
 			if relation, ok := d.(*catalog.Relation); ok && relation.RelationKind.Stored() && relations[a] == nil {
@@ -977,6 +980,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			next.BindName(k, a)
 		}
 		next.SetOperatorNames(operators.Index)
+		next.SetProcedureNames(procedures.Index)
 		if err := catalogDependencyPreflight(current, next, s.identityDependencies, s.identityOriginals); err != nil {
 			return ChangeSet{}, err
 		}

@@ -98,6 +98,15 @@ func (r inheritanceDefinitionReader) descriptors() iter.Seq2[ids.ObjectAddress, 
 		}
 	}
 }
+
+func (r inheritanceDefinitionReader) proceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
+	// As with full discovery, candidate enumeration does not create observations.
+	r.observations = nil
+	return indexedDefinitionProcedures(r.base, r, namespace, name)
+}
+func (r inheritanceDefinitionReader) hasSQLProcedureName(name string) bool {
+	return r.base.State().HasSQLProcedureName(name)
+}
 func (r inheritanceDefinitionReader) indexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
 	for effect := r.effects; effect != nil; effect = effect.previous {
 		if effect.drop != nil {

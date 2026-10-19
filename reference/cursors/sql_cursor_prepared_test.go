@@ -181,12 +181,7 @@ func TestReferenceSQLCursorAnalysisAndDiagnostics(t *testing.T) {
 			want := sqlCursorDiagnostic(probe.code, probe.message)
 			want.Position = probe.position
 			if probe.code == "42883" {
-				if b.PG {
-					want.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
-				} else {
-					want = sqlCursorDiagnostic("0A000", "functions are unsupported")
-					want.Position = probe.position
-				}
+				want.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
 			}
 			// Semantic utility errors must occur at actual Prepare, not execution.
 			sqlCursorStep(t, p, b, c, fixture.Exec("SAVEPOINT analysis", 0))

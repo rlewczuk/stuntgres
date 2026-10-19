@@ -205,12 +205,13 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 		if err != nil {
 			return r, err
 		}
-		if err := binder.captureViewLiterals(s.Condition, r.condition, viewTargetLiteral, 0); err != nil {
+		normalizedCondition := binder.normalizeStoredExpression(s.Condition)
+		if err := binder.captureViewLiterals(normalizedCondition, r.condition, viewTargetLiteral, 0); err != nil {
 			return r, err
 		}
-		query := &parser.Select{Targets: []parser.Expr{s.Condition}}
+		query := &parser.Select{Targets: []parser.Expr{normalizedCondition}}
 		b := binding{query: &BoundQuery{Root: &projectNode{querySchema: querySchema{{Name: "condition", Usage: r.condition.ResultUsage()}}, child: &singletonNode{}, expressions: []expr.Expr{r.condition}, frame: binder.frameID(), syntax: query}}, dependencies: binder.dependencies, querySources: binder.querySources, viewColumns: binder.viewColumns, viewLiterals: binder.viewLiterals, viewCastUsages: binder.viewCastUsages, viewComposites: binder.viewComposites, viewCollations: binder.viewCollations, viewNamespaces: binder.viewNamespaces, sequenceConstants: binder.sequenceConstants, regtypeConstants: binder.regtypeConstants}
-		b.viewIntaggRefs = binder.viewIntaggRefs
+		b.viewRoutineRefs = binder.viewRoutineRefs
 		b.viewOperatorRefs = binder.viewOperatorRefs
 		for i := range b.querySources {
 			b.querySources[i].frozenAttributes = slices.Clone(b.querySources[i].relation.Attributes)

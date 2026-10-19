@@ -15,6 +15,8 @@ type definitionReader interface {
 	descriptor(ids.ObjectAddress) (catalog.Descriptor, bool)
 	lookup(ids.NameKey) ids.ObjectAddress
 	descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor]
+	proceduresNamed(ids.ObjectAddress, string) iter.Seq[*catalog.Procedure]
+	hasSQLProcedureName(string) bool
 }
 
 func (a AuthorizationView) definitionDescriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
@@ -34,6 +36,28 @@ func (a AuthorizationView) definitionDescriptors() iter.Seq2[ids.ObjectAddress, 
 		return a.definition.descriptors()
 	}
 	return a.Catalog.Descriptors()
+}
+
+func (a AuthorizationView) definitionProceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
+	if a.definition != nil {
+		return a.definition.proceduresNamed(namespace, name)
+	}
+	return indexedDefinitionProcedures(a.Catalog, nil, namespace, name)
+}
+
+// Enumeration discovers candidates; the selected provider still supplies the
+// ordinary exact dependency and permission proof.
+func indexedDefinitionProcedures(view catalog.Read, reader definitionReader, namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
+	return func(yield func(*catalog.Procedure) bool) {
+		for _, address := range view.State().ProceduresNamed(namespace, name) {
+			descriptor, present := definitionDescriptorAt(view, reader, address)
+			if d, ok := descriptor.(*catalog.Procedure); present && ok && d.Namespace() == namespace && d.Name() == name {
+				if !yield(d) {
+					return
+				}
+			}
+		}
+	}
 }
 func (a AuthorizationView) definitionType(id sqltype.ID) (*sqltype.Descriptor, bool) {
 	return definitionTypeAt(a.Catalog, a.definition, id)
@@ -76,6 +100,66 @@ func (r stageDefinitionReader) descriptors() iter.Seq2[ids.ObjectAddress, catalo
 	}
 }
 
+func (r stageDefinitionReader) proceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
+	return func(yield func(*catalog.Procedure) bool) {
+		for _, address := range r.stage.Base.State().ProceduresNamed(namespace, name) {
+			if _, overridden := r.stage.Descriptors[address]; overridden {
+				continue
+			}
+			descriptor, present := r.descriptor(address)
+			if d, ok := descriptor.(*catalog.Procedure); present && ok && d.Namespace() == namespace && d.Name() == name {
+				if !yield(d) {
+					return
+				}
+			}
+		}
+		for address, descriptor := range r.stage.Descriptors {
+			if _, removed := r.stage.Removals[address]; removed {
+				continue
+			}
+			if d, ok := descriptor.(*catalog.Procedure); ok && d.Namespace() == namespace && d.Name() == name {
+				if !yield(d) {
+					return
+				}
+			}
+		}
+	}
+}
+
+func (r stageDefinitionReader) hasSQLProcedureName(name string) bool {
+	count := 0
+	if index := r.stage.Base.State().ProcedureNames(); index != nil {
+		count = index.SQLNames[name]
+	}
+	if count == 0 {
+		for address, descriptor := range r.stage.Descriptors {
+			if d, ok := descriptor.(*catalog.Procedure); ok && d.SQL != nil && d.Name() == name {
+				if _, removed := r.stage.Removals[address]; !removed {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	for address := range r.stage.Removals {
+		if d, ok := r.stage.Base.Procedure(address); ok && d.SQL != nil && d.Name() == name {
+			count--
+		}
+	}
+	for address, descriptor := range r.stage.Descriptors {
+		if _, removed := r.stage.Removals[address]; removed {
+			continue
+		}
+		if old, ok := r.stage.Base.Procedure(address); ok && old.SQL != nil && old.Name() == name {
+			count--
+		}
+		if d, ok := descriptor.(*catalog.Procedure); ok && d.SQL != nil && d.Name() == name {
+			count++
+		}
+	}
+	return count > 0
+}
+
 func (a AuthorizationView) definitionNamespace(address ids.ObjectAddress) (*catalog.Namespace, bool) {
 	descriptor, exists := a.definitionDescriptor(address)
 	namespace, ok := descriptor.(*catalog.Namespace)
@@ -90,6 +174,13 @@ func (b *expressionBinder) definitionReader() definitionReader {
 		return b.queryAuth.definition
 	}
 	return nil
+}
+
+func (b *expressionBinder) hasSQLProcedureName(name string) bool {
+	if reader := b.definitionReader(); reader != nil {
+		return reader.hasSQLProcedureName(name)
+	}
+	return b.bindingCatalog().State().HasSQLProcedureName(name)
 }
 func (b *expressionBinder) definitionDescriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
 	if reader := b.definitionReader(); reader != nil {

@@ -145,6 +145,7 @@ func (c *Candidate) State() *State {
 	ds := make(map[ids.ObjectAddress]Descriptor, c.Base.DescriptorCount()+len(c.Descriptors))
 	ns := make(map[ids.NameKey]ids.ObjectAddress, c.Base.NameCount()+len(c.Names))
 	operators := OperatorIndexEdit{Index: c.Base.state.operatorNames}
+	procedures := ProcedureIndexEdit{Index: c.Base.state.procedureNames}
 	for k, v := range c.Base.Descriptors() {
 		ds[k] = v
 	}
@@ -154,6 +155,7 @@ func (c *Candidate) State() *State {
 	for a, removal := range c.Removals {
 		d := removal.Descriptor
 		operators.Replace(c.Base.Get(a), c.Descriptors[a])
+		procedures.Replace(c.Base.Get(a), c.Descriptors[a])
 		delete(ds, a)
 		delete(ns, DescriptorNameKey(d))
 	}
@@ -163,6 +165,7 @@ func (c *Candidate) State() *State {
 	for k, v := range c.Descriptors {
 		if _, removed := c.Removals[k]; !removed {
 			operators.Replace(c.Base.Get(k), v)
+			procedures.Replace(c.Base.Get(k), v)
 		}
 		ds[k] = v
 	}
@@ -178,5 +181,5 @@ func (c *Candidate) State() *State {
 			}
 		}
 	}
-	return &State{epoch: c.Base.Epoch(), namespaceGeneration: c.Base.state.namespaceGeneration, descriptors: ds, names: ns, operatorNames: operators.Index, defaultACLs: overlayDefaultACLs(c.Base.state.defaultACLs, c.DefaultACLs), dumpPriorities: priorities}
+	return &State{epoch: c.Base.Epoch(), namespaceGeneration: c.Base.state.namespaceGeneration, descriptors: ds, names: ns, operatorNames: operators.Index, procedureNames: procedures.Index, defaultACLs: overlayDefaultACLs(c.Base.state.defaultACLs, c.DefaultACLs), dumpPriorities: priorities}
 }

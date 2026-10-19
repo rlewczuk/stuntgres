@@ -99,6 +99,12 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 		case *catalog.Procedure:
 			add(d.Address(), d.Extension, 'e')
 			add(d.Address(), d.Namespace(), 'n')
+			if d.SQL != nil {
+				add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}, 'n')
+				for _, input := range d.SQL.Inputs {
+					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(input.Type.ID())}, 'n')
+				}
+			}
 			if intarrayProviderOf(d) != nil || cubeProviderOf(d) != nil {
 				if d.Name() == "bqarr_in" || d.Name() == "cube_in" {
 					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}, 'n')

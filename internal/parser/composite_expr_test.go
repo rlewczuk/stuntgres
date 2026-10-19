@@ -86,3 +86,25 @@ func TestIdentifierConstructorSyntax(t *testing.T) {
 		}
 	}
 }
+
+func TestOrdinaryKeywordCallHeads(t *testing.T) {
+	for _, word := range []string{
+		"authorization", "concurrently", "cross", "inner", "join", "natural",
+		"full", "outer", "is", "like", "ilike", "isnull", "notnull",
+	} {
+		t.Run(word, func(t *testing.T) {
+			keyword := lookupKeyword(word)
+			if keyword == nil || keyword.category != TypeFunctionName || keyword.columnName() {
+				t.Fatal("ordinary call changed identifier category", keyword)
+			}
+			statements, err := Parse("SELECT " + word + "(x) FROM t")
+			if err != nil || len(statements) != 1 {
+				t.Fatal(statements, err)
+			}
+			call, ok := statements[0].(*Select).Targets[0].(FunctionExpr)
+			if !ok || call.Syntax != OrdinaryFunctionSyntax || len(call.Name.Parts) != 1 || call.Name.Parts[0].Text != word || len(call.Args) != 1 || call.Pos.Character != 8 {
+				t.Fatal("ordinary call identity or operand lost", call)
+			}
+		})
+	}
+}

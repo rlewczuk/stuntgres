@@ -86,6 +86,10 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 	}
 	if raw.Category == parser.DiscardPlans || raw.Category == parser.DiscardAll {
 		session.discardPlansGeneration++
+		e := session.Engine()
+		e.mu.Lock()
+		session.sqlRoutines = nil
+		e.mu.Unlock()
 	}
 	if raw.Category == parser.DiscardSequences || raw.Category == parser.DiscardAll {
 		e := session.Engine()

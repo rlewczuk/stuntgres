@@ -13,6 +13,23 @@ import (
 // The common sql entry validates provenance and records dependencies once.
 func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {
 	switch n := node.(type) {
+	case sqlRoutineExpression:
+		if err := n.ValidateStoredProvider(); err != nil {
+			return "", err
+		}
+		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) {
+			return "", fmt.Errorf("stuntgres: invalid stored SQL routine reference")
+		}
+		procedure, ok := r.descriptor(view, n.ref.Address).(*catalog.Procedure)
+		if !ok || !sameRoutineDeclaration(procedure, n.procedure) {
+			return "", fmt.Errorf("stuntgres: invalid stored SQL routine declaration")
+		}
+		namespace, ok := r.descriptor(view, procedure.Namespace()).(*catalog.Namespace)
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing stored SQL routine namespace")
+		}
+		r.record(n.ref)
+		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.args)
 	case installedSoundexFunctionExpression:
 		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.ref) || n.ref.Address.SubID != 0 || r.descriptor(view, n.ref.Address) != n.procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored Soundex reference")

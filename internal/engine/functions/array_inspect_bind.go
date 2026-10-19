@@ -28,27 +28,12 @@ func bindArrayInspect(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		return signature()
 	}
 	var targets [2]sqltype.Usage
-	catalogNull := false
-	if d := operands[0].Usage.Type; d != nil {
-		u := operands[0].Usage
-		catalogNull = u.CatalogNullUsage()
-		if catalogNull {
-			targets[0] = u
-		} else {
-			base := d.BaseType()
-			if !base.IsArray() {
-				return signature()
-			}
-			targets[0] = base.Usage()
-		}
-	}
+	catalogNull := operands[0].Usage.CatalogNullUsage()
+	var ok bool
+	targets[0], ok = arrayInputTarget(operands[0].Usage, true)
 	targets[1] = b.Type(sqltype.Int4).Usage()
-	for i, o := range operands {
-		if o.Usage.Type != nil && !(i == 0 && catalogNull) {
-			if _, err := sqltype.PlanCoercion(o.Usage, targets[i], sqltype.Implicit); err != nil {
-				return signature()
-			}
-		}
+	if !ok || !knownCallEdges(operands, targets[:len(operands)]) {
+		return signature()
 	}
 	if err := CallDecorationError(raw); err != nil {
 		return nil, err

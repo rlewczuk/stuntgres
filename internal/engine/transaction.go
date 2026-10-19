@@ -360,6 +360,10 @@ type StatementScope struct {
 	timeoutRef                     ids.TxRef // admission projection for preparse ERROR timer retirement
 	output                         sqltype.OutputEnvironment
 	initialParameters              []sqltype.Usage
+	sqlRoutineScalar               bool // Internal single-row SELECT demand, never public finalization.
+	sqlRoutineResult               sqltype.Usage
+	sqlRoutineResultPlan           sqltype.CoercionPlan
+	activeSQLRoutineDepth          int // Root invocation owner; never saved/reset as lexical scratch.
 	protocolBind                   *protocolPortal
 	protocolResume                 bool
 	protocolSimple                 bool
@@ -752,7 +756,7 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		// must remain quiet; Execute owns read-only-first and explicit-block
 		// rejection, without resolving or changing a domain during analysis.
 		return s.op.session.Engine().describeOperation(s, stmt)
-	case *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
+	case *parser.CreateFunction, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		// These utilities have no result signature. Admission, read-only
 		// precedence and the explicit-transaction boundary belong to Execute.
 		return s.op.session.Engine().describeOperation(s, stmt)

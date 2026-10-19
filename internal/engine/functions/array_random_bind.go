@@ -27,21 +27,12 @@ func bindArrayRandom(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		return signature()
 	}
 	var targets [2]sqltype.Usage
-	if d := operands[0].Usage.Type; d != nil {
-		base := d.BaseType()
-		if !base.IsArray() {
-			return signature()
-		}
-		targets[0] = base.Usage()
-		targets[0].Collation = operands[0].Usage.Collation
-	}
+	var ok bool
+	targets[0], ok = arrayInputTarget(operands[0].Usage, false)
 	targets[1] = b.Type(sqltype.Int4).Usage()
-	for i, o := range operands {
-		if o.Usage.Type != nil {
-			if _, err := sqltype.PlanCoercion(o.Usage, targets[i], sqltype.Implicit); err != nil {
-				return signature()
-			}
-		}
+	targets[0].Collation = operands[0].Usage.Collation
+	if !ok || !knownCallEdges(operands, targets[:len(operands)]) {
+		return signature()
 	}
 	if err := CallDecorationError(raw); err != nil {
 		return nil, err

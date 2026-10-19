@@ -87,24 +87,10 @@ func TestReferenceFormatSignatures(t *testing.T) {
 		}
 		for _, prefix := range []string{"", "/*é🙂*/ "} {
 			q := prefix + "SELECT sprintf('%s','x')"
-			native := fixture.ControlsReferenceDiagnostic("0A000", "functions are unsupported")
-			native.Position = fixture.Position(8 + len([]rune(prefix)))
-			postgres := fixture.ControlsReferenceDiagnostic("42883", "function sprintf(unknown, unknown) does not exist")
-			postgres.Position = native.Position
-			postgres.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
-			for _, prepared := range []bool{false, true} {
-				step := fixture.ErrorDiagnostic(q, native)
-				step.PostgresDiagnostic = &postgres
-				if b.PG {
-					step.State = postgres.Code
-				}
-				step.SelectRows, step.ErrorStage = true, "execute"
-				if prepared {
-					step = fixture.Prepared(step)
-					step.ErrorStage = "prepare"
-				}
-				fixture.RunStep(t, p.Ctx, c, b.Recorder, step)
-			}
+			d := fixture.ControlsReferenceDiagnostic("42883", "function sprintf(unknown, unknown) does not exist")
+			d.Position = fixture.Position(8 + len([]rune(prefix)))
+			d.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
+			formatReferenceFailure(t, p, b, c, q, d, true)
 		}
 		for _, operand := range []string{"1", "NULL", "'x'::text"} {
 			t.Run("variadic-"+operand, func(t *testing.T) {

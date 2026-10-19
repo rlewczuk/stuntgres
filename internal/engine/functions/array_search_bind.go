@@ -39,36 +39,18 @@ func bindArraySearch(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if !valid {
 		return signature()
 	}
-	// anycompatible resolution collects known leaf OIDs before selecting a
-	// common type; UNKNOWN arguments must not erase an agreed domain identity.
-	var known [3]sqltype.Usage
-	count := 0
-	for i, argument := range operands[:arity] {
-		u := argument.Usage
-		if i == 0 && u.Type != nil {
-			u, valid = ArraySearchLeafUsage(u)
-			if !valid {
-				return signature()
-			}
-		}
-		if u.Type != nil {
-			known[count] = u
-			count++
-		}
-	}
-	common := b.CommonUsage(known[:count])
-	if common.Type == nil {
+	var compatible [3]sqltype.Usage
+	arrays := [3]bool{true, false, false}
+	array, valid := compatibleArrayTargets(b, operands[:arity], arrays[:arity], compatible[:arity], false)
+	if !valid {
 		return signature()
 	}
-	array, ok := b.ArrayType(common.Type)
-	if !ok || !array.Concrete() {
-		return signature()
-	}
+	common := compatible[1]
 	var integer sqltype.Usage
 	if name == "array_position" && len(operands) == 3 {
 		integer = b.Type(sqltype.Int4).Usage()
 	}
-	targets, valid := SelectArraySearch(name, operands, array.Usage(), common, integer)
+	targets, valid := SelectArraySearch(name, operands, array, common, integer)
 	if !valid {
 		return signature()
 	}
@@ -88,7 +70,7 @@ func bindArraySearch(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	result := array.Usage()
+	result := array
 	if name == "array_position" {
 		result = b.Type(sqltype.Int4).Usage()
 	}

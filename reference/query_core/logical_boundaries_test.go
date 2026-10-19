@@ -28,6 +28,7 @@ func TestReferenceLogicalOperandBoundaries(t *testing.T) {
 		{"SELECT id FROM t WHERE TRUE AND 1", fixture.Diagnostic{Code: "42804", Message: "argument of AND must be type boolean, not type integer", Position: "33"}},
 		{"INSERT INTO t(id) SELECT TRUE AND FALSE FROM t", fixture.Diagnostic{Code: "42804", Message: `column "id" is of type integer but expression is of type boolean`, Hint: "You will need to rewrite or cast the expression.", Position: "26"}},
 		{"SELECT a+1 AND a FROM t", fixture.Diagnostic{Code: "42883", Message: "operator does not exist: boolean + integer", Position: "9", Hint: "No operator matches the given name and argument types. You might need to add explicit type casts."}},
+		{"SELECT f(a) AND a FROM t", fixture.Diagnostic{Code: "42883", Message: "function f(boolean) does not exist", Hint: "No function matches the given name and argument types. You might need to add explicit type casts.", Position: "8"}},
 	} {
 		step := fixture.ImplicitError(tc.q, tc.want)
 		step.SelectRows = true
@@ -44,7 +45,6 @@ func TestReferenceLogicalOperandBoundaries(t *testing.T) {
 		{"INSERT INTO t(id) VALUES(TRUE AND FALSE)", fixture.ImplicitError("INSERT INTO t(id) VALUES(TRUE AND FALSE)", fixture.Diagnostic{Code: "42804", Message: `column "id" is of type integer but expression is of type boolean`, Hint: "You will need to rewrite or cast the expression.", Position: "26"})},
 		{"INSERT INTO t(id) VALUES(NOT TRUE)", fixture.ImplicitError("INSERT INTO t(id) VALUES(NOT TRUE)", fixture.Diagnostic{Code: "42804", Message: `column "id" is of type integer but expression is of type boolean`, Hint: "You will need to rewrite or cast the expression.", Position: "26"})},
 		{"SELECT current_setting(TRUE AND FALSE)", fixture.ImplicitError("SELECT current_setting(TRUE AND FALSE)", fixture.Diagnostic{Code: "42883", Message: "function current_setting(boolean) does not exist", Hint: "No function matches the given name and argument types. You might need to add explicit type casts.", Position: "8"})},
-		{"SELECT f(a) AND a FROM t", fixture.ImplicitError("SELECT f(a) AND a FROM t", fixture.Diagnostic{Code: "42883", Message: "function f(boolean) does not exist", Hint: "No function matches the given name and argument types. You might need to add explicit type casts.", Position: "8"})},
 	} {
 		t.Run(tc.q, func(t *testing.T) {
 			rows, err := p.Memory.QueryContext(p.Ctx, tc.q)

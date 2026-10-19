@@ -15,6 +15,11 @@ Capture validates all operands before any annotation write. Source-aware
 access instead of borrowing value-receiver array copies. Safe slices and two
 inline operands retain their existing storage path.
 
+SQL routine wrappers validate normalized syntax and captured procedure authority
+before exposing written actuals through `CaptureFunction`. Their immutable slice
+is borrowed without copying; selected implicit casts retain argument-indexed
+annotations so stored calls preserve overload identity through Dump/Restore.
+
 ```sh
 make check RUN='^TestViewLiteralProtocol(WrittenOperands|OccurrenceOwnership|Annotations|RejectsMismatch|QueryBoundaries|InstalledWrapper)$'
 make check RUN='^TestCaptureOperands(WrittenSlots|RawKinds|SpecialAnnotations|NoAllocations)$'
@@ -642,3 +647,38 @@ The affected installed units are
 `make check RUN='^TestQueryCycle(Equality|Parent|Ownership|Lifecycle|Signature)$'`.
 Public ordering, prepared/native persistence, atomicity and cancellation witnesses
 remain the dual-mode definitions documented in `reference/query_core/README.md`.
+
+### SQL routine admission boundaries
+
+SQL routines extend stored DEFAULT closure only when a real checked SQL call
+occurs in that closure. They do not make an otherwise rejected volatile
+expression admissible: bare `nextval(...) + 1` retains the existing sequence
+default boundary, and the existing `currval`/dynamic-sequence restrictions remain.
+The callee body is not executed while admitting a stored default.
+
+An ordinary call with no native provider distinguishes a truly missing signature
+(`42883`) from a viable released core signature whose native capability is
+unavailable (`0A000`). The existing release identity index supplies diagnostic
+evidence only; it never grants execution, adds catalog rows, or installs extension
+functions. Names from uninstalled extensions remain missing. Argument count,
+implicit coercion, exact quoted spelling and namespace visibility still apply.
+Specialized executable providers continue to own their signature diagnostics.
+Diagnostic arity also respects trailing defaults from the existing native
+declaration inventory, supplemented by lookup-only release metadata where no
+native declaration exists. For example,
+[`pg_terminate_backend(pid integer, timeout int8 DEFAULT 0)`](https://github.com/postgres/postgres/blob/REL_18_6/src/backend/catalog/system_functions.sql#L401-L404)
+has a genuine one-argument call shape. This never evaluates a default or
+implements backend signaling; wrong supplied types and invalid arities still
+produce missing-signature diagnostics.
+
+Private binder/closure regressions:
+
+```sh
+make check RUN='^Test(SQLRoutineDefaultClosureBoundary|SQLRoutineStoredDefaultValidation|SerialStoredDefaultInvariants|UnavailableFunctionIdentityBoundary)$'
+make check RUN='^Test(SQLRoutineDefaultClosureBoundary|UnavailableFunctionIdentityBoundary)$' RACE=1
+```
+
+These units supplement the public routine definitions in
+[`reference/query_core`](../../reference/query_core/README.md) and the existing
+native capability witnesses in the owning reference packages; they do not replace
+selected dual-mode verification.

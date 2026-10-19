@@ -63,15 +63,7 @@ func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (expr.Expr, error
 	if len(operands) == 1 {
 		operand = operands[0]
 	}
-	var input, result *sqltype.Descriptor
-	if len(raw.Args) == 1 && operand.Usage.Type != nil {
-		input = operand.Usage.Type.BaseType()
-		if input.IsArray() {
-			result = input.Element()
-		} else {
-			result = sqltype.MultirangeUnnestResult(input)
-		}
-	}
+	input, result := unnestInputTypes(operand.Usage)
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	if !visible || name != "unnest" || len(raw.ArgNames) != 0 || len(raw.Args) != 1 || result == nil {
 		names := make([]string, len(raw.Args))
@@ -130,4 +122,18 @@ func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (expr.Expr, error
 		return nil, err
 	}
 	return unnestExpression{Info: info, args: []expr.Expr{arg}}, nil
+}
+
+// unnestInputTypes is shared by applicability and the selected provider.
+func unnestInputTypes(usage sqltype.Usage) (input, result *sqltype.Descriptor) {
+	if usage.Type == nil {
+		return nil, nil
+	}
+	input = usage.Type.BaseType()
+	if input.IsArray() {
+		result = input.Element()
+	} else {
+		result = sqltype.MultirangeUnnestResult(input)
+	}
+	return input, result
 }

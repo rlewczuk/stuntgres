@@ -674,6 +674,33 @@ func (prepared *preparedDrop) descriptors() iter.Seq2[ids.ObjectAddress, catalog
 	}
 }
 
+func (prepared *preparedDrop) proceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
+	return func(yield func(*catalog.Procedure) bool) {
+		for d := range indexedDefinitionProcedures(prepared.discovery, prepared, namespace, name) {
+			if !yield(d) {
+				return
+			}
+		}
+		if prepared.input == nil {
+			return
+		}
+		for candidate := range prepared.input.proceduresNamed(namespace, name) {
+			if original, exists := prepared.discovery.Procedure(candidate.Address()); exists && original.Namespace() == namespace && original.Name() == name {
+				continue
+			}
+			descriptor, present := prepared.descriptor(candidate.Address())
+			if d, ok := descriptor.(*catalog.Procedure); present && ok && d.Namespace() == namespace && d.Name() == name {
+				if !yield(d) {
+					return
+				}
+			}
+		}
+	}
+}
+func (prepared *preparedDrop) hasSQLProcedureName(name string) bool {
+	return prepared.discovery.State().HasSQLProcedureName(name) || prepared.input != nil && prepared.input.hasSQLProcedureName(name)
+}
+
 func (p *dropProvider) associatedArrayName(namespace ids.ObjectAddress, name string) string {
 	if p.stage != nil {
 		return associatedArrayName(p.stage, namespace, name)

@@ -86,7 +86,7 @@ type NullCountArgumentIssue struct {
 func AnalyzeNullCountArgument(b ArgumentAnalyzer, raw parser.Expr) (Argument, NullCountArgumentIssue, error) {
 	// Casts remain selected arguments, but cannot hide computed arithmetic.
 	// Former signed literal input remains admitted through either spelling.
-	argument := raw
+	argument, selected := OriginalArgument(b, raw)
 	for {
 		cast, ok := argument.(parser.CastExpr)
 		if !ok {
@@ -112,7 +112,7 @@ func AnalyzeNullCountArgument(b ArgumentAnalyzer, raw parser.Expr) (Argument, Nu
 			return Argument{}, issue, nil
 		}
 		literal.Value.Pos = operator.Pos
-		if _, direct := operator.Args[0].(parser.LiteralExpr); direct && operator.Name.Parts[0].Text == "+" {
+		if _, direct := operator.Args[0].(parser.LiteralExpr); direct && operator.Name.Parts[0].Text == "+" && !selected {
 			if _, wrapped := raw.(parser.CastExpr); !wrapped {
 				raw = literal
 			}

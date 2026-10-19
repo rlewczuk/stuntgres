@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/sqltype"
 )
 
@@ -45,6 +46,7 @@ type Procedure struct {
 	Signature                                 ProcedureSignature
 	RoutineKind                               RoutineKind
 	Builtin                                   *BuiltinRoutineDeclaration
+	SQL                                       *proc.Definition
 	Body                                      []RoutineBodyEdge
 	Owner                                     authorization.PrincipalRef
 	Result                                    ids.OID

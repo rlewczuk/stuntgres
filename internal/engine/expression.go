@@ -1213,39 +1213,44 @@ type expressionPolicy struct {
 }
 
 type expressionBinder struct {
-	engine                *Engine
-	ctx                   context.Context
-	relation              *catalog.Relation
-	insertTarget          *catalog.Relation // Diagnostic candidate only, never a source.
-	ref                   ids.ObjectRef
-	ruleNamespace         *ruleNamespace
-	parameters            map[int]sqltype.Usage
-	formalParameters      []sqltype.Usage
-	executeParameters     bool
-	updateParameters      bool
-	updateInputParameters map[int]sqltype.Usage
-	uses                  []int
-	returningReadRequired bool
-	dependencies          []catalog.ExpressionDependency
-	input                 sqltype.InputEnvironment
-	op                    *Operation
-	expected              *StatementDescription
-	temporals             []temporalConstant
-	composites            map[preparedCompositeKey]compositeOccurrence
-	jsonbRecordBase       bool // Scope named cast identity to selected base trees.
-	domainValueUsage      *sqltype.Usage
-	functionProjection    functionProjectionScope
-	selectedOperatorArgs  []expr.Expr
-	anyParameters         []parameterExpression
-	deleteTarget          bool
-	deleteUsingSources    bool
-	mergeWhen             bool
-	mergeInput            bool
-	targetName            string
-	targetAlias           string
-	returningAliases      *returningAliases
-	defaultConsumer       bool
-	defaultTemporary      ids.SessionToken
+	engine                 *Engine
+	ctx                    context.Context
+	relation               *catalog.Relation
+	insertTarget           *catalog.Relation // Diagnostic candidate only, never a source.
+	ref                    ids.ObjectRef
+	ruleNamespace          *ruleNamespace
+	parameters             map[int]sqltype.Usage
+	formalParameters       []sqltype.Usage
+	closedRoutineFormals   bool // SQL body slots are declarations, not inferred public parameters.
+	executeParameters      bool
+	updateParameters       bool
+	updateInputParameters  map[int]sqltype.Usage
+	uses                   []int
+	returningReadRequired  bool
+	dependencies           []catalog.ExpressionDependency
+	input                  sqltype.InputEnvironment
+	op                     *Operation
+	expected               *StatementDescription
+	temporals              []temporalConstant
+	composites             map[preparedCompositeKey]compositeOccurrence
+	jsonbRecordBase        bool // Scope named cast identity to selected base trees.
+	domainValueUsage       *sqltype.Usage
+	functionProjection     functionProjectionScope
+	selectedOperatorArgs   []expr.Expr
+	selectedOperatorSyntax []parser.Expr
+	selectedCallArguments  bool              // Known arguments remain reusable throughout provider binding.
+	selectedCallReentry    bool              // Only the immediate selected occurrence skips selection once.
+	selectedWindowCallee   parser.ObjectName // Diagnostic spelling, never lookup authority.
+	anyParameters          []parameterExpression
+	deleteTarget           bool
+	deleteUsingSources     bool
+	mergeWhen              bool
+	mergeInput             bool
+	targetName             string
+	targetAlias            string
+	returningAliases       *returningAliases
+	defaultConsumer        bool
+	defaultTemporary       ids.SessionToken
 	// Selected timezone/calendar operand analysis owns its released rejection
 	// diagnostic without admitting additional explicit cast providers.
 	datetimeZoneOperands       bool
@@ -1310,7 +1315,7 @@ type expressionBinder struct {
 	storedExpressionSyntax map[storedExpressionSyntaxKey]parser.Expr
 	viewLiterals           map[viewLiteralPath]literalExpression
 	viewCastUsages         map[viewLiteralPath]sqltype.Usage
-	viewIntaggRefs         map[viewLiteralPath]ids.ObjectRef
+	viewRoutineRefs        map[viewLiteralPath]ids.ObjectRef
 	viewOperatorRefs       map[viewLiteralPath]ids.ObjectRef
 	viewComposites         map[viewLiteralPath]compositeOccurrence
 	viewSimilarSubstrings  map[viewLiteralPath]bool
@@ -1398,7 +1403,7 @@ func (b *expressionBinder) info(u sqltype.Usage, pos parser.Position, p expr.Pro
 	return expr.Info{Usage: u, Pos: pos, Property: p}
 }
 func (b *expressionBinder) constrain(n int, u sqltype.Usage, pos parser.Position) error {
-	if n <= 0 {
+	if n <= 0 || b.closedRoutineFormals && n > len(b.formalParameters) {
 		return expr.ErrorAt("42P02", fmt.Sprintf("there is no parameter $%d", n), pos)
 	}
 	if old, ok := b.parameters[n]; ok && old.Type != nil && old.Type != u.Type {
@@ -1583,7 +1588,16 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		return nil, fmt.Errorf("stuntgres: missing scalar expression")
 	}
 	if slot, ok := raw.(parser.ParameterExpr); ok && slot.Number < 0 && -slot.Number <= len(b.selectedOperatorArgs) {
-		return b.selectedOperatorArgs[-slot.Number-1], nil
+		node := b.selectedOperatorArgs[-slot.Number-1]
+		if b.argumentOwner.active && !b.argumentOwner.found {
+			// Selection analyzed this operand before the winning argument
+			// owner existed. Preserve its lexical occurrence even if the
+			// signature does not retain an executable argument.
+			if nested := windowOccurrence(node); nested != nil && nested.frame == b.frameID() {
+				b.argumentOwner.first, b.argumentOwner.found = nested.Pos, true
+			}
+		}
+		return node, nil
 	}
 	defer func() {
 		if bindError != nil || boundResult == nil {
@@ -1603,7 +1617,14 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			boundResult = nil
 		}
 	}()
-	if b.partitionConsumer != "" {
+	var node expr.Expr
+	if selected, handled, err := b.bindSQLRoutineSyntax(raw, policy); handled {
+		if err != nil {
+			return nil, err
+		}
+		node = selected
+	}
+	if node == nil && b.partitionConsumer != "" {
 		switch r := raw.(type) {
 		case parser.ColumnExpr:
 			if b.partitionConsumer == "partition bound" {
@@ -1624,8 +1645,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 		}
 	}
-	var node expr.Expr
-	if b.functionProjection.matches(raw) {
+	if node == nil && b.functionProjection.matches(raw) {
 		node = b.functionProjection.operand
 	}
 	if node == nil {
@@ -1708,6 +1728,13 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			if r.Schema != nil {
 				name.Parts = []parser.Identifier{*r.Schema, {Text: r.Name, Pos: r.Pos}}
 			}
+			diagnosticName := name
+			if len(b.selectedWindowCallee.Parts) != 0 {
+				// Consume before Signature binds any children. Nested calls
+				// must retain their own lexical diagnostic spelling.
+				diagnosticName = b.selectedWindowCallee
+				b.selectedWindowCallee = parser.ObjectName{}
+			}
 			parentAggregates, parentWindows := b.aggregates, b.windowCalls
 			defer func() {
 				if bindError != nil {
@@ -1738,7 +1765,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				if _, err := function.Signature(b, r, name); err != nil {
 					return nil, err
 				}
-				return nil, expr.ErrorAt("42809", "window function "+objectNameText(name)+" requires an OVER clause", r.Pos)
+				return nil, expr.ErrorAt("42809", "window function "+objectNameText(diagnosticName)+" requires an OVER clause", r.Pos)
 			}
 			parentOwner := b.argumentOwner
 			b.argumentOwner = argumentWindowOwner{active: true}
@@ -1889,7 +1916,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				node = b.checkLiterals[r.Number-1]
 				break
 			}
-			if b.noParameters || b.defaultConsumer || r.Number <= 0 {
+			if b.noParameters || b.defaultConsumer || r.Number <= 0 || b.closedRoutineFormals && r.Number > len(b.formalParameters) {
 				return nil, expr.ErrorAt("42P02", fmt.Sprintf("there is no parameter $%d", r.Number), r.Pos)
 			}
 			u := policy.expected
@@ -2219,6 +2246,9 @@ func functionCastError(raw parser.CastExpr, source string, ambiguous bool) error
 }
 
 func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolicy) (expr.Expr, error) {
+	if raw.Syntax == parser.FunctionCast && legacyFunctionCastPredicate(raw.Child) {
+		return nil, expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
+	}
 	if !b.defaultConsumer && b.queryNamespace == nil && b.returningAliases == nil && b.ruleNamespace == nil {
 		if err := qualifiedCastChild(raw.Child); err != nil {
 			return nil, err
@@ -2891,7 +2921,8 @@ func (b *expressionBinder) AnalyzeArgument(raw parser.Expr, request functions.An
 	default:
 		return functions.Argument{}, fmt.Errorf("stuntgres: invalid function argument analysis")
 	}
-	argument := functions.Argument{Expression: operand.node, Raw: operand.raw}
+	original, _ := b.OriginalArgument(operand.raw)
+	argument := functions.Argument{Expression: operand.node, Raw: original}
 	if operand.node != nil {
 		argument.Usage = operand.node.ResultUsage()
 		if argument.Usage.Type == nil {
@@ -2959,7 +2990,9 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 		}
 		return coercionExpression{b.info(request.Target, argument.Raw.SourcePosition(), coercionProperties(node, request.Plan)), node, request.Plan, sqltype.Implicit, false}, nil
 	case functions.AssignmentFormalArgument:
-		return b.bind(argument.Raw, expressionPolicy{context: assignmentContext, expected: request.Target, mode: sqltype.Implicit})
+		if !b.selectedCallArguments || argument.Expression == nil || argument.Usage.Type == nil {
+			return b.bind(argument.Raw, expressionPolicy{context: assignmentContext, expected: request.Target, mode: sqltype.Implicit})
+		}
 	case functions.DirectFormalArgument:
 		if argument.Usage.Type == nil {
 			return b.bind(argument.Raw, expressionPolicy{context: functionArgumentContext, expected: request.Target, mode: sqltype.Implicit})

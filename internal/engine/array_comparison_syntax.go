@@ -37,9 +37,9 @@ func (b *expressionBinder) normalizeInListExpression(raw parser.Expr) (parser.Ex
 	}
 	if raw != nil {
 		switch raw.(type) {
-		case parser.InListExpr, parser.CastExpr:
+		case parser.InListExpr, parser.CastExpr, parser.AggregateExpr, parser.FunctionExpr:
 			if lowered, ok := b.storedExpressionSyntax[storedExpressionSyntaxKey{frame: b.frameID(), position: raw.SourcePosition()}]; ok {
-				return b.normalizeStoredExpression(lowered), true
+				raw, changed = lowered, true
 			}
 		}
 	}
@@ -187,7 +187,7 @@ func (b *expressionBinder) normalizeInListExpression(raw parser.Expr) (parser.Ex
 			return r, true
 		}
 	}
-	return raw, false
+	return raw, changed
 }
 
 func (b *expressionBinder) normalizeInListArguments(raw []parser.Expr) ([]parser.Expr, bool) {

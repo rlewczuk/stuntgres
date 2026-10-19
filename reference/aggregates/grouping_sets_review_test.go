@@ -37,8 +37,8 @@ func TestReferenceGroupingSetsReviewProducerChildren(t *testing.T) {
 
 func TestReferenceGroupingSetsReviewProducerFunctions(t *testing.T) {
 	// In these expression positions the nested unreserved name denotes an
-	// ordinary function, not a grouping producer. PostgreSQL owns its42883;
-	// native retains the existing generic-call capability boundary, not42601.
+	// ordinary function, not a grouping producer. Both backends report the
+	// missing ordinary function rather than a grouping syntax error.
 	for _, tc := range []struct{ clause, function string }{
 		{"ROLLUP(cube(a))", "cube"},
 		{"CUBE(rollup(a))", "rollup"},
@@ -49,9 +49,6 @@ func TestReferenceGroupingSetsReviewProducerFunctions(t *testing.T) {
 				q := "SELECT count(*) FROM gs GROUP BY " + tc.clause
 				s := fixture.GroupingSetsError(q, "42883", "function "+tc.function+"(integer) does not exist", tc.function+"(a)")
 				s.Diagnostic.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
-				if !b.PG {
-					s = fixture.GroupingSetsError(q, "0A000", "functions are unsupported", tc.function+"(a)")
-				}
 				fixture.GroupingSetsAnalysisError(run, s)
 			})
 		})

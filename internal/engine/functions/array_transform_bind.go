@@ -79,40 +79,11 @@ func FinishArrayTransform(b Binder, raw parser.FunctionExpr, kind ArrayTransform
 	var result sqltype.Usage
 	compatible := kind == ArrayAppend || kind == ArrayPrepend || kind == ArrayConcatenate
 	if compatible {
-		// Collect known logical leaves first: an UNKNOWN argument must not erase
-		// the domain shared by all known inputs.
-		var views [2]sqltype.Usage
-		count := 0
-		for i := range operands {
-			u := formal[i].Usage
-			arrayArg := kind == ArrayConcatenate || kind == ArrayAppend && i == 0 || kind == ArrayPrepend && i == 1
-			if arrayArg {
-				var ok bool
-				u, ok = ArraySearchLeafUsage(u)
-				if !ok {
-					return signature()
-				}
-			}
-			if u.Type != nil {
-				views[count] = u
-				count++
-			}
-		}
-		common := b.CommonUsage(views[:count])
-		if common.Type == nil {
+		arrays := [2]bool{kind != ArrayPrepend, kind != ArrayAppend}
+		var ok bool
+		result, ok = compatibleArrayTargets(b, formal[:len(operands)], arrays[:], targets[:len(operands)], true)
+		if !ok {
 			return signature()
-		}
-		array, ok := b.ArrayType(common.Type)
-		if !ok || !array.Concrete() {
-			return signature()
-		}
-		result = array.Usage()
-		result.Collation = common.Collation
-		for i := range operands {
-			targets[i] = common
-			if kind == ArrayConcatenate || kind == ArrayAppend && i == 0 || kind == ArrayPrepend && i == 1 {
-				targets[i] = result
-			}
 		}
 	} else {
 		u := formal[0].Usage
@@ -134,17 +105,12 @@ func FinishArrayTransform(b Binder, raw parser.FunctionExpr, kind ArrayTransform
 			}
 			targets[1], targets[2] = integer.Usage(), integer.Usage()
 		} else {
-			if u.Type != nil {
-				if u.CatalogNullUsage() {
-					targets[0] = u
-				} else {
-					if !u.Type.BaseType().IsArray() {
-						return signature()
-					}
-					targets[0] = u.Type.BaseType().Usage()
-				}
-				result = targets[0]
+			var ok bool
+			targets[0], ok = arrayInputTarget(u, true)
+			if !ok {
+				return signature()
 			}
+			result = targets[0]
 			switch kind {
 			case ArraySort:
 				targets[1], targets[2] = b.Type(sqltype.Bool).Usage(), b.Type(sqltype.Bool).Usage()
@@ -157,16 +123,8 @@ func FinishArrayTransform(b Binder, raw parser.FunctionExpr, kind ArrayTransform
 		}
 	}
 	// Probe every known edge before importing any unknown literal or parameter.
-	for i := range operands {
-		u := formal[i].Usage
-		if u.Type != nil && !u.CatalogNullUsage() {
-			if targets[i].Type == nil {
-				return signature()
-			}
-			if _, err := sqltype.PlanCoercion(u, targets[i], sqltype.Implicit); err != nil {
-				return signature()
-			}
-		}
+	if !knownCallEdges(formal[:len(operands)], targets[:len(operands)]) {
+		return signature()
 	}
 	name := kind.Name()
 	if !operator {

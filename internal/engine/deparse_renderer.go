@@ -812,6 +812,12 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		text.WriteString("\n    ELSE " + otherwise)
 		text.WriteString("\nEND")
 		return text.String(), nil
+	case sqlRoutineExpression:
+		namespace, ok := r.view.Namespace(n.procedure.Namespace())
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing SQL routine namespace")
+		}
+		return function(r.identifier(namespace.Name())+"."+r.identifier(n.procedure.Name()), n.args, true)
 	case catalogUserNameExpression:
 		args := [1]expr.Expr{n.arg}
 		return function("pg_get_userbyid", args[:], true)

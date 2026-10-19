@@ -52,7 +52,7 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column catalog.Column) (
 	if err != nil {
 		return nil, err
 	}
-	if node.Properties().Volatility > expr.Stable && !closedSequenceDefault(node) && !closedUUIDDefault(node) && !closedTransactionTimeDefault(node) && !closedPgcryptoDefault(node) {
+	if node.Properties().Volatility > expr.Stable && !closedSequenceDefault(node) && !closedUUIDDefault(node) && !closedTransactionTimeDefault(node) && !closedPgcryptoDefault(node) && !closedSQLRoutineDefault(node) {
 		return nil, expr.ErrorAt("0A000", "unsupported volatile DEFAULT expression", parser.ExpressionStart(raw))
 	}
 	if node.ResultUsage() != column.Usage {
@@ -161,7 +161,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		return "", fmt.Errorf("stuntgres: missing default node")
 	}
 	u, p := node.ResultUsage(), node.Properties()
-	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.owner == nil && (r.domainValue == nil && p.Volatility > expr.Stable && !closedSequenceDefault(node) && !closedUUIDDefault(node) && !closedTransactionTimeDefault(node) && !closedPgcryptoDefault(node) || p.RowDependent) || p.ParameterDependent || p.StageDependent || p.DomainDependent && r.domainValue == nil {
+	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.owner == nil && (r.domainValue == nil && p.Volatility > expr.Stable && !closedSequenceDefault(node) && !closedUUIDDefault(node) && !closedTransactionTimeDefault(node) && !closedPgcryptoDefault(node) && !closedSQLRoutineDefault(node) || p.RowDependent) || p.ParameterDependent || p.StageDependent || p.DomainDependent && r.domainValue == nil {
 		return "", fmt.Errorf("stuntgres: invalid stored default properties")
 	}
 	if err := validateUsageCollationAt(view, r.definition, u); err != nil {
@@ -281,7 +281,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 			return "", fmt.Errorf("stuntgres: invalid stored advisory signature")
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+n.name, n.args)
-	case catalogUserNameExpression, catalogForeignKeysExpression, extensionPathsExpression, transactionIdentityExpression, commitTimestampExpression, installedFunctionExpression, installedUUIDOsspFunctionExpression, installedCryptoFunctionExpression, installedSoundexFunctionExpression, installedMetaphoneFunctionExpression, installedLevenshteinFunctionExpression:
+	case sqlRoutineExpression, catalogUserNameExpression, catalogForeignKeysExpression, extensionPathsExpression, transactionIdentityExpression, commitTimestampExpression, installedFunctionExpression, installedUUIDOsspFunctionExpression, installedCryptoFunctionExpression, installedSoundexFunctionExpression, installedMetaphoneFunctionExpression, installedLevenshteinFunctionExpression:
 		return r.scalarFunctionSQL(ctx, view, node)
 	case visibilityInquiryExpression:
 		if r.owner == nil {

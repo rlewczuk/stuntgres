@@ -69,7 +69,8 @@ func bindStringVariadicNode(b Binder, raw parser.FunctionExpr) (StringVariadic, 
 		result := make([]string, len(args))
 		for i, arg := range args {
 			result[i] = "unknown"
-			literal, unknown := raw.Args[i].(parser.LiteralExpr)
+			syntax, _ := OriginalArgument(b, raw.Args[i])
+			literal, unknown := syntax.(parser.LiteralExpr)
 			unknown = unknown && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue)
 			if !unknown && arg != nil && arg.ResultUsage().Type != nil {
 				result[i] = arg.ResultUsage().Type.DiagnosticName()

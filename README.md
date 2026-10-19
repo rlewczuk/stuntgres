@@ -14,6 +14,31 @@ crash durability. Use real PostgreSQL for features outside
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Scalar SQL routines — change note
+
+Basic `CREATE FUNCTION` accepts anonymous positional typed arguments, a concrete
+scalar result and one SQL SELECT body:
+
+```sql
+CREATE FUNCTION add1(integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1+1$$;
+SELECT add1(4); -- 5, INT4
+```
+
+Direct and prepared calls use ordinary namespace/signature resolution, implicit
+argument conversion and live EXECUTE/invoker permissions. Bodies retain existing
+SELECT capabilities, including modifying CTEs under the caller's atomic statement
+owner. The first result row is assignment-converted to the declared type; no row
+returns typed NULL. CREATE validates without executing the body.
+
+Native Dump/Restore preserves declarations, nested calls, views, defaults and
+ordinary data, including text-body/table-default cycles. Actual emitted SQL also
+replays on pinned PostgreSQL18.6. Named/mode/default/variadic declarations,
+OR REPLACE, procedures/CALL, PL/pgSQL, attributes/security clauses and set/composite
+returns remain excluded. This does not expand the bounded `pg_language` inventory.
+See [native boundaries](docs/DIALECT.md#scalar-sql-routines),
+[fixture replay](docs/FIXTURES.md#sql-routine-declarations-and-callers), and
+[selected proof and smoke](reference/query_core/README.md#scalar-sql-routine-contract).
+
 ## Inheritance catalog metadata — change note
 
 `pg_catalog.pg_inherits` exposes the four PostgreSQL 18 fields for actual direct
@@ -459,9 +484,9 @@ through ordinary direct/prepared queries, catalog discovery and PUBLIC reads.
 Native availability is deliberately limited to `internal`: OID12, owner10,
 `lanispl=false`, `lanpltrusted=false`, call/inline handler OIDs0,
 validator OID2246 and NULL language ACL. The validator is metadata, not an
-executable validation service. SQL, C and PL/pgSQL language runtimes, language/
-routine DDL and external handler execution remain unavailable; no such native
-languages are advertised.
+executable validation service. The separate bounded scalar SQL routine facility
+does not add language catalog rows. C/PL/pgSQL runtimes, language DDL, general
+procedural execution and external handlers remain unavailable.
 See [native limits](docs/DIALECT.md#pg_language-supported-language-metadata) and
 [selected proof and feature smoke](reference/catalogs/README.md#pg_language-selected-proof).
 
@@ -2467,7 +2492,7 @@ schema/directed pair, while legal SET SCHEMA moves may leave multiple defaults.
 Rename, move and ownership changes retain identity; system seeds retain pins.
 Read-only `pg_conversion` exposes its eight actual columns, including symbolic
 REGPROC `conproc` output. Routine aliases also admit ordinary input/storage as
-described below; this does not add CREATE FUNCTION, external ABI loading or wire transcoding.
+described below; conversion controls do not load external ABIs or add wire transcoding.
 Dump emits exact quoted definitions and collision-safe seed metadata deltas,
 including legal duplicate-default replay. Reset restores canonical seeds and
 Restore remaps actual owners/providers while preserving live target TEMP.
@@ -2489,8 +2514,9 @@ constants use existing value/storage/analysis owners. Dump preserves overloaded
 identities through qualified signatures and Restore remaps real extension identities.
 Schema USAGE and CREATE can be granted independently of ownership. Routine alias
 lookup remains distinct from execution and does not supply a routine runtime.
-CREATE FUNCTION/PROCEDURE, runtime-allocated information_schema/plpgsql routines and
-external procedural/native-ABI providers remain unavailable native capabilities.
+Basic scalar SQL CREATE FUNCTION is supported separately; CREATE PROCEDURE,
+runtime-allocated information_schema/plpgsql routines and external procedural/
+native-ABI providers remain unavailable native capabilities.
 Smoke commands: `make check RUN='^TestReferenceRegProcFeatureSmoke$'` and
 `make check RUN='^TestReferenceRegProcFeatureSmoke$' REFERENCE=1`. Selected native
 and pinned checks also cover numeric/dash signature-type rejection and mixed

@@ -39,6 +39,7 @@ func (s *State) CloneNames() { s.names = maps.Clone(s.names) }
 // entries. Names stay shared.
 func (s *State) ResetDescriptors(capacity int) {
 	s.descriptors = make(map[ids.ObjectAddress]Descriptor, capacity)
+	s.procedureNames = nil
 }
 
 // ResetMaps gives s empty descriptor and name maps with room for capacity
@@ -47,5 +48,6 @@ func (s *State) ResetMaps(capacity int) iter.Seq2[ids.ObjectAddress, Descriptor]
 	previous := s.descriptors
 	s.descriptors = make(map[ids.ObjectAddress]Descriptor, capacity)
 	s.names = make(map[ids.NameKey]ids.ObjectAddress, capacity)
+	s.procedureNames = nil
 	return maps.All(previous)
 }
