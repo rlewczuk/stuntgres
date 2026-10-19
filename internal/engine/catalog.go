@@ -779,7 +779,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			e.mu.Unlock()
 			return ChangeSet{}, err
 		}
-		if !e.domainIndexRootsCurrent(s) {
+		if !e.storage.indexRootsCurrent(s.domainIndexRoots) {
 			e.mu.Unlock()
 			return ChangeSet{}, catalog.Conflict{}
 		}
@@ -1154,7 +1154,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			}
 		}
 		err := p.ctx.Err()
-		if err == nil && !e.domainIndexRootsCurrent(s) {
+		if err == nil && !e.storage.indexRootsCurrent(s.domainIndexRoots) {
 			err = catalog.Conflict{}
 		}
 		if err == nil && s.domainValidation != nil && !s.domainValidation.current(e.catalog.read(e.catalog.state), e.storage.relations) {

@@ -281,7 +281,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 	}
 	next := catalog.CloneState(e.catalog.state)
 	for _, item := range imports {
-		versions, err := e.allocateRowVersionsLocked(item.rows, nil)
+		versions, err := e.storage.allocateRowVersionsLocked(item.rows, nil)
 		if err != nil {
 			return err
 		}

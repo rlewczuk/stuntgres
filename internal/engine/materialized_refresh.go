@@ -302,7 +302,7 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 			}
 		}
 	}
-	versions, err := e.allocateRowVersionsLocked(rows, nil)
+	versions, err := e.storage.allocateRowVersionsLocked(rows, nil)
 	if err != nil {
 		return err
 	}

@@ -157,7 +157,7 @@ func TestCommitTimePublication(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						versions, err := e.allocateRowVersionsLocked([][]sqltype.Value{{value}}, e.catalog.state)
+						versions, err := e.storage.allocateRowVersionsLocked([][]sqltype.Value{{value}}, e.catalog.state)
 						if err != nil {
 							t.Fatal(err)
 						}
