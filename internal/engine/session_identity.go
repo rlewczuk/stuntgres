@@ -36,6 +36,13 @@ type identityExpression struct {
 	ordinaryCall bool
 }
 
+func (e identityExpression) ResultNullability(expr.ResultSite) (nullable, known bool) {
+	if e.kind == identityCurrentSchema {
+		return true, true
+	}
+	return false, false
+}
+
 func (e identityExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	if err := evaluationContext(c); err != nil {

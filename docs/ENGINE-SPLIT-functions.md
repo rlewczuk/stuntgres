@@ -76,9 +76,16 @@ for fixed receiver storage. Still listing function nodes: function sources
 
 Remaining F2 items (details in "Later-wave refresh" at the end of Status):
 function sources, including the engine's `seriesExpression` and
-`unnestExpression` markers; `SQLJSON` rendering; a result nullability hook
-for `query_bind.go` and `returning.go`; and a conditional closure hook for
-the closed-DEFAULT check. Function sources remain broad.
+`unnestExpression` markers; `SQLJSON` rendering; and a conditional closure hook
+for the closed-DEFAULT check. Function sources remain broad.
+
+The result-nullability cutover asks `expr.ResultNullability` at explicit
+SELECT/RETURNING sites, independently of Composite. Nine owners answer beside
+their definitions using immutable recipes only. No-claim is no write; source,
+grouping/aggregate/window and OLD/NEW/MERGE precedence stays engine-owned.
+Deparse/index-property claims remain SELECT-only, and wrappers/literal folding
+retain their uncertainty. Item 4 has selected dual-mode, quickcheck and public
+smoke proof; full racecheck and post-merge finalcheck were waived by the user.
 
 ### F3 — Binder interface and registry, with a pilot family
 
@@ -176,7 +183,8 @@ Tier C has a refined plan.
   [x] preflight [x] index key display [x] closed DEFAULT checks
   [x] `Arguments()` [x] view literal capture [ ] function sources
   (with `seriesExpression` and `unnestExpression`) [ ] `SQLJSON` rendering
-  [ ] result nullability hook [ ] conditional closure hook (session 4: `063fe2d1e` identity, `622b3d3ba`
+  [x] result nullability hook (racecheck/finalcheck waived at user request)
+  [ ] conditional closure hook (session 4: `063fe2d1e` identity, `622b3d3ba`
   rewrite, `a187f7f5d` preflight, `39c887998` index, `b2675f4c2`
   substitution, `632814b91` DEFAULT closure, `25fcad768` `Arguments()`,
   then the docs commit)
@@ -1666,9 +1674,9 @@ user's request.
 
 Notes for later steps (Tier C ACL):
 
-- A nullability hook (`query_bind.go`, `returning.go`) and a set-source hook
-  (the function-source switches, see the F2 session 4 notes) would remove
-  the remaining per-node cases of every Tier C part.
+- The result-nullability protocol cutover now removes those concrete cases from
+  `query_bind.go` and `returning.go`. A set-source hook
+  remains separate work (the function-source switches, see the F2 session 4 notes).
 - A conditional closure hook (closed when every child is, unless the node
   says otherwise) would let `aclexplode` drop its closed-DEFAULT case.
 - `reference/types/README.md` lists `TestACLValues*` selectors, some of
@@ -1679,6 +1687,10 @@ Notes for later steps (Tier C ACL):
 
 Later-wave refresh, measured at `75fe0d710` while planning steps 8–17
 (docs only; no code changed):
+
+The historical inventory below predates the result-nullability protocol cutover.
+`query_bind.go` and `returning.go` now ask node-owned hooks rather than enumerate
+the catalog/session/blocking inquiry kinds.
 
 - **Tier C nodes still in the engine** (all 14 listed in the refinement,
   plus `identityExpression`). Every one is named by the same 12 central

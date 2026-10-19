@@ -355,33 +355,33 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	}
 	results := make([]catalog.Column, width)
 	regclassOutput := false
-	for i, expr := range projection {
+	for i, expression := range projection {
 		if !contextual || plainDistinct {
 			var err error
-			expr, err = b.finalizeProjection(expr)
+			expression, err = b.finalizeProjection(expression)
 			if err != nil {
 				return nil, err
 			}
-			projection[i] = expr
+			projection[i] = expression
 		}
-		if (b.noParameters || b.materializedDefinition) && literalTargets[i] >= 0 && expr.ResultUsage().Type != nil {
+		if (b.noParameters || b.materializedDefinition) && literalTargets[i] >= 0 && expression.ResultUsage().Type != nil {
 			target := literalTargets[i]
-			if err := b.captureViewLiterals(s.Targets[target], expr, viewTargetLiteral, target); err != nil {
+			if err := b.captureViewLiterals(s.Targets[target], expression, viewTargetLiteral, target); err != nil {
 				return nil, err
 			}
 		}
-		result := catalog.Column{Name: "?column?", Usage: expr.ResultUsage()}
+		result := catalog.Column{Name: "?column?", Usage: expression.ResultUsage()}
 		regclassOutput = regclassOutput || result.Usage.Type.ContainsCatalogIdentifier()
 		result.Name = targetNames[i]
-		if c, ok := expr.(columnExpression); ok && c.scope == 1 && c.frame == b.frameID() {
+		if c, ok := expression.(columnExpression); ok && c.scope == 1 && c.frame == b.frameID() {
 			result = namespace.frame[c.slot]
 			result.Name = targetNames[i]
 		}
-		if operation, ok := expr.(groupingExpression); ok && operation.frame == b.frameID() {
+		if operation, ok := expression.(groupingExpression); ok && operation.frame == b.frameID() {
 			result.Nullable, result.NullabilityKnown = false, true
 		}
 		for keyIndex, key := range keys {
-			if !b.sameGroupExpression(expr, key) {
+			if !b.sameGroupExpression(expression, key) {
 				continue
 			}
 			for _, set := range sets {
@@ -398,7 +398,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				}
 			}
 		}
-		if aggregate, ok := expr.(aggregateExpression); ok && aggregate.frame == b.frameID() {
+		if aggregate, ok := expression.(aggregateExpression); ok && aggregate.frame == b.frameID() {
 			operation := b.aggregates[aggregate.slot].operation
 			switch operation {
 			case functions.AggregateJSON, functions.AggregateJSONStrict, functions.AggregateJSONArray, functions.AggregateJSONArrayAbsent, functions.AggregateJSONObject, functions.AggregateJSONObjectStrict:
@@ -410,35 +410,13 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				result.Nullable = operation != functions.AggregateCount && operation != functions.AggregateRegrCount && !operation.Hypothetical()
 			}
 		}
-		if window, ok := expr.(*windowExpression); ok {
+		if window, ok := expression.(*windowExpression); ok {
 			result.Nullable, result.NullabilityKnown = window.nullable, true
 		}
-		if _, ok := expr.(currentSchemasExpression); ok {
-			result.Nullable, result.NullabilityKnown = true, true
-		}
-		if _, ok := expr.(functions.AccessInquiry); ok {
-			result.Nullable, result.NullabilityKnown = true, true
-		}
-		if _, ok := expr.(functions.ObjectACL); ok {
-			result.Nullable, result.NullabilityKnown = true, true
-		}
-		if _, ok := expr.(functions.ACLValue); ok {
-			result.Nullable, result.NullabilityKnown = true, true
-		}
-		if inquiry, ok := expr.(namespaceInquiryExpression); ok {
-			result.Nullable, result.NullabilityKnown = inquiry.kind == otherTempNamespace, true
-		}
-		if _, ok := expr.(blockingInquiryExpression); ok {
-			result.Nullable, result.NullabilityKnown = true, true
-		}
-		if identity, ok := expr.(identityExpression); ok && identity.kind == identityCurrentSchema {
-			result.Nullable, result.NullabilityKnown = true, true
-		}
-		if _, ok := expr.(deparseExpression); ok {
-			result.Nullable, result.NullabilityKnown = true, true
-		}
-		if _, ok := expr.(indexPropertyExpression); ok {
-			result.Nullable, result.NullabilityKnown = true, true
+		if metadata, ok := expression.(expr.ResultNullability); ok {
+			if nullable, known := metadata.ResultNullability(expr.ResultSelect); known {
+				result.Nullable, result.NullabilityKnown = nullable, true
+			}
 		}
 		results[i] = result
 	}

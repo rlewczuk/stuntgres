@@ -87,6 +87,20 @@ package-level variable. Evaluation always receives a non-nil `Context`.
 Optional hooks (`hooks.go`), each answering one switch's question; a node
 without a hook gets the switch's previous generic behavior:
 
+- **`ResultNullability`** (`ResultNullability(ResultSite)`): a pure claim about
+  the actual top-level expression at `ResultSelect` or `ResultReturning`.
+  This capability is independent of `Composite`. A missing hook or `known=false`
+  leaves both descriptor fields untouched; neither implies nonnullability.
+  Answers use immutable kind/recipe data only, without evaluation, authority,
+  catalog reads, allocation, mutation or child traversal. The hook is not on
+  `Info`, and consumers do not unwrap coercion, COLLATE or other wrappers.
+  SELECT asks after provenance/grouping/aggregate/window rules; RETURNING asks
+  only after its explicit source-column, OLD/NEW and MERGE cases decline.
+  Deparse and index-property inquiries claim known nullable only for SELECT.
+  Other inquiry/ACL owners preserve their existing claims at both sites;
+  only current_schema claims among identity kinds. Literal-NULL index inquiry
+  folding removes the inquiry node, so that literal still has unknown metadata.
+
 - **`Intrinsic`** (`IntrinsicVolatility`): the node's own planned volatility,
   excluding children. Planned volatility merges it with the children;
   generated-column admission requires it to be `Immutable` and admits every
@@ -189,6 +203,9 @@ through. Function sources (`string_table_bind.go`, `string_set_query.go`,
 remain separate engine work. Literal capture uses `Capturable` only after
 engine-owned wrappers, coercions, constructors and query-frame boundaries.
 
+Result descriptor construction (`query_bind.go`, `returning.go`) independently
+asks `ResultNullability` without requiring Composite membership.
+
 ## What stays in the engine
 
 The concrete nodes (column, parameter, coercion, CASE, row, subquery and the
@@ -216,3 +233,18 @@ make check RUN='^Test(WalkVisitsPreOrderAndSkipsNil|MapUnchangedKeepsNode|MapCha
 make check RUN='^Test(MapSubstitutedFollowsEvaluationOrderAndKeepsPositions|SubstitutePrefersTheHook)$'
 make check RUN='^TestCaptureOperands(WrittenSlots|RawKinds|SpecialAnnotations|NoAllocations)$'
 ```
+
+Result descriptor kind/site boundaries (including immutable value/pointer
+recipes) and public direct/same-held SELECT and all four RETURNING consumers:
+
+```sh
+make check RUN='^TestResultNullability(Engine|Functions)$'
+make check RUN='^TestReferenceResultNullability(Select|Returning)$'
+make check RUN='^TestReferenceResultNullability(Select|Returning)$' REFERENCE=1
+```
+
+The public matrix checks metadata before iteration, including empty results,
+fresh arguments/search_path and retained native descriptions. Native richer
+pairs and pq's unknown pair are independent expectations; see
+[`reference/dml`](../../../reference/dml/README.md#result-nullability).
+The standalone smoke described there complements, not replaces, selected proof.

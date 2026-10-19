@@ -53,6 +53,13 @@ type deparseExpression struct {
 	args      []expr.Expr
 }
 
+func (deparseExpression) ResultNullability(site expr.ResultSite) (nullable, known bool) {
+	if site == expr.ResultSelect {
+		return true, true
+	}
+	return false, false
+}
+
 func (b *expressionBinder) bindDeparse(raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	var args []expr.Expr
 	var unknown []bool

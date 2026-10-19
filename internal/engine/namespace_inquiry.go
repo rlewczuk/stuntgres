@@ -34,6 +34,10 @@ type namespaceInquiryExpression struct {
 	arg  expr.Expr
 }
 
+func (e namespaceInquiryExpression) ResultNullability(expr.ResultSite) (nullable, known bool) {
+	return e.kind == otherTempNamespace, true
+}
+
 func (b *expressionBinder) bindNamespaceInquiry(raw parser.FunctionExpr) (expr.Expr, error) {
 	var operand comparisonOperand
 	var single [1]string

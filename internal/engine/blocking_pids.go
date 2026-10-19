@@ -34,6 +34,10 @@ type blockingInquiryExpression struct {
 	arg  expr.Expr
 }
 
+func (blockingInquiryExpression) ResultNullability(expr.ResultSite) (nullable, known bool) {
+	return true, true
+}
+
 func (b *expressionBinder) bindBlockingInquiry(raw parser.FunctionExpr) (expr.Expr, error) {
 	var operand comparisonOperand
 	var single [1]string

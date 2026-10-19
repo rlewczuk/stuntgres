@@ -585,6 +585,18 @@ their routine identity.
 Nodes also implement the optional `expr` hooks that the engine's switches ask
 (the `expr` README defines them):
 
+- `ResultNullability(ResultSite)` on `AccessInquiry`, `ObjectACL` and
+  `ACLValue`: known nullable at both SELECT and RETURNING descriptor sites,
+  including every ACL kind. Value receivers preserve the capability on values
+  and pointers. These immutable recipe answers never evaluate arguments, read
+  authority/catalogs, allocate or mutate. The hook is independently optional,
+  not a requirement of `Composite`; no hook or a declined claim preserves both
+  descriptor fields. Engine-owned column/grouping/aggregate/window and
+  OLD/NEW/MERGE precedence remains at the consumers. Engine-resident deparse
+  and index-property owners claim only SELECT; no generic strictness inference
+  or propagation through coercion/COLLATE wrappers is introduced. A literal-NULL
+  folded index inquiry is a literal, not a retained inquiry claim.
+
 - `IntrinsicVolatility` on every node: the value its planned volatility,
   generated admission and `rewrittenIntrinsicProperties` use.
 - `PlanningFold`: `FoldNever` for stage-owned and never-evaluated calls (JSON
@@ -676,8 +688,7 @@ The ACL SQL functions keep these engine parts: the `ACLRuntime`
 implementation; `aclexplode`'s set-returning admission and function scan,
 which open the node's `ACLExplodeCursor` (`string_set_query.go`,
 `string_table_bind.go`, `string_set_lower.go`); the `@>` selection in array
-membership, which calls `BindACLContains`; result nullability
-(`query_bind.go`, `returning.go`); raw/bound view literal pairing
+membership, which calls `BindACLContains`; raw/bound view literal pairing
 (`view_literals.go`); the closed-DEFAULT check (`aclexplode` is never
 closed); and the stored-default guard that rejects `pg_get_acl` and the
 access inquiries outside a relation-owned definition (`default.go`). The
@@ -840,6 +851,22 @@ There is no input-length limit, Unicode normalization or transliteration.
 
 Run from repository root; use `make check RUN='...'` for individual or small
 cohesive selections. Registry shape and claims:
+
+Result-nullability recipe/site units and public consumer coverage:
+
+```sh
+make check RUN='^TestResultNullability(Engine|Functions)$'
+make check RUN='^TestReferenceResultNullability(Select|Returning)$'
+make check RUN='^TestReferenceResultNullability(Select|Returning)$' REFERENCE=1
+make check RUN='^(TestReferenceAccessRoleNullAndMetadata|TestReferenceObjectACL(Metadata|HeldExecution)|TestReferenceBlockingPidsSignatures)$'
+make check RUN='^(TestReferenceAccessRoleNullAndMetadata|TestReferenceObjectACL(Metadata|HeldExecution)|TestReferenceBlockingPidsSignatures)$' REFERENCE=1
+```
+
+Units independently pin all ACL kinds (including ACLExplode) and both access
+recipes without evaluation/context/catalogs. The public matrix checks populated
+and empty direct/same-held consumers, preserving native claims versus pq unknown.
+See [`reference/dml`](../../../reference/dml/README.md#result-nullability)
+for the public contract and standalone metadata smoke.
 
 Written operand hooks and engine raw/bound capture (no public SQL API fixture):
 

@@ -59,6 +59,13 @@ type indexPropertyExpression struct {
 	oidUsage sqltype.Usage
 }
 
+func (indexPropertyExpression) ResultNullability(site expr.ResultSite) (nullable, known bool) {
+	if site == expr.ResultSelect {
+		return true, true
+	}
+	return false, false
+}
+
 func (e indexPropertyExpression) children() []expr.Expr { return e.args[:e.kind.count()] }
 
 func (b *expressionBinder) bindIndexProperty(raw parser.FunctionExpr) (expr.Expr, error) {

@@ -6,9 +6,26 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Optional hooks a Composite node implements when an engine switch needs more
-// than its children. Each hook is named for the single question it answers;
-// switches fall back to their previous generic behavior when a node lacks it.
+// Optional hooks answer individual engine questions. A hook does not require
+// Composite membership; nodes without it keep the consumer's generic behavior.
+// Each hook is named for the single question it answers.
+
+// ResultSite identifies the descriptor consumer asking about a result expression.
+type ResultSite uint8
+
+const (
+	ResultSelect    ResultSite = iota // SELECT projection
+	ResultReturning                   // DML RETURNING projection
+)
+
+// ResultNullability reports a pure, optional claim about the actual top-level
+// expression at a descriptor site. It uses only immutable kind/recipe data:
+// no evaluation, authority/catalog access, child traversal, allocation or mutation.
+// A false known means leave both descriptor fields untouched, not nonnullable.
+// Consumers retain their explicit engine-owned precedence and do not unwrap nodes.
+type ResultNullability interface {
+	ResultNullability(ResultSite) (nullable, known bool)
+}
 
 // Intrinsic reports a node's own planned volatility, excluding its children.
 // Planning merges it with the children's planned volatility, so dependence that

@@ -5,7 +5,6 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -141,9 +140,9 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 	b.returningAliases, b.aggregateClause = &aliases, "RETURNING"
 	defer func() { b.returningAliases, b.aggregateClause = previous, clause }()
 	output := &boundReturning{}
-	appendOutput := func(expr expr.Expr, name string) {
-		descriptor := catalog.Column{Name: name, Usage: expr.ResultUsage()}
-		switch column := expr.(type) {
+	appendOutput := func(expression expr.Expr, name string) {
+		descriptor := catalog.Column{Name: name, Usage: expression.ResultUsage()}
+		switch column := expression.(type) {
 		case columnExpression:
 			if b.queryNamespace != nil {
 				descriptor = b.queryNamespace.frame[column.slot]
@@ -160,21 +159,15 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 			}
 		case mergeActionExpression:
 			descriptor.Nullable, descriptor.NullabilityKnown = false, true
-		case currentSchemasExpression:
-			descriptor.Nullable, descriptor.NullabilityKnown = true, true
-		case functions.AccessInquiry, functions.ObjectACL, functions.ACLValue:
-			descriptor.Nullable, descriptor.NullabilityKnown = true, true
-		case namespaceInquiryExpression:
-			descriptor.Nullable, descriptor.NullabilityKnown = column.kind == otherTempNamespace, true
-		case blockingInquiryExpression:
-			descriptor.Nullable, descriptor.NullabilityKnown = true, true
-		case identityExpression:
-			if column.kind == identityCurrentSchema {
-				descriptor.Nullable, descriptor.NullabilityKnown = true, true
+		default:
+			if metadata, ok := expression.(expr.ResultNullability); ok {
+				if nullable, known := metadata.ResultNullability(expr.ResultReturning); known {
+					descriptor.Nullable, descriptor.NullabilityKnown = nullable, true
+				}
 			}
 		}
 		descriptor.Name = name
-		output.expressions = append(output.expressions, expr)
+		output.expressions = append(output.expressions, expression)
 		output.schema = append(output.schema, descriptor)
 	}
 	for target, expression := range raw.Targets {

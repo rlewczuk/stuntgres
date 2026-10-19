@@ -19,6 +19,10 @@ type ObjectACL struct {
 	Labels [3]string
 }
 
+func (ObjectACL) ResultNullability(expr.ResultSite) (nullable, known bool) {
+	return true, true
+}
+
 var objectACLLabels = [3]string{"classid", "objid", "objsubid"}
 var objectACLTypes = [3]sqltype.ID{sqltype.Oid, sqltype.Oid, sqltype.Int4}
 

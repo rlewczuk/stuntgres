@@ -15,7 +15,7 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 3 remainder** — F2 items 2–5 (2 broad), F3 aliases item 6
+- **Step 3 remainder** — F2 items 2, 3 and 5 (2 broad), F3 aliases item 6
   (broad), and the Tier C parts 7–9 (catalog inquiry with session identity,
   transaction identity and commit timestamps, advisory locks with blocking
   inquiry). One session each. They touch the same switch files; rebase early.
@@ -80,7 +80,8 @@ Steps 1, 2 and 4–7 and `access` are done.
     - [ ] function sources, with `seriesExpression` and `unnestExpression`
       *(broad)*
     - [ ] `SQLJSON` rendering
-    - [ ] result nullability hook (`query_bind.go`, `returning.go`)
+    - [x] result nullability hook (`query_bind.go`, `returning.go`; explicit
+      SELECT/RETURNING protocol; racecheck/finalcheck waived at user request)
     - [ ] conditional closure hook (closed-DEFAULT check)
   - [x] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot
     family: UUID extraction (`60dc1cedd`, `cd4a88387`, `5d59e5737`, docs
@@ -308,8 +309,8 @@ in the prompt file's Status section.
    — · **broad**
 3. [ ] Functions F2: `SQLJSON` rendering —
    [functions](ENGINE-SPLIT-functions.md) F2 · needs —
-4. [ ] Functions F2: result nullability hook —
-   [functions](ENGINE-SPLIT-functions.md) F2 · needs —
+4. [x] Functions F2: result nullability hook — explicit SELECT/RETURNING protocol;
+   racecheck/finalcheck waived · [functions](ENGINE-SPLIT-functions.md) F2 · needs —
 5. [ ] Functions F2: conditional closure hook —
    [functions](ENGINE-SPLIT-functions.md) F2 · needs —
 6. [ ] Functions F3 aliases removed —

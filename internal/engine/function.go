@@ -208,6 +208,10 @@ type currentSchemasExpression struct {
 	arg expr.Expr
 }
 
+func (currentSchemasExpression) ResultNullability(expr.ResultSite) (nullable, known bool) {
+	return true, true
+}
+
 func (e currentSchemasExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
 	v, err := e.arg.Eval(c)

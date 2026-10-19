@@ -18,6 +18,10 @@ type AccessInquiry struct {
 	Count       int
 }
 
+func (AccessInquiry) ResultNullability(expr.ResultSite) (nullable, known bool) {
+	return true, true
+}
+
 func (n AccessInquiry) Name() string {
 	if n.RowSecurity {
 		return "row_security_active"

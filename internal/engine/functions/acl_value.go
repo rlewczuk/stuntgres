@@ -57,6 +57,10 @@ type ACLValue struct {
 	Namespace string
 }
 
+func (ACLValue) ResultNullability(expr.ResultSite) (nullable, known bool) {
+	return true, true
+}
+
 func (n ACLValue) baseProperties() expr.Properties {
 	p := expr.Properties{}
 	if n.Kind == ACLExplode {

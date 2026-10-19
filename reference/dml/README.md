@@ -6,6 +6,46 @@ Follow the [shared testing guide](../../docs/TESTING.md) for common policy,
 fixture usage, and oracle-first workflow. Run the commands below from the
 repository root.
 
+### Result nullability
+
+`TestReferenceResultNullabilitySelect` and
+`TestReferenceResultNullabilityReturning` pin the pre-refactor descriptor
+contract through public `ColumnTypes().Nullable()` before iteration, including
+zero-row results. Both share native/pinned PostgreSQL18.6 bodies with explicit
+names, SQL types, values and table effects. Same-held handles receive fresh
+parameters and search_path state; earlier native metadata must remain immutable.
+
+Native current_schema/current_schemas, ACL/access and blocking inquiries are
+known nullable. pg_my_temp_schema is known nonnullable; pg_is_other_temp_schema
+is known nullable. Deparse/index-property inquiries are known nullable only in
+SELECT, not RETURNING. A literal-NULL-folded index call, arithmetic,
+non-current-schema identities and real coercion/COLLATE wrappers remain unknown.
+The admitted pg_my_temp_schema()::int coercion must not inherit its child's
+known-nonnullable claim. Source NOT NULL and absent OLD/NEW/MERGE metadata retain
+their engine-owned precedence. pq independently reports unknown for every pair:
+PostgreSQL RowDescription does not transmit nullability.
+
+Run from the repository root, with external900-second deadlines:
+
+```sh
+make check RUN='^TestReferenceResultNullability(Select|Returning)$'
+make check RUN='^TestReferenceResultNullability(Select|Returning)$' REFERENCE=1
+make check RUN='^(TestReferenceNamespaceIdentitySignatures|TestReferenceDeleteReturningCurrentSchemasMetadata|TestReferenceDeleteReturningPreparedNullMetadata)$'
+make check RUN='^(TestReferenceNamespaceIdentitySignatures|TestReferenceDeleteReturningCurrentSchemasMetadata|TestReferenceDeleteReturningPreparedNullMetadata)$' REFERENCE=1
+```
+
+Standalone public smoke: `timeout 900s go run "$SMOKE_GO"`, where SMOKE_GO is
+the root's throwaway public database/sql + stuntgres program outside the tree.
+Use direct and one same-held SELECT of current_schema, current_schemas,
+pg_get_indexdef(0::oid), pg_indexam_has_property and id+1; repeat after empty
+search_path and with no matching row. Before iteration expect SELECT pairs
+N/N/N/N/U (N=known nullable, U=unknown), while schema/path/property values
+refresh. Retain and recheck the earlier native descriptions. Direct and
+same-held UPDATE RETURNING id/current_schema/deparse/index-property must expose
+NN/N/U/U (NN=known nonnullable), including the absent-key zero-row execution.
+Record expanded argv, stdout and exit status; selected tests alone do not
+constitute this standalone smoke. No smoke result is claimed here.
+
 ### Row-valued UPDATE assignments
 
 The untagged `update_row_*_test.go` definitions share public SQL/API bodies in
