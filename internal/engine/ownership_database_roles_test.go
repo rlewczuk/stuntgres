@@ -87,17 +87,17 @@ func TestRoleOwnershipDatabaseRejectsMixedAuthorization(t *testing.T) {
 	candidate.SetDescriptor(catalog.CurrentDatabaseAddress, &database)
 	auth.Catalog = e.catalog.read(candidate)
 	ref := e.catalog.Domain.Ref(retained.Epoch(), catalog.CurrentDatabaseAddress)
-	if _, err := auth.object(ref); err == nil {
+	if _, err := auth.Object(ref); err == nil {
 		t.Fatal("mixed retained pair accepted")
 	}
 	auth.Recapture(auth.Catalog)
-	if _, err := auth.object(ref); err != nil {
+	if _, err := auth.Object(ref); err != nil {
 		t.Fatal("matching retained pair rejected", err)
 	}
 	foreign := New()
 	auth.Roles = foreign.Roles()
 	auth.PairedCatalog = foreign.CatalogRead()
-	if _, err := auth.object(ref); err == nil {
+	if _, err := auth.Object(ref); err == nil {
 		t.Fatal("foreign pair accepted")
 	}
 }

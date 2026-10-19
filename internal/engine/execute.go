@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -567,7 +568,7 @@ func (e *Engine) validatePhysicalInsertRow(scope *StatementScope, b binding, nam
 	if err := evaluateGenerations(evaluation.Context, b.relation, row, evaluation); err != nil {
 		return err
 	}
-	if err := RowSecurityProposal(scope.rlsProposal, scope.rlsProposalTable); err != nil {
+	if err := access.RowSecurityProposal(scope.rlsProposal, scope.rlsProposalTable); err != nil {
 		return err
 	}
 	return validatePhysicalRowConstraints(b.relation, schema, row, evaluation, func() (string, error) { return e.rowConstraintDetail(scope, named, row) })

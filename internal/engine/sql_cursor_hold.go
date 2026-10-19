@@ -114,7 +114,7 @@ func (s *StatementScope) authorizeSQLCursor(c *sqlCursor) error {
 				continue
 			}
 			var descriptor catalog.Descriptor
-			descriptor, err = auth.object(dependency.Ref)
+			descriptor, err = auth.Object(dependency.Ref)
 			if err != nil {
 				break
 			}

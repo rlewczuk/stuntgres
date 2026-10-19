@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -36,7 +37,7 @@ func TestInfoTimeStampCatalogIdentity(t *testing.T) {
 	if err := (typeProvider{}).Validate(view, view.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())})); err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidateACL(e.Roles(), d); err != nil {
+	if err := access.ValidateACL(e.Roles(), d); err != nil {
 		t.Fatal("builtin type principal authority", err)
 	}
 	op, done := roleOperation(t, e, "postgres")
@@ -111,7 +112,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	if !retained.SQLType.IsBuiltin() || retained.SQLType.IsUserDefined() {
 		t.Fatal("principal remap lost builtin type provenance")
 	}
-	if err := ValidateACL(target.Roles(), retained); err != nil {
+	if err := access.ValidateACL(target.Roles(), retained); err != nil {
 		t.Fatal("principal remap left invalid builtin authority", err)
 	}
 	invalid := catalog.CloneState(original.State())

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -155,81 +156,6 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 	return Result{}, fmt.Errorf("stuntgres: invalid role statement")
 }
 
-type RoleDependency struct {
-	Address     ids.ObjectAddress
-	Kind        byte // PostgreSQL shared dependency types: ACL ('a'), owner ('o').
-	Description string
-	PolicyTable ids.ObjectAddress
-	PolicyName  string
-}
-
-// A nil collector stops at the first dependency without building diagnostics.
-// Admission and final publication share the exact same descriptor classification.
-func DescriptorRoleDependencies(d catalog.Descriptor, ref authorization.PrincipalRef, deps *[]RoleDependency) bool {
-	if relation, ok := d.(*catalog.Relation); ok {
-		for _, policy := range relation.Security.Policies {
-			for _, role := range policy.Roles {
-				if !role.Public && role.Ref == ref {
-					if recordRoleDependency(deps, RoleDependency{Address: ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}, Kind: 'r', PolicyTable: relation.Address(), PolicyName: policy.Name}) {
-						return true
-					}
-				}
-			}
-		}
-	}
-	if typ, ok := d.(*catalog.Type); ok && typ.OwningRelation != (ids.ObjectAddress{}) {
-		// Dependent row/array ownership belongs to the relation; independent
-		// composite types still carry their own named ACL dependency.
-		if !typ.SQLType.IsComposite() {
-			return false
-		}
-		if typ.Owner == ref {
-			return false
-		}
-	}
-	if relation, ok := d.(*catalog.Relation); ok && relation.RelationKind == catalog.IndexRelation {
-		// Index ownership belongs to its validated parent relation.
-		return false
-	}
-	owner, acl, columns := DescriptorACL(d)
-	if owner == ref {
-		if typ, array := d.(*catalog.Type); array && typ.SQLType.IsArray() {
-			// Associated array ownership is represented by its parent.
-			return false
-		}
-		// The owner's shared ACL dependencies are represented by ownership.
-		return recordRoleDependency(deps, RoleDependency{Address: d.Address(), Kind: 'o'})
-	}
-	if aclRoleDependencies(d.Address(), acl, ref, deps) {
-		return true
-	}
-	for sub, acl := range columns {
-		address := d.Address()
-		address.SubID = sub
-		if aclRoleDependencies(address, acl, ref, deps) {
-			return true
-		}
-	}
-	return false
-}
-
-func aclRoleDependencies(address ids.ObjectAddress, acl authorization.ACLValue, ref authorization.PrincipalRef, deps *[]RoleDependency) bool {
-	for _, entry := range acl.Entries {
-		if entry.Grantor == ref || !entry.Grantee.Public && entry.Grantee.Role == ref {
-			return recordRoleDependency(deps, RoleDependency{Address: address, Kind: 'a'})
-		}
-	}
-	return false
-}
-
-func recordRoleDependency(deps *[]RoleDependency, dependency RoleDependency) bool {
-	if deps == nil {
-		return true
-	}
-	*deps = append(*deps, dependency)
-	return false
-}
-
 // PostgreSQL 18 quote_identifier quotes every keyword except UNRESERVED.
 // Keep this independent of the intentionally much smaller supported grammar.
 func dependencyIdentifier(name string) string {
@@ -296,7 +222,7 @@ func relationDiagnosticNameAt(catalog catalog.Read, relation *catalog.Relation, 
 	return dependencyIdentifier(catalog.Get(relation.Namespace()).Name()) + "." + name
 }
 
-func dependencyDescription(auth AuthorizationView, dep RoleDependency) string {
+func dependencyDescription(auth AuthorizationView, dep access.RoleDependency) string {
 	view := auth.Catalog
 	if dep.Kind == 'r' {
 		relation := view.MustRelation(dep.PolicyTable)
@@ -407,20 +333,20 @@ func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.D
 		if d.Predefined() {
 			return Result{}, roleDiagnostic("2BP01", "cannot drop role "+d.Name+" because it is required by the database system", "")
 		}
-		var dependencies []RoleDependency
+		var dependencies []access.RoleDependency
 		for _, object := range v.Catalog.Descriptors() {
-			DescriptorRoleDependencies(object, ref, &dependencies)
+			access.DescriptorRoleDependencies(object, ref, &dependencies)
 		}
-		DefaultRoleDependencies(v.Catalog, v.Roles, ref, &dependencies)
+		access.DefaultRoleDependencies(v.Catalog, v.Roles, ref, &dependencies)
 		for edge := range retained {
 			if edge.Grantor == ref {
 				member, _ := v.Roles.Descriptor(edge.Member)
 				role, _ := v.Roles.Descriptor(edge.Role)
-				dependencies = append(dependencies, RoleDependency{Kind: 'a', Description: "privileges for membership of role " + member.Name + " in role " + role.Name})
+				dependencies = append(dependencies, access.RoleDependency{Kind: 'a', Description: "privileges for membership of role " + member.Name + " in role " + role.Name})
 			}
 		}
 		for _, feature := range e.roles.referencingFeatures(ref) {
-			dependencies = append(dependencies, RoleDependency{Kind: 'a', Description: "privileges for " + feature})
+			dependencies = append(dependencies, access.RoleDependency{Kind: 'a', Description: "privileges for " + feature})
 		}
 		if len(dependencies) > 0 {
 			sort.Slice(dependencies, func(i, j int) bool {

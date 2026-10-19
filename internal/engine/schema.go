@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -435,7 +436,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			return nil, err
 		}
 	case *parser.CreateSchema:
-		owner, err := SchemaOwner(auth.accessView, s.Authorization, s.AuthorizationIdentity)
+		owner, err := access.SchemaOwner(auth.accessView, s.Authorization, s.AuthorizationIdentity)
 		if err != nil {
 			return nil, err
 		}
@@ -515,7 +516,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			}
 			next.ObjectName = s.NewName
 		} else {
-			target, err := SchemaOwner(auth.accessView, s.Owner, s.OwnerIdentity)
+			target, err := access.SchemaOwner(auth.accessView, s.Owner, s.OwnerIdentity)
 			if err != nil {
 				return nil, err
 			}
@@ -525,10 +526,10 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			if err = own(old); err != nil {
 				return nil, err
 			}
-			if err = OwnershipSuccessor(auth.accessView, target); err != nil {
+			if err = access.OwnershipSuccessor(auth.accessView, target); err != nil {
 				return nil, err
 			}
-			if err = OwnershipDatabaseCreate(auth.accessView, auth); err != nil {
+			if err = access.OwnershipDatabaseCreate(auth.accessView, auth); err != nil {
 				return nil, err
 			}
 			next.Owner = target

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -486,7 +487,7 @@ func TestSequencePreparedNamespaceExhaustion(t *testing.T) {
 			t.Fatal("failed namespace ACL published catalog or authorization")
 		}
 		d, _ := e.CatalogRead().Descriptor(ref.Address)
-		_, acl, _ := DescriptorACL(d)
+		_, acl, _ := access.DescriptorACL(d)
 		if !acl.Explicit {
 			t.Fatal("failed ACL update removed the live ACL")
 		}

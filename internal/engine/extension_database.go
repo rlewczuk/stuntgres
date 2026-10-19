@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -122,7 +123,7 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 	if err != nil {
 		return Result{}, err
 	}
-	if err := ValidateACL(v.Roles, &next); err != nil {
+	if err := access.ValidateACL(v.Roles, &next); err != nil {
 		return Result{}, err
 	}
 	changes := cloneCatalogChanges(scope.owner.catalog)

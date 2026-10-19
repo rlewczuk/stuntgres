@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -184,7 +185,7 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 	err.Schema, err.Table = state.catalog.Get(parent.Namespace()).Name(), parent.Name()
 	// Routing/integrity errors remain real, but an actor subject to RLS must
 	// not receive key values even when ordinary SELECT ACLs are present.
-	decision, securityErr := RowSecurityDecision(state.auth.Roles, state.target, state.auth.State.CurrentUser, catalog.PolicyInsert, true)
+	decision, securityErr := access.RowSecurityDecision(state.auth.Roles, state.target, state.auth.State.CurrentUser, catalog.PolicyInsert, true)
 	if securityErr != nil {
 		return securityErr
 	}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"testing"
@@ -44,7 +45,7 @@ func TestRLSBaseOwnerPublicationFreshness(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := RowSecurityDecision(auth.Roles, current, principal, catalog.PolicySelect, false)
+		got, err := access.RowSecurityDecision(auth.Roles, current, principal, catalog.PolicySelect, false)
 		if err != nil || got != want {
 			t.Fatal("fresh descriptor authority", got, err, want)
 		}

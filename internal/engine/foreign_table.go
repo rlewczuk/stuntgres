@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -185,7 +186,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 		return Result{}, err
 	}
 	if s.Owner != nil {
-		target, identity := OwnershipRoleOperand(*s.Owner)
+		target, identity := access.OwnershipRoleOperand(*s.Owner)
 		e.mu.Unlock()
 		return e.executeRelationOwnership(scope, s.Name, target, identity, "foreign table", s.IfExists, 0)
 	}

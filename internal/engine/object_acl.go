@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -181,59 +180,11 @@ func (n objectACLExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if scope.catalog != nil {
 		auth.Recapture(e.privateCatalogLocked(scope.catalog))
 	}
-	acl, err := RawObjectACL(auth.Catalog, ids.ObjectAddress{ClassID: ids.OID(class), ObjectID: ids.OID(object), SubID: int32(subid)})
+	acl, err := access.RawObjectACL(auth.Catalog, ids.ObjectAddress{ClassID: ids.OID(class), ObjectID: ids.OID(object), SubID: int32(subid)})
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	return e.pgClassACL(auth.Roles, n.Usage.Type, acl)
-}
-
-// REL_18_0 ObjectProperty, not the native provider inventory. A catalog without
-// native instances can still be a recognized address class. pg_largeobject is
-// the released alias for pg_largeobject_metadata. pg_parameter_acl is not listed.
-func ObjectACLClass(class ids.OID) (hasACL, known bool) {
-	switch class {
-	case 1259, 2615, 1247, 1255, 1262, 2612, 1213, 2328, 1417, 2995, 2613:
-		return true, true
-	case 2601, 2602, 2603, 2605, 3456, 2606, 2607, 826, 3079,
-		2616, 2617, 2753, 1260, 1261, 2618, 3576, 2620, 3256, 3466,
-		3602, 3600, 3601, 3764, 6104, 6100, 3381, 1418:
-		return false, true
-	}
-	return false, false
-}
-
-func RawObjectACL(view catalog.Read, address ids.ObjectAddress) (authorization.ACLValue, error) {
-	if address.ClassID == 0 && address.ObjectID == 0 {
-		return authorization.ACLValue{}, nil
-	}
-	if address.ClassID == 2613 {
-		address.ClassID = 2995
-	}
-	hasACL, known := ObjectACLClass(address.ClassID)
-	if !known {
-		return authorization.ACLValue{}, sqlError("XX000", fmt.Sprintf("unrecognized class ID: %d", address.ClassID))
-	}
-	if !hasACL {
-		return authorization.ACLValue{}, nil
-	}
-	key := address
-	key.SubID = 0
-	d := view.Get(key)
-	if address.ClassID == ids.RelationClassID && address.SubID != 0 {
-		// AttrNumber is signed int16. Narrow only after choosing the column
-		// path, so wrapped zero never becomes a whole-object ACL request.
-		subid := int32(int16(address.SubID))
-		if relation, ok := d.(*catalog.Relation); ok && subid > 0 && relation.HasAttribute(subid) {
-			return relation.Security.ColumnACL[subid], nil
-		}
-		return authorization.ACLValue{}, nil
-	}
-	if typ, ok := d.(*catalog.Type); ok && typ.ACLSyntheticDefault {
-		return authorization.ACLValue{}, nil
-	}
-	_, acl, _ := DescriptorACL(d)
-	return acl, nil
 }
 
 func (n objectACLExpression) validateStored() error {

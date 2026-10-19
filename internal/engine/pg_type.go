@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -207,7 +208,7 @@ func (e *Engine) capturePGType(ctx context.Context, view catalog.Read, roles aut
 				}
 			case sqltype.ACLItemArray:
 				var acl authorization.ACLValue
-				acl, err = RawObjectACL(view, address)
+				acl, err = access.RawObjectACL(view, address)
 				if err == nil {
 					row[i], err = e.pgClassACL(roles, column.Usage.Type, acl)
 				}

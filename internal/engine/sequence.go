@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -13,7 +14,7 @@ import (
 )
 
 func (v AuthorizationView) checkSequenceAny(ref ids.ObjectRef, mask authorization.Privileges) error {
-	d, err := v.object(ref)
+	d, err := v.Object(ref)
 	if err != nil {
 		return err
 	}
@@ -338,7 +339,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		}
 		var ownerTarget authorization.PrincipalRef
 		if s.Action == "owner" {
-			ownerTarget, err = SchemaOwner(auth.accessView, s.Target.Text, s.OwnerIdentity)
+			ownerTarget, err = access.SchemaOwner(auth.accessView, s.Target.Text, s.OwnerIdentity)
 			if err != nil {
 				return Result{}, err
 			}
@@ -625,7 +626,7 @@ func relationDropOwner(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Rel
 	if err == nil {
 		return nil
 	}
-	if _, validationErr := auth.object(ref); validationErr != nil {
+	if _, validationErr := auth.Object(ref); validationErr != nil {
 		return validationErr
 	}
 	ns, ok := auth.Catalog.Namespace(d.Namespace())

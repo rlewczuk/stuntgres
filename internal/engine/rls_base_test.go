@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -33,7 +34,7 @@ func TestRLSBaseDecision(t *testing.T) {
 	next.Owner = owner
 	check := func(label string, p authorization.PrincipalRef, command catalog.PolicyCommand, proposed bool, want rlsDisposition) {
 		t.Helper()
-		got, err := RowSecurityDecision(auth.Roles, &next, p, command, proposed)
+		got, err := access.RowSecurityDecision(auth.Roles, &next, p, command, proposed)
 		if err != nil || got != want {
 			t.Fatalf("%s got %v,%v want %v", label, got, err, want)
 		}
@@ -58,7 +59,7 @@ func TestRLSBaseDecision(t *testing.T) {
 	check("ALL check falls back", member, catalog.PolicyInsert, true, rlsNeedsExpressions)
 	next.Security.Policies[0].Command = catalog.PolicySelect
 	check("command inapplicable", member, catalog.PolicyInsert, true, rlsDefaultDeny)
-	got, err := RowSecurityGroups(auth.Roles, &next, member, catalog.PolicyUpdate, false, true)
+	got, err := access.RowSecurityGroups(auth.Roles, &next, member, catalog.PolicyUpdate, false, true)
 	if err != nil || got != rlsDefaultDeny {
 		t.Fatal("same-phase false conjunction", got, err)
 	}
@@ -67,7 +68,7 @@ func TestRLSBaseDecision(t *testing.T) {
 	next.Security.Policies[0].Command = catalog.PolicyInsert
 	next.Security.Policies[0].Check = policyPayloadOf(using)
 	check("explicit check", member, catalog.PolicyInsert, true, rlsNeedsExpressions)
-	got, err = RowSecurityGroups(auth.Roles, &next, member, catalog.PolicyInsert, true, true)
+	got, err = access.RowSecurityGroups(auth.Roles, &next, member, catalog.PolicyInsert, true, true)
 	if err != nil || got != rlsDefaultDeny {
 		t.Fatal("proposed SELECT conjunction", got, err)
 	}

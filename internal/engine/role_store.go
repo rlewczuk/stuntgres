@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
@@ -57,25 +58,7 @@ func (s *roleStore) principalCandidateLocked() (authorization.PrincipalRef, erro
 // owner. It is empty unless view belongs to owner, the catalog owner this
 // store backs, and root belongs to this store's domain.
 func (s *roleStore) read(owner *catalog.Owner, view catalog.Read, root *roleCatalog) authorization.Read {
-	return RoleRead(owner, &s.domain, view, root)
-}
-
-// RoleRead returns the role view of root as seen by view's current database
-// owner. It is empty unless view belongs to owner and root belongs to the
-// principals domain.
-func RoleRead(owner *catalog.Owner, principals *authorization.Domain, view catalog.Read, root *roleCatalog) authorization.Read {
-	if view.Owner() != owner || view.State() == nil || root == nil {
-		return authorization.Read{}
-	}
-	database, ok := view.Database(catalog.CurrentDatabaseAddress)
-	if !ok {
-		return authorization.Read{}
-	}
-	read := root.Root.Read(database.Owner)
-	if !read.BelongsTo(principals) {
-		return authorization.Read{}
-	}
-	return read
+	return access.RoleRead(owner, &s.domain, view, root)
 }
 
 // setReferencesLocked replaces one feature's copied role references and

@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -776,14 +777,14 @@ func (e *Engine) stageAlterOperatorLocked(op *Operation, auth AuthorizationView,
 	}
 	switch s.Action {
 	case "owner":
-		target, err := SchemaOwner(auth.accessView, s.Target.Text, s.OwnerIdentity)
+		target, err := access.SchemaOwner(auth.accessView, s.Target.Text, s.OwnerIdentity)
 		if err != nil {
 			return err
 		}
 		if target == d.Owner {
 			return nil
 		}
-		if err = OwnershipEligibility(auth.accessView, auth, target, d.Namespace()); err != nil {
+		if err = access.OwnershipEligibility(auth.accessView, auth, target, d.Namespace()); err != nil {
 			return err
 		}
 		next.Owner = target

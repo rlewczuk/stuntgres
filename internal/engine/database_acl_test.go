@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -49,7 +50,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 			ref  authorization.PrincipalRef
 			want authorization.Privileges
 		}{{owner, tc.ownerRights}, {reader, tc.readerRights}} {
-			rights, err := DatabaseRights(context.Background(), catalog, e.roles.read(e.catalog.owner(), catalog, roles), item.ref)
+			rights, err := access.DatabaseRights(context.Background(), catalog, e.roles.read(e.catalog.owner(), catalog, roles), item.ref)
 			if err != nil || rights != item.want {
 				t.Fatal("NULL/empty/legacy policy", item.ref, rights, item.want, err)
 			}
@@ -64,7 +65,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if rights, err := DatabaseRights(ctx, base, e.roles.read(e.catalog.owner(), base, e.roles.published), owner); rights != 0 || !errors.Is(err, context.Canceled) {
+	if rights, err := access.DatabaseRights(ctx, base, e.roles.read(e.catalog.owner(), base, e.roles.published), owner); rights != 0 || !errors.Is(err, context.Canceled) {
 		t.Fatal("superuser must not bypass cancellation", rights, err)
 	}
 }
@@ -128,11 +129,11 @@ func TestDatabaseTemporaryCapturedRights(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := DatabaseRights(ctx, fresh.Catalog, fresh.Roles, reader); !errors.Is(err, context.Canceled) {
+	if _, err := access.DatabaseRights(ctx, fresh.Catalog, fresh.Roles, reader); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	foreign := New().roles.domain.Principal(reader.ID())
-	if _, err := DatabaseRights(context.Background(), fresh.Catalog, fresh.Roles, foreign); err == nil {
+	if _, err := access.DatabaseRights(context.Background(), fresh.Catalog, fresh.Roles, foreign); err == nil {
 		t.Fatal("foreign principal accepted")
 	}
 }

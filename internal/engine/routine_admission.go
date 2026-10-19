@@ -35,7 +35,7 @@ func admitRoutineDescriptor(auth AuthorizationView, dependencies []catalog.Expre
 		if ref.Epoch != auth.Catalog.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
-		if _, err := auth.object(ref); err != nil {
+		if _, err := auth.Object(ref); err != nil {
 			return err
 		}
 		if current.Revision() != dependency.Revision {
@@ -213,7 +213,7 @@ func admitRoutineReference(c *EvalContext, ref ids.ObjectRef, noun string) error
 		if ref.Epoch != auth.Catalog.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
-		d, err := auth.object(ref)
+		d, err := auth.Object(ref)
 		if err != nil {
 			return err
 		}

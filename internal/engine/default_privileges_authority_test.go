@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -35,7 +36,7 @@ func TestDefaultPrivilegesArrayAuthority(t *testing.T) {
 		}
 		base := auth.Catalog.MustType(auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: f.schema, Name: name}))
 		array := auth.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)})
-		if !authorization.MatchesDefaultBaseline(array.ACL, f.owner, authorization.DefaultTypes, false) || DescriptorRoleDependencies(array, f.reader, nil) {
+		if !authorization.MatchesDefaultBaseline(array.ACL, f.owner, authorization.DefaultTypes, false) || access.DescriptorRoleDependencies(array, f.reader, nil) {
 			t.Fatal("associated enum array consumed selected TYPES ACL", array.ACL)
 		}
 		auth.State.CurrentUser = f.reader
@@ -71,7 +72,7 @@ func TestDefaultPrivilegesArrayAuthority(t *testing.T) {
 	scoped := f.grant(t, "types", "usage", []string{"default_schema"})
 	scopedAuth, scopedBase, scopedArray := create("array_scoped")
 	check(scopedAuth, scopedBase, scopedArray, true)
-	if !DescriptorRoleDependencies(scopedBase, f.reader, nil) {
+	if !access.DescriptorRoleDependencies(scopedBase, f.reader, nil) {
 		t.Fatal("element lost scoped named ACL dependency")
 	}
 	scoped.Revoke = true

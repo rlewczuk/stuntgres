@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"testing"
@@ -82,7 +83,7 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 		t.Fatal("fixture lacks actual published RLS flags")
 	}
 	for _, command := range []catalog.PolicyCommand{catalog.PolicyUpdate, catalog.PolicyDelete, catalog.PolicySelect} {
-		decision, err := RowSecurityDecision(auth.Roles, descriptor, reader, command, false)
+		decision, err := access.RowSecurityDecision(auth.Roles, descriptor, reader, command, false)
 		if err != nil || decision != rlsDefaultDeny {
 			t.Fatal("effective ordinary principal is not denied", command, decision, err)
 		}

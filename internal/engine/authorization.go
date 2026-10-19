@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -431,7 +432,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 	default:
 		return fmt.Errorf("stuntgres: unsupported ACL object")
 	}
-	if err := ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), next); err != nil {
+	if err := access.ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), next); err != nil {
 		return err
 	}
 	if e.roles.published.Revision == ^uint64(0) {
@@ -462,17 +463,4 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 	e.catalog.state = state
 	e.roles.published = roles
 	return nil
-}
-
-// roleCatalog is an immutable engine-owned publication stamp. All principal,
-// descriptor, name and edge storage belongs to its embedded child root.
-type roleCatalog struct {
-	Root     authorization.Root
-	Revision uint64
-}
-
-// advance returns a record with the same root and the next revision. Callers
-// check revision exhaustion first.
-func (r *roleCatalog) Advance() *roleCatalog {
-	return &roleCatalog{Root: r.Root, Revision: r.Revision + 1}
 }

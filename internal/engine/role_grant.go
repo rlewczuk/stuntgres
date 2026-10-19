@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -289,7 +290,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 				return Result{}, sourceErr
 			}
 			if available == 0 {
-				hasRelationPrivileges := authorization.ACLRights(originalTable, relation.Owner, principals, classMask, false) != 0 || PredefinedPrivileges(relation, principals) != 0
+				hasRelationPrivileges := authorization.ACLRights(originalTable, relation.Owner, principals, classMask, false) != 0 || access.PredefinedPrivileges(relation, principals) != 0
 				if !hasRelationPrivileges {
 					return Result{}, sqlError("42501", "permission denied for "+noun+" "+relation.Name())
 				}
@@ -363,7 +364,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			if available == 0 {
 				if !columnPrivilegesChecked {
 					hasColumnPrivileges = authorization.ACLRights(originalTable, relation.Owner, principals, authorization.ColumnGrantPrivileges, false)&authorization.ColumnGrantPrivileges != 0 ||
-						PredefinedPrivileges(relation, principals)&authorization.ColumnGrantPrivileges != 0
+						access.PredefinedPrivileges(relation, principals)&authorization.ColumnGrantPrivileges != 0
 					columnPrivilegesChecked = true
 				}
 				if !hasColumnPrivileges && authorization.ACLRights(old, authorization.PrincipalRef{}, principals, authorization.ColumnGrantPrivileges, false)&authorization.ColumnGrantPrivileges == 0 {
@@ -408,7 +409,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			if nextColumns != nil {
 				next.Security.ColumnACL = nextColumns
 			}
-			if err := ValidateACL(v.Roles, next); err != nil {
+			if err := access.ValidateACL(v.Roles, next); err != nil {
 				return Result{}, err
 			}
 			if next.RelationKind == catalog.SequenceRelation {

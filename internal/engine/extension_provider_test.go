@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -111,7 +112,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 				t.Fatal("template acquired owner", refs)
 			}
 		} else {
-			owner, _, _ := DescriptorACL(d)
+			owner, _, _ := access.DescriptorACL(d)
 			if owner != ext.Owner {
 				t.Fatal("superuser member ownership")
 			}

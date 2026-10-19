@@ -6,6 +6,7 @@ import (
 	"math"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -709,7 +710,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		}
 		e.mu.Lock()
 		roles := e.sessionRolesLocked(s.authSession)
-		authErr := ValidateACL(s.roleRead(roles, view), d)
+		authErr := access.ValidateACL(s.roleRead(roles, view), d)
 		e.mu.Unlock()
 		if authErr != nil {
 			return nil, authErr
@@ -1163,7 +1164,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		}
 		if err == nil {
 			for _, d := range s.Descriptors {
-				if err = ValidateACL(s.roleRead(e.roles.published, e.catalog.read(next)), d); err != nil {
+				if err = access.ValidateACL(s.roleRead(e.roles.published, e.catalog.read(next)), d); err != nil {
 					break
 				}
 			}
@@ -1411,7 +1412,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		}
 		nextRevision := e.catalog.nextRevision
 		for _, d := range next.Descriptors() {
-			if err := ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(next), e.roles.published), d); err != nil {
+			if err := access.ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(next), e.roles.published), d); err != nil {
 				return ChangeSet{}, err
 			}
 			if revision := descriptorRevisionFrontier(d); revision >= nextRevision {
@@ -1528,7 +1529,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 	}
 	nextRevision := e.catalog.nextRevision
 	for _, d := range next.Descriptors() {
-		if err := ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(next), e.roles.published), d); err != nil {
+		if err := access.ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(next), e.roles.published), d); err != nil {
 			return ChangeSet{}, err
 		}
 		if revision := descriptorRevisionFrontier(d); revision >= nextRevision {

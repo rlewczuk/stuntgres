@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -222,7 +223,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 	}
 	var ownerTarget authorization.PrincipalRef
 	if s.Action == "owner" {
-		ownerTarget, err = SchemaOwner(auth.accessView, s.Target.Text, s.OwnerIdentity)
+		ownerTarget, err = access.SchemaOwner(auth.accessView, s.Target.Text, s.OwnerIdentity)
 		if err != nil {
 			return err
 		}
@@ -276,7 +277,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 		}
 		next.ObjectNamespace = dest.Address
 	case "owner":
-		if err = OwnershipEligibility(auth.accessView, auth, ownerTarget, d.Namespace()); err != nil {
+		if err = access.OwnershipEligibility(auth.accessView, auth, ownerTarget, d.Namespace()); err != nil {
 			return err
 		}
 		next.Owner = ownerTarget

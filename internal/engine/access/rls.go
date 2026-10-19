@@ -1,4 +1,4 @@
-package engine
+package access
 
 import (
 	"fmt"
@@ -7,12 +7,14 @@ import (
 	"stuntgres/internal/engine/catalog"
 )
 
-type rlsDisposition uint8
+// RLSDisposition is the row-security outcome for one relation and command:
+// no restriction, default deny, or policy expressions to enforce.
+type RLSDisposition uint8
 
 const (
-	rlsUnrestricted rlsDisposition = iota
-	rlsDefaultDeny
-	rlsNeedsExpressions
+	RLSUnrestricted RLSDisposition = iota
+	RLSDefaultDeny
+	RLSNeedsExpressions
 )
 
 // Applicability is metadata only. Even TRUE/FALSE/NULL syntax requires the
@@ -40,10 +42,12 @@ func RowSecurityApplies(roles authorization.Read, d *catalog.Relation, principal
 	return true, nil
 }
 
-func RowSecurityDecision(roles authorization.Read, d *catalog.Relation, principal authorization.PrincipalRef, command catalog.PolicyCommand, proposed bool) (rlsDisposition, error) {
+// RowSecurityDecision selects the permissive policies of d that apply to
+// principal for command. proposed selects the WITH CHECK side for new rows.
+func RowSecurityDecision(roles authorization.Read, d *catalog.Relation, principal authorization.PrincipalRef, command catalog.PolicyCommand, proposed bool) (RLSDisposition, error) {
 	applies, err := RowSecurityApplies(roles, d, principal)
 	if err != nil || !applies {
-		return rlsUnrestricted, err
+		return RLSUnrestricted, err
 	}
 	for _, policy := range d.Security.Policies {
 		if !policy.Permissive || policy.Command != catalog.PolicyAll && policy.Command != command {
@@ -61,47 +65,53 @@ func RowSecurityDecision(roles authorization.Read, d *catalog.Relation, principa
 		}
 		for _, role := range policy.Roles {
 			if role.Public {
-				return rlsNeedsExpressions, nil
+				return RLSNeedsExpressions, nil
 			}
 			applies, err := roles.InheritsRole(principal, role.Ref)
 			if err != nil {
-				return rlsUnrestricted, err
+				return RLSUnrestricted, err
 			}
 			if applies {
-				return rlsNeedsExpressions, nil
+				return RLSNeedsExpressions, nil
 			}
 		}
 	}
-	return rlsDefaultDeny, nil
+	return RLSDefaultDeny, nil
 }
 
-func RowSecurityGroups(roles authorization.Read, d *catalog.Relation, principal authorization.PrincipalRef, command catalog.PolicyCommand, proposed, selectRead bool) (rlsDisposition, error) {
+// RowSecurityGroups is RowSecurityDecision for command, combined with the
+// SELECT decision when the command also reads rows (selectRead).
+func RowSecurityGroups(roles authorization.Read, d *catalog.Relation, principal authorization.PrincipalRef, command catalog.PolicyCommand, proposed, selectRead bool) (RLSDisposition, error) {
 	decision, err := RowSecurityDecision(roles, d, principal, command, proposed)
 	if err != nil || !selectRead || command == catalog.PolicySelect {
 		return decision, err
 	}
 	read, err := RowSecurityDecision(roles, d, principal, catalog.PolicySelect, proposed)
 	if err != nil {
-		return rlsUnrestricted, err
+		return RLSUnrestricted, err
 	}
-	if decision == rlsDefaultDeny || read == rlsDefaultDeny {
-		return rlsDefaultDeny, nil
+	if decision == RLSDefaultDeny || read == RLSDefaultDeny {
+		return RLSDefaultDeny, nil
 	}
-	if decision == rlsNeedsExpressions || read == rlsNeedsExpressions {
-		return rlsNeedsExpressions, nil
+	if decision == RLSNeedsExpressions || read == RLSNeedsExpressions {
+		return RLSNeedsExpressions, nil
 	}
-	return rlsUnrestricted, nil
+	return RLSUnrestricted, nil
 }
 
+// RowSecurityExpressionError reports that policy expressions must be enforced,
+// which is unsupported.
 func RowSecurityExpressionError() error {
 	return sqlError("0A000", "row-security policy expression enforcement is unsupported")
 }
 
-func RowSecurityProposal(decision rlsDisposition, table string) error {
+// RowSecurityProposal returns the error for a proposed new row of table under
+// decision, or nil when the row is unrestricted.
+func RowSecurityProposal(decision RLSDisposition, table string) error {
 	switch decision {
-	case rlsDefaultDeny:
+	case RLSDefaultDeny:
 		return sqlError("42501", fmt.Sprintf(`new row violates row-level security policy for table "%s"`, table))
-	case rlsNeedsExpressions:
+	case RLSNeedsExpressions:
 		return RowSecurityExpressionError()
 	default:
 		return nil

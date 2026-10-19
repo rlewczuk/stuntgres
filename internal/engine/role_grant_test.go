@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -208,9 +209,9 @@ func TestObjectGrantIndexOwnershipUsesParentDependency(t *testing.T) {
 		RelationKind:    catalog.IndexRelation,
 		SQLIndex:        &catalog.IndexDefinition{Parent: address},
 	}
-	var dependencies []RoleDependency
-	DescriptorRoleDependencies(parent, parent.Owner, &dependencies)
-	DescriptorRoleDependencies(index, parent.Owner, &dependencies)
+	var dependencies []access.RoleDependency
+	access.DescriptorRoleDependencies(parent, parent.Owner, &dependencies)
+	access.DescriptorRoleDependencies(index, parent.Owner, &dependencies)
 	if len(dependencies) != 1 || dependencies[0].Address != address || dependencies[0].Kind != 'o' {
 		t.Fatal("redundant index shared-owner dependency", dependencies)
 	}

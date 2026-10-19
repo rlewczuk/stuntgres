@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -108,7 +109,7 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 		if er != nil {
 			return Result{}, er
 		}
-		if er = ValidateACL(auth.Roles, &next); er != nil {
+		if er = access.ValidateACL(auth.Roles, &next); er != nil {
 			return Result{}, er
 		}
 		e.catalogChangeLocked(changes, d.Address(), &next)

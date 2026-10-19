@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -247,8 +248,8 @@ func TestDomainExcludedClausesNeverPublishInternal(t *testing.T) {
 		t.Fatal("explicit NULL lost default")
 	}
 	auth := catalogAuthorization(e, e.CatalogRead())
-	var dependencies []RoleDependency
-	DescriptorRoleDependencies(d, d.Owner, &dependencies)
+	var dependencies []access.RoleDependency
+	access.DescriptorRoleDependencies(d, d.Owner, &dependencies)
 	if len(dependencies) == 0 || dependencyDescription(auth, dependencies[0]) != "owner of type nullable" {
 		t.Fatal("domain role dependency", dependencies)
 	}

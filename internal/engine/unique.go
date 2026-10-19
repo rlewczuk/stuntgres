@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -285,7 +286,7 @@ func uniqueKeyDetailAllowed(auth AuthorizationView, ref ids.ObjectRef, keys []ca
 	if !ok || !relation {
 		return false, fmt.Errorf("stuntgres: unique disclosure parent is missing")
 	}
-	decision, err := RowSecurityDecision(auth.Roles, parent, auth.State.CurrentUser, catalog.PolicySelect, false)
+	decision, err := access.RowSecurityDecision(auth.Roles, parent, auth.State.CurrentUser, catalog.PolicySelect, false)
 	if err != nil || decision != rlsUnrestricted {
 		return false, err
 	}

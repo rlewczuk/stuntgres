@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -105,7 +106,7 @@ func descriptorReferences(d catalog.Descriptor) []authorization.PrincipalRef {
 	case *catalog.TSTemplate:
 		return nil
 	}
-	owner, acl, cols := DescriptorACL(d)
+	owner, acl, cols := access.DescriptorACL(d)
 	refs := []authorization.PrincipalRef{owner}
 	if relation, ok := d.(*catalog.Relation); ok {
 		for _, policy := range relation.Security.Policies {

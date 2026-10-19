@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -58,7 +59,7 @@ func TestExtensionSchemaACL(t *testing.T) {
 	}
 	for _, a := range ext.Members {
 		if a.ClassID != ids.TSTemplateClassID {
-			owner, _, _ := DescriptorACL(e.catalog.state.Get(a))
+			owner, _, _ := access.DescriptorACL(e.catalog.state.Get(a))
 			if owner != e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 				t.Fatal("trusted member owner")
 			}

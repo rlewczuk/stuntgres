@@ -81,7 +81,7 @@ func bodyRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies 
 	if ref.Epoch != auth.Catalog.Epoch() {
 		return nil, ids.ErrCatalogReplaced
 	}
-	descriptor, err := auth.object(ref)
+	descriptor, err := auth.Object(ref)
 	if err != nil {
 		return nil, err
 	}

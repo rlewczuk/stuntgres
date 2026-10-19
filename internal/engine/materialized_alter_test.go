@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -80,7 +81,7 @@ func TestMaterializedAlterOwnerAttachments(t *testing.T) {
 				t.Fatal("dependent type ACL ownership origin not transferred", typ.Name(), typ.ACL)
 			}
 		}
-		if DescriptorRoleDependencies(typ, d.Owner, nil) {
+		if access.DescriptorRoleDependencies(typ, d.Owner, nil) {
 			t.Fatal("dependent type prevents former owner's retirement", typ.Name())
 		}
 	}

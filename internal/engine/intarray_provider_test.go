@@ -7,6 +7,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -65,7 +66,7 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 		if member == nil || member.Namespace() != ext.TargetNamespace || extensionMembership(member) != ext.Address() {
 			t.Fatal("membership", address)
 		}
-		owner, _, _ := DescriptorACL(member)
+		owner, _, _ := access.DescriptorACL(member)
 		if owner != ext.Owner {
 			t.Fatal("owner", address)
 		}

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -198,7 +199,7 @@ func (n accessInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 			d, _ = auth.Catalog.Relation(ref.Address)
 		}
 		if d != nil {
-			result, err = RowSecurityApplies(auth.Roles, d, principal)
+			result, err = access.RowSecurityApplies(auth.Roles, d, principal)
 		}
 	} else {
 		actor := uint64(principal.ID())

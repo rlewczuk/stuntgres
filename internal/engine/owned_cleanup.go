@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -74,7 +75,7 @@ func stageOwnedCleanup(ctx context.Context, stage *CatalogStage, roles authoriza
 		if replacement := stage.Descriptors[address]; replacement != nil {
 			descriptor = replacement
 		}
-		owner, acl, columns := DescriptorACL(descriptor)
+		owner, acl, columns := access.DescriptorACL(descriptor)
 		nextACL, changed, err := authorization.OwnedACL(ctx, roles, acl, owner, sources)
 		if err != nil {
 			return err

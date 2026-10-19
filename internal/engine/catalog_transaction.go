@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -300,7 +301,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	}
 	for _, d := range c.descriptors {
 		if d != nil {
-			if err := ValidateACL(read, d); err != nil {
+			if err := access.ValidateACL(read, d); err != nil {
 				return err
 			}
 		}

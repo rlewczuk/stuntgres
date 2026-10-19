@@ -49,7 +49,7 @@ func captureDataTypePrivileges(ctx context.Context, view catalog.Read, auth Auth
 	}
 	// Validate paired roles/catalog/ref even if the inventory contains only
 	// seeded domains, whose absent owner is deliberately not an ACL authority.
-	if _, err := auth.object(ref); err != nil {
+	if _, err := auth.Object(ref); err != nil {
 		return nil, err
 	}
 	if err := auth.Roles.ValidatePrincipal(auth.State.CurrentUser); err != nil {

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -52,11 +53,11 @@ func (e *Engine) touchOperationIdentityLocked(op *Operation) {
 // must not forbid a later supported removal of an owner's own dependencies.
 func (e *Engine) roleRetirementPreflightLocked(c *catalogChanges, catalog *catalog.State) error {
 	for ref := range c.retiredRoles {
-		if DefaultRoleDependencies(e.catalog.read(catalog), e.roles.read(e.catalog.owner(), e.catalog.read(catalog), c.roles), ref, nil) {
+		if access.DefaultRoleDependencies(e.catalog.read(catalog), e.roles.read(e.catalog.owner(), e.catalog.read(catalog), c.roles), ref, nil) {
 			return ids.ErrCatalogReplaced
 		}
 		for _, descriptor := range catalog.Descriptors() {
-			if DescriptorRoleDependencies(descriptor, ref, nil) {
+			if access.DescriptorRoleDependencies(descriptor, ref, nil) {
 				return ids.ErrCatalogReplaced
 			}
 		}

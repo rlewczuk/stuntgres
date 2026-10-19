@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -86,8 +87,8 @@ func foreignMappedRole(auth AuthorizationView, role parser.GrantGrantee) (author
 	if role.Public {
 		return authorization.PrincipalRef{}, nil
 	}
-	name, identity := OwnershipRoleOperand(role.Role)
-	return SchemaOwner(auth.accessView, name, identity)
+	name, identity := access.OwnershipRoleOperand(role.Role)
+	return access.SchemaOwner(auth.accessView, name, identity)
 }
 func foreignMappingAuthority(auth AuthorizationView, server *catalog.ForeignObject, role authorization.PrincipalRef) error {
 	if err := auth.Check(AccessRequirement{Object: foreignRef(auth, server), OwnerOnly: true}); err == nil {
@@ -179,8 +180,8 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 	}
 	var successor authorization.PrincipalRef
 	if s.Owner != nil {
-		targetName, identity := OwnershipRoleOperand(*s.Owner)
-		successor, err = SchemaOwner(auth.accessView, targetName, identity)
+		targetName, identity := access.OwnershipRoleOperand(*s.Owner)
+		successor, err = access.SchemaOwner(auth.accessView, targetName, identity)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -481,7 +482,7 @@ func foreignOwnershipEligibility(auth AuthorizationView, object *catalog.Foreign
 	if err = auth.Check(AccessRequirement{Object: foreignRef(auth, object), OwnerOnly: true}); err != nil {
 		return err
 	}
-	if err = OwnershipEligibility(auth.accessView, auth, target, ids.ObjectAddress{}); err != nil {
+	if err = access.OwnershipEligibility(auth.accessView, auth, target, ids.ObjectAddress{}); err != nil {
 		return err
 	}
 	wrapper, ok := auth.Catalog.Foreign(object.Wrapper)

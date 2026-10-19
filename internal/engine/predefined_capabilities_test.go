@@ -5,6 +5,7 @@ import (
 	"context"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -56,7 +57,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 		}
 	}
 	typ := state.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 25})
-	if PredefinedPrivileges(typ, []authorization.PrincipalRef{e.roles.domain.Principal(6181), e.roles.domain.Principal(6182), e.roles.domain.Principal(6337)}) != 0 {
+	if access.PredefinedPrivileges(typ, []authorization.PrincipalRef{e.roles.domain.Principal(6181), e.roles.domain.Principal(6182), e.roles.domain.Principal(6337)}) != 0 {
 		t.Fatal("data capability leaked onto type")
 	}
 	column := e.catalog.Domain.Ref(state.Epoch(), descriptors[1].d.Address())

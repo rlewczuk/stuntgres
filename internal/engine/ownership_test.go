@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -115,7 +116,7 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 		if next == old {
 			continue
 		}
-		got, _, _ := DescriptorACL(next)
+		got, _, _ := access.DescriptorACL(next)
 		if got != target {
 			t.Fatal("associated owner", a, got)
 		}

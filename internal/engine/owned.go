@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -47,7 +48,7 @@ func ownedSources(auth AuthorizationView, specs []parser.RoleSpec, reassign bool
 func ownedRoots(catalog catalog.Read, sources map[authorization.PrincipalRef]bool) []ids.ObjectAddress {
 	var roots []ids.ObjectAddress
 	for a, d := range catalog.Descriptors() {
-		owner, _, _ := DescriptorACL(d)
+		owner, _, _ := access.DescriptorACL(d)
 		if sources[owner] && ownershipRoot(catalog, d) {
 			roots = append(roots, a)
 		}
@@ -223,7 +224,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 	if reassign {
 		for _, a := range roots {
 			d := stage.Base.Get(a)
-			owner, _, _ := DescriptorACL(d)
+			owner, _, _ := access.DescriptorACL(d)
 			if owner == target {
 				continue
 			}
@@ -239,15 +240,15 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			case *catalog.Namespace:
 				err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(stage.Base.Epoch(), a), OwnerOnly: true})
 				if err == nil {
-					err = OwnershipSuccessor(auth.accessView, target)
+					err = access.OwnershipSuccessor(auth.accessView, target)
 				}
 				if err == nil {
-					err = OwnershipDatabaseCreate(auth.accessView, auth)
+					err = access.OwnershipDatabaseCreate(auth.accessView, auth)
 				}
 			case *catalog.Collation, *catalog.Conversion, *catalog.Operator, *catalog.Database, *catalog.Extension, *catalog.Procedure, *catalog.TSDictionary:
 				err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(stage.Base.Epoch(), a), OwnerOnly: true})
 				if err == nil {
-					err = OwnershipEligibility(auth.accessView, auth, target, d.Namespace())
+					err = access.OwnershipEligibility(auth.accessView, auth, target, d.Namespace())
 				}
 			}
 			if err != nil {

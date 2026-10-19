@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -67,7 +68,7 @@ func TestObjectGrantParameterPublication(t *testing.T) {
 				t.Fatal("copied parameter descriptor accepted as authority")
 			}
 			copy.Owner = authorization.PrincipalRef{}
-			if err := ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), &copy); err == nil {
+			if err := access.ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), &copy); err == nil {
 				t.Fatal("parameter zero owner accepted")
 			}
 			stable, stableRoles := e.catalog.state, e.roles.published
@@ -135,7 +136,7 @@ func TestObjectGrantTablespacePublication(t *testing.T) {
 				t.Fatal("copied tablespace descriptor accepted as authority")
 			}
 			copy.Owner = authorization.PrincipalRef{}
-			if err := ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), &copy); err == nil {
+			if err := access.ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), &copy); err == nil {
 				t.Fatal("tablespace zero owner accepted")
 			}
 			stable, roles := e.catalog.state, e.roles.published

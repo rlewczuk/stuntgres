@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
@@ -437,7 +438,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 		if sourceErr != nil || targetErr != nil || sourceOwner.Name != targetOwner.Name {
 			t.Fatal("imported type principal ownership did not remap", address, sourceErr, targetErr)
 		}
-		if err := ValidateACL(e.Roles(), actual); err != nil {
+		if err := access.ValidateACL(e.Roles(), actual); err != nil {
 			t.Fatal("imported type principal closure", address, err)
 		}
 		if source.SQLType.IsDomain() {

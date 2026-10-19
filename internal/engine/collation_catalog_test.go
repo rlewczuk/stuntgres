@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -203,8 +204,8 @@ func TestCollationOwnerMembershipRequiresDestinationCreate(t *testing.T) {
 	if changed.Owner != target.Ref || changed.OID != d.OID {
 		t.Fatal("owner transfer lost identity", changed)
 	}
-	var dependencies []RoleDependency
-	DescriptorRoleDependencies(changed, target.Ref, &dependencies)
+	var dependencies []access.RoleDependency
+	access.DescriptorRoleDependencies(changed, target.Ref, &dependencies)
 	if len(dependencies) != 1 {
 		t.Fatal("missing owner dependency", dependencies)
 	}

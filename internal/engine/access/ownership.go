@@ -1,4 +1,4 @@
-package engine
+package access
 
 import (
 	"fmt"
@@ -9,7 +9,8 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func OwnershipSuccessor(auth accessView, target authorization.PrincipalRef) error {
+// OwnershipSuccessor checks that the current user can SET ROLE to target.
+func OwnershipSuccessor(auth View, target authorization.PrincipalRef) error {
 	allowed, err := auth.Roles.CanSetRole(auth.State.CurrentUser, target)
 	if err != nil {
 		return err
@@ -20,7 +21,9 @@ func OwnershipSuccessor(auth accessView, target authorization.PrincipalRef) erro
 	}
 	return nil
 }
-func OwnershipDatabaseCreate(auth accessView, env accessEnvironment) error {
+
+// OwnershipDatabaseCreate checks CREATE on the current database.
+func OwnershipDatabaseCreate(auth View, env Environment) error {
 	return auth.CheckCreate(env, auth.Ref(catalog.CurrentDatabaseAddress))
 }
 
@@ -28,7 +31,7 @@ func OwnershipDatabaseCreate(auth accessView, env accessEnvironment) error {
 // target: target must be a SET ROLE successor and may need CREATE on the
 // object's namespace. The namespace check runs as target with the caller's
 // environment; a namespace CREATE check never reads the reference path.
-func OwnershipEligibility(auth accessView, env accessEnvironment, target authorization.PrincipalRef, namespace ids.ObjectAddress) error {
+func OwnershipEligibility(auth View, env Environment, target authorization.PrincipalRef, namespace ids.ObjectAddress) error {
 	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
 		return err
@@ -46,6 +49,9 @@ func OwnershipEligibility(auth accessView, env accessEnvironment, target authori
 	}
 	return targetAuth.CheckCreate(env, auth.Ref(namespace))
 }
+
+// OwnershipRoleOperand maps a parser role spec to the role name protocol of
+// SchemaOwner: current_user and session_user stand for the identities.
 func OwnershipRoleOperand(spec parser.RoleSpec) (string, bool) {
 	switch spec.Identity {
 	case "current":
@@ -55,7 +61,10 @@ func OwnershipRoleOperand(spec parser.RoleSpec) (string, bool) {
 	}
 	return spec.Name, false
 }
-func SchemaOwner(auth accessView, name string, identity bool) (authorization.PrincipalRef, error) {
+
+// SchemaOwner resolves a schema AUTHORIZATION role: the current user when
+// name is empty, an identity when identity is set, otherwise a role by name.
+func SchemaOwner(auth View, name string, identity bool) (authorization.PrincipalRef, error) {
 	if name == "" {
 		return auth.State.CurrentUser, nil
 	}

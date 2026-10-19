@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -50,7 +51,7 @@ func stageOwnership(stage *CatalogStage, d catalog.Descriptor, target authorizat
 	if next := stage.Descriptors[d.Address()]; next != nil {
 		d = next
 	}
-	owner, _, _ := DescriptorACL(d)
+	owner, _, _ := access.DescriptorACL(d)
 	if owner == target {
 		return nil
 	}
@@ -232,7 +233,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 			return fail(err)
 		}
 	}
-	target, err := SchemaOwner(auth.accessView, targetName, identity)
+	target, err := access.SchemaOwner(auth.accessView, targetName, identity)
 	if err != nil {
 		return fail(err)
 	}
@@ -246,7 +247,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 		parent.SubID = 0
 		return fail(sequenceLinkedError(old, auth.Catalog.MustRelation(parent), false))
 	}
-	if err = OwnershipEligibility(auth.accessView, auth, target, old.Namespace()); err != nil {
+	if err = access.OwnershipEligibility(auth.accessView, auth, target, old.Namespace()); err != nil {
 		return fail(err)
 	}
 	stage := e.ownershipStage(auth, scope.op)
@@ -273,7 +274,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 	return e.publishOwnership(scope, stage)
 }
 func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, count int) (Result, error) {
-	name, identity := OwnershipRoleOperand(s.Target)
+	name, identity := access.OwnershipRoleOperand(s.Target)
 	if s.Kind == "database" {
 		return e.executeDatabaseOwnership(scope, s, name, identity, count)
 	}
@@ -320,7 +321,7 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: display + " is a table's row type", Hint: "Use ALTER TABLE instead."})
 		}
 	}
-	target, err := SchemaOwner(auth.accessView, name, identity)
+	target, err := access.SchemaOwner(auth.accessView, name, identity)
 	if err != nil {
 		return fail(err)
 	}
@@ -336,7 +337,7 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true, OwnerNoun: "type"}); err != nil {
 		return fail(err)
 	}
-	if err = OwnershipEligibility(auth.accessView, auth, target, old.Namespace()); err != nil {
+	if err = access.OwnershipEligibility(auth.accessView, auth, target, old.Namespace()); err != nil {
 		return fail(err)
 	}
 	stage := e.ownershipStage(auth, scope.op)
@@ -369,7 +370,7 @@ func (e *Engine) executeDatabaseOwnership(scope *StatementScope, s *parser.Alter
 	if err != nil {
 		return fail(err)
 	}
-	target, err := SchemaOwner(auth.accessView, name, identity)
+	target, err := access.SchemaOwner(auth.accessView, name, identity)
 	if err != nil {
 		return fail(err)
 	}
@@ -385,7 +386,7 @@ func (e *Engine) executeDatabaseOwnership(scope *StatementScope, s *parser.Alter
 	if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), database.Address()), OwnerOnly: true}); err != nil {
 		return fail(err)
 	}
-	if err = OwnershipSuccessor(auth.accessView, target); err != nil {
+	if err = access.OwnershipSuccessor(auth.accessView, target); err != nil {
 		return fail(err)
 	}
 	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)

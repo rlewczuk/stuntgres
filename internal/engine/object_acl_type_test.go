@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -28,7 +29,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 		d := domainUnitType(t, view, name)
 		for _, address := range []ids.ObjectAddress{d.Address(), {ClassID: ids.TypeClassID, ObjectID: ids.OID(d.Array)}} {
 			typ := view.MustType(address)
-			acl, err := RawObjectACL(view, address)
+			acl, err := access.RawObjectACL(view, address)
 			if !typ.ACLSyntheticDefault || !defaultDomainACL(typ) || err != nil || acl.Explicit {
 				t.Fatal("constructor lost raw absence", name, address, acl, err)
 			}
@@ -129,7 +130,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	domainUnitPublish(t, e, change)
-	acl, err := RawObjectACL(e.CatalogRead(), explicit.Address())
+	acl, err := access.RawObjectACL(e.CatalogRead(), explicit.Address())
 	if err != nil || !reflect.DeepEqual(acl, explicit.ACL) || !acl.Explicit || defaultDomainACL(&explicit) {
 		t.Fatal("explicit baseline collapsed to NULL", acl, err)
 	}
@@ -172,7 +173,7 @@ func TestObjectACLTypeSetterProvenance(t *testing.T) {
 					if !old.ACLSyntheticDefault || !defaultDomainACL(old) {
 						t.Fatal("fixture lacks constructor-synthetic baseline", old)
 					}
-					if acl, err := RawObjectACL(oldView, old.Address()); err != nil || acl.Explicit || len(acl.Entries) != 0 {
+					if acl, err := access.RawObjectACL(oldView, old.Address()); err != nil || acl.Explicit || len(acl.Entries) != 0 {
 						t.Fatal("fixture raw ACL is not absent", acl, err)
 					}
 					if err := (typeProvider{}).Validate(oldView, old); err != nil {
@@ -207,7 +208,7 @@ func TestObjectACLTypeSetterProvenance(t *testing.T) {
 					if current.ACLSyntheticDefault {
 						t.Error("genuine replacement retained constructor provenance")
 					}
-					if acl, err := RawObjectACL(currentView, current.Address()); err != nil || !reflect.DeepEqual(acl, want) {
+					if acl, err := access.RawObjectACL(currentView, current.Address()); err != nil || !reflect.DeepEqual(acl, want) {
 						t.Error("genuine explicit ACL is not raw-visible", acl, want, err)
 					}
 					if err := (typeProvider{}).Validate(currentView, current); err != nil {
@@ -237,7 +238,7 @@ func TestObjectACLTypeSetterProvenance(t *testing.T) {
 					if retained != old || !retained.ACLSyntheticDefault || !reflect.DeepEqual(retained.ACL, oldACL) || !defaultDomainACL(retained) {
 						t.Error("setter or Dump mutated the old catalog descriptor", retained)
 					}
-					if acl, err := RawObjectACL(oldView, old.Address()); err != nil || acl.Explicit || len(acl.Entries) != 0 {
+					if acl, err := access.RawObjectACL(oldView, old.Address()); err != nil || acl.Explicit || len(acl.Entries) != 0 {
 						t.Error("old snapshot lost raw absence", acl, err)
 					}
 					if err := (typeProvider{}).Validate(oldView, retained); err != nil {

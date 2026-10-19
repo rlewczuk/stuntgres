@@ -8,6 +8,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -90,8 +91,8 @@ func TestFDWCatalogOverlay(t *testing.T) {
 	if got := descriptorReferences(public); len(got) != 0 {
 		t.Fatal("PUBLIC acquired a principal dependency", got)
 	}
-	mappedOwner, _, _ := DescriptorACL(mapping)
-	publicOwner, _, _ := DescriptorACL(public)
+	mappedOwner, _, _ := access.DescriptorACL(mapping)
+	publicOwner, _, _ := access.DescriptorACL(public)
 	if mappedOwner != owner || publicOwner != (authorization.PrincipalRef{}) {
 		t.Fatal("mapping ownership is not mapped identity", mappedOwner, publicOwner)
 	}
@@ -135,7 +136,7 @@ func TestFDWCatalogOverlay(t *testing.T) {
 			t.Fatal("PUBLIC usage acquired grant options", rights, err)
 		}
 	}
-	if ClassPrivileges(mapping) != 0 || ClassPrivileges(public) != 0 {
+	if access.ClassPrivileges(mapping) != 0 || access.ClassPrivileges(public) != 0 {
 		t.Fatal("mapping exposed a grantable ACL mask")
 	}
 	alter := e.BeginCatalogStage(e.CatalogRead())

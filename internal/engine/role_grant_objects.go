@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -59,10 +60,10 @@ func (e *Engine) resolveGrantObject(v AuthorizationView, name parser.ObjectName,
 // Nonrelation classes share the same source selection, ACL mutation and final
 // catalog publication as relation grants, without materializing table defaults.
 func changeNonRelationGrant(op *Operation, v AuthorizationView, d catalog.Descriptor, s *parser.ObjectGrant, grantees []authorization.ACLGrantee, principals []authorization.PrincipalRef, super bool, requested authorization.Privileges, all bool) (catalog.Descriptor, error) {
-	if err := ValidateACL(v.Roles, d); err != nil {
+	if err := access.ValidateACL(v.Roles, d); err != nil {
 		return nil, err
 	}
-	owner, old, _ := DescriptorACL(d)
+	owner, old, _ := access.DescriptorACL(d)
 	if typ, ok := d.(*catalog.Type); ok && typ.ACLSyntheticDefault {
 		old = authorization.ACLValue{} // Effective baseline is still raw NULL.
 	}
@@ -86,7 +87,7 @@ func changeNonRelationGrant(op *Operation, v AuthorizationView, d catalog.Descri
 	if err != nil {
 		return nil, err
 	}
-	if available == 0 && authorization.ACLRights(baseline, owner, principals, ClassPrivileges(d), false) == 0 {
+	if available == 0 && authorization.ACLRights(baseline, owner, principals, access.ClassPrivileges(d), false) == 0 {
 		// Routine target kinds all share the function ACL object class.
 		return nil, sqlError("42501", "permission denied for "+noun+" "+d.Name())
 	}
@@ -125,7 +126,7 @@ func changeNonRelationGrant(op *Operation, v AuthorizationView, d catalog.Descri
 		n.ACL = nextACL
 		next = &n
 	}
-	if err := ValidateACL(v.Roles, next); err != nil {
+	if err := access.ValidateACL(v.Roles, next); err != nil {
 		return nil, err
 	}
 	return next, nil
