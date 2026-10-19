@@ -52,7 +52,7 @@ func TestTruncateRestartLocks(t *testing.T) {
 			} else {
 				sequenceScalar(t, holder, "SELECT nextval('q_id_seq')", 45)
 			}
-			oldP, oldQ, oldPS, oldQS := e.storage.relations[p.Address], e.storage.relations[q.Address], e.storage.sequences[ps.Address], e.storage.sequences[qs.Address]
+			oldP, oldQ, oldPS, oldQS := e.storage.Relations[p.Address], e.storage.Relations[q.Address], e.storage.Sequences[ps.Address], e.storage.Sequences[qs.Address]
 			done, cancel := truncateUnitAsync(t, e, waiter, truncateRestartUnitAST("p", "q"))
 			lockPending(t, e, 1)
 			lockState := e.locks.Inspect()
@@ -70,14 +70,14 @@ func TestTruncateRestartLocks(t *testing.T) {
 			}
 			cancel()
 			lockAwait(t, done, context.Canceled)
-			if e.storage.relations[p.Address] != oldP || e.storage.relations[q.Address] != oldQ || e.storage.sequences[ps.Address] != oldPS || e.storage.sequences[qs.Address] != oldQS || oldPS.last != 2 {
+			if e.storage.Relations[p.Address] != oldP || e.storage.Relations[q.Address] != oldQ || e.storage.Sequences[ps.Address] != oldPS || e.storage.Sequences[qs.Address] != oldQS || oldPS.Last != 2 {
 				t.Fatal("canceled acquisition published prefix")
 			}
 			last := int64(44)
 			if heldMode == lock.RowExclusive {
 				last = 45
 			}
-			if oldQS.last != last {
+			if oldQS.Last != last {
 				t.Fatal("ordinary pre-reset draw was undone")
 			}
 			transactionEnd(t, holder, tx, false)
@@ -109,10 +109,10 @@ func TestTruncateRestartLocks(t *testing.T) {
 				}
 				transactionEnd(t, holder, tx, commit)
 				lockAwait(t, done, nil)
-				if commit && e.storage.sequences[ps.Address] != candidate {
+				if commit && e.storage.Sequences[ps.Address] != candidate {
 					t.Fatal("commit lost replacement")
 				}
-				if !commit && e.storage.sequences[ps.Address] == candidate {
+				if !commit && e.storage.Sequences[ps.Address] == candidate {
 					t.Fatal("rollback installed replacement")
 				}
 				want := int64(3)
@@ -135,7 +135,7 @@ func TestTruncateRestartLocks(t *testing.T) {
 		waiter := sessionStart(t, e, nil)
 		tx := transactionBegin(t, holder)
 		holderTicket := holder.transactions.ticket
-		oldStore, oldGenerator := e.storage.relations[p.Address], e.storage.sequences[ps.Address]
+		oldStore, oldGenerator := e.storage.Relations[p.Address], e.storage.Sequences[ps.Address]
 		// Pause at OWNED BY's actual first grant, before its table-AS
 		// dependency. TRUNCATE retains table-AX then requests sequence-AX.
 		// The existing shared detector can resolve the closing hard cycle
@@ -211,10 +211,10 @@ func TestTruncateRestartLocks(t *testing.T) {
 			if holder.TransactionState() != TxAborted {
 				t.Fatal("OWNED BY victim did not abort")
 			}
-			if e.storage.sequences[ps.Address] == oldGenerator || e.storage.sequences[ps.Address].last != 1 || e.storage.sequences[ps.Address].called || e.storage.relations[p.Address] == oldStore || len(e.storage.relations[p.Address].versions) != 0 {
+			if e.storage.Sequences[ps.Address] == oldGenerator || e.storage.Sequences[ps.Address].Last != 1 || e.storage.Sequences[ps.Address].Called || e.storage.Relations[p.Address] == oldStore || len(e.storage.Relations[p.Address].Versions) != 0 {
 				t.Fatal("cycle survivor failed complete restart")
 			}
-		} else if e.storage.sequences[ps.Address] != oldGenerator || e.storage.relations[p.Address] != oldStore || oldGenerator.last != 2 || len(oldStore.versions) != 2 {
+		} else if e.storage.Sequences[ps.Address] != oldGenerator || e.storage.Relations[p.Address] != oldStore || oldGenerator.Last != 2 || len(oldStore.Versions) != 2 {
 			t.Fatal("failed reset published a prefix")
 		}
 		transactionEnd(t, holder, tx, false)
@@ -232,7 +232,7 @@ func TestTruncateRestartControlFence(t *testing.T) {
 				e, holder, p, _, ps, _ := truncateRestartUnitFixture(t)
 				waiter := sessionStart(t, e, nil)
 				tx := transactionBegin(t, holder)
-				oldStore, oldGenerator := e.storage.relations[p.Address], e.storage.sequences[ps.Address]
+				oldStore, oldGenerator := e.storage.Relations[p.Address], e.storage.Sequences[ps.Address]
 				var done <-chan error
 				if phase == "QueuedReset" {
 					r := sessionSQL(t, holder, "SELECT * FROM p_id_seq")
@@ -265,14 +265,14 @@ func TestTruncateRestartControlFence(t *testing.T) {
 				if holder.sequences[ps.Address] != nil || waiter.sequences[ps.Address] != nil {
 					t.Fatal("persistent replacement retained retired sequence observation/source event")
 				}
-				if len(oldStore.versions) != 2 || oldGenerator.last != 2 || oldStore.truncateLineage != nil {
+				if len(oldStore.Versions) != 2 || oldGenerator.Last != 2 || oldStore.TruncateLineage != nil {
 					t.Fatal("control fence modified retained predecessor")
 				}
 				if control == "Reset" {
 					sessionSQL(t, waiter, "CREATE TABLE p(id SERIAL PRIMARY KEY)")
 				}
 				current := roleTableRef(t, e, "p_id_seq")
-				if current == ps || e.storage.sequences[current.Address] == oldGenerator {
+				if current == ps || e.storage.Sequences[current.Address] == oldGenerator {
 					t.Fatal("retired generator resurrected")
 				}
 				want := int64(1)

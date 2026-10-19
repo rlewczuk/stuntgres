@@ -132,18 +132,18 @@ func (s *StatementScope) foreignActionRow(ref ids.ObjectRef, candidate rowVersio
 		return rowVersion{}, false, err
 	}
 	storage := s.foreignActionAdmissions[ref.Address].storage
-	if uniqueRowDeleted(candidate.row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
+	if uniqueRowDeleted(candidate.Row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
 		return rowVersion{}, false, nil
 	}
-	for _, rows := range [][]rowVersion{s.stage.rows[ref.Address], s.ownWrites[ref.Address], storage.versions} {
-		row, _, found := rowByID(rows, candidate.row, -1)
+	for _, rows := range [][]rowVersion{s.stage.rows[ref.Address], s.ownWrites[ref.Address], storage.Versions} {
+		row, _, found := rowByID(rows, candidate.Row, -1)
 		if !found {
 			continue
 		}
-		if err := s.repeatableConflict(row, storage.ends); err != nil {
+		if err := s.repeatableConflict(row, storage.Ends); err != nil {
 			return rowVersion{}, false, err
 		}
-		return row, liveVersion(row, e.commitSeq, storage.ends, nil), nil
+		return row, liveVersion(row, e.commitSeq, storage.Ends, nil), nil
 	}
 	return rowVersion{}, false, fmt.Errorf("stuntgres: missing internal action predecessor")
 }
@@ -158,7 +158,7 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old rowVersion) (err
 		}
 	}()
 	e := s.op.session.Engine()
-	if !e.locks.Holds(s.ticket, lock.Resource{ObjectRef: ref, Row: old.row}, lock.ForUpdate) {
+	if !e.locks.Holds(s.ticket, lock.Resource{ObjectRef: ref, Row: old.Row}, lock.ForUpdate) {
 		return errors.New("stuntgres: internal action deletion requires its row grant")
 	}
 	s.owner.mu.Lock()
@@ -174,13 +174,13 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old rowVersion) (err
 	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted {
 		return errors.New("stuntgres: inactive internal action stage")
 	}
-	if uniqueRowDeleted(old.row, s.ownDeletes[ref.Address], w.deletes[ref.Address]) {
+	if uniqueRowDeleted(old.Row, s.ownDeletes[ref.Address], w.deletes[ref.Address]) {
 		return nil
 	}
 	storage := s.foreignActionAdmissions[ref.Address].storage
-	candidate := deleteCandidate{ref: ref, storage: storage, row: old.row, version: old.version, base: old.base, own: old.born == 0}
-	if old.born != 0 {
-		candidate.base = old.version
+	candidate := deleteCandidate{ref: ref, storage: storage, row: old.Row, version: old.Version, base: old.Base, own: old.Born == 0}
+	if old.Born != 0 {
+		candidate.base = old.Version
 	}
 	if err := w.stageDeletionLocked(e, candidate, old); err != nil {
 		return err

@@ -26,7 +26,7 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 	values := []sqltype.Value{sqltype.String(typ, "Alpha"), sqltype.String(typ, "ALPHA"), sqltype.String(typ, "Beta"), sqltype.Null(typ), sqltype.String(typ, "alpha")}
 	store := &relationStorage{}
 	for i, v := range values {
-		store.versions = append(store.versions, rowVersion{row: ids.RowID(i + 1), version: ids.VersionID(i + 1), values: []sqltype.Value{v}})
+		store.Versions = append(store.Versions, rowVersion{Row: ids.RowID(i + 1), Version: ids.VersionID(i + 1), Values: []sqltype.Value{v}})
 	}
 	root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, d, store, nil)
 	if err != nil {
@@ -36,8 +36,8 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 	if got := btreeKeys(t, root); !reflect.DeepEqual(got, want) {
 		t.Fatal(got, want)
 	}
-	publication := &rowPublication{writes: []rowVersion{{row: 6, version: 6, values: []sqltype.Value{sqltype.String(typ, "AlPhA")}}}}
-	next, err := mergeIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, &catalog.Relation{SQLIndex: d}, root.entries, publication, false, true, false, "", sqltype.OutputEnvironment{}, nil)
+	publication := &rowPublication{writes: []rowVersion{{Row: 6, Version: 6, Values: []sqltype.Value{sqltype.String(typ, "AlPhA")}}}}
+	next, err := mergeIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, &catalog.Relation{SQLIndex: d}, root.Entries, publication, false, true, false, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

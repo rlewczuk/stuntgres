@@ -8,15 +8,6 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// Nonzero-size tokens identify only uninterrupted TRUNCATE incarnations.
-// Engine.mu protects predecessor stamping and all token comparisons. Tokens
-// retain neither old storage nor row vectors; ordinary replacements break them.
-type truncateLineage struct{ marker byte }
-
-func sameTruncateLineage(a, b *relationStorage) bool {
-	return a != nil && b != nil && a.truncateLineage != nil && a.truncateLineage == b.truncateLineage
-}
-
 type truncateName struct {
 	name      parser.ObjectName
 	ref       ids.ObjectRef
@@ -40,7 +31,7 @@ func (e *Engine) truncateGraphPreflightLocked(c *catalogChanges) error {
 	for _, fence := range c.truncateFences {
 		if fence.restart {
 			for address, generator := range fence.sequences {
-				if e.storage.sequences[address] != generator {
+				if e.storage.Sequences[address] != generator {
 					return catalog.Conflict{}
 				}
 			}
@@ -142,27 +133,27 @@ func (s *StatementScope) stageTruncate() error {
 			err = fmt.Errorf("stuntgres: relation storage is missing")
 			break
 		}
-		if store.generation == ^uint64(0) {
+		if store.Generation == ^uint64(0) {
 			err = fmt.Errorf("stuntgres: storage generation exhausted")
 			break
 		}
 		shape, exists := changes.storage[ref.Address]
 		if !exists {
-			original := e.storage.relations[ref.Address]
+			original := e.storage.Relations[ref.Address]
 			if original == nil {
 				err = ids.ErrCatalogReplaced
 				break
 			}
-			shape = catalogStorageChange{original: original, root: original.versions, ends: original.ends, generation: original.generation}
+			shape = catalogStorageChange{original: original, root: original.Versions, ends: original.Ends, generation: original.Generation}
 		}
 		// Do not bridge a preceding ordinary private storage rewrite. The marker
 		// means the entire transition from the first committed predecessor is pure.
 		shape.truncated = !exists || shape.truncated || shape.replacement == shape.original
-		lineage := store.truncateLineage
+		lineage := store.TruncateLineage
 		if lineage == nil {
-			lineage = &truncateLineage{marker: 1}
+			lineage = &truncateLineage{}
 		}
-		shape.replacement = &relationStorage{generation: store.generation + 1, truncateLineage: lineage}
+		shape.replacement = &relationStorage{Generation: store.Generation + 1, TruncateLineage: lineage}
 		shape.relation = d
 		shape.rewritten, shape.frontier = true, e.commitSeq
 		shape.snapshot, shape.hasSnapshot = nil, false

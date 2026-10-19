@@ -35,23 +35,23 @@ func TestIndexMaintenanceMetadataDecorated(t *testing.T) {
 	}
 	tuples := [][]string{{"-1", "a "}, {"2", "a"}, {"2", "a"}, {"NULL", "NULL"}}
 	expressionWantRoot(t, e, "decorated", tuples)
-	originalEntries := append([]logicalIndexEntry(nil), oldRoot.entries...)
+	originalEntries := append([]logicalIndexEntry(nil), oldRoot.Entries...)
 	originalTuples := expressionRootTuples(t, oldRoot)
 	run(t, e, "ALTER INDEX decorated RENAME TO renamed")
-	if e.storage.indexRoots[index.Address()] != oldRoot || e.storage.indexRoots[plain.Address()] != oldSibling {
+	if e.storage.IndexRoots[index.Address()] != oldRoot || e.storage.IndexRoots[plain.Address()] != oldSibling {
 		t.Fatal("decorated rename rebuilt substantive roots")
 	}
 	run(t, e, "REINDEX INDEX renamed")
-	if e.storage.indexRoots[index.Address()] == oldRoot || e.storage.indexRoots[plain.Address()] != oldSibling {
+	if e.storage.IndexRoots[index.Address()] == oldRoot || e.storage.IndexRoots[plain.Address()] != oldSibling {
 		t.Fatal("selected decorated rebuild affected a sibling or did no real work")
 	}
 	expressionWantRoot(t, e, "renamed", tuples)
-	selected := e.storage.indexRoots[index.Address()]
+	selected := e.storage.IndexRoots[index.Address()]
 	run(t, e, "REINDEX TABLE t")
-	if e.storage.indexRoots[index.Address()] == selected || e.storage.indexRoots[plain.Address()] == oldSibling {
+	if e.storage.IndexRoots[index.Address()] == selected || e.storage.IndexRoots[plain.Address()] == oldSibling {
 		t.Fatal("TABLE omitted an implemented root")
 	}
-	if !reflect.DeepEqual(oldRoot.entries, originalEntries) || !reflect.DeepEqual(expressionRootTuples(t, oldRoot), originalTuples) {
+	if !reflect.DeepEqual(oldRoot.Entries, originalEntries) || !reflect.DeepEqual(expressionRootTuples(t, oldRoot), originalTuples) {
 		t.Fatal("retained predecessor root mutated")
 	}
 	run(t, e, "ALTER TABLE t RENAME COLUMN p TO payload")
@@ -72,7 +72,7 @@ func TestIndexMaintenanceMetadataDecorated(t *testing.T) {
 	run(t, e, "REINDEX INDEX renamed")
 	expressionWantRoot(t, e, "renamed", tuples)
 	run(t, e, "DROP INDEX renamed,renamed")
-	if e.storage.indexRoots[index.Address()] != nil || e.storage.indexRoots[plain.Address()] == nil {
+	if e.storage.IndexRoots[index.Address()] != nil || e.storage.IndexRoots[plain.Address()] == nil {
 		t.Fatal("decorated DROP removed a sibling or retained selected root")
 	}
 }

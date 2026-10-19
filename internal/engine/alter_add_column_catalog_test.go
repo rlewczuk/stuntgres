@@ -85,10 +85,10 @@ func TestAlterAddColumnPrivateSnapshotEqualWidthProjection(t *testing.T) {
 	}
 	old := &catalog.Relation{Columns: []catalog.Column{{Name: "old", Usage: u}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 	next := &catalog.Relation{Columns: []catalog.Column{{Name: "new", Usage: u}}, Attributes: []int32{2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}}
-	original := &relationStorage{versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{one}}}}
-	historical := []rowVersion{{row: 2, version: 2, born: 1, values: []sqltype.Value{one}}}
+	original := &relationStorage{Versions: []rowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{one}}}}
+	historical := []rowVersion{{Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{one}}}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
-	shape := catalogStorageChange{original: original, root: original.versions, relation: next, replacement: &relationStorage{}, fills: map[int32]sqltype.Value{2: seven}}
+	shape := catalogStorageChange{original: original, root: original.Versions, relation: next, replacement: &relationStorage{}, fills: map[int32]sqltype.Value{2: seven}}
 	catalog := &catalogChanges{storage: map[ids.ObjectAddress]catalogStorageChange{address: shape}}
 	roots := map[ids.ObjectAddress]transactionRoot{address: {storage: original, relation: old, versions: historical}}
 	projected, err := projectPrivateSnapshotRoots(context.Background(), catalog, roots)
@@ -96,7 +96,7 @@ func TestAlterAddColumnPrivateSnapshotEqualWidthProjection(t *testing.T) {
 		t.Fatal(projected, err)
 	}
 	rows := projected.storage[address].snapshot
-	if len(rows) != 1 || rows[0].row != 2 || rows[0].version != 2 || !reflect.DeepEqual(rows[0].values, []sqltype.Value{seven}) || !reflect.DeepEqual(historical[0].values, []sqltype.Value{one}) {
+	if len(rows) != 1 || rows[0].Row != 2 || rows[0].Version != 2 || !reflect.DeepEqual(rows[0].Values, []sqltype.Value{seven}) || !reflect.DeepEqual(historical[0].Values, []sqltype.Value{one}) {
 		t.Fatal("equal-width historical root changed", rows, historical)
 	}
 }

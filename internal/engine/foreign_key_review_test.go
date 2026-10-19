@@ -42,15 +42,15 @@ func TestForeignKeyIndexProbeVisitBounds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := e.storage.indexRoots[f.Index]
-	original := slices.Clone(root.entries)
-	rows := foreignKeyRows{committed: e.storage.relations[parent.Address()].versions, ends: e.storage.relations[parent.Address()].ends, frontier: e.commitSeq, root: root, index: f.Index}
-	missing := e.storage.relations[catalogRef(t, e, view, "probe_input").Address].versions[0].values
+	root := e.storage.IndexRoots[f.Index]
+	original := slices.Clone(root.Entries)
+	rows := foreignKeyRows{committed: e.storage.Relations[parent.Address()].Versions, ends: e.storage.Relations[parent.Address()].Ends, frontier: e.commitSeq, root: root, index: f.Index}
+	missing := e.storage.Relations[catalogRef(t, e, view, "probe_input").Address].Versions[0].Values
 	for _, target := range []int{0, 2048, 4095, 4096} {
 		t.Run(fmt.Sprint(target), func(t *testing.T) {
 			values := missing
 			if target < 4096 {
-				values = root.entries[target].keys
+				values = root.Entries[target].Keys
 			}
 			key := make([]sqltype.Value, len(comparisons))
 			if err := prepareForeignKeyChild(context.Background(), comparisons, values, key, sqltype.InputEnvironment{}); err != nil {
@@ -78,15 +78,15 @@ func TestForeignKeyIndexProbeVisitBounds(t *testing.T) {
 				t.Fatal(err)
 			}
 			if target == 4096 {
-				if matching.row != 0 {
+				if matching.Row != 0 {
 					t.Fatal("missing input matched", matching)
 				}
-			} else if matching.row != located.row || locator.position != located.position || matching.version != located.version {
+			} else if matching.Row != located.Row || locator.Position != located.Position || matching.Version != located.Version {
 				t.Fatal("probe did not return the exact source version locator", matching, locator, located)
 			}
 		})
 	}
-	if !reflect.DeepEqual(root.entries, original) {
+	if !reflect.DeepEqual(root.Entries, original) {
 		t.Fatal("probe modified the source index")
 	}
 	visited := 0
@@ -138,10 +138,10 @@ func TestForeignKeyTypeFailedSnapshotAuthority(t *testing.T) {
 	parent := view.MustRelation(parentRef.Address)
 	f := child.Constraints.ForeignKeys[0]
 	index := view.MustRelation(f.Index)
-	parentStore, childStore := e.storage.relations[parentRef.Address], e.storage.relations[childRef.Address]
-	parentRows, childRows := slices.Clone(parentStore.versions), slices.Clone(childStore.versions)
-	root := e.storage.indexRoots[f.Index]
-	entries := slices.Clone(root.entries)
+	parentStore, childStore := e.storage.Relations[parentRef.Address], e.storage.Relations[childRef.Address]
+	parentRows, childRows := slices.Clone(parentStore.Versions), slices.Clone(childStore.Versions)
+	root := e.storage.IndexRoots[f.Index]
+	entries := slices.Clone(root.Entries)
 	for _, trial := range []struct{ sql, code string }{
 		{"ALTER TABLE p ALTER id TYPE BIGINT USING id+10", "23503"},
 		{"ALTER TABLE c ALTER pid TYPE BIGINT USING pid+10", "23503"},
@@ -158,10 +158,10 @@ func TestForeignKeyTypeFailedSnapshotAuthority(t *testing.T) {
 		if !errors.As(err, &diagnostic) || diagnostic.Code != trial.code {
 			t.Fatal(trial.sql, err)
 		}
-		if e.CatalogRead().State() != view.State() || e.storage.relations[parentRef.Address] != parentStore || e.storage.relations[childRef.Address] != childStore || e.storage.indexRoots[f.Index] != root {
+		if e.CatalogRead().State() != view.State() || e.storage.Relations[parentRef.Address] != parentStore || e.storage.Relations[childRef.Address] != childStore || e.storage.IndexRoots[f.Index] != root {
 			t.Fatal("failed TYPE published metadata/storage/index authority", trial.sql)
 		}
-		if !reflect.DeepEqual(parentStore.versions, parentRows) || !reflect.DeepEqual(childStore.versions, childRows) || !reflect.DeepEqual(root.entries, entries) || !reflect.DeepEqual(child.Constraints.ForeignKeys[0], f) {
+		if !reflect.DeepEqual(parentStore.Versions, parentRows) || !reflect.DeepEqual(childStore.Versions, childRows) || !reflect.DeepEqual(root.Entries, entries) || !reflect.DeepEqual(child.Constraints.ForeignKeys[0], f) {
 			t.Fatal("failed TYPE mutated borrowed data or attachment", trial.sql)
 		}
 	}
@@ -170,7 +170,7 @@ func TestForeignKeyTypeFailedSnapshotAuthority(t *testing.T) {
 	if next == child || next.Constraints.ForeignKeys[0].OID == f.OID || next.Constraints.ForeignKeys[0].Index != f.Index || next.Constraints.ForeignKeys[0].Target != parent.Address() || e.CatalogRead().Get(index.Address()) != index {
 		t.Fatal("successful child TYPE lost stable supporting/target identities", next.Constraints.ForeignKeys[0], f)
 	}
-	if view.Get(childRef.Address) != child || view.Get(parentRef.Address) != parent || !reflect.DeepEqual(child.Constraints.ForeignKeys[0], f) || !reflect.DeepEqual(childStore.versions, childRows) || !reflect.DeepEqual(root.entries, entries) {
+	if view.Get(childRef.Address) != child || view.Get(parentRef.Address) != parent || !reflect.DeepEqual(child.Constraints.ForeignKeys[0], f) || !reflect.DeepEqual(childStore.Versions, childRows) || !reflect.DeepEqual(root.Entries, entries) {
 		t.Fatal("successful TYPE changed retained snapshot authority")
 	}
 	sessionSQL(t, s, "INSERT INTO c VALUES(1)")

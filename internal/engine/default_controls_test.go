@@ -17,7 +17,7 @@ func TestDefaultFailedRestorePreservesEligibilityAndSurvivors(t *testing.T) {
 	run(t, e, `INSERT INTO sentinel(id) VALUES(1)`)
 	ref := roleTableRef(t, e, "sentinel")
 	old := e.catalog.state.MustRelation(ref.Address)
-	storage := e.storage.relations[ref.Address]
+	storage := e.storage.Relations[ref.Address]
 	epoch := e.CatalogRead().Epoch()
 	owner := e.catalog.Domain
 	stage := e.BeginCatalogStage(e.CatalogRead())
@@ -37,7 +37,7 @@ func TestDefaultFailedRestorePreservesEligibilityAndSurvivors(t *testing.T) {
 		if err := e.Restore(context.Background(), strings.NewReader(script)); err == nil {
 			t.Fatal("invalid restore accepted", script)
 		}
-		if e.catalog.Domain != owner || e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage || e.CatalogRead().Epoch() != epoch {
+		if e.catalog.Domain != owner || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || e.CatalogRead().Epoch() != epoch {
 			t.Fatal("failed restore changed identity/storage")
 		}
 		var after bytes.Buffer

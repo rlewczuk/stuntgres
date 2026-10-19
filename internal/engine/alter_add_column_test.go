@@ -22,18 +22,18 @@ func TestAlterAddColumnProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows := []rowVersion{{values: []sqltype.Value{one, seven}}}
-	before := append([]sqltype.Value(nil), rows[0].values...)
+	rows := []rowVersion{{Values: []sqltype.Value{one, seven}}}
+	before := append([]sqltype.Value(nil), rows[0].Values...)
 	for _, fill := range []sqltype.Value{sqltype.Null(u.Type), seven} {
 		projected, err := projectVersions(context.Background(), rows, old, next, map[int32]sqltype.Value{3: fill})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !reflect.DeepEqual(projected[0].values, []sqltype.Value{one, fill}) || !reflect.DeepEqual(rows[0].values, before) {
+		if !reflect.DeepEqual(projected[0].Values, []sqltype.Value{one, fill}) || !reflect.DeepEqual(rows[0].Values, before) {
 			t.Fatal("projection changed source or copied wrong slot", projected, rows)
 		}
 		original, result := rows[0], projected[0]
-		original.values, result.values = nil, nil
+		original.Values, result.Values = nil, nil
 		if !reflect.DeepEqual(original, result) {
 			t.Fatal("row identity changed", original, result)
 		}
@@ -41,7 +41,7 @@ func TestAlterAddColumnProjection(t *testing.T) {
 	if _, err := projectVersions(context.Background(), rows, old, next, nil); err == nil {
 		t.Fatal("missing captured fill accepted")
 	}
-	bad := []rowVersion{{values: []sqltype.Value{one}}}
+	bad := []rowVersion{{Values: []sqltype.Value{one}}}
 	if _, err := projectVersions(context.Background(), bad, old, next, map[int32]sqltype.Value{3: seven}); err == nil {
 		t.Fatal("invalid original width accepted")
 	}
@@ -63,12 +63,12 @@ func TestAlterAddColumnZeroWidthProjection(t *testing.T) {
 		t.Fatal(projected, err)
 	}
 	for _, row := range projected {
-		if len(row.values) != 1 || !row.values[0].IsNull() || row.values[0].Type() != u.Type {
+		if len(row.Values) != 1 || !row.Values[0].IsNull() || row.Values[0].Type() != u.Type {
 			t.Fatal(row)
 		}
 	}
 	for _, row := range rows {
-		if len(row.values) != 0 {
+		if len(row.Values) != 0 {
 			t.Fatal("source widened", row)
 		}
 	}
@@ -83,7 +83,7 @@ func TestAlterAddColumnCancellationDuringShapeTraversal(t *testing.T) {
 	}
 	old := &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: u}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 	next := &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: u}, {Name: "b", Usage: u}}, Attributes: []int32{1, 2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}}
-	rows := []rowVersion{{row: 1, version: 1, values: []sqltype.Value{one}}, {row: 2, version: 2, values: []sqltype.Value{one}}, {row: 3, version: 3, values: []sqltype.Value{one}}}
+	rows := []rowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{one}}, {Row: 2, Version: 2, Values: []sqltype.Value{one}}, {Row: 3, Version: 3, Values: []sqltype.Value{one}}}
 	projection, err := newColumnProjection(old, next, map[int32]sqltype.Value{2: sqltype.Null(u.Type)})
 	if err != nil {
 		t.Fatal(err)
@@ -96,7 +96,7 @@ func TestAlterAddColumnCancellationDuringShapeTraversal(t *testing.T) {
 		t.Fatal(projected, err, traversal.checks)
 	}
 	for i, row := range rows {
-		if row.row != ids.RowID(i+1) || len(row.values) != 1 || row.values[0] != one {
+		if row.Row != ids.RowID(i+1) || len(row.Values) != 1 || row.Values[0] != one {
 			t.Fatal("canceled traversal changed source", rows)
 		}
 	}

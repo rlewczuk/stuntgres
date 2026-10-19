@@ -146,11 +146,11 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				if !reflect.DeepEqual(values, [][]driver.Value{{int64(40)}}) {
 					t.Fatal("actual sequence draw", values)
 				}
-				generator := e.storage.sequences[ref.Address]
+				generator := e.storage.Sequences[ref.Address]
 				generatorValue := *generator
 				memory := session.sequences[ref.Address]
 				memoryValue, lastSequence := *memory, session.lastSequence
-				if !generator.called || generator.last != 42 || !memory.valid || memory.value != 40 || memory.remaining != 2 {
+				if !generator.Called || generator.Last != 42 || !memory.valid || memory.value != 40 || memory.remaining != 2 {
 					t.Fatal("fixture lacks actual reserved counter/currval/cache state")
 				}
 				// A substantive retained prefix proves whole-message veto, not just
@@ -164,13 +164,13 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				}
 				before := indexMaintenanceCapture(e)
 				sentinel := roleTableRef(t, e, "ownership_fence_sentinel").Address
-				rows := append([]rowVersion(nil), e.storage.relations[sentinel].versions...)
+				rows := append([]rowVersion(nil), e.storage.Relations[sentinel].Versions...)
 				for i := range rows {
-					rows[i].values = append([]sqltype.Value(nil), rows[i].values...)
+					rows[i].Values = append([]sqltype.Value(nil), rows[i].Values...)
 				}
-				generators := make(map[ids.ObjectAddress]*sequenceGenerator, len(e.storage.sequences))
-				generatorValues := make(map[ids.ObjectAddress]sequenceGenerator, len(e.storage.sequences))
-				for address, g := range e.storage.sequences {
+				generators := make(map[ids.ObjectAddress]*sequenceGenerator, len(e.storage.Sequences))
+				generatorValues := make(map[ids.ObjectAddress]sequenceGenerator, len(e.storage.Sequences))
+				for address, g := range e.storage.Sequences {
 					generators[address], generatorValues[address] = g, *g
 				}
 				replaceDatabase := func() {
@@ -240,7 +240,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				}
 				err = message.end(finishErr)
 				if phase == "healthy" {
-					if err != nil || e.catalog.state.Get(ref.Address) != staged || !reflect.DeepEqual(staged.Security.ACL, wantACL) || len(e.storage.relations[sentinel].versions) != 2 {
+					if err != nil || e.catalog.state.Get(ref.Address) != staged || !reflect.DeepEqual(staged.Security.ACL, wantACL) || len(e.storage.Relations[sentinel].Versions) != 2 {
 						t.Fatal("healthy selected authority did not publish actual transfer and prefix", err)
 					}
 					if private && e.catalog.state.Get(catalog.CurrentDatabaseAddress) != selectedDB {
@@ -252,18 +252,18 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 						t.Fatal("missing sequence OWNER DB predecessor veto", err)
 					}
 					indexMaintenanceUnchanged(t, e, before)
-					if e.catalog.state.Get(ref.Address) != old || !reflect.DeepEqual(e.storage.relations[sentinel].versions, rows) {
+					if e.catalog.state.Get(ref.Address) != old || !reflect.DeepEqual(e.storage.Relations[sentinel].Versions, rows) {
 						t.Fatal("veto installed sequence owner/ACL or retained row prefix")
 					}
 				}
 				if e.roles != oldRoles || session.authorization.revision != sessionRevision || e.catalog.state.Epoch() != epoch || old.Owner != dbRole || !reflect.DeepEqual(old.Security.ACL, retainedACL) || *old.Sequence != retainedOptions || auth.catalog.Get(ref.Address) != old || auth.catalog.Get(catalog.CurrentDatabaseAddress) != selectedDB || auth.databasePredecessor != committed || originalCatalog.Get(catalog.CurrentDatabaseAddress) != committed {
 					t.Fatal("publication mutated immutable retained authority or sequence roots")
 				}
-				if e.storage.sequences[ref.Address] != generator || *generator != generatorValue || session.sequences[ref.Address] != memory || *memory != memoryValue || session.lastSequence != lastSequence {
+				if e.storage.Sequences[ref.Address] != generator || *generator != generatorValue || session.sequences[ref.Address] != memory || *memory != memoryValue || session.lastSequence != lastSequence {
 					t.Fatal("OWNER publication changed actual nontransactional counter/cache/currval")
 				}
 				for address, g := range generators {
-					if e.storage.sequences[address] != g || *g != generatorValues[address] {
+					if e.storage.Sequences[address] != g || *g != generatorValues[address] {
 						t.Fatal("OWNER publication changed unrelated sequence generators")
 					}
 				}

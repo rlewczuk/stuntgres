@@ -42,9 +42,9 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 		addresses = append(addresses, a)
 		before = append(before, e.catalog.state.MustRelation(a))
 	}
-	storage := e.storage.relations[addresses[0]]
+	storage := e.storage.Relations[addresses[0]]
 	sequenceScalar(t, s, "SELECT nextval('s1.q1')", 10)
-	generator := e.storage.sequences[addresses[1]]
+	generator := e.storage.Sequences[addresses[1]]
 	generatorValue := *generator
 	memory := s.sequences[addresses[1]]
 	memoryValue := *memory
@@ -74,7 +74,7 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 			t.Fatal("move changed nonnamespace definition", before[i], after)
 		}
 	}
-	if e.storage.relations[addresses[0]] != storage || e.storage.sequences[addresses[1]] != generator || *generator != generatorValue || s.sequences[addresses[1]] != memory || *memory != memoryValue || e.catalog.state.Get(free) != freeDescriptor {
+	if e.storage.Relations[addresses[0]] != storage || e.storage.Sequences[addresses[1]] != generator || *generator != generatorValue || s.sequences[addresses[1]] != memory || *memory != memoryValue || e.catalog.state.Get(free) != freeDescriptor {
 		t.Fatal("move replaced data/generator/cache/independent sequence")
 	}
 	if peer.sequences[addresses[1]] != peerMemory || *peerMemory != peerValue {

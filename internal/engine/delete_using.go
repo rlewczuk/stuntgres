@@ -46,7 +46,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 	for i := range targetCount {
 		physical := mutationPhysicalRow(source, i, b)
 		version := physical.version
-		if b.currentOf != "" && (positioned.ref != physical.leaf.ref || version.row != positioned.row) {
+		if b.currentOf != "" && (positioned.ref != physical.leaf.ref || version.Row != positioned.row) {
 			continue
 		}
 		candidate := physical.deletion()
@@ -108,7 +108,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 		evaluation.Row = frame
 		evaluation.bindQueryIdentity(stage.source, stage.index(pair.sourceIndex))
 		evaluation.physicalTable = candidate.ref
-		if current.version != candidate.version {
+		if current.Version != candidate.version {
 			if err := s.physicalRowEvent(candidate.ref, current, lock.MultiUpdateLock, 0); err != nil {
 				return Result{}, err
 			}

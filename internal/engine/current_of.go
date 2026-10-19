@@ -54,7 +54,7 @@ func (s *StatementScope) positionedMutationRow(b binding) (mutationRowIdentity, 
 		return mutationRowIdentity{}, ids.ErrCatalogReplaced
 	}
 	physical := cursorOccurrencePhysicalRow(c.currentSource, c.currentIndex, occurrence, c.locks)
-	if physical.version.row == 0 {
+	if physical.version.Row == 0 {
 		return mutationRowIdentity{}, nil
 	}
 	storage := s.mutationStorage(physical.leaf.ref)
@@ -65,7 +65,7 @@ func (s *StatementScope) positionedMutationRow(b binding) (mutationRowIdentity, 
 	if storage != physical.leaf.storage {
 		return mutationRowIdentity{}, ids.ErrCatalogReplaced
 	}
-	return mutationRowIdentity{physical.leaf.ref, physical.version.row}, nil
+	return mutationRowIdentity{physical.leaf.ref, physical.version.Row}, nil
 }
 
 // Only occurrence-preserving nodes may expose an unlocked physical scan.

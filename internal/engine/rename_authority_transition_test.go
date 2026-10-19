@@ -38,7 +38,7 @@ func TestAlterRenameAuthorityWaitTransition(t *testing.T) {
 	e, admin, owner, ns, acl := renameAuthorityFixture(t)
 	ref := roleTableRef(t, e, "protected.t")
 	old := e.catalog.state.Get(ref.Address)
-	storage := e.storage.relations[ref.Address]
+	storage := e.storage.Relations[ref.Address]
 	tx := transactionBegin(t, admin)
 	sessionSQL(t, admin, "LOCK TABLE protected.t IN ACCESS EXCLUSIVE MODE")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -59,7 +59,7 @@ func TestAlterRenameAuthorityWaitTransition(t *testing.T) {
 		t.Fatal(ctx.Err())
 	}
 	lockEmpty(t, e)
-	if roleTableRef(t, e, "protected.t") != ref || e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage || e.catalog.nextRevision != frontier {
+	if roleTableRef(t, e, "protected.t") != ref || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || e.catalog.nextRevision != frontier {
 		t.Fatal("grant-time denial changed source or frontier")
 	}
 	if _, exists := e.catalog.state.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: "renamed"}); exists {
@@ -77,7 +77,7 @@ func TestAlterRenameAuthorityValidationTransition(t *testing.T) {
 	e, _, owner, ns, acl := renameAuthorityFixture(t)
 	ref := roleTableRef(t, e, "protected.t")
 	old := e.catalog.state.Get(ref.Address)
-	storage := e.storage.relations[ref.Address]
+	storage := e.storage.Relations[ref.Address]
 	oldNamespace := e.catalog.state.Get(ns.Address)
 	acl.Entries[0].Privileges = authorization.UsagePrivilege
 	var once sync.Once
@@ -100,7 +100,7 @@ func TestAlterRenameAuthorityValidationTransition(t *testing.T) {
 	if err != (catalog.Conflict{}) {
 		t.Fatalf("namespace revision fence got %T %v, want CatalogConflict", err, err)
 	}
-	if e.catalog.state.Get(ns.Address) == oldNamespace || e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage || e.catalog.nextRevision != frontier || roleTableRef(t, e, "protected.t") != ref {
+	if e.catalog.state.Get(ns.Address) == oldNamespace || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || e.catalog.nextRevision != frontier || roleTableRef(t, e, "protected.t") != ref {
 		t.Fatal("namespace change not retained or failed rename published effects")
 	}
 	if _, exists := e.catalog.state.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: "renamed"}); exists {
@@ -116,7 +116,7 @@ func TestAlterRenameIfExistsUnauthorizedNamespace(t *testing.T) {
 	}
 	ref := roleTableRef(t, e, "protected.t")
 	old := e.catalog.state.Get(ref.Address)
-	storage := e.storage.relations[ref.Address]
+	storage := e.storage.Relations[ref.Address]
 	frontier := e.catalog.nextRevision
 	op, err := owner.Acquire(context.Background())
 	if err != nil {
@@ -134,7 +134,7 @@ func TestAlterRenameIfExistsUnauthorizedNamespace(t *testing.T) {
 			t.Fatal("unauthorized namespace emitted skip notice", notices)
 		}
 	}
-	if e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage || e.catalog.nextRevision != frontier {
+	if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || e.catalog.nextRevision != frontier {
 		t.Fatal("unauthorized conditional mutated source")
 	}
 	lockEmpty(t, e)

@@ -43,7 +43,7 @@ func (s *StatementScope) insertOwnRow(ref ids.ObjectRef, id ids.RowID) (rowVersi
 	if slots == nil {
 		slots = make(map[ids.RowID]int, len(s.ownWrites[ref.Address]))
 		for slot, row := range s.ownWrites[ref.Address] {
-			slots[row.row] = slot
+			slots[row.Row] = slot
 		}
 		c.ownRowSlots[ref.Address] = slots
 	}
@@ -107,11 +107,11 @@ func (s *StatementScope) probeInsertWriteOverlay(ref ids.ObjectRef, bound *uniqu
 		for _, slot := range slots {
 			row := rows[slot]
 			if overlayIndex == 1 {
-				if _, shadowed := c.affectedRows[row.row]; shadowed {
+				if _, shadowed := c.affectedRows[row.Row]; shadowed {
 					continue
 				}
 			}
-			if uniqueRowExcluded(row.row, excluded) || uniqueRowDeleted(row.row, s.ownDeletes[ref.Address]) || uniqueRowDeleted(row.row, s.stage.deletes[ref.Address]) {
+			if uniqueRowExcluded(row.Row, excluded) || uniqueRowDeleted(row.Row, s.ownDeletes[ref.Address]) || uniqueRowDeleted(row.Row, s.stage.deletes[ref.Address]) {
 				continue
 			}
 			matches, err := s.matchesExistingUnique(bound, row, evaluation, key, purpose)

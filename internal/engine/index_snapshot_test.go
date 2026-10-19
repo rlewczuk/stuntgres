@@ -25,13 +25,13 @@ func TestDomainCheckIndexSnapshotTransport(t *testing.T) {
 						run(t, source, query)
 					}
 					sequence := roleTableRef(t, source, "steps").Address
-					if source.storage.sequences[sequence].last != 2 {
-						t.Fatal("index event replayed before snapshot", source.storage.sequences[sequence].last)
+					if source.storage.Sequences[sequence].Last != 2 {
+						t.Fatal("index event replayed before snapshot", source.storage.Sequences[sequence].Last)
 					}
 					indexAddress := roleTableRef(t, source, "checked_idx").Address
 					parentAddress := roleTableRef(t, source, "subject").Address
-					oldRoot, oldStore := source.storage.indexRoots[indexAddress], source.storage.relations[parentAddress]
-					oldRows := slices.Clone(oldStore.versions)
+					oldRoot, oldStore := source.storage.IndexRoots[indexAddress], source.storage.Relations[parentAddress]
+					oldRows := slices.Clone(oldStore.Versions)
 					target := New()
 					if self {
 						target = source
@@ -40,39 +40,39 @@ func TestDomainCheckIndexSnapshotTransport(t *testing.T) {
 						t.Fatal(err)
 					}
 					importedSequence := roleTableRef(t, target, "steps").Address
-					if target.storage.sequences[importedSequence].last != 2 || source.storage.sequences[sequence].last != 2 {
+					if target.storage.Sequences[importedSequence].Last != 2 || source.storage.Sequences[sequence].Last != 2 {
 						t.Fatal("snapshot replayed CHECK SQL")
 					}
-					newStore := target.storage.relations[roleTableRef(t, target, "subject").Address]
-					newRoot := target.storage.indexRoots[roleTableRef(t, target, "checked_idx").Address]
-					if len(newStore.versions) != 1 || newRoot == oldRoot || newStore == oldStore {
+					newStore := target.storage.Relations[roleTableRef(t, target, "subject").Address]
+					newRoot := target.storage.IndexRoots[roleTableRef(t, target, "checked_idx").Address]
+					if len(newStore.Versions) != 1 || newRoot == oldRoot || newStore == oldStore {
 						t.Fatal("snapshot retained old physical authority")
 					}
 					parent := target.catalog.state.MustRelation(roleTableRef(t, target, "subject").Address)
-					if newRoot.hash != nil {
+					if newRoot.Hash != nil {
 						count := 0
-						for _, bucket := range newRoot.hash.buckets {
+						for _, bucket := range newRoot.Hash.Buckets {
 							for _, entry := range bucket {
 								count++
-								if entry.position != 0 || entry.row != newStore.versions[0].row || entry.version != newStore.versions[0].version {
+								if entry.Position != 0 || entry.Row != newStore.Versions[0].Row || entry.Version != newStore.Versions[0].Version {
 									t.Fatal("hash entry retained source identities or positions")
 								}
-								if entry.key.Type() != parent.Columns[0].Usage.Type {
+								if entry.Key.Type() != parent.Columns[0].Usage.Type {
 									t.Fatal("hash datum retained foreign type generation")
 								}
 							}
 						}
-						if count != 1 || newRoot.hash.storage != newStore {
+						if count != 1 || newRoot.Hash.Storage != newStore {
 							t.Fatal("hash snapshot coverage or storage authority")
 						}
-					} else if len(newRoot.entries) != 1 || newRoot.entries[0].position != 0 || newRoot.entries[0].row != newStore.versions[0].row || newRoot.entries[0].version != newStore.versions[0].version {
+					} else if len(newRoot.Entries) != 1 || newRoot.Entries[0].Position != 0 || newRoot.Entries[0].Row != newStore.Versions[0].Row || newRoot.Entries[0].Version != newStore.Versions[0].Version {
 						t.Fatal("btree snapshot retained source identities or positions")
 					}
-					if newRoot.hash == nil && newRoot.entries[0].keys[0].Type() != parent.Columns[0].Usage.Type {
+					if newRoot.Hash == nil && newRoot.Entries[0].Keys[0].Type() != parent.Columns[0].Usage.Type {
 						t.Fatal("btree datum retained foreign type generation")
 					}
 					for i, row := range oldRows {
-						if row.row != oldStore.versions[i].row || row.version != oldStore.versions[i].version {
+						if row.Row != oldStore.Versions[i].Row || row.Version != oldStore.Versions[i].Version {
 							t.Fatal("snapshot mutated source headers")
 						}
 					}
@@ -85,26 +85,26 @@ func TestDomainCheckIndexSnapshotTransport(t *testing.T) {
 func TestDomainCheckIndexSnapshotRejectsMissingAndMalformedRoots(t *testing.T) {
 	f := newPartialIndexFixture(t)
 	ctx := context.Background()
-	if _, err := f.e.captureIndexSnapshot(ctx, f.e.CatalogRead(), f.e.storage.relations, nil, f.e.commitSeq); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := f.e.captureIndexSnapshot(ctx, f.e.CatalogRead(), f.e.storage.Relations, nil, f.e.commitSeq); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("missing root accepted", err)
 	}
-	original := f.e.storage.indexRoots[f.index.Address()]
+	original := f.e.storage.IndexRoots[f.index.Address()]
 	malformed := *original
-	malformed.entries = slices.Clone(original.entries)
-	malformed.entries[0].position = len(f.store.versions)
+	malformed.Entries = slices.Clone(original.Entries)
+	malformed.Entries[0].Position = len(f.store.Versions)
 	roots := map[ids.ObjectAddress]*logicalIndexRoot{f.index.Address(): &malformed}
-	previous := f.e.storage.indexRoots
-	f.e.storage.indexRoots = roots
-	if _, err := f.e.captureIndexSnapshot(ctx, f.e.CatalogRead(), f.e.storage.relations, roots, f.e.commitSeq); !errors.Is(err, ids.ErrCatalogReplaced) {
+	previous := f.e.storage.IndexRoots
+	f.e.storage.IndexRoots = roots
+	if _, err := f.e.captureIndexSnapshot(ctx, f.e.CatalogRead(), f.e.storage.Relations, roots, f.e.commitSeq); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("malformed source provenance accepted", err)
 	}
-	f.e.storage.indexRoots = previous
-	if original.entries[0].position == malformed.entries[0].position {
+	f.e.storage.IndexRoots = previous
+	if original.Entries[0].Position == malformed.Entries[0].Position {
 		t.Fatal("rejection mutated source")
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	if _, err := f.e.captureIndexSnapshot(canceled, f.e.CatalogRead(), f.e.storage.relations, f.e.storage.indexRoots, f.e.commitSeq); !errors.Is(err, context.Canceled) {
+	if _, err := f.e.captureIndexSnapshot(canceled, f.e.CatalogRead(), f.e.storage.Relations, f.e.storage.IndexRoots, f.e.commitSeq); !errors.Is(err, context.Canceled) {
 		t.Fatal("cancellation lost", err)
 	}
 }

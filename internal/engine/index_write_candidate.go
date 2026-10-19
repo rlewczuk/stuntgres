@@ -80,17 +80,8 @@ func (b indexWriteBatch) slice(first, last int) indexWriteBatch {
 	return b
 }
 
-// This is an already produced index membership/key, not a CHECK result. Only
-// immutable descriptor authority and physical index data cross publication.
-type indexRowOutput struct {
-	index  *catalog.Relation
-	member bool
-	keys   []sqltype.Value
-	key    sqltype.Value // Hash indexes retain one scalar, not a one-element slice.
-}
-
-func (r indexRowOutput) matches(index *catalog.Relation) bool {
-	return r.index != nil && sameIndexKeySemantics(r.index, index)
+func indexOutputMatches(r indexRowOutput, index *catalog.Relation) bool {
+	return r.Index != nil && sameIndexKeySemantics(r.Index, index)
 }
 
 func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *EvalContext, precheck bool, purpose indexProbePurpose) (bool, []sqltype.Value, error) {
@@ -110,14 +101,14 @@ func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *Ev
 		shared = &r.sharedPrecheck
 	}
 	if output, ok := (*outputs)[index.Address()]; ok {
-		if !output.matches(index) {
+		if !indexOutputMatches(output, index) {
 			return false, nil, ids.ErrCatalogReplaced
 		}
-		if index.SQLIndex.Method == catalog.HashMethod && output.member {
-			bound.scratch[0] = output.key
+		if index.SQLIndex.Method == catalog.HashMethod && output.Member {
+			bound.scratch[0] = output.Key
 			return true, bound.scratch, nil
 		}
-		return output.member, output.keys, nil
+		return output.Member, output.Keys, nil
 	}
 	if purpose == indexProbeRevalidation {
 		return false, nil, ids.ErrCatalogReplaced
@@ -126,16 +117,16 @@ func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *Ev
 	if err != nil {
 		return false, nil, err
 	}
-	output := indexRowOutput{index: index, member: member}
+	output := indexRowOutput{Index: index, Member: member}
 	if member {
 		if index.SQLIndex.Method == catalog.HashMethod {
 			if err := bound.fillKeys(r.values, bound.scratch, evaluation); err != nil {
 				return false, nil, err
 			}
-			output.key = bound.scratch[0]
+			output.Key = bound.scratch[0]
 		} else {
-			output.keys = make([]sqltype.Value, len(bound.ordering.keys))
-			if err := bound.fillKeys(r.values, output.keys, evaluation); err != nil {
+			output.Keys = make([]sqltype.Value, len(bound.ordering.keys))
+			if err := bound.fillKeys(r.values, output.Keys, evaluation); err != nil {
 				return false, nil, err
 			}
 		}
@@ -150,7 +141,7 @@ func (r *indexWriteCandidate) uniqueOutput(bound *uniqueBoundKey, evaluation *Ev
 	if index.SQLIndex.Method == catalog.HashMethod && member {
 		return true, bound.scratch, nil
 	}
-	return member, output.keys, nil
+	return member, output.Keys, nil
 }
 
 func (r *indexWriteCandidate) matchesUnique(bound *uniqueBoundKey, evaluation *EvalContext, key []sqltype.Value) (bool, error) {
@@ -161,7 +152,7 @@ func (r *indexWriteCandidate) matchesUnique(bound *uniqueBoundKey, evaluation *E
 	if err != nil || !member {
 		return false, err
 	}
-	cmp, err := bound.ordering.compareKeys(evaluation.Context, logicalIndexEntry{keys: produced}, logicalIndexEntry{keys: key})
+	cmp, err := bound.ordering.compareKeys(evaluation.Context, logicalIndexEntry{Keys: produced}, logicalIndexEntry{Keys: key})
 	return cmp == 0, err
 }
 
@@ -186,14 +177,14 @@ func (s *StatementScope) validateIndexCandidates(ref ids.ObjectRef, batch *index
 		outputs := batch.candidate(i).indexes
 		for j := range binding.keys {
 			index := binding.keys[j].index
-			if output, exists := outputs[index.Address()]; !exists || !output.matches(index) {
+			if output, exists := outputs[index.Address()]; !exists || !indexOutputMatches(output, index) {
 				return ids.ErrCatalogReplaced
 			}
 		}
 		for j := range binding.insertion {
 			insertion := &binding.insertion[j]
 			if insertion.unique == nil {
-				if output, exists := outputs[insertion.index.Address()]; !exists || !output.matches(insertion.index) {
+				if output, exists := outputs[insertion.index.Address()]; !exists || !indexOutputMatches(output, insertion.index) {
 					return ids.ErrCatalogReplaced
 				}
 			}
@@ -207,7 +198,7 @@ func materializeIndexOutput(evaluation *EvalContext, preparation *indexExecution
 		hash = nil
 	}
 	member, err := preparation.predicateMatches(evaluation, parent, index.SQLIndex, values, ordering, hash)
-	output := indexRowOutput{index: index, member: member}
+	output := indexRowOutput{Index: index, Member: member}
 	if err != nil || !member {
 		return output, err
 	}
@@ -220,10 +211,10 @@ func materializeIndexOutput(evaluation *EvalContext, preparation *indexExecution
 		return output, err
 	}
 	if index.SQLIndex.Method == catalog.HashMethod {
-		output.key, err = extractIndexKey(hash.slot, hash.expression, values, evaluation)
+		output.Key, err = extractIndexKey(hash.Slot, hash.Expression, values, evaluation)
 	} else {
-		output.keys = make([]sqltype.Value, len(ordering.keys))
-		err = ordering.fillKeys(values, output.keys, evaluation)
+		output.Keys = make([]sqltype.Value, len(ordering.keys))
+		err = ordering.fillKeys(values, output.Keys, evaluation)
 	}
 	return output, err
 }
@@ -231,24 +222,24 @@ func materializeIndexOutput(evaluation *EvalContext, preparation *indexExecution
 func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVersion, evaluation *EvalContext, purpose indexProbePurpose) (bool, []sqltype.Value, error) {
 	index := bound.index
 	read := func(output indexRowOutput) (bool, []sqltype.Value, error) {
-		if !output.matches(index) {
+		if !indexOutputMatches(output, index) {
 			return false, nil, ids.ErrCatalogReplaced
 		}
-		if index.SQLIndex.Method == catalog.HashMethod && output.member {
-			bound.scratch[0] = output.key
+		if index.SQLIndex.Method == catalog.HashMethod && output.Member {
+			bound.scratch[0] = output.Key
 			return true, bound.scratch, nil
 		}
-		return output.member, output.keys, nil
+		return output.Member, output.Keys, nil
 	}
-	if output, exists := row.indexOutputs[index.Address()]; exists {
+	if output, exists := row.IndexOutputs[index.Address()]; exists {
 		return read(output)
 	}
-	identity := indexRowIdentity{row: row.row, version: row.version}
+	identity := indexRowIdentity{row: row.Row, version: row.Version}
 	if output, exists := s.existingIndexOutputs[index.Address()][identity]; exists {
 		return read(output)
 	}
 	if !index.SQLIndex.HasRuntimeDomainConversion() && purpose != indexProbeRevalidation {
-		member, err := bound.preparation.predicateMatches(evaluation, bound.parent, index.SQLIndex, row.values, &bound.ordering, nil)
+		member, err := bound.preparation.predicateMatches(evaluation, bound.parent, index.SQLIndex, row.Values, &bound.ordering, nil)
 		if err != nil {
 			return false, nil, err
 		}
@@ -258,19 +249,19 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 			}
 			// The active proposal owns bound.key throughout this probe.
 			// Existing-row bucket population must not overwrite that key.
-			err := bound.fillKeys(row.values, bound.scratch, evaluation)
+			err := bound.fillKeys(row.Values, bound.scratch, evaluation)
 			return true, bound.scratch, err
 		}
-		output := indexRowOutput{index: index, member: member}
+		output := indexRowOutput{Index: index, Member: member}
 		if member {
 			if index.SQLIndex.Method == catalog.HashMethod {
-				if err := bound.fillKeys(row.values, bound.scratch, evaluation); err != nil {
+				if err := bound.fillKeys(row.Values, bound.scratch, evaluation); err != nil {
 					return false, nil, err
 				}
-				output.key = bound.scratch[0]
+				output.Key = bound.scratch[0]
 			} else {
-				output.keys = make([]sqltype.Value, len(bound.ordering.keys))
-				if err := bound.fillKeys(row.values, output.keys, evaluation); err != nil {
+				output.Keys = make([]sqltype.Value, len(bound.ordering.keys))
+				if err := bound.fillKeys(row.Values, output.Keys, evaluation); err != nil {
 					return false, nil, err
 				}
 			}
@@ -278,7 +269,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 		s.retainExistingIndexOutput(index, row, output)
 		return read(output)
 	}
-	if purpose == indexProbeRevalidation && row.born == 0 {
+	if purpose == indexProbeRevalidation && row.Born == 0 {
 		return false, nil, ids.ErrCatalogReplaced
 	}
 	e := s.op.session.Engine()
@@ -289,7 +280,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 		e.mu.Unlock()
 		return false, nil, ids.ErrCatalogReplaced
 	}
-	root := e.storage.indexRoots[index.Address()]
+	root := e.storage.IndexRoots[index.Address()]
 	if changes := s.owner.catalog; changes != nil && changes.uniqueRoots[index.Address()] != nil {
 		root = changes.uniqueRoots[index.Address()]
 	}
@@ -298,110 +289,110 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row rowVers
 		return false, nil, fmt.Errorf("stuntgres: existing index root is missing")
 	}
 	if purpose == indexProbeRevalidation {
-		if root.hash != nil {
-			if root.hash.rowEntries != nil {
-				entry := root.hash.rowEntries[row.row]
+		if root.Hash != nil {
+			if root.Hash.RowEntries != nil {
+				entry := root.Hash.RowEntries[row.Row]
 				if entry == nil {
 					return false, nil, nil
 				}
-				if entry.version != row.version {
+				if entry.Version != row.Version {
 					return false, nil, ids.ErrCatalogReplaced
 				}
-				bound.scratch[0] = entry.key
+				bound.scratch[0] = entry.Key
 				return true, bound.scratch, nil
 			}
-			for _, bucket := range root.hash.buckets {
+			for _, bucket := range root.Hash.Buckets {
 				for _, entry := range bucket {
-					if entry.row == row.row {
-						if entry.version != row.version {
+					if entry.Row == row.Row {
+						if entry.Version != row.Version {
 							return false, nil, ids.ErrCatalogReplaced
 						}
-						bound.scratch[0] = entry.key
+						bound.scratch[0] = entry.Key
 						return true, bound.scratch, nil
 					}
 				}
 			}
 		} else {
-			if index.SQLIndex.Predicate != nil && root.membership[row.row] != row.version {
+			if index.SQLIndex.Predicate != nil && root.Membership[row.Row] != row.Version {
 				return false, nil, nil
 			}
-			if root.rowEntries != nil {
-				ordinal, exists := root.rowEntries[row.row]
-				if !exists || ordinal < 0 || ordinal >= len(root.entries) {
+			if root.RowEntries != nil {
+				ordinal, exists := root.RowEntries[row.Row]
+				if !exists || ordinal < 0 || ordinal >= len(root.Entries) {
 					return false, nil, ids.ErrCatalogReplaced
 				}
-				entry := root.entries[ordinal]
-				if entry.row != row.row || entry.version != row.version {
+				entry := root.Entries[ordinal]
+				if entry.Row != row.Row || entry.Version != row.Version {
 					return false, nil, ids.ErrCatalogReplaced
 				}
-				return true, entry.keys, nil
+				return true, entry.Keys, nil
 			}
-			for _, entry := range root.entries {
-				if entry.row == row.row {
-					if entry.version != row.version {
+			for _, entry := range root.Entries {
+				if entry.Row == row.Row {
+					if entry.Version != row.Version {
 						return false, nil, ids.ErrCatalogReplaced
 					}
-					return true, entry.keys, nil
+					return true, entry.Keys, nil
 				}
 			}
 		}
 		return false, nil, nil
 	}
-	if root.hash != nil {
+	if root.Hash != nil {
 		if !index.SQLIndex.HasRuntimeDomainKeyConversion() {
-			if err := bound.ordering.fillKeys(row.values, bound.scratch, evaluation); err != nil {
+			if err := bound.ordering.fillKeys(row.Values, bound.scratch, evaluation); err != nil {
 				return false, nil, err
 			}
 			if bound.scratch[0].IsNull() {
 				return false, nil, nil
 			}
-			h, err := root.hash.binding.provider.Hash(evaluation.Context, bound.scratch[0])
+			h, err := root.Hash.Binding.Provider.Hash(evaluation.Context, bound.scratch[0])
 			if err != nil {
 				return false, nil, err
 			}
-			for _, entry := range root.hash.buckets[h] {
-				if entry.row == row.row && entry.version == row.version {
+			for _, entry := range root.Hash.Buckets[h] {
+				if entry.Row == row.Row && entry.Version == row.Version {
 					return true, bound.scratch, nil
 				}
 			}
 			return false, nil, nil
 		}
-		entry := root.hash.rowEntries[row.row]
+		entry := root.Hash.RowEntries[row.Row]
 		if entry == nil {
 			return false, nil, nil
 		}
-		if entry.row != row.row || entry.version != row.version {
+		if entry.Row != row.Row || entry.Version != row.Version {
 			return false, nil, fmt.Errorf("stuntgres: existing hash key version changed")
 		}
-		bound.scratch[0] = entry.key
+		bound.scratch[0] = entry.Key
 		return true, bound.scratch, nil
 	}
-	if index.SQLIndex.Predicate != nil && root.membership[row.row] != row.version {
+	if index.SQLIndex.Predicate != nil && root.Membership[row.Row] != row.Version {
 		return false, nil, nil
 	}
 	if index.SQLIndex.HasRuntimeDomainKeyConversion() {
-		ordinal, ok := root.rowEntries[row.row]
-		if !ok || ordinal < 0 || ordinal >= len(root.entries) {
+		ordinal, ok := root.RowEntries[row.Row]
+		if !ok || ordinal < 0 || ordinal >= len(root.Entries) {
 			return false, nil, fmt.Errorf("stuntgres: existing index key identity is missing")
 		}
-		entry := root.entries[ordinal]
-		if entry.row != row.row || entry.version != row.version {
+		entry := root.Entries[ordinal]
+		if entry.Row != row.Row || entry.Version != row.Version {
 			return false, nil, fmt.Errorf("stuntgres: existing index key version changed")
 		}
-		return true, entry.keys, nil
+		return true, entry.Keys, nil
 	}
-	err := bound.ordering.fillKeys(row.values, bound.scratch, evaluation)
+	err := bound.ordering.fillKeys(row.Values, bound.scratch, evaluation)
 	return true, bound.scratch, err
 }
 
 func (s *StatementScope) matchesExistingUnique(bound *uniqueBoundKey, row rowVersion, evaluation *EvalContext, key []sqltype.Value, purpose indexProbePurpose) (bool, error) {
-	if purpose == indexProbeRuntime && !bound.index.SQLIndex.HasRuntimeDomainConversion() && row.indexOutputs == nil {
-		return bound.matches(evaluation, row.values, key)
+	if purpose == indexProbeRuntime && !bound.index.SQLIndex.HasRuntimeDomainConversion() && row.IndexOutputs == nil {
+		return bound.matches(evaluation, row.Values, key)
 	}
 	member, produced, err := s.existingUniqueOutput(bound, row, evaluation, purpose)
 	if err != nil || !member {
 		return false, err
 	}
-	cmp, err := bound.ordering.compareKeys(evaluation.Context, logicalIndexEntry{keys: produced}, logicalIndexEntry{keys: key})
+	cmp, err := bound.ordering.compareKeys(evaluation.Context, logicalIndexEntry{Keys: produced}, logicalIndexEntry{Keys: key})
 	return cmp == 0, err
 }

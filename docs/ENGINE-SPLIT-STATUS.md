@@ -5,11 +5,11 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `b9579b397`.
+Last verified against `master` at `6421cbaca`.
 
 ## Next ready sub-steps
 
-- **6b** — `storage` created and types moved (needs 6a ✓).
+- **6c** — `storage` aliases removed (needs 6b ✓) *(broad rewrite)*.
 - **B0** — `access` refined and approved, no code changes (needs 5e ✓).
 
 They may run in parallel on separate branches (§8).
@@ -139,7 +139,9 @@ They may run in parallel on separate branches (§8).
   - [x] 6a — `storageStore` state ownership (`79c8a6f3a`, `d6bbc8a3e`,
     then the docs commit) *(racecheck skipped at user request; targeted
     RACE=1 runs passed)*
-  - [ ] 6b — `storage` created and types moved
+  - [x] 6b — `storage` created and types moved (`c001ffa28`, `af2501215`,
+    then the docs commit) *(racecheck skipped at user request; targeted
+    RACE=1 runs passed)*
   - [ ] 6c — Aliases removed *(broad rewrite)*
 - [ ] **Step 7 — `visibility`** ([prompt](ENGINE-SPLIT-visibility.md); needs
   4 and 6 complete)

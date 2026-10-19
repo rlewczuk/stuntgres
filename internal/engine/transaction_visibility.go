@@ -164,7 +164,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 	}
 	for _, ref := range refs {
 		storage := e.privateStorageLocked(s.owner.catalog, ref.Address)
-		versions, ends := storage.versions, storage.ends
+		versions, ends := storage.Versions, storage.Ends
 		needsBirthFilter := false
 		var rewrite catalogStorageChange
 		if s.owner.catalog != nil {
@@ -174,7 +174,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 			root, exists := s.owner.roots[ref.Address]
 			if exists {
 				current, ok := e.catalog.state.Relation(ref.Address)
-				live := e.storage.relations[ref.Address]
+				live := e.storage.Relations[ref.Address]
 				if !ok || !sameRelationRowShape(root.relation, current) {
 					return nil, ids.ErrCatalogReplaced
 				}
@@ -185,7 +185,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 					// its end markers, not the new incarnation with a birth filter.
 					versions, ends = root.versions, root.ends
 				} else {
-					if !sameTruncateLineage(root.storage, live) {
+					if !root.storage.SameTruncateLineage(live) {
 						return nil, ids.ErrCatalogReplaced
 					}
 					needsBirthFilter = true

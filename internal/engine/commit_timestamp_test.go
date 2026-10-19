@@ -157,12 +157,12 @@ func TestCommitTimePublication(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						versions, err := e.storage.allocateRowVersionsLocked([][]sqltype.Value{{value}}, e.catalog.state)
+						versions, err := e.storage.AllocateRowVersionsLocked([][]sqltype.Value{{value}}, e.catalog.state)
 						if err != nil {
 							t.Fatal(err)
 						}
 						writes = map[ids.ObjectAddress][]rowVersion{d.Address(): versions}
-						rowStore = e.storage.relations[d.Address()]
+						rowStore = e.storage.Relations[d.Address()]
 					}
 				}
 				barrier := &transactionBarrierContext{Context: ctx, entered: make(chan struct{}), release: make(chan struct{})}
@@ -215,7 +215,7 @@ func TestCommitTimePublication(t *testing.T) {
 				observed := make(chan [3]bool, 1)
 				go func() {
 					e.mu.Lock()
-					snapshot := [3]bool{e.catalog.state != old, rowStore != nil && len(rowStore.versions) != 0, e.lastCommittedXID == xid && e.commitTimestamps[uint64(xid)].present}
+					snapshot := [3]bool{e.catalog.state != old, rowStore != nil && len(rowStore.Versions) != 0, e.lastCommittedXID == xid && e.commitTimestamps[uint64(xid)].present}
 					e.mu.Unlock()
 					observed <- snapshot
 				}()

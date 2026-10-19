@@ -93,7 +93,7 @@ func TestIdentityCreateAtomicFailure(t *testing.T) {
 	defer done()
 	before := e.catalog.state
 	roleError(t, e, op, `CREATE TABLE bad(a INT GENERATED ALWAYS AS IDENTITY,b INT GENERATED ALWAYS AS IDENTITY(CACHE 0))`, "22023", "CACHE (0) must be greater than zero", "")
-	if e.catalog.state != before || len(e.storage.sequences) != 0 {
+	if e.catalog.state != before || len(e.storage.Sequences) != 0 {
 		t.Fatal("failed CREATE published identities")
 	}
 	roleExecute(t, e, op, `CREATE TABLE bad(id INT GENERATED ALWAYS AS IDENTITY)`)
@@ -127,7 +127,7 @@ func TestIdentityEarlyRowFailureConstrainsCompleteProjection(t *testing.T) {
 				t.Fatalf("diagnostic %#v (%v), want %#v", diagnostic, err, want)
 			}
 			ref := roleTableRef(t, e, "i")
-			if len(e.storage.relations[ref.Address].versions) != 0 {
+			if len(e.storage.Relations[ref.Address].Versions) != 0 {
 				t.Fatal("failed batch published rows")
 			}
 			assertValue := func(query string, want any) {
@@ -208,7 +208,7 @@ func TestIdentityDiscardedRuntimeConversionDemandBinding(t *testing.T) {
 				t.Fatal("unused or volatile runtime conversion preflighted", err)
 			}
 			sequence := roleTableRef(t, e, "i_id_seq")
-			if generator := e.storage.sequences[sequence.Address]; generator.last != 1 || generator.called {
+			if generator := e.storage.Sequences[sequence.Address]; generator.Last != 1 || generator.Called {
 				t.Fatal("binding/preflight generated identity", generator)
 			}
 		})

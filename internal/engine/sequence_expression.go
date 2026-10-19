@@ -528,9 +528,9 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		m = &sequenceMemory{}
 		session.sequences[ref.Address] = m
 	}
-	if m.generation != g.generation {
+	if m.generation != g.Generation {
 		m.remaining = 0
-		m.generation = g.generation
+		m.generation = g.Generation
 	}
 	var result int64
 	switch x.name {
@@ -573,7 +573,7 @@ func (x sequenceCallExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 				return sqltype.Value{}, err
 			}
 		}
-		g.last, g.called = result, called
+		g.Last, g.Called = result, called
 		m.remaining = 0
 		if called {
 			m.value, m.valid = result, true

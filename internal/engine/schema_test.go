@@ -27,10 +27,10 @@ func schemaRef(t *testing.T, e *Engine, name string) ids.ObjectRef {
 func schemaFail(t *testing.T, e *Engine, op *Operation, q, code string) {
 	t.Helper()
 	before := e.CatalogRead()
-	storage := e.storage.relations
+	storage := e.storage.Relations
 	_, err := e.Execute(op, statement(t, q), 0, nil)
 	state(t, err, code)
-	if e.CatalogRead().State() != before.State() || !reflect.DeepEqual(e.storage.relations, storage) {
+	if e.CatalogRead().State() != before.State() || !reflect.DeepEqual(e.storage.Relations, storage) {
 		t.Fatal("failure published catalog/storage", q)
 	}
 }
@@ -43,14 +43,14 @@ func TestSchemaLifecycleIdentityAndAtomicBatch(t *testing.T) {
 	}
 	ns := schemaRef(t, e, "s1")
 	table := roleTableRef(t, e, "s1.t")
-	store := e.storage.relations[table.Address]
+	store := e.storage.Relations[table.Address]
 	old := e.CatalogRead()
 	roleExecute(t, e, op, "SET search_path TO s1,s2")
 	roleExecute(t, e, op, "ALTER SCHEMA s1 RENAME TO renamed")
 	if got := schemaRef(t, e, "renamed"); got != ns {
 		t.Fatal("rename changed identity", got, ns)
 	}
-	if got := roleTableRef(t, e, "renamed.t"); got != table || e.storage.relations[got.Address] != store {
+	if got := roleTableRef(t, e, "renamed.t"); got != table || e.storage.Relations[got.Address] != store {
 		t.Fatal("rename changed table/storage")
 	}
 	if old.Get(ns.Address).Name() != "s1" {
@@ -63,7 +63,7 @@ func TestSchemaLifecycleIdentityAndAtomicBatch(t *testing.T) {
 	schemaFail(t, e, op, "DROP SCHEMA renamed,absent CASCADE", "3F000")
 	retained := roleExecute(t, e, op, "SELECT id FROM renamed.t")
 	roleExecute(t, e, op, "DROP SCHEMA renamed,renamed CASCADE")
-	if _, ok := e.storage.relations[table.Address]; ok {
+	if _, ok := e.storage.Relations[table.Address]; ok {
 		t.Fatal("orphan storage")
 	}
 	if got := tuples(retained); !reflect.DeepEqual(got, [][]driver.Value{{int64(7)}}) {

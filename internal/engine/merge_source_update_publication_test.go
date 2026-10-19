@@ -12,7 +12,7 @@ func TestMergeSourceUpdatePublication(t *testing.T) {
 	sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
 	sessionSQL(t, peer, "INSERT INTO t VALUES(1,10),(2,20)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	before := append([]rowVersion(nil), e.storage.relations[ref.Address].versions...)
+	before := append([]rowVersion(nil), e.storage.Relations[ref.Address].Versions...)
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -38,7 +38,7 @@ func TestMergeSourceUpdatePublication(t *testing.T) {
 	transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 110, 120)
 	lockEmpty(t, e)
 	for i, old := range before {
-		value, err := old.values[1].Integer()
+		value, err := old.Values[1].Integer()
 		if err != nil || value != int64((i+1)*10) {
 			t.Fatal("retained row changed", value, err)
 		}

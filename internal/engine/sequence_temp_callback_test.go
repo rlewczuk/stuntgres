@@ -109,7 +109,7 @@ func TestSequenceTemporaryRetirementPreservesPeerAnalysis(t *testing.T) {
 	owned := bd.sequences.constants[0].ref.Address
 	namespace := b.temporaryNamespace
 	retained := e.CatalogRead()
-	generators, storage := e.storage.sequences, e.storage.relations
+	generators, storage := e.storage.Sequences, e.storage.Relations
 	snapshot := sessionSQL(t, b, "SELECT last_value FROM owned_temp")
 	ast, description := sequencePreparedDescription(t, e, a, "SELECT nextval('s')")
 	held := func(want int64) {
@@ -135,10 +135,10 @@ func TestSequenceTemporaryRetirementPreservesPeerAnalysis(t *testing.T) {
 		t.Fatal("logical retirement changed global callback or epoch authority")
 	}
 	assertTemporaryNamespacePair(t, e, b.token, namespace)
-	if _, ok := e.catalog.state.Find(owned); ok || e.storage.sequences[owned] != nil || e.storage.relations[owned] != nil {
+	if _, ok := e.catalog.state.Find(owned); ok || e.storage.Sequences[owned] != nil || e.storage.Relations[owned] != nil {
 		t.Fatal("ended session leaked temporary relation or generator")
 	}
-	if _, ok := retained.Descriptor(owned); !ok || generators[owned] == nil || len(storage) != len(e.storage.relations) {
+	if _, ok := retained.Descriptor(owned); !ok || generators[owned] == nil || len(storage) != len(e.storage.Relations) {
 		t.Fatal("cleanup mutated retained catalog or generator map")
 	}
 	got := tuples(snapshot)

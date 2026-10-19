@@ -150,7 +150,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if scope.inheritanceAlter != nil {
 		changes = scope.inheritanceAlter.changes
 	}
-	original := e.storage.relations[ref.Address]
+	original := e.storage.Relations[ref.Address]
 	store := e.privateStorageLocked(changes, ref.Address)
 	if store == nil {
 		return fail(fmt.Errorf("stuntgres: relation storage is missing"))
@@ -161,9 +161,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		shape, exists = changes.storage[ref.Address]
 	}
 	if !exists {
-		shape = catalogStorageChange{original: original, root: original.versions, ends: original.ends, generation: original.generation, replacement: store, relation: old}
+		shape = catalogStorageChange{original: original, root: original.Versions, ends: original.Ends, generation: original.Generation, replacement: store, relation: old}
 	}
-	versions, ends, frontier := store.versions, store.ends, e.commitSeq
+	versions, ends, frontier := store.Versions, store.Ends, e.commitSeq
 	snapshot, snapshotExists := scope.owner.roots[ref.Address]
 	grantCatalog := e.catalog.state
 	schema := auth.catalog.Get(old.Namespace()).Name()
@@ -642,7 +642,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		shape = accumulated
 		store = accumulated.replacement
 		storageOwner = accumulated.relation
-		versions, ends = store.versions, store.ends
+		versions, ends = store.Versions, store.Ends
 	}
 	if len(fills) != 0 || len(shape.fills) != 0 {
 		shape.fills = maps.Clone(shape.fills)
@@ -687,7 +687,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		if err != nil {
 			return Result{}, err
 		}
-		versions, ends = replacement.versions, replacement.ends
+		versions, ends = replacement.Versions, replacement.Ends
 		shape.rewritten, shape.frontier = true, frontier
 		shape.snapshot, shape.hasSnapshot = nil, false
 	} else if !slices.Equal(storageOwner.Attributes, next.Attributes) {
@@ -696,7 +696,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			return Result{}, err
 		}
 		replacement = shape.replacement
-		versions, ends = replacement.versions, replacement.ends
+		versions, ends = replacement.Versions, replacement.Ends
 	}
 	for _, action := range s.Actions {
 		if action.Action != parser.DropConstraint {
@@ -811,7 +811,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	// changes. Include dependent holder stores as well as the directly altered row.
 	for address, rebound := range stage.rowShapes {
 		consumer := stage.Descriptors[address].(*catalog.Relation)
-		changes.storage[address] = catalogStorageChange{original: rebound.original, root: rebound.original.versions, ends: rebound.observedEnds, generation: rebound.generation, replacement: rebound.replacement, relation: consumer}
+		changes.storage[address] = catalogStorageChange{original: rebound.original, root: rebound.original.Versions, ends: rebound.observedEnds, generation: rebound.generation, replacement: rebound.replacement, relation: consumer}
 	}
 	// Keep the pre-callback originals; Reset cannot restamp captured authority.
 	e.mu.Lock()
@@ -898,7 +898,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if len(stage.generators) != 0 {
 		e.mu.Lock()
 		for address, generator := range stage.generators {
-			if memory := op.session.sequences[address]; memory != nil && memory.generation != generator.generation {
+			if memory := op.session.sequences[address]; memory != nil && memory.generation != generator.Generation {
 				memory.remaining = 0
 			}
 		}

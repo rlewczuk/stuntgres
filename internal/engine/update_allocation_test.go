@@ -42,25 +42,25 @@ func TestUpdateCoreSparseAllocation(t *testing.T) {
 		}
 		sessionSQL(t, s, q.String())
 		ref := catalogRef(t, e, e.CatalogRead(), "t")
-		before := e.storage.relations[ref.Address].versions
+		before := e.storage.Relations[ref.Address].Versions
 		zero = allocated(func() { sessionSQL(t, s, "UPDATE t SET v=2 WHERE FALSE") })
 		absent := allocated(func() { sessionSQL(t, s, "UPDATE t SET v=2 WHERE id=-1") })
 		if absent > zero {
 			zero = absent
 		}
-		if &before[0] != &e.storage.relations[ref.Address].versions[0] {
+		if &before[0] != &e.storage.Relations[ref.Address].Versions[0] {
 			t.Fatal("zero-match UPDATE replaced root")
 		}
 		sparse = allocated(func() { sessionSQL(t, s, "UPDATE t SET v=2 WHERE id=0") })
-		if len(e.storage.relations[ref.Address].versions) != n || testExport(before[0].values[1]) != int64(1) {
+		if len(e.storage.Relations[ref.Address].Versions) != n || testExport(before[0].Values[1]) != int64(1) {
 			t.Fatal("root retention/cardinality")
 		}
-		old := e.storage.relations[ref.Address].versions
+		old := e.storage.Relations[ref.Address].Versions
 		stage := []rowVersion{old[n-1]}
-		stage[0].version++
+		stage[0].Version++
 		private = allocated(func() {
 			next := mergePrivateRows(old, stage, true)
-			if len(next) != n || next[n-1].version != stage[0].version || old[n-1].version == stage[0].version {
+			if len(next) != n || next[n-1].Version != stage[0].Version || old[n-1].Version == stage[0].Version {
 				t.Fatal("private merge changed predecessor")
 			}
 		})
@@ -183,13 +183,13 @@ func TestUpdateCoreMultirowAllocation(t *testing.T) {
 			retained.Release()
 			t.Fatal("multirow UPDATE", n, result, err, finishErr)
 		}
-		current := e.storage.relations[bound.ref.Address].versions
+		current := e.storage.Relations[bound.ref.Address].Versions
 		if len(current) != n || len(old) != n {
 			retained.Release()
 			t.Fatal("replacement cardinality", n, len(current), len(old))
 		}
 		for i := range old {
-			if old[i].row != current[i].row || old[i].version == current[i].version || testExport(old[i].values[1]) != int64(1) || testExport(current[i].values[1]) != int64(2) {
+			if old[i].Row != current[i].Row || old[i].Version == current[i].Version || testExport(old[i].Values[1]) != int64(1) || testExport(current[i].Values[1]) != int64(2) {
 				retained.Release()
 				t.Fatal("retained view or replacement lineage", n, i)
 			}
@@ -215,7 +215,7 @@ func TestUpdateCoreStagedPrefixOverlap(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO t VALUES(1,1),(2,1)")
 	op, scope, bound, source := updateBoundSource(t, e, s, context.Background(), "UPDATE t SET v=v+1")
 	committed := source.committed
-	payload := append([]sqltype.Value(nil), committed[0].values...)
+	payload := append([]sqltype.Value(nil), committed[0].Values...)
 	var err error
 	payload[1], err = sqltype.Integer(payload[1].Type(), 11)
 	if err == nil {
@@ -236,15 +236,15 @@ func TestUpdateCoreStagedPrefixOverlap(t *testing.T) {
 	if err != nil || finishErr != nil || result.Count != 2 || result.Rows != nil {
 		t.Fatal("overlapping UPDATE", result, err, finishErr)
 	}
-	if len(earlier) != 1 || testExport(earlier[0].values[1]) != int64(11) || testExport(committed[0].values[1]) != int64(1) {
+	if len(earlier) != 1 || testExport(earlier[0].Values[1]) != int64(11) || testExport(committed[0].Values[1]) != int64(1) {
 		t.Fatal("replacement mutated retained action/source prefix")
 	}
-	current := e.storage.relations[bound.ref.Address].versions
+	current := e.storage.Relations[bound.ref.Address].Versions
 	if len(current) != 2 {
 		t.Fatal("overlap appended duplicate physical heads", len(current))
 	}
 	for i := range current {
-		if current[i].row != committed[i].row || testExport(current[i].values[1]) != int64(2) {
+		if current[i].Row != committed[i].Row || testExport(current[i].Values[1]) != int64(2) {
 			t.Fatal("frozen-source replacement result", i, current[i])
 		}
 	}

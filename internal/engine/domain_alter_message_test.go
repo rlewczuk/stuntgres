@@ -47,8 +47,8 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 			table := catalogRef(t, e, view, "stored")
 			domain := domainUnitType(t, view, "d")
 			sequence := catalogRef(t, e, view, "calls")
-			if e.storage.sequences[sequence.Address].last != 2 || domain.DomainChecks[0].NotValid || e.catalog.state != entry {
-				t.Fatal("selected truth count or private publication", e.storage.sequences[sequence.Address].last)
+			if e.storage.Sequences[sequence.Address].Last != 2 || domain.DomainChecks[0].NotValid || e.catalog.state != entry {
+				t.Fatal("selected truth count or private publication", e.storage.Sequences[sequence.Address].Last)
 			}
 			if kind == "private_create" && (changes.originals[domain.Address()] != nil || changes.storage[table.Address].original != nil) {
 				t.Fatal("private creation lacks honest committed absence")
@@ -88,19 +88,19 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 				}
 				done()
 			case "root", "length", "generation", "ends":
-				store := *e.storage.relations[table.Address]
+				store := *e.storage.Relations[table.Address]
 				switch kind {
 				case "length":
-					store.versions = append(append([]rowVersion(nil), store.versions...), rowVersion{row: 200, version: 200})
+					store.Versions = append(append([]rowVersion(nil), store.Versions...), rowVersion{Row: 200, Version: 200})
 				case "generation":
-					store.generation++
+					store.Generation++
 				case "ends":
-					store.ends = &deletionRoot{}
+					store.Ends = &deletionRoot{}
 				}
-				e.storage.relations[table.Address] = &store
+				e.storage.Relations[table.Address] = &store
 				fail = true
 			}
-			before, stores, roots, frontier := e.catalog.state, maps.Clone(e.storage.relations), maps.Clone(e.storage.indexRoots), e.commitSeq
+			before, stores, roots, frontier := e.catalog.state, maps.Clone(e.storage.Relations), maps.Clone(e.storage.IndexRoots), e.commitSeq
 			var err error
 			if kind == "cancel_before" || kind == "cancel_after" {
 				barrier := &batchPublicationContext{Context: message.op.ctx, e: e, s: s, entered: make(chan struct{}), release: make(chan struct{})}
@@ -149,7 +149,7 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 				err = message.end(nil)
 			}
 			if fail {
-				if err == nil || e.catalog.state != before || !maps.Equal(e.storage.relations, stores) || !maps.Equal(e.storage.indexRoots, roots) || e.commitSeq != frontier {
+				if err == nil || e.catalog.state != before || !maps.Equal(e.storage.Relations, stores) || !maps.Equal(e.storage.IndexRoots, roots) || e.commitSeq != frontier {
 					t.Fatal("message veto installed partial roots", err)
 				}
 				if kind == "cancel_before" && !errors.Is(err, context.Canceled) {
@@ -167,11 +167,11 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 				} else if len(current.DomainChecks) != 1 || current.DomainChecks[0].NotValid {
 					t.Fatal("message lost certified flag")
 				}
-				if len(e.storage.relations[table.Address].versions) != 2 {
+				if len(e.storage.Relations[table.Address].Versions) != 2 {
 					t.Fatal("message did not publish old plus own rows")
 				}
 			}
-			if e.storage.sequences[sequence.Address].last != expectedTruth {
+			if e.storage.Sequences[sequence.Address].Last != expectedTruth {
 				t.Fatal("outer publication replayed selected truth")
 			}
 		})
@@ -207,47 +207,47 @@ func domainAlterMessageIndexOutputs(t *testing.T) {
 			sequence := catalogRef(t, e, e.CatalogRead(), "calls").Address
 			oldIndex := e.catalog.state.MustRelation(index)
 			original := s.transactions.writes[parent][0]
-			output, ok := original.indexOutputs[index]
+			output, ok := original.IndexOutputs[index]
 			// Only actual executable conversions need frozen producer outputs;
 			// loading a plain domain-valued column is not a fresh conversion.
 			executable := definition.name != "domain_key"
-			if executable && (!ok || !output.member || !output.matches(oldIndex)) {
+			if executable && (!ok || !output.Member || !indexOutputMatches(output, oldIndex)) {
 				t.Fatal("SQL producer lost executable key/predicate output")
 			}
-			if e.storage.sequences[sequence].last != 2 {
+			if e.storage.Sequences[sequence].Last != 2 {
 				t.Fatal("setup CHECK event count")
 			}
 			step("ALTER DOMAIN public.d ADD CONSTRAINT never_replay CHECK(FALSE) NOT VALID")
 			view := e.privateCatalogLocked(s.transactions.catalog)
 			currentIndex := view.MustRelation(index)
 			pending := s.transactions.writes[parent]
-			if len(pending) != 1 || pending[0].row != original.row || pending[0].version != original.version {
+			if len(pending) != 1 || pending[0].Row != original.Row || pending[0].Version != original.Version {
 				t.Fatal("pending version identity changed")
 			}
 			if executable {
-				current, ok := pending[0].indexOutputs[index]
-				if !ok || !current.matches(currentIndex) || current.member != output.member || current.key != output.key || !slices.Equal(current.keys, output.keys) {
+				current, ok := pending[0].IndexOutputs[index]
+				if !ok || !indexOutputMatches(current, currentIndex) || current.Member != output.Member || current.Key != output.Key || !slices.Equal(current.Keys, output.Keys) {
 					t.Fatal("produced index key/membership was lost during pure generation transport")
 				}
-				if !original.indexOutputs[index].matches(oldIndex) {
+				if !indexOutputMatches(original.IndexOutputs[index], oldIndex) {
 					t.Fatal("retained producer output mutated")
 				}
 			}
-			if e.storage.sequences[sequence].last != 2 {
+			if e.storage.Sequences[sequence].Last != 2 {
 				t.Fatal("metadata truth replay")
 			}
 			if err := message.end(nil); err != nil {
 				t.Fatal("owner publication", err)
 			}
-			if e.storage.sequences[sequence].last != 2 {
+			if e.storage.Sequences[sequence].Last != 2 {
 				t.Fatal("owner publication replayed CHECK truth")
 			}
 			transactionRows(t, s, "SELECT v::integer AS v FROM public.stored ORDER BY v", 1, 2)
-			root := e.storage.indexRoots[index]
-			entries := len(root.entries)
-			if root.hash != nil {
+			root := e.storage.IndexRoots[index]
+			entries := len(root.Entries)
+			if root.Hash != nil {
 				entries = 0
-				for _, bucket := range root.hash.buckets {
+				for _, bucket := range root.Hash.Buckets {
 					entries += len(bucket)
 				}
 			}

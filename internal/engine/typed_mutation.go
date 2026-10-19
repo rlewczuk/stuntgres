@@ -134,7 +134,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		return nil
 	}
 	e.mu.Lock()
-	store := e.storage.relations[old.Address()]
+	store := e.storage.Relations[old.Address()]
 	frontier := e.commitSeq
 	e.mu.Unlock()
 	if store == nil {
@@ -190,28 +190,28 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		if projectionErr != nil {
 			return projectionErr
 		}
-		versions, projectionErr := projection.versions(scope.op.Context(), store.versions)
+		versions, projectionErr := projection.versions(scope.op.Context(), store.Versions)
 		if projectionErr != nil {
 			return projectionErr
 		}
-		if store.generation == ^uint64(0) {
+		if store.Generation == ^uint64(0) {
 			return fmt.Errorf("stuntgres: storage generation exhausted")
 		}
-		replacement = &relationStorage{versions: versions, ends: store.ends, generation: store.generation + 1}
+		replacement = &relationStorage{Versions: versions, Ends: store.Ends, Generation: store.Generation + 1}
 	}
 	if err != nil {
 		return err
 	}
 	if !rewrite && len(mutation.checks) != 0 {
 		evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output}
-		for _, row := range replacement.versions {
+		for _, row := range replacement.Versions {
 			if err := scope.op.Context().Err(); err != nil {
 				return err
 			}
-			if !liveVersion(row, frontier, replacement.ends, nil) {
+			if !liveVersion(row, frontier, replacement.Ends, nil) {
 				continue
 			}
-			if err := validator.validate(row.values, &evaluation); err != nil {
+			if err := validator.validate(row.Values, &evaluation); err != nil {
 				return err
 			}
 		}
@@ -241,14 +241,14 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 			if stage.indexCandidates == nil {
 				stage.indexCandidates = make(map[ids.ObjectAddress]indexRootCandidate)
 			}
-			stage.indexCandidates[build.index.Address()] = indexRootCandidate{index: build.index, root: build.root, storage: indexStorageIdentity(replacement), generation: replacement.generation, ends: replacement.ends, length: len(replacement.versions)}
+			stage.indexCandidates[build.index.Address()] = indexRootCandidate{index: build.index, root: build.root, storage: replacement.IndexIdentity(), generation: replacement.Generation, ends: replacement.Ends, length: len(replacement.Versions)}
 		}
 	}
 	if replacement != store {
 		if stage.rowShapes == nil {
 			stage.rowShapes = make(map[ids.ObjectAddress]catalogRowShape)
 		}
-		stage.rowShapes[old.Address()] = catalogRowShape{original: store, replacement: replacement, observedLength: len(store.versions), observedEnds: store.ends, generation: store.generation}
+		stage.rowShapes[old.Address()] = catalogRowShape{original: store, replacement: replacement, observedLength: len(store.Versions), observedEnds: store.Ends, generation: store.Generation}
 	}
 	if !rewrite && len(stage.indexLayouts) != 0 {
 		evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: e.stageRead(stage)}

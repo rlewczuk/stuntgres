@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/catalog"
@@ -26,15 +25,6 @@ func bindIndexProvider(parent *catalog.Relation, d *catalog.IndexDefinition) err
 	}
 }
 
-type hashIndexBinding struct {
-	slot       int
-	expression expr.Expr
-	derived    *catalog.DerivedIndexKey
-	usage      sqltype.Usage
-	class      sqltype.IndexClass
-	provider   sqltype.IndexHash
-}
-
 func bindHashIndex(parent *catalog.Relation, d *catalog.IndexDefinition) (hashIndexBinding, error) {
 	var b hashIndexBinding
 	if d.Method != catalog.HashMethod || len(d.Keys) != 1 || len(d.Include) != 0 || d.Unique {
@@ -56,20 +46,20 @@ func bindHashIndex(parent *catalog.Relation, d *catalog.IndexDefinition) (hashIn
 			return b, indexDefaultClassError(usage.Type.DiagnosticName(), d.Method)
 		}
 	}
-	b.provider, err = sqltype.BindIndexHash(usage, class)
+	b.Provider, err = sqltype.BindIndexHash(usage, class)
 	if err != nil {
 		return b, err
 	}
-	b.usage, b.class = usage, class
-	b.derived = key.Derived
+	b.Usage, b.Class = usage, class
+	b.Derived = key.Derived
 	if key.Derived != nil {
 		if key.Derived.Definition == nil || key.Derived.Execution == nil {
 			return b, fmt.Errorf("stuntgres: missing hash expression")
 		}
-		b.slot, b.expression = -1, key.Derived.Execution
+		b.Slot, b.Expression = -1, key.Derived.Execution
 	} else {
-		b.slot = slices.Index(parent.Attributes, key.Attribute)
-		if b.slot < 0 {
+		b.Slot = slices.Index(parent.Attributes, key.Attribute)
+		if b.Slot < 0 {
 			return b, fmt.Errorf("stuntgres: missing hash attribute")
 		}
 	}
@@ -85,29 +75,6 @@ func extractIndexKey(slot int, expression expr.Expr, values []sqltype.Value, eva
 	return expression.Eval(evaluation)
 }
 
-type hashIndexEntry struct {
-	key      sqltype.Value
-	row      ids.RowID
-	version  ids.VersionID
-	position int
-}
-type hashIndexRoot struct {
-	buckets    map[uint64][]hashIndexEntry
-	rowEntries map[ids.RowID]*hashIndexEntry
-	binding    hashIndexBinding
-	storage    *relationStorage
-	generation uint64
-	prefix     int
-	ends       *deletionRoot
-}
-
-func indexStorageIdentity(store *relationStorage) *relationStorage {
-	if store.indexSource != nil {
-		return store.indexSource
-	}
-	return store
-}
-
 func buildHashIndexRoot(evaluation *EvalContext, parent *catalog.Relation, d *catalog.IndexDefinition, store *relationStorage, materialize bool, capture *indexBuildCapture) (*logicalIndexRoot, error) {
 	ctx := evaluation.Context
 	binding, err := bindHashIndex(parent, d) // Eager even on empty/all-NULL input.
@@ -119,22 +86,22 @@ func buildHashIndexRoot(evaluation *EvalContext, parent *catalog.Relation, d *ca
 	}
 	var root *hashIndexRoot
 	if materialize {
-		root = &hashIndexRoot{buckets: make(map[uint64][]hashIndexEntry), binding: binding, storage: indexStorageIdentity(store), generation: store.generation, prefix: len(store.versions), ends: store.ends}
+		root = &hashIndexRoot{Buckets: make(map[uint64][]hashIndexEntry), Binding: binding, Storage: store.IndexIdentity(), Generation: store.Generation, Prefix: len(store.Versions), Ends: store.Ends}
 	}
 	var preparation indexExecutionPreparation
-	for position, row := range store.versions {
+	for position, row := range store.Versions {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if !liveVersion(row, ids.CommitSeq(^uint64(0)), store.ends, nil) {
+		if !liveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, nil) {
 			continue
 		}
-		matches, err := preparation.predicateMatches(evaluation, parent, d, row.values, nil, &binding)
+		matches, err := preparation.predicateMatches(evaluation, parent, d, row.Values, nil, &binding)
 		if err != nil {
 			return nil, err
 		}
 		if capture != nil {
-			capture.outputs[position] = indexRowOutput{index: capture.index, member: matches}
+			capture.outputs[position] = indexRowOutput{Index: capture.index, Member: matches}
 		}
 		if !matches {
 			continue
@@ -142,31 +109,31 @@ func buildHashIndexRoot(evaluation *EvalContext, parent *catalog.Relation, d *ca
 		if err := preparation.prepareKeys(evaluation, parent, d, nil, &binding); err != nil {
 			return nil, err
 		}
-		key, err := extractIndexKey(binding.slot, binding.expression, row.values, evaluation)
+		key, err := extractIndexKey(binding.Slot, binding.Expression, row.Values, evaluation)
 		if err != nil {
 			return nil, err
 		}
 		if capture != nil {
-			capture.outputs[position].key = key
+			capture.outputs[position].Key = key
 		}
 		if key.IsNull() {
 			continue
 		}
-		h, err := binding.provider.Hash(ctx, key)
+		h, err := binding.Provider.Hash(ctx, key)
 		if err != nil {
 			return nil, err
 		}
 		if materialize {
-			root.buckets[h] = append(root.buckets[h], hashIndexEntry{key: key, row: row.row, version: row.version, position: position})
+			root.Buckets[h] = append(root.Buckets[h], hashIndexEntry{Key: key, Row: row.Row, Version: row.Version, Position: position})
 		}
 	}
 	if !materialize {
 		return nil, ctx.Err()
 	}
-	if err := root.captureRowEntries(ctx, d); err != nil {
+	if err := root.CaptureRowEntries(ctx, d); err != nil {
 		return nil, err
 	}
-	return &logicalIndexRoot{hash: root}, ctx.Err()
+	return &logicalIndexRoot{Hash: root}, ctx.Err()
 }
 
 func publicationSlot(p *rowPublication, i int) int {
@@ -187,7 +154,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 	}
 	var binding hashIndexBinding
 	var preparation indexExecutionPreparation
-	if old == nil || old.hash == nil {
+	if old == nil || old.Hash == nil {
 		if materialize {
 			return nil, fmt.Errorf("stuntgres: missing hash root")
 		}
@@ -197,7 +164,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 			return nil, err
 		}
 	} else {
-		binding = old.hash.binding
+		binding = old.Hash.Binding
 		key := d.Keys[0]
 		usage, err := indexKeyUsage(parent, key)
 		if err != nil {
@@ -211,7 +178,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 		if key.Derived != nil {
 			slot = -1
 		}
-		if usage != binding.usage || class != binding.class || slot != binding.slot || key.Derived != binding.derived || key.Desc || key.NullsFirst {
+		if usage != binding.Usage || class != binding.Class || slot != binding.Slot || key.Derived != binding.Derived || key.Desc || key.NullsFirst {
 			binding, err = bindHashIndex(parent, d)
 			if err != nil {
 				return nil, err
@@ -231,13 +198,13 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 		if ended == nil {
 			ended = make(map[ids.RowID]ids.VersionID)
 		}
-		ended[row.row] = row.version
+		ended[row.Row] = row.Version
 		// A plain physical key can locate its bucket without evaluating SQL.
 		// Expression keys are located below by their stored entry identity.
-		if binding.expression == nil {
-			key := row.values[binding.slot]
+		if binding.Expression == nil {
+			key := row.Values[binding.Slot]
 			if !key.IsNull() {
-				h, err := binding.provider.Hash(ctx, key)
+				h, err := binding.Provider.Hash(ctx, key)
 				if err != nil {
 					return err
 				}
@@ -252,9 +219,9 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 		}
 		// The shared row owner validates predecessors in both phases. Ending
 		// an index version consumes stored index identity, never old-row SQL.
-		if row.base != 0 && materialize {
+		if row.Base != 0 && materialize {
 			position := publicationSlot(p, i)
-			if position < 0 || position >= len(p.root) || p.root[position].row != row.row || p.root[position].version != row.base {
+			if position < 0 || position >= len(p.root) || p.root[position].Row != row.Row || p.root[position].Version != row.Base {
 				return nil, fmt.Errorf("stuntgres: invalid hash update predecessor")
 			}
 			if err := end(p.root[position]); err != nil {
@@ -262,26 +229,26 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 			}
 		}
 		if p.deletion != nil {
-			if deletion, ok := p.deletion.rows[row.row]; ok && deletion.version == row.version {
+			if deletion, ok := p.deletion.rows[row.Row]; ok && deletion.version == row.Version {
 				continue
 			}
 		}
-		output, produced := row.indexOutputs[index.Address()]
-		produced = produced && output.matches(index)
+		output, produced := row.IndexOutputs[index.Address()]
+		produced = produced && indexOutputMatches(output, index)
 		if !reconstruct && !produced && !rowMaintainsIndex(row, index) {
 			continue
 		}
 		var key sqltype.Value
 		if produced {
-			if !output.member {
+			if !output.Member {
 				continue
 			}
-			key = output.key
+			key = output.Key
 		} else {
-			if d.HasRuntimeDomainConversion() && evaluation.liveScope() == nil && row.born == 0 {
+			if d.HasRuntimeDomainConversion() && evaluation.liveScope() == nil && row.Born == 0 {
 				return nil, fmt.Errorf("stuntgres: missing produced hash index row")
 			}
-			matches, err := preparation.predicateMatches(evaluation, parent, d, row.values, nil, &binding)
+			matches, err := preparation.predicateMatches(evaluation, parent, d, row.Values, nil, &binding)
 			if err != nil {
 				return nil, err
 			}
@@ -291,7 +258,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 			if err := preparation.prepareKeys(evaluation, parent, d, nil, &binding); err != nil {
 				return nil, err
 			}
-			key, err = extractIndexKey(binding.slot, binding.expression, row.values, evaluation)
+			key, err = extractIndexKey(binding.Slot, binding.Expression, row.Values, evaluation)
 			if err != nil {
 				return nil, err
 			}
@@ -299,7 +266,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 		if key.IsNull() {
 			continue
 		}
-		h, err := binding.provider.Hash(ctx, key)
+		h, err := binding.Provider.Hash(ctx, key)
 		if err != nil {
 			return nil, err
 		}
@@ -308,7 +275,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 			if added == nil {
 				added = make(map[uint64][]hashIndexEntry)
 			}
-			added[h] = append(added[h], hashIndexEntry{key: key, row: row.row, version: row.version, position: publicationSlot(p, i)})
+			added[h] = append(added[h], hashIndexEntry{Key: key, Row: row.Row, Version: row.Version, Position: publicationSlot(p, i)})
 		}
 	}
 	if p.deletion != nil && materialize {
@@ -317,7 +284,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 				continue
 			}
 			row, _, found := rowByID(p.root, id, deletion.ordinal)
-			if !found || row.version != deletion.version {
+			if !found || row.Version != deletion.version {
 				return nil, fmt.Errorf("stuntgres: invalid hash deletion predecessor")
 			}
 			if err := end(row); err != nil {
@@ -328,8 +295,8 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 	if !materialize {
 		return nil, ctx.Err()
 	}
-	if len(ended) != 0 && binding.expression != nil {
-		for h, bucket := range old.hash.buckets {
+	if len(ended) != 0 && binding.Expression != nil {
+		for h, bucket := range old.Hash.Buckets {
 			if touched[h] {
 				continue
 			}
@@ -337,17 +304,17 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 				if err := ctx.Err(); err != nil {
 					return nil, err
 				}
-				if ended[entry.row] == entry.version {
+				if ended[entry.Row] == entry.Version {
 					touch(h)
 					break
 				}
 			}
 		}
 	}
-	buckets := old.hash.buckets
+	buckets := old.Hash.Buckets
 	if len(touched) != 0 {
-		buckets = make(map[uint64][]hashIndexEntry, len(old.hash.buckets)+len(added))
-		for h, bucket := range old.hash.buckets {
+		buckets = make(map[uint64][]hashIndexEntry, len(old.Hash.Buckets)+len(added))
+		for h, bucket := range old.Hash.Buckets {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
@@ -355,13 +322,13 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 		}
 	}
 	for h := range touched {
-		bucket := old.hash.buckets[h]
+		bucket := old.Hash.Buckets[h]
 		next := make([]hashIndexEntry, 0, len(bucket)+len(added[h]))
 		for _, entry := range bucket {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			if ended[entry.row] != entry.version {
+			if ended[entry.Row] != entry.Version {
 				next = append(next, entry)
 			}
 		}
@@ -376,26 +343,9 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 	if p.nextEnds != nil {
 		ends = p.nextEnds
 	}
-	root := &hashIndexRoot{buckets: buckets, binding: binding, storage: p.store, generation: p.generation + 1, prefix: len(p.next), ends: ends}
-	if err := root.captureRowEntries(ctx, d); err != nil {
+	root := &hashIndexRoot{Buckets: buckets, Binding: binding, Storage: p.store, Generation: p.generation + 1, Prefix: len(p.next), Ends: ends}
+	if err := root.CaptureRowEntries(ctx, d); err != nil {
 		return nil, err
 	}
-	return &logicalIndexRoot{hash: root}, ctx.Err()
-}
-
-func (r *hashIndexRoot) captureRowEntries(ctx context.Context, d *catalog.IndexDefinition) error {
-	if !d.IsExclusion() || !d.HasRuntimeDomainKeyConversion() {
-		return nil
-	}
-	r.rowEntries = make(map[ids.RowID]*hashIndexEntry)
-	for _, bucket := range r.buckets {
-		for i := range bucket {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			entry := &bucket[i]
-			r.rowEntries[entry.row] = entry
-		}
-	}
-	return nil
+	return &logicalIndexRoot{Hash: root}, ctx.Err()
 }

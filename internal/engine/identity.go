@@ -183,7 +183,7 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *catalog.Relat
 	if restart != nil {
 		initial = *restart
 	}
-	stage.generators[address] = &sequenceGenerator{last: initial, generation: rev}
+	stage.generators[address] = &sequenceGenerator{Last: initial, Generation: rev}
 	return nil
 }
 

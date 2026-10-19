@@ -21,12 +21,12 @@ func TestPartialIndexUniqueTypeFinalMembershipBaseline(t *testing.T) {
 			// This is the effective final TYPE row image: the transformed predicate
 			// column admits a formerly excluded duplicate. The real retained predicate
 			// is evaluated against final Usage, not a mock expression or key validator.
-			store.versions[2].values[3] = store.versions[0].values[3]
+			store.Versions[2].Values[3] = store.Versions[0].Values[3]
 			var writes []rowVersion
 			var deletes *privateDeletionRoot
 			if overlay == "delete" {
-				r := store.versions[2]
-				deletes = &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{r.row: {ref: f.ref, storage: &store, row: r.row, version: r.version}}}
+				r := store.Versions[2]
+				deletes = &privateDeletionRoot{rows: map[ids.RowID]deleteCandidate{r.Row: {ref: f.ref, storage: &store, row: r.Row, version: r.Version}}}
 			}
 			if overlay == "outside_successor" || overlay == "member_successor" {
 				active := "false"
@@ -34,7 +34,7 @@ func TestPartialIndexUniqueTypeFinalMembershipBaseline(t *testing.T) {
 					active = "true"
 				}
 				r := partialUniqueRow(t, f, 1, "2001-02-03", "1", active)
-				r.row, r.base = store.versions[2].row, store.versions[2].version
+				r.Row, r.Base = store.Versions[2].Row, store.Versions[2].Version
 				writes = []rowVersion{r}
 			}
 			before := uniquePublicationStore(&store)
@@ -52,8 +52,8 @@ func TestPartialIndexUniqueTypeFinalMembershipBaseline(t *testing.T) {
 				if build == nil || build.root == nil || build.store == &store {
 					t.Fatal("successful overlay lost its produced root or compact layout", build)
 				}
-				for _, entry := range build.root.entries {
-					if entry.row == store.versions[2].row {
+				for _, entry := range build.root.Entries {
+					if entry.Row == store.Versions[2].Row {
 						t.Fatal("owner-invisible predecessor/excluded successor became an index member", entry)
 					}
 				}
@@ -69,7 +69,7 @@ func TestPartialIndexUniqueTypeFinalMembershipBaseline(t *testing.T) {
 func TestPartialIndexUniqueTypePrivateRootOwnership(t *testing.T) {
 	f := newPartialUniquePublication(t, true, false, "table")
 	baseline := uniquePublicationStore(f.stores[f.parent.Address()])
-	baseline.versions = slices.Clone(baseline.versions[:2])
+	baseline.Versions = slices.Clone(baseline.Versions[:2])
 	// Real candidate descriptor/predicate, separately owned private publication.
 	next := *f.index
 	definition := *f.index.SQLIndex
@@ -84,8 +84,8 @@ func TestPartialIndexUniqueTypePrivateRootOwnership(t *testing.T) {
 	if root == nil || root == f.roots[next.Address()] {
 		t.Fatal("private baseline borrowed committed root")
 	}
-	want := map[ids.RowID]ids.VersionID{baseline.versions[0].row: baseline.versions[0].version, baseline.versions[1].row: baseline.versions[1].version}
-	if !maps.Equal(root.membership, want) || len(root.entries) != 2 {
+	want := map[ids.RowID]ids.VersionID{baseline.Versions[0].Row: baseline.Versions[0].Version, baseline.Versions[1].Row: baseline.Versions[1].Version}
+	if !maps.Equal(root.Membership, want) || len(root.Entries) != 2 {
 		t.Fatal("private TYPE membership", root)
 	}
 	cloned := cloneCatalogChanges(changes)

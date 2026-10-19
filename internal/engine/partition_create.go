@@ -114,7 +114,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 				if storage == nil {
 					return ids.ErrCatalogReplaced
 				}
-				stage.partitionReads = append(stage.partitionReads, partitionReadFence{address: leaf.Address(), storage: storage, length: len(storage.versions), ends: storage.ends, generation: storage.generation})
+				stage.partitionReads = append(stage.partitionReads, partitionReadFence{address: leaf.Address(), storage: storage, length: len(storage.Versions), ends: storage.Ends, generation: storage.Generation})
 				return nil
 			})
 			if err != nil {
@@ -278,7 +278,7 @@ type partitionReadFence struct {
 func (e *Engine) partitionReadsValidLocked(stage *CatalogStage) bool {
 	for _, read := range stage.partitionReads {
 		current := e.stageStorageLocked(stage, read.address)
-		if current != read.storage || current == nil || len(current.versions) != read.length || current.ends != read.ends || current.generation != read.generation {
+		if current != read.storage || current == nil || len(current.Versions) != read.length || current.Ends != read.ends || current.Generation != read.generation {
 			return false
 		}
 	}

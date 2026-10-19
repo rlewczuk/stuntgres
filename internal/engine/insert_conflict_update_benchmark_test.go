@@ -98,7 +98,7 @@ func BenchmarkInsertConflictUpdateDistinctStage(b *testing.B) {
 						if i >= seedSize {
 							want = 1
 						}
-						if testExport(row.values[0]) != int64(i+1) || testExport(row.values[1]) != want {
+						if testExport(row.Values[0]) != int64(i+1) || testExport(row.Values[1]) != want {
 							b.Fatal("exact final row", i, row, want)
 						}
 					}

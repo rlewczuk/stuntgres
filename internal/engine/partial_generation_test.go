@@ -21,12 +21,12 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 				t.Fatal("admitted partial index did not retain a membership mask")
 			}
 			oldCatalog := f.e.catalog.state
-			oldRoot := f.e.storage.indexRoots[f.index.Address()]
-			oldRows := append([]rowVersion(nil), f.store.versions...)
+			oldRoot := f.e.storage.IndexRoots[f.index.Address()]
+			oldRows := append([]rowVersion(nil), f.store.Versions...)
 			oldPredicate := f.index.SQLIndex.Predicate
 			oldUsage := f.predicate.ResultUsage()
 			for i := range oldRows {
-				oldRows[i].values = append([]sqltype.Value(nil), oldRows[i].values...)
+				oldRows[i].Values = append([]sqltype.Value(nil), oldRows[i].Values...)
 			}
 			// Builtins returns fresh immutable concrete descriptors, as in the
 			// existing bound-expression generation fixtures. Do not copy a
@@ -104,19 +104,19 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 				if column.ResultUsage() != newUsage || column.origin != f.predicate.origin || column.scope != f.predicate.scope || column.frame != f.predicate.frame || column.slot != f.predicate.slot {
 					t.Error("predicate tree retained a stale usage or changed its reference/frame", column)
 				}
-				for i, row := range stores[f.parent.Address()].versions {
-					if row.values[1].Type() != current {
+				for i, row := range stores[f.parent.Address()].Versions {
+					if row.Values[1].Type() != current {
 						t.Fatal("row retained old BOOL generation", i)
 					}
-					value, err := node.Eval(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: row.values})
-					if err != nil || value != row.values[1] {
+					value, err := node.Eval(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: row.Values})
+					if err != nil || value != row.Values[1] {
 						t.Error("retyped predicate tree cannot evaluate its retyped row", i, value, err)
 					}
 				}
 			}
 			var preparation indexExecutionPreparation
-			for i, row := range stores[f.parent.Address()].versions {
-				matched, err := preparation.predicateMatches(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, reowned.SQLIndex, row.values, nil, nil)
+			for i, row := range stores[f.parent.Address()].Versions {
+				matched, err := preparation.predicateMatches(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, reowned.SQLIndex, row.Values, nil, nil)
 				if err != nil || matched != (i == 0 || i == 3 || i == 4) {
 					t.Error("reowned predicate changed TRUE/FALSE/NULL membership", i, matched, err)
 				}
@@ -127,11 +127,11 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 			}
 			partialWantMembership(t, root, map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5})
 			partialWantMembership(t, oldRoot, map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5})
-			if f.e.catalog.state != oldCatalog || oldCatalog.Get(f.parent.Address()) != f.parent || oldCatalog.Get(f.index.Address()) != f.index || f.e.storage.indexRoots[f.index.Address()] != oldRoot || f.index.SQLIndex.Predicate != oldPredicate || predicate.Definition != beforeDefinition || predicate.Execution != beforeExecution || !reflect.DeepEqual(predicate.Dependencies, beforeDependencies) || !reflect.DeepEqual(f.store.versions, oldRows) {
+			if f.e.catalog.state != oldCatalog || oldCatalog.Get(f.parent.Address()) != f.parent || oldCatalog.Get(f.index.Address()) != f.index || f.e.storage.IndexRoots[f.index.Address()] != oldRoot || f.index.SQLIndex.Predicate != oldPredicate || predicate.Definition != beforeDefinition || predicate.Execution != beforeExecution || !reflect.DeepEqual(predicate.Dependencies, beforeDependencies) || !reflect.DeepEqual(f.store.Versions, oldRows) {
 				t.Fatal("type-only reownership mutated a retained catalog, predicate, row or root")
 			}
 			for i, row := range view.data.Load().committed[f.parent.Address()] {
-				if row.values[1].Type() != oldUsage.Type || partialMaskContains(mask, row) != (i == 0 || i == 3 || i == 4) {
+				if row.Values[1].Type() != oldUsage.Type || partialMaskContains(mask, row) != (i == 0 || i == 3 || i == 4) {
 					t.Fatal("retained scope lost its old row generation or membership", i)
 				}
 			}

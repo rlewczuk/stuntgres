@@ -46,15 +46,15 @@ func TestPartialIndexUniqueAdmissionPrivatePrefix(t *testing.T) {
 					case "stage":
 						scope.stage.rows[f.ref.Address] = []rowVersion{old}
 					case "prefix":
-						prefix = [][]sqltype.Value{old.values}
+						prefix = [][]sqltype.Value{old.Values}
 					}
-					err := scope.checkUniqueRow(f.ref, &indexWriteCandidate{values: next.values}, nil, indexWriteBatch{values: prefix})
+					err := scope.checkUniqueRow(f.ref, &indexWriteCandidate{values: next.Values}, nil, indexWriteBatch{values: prefix})
 					if membership == "true" && candidate == "true" {
 						nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "ui_index"`, Detail: "Key (a, b)=(2001-02-05, 3) already exists.", Schema: "public", Table: "ui_t", Constraint: "ui_index"})
 					} else if err != nil {
 						t.Fatal("nonmember participates in unique admission", err)
 					}
-					if !reflect.DeepEqual(old.values, partialUniqueRow(t, f, 1, "2001-02-05", "3", membership).values) {
+					if !reflect.DeepEqual(old.Values, partialUniqueRow(t, f, 1, "2001-02-05", "3", membership).Values) {
 						t.Fatal("private row mutated")
 					}
 					f.unchanged(t)
@@ -74,7 +74,7 @@ func TestPartialIndexUniqueAdmissionCommittedAndClaims(t *testing.T) {
 			f := newPartialUniquePublication(t, true, false, "table")
 			scope := partialUniqueScope(t, f)
 			row := partialUniqueRow(t, f, 1, "2001-02-03", "1", active)
-			err := scope.checkUniqueRow(f.ref, &indexWriteCandidate{values: row.values}, nil, indexWriteBatch{})
+			err := scope.checkUniqueRow(f.ref, &indexWriteCandidate{values: row.Values}, nil, indexWriteBatch{})
 			if active == "true" {
 				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "ui_index"`, Detail: "Key (a, b)=(2001-02-03, 1) already exists.", Schema: "public", Table: "ui_t", Constraint: "ui_index"})
 			} else {
@@ -124,14 +124,14 @@ func TestPartialIndexUniqueAdmissionStrongSlots(t *testing.T) {
 			}
 			old := partialUniqueRow(t, f, 1, "2001-02-05", "3", "true")
 			next := partialUniqueRow(t, f, 2, "2001-02-06", "3", "false")
-			next.values[2] = old.values[2]
-			changed, err := scope.uniqueKeyChanged(f.ref, old.values, next.values)
+			next.Values[2] = old.Values[2]
+			changed, err := scope.uniqueKeyChanged(f.ref, old.Values, next.Values)
 			if err != nil || changed {
 				t.Fatal("partial key/predicate update stamped strong history", changed, err)
 			}
 			if ordinary {
 				next = partialUniqueRow(t, f, 2, "2001-02-06", "4", "false")
-				changed, err = scope.uniqueKeyChanged(f.ref, old.values, next.values)
+				changed, err = scope.uniqueKeyChanged(f.ref, old.Values, next.Values)
 				if err != nil || !changed {
 					t.Fatal("ordinary key control lost strength", changed, err)
 				}
@@ -153,7 +153,7 @@ func TestPartialIndexUniqueAdmissionNullPredicateError(t *testing.T) {
 			if claim {
 				err = scope.claimUniqueRow(f.ref, row)
 			} else {
-				err = scope.checkUniqueRow(f.ref, &indexWriteCandidate{values: row.values}, nil, indexWriteBatch{})
+				err = scope.checkUniqueRow(f.ref, &indexWriteCandidate{values: row.Values}, nil, indexWriteBatch{})
 			}
 			nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "22012", Message: "division by zero"})
 			uniqueKeyBucketsEmpty(t, f.e)

@@ -52,8 +52,8 @@ func TestUniqueTypeBuildOwnerDisclosure(t *testing.T) {
 				before := e.catalog.state
 				parent := before.MustRelation(ref.Address)
 				constraint := parent.Constraints.Unique[0]
-				root := e.storage.indexRoots[constraint.Index]
-				store := e.storage.relations[ref.Address]
+				root := e.storage.IndexRoots[constraint.Index]
+				store := e.storage.Relations[ref.Address]
 				execute := func(query string) (Result, error) {
 					ast := statement(t, query)
 					if !prepared {
@@ -82,7 +82,7 @@ func TestUniqueTypeBuildOwnerDisclosure(t *testing.T) {
 					detail = "Key (a, b)=(0, protected) is duplicated."
 				}
 				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "u"`, Detail: detail, Schema: "public", Table: "t", Constraint: "u"})
-				if e.catalog.state != before || e.storage.relations[ref.Address] != store || e.storage.indexRoots[constraint.Index] != root {
+				if e.catalog.state != before || e.storage.Relations[ref.Address] != store || e.storage.IndexRoots[constraint.Index] != root {
 					t.Fatal("failed TYPE changed catalog/storage/root identity")
 				}
 				current := e.catalog.state.MustRelation(ref.Address)

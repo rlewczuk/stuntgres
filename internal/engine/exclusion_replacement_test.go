@@ -22,7 +22,7 @@ func TestExclusionReplacement(t *testing.T) {
 			before := source.CatalogRead()
 			original := before.MustRelation(roleTableRef(t, source, "portable.t").Address)
 			constraint := original.Constraints.Exclusion[0]
-			sourceRoot := source.storage.indexRoots[constraint.Index]
+			sourceRoot := source.storage.IndexRoots[constraint.Index]
 			target := New()
 			b := sessionStart(t, target, nil)
 			if self {
@@ -32,23 +32,23 @@ func TestExclusionReplacement(t *testing.T) {
 			sequenceScalar(t, b, "SELECT nextval('kept')", 1)
 			_, description := sequencePreparedDescription(t, target, b, "SELECT nextval('kept')")
 			tempRef := description.sequences.constants[0].ref
-			temp, generator, memory := target.catalog.state.Get(tempRef.Address), target.storage.sequences[tempRef.Address], b.sequences[tempRef.Address]
+			temp, generator, memory := target.catalog.state.Get(tempRef.Address), target.storage.Sequences[tempRef.Address], b.sequences[tempRef.Address]
 			if !self && tempRef.Address.ObjectID != original.Address().ObjectID {
 				t.Fatal("fixture must collide with a real retained TEMP address")
 			}
 			if _, err := target.ReplaceCatalog(ctx, source, before); err != nil {
 				t.Fatal(err)
 			}
-			if target.catalog.state.Get(tempRef.Address) != temp || target.storage.sequences[tempRef.Address] != generator || b.sequences[tempRef.Address] != memory {
+			if target.catalog.state.Get(tempRef.Address) != temp || target.storage.Sequences[tempRef.Address] != generator || b.sequences[tempRef.Address] != memory {
 				t.Fatal("replacement changed retained TEMP identity")
 			}
 			parent := target.catalog.state.MustRelation(roleTableRef(t, target, "portable.t").Address)
 			index, root := btreeRoot(t, target, "portable.ex")
 			current := parent.Constraints.Exclusion[0]
-			if current.Index != index.Address() || !backingConstraintPresent(parent, index) || !current.Deferrable || !current.InitiallyDeferred || len(root.entries) != 1 {
+			if current.Index != index.Address() || !backingConstraintPresent(parent, index) || !current.Deferrable || !current.InitiallyDeferred || len(root.Entries) != 1 {
 				t.Fatal("replacement broke the actual exclusion closure")
 			}
-			if root == sourceRoot || self && root.entries[0].row == sourceRoot.entries[0].row {
+			if root == sourceRoot || self && root.Entries[0].Row == sourceRoot.Entries[0].Row {
 				t.Fatal("replacement imported source root or row identities")
 			}
 			if !reflect.DeepEqual(original.Constraints.Exclusion[0], constraint) {

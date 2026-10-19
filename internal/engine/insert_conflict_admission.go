@@ -55,7 +55,7 @@ func (s *StatementScope) admitInsertConflictRow(ref ids.ObjectRef, candidate *in
 	}
 }
 func (s *StatementScope) insertConflictVisible(row rowVersion, committed bool) error {
-	if committed && stableIsolation(s.owner.isolation) && row.born > s.owner.frontier {
+	if committed && stableIsolation(s.owner.isolation) && row.Born > s.owner.frontier {
 		return sqlError("40001", "could not serialize access due to concurrent update")
 	}
 	return nil

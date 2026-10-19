@@ -188,11 +188,11 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 			}
 		}
 	}
-	versions, err := e.storage.allocateRowVersionsLocked(rows, nil)
+	versions, err := e.storage.AllocateRowVersionsLocked(rows, nil)
 	if err != nil {
 		return err
 	}
-	stage.initialTables = map[ids.ObjectAddress]*relationStorage{d.Address(): {versions: versions}}
+	stage.initialTables = map[ids.ObjectAddress]*relationStorage{d.Address(): {Versions: versions}}
 	stage.initialTx = ref
 	return nil
 }
@@ -200,14 +200,14 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 func (s *CatalogStage) validateInitialTables() error {
 	for address, storage := range s.initialTables {
 		d, ok := s.Descriptors[address].(*catalog.Relation)
-		if !ok || !d.RelationKind.Stored() || d.RelationKind == catalog.MaterializedViewRelation && !d.Populated || s.Base.Get(address) != nil || storage == nil || len(storage.versions) == 0 || storage.ends != nil || storage.generation != 0 {
+		if !ok || !d.RelationKind.Stored() || d.RelationKind == catalog.MaterializedViewRelation && !d.Populated || s.Base.Get(address) != nil || storage == nil || len(storage.Versions) == 0 || storage.Ends != nil || storage.Generation != 0 {
 			return errors.New("stuntgres: invalid initial table storage")
 		}
-		for _, row := range storage.versions {
-			if row.row == 0 || row.version == 0 || row.born != 0 || len(row.values) != len(d.Columns) {
+		for _, row := range storage.Versions {
+			if row.Row == 0 || row.Version == 0 || row.Born != 0 || len(row.Values) != len(d.Columns) {
 				return errors.New("stuntgres: invalid initial table row")
 			}
-			for i, value := range row.values {
+			for i, value := range row.Values {
 				if value.Type() != d.Columns[i].Usage.Type {
 					return errors.New("stuntgres: invalid initial table value type")
 				}

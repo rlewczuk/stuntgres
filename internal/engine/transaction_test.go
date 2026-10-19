@@ -91,16 +91,16 @@ func TestTransactionVisibilityVersionsAndRetention(t *testing.T) {
 	}
 	e.mu.Lock()
 	var versions []rowVersion
-	for _, store := range e.storage.relations {
-		versions = append(versions, store.versions...)
+	for _, store := range e.storage.Relations {
+		versions = append(versions, store.Versions...)
 	}
 	e.mu.Unlock()
 	seen := map[ids.RowID]bool{}
 	for _, v := range versions {
-		if v.row == 0 || v.version == 0 || v.born == 0 || seen[v.row] {
+		if v.Row == 0 || v.Version == 0 || v.Born == 0 || seen[v.Row] {
 			t.Fatal("invalid/duplicate identity", v)
 		}
-		seen[v.row] = true
+		seen[v.Row] = true
 	}
 	ref = transactionBegin(t, a)
 	sessionSQL(t, a, "INSERT INTO t VALUES(2)")
@@ -305,12 +305,12 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 		t.Fatal("command wrapped")
 	}
 	transactionEnd(t, a, ref, false)
-	e.storage.nextRow = ^uint64(0)
+	e.storage.SetFrontierLocked(^uint64(0), e.storage.VersionFrontier())
 	_, err = e.Execute(op, statement(t, "INSERT INTO t VALUES(1)"), 0, nil)
 	if err == nil {
 		t.Fatal("row identity wrapped")
 	}
-	e.storage.nextRow = 0
+	e.storage.SetFrontierLocked(0, e.storage.VersionFrontier())
 	ref = transactionBegin(t, a)
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	e.commitSeq = ids.CommitSeq(^uint64(0))
@@ -364,13 +364,13 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				catalogRef(t, e, e.CatalogRead(), "t").Address,
 				catalogRef(t, e, e.CatalogRead(), "u").Address,
 			}
-			stores := [2]*relationStorage{e.storage.relations[addresses[0]], e.storage.relations[addresses[1]]}
-			roots := [2][]rowVersion{stores[0].versions, stores[1].versions}
+			stores := [2]*relationStorage{e.storage.Relations[addresses[0]], e.storage.Relations[addresses[1]]}
+			roots := [2][]rowVersion{stores[0].Versions, stores[1].Versions}
 			records := [2][]rowVersion{}
 			for i, root := range roots {
 				records[i] = append([]rowVersion(nil), root...)
 				for j := range records[i] {
-					records[i][j].values = append([]sqltype.Value(nil), root[j].values...)
+					records[i][j].Values = append([]sqltype.Value(nil), root[j].Values...)
 				}
 			}
 			spare := roots[0][len(roots[0]):cap(roots[0])]
@@ -418,7 +418,7 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				go func() {
 					close(started)
 					e.mu.Lock()
-					counts := [2]int{len(stores[0].versions), len(stores[1].versions)}
+					counts := [2]int{len(stores[0].Versions), len(stores[1].Versions)}
 					e.mu.Unlock()
 					observed <- counts
 				}()
@@ -486,12 +486,12 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				}
 			}
 			for i, root := range roots {
-				current := stores[i].versions
+				current := stores[i].Versions
 				wantLen := len(root)
 				if published {
 					wantLen++
 				}
-				if e.storage.relations[addresses[i]] != stores[i] || len(current) != wantLen {
+				if e.storage.Relations[addresses[i]] != stores[i] || len(current) != wantLen {
 					t.Fatalf("relation %d storage/visible length changed unexpectedly", i)
 				}
 				sameRoot := &current[0] == &root[0]
@@ -510,7 +510,7 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				}
 				if published {
 					row := current[len(root)]
-					if row.row == 0 || row.version == 0 || row.row != staged[i].row || row.version != staged[i].version || row.born != frontier+1 || !reflect.DeepEqual(row.values, staged[i].values) || len(row.values) != 1 || testExport(row.values[0]) != [2]int64{1, 9}[i] {
+					if row.Row == 0 || row.Version == 0 || row.Row != staged[i].Row || row.Version != staged[i].Version || row.Born != frontier+1 || !reflect.DeepEqual(row.Values, staged[i].Values) || len(row.Values) != 1 || testExport(row.Values[0]) != [2]int64{1, 9}[i] {
 						t.Fatal("new row lacks common publication frontier/payload", row)
 					}
 					if len(a.transactions.writes[addresses[i]]) != 0 {

@@ -18,9 +18,9 @@ func TestAlterAddConstraintBackingRetirement(t *testing.T) {
 	sessionSQL(t, s, "ALTER TABLE t DROP z")
 	sessionSQL(t, s, "INSERT INTO t VALUES(1,1)")
 	old := alterConstraintDescriptor(t, e, "t")
-	before, store := e.catalog.state, e.storage.relations[old.Address()]
+	before, store := e.catalog.state, e.storage.Relations[old.Address()]
 	backing := old.Constraints.Unique[0].Index
-	root := e.storage.indexRoots[backing]
+	root := e.storage.IndexRoots[backing]
 	op := alterConstraintOperation(t, s)
 	auth, err := op.Authorization()
 	if err != nil {
@@ -72,7 +72,7 @@ func TestAlterAddConstraintBackingRetirement(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(context.Background(), stage); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.state != before || e.storage.relations[old.Address()] != store || e.storage.indexRoots[backing] != root || before.NameAddress(key) != backing || len(old.Constraints.Unique) != 1 {
+	if e.catalog.state != before || e.storage.Relations[old.Address()] != store || e.storage.IndexRoots[backing] != root || before.NameAddress(key) != backing || len(old.Constraints.Unique) != 1 {
 		t.Fatal("private retirement/replacement changed live catalog or physical root")
 	}
 }
@@ -85,7 +85,7 @@ func TestAlterAddConstraintPrimaryPrerequisite(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO t VALUES(1)")
 	sessionSQL(t, s, "ALTER TABLE t ADD CONSTRAINT nn NOT NULL a NOT VALID")
 	old := alterConstraintDescriptor(t, e, "t")
-	before, store := e.catalog.state, e.storage.relations[old.Address()]
+	before, store := e.catalog.state, e.storage.Relations[old.Address()]
 	for _, query := range []string{
 		"ALTER TABLE t ALTER a SET NOT NULL,ADD PRIMARY KEY(a)",
 		"ALTER TABLE t ADD PRIMARY KEY(a),DROP CONSTRAINT nn",
@@ -108,7 +108,7 @@ func TestAlterAddConstraintPrimaryPrerequisite(t *testing.T) {
 	if err := verifyAlterPrimaryPrerequisites(old, raw[0].(*parser.AlterTable).Actions); err != nil {
 		t.Fatal("new key was prematurely bound against original shape", err)
 	}
-	if e.catalog.state != before || e.storage.relations[old.Address()] != store || alterConstraintDescriptor(t, e, "t") != old || !old.Constraints.NotNull[0].NotValid || len(old.Constraints.Unique) != 0 {
+	if e.catalog.state != before || e.storage.Relations[old.Address()] != store || alterConstraintDescriptor(t, e, "t") != old || !old.Constraints.NotNull[0].NotValid || len(old.Constraints.Unique) != 0 {
 		t.Fatal("preliminary admission changed immutable original catalog/storage")
 	}
 }
@@ -127,9 +127,9 @@ func TestAlterAddConstraintDropModeIsolation(t *testing.T) {
 			sessionSQL(t, s, "INSERT INTO t VALUES(1,1)")
 			sessionSQL(t, s, "INSERT INTO c VALUES(1)")
 			old, child := alterConstraintDescriptor(t, e, "t"), alterConstraintDescriptor(t, e, "c")
-			before, parentStore, childStore := e.catalog.state, e.storage.relations[old.Address()], e.storage.relations[child.Address()]
+			before, parentStore, childStore := e.catalog.state, e.storage.Relations[old.Address()], e.storage.Relations[child.Address()]
 			ua, ub := old.Constraints.Unique[0].Index, old.Constraints.Unique[1].Index
-			uaRoot, ubRoot := e.storage.indexRoots[ua], e.storage.indexRoots[ub]
+			uaRoot, ubRoot := e.storage.IndexRoots[ua], e.storage.IndexRoots[ub]
 			op := alterConstraintOperation(t, s)
 			auth, err := op.Authorization()
 			if err != nil {
@@ -190,7 +190,7 @@ func TestAlterAddConstraintDropModeIsolation(t *testing.T) {
 			if stage.Removals[ua].Ref.Address != ua || stage.Removals[ub].Ref.Address != ub {
 				t.Fatal("actual selected backing retirement missing")
 			}
-			if e.catalog.state != before || e.storage.relations[old.Address()] != parentStore || e.storage.relations[child.Address()] != childStore || e.storage.indexRoots[ua] != uaRoot || e.storage.indexRoots[ub] != ubRoot || len(child.Constraints.ForeignKeys) != 1 {
+			if e.catalog.state != before || e.storage.Relations[old.Address()] != parentStore || e.storage.Relations[child.Address()] != childStore || e.storage.IndexRoots[ua] != uaRoot || e.storage.IndexRoots[ub] != ubRoot || len(child.Constraints.ForeignKeys) != 1 {
 				t.Fatal("private mixed-mode traversal changed live catalog/storage/roots")
 			}
 		})

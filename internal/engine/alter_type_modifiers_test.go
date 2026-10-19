@@ -48,13 +48,13 @@ func TestAlterTypeIdentityRetainsStorageAndRevision(t *testing.T) {
 	run(t, e, "CREATE TABLE t(c INT DEFAULT 7)")
 	run(t, e, "INSERT INTO t DEFAULT VALUES")
 	ref := roleTableRef(t, e, "t")
-	old, storage := e.catalog.state.Get(ref.Address), e.storage.relations[ref.Address]
+	old, storage := e.catalog.state.Get(ref.Address), e.storage.Relations[ref.Address]
 	run(t, e, "ALTER TABLE t ALTER c TYPE INT")
-	if e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage {
+	if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage {
 		t.Fatal("identity TYPE copied definition/data")
 	}
 	run(t, e, "ALTER TABLE t ALTER c TYPE INT USING c+1")
-	if e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] == storage {
+	if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] == storage {
 		t.Fatal("same definition USING failed to rewrite only data")
 	}
 	if rows := tuples(run(t, e, "SELECT c FROM t")); !reflect.DeepEqual(rows, [][]driver.Value{{int64(8)}}) {

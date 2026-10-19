@@ -76,12 +76,12 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, view catalog.Read, ou
 		if relation.RelationKind == catalog.CatalogRelation {
 			continue
 		}
-		if storage := e.storage.relations[relation.Address()]; storage != nil {
-			for _, version := range storage.versions {
-				if !liveVersion(version, e.commitSeq, storage.ends, nil) {
+		if storage := e.storage.Relations[relation.Address()]; storage != nil {
+			for _, version := range storage.Versions {
+				if !liveVersion(version, e.commitSeq, storage.Ends, nil) {
 					continue
 				}
-				for i, value := range version.values {
+				for i, value := range version.Values {
 					if _, generated := relation.ColumnMeta.Generations[relation.Attributes[i]]; generated {
 						continue
 					}

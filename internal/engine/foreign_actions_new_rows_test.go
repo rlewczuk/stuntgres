@@ -31,8 +31,8 @@ func TestForeignActionsLocksNewRows(t *testing.T) {
 					t.Fatal("first stable snapshot did not retain the empty child root", exists, root)
 				}
 				sessionSQL(t, writer, "INSERT INTO c VALUES(1,'committed')")
-				committed := e.storage.relations[child.Address].versions[0]
-				if committed.born <= reader.transactions.frontier {
+				committed := e.storage.Relations[child.Address].Versions[0]
+				if committed.Born <= reader.transactions.frontier {
 					t.Fatal("writer did not create a genuinely post-snapshot child")
 				}
 				q := "DELETE FROM p WHERE id=1"
@@ -52,7 +52,7 @@ func TestForeignActionsLocksNewRows(t *testing.T) {
 					t.Fatal("Finish changed the action conflict")
 				}
 				parent := catalogRef(t, e, e.CatalogRead(), "p")
-				if e.storage.relations[parent.Address].ends != nil || e.storage.relations[child.Address].ends != nil || e.storage.relations[child.Address].versions[0].version != committed.version {
+				if e.storage.Relations[parent.Address].Ends != nil || e.storage.Relations[child.Address].Ends != nil || e.storage.Relations[child.Address].Versions[0].Version != committed.Version {
 					t.Fatal("failed action altered committed parent/writer child")
 				}
 				transactionRows(t, writer, "SELECT pid FROM c", 1)

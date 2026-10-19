@@ -107,8 +107,8 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			parent = e.catalog.state.MustRelation(parent.Address())
 			child = e.catalog.state.MustRelation(child.Address())
 			stage := partitionAttachUnitStage(t, e, e.CatalogRead(), parent, child)
-			store := e.storage.relations[child.Address()]
-			stage.partitionReads = []partitionReadFence{{address: child.Address(), storage: store, length: len(store.versions), ends: store.ends, generation: store.generation}}
+			store := e.storage.Relations[child.Address()]
+			stage.partitionReads = []partitionReadFence{{address: child.Address(), storage: store, length: len(store.Versions), ends: store.Ends, generation: store.Generation}}
 			// A real captured type provider is an exact publication predecessor.
 			providerAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)}
 			stage.domainBases = append(stage.domainBases, e.catalog.state.Get(providerAddress))
@@ -121,13 +121,13 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			switch change {
 			case "store":
 				copy := *store
-				e.storage.relations[child.Address()] = &copy
+				e.storage.Relations[child.Address()] = &copy
 			case "length":
-				store.versions = append(store.versions, rowVersion{row: 1, version: 1})
+				store.Versions = append(store.Versions, rowVersion{Row: 1, Version: 1})
 			case "ends":
-				store.ends = &deletionRoot{rows: map[ids.RowID]rowEnd{}}
+				store.Ends = &deletionRoot{Rows: map[ids.RowID]rowEnd{}}
 			case "generation":
-				store.generation++
+				store.Generation++
 			case "provider":
 				typ := *e.catalog.state.MustType(providerAddress)
 				typ.ObjectRevision++
@@ -138,7 +138,7 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 				cancel()
 			}
 			before := e.catalog.state
-			stores, roots := maps.Clone(e.storage.relations), maps.Clone(e.storage.indexRoots)
+			stores, roots := maps.Clone(e.storage.Relations), maps.Clone(e.storage.IndexRoots)
 			changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if err == nil {
 				t.Fatal("stale validation published an attachment")
@@ -146,7 +146,7 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			if change == "cancel" && !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}
-			if e.catalog.state != before || !maps.Equal(e.storage.relations, stores) || !maps.Equal(e.storage.indexRoots, roots) || len(changes.Definitions) != 0 {
+			if e.catalog.state != before || !maps.Equal(e.storage.Relations, stores) || !maps.Equal(e.storage.IndexRoots, roots) || len(changes.Definitions) != 0 {
 				t.Fatal("failed final veto installed partial catalog/storage/index roots")
 			}
 			if e.catalog.state.Get(parent.Address()) != parent || e.catalog.state.Get(child.Address()) != child || child.Membership != nil || len(parent.Partition.Children) != 0 {

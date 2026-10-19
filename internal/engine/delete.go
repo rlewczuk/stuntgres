@@ -9,12 +9,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Roots are immutable after transfer to a command view or committed storage.
-type rowEnd struct {
-	version ids.VersionID
-	end     ids.CommitSeq
-}
-type deletionRoot struct{ rows map[ids.RowID]rowEnd }
 type deleteCandidate struct {
 	ref     ids.ObjectRef
 	storage *relationStorage
@@ -30,18 +24,18 @@ type privateDeletionRoot struct{ rows map[ids.RowID]deleteCandidate }
 // sharing lineage. End only the deleted version and its actual replacement base.
 func liveVersion(v rowVersion, frontier ids.CommitSeq, ends *deletionRoot, own *privateDeletionRoot) bool {
 	if own != nil {
-		if deleted, ok := own.rows[v.row]; ok && (v.version == deleted.version || deleted.base != 0 && v.version == deleted.base) {
+		if deleted, ok := own.rows[v.Row]; ok && (v.Version == deleted.version || deleted.base != 0 && v.Version == deleted.base) {
 			return false
 		}
 	}
-	if v.born == 0 {
+	if v.Born == 0 {
 		return true
 	}
-	if v.born > frontier {
+	if v.Born > frontier {
 		return false
 	}
 	if ends != nil {
-		if end, deleted := ends.rows[v.row]; deleted && end.version == v.version && end.end <= frontier {
+		if end, deleted := ends.Rows[v.Row]; deleted && end.Version == v.Version && end.End <= frontier {
 			return false
 		}
 	}
@@ -156,7 +150,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 	if candidate.own {
 		captured = data.own[candidate.ref.Address]
 	}
-	if candidate.ordinal < 0 || candidate.ordinal >= len(captured) || captured[candidate.ordinal].row != candidate.row || captured[candidate.ordinal].version != candidate.version {
+	if candidate.ordinal < 0 || candidate.ordinal >= len(captured) || captured[candidate.ordinal].Row != candidate.row || captured[candidate.ordinal].Version != candidate.version {
 		return false, errors.New("stuntgres: deletion is outside its candidate view")
 	}
 	rows := s.ownWrites[candidate.ref.Address]
@@ -165,19 +159,19 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 		return false, errors.New("stuntgres: relation storage is missing")
 	}
 	if !candidate.own {
-		rows = storage.versions
+		rows = storage.Versions
 	}
 	original, slot, found := rowByID(rows, candidate.row, candidate.ordinal)
 	relation, ok := e.privateCatalogLocked(s.owner.catalog).Relation(candidate.ref.Address)
-	if !found || !ok || len(original.values) != len(relation.Columns) {
+	if !found || !ok || len(original.Values) != len(relation.Columns) {
 		return false, errors.New("stuntgres: invalid deletion predecessor")
 	}
-	if !liveVersion(original, e.commitSeq, storage.ends, s.ownDeletes[candidate.ref.Address]) {
+	if !liveVersion(original, e.commitSeq, storage.Ends, s.ownDeletes[candidate.ref.Address]) {
 		return false, nil
 	}
-	candidate.version, candidate.ordinal = original.version, slot
+	candidate.version, candidate.ordinal = original.Version, slot
 	if candidate.own {
-		candidate.base = original.base
+		candidate.base = original.Base
 	}
 	root := w.deletes[candidate.ref.Address]
 	if root != nil {
@@ -195,7 +189,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 // SSI evidence and exclusion projection after validating their own authority.
 func (w *WriteStage) stageDeletionLocked(e *Engine, candidate deleteCandidate, original rowVersion) error {
 	s := w.scope
-	event := [1]serializableWrite{{row: candidate.row, version: candidate.version, base: original.version, baseBorn: original.born, creator: e.serializable.creators[original.version], deletion: true}}
+	event := [1]serializableWrite{{row: candidate.row, version: candidate.version, base: original.Version, baseBorn: original.Born, creator: e.serializable.creators[original.Version], deletion: true}}
 	if err := e.serializableWriteLocked(s, candidate.ref, event[:]); err != nil {
 		return err
 	}
@@ -209,7 +203,7 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate deleteCandidate, o
 	}
 	root.rows[candidate.row] = candidate
 	s.projectExclusionDeletionLocked(e, candidate)
-	s.multiEvents = append(s.multiEvents, lock.MultiEvent{Tuple: lock.MultiTuple{lock.Resource{ObjectRef: candidate.ref, Row: original.row}, original.version}, Mode: lock.MultiUpdateAction})
+	s.multiEvents = append(s.multiEvents, lock.MultiEvent{Tuple: lock.MultiTuple{lock.Resource{ObjectRef: candidate.ref, Row: original.Row}, original.Version}, Mode: lock.MultiUpdateAction})
 	return nil
 }
 
@@ -280,7 +274,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		}
 		physical := mutationPhysicalRow(source, i, b)
 		version := physical.version
-		if b.currentOf != "" && (positioned.ref != physical.leaf.ref || version.row != positioned.row) {
+		if b.currentOf != "" && (positioned.ref != physical.leaf.ref || version.Row != positioned.row) {
 			continue
 		}
 		evaluation.Row = physical.values(version)
@@ -309,12 +303,12 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		if !live {
 			continue
 		}
-		if current.version != candidate.version {
+		if current.Version != candidate.version {
 			if err := s.physicalRowEvent(candidate.ref, current, lock.MultiUpdateLock, 0); err != nil {
 				return Result{}, err
 			}
 		}
-		if current.version != candidate.version && b.predicate != nil {
+		if current.Version != candidate.version && b.predicate != nil {
 			evaluation.Row = physical.values(current)
 			value, err := b.predicate.Eval(&evaluation)
 			if err != nil {
@@ -380,7 +374,7 @@ func (s *StatementScope) latestDeleteRow(candidate deleteCandidate) (rowVersion,
 	if store == nil || store != candidate.storage {
 		return rowVersion{}, false, ids.ErrCatalogReplaced
 	}
-	rows := store.versions
+	rows := store.Versions
 	if candidate.own {
 		rows = s.ownWrites[candidate.ref.Address]
 	}
@@ -388,10 +382,10 @@ func (s *StatementScope) latestDeleteRow(candidate deleteCandidate) (rowVersion,
 	if !found {
 		return rowVersion{}, false, errors.New("stuntgres: invalid deletion predecessor")
 	}
-	if err := s.repeatableConflict(row, store.ends); err != nil {
+	if err := s.repeatableConflict(row, store.Ends); err != nil {
 		return rowVersion{}, false, err
 	}
-	return row, liveVersion(row, e.commitSeq, store.ends, s.ownDeletes[candidate.ref.Address]), nil
+	return row, liveVersion(row, e.commitSeq, store.Ends, s.ownDeletes[candidate.ref.Address]), nil
 }
 
 // The nil selection path remains allocation-free for undeleted prefixes.
@@ -428,7 +422,7 @@ func selectQuerySource(ctx context.Context, source *querySource, frontier ids.Co
 	}
 	replacements, single := 0, 0
 	for i, row := range source.own {
-		if row.base != 0 {
+		if row.Base != 0 {
 			replacements++
 			single = i
 		}
@@ -442,8 +436,8 @@ func selectQuerySource(ctx context.Context, source *querySource, frontier ids.Co
 	if replacements > 1 {
 		heads = make(map[ids.VersionID]int, replacements)
 		for i, row := range source.own {
-			if row.base != 0 {
-				heads[row.base] = len(source.committed) + i
+			if row.Base != 0 {
+				heads[row.Base] = len(source.committed) + i
 			}
 		}
 	}
@@ -465,13 +459,13 @@ func selectQuerySource(ctx context.Context, source *querySource, frontier ids.Co
 	}
 	for i, row := range source.committed {
 		raw := i
-		if replacements == 1 && row.row == source.own[single].row && row.version == source.own[single].base {
+		if replacements == 1 && row.Row == source.own[single].Row && row.Version == source.own[single].Base {
 			raw = len(source.committed) + single
 			singleSubstituted = true
 		}
-		if head, ok := heads[row.version]; ok && source.versionAt(head).row == row.row {
+		if head, ok := heads[row.Version]; ok && source.versionAt(head).Row == row.Row {
 			raw = head
-			delete(heads, row.version)
+			delete(heads, row.Version)
 		}
 		if err := include(raw, i); err != nil {
 			source.close()
@@ -479,7 +473,7 @@ func selectQuerySource(ctx context.Context, source *querySource, frontier ids.Co
 		}
 	}
 	for i, row := range source.own {
-		if row.base != 0 && ((replacements == 1 && singleSubstituted) || (replacements > 1 && heads[row.base] == 0)) {
+		if row.Base != 0 && ((replacements == 1 && singleSubstituted) || (replacements > 1 && heads[row.Base] == 0)) {
 			continue
 		}
 		raw := len(source.committed) + i

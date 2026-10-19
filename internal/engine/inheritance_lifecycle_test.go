@@ -27,7 +27,7 @@ func inheritanceLifecycleInstall(e *Engine, tables ...*catalog.Relation) {
 	for _, table := range tables {
 		e.catalog.state.SetDescriptor(table.Address(), table)
 		e.catalog.state.BindName(catalog.DescriptorNameKey(table), table.Address())
-		e.storage.relations[table.Address()] = &relationStorage{}
+		e.storage.Relations[table.Address()] = &relationStorage{}
 	}
 }
 
@@ -174,8 +174,8 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 				t.Fatal(err)
 			}
 			writes := map[ids.ObjectAddress][]rowVersion{
-				parent.Address(): {{row: 1, version: 1, values: []sqltype.Value{one}}},
-				child.Address():  {{row: 2, version: 2, values: []sqltype.Value{two}}},
+				parent.Address(): {{Row: 1, Version: 1, Values: []sqltype.Value{one}}},
+				child.Address():  {{Row: 2, Version: 2, Values: []sqltype.Value{two}}},
 			}
 			nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), writes, nil, changes)
 			if err != nil {

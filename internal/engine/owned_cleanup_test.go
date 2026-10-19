@@ -100,15 +100,15 @@ func TestDropOwnedUnionRestrictAndCascade(t *testing.T) {
 	ownershipUnitPublish(t, e, setup)
 	oldState, oldRoles := e.catalog.state, e.roles
 	parent := oldState.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ownership_parent"})
-	store := e.storage.relations[parent]
-	rows := store.versions
+	store := e.storage.Relations[parent]
+	rows := store.Versions
 	stmt := &parser.DropOwned{Sources: []parser.RoleSpec{{Name: "ownership_source"}}, Mode: parser.DropRestrict}
 	_, err := testExecute(e, context.Background(), stmt, nil)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "2BP01" || diagnostic.Message != "cannot drop desired object(s) because other objects depend on them" {
 		t.Fatal("actual external refusal", err)
 	}
-	if e.catalog.state != oldState || e.roles != oldRoles || e.storage.relations[parent] != store || &store.versions[0] != &rows[0] {
+	if e.catalog.state != oldState || e.roles != oldRoles || e.storage.Relations[parent] != store || &store.Versions[0] != &rows[0] {
 		t.Fatal("RESTRICT partially published")
 	}
 	stmt.Mode = parser.DropCascade
@@ -148,7 +148,7 @@ func TestReassignOwnedSourceSetAndUnrelatedGrant(t *testing.T) {
 	}
 	ownershipUnitPublish(t, e, setup)
 	before := e.catalog.state
-	store := e.storage.relations[move.Address()]
+	store := e.storage.Relations[move.Address()]
 	roles := e.roles
 	late := &parser.ReassignOwned{Sources: []parser.RoleSpec{{Name: "ownership_source"}, {Name: "absent"}}, Target: parser.RoleSpec{Name: "ownership_target"}}
 	if _, err := testExecute(e, context.Background(), late, nil); err == nil || e.catalog.state != before || e.roles != roles {
@@ -158,7 +158,7 @@ func TestReassignOwnedSourceSetAndUnrelatedGrant(t *testing.T) {
 	if _, err := testExecute(e, context.Background(), late, nil); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.state.MustRelation(move.Address()).Owner != target || e.catalog.state.Get(other.Address()) != before.Get(other.Address()) || e.roles != roles || e.storage.relations[move.Address()] != store {
+	if e.catalog.state.MustRelation(move.Address()).Owner != target || e.catalog.state.Get(other.Address()) != before.Get(other.Address()) || e.roles != roles || e.storage.Relations[move.Address()] != store {
 		t.Fatal("reassign changed unrelated grant, roles or data")
 	}
 }
@@ -252,8 +252,8 @@ func TestDropOwnedCollectedCleanupPrimary(t *testing.T) {
 			}
 			before, roles := e.catalog.state, e.roles
 			address := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ownership_primary"})
-			store := e.storage.relations[address]
-			versions := store.versions
+			store := e.storage.Relations[address]
+			versions := store.Versions
 			_, err := testExecute(e, context.Background(), &parser.DropOwned{Sources: []parser.RoleSpec{{Name: "ownership_source"}}, Mode: parser.DropRestrict}, nil)
 			var diagnostic *sqlstate.Error
 			want := "cannot drop table ownership_primary because other objects depend on it"
@@ -263,7 +263,7 @@ func TestDropOwnedCollectedCleanupPrimary(t *testing.T) {
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "2BP01" || diagnostic.Message != want {
 				t.Fatal("collected deletion primary", err, "want", want)
 			}
-			if e.catalog.state != before || e.roles != roles || e.storage.relations[address] != store || &store.versions[0] != &versions[0] {
+			if e.catalog.state != before || e.roles != roles || e.storage.Relations[address] != store || &store.Versions[0] != &versions[0] {
 				t.Fatal("private cleanup or dependency refusal partially published")
 			}
 		})
@@ -286,13 +286,13 @@ func TestDropOwnedCleanupPolicyDeletionUnion(t *testing.T) {
 	root := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "ownership_policy_root"})
 	survivor := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "ownership_policy_survivor"})
 	original := before.MustRelation(survivor)
-	store := e.storage.relations[survivor]
-	versions := store.versions
+	store := e.storage.Relations[survivor]
+	versions := store.Versions
 	ownershipUnitExec(t, e, "DROP OWNED BY ownership_source RESTRICT")
 	if e.catalog.state.Get(root) != nil || len(e.catalog.state.MustRelation(survivor).Security.Policies) != 0 {
 		t.Fatal("pending sole-target policy falsely restricted its owner-root dependency")
 	}
-	if len(original.Security.Policies) != 1 || before.Get(root) == nil || e.storage.relations[survivor] != store || &store.versions[0] != &versions[0] {
+	if len(original.Security.Policies) != 1 || before.Get(root) == nil || e.storage.Relations[survivor] != store || &store.Versions[0] != &versions[0] {
 		t.Fatal("cleanup changed retained policy/catalog or surviving rows")
 	}
 }
@@ -408,13 +408,13 @@ func TestDropOwnedSQLGrantorProvenance(t *testing.T) {
 		t.Fatal("actual SQL GRANT lost current-role provenance", original.Security.ACL)
 	}
 	retained := append([]authorization.ACLEntry(nil), original.Security.ACL.Entries...)
-	store := e.storage.relations[address]
+	store := e.storage.Relations[address]
 	roleExecute(t, e, op, "DROP OWNED BY ownership_sql_source RESTRICT")
 	current := e.catalog.state.MustRelation(address)
 	if current.Owner != owner || slices.Contains(current.Security.ACL.Entries, received) || !slices.Contains(current.Security.ACL.Entries, delegated) {
 		t.Fatal("cleanup did not retain supported SQL-origin delegation", current.Security.ACL)
 	}
-	if !slices.Equal(original.Security.ACL.Entries, retained) || e.storage.relations[address] != store {
+	if !slices.Equal(original.Security.ACL.Entries, retained) || e.storage.Relations[address] != store {
 		t.Fatal("cleanup changed retained ACL or surviving storage")
 	}
 	before, roles := e.catalog.state, e.roles

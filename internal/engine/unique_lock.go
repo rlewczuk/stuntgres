@@ -15,7 +15,7 @@ type uniqueKeyValues struct {
 }
 
 func (k *uniqueKeyValues) EqualKey(ctx context.Context, stored any) (bool, error) {
-	cmp, err := k.ordering.compareKeys(ctx, logicalIndexEntry{keys: stored.([]sqltype.Value)}, logicalIndexEntry{keys: k.values})
+	cmp, err := k.ordering.compareKeys(ctx, logicalIndexEntry{Keys: stored.([]sqltype.Value)}, logicalIndexEntry{Keys: k.values})
 	return err == nil && cmp == 0, err
 }
 

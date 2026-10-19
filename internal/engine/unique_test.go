@@ -20,7 +20,7 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 	}
 	c := parent.Constraints.Unique[0]
 	index, empty := btreeRoot(t, e, "u")
-	if c.OID == 0 || c.Index != index.Address() || !index.SQLIndex.Unique || index.SQLIndex.Constraint == nil || index.SQLIndex.Constraint.OID != c.OID || index.SQLIndex.Parent != parent.Address() || index.Owner != parent.Owner || index.Namespace() != parent.Namespace() || len(empty.entries) != 0 {
+	if c.OID == 0 || c.Index != index.Address() || !index.SQLIndex.Unique || index.SQLIndex.Constraint == nil || index.SQLIndex.Constraint.OID != c.OID || index.SQLIndex.Parent != parent.Address() || index.Owner != parent.Owner || index.Namespace() != parent.Namespace() || len(empty.Entries) != 0 {
 		t.Fatal("broken parent/index closure")
 	}
 	if index.ColumnMeta.HighWater != int32(len(index.Attributes)) {
@@ -34,7 +34,7 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 			t.Fatal(result)
 		}
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "u"`, Detail: "Key (k)=(1) already exists.", Schema: "public", Table: "t", Constraint: "u"})
-		if e.storage.indexRoots[index.Address()] != old {
+		if e.storage.IndexRoots[index.Address()] != old {
 			t.Fatal("failed batch published root")
 		}
 		lockEmpty(t, e)
@@ -54,7 +54,7 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 	}
 	btreeWantKeys(t, e, "u", "1", "NULL", "NULL")
 	run(t, e, "ALTER TABLE t DROP CONSTRAINT u")
-	if len(e.storage.indexRoots) != 0 {
+	if len(e.storage.IndexRoots) != 0 {
 		t.Fatal("orphan backing root")
 	}
 	run(t, e, "INSERT INTO t VALUES(1,'duplicate allowed')")

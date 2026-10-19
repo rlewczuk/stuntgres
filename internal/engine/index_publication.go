@@ -299,7 +299,7 @@ func captureIndexStores(storage map[ids.ObjectAddress]*relationStorage, snapshot
 		}
 		if store := storage[a]; store != nil {
 			copy := *store
-			copy.indexSource = store
+			copy.IndexSource = store
 			captured[a] = &copy
 		}
 	}
@@ -325,7 +325,7 @@ func indexStoresUnchanged(storage, captured map[ids.ObjectAddress]*relationStora
 			}
 			continue
 		}
-		if live == nil || old == nil || live.generation != old.generation || live.ends != old.ends || len(live.versions) != len(old.versions) {
+		if live == nil || old == nil || live.Generation != old.Generation || live.Ends != old.Ends || len(live.Versions) != len(old.Versions) {
 			return false
 		}
 	}
@@ -436,7 +436,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 					if !rowMaintainsIndex(row, index) || !liveVersion(row, ids.CommitSeq(^uint64(0)), nil, publication.deletion) {
 						continue
 					}
-					if output, ok := row.indexOutputs[a]; !ok || !output.matches(index) {
+					if output, ok := row.IndexOutputs[a]; !ok || !indexOutputMatches(output, index) {
 						needsEvaluation = true
 						break
 					}
@@ -453,7 +453,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 		}
 		var entries []logicalIndexEntry
 		if root != nil {
-			entries = root.entries
+			entries = root.Entries
 		}
 		if index.SQLIndex.Method == catalog.HashMethod {
 			var err error
@@ -674,17 +674,17 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *catalogChanges
 			if !liveVersion(row, ids.CommitSeq(^uint64(0)), nil, deletes[index.SQLIndex.Parent]) {
 				continue
 			}
-			if output, ok := row.indexOutputs[index.Address()]; ok && output.matches(index) {
+			if output, ok := row.IndexOutputs[index.Address()]; ok && indexOutputMatches(output, index) {
 				// The SQL producer already materialized this exact version's
 				// membership/key under the captured index semantics.
 				continue
 			}
 			if pending {
-				output, err := materializeIndexOutput(&evaluation, &preparation, parent, index, &ordering, &hash, row.values)
+				output, err := materializeIndexOutput(&evaluation, &preparation, parent, index, &ordering, &hash, row.Values)
 				if err != nil {
 					return err
 				}
-				outputs := maps.Clone(row.indexOutputs)
+				outputs := maps.Clone(row.IndexOutputs)
 				if outputs == nil {
 					outputs = make(map[ids.ObjectAddress]indexRowOutput)
 				}
@@ -693,10 +693,10 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *catalogChanges
 					rows = slices.Clone(rows)
 					copied = true
 				}
-				rows[i].indexOutputs = outputs
+				rows[i].IndexOutputs = outputs
 				continue
 			}
-			matches, err := preparation.predicateMatches(&evaluation, parent, index.SQLIndex, row.values, nil, nil)
+			matches, err := preparation.predicateMatches(&evaluation, parent, index.SQLIndex, row.Values, nil, nil)
 			if err != nil {
 				return err
 			}
@@ -706,7 +706,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *catalogChanges
 			if err := preparation.prepareOrdinaryKeys(&evaluation, parent, index.SQLIndex); err != nil {
 				return err
 			}
-			evaluation.Row = row.values
+			evaluation.Row = row.Values
 			for keyIndex, key := range index.SQLIndex.Keys {
 				if key.Derived == nil {
 					continue

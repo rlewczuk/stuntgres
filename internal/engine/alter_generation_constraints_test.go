@@ -89,14 +89,14 @@ func TestAlterGeneratedExpressionConstraintRoots(t *testing.T) {
 			}
 			ref := catalogRef(t, e, e.CatalogRead(), "g")
 			old := e.catalog.state.MustRelation(ref.Address)
-			store := e.storage.relations[ref.Address]
+			store := e.storage.Relations[ref.Address]
 			catalog := e.catalog.state
-			roots := maps.Clone(e.storage.indexRoots)
-			rowID, versionID, commit := e.storage.nextRow, e.storage.nextVersion, e.commitSeq
-			generation, ends := store.generation, store.ends
-			values := make([][]sqltype.Value, len(store.versions))
-			for i, row := range store.versions {
-				values[i] = slices.Clone(row.values)
+			roots := maps.Clone(e.storage.IndexRoots)
+			rowID, versionID, commit := e.storage.RowFrontier(), e.storage.VersionFrontier(), e.commitSeq
+			generation, ends := store.Generation, store.Ends
+			values := make([][]sqltype.Value, len(store.Versions))
+			for i, row := range store.Versions {
+				values[i] = slices.Clone(row.Values)
 			}
 			scope, err := e.StartStatement(admin)
 			if err != nil {
@@ -133,19 +133,19 @@ func TestAlterGeneratedExpressionConstraintRoots(t *testing.T) {
 			if !errors.As(err, &diagnostic) || diagnostic.Code != code {
 				t.Fatal("constraint rewrite accepted/incorrect failure", kind, err)
 			}
-			if e.catalog.state != catalog || e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != store || store.generation != generation || store.ends != ends || e.storage.nextRow != rowID || e.storage.nextVersion != versionID || e.commitSeq != commit || scope.owner.catalog != nil || !reflect.DeepEqual(scope.owner.writes, writes) || !reflect.DeepEqual(scope.owner.deletes, deletes) {
+			if e.catalog.state != catalog || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != store || store.Generation != generation || store.Ends != ends || e.storage.RowFrontier() != rowID || e.storage.VersionFrontier() != versionID || e.commitSeq != commit || scope.owner.catalog != nil || !reflect.DeepEqual(scope.owner.writes, writes) || !reflect.DeepEqual(scope.owner.deletes, deletes) {
 				t.Fatal("constraint failure leaked private/installed roots/counters")
 			}
-			if len(e.storage.indexRoots) != len(roots) {
+			if len(e.storage.IndexRoots) != len(roots) {
 				t.Fatal("index inventory changed")
 			}
 			for address, root := range roots {
-				if e.storage.indexRoots[address] != root {
+				if e.storage.IndexRoots[address] != root {
 					t.Fatal("index/FK root changed", address)
 				}
 			}
-			for i, row := range store.versions {
-				if !slices.Equal(row.values, values[i]) {
+			for i, row := range store.Versions {
+				if !slices.Equal(row.Values, values[i]) {
 					t.Fatal("source row changed")
 				}
 			}

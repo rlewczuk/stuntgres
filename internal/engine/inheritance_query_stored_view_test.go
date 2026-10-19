@@ -41,7 +41,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			var child *catalog.Relation
 			if tc.child {
 				predecessor, before := parent, e.CatalogRead()
-				storage := e.storage.relations[parent.Address()]
+				storage := e.storage.Relations[parent.Address()]
 				childStage, d := queryCreateStage(t, e, "c", 1)
 				d.Inheritance = &catalog.TableInheritance{Parents: []ids.ObjectAddress{parent.Address()}, Columns: map[int32]catalog.InheritedColumn{d.Attributes[0]: {Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: parent.Attributes[0]}}}}, Checks: map[string]catalog.InheritedConstraint{}, NotNull: map[int32]catalog.InheritedConstraint{}}
 				if err := e.stageQueryTableRows(context.Background(), childStage, d, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, ids.TxRef{}); err != nil {
@@ -50,14 +50,14 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				queryCreatePublish(t, e, childStage)
 				child = d
 				parent = e.CatalogRead().MustRelation(predecessor.Address())
-				if parent == predecessor || !parent.History.HasSubclasses || predecessor.History.HasSubclasses || parent.Address() != predecessor.Address() || parent.RowType != predecessor.RowType || parent.Revision() == predecessor.Revision() || before.Get(predecessor.Address()) != predecessor || e.storage.relations[parent.Address()] != storage {
+				if parent == predecessor || !parent.History.HasSubclasses || predecessor.History.HasSubclasses || parent.Address() != predecessor.Address() || parent.RowType != predecessor.RowType || parent.Revision() == predecessor.Revision() || before.Get(predecessor.Address()) != predecessor || e.storage.Relations[parent.Address()] != storage {
 					t.Fatal("successful child publication did not preserve immutable parent identity/storage and transition subclass history")
 				}
 			}
 			ref := func(d *catalog.Relation) ids.ObjectRef {
 				return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 			}
-			parentRef, parentStorage := ref(parent), e.storage.relations[parent.Address()]
+			parentRef, parentStorage := ref(parent), e.storage.Relations[parent.Address()]
 			ctx, cancelScan := context.WithCancel(context.Background())
 			defer cancelScan()
 			op, done, err := testOperation(e, ctx)

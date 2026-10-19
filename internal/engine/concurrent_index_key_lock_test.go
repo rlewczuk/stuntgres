@@ -69,7 +69,7 @@ func TestConcurrentIndexU5LiveSimpleRowKeyBitmapIndependentOfReadiness(t *testin
 				}
 				e.mu.Lock()
 				parent := e.catalog.state.MustRelation(ref.Address)
-				old := e.storage.relations[ref.Address].versions[0].values
+				old := e.storage.Relations[ref.Address].Versions[0].Values
 				e.mu.Unlock()
 				next := append([]sqltype.Value(nil), old...)
 				next[0], err = sqltype.Integer(parent.Columns[0].Usage.Type, 2)
@@ -95,11 +95,11 @@ func TestConcurrentIndexU5LiveSimpleRowKeyBitmapIndependentOfReadiness(t *testin
 				if err != nil {
 					t.Fatal(err)
 				}
-				before, err := ordering.entry(rowVersion{values: old}, &EvalContext{Context: context.Background(), Scope: 1, Frame: 1})
+				before, err := ordering.entry(rowVersion{Values: old}, &EvalContext{Context: context.Background(), Scope: 1, Frame: 1})
 				if err != nil {
 					t.Fatal(err)
 				}
-				after, err := ordering.entry(rowVersion{values: next}, &EvalContext{Context: context.Background(), Scope: 1, Frame: 1})
+				after, err := ordering.entry(rowVersion{Values: next}, &EvalContext{Context: context.Background(), Scope: 1, Frame: 1})
 				if err != nil {
 					t.Fatal(err)
 				}

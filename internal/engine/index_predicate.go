@@ -62,7 +62,7 @@ func (p *indexExecutionPreparation) prepareConstants(evaluation *EvalContext, pa
 			return err
 		}
 		if hash != nil {
-			hash.expression = prepared
+			hash.Expression = prepared
 		} else if ordering != nil {
 			ordering.derived[i] = prepared
 		} else {
@@ -78,7 +78,7 @@ func (p *indexExecutionPreparation) prepareConstants(evaluation *EvalContext, pa
 
 func (p *indexExecutionPreparation) keyProgram(i int, ordering *indexOrdering, hash *hashIndexBinding) expr.Expr {
 	if hash != nil {
-		return hash.expression
+		return hash.Expression
 	}
 	if ordering != nil {
 		return ordering.derived[i]
@@ -187,17 +187,17 @@ func (p *indexExecutionPreparation) predicateMatches(evaluation *EvalContext, pa
 }
 
 func newLogicalIndexRoot(d *catalog.IndexDefinition, entries []logicalIndexEntry) *logicalIndexRoot {
-	root := &logicalIndexRoot{entries: entries}
+	root := &logicalIndexRoot{Entries: entries}
 	if d.Predicate != nil {
-		root.membership = make(map[ids.RowID]ids.VersionID, len(entries))
+		root.Membership = make(map[ids.RowID]ids.VersionID, len(entries))
 		for _, entry := range entries {
-			root.membership[entry.row] = entry.version
+			root.Membership[entry.Row] = entry.Version
 		}
 	}
 	if (d.Unique || d.IsExclusion()) && d.HasRuntimeDomainKeyConversion() {
-		root.rowEntries = make(map[ids.RowID]int, len(entries))
+		root.RowEntries = make(map[ids.RowID]int, len(entries))
 		for i, entry := range entries {
-			root.rowEntries[entry.row] = i
+			root.RowEntries[entry.Row] = i
 		}
 	}
 	return root

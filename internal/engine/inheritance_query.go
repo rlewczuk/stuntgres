@@ -146,9 +146,9 @@ func (s *querySource) physicalRow(index int, logical queryLeaf, candidate rowVer
 
 func (row queryPhysicalRow) values(version rowVersion) []sqltype.Value {
 	if row.segment != nil {
-		return row.segment.mapValues(version.values)
+		return row.segment.mapValues(version.Values)
 	}
-	return version.values
+	return version.Values
 }
 
 func (s *querySource) physicalRef(index int) ids.ObjectRef {

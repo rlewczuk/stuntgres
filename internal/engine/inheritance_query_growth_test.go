@@ -31,7 +31,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 		return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 	}
 	originalRef := ref(c)
-	originalStorage := e.storage.relations[c.Address()]
+	originalStorage := e.storage.Relations[c.Address()]
 	holderOp, holderDone, err := testOperation(e, context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -62,7 +62,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	if err = scope.gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	parent := queryLeaf{ref: ref(p), relation: p, storage: e.storage.relations[p.Address()]}
+	parent := queryLeaf{ref: ref(p), relation: p, storage: e.storage.Relations[p.Address()]}
 	scope.querySources = []queryLeaf{parent}
 	if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: parent.ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
@@ -96,7 +96,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	}
 	queryCreatePublish(t, e, lateStage)
 	lateRef := ref(late)
-	if lateRef == originalRef || e.storage.relations[late.Address()] == originalStorage || e.storage.relations[c.Address()] != originalStorage {
+	if lateRef == originalRef || e.storage.Relations[late.Address()] == originalStorage || e.storage.Relations[c.Address()] != originalStorage {
 		t.Fatal("growth did not preserve original and add a distinct physical relation")
 	}
 	if err = holder.Finish(nil); err != nil {
@@ -163,7 +163,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 		t.Fatal("wait reconciliation omitted late committed row", got)
 	}
 	for _, segment := range source.inheritance {
-		if segment.prefix.view.read() != view.read() || &segment.prefix.committed[0] != &e.storage.relations[segment.leaf.ref.Address].versions[0] {
+		if segment.prefix.view.read() != view.read() || &segment.prefix.committed[0] != &e.storage.Relations[segment.leaf.ref.Address].Versions[0] {
 			t.Fatal("capture copied roots or minted another snapshot")
 		}
 	}

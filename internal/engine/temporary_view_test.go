@@ -76,7 +76,7 @@ func TestTemporaryViewCatalogPublication(t *testing.T) {
 		t.Fatal("missing real associated rowtype", row)
 	}
 	arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)}
-	if catalog.Get(arrayAddress) == nil || e.catalog.state.Get(rowAddress) != nil || e.catalog.state.Get(arrayAddress) != nil || e.storage.relations[view.Address()] != nil {
+	if catalog.Get(arrayAddress) == nil || e.catalog.state.Get(rowAddress) != nil || e.catalog.state.Get(arrayAddress) != nil || e.storage.Relations[view.Address()] != nil {
 		t.Fatal("type/storage publication escaped private stage")
 	}
 	removal := e.BeginCatalogStage(catalog)
@@ -108,7 +108,7 @@ func TestTemporaryViewTerminalClosure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	writes := map[ids.ObjectAddress][]rowVersion{table.Address(): {{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
+	writes := map[ids.ObjectAddress][]rowVersion{table.Address(): {{Row: 1, Version: 1, Values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
 	_, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.state.Epoch(), nil, 0), writes, nil, changes)
 	if err != nil {
 		t.Fatal(err)
@@ -153,7 +153,7 @@ func TestTemporaryViewCancellationAtomicity(t *testing.T) {
 	op.ctx = ctx
 	err = e.publishRows(op, scope.txRef, nil, nil, changes, nil, nil)
 	scope.Finish(err)
-	if !errors.Is(err, context.Canceled) || e.catalog.state != before || e.catalog.state.Get(view.Address()) != nil || op.session.temporaryNamespace != (ids.ObjectAddress{}) || e.storage.relations[view.Address()] != nil {
+	if !errors.Is(err, context.Canceled) || e.catalog.state != before || e.catalog.state.Get(view.Address()) != nil || op.session.temporaryNamespace != (ids.ObjectAddress{}) || e.storage.Relations[view.Address()] != nil {
 		t.Fatal("canceled publication leaked TEMP artifacts", err)
 	}
 }

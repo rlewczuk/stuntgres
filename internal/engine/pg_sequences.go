@@ -129,8 +129,8 @@ func (p *pgSequencesSource) complete(ctx context.Context, ref ids.ObjectRef, row
 	if generator == nil {
 		return fmt.Errorf("stuntgres: sequence state missing")
 	}
-	if rights&(authorization.SelectPrivilege|authorization.UsagePrivilege) != 0 && generator.called {
-		row[10], err = sqltype.Integer(row[10].Type(), generator.last)
+	if rights&(authorization.SelectPrivilege|authorization.UsagePrivilege) != 0 && generator.Called {
+		row[10], err = sqltype.Integer(row[10].Type(), generator.Last)
 	}
 	return err
 }

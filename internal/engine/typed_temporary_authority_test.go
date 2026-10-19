@@ -86,7 +86,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 					}
 					if candidate != nil {
 						for a := range candidate.storage {
-							if e.storage.relations[a] != nil {
+							if e.storage.Relations[a] != nil {
 								t.Error("failed CREATE published candidate storage", a)
 							}
 						}
@@ -158,7 +158,7 @@ func TestTypedPublicationTemporaryAuthorityExpiresAtFinish(t *testing.T) {
 	winner := e.CatalogRead().Get(observed)
 	roleExecute(t, e, reader, "COMMIT")
 	view := e.CatalogRead()
-	if view.Get(relation.Address()) != relation || view.Get(observed) != winner || e.storage.relations[relation.Address()] == nil || relation.OfType != source.Address() {
+	if view.Get(relation.Address()) != relation || view.Get(observed) != winner || e.storage.Relations[relation.Address()] == nil || relation.OfType != source.Address() {
 		t.Fatal("outer COMMIT reauthorized successful statement or lost attachment/store/ACL winner")
 	}
 	roleError(t, e, reader, "CREATE TEMP TABLE fresh OF pair", "42501", "permission denied for type pair", "")

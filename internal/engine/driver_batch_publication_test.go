@@ -49,7 +49,7 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 			s := sessionStart(t, e, nil)
 			sessionSQL(t, s, "CREATE TABLE t(v INT)")
 			table := catalogRef(t, e, e.CatalogRead(), "t")
-			store := e.storage.relations[table.Address]
+			store := e.storage.Relations[table.Address]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			m := batchUnitStart(t, s, ctx)
@@ -81,7 +81,7 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 				case <-time.After(5 * time.Second):
 					t.Fatal("final publication boundary not reached")
 				}
-				if e.catalog.state != state || e.commitSeq != frontier || len(store.versions) != 0 {
+				if e.catalog.state != state || e.commitSeq != frontier || len(store.Versions) != 0 {
 					t.Fatal("prefix escaped before publication")
 				}
 				if boundary == "cancel_before" {
@@ -131,11 +131,11 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 			}
 			committed := boundary == "success" || boundary == "cancel_after"
 			if committed {
-				if err != nil || e.commitSeq != frontier+1 || len(store.versions) != 1 {
+				if err != nil || e.commitSeq != frontier+1 || len(store.Versions) != 1 {
 					t.Fatal("complete publication lost", err)
 				}
 			} else {
-				if err == nil || e.commitSeq != frontier || len(store.versions) != 0 || e.catalog.state != state {
+				if err == nil || e.commitSeq != frontier || len(store.Versions) != 0 || e.catalog.state != state {
 					t.Fatal("rejected publication changed roots", err)
 				}
 				if boundary == "cancel_before" && !errors.Is(err, context.Canceled) {

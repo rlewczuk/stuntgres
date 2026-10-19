@@ -11,10 +11,10 @@ func TestSerialCoherentCreateCandidate(t *testing.T) {
 	before := e.catalog.state
 	_,err := testExecute(e,context.Background(),statement(t,`CREATE TABLE bad(id SERIAL,v INT DEFAULT missing_column)`),nil)
 	state(t,err,"0A000")
-	if e.catalog.state != before || len(e.storage.sequences) != 0 { t.Fatal("default cooking failure leaked serial candidate") }
+	if e.catalog.state != before || len(e.storage.Sequences) != 0 { t.Fatal("default cooking failure leaked serial candidate") }
 	sessionSQL(t,s,`CREATE TABLE t(id SERIAL,CHECK(nextval('t_id_seq')>0))`)
 	sequence := roleTableRef(t,e,"t_id_seq").Address
-	if e.storage.sequences[sequence].called { t.Fatal("CHECK/default binding evaluated candidate") }
+	if e.storage.Sequences[sequence].Called { t.Fatal("CHECK/default binding evaluated candidate") }
 	sessionSQL(t,s,`INSERT INTO t DEFAULT VALUES`)
 	sequenceScalar(t,s,`SELECT id FROM t`,1)
 	sequenceScalar(t,s,`SELECT currval('t_id_seq')`,2)

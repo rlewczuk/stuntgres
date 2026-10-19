@@ -44,7 +44,7 @@ func TestNetworkDomainCatalogRemap(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			original := &relationStorage{generation: 2, versions: []rowVersion{{row: 1, version: 2, born: 1, values: []sqltype.Value{value}}}}
+			original := &relationStorage{Generation: 2, Versions: []rowVersion{{Row: 1, Version: 2, Born: 1, Values: []sqltype.Value{value}}}}
 			storage := map[ids.ObjectAddress]*relationStorage{table.Address(): original}
 			next := catalog.CloneState(e.CatalogRead().State())
 			physical, _ := New().CatalogRead().LookupType(tc.id)
@@ -78,14 +78,14 @@ func TestNetworkDomainCatalogRemap(t *testing.T) {
 				}
 			}
 			restored := storage[table.Address()]
-			if restored == original || restored.versions[0].values[0].Type() != importedChain.SQLType || next.MustRelation(table.Address()).Columns[0].Usage.Type != importedChain.SQLType {
+			if restored == original || restored.Versions[0].Values[0].Type() != importedChain.SQLType || next.MustRelation(table.Address()).Columns[0].Usage.Type != importedChain.SQLType {
 				t.Fatal("scalar storage remap")
 			}
-			out, err := importedChain.SQLType.Output(context.Background(), restored.versions[0].values[0])
+			out, err := importedChain.SQLType.Output(context.Background(), restored.Versions[0].Values[0])
 			if err != nil || out != tc.output {
 				t.Fatal(out, err)
 			}
-			if original.versions[0].values[0].Type() != chain.SQLType || arrays[0].SQLType.Element() != direct.SQLType || arrays[1].SQLType.Element() != chain.SQLType || arrays[0].SQLType.Concrete() || arrays[1].SQLType.Concrete() {
+			if original.Versions[0].Values[0].Type() != chain.SQLType || arrays[0].SQLType.Element() != direct.SQLType || arrays[1].SQLType.Element() != chain.SQLType || arrays[0].SQLType.Concrete() || arrays[1].SQLType.Concrete() {
 				t.Fatal("source authority mutated")
 			}
 		})

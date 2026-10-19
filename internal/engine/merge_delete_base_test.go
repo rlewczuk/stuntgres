@@ -12,7 +12,7 @@ func TestMergeDeleteDeletionBaseAuthority(t *testing.T) {
 	sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
 	sessionSQL(t, peer, "INSERT INTO t VALUES(1,10)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	original := e.storage.relations[ref.Address].versions[0]
+	original := e.storage.Relations[ref.Address].Versions[0]
 	tx := transactionBegin(t, s)
 	sessionSQL(t, s, "UPDATE t SET v=11")
 	op, err := s.Acquire(context.Background())
@@ -34,13 +34,13 @@ func TestMergeDeleteDeletionBaseAuthority(t *testing.T) {
 		t.Fatal("own replacement deletion count", result.Count)
 	}
 	root := scope.stage.deletes[ref.Address]
-	candidate := root.rows[original.row]
-	if !candidate.own || candidate.base != original.version || candidate.version == original.version {
+	candidate := root.rows[original.Row]
+	if !candidate.own || candidate.base != original.Version || candidate.version == original.Version {
 		scope.Finish(err)
 		t.Fatal("deletion lost derived replacement base", candidate, original)
 	}
 	candidate.base++
-	root.rows[original.row] = candidate
+	root.rows[original.Row] = candidate
 	if err = scope.Finish(nil); err != nil {
 		t.Fatal("statement stage Finish unexpectedly publishes", err)
 	}

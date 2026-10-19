@@ -423,7 +423,7 @@ func (p *dropProvider) projectColumn(old, next *catalog.Relation) error {
 		e.mu.Unlock()
 		return catalog.Conflict{}
 	}
-	rows, ends, generation := storage.versions, storage.ends, storage.generation
+	rows, ends, generation := storage.Versions, storage.Ends, storage.Generation
 	e.mu.Unlock()
 	nextGeneration := generation + 1
 	if generation == ^uint64(0) {
@@ -436,7 +436,7 @@ func (p *dropProvider) projectColumn(old, next *catalog.Relation) error {
 	if err != nil {
 		return err
 	}
-	replacement := &relationStorage{versions: projected, ends: ends, generation: nextGeneration}
+	replacement := &relationStorage{Versions: projected, Ends: ends, Generation: nextGeneration}
 	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), old.Address())
 	return stage.alterRelation(ctx, ref, next, storage, replacement, len(rows), generation, ends)
 }

@@ -219,7 +219,7 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	base, _ := sqltype.Integer(d.Columns[0].Usage.Type, 2)
 	oldOID, _ := sqltype.OIDValue(oid, uint32(oldAddress.ObjectID))
 	source := []sqltype.Value{base, oldOID}
-	rows := &relationStorage{versions: []rowVersion{{values: source}}}
+	rows := &relationStorage{Versions: []rowVersion{{Values: source}}}
 	candidate := catalog.CloneState(view.State())
 	candidate.SetDescriptor(d.Address(), d)
 	storage := map[ids.ObjectAddress]*relationStorage{d.Address(): rows}
@@ -230,7 +230,7 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	if n, _ := source[1].OID(); n != uint32(oldAddress.ObjectID) {
 		t.Fatal("source row mutated", n)
 	}
-	if n, _ := rows.versions[0].values[1].OID(); n != uint32(d.Address().ObjectID) {
+	if n, _ := rows.Versions[0].Values[1].OID(); n != uint32(d.Address().ObjectID) {
 		t.Fatal("owner not recomputed", n)
 	}
 	canceled, cancel := context.WithCancel(context.Background())

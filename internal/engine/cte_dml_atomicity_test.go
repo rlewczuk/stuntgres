@@ -56,7 +56,7 @@ func TestCTEDMLCancellationBeforeFinish(t *testing.T) {
 				t.Fatal("not one unpublished complete stage")
 			}
 			view := scope.view.data.Load()
-			if view == nil || len(view.committed) < 2 || &view.committed[a.Address][0].values[0] != &e.storage.relations[a.Address].versions[0].values[0] || &view.committed[b.Address][0].values[0] != &e.storage.relations[b.Address].versions[0].values[0] {
+			if view == nil || len(view.committed) < 2 || &view.committed[a.Address][0].Values[0] != &e.storage.Relations[a.Address].Versions[0].Values[0] || &view.committed[b.Address][0].Values[0] != &e.storage.Relations[b.Address].Versions[0].Values[0] {
 				t.Fatal("snapshot did not retain both original roots")
 			}
 			transactionRows(t, observer, "SELECT id FROM a ORDER BY id", 1, 2)
@@ -226,7 +226,7 @@ func TestCTEDMLCTASPublication(t *testing.T) {
 					created = address
 				}
 			}
-			if created == (ids.ObjectAddress{}) || e.catalog.state.Get(created) != nil || e.storage.relations[created] != nil || len(scope.stage.rows[created]) != 2 {
+			if created == (ids.ObjectAddress{}) || e.catalog.state.Get(created) != nil || e.storage.Relations[created] != nil || len(scope.stage.rows[created]) != 2 {
 				t.Fatal("destination published before Finish")
 			}
 			transactionRows(t, peer, "SELECT id FROM a ORDER BY id", 1, 2)
@@ -236,7 +236,7 @@ func TestCTEDMLCTASPublication(t *testing.T) {
 			err = scope.Finish(nil)
 			op.Done()
 			if canceled {
-				if err != context.Canceled || e.catalog.state.Get(created) != nil || e.storage.relations[created] != nil {
+				if err != context.Canceled || e.catalog.state.Get(created) != nil || e.storage.Relations[created] != nil {
 					t.Fatal("cancellation published destination", err)
 				}
 				transactionRows(t, peer, "SELECT id FROM a ORDER BY id", 1, 2)

@@ -132,9 +132,9 @@ func TestUpdateFromFramesOriginsAndPhysicalTargets(t *testing.T) {
 	if target.view != nil || from.sources != nil || len(scope.querySources) != 0 {
 		t.Fatal("capture ownership leaked")
 	}
-	store := e.storage.relations[b.ref.Address]
-	if len(store.versions) != 2 || store.versions[0].row != original[0].row || store.versions[1].row != original[1].row || original[0].row == original[1].row || store.versions[0].version == original[0].version || testExport(original[0].values[1]) != int64(10) {
-		t.Fatal("physical identity/head immutability", store.versions, original)
+	store := e.storage.Relations[b.ref.Address]
+	if len(store.Versions) != 2 || store.Versions[0].Row != original[0].Row || store.Versions[1].Row != original[1].Row || original[0].Row == original[1].Row || store.Versions[0].Version == original[0].Version || testExport(original[0].Values[1]) != int64(10) {
+		t.Fatal("physical identity/head immutability", store.Versions, original)
 	}
 	transactionRows(t, a, "SELECT a FROM t", 20, 20)
 	lockEmpty(t, e)
@@ -193,7 +193,7 @@ func TestUpdateFromLosingPairsDemandAndFailureCleanup(t *testing.T) {
 			if target.view != nil || from.sources != nil || len(scope.querySources) != 0 {
 				t.Fatal("orphan statement capture")
 			}
-			if testExport(saved[0].values[1]) != int64(10) || testExport(saved[1].values[1]) != int64(20) {
+			if testExport(saved[0].Values[1]) != int64(10) || testExport(saved[1].Values[1]) != int64(20) {
 				t.Fatal("retained predecessor changed")
 			}
 			if failLast {

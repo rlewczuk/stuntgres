@@ -54,10 +54,10 @@ func TestRoutineProgramOriginalCallsAfterUniqueWait(t *testing.T) {
 				lockPending(t, e, 1)
 				sequence := catalogRef(t, e, e.CatalogRead(), "programme_steps")
 				e.mu.Lock()
-				generator := e.storage.sequences[sequence.Address]
+				generator := e.storage.Sequences[sequence.Address]
 				before := *generator
 				e.mu.Unlock()
-				if before.last != 2 || !before.called {
+				if before.Last != 2 || !before.Called {
 					t.Fatal("real candidate CHECK did not execute once before wait", before)
 				}
 				target := "pg_catalog.json_array_length(json)"
@@ -120,7 +120,7 @@ func TestRoutineProgramOriginalCallsAfterUniqueWait(t *testing.T) {
 					t.Fatal("fresh regrant retry", result)
 				}
 				e.mu.Lock()
-				last := generator.last
+				last := generator.Last
 				e.mu.Unlock()
 				if last != 3 {
 					t.Fatal("regrant retry did not execute exactly one fresh CHECK", fmt.Sprint(last))
@@ -183,8 +183,8 @@ func TestRoutineProgramOriginalCallsAfterSecondUniqueWait(t *testing.T) {
 			routinePendingUniqueIndex(t, e, firstIndex, reader.session)
 			sequence := catalogRef(t, e, e.CatalogRead(), "second_wait_steps")
 			e.mu.Lock()
-			generator := e.storage.sequences[sequence.Address]
-			before := generator.last
+			generator := e.storage.Sequences[sequence.Address]
+			before := generator.Last
 			e.mu.Unlock()
 			if before != 3 {
 				t.Fatal("candidate CHECK did not execute exactly once before first wait", before)
@@ -208,7 +208,7 @@ func TestRoutineProgramOriginalCallsAfterSecondUniqueWait(t *testing.T) {
 				t.Fatal("second real waiter did not join")
 			}
 			e.mu.Lock()
-			after := generator.last
+			after := generator.Last
 			e.mu.Unlock()
 			if after != before {
 				t.Fatal("rebind/readmission replayed volatile CHECK truth", before, after)
@@ -225,7 +225,7 @@ func TestRoutineProgramOriginalCallsAfterSecondUniqueWait(t *testing.T) {
 				t.Fatal("fresh second-wait regrant retry", result)
 			}
 			e.mu.Lock()
-			last := generator.last
+			last := generator.Last
 			e.mu.Unlock()
 			if last != 4 {
 				t.Fatal("fresh retry did not execute exactly one new CHECK", last)

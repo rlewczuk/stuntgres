@@ -153,17 +153,15 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 	if candidate.exclusion != nil {
 		version = *candidate.exclusion
 	} else {
-		if e.storage.nextRow == ^uint64(0) || e.storage.nextVersion == ^uint64(0) {
+		if e.storage.RowFrontier() == ^uint64(0) || e.storage.VersionFrontier() == ^uint64(0) {
 			return false, false, errors.New("stuntgres: row or version identity exhausted")
 		}
-		e.storage.nextRow++
-		e.storage.nextVersion++
-		version = rowVersion{row: ids.RowID(e.storage.nextRow), version: ids.VersionID(e.storage.nextVersion), values: row}
+		version = rowVersion{Row: e.storage.AllocateRowLocked(), Version: e.storage.AllocateVersionLocked(), Values: row}
 	}
-	version.indexAdmission = catalog.State()
-	version.indexOutputs = candidate.indexes
+	version.IndexAdmission = catalog.State()
+	version.IndexOutputs = candidate.indexes
 	if serializableRelevant(e.serializable.nodes[s.txRef]) {
-		events := [1]serializableWrite{{row: version.row, version: version.version}}
+		events := [1]serializableWrite{{row: version.Row, version: version.Version}}
 		if err = e.serializableWriteLocked(s, ref, events[:]); err != nil {
 			return false, false, err
 		}

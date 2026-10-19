@@ -26,14 +26,14 @@ type foreignActionPlan struct {
 
 func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignKeyJob, event foreignActionTransition, action parser.ForeignKeyAction) (*foreignActionPlan, error) {
 	cached := job.deletePlan
-	if event.next.row != 0 {
+	if event.next.Row != 0 {
 		cached = job.updatePlan
 	}
 	if cached != nil {
 		return cached, nil
 	}
 	attributes := job.definition.Attributes
-	if event.next.row == 0 && len(job.definition.DeleteAttributes) != 0 {
+	if event.next.Row == 0 && len(job.definition.DeleteAttributes) != 0 {
 		attributes = job.definition.DeleteAttributes
 	}
 	plan := &foreignActionPlan{targets: make([]int, len(attributes))}
@@ -132,7 +132,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 			}
 		}
 	}
-	if event.next.row == 0 {
+	if event.next.Row == 0 {
 		job.deletePlan = plan
 	} else {
 		job.updatePlan = plan
@@ -153,11 +153,11 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			return err
 		}
 		return children.each(func(child rowVersion) (bool, error) {
-			match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, child.values, event.old.values, s.input)
+			match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
 			if err != nil || !match {
 				return false, err
 			}
-			if err = s.foreignKeyGrant(ref, child.row, lock.ForKeyShare, children.storage); err != nil {
+			if err = s.foreignKeyGrant(ref, child.Row, lock.ForKeyShare, children.storage); err != nil {
 				return false, err
 			}
 			latest, live, err := s.foreignActionRow(ref, child)
@@ -167,11 +167,11 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			if err := s.physicalRowEvent(ref, latest, lock.MultiKeyShare, 0); err != nil {
 				return false, err
 			}
-			match, err = foreignKeyRowsMatch(s.op.Context(), job.comparisons, latest.values, event.old.values, s.input)
+			match, err = foreignKeyRowsMatch(s.op.Context(), job.comparisons, latest.Values, event.old.Values, s.input)
 			if err != nil || !match {
 				return false, err
 			}
-			d := foreignKeyDiagnostic(s.op.Context(), reportAuth, job.child, job.parent, job.definition, event.old.values, true, false, s.output)
+			d := foreignKeyDiagnostic(s.op.Context(), reportAuth, job.child, job.parent, job.definition, event.old.Values, true, false, s.output)
 			var diagnostic *sqlstate.Error
 			if !errors.As(d, &diagnostic) {
 				return false, d
@@ -187,7 +187,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 	previous := s.foreignActionAuth
 	s.foreignActionAuth = &ownerAuth
 	defer func() { s.foreignActionAuth = previous }()
-	deletion := action == parser.ForeignKeyCascade && event.next.row == 0
+	deletion := action == parser.ForeignKeyCascade && event.next.Row == 0
 	var plan *foreignActionPlan
 	var err error
 	if !deletion {
@@ -206,14 +206,14 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 	var retainedMatches map[ids.RowID]struct{}
 	if retained.storage != nil {
 		err = retained.each(func(child rowVersion) (bool, error) {
-			match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, child.values, event.old.values, s.input)
+			match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
 			if err != nil || !match {
 				return false, err
 			}
 			if retainedMatches == nil {
 				retainedMatches = make(map[ids.RowID]struct{})
 			}
-			retainedMatches[child.row] = struct{}{}
+			retainedMatches[child.Row] = struct{}{}
 			candidates = append(candidates, child)
 			return false, nil
 		})
@@ -222,10 +222,10 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 		}
 	}
 	err = children.each(func(child rowVersion) (bool, error) {
-		if _, exists := retainedMatches[child.row]; exists {
+		if _, exists := retainedMatches[child.Row]; exists {
 			return false, nil
 		}
-		match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, child.values, event.old.values, s.input)
+		match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
 		if match {
 			candidates = append(candidates, child)
 		}
@@ -248,7 +248,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 		if deletion {
 			mode = lock.ForUpdate
 		}
-		if err = s.foreignKeyGrant(ref, candidate.row, mode, children.storage); err != nil {
+		if err = s.foreignKeyGrant(ref, candidate.Row, mode, children.storage); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.catalog)
 		}
 		e.mu.Lock()
@@ -265,7 +265,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 		if !live {
 			continue
 		}
-		if old.version != candidate.version {
+		if old.Version != candidate.Version {
 			lockMode, err := lock.MultiLockMode(mode)
 			if err != nil {
 				return err
@@ -274,7 +274,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 				return s.foreignActionError(err, job, event, action, auth.catalog)
 			}
 		}
-		match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, old.values, event.old.values, s.input)
+		match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, old.Values, event.old.Values, s.input)
 		if err != nil {
 			return err
 		}
@@ -287,12 +287,12 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			}
 			continue
 		}
-		row := slices.Clone(old.values)
-		evaluation.Row = old.values
+		row := slices.Clone(old.Values)
+		evaluation.Row = old.Values
 		for i, slot := range plan.targets {
 			switch action {
 			case parser.ForeignKeyCascade:
-				row[slot] = event.next.values[plan.parentSlots[i]]
+				row[slot] = event.next.Values[plan.parentSlots[i]]
 				if plan.convert[i] {
 					row[slot], err = plan.conversions[i].Apply(evaluation.Context, row[slot], evaluation.Input, evaluation.Output)
 				}
@@ -310,19 +310,19 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 		if err = e.validateMutationRow(s, b, schema, row, &evaluation); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.catalog)
 		}
-		keyChanged, err := s.uniqueKeyChanged(ref, old.values, row)
+		keyChanged, err := s.uniqueKeyChanged(ref, old.Values, row)
 		if err != nil {
 			return s.foreignActionError(err, job, event, action, auth.catalog)
 		}
 		if keyChanged {
-			if err = s.foreignKeyGrant(ref, old.row, lock.ForUpdate, children.storage); err != nil {
+			if err = s.foreignKeyGrant(ref, old.Row, lock.ForUpdate, children.storage); err != nil {
 				return s.foreignActionError(err, job, event, action, auth.catalog)
 			}
 		}
 		if err = s.claimUniqueRow(ref, old); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.catalog)
 		}
-		old.pendingKeyChange = old.pendingKeyChange || keyChanged
+		old.PendingKeyChange = old.PendingKeyChange || keyChanged
 		actionMode := lock.MultiNoKeyAction
 		if keyChanged {
 			actionMode = lock.MultiUpdateAction
@@ -355,15 +355,15 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 			return err
 		}
 		return final.each(func(child rowVersion) (bool, error) {
-			match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, child.values, event.old.values, s.input)
+			match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, event.old.Values, s.input)
 			if err != nil || !match {
 				return false, err
 			}
-			found, err := s.foreignKeyParentExists(parentRef, *job, &parents, child.values, false)
+			found, err := s.foreignKeyParentExists(parentRef, *job, &parents, child.Values, false)
 			if err != nil || found {
 				return false, err
 			}
-			return false, foreignKeyDiagnostic(s.op.Context(), reportAuth, job.child, job.parent, job.definition, event.old.values, true, false, s.output)
+			return false, foreignKeyDiagnostic(s.op.Context(), reportAuth, job.child, job.parent, job.definition, event.old.Values, true, false, s.output)
 		})
 	}
 	return nil
@@ -388,7 +388,7 @@ func (s *StatementScope) foreignActionError(err error, job *foreignKeyJob, event
 
 func foreignActionQuery(job *foreignKeyJob, event foreignActionTransition, action parser.ForeignKeyAction, view catalog.Read) string {
 	var q strings.Builder
-	deletion := action == parser.ForeignKeyCascade && event.next.row == 0
+	deletion := action == parser.ForeignKeyCascade && event.next.Row == 0
 	if deletion {
 		q.WriteString("DELETE FROM ONLY ")
 	} else {
@@ -401,7 +401,7 @@ func foreignActionQuery(job *foreignKeyJob, event foreignActionTransition, actio
 	if !deletion {
 		q.WriteString(" SET ")
 		attributes := job.definition.Attributes
-		if event.next.row == 0 && len(job.definition.DeleteAttributes) != 0 {
+		if event.next.Row == 0 && len(job.definition.DeleteAttributes) != 0 {
 			attributes = job.definition.DeleteAttributes
 		}
 		for i, a := range attributes {

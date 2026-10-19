@@ -22,7 +22,7 @@ func projectColumnShapeRoots(ctx context.Context, stable bool, old, next *catalo
 		shape.relation = next
 		return shape, writes, deletes, nil
 	}
-	if store.generation == ^uint64(0) {
+	if store.Generation == ^uint64(0) {
 		return shape, nil, nil, fmt.Errorf("stuntgres: storage generation exhausted")
 	}
 	shape.fills = maps.Clone(shape.fills)
@@ -35,11 +35,11 @@ func projectColumnShapeRoots(ctx context.Context, stable bool, old, next *catalo
 	if err != nil {
 		return shape, nil, nil, err
 	}
-	versions, err := projection.versions(ctx, store.versions)
+	versions, err := projection.versions(ctx, store.Versions)
 	if err != nil {
 		return shape, nil, nil, err
 	}
-	shape.replacement = &relationStorage{versions: versions, ends: store.ends, generation: store.generation + 1}
+	shape.replacement = &relationStorage{Versions: versions, Ends: store.Ends, Generation: store.Generation + 1}
 	shape.truncated = false
 	writes, err = projection.versions(ctx, writes)
 	if err != nil {
@@ -119,7 +119,7 @@ func stagePrivateColumnShapeMetadata(evaluation *EvalContext, stage *CatalogStag
 	ctx := evaluation.Context
 	e := stage.owner
 	e.mu.Lock()
-	original := e.storage.relations[old.Address()]
+	original := e.storage.Relations[old.Address()]
 	store := e.privateStorageLocked(changes, old.Address())
 	shape, exists := changes.storage[old.Address()]
 	if store == nil || original == nil && !exists {
@@ -132,7 +132,7 @@ func stagePrivateColumnShapeMetadata(evaluation *EvalContext, stage *CatalogStag
 			e.mu.Unlock()
 			return nil, nil, false, fmt.Errorf("stuntgres: relation storage descriptor is missing")
 		}
-		shape = catalogStorageChange{original: original, root: original.versions, ends: original.ends, generation: original.generation, replacement: store, relation: storageOwner}
+		shape = catalogStorageChange{original: original, root: original.Versions, ends: original.Ends, generation: original.Generation, replacement: store, relation: storageOwner}
 	}
 	e.mu.Unlock()
 	sourceWrites := writes

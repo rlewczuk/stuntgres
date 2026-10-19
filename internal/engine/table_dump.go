@@ -65,7 +65,7 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalog catalog.Read, emit 
 		if !liveVersion(version, t.frontier, t.ends, nil) {
 			continue
 		}
-		row := version.values
+		row := version.Values
 		line.Reset()
 		if len(t.columns) == 0 {
 			if err := emit("INSERT INTO " + qualified + " DEFAULT VALUES;\n"); err != nil {
@@ -135,13 +135,13 @@ func (t *dumpRelation) rowReplayReferences(ctx context.Context, catalog catalog.
 			continue
 		}
 		for i, column := range t.columns {
-			if err := walkRoutineReferences(catalog, version.values[i], add); err != nil {
+			if err := walkRoutineReferences(catalog, version.Values[i], add); err != nil {
 				return err
 			}
 			if !column.Usage.Type.ContainsRegclass() {
 				continue
 			}
-			literal := literalExpression{Info: expr.Info{Usage: column.Usage}, value: version.values[i]}
+			literal := literalExpression{Info: expr.Info{Usage: column.Usage}, value: version.Values[i]}
 			if err := regclassReplayReferences(catalog, literal, add); err != nil {
 				return err
 			}

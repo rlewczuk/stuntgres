@@ -74,9 +74,9 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				oldKeys := append([]catalog.UniqueConstraint(nil), table.Constraints.Unique...)
 				before := indexMaintenanceCapture(e)
 				leaf := roleTableRef(t, e, "leaf").Address
-				rows := append([]rowVersion(nil), e.storage.relations[leaf].versions...)
+				rows := append([]rowVersion(nil), e.storage.Relations[leaf].Versions...)
 				for i := range rows {
-					rows[i].values = append([]sqltype.Value(nil), rows[i].values...)
+					rows[i].Values = append([]sqltype.Value(nil), rows[i].Values...)
 				}
 				if len(rows) != 1 || len(oldKeys) != 1 {
 					t.Fatal("fixture lacks real data and constraint witnesses")
@@ -141,11 +141,11 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 					}
 					current := catalogAuthorization(e, e.CatalogRead())
 					checkReader(current, true)
-					if e.catalog.state.Get(root.Address) != pending || e.roles != pendingRoles || !reflect.DeepEqual(e.storage.relations[leaf].versions, rows) || !reflect.DeepEqual(pending.Constraints.Unique, oldKeys) {
+					if e.catalog.state.Get(root.Address) != pending || e.roles != pendingRoles || !reflect.DeepEqual(e.storage.Relations[leaf].Versions, rows) || !reflect.DeepEqual(pending.Constraints.Unique, oldKeys) {
 						t.Fatal("healthy grant lost candidate or changed data/constraints")
 					}
 					for address, index := range before.roots {
-						if e.storage.indexRoots[address] != index {
+						if e.storage.IndexRoots[address] != index {
 							t.Fatal("healthy ACL-only grant changed index root")
 						}
 					}
@@ -164,7 +164,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				indexMaintenanceUnchanged(t, e, before)
 				checkReader(catalogAuthorization(e, e.CatalogRead()), false)
 				checkReader(retained, true)
-				if e.roles != oldRoles || !reflect.DeepEqual(e.storage.relations[leaf].versions, rows) || !reflect.DeepEqual(table.Security.ACL, oldACL) || !reflect.DeepEqual(table.Constraints.Unique, oldKeys) || retained.roleRecord != pendingRoles || retained.catalog.Get(catalog.CurrentDatabaseAddress) != pendingDB || auth.databasePredecessor != committed {
+				if e.roles != oldRoles || !reflect.DeepEqual(e.storage.Relations[leaf].Versions, rows) || !reflect.DeepEqual(table.Security.ACL, oldACL) || !reflect.DeepEqual(table.Constraints.Unique, oldKeys) || retained.roleRecord != pendingRoles || retained.catalog.Get(catalog.CurrentDatabaseAddress) != pendingDB || auth.databasePredecessor != committed {
 					t.Fatal("veto mutated old ACL/keys/storage or retained authority roots")
 				}
 			})

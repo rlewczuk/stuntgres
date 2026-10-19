@@ -281,12 +281,12 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 	}
 	next := catalog.CloneState(e.catalog.state)
 	for _, item := range imports {
-		versions, err := e.storage.allocateRowVersionsLocked(item.rows, nil)
+		versions, err := e.storage.AllocateRowVersionsLocked(item.rows, nil)
 		if err != nil {
 			return err
 		}
 		for i := range versions {
-			versions[i].born = e.commitSeq
+			versions[i].Born = e.commitSeq
 		}
 		d := *item.descriptor
 		d.ObjectRevision, err = e.catalog.revisionLocked()
@@ -295,7 +295,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 		}
 		d.Populated = item.populated
 		next.SetDescriptor(d.Address(), &d)
-		e.storage.relations[d.Address()] = &relationStorage{versions: versions}
+		e.storage.Relations[d.Address()] = &relationStorage{Versions: versions}
 	}
 	e.catalog.state = next
 	return nil

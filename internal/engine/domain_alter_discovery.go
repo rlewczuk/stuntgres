@@ -161,7 +161,7 @@ func (f *domainValidationFence) current(view catalog.Read, storage map[ids.Objec
 	}
 	for _, use := range f.uses {
 		store := storage[use.relation.Address()]
-		if store != use.storage || store == nil || len(store.versions) != len(use.versions) || store.ends != use.ends || store.generation != use.generation {
+		if store != use.storage || store == nil || len(store.Versions) != len(use.versions) || store.Ends != use.ends || store.Generation != use.generation {
 			return false
 		}
 	}

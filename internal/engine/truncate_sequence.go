@@ -40,7 +40,7 @@ func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
 			}
 			s.truncateSequences = append(s.truncateSequences, truncateSequence{
 				ref:      e.catalog.Domain.Ref(s.txRef.Epoch(), a),
-				relation: d, generator: e.sequenceGeneratorLocked(s, a), committed: e.storage.sequences[a],
+				relation: d, generator: e.sequenceGeneratorLocked(s, a), committed: e.storage.Sequences[a],
 			})
 		}
 	}
@@ -56,7 +56,7 @@ func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
 		e.mu.Lock()
 		auth, err = e.statementAuthorizationLocked(s.op, stmt)
 		if err == nil {
-			if auth.catalog.Get(observed.ref.Address) != observed.relation || e.sequenceGeneratorLocked(s, observed.ref.Address) != observed.generator || observed.generator == nil || e.storage.sequences[observed.ref.Address] != observed.committed {
+			if auth.catalog.Get(observed.ref.Address) != observed.relation || e.sequenceGeneratorLocked(s, observed.ref.Address) != observed.generator || observed.generator == nil || e.storage.Sequences[observed.ref.Address] != observed.committed {
 				err = ids.ErrCatalogReplaced
 			} else {
 				err = auth.Check(AccessRequirement{Object: observed.ref, OwnerOnly: true})
@@ -81,7 +81,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 	}
 	for _, sequence := range s.truncateSequences {
 		a := sequence.ref.Address
-		if auth.catalog.Get(a) != sequence.relation || e.sequenceGeneratorLocked(s, a) != sequence.generator || e.storage.sequences[a] != sequence.committed {
+		if auth.catalog.Get(a) != sequence.relation || e.sequenceGeneratorLocked(s, a) != sequence.generator || e.storage.Sequences[a] != sequence.committed {
 			return nil, ids.ErrCatalogReplaced
 		}
 		if err := auth.Check(AccessRequirement{Object: sequence.ref, OwnerOnly: true}); err != nil {
@@ -111,7 +111,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 		if err = stage.Replace(&d); err != nil {
 			return nil, err
 		}
-		stage.generators[d.Address()] = &sequenceGenerator{last: d.Sequence.Start, generation: rev}
+		stage.generators[d.Address()] = &sequenceGenerator{Last: d.Sequence.Start, Generation: rev}
 	}
 	session := s.op.session
 	if len(s.truncateSequences) != 0 && session.sequences == nil {

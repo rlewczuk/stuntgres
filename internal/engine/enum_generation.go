@@ -15,11 +15,11 @@ func enumReownVersions(next *catalog.State, versions []rowVersion) ([]rowVersion
 		return versions, nil
 	}
 	address := ids.ObjectAddress{}
-	stores := map[ids.ObjectAddress]*relationStorage{address: {versions: versions}}
+	stores := map[ids.ObjectAddress]*relationStorage{address: {Versions: versions}}
 	if err := reownCatalogScalarTypes(next, stores, nil); err != nil {
 		return nil, err
 	}
-	return stores[address].versions, nil
+	return stores[address].Versions, nil
 }
 
 func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *catalogChanges, stage *CatalogStage) error {
@@ -42,7 +42,7 @@ func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *cata
 		}
 		shape, exists := changes.storage[a]
 		if !exists {
-			shape = catalogStorageChange{original: rebound.original, root: rebound.original.versions, ends: rebound.observedEnds, generation: rebound.generation}
+			shape = catalogStorageChange{original: rebound.original, root: rebound.original.Versions, ends: rebound.observedEnds, generation: rebound.generation}
 		}
 		if shape.replacement != rebound.replacement {
 			shape.truncated = false

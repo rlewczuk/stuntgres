@@ -46,11 +46,11 @@ func TestDomainProgramPublicationCurrentAuthority(t *testing.T) {
 			}
 			sequence := catalogRef(t, e, e.CatalogRead(), "publication_steps")
 			e.mu.Lock()
-			generator := e.storage.sequences[sequence.Address]
+			generator := e.storage.Sequences[sequence.Address]
 			before := *generator
 			e.mu.Unlock()
-			if before.last != 1 {
-				t.Fatal("actual CHECK truth did not run exactly once", before.last)
+			if before.Last != 1 {
+				t.Fatal("actual CHECK truth did not run exactly once", before.Last)
 			}
 			roleExecute(t, e, admin, "REVOKE EXECUTE ON FUNCTION pg_catalog.int4gt(integer,integer) FROM publication_reader")
 			nullCountUnitDiagnostic(t, scope.Finish(nil), sqlstate.Error{Code: "42501", Message: "permission denied for function int4gt"})
@@ -74,7 +74,7 @@ func TestDomainProgramPublicationCurrentAuthority(t *testing.T) {
 				t.Fatal("fresh regrant retry", result)
 			}
 			e.mu.Lock()
-			last := generator.last
+			last := generator.Last
 			e.mu.Unlock()
 			if last != 2 {
 				t.Fatal("fresh retry repeated old CHECK truth", last)

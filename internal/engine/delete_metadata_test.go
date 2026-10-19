@@ -28,7 +28,7 @@ func TestDeleteCoreMetadataQueuedComment(t *testing.T) {
 				waiter := b.transactions.ticket
 				target := catalogRef(t, e, e.CatalogRead(), "t")
 				e.mu.Lock()
-				row := e.storage.relations[target.Address].versions[0].row
+				row := e.storage.Relations[target.Address].Versions[0].Row
 				e.mu.Unlock()
 				resource := lock.Resource{ObjectRef: target, Row: row}
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -101,7 +101,7 @@ func TestDeleteCoreMetadataACLPublication(t *testing.T) {
 			deleteCount(t, a, "DELETE FROM t WHERE v=1", 1)
 			e.mu.Lock()
 			beforeDescriptor := e.catalog.state.Get(ref.Address)
-			beforeStorage := e.storage.relations[ref.Address]
+			beforeStorage := e.storage.Relations[ref.Address]
 			beforeEpoch := e.catalog.state.Epoch()
 			e.mu.Unlock()
 			aclRef := ref
@@ -113,7 +113,7 @@ func TestDeleteCoreMetadataACLPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			e.mu.Lock()
-			metadataOnly := e.catalog.state.Get(ref.Address) != beforeDescriptor && e.storage.relations[ref.Address] == beforeStorage && e.catalog.state.Epoch() == beforeEpoch
+			metadataOnly := e.catalog.state.Get(ref.Address) != beforeDescriptor && e.storage.Relations[ref.Address] == beforeStorage && e.catalog.state.Epoch() == beforeEpoch
 			e.mu.Unlock()
 			if !metadataOnly {
 				t.Fatal("fixture did not publish metadata-only ACL descriptor replacement")

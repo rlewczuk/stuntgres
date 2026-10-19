@@ -556,12 +556,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				options + " AS " + body + ";\n"
 			if r.RelationKind == catalog.MaterializedViewRelation {
 				sql = "CREATE MATERIALIZED VIEW " + quoteIdentifier(ns.Name()) + "." + quoteIdentifier(r.Name()) + columns + " AS " + body + " WITH NO DATA;\n"
-				storage := e.storage.relations[a]
+				storage := e.storage.Relations[a]
 				if storage == nil {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: materialized view storage is missing")
 				}
-				materialized = append(materialized, dumpRelation{owner: principal.Name, schema: ns.Name(), name: r.Name(), columns: r.Columns, attributes: r.Attributes, versions: storage.versions, ends: storage.ends, frontier: e.commitSeq, descriptor: r})
+				materialized = append(materialized, dumpRelation{owner: principal.Name, schema: ns.Name(), name: r.Name(), columns: r.Columns, attributes: r.Attributes, versions: storage.Versions, ends: storage.Ends, frontier: e.commitSeq, descriptor: r})
 			}
 			// Capture every source occurrence and expression dependency from the
 			// same immutable catalog used to render the definition. Attribute
@@ -618,7 +618,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			continue
 		}
 		if r.RelationKind == catalog.SequenceRelation {
-			g := e.storage.sequences[a]
+			g := e.storage.Sequences[a]
 			if g == nil {
 				e.mu.Unlock()
 				return fmt.Errorf("stuntgres: sequence state missing")
@@ -646,7 +646,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			sequences = append(sequences, sequence)
 			continue
 		}
-		storage := e.storage.relations[a]
+		storage := e.storage.Relations[a]
 		if storage == nil && r.Partition == nil {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: relation storage is missing")
@@ -768,12 +768,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		linked := make(map[ids.ObjectAddress]dumpSequence, len(r.ColumnMeta.Identities))
 		for _, identity := range r.ColumnMeta.Identities {
 			sequence := e.catalog.state.MustRelation(identity.Sequence)
-			linked[identity.Sequence] = dumpSequence{owner: principal.Name, schema: ns.Name(), name: sequence.Name(), options: *sequence.Sequence, state: *e.storage.sequences[identity.Sequence], comment: sequence.Comment}
+			linked[identity.Sequence] = dumpSequence{owner: principal.Name, schema: ns.Name(), name: sequence.Name(), options: *sequence.Sequence, state: *e.storage.Sequences[identity.Sequence], comment: sequence.Comment}
 		}
 		var versions []rowVersion
 		var ends *deletionRoot
 		if storage != nil {
-			versions, ends = storage.versions, storage.ends
+			versions, ends = storage.Versions, storage.Ends
 		}
 		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.Name(), name: r.Name(), columns: r.Columns, attributes: r.Attributes, versions: versions, ends: ends, frontier: e.commitSeq, comment: r.Comment, columnComments: r.ColumnMeta.Comments, notNullConstraints: r.Constraints.NotNull, defaults: r.ColumnMeta.Defaults, deferredDefinitions: deferredDefinitions, descriptor: r, identities: r.ColumnMeta.Identities, identitySequences: linked})
 		if selected := recipePlan[r.Address()]; selected != nil {

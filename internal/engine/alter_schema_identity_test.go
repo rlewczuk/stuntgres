@@ -14,7 +14,7 @@ func TestAlterSchemaGrantTimeShadow(t *testing.T) {
 	sessionSQL(t, a, "CREATE SCHEMA shadow")
 	sessionSQL(t, b, "SET search_path TO shadow,s1")
 	ref := roleTableRef(t, e, "s1.t")
-	old, storage := e.catalog.state.Get(ref.Address), e.storage.relations[ref.Address]
+	old, storage := e.catalog.state.Get(ref.Address), e.storage.Relations[ref.Address]
 	tx := transactionBegin(t, a)
 	sessionSQL(t, a, "LOCK TABLE s1.t IN ACCESS EXCLUSIVE MODE")
 	done := lockAsync(e, b, context.Background(), "ALTER TABLE t SET SCHEMA s2", false)
@@ -25,7 +25,7 @@ func TestAlterSchemaGrantTimeShadow(t *testing.T) {
 	frontier := e.catalog.nextRevision
 	transactionEnd(t, a, tx, false)
 	lockAwait(t, done, ids.ErrCatalogReplaced)
-	if e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage || e.catalog.state.Get(shadow.Address) != shadowDescriptor || e.catalog.nextRevision != frontier {
+	if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || e.catalog.state.Get(shadow.Address) != shadowDescriptor || e.catalog.nextRevision != frontier {
 		t.Fatal("move retargeted grant-time shadow")
 	}
 	lockEmpty(t, e)

@@ -14,14 +14,14 @@ import (
 func hashCancellationRows(rows []rowVersion) []rowVersion {
 	copy := append([]rowVersion(nil), rows...)
 	for i := range copy {
-		copy[i].values = append([]sqltype.Value(nil), rows[i].values...)
+		copy[i].Values = append([]sqltype.Value(nil), rows[i].Values...)
 	}
 	return copy
 }
 
 func hashCancellationBuckets(root *hashIndexRoot) map[uint64][]hashIndexEntry {
-	copy := make(map[uint64][]hashIndexEntry, len(root.buckets))
-	for hash, bucket := range root.buckets {
+	copy := make(map[uint64][]hashIndexEntry, len(root.Buckets))
+	for hash, bucket := range root.Buckets {
 		copy[hash] = append([]hashIndexEntry(nil), bucket...)
 	}
 	return copy
@@ -53,7 +53,7 @@ func TestHashIndexLookupCancellation(t *testing.T) {
 	before := indexMaintenanceCapture(e)
 	unchanged := func() {
 		indexMaintenanceUnchanged(t, e, before)
-		if source.view != view || source.view.read() != data || &source.committed[0] != first || !reflect.DeepEqual(source.committed, rows) || !reflect.DeepEqual(source.visible, visible) || len(source.hashIndexes) != 1 || source.hashIndexes[0].root != root || !reflect.DeepEqual(root.buckets, buckets) || e.storage.indexRoots[index.Address()].hash != root {
+		if source.view != view || source.view.read() != data || &source.committed[0] != first || !reflect.DeepEqual(source.committed, rows) || !reflect.DeepEqual(source.visible, visible) || len(source.hashIndexes) != 1 || source.hashIndexes[0].root != root || !reflect.DeepEqual(root.Buckets, buckets) || e.storage.IndexRoots[index.Address()].Hash != root {
 			t.Fatal("canceled lookup changed retained source/root authority")
 		}
 	}
@@ -158,7 +158,7 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 	}
 	index, old := hashRoot(t, e, "hn")
 	parent := e.catalog.state.MustRelation(index.SQLIndex.Parent)
-	store := e.storage.relations[parent.Address()]
+	store := e.storage.Relations[parent.Address()]
 	writer := sessionStart(t, e, nil)
 	ref := transactionBegin(t, writer)
 	active := true
@@ -176,21 +176,21 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 		t.Fatal("fixture did not stage a genuine multirow change")
 	}
 	before := indexMaintenanceCapture(e)
-	rows, buckets := hashCancellationRows(store.versions), hashCancellationBuckets(old)
-	generation, ends, frontier := store.generation, store.ends, e.commitSeq
+	rows, buckets := hashCancellationRows(store.Versions), hashCancellationBuckets(old)
+	generation, ends, frontier := store.Generation, store.Ends, e.commitSeq
 
 	// Dry preparation uses the same real private batch and slot/end owner as
 	// publication. Its final pre-return poll follows touched-bucket copying;
 	// cancel at the immediately preceding bucket-entry poll in the real owner.
-	p := rowPublication{address: parent.Address(), store: store, original: store, originalRelation: parent, relation: parent, root: store.versions, writes: writes[parent.Address()], ends: store.ends, deletion: deletes[parent.Address()], generation: store.generation, singleSlot: -1}
+	p := rowPublication{address: parent.Address(), store: store, original: store, originalRelation: parent, relation: parent, root: store.Versions, writes: writes[parent.Address()], ends: store.Ends, deletion: deletes[parent.Address()], generation: store.Generation, singleSlot: -1}
 	if err := e.prepareRowPublication(&p, ref, true); err != nil {
 		t.Fatal(err)
 	}
 	calibration, stop := context.WithCancel(context.Background())
 	defer stop()
 	counting := &cancelAtErrCheck{Context: calibration, cancel: stop}
-	candidate, err := mergeHashIndexRoot(&EvalContext{Context: counting, Scope: 1, Frame: 1}, parent, index, e.storage.indexRoots[index.Address()], &p, false, true)
-	if err != nil || candidate == nil || candidate.hash == nil || !reflect.DeepEqual(hashKeys(t, candidate.hash), []string{"3", "4", "4", "5"}) {
+	candidate, err := mergeHashIndexRoot(&EvalContext{Context: counting, Scope: 1, Frame: 1}, parent, index, e.storage.IndexRoots[index.Address()], &p, false, true)
+	if err != nil || candidate == nil || candidate.Hash == nil || !reflect.DeepEqual(hashKeys(t, candidate.Hash), []string{"3", "4", "4", "5"}) {
 		t.Fatal("real merge calibration failed", candidate, err)
 	}
 	polls := counting.checks.Load()
@@ -212,7 +212,7 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 		t.Fatal("owner did not cancel inside real hash merge", err, during.checks.Load(), during.at)
 	}
 	indexMaintenanceUnchanged(t, e, before)
-	if store.generation != generation || store.ends != ends || e.commitSeq != frontier || !reflect.DeepEqual(store.versions, rows) || !reflect.DeepEqual(old.buckets, buckets) || !reflect.DeepEqual(hashKeys(t, old), []string{"1", "2", "2", "3"}) {
+	if store.Generation != generation || store.Ends != ends || e.commitSeq != frontier || !reflect.DeepEqual(store.Versions, rows) || !reflect.DeepEqual(old.Buckets, buckets) || !reflect.DeepEqual(hashKeys(t, old), []string{"1", "2", "2", "3"}) {
 		t.Fatal("canceled merge published rows/endings or mutated predecessor buckets")
 	}
 	transactionEnd(t, writer, ref, false)
@@ -228,7 +228,7 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 	}
 	active = false
 	_, fresh := hashRoot(t, e, "hn")
-	if fresh == old || !reflect.DeepEqual(hashKeys(t, fresh), []string{"3", "4", "4", "5"}) || !reflect.DeepEqual(old.buckets, buckets) || !reflect.DeepEqual(hashKeys(t, old), []string{"1", "2", "2", "3"}) {
+	if fresh == old || !reflect.DeepEqual(hashKeys(t, fresh), []string{"3", "4", "4", "5"}) || !reflect.DeepEqual(old.Buckets, buckets) || !reflect.DeepEqual(hashKeys(t, old), []string{"1", "2", "2", "3"}) {
 		t.Fatal("fresh mutation failed or changed retained predecessor")
 	}
 }

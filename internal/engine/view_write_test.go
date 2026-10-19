@@ -52,10 +52,9 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 		}
 		return v
 	}
-	e.storage.relations[base.Address()] = &relationStorage{generation: 1, versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{value(1), value(10), value(42)}}, {row: 2, version: 2, born: 1, values: []sqltype.Value{value(2), value(20), value(42)}}}}
+	e.storage.Relations[base.Address()] = &relationStorage{Generation: 1, Versions: []rowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value(1), value(10), value(42)}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{value(2), value(20), value(42)}}}}
 	e.commitSeq = 1
-	e.storage.nextRow = 2
-	e.storage.nextVersion = 2
+	e.storage.SetFrontierLocked(2, 2)
 	return viewWriteFixture{e, base, view, baseRef, viewRef, integer, boolean}
 }
 
@@ -243,8 +242,8 @@ func TestViewWriteDemand(t *testing.T) {
 	t.Run("frozen_live_prefix", func(t *testing.T) {
 		f := viewWriteMechanics(t)
 		f.e.commitSeq = 2
-		store := f.e.storage.relations[f.base.Address()]
-		store.ends = &deletionRoot{rows: map[ids.RowID]rowEnd{1: {version: 1, end: 2}}}
+		store := f.e.storage.Relations[f.base.Address()]
+		store.Ends = &deletionRoot{Rows: map[ids.RowID]rowEnd{1: {Version: 1, End: 2}}}
 		scope, op := f.scope(t)
 		leaves := []queryLeaf{{ref: f.baseRef, relation: f.base, storage: store, frozenAttributes: []int32{11, 7}}}
 		f.e.mu.Lock()
@@ -283,8 +282,8 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 	f := viewWriteMechanics(t)
 	holder, _ := f.scope(t)
 	waiter, _ := f.scope(t)
-	old := f.e.storage.relations[f.base.Address()].versions[0]
-	resource := lock.Resource{ObjectRef: f.baseRef, Row: old.row}
+	old := f.e.storage.Relations[f.base.Address()].Versions[0]
+	resource := lock.Resource{ObjectRef: f.baseRef, Row: old.Row}
 	if request, err := f.e.locks.StartAcquire(holder.op.Context(), holder.ticket, resource, lock.ForNoKeyUpdate, lock.Policy{}); err != nil || request != nil {
 		t.Fatal(request, err)
 	}
@@ -297,7 +296,7 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 	if pending != 1 {
 		t.Fatal("missing physical queue", pending)
 	}
-	row := append([]sqltype.Value(nil), old.values...)
+	row := append([]sqltype.Value(nil), old.Values...)
 	row[1], _ = sqltype.Integer(f.integer, 0)
 	if err := holder.Writes().replace(f.baseRef, []rowVersion{old}, indexWriteBatch{values: [][]sqltype.Value{row}}); err != nil {
 		t.Fatal(err)
@@ -309,14 +308,14 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 		t.Fatal(err)
 	}
 	current, live, err := f.e.latestUpdateRow(waiter, f.baseRef, updateCandidate{rowVersion: old, slot: 0})
-	if err != nil || !live || current.version == old.version {
+	if err != nil || !live || current.Version == old.Version {
 		t.Fatal(current, live, err)
 	}
 	predicate := queryProbe(f.boolean.Usage(), func(c *EvalContext) (sqltype.Value, error) {
 		n, _ := c.Row[1].Integer()
 		return sqltype.Boolean(f.boolean, n > 5), nil
 	})
-	eval := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: current.values}
+	eval := EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: current.Values}
 	matched, err := updateMatches(&eval, viewWritePredicate([]expr.Expr{predicate}, nil))
 	if err != nil || matched {
 		t.Fatal("latest predecessor bypassed view qualification", matched, err)
@@ -331,12 +330,12 @@ func TestViewWriteCancellation(t *testing.T) {
 	f := viewWriteMechanics(t)
 	holder, _ := f.scope(t)
 	scope, _ := f.scope(t)
-	originals := f.e.storage.relations[f.base.Address()].versions
-	resource := lock.Resource{ObjectRef: f.baseRef, Row: originals[0].row}
+	originals := f.e.storage.Relations[f.base.Address()].Versions
+	resource := lock.Resource{ObjectRef: f.baseRef, Row: originals[0].Row}
 	if request, err := f.e.locks.StartAcquire(holder.op.Context(), holder.ticket, resource, lock.ForNoKeyUpdate, lock.Policy{}); err != nil || request != nil {
 		t.Fatal(request, err)
 	}
-	row := append([]sqltype.Value(nil), originals[1].values...)
+	row := append([]sqltype.Value(nil), originals[1].Values...)
 	row[1], _ = sqltype.Integer(f.integer, 99)
 	if err := scope.Writes().replace(f.baseRef, []rowVersion{originals[1]}, indexWriteBatch{values: [][]sqltype.Value{row}}); err != nil {
 		t.Fatal(err)
@@ -353,8 +352,8 @@ func TestViewWriteCancellation(t *testing.T) {
 	if err := scope.Finish(context.Canceled); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	current := f.e.storage.relations[f.base.Address()].versions
-	if current[0].version != originals[0].version || current[1].version != originals[1].version || f.e.commitSeq != 1 || len(scope.stage.rows) != 0 || scope.viewWrite != nil {
+	current := f.e.storage.Relations[f.base.Address()].Versions
+	if current[0].Version != originals[0].Version || current[1].Version != originals[1].Version || f.e.commitSeq != 1 || len(scope.stage.rows) != 0 || scope.viewWrite != nil {
 		t.Fatal("canceled stage published or retained resources")
 	}
 	lockState := f.e.locks.Inspect()

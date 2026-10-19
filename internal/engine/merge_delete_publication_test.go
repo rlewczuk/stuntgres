@@ -64,7 +64,7 @@ func TestMergeDeleteLineage(t *testing.T) {
 			sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
 			sessionSQL(t, peer, "INSERT INTO t VALUES(1,10)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			original := e.storage.relations[ref.Address].versions[0]
+			original := e.storage.Relations[ref.Address].Versions[0]
 			tx := transactionBegin(t, s)
 			sessionSQL(t, s, "UPDATE t SET v=11 WHERE id=1")
 			sessionSQL(t, s, "INSERT INTO t VALUES(2,20)")
@@ -78,13 +78,13 @@ func TestMergeDeleteLineage(t *testing.T) {
 			transactionEnd(t, s, tx, commit)
 			if commit {
 				transactionRows(t, peer, "SELECT v FROM t")
-				if e.storage.relations[ref.Address].ends == nil {
+				if e.storage.Relations[ref.Address].Ends == nil {
 					t.Fatal("no canonical deletion root")
 				}
 			} else {
 				transactionRows(t, peer, "SELECT v FROM t", 10)
-				head := e.storage.relations[ref.Address].versions[0]
-				if head.row != original.row || head.version != original.version {
+				head := e.storage.Relations[ref.Address].Versions[0]
+				if head.Row != original.Row || head.Version != original.Version {
 					t.Fatal("rollback reminted predecessor")
 				}
 			}

@@ -94,7 +94,7 @@ func TestUpdateFromQueuedFrozenOuterAbsence(t *testing.T) {
 				expected = &description
 			}
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			original := e.storage.relations[ref.Address].versions[0]
+			original := e.storage.Relations[ref.Address].Versions[0]
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "UPDATE t SET v=21 WHERE id=2")
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -133,7 +133,7 @@ func TestUpdateFromQueuedFrozenOuterAbsence(t *testing.T) {
 			rightRef := catalogRef(t, e, e.CatalogRead(), "r")
 			lockPending(t, e, 1)
 			lockState := e.locks.Inspect()
-			entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: original.row}]
+			entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: original.Row}]
 			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.ForNoKeyUpdate && entry.Holders[holder.transactions.ticket].Mode == lock.ForNoKeyUpdate
 			sourcesHeld := false
 			if queued {
@@ -162,9 +162,9 @@ func TestUpdateFromQueuedFrozenOuterAbsence(t *testing.T) {
 			if got.scope == nil || len(got.scope.querySources) != 0 {
 				t.Fatal("outer source admission leaked")
 			}
-			store := e.storage.relations[ref.Address]
-			if len(store.versions) != 1 || store.versions[0].row != original.row || testExport(original.values[1]) != int64(20) {
-				t.Fatal("absent source replaced physical target identity or mutated capture", store.versions, original)
+			store := e.storage.Relations[ref.Address]
+			if len(store.Versions) != 1 || store.Versions[0].Row != original.Row || testExport(original.Values[1]) != int64(20) {
+				t.Fatal("absent source replaced physical target identity or mutated capture", store.Versions, original)
 			}
 			transactionRows(t, peer, "SELECT v FROM t", 21)
 			transactionRows(t, peer, "SELECT z FROM r", 200)

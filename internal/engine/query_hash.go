@@ -26,12 +26,12 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf,
 	}
 	a := leaf.ref.Address
 	store := data.generationAt(a)
-	if store == nil || store != e.storage.relations[a] || data.frontierAt(a) != e.commitSeq || data.deleted[a] != nil || len(source.committed) != len(store.versions) || data.ends[a] != store.ends {
+	if store == nil || store != e.storage.Relations[a] || data.frontierAt(a) != e.commitSeq || data.deleted[a] != nil || len(source.committed) != len(store.Versions) || data.ends[a] != store.Ends {
 		return nil
 	}
-	for address, carrier := range e.storage.indexRoots {
+	for address, carrier := range e.storage.IndexRoots {
 		index, ok := data.catalog.Relation(address)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.Method != catalog.HashMethod || index.SQLIndex.Parent != a || carrier == nil || carrier.hash == nil {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Method != catalog.HashMethod || index.SQLIndex.Parent != a || carrier == nil || carrier.Hash == nil {
 			continue
 		}
 		// Readiness permits maintenance, not complete query coverage. A
@@ -43,15 +43,15 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf,
 		if !ok || !sameIndexKeySemantics(index, live) {
 			continue
 		}
-		root := carrier.hash
-		if root.storage != store || root.generation != store.generation || root.prefix != len(source.committed) || root.ends != data.ends[a] {
+		root := carrier.Hash
+		if root.Storage != store || root.Generation != store.Generation || root.Prefix != len(source.committed) || root.Ends != data.ends[a] {
 			continue
 		}
 		usage, err := indexKeyUsage(leaf.relation, index.SQLIndex.Keys[0])
 		if err != nil {
 			return err
 		}
-		if usage != root.binding.usage {
+		if usage != root.Binding.Usage {
 			continue
 		}
 		source.hashIndexes = append(source.hashIndexes, capturedHashIndex{definition: index.SQLIndex, root: root, usage: usage})
@@ -126,7 +126,7 @@ func hashFilterCandidates(ctx context.Context, state *queryState, n *filterNode,
 	}
 	for _, capture := range source.hashIndexes {
 		key := capture.definition.Keys[0]
-		if key.Derived != nil || key.Attribute != column.origin.Address.SubID || column.slot != capture.root.binding.slot || capture.usage != column.ResultUsage() || !capture.root.binding.provider.OrdinaryEquality() {
+		if key.Derived != nil || key.Attribute != column.origin.Address.SubID || column.slot != capture.root.Binding.Slot || capture.usage != column.ResultUsage() || !capture.root.Binding.Provider.OrdinaryEquality() {
 			continue
 		}
 		value, err := probe.Eval(&evaluation)
@@ -137,11 +137,11 @@ func hashFilterCandidates(ctx context.Context, state *queryState, n *filterNode,
 		if value.IsNull() {
 			return selection, ctx.Err()
 		}
-		h, err := capture.root.binding.provider.Hash(ctx, value)
+		h, err := capture.root.Binding.Provider.Hash(ctx, value)
 		if err != nil {
 			return nil, err
 		}
-		bucket := capture.root.buckets[h]
+		bucket := capture.root.Buckets[h]
 		if len(bucket) != 0 {
 			selection.occurrences = make([]int, 0, len(bucket))
 		}
@@ -149,22 +149,22 @@ func hashFilterCandidates(ctx context.Context, state *queryState, n *filterNode,
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			if entry.position < 0 || entry.position >= len(source.committed) {
+			if entry.Position < 0 || entry.Position >= len(source.committed) {
 				return nil, fmt.Errorf("stuntgres: invalid hash candidate position")
 			}
-			row := source.committed[entry.position]
-			if row.row != entry.row || row.version != entry.version {
+			row := source.committed[entry.Position]
+			if row.Row != entry.Row || row.Version != entry.Version {
 				return nil, fmt.Errorf("stuntgres: invalid hash candidate identity")
 			}
-			ordinal := entry.position
+			ordinal := entry.Position
 			if source.visible != nil {
 				var found bool
-				ordinal, found = slices.BinarySearch(source.visible, entry.position)
+				ordinal, found = slices.BinarySearch(source.visible, entry.Position)
 				if !found {
 					return nil, fmt.Errorf("stuntgres: incomplete hash candidate visibility")
 				}
 			}
-			equal, err := capture.root.binding.provider.Equal(ctx, entry.key, value)
+			equal, err := capture.root.Binding.Provider.Equal(ctx, entry.Key, value)
 			if err != nil {
 				return nil, err
 			}

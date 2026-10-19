@@ -17,7 +17,7 @@ func TestAlterRenamePublication(t *testing.T) {
 			run(t, e, "INSERT INTO t VALUES(7)")
 			ref := roleTableRef(t, e, "t")
 			old := e.catalog.state.Get(ref.Address)
-			storage := e.storage.relations[ref.Address]
+			storage := e.storage.Relations[ref.Address]
 			frontier := e.catalog.nextRevision
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -58,7 +58,7 @@ func TestAlterRenamePublication(t *testing.T) {
 					t.Fatal("role revision fence absent")
 				}
 			}
-			if kind != "reset" && (e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage) {
+			if kind != "reset" && (e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage) {
 				t.Fatal("failed publication changed source")
 			}
 			if kind == "cancel" && e.catalog.nextRevision != frontier {

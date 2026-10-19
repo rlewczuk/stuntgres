@@ -71,7 +71,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 				}
 			}
 			staged := s.stage.rows[ref.Address]
-			c.markAffected(staged[len(staged)-1].row, len(staged)-1)
+			c.markAffected(staged[len(staged)-1].Row, len(staged)-1)
 			return s.projectInsertReturning(proposal, nil, &evaluation)
 		}
 		// A speculative key must never be held while queuing for the selected row.
@@ -86,7 +86,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 				}
 			}
 		}
-		if err := s.acquireUpdateRowMode(ref, hit.row.row, mode); err != nil {
+		if err := s.acquireUpdateRowMode(ref, hit.row.Row, mode); err != nil {
 			return err
 		}
 		old, parent, schema, live, err := e.latestConflictUpdateRow(s, ref, hit)
@@ -101,12 +101,12 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		if err != nil {
 			return err
 		}
-		if checked.index == nil || checked.row.row != old.row || checked.row.version != old.version {
+		if checked.index == nil || checked.row.Row != old.Row || checked.row.Version != old.Version {
 			manager.RestoreUniqueDelta(s.ticket)
 			s.discardExclusionCandidate(ref, candidate)
 			continue
 		}
-		if _, duplicate := c.affectedRows[old.row]; duplicate {
+		if _, duplicate := c.affectedRows[old.Row]; duplicate {
 			return conflictUpdateCardinalityError()
 		}
 		lockMode, err := lock.MultiLockMode(mode)
@@ -119,7 +119,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		if c.frame == nil {
 			c.frame = make([]sqltype.Value, 2*c.width)
 		}
-		copy(c.frame, old.values)
+		copy(c.frame, old.Values)
 		copy(c.frame[c.width:], proposal)
 		evaluation.Row = c.frame
 		matches, err := updateMatches(&evaluation, c.update.predicate)
@@ -131,7 +131,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			s.discardExclusionCandidate(ref, candidate)
 			return nil
 		}
-		row, err := evaluateUpdateAssignments(&evaluation, c.update, c.updateTargets, old.values)
+		row, err := evaluateUpdateAssignments(&evaluation, c.update, c.updateTargets, old.Values)
 		if err != nil {
 			return err
 		}
@@ -141,26 +141,26 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		if err := e.validatePhysicalInsertRow(s, b, &b, schema, row, &evaluation); err != nil {
 			return err
 		}
-		keyChanged, err := s.uniqueKeyChanged(ref, old.values, row)
+		keyChanged, err := s.uniqueKeyChanged(ref, old.Values, row)
 		if err != nil {
 			return err
 		}
 		if keyChanged && mode != lock.ForUpdate {
-			if err := s.acquireUpdateRowMode(ref, old.row, lock.ForUpdate); err != nil {
+			if err := s.acquireUpdateRowMode(ref, old.Row, lock.ForUpdate); err != nil {
 				return err
 			}
 			current, _, _, live, err := e.latestConflictUpdateRow(s, ref, checked)
 			if err != nil {
 				return err
 			}
-			if !live || current.version != old.version {
+			if !live || current.Version != old.Version {
 				return errors.New("stuntgres: conflict update predecessor changed under row lock")
 			}
 		}
 		if err := s.claimUniqueRow(ref, old); err != nil {
 			return err
 		}
-		old.pendingKeyChange = old.pendingKeyChange || keyChanged
+		old.PendingKeyChange = old.PendingKeyChange || keyChanged
 		actionMode := lock.MultiNoKeyAction
 		if keyChanged {
 			actionMode = lock.MultiUpdateAction
@@ -182,8 +182,8 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		if err := s.Writes().replaceDistinct(ref, []rowVersion{old}, batch); err != nil {
 			return err
 		}
-		c.markAffected(old.row, len(s.stage.rows[ref.Address])-1)
-		return s.projectInsertReturning(row, old.values, &evaluation)
+		c.markAffected(old.Row, len(s.stage.rows[ref.Address])-1)
+		return s.projectInsertReturning(row, old.Values, &evaluation)
 	}
 }
 
@@ -233,21 +233,21 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 	var row rowVersion
 	var found bool
 	if candidate.committed {
-		row, _, found = rowByID(store.versions, candidate.row.row, candidate.position)
+		row, _, found = rowByID(store.Versions, candidate.row.Row, candidate.position)
 	} else {
-		if slot, ok := s.insertConflict.affectedRows[candidate.row.row]; ok {
+		if slot, ok := s.insertConflict.affectedRows[candidate.row.Row]; ok {
 			row, found = s.stage.rows[ref.Address][slot], true
 		}
 		if !found {
-			row, found = s.insertOwnRow(ref, candidate.row.row)
+			row, found = s.insertOwnRow(ref, candidate.row.Row)
 		}
 	}
 	if !found {
 		return rowVersion{}, nil, "", false, errors.New("stuntgres: invalid conflict update predecessor")
 	}
-	if err := s.repeatableConflict(row, store.ends); err != nil {
+	if err := s.repeatableConflict(row, store.Ends); err != nil {
 		return rowVersion{}, nil, "", false, err
 	}
-	live := liveVersion(row, e.commitSeq, store.ends, s.ownDeletes[ref.Address]) && !uniqueRowDeleted(row.row, s.stage.deletes[ref.Address])
+	live := liveVersion(row, e.commitSeq, store.Ends, s.ownDeletes[ref.Address]) && !uniqueRowDeleted(row.Row, s.stage.deletes[ref.Address])
 	return row, parent, namespace.Name(), live, nil
 }

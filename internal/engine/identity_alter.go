@@ -128,10 +128,10 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 		return err
 	}
 	replacement := *generator
-	replacement.generation = revision
+	replacement.Generation = revision
 	if restart != nil {
-		replacement.last = *restart
-		replacement.called = false
+		replacement.Last = *restart
+		replacement.Called = false
 	}
 	if stage.generators == nil {
 		stage.generators = make(map[ids.ObjectAddress]*sequenceGenerator)

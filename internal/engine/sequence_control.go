@@ -60,7 +60,7 @@ func copySequenceState(source *Engine, view catalog.Read) (map[ids.ObjectAddress
 		if !ok || r.RelationKind != catalog.SequenceRelation {
 			continue
 		}
-		g := source.storage.sequences[a]
+		g := source.storage.Sequences[a]
 		if g == nil {
 			return nil, fmt.Errorf("stuntgres: sequence state missing")
 		}
@@ -534,10 +534,10 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		operators.Replace(next.Get(a), d)
 		next.SetDescriptor(a, d)
 		next.BindName(catalog.DescriptorNameKey(d), a)
-		if rows := e.storage.relations[a]; rows != nil {
+		if rows := e.storage.Relations[a]; rows != nil {
 			storage[a] = rows
 		}
-		if g := e.storage.sequences[a]; g != nil {
+		if g := e.storage.Sequences[a]; g != nil {
 			sequences[a] = g
 		}
 	}
@@ -676,7 +676,7 @@ func sequenceDumpStatements(sequences []dumpSequence) (creation, completion []st
 			}
 		} else {
 			if s.divergent {
-				suffix = append(suffix, fmt.Sprintf("ALTER SEQUENCE %s AS %s %s RESTART WITH %d;\n", name, strings.ToUpper(typ), sequenceNumericSQL(s.options), s.state.last))
+				suffix = append(suffix, fmt.Sprintf("ALTER SEQUENCE %s AS %s %s RESTART WITH %d;\n", name, strings.ToUpper(typ), sequenceNumericSQL(s.options), s.state.Last))
 			}
 			if s.options.Persistence == "unlogged" {
 				suffix = append(suffix, "ALTER SEQUENCE "+name+" SET UNLOGGED;\n")
@@ -689,7 +689,7 @@ func sequenceDumpStatements(sequences []dumpSequence) (creation, completion []st
 				prefix = append(prefix, "COMMENT ON SEQUENCE "+name+" IS "+commentLiteral(s.comment)+";\n")
 			}
 		}
-		suffix = append(suffix, fmt.Sprintf("SELECT setval('%s',%d,%t);\n", strings.ReplaceAll(name, "'", "''"), s.state.last, s.state.called))
+		suffix = append(suffix, fmt.Sprintf("SELECT setval('%s',%d,%t);\n", strings.ReplaceAll(name, "'", "''"), s.state.Last, s.state.Called))
 	}
 	return prefix, suffix
 }

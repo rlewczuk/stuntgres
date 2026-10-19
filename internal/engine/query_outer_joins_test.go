@@ -95,7 +95,7 @@ func TestQueryOuterJoinsDemandAndCancellation(t *testing.T) {
 }
 
 func TestQueryOuterJoinsAbsentVersionsAndLineage(t *testing.T) {
-	real := rowVersion{row: 7}
+	real := rowVersion{Row: 7}
 	source := &querySource{materialized: true, occurrences: []int{0, 1}, provenance: []int{-1, 3}, versions: []rowVersion{{}, real}}
 	got := appendQueryVersions(nil, source, 0, &queryLockContext{})
 	if !reflect.DeepEqual(got, []rowVersion{{}, real}) {
@@ -106,7 +106,7 @@ func TestQueryOuterJoinsAbsentVersionsAndLineage(t *testing.T) {
 	if !reflect.DeepEqual(provenance, []int{-1, -1}) || bridge.lineage.currentIndex != -1 || bridge.lineage.currentOrder != nil {
 		t.Fatal(provenance, bridge.lineage)
 	}
-	if source.rawIndex(-1) != -1 || source.versionAt(-1).row != 0 || source.row(-1) != nil {
+	if source.rawIndex(-1) != -1 || source.versionAt(-1).Row != 0 || source.row(-1) != nil {
 		t.Fatal("absent identity dereferenced")
 	}
 	if len(appendQueryVersions(nil, bridge, -1, &queryLockContext{})) != 2 {

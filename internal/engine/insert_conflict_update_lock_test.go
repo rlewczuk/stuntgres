@@ -140,7 +140,7 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 		_, targetCaptured := captured.committed[ref.Address]
 		if !targetCaptured || captured.frontier != frontier || len(captured.committed[ref.Address]) != 0 ||
 			len(captured.own[ref.Address]) != 0 || len(captured.committed[source.Address]) != 1 ||
-			testExport(captured.committed[source.Address][0].values[1]) != int64(1) {
+			testExport(captured.committed[source.Address][0].Values[1]) != int64(1) {
 			t.Fatal("source snapshot sees the uncommitted conflict identity", captured)
 		}
 		transactionEnd(t, holder, holderTx, true)
@@ -166,14 +166,14 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 					sessionSQL(t, observer, "CREATE TABLE t(k INT UNIQUE,v INT)")
 					sessionSQL(t, observer, "INSERT INTO t VALUES(1,10)")
 					ref := catalogRef(t, e, e.CatalogRead(), "t")
-					original := e.storage.relations[ref.Address].versions[0]
+					original := e.storage.Relations[ref.Address].Versions[0]
 					workerTx := transactionBegin(t, worker)
 					sessionSQL(t, worker, "SET TRANSACTION ISOLATION LEVEL "+level)
 					transactionRows(t, worker, "SELECT v FROM t", 10)
 					holderTx := transactionBegin(t, holder)
 					transactionRows(t, holder, "SELECT v FROM t FOR UPDATE", 10)
 					running := conflictUpdateStartWorker(t, e, worker, "INSERT INTO t VALUES(2,30),(1,1) ON CONFLICT(k) DO UPDATE SET v=t.v+excluded.v WHERE "+condition)
-					ticket, mode := conflictUpdatePendingRow(t, e, ref, original.row)
+					ticket, mode := conflictUpdatePendingRow(t, e, ref, original.Row)
 					if mode != lock.ForNoKeyUpdate || ticket.Ref() != workerTx {
 						t.Fatal("not the worker's exact selected-row NKU barrier", ticket.Ref(), mode)
 					}
@@ -199,7 +199,7 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 					transactionEnd(t, worker, workerTx, true)
 					transactionRows(t, observer, "SELECT k FROM t ORDER BY k", 1, 2)
 					transactionRows(t, observer, "SELECT v FROM t ORDER BY k", wantValue, 30)
-					if testExport(original.values[1]) != int64(10) {
+					if testExport(original.Values[1]) != int64(10) {
 						t.Fatal("captured predecessor mutated")
 					}
 					lockEmpty(t, e)
@@ -218,14 +218,14 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 					sessionSQL(t, observer, "CREATE TABLE t(k INT UNIQUE,v INT)")
 					sessionSQL(t, observer, "INSERT INTO t VALUES(1,10)")
 					ref := catalogRef(t, e, e.CatalogRead(), "t")
-					original := e.storage.relations[ref.Address].versions[0]
+					original := e.storage.Relations[ref.Address].Versions[0]
 					workerTx := transactionBegin(t, worker)
 					sessionSQL(t, worker, "SET TRANSACTION ISOLATION LEVEL "+level)
 					transactionRows(t, worker, "SELECT v FROM t", 10)
 					holderTx := transactionBegin(t, holder)
 					transactionRows(t, holder, "SELECT v FROM t FOR UPDATE", 10)
 					running := conflictUpdateStartWorker(t, e, worker, "INSERT INTO t VALUES(2,20),(1,1) ON CONFLICT(k) DO UPDATE SET v=excluded.v WHERE "+condition)
-					ticket, mode := conflictUpdatePendingRow(t, e, ref, original.row)
+					ticket, mode := conflictUpdatePendingRow(t, e, ref, original.Row)
 					if mode != lock.ForNoKeyUpdate {
 						t.Fatal("payload SET initially requests NKU", mode)
 					}
@@ -294,7 +294,7 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 					default:
 						transactionRows(t, observer, "SELECT v FROM t", 10)
 					}
-					if testExport(original.values[1]) != int64(10) {
+					if testExport(original.Values[1]) != int64(10) {
 						t.Fatal("captured predecessor mutated")
 					}
 					lockEmpty(t, e)
@@ -314,7 +314,7 @@ func TestInsertConflictUpdateLockOrdering(t *testing.T) {
 			sessionSQL(t, observer, "CREATE TABLE t(k INT UNIQUE,v INT)")
 			sessionSQL(t, observer, "INSERT INTO t VALUES(1,10)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			id := e.storage.relations[ref.Address].versions[0].row
+			id := e.storage.Relations[ref.Address].Versions[0].Row
 			workerTx := transactionBegin(t, worker)
 			sessionSQL(t, worker, "INSERT INTO t VALUES(4,40)")
 			baseline := e.locks.CheckpointUnique(worker.transactions.ticket, nil)
@@ -386,7 +386,7 @@ func TestInsertConflictUpdateAuthorizationAfterWait(t *testing.T) {
 			sessionSQL(t, admin, "GRANT INSERT,UPDATE,SELECT ON t TO upsert_waiter")
 			sessionSQL(t, worker, "SET ROLE upsert_waiter")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			id := e.storage.relations[ref.Address].versions[1].row
+			id := e.storage.Relations[ref.Address].Versions[1].Row
 			holderTx := transactionBegin(t, holder)
 			transactionRows(t, holder, "SELECT v FROM t WHERE k=3 FOR UPDATE", 30)
 			running := conflictUpdateStartWorker(t, e, worker, "INSERT INTO t VALUES(2,20),(1,11),(3,31) ON CONFLICT(k) DO UPDATE SET v=excluded.v")

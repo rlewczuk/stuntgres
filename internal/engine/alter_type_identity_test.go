@@ -36,14 +36,14 @@ func TestAlterTypeACLAndOwnedSequenceIdentity(t *testing.T) {
 	sequence := e.catalog.state.Get(sequenceRef.Address)
 	s := sessionStart(t, e, nil)
 	sequenceScalar(t, s, "SELECT nextval('q')", 10)
-	generator, memory := e.storage.sequences[sequenceRef.Address], s.sequences[sequenceRef.Address]
+	generator, memory := e.storage.Sequences[sequenceRef.Address], s.sequences[sequenceRef.Address]
 	generatorValue, memoryValue := *generator, *memory
 	run(t, e, "ALTER TABLE t ALTER c TYPE BIGINT USING c+1")
 	after := e.catalog.state.MustRelation(tableRef.Address)
 	if after.Address() != before.Address() || after.Owner != before.Owner || !reflect.DeepEqual(after.Attributes, before.Attributes) || !reflect.DeepEqual(after.Security.ACL, before.Security.ACL) || !reflect.DeepEqual(after.Security.ColumnACL, before.Security.ColumnACL) {
 		t.Fatal("TYPE changed ACL/attribute/owner identity", before, after)
 	}
-	if e.catalog.state.Get(sequenceRef.Address) != sequence || e.storage.sequences[sequenceRef.Address] != generator || *generator != generatorValue || s.sequences[sequenceRef.Address] != memory || *memory != memoryValue {
+	if e.catalog.state.Get(sequenceRef.Address) != sequence || e.storage.Sequences[sequenceRef.Address] != generator || *generator != generatorValue || s.sequences[sequenceRef.Address] != memory || *memory != memoryValue {
 		t.Fatal("TYPE changed owned sequence identity/generator/cache")
 	}
 	sequenceScalar(t, s, "SELECT nextval('q')", 11)
@@ -95,7 +95,7 @@ func TestAlterTypeIdentitySequenceMetadata(t *testing.T) {
 				before := e.catalog.state.MustRelation(tableRef.Address)
 				identity := before.ColumnMeta.Identities[before.Attributes[0]]
 				sequence := e.catalog.state.MustRelation(identity.Sequence)
-				oldGenerator := *e.storage.sequences[identity.Sequence]
+				oldGenerator := *e.storage.Sequences[identity.Sequence]
 				notices, err := sequenceCreateRestartCommand(t, e, s, "ALTER TABLE t ALTER c TYPE "+tc.target, prepared)
 				if err != nil || len(notices) != 0 {
 					t.Fatal(notices, err)
@@ -109,8 +109,8 @@ func TestAlterTypeIdentitySequenceMetadata(t *testing.T) {
 				if nextSequence.Address() != sequence.Address() || nextSequence.Owner != sequence.Owner || nextSequence.Namespace() != sequence.Namespace() || nextSequence.Name() != sequence.Name() || !reflect.DeepEqual(nextSequence.Security.ACL, sequence.Security.ACL) || options.Owned != sequence.Sequence.Owned || !options.Identity || options.Persistence != sequence.Sequence.Persistence || options.SQLType != tc.typ || options.Min != tc.min || options.Max != tc.max || options.Start != tc.start || options.Increment != tc.increment || options.Cache != tc.cache || options.Cycle != tc.cycle {
 					t.Fatal("linked sequence AS metadata", options, tc)
 				}
-				generator := e.storage.sequences[identity.Sequence]
-				if generator.last != oldGenerator.last || generator.called != oldGenerator.called || generator.generation == oldGenerator.generation || nextSequence.Revision() <= sequence.Revision() {
+				generator := e.storage.Sequences[identity.Sequence]
+				if generator.Last != oldGenerator.Last || generator.Called != oldGenerator.Called || generator.Generation == oldGenerator.Generation || nextSequence.Revision() <= sequence.Revision() {
 					t.Fatal("AS restarted state or retained generation", oldGenerator, generator, sequence.Revision(), nextSequence.Revision())
 				}
 				if err := (relationProvider{}).Validate(e.CatalogRead(), after); err != nil {
@@ -149,15 +149,15 @@ func TestAlterTypeIdentityFailedMetadataAtomicity(t *testing.T) {
 				table := e.catalog.state.MustRelation(tableRef.Address)
 				identity := table.ColumnMeta.Identities[table.Attributes[0]]
 				sequence := e.catalog.state.Get(identity.Sequence)
-				generator := e.storage.sequences[identity.Sequence]
+				generator := e.storage.Sequences[identity.Sequence]
 				beforeGenerator := *generator
-				storage := e.storage.relations[tableRef.Address]
+				storage := e.storage.Relations[tableRef.Address]
 				notices, err := sequenceCreateRestartCommand(t, e, s, "ALTER TABLE t "+tc.action, prepared)
 				if len(notices) != 0 {
 					t.Fatal(notices)
 				}
 				sequenceCreateRestartDiagnostic(t, err, tc.code, tc.message, "")
-				if e.catalog.state.Get(tableRef.Address) != table || e.catalog.state.Get(identity.Sequence) != sequence || e.storage.sequences[identity.Sequence] != generator || *generator != beforeGenerator || e.storage.relations[tableRef.Address] != storage {
+				if e.catalog.state.Get(tableRef.Address) != table || e.catalog.state.Get(identity.Sequence) != sequence || e.storage.Sequences[identity.Sequence] != generator || *generator != beforeGenerator || e.storage.Relations[tableRef.Address] != storage {
 					t.Fatal("failed table TYPE published sequence/table/storage prefix")
 				}
 			})
@@ -214,7 +214,7 @@ func TestAlterTypeIdentityCanceledSequencePublication(t *testing.T) {
 	sessionSQL(t, a, "CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY)")
 	ref := catalogRef(t, e, e.CatalogRead(), "i_id_seq")
 	before := e.catalog.state.Get(ref.Address)
-	generator := e.storage.sequences[ref.Address]
+	generator := e.storage.Sequences[ref.Address]
 	state := *generator
 	tx := transactionBegin(t, a)
 	sessionSQL(t, a, "ALTER SEQUENCE i_id_seq RESTART WITH 10")
@@ -225,7 +225,7 @@ func TestAlterTypeIdentityCanceledSequencePublication(t *testing.T) {
 	cancel()
 	lockAwait(t, done, context.Canceled)
 	transactionEnd(t, a, tx, false)
-	if e.catalog.state.Get(ref.Address) != before || e.storage.sequences[ref.Address] != generator || *generator != state {
+	if e.catalog.state.Get(ref.Address) != before || e.storage.Sequences[ref.Address] != generator || *generator != state {
 		t.Fatal("canceled TYPE published sequence")
 	}
 	sessionSQL(t, b, "INSERT INTO i DEFAULT VALUES")
@@ -293,7 +293,7 @@ func TestAlterTypeIdentityHeldExplicitSourceMetadata(t *testing.T) {
 		t.Fatal(executeErr, err)
 	}
 	ref := roleTableRef(t, e, "t_c_seq")
-	if g := e.storage.sequences[ref.Address]; g.last != 1 || g.called {
+	if g := e.storage.Sequences[ref.Address]; g.Last != 1 || g.Called {
 		t.Fatal("explicit BY DEFAULT input demanded identity", g)
 	}
 	run(t, e, "INSERT INTO t DEFAULT VALUES")

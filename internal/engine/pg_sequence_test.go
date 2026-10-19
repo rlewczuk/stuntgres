@@ -144,7 +144,7 @@ func TestPGSequenceProjection(t *testing.T) {
 	state.SetDescriptor(a, d)
 	state.SetDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, &catalog.Relation{RelationKind: catalog.TableRelation})
 	state.SetDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}, &catalog.Relation{RelationKind: catalog.ViewRelation})
-	e.storage.sequences[a] = &sequenceGenerator{last: 99, called: true, generation: 100}
+	e.storage.Sequences[a] = &sequenceGenerator{Last: 99, Called: true, Generation: 100}
 	rows, err := capturePGSequence(context.Background(), &state, nil, ref, source)
 	if err != nil {
 		t.Fatal(err)
@@ -153,7 +153,7 @@ func TestPGSequenceProjection(t *testing.T) {
 	if !reflect.DeepEqual(pgSequenceUnitBag(t, rows), want) {
 		t.Fatal(pgSequenceUnitBag(t, rows), want)
 	}
-	if options.Cache != 9223372036854775807 || e.storage.sequences[a].last != 99 || !e.storage.sequences[a].called {
+	if options.Cache != 9223372036854775807 || e.storage.Sequences[a].Last != 99 || !e.storage.Sequences[a].Called {
 		t.Fatal("projection touched definition or state")
 	}
 }

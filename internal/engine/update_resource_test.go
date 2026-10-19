@@ -16,11 +16,11 @@ func TestUpdateCoreRowResourceAuthority(t *testing.T) {
 	sessionSQL(t, a, "CREATE TABLE t(v INT)")
 	sessionSQL(t, a, "INSERT INTO t VALUES(1),(1)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	versions := e.storage.relations[ref.Address].versions
+	versions := e.storage.Relations[ref.Address].Versions
 	ta := transactionBegin(t, a)
 	tb := transactionBegin(t, b)
-	resource := lock.Resource{ObjectRef: ref, Row: versions[0].row}
-	other := lock.Resource{ObjectRef: ref, Row: versions[1].row}
+	resource := lock.Resource{ObjectRef: ref, Row: versions[0].Row}
+	other := lock.Resource{ObjectRef: ref, Row: versions[1].Row}
 	acquire := func(ticket *lock.Ticket, r lock.Resource) (*lock.Request, error) {
 		return e.locks.StartAcquire(context.Background(), ticket, r, lock.ForNoKeyUpdate, lock.Policy{})
 	}
@@ -33,7 +33,7 @@ func TestUpdateCoreRowResourceAuthority(t *testing.T) {
 	if request, err := acquire(b.transactions.ticket, other); request != nil || err != nil {
 		t.Fatal("duplicate-valued row conflicted", request, err)
 	}
-	for _, invalid := range []lock.Resource{{ObjectRef: ref}, {ObjectRef: New().catalog.Domain.Ref(ref.Epoch, ref.Address), Row: versions[0].row}} {
+	for _, invalid := range []lock.Resource{{ObjectRef: ref}, {ObjectRef: New().catalog.Domain.Ref(ref.Epoch, ref.Address), Row: versions[0].Row}} {
 		if request, err := acquire(b.transactions.ticket, invalid); request != nil || err == nil {
 			t.Fatal("invalid resource admitted", request, err)
 		}

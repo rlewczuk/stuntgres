@@ -31,7 +31,7 @@ func TestMaterializedRefreshConcurrentWorkBound(t *testing.T) {
 		d = e.catalog.state.MustRelation(d.Address())
 		rows := concurrentUnitRows(t, d, make([]any, count)...)
 		d = concurrentUnitReplace(t, e, d, rows, false, true)
-		old := e.storage.relations[d.Address()]
+		old := e.storage.Relations[d.Address()]
 		ordering, err := bindIndexOrdering(d, index.SQLIndex)
 		if err != nil {
 			t.Fatal(err)

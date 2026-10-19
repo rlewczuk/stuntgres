@@ -44,9 +44,9 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 			continue
 		}
 		store := stores[address]
-		selected := make(map[indexRowIdentity]int, len(store.versions))
-		for position, row := range store.versions {
-			selected[indexRowIdentity{row: row.row, version: row.version}] = position
+		selected := make(map[indexRowIdentity]int, len(store.Versions))
+		for position, row := range store.Versions {
+			selected[indexRowIdentity{row: row.Row, version: row.Version}] = position
 		}
 		positions[address] = selected
 	}
@@ -63,7 +63,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 	for address, root := range roots {
 		index := next.MustRelation(address)
 		store := stores[index.SQLIndex.Parent]
-		stage.indexCandidates[address] = indexRootCandidate{index: index, root: root, storage: indexStorageIdentity(store), generation: store.generation, ends: store.ends, length: len(store.versions)}
+		stage.indexCandidates[address] = indexRootCandidate{index: index, root: root, storage: store.IndexIdentity(), generation: store.Generation, ends: store.Ends, length: len(store.Versions)}
 		stage.domainIndexRoots[address] = snapshot.sources[address].root
 	}
 	return nil

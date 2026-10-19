@@ -25,7 +25,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			if concurrent {
 				materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 			}
-			oldStorage := e.storage.relations[d.Address()]
+			oldStorage := e.storage.Relations[d.Address()]
 			originalEpoch := e.catalog.state.Epoch()
 			holder := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
@@ -99,15 +99,15 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 				nextState.BindName(ids.NameKey{ClassID: d.Address().ClassID, Namespace: d.Namespace(), Name: d.Name()}, next.Address())
 				storage := *oldStorage
 				expectedStorage = &storage
-				e.storage.relations = maps.Clone(e.storage.relations)
-				delete(e.storage.relations, d.Address())
-				e.storage.relations[next.Address()] = expectedStorage
+				e.storage.Relations = maps.Clone(e.storage.Relations)
+				delete(e.storage.Relations, d.Address())
+				e.storage.Relations[next.Address()] = expectedStorage
 			case "epoch":
 				nextState.SetEpoch(nextState.Epoch() + 1)
 			}
 			nextState.SetDescriptor(expectedAddress, &next)
 			e.catalog.state = &nextState
-			before, rowCounter, versionCounter := e.commitSeq, e.storage.nextRow, e.storage.nextVersion
+			before, rowCounter, versionCounter := e.commitSeq, e.storage.RowFrontier(), e.storage.VersionFrontier()
 			e.mu.Unlock()
 			e.endLockOwner(holder.transactions.ticket)
 			var err error
@@ -123,7 +123,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			if scope.lockedDescriptor != nil || scope.lockedStorage != nil || scope.lockedRef != (ids.ObjectRef{}) || len(scope.materializedSources) != 0 {
 				t.Fatal("rejected queue captured or retargeted a producer")
 			}
-			if e.catalog.state.Get(expectedAddress) != &next || e.storage.relations[expectedAddress] != expectedStorage || len(expectedStorage.versions) != 3 || e.commitSeq != before || e.storage.nextRow != rowCounter || e.storage.nextVersion != versionCounter || !next.Populated {
+			if e.catalog.state.Get(expectedAddress) != &next || e.storage.Relations[expectedAddress] != expectedStorage || len(expectedStorage.Versions) != 3 || e.commitSeq != before || e.storage.RowFrontier() != rowCounter || e.storage.VersionFrontier() != versionCounter || !next.Populated {
 				t.Fatal("rejected queue changed current metadata/store/frontier/counters")
 			}
 			// Restore only the fixture epoch before normal session/transaction cleanup.

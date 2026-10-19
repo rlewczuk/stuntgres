@@ -392,7 +392,7 @@ func validateUniqueRoot(ctx context.Context, parent, index *catalog.Relation, ro
 	if err != nil {
 		return err
 	}
-	return validateUniqueEntries(ctx, parent, index, root.entries, schema, output, auth, building, ordering)
+	return validateUniqueEntries(ctx, parent, index, root.Entries, schema, output, auth, building, ordering)
 }
 
 func validateUniqueEntries(ctx context.Context, parent, index *catalog.Relation, entries []logicalIndexEntry, schema string, output sqltype.OutputEnvironment, auth *AuthorizationView, building bool, ordering indexOrdering) error {
@@ -412,7 +412,7 @@ func validateUniquePair(ctx context.Context, parent, index *catalog.Relation, pr
 	if d.IsExclusion() {
 		return validateExclusionPair(ctx, parent, index, previous, current, schema, output, auth, building)
 	}
-	if !d.Unique || !d.NullsNotDistinct && uniqueHasNull(current.keys) {
+	if !d.Unique || !d.NullsNotDistinct && uniqueHasNull(current.Keys) {
 		return nil
 	}
 	cmp, err := ordering.compareKeys(ctx, previous, current)
@@ -428,11 +428,11 @@ func validateUniquePair(ctx context.Context, parent, index *catalog.Relation, pr
 				return err
 			}
 		}
-		key := current.keys
+		key := current.Keys
 		if building {
 			// Report an actual earlier comparator tuple for builds, not a
 			// normalized equality value. Validation reports the candidate.
-			key = previous.keys
+			key = previous.Keys
 		}
 		var catalog catalog.Read
 		if auth != nil {

@@ -77,15 +77,15 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				sessionSQL(t, b, q)
 			}
 			addresses := [2]ids.ObjectAddress{catalogRef(t, e, e.CatalogRead(), "t").Address, catalogRef(t, e, e.CatalogRead(), "u").Address}
-			stores := [2]*relationStorage{e.storage.relations[addresses[0]], e.storage.relations[addresses[1]]}
-			roots := [2][]rowVersion{stores[0].versions, stores[1].versions}
+			stores := [2]*relationStorage{e.storage.Relations[addresses[0]], e.storage.Relations[addresses[1]]}
+			roots := [2][]rowVersion{stores[0].Versions, stores[1].Versions}
 			if len(roots[0]) != 3 || cap(roots[0]) != 4 || len(roots[1]) != 1 || cap(roots[1]) != 1 {
 				t.Fatal("mixed spare/growth witness not selected")
 			}
 			prefixes := [2][]rowVersion{append([]rowVersion(nil), roots[0]...), append([]rowVersion(nil), roots[1]...)}
 			for i, root := range roots {
 				for j := range prefixes[i] {
-					prefixes[i][j].values = append([]sqltype.Value(nil), root[j].values...)
+					prefixes[i][j].Values = append([]sqltype.Value(nil), root[j].Values...)
 				}
 			}
 			retained := [2]*finalRows{transactionRows(t, b, "SELECT v FROM t ORDER BY v", 7, 8, 10), transactionRows(t, b, "SELECT v FROM u ORDER BY v", 70)}
@@ -128,7 +128,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				observed := make(chan [2]int, 1)
 				go func() {
 					e.mu.Lock()
-					n := [2]int{len(stores[0].versions), len(stores[1].versions)}
+					n := [2]int{len(stores[0].Versions), len(stores[1].Versions)}
 					e.mu.Unlock()
 					observed <- n
 				}()
@@ -222,7 +222,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				if a.TransactionState() == TxActive && a.transactions.ref != old {
 					t.Fatal("rejection installed chain")
 				}
-				if e.commitSeq != frontier || len(stores[0].versions) != 3 || len(stores[1].versions) != 1 || &stores[0].versions[0] != &roots[0][0] || &stores[1].versions[0] != &roots[1][0] {
+				if e.commitSeq != frontier || len(stores[0].Versions) != 3 || len(stores[1].Versions) != 1 || &stores[0].Versions[0] != &roots[0][0] || &stores[1].Versions[0] != &roots[1][0] {
 					t.Fatal("rejection changed storage frontier/root")
 				}
 				if !reflect.DeepEqual(roots[0][3:4], spare) {
@@ -238,12 +238,12 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 					t.Fatal("retained rows/types/frontier changed", i)
 				}
 				if success {
-					current := stores[i].versions
+					current := stores[i].Versions
 					if len(current) != len(root)+1 || (&current[0] == &root[0]) != (i == 0) {
 						t.Fatal("fit/growth root or length", i)
 					}
 					row := current[len(root)]
-					if row.row == 0 || row.version == 0 || row.row != staged[i].row || row.version != staged[i].version || row.born != frontier+1 || !reflect.DeepEqual(row.values, staged[i].values) || len(row.values) != 1 || testExport(row.values[0]) != [2]int64{1, 9}[i] {
+					if row.Row == 0 || row.Version == 0 || row.Row != staged[i].Row || row.Version != staged[i].Version || row.Born != frontier+1 || !reflect.DeepEqual(row.Values, staged[i].Values) || len(row.Values) != 1 || testExport(row.Values[0]) != [2]int64{1, 9}[i] {
 						t.Fatal("new typed row identity/birth/payload", i, row)
 					}
 				}
@@ -300,7 +300,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			catalog, epoch := data.catalog.State(), data.catalog.Epoch()
 			versions := append([]rowVersion(nil), data.committed[address]...)
 			for i := range versions {
-				versions[i].values = append([]sqltype.Value(nil), versions[i].values...)
+				versions[i].Values = append([]sqltype.Value(nil), versions[i].Values...)
 			}
 			lockState := e.locks.Inspect()
 			oldLive := lockState.Owners[old] != nil

@@ -20,7 +20,7 @@ type indexInsertionBinding struct {
 
 func (r *indexWriteCandidate) materializeInsertion(bound *indexInsertionBinding, evaluation *EvalContext) error {
 	if output, exists := r.indexes[bound.index.Address()]; exists {
-		if !output.matches(bound.index) {
+		if !indexOutputMatches(output, bound.index) {
 			return ids.ErrCatalogReplaced
 		}
 		return nil
@@ -119,7 +119,7 @@ func (s *StatementScope) retainExistingIndexOutput(index *catalog.Relation, row 
 		outputs = make(map[indexRowIdentity]indexRowOutput)
 		s.existingIndexOutputs[index.Address()] = outputs
 	}
-	outputs[indexRowIdentity{row: row.row, version: row.version}] = output
+	outputs[indexRowIdentity{row: row.Row, version: row.Version}] = output
 }
 
 // Existing command-private insertion records own the consumed graph. Reuse it

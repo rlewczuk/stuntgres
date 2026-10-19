@@ -152,7 +152,7 @@ func TestTableCoreQuotedDuplicateRelationPublicationConflict(t *testing.T) {
 			if winner.State() == nil || after.State() != winner.State() || roleTableRef(t, e, tc.identifier) != winnerRef {
 				t.Fatal("winner identity changed")
 			}
-			if _, present := after.Descriptor(loser); present || e.storage.relations[loser] != nil {
+			if _, present := after.Descriptor(loser); present || e.storage.Relations[loser] != nil {
 				t.Fatal("loser published descriptor/storage")
 			}
 			beforeDescriptor, _ := winner.Descriptor(winnerRef.Address)

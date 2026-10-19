@@ -15,12 +15,12 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	d := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 	d = e.catalog.state.MustRelation(d.Address())
-	original := e.storage.relations[d.Address()]
+	original := e.storage.Relations[d.Address()]
 	scope := refreshUnitScope(t, e, context.Background())
 	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
 	scope.querySources = []queryLeaf{{ref: ref, relation: d, storage: original}, {ref: ref, relation: d, storage: original}}
 	d = concurrentUnitReplace(t, e, d, refreshUnitRows(t, d, 4), true, true)
-	current := e.storage.relations[d.Address()]
+	current := e.storage.Relations[d.Address()]
 	e.mu.Lock()
 	err := scope.refreshRelationGrantsLocked(e)
 	e.mu.Unlock()
@@ -40,7 +40,7 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	}
 	retained := view.read()
 	frontier := retained.frontier
-	if !sameVersionRoot(retained.committed[d.Address()], current.versions) {
+	if !sameVersionRoot(retained.committed[d.Address()], current.Versions) {
 		t.Fatal("capture did not own current immutable root")
 	}
 	next := concurrentUnitReplace(t, e, d, refreshUnitRows(t, d, 2), true, true)
@@ -57,7 +57,7 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	if err != nil || again != view {
 		t.Fatal("captured data view changed", err)
 	}
-	if again.read().frontier != frontier || !sameVersionRoot(again.read().committed[d.Address()], current.versions) || len(again.read().committed[d.Address()]) != 4 {
+	if again.read().frontier != frontier || !sameVersionRoot(again.read().committed[d.Address()], current.Versions) || len(again.read().committed[d.Address()]) != 4 {
 		t.Fatal("reader mixed incarnations")
 	}
 	for _, source := range scope.querySources {
@@ -86,8 +86,8 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			d = e.catalog.state.MustRelation(d.Address())
 			stage, unrelated := queryCreateStage(t, e, "unrelated_snapshot", 1)
 			queryCreatePublish(t, e, stage)
-			original := e.storage.relations[d.Address()]
-			original.ends = &deletionRoot{}
+			original := e.storage.Relations[d.Address()]
+			original.Ends = &deletionRoot{}
 			scope := refreshUnitScope(t, e, context.Background())
 			scope.owner.isolation = RepeatableRead
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
@@ -95,7 +95,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			}
 			root := scope.owner.roots[d.Address()]
 			frontier := scope.owner.frontier
-			if root.storage != original || root.ends != original.ends || scope.owner.roots[unrelated.Address()].storage != e.storage.relations[unrelated.Address()] {
+			if root.storage != original || root.ends != original.Ends || scope.owner.roots[unrelated.Address()].storage != e.storage.Relations[unrelated.Address()] {
 				t.Fatal("snapshot did not capture database roots")
 			}
 			ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
@@ -144,9 +144,9 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			case "control_epoch":
 				e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
 			case "ordinary_incarnation":
-				copy := *e.storage.relations[d.Address()]
-				copy.materializedLineage = nil
-				e.storage.relations[d.Address()] = &copy
+				copy := *e.storage.Relations[d.Address()]
+				copy.MaterializedLineage = nil
+				e.storage.Relations[d.Address()] = &copy
 			default:
 				copy := *d
 				switch phase {
@@ -201,15 +201,15 @@ func TestMaterializedRefreshConcurrentLateCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	frontier := e.commitSeq
-	published := e.storage.relations[d.Address()]
-	if !scope.completed || len(published.versions) != 1 {
+	published := e.storage.Relations[d.Address()]
+	if !scope.completed || len(published.Versions) != 1 {
 		t.Fatal("actual refresh did not complete publication")
 	}
 	cancel()
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal("late cancellation retracted completed utility", err)
 	}
-	if e.storage.relations[d.Address()] != published || e.commitSeq != frontier {
+	if e.storage.Relations[d.Address()] != published || e.commitSeq != frontier {
 		t.Fatal("late completion published twice")
 	}
 }

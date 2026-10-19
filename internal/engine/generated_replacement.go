@@ -50,8 +50,8 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	}
 	if err == nil {
 		stage.catalog.state = candidate
-		stage.storage.relations = storage
-		stage.storage.sequences = sequences
+		stage.storage.Relations = storage
+		stage.storage.Sequences = sequences
 	}
 	stage.mu.Unlock()
 	if err != nil {

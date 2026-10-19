@@ -44,22 +44,6 @@ type TxOptions struct {
 
 type EndResult struct{ Committed bool }
 
-type rowVersion struct {
-	row     ids.RowID
-	version ids.VersionID
-	born    ids.CommitSeq
-	// The last committed key transition survives key restoration and payload
-	// replacements. Private successors accumulate transitions until commit.
-	keyChangedAt     ids.CommitSeq
-	pendingKeyChange bool
-	// base is the committed predecessor for a private replacement; zero is an insert.
-	base   ids.VersionID
-	values []sqltype.Value
-	// Private admission captures index readiness; committed rows clear this pin.
-	indexAdmission *catalog.State
-	indexOutputs   map[ids.ObjectAddress]indexRowOutput // Private, immutable produced index data.
-}
-
 type transactionOwner struct {
 	ids.TxOwnerMarker
 	admission       sync.Mutex
@@ -676,22 +660,22 @@ retry:
 				return errors.New("stuntgres: exclusion row lost its admission identity")
 			}
 			versions[i] = *reserved
-			versions[i].indexAdmission = admission
+			versions[i].IndexAdmission = admission
 		}
 	} else {
-		versions, err = e.storage.allocateRowVersionsLocked(rows, admission)
+		versions, err = e.storage.AllocateRowVersionsLocked(rows, admission)
 	}
 	if err != nil {
 		return err
 	}
 	if batch.states != nil {
 		for i := range versions {
-			versions[i].indexOutputs = batch.states[i].indexes
+			versions[i].IndexOutputs = batch.states[i].indexes
 		}
 	}
 	if serializableRelevant(e.serializable.nodes[s.txRef]) {
 		for _, row := range versions {
-			event := [1]serializableWrite{{row: row.row, version: row.version}}
+			event := [1]serializableWrite{{row: row.Row, version: row.Version}}
 			if err := e.serializableWriteLocked(s, ref, event[:]); err != nil {
 				return err
 			}

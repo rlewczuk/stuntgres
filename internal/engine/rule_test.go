@@ -290,7 +290,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	})
 	t.Run("event_source_identity", func(t *testing.T) {
 		f := viewWriteMechanics(t)
-		original := binding{relation: f.base, ref: f.baseRef, storage: f.e.storage.relations[f.base.Address()], targets: []int{0}, usedColumns: []int{0}, update: &boundUpdate{assignments: []expr.Expr{literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, value: sqltype.Null(f.integer)}}}}
+		original := binding{relation: f.base, ref: f.baseRef, storage: f.e.storage.Relations[f.base.Address()], targets: []int{0}, usedColumns: []int{0}, update: &boundUpdate{assignments: []expr.Expr{literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, value: sqltype.Null(f.integer)}}}}
 		producer, err := makeRuleProducer(f.e.CatalogRead(), original, "UPDATE")
 		if err != nil {
 			t.Fatal(err)
@@ -429,7 +429,7 @@ func TestRuleProgramAtomicStage(t *testing.T) {
 	s.self = s
 	s.stage.self = &s.stage
 	s.stage.scope = s
-	s.stage.rows = map[ids.ObjectAddress][]rowVersion{src.Address(): {{row: 1, version: 1}}}
+	s.stage.rows = map[ids.ObjectAddress][]rowVersion{src.Address(): {{Row: 1, Version: 1}}}
 	before := s.ruleScratch()
 	stageRows := s.stage.rows
 	s.installRuleScratch(ruleCommandScratch{ref: ruleUnitRef(e, sink), descriptor: sink})
@@ -437,7 +437,7 @@ func TestRuleProgramAtomicStage(t *testing.T) {
 		t.Fatal("action scratch changed original envelope/stage")
 	}
 	s.installRuleScratch(before)
-	if s.lockedRef.Address != src.Address() || !maps.EqualFunc(stageRows, s.stage.rows, func(a, b []rowVersion) bool { return len(a) == len(b) && a[0].row == b[0].row }) {
+	if s.lockedRef.Address != src.Address() || !maps.EqualFunc(stageRows, s.stage.rows, func(a, b []rowVersion) bool { return len(a) == len(b) && a[0].Row == b[0].Row }) {
 		t.Fatal("scratch restoration lost original stage")
 	}
 }

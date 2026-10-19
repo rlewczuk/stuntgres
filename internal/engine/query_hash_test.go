@@ -165,16 +165,16 @@ func TestHashIndexLookupParametersResidualAndFallback(t *testing.T) {
 	query, source, release := hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=2")
 	original := source.hashIndexes[0].root
 	clone := *original
-	clone.buckets = maps.Clone(original.buckets)
-	probe := source.committed[0].values[0]
-	h, err := clone.binding.provider.Hash(context.Background(), probe)
+	clone.Buckets = maps.Clone(original.Buckets)
+	probe := source.committed[0].Values[0]
+	h, err := clone.Binding.Provider.Hash(context.Background(), probe)
 	if err != nil {
 		t.Fatal(err)
 	}
 	one := source.committed[1]
 	// One forced hash collision is rejected by class equality; a false-positive
 	// stored key passes that guard but must fail the original SQL comparison.
-	clone.buckets[h] = append(append([]hashIndexEntry(nil), clone.buckets[h]...), hashIndexEntry{key: one.values[0], row: one.row, version: one.version, position: 1}, hashIndexEntry{key: probe, row: one.row, version: one.version, position: 1})
+	clone.Buckets[h] = append(append([]hashIndexEntry(nil), clone.Buckets[h]...), hashIndexEntry{Key: one.Values[0], Row: one.Row, Version: one.Version, Position: 1}, hashIndexEntry{Key: probe, Row: one.Row, Version: one.Version, Position: 1})
 	source.hashIndexes[0].root = &clone
 	stage := hashFilterStage(t, query, source, nil)
 	if stage.hashCandidates == nil || len(stage.hashCandidates.occurrences) != 3 {

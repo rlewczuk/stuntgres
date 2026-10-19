@@ -122,7 +122,7 @@ func TestSerializableSafeSnapshotUnsafeRejectsRootsAndRecaptures(t *testing.T) {
 	writer.outgoing[out] = struct{}{}
 	out.incoming[writer] = struct{}{}
 	e.serializableCommittedLocked(out.ref, e.commitSeq)
-	old := e.storage.relations[ref.Address]
+	old := e.storage.Relations[ref.Address]
 	e.mu.Unlock()
 	scope, node := serializableUnitAcquisition(t, e, context.Background(), true, true)
 	join := serializableUnitCaptureWorker(t, scope)
@@ -131,8 +131,8 @@ func TestSerializableSafeSnapshotUnsafeRejectsRootsAndRecaptures(t *testing.T) {
 	if scope.owner.roots[ref.Address].storage != old {
 		t.Fatal("candidate did not capture old root")
 	}
-	next := &relationStorage{generation: old.generation + 1}
-	e.storage.relations[ref.Address] = next
+	next := &relationStorage{Generation: old.Generation + 1}
+	e.storage.Relations[ref.Address] = next
 	e.commitSeq++
 	e.serializableCommittedLocked(writer.ref, e.commitSeq)
 	e.endSerializableLocked(writer.ref, true)
@@ -217,12 +217,12 @@ func TestSerializableSafeSnapshotCancelAndEpochFence(t *testing.T) {
 				// cancellation or invalid input. Failed preparation must leave
 				// both committed authority and the unresolved candidate intact.
 				e.mu.Lock()
-				nextRow := e.storage.nextRow
-				e.storage.nextRow = ^uint64(0)
+				nextRow := e.storage.RowFrontier()
+				e.storage.SetFrontierLocked(^uint64(0), e.storage.VersionFrontier())
 				e.mu.Unlock()
 				changes, err := e.ReplaceCatalog(context.Background(), replacementSource, replacement)
 				e.mu.Lock()
-				e.storage.nextRow = nextRow
+				e.storage.SetFrontierLocked(nextRow, e.storage.VersionFrontier())
 				e.mu.Unlock()
 				if err == nil || err.Error() != "stuntgres: row identity exhausted" {
 					t.Fatal("replacement preparation failure", changes, err)
@@ -273,7 +273,7 @@ func TestSerializableSafeSnapshotCancelAndEpochFence(t *testing.T) {
 				if writer.ended || writer.committed {
 					t.Fatal("writer resolution supplied the observed wake")
 				}
-				if !reflect.DeepEqual(oldRoot.storage.versions[:cap(oldRoot.storage.versions)], before.storage[relation.Address].rows) || oldRoot.ends != before.storage[relation.Address].ends || (oldRoot.ends != nil && !reflect.DeepEqual(oldRoot.ends.rows, before.storage[relation.Address].endRows)) {
+				if !reflect.DeepEqual(oldRoot.storage.Versions[:cap(oldRoot.storage.Versions)], before.storage[relation.Address].rows) || oldRoot.ends != before.storage[relation.Address].ends || (oldRoot.ends != nil && !reflect.DeepEqual(oldRoot.ends.Rows, before.storage[relation.Address].endRows)) {
 					t.Fatal("replacement mutated immutable old snapshot")
 				}
 				if mode != "cancel" && (e.catalog.state.Epoch() != oldEpoch+1 || !node.aborted || !writer.aborted || len(e.serializable.nodes) != 0 || len(e.serializable.creators) != 0) {

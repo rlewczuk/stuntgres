@@ -26,7 +26,7 @@ type foreignKeyRows struct {
 
 func (r foreignKeyRows) each(visit func(rowVersion) (bool, error)) error {
 	for _, v := range r.committed {
-		if r.shadow[v.row] != 0 || !liveVersion(v, r.frontier, r.ends, r.priorDeletes) || !liveVersion(v, r.frontier, r.ends, r.currentDeletes) {
+		if r.shadow[v.Row] != 0 || !liveVersion(v, r.frontier, r.ends, r.priorDeletes) || !liveVersion(v, r.frontier, r.ends, r.currentDeletes) {
 			continue
 		}
 		if stop, err := visit(v); err != nil || stop {
@@ -34,7 +34,7 @@ func (r foreignKeyRows) each(visit func(rowVersion) (bool, error)) error {
 		}
 	}
 	for _, v := range r.own {
-		if r.shadow[v.row]&2 != 0 || !liveVersion(v, r.frontier, nil, r.priorDeletes) || !liveVersion(v, r.frontier, nil, r.currentDeletes) {
+		if r.shadow[v.Row]&2 != 0 || !liveVersion(v, r.frontier, nil, r.priorDeletes) || !liveVersion(v, r.frontier, nil, r.currentDeletes) {
 			continue
 		}
 		if stop, err := visit(v); err != nil || stop {
@@ -53,12 +53,12 @@ func (r foreignKeyRows) each(visit func(rowVersion) (bool, error)) error {
 }
 func (r foreignKeyRows) previous(id ids.RowID) (rowVersion, bool) {
 	for _, v := range r.own {
-		if v.row == id {
+		if v.Row == id {
 			return v, true
 		}
 	}
 	for _, v := range r.committed {
-		if v.row == id && liveVersion(v, r.frontier, r.ends, r.priorDeletes) {
+		if v.Row == id && liveVersion(v, r.frontier, r.ends, r.priorDeletes) {
 			return v, true
 		}
 	}
@@ -80,10 +80,10 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.Obje
 	if storage == nil {
 		return foreignKeyRows{}, ids.ErrCatalogReplaced
 	}
-	r := foreignKeyRows{storage: storage, committed: storage.versions, ends: storage.ends, own: s.ownWrites[ref.Address], staged: s.stage.rows[ref.Address], priorDeletes: s.ownDeletes[ref.Address], currentDeletes: s.stage.deletes[ref.Address], frontier: e.commitSeq}
+	r := foreignKeyRows{storage: storage, committed: storage.Versions, ends: storage.Ends, own: s.ownWrites[ref.Address], staged: s.stage.rows[ref.Address], priorDeletes: s.ownDeletes[ref.Address], currentDeletes: s.stage.deletes[ref.Address], frontier: e.commitSeq}
 	r.index = index
 	if index != (ids.ObjectAddress{}) {
-		r.root = e.storage.indexRoots[index]
+		r.root = e.storage.IndexRoots[index]
 		if changes != nil && changes.uniqueRoots[index] != nil {
 			r.root = changes.uniqueRoots[index]
 		}
@@ -98,10 +98,10 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.Obje
 	if len(r.own)+len(r.staged) > 0 {
 		r.shadow = make(map[ids.RowID]uint8, len(r.own)+len(r.staged))
 		for _, v := range r.own {
-			r.shadow[v.row] |= 1
+			r.shadow[v.Row] |= 1
 		}
 		for _, v := range r.staged {
-			r.shadow[v.row] |= 2
+			r.shadow[v.Row] |= 2
 		}
 	}
 	return r, nil
@@ -284,28 +284,28 @@ func (s *StatementScope) checkForeignKeys() error {
 		// Child checks only newly written final rows, not unaffected old rows.
 		for _, row := range s.stage.rows[childRef.Address] {
 			if root := s.stage.deletes[childRef.Address]; root != nil {
-				if _, deleted := root.rows[row.row]; deleted {
+				if _, deleted := root.rows[row.Row]; deleted {
 					continue
 				}
 			}
-			any, all := foreignKeyNullState(job.comparisons, row.values)
+			any, all := foreignKeyNullState(job.comparisons, row.Values)
 			if any {
 				if f.Full && !all {
-					return foreignKeyDiagnostic(s.op.Context(), childAuth, job.child, job.parent, f, row.values, false, true, s.output)
+					return foreignKeyDiagnostic(s.op.Context(), childAuth, job.child, job.parent, f, row.Values, false, true, s.output)
 				}
 				continue
 			}
 			// Only an actual committed predecessor can suppress an unchanged-key
 			// check. Prior own updates, as well as own inserts, still require it.
-			if row.base != 0 {
-				previous, ok := children.previous(row.row)
+			if row.Base != 0 {
+				previous, ok := children.previous(row.Row)
 				if !ok {
 					return fmt.Errorf("stuntgres: missing foreign-key update predecessor")
 				}
-				if previous.born != 0 {
+				if previous.Born != 0 {
 					unchanged := true
 					for _, comparison := range job.comparisons {
-						equal, err := comparison.comparison.EqualChildren(s.op.Context(), previous.values[comparison.child], row.values[comparison.child], s.input)
+						equal, err := comparison.comparison.EqualChildren(s.op.Context(), previous.Values[comparison.child], row.Values[comparison.child], s.input)
 						if err != nil {
 							return err
 						}
@@ -319,48 +319,48 @@ func (s *StatementScope) checkForeignKeys() error {
 					}
 				}
 			}
-			found, err := s.foreignKeyParentExists(parentRef, *job, &parentRows, row.values, true)
+			found, err := s.foreignKeyParentExists(parentRef, *job, &parentRows, row.Values, true)
 			if err != nil {
 				return err
 			}
 			if !found {
-				return foreignKeyDiagnostic(s.op.Context(), childAuth, job.child, job.parent, f, row.values, false, false, s.output)
+				return foreignKeyDiagnostic(s.op.Context(), childAuth, job.child, job.parent, f, row.Values, false, false, s.output)
 			}
 		}
 		checkOld := func(old rowVersion) error {
 			return children.each(func(child rowVersion) (bool, error) {
-				match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, child.values, old.values, s.input)
+				match, err := foreignKeyRowsMatch(s.op.Context(), job.comparisons, child.Values, old.Values, s.input)
 				if err != nil || !match {
 					return false, err
 				}
-				found, err := s.foreignKeyParentExists(parentRef, *job, &parentRows, child.values, false)
+				found, err := s.foreignKeyParentExists(parentRef, *job, &parentRows, child.Values, false)
 				if err != nil || found {
 					return false, err
 				}
-				return false, foreignKeyDiagnostic(s.op.Context(), parentAuth, job.child, job.parent, f, old.values, true, false, s.output)
+				return false, foreignKeyDiagnostic(s.op.Context(), parentAuth, job.child, job.parent, f, old.Values, true, false, s.output)
 			})
 		}
 		for _, row := range parentRows.staged {
-			old, ok := parentRows.previous(row.row)
+			old, ok := parentRows.previous(row.Row)
 			if ok {
-				if foreignActionSameKey(job.comparisons, old.values, row.values) {
+				if foreignActionSameKey(job.comparisons, old.Values, row.Values) {
 					continue
 				}
 				if err := checkOld(old); err != nil {
 					return err
 				}
-			} else if row.base != 0 {
+			} else if row.Base != 0 {
 				return fmt.Errorf("stuntgres: missing foreign-key update predecessor")
 			}
 		}
 		if parentRows.currentDeletes != nil {
 			for _, rows := range [][]rowVersion{parentRows.committed, parentRows.own} {
 				for _, old := range rows {
-					if _, deleted := parentRows.currentDeletes.rows[old.row]; !deleted {
+					if _, deleted := parentRows.currentDeletes.rows[old.Row]; !deleted {
 						continue
 					}
-					previous, ok := parentRows.previous(old.row)
-					if !ok || previous.version != old.version {
+					previous, ok := parentRows.previous(old.Row)
+					if !ok || previous.Version != old.Version {
 						continue
 					}
 					if err := checkOld(old); err != nil {
@@ -379,13 +379,13 @@ func (s *StatementScope) foreignKeyParentExists(ref ids.ObjectRef, job foreignKe
 	}
 	for {
 		matching, locator, err := findForeignKeyParent(s.op.Context(), job.index, job.comparisons, *rows, job.childKey, s.input)
-		if err != nil || matching.row == 0 {
+		if err != nil || matching.Row == 0 {
 			return false, err
 		}
-		if !lockParent || matching.born == 0 {
+		if !lockParent || matching.Born == 0 {
 			return true, nil
 		}
-		if err := s.foreignKeyGrant(ref, matching.row, lock.ForKeyShare, rows.storage); err != nil {
+		if err := s.foreignKeyGrant(ref, matching.Row, lock.ForKeyShare, rows.storage); err != nil {
 			return false, err
 		}
 		if err := s.refreshForeignKeyRows(ref, rows); err != nil {
@@ -393,13 +393,13 @@ func (s *StatementScope) foreignKeyParentExists(ref ids.ObjectRef, job foreignKe
 		}
 		// The borrowed index entry is an exact physical-version locator. Waiting
 		// may end this version; retry the current index, never scan the relation.
-		if locator.position >= 0 && locator.position < len(rows.committed) {
-			parent := rows.committed[locator.position]
-			if parent.row == locator.row && parent.version == locator.version && rows.committedLive(parent) {
+		if locator.Position >= 0 && locator.Position < len(rows.committed) {
+			parent := rows.committed[locator.Position]
+			if parent.Row == locator.Row && parent.Version == locator.Version && rows.committedLive(parent) {
 				if err := s.physicalRowEvent(ref, parent, lock.MultiKeyShare, 0); err != nil {
 					return false, err
 				}
-				return foreignKeyRowsMatch(s.op.Context(), job.comparisons, child, parent.values, s.input)
+				return foreignKeyRowsMatch(s.op.Context(), job.comparisons, child, parent.Values, s.input)
 			}
 		}
 	}
@@ -420,8 +420,8 @@ func (s *StatementScope) refreshForeignKeyRows(ref ids.ObjectRef, rows *foreignK
 	if storage == nil || storage != rows.storage {
 		return ids.ErrCatalogReplaced
 	}
-	rows.committed, rows.ends, rows.frontier = storage.versions, storage.ends, e.commitSeq
-	rows.root = e.storage.indexRoots[rows.index]
+	rows.committed, rows.ends, rows.frontier = storage.Versions, storage.Ends, e.commitSeq
+	rows.root = e.storage.IndexRoots[rows.index]
 	if changes != nil && changes.uniqueRoots[rows.index] != nil {
 		rows.root = changes.uniqueRoots[rows.index]
 	}

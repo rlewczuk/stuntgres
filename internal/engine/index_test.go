@@ -15,8 +15,8 @@ func btreeRoot(t *testing.T, e *Engine, name string) (*catalog.Relation, *logica
 	t.Helper()
 	ref := roleTableRef(t, e, name)
 	index := e.catalog.state.MustRelation(ref.Address)
-	root := e.storage.indexRoots[ref.Address]
-	if index.RelationKind != catalog.IndexRelation || index.SQLIndex == nil || root == nil || e.storage.relations[ref.Address] != nil {
+	root := e.storage.IndexRoots[ref.Address]
+	if index.RelationKind != catalog.IndexRelation || index.SQLIndex == nil || root == nil || e.storage.Relations[ref.Address] != nil {
 		t.Fatal("not a substantive index", index, root)
 	}
 	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
@@ -26,14 +26,14 @@ func btreeRoot(t *testing.T, e *Engine, name string) (*catalog.Relation, *logica
 }
 func btreeKeys(t *testing.T, root *logicalIndexRoot) []string {
 	t.Helper()
-	keys := make([]string, len(root.entries))
+	keys := make([]string, len(root.Entries))
 	identities := make(map[ids.VersionID]bool)
-	for i, entry := range root.entries {
-		if entry.row == 0 || entry.version == 0 || identities[entry.version] {
+	for i, entry := range root.Entries {
+		if entry.Row == 0 || entry.Version == 0 || identities[entry.Version] {
 			t.Fatal("collapsed/invalid identity", entry)
 		}
-		identities[entry.version] = true
-		value := entry.keys[0]
+		identities[entry.Version] = true
+		value := entry.Keys[0]
 		if value.IsNull() {
 			keys[i] = "NULL"
 		} else {
@@ -137,17 +137,17 @@ func TestBtreeIndexLifecycleAndReplacement(t *testing.T) {
 	if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: index.Namespace(), Name: "si"})) != 0 {
 		t.Fatal("indexed column left orphan")
 	}
-	old := e.storage.indexRoots[index.Address()]
+	old := e.storage.IndexRoots[index.Address()]
 	if _, err := e.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	_, fresh := btreeRoot(t, e, "moved.ni")
-	if fresh == old || fresh.entries[0].row == old.entries[0].row {
+	if fresh == old || fresh.Entries[0].Row == old.Entries[0].Row {
 		t.Fatal("replacement retained source identities")
 	}
 	run(t, e, "DROP TABLE moved.renamed RESTRICT")
-	if len(e.storage.indexRoots) != 0 {
-		t.Fatal("orphan roots", e.storage.indexRoots)
+	if len(e.storage.IndexRoots) != 0 {
+		t.Fatal("orphan roots", e.storage.IndexRoots)
 	}
 	run(t, e, "CREATE TABLE moved.ni(n INT)")
 }
@@ -156,7 +156,7 @@ func TestBtreeIndexEmptyNullRepeatedAndCancellation(t *testing.T) {
 	run(t, e, "CREATE TABLE t(n INT)")
 	run(t, e, "CREATE INDEX empty ON t(n)")
 	_, root := btreeRoot(t, e, "empty")
-	if len(root.entries) != 0 {
+	if len(root.Entries) != 0 {
 		t.Fatal(root)
 	}
 	run(t, e, "INSERT INTO t VALUES(NULL),(NULL)")
@@ -164,7 +164,7 @@ func TestBtreeIndexEmptyNullRepeatedAndCancellation(t *testing.T) {
 	keys := strings.TrimSuffix(strings.Repeat("n,", 32), ",")
 	run(t, e, "CREATE INDEX repeated ON t("+keys+")")
 	index, root := btreeRoot(t, e, "repeated")
-	if len(index.Columns) != 32 || len(root.entries) != 2 {
+	if len(index.Columns) != 32 || len(root.Entries) != 2 {
 		t.Fatal(index, root)
 	}
 	run(t, e, "CREATE TABLE build(n INT)")
@@ -203,11 +203,11 @@ func TestBtreeIndexForeignReplacement(t *testing.T) {
 		t.Fatal("replacement reused source authority/root")
 	}
 	sourceRows := make(map[ids.RowID]bool)
-	for _, entry := range sourceRoot.entries {
-		sourceRows[entry.row] = true
+	for _, entry := range sourceRoot.Entries {
+		sourceRows[entry.Row] = true
 	}
-	for _, entry := range destination.entries {
-		if sourceRows[entry.row] {
+	for _, entry := range destination.Entries {
+		if sourceRows[entry.Row] {
 			t.Fatal("destination did not remint identities", entry)
 		}
 	}
@@ -236,8 +236,8 @@ func TestBtreeIndexSchemaDropClosure(t *testing.T) {
 		t.Fatal("failed RESTRICT changed root")
 	}
 	run(t, e, "DROP SCHEMA scoped CASCADE")
-	if len(e.storage.indexRoots) != 0 {
-		t.Fatal("schema drop left roots", e.storage.indexRoots)
+	if len(e.storage.IndexRoots) != 0 {
+		t.Fatal("schema drop left roots", e.storage.IndexRoots)
 	}
 	for _, q := range []string{"CREATE SCHEMA scoped", "CREATE TABLE scoped.t(n INT)", "CREATE INDEX idx ON scoped.t(n)"} {
 		run(t, e, q)

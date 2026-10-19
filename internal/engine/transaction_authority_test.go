@@ -66,7 +66,7 @@ func TestTransactionCopiedScopeStageViewAndSnapshot(t *testing.T) {
 		relation = e.catalog.Domain.Ref(data.catalog.Epoch(), a)
 	}
 	stage := *scope.Writes()
-	before := e.storage.nextRow
+	before := e.storage.RowFrontier()
 	typ, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	value, err := sqltype.Integer(typ, 1)
 	if err != nil {
@@ -81,7 +81,7 @@ func TestTransactionCopiedScopeStageViewAndSnapshot(t *testing.T) {
 	if err = scope.Writes().Apply(relation, [][]sqltype.Value{{}}); err == nil {
 		t.Fatal("invalid payload staged")
 	}
-	if e.storage.nextRow != before {
+	if e.storage.RowFrontier() != before {
 		t.Fatal("failed Apply transferred ownership/allocated identity")
 	}
 	forged := &VisibilityView{self: scope.view}

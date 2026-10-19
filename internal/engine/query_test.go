@@ -162,8 +162,8 @@ func TestQueryCoreCancellation(t *testing.T) {
 			// Own a new immutable captured prefix for this sort-key fixture.
 			source.committed = append([]rowVersion(nil), source.committed...)
 			for i, version := range source.committed {
-				source.committed[i].values = append([]sqltype.Value(nil), version.values...)
-				source.committed[i].values[1] = value
+				source.committed[i].Values = append([]sqltype.Value(nil), version.Values...)
+				source.committed[i].Values[1] = value
 			}
 			ctx := &queryCountingContext{Context: context.Background(), remaining: 10}
 			rows, _, err := finalizeQuery(ctx, query.Root, source, nil)

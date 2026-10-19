@@ -223,7 +223,7 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 			scope.stage.rows = make(map[ids.ObjectAddress][]rowVersion, len(stage.initialTables))
 		}
 		for a, store := range stage.initialTables {
-			scope.stage.rows[a] = store.versions
+			scope.stage.rows[a] = store.Versions
 		}
 	}
 	if err = e.prepareCatalogOverlayIndexes(scope, stage, changes); err != nil {
@@ -277,10 +277,10 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 		a := r.original.Address()
 		shape, exists := changes.storage[a]
 		if !exists {
-			shape = catalogStorageChange{original: r.predecessor, root: r.predecessor.versions, ends: r.ends, generation: r.generation}
+			shape = catalogStorageChange{original: r.predecessor, root: r.predecessor.Versions, ends: r.ends, generation: r.generation}
 		}
 		if !exists {
-			shape.materializedContinuous = r.concurrent && r.predecessor == e.storage.relations[a]
+			shape.materializedContinuous = r.concurrent && r.predecessor == e.storage.Relations[a]
 		} else {
 			shape.materializedContinuous = shape.materializedContinuous && r.concurrent
 		}

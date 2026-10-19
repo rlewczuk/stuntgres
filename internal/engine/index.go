@@ -15,18 +15,6 @@ import (
 	"unicode/utf8"
 )
 
-type logicalIndexEntry struct {
-	keys     []sqltype.Value
-	row      ids.RowID
-	version  ids.VersionID
-	position int // Physical slot in the simultaneously published immutable storage.
-}
-type logicalIndexRoot struct {
-	entries    []logicalIndexEntry // Ordered B-tree keys or unordered logical GiST membership.
-	hash       *hashIndexRoot
-	membership map[ids.RowID]ids.VersionID // Immutable; partial roots only.
-	rowEntries map[ids.RowID]int           // Entry ordinals, only checked unique/exclusion expression keys.
-}
 type indexOrdering struct {
 	slots       []int
 	comparisons []sqltype.IndexComparison
@@ -177,7 +165,7 @@ func (o indexOrdering) compareKeys(ctx context.Context, a, b logicalIndexEntry) 
 		return 0, err
 	}
 	for i, key := range o.keys {
-		av, bv := a.keys[i], b.keys[i]
+		av, bv := a.Keys[i], b.Keys[i]
 		if av.IsNull() || bv.IsNull() {
 			if av.IsNull() == bv.IsNull() {
 				continue
@@ -205,16 +193,16 @@ func (o indexOrdering) compare(ctx context.Context, a, b logicalIndexEntry) (int
 	if err != nil || c != 0 {
 		return c, err
 	}
-	if a.row < b.row {
+	if a.Row < b.Row {
 		return -1, nil
 	}
-	if a.row > b.row {
+	if a.Row > b.Row {
 		return 1, nil
 	}
-	if a.version < b.version {
+	if a.Version < b.Version {
 		return -1, nil
 	}
-	if a.version > b.version {
+	if a.Version > b.Version {
 		return 1, nil
 	}
 	return 0, nil
@@ -236,10 +224,10 @@ func (o indexOrdering) fillKeys(values []sqltype.Value, keys []sqltype.Value, ev
 
 func (o indexOrdering) entry(row rowVersion, evaluation *EvalContext) (logicalIndexEntry, error) {
 	keys := make([]sqltype.Value, len(o.slots))
-	if err := o.fillKeys(row.values, keys, evaluation); err != nil {
+	if err := o.fillKeys(row.Values, keys, evaluation); err != nil {
 		return logicalIndexEntry{}, err
 	}
-	return logicalIndexEntry{keys: keys, row: row.row, version: row.version}, nil
+	return logicalIndexEntry{Keys: keys, Row: row.Row, Version: row.Version}, nil
 }
 
 // Bottom-up merge sort propagates comparison/cancellation failures. No callback
@@ -303,19 +291,19 @@ func buildIndexEntries(evaluation *EvalContext, parent *catalog.Relation, d *cat
 	if store == nil {
 		return nil, fmt.Errorf("stuntgres: index parent storage is missing")
 	}
-	entries := make([]logicalIndexEntry, 0, len(store.versions))
+	entries := make([]logicalIndexEntry, 0, len(store.Versions))
 	var preparation indexExecutionPreparation
-	for position, row := range store.versions {
+	for position, row := range store.Versions {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if liveVersion(row, ids.CommitSeq(^uint64(0)), store.ends, nil) {
-			matches, err := preparation.predicateMatches(evaluation, parent, d, row.values, &o, nil)
+		if liveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, nil) {
+			matches, err := preparation.predicateMatches(evaluation, parent, d, row.Values, &o, nil)
 			if err != nil {
 				return nil, err
 			}
 			if capture != nil {
-				capture.outputs[position] = indexRowOutput{index: capture.index, member: matches}
+				capture.outputs[position] = indexRowOutput{Index: capture.index, Member: matches}
 			}
 			if !matches {
 				continue
@@ -327,9 +315,9 @@ func buildIndexEntries(evaluation *EvalContext, parent *catalog.Relation, d *cat
 			if err != nil {
 				return nil, err
 			}
-			entry.position = position
+			entry.Position = position
 			if capture != nil {
-				capture.outputs[position].keys = entry.keys
+				capture.outputs[position].Keys = entry.Keys
 			}
 			entries = append(entries, entry)
 		}
@@ -360,30 +348,30 @@ func mergeIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation, ol
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if row.base != 0 {
-			ended[row.row] = row.base
+		if row.Base != 0 {
+			ended[row.Row] = row.Base
 		}
 		if p.deletion != nil {
-			if end, ok := p.deletion.rows[row.row]; ok && end.version == row.version {
+			if end, ok := p.deletion.rows[row.Row]; ok && end.version == row.Version {
 				continue
 			}
 		}
-		output, produced := row.indexOutputs[index.Address()]
-		produced = produced && output.matches(index)
+		output, produced := row.IndexOutputs[index.Address()]
+		produced = produced && indexOutputMatches(output, index)
 		if !reconstruct && !produced && !rowMaintainsIndex(row, index) {
 			continue
 		}
 		var entry logicalIndexEntry
 		if produced {
-			if !output.member {
+			if !output.Member {
 				continue
 			}
-			entry = logicalIndexEntry{keys: output.keys, row: row.row, version: row.version}
+			entry = logicalIndexEntry{Keys: output.Keys, Row: row.Row, Version: row.Version}
 		} else {
-			if d.HasRuntimeDomainConversion() && evaluation.liveScope() == nil && row.born == 0 {
+			if d.HasRuntimeDomainConversion() && evaluation.liveScope() == nil && row.Born == 0 {
 				return nil, fmt.Errorf("stuntgres: missing produced index row")
 			}
-			matches, err := preparation.predicateMatches(evaluation, parent, d, row.values, &o, nil)
+			matches, err := preparation.predicateMatches(evaluation, parent, d, row.Values, &o, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -398,7 +386,7 @@ func mergeIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation, ol
 				return nil, err
 			}
 		}
-		entry.position = publicationSlot(p, i)
+		entry.Position = publicationSlot(p, i)
 		added = append(added, entry)
 	}
 	if p.deletion != nil {
@@ -425,7 +413,7 @@ func mergeIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation, ol
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			if ended[entry.row] != entry.version {
+			if ended[entry.Row] != entry.Version {
 				entries = append(entries, entry)
 			}
 		}
@@ -467,7 +455,7 @@ func mergeIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation, ol
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if ended[entry.row] == entry.version {
+		if ended[entry.Row] == entry.Version {
 			continue
 		}
 		for j < len(added) {

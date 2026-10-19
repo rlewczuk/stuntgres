@@ -62,8 +62,8 @@ func TestIdentityAlterCanceledPublication(t *testing.T) {
 			sessionSQL(t, a, `CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY)`)
 			tableRef := catalogRef(t, e, e.CatalogRead(), "i")
 			sequenceRef := catalogRef(t, e, e.CatalogRead(), "i_id_seq")
-			state, storage := e.catalog.state, e.storage.relations[tableRef.Address]
-			generator := *e.storage.sequences[sequenceRef.Address]
+			state, storage := e.catalog.state, e.storage.Relations[tableRef.Address]
+			generator := *e.storage.Sequences[sequenceRef.Address]
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, `ALTER SEQUENCE i_id_seq RESTART WITH 10`)
 			ctx, cancel := context.WithCancel(context.Background())
@@ -76,7 +76,7 @@ func TestIdentityAlterCanceledPublication(t *testing.T) {
 			ownedLockQueued(t, e, sequenceRef, mode, done)
 			cancel()
 			lockAwait(t, done, context.Canceled)
-			if e.catalog.state != state || e.storage.relations[tableRef.Address] != storage || *e.storage.sequences[sequenceRef.Address] != generator {
+			if e.catalog.state != state || e.storage.Relations[tableRef.Address] != storage || *e.storage.Sequences[sequenceRef.Address] != generator {
 				t.Fatal("canceled exact linked wait published its private prefix")
 			}
 			transactionEnd(t, a, tx, false)

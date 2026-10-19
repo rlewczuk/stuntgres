@@ -158,10 +158,10 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	movedRow := rowVersion{row: 7, version: 11, born: 1, values: []sqltype.Value{value}}
+	movedRow := rowVersion{Row: 7, Version: 11, Born: 1, Values: []sqltype.Value{value}}
 	storage := map[ids.ObjectAddress]*relationStorage{
 		source.Address():      {},
-		destination.Address(): {versions: []rowVersion{movedRow}},
+		destination.Address(): {Versions: []rowVersion{movedRow}},
 	}
 	snapshot := &indexSnapshot{sources: map[ids.ObjectAddress]indexSnapshotSource{
 		sourceIndex.Address():      {index: sourceIndex, parent: source, frontier: 1},
@@ -174,11 +174,11 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 	}
 	// The existing storage remint mutates candidate row identities in place.
 	// Repaired snapshot versions must remain the pre-remint transport authority.
-	storage[destination.Address()].versions[0].row = 99
-	storage[destination.Address()].versions[0].version = 100
-	captured := snapshot.sources[destinationIndex.Address()].store.versions[0]
-	if captured.row != 7 || captured.version != 11 {
-		t.Fatal("repaired snapshot aliases reminted candidate identities", captured.row, captured.version)
+	storage[destination.Address()].Versions[0].Row = 99
+	storage[destination.Address()].Versions[0].Version = 100
+	captured := snapshot.sources[destinationIndex.Address()].store.Versions[0]
+	if captured.Row != 7 || captured.Version != 11 {
+		t.Fatal("repaired snapshot aliases reminted candidate identities", captured.Row, captured.Version)
 	}
 	positions := map[ids.ObjectAddress]map[indexRowIdentity]int{
 		source.Address():      {},
@@ -188,11 +188,11 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(roots[sourceIndex.Address()].entries) != 0 {
+	if len(roots[sourceIndex.Address()].Entries) != 0 {
 		t.Fatal("emptied source retained index entries")
 	}
-	entries := roots[destinationIndex.Address()].entries
-	if len(entries) != 1 || entries[0].row != 99 || entries[0].version != 100 || entries[0].keys[0] != value {
+	entries := roots[destinationIndex.Address()].Entries
+	if len(entries) != 1 || entries[0].Row != 99 || entries[0].Version != 100 || entries[0].Keys[0] != value {
 		t.Fatal("moved destination did not transport exactly one reminted index entry", entries)
 	}
 }

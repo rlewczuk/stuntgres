@@ -200,13 +200,13 @@ func (s *StatementScope) settleForeignActions() error {
 			return err
 		}
 		for _, next := range rows {
-			if uniqueRowDeleted(next.row, s.stage.deletes[a]) {
+			if uniqueRowDeleted(next.Row, s.stage.deletes[a]) {
 				continue
 			}
-			old, ok := image.previous(next.row)
+			old, ok := image.previous(next.Row)
 			if ok {
 				s.foreignActionTransitions = append(s.foreignActionTransitions, foreignActionTransition{relation: a, old: old, next: next})
-			} else if next.base != 0 {
+			} else if next.Base != 0 {
 				return fmt.Errorf("stuntgres: missing foreign-key update predecessor")
 			}
 		}
@@ -224,7 +224,7 @@ func (s *StatementScope) settleForeignActions() error {
 			old, ok := image.previous(id)
 			if !ok {
 				for _, row := range image.staged {
-					if row.row == id {
+					if row.Row == id {
 						old, ok = row, true
 						break
 					}
@@ -248,8 +248,8 @@ func (s *StatementScope) settleForeignActions() error {
 				continue
 			}
 			action := job.definition.DeleteAction
-			if event.next.row != 0 {
-				if foreignActionSameKey(job.comparisons, event.old.values, event.next.values) {
+			if event.next.Row != 0 {
+				if foreignActionSameKey(job.comparisons, event.old.Values, event.next.Values) {
 					continue
 				}
 				action = job.definition.UpdateAction

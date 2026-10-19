@@ -127,14 +127,14 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 	old.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Planned: untouched}, 3: {Kind: catalog.GenerationStored, Planned: untouched}}
 	next.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Planned: generated}, 3: {Kind: catalog.GenerationStored, Planned: untouched}}
 	row := func(id ids.RowID, version uint64) rowVersion {
-		return rowVersion{row: id, version: ids.VersionID(version), born: 1, values: []sqltype.Value{integer(1), integer(2), integer(99)}}
+		return rowVersion{Row: id, Version: ids.VersionID(version), Born: 1, Values: []sqltype.Value{integer(1), integer(2), integer(99)}}
 	}
-	store := &relationStorage{generation: 1, versions: []rowVersion{row(1, 1), row(2, 2), row(3, 3), row(4, 4)}, ends: &deletionRoot{rows: map[ids.RowID]rowEnd{2: {version: 2, end: 2}}}}
+	store := &relationStorage{Generation: 1, Versions: []rowVersion{row(1, 1), row(2, 2), row(3, 3), row(4, 4)}, Ends: &deletionRoot{Rows: map[ids.RowID]rowEnd{2: {Version: 2, End: 2}}}}
 	own := row(3, 5)
-	own.base = 3
-	own.born = 0
+	own.Base = 3
+	own.Born = 0
 	insert := row(5, 6)
-	insert.born = 0
+	insert.Born = 0
 	scope.ownWrites = map[ids.ObjectAddress][]rowVersion{old.Address(): {own, insert}}
 	scope.ownDeletes = map[ids.ObjectAddress]*privateDeletionRoot{old.Address(): {rows: map[ids.RowID]deleteCandidate{4: {row: 4, version: 4}}}}
 	transform := queryProbeExpression{Info: expr.Info{Usage: u}, eval: func(ec *EvalContext) (sqltype.Value, error) {
@@ -145,23 +145,23 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 	}}
 	additions := []addedColumn{{attribute: 4, column: &parser.Column{Name: "c"}, value: integer(5)}}
 	replacement, writes, deletes, err := rewriteTypeRows(scope, scope.op, &old, &next, store, 2, []columnTransformation{{attribute: 1, expression: transform, rewrite: true}}, additions, []int32{2}, newAlterRowValidator(&next, ""))
-	if err != nil || calls != 3 || len(replacement.versions) != 1 || len(writes) != 2 || deletes != nil || replacement.generation != 2 {
+	if err != nil || calls != 3 || len(replacement.Versions) != 1 || len(writes) != 2 || deletes != nil || replacement.Generation != 2 {
 		t.Fatal(replacement, writes, calls, err)
 	}
-	if replacement.versions[0].row != 1 || writes[0].row != 3 || writes[0].base != 0 || writes[1].row != 5 {
+	if replacement.Versions[0].Row != 1 || writes[0].Row != 3 || writes[0].Base != 0 || writes[1].Row != 5 {
 		t.Fatal("ended/deleted/predecessor resurrected", replacement, writes)
 	}
-	for _, r := range append(slices.Clone(replacement.versions), writes...) {
-		if !slices.Equal(r.values, []sqltype.Value{integer(31), integer(36), integer(99), integer(5)}) {
-			t.Fatal(r.values)
+	for _, r := range append(slices.Clone(replacement.Versions), writes...) {
+		if !slices.Equal(r.Values, []sqltype.Value{integer(31), integer(36), integer(99), integer(5)}) {
+			t.Fatal(r.Values)
 		}
 	}
-	for _, r := range store.versions {
-		if len(r.values) != 3 || r.values[0] != integer(1) || r.values[1] != integer(2) || r.values[2] != integer(99) {
+	for _, r := range store.Versions {
+		if len(r.Values) != 3 || r.Values[0] != integer(1) || r.Values[1] != integer(2) || r.Values[2] != integer(99) {
 			t.Fatal("source changed", r)
 		}
 	}
-	if scope.ownWrites[old.Address()][0].base != 3 || scope.ownWrites[old.Address()][0].values[1] != integer(2) {
+	if scope.ownWrites[old.Address()][0].Base != 3 || scope.ownWrites[old.Address()][0].Values[1] != integer(2) {
 		t.Fatal("own source changed")
 	}
 }
@@ -192,14 +192,14 @@ func TestAlterGeneratedExpressionCancellation(t *testing.T) {
 		return value, nil
 	}}
 	next.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Planned: expression}}
-	store := &relationStorage{generation: 7, versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{value, value}}, {row: 2, version: 2, born: 1, values: []sqltype.Value{value, value}}}}
+	store := &relationStorage{Generation: 7, Versions: []rowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value, value}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{value, value}}}}
 	op, cleanup, err := testOperation(e, ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cleanup()
 	replacement, writes, deletes, err := rewriteTypeRows(scope, op, &old, &next, store, 1, nil, nil, []int32{2}, newAlterRowValidator(&next, ""))
-	if !errors.Is(err, context.Canceled) || calls != 1 || replacement != nil || writes != nil || deletes != nil || store.generation != 7 || len(store.versions[0].values) != 2 || store.versions[0].values[1] != value {
+	if !errors.Is(err, context.Canceled) || calls != 1 || replacement != nil || writes != nil || deletes != nil || store.Generation != 7 || len(store.Versions[0].Values) != 2 || store.Versions[0].Values[1] != value {
 		t.Fatal("real rewrite cancellation leaked candidate", replacement, writes, deletes, calls, err)
 	}
 }

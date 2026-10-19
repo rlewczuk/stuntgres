@@ -156,7 +156,7 @@ func TestQueryOuterJoinsNullRowsAreNotAbsentOccurrences(t *testing.T) {
 		}
 		for side, index := range []int{pair.left, pair.right} {
 			version := stage.source.versions[2*i+side]
-			if (version.values == nil) != (index == absentQueryIndex) {
+			if (version.Values == nil) != (index == absentQueryIndex) {
 				t.Fatal("real NULL cells confused with absent version", i, side, version)
 			}
 		}

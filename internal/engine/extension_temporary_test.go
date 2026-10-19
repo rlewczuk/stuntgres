@@ -149,10 +149,10 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 		}
 	})
 	survivor := extensionTemporaryConsumerUnits(t, e, installer, ext)
-	store := e.storage.relations[survivor.Address()]
-	oldRows, oldEnds := store.versions, store.ends
+	store := e.storage.Relations[survivor.Address()]
+	oldRows, oldEnds := store.Versions, store.Ends
 	index := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.Namespace(), Name: "ext_survivor_id"})
-	oldIndex := e.storage.indexRoots[index]
+	oldIndex := e.storage.IndexRoots[index]
 	base := e.catalog.state
 	stage, indexes := extensionTemporaryStage(t, e, ext)
 	replacement := stage.Descriptors[survivor.Address()].(*catalog.Relation)
@@ -174,7 +174,7 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 	}
 	extensionTemporaryGoneUnit(t, e, ext)
 	current := e.catalog.state.MustRelation(survivor.Address())
-	if current == survivor || len(current.ColumnMeta.Defaults) != 0 || len(current.Constraints.Check) != 0 || e.storage.relations[survivor.Address()] != store || e.storage.indexRoots[index] != oldIndex || !sameVersionRoot(oldRows, store.versions) || oldEnds != store.ends || e.catalog.state.Epoch() != base.Epoch() {
+	if current == survivor || len(current.ColumnMeta.Defaults) != 0 || len(current.Constraints.Check) != 0 || e.storage.Relations[survivor.Address()] != store || e.storage.IndexRoots[index] != oldIndex || !sameVersionRoot(oldRows, store.Versions) || oldEnds != store.Ends || e.catalog.state.Epoch() != base.Epoch() {
 		t.Fatal("surviving row/index/provenance changed")
 	}
 	for _, name := range []string{"ext_view", "ext_chain", "ext_late"} {

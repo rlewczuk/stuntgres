@@ -21,7 +21,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 				base, frontier := e.catalog.state, e.commitSeq
 				source := catalogRef(t, e, e.CatalogRead(), "refresh_source")
 				index := catalogRef(t, e, e.CatalogRead(), "refresh_source_idx")
-				indexRoot := e.storage.indexRoots[index.Address]
+				indexRoot := e.storage.IndexRoots[index.Address]
 				m := batchUnitStart(t, s, context.Background())
 				defer m.end(context.Canceled)
 				name := "refresh_target"
@@ -35,13 +35,13 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 				view := e.privateCatalogLocked(s.transactions.catalog)
 				e.mu.Unlock()
 				target := catalogRef(t, e, view, name)
-				original := e.storage.relations[target.Address]
+				original := e.storage.Relations[target.Address]
 				originalDescriptor := e.catalog.state.Get(target.Address)
 				var root []rowVersion
 				var ends *deletionRoot
 				var generation uint64
 				if original != nil {
-					root, ends, generation = original.versions, original.ends, original.generation
+					root, ends, generation = original.Versions, original.Ends, original.Generation
 				}
 				if _, err := m.step(statement(t, "INSERT INTO refresh_source VALUES(2)")); err != nil {
 					t.Fatal(err)
@@ -55,7 +55,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 						t.Fatal(err)
 					}
 					shape := s.transactions.catalog.storage[target.Address]
-					if shape.original != original || !sameVersionRoot(shape.root, root) || shape.ends != ends || shape.generation != generation || shape.replacement == entry || shape.replacement == previous || shape.replacement.generation != entry.generation+1 || !shape.rewritten || shape.hasSnapshot || shape.relation != s.transactions.catalog.descriptors[target.Address] {
+					if shape.original != original || !sameVersionRoot(shape.root, root) || shape.ends != ends || shape.generation != generation || shape.replacement == entry || shape.replacement == previous || shape.replacement.Generation != entry.Generation+1 || !shape.rewritten || shape.hasSnapshot || shape.relation != s.transactions.catalog.descriptors[target.Address] {
 						t.Fatal("replacement lost first committed or immediate private predecessor", shape)
 					}
 					if len(s.transactions.writes[target.Address]) != 0 {
@@ -65,15 +65,15 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 					if suffix == "WITH NO DATA" {
 						want = 0
 					}
-					if len(shape.replacement.versions) != want || shape.relation.Populated != (want != 0) {
+					if len(shape.replacement.Versions) != want || shape.relation.Populated != (want != 0) {
 						t.Fatal("incomplete private population", shape)
 					}
-					for _, row := range shape.replacement.versions {
-						if row.born != 0 {
+					for _, row := range shape.replacement.Versions {
+						if row.Born != 0 {
 							t.Fatal("replacement row born before true end", row)
 						}
 					}
-					if e.catalog.state != base || e.commitSeq != frontier || e.storage.relations[target.Address] != original || e.catalog.state.Get(target.Address) != originalDescriptor || e.storage.indexRoots[index.Address] != indexRoot {
+					if e.catalog.state != base || e.commitSeq != frontier || e.storage.Relations[target.Address] != original || e.catalog.state.Get(target.Address) != originalDescriptor || e.storage.IndexRoots[index.Address] != indexRoot {
 						t.Fatal("replacement/source index escaped before message end")
 					}
 					previous = shape.replacement
@@ -83,11 +83,11 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 					if err := m.end(nil); err != nil {
 						t.Fatal(err)
 					}
-					if e.storage.relations[target.Address] != latest || e.commitSeq != frontier+1 || len(e.storage.relations[source.Address].versions) != 2 || len(e.storage.indexRoots[index.Address].entries) != 2 || len(indexRoot.entries) != 1 {
+					if e.storage.Relations[target.Address] != latest || e.commitSeq != frontier+1 || len(e.storage.Relations[source.Address].Versions) != 2 || len(e.storage.IndexRoots[index.Address].Entries) != 2 || len(indexRoot.Entries) != 1 {
 						t.Fatal("source rows/index and latest replacement did not publish together")
 					}
-					for _, row := range latest.versions {
-						if row.born != frontier+1 {
+					for _, row := range latest.Versions {
+						if row.Born != frontier+1 {
 							t.Fatal("replacement row birth is not true-end frontier", row)
 						}
 					}
@@ -96,16 +96,16 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 					if err == nil || m.end(err) != err {
 						t.Fatal("late failure disposition", err)
 					}
-					if e.catalog.state != base || e.commitSeq != frontier || e.storage.relations[target.Address] != original || e.storage.indexRoots[index.Address] != indexRoot || len(e.storage.relations[source.Address].versions) != 1 {
+					if e.catalog.state != base || e.commitSeq != frontier || e.storage.Relations[target.Address] != original || e.storage.IndexRoots[index.Address] != indexRoot || len(e.storage.Relations[source.Address].Versions) != 1 {
 						t.Fatal("late failure published replacement/source/index")
 					}
-					for _, row := range latest.versions {
-						if row.born != 0 {
+					for _, row := range latest.Versions {
+						if row.Born != 0 {
 							t.Fatal("discarded private replacement acquired birth", row)
 						}
 					}
 				}
-				if original != nil && (!sameVersionRoot(original.versions, root) || original.ends != ends || original.generation != generation) {
+				if original != nil && (!sameVersionRoot(original.Versions, root) || original.Ends != ends || original.Generation != generation) {
 					t.Fatal("refresh mutated retained predecessor")
 				}
 			})
@@ -124,7 +124,7 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 			target := catalogRef(t, e, e.CatalogRead(), "refresh_target")
 			source := catalogRef(t, e, e.CatalogRead(), "refresh_source")
 			index := catalogRef(t, e, e.CatalogRead(), "refresh_source_idx")
-			original, indexRoot := e.storage.relations[target.Address], e.storage.indexRoots[index.Address]
+			original, indexRoot := e.storage.Relations[target.Address], e.storage.IndexRoots[index.Address]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			m := batchUnitStart(t, s, ctx)
@@ -155,12 +155,12 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 					t.Fatal("foreign incarnation admitted materialized replacement")
 				}
 			case "generation":
-				original.generation++
+				original.Generation++
 			case "ends":
-				original.ends = &deletionRoot{}
+				original.Ends = &deletionRoot{}
 			case "store":
 				copy := *original
-				e.storage.relations[target.Address] = &copy
+				e.storage.Relations[target.Address] = &copy
 			case "descriptor":
 				next := catalog.CloneState(e.catalog.state)
 				copy := *next.MustRelation(target.Address)
@@ -172,18 +172,18 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 				copy.revision++
 				e.roles = &copy
 			case "source_index_generation":
-				e.storage.relations[source.Address].generation++
+				e.storage.Relations[source.Address].Generation++
 			}
-			state, store, frontier := e.catalog.state, e.storage.relations[target.Address], e.commitSeq
+			state, store, frontier := e.catalog.state, e.storage.Relations[target.Address], e.commitSeq
 			err = m.end(err)
-			if err == nil || e.catalog.state != state || e.storage.relations[target.Address] != store || e.commitSeq != frontier || e.storage.indexRoots[index.Address] != indexRoot || e.storage.indexRoots[pending.Address] != nil || len(e.storage.relations[source.Address].versions) != 1 {
+			if err == nil || e.catalog.state != state || e.storage.Relations[target.Address] != store || e.commitSeq != frontier || e.storage.IndexRoots[index.Address] != indexRoot || e.storage.IndexRoots[pending.Address] != nil || len(e.storage.Relations[source.Address].Versions) != 1 {
 				t.Fatal("rejected replacement published rows/catalog/index", err)
 			}
 			if fence == "cancel" && !errors.Is(err, context.Canceled) || fence == "epoch" && !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("publication primary changed", err)
 			}
-			for _, row := range replacement.versions {
-				if row.born != 0 {
+			for _, row := range replacement.Versions {
+				if row.Born != 0 {
 					t.Fatal("failed final fence stamped private rows", row)
 				}
 			}
@@ -199,7 +199,7 @@ func TestDriverBatchMaterializedPromotionSavepoint(t *testing.T) {
 	}
 	target := catalogRef(t, e, e.CatalogRead(), "refresh_target")
 	source := catalogRef(t, e, e.CatalogRead(), "refresh_source")
-	original, frontier := e.storage.relations[target.Address], e.commitSeq
+	original, frontier := e.storage.Relations[target.Address], e.commitSeq
 	m := batchUnitStart(t, s, context.Background())
 	defer m.end(context.Canceled)
 	for _, q := range []string{"INSERT INTO refresh_source VALUES(2)", "REFRESH MATERIALIZED VIEW refresh_target"} {
@@ -220,15 +220,15 @@ func TestDriverBatchMaterializedPromotionSavepoint(t *testing.T) {
 	}
 	sessionSQL(t, s, "ROLLBACK TO kept")
 	restored := s.transactions.catalog.storage[target.Address]
-	if s.transactions.state != TxActive || s.transactions.ref != ref || s.transactions.ticket != ticket || s.transactions.start != start || restored.original != shape.original || restored.replacement != shape.replacement || restored.generation != shape.generation || restored.ends != shape.ends || !restored.rewritten || len(s.transactions.writes[source.Address]) != 1 || e.storage.relations[target.Address] != original || e.commitSeq != frontier {
+	if s.transactions.state != TxActive || s.transactions.ref != ref || s.transactions.ticket != ticket || s.transactions.start != start || restored.original != shape.original || restored.replacement != shape.replacement || restored.generation != shape.generation || restored.ends != shape.ends || !restored.rewritten || len(s.transactions.writes[source.Address]) != 1 || e.storage.Relations[target.Address] != original || e.commitSeq != frontier {
 		t.Fatal("savepoint recovery rebuilt or published retained replacement authority")
 	}
 	sessionSQL(t, s, "COMMIT")
-	if e.storage.relations[target.Address] != shape.replacement || len(shape.replacement.versions) != 2 || e.commitSeq != frontier+1 {
+	if e.storage.Relations[target.Address] != shape.replacement || len(shape.replacement.Versions) != 2 || e.commitSeq != frontier+1 {
 		t.Fatal("promoted replacement did not survive savepoint publication")
 	}
-	for _, row := range shape.replacement.versions {
-		if row.born != frontier+1 {
+	for _, row := range shape.replacement.Versions {
+		if row.Born != frontier+1 {
 			t.Fatal("promoted replacement row birth preceded commit", row)
 		}
 	}

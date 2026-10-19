@@ -13,10 +13,10 @@ import (
 func expressionRootTuples(t *testing.T, root *logicalIndexRoot) [][]string {
 	t.Helper()
 	btreeKeys(t, root)
-	tuples := make([][]string, len(root.entries))
-	for i, entry := range root.entries {
-		tuples[i] = make([]string, len(entry.keys))
-		for j, key := range entry.keys {
+	tuples := make([][]string, len(root.Entries))
+	for i, entry := range root.Entries {
+		tuples[i] = make([]string, len(entry.Keys))
+		for j, key := range entry.Keys {
 			if key.IsNull() {
 				tuples[i][j] = "NULL"
 				continue
@@ -37,21 +37,21 @@ func expressionWantRoot(t *testing.T, e *Engine, name string, want [][]string) *
 	if got := expressionRootTuples(t, root); !reflect.DeepEqual(got, want) {
 		t.Fatal(name, got, want)
 	}
-	store := e.storage.relations[index.SQLIndex.Parent]
+	store := e.storage.Relations[index.SQLIndex.Parent]
 	if store == nil {
 		t.Fatal("missing real parent storage")
 	}
 	live := make(map[ids.VersionID]ids.RowID)
-	for _, row := range store.versions {
-		if liveVersion(row, ids.CommitSeq(^uint64(0)), store.ends, nil) {
-			live[row.version] = row.row
+	for _, row := range store.Versions {
+		if liveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, nil) {
+			live[row.Version] = row.Row
 		}
 	}
-	if len(live) != len(root.entries) {
-		t.Fatal("index membership differs from live parent", live, root.entries)
+	if len(live) != len(root.Entries) {
+		t.Fatal("index membership differs from live parent", live, root.Entries)
 	}
-	for _, entry := range root.entries {
-		if live[entry.version] != entry.row {
+	for _, entry := range root.Entries {
+		if live[entry.Version] != entry.Row {
 			t.Fatal("index membership has no matching live row version", entry)
 		}
 	}
@@ -103,7 +103,7 @@ func TestExpressionIndexSQLErrorAndForeignReplacementRoots(t *testing.T) {
 	temporary := description.sequences.constants[0].ref.Address
 	sequenceScalar(t, session, "SELECT nextval('retained')", 40)
 	descriptor := target.catalog.state.Get(temporary)
-	generator, memory := target.storage.sequences[temporary], session.sequences[temporary]
+	generator, memory := target.storage.Sequences[temporary], session.sequences[temporary]
 	generatorState, memoryState := *generator, *memory
 	for _, q := range []string{"CREATE TABLE t(n INT)", "INSERT INTO t VALUES(2),(2),(NULL)", "CREATE INDEX ix ON t((10/n),(n+1),(10/n))"} {
 		run(t, source, q)
@@ -128,7 +128,7 @@ func TestExpressionIndexSQLErrorAndForeignReplacementRoots(t *testing.T) {
 	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	if target.catalog.state.Get(temporary) != descriptor || target.storage.sequences[temporary] != generator || session.sequences[temporary] != memory || *generator != generatorState || *memory != memoryState {
+	if target.catalog.state.Get(temporary) != descriptor || target.storage.Sequences[temporary] != generator || session.sequences[temporary] != memory || *generator != generatorState || *memory != memoryState {
 		t.Fatal("derived replacement changed retained TEMP descriptor/cache")
 	}
 	sequenceScalar(t, session, "SELECT nextval('retained')", 41)
@@ -137,11 +137,11 @@ func TestExpressionIndexSQLErrorAndForeignReplacementRoots(t *testing.T) {
 		t.Fatal("replacement reused root/catalog authority")
 	}
 	identities := make(map[ids.RowID]bool)
-	for _, entry := range old.entries {
-		identities[entry.row] = true
+	for _, entry := range old.Entries {
+		identities[entry.Row] = true
 	}
-	for _, entry := range fresh.entries {
-		if identities[entry.row] {
+	for _, entry := range fresh.Entries {
+		if identities[entry.Row] {
 			t.Fatal("derived replacement retained source row identity", entry)
 		}
 	}

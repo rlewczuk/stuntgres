@@ -81,7 +81,7 @@ func TestCollationTemporaryCleanupAX(t *testing.T) {
 	assertTemporaryNamespacePair(t, e, owner.token, namespace)
 	for address, descriptor := range before.Descriptors() {
 		if descriptor.Namespace() == namespace {
-			if _, ok := e.CatalogRead().Descriptor(address); ok || e.storage.relations[address] != nil || e.storage.sequences[address] != nil || e.storage.indexRoots[address] != nil {
+			if _, ok := e.CatalogRead().Descriptor(address); ok || e.storage.Relations[address] != nil || e.storage.Sequences[address] != nil || e.storage.IndexRoots[address] != nil {
 				t.Fatal("owned TEMP child or physical projection survived", address)
 			}
 		}
@@ -151,7 +151,7 @@ func TestCollationTemporaryCleanupExhaustion(t *testing.T) {
 	}
 	assertTemporaryNamespacePair(t, e, owner.token, namespace)
 	for address, descriptor := range before.Descriptors() {
-		if descriptor.Namespace() == namespace && (after.Get(address) != nil || e.storage.relations[address] != nil || e.storage.sequences[address] != nil || e.storage.indexRoots[address] != nil) {
+		if descriptor.Namespace() == namespace && (after.Get(address) != nil || e.storage.Relations[address] != nil || e.storage.Sequences[address] != nil || e.storage.IndexRoots[address] != nil) {
 			t.Fatal("exhausted cleanup retained TEMP child", address)
 		}
 	}

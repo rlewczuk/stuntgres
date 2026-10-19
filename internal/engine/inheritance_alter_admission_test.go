@@ -183,17 +183,17 @@ func inheritanceAlterPending(t *testing.T, c *inheritanceAlterAdmissionCase, tab
 }
 func inheritanceAlterAssertRows(t *testing.T, e *Engine, table *catalog.Relation, want []sqltype.Value) {
 	t.Helper()
-	store := e.storage.relations[table.Address()]
-	if store == nil || len(store.versions) != 1 || !reflect.DeepEqual(store.versions[0].values, want) {
+	store := e.storage.Relations[table.Address()]
+	if store == nil || len(store.Versions) != 1 || !reflect.DeepEqual(store.Versions[0].Values, want) {
 		t.Fatal("wrong physical replacement row", table.Name(), store)
 	}
 }
 func inheritanceAlterRowRoots(e *Engine) map[ids.ObjectAddress][]rowVersion {
-	roots := make(map[ids.ObjectAddress][]rowVersion, len(e.storage.relations))
-	for address, store := range e.storage.relations {
-		rows := slices.Clone(store.versions)
+	roots := make(map[ids.ObjectAddress][]rowVersion, len(e.storage.Relations))
+	for address, store := range e.storage.Relations {
+		rows := slices.Clone(store.Versions)
 		for i := range rows {
-			rows[i].values = slices.Clone(rows[i].values)
+			rows[i].Values = slices.Clone(rows[i].Values)
 		}
 		roots[address] = rows
 	}
@@ -293,7 +293,7 @@ func TestInheritanceAlterAdmissionReplacement(t *testing.T) {
 	}
 	queryCreatePublish(t, e, stage)
 	stable := e.CatalogRead()
-	stores := maps.Clone(e.storage.relations)
+	stores := maps.Clone(e.storage.Relations)
 	if inheritanceMarkerPublication(c, &later) {
 		t.Fatal("subsequent mutation laundered the first-child marker")
 	}
@@ -303,7 +303,7 @@ func TestInheritanceAlterAdmissionReplacement(t *testing.T) {
 		t.Fatal("subsequent replacement reached stage or bypassed exact fence", err)
 	}
 	command.scope.Finish(err)
-	if e.CatalogRead().State() != stable.State() || !reflect.DeepEqual(stores, e.storage.relations) || e.CatalogRead().Get(g.Address()) != g || len(e.CatalogRead().MustRelation(p.Address()).Columns) != 1 {
+	if e.CatalogRead().State() != stable.State() || !reflect.DeepEqual(stores, e.storage.Relations) || e.CatalogRead().Get(g.Address()) != g || len(e.CatalogRead().MustRelation(p.Address()).Columns) != 1 {
 		t.Fatal("replacement veto leaked earlier prepared root or retargeted the graph")
 	}
 	lockEmpty(t, e)
@@ -383,7 +383,7 @@ func TestInheritanceAlterAdmissionStops(t *testing.T) {
 			leaf := retiredUnitTable(t, e, "leaf")
 			holder := inheritanceAlterAXHolder(t, e, leaf)
 			before := e.CatalogRead()
-			stores := maps.Clone(e.storage.relations)
+			stores := maps.Clone(e.storage.Relations)
 			rows := inheritanceAlterRowRoots(e)
 			command := inheritanceAlterAdmissionScope(t, e, "postgres", "ALTER TABLE p ADD COLUMN extra INT DEFAULT 7"+suffix)
 			result, joined := inheritanceAlterWorker(t, command, holder)
@@ -399,7 +399,7 @@ func TestInheritanceAlterAdmissionStops(t *testing.T) {
 				t.Fatal("inline fact failed to reach physical leaf validator", err)
 			}
 			command.scope.Finish(err)
-			if e.CatalogRead().State() != before.State() || !reflect.DeepEqual(stores, e.storage.relations) {
+			if e.CatalogRead().State() != before.State() || !reflect.DeepEqual(stores, e.storage.Relations) {
 				t.Fatal("late inline leaf failure partially changed parent/child")
 			}
 			if !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) {
@@ -422,9 +422,9 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			}
 			removed := retiredUnitTable(t, e, provider.removed)
 			before := e.CatalogRead()
-			stores := maps.Clone(e.storage.relations)
+			stores := maps.Clone(e.storage.Relations)
 			rows := inheritanceAlterRowRoots(e)
-			generators := maps.Clone(e.storage.sequences)
+			generators := maps.Clone(e.storage.Sequences)
 			command := inheritanceAlterAdmissionScope(t, e, "postgres", "ALTER TABLE p "+provider.action+",ADD COLUMN z REGCLASS DEFAULT 'public."+provider.removed+"'::regclass")
 			err := command.run()
 			var coded interface{ SQLState() string }
@@ -432,7 +432,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				t.Fatal("later DEFAULT bound a provider actually removed in phase zero", provider.name, err)
 			}
 			command.scope.Finish(err)
-			if e.CatalogRead().State() != before.State() || e.CatalogRead().Get(removed.Address()) != removed || !reflect.DeepEqual(stores, e.storage.relations) || !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) || !reflect.DeepEqual(generators, e.storage.sequences) {
+			if e.CatalogRead().State() != before.State() || e.CatalogRead().Get(removed.Address()) != removed || !reflect.DeepEqual(stores, e.storage.Relations) || !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) || !reflect.DeepEqual(generators, e.storage.Sequences) {
 				t.Fatal("removed-provider binding failure partially applied actual DROP effects")
 			}
 			lockEmpty(t, e)
@@ -447,7 +447,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			p := retiredUnitTable(t, e, "p")
 			c := retiredUnitTable(t, e, "c")
 			before := e.CatalogRead()
-			stores := maps.Clone(e.storage.relations)
+			stores := maps.Clone(e.storage.Relations)
 			rows := inheritanceAlterRowRoots(e)
 			holder := inheritanceAlterAXHolder(t, e, c)
 			// These are existing scalar projections, not self-containing columns or a
@@ -540,7 +540,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				}
 				command.scope.Finish(err)
 				holder.Finish(nil)
-				if e.CatalogRead().State() != before.State() || !reflect.DeepEqual(stores, e.storage.relations) || !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) {
+				if e.CatalogRead().State() != before.State() || !reflect.DeepEqual(stores, e.storage.Relations) || !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) {
 					t.Fatal("canceled rowtype cooking changed original physical state")
 				}
 				lockEmpty(t, e)
@@ -589,7 +589,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			c := retiredUnitTable(t, e, "c")
 			view := retiredUnitTable(t, e, "old_b")
 			before := e.CatalogRead()
-			stores := maps.Clone(e.storage.relations)
+			stores := maps.Clone(e.storage.Relations)
 			rows := inheritanceAlterRowRoots(e)
 			holder := inheritanceAlterAXHolder(t, e, c)
 			// SQL text ADD precedes DROP; the real provider phases must nevertheless
@@ -626,11 +626,11 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				}
 				command.scope.Finish(err)
 				holder.Finish(nil)
-				if e.CatalogRead().State() != before.State() || !reflect.DeepEqual(stores, e.storage.relations) {
+				if e.CatalogRead().State() != before.State() || !reflect.DeepEqual(stores, e.storage.Relations) {
 					t.Fatal("canceled mixed preparation changed physical catalog/store")
 				}
 				for address, store := range stores {
-					if !reflect.DeepEqual(rows[address], store.versions) {
+					if !reflect.DeepEqual(rows[address], store.Versions) {
 						t.Fatal("canceled preparation rewrote rows")
 					}
 				}

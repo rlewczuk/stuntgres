@@ -20,15 +20,15 @@ func TestAlterDefaultDescriptor(t *testing.T) {
 	ref := roleTableRef(t, e, "t")
 	read := e.CatalogRead()
 	old := read.MustRelation(ref.Address)
-	storage := e.storage.relations[ref.Address]
-	ends, generation := storage.ends, storage.generation
+	storage := e.storage.Relations[ref.Address]
+	ends, generation := storage.Ends, storage.Generation
 	oldA, oldB := old.ColumnMeta.Defaults[old.Attributes[0]], old.ColumnMeta.Defaults[old.Attributes[1]]
 	run(t, e, "ALTER TABLE t ALTER renamed SET DEFAULT 7")
 	next := e.catalog.state.MustRelation(ref.Address)
 	if next == old || next.Revision() != old.Revision()+1 || next.Address() != old.Address() || !reflect.DeepEqual(next.Attributes, old.Attributes) || &next.Columns[0] != &old.Columns[0] || next.ColumnMeta.Defaults[old.Attributes[1]].Expression != oldB.Expression || old.ColumnMeta.Defaults[old.Attributes[0]].Expression != oldA.Expression || read.Get(ref.Address) != old {
 		t.Fatal("descriptor immutability/stable attributes violated")
 	}
-	if e.storage.relations[ref.Address] != storage || storage.ends != ends || storage.generation != generation || len(storage.versions) != 1 {
+	if e.storage.Relations[ref.Address] != storage || storage.Ends != ends || storage.Generation != generation || len(storage.Versions) != 1 {
 		t.Fatal("metadata alteration rewrote storage")
 	}
 	run(t, e, "INSERT INTO t DEFAULT VALUES")
@@ -69,8 +69,8 @@ func TestAlterDefaultLifecycleFences(t *testing.T) {
 				sessionSQL(t, a, "CREATE TABLE t(a INT DEFAULT 11,b INT DEFAULT 13)")
 				sessionSQL(t, a, "INSERT INTO t DEFAULT VALUES")
 				ref := roleTableRef(t, e, "t")
-				old, storage := e.catalog.state.Get(ref.Address), e.storage.relations[ref.Address]
-				ends, generation := storage.ends, storage.generation
+				old, storage := e.catalog.state.Get(ref.Address), e.storage.Relations[ref.Address]
+				ends, generation := storage.Ends, storage.Generation
 				tx := transactionBegin(t, a)
 				sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 				ctx, cancel := context.WithCancel(context.Background())
@@ -84,7 +84,7 @@ func TestAlterDefaultLifecycleFences(t *testing.T) {
 				}
 				lockAwait(t, done, context.Canceled)
 				lockPending(t, e, 0)
-				if e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage || storage.ends != ends || storage.generation != generation || len(storage.versions) != 1 {
+				if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || storage.Ends != ends || storage.Generation != generation || len(storage.Versions) != 1 {
 					t.Fatal("canceled alteration changed descriptor/storage")
 				}
 				transactionEnd(t, a, tx, false)
@@ -103,7 +103,7 @@ func TestAlterDefaultLifecycleFences(t *testing.T) {
 			run(t, e, "CREATE TABLE t(a INT DEFAULT 11)")
 			ref := roleTableRef(t, e, "t")
 			old := e.catalog.state.Get(ref.Address)
-			storage := e.storage.relations[ref.Address]
+			storage := e.storage.Relations[ref.Address]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			provider := e.catalog.Providers[ids.RelationClassID]
@@ -146,7 +146,7 @@ func TestAlterDefaultLifecycleFences(t *testing.T) {
 				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal(err)
 				}
-			} else if e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage {
+			} else if e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage {
 				t.Fatal("failed publication leaked default", err)
 			}
 			lockEmpty(t, e)

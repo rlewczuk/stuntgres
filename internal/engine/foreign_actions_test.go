@@ -154,7 +154,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	if err = scope.admitForeignAction(ref, job, false); err != nil {
 		t.Fatal(err)
 	}
-	if err = scope.foreignKeyGrant(ref, old.row, lock.ForUpdate, children.storage); err != nil {
+	if err = scope.foreignKeyGrant(ref, old.Row, lock.ForUpdate, children.storage); err != nil {
 		t.Fatal(err)
 	}
 	if err = scope.stage.deleteForeignAction(ref, old); err == nil {
@@ -172,7 +172,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	scope.foreignActionAuth = nil
 	scope.foreignActionsSettling = false
 	next := scope.stage.rows[ref.Address][0]
-	if next.row != old.row || next.version == old.version || next.base != old.version || len(scope.foreignActionTransitions) != 1 || scope.foreignActionTransitions[0].old.version != old.version || scope.foreignActionTransitions[0].next.version != next.version {
+	if next.Row != old.Row || next.Version == old.Version || next.Base != old.Version || len(scope.foreignActionTransitions) != 1 || scope.foreignActionTransitions[0].old.Version != old.Version || scope.foreignActionTransitions[0].next.Version != next.Version {
 		t.Fatal("physical lineage was not recorded", old, next, scope.foreignActionTransitions)
 	}
 	if scope.lockedRef != named || scope.lockedStorage != storage || scope.lockedDescriptor != descriptor {
@@ -231,11 +231,11 @@ func TestForeignActionsClosure(t *testing.T) {
 			events = append(events, event)
 		}
 	}
-	if len(events) != 2 || events[0].old.row != events[1].old.row || events[0].next.version != events[1].old.version || events[0].next.version == events[1].next.version || rows[0].version != events[1].next.version || events[0].next.base != events[1].next.base {
+	if len(events) != 2 || events[0].old.Row != events[1].old.Row || events[0].next.Version != events[1].old.Version || events[0].next.Version == events[1].next.Version || rows[0].Version != events[1].next.Version || events[0].next.Base != events[1].next.Base {
 		t.Fatal("diamond lost an actual row transition", events, rows)
 	}
-	expected, _ := sqltype.Integer(rows[0].values[1].Type(), 2)
-	if !sqltype.SameDatum(rows[0].values[1], expected) || !sqltype.SameDatum(rows[0].values[2], expected) {
+	expected, _ := sqltype.Integer(rows[0].Values[1].Type(), 2)
+	if !sqltype.SameDatum(rows[0].Values[1], expected) || !sqltype.SameDatum(rows[0].Values[2], expected) {
 		t.Fatal("second path overwrote first staged payload", rows[0])
 	}
 	if scope.lockedRef.Address == ref.Address {
@@ -257,8 +257,8 @@ func TestForeignActionsDefaults(t *testing.T) {
 			}
 			defaultProbe(t, e, probe)
 			ref := catalogRef(t, e, e.CatalogRead(), "d")
-			before := e.storage.relations[ref.Address]
-			versions := slices.Clone(before.versions)
+			before := e.storage.Relations[ref.Address]
+			versions := slices.Clone(before.Versions)
 			scope := foreignActionUnitScope(t, e, s, "DELETE FROM p WHERE id=10")
 			err := scope.settleForeignActions()
 			if probe.ordinal != 2 {
@@ -278,13 +278,13 @@ func TestForeignActionsDefaults(t *testing.T) {
 					t.Fatal(rows)
 				}
 				for i, row := range rows {
-					want, _ := sqltype.Integer(row.values[1].Type(), int64(i+1))
-					if !sqltype.SameDatum(row.values[1], want) || row.row != versions[i].row || row.base != versions[i].version {
+					want, _ := sqltype.Integer(row.Values[1].Type(), int64(i+1))
+					if !sqltype.SameDatum(row.Values[1], want) || row.Row != versions[i].Row || row.Base != versions[i].Version {
 						t.Fatal("default action lineage/value", row, versions[i])
 					}
 				}
 			}
-			if e.storage.relations[ref.Address] != before || !reflect.DeepEqual(before.versions, versions) {
+			if e.storage.Relations[ref.Address] != before || !reflect.DeepEqual(before.Versions, versions) {
 				t.Fatal("private action changed committed storage")
 			}
 		})

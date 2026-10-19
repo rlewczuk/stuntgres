@@ -235,7 +235,7 @@ func (b *uniqueBoundKey) matches(evaluation *EvalContext, values, key []sqltype.
 	if err := b.fillKeys(values, b.scratch, evaluation); err != nil {
 		return false, err
 	}
-	cmp, err := b.ordering.compareKeys(evaluation.Context, logicalIndexEntry{keys: key}, logicalIndexEntry{keys: b.scratch})
+	cmp, err := b.ordering.compareKeys(evaluation.Context, logicalIndexEntry{Keys: key}, logicalIndexEntry{Keys: b.scratch})
 	return cmp == 0, err
 }
 
@@ -286,7 +286,7 @@ func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row rowVersion) error
 
 func uniqueRowExcluded(id ids.RowID, excluded []rowVersion) bool {
 	for _, row := range excluded {
-		if row.row == id {
+		if row.Row == id {
 			return true
 		}
 	}
@@ -374,7 +374,7 @@ retry:
 			insertion := &binding.insertion[i]
 			if insertion.unique == nil {
 				if purpose == indexProbeRevalidation {
-					if output, exists := candidate.indexes[insertion.index.Address()]; !exists || !output.matches(insertion.index) {
+					if output, exists := candidate.indexes[insertion.index.Address()]; !exists || !indexOutputMatches(output, insertion.index) {
 						return uniqueConflict{}, ids.ErrCatalogReplaced
 					}
 				} else if err := candidate.materializeInsertion(insertion, &evaluation); err != nil {
@@ -433,7 +433,7 @@ retry:
 		auth.catalog = current
 		auth.recaptureCatalog(auth.catalog)
 		namespace, _ := current.Namespace(parent.Namespace())
-		root := e.storage.indexRoots[index.Address()]
+		root := e.storage.IndexRoots[index.Address()]
 		if changes := s.owner.catalog; changes != nil {
 			if private := changes.uniqueRoots[index.Address()]; private != nil {
 				root = private
@@ -442,7 +442,7 @@ retry:
 		var versions []rowVersion
 		if action != nil && (action.update != nil || stableIsolation(s.owner.isolation) || index.SQLIndex.HasRuntimeDomainKeyConversion()) {
 			if storage := e.privateStorageLocked(s.owner.catalog, ref.Address); storage != nil {
-				versions = storage.versions
+				versions = storage.Versions
 			}
 		}
 		e.mu.Unlock()
@@ -461,10 +461,10 @@ retry:
 			return uniqueConflict{}, errors.New("stuntgres: ready unique index root is missing")
 		}
 		outcome := uniqueConflict{parent: parent, index: index, key: key, auth: auth, view: current, schema: namespace.Name()}
-		lo, hi := 0, len(root.entries)
+		lo, hi := 0, len(root.Entries)
 		for lo < hi {
 			mid := lo + (hi-lo)/2
-			cmp, err := bound.ordering.compareKeys(ctx, root.entries[mid], logicalIndexEntry{keys: key})
+			cmp, err := bound.ordering.compareKeys(ctx, root.Entries[mid], logicalIndexEntry{Keys: key})
 			if err != nil {
 				return uniqueConflict{}, err
 			}
@@ -474,34 +474,34 @@ retry:
 				hi = mid
 			}
 		}
-		for at := lo; at < len(root.entries); at++ {
-			entry := root.entries[at]
-			cmp, err := bound.ordering.compareKeys(ctx, entry, logicalIndexEntry{keys: key})
+		for at := lo; at < len(root.Entries); at++ {
+			entry := root.Entries[at]
+			cmp, err := bound.ordering.compareKeys(ctx, entry, logicalIndexEntry{Keys: key})
 			if err != nil {
 				return uniqueConflict{}, err
 			}
 			if cmp != 0 {
 				break
 			}
-			if uniqueRowExcluded(entry.row, excluded) || uniqueRowDeleted(entry.row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
+			if uniqueRowExcluded(entry.Row, excluded) || uniqueRowDeleted(entry.Row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
 				continue
 			}
 			replaced := false
 			if c := s.writeOverlay(); c != nil {
-				_, replaced = c.affectedRows[entry.row]
+				_, replaced = c.affectedRows[entry.Row]
 				if !replaced {
-					_, replaced = s.insertOwnRow(ref, entry.row)
+					_, replaced = s.insertOwnRow(ref, entry.Row)
 				}
 			} else {
 				for _, own := range s.ownWrites[ref.Address] {
-					if own.row == entry.row {
+					if own.Row == entry.Row {
 						replaced = true
 						break
 					}
 				}
 				if !replaced {
 					for _, own := range s.stage.rows[ref.Address] {
-						if own.row == entry.row {
+						if own.Row == entry.Row {
 							replaced = true
 							break
 						}
@@ -515,13 +515,13 @@ retry:
 						return uniqueConflict{}, err
 					}
 					if purpose != indexProbeRevalidation && index.SQLIndex.HasRuntimeDomainKeyConversion() {
-						if err := bound.fillKeys(head.values, bound.scratch, &evaluation); err != nil {
+						if err := bound.fillKeys(head.Values, bound.scratch, &evaluation); err != nil {
 							return uniqueConflict{}, err
 						}
 					}
 					outcome.row = head
-					outcome.position = entry.position
-					outcome.committed = head.born != 0
+					outcome.position = entry.Position
+					outcome.committed = head.Born != 0
 				}
 				return outcome, nil
 			}
@@ -533,7 +533,7 @@ retry:
 			}
 			if found {
 				if purpose != indexProbeRevalidation && action != nil && index.SQLIndex.HasRuntimeDomainKeyConversion() {
-					if err := bound.fillKeys(own.values, bound.scratch, &evaluation); err != nil {
+					if err := bound.fillKeys(own.Values, bound.scratch, &evaluation); err != nil {
 						return uniqueConflict{}, err
 					}
 				}
@@ -544,11 +544,11 @@ retry:
 			for overlayIndex, overlay := range [2][]rowVersion{s.stage.rows[ref.Address], s.ownWrites[ref.Address]} {
 				for _, own := range overlay {
 					if overlayIndex == 1 {
-						if _, _, replaced := rowByID(s.stage.rows[ref.Address], own.row, -1); replaced {
+						if _, _, replaced := rowByID(s.stage.rows[ref.Address], own.Row, -1); replaced {
 							continue
 						}
 					}
-					if uniqueRowExcluded(own.row, excluded) || uniqueRowDeleted(own.row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
+					if uniqueRowExcluded(own.Row, excluded) || uniqueRowDeleted(own.Row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
 						continue
 					}
 					equal, err := s.matchesExistingUnique(bound, own, &evaluation, key, purpose)
@@ -557,7 +557,7 @@ retry:
 					}
 					if equal {
 						if purpose != indexProbeRevalidation && action != nil && index.SQLIndex.HasRuntimeDomainKeyConversion() {
-							if err := bound.fillKeys(own.values, bound.scratch, &evaluation); err != nil {
+							if err := bound.fillKeys(own.Values, bound.scratch, &evaluation); err != nil {
 								return uniqueConflict{}, err
 							}
 						}
@@ -583,11 +583,11 @@ retry:
 }
 
 func conflictEntryVersion(versions []rowVersion, entry logicalIndexEntry) (rowVersion, error) {
-	if entry.position < 0 || entry.position >= len(versions) {
+	if entry.Position < 0 || entry.Position >= len(versions) {
 		return rowVersion{}, ids.ErrCatalogReplaced
 	}
-	head := versions[entry.position]
-	if head.row != entry.row || head.version != entry.version {
+	head := versions[entry.Position]
+	if head.Row != entry.Row || head.Version != entry.Version {
 		return rowVersion{}, ids.ErrCatalogReplaced
 	}
 	return head, nil

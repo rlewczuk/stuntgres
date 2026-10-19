@@ -9,7 +9,7 @@ import (
 // versionRows appends the logical row identities of versions to buf.
 func versionRows(buf []ids.RowID, versions []rowVersion) []ids.RowID {
 	for _, version := range versions {
-		buf = append(buf, version.row)
+		buf = append(buf, version.Row)
 	}
 	return buf
 }
@@ -38,10 +38,10 @@ func (s *StatementScope) validateInheritedReplacements(ref ids.ObjectRef, old []
 			return errors.New("stuntgres: replacement requires its row grant")
 		}
 		captured := data.committed[ref.Address]
-		if row.born == 0 {
+		if row.Born == 0 {
 			captured = data.own[ref.Address]
 		}
-		if _, _, found := rowByID(captured, row.row, -1); !found {
+		if _, _, found := rowByID(captured, row.Row, -1); !found {
 			return errors.New("stuntgres: replacement is outside its candidate view")
 		}
 	}

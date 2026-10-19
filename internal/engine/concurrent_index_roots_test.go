@@ -49,7 +49,7 @@ func concurrentUnitIndex(t *testing.T, e *Engine, name string, ready, valid bool
 	if !ok || index.SQLIndex == nil || index.SQLIndex.Ready != ready || index.SQLIndex.Valid != valid || !index.SQLIndex.Live {
 		t.Fatalf("index %s has unexpected phase: %#v", name, index)
 	}
-	return index, e.storage.indexRoots[address]
+	return index, e.storage.IndexRoots[address]
 }
 
 func concurrentUnitError(t *testing.T, s *Session, query, code string) error {
@@ -74,8 +74,8 @@ func concurrentUnitRootMatchesStorage(t *testing.T, e *Engine, index *catalog.Re
 	t.Helper()
 	e.mu.Lock()
 	parent := e.catalog.state.MustRelation(index.SQLIndex.Parent)
-	snapshot := *e.storage.relations[parent.Address()]
-	root := e.storage.indexRoots[index.Address()]
+	snapshot := *e.storage.Relations[parent.Address()]
+	root := e.storage.IndexRoots[index.Address()]
 	e.mu.Unlock()
 	expected, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, index.SQLIndex, &snapshot, nil)
 	if err != nil || !reflect.DeepEqual(root, expected) {
@@ -93,10 +93,10 @@ func TestConcurrentIndexU1RootPhasesAndVersions(t *testing.T) {
 	owner := a.transactions.ticket
 	table := roleTableRef(t, e, "t")
 	e.mu.Lock()
-	store := e.storage.relations[table.Address]
-	generation := store.generation
-	ends := store.ends
-	length := len(store.versions)
+	store := e.storage.Relations[table.Address]
+	generation := store.Generation
+	ends := store.Ends
+	length := len(store.Versions)
 	e.mu.Unlock()
 	_, await := indexMaintenanceAsync(t, e, b, "CREATE INDEX CONCURRENTLY ix ON t(n DESC NULLS LAST)")
 	concurrentUnitCompletion(t, e, owner, b)
@@ -105,7 +105,7 @@ func TestConcurrentIndexU1RootPhasesAndVersions(t *testing.T) {
 		t.Fatal("initial phase fabricated a logical root")
 	}
 	e.mu.Lock()
-	unchanged := e.storage.relations[table.Address] == store && store.generation == generation && store.ends == ends && len(store.versions) == length
+	unchanged := e.storage.Relations[table.Address] == store && store.Generation == generation && store.Ends == ends && len(store.Versions) == length
 	e.mu.Unlock()
 	if !unchanged {
 		t.Fatal("descriptor publication rewrote parent storage")
@@ -223,7 +223,7 @@ func TestConcurrentIndexU5ComputedTupleAndClassClaims(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO t VALUES('a',1,'seed')")
 	sessionSQL(t, s, `CREATE UNIQUE INDEX CONCURRENTLY ui ON t(lower(v) COLLATE "C" bpchar_ops DESC NULLS LAST,(n+1),n,n) INCLUDE(p)`)
 	index, root := concurrentUnitIndex(t, e, "ui", true, true)
-	if len(root.entries[0].keys) != 4 || index.SQLIndex.Constraint != nil {
+	if len(root.Entries[0].Keys) != 4 || index.SQLIndex.Constraint != nil {
 		t.Fatal("computed tuple or standalone identity")
 	}
 	concurrentUnitError(t, s, "INSERT INTO t VALUES('A ',1,'other')", "23505")

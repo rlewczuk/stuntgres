@@ -108,10 +108,21 @@ completes the step.
 - [x] 6a — `storageStore` state ownership (`79c8a6f3a`, `d6bbc8a3e`, then
   the commit that records this status) *(racecheck skipped at user request;
   targeted RACE=1 runs passed)*
-- [ ] 6b — `storage` created and types moved
+- [x] 6b — `storage` created and types moved (`c001ffa28`, `af2501215`,
+  then the commit that records this status) *(racecheck skipped at user
+  request; targeted RACE=1 runs passed)*
 - [ ] 6c — Aliases removed
 
-Outstanding aliases: none yet.
+Outstanding aliases (6b, `internal/engine/storage_aliases.go`), all
+unexported: `storageStore` (`storage.Store`), `relationStorage`
+(`Relation`), `rowVersion` (`RowVersion`), `rowEnd` (`RowEnd`),
+`deletionRoot` (`DeletionRoot`), `logicalIndexRoot` (`IndexRoot`),
+`logicalIndexEntry` (`IndexEntry`), `indexRowOutput` (`IndexOutput`),
+`hashIndexRoot` (`HashRoot`), `hashIndexEntry` (`HashEntry`),
+`hashIndexBinding` (`HashBinding`), `sequenceGenerator`
+(`SequenceGenerator`), `truncateLineage` (`TruncateLineage`) and
+`materializedLineage` (`MaterializedLineage`). No constant or function
+aliases.
 
 6a results:
 
@@ -151,16 +162,70 @@ Outstanding aliases: none yet.
   missed on `master`). `make deps` lists only module paths. Imports are
   unchanged.
 
+6b results:
+
+- **Decisions (user).** `Store` exposes its maps as exported fields
+  (`Relations`, `Sequences`, `IndexRoots`); only the row and version
+  counters are private. The transaction-private deletion overlay
+  (`privateDeletionRoot`, `deleteCandidate`), `liveVersion` and the
+  journal-consulting overlays (`privateStorageLocked`,
+  `sequenceGeneratorLocked`, `domainStageIndexRootLocked`) stay in the
+  engine with write staging; `liveVersion` is a step-7 candidate.
+- **Export in place** (`c001ffa28`). A type-checked rename capitalized
+  every field of the moved types and the store maps: 6,522 edits in 432
+  production and test files, with the per-field use census (6,625 uses)
+  identical before and after. Methods: `AllocateRowVersionsLocked`,
+  `IndexRootsCurrent`, `CaptureRowEntries`; `indexStorageIdentity(s)` and
+  `sameTruncateLineage(a, b)` became `s.IndexIdentity()` and the nil-safe
+  `a.SameTruncateLineage(b)`, so no `storage.X` reference lands in an
+  engine scope. `indexRowOutput.matches` became the engine function
+  `indexOutputMatches`, because it needs `sameIndexKeySemantics`; that was
+  the move set's only reference back into the engine.
+- **Counters.** `RowFrontier`, `VersionFrontier` (reads),
+  `AllocateRowLocked`, `AllocateVersionLocked` (one step; the caller keeps
+  its own exhaustion check and message) and `SetFrontierLocked` (Restore
+  and foreign replacement). The inline sites in `exclusion_admission.go`
+  (version before row), `insert_returning.go`, `update_versions.go`,
+  `index_replacement.go` and `catalog.go` keep their order and diagnostics;
+  about 25 test sites that set or compared the counters were rewritten.
+- **Lineage tokens.** `marker` stays private. The engine allocates
+  `&truncateLineage{}`; identity comes from the nonzero size, and the old
+  `marker: 1` value was never read.
+- **Move** (`af2501215`). 14 types and 10 methods moved into
+  `internal/engine/storage` (`store.go`, `relation.go`, `lineage.go`,
+  `index.go`, `hash.go`, `sequence.go`, about 230 lines) with the catalog
+  step's `movex` tool, parametrized by package name. `storage` imports only
+  `catalog`, `expr`, `ids`, `sqltype` and the standard library. `Engine`
+  holds one `storage storageStore` (= `storage.Store`) field.
+- **Tests.** New seam tests in `storage/store_test.go`:
+  `TestStoreAllocateRowVersionsInOrder`,
+  `TestStoreAllocateRowVersionsExhaustion`,
+  `TestStoreSingleAllocatorsAdvanceIndependently`,
+  `TestStoreIndexRootsCurrent`, `TestRelationIndexIdentity`,
+  `TestRelationSameTruncateLineage`. Engine tests adapted mechanically by
+  the rename and the counter rewrite; none moved or deleted.
+  `internal/engine/README.md` had no storage selectors to move.
+- **Verification.** `make build` and targeted `make check` storage
+  selections (index, hash, sequence, TRUNCATE, materialized view,
+  exclusion, UPDATE core, INSERT, Restore, Dump, TEMP, domain, commit time,
+  unique, serial, partial, view) passed after each commit, and a `RACE=1`
+  run of concurrent index build, UPDATE core, exclusion, INSERT conflict,
+  TRUNCATE, materialized refresh, sequence and the new storage tests
+  passed. `quickcheck` passed. `REFERENCE=1` selections passed:
+  `^TestReference(Truncate|HashIndex|Exclusion|ConcurrentIndex|BtreeIndexMaintenance|DeleteCore|UpdateCore)`,
+  `^TestReference(Unique|InsertConflict|Sequence)` and every
+  `Materialized*`, `*Dump*` and `*Restore*` reference test (19 packages).
+  The full `racecheck` was skipped at the user's request. `make bench`
+  (interleaved, on a loaded machine): 7,768 allocations and about
+  2.07 MB/op on both; best 1.87 ms/op on `master` and 1.79 ms/op on the
+  branch, over the <1 ms target that `master` already misses. `make deps`
+  lists only module paths. `AGENTS.md` stays at 100 lines.
+
 Notes for later steps:
 
-- 6b: the engine bumps `nextRow`/`nextVersion` directly at the inline
-  sites above, and Restore and foreign replacement read and assign both
-  counters as a pair (`prepareRemintedStorage`, `installForeignCatalogLocked`).
-  `storage.Store` needs exported accessors or allocation methods for them
-  that keep each site's order and error text.
-- 6b: about 61 production and 93 test locals or parameters are named
-  `storage`. Rename those that would capture a `storage.X` reference
-  before naming the package inside their scope (as 5f did for `catalog`).
-- 6b: `privateStorageLocked` and `sequenceGeneratorLocked` overlay
-  transaction-private storage on the store; decide with
-  `privateDeletionRoot` whether that overlay belongs with write staging.
+- 6c: about 61 production and 93 test locals or parameters are named
+  `storage`. Rename those that would capture an inserted `storage.X`
+  reference first, as 5f did for `catalog`; `e.storage` selectors are not
+  affected. The 6a and 6b counter and overlay notes are resolved above.
+- Later: the store maps are exported fields; confining their writes to
+  methods (as 5b did for `catalog.State`) is optional follow-up work.

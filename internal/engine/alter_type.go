@@ -358,7 +358,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 // Rewrite only effective live heads. Own updates become inserts into the private
 // replacement because their committed predecessors are intentionally omitted.
 func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *catalog.Relation, store *relationStorage, frontier ids.CommitSeq, transforms []columnTransformation, additions []addedColumn, generations []int32, validator alterRowValidator) (*relationStorage, []rowVersion, *privateDeletionRoot, error) {
-	if store.generation == ^uint64(0) {
+	if store.Generation == ^uint64(0) {
 		return nil, nil, nil, fmt.Errorf("stuntgres: storage generation exhausted")
 	}
 	slots := make([]int, len(next.Attributes))
@@ -399,11 +399,11 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *catalog.Re
 	writes, deletes := scope.columnProjectionRoots(old.Address())
 	var replaced map[ids.RowID]bool
 	for _, row := range writes {
-		if row.base != 0 {
+		if row.Base != 0 {
 			if replaced == nil {
 				replaced = make(map[ids.RowID]bool)
 			}
-			replaced[row.row] = true
+			replaced[row.Row] = true
 		}
 	}
 	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: scope.routineAuth.catalog}
@@ -416,10 +416,10 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *catalog.Re
 			if err := op.Context().Err(); err != nil {
 				return nil, err
 			}
-			if committed && replaced[row.row] || !liveVersion(row, frontier, store.ends, deletes) {
+			if committed && replaced[row.Row] || !liveVersion(row, frontier, store.Ends, deletes) {
 				continue
 			}
-			evaluation.Row = row.values
+			evaluation.Row = row.Values
 			if !preparedTransforms {
 				var private []columnTransformation
 				for i, transform := range transforms {
@@ -449,7 +449,7 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *catalog.Re
 			values := make([]sqltype.Value, len(slots))
 			for i, slot := range slots {
 				if slot >= 0 {
-					values[i] = row.values[slot]
+					values[i] = row.Values[slot]
 				}
 			}
 			for i, transform := range transforms {
@@ -499,16 +499,16 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *catalog.Re
 			if err := validator.validate(values, &evaluation); err != nil {
 				return nil, err
 			}
-			row.values = values
-			row.indexOutputs = nil
+			row.Values = values
+			row.IndexOutputs = nil
 			if !committed {
-				row.base = 0
+				row.Base = 0
 			}
 			result = append(result, row)
 		}
 		return result, nil
 	}
-	committed, err := convert(store.versions, true)
+	committed, err := convert(store.Versions, true)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -516,5 +516,5 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *catalog.Re
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	return &relationStorage{versions: committed, generation: store.generation + 1}, own, nil, nil
+	return &relationStorage{Versions: committed, Generation: store.Generation + 1}, own, nil, nil
 }

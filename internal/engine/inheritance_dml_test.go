@@ -32,7 +32,7 @@ func inheritanceDMLScope(t *testing.T, e *Engine, p *catalog.Relation, ctx conte
 	}
 	s.lockedRef = e.catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
 	s.lockedDescriptor = p
-	s.lockedStorage = e.storage.relations[p.Address()]
+	s.lockedStorage = e.storage.Relations[p.Address()]
 	if err = e.locks.Acquire(ctx, s.ticket, lock.Resource{ObjectRef: s.lockedRef}, lock.RowExclusive); err != nil {
 		s.Finish(err)
 		done()
@@ -88,12 +88,12 @@ func TestInheritanceDMLLocator(t *testing.T) {
 	ref := func(d *catalog.Relation) ids.ObjectRef {
 		return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 	}
-	old := rowVersion{row: 7, version: 11, base: 5, born: 3, values: []sqltype.Value{inheritanceQueryInt(e, 99), inheritanceQueryInt(e, 2), inheritanceQueryInt(e, 1)}}
+	old := rowVersion{Row: 7, Version: 11, Base: 5, Born: 3, Values: []sqltype.Value{inheritanceQueryInt(e, 99), inheritanceQueryInt(e, 2), inheritanceQueryInt(e, 1)}}
 	physical := queryPhysicalRow{leaf: queryLeaf{ref: ref(c), relation: c, storage: &relationStorage{}}, version: old, hint: 6, segment: &inheritanceQuerySegment{layout: layout, scratch: make([]sqltype.Value, 2)}}
 	proposed := []sqltype.Value{inheritanceQueryInt(e, 8), inheritanceQueryInt(e, 2)}
 	scattered := scatterMutationRow(physical, old, proposed, []int{0})
-	want := []sqltype.Value{old.values[0], old.values[1], proposed[0]}
-	if !reflect.DeepEqual(scattered, want) || !reflect.DeepEqual(old.values, []sqltype.Value{inheritanceQueryInt(e, 99), inheritanceQueryInt(e, 2), inheritanceQueryInt(e, 1)}) {
+	want := []sqltype.Value{old.Values[0], old.Values[1], proposed[0]}
+	if !reflect.DeepEqual(scattered, want) || !reflect.DeepEqual(old.Values, []sqltype.Value{inheritanceQueryInt(e, 99), inheritanceQueryInt(e, 2), inheritanceQueryInt(e, 1)}) {
 		t.Fatal("scatter lost child-only values or mutated predecessor", scattered, old)
 	}
 	deletion := physical.deletion()
@@ -104,7 +104,7 @@ func TestInheritanceDMLLocator(t *testing.T) {
 		t.Fatal("equal RowID aliased relations")
 	}
 	own := physical
-	own.version.born = 0
+	own.version.Born = 0
 	if !own.deletion().own {
 		t.Fatal("prior-own provenance lost")
 	}
@@ -126,7 +126,7 @@ func TestInheritanceDMLAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	child := s.inheritedTargets[0]
-	if s.mutationStorage(child.ref) != e.storage.relations[c.Address()] || s.mutationStorage(s.lockedRef) != e.storage.relations[p.Address()] {
+	if s.mutationStorage(child.ref) != e.storage.Relations[c.Address()] || s.mutationStorage(s.lockedRef) != e.storage.Relations[p.Address()] {
 		t.Fatal("manifest lost stores")
 	}
 	foreign := child.ref

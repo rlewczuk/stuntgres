@@ -59,9 +59,9 @@ func TestPGSequencesProvider(t *testing.T) {
 	sequenceScalar(t, a, "SELECT nextval('s')", 1)
 	sequenceScalar(t, b, "SELECT nextval('s')", 11)
 	ref := catalogRef(t, e, e.CatalogRead(), "s")
-	before := *e.storage.sequences[ref.Address]
+	before := *e.storage.Sequences[ref.Address]
 	pgSequencesRows(t, a, "SELECT start_value,cache_size,last_value FROM pg_sequences WHERE sequencename='s'", [][]driver.Value{{int64(1), int64(10), int64(20)}})
-	if *e.storage.sequences[ref.Address] != before {
+	if *e.storage.Sequences[ref.Address] != before {
 		t.Fatal("provider changed generator")
 	}
 	sequenceScalar(t, a, "SELECT nextval('s')", 2)
@@ -247,13 +247,13 @@ func TestPGSequencesCancellation(t *testing.T) {
 	ref := catalogRef(t, e, e.CatalogRead(), "s")
 	tx := transactionBegin(t, a)
 	sessionSQL(t, a, "ALTER SEQUENCE s RESTART 19")
-	before := *e.storage.sequences[ref.Address]
+	before := *e.storage.Sequences[ref.Address]
 	ctx, cancel := context.WithCancel(context.Background())
 	done := lockAsync(e, b, ctx, "SELECT sequencename FROM pg_sequences", false)
 	ownedLockQueued(t, e, ref, lock.RowExclusive, done)
 	cancel()
 	lockAwait(t, done, context.Canceled)
-	if *e.storage.sequences[ref.Address] != before {
+	if *e.storage.Sequences[ref.Address] != before {
 		t.Fatal("canceled provider mutated generator")
 	}
 	transactionEnd(t, a, tx, false)

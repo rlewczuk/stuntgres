@@ -170,7 +170,7 @@ func mutationPhysicalRow(source *querySource, index int, b binding) queryPhysica
 }
 
 func (row queryPhysicalRow) deletion() deleteCandidate {
-	return deleteCandidate{ref: row.leaf.ref, storage: row.leaf.storage, row: row.version.row, version: row.version.version, base: row.version.base, ordinal: row.hint, own: row.version.born == 0}
+	return deleteCandidate{ref: row.leaf.ref, storage: row.leaf.storage, row: row.version.Row, version: row.version.Version, base: row.version.Base, ordinal: row.hint, own: row.version.Born == 0}
 }
 
 type mutationRowIdentity struct {
@@ -190,7 +190,7 @@ func (e *Engine) validateInheritedMutationRow(s *StatementScope, named binding, 
 		return err
 	}
 	diagnostic := func(column, check string) error {
-		detail, err := e.rowConstraintDetail(s, &named, physical.values(rowVersion{values: row}))
+		detail, err := e.rowConstraintDetail(s, &named, physical.values(rowVersion{Values: row}))
 		if err != nil {
 			return err
 		}
@@ -228,7 +228,7 @@ func scatterMutationRow(physical queryPhysicalRow, old rowVersion, named []sqlty
 	if physical.segment == nil || physical.segment.layout == nil {
 		return named
 	}
-	row := append([]sqltype.Value(nil), old.values...)
+	row := append([]sqltype.Value(nil), old.Values...)
 	for _, slot := range targets {
 		row[physical.segment.layout[slot]] = named[slot]
 	}

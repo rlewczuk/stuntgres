@@ -15,22 +15,22 @@ import (
 func hashRoot(t *testing.T, e *Engine, name string) (*catalog.Relation, *hashIndexRoot) {
 	t.Helper()
 	index, carrier := btreeRoot(t, e, name)
-	if index.SQLIndex.Method != catalog.HashMethod || carrier.hash == nil || len(carrier.entries) != 0 {
+	if index.SQLIndex.Method != catalog.HashMethod || carrier.Hash == nil || len(carrier.Entries) != 0 {
 		t.Fatal("not a hash root", index, carrier)
 	}
-	return index, carrier.hash
+	return index, carrier.Hash
 }
 func hashKeys(t *testing.T, root *hashIndexRoot) []string {
 	t.Helper()
 	keys := []string{}
 	versions := map[ids.VersionID]bool{}
-	for _, bucket := range root.buckets {
+	for _, bucket := range root.Buckets {
 		for _, entry := range bucket {
-			if entry.key.IsNull() || entry.row == 0 || entry.version == 0 || versions[entry.version] || entry.position < 0 || entry.position >= root.prefix {
+			if entry.Key.IsNull() || entry.Row == 0 || entry.Version == 0 || versions[entry.Version] || entry.Position < 0 || entry.Position >= root.Prefix {
 				t.Fatal("invalid/collapsed hash identity", entry)
 			}
-			versions[entry.version] = true
-			s, err := entry.key.Type().Output(context.Background(), entry.key)
+			versions[entry.Version] = true
+			s, err := entry.Key.Type().Output(context.Background(), entry.Key)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -48,14 +48,14 @@ func TestHashIndexImmutableBatchAndCapturedPrefixes(t *testing.T) {
 	}
 	_, old := hashRoot(t, e, "hn")
 	query, source, release := hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=2")
-	value := source.committed[1].values[0]
-	h, err := old.binding.provider.Hash(context.Background(), value)
+	value := source.committed[1].Values[0]
+	h, err := old.Binding.Provider.Hash(context.Background(), value)
 	if err != nil {
 		t.Fatal(err)
 	}
 	run(t, e, "UPDATE t SET n=4 WHERE n=1")
 	_, updated := hashRoot(t, e, "hn")
-	if old == updated || &old.buckets[h][0] != &updated.buckets[h][0] {
+	if old == updated || &old.Buckets[h][0] != &updated.Buckets[h][0] {
 		t.Fatal("untouched bucket copied or root reused")
 	}
 	if got := hashKeys(t, old); !reflect.DeepEqual(got, []string{"1", "2", "2", "3"}) {
@@ -104,29 +104,29 @@ func TestHashIndexEmptyBindingCancellationAndPrivateFallback(t *testing.T) {
 	run(t, e, "CREATE TABLE t(n INT)")
 	run(t, e, "CREATE INDEX hn ON t USING hash(n)")
 	index, root := hashRoot(t, e, "hn")
-	if len(root.buckets) != 0 {
+	if len(root.Buckets) != 0 {
 		t.Fatal(root)
 	}
 	parent := e.catalog.state.MustRelation(index.SQLIndex.Parent)
 	bad := *index.SQLIndex
 	bad.Keys = append([]catalog.IndexKey(nil), bad.Keys...)
 	bad.Keys[0].Class, _ = sqltype.LookupHashIndexClass("int8_ops")
-	if _, err := buildHashIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, &bad, e.storage.relations[parent.Address()], true, nil); err == nil {
+	if _, err := buildHashIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, &bad, e.storage.Relations[parent.Address()], true, nil); err == nil {
 		t.Fatal("empty build did not eagerly reject provider")
 	}
 	run(t, e, "INSERT INTO t VALUES(NULL),(NULL)")
 	_, nulls := hashRoot(t, e, "hn")
-	if len(nulls.buckets) != 0 {
+	if len(nulls.Buckets) != 0 {
 		t.Fatal("NULL indexed", nulls)
 	}
-	if _, err := buildHashIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, &bad, e.storage.relations[parent.Address()], true, nil); err == nil {
+	if _, err := buildHashIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, &bad, e.storage.Relations[parent.Address()], true, nil); err == nil {
 		t.Fatal("all-NULL build skipped provider admission")
 	}
 	run(t, e, "INSERT INTO t VALUES(2),(2),(3)")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	during := &cancelAtErrCheck{Context: ctx, cancel: cancel, at: 5}
-	if candidate, err := buildHashIndexRoot(&EvalContext{Context: during, Scope: 1, Frame: 1}, parent, index.SQLIndex, e.storage.relations[parent.Address()], true, nil); candidate != nil || !errors.Is(err, context.Canceled) {
+	if candidate, err := buildHashIndexRoot(&EvalContext{Context: during, Scope: 1, Frame: 1}, parent, index.SQLIndex, e.storage.Relations[parent.Address()], true, nil); candidate != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal(candidate, err)
 	}
 	_, retained := hashRoot(t, e, "hn")
@@ -156,7 +156,7 @@ func TestHashIndexEmptyBindingCancellationAndPrivateFallback(t *testing.T) {
 	}
 	// A generation mismatch is a proof failure, not permission to prune.
 	e.mu.Lock()
-	e.storage.relations[parent.Address()].generation++
+	e.storage.Relations[parent.Address()].Generation++
 	e.mu.Unlock()
 	_, source, release = hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=2")
 	if len(source.hashIndexes) != 0 {
@@ -203,19 +203,19 @@ func TestHashIndexMetadataAndForeignReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	freshIndex, fresh := hashRoot(t, target, "hn")
-	store := target.storage.relations[freshIndex.SQLIndex.Parent]
-	if fresh == old || fresh.storage == old.storage || fresh.storage != store || fresh.generation != store.generation || fresh.prefix != 4 {
+	store := target.storage.Relations[freshIndex.SQLIndex.Parent]
+	if fresh == old || fresh.Storage == old.Storage || fresh.Storage != store || fresh.Generation != store.Generation || fresh.Prefix != 4 {
 		t.Fatal("replacement retained source authority", fresh)
 	}
 	ids := map[ids.RowID]bool{}
-	for _, bucket := range old.buckets {
+	for _, bucket := range old.Buckets {
 		for _, entry := range bucket {
-			ids[entry.row] = true
+			ids[entry.Row] = true
 		}
 	}
-	for _, bucket := range fresh.buckets {
+	for _, bucket := range fresh.Buckets {
 		for _, entry := range bucket {
-			if ids[entry.row] {
+			if ids[entry.Row] {
 				t.Fatal("foreign replacement retained source identity")
 			}
 		}
@@ -244,20 +244,20 @@ func TestHashIndexValidationOnlyPublication(t *testing.T) {
 	}
 	index, old := hashRoot(t, e, "hn")
 	parent := e.catalog.state.MustRelation(index.SQLIndex.Parent)
-	store := e.storage.relations[parent.Address()]
+	store := e.storage.Relations[parent.Address()]
 	value, err := parent.Columns[0].Usage.Type.Input(context.Background(), "3", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	writes := append([]rowVersion(nil), store.versions...)
+	writes := append([]rowVersion(nil), store.Versions...)
 	for i := range writes {
-		writes[i].base, writes[i].born = writes[i].version, 0
-		writes[i].version += 100
-		writes[i].values = []sqltype.Value{value}
+		writes[i].Base, writes[i].Born = writes[i].Version, 0
+		writes[i].Version += 100
+		writes[i].Values = []sqltype.Value{value}
 	}
 	for _, rebuild := range []bool{false, true} {
 		for _, materialize := range []bool{false, true} {
-			p := rowPublication{address: parent.Address(), store: store, original: store, originalRelation: parent, relation: parent, root: store.versions, writes: writes, ends: store.ends, generation: store.generation, singleSlot: -1}
+			p := rowPublication{address: parent.Address(), store: store, original: store, originalRelation: parent, relation: parent, root: store.Versions, writes: writes, ends: store.Ends, generation: store.Generation, singleSlot: -1}
 			if err := e.prepareRowPublication(&p, ids.TxRef{}, materialize); err != nil {
 				t.Fatal(err)
 			}
@@ -265,18 +265,18 @@ func TestHashIndexValidationOnlyPublication(t *testing.T) {
 			if rebuild {
 				intents = map[ids.ObjectAddress]*catalog.Relation{index.Address(): index}
 			}
-			roots, err := e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, e.catalog.state, e.catalog.state, captureIndexStores(e.storage.relations, e.catalog.state), e.storage.indexRoots, nil, intents, []rowPublication{p}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
+			roots, err := e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, e.catalog.state, e.catalog.state, captureIndexStores(e.storage.Relations, e.catalog.state), e.storage.IndexRoots, nil, intents, []rowPublication{p}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
 			if err != nil {
 				t.Fatal(rebuild, materialize, err)
 			}
 			if materialize {
-				if roots[index.Address()] == e.storage.indexRoots[index.Address()] || roots[index.Address()].hash == nil || !reflect.DeepEqual(hashKeys(t, roots[index.Address()].hash), []string{"3", "3"}) {
+				if roots[index.Address()] == e.storage.IndexRoots[index.Address()] || roots[index.Address()].Hash == nil || !reflect.DeepEqual(hashKeys(t, roots[index.Address()].Hash), []string{"3", "3"}) {
 					t.Fatal("materializing phase lost hash updates", rebuild, roots)
 				}
 			} else if roots != nil || p.next != nil || p.nextEnds != nil || p.slots != nil || p.singleSlot != -1 {
 				t.Fatal("validation phase constructed installation state", rebuild, roots, p)
 			}
-			if e.storage.indexRoots[index.Address()].hash != old || store.generation != old.generation || store.ends != old.ends || !reflect.DeepEqual(hashKeys(t, old), []string{"1", "2"}) || store.versions[0].values[0] == value || store.versions[1].values[0] == value {
+			if e.storage.IndexRoots[index.Address()].Hash != old || store.Generation != old.Generation || store.Ends != old.Ends || !reflect.DeepEqual(hashKeys(t, old), []string{"1", "2"}) || store.Versions[0].Values[0] == value || store.Versions[1].Values[0] == value {
 				t.Fatal("preparation changed committed rows/root", rebuild, materialize)
 			}
 		}

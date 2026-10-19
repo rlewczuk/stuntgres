@@ -53,10 +53,10 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 			if !ok {
 				t.Fatal("pending index")
 			}
-			if changes.storage[table].original != nil || len(changes.uniqueRoots[index].entries) != 0 || len(a.transactions.writes[table]) != 2 {
+			if changes.storage[table].original != nil || len(changes.uniqueRoots[index].Entries) != 0 || len(a.transactions.writes[table]) != 2 {
 				t.Fatal("baseline and own writes conflated")
 			}
-			if e.catalog.state != beforeCatalog || e.roles != beforeRoles || e.commitSeq != frontier || e.storage.relations[table] != nil || e.storage.indexRoots[index] != nil {
+			if e.catalog.state != beforeCatalog || e.roles != beforeRoles || e.commitSeq != frontier || e.storage.Relations[table] != nil || e.storage.IndexRoots[index] != nil {
 				t.Fatal("candidate escaped before message end")
 			}
 			if _, ok := e.Roles().Lookup("batch_member"); ok {
@@ -69,7 +69,7 @@ func TestDriverBatchCatalogRowsRolesAndIndexes(t *testing.T) {
 				if _, ok := e.Roles().Lookup("batch_member"); !ok {
 					t.Fatal("role root not installed with catalog")
 				}
-				if e.catalog.state == beforeCatalog || e.roles == beforeRoles || len(e.storage.relations[table].versions) != 2 || len(e.storage.indexRoots[index].entries) != 2 {
+				if e.catalog.state == beforeCatalog || e.roles == beforeRoles || len(e.storage.Relations[table].Versions) != 2 || len(e.storage.IndexRoots[index].Entries) != 2 {
 					t.Fatal("incomplete atomic installation")
 				}
 				sessionSQL(t, a, "RESET ROLE")
@@ -110,18 +110,18 @@ func TestDriverBatchNewIndexReconstructsPrefix(t *testing.T) {
 				t.Fatal(err)
 			}
 			ref := catalogRef(t, e, e.CatalogRead(), "ix")
-			root := e.storage.indexRoots[ref.Address]
+			root := e.storage.IndexRoots[ref.Address]
 			if method == "btree" {
-				if root == nil || len(root.entries) != 2 {
+				if root == nil || len(root.Entries) != 2 {
 					t.Fatal("new index omitted earlier private versions")
 				}
 			} else {
-				if root == nil || root.hash == nil {
+				if root == nil || root.Hash == nil {
 					t.Fatal("new real hash root")
 				}
 				table := catalogRef(t, e, e.CatalogRead(), "t")
-				store := e.storage.relations[table.Address]
-				if root.hash.storage != store || root.hash.prefix != len(store.versions) || root.hash.generation != store.generation || root.hash.ends != store.ends {
+				store := e.storage.Relations[table.Address]
+				if root.Hash.Storage != store || root.Hash.Prefix != len(store.Versions) || root.Hash.Generation != store.Generation || root.Hash.Ends != store.Ends {
 					t.Fatal("hash root source is not published storage")
 				}
 			}
@@ -315,7 +315,7 @@ func TestDriverBatchUtilityComposition(t *testing.T) {
 			table := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "u"})
 			copyTable := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "c"})
 			index := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "bi"})
-			unpublished := e.catalog.state == before && e.storage.relations[table] == nil && e.storage.relations[copyTable] == nil && e.storage.indexRoots[index] == nil
+			unpublished := e.catalog.state == before && e.storage.Relations[table] == nil && e.storage.Relations[copyTable] == nil && e.storage.IndexRoots[index] == nil
 			e.mu.Unlock()
 			if !unpublished {
 				t.Fatal("composition published catalog, storage or index before message disposition")
@@ -326,7 +326,7 @@ func TestDriverBatchUtilityComposition(t *testing.T) {
 				}
 				transactionRows(t, s, "SELECT i FROM bs.c ORDER BY i", 1, 2)
 				transactionRows(t, s, "SELECT j FROM bs.u ORDER BY i", 4, 4)
-				if e.storage.relations[table] == nil || e.storage.relations[copyTable] == nil || len(e.storage.relations[table].versions) != 2 || len(e.storage.relations[copyTable].versions) != 2 || e.storage.indexRoots[index] == nil || len(e.storage.indexRoots[index].entries) != 2 {
+				if e.storage.Relations[table] == nil || e.storage.Relations[copyTable] == nil || len(e.storage.Relations[table].Versions) != 2 || len(e.storage.Relations[copyTable].Versions) != 2 || e.storage.IndexRoots[index] == nil || len(e.storage.IndexRoots[index].Entries) != 2 {
 					t.Fatal("composition did not publish storage and index together")
 				}
 			} else {

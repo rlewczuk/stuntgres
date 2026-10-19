@@ -22,7 +22,7 @@ func foreignKeyLockFixture(t *testing.T) (*Engine, *Session, *Session, *Session,
 	sessionSQL(t, c, "INSERT INTO p VALUES(1,10)")
 	ref := catalogRef(t, e, e.CatalogRead(), "p")
 	e.mu.Lock()
-	row := e.storage.relations[ref.Address].versions[0].row
+	row := e.storage.Relations[ref.Address].Versions[0].Row
 	e.mu.Unlock()
 	return e, a, b, c, ref, row
 }
@@ -197,7 +197,7 @@ func TestForeignKeySavepointGrantRestoration(t *testing.T) {
 	e, a, _, c, ref, row := foreignKeyLockFixture(t)
 	sessionSQL(t, c, "INSERT INTO p VALUES(2,20)")
 	e.mu.Lock()
-	second := e.storage.relations[ref.Address].versions[1].row
+	second := e.storage.Relations[ref.Address].Versions[1].Row
 	e.mu.Unlock()
 	tx := transactionBegin(t, a)
 	defer transactionEnd(t, a, tx, false)

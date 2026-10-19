@@ -58,7 +58,7 @@ func TestPartitionDetachDescriptor(t *testing.T) {
 				child = f.def
 			}
 			before := f.e.catalog.state
-			stores := maps.Clone(f.e.storage.relations)
+			stores := maps.Clone(f.e.storage.Relations)
 			stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 			defer f.e.DiscardCatalogStage(stage)
 			if err := f.e.stagePartitionDetach(stage, f.parent, child); err != nil {
@@ -79,7 +79,7 @@ func TestPartitionDetachDescriptor(t *testing.T) {
 			if (p.Partition.DefaultChild == (ids.ObjectAddress{})) != (kind == "default") {
 				t.Fatal("wrong DEFAULT pointer")
 			}
-			if f.e.catalog.state != before || !maps.Equal(f.e.storage.relations, stores) || len(f.parent.Partition.Children) != 2 || child.Membership == nil {
+			if f.e.catalog.state != before || !maps.Equal(f.e.storage.Relations, stores) || len(f.parent.Partition.Children) != 2 || child.Membership == nil {
 				t.Fatal("private stage mutated published graph/store")
 			}
 			if kind == "nested" && view.Get(f.leaf.Address()) != f.leaf {
@@ -190,7 +190,7 @@ func TestPartitionDetachPublication(t *testing.T) {
 				f.e.catalog.state = next
 			}
 			before := f.e.catalog.state
-			stores, roots := maps.Clone(f.e.storage.relations), maps.Clone(f.e.storage.indexRoots)
+			stores, roots := maps.Clone(f.e.storage.Relations), maps.Clone(f.e.storage.IndexRoots)
 			if veto == "cancel" {
 				cancel()
 			}
@@ -200,7 +200,7 @@ func TestPartitionDetachPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 				cancel()
-				if f.e.catalog.state.MustRelation(f.child.Address()).Membership != nil || !maps.Equal(stores, f.e.storage.relations) {
+				if f.e.catalog.state.MustRelation(f.child.Address()).Membership != nil || !maps.Equal(stores, f.e.storage.Relations) {
 					t.Fatal("completed metadata publication lost store or attachment removal")
 				}
 				return
@@ -211,7 +211,7 @@ func TestPartitionDetachPublication(t *testing.T) {
 			if veto == "cancel" && !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}
-			if f.e.catalog.state != before || !maps.Equal(stores, f.e.storage.relations) || !maps.Equal(roots, f.e.storage.indexRoots) {
+			if f.e.catalog.state != before || !maps.Equal(stores, f.e.storage.Relations) || !maps.Equal(roots, f.e.storage.IndexRoots) {
 				t.Fatal("veto partially published")
 			}
 		})

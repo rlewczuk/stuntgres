@@ -47,7 +47,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view catalog.R
 				return root
 			}
 		}
-		return e.storage.indexRoots[address]
+		return e.storage.IndexRoots[address]
 	}
 	snapshot := &indexSnapshot{sources: make(map[ids.ObjectAddress]indexSnapshotSource)}
 	for address, descriptor := range view.Descriptors() {
@@ -90,42 +90,42 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view catalog.R
 		if store == nil || root == nil || store != e.privateStorageLocked(private, parent.Address()) || root != actualRoot(address) {
 			return nil, ids.ErrCatalogReplaced
 		}
-		if (root.hash != nil) != (index.SQLIndex.Method == catalog.HashMethod) {
+		if (root.Hash != nil) != (index.SQLIndex.Method == catalog.HashMethod) {
 			return nil, ids.ErrCatalogReplaced
 		}
-		if root.hash != nil && (root.hash.storage != indexStorageIdentity(store) || root.hash.generation != store.generation || root.hash.ends != store.ends || root.hash.prefix != len(store.versions)) {
+		if root.Hash != nil && (root.Hash.Storage != store.IndexIdentity() || root.Hash.Generation != store.Generation || root.Hash.Ends != store.Ends || root.Hash.Prefix != len(store.Versions)) {
 			return nil, ids.ErrCatalogReplaced
 		}
 		check := func(row ids.RowID, version ids.VersionID, position int) error {
-			if position < 0 || position >= len(store.versions) {
+			if position < 0 || position >= len(store.Versions) {
 				return ids.ErrCatalogReplaced
 			}
-			actual := store.versions[position]
-			if actual.row != row || actual.version != version {
+			actual := store.Versions[position]
+			if actual.Row != row || actual.Version != version {
 				return ids.ErrCatalogReplaced
 			}
 			return nil
 		}
-		if root.hash != nil {
-			for _, bucket := range root.hash.buckets {
+		if root.Hash != nil {
+			for _, bucket := range root.Hash.Buckets {
 				for _, entry := range bucket {
 					if err := ctx.Err(); err != nil {
 						return nil, err
 					}
-					if err := check(entry.row, entry.version, entry.position); err != nil {
+					if err := check(entry.Row, entry.Version, entry.Position); err != nil {
 						return nil, err
 					}
 				}
 			}
 		} else {
-			for _, entry := range root.entries {
+			for _, entry := range root.Entries {
 				if err := ctx.Err(); err != nil {
 					return nil, err
 				}
-				if len(entry.keys) != len(index.SQLIndex.Keys) {
+				if len(entry.Keys) != len(index.SQLIndex.Keys) {
 					return nil, ids.ErrCatalogReplaced
 				}
-				if err := check(entry.row, entry.version, entry.position); err != nil {
+				if err := check(entry.Row, entry.Version, entry.Position); err != nil {
 					return nil, err
 				}
 			}
@@ -228,20 +228,20 @@ func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalog.
 		}
 		if !checkedParents[parent.Address()] {
 			count := 0
-			for _, row := range source.store.versions {
+			for _, row := range source.store.Versions {
 				if err := ctx.Err(); err != nil {
 					return nil, err
 				}
-				if !preserveVersions && !liveVersion(row, source.frontier, source.store.ends, nil) {
+				if !preserveVersions && !liveVersion(row, source.frontier, source.store.Ends, nil) {
 					continue
 				}
-				position, ok := selected[indexRowIdentity{row: row.row, version: row.version}]
-				if !ok || position < 0 || position >= len(store.versions) {
+				position, ok := selected[indexRowIdentity{row: row.Row, version: row.Version}]
+				if !ok || position < 0 || position >= len(store.Versions) {
 					return nil, ids.ErrCatalogReplaced
 				}
 				count++
 			}
-			if count != len(selected) || count != len(store.versions) {
+			if count != len(selected) || count != len(store.Versions) {
 				return nil, ids.ErrCatalogReplaced
 			}
 			checkedParents[parent.Address()] = true
@@ -254,69 +254,69 @@ func (snapshot *indexSnapshot) transportRows(ctx context.Context, next *catalog.
 				return nil, err
 			}
 		}
-		if source.root.hash != nil {
+		if source.root.Hash != nil {
 			binding, err := bindHashIndex(parent, index.SQLIndex)
 			if err != nil {
 				return nil, err
 			}
-			hash := &hashIndexRoot{buckets: make(map[uint64][]hashIndexEntry), binding: binding, storage: indexStorageIdentity(store), generation: store.generation, prefix: len(store.versions), ends: store.ends}
-			for _, bucket := range source.root.hash.buckets {
+			hash := &hashIndexRoot{Buckets: make(map[uint64][]hashIndexEntry), Binding: binding, Storage: store.IndexIdentity(), Generation: store.Generation, Prefix: len(store.Versions), Ends: store.Ends}
+			for _, bucket := range source.root.Hash.Buckets {
 				for _, entry := range bucket {
 					if err := ctx.Err(); err != nil {
 						return nil, err
 					}
-					position, ok := selected[indexRowIdentity{row: entry.row, version: entry.version}]
+					position, ok := selected[indexRowIdentity{row: entry.Row, version: entry.Version}]
 					if !ok {
 						continue
 					}
-					entry.key, err = snapshot.datum(entry.key, usage[0].Type, collation, next.ACLItemImport())
+					entry.Key, err = snapshot.datum(entry.Key, usage[0].Type, collation, next.ACLItemImport())
 					if err != nil {
 						return nil, err
 					}
-					row := store.versions[position]
-					entry.row, entry.version, entry.position = row.row, row.version, position
-					h, err := binding.provider.Hash(ctx, entry.key)
+					row := store.Versions[position]
+					entry.Row, entry.Version, entry.Position = row.Row, row.Version, position
+					h, err := binding.Provider.Hash(ctx, entry.Key)
 					if err != nil {
 						return nil, err
 					}
-					hash.buckets[h] = append(hash.buckets[h], entry)
+					hash.Buckets[h] = append(hash.Buckets[h], entry)
 				}
 			}
-			if err := hash.captureRowEntries(ctx, index.SQLIndex); err != nil {
+			if err := hash.CaptureRowEntries(ctx, index.SQLIndex); err != nil {
 				return nil, err
 			}
-			roots[address] = &logicalIndexRoot{hash: hash}
+			roots[address] = &logicalIndexRoot{Hash: hash}
 		} else {
 			ordering, err := bindIndexKeys(parent, index.SQLIndex)
 			if err != nil {
 				return nil, err
 			}
-			entries := make([]logicalIndexEntry, 0, min(len(source.root.entries), len(store.versions)))
-			for _, entry := range source.root.entries {
+			entries := make([]logicalIndexEntry, 0, min(len(source.root.Entries), len(store.Versions)))
+			for _, entry := range source.root.Entries {
 				if err := ctx.Err(); err != nil {
 					return nil, err
 				}
-				position, ok := selected[indexRowIdentity{row: entry.row, version: entry.version}]
+				position, ok := selected[indexRowIdentity{row: entry.Row, version: entry.Version}]
 				if !ok {
 					continue
 				}
-				keys := entry.keys
+				keys := entry.Keys
 				copied := false
-				for i, value := range entry.keys {
+				for i, value := range entry.Keys {
 					rebound, err := snapshot.datum(value, usage[i].Type, collation, next.ACLItemImport())
 					if err != nil {
 						return nil, err
 					}
 					if rebound != value {
 						if !copied {
-							keys = slices.Clone(entry.keys)
+							keys = slices.Clone(entry.Keys)
 							copied = true
 						}
 						keys[i] = rebound
 					}
 				}
-				row := store.versions[position]
-				entries = append(entries, logicalIndexEntry{keys: keys, row: row.row, version: row.version, position: position})
+				row := store.Versions[position]
+				entries = append(entries, logicalIndexEntry{Keys: keys, Row: row.Row, Version: row.Version, Position: position})
 			}
 			if index.SQLIndex.Method == catalog.BtreeMethod {
 				if err := ordering.sort(ctx, entries); err != nil {

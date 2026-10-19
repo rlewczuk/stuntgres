@@ -10,11 +10,11 @@ import (
 
 // A captured physical position is only a hint; arbitration is by stable RowID.
 func rowByID(rows []rowVersion, id ids.RowID, hint int) (rowVersion, int, bool) {
-	if hint >= 0 && hint < len(rows) && rows[hint].row == id {
+	if hint >= 0 && hint < len(rows) && rows[hint].Row == id {
 		return rows[hint], hint, true
 	}
 	for i, row := range rows {
-		if row.row == id {
+		if row.Row == id {
 			return row, i, true
 		}
 	}
@@ -34,7 +34,7 @@ func mergePrivateRows(old, stage []rowVersion, replacing bool) []rowVersion {
 	copy(next, old)
 	if len(stage) == 1 {
 		for i, row := range old {
-			if row.row == stage[0].row {
+			if row.Row == stage[0].Row {
 				next[i] = stage[0]
 				return next
 			}
@@ -43,13 +43,13 @@ func mergePrivateRows(old, stage []rowVersion, replacing bool) []rowVersion {
 	}
 	slots := make(map[ids.RowID]int, len(old))
 	for i, row := range old {
-		slots[row.row] = i
+		slots[row.Row] = i
 	}
 	for _, row := range stage {
-		if i, ok := slots[row.row]; ok {
+		if i, ok := slots[row.Row]; ok {
 			next[i] = row
 		} else {
-			slots[row.row] = len(next)
+			slots[row.Row] = len(next)
 			next = append(next, row)
 		}
 	}
@@ -117,7 +117,7 @@ func (w *WriteStage) replaceRows(ref ids.ObjectRef, old []rowVersion, batch inde
 	for i, predecessor := range old {
 		mode := batch.actionMode
 		if mode == 0 {
-			changed, failure := s.uniqueKeyChanged(ref, predecessor.values, rows[i])
+			changed, failure := s.uniqueKeyChanged(ref, predecessor.Values, rows[i])
 			if failure != nil {
 				return failure
 			}
@@ -134,7 +134,7 @@ func (w *WriteStage) replaceRows(ref ids.ObjectRef, old []rowVersion, batch inde
 		if mode == lock.MultiUpdateAction {
 			grant = lock.ForUpdate
 		}
-		if err := s.acquireUpdateRowMode(ref, predecessor.row, grant); err != nil {
+		if err := s.acquireUpdateRowMode(ref, predecessor.Row, grant); err != nil {
 			return err
 		}
 	}
@@ -178,7 +178,7 @@ retry:
 		return errors.New("stuntgres: invalid update stage")
 	}
 	for i, row := range rows {
-		if old[i].row == 0 || old[i].version == 0 || len(row) != len(relation.Columns) {
+		if old[i].Row == 0 || old[i].Version == 0 || len(row) != len(relation.Columns) {
 			return errors.New("stuntgres: invalid staged row")
 		}
 	}
@@ -187,12 +187,12 @@ retry:
 			return errors.New("stuntgres: distinct replacement without conflict update")
 		}
 		for _, predecessor := range old {
-			if _, affected := s.insertConflict.affectedRows[predecessor.row]; affected {
+			if _, affected := s.insertConflict.affectedRows[predecessor.Row]; affected {
 				return conflictUpdateCardinalityError()
 			}
 		}
 	}
-	if uint64(len(rows)) > ^uint64(0)-e.storage.nextVersion {
+	if uint64(len(rows)) > ^uint64(0)-e.storage.VersionFrontier() {
 		return errors.New("stuntgres: version identity exhausted")
 	}
 	var versions, distinctRows []rowVersion
@@ -207,27 +207,26 @@ retry:
 		predecessor := old[i]
 		if identity := batch.candidate(i).exclusion; identity != nil {
 			reserved := *identity
-			reserved.keyChangedAt, reserved.pendingKeyChange = predecessor.keyChangedAt, predecessor.pendingKeyChange
-			reserved.indexAdmission = admission
+			reserved.KeyChangedAt, reserved.PendingKeyChange = predecessor.KeyChangedAt, predecessor.PendingKeyChange
+			reserved.IndexAdmission = admission
 			versions[i] = reserved
 			continue
 		}
-		base := predecessor.base
-		if predecessor.born != 0 {
-			base = predecessor.version
+		base := predecessor.Base
+		if predecessor.Born != 0 {
+			base = predecessor.Version
 		}
-		e.storage.nextVersion++
-		versions[i] = rowVersion{row: predecessor.row, version: ids.VersionID(e.storage.nextVersion), base: base, values: row, keyChangedAt: predecessor.keyChangedAt, pendingKeyChange: predecessor.pendingKeyChange, indexAdmission: admission}
+		versions[i] = rowVersion{Row: predecessor.Row, Version: e.storage.AllocateVersionLocked(), Base: base, Values: row, KeyChangedAt: predecessor.KeyChangedAt, PendingKeyChange: predecessor.PendingKeyChange, IndexAdmission: admission}
 	}
 	if batch.states != nil {
 		for i := range versions {
-			versions[i].indexOutputs = batch.states[i].indexes
+			versions[i].IndexOutputs = batch.states[i].indexes
 		}
 	}
 	if serializableRelevant(e.serializable.nodes[s.txRef]) {
 		for i, row := range versions {
 			predecessor := old[i]
-			event := [1]serializableWrite{{row: row.row, version: row.version, base: predecessor.version, baseBorn: predecessor.born, creator: e.serializable.creators[predecessor.version]}}
+			event := [1]serializableWrite{{row: row.Row, version: row.Version, base: predecessor.Version, baseBorn: predecessor.Born, creator: e.serializable.creators[predecessor.Version]}}
 			if err := e.serializableWriteLocked(s, ref, event[:]); err != nil {
 				return err
 			}
@@ -248,7 +247,7 @@ retry:
 			if mode == 0 {
 				mode = modes[i]
 			}
-			s.multiEvents = append(s.multiEvents, lock.MultiEvent{Tuple: lock.MultiTuple{lock.Resource{ObjectRef: ref, Row: old[i].row}, old[i].version}, Mode: mode, Successor: next.version})
+			s.multiEvents = append(s.multiEvents, lock.MultiEvent{Tuple: lock.MultiTuple{lock.Resource{ObjectRef: ref, Row: old[i].Row}, old[i].Version}, Mode: mode, Successor: next.Version})
 			s.recordForeignActionReplacement(ref, old[i], next)
 		}
 	}

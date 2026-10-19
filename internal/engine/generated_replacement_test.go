@@ -107,7 +107,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	e.catalog.state = catalog.CloneState(e.catalog.state)
 	e.catalog.state.SetDescriptor(tempNamespace, &catalog.Namespace{ObjectAddress: tempNamespace, ObjectName: "pg_temp_1", Owner: d.Owner, ObjectRevision: 1, Temporary: e.catalog.Domain.Session(99)})
 	e.catalog.state.SetDescriptor(tempAddress, &temp)
-	e.storage.relations[tempAddress] = &relationStorage{versions: []rowVersion{{values: tempValues}}}
+	e.storage.Relations[tempAddress] = &relationStorage{Versions: []rowVersion{{Values: tempValues}}}
 	stage := e.restoreStage()
 	session, err := stage.StartSession(context.Background(), SessionStart{ID: 1})
 	if err != nil {
@@ -122,7 +122,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	gate := &generatedRepairSource{entered: make(chan struct{}), release: make(chan struct{})}
 	session.random.rand = *rand.New(gate)
 	session.random.initialized = true
-	f := &generatedRepairFixture{target: e, stage: stage, session: session, op: op, next: next, storage: map[ids.ObjectAddress]*relationStorage{d.Address(): {versions: []rowVersion{{values: source}}}}, sequences: map[ids.ObjectAddress]*sequenceGenerator{{ClassID: ids.RelationClassID, ObjectID: 28000}: {last: 77, called: true}}, mapping: map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.Address()}, imported: d.Address(), temp: tempAddress, source: source, tempValues: tempValues, gate: gate}
+	f := &generatedRepairFixture{target: e, stage: stage, session: session, op: op, next: next, storage: map[ids.ObjectAddress]*relationStorage{d.Address(): {Versions: []rowVersion{{Values: source}}}}, sequences: map[ids.ObjectAddress]*sequenceGenerator{{ClassID: ids.RelationClassID, ObjectID: 28000}: {Last: 77, Called: true}}, mapping: map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.Address()}, imported: d.Address(), temp: tempAddress, source: source, tempValues: tempValues, gate: gate}
 	t.Cleanup(func() {
 		op.Done()
 		session.RequestEnd(CleanClose)
@@ -200,17 +200,17 @@ func TestGeneratedReplacementStaleAuthority(t *testing.T) {
 				copy.ObjectAddress.ObjectID++
 				copy.ObjectName = "concurrent_temp"
 				next.SetDescriptor(copy.Address(), &copy)
-				f.target.storage.relations[copy.Address()] = &relationStorage{versions: []rowVersion{{values: append([]sqltype.Value(nil), f.tempValues...)}}}
+				f.target.storage.Relations[copy.Address()] = &relationStorage{Versions: []rowVersion{{Values: append([]sqltype.Value(nil), f.tempValues...)}}}
 				next.SetEpoch(next.Epoch() + 1)
 				f.target.catalog.state = next
 			case "CommitFrontier":
 				f.target.commitSeq++
-				f.target.storage.relations[f.temp] = &relationStorage{versions: append(append([]rowVersion(nil), f.target.storage.relations[f.temp].versions...), rowVersion{values: append([]sqltype.Value(nil), f.tempValues...)})}
+				f.target.storage.Relations[f.temp] = &relationStorage{Versions: append(append([]rowVersion(nil), f.target.storage.Relations[f.temp].Versions...), rowVersion{Values: append([]sqltype.Value(nil), f.tempValues...)})}
 			}
 			expectedState, expectedRoles, expectedFrontier := f.target.catalog.state, f.target.roles, f.target.commitSeq
-			expectedStorage := cloneGeneratedRepairStorage(f.target.storage.relations)
-			expectedSequences, expectedIndexes := f.target.storage.sequences, f.target.storage.indexRoots
-			nextRow, nextVersion, nextRevision := f.target.storage.nextRow, f.target.storage.nextVersion, f.target.catalog.nextRevision
+			expectedStorage := cloneGeneratedRepairStorage(f.target.storage.Relations)
+			expectedSequences, expectedIndexes := f.target.storage.Sequences, f.target.storage.IndexRoots
+			nextRow, nextVersion, nextRevision := f.target.storage.RowFrontier(), f.target.storage.VersionFrontier(), f.target.catalog.nextRevision
 			f.target.mu.Unlock()
 			release.Do(func() { close(f.gate.release) })
 			if err := <-result; !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -219,7 +219,7 @@ func TestGeneratedReplacementStaleAuthority(t *testing.T) {
 			if f.gate.calls != 1 {
 				t.Fatal("repair retried provider", f.gate.calls)
 			}
-			if f.target.catalog.state != expectedState || f.target.roles != expectedRoles || f.target.commitSeq != expectedFrontier || !reflect.DeepEqual(f.target.storage.relations, expectedStorage) || !reflect.DeepEqual(f.target.storage.sequences, expectedSequences) || !reflect.DeepEqual(f.target.storage.indexRoots, expectedIndexes) || f.target.storage.nextRow != nextRow || f.target.storage.nextVersion != nextVersion || f.target.catalog.nextRevision != nextRevision {
+			if f.target.catalog.state != expectedState || f.target.roles != expectedRoles || f.target.commitSeq != expectedFrontier || !reflect.DeepEqual(f.target.storage.Relations, expectedStorage) || !reflect.DeepEqual(f.target.storage.Sequences, expectedSequences) || !reflect.DeepEqual(f.target.storage.IndexRoots, expectedIndexes) || f.target.storage.RowFrontier() != nextRow || f.target.storage.VersionFrontier() != nextVersion || f.target.catalog.nextRevision != nextRevision {
 				t.Fatal("repair installed candidate or erased concurrent target change")
 			}
 			if _, exists := f.target.catalog.state.Find(f.imported); exists {
@@ -231,7 +231,7 @@ func TestGeneratedReplacementStaleAuthority(t *testing.T) {
 			if got, _ := f.tempValues[1].OID(); got != 25000 {
 				t.Fatal("TEMP held row mutated", got)
 			}
-			if got, _ := f.storage[f.imported].versions[0].values[1].OID(); got != 26000 {
+			if got, _ := f.storage[f.imported].Versions[0].Values[1].OID(); got != 26000 {
 				t.Fatal("test never completed affected generation repair", got)
 			}
 			f.assertJoined(t)
@@ -252,7 +252,7 @@ func cloneGeneratedRepairStorage(source map[ids.ObjectAddress]*relationStorage) 
 	out := make(map[ids.ObjectAddress]*relationStorage, len(source))
 	for address, rows := range source {
 		copy := *rows
-		copy.versions = append([]rowVersion(nil), rows.versions...)
+		copy.Versions = append([]rowVersion(nil), rows.Versions...)
 		out[address] = &copy
 	}
 	return out
@@ -268,9 +268,9 @@ func TestGeneratedReplacementLateCancellation(t *testing.T) {
 				f.gate.onReturn = cancel
 			}
 			state, roles, frontier := f.target.catalog.state, f.target.roles, f.target.commitSeq
-			storage := cloneGeneratedRepairStorage(f.target.storage.relations)
-			sequences, indexes := f.target.storage.sequences, f.target.storage.indexRoots
-			nextRow, nextVersion, nextRevision := f.target.storage.nextRow, f.target.storage.nextVersion, f.target.catalog.nextRevision
+			storage := cloneGeneratedRepairStorage(f.target.storage.Relations)
+			sequences, indexes := f.target.storage.Sequences, f.target.storage.IndexRoots
+			nextRow, nextVersion, nextRevision := f.target.storage.RowFrontier(), f.target.storage.VersionFrontier(), f.target.catalog.nextRevision
 			result := f.run(ctx)
 			var release sync.Once
 			t.Cleanup(func() { release.Do(func() { close(f.gate.release) }) })
@@ -282,7 +282,7 @@ func TestGeneratedReplacementLateCancellation(t *testing.T) {
 			if err := <-result; !errors.Is(err, context.Canceled) {
 				t.Fatal("late cancellation accepted", err)
 			}
-			if f.gate.calls != 1 || f.target.catalog.state != state || f.target.roles != roles || f.target.commitSeq != frontier || !reflect.DeepEqual(f.target.storage.relations, storage) || !reflect.DeepEqual(f.target.storage.sequences, sequences) || !reflect.DeepEqual(f.target.storage.indexRoots, indexes) || f.target.storage.nextRow != nextRow || f.target.storage.nextVersion != nextVersion || f.target.catalog.nextRevision != nextRevision {
+			if f.gate.calls != 1 || f.target.catalog.state != state || f.target.roles != roles || f.target.commitSeq != frontier || !reflect.DeepEqual(f.target.storage.Relations, storage) || !reflect.DeepEqual(f.target.storage.Sequences, sequences) || !reflect.DeepEqual(f.target.storage.IndexRoots, indexes) || f.target.storage.RowFrontier() != nextRow || f.target.storage.VersionFrontier() != nextVersion || f.target.catalog.nextRevision != nextRevision {
 				t.Fatal("canceled repair published catalog/storage/index/sequence state")
 			}
 			if got, _ := f.source[1].OID(); got != 25000 {

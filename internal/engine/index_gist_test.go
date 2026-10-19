@@ -40,7 +40,7 @@ func logicalGiSTFixture(t *testing.T) (*catalog.Relation, *catalog.Relation, fun
 		if err != nil {
 			t.Fatal(err)
 		}
-		return rowVersion{row: id, version: ids.VersionID(id), born: 1, values: []sqltype.Value{a, b}}
+		return rowVersion{Row: id, Version: ids.VersionID(id), Born: 1, Values: []sqltype.Value{a, b}}
 	}
 	return parent, index, row
 }
@@ -48,21 +48,21 @@ func logicalGiSTFixture(t *testing.T) (*catalog.Relation, *catalog.Relation, fun
 func TestLogicalGiSTNonadjacentOverlap(t *testing.T) {
 	parent, index, row := logicalGiSTFixture(t)
 	for _, middle := range []rowVersion{row(2, "10.0.0.1", "empty"), row(2, "10.0.0.2", "[1,5)")} {
-		store := &relationStorage{versions: []rowVersion{row(1, "10.0.0.1", "[1,5)"), middle, row(3, "10.0.0.1", "[3,7)")}}
+		store := &relationStorage{Versions: []rowVersion{row(1, "10.0.0.1", "[1,5)"), middle, row(3, "10.0.0.1", "[3,7)")}}
 		root, err := buildIndexRoot(&EvalContext{Context: context.Background()}, parent, index.SQLIndex, store, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if root.hash != nil || len(root.entries) != 3 || root.entries[1].row != 2 {
+		if root.Hash != nil || len(root.Entries) != 3 || root.Entries[1].Row != 2 {
 			t.Fatal("membership reordered", root)
 		}
-		before := append([]logicalIndexEntry(nil), root.entries...)
+		before := append([]logicalIndexEntry(nil), root.Entries...)
 		err = validateExclusionRoot(context.Background(), parent, index, root, "public", sqltype.OutputEnvironment{}, nil, true)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "23P01" {
 			t.Fatal("nonadjacent overlap not rejected", err)
 		}
-		if !reflect.DeepEqual(before, root.entries) {
+		if !reflect.DeepEqual(before, root.Entries) {
 			t.Fatal("validation mutated source")
 		}
 	}
@@ -70,34 +70,34 @@ func TestLogicalGiSTNonadjacentOverlap(t *testing.T) {
 
 func TestLogicalGiSTDeltaImmutable(t *testing.T) {
 	parent, index, row := logicalGiSTFixture(t)
-	store := &relationStorage{versions: []rowVersion{row(1, "10.0.0.1", "[1,5)"), row(2, "10.0.0.2", "[1,5)")}}
+	store := &relationStorage{Versions: []rowVersion{row(1, "10.0.0.1", "[1,5)"), row(2, "10.0.0.2", "[1,5)")}}
 	evaluation := &EvalContext{Context: context.Background()}
 	root, err := buildIndexRoot(evaluation, parent, index.SQLIndex, store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	before := append([]logicalIndexEntry(nil), root.entries...)
+	before := append([]logicalIndexEntry(nil), root.Entries...)
 	publication := &rowPublication{writes: []rowVersion{row(3, "10.0.0.1", "[3,7)")}, singleSlot: -1}
-	_, err = mergeIndexRoot(evaluation, parent, index, root.entries, publication, true, true, false, "public", sqltype.OutputEnvironment{}, nil)
+	_, err = mergeIndexRoot(evaluation, parent, index, root.Entries, publication, true, true, false, "public", sqltype.OutputEnvironment{}, nil)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23P01" {
 		t.Fatal("delta overlap not rejected", err)
 	}
 	replacement := row(1, "10.0.0.1", "[5,8)")
-	replacement.base = 1
-	replacement.version = 4
+	replacement.Base = 1
+	replacement.Version = 4
 	publication.writes = []rowVersion{replacement}
-	next, err := mergeIndexRoot(evaluation, parent, index, root.entries, publication, true, true, false, "public", sqltype.OutputEnvironment{}, nil)
-	if err != nil || next == nil || len(next.entries) != 2 || next.entries[1].version != 4 {
+	next, err := mergeIndexRoot(evaluation, parent, index, root.Entries, publication, true, true, false, "public", sqltype.OutputEnvironment{}, nil)
+	if err != nil || next == nil || len(next.Entries) != 2 || next.Entries[1].Version != 4 {
 		t.Fatal("replacement", next, err)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err = mergeIndexRoot(&EvalContext{Context: canceled}, parent, index, root.entries, publication, true, true, false, "public", sqltype.OutputEnvironment{}, nil)
+	_, err = mergeIndexRoot(&EvalContext{Context: canceled}, parent, index, root.Entries, publication, true, true, false, "public", sqltype.OutputEnvironment{}, nil)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(before, root.entries) {
+	if !reflect.DeepEqual(before, root.Entries) {
 		t.Fatal("delta/cancellation mutated source")
 	}
 }
@@ -125,7 +125,7 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 			e.catalog.state = catalog.CloneState(e.catalog.state)
 			e.catalog.state.SetDescriptor(parent.Address(), parent)
 			e.catalog.state.SetDescriptor(index.Address(), index)
-			store := &relationStorage{versions: []rowVersion{
+			store := &relationStorage{Versions: []rowVersion{
 				row(1, "10.0.0.1", "[1,5)"),
 				row(2, "10.0.0.1", "empty"),
 			}}
@@ -133,32 +133,32 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			e.storage.relations[parent.Address()] = store
-			e.storage.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.Address(): root}
+			e.storage.Relations[parent.Address()] = store
+			e.storage.IndexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.Address(): root}
 			before := indexMaintenanceCapture(e)
 			storeBefore := uniquePublicationStore(store)
-			entriesBefore := append([]logicalIndexEntry(nil), root.entries...)
+			entriesBefore := append([]logicalIndexEntry(nil), root.Entries...)
 			for i := range entriesBefore {
-				entriesBefore[i].keys = append([]sqltype.Value(nil), entriesBefore[i].keys...)
+				entriesBefore[i].Keys = append([]sqltype.Value(nil), entriesBefore[i].Keys...)
 			}
 			rootBefore := *root
 			// The candidate extends the same typed private fixture, not a
 			// separately initialized SQL catalog.
-			captured := captureIndexStores(e.storage.relations, e.catalog.state)
+			captured := captureIndexStores(e.storage.Relations, e.catalog.state)
 			candidate := captured[parent.Address()]
-			candidate.versions = append(append([]rowVersion(nil), candidate.versions...), row(3, "10.0.0.1", "[3,7)"))
+			candidate.Versions = append(append([]rowVersion(nil), candidate.Versions...), row(3, "10.0.0.1", "[3,7)"))
 			candidateBefore := uniquePublicationStore(candidate)
 			// Explicit parent rebuild intent, no supplied candidate root and no
 			// row delta: validation must inspect rebuilt A/empty/C membership.
 			roots, err := e.prepareIndexPublication(
 				&EvalContext{Context: context.Background(), Scope: 1, Frame: 1},
-				e.catalog.state, e.catalog.state, captured, e.storage.indexRoots,
+				e.catalog.state, e.catalog.state, captured, e.storage.IndexRoots,
 				map[ids.ObjectAddress]bool{parent.Address(): true}, nil, nil,
 				materialize, sqltype.OutputEnvironment{}, nil, nil, nil,
 			)
 			indexMaintenanceUnchanged(t, e, before)
 			if !reflect.DeepEqual(*store, storeBefore) || !reflect.DeepEqual(*candidate, candidateBefore) ||
-				!reflect.DeepEqual(*root, rootBefore) || !reflect.DeepEqual(root.entries, entriesBefore) {
+				!reflect.DeepEqual(*root, rootBefore) || !reflect.DeepEqual(root.Entries, entriesBefore) {
 				t.Fatal("failed rebuild changed original storage, candidate rows or root entries")
 			}
 			var diagnostic *sqlstate.Error
@@ -176,7 +176,7 @@ func TestLogicalGiSTUnchangedPublicationNonadjacentOverlap(t *testing.T) {
 	for _, materialize := range []bool{false, true} {
 		t.Run(map[bool]string{false: "prepare", true: "materialize"}[materialize], func(t *testing.T) {
 			parent, index, row := logicalGiSTFixture(t)
-			store := &relationStorage{versions: []rowVersion{
+			store := &relationStorage{Versions: []rowVersion{
 				row(1, "10.0.0.1", "[1,5)"),
 				row(2, "10.0.0.1", "empty"),
 				row(3, "10.0.0.1", "[3,7)"),
@@ -186,17 +186,17 @@ func TestLogicalGiSTUnchangedPublicationNonadjacentOverlap(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			entriesBefore := append([]logicalIndexEntry(nil), root.entries...)
+			entriesBefore := append([]logicalIndexEntry(nil), root.Entries...)
 			for i := range entriesBefore {
-				entriesBefore[i].keys = append([]sqltype.Value(nil), entriesBefore[i].keys...)
+				entriesBefore[i].Keys = append([]sqltype.Value(nil), entriesBefore[i].Keys...)
 			}
 			rootBefore := *root
 			storeBefore := uniquePublicationStore(store)
 			// There are deliberately no writes or deletions: exercise the
 			// unchanged-membership validation entrance, not the GiST delta path.
 			publication := &rowPublication{singleSlot: -1}
-			next, err := mergeIndexRoot(evaluation, parent, index, root.entries, publication, false, materialize, false, "public", sqltype.OutputEnvironment{}, nil)
-			if !reflect.DeepEqual(*root, rootBefore) || !reflect.DeepEqual(root.entries, entriesBefore) ||
+			next, err := mergeIndexRoot(evaluation, parent, index, root.Entries, publication, false, materialize, false, "public", sqltype.OutputEnvironment{}, nil)
+			if !reflect.DeepEqual(*root, rootBefore) || !reflect.DeepEqual(root.Entries, entriesBefore) ||
 				!reflect.DeepEqual(*store, storeBefore) {
 				t.Fatal("unchanged publication mutated original root entries or storage")
 			}
