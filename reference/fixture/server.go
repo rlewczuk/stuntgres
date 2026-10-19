@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -38,6 +39,27 @@ var serverBuild struct {
 	sync.Once
 	binary string
 	err    error
+}
+
+// The salt and password are constant, so every fixture shares one verifier.
+var serverUsers struct {
+	sync.Once
+	text string
+	err  error
+}
+
+func serverUserfile() (string, error) {
+	serverUsers.Do(func() {
+		salt := []byte("server-test-salt") // Exactly sixteen deterministic bytes; this is test-only material.
+		key, err := pbkdf2.Key(sha256.New, ServerPassword, salt, serverKDFIterations, 32)
+		if err != nil {
+			serverUsers.err = err
+			return
+		}
+		hash := "$pbkdf2-sha256$i=" + strconv.Itoa(serverKDFIterations) + "$" + base64.RawStdEncoding.EncodeToString(salt) + "$" + base64.RawStdEncoding.EncodeToString(key)
+		serverUsers.text = ServerUser + ":" + hash + ":" + ServerDatabase + "," + ServerSecondDatabase + "," + ServerUser + "\n" + ServerGuest + ":" + hash + ":" + ServerDatabase + "\n"
+	})
+	return serverUsers.text, serverUsers.err
 }
 
 func cleanupServerBuild() error {
@@ -132,6 +154,9 @@ func NewServerFixture(t *testing.T) *ServerFixture {
 		if serverRaceBuild {
 			buildArgs = append(buildArgs, "-race")
 		}
+		if serverKDFTag != "" {
+			buildArgs = append(buildArgs, "-tags", serverKDFTag)
+		}
 		buildArgs = append(buildArgs, "-o", serverBuild.binary, "./cmd/stuntgres")
 		c := exec.CommandContext(ctx, "go", buildArgs...)
 		c.Dir = root
@@ -144,13 +169,10 @@ func NewServerFixture(t *testing.T) *ServerFixture {
 		t.Fatal(serverBuild.err)
 	}
 	f.Binary = serverBuild.binary
-	salt := []byte("server-test-salt") // Exactly sixteen deterministic bytes; this is test-only material.
-	key, err := pbkdf2.Key(sha256.New, ServerPassword, salt, 600000, 32)
+	users, err := serverUserfile()
 	if err != nil {
 		t.Fatal(err)
 	}
-	hash := "$pbkdf2-sha256$i=600000$" + base64.RawStdEncoding.EncodeToString(salt) + "$" + base64.RawStdEncoding.EncodeToString(key)
-	users := ServerUser + ":" + hash + ":" + ServerDatabase + "," + ServerSecondDatabase + "," + ServerUser + "\n" + ServerGuest + ":" + hash + ":" + ServerDatabase + "\n"
 	if err := os.WriteFile(f.Userfile, []byte(users), 0600); err != nil {
 		t.Fatal(err)
 	}

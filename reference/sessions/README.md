@@ -765,8 +765,18 @@ AbortedDescribe, FailedPortalIdentity, UnnamedCreationFastPaths, CopyCancelInput
 CopyCancelTerminal and the existing cancellation/persistence/restored-grants/daemon/
 output/pipeline/fatal selectors. Race-enabled fixtures also
 build the actual subprocess server with `-race`; instrumenting only the parent test process
-would not prove server goroutine safety. Required psql, Docker or pinned-image
-failures fail visibly, never skip or fall back. Mechanical CLI/verifier/framing/
+would not prove server goroutine safety. The fixture also builds that server with
+the test-only `stuntgres_reduced_kdf` tag and writes matching `i=4096` verifiers,
+once per test process. Every native login otherwise spends a 600000-iteration
+PBKDF2 (~70 ms), which dominated this package's CPU time. To exercise the
+production cost, add the `productionkdf` tag to the test build:
+
+```sh
+go test -count=1 -tags productionkdf -run '^TestReferenceServer' ./reference/sessions/
+```
+
+Required psql, Docker or pinned-image failures fail visibly, never skip or fall
+back. Mechanical CLI/verifier/framing/
 PID/terminal/file-permission tests stay in `cmd/stuntgres`, without public SQL.
 Non-Linux foreground builds and Windows DACL tests require their platform runners
 for runtime proof; a cross-build alone establishes compilation, not ACL behavior.

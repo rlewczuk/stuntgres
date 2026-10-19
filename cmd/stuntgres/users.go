@@ -13,11 +13,10 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
-
-const passwordIterations = 600000
 
 type account struct {
 	username  string
@@ -95,7 +94,7 @@ func loadAccounts(path string, secure bool) (accounts, error) {
 			return nil, fmt.Errorf("duplicate user at line %d", line)
 		}
 		parts := strings.Split(fields[1], "$")
-		if len(parts) != 5 || parts[0] != "" || parts[1] != "pbkdf2-sha256" || parts[2] != "i=600000" {
+		if len(parts) != 5 || parts[0] != "" || parts[1] != "pbkdf2-sha256" || parts[2] != "i="+strconv.Itoa(passwordIterations) {
 			return nil, fmt.Errorf("unsupported or malformed verifier at line %d", line)
 		}
 		salt, err := decodeVerifierPart(parts[3], 16)
@@ -194,7 +193,7 @@ func updateAccount(path, username, password string, databases []string, grantsSe
 	sort.Strings(names)
 	for _, name := range names {
 		a := all[name]
-		if _, err := fmt.Fprintf(f, "%s:$pbkdf2-sha256$i=600000$%s$%s:%s\n", a.username, base64.RawStdEncoding.EncodeToString(a.salt), base64.RawStdEncoding.EncodeToString(a.key), strings.Join(a.databases, ",")); err != nil {
+		if _, err := fmt.Fprintf(f, "%s:$pbkdf2-sha256$i=%d$%s$%s:%s\n", a.username, passwordIterations, base64.RawStdEncoding.EncodeToString(a.salt), base64.RawStdEncoding.EncodeToString(a.key), strings.Join(a.databases, ",")); err != nil {
 			return err
 		}
 	}
