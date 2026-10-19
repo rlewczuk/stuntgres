@@ -9,8 +9,9 @@ import (
 )
 
 // parameterProvider validates parameter ACL identities against the engine's
-// setting definitions, which close at construction.
-type parameterProvider struct{ definitions map[string]SettingDefinition }
+// immutable setting registry. The pointer borrows the Engine-owned value, which
+// is initialized before provider registration and never replaced or mutated.
+type parameterProvider struct{ settings *settingsRegistry }
 
 func (parameterProvider) ClassID() ids.OID { return ids.ParameterClassID }
 func (p parameterProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) error {
@@ -18,7 +19,7 @@ func (p parameterProvider) Validate(v catalog.Read, descriptor catalog.Descripto
 	if !ok || d == nil || v.Owner() == nil || v.State() == nil || v.Get(d.Address()) != d {
 		return fmt.Errorf("stuntgres: invalid parameter descriptor authority")
 	}
-	name, err := canonicalGrantParameter(p.definitions, d.Name())
+	name, err := canonicalGrantParameter(*p.settings, d.Name())
 	if err != nil || name != d.Name() || d.Address().ClassID != ids.ParameterClassID || d.Address().ObjectID == 0 || d.Address().SubID != 0 || d.Revision() == 0 || v.NameAddress(catalog.DescriptorNameKey(d)) != d.Address() {
 		return fmt.Errorf("stuntgres: invalid parameter descriptor")
 	}
@@ -29,12 +30,12 @@ func (p parameterProvider) Validate(v catalog.Read, descriptor catalog.Descripto
 // targets. In particular, PostgreSQL aliases for absent providers do not invent
 // settings here. This never calls normalization or default-provider callbacks.
 func (e *Engine) canonicalGrantParameter(name string) (string, error) {
-	return canonicalGrantParameter(e.settingsDefinitions, name)
+	return canonicalGrantParameter(e.settings, name)
 }
 
-func canonicalGrantParameter(definitions map[string]SettingDefinition, name string) (string, error) {
+func canonicalGrantParameter(settings settingsRegistry, name string) (string, error) {
 	key := settingFold(name)
-	if _, ok := definitions[key]; ok {
+	if _, ok := settings.Definitions()[key]; ok {
 		return key, nil
 	}
 	if customName(key) {

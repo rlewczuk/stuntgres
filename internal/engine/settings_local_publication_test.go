@@ -12,13 +12,19 @@ import (
 func TestSettingsLocalNormalizerPublication(t *testing.T) {
 	for _, mode := range []string{"cancel", "replace", "inspect"} {
 		t.Run(mode, func(t *testing.T) {
-			e := New()
-			s := sessionStart(t, e, nil)
-			sessionSQL(t, s, "SET application_name='b'")
+			d, err := ValidateSetting(SettingDefinition{Name: "demo.normalizer", Type: SettingString, BootDefault: "b"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var e *Engine
+			var s *Session
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			d := e.settingsDefinitions["application_name"]
+			// Attach the witness before publication; defaults cannot trigger it.
 			d.Normalize = func(input string) (string, *sqlstate.Error, error) {
+				if input != "transient" {
+					return input, nil, nil
+				}
 				switch mode {
 				case "cancel":
 					cancel()
@@ -37,7 +43,8 @@ func TestSettingsLocalNormalizerPublication(t *testing.T) {
 				}
 				return input, nil, nil
 			}
-			e.settingsDefinitions[d.Name] = d
+			e = NewWithSettings([]SettingDefinition{d}, "", false)
+			s = sessionStart(t, e, nil)
 			op, err := s.Acquire(ctx)
 			if err != nil {
 				t.Fatal(err)
@@ -47,7 +54,7 @@ func TestSettingsLocalNormalizerPublication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			result, err := scope.Execute(statement(t, "SELECT set_config('application_name','transient',true)"), 0, nil)
+			result, err := scope.Execute(statement(t, "SELECT set_config('demo.normalizer','transient',true)"), 0, nil)
 			finish := scope.Finish(err)
 			if mode == "cancel" {
 				if !errors.Is(err, context.Canceled) || !errors.Is(finish, context.Canceled) {
@@ -65,7 +72,7 @@ func TestSettingsLocalNormalizerPublication(t *testing.T) {
 				}
 				result.Rows.Close()
 			}
-			localOwnerValue(t, s, "application_name", "b")
+			localOwnerValue(t, s, "demo.normalizer", "b")
 		})
 	}
 }

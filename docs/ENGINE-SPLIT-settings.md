@@ -22,6 +22,15 @@ per-session store and SET/SHOW execution stay in the engine for step 13.
 
 ## Inventory (measured at `75fe0d710`)
 
+This table is historical. Settings8a now keeps definitions, values and helpers
+in the engine: `settings_registry.go` owns construction/lookup/borrowed metadata,
+`settings_search_path.go` owns the pure parser, and `settings_notices.go` owns
+the notice setting definition and text normalizer. Runtime path resolution and
+notice emission remain in their original files. `parameterProvider` borrows a
+pointer to the same Engine-owned registry value without mutation or replacement.
+The former Engine fields and lookup methods are removed; the current
+migration/evidence record is in [Status](#status).
+
 Re-measure first: `master` moves fast, and `PG18-ADMIN-SETTINGS-*` parts add
 builtin settings (`row_security` landed at `2205fe385`, together with the
 `pg_settings` producer in `pg_settings.go`, which reads `sessionSettings` and
@@ -43,13 +52,15 @@ Dirty declarations in `settings.go`, all three on `Engine`:
 - `settingDefinitions` (`:218`) returns the map.
 - `setting` (`:219`) looks one definition up.
 
-Engine state: `Engine.settingsDefinitions map[string]SettingDefinition` (16
-uses in 10 files) and `Engine.settingsOrder []string` (7 uses in 4 files).
-Both are written only by `initializeSettings`, during `newEngine`.
+Historical Engine state was split between `settingsDefinitions` and
+`settingsOrder`. The pre-8a semantic census found 35 definitions selectors,
+12 order selectors and 9 legacy method calls across 23 Go files. Besides the
+constructor, the private normalizer/publication witness wrote the map; 8a
+replaces that setup with a definition installed before construction.
 
-Direct reads of the unexported `bootValue` outside `settings.go`:
-`schema_path.go:85` and `sequence_prepared.go:50` (both `search_path`), and
-`session_settings.go:192` (`initialize`).
+`SettingDefinition.BootValue()` now supplies exact typed defaults to
+`schema_path.go`, `sequence_prepared.go` and `session_settings.initialize`.
+Settings-owned construction and exact-payload units may inspect private storage.
 
 Other definition literals outside `settings.go`: `index_options.go:77`
 (parses a boolean storage option through `SettingDefinition.parse`),
@@ -73,15 +84,15 @@ Users outside the package (keep them compiling):
 1. Add an engine-local `settingsRegistry` (new file `settings_registry.go`)
    with `definitions map[string]SettingDefinition` and `order []string`.
    `Engine` holds it by value as `settings` and never replaces it. Document
-   that it is immutable after `newEngine`, so reads need no lock. Confirm that
-   with a grep: no write after construction.
+   that it is immutable after construction, so reads need no lock. Confirm with
+   a typed selector/write census plus manual alias and borrowed-storage tracing.
 2. Replace `initializeSettings` with a pure constructor
    `newSettingsRegistry(registered []SettingDefinition, trackCommitTimestamps
    bool) settingsRegistry`. `newEngine` passes
    `e.visibility.TracksCommitTimestamps()`. Keep the panic for invalid builtin
    boot values and the sort of `order`.
 3. Turn `Engine.setting` and `Engine.settingDefinitions` into registry methods
-   (`Lookup(name)`, `Definitions()`, `Order()`), and rewrite the 23 field uses
+   (`Lookup(name)`, `Definitions()`, `Order()`), and rewrite semantic consumers
    with a `go/types` selector tool. Keep error values and messages identical.
 4. Add `SettingDefinition.BootValue() settingValue` and use it at
    `schema_path.go:85`, `sequence_prepared.go:50` and
@@ -92,8 +103,9 @@ Users outside the package (keep them compiling):
    `settings_notices.go`). `noticeLevel` stays in `notices.go` if `Operation`
    needs it; the normalizer then returns the level text only. Check before
    moving.
-6. `parameterProvider` takes the registry instead of a raw map
-   (`engine.go:201`, `pg_parameter_acl.go:28`, `catalog.go:577`).
+6. `parameterProvider` borrows `*settingsRegistry` instead of a raw map, while
+   Engine retains its single value (`engine.go:201`, `pg_parameter_acl.go:28`,
+   `catalog.go:577`).
 
 No behavior change. One commit per numbered group is fine.
 
@@ -156,7 +168,7 @@ read `Session`, `Operation`, session authorization or the transaction owner.
 ## Targeted tests
 
 - Engine unit tests over settings: grep `*_test.go` for `SettingDefinition`,
-  `ValidateSetting`, `settingsDefinitions`, `builtinSettings` and
+  `ValidateSetting`, `settings.Definitions`, `builtinSettings` and
   `parseSearchPath`. Those that test pure definition behavior move with the
   code in 8b.
 - Reference selections (quick mode and `REFERENCE=1`): grep `reference/` for
@@ -186,11 +198,131 @@ startup regression.
 
 ## Status
 
-- [ ] 8a — Registry in place
+- [x] 8a — Registry in place: implementation and proof complete; review/integration pending
 - [ ] 8b — `settings` created and definitions moved
 - [ ] 8c — Aliases removed
 
 Outstanding aliases: none yet.
+
+8a implementation/proof evidence (root observations; review/integration pending):
+
+- Root executed the temporary standard-library `go/ast` + `go/types` census and
+  selector migration. Corrected census: `Engine.settingsDefinitions` 32 reads /
+  3 writes; `settingsOrder` 11 reads / 1 write; `initializeSettings` 1 call,
+  `settingDefinitions` 1 call, `setting` 7 calls; five declarations, one each.
+  The 47 field selectors plus 9 method calls supersede the old 23-use estimate.
+  Production and same-package test variants were loaded; no ignored or cgo Go
+  files were reported. An initial helper deduplication bug omitted nested
+  selectors; the corrected census, not that initial output, drove migration.
+- `Engine.settings` is assigned at the former initialization boundary before
+  provider registration. The independent constructor preserves builtin parsing,
+  panic and sorting, uses the supplied tracking Boolean, and inserts validated
+  custom typed defaults without reparsing them. Accessors borrow immutable
+  maps/slices; no read-time copying, locks, callbacks or placeholder insertion.
+- Manual borrowing trace: session initialization reads the map/order and stores
+  typed values in separate session maps; provider enum metadata is defensively
+  copied before callback. Lookup/membership/SHOW/reset/characteristic consumers
+  only read definitions. Parameter provider holders borrow `&Engine.settings`;
+  validation dereferences it only for the existing read-only canonicalization
+  helper. No registry is allocated separately or written through that pointer.
+  Boot paths are retained as immutable values; path resolution ranges over
+  entries and builds a separate address result.
+  Parsing creates a fresh path; private path overrides assign that new value to
+  session storage. Enum mutation in the ownership witness targets only the
+  provider's defensive copy. Constructor-local map insertion/order append/sort
+  are the intended registry writes. The refreshed typed audit in `tests-3.md`
+  reports zero legacy declarations/selectors, `Engine.settings` 46 reads /
+  1 write, `BootValue` 3 calls, `Definitions` 25 calls, `Lookup` 7 calls and
+  `Order` 9 calls. Registry definitions have 2 reads / 1 write and order has
+  3 reads / 1 write. The semantic audit plus manual alias/escape trace covers
+  the five provider address-taking sites, borrowed map/order/enum/path storage,
+  construction-local writes and callback-owned enum copies; no postpublication
+  mutation or replacement was identified.
+- Parameter provider registration, catalog validation, ACL capture and grant
+  canonicalization share that registry. Sparse descriptor identity and error
+  precedence, bounded row_security-only `pg_settings`, runtime session state and
+  publication locks are unchanged.
+- No units moved or were deleted. `TestSettingsLocalNormalizerPublication` is
+  substantially rewritten only in setup/name: a validated `demo.normalizer`
+  definition with boot `b` gets its callback before construction. Only staged
+  `transient` input triggers real cancellation, Reset or three-lock inspection.
+  Original cancellation/Finish, successful result, cleanup and owner-default
+  assertions remain. Other private units use the migrated selectors.
+- Root attempted LSP references but no language server was available. The
+  temporary helper supplies semantic selector/type references instead; public
+  root and cmd adapters retain their existing types and signatures.
+- Root reports are retained under
+  `.cswd/parts/PG18-ENGINE-SPLIT-SETTINGS-REGISTRY/`.
+  `tests-2.md` records the initial cutover's typed audit, build, U1–U5,
+  R1–R9 in native and pinned PostgreSQL18.6 modes, actual public API smoke,
+  deps and downward-layering checks passing. Whole quickcheck initially failed
+  at `TestReferenceTimeoutTransactionAbortRestore/statement/child=false/memory`,
+  `timeout_transaction_test.go:363`, with unexpected statement timeout
+  (exit2, wall354.29s); chained racecheck was not reached. This was in private
+  transaction preparation, not the intended blocked-command timeout assertion;
+  retained output does not identify the exact preparation SQL command.
+- The narrow provider-pointer remedy preserves the Engine-owned registry value
+  and changes only provider borrowing and its literals. `tests-3.md` records
+  fresh build, typed audit, U3 with `RACE=1`, R8/R9 in both native and pinned
+  modes, the same public API smoke and full quickcheck passing. Unaffected
+  U1/U2/U4/U5 and R1–R7 proof remains in `tests-2.md`. The smoke observed
+  registered boot/reset, live held reads, two physical sessions' isolation,
+  SHOW ALL TEXT metadata/descriptions/order, quoted search-path resolution,
+  notice filtering/info/debug and constructor tracking off/on. Parameter
+  grants/authority are exercised by R8/R9, not inferred from registration.
+  The initial timeout failure remains recorded, not claimed causally fixed.
+- The default full race run in `tests-3.md` failed four context-deadline
+  scenarios: `TestReferenceObjectAddressAuthorityRoutines`,
+  `TestReferenceStringCoreReview2DeparseSourceConsumerRoutes`,
+  `TestReferenceInfoSQLIdentifierNativeControls` and
+  `TestReferenceInfoYesOrNoNativeControls`. Its chained deps command was not
+  reached; passing dependency/layering evidence is from `tests-2.md`.
+  `tests-4.md` records `GOMAXPROCS=4 make racecheck` unfinished at the external
+  900s deadline (wall900.06s): emitted packages passed, but this is not a suite
+  pass. `tests-5.md` records `GOMAXPROCS=8 make racecheck` exit0,
+  wall896.52s within the same900s deadline, with all packages passing.
+  No production/test timeout, assertion or coverage changes were made.
+- Observed host load averages were 134.43/119.65/81.17 before remedy proof,
+  then 116.73/147.15/143.84. **[INFERENCE]** Scheduling contention is consistent
+  with the timing/deadline variability, but load observations do not establish
+  its cause or exclude a latent timeout issue. The concurrency override is
+  evidence of a passing run, not a guaranteed repair.
+- Five fresh-engine startup samples per round, from `make bench`
+  (`BenchmarkOpenDatabase`; ns/op, B/op, allocs/op):
+
+  |Round / sample|ns/op|B/op|allocs/op|
+  |---|---:|---:|---:|
+  |Baseline tests-1 / 1|985389|1659995|5160|
+  |Baseline tests-1 / 2|1169671|1656222|5152|
+  |Baseline tests-1 / 3|1234896|1657757|5152|
+  |Baseline tests-1 / 4|1411015|1656222|5152|
+  |Baseline tests-1 / 5|1778083|1655435|5152|
+  |Initial cutover tests-2 / 1|1284128|1658681|5162|
+  |Initial cutover tests-2 / 2|1137240|1658000|5154|
+  |Initial cutover tests-2 / 3|1137967|1656450|5153|
+  |Initial cutover tests-2 / 4|2142314|1659796|5153|
+  |Initial cutover tests-2 / 5|2663370|1654709|5153|
+  |Pointer remedy tests-3 / 1|18646758|1625522|5224|
+  |Pointer remedy tests-3 / 2|12679016|1641938|5151|
+  |Pointer remedy tests-3 / 3|4513226|1624894|5150|
+  |Pointer remedy tests-3 / 4|7382864|1645059|5151|
+  |Pointer remedy tests-3 / 5|5784624|1632096|5150|
+
+  Stable allocation observations are baseline5152 → interim5153 →
+  remedy5150–5151, with a cold remedy sample5224. **[INFERENCE]** Boxing the
+  former four-word registry inside the interface-held provider may explain
+  the interim +1 allocation; no compiler allocation trace establishes that
+  mechanism. Fresh samples no longer show that stable allocation regression,
+  but do not establish guaranteed allocation recovery on every run. Four
+  baseline samples already missed the <1ms target; all remedy samples miss it
+  (4.51–18.65ms). These timings do not demonstrate a speedup or satisfaction
+  of the startup target, nor isolate a registry-attributable timing change.
+- Only 8a implementation/proof is complete. Independent review and integration
+  remain pending; `make finalcheck` is pending postintegration, not a recorded
+  success. Root will refresh quickcheck and smoke after these documentation
+  edits before review. No permanent tooling, reference/smoke edits or new
+  settings package are part of this refactor; 8b/8c remain untouched.
+
 
 Notes for later steps:
 

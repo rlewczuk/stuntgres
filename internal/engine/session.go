@@ -198,7 +198,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	_, err := op.Attach(Settings, owner)
 	if err == nil {
 		s.settings = owner
-		err = owner.initialize(op.Context(), e.settingDefinitions(), e.settingsOrder, start.Defaults)
+		err = owner.initialize(op.Context(), e.settings.Definitions(), e.settings.Order(), start.Defaults)
 		if err == nil {
 			owner.mu.Lock()
 			s.mu.Lock()

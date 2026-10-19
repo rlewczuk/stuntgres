@@ -180,7 +180,7 @@ func TestSchemaSearchPathSessionDefaultsAndSpecials(t *testing.T) {
 		if got := tc.session.settings.typedValue("search_path").path; !reflect.DeepEqual(got, tc.want) {
 			t.Fatal("initial typed setting", got, tc.want)
 		}
-		override, err := e.settingsDefinitions["search_path"].parse("public")
+		override, err := e.settings.Definitions()["search_path"].parse("public")
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -841,15 +841,23 @@ Part A now:   14 routine ──▶ 15 typedef ──▶ 16 extension;  Tier C se
 and their constants, `settingValue`, parsing, formatting, unit conversion and
 validation (`settings.go`), the builtin table `builtinSettings`, the encoding
 and locale normalizers (`settings_format_encoding.go`), `parseSearchPath`
-(`schema_path.go`) and the `client_min_messages` normalizer (`notices.go`).
+(`settings_search_path.go`) and the client-min-messages definition/normalizer
+(`settings_notices.go`). The latter two were relocated in place in 8a.
 Names lose their stutter in the move (`settings.Definition`, `settings.Type`,
 `settings.Value`).
 
-**In-place port (8a).** `Engine.settingsDefinitions` and `settingsOrder`
-become one immutable `settingsRegistry`, built once by a pure constructor that
-takes `trackCommitTimestamps` instead of reading `e.visibility`. Direct reads
-of `bootValue` (`schema_path.go`, `sequence_prepared.go`) go through an
-accessor. `parameterProvider` takes the registry.
+**In-place port (8a), implementation/proof complete; review/integration pending.** `Engine.settings`
+holds one immutable `settingsRegistry`, built once by a pure constructor taking
+`trackCommitTimestamps` instead of reading `e.visibility`. `Lookup`,
+`Definitions` and `Order` replace the former fields/methods. Exact typed defaults
+in schema-path, prepared-sequence and session initialization consumers use
+`SettingDefinition.BootValue`; borrowed maps/slices must remain read-only.
+`parameterProvider` borrows a pointer to the same Engine-owned registry value.
+Root proof includes selected native/pinned checks, full quickcheck and a full
+racecheck pass with `GOMAXPROCS=8`; prior failures and measured startup-target
+misses remain recorded. `make finalcheck` is pending postintegration. See the
+[8a evidence/status](ENGINE-SPLIT-settings.md#status); package creation and
+alias removal remain 8b/8c work.
 
 **Stays in the engine** until step 13: per-session storage
 (`sessionSettings`, the SET LOCAL action stack, savepoint `settingsMark`),
@@ -1199,7 +1207,7 @@ package-specific scope. This section holds the rules every session follows.
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | done (6a–6c); optional 6d open |
 | 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | done (7a–7c) |
 | A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | done (A1, B0–B4, names cleanup); B5 after 12d |
-| 8 | [`ENGINE-SPLIT-settings.md`](ENGINE-SPLIT-settings.md) | — | planned (8a–8c) |
+| 8 | [`ENGINE-SPLIT-settings.md`](ENGINE-SPLIT-settings.md) | — | 8a implementation/proof complete, review/integration pending; 8b–8c planned |
 | 9 | [`ENGINE-SPLIT-pgcatalog.md`](ENGINE-SPLIT-pgcatalog.md) | 5, B4; 8b for 9b | planned (9a–9c) |
 | 10 | [`ENGINE-SPLIT-plan.md`](ENGINE-SPLIT-plan.md) | 2, 3 F1, 5 | planned (10a–10d) |
 | 11 | [`ENGINE-SPLIT-exec.md`](ENGINE-SPLIT-exec.md) | 10c, 13a | planned (11a–11d) |

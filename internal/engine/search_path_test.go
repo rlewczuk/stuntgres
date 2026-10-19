@@ -61,7 +61,7 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 		t.Fatal(err)
 	}
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.bounded(id pg_catalog._name)")
-	setting, err := e.settingsDefinitions["search_path"].parse("hidden,missing,visible,visible,public")
+	setting, err := e.settings.Definitions()["search_path"].parse("hidden,missing,visible,visible,public")
 	if err != nil {
 		t.Fatal(err)
 	}

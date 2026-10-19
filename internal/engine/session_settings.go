@@ -190,7 +190,7 @@ func (s *sessionSettings) initialize(ctx context.Context, definitions map[string
 	s.placeholders = make(map[string]bool)
 	for _, name := range names {
 		d := definitions[name]
-		v := d.bootValue
+		v := d.BootValue()
 		normalized := d.BootDefault
 		if provider != nil {
 			copy := d
@@ -263,12 +263,12 @@ func (s *sessionSettings) typedValue(name string) settingValue {
 }
 func (e *Engine) sessionSetting(s *sessionSettings, name string, create bool) (SettingDefinition, error) {
 	key := settingFold(name)
-	if d, ok := e.settingsDefinitions[key]; ok {
+	if d, ok := e.settings.Definitions()[key]; ok {
 		return d, nil
 	}
 	if !s.placeholders[key] {
 		if !create || !strings.Contains(name, ".") {
-			return e.setting(name)
+			return e.settings.Lookup(name)
 		}
 		if !customName(name) {
 			return SettingDefinition{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42602", Message: fmt.Sprintf(`invalid configuration parameter name "%s"`, name), Detail: "Custom parameter names must be two or more simple identifiers separated by dots."}
@@ -351,7 +351,7 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d SettingDe
 		return "", errors.New("stuntgres: settings attachment ended")
 	}
 	owner.touch(d.Name, local)
-	if _, registered := e.settingsDefinitions[d.Name]; !registered {
+	if _, registered := e.settings.Definitions()[d.Name]; !registered {
 		owner.placeholders[d.Name] = true
 	}
 	if input == nil {
@@ -444,12 +444,12 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 			e.resetAllSettingsLocked(op.session)
 			return Result{}, nil
 		}
-		rows := make([][]sqltype.Value, 0, len(e.settingsOrder))
-		for _, key := range e.settingsOrder {
+		rows := make([][]sqltype.Value, 0, len(e.settings.Order()))
+		for _, key := range e.settings.Order() {
 			if err := op.ctx.Err(); err != nil {
 				return Result{}, err
 			}
-			d := e.settingsDefinitions[key]
+			d := e.settings.Definitions()[key]
 			rows = append(rows, []sqltype.Value{sqltype.String(typ, settingDisplayName(key)), sqltype.String(typ, owner.value(key)), sqltype.String(typ, d.Description)})
 		}
 		if err := op.ctx.Err(); err != nil {

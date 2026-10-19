@@ -224,7 +224,7 @@ func TestSettingProviderDefaultsAndDescriptorOwnership(t *testing.T) {
 	e := NewWithSettings(defs, "", false)
 	p := &settingsDefaultProviderForTest{values: map[string]string{"demo.mode": "FAST"}, calls: map[string]int{}}
 	a := sessionStart(t, e, p)
-	for _, name := range e.settingsOrder {
+	for _, name := range e.settings.Order() {
 		if p.calls[name] != 1 {
 			t.Fatal(name, p.calls)
 		}

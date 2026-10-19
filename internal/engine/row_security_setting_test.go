@@ -11,7 +11,7 @@ import (
 func TestRowSecuritySettingsCapture(t *testing.T) {
 	e := New()
 	settings := &sessionSettings{defaults: make(map[string]string), values: make(map[string]string)}
-	if err := settings.initialize(context.Background(), e.settingsDefinitions, e.settingsOrder, nil); err != nil {
+	if err := settings.initialize(context.Background(), e.settings.Definitions(), e.settings.Order(), nil); err != nil {
 		t.Fatal(err)
 	}
 	session := &Session{settings: settings}
@@ -37,7 +37,7 @@ func TestRowSecuritySettingProvenance(t *testing.T) {
 	e := New()
 	provider := &settingsDefaultProviderForTest{values: map[string]string{"row_security": "off"}, calls: map[string]int{}}
 	settings := &sessionSettings{defaults: make(map[string]string), values: make(map[string]string)}
-	if err := settings.initialize(context.Background(), e.settingsDefinitions, e.settingsOrder, provider); err != nil {
+	if err := settings.initialize(context.Background(), e.settings.Definitions(), e.settings.Order(), provider); err != nil {
 		t.Fatal(err)
 	}
 	view := e.CatalogRead()

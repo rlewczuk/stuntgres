@@ -153,7 +153,7 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 				}
 			}
 			e.mu.Lock()
-			d := e.settingsDefinitions[name]
+			d := e.settings.Definitions()[name]
 			e.mu.Unlock()
 			if _, err := e.applySetting(s.op, t.session.settings, d, &value, false); err != nil {
 				return Result{}, err

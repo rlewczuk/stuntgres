@@ -91,7 +91,7 @@ through `*querySource`, which holds `scope *StatementScope`. With
 
 - the `Engine` methods, which use only `e.catalog.owner()`,
   `e.catalog.Domain`, `e.roles.domain`, `e.roles.aclAuthority`, `e.pgClassACL`
-  and `e.settingsDefinitions`. `catalog.Owner` already holds `Domain`,
+  and `e.settings` (the immutable settings registry since 8a). `catalog.Owner` already holds `Domain`,
   `Principals` and `ACLAuthority`;
 - `captureDataTypePrivileges` (`auth.session` for the TEMP namespace check);
 - `captureTablePrivileges` and `capturePGIndexes` (`auth.checkColumns` with a

@@ -92,7 +92,7 @@ func timeoutPendingFixtureWithBudget(t *testing.T, child bool, transactionBudget
 		t.Fatal(err)
 	}
 	parent := "parent"
-	if _, err := e.applySetting(begin, s.settings, e.settingsDefinitions["application_name"], &parent, false); err != nil {
+	if _, err := e.applySetting(begin, s.settings, e.settings.Definitions()["application_name"], &parent, false); err != nil {
 		t.Fatal(err)
 	}
 	begin.Done()
@@ -233,7 +233,7 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 				scope := timeoutPendingScope(t, op)
 				if child {
 					value := "child"
-					if _, err := s.Engine().applySetting(op, s.settings, s.Engine().settingsDefinitions["application_name"], &value, false); err != nil {
+					if _, err := s.Engine().applySetting(op, s.settings, s.Engine().settings.Definitions()["application_name"], &value, false); err != nil {
 						scope.Finish(err)
 						t.Fatal(err)
 					}
@@ -585,7 +585,7 @@ func TestSessionTimeoutResidualBeforeIdle(t *testing.T) {
 		time.Sleep(300 * time.Millisecond)
 		assignment := timeoutPendingOperation(t, s)
 		idle := "375ms"
-		_, err := e.applySetting(assignment, s.settings, e.settingsDefinitions["idle_in_transaction_session_timeout"], &idle, false)
+		_, err := e.applySetting(assignment, s.settings, e.settings.Definitions()["idle_in_transaction_session_timeout"], &idle, false)
 		assignment.Done() // The actual ready boundary arms the idle timer.
 		if err != nil {
 			t.Fatal("assigning residual idle budget", err)

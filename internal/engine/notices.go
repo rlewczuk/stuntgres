@@ -1,11 +1,8 @@
 package engine
 
 import (
-	"errors"
 	"fmt"
-	"strings"
 	"stuntgres/internal/sqlstate"
-	"unicode/utf8"
 )
 
 type noticeLevel uint8
@@ -22,8 +19,6 @@ const (
 	levelWarning
 	levelError
 )
-
-var clientMinMessages = SettingDefinition{Name: "client_min_messages", Type: SettingEnum, BootDefault: "notice", Description: "Sets the message levels that are sent to the client.", EnumValues: []string{"debug5", "debug4", "debug3", "debug2", "debug1", "log", "notice", "warning", "error"}, Normalize: normalizeClientMinMessages}
 
 func messageLevel(value string) (noticeLevel, bool) {
 	switch value {
@@ -49,19 +44,6 @@ func messageLevel(value string) (noticeLevel, bool) {
 		return levelError, true
 	}
 	return 0, false
-}
-func normalizeClientMinMessages(value string) (string, *sqlstate.Error, error) {
-	if !utf8.ValidString(value) {
-		return "", nil, errors.New("stuntgres: invalid UTF-8 setting")
-	}
-	normalized := strings.ToLower(value)
-	if _, ok := messageLevel(normalized); !ok {
-		return "", nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid value for parameter "client_min_messages": "%s"`, value), Hint: "Available values: debug5, debug4, debug3, debug2, debug1, log, notice, warning, error."}
-	}
-	if normalized == "debug" {
-		normalized = "debug2"
-	}
-	return normalized, nil, nil
 }
 func (op *Operation) snapshotNoticeThreshold() {
 	s := op.session.settings

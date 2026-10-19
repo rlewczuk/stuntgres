@@ -40,7 +40,7 @@ func TestSettingsTimezoneAbbreviationsCapturedProvider(t *testing.T) {
 	check(a, sqltype.TimezoneAbbreviationsAustralia)
 	sessionSQL(t, a, "COMMIT")
 	check(a, sqltype.TimezoneAbbreviationsIndia)
-	def := e.settingsDefinitions["timezone_abbreviations"]
+	def := e.settings.Definitions()["timezone_abbreviations"]
 	if _, err := def.parse("default"); err == nil {
 		t.Fatal("invalid exact-case name accepted")
 	}

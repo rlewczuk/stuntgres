@@ -180,7 +180,7 @@ func (e *Engine) resetAllSettingsLocked(session *Session) {
 	owner := session.settings
 	timeoutChanged, transactionAssignment := false, false
 	for key := range owner.values {
-		if d, ok := e.settingsDefinitions[key]; ok && d.Access != SettingSession && d.Name != "lc_messages" {
+		if d, ok := e.settings.Definitions()[key]; ok && d.Access != SettingSession && d.Name != "lc_messages" {
 			continue
 		}
 		owner.touch(key, false)

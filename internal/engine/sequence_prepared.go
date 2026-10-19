@@ -47,7 +47,7 @@ func (e *Engine) sequenceEnvironmentLocked(auth AuthorizationView) (sequenceEnvi
 		key.text = auth.settings.typedValue("search_path").text
 		auth.settings.mu.Unlock()
 	} else {
-		key.text = e.settingsDefinitions["search_path"].bootValue.text
+		key.text = e.settings.Definitions()["search_path"].BootValue().text
 	}
 	if auth.session != nil && auth.session.sequencePath.valid && auth.session.sequencePath.key == key {
 		return auth.session.sequencePath.environment, nil

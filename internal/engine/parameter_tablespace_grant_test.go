@@ -60,11 +60,11 @@ func TestObjectGrantParameterPublication(t *testing.T) {
 			if authorization.ACLRights(d.ACL, d.Owner, []authorization.PrincipalRef{reader}, mask, true) != mask || !slices.Contains(descriptorReferences(d), reader) {
 				t.Fatal("parameter ALL/options/dependencies omit sA", d.ACL)
 			}
-			if err := (parameterProvider{e.settingsDefinitions}).Validate(e.catalog.read(e.catalog.state), d); err != nil {
+			if err := (parameterProvider{&e.settings}).Validate(e.catalog.read(e.catalog.state), d); err != nil {
 				t.Fatal(err)
 			}
 			copy := *d
-			if err := (parameterProvider{e.settingsDefinitions}).Validate(e.catalog.read(e.catalog.state), &copy); err == nil {
+			if err := (parameterProvider{&e.settings}).Validate(e.catalog.read(e.catalog.state), &copy); err == nil {
 				t.Fatal("copied parameter descriptor accepted as authority")
 			}
 			copy.Owner = authorization.PrincipalRef{}
@@ -196,7 +196,7 @@ func TestObjectGrantParameterSettingAccess(t *testing.T) {
 	e, ownerOp, _, _ := objectGrantUnitFixture(t)
 	readerOp, done := roleOperation(t, e, "grant_reader")
 	defer done()
-	d := e.settingsDefinitions["lc_messages"]
+	d := e.settings.Definitions()["lc_messages"]
 	if err := settingAccess(d, readerOp); err == nil {
 		t.Fatal("unprivileged lc_messages setter admitted")
 	}
@@ -215,10 +215,10 @@ func TestObjectGrantParameterSettingAccess(t *testing.T) {
 	if err := settingAccess(d, readerOp); err != nil {
 		t.Fatal("actual lc_messages setter ignored SET ACL", err)
 	}
-	if err := settingAccess(e.settingsDefinitions["application_name"], readerOp); err != nil {
+	if err := settingAccess(e.settings.Definitions()["application_name"], readerOp); err != nil {
 		t.Fatal("USERSET unexpectedly depends on ACL", err)
 	}
-	for _, definition := range []SettingDefinition{e.settingsDefinitions["server_encoding"], {Name: "private.protected", Access: SettingPrivileged}} {
+	for _, definition := range []SettingDefinition{e.settings.Definitions()["server_encoding"], {Name: "private.protected", Access: SettingPrivileged}} {
 		if err := settingAccess(definition, readerOp); err == nil {
 			t.Fatal("read-only or deny-only custom setter admitted")
 		}

@@ -25,7 +25,7 @@ func (e *Engine) capturePGParameterACL(ctx context.Context, view catalog.Read, r
 		if !ok {
 			continue
 		}
-		if err := (parameterProvider{e.settingsDefinitions}).Validate(view, d); err != nil {
+		if err := (parameterProvider{&e.settings}).Validate(view, d); err != nil {
 			return nil, err
 		}
 		if err := access.ValidateACL(roles, d); err != nil {

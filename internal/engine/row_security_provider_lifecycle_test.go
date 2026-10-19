@@ -91,7 +91,7 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer op.Done()
-				if _, err := e.applySetting(op, s.settings, e.settingsDefinitions["row_security"], input, local); err != nil {
+				if _, err := e.applySetting(op, s.settings, e.settings.Definitions()["row_security"], input, local); err != nil {
 					t.Fatal(err)
 				}
 			}

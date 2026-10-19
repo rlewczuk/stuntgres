@@ -574,7 +574,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 			return err
 		}
 	case *catalog.Parameter:
-		if err := (parameterProvider{provider.owner.settingsDefinitions}).Validate(provider.base, d); err != nil {
+		if err := (parameterProvider{&provider.owner.settings}).Validate(provider.base, d); err != nil {
 			return err
 		}
 	case *catalog.Tablespace:

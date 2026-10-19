@@ -32,7 +32,7 @@ type Engine struct {
 	storage              storage.Store
 	sessionMu            sync.Mutex
 	sessions             map[ids.SessionToken]*Session
-	settingsDefinitions  map[string]SettingDefinition
+	settings             settingsRegistry // Immutable, initialized once before publication.
 	visibility           visibility.Registry
 	indexBuildWaits      map[ids.ObjectAddress]indexBuildWait
 	exclusionPending     map[*lock.Ticket]*exclusionProjection
@@ -45,7 +45,6 @@ type Engine struct {
 	foreignNamespaces    map[ids.ObjectAddress]string // Immutable auto-installed namespace identities.
 	foreignValueImporter ForeignValueImporter
 	foreignValueExporter ForeignValueExporter
-	settingsOrder        []string
 }
 type ParameterInfo struct {
 	Count int
@@ -162,7 +161,7 @@ func newEngine(providers []catalog.Provider, definitions []SettingDefinition, da
 	e.locks = lock.New(e.catalog.Domain)
 	e.storage.Sequences = make(map[ids.ObjectAddress]*storage.SequenceGenerator)
 	e.roles.initialize()
-	e.initializeSettings(definitions)
+	e.settings = newSettingsRegistry(definitions, e.visibility.TracksCommitTimestamps())
 	for _, p := range providers {
 		if err := e.RegisterCatalogProvider(p); err != nil {
 			return nil, err
@@ -199,7 +198,7 @@ func newEngine(providers []catalog.Provider, definitions []SettingDefinition, da
 	if err := e.RegisterCatalogProvider(operatorProvider{}); err != nil {
 		return nil, err
 	}
-	if err := e.RegisterCatalogProvider(parameterProvider{e.settingsDefinitions}); err != nil {
+	if err := e.RegisterCatalogProvider(parameterProvider{&e.settings}); err != nil {
 		return nil, err
 	}
 	if err := e.RegisterCatalogProvider(catalog.TablespaceProvider{}); err != nil {

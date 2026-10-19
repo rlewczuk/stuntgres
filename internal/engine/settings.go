@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 	"math/big"
-	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -59,6 +58,10 @@ type SettingDefinition struct {
 	Normalize func(string) (string, *sqlstate.Error, error)
 	bootValue settingValue
 }
+
+// BootValue returns the exact captured default, without reparsing display text.
+// Its path slice is borrowed immutable storage and must not be changed.
+func (d SettingDefinition) BootValue() settingValue { return d.bootValue }
 
 func settingDisplayName(name string) string {
 	switch name {
@@ -194,35 +197,6 @@ func ValidateSetting(d SettingDefinition) (SettingDefinition, error) {
 	return d, nil
 }
 
-func (e *Engine) initializeSettings(defs []SettingDefinition) {
-	e.settingsDefinitions = make(map[string]SettingDefinition, len(builtinSettings)+len(defs))
-	for i, list := range [][]SettingDefinition{builtinSettings, defs} {
-		for _, d := range list {
-			if i == 0 {
-				if d.Name == "track_commit_timestamp" && e.visibility.TracksCommitTimestamps() {
-					d.BootDefault = "on"
-				}
-				v, err := d.parse(d.BootDefault)
-				if err != nil {
-					panic(err)
-				} // Builtin definitions are source-owned constants.
-				d.bootValue = v
-				d.BootDefault = d.format(v)
-			}
-			e.settingsDefinitions[d.Name] = d
-			e.settingsOrder = append(e.settingsOrder, d.Name)
-		}
-	}
-	sort.Strings(e.settingsOrder)
-}
-
-func (e *Engine) settingDefinitions() map[string]SettingDefinition { return e.settingsDefinitions }
-func (e *Engine) setting(name string) (SettingDefinition, error) {
-	if d, ok := e.settingsDefinitions[settingFold(name)]; ok {
-		return d, nil
-	}
-	return SettingDefinition{}, sqlError("42704", fmt.Sprintf(`unrecognized configuration parameter "%s"`, name))
-}
 func normalizeApplicationName(value string) (string, *sqlstate.Error, error) {
 	if !utf8.ValidString(value) {
 		return "", nil, errors.New("stuntgres: invalid UTF-8 setting")

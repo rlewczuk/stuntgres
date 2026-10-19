@@ -20,7 +20,8 @@ as another broad item (§8).
   transaction identity and commit timestamps, advisory locks with blocking
   inquiry). One session each. They touch the same switch files; rebase early.
 - **Optional cleanups** — catalog 5h (item 11), storage 6d (item 12).
-- **Step 8 `settings`** — 8a (item 13).
+- **Step 8 `settings`** — 8a (item 13) implementation/proof complete;
+  review/integration pending. 8b (item 14) follows integration.
 - **Step 9 `pgcatalog`** — 9a (item 16).
 - **In-place untangling** — 10a `EvalContext` split (item 19), 12a
   `binding` split (item 20) and 13a scope slots (item 22). All three are
@@ -228,7 +229,7 @@ Steps 1, 2 and 4–7 and `access` are done.
       at user request)*
     - [ ] B5 — Binding walkers moved next to `binding` (needs 12d)
 - [ ] **Step 8 — `settings`** ([prompt](ENGINE-SPLIT-settings.md); needs —)
-  - [ ] 8a — Registry in place
+  - [x] 8a — Registry in place *(implementation/proof complete; review/integration pending)*
   - [ ] 8b — `settings` created and definitions moved
   - [ ] 8c — Aliases removed
 - [ ] **Step 9 — `pgcatalog`** ([prompt](ENGINE-SPLIT-pgcatalog.md); needs
@@ -343,7 +344,7 @@ in the prompt file's Status section.
 
 ### Group B — independent leaves
 
-13. [ ] Settings 8a — [settings](ENGINE-SPLIT-settings.md) 8a · needs —
+13. [x] Settings 8a — [settings](ENGINE-SPLIT-settings.md) 8a · needs — *(implementation/proof complete; review/integration pending)*
 14. [ ] Settings 8b — [settings](ENGINE-SPLIT-settings.md) 8b · needs 13
 15. [ ] Settings 8c — [settings](ENGINE-SPLIT-settings.md) 8c · needs 14
 16. [ ] pgcatalog 9a — [pgcatalog](ENGINE-SPLIT-pgcatalog.md) 9a · needs —

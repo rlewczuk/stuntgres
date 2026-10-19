@@ -32,6 +32,13 @@ mode and timeout state. Its bounded listing is not a projection of all PostgreSQ
 parameters. Registered custom entries use their registered descriptions; built-in
 descriptions follow the pinned PostgreSQL English metadata.
 
+Internally, each Engine constructs one immutable `settingsRegistry` before
+publication. Its definitions and sorted names are borrowed read-only; typed
+`BootValue` access preserves exact defaults and shared immutable decoded paths
+without reparsing display text. This metadata is separate from physical-session
+values, captured reset defaults, LOCAL journals and timeout state. Registry reads
+never normalize values, invoke default providers or create placeholders.
+
 Setting inspection returns owned anonymous snapshots. Completion releases the
 implicit transaction, not the returned rows; later mutation or physical teardown
 cannot change those values. Native TEXT metadata has string ScanType and known
@@ -101,6 +108,12 @@ names resolve atomically; a late missing/invalid target publishes no prefix.
 Default-equivalent sparse entries can disappear; explicit-empty authority stays
 distinct. Owner/grantor/grantee references participate in DROP OWNED, DROP ROLE,
 native remap validation and pre-output Dump rejection.
+
+Parameter validation and canonicalization consume the same immutable registry
+as session initialization and SHOW ALL, not a second definitions map. Parameter
+providers borrow a pointer to the Engine-owned registry value without replacing
+or mutating it. Descriptor identity still comes from the actual sparse catalog;
+registered settings are not enumerated into parameter ACL rows.
 
 For actual registered protected settings such as lc_messages, SET, RESET and
 set_config check SET authority; ALTER SYSTEM alone does not permit those calls.
@@ -328,6 +341,12 @@ Their eight `TestReferencePGParameterACL` definitions run with the same selector
 in native and pinned `REFERENCE=1` modes; component capture, ownership, snapshot,
 authorization and cancellation proofs use
 `make check RUN='^TestPGParameterACL(ShapeAndOwnership|Capture|Snapshot|Authorization|Cancellation)$' RACE=1`.
+
+Immutable registry ownership and the preconstruction normalizer/publication
+witness have focused private selectors in
+[internal/engine Testing](../internal/engine/README.md#immutable-settings-registry).
+The [settings split status](ENGINE-SPLIT-settings.md#status) distinguishes source
+ownership changes from verification and startup-performance evidence.
 
 Public timeout workloads keep actual direct Execute, Prepare and held statements.
 Active-owner cleanup uses Go Rollback rather than recovery commands submitted

@@ -85,7 +85,7 @@ func TestExtensionSchemaACL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	path, err := e.settingsDefinitions["search_path"].parse("ext_acl")
+	path, err := e.settings.Definitions()["search_path"].parse("ext_acl")
 	if err != nil {
 		t.Fatal(err)
 	}
