@@ -20,7 +20,7 @@ func TestInfoSQLIdentifierBuiltinDescriptor(t *testing.T) {
 	if a == nil || a.ID() != 13247 || a.Element() != d || a.Concrete() || a.Usage().Valid() || a.NamespaceName() != d.NamespaceName() {
 		t.Fatal("selected implicit array became executable", a)
 	}
-	for _, id := range []ID{13243, 13246} {
+	for _, id := range []ID{13246} {
 		if sibling := types[id]; sibling.Concrete() || sibling.Usage().Valid() || !sibling.IsDomain() {
 			t.Fatal("sibling promotion", id)
 		}

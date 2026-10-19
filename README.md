@@ -3387,6 +3387,20 @@ views or migrate the existing table_privileges provider's primitive yes/no field
 Feature smoke: `make check RUN='^TestReferenceInfoYesOrNoFeatureSmoke$'`;
 pinned counterpart: `make check RUN='^TestReferenceInfoYesOrNoFeatureSmoke$' REFERENCE=1`.
 
+Change note: consumer columns can declare the predefined
+`information_schema.cardinal_number`, a nullable nonnegative INT4 domain with
+the genuine `cardinal_number_domain_check` (`VALUE >= 0`). Direct/prepared
+input accepts 0 through 2147483647 and NULL. Logical catalog identity remains
+the qualified domain; physical results expose INT4/Go int64 without length or
+decimal-size metadata and with no collation. Negative input fails23514;
+malformed integer text and overflow retain22P02/22003. Failed multirow INSERT
+publishes no prefix. Qualified native Dump/Reset/Restore preserves values,
+metadata and CHECK enforcement, without emitting CREATE DOMAIN for the builtin.
+The companion remains lookup-only and character_data remains unsupported;
+general information-schema views and existing provider carriers are unchanged.
+Feature smoke: `make check RUN='^TestReferenceInfoCardinalNumberFeatureSmoke$'`;
+pinned counterpart: `make check RUN='^TestReferenceInfoCardinalNumberFeatureSmoke$' REFERENCE=1`.
+
 Change note: `CREATE POLICY`, selective `ALTER POLICY`, policy rename and
 `DROP POLICY [IF EXISTS]` now define immutable, table-attached policy metadata.
 Definitions support PERMISSIVE/RESTRICTIVE, ALL/SELECT/INSERT/UPDATE/DELETE,

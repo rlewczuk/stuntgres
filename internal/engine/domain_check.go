@@ -38,16 +38,27 @@ func (e *Engine) bindDomainChecks(op *Operation, auth AuthorizationView, stage *
 // domains, without a session, SQL execution or a separately allocated type.
 func (e *Engine) initializeBuiltinDomainChecks() error {
 	view := e.catalog.read(e.catalog.state)
-	d := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13256})
-	raw, err := parser.Parse(`CREATE DOMAIN information_schema.yes_or_no AS character varying(3) COLLATE "C" CONSTRAINT yes_or_no_check CHECK (VALUE IN ('YES','NO'))`)
-	if err != nil {
-		return err
+	for _, recipe := range [...]struct {
+		id          ids.OID
+		declaration string
+	}{
+		{13256, `CREATE DOMAIN information_schema.yes_or_no AS character varying(3) COLLATE "C" CONSTRAINT yes_or_no_check CHECK (VALUE IN ('YES','NO'))`},
+		{13243, `CREATE DOMAIN information_schema.cardinal_number AS integer CONSTRAINT cardinal_number_domain_check CHECK (VALUE >= 0)`},
+	} {
+		d := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: recipe.id})
+		raw, err := parser.Parse(recipe.declaration)
+		if err != nil {
+			return err
+		}
+		auth := AuthorizationView{engine: e, View: access.View{
+			Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.roles.published, Catalog: view,
+			Roles: e.roles.read(e.catalog.owner(), view, e.roles.published), State: authorization.RoleState{CurrentUser: d.Owner},
+		}}
+		if err := e.bindDomainCheckRecipes(context.Background(), nil, auth, nil, d, raw[0].(*parser.CreateDomain).Constraints, sqltype.InputEnvironment{}); err != nil {
+			return err
+		}
 	}
-	auth := AuthorizationView{engine: e, View: access.View{
-		Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.roles.published, Catalog: view,
-		Roles: e.roles.read(e.catalog.owner(), view, e.roles.published), State: authorization.RoleState{CurrentUser: d.Owner},
-	}}
-	return e.bindDomainCheckRecipes(context.Background(), nil, auth, nil, d, raw[0].(*parser.CreateDomain).Constraints, sqltype.InputEnvironment{})
+	return nil
 }
 
 func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {

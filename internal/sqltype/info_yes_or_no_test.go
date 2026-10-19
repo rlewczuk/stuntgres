@@ -40,7 +40,7 @@ func TestInfoYesOrNoBuiltinDescriptor(t *testing.T) {
 	if a == nil || a.ID() != 13255 || a.Element() != d || a.Concrete() || a.Usage().Valid() || a.NamespaceName() != d.NamespaceName() {
 		t.Fatal("selected companion authority", a)
 	}
-	for _, id := range []ID{13243, 13246} {
+	for _, id := range []ID{13246} {
 		if sibling := types[id]; sibling.Concrete() || sibling.Usage().Valid() || !sibling.IsDomain() {
 			t.Fatal("sibling promotion", id)
 		}

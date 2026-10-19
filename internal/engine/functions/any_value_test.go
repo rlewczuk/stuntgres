@@ -128,6 +128,24 @@ func TestAnyValueProviderDatums(t *testing.T) {
 						t.Fatal(err)
 					}
 					values = append(values, v)
+				case 13243:
+					// As with yes_or_no, retain valid already-checked inline
+					// datums without installing an aggregate-owned evaluator.
+					for _, number := range []int64{0, 7, math.MaxInt32} {
+						physical, err := sqltype.Integer(d.DomainBase().Type, number)
+						if err != nil {
+							t.Fatal(err)
+						}
+						value, err := d.Wrap(physical)
+						if err != nil {
+							t.Fatal(err)
+						}
+						unwrapped, err := value.BaseValue()
+						if err != nil || value.Type() != d || !sqltype.SameDatum(unwrapped, physical) {
+							t.Fatal("checked-domain carrier", value, physical, err)
+						}
+						values = append(values, value)
+					}
 				case 13256:
 					// Aggregates retain already-validated datums; the engine owns
 					// CHECK evaluation. Build valid inline carriers without a fake

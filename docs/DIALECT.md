@@ -2518,6 +2518,22 @@ lookup-only; other predefined domains and general information_schema.columns/
 domains providers are not enabled by this selected support. The existing native
 table_privileges source keeps its documented primitive usages.
 
+The predefined `information_schema.cardinal_number` likewise supports
+consumer-declared columns, using the ordinary checked-domain path over INT4
+(OID23, typmod-1, collation0). Its genuine validated
+`cardinal_number_domain_check` binds the release expression `VALUE >= 0`;
+0/7/2147483647 and NULL pass, negative values fail23514 with the qualified
+domain and constraint diagnostic. Malformed integer text fails22P02 and
+overflow fails22003; a failed multirow INSERT publishes no prefix.
+Logical metadata retains the domain, while physical database/sql metadata is
+INT4/int64 with unknown Length/DecimalSize, including empty/all-NULL results.
+Native domain13243/namespace13229/companion13242 are allocated inventory
+identities, not fixed release OIDs. Qualified native Dump/Reset/Restore retains
+values, metadata and CHECK enforcement without recreating the builtin domain.
+Its companion stays lookup-only; `character_data`, executable domain arrays,
+general information_schema.columns/domains providers and migration of existing
+provider carriers remain outside this selected support.
+
 Direct/prepared/held reads follow existing catalog publication, transaction,
 physical TEMP-session and native Dump/Reset/Restore lifecycles. Dumps contain
 user DDL/data, not pg_type rows. Unknown columns retain42703/English messages

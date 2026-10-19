@@ -1427,3 +1427,60 @@ Private catalog fixtures allocate relation identities rather than assuming the
 first user-range OID is free; complete pg_constraint bags retain and validate
 the genuine bootstrap CHECK through staging, publication and Reset.
 
+### Information-schema cardinal_number selected proof
+
+The untagged `TestReferenceInfoCardinalNumber` families cover public declared
+columns, 0/7/2147483647/NULL, literal and bound direct/prepared conversions,
+INT4 result metadata on populated/empty/all-NULL rows, logical domain/base and
+linked CHECK catalog identity, complete English diagnostics, multirow atomicity,
+held-statement recovery and ordinary precancellation. Identity includes explicit
+PostgreSQL-only information-schema columns/domains controls; shared catalog and
+public-column acceptance still runs on both backends.
+
+The pinned PostgreSQL18.6 observations distinguish negative CHECK failures
+(23514), malformed integer text (22P02), textual integer overflow (22003 with
+the value quoted), and numeric overflow (22003, `integer out of range`).
+CHECK and numeric-overflow failures occur at execution without Position.
+Malformed/overflowing text literals fail at prepare for prepared statements
+and at execution otherwise. The UTF8-prefixed INSERT positions are 73 for
+assignment, 78 for CAST, and 74 for `::`; the unprefixed assignment position
+is 67. Bound failures have no Position. The PostgreSQL-observed Context is
+asserted identically on both backends: `unnamed portal parameter $1 = '...'`
+for inferred parameters and base-typed malformed/overflowing text, and `$2`
+for the held INSERT.
+
+Run all six families from the repository root, with an external900-second
+deadline per command (root owns execution):
+
+```sh
+make check RUN='^TestReferenceInfoCardinalNumber(Values|Metadata|Identity|Diagnostics|NativeControls|FeatureSmoke)$'
+make check RUN='^TestReferenceInfoCardinalNumber(Values|Metadata|Identity|Diagnostics|NativeControls|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceInfoCardinalNumberFeatureSmoke$'
+make check RUN='^TestReferenceInfoCardinalNumberFeatureSmoke$' REFERENCE=1
+```
+
+The smoke expects exact 0/7/NULL rows, INT4 metadata and linked domain identity,
+negative/malformed-text rejection without a valid prefix, then native
+Dump/Reset/Restore retaining rows and enforcement. NativeControls adds
+same/fresh/repeated Restore, retained rows/metadata and failed/canceled Restore
+atomicity. These APIs are explicit native-only phases after shared SQL
+acceptance, not simulated PostgreSQL controls. Allocated domain/constraint OIDs
+are checked by relationships, not cross-server numeric equality.
+
+Physical database/sql metadata is INT4, raw Go int64 or nil, with unknown
+Length/DecimalSize. Native ScanType is int64 and declared Nullable is known;
+pq ScanType is int32 and Nullable is unknown. These driver facts do not replace
+the logical domain Usage or information-schema numeric precision32/radix2/scale0.
+Both logical and base usages have typmod-1/collation0: the checked-domain
+promotion must not inherit yes_or_no's C collation. The companion remains
+lookup-only and character_data remains nonconcrete; existing provider carriers
+and general native information-schema columns/domains providers are unchanged.
+
+Supplemental package units cover inline payload and typed-NULL conversion,
+actual bound TRUE/FALSE/UNKNOWN CHECK evaluation, catalog replacement,
+fresh INT4 generation reownership and logical descriptions:
+
+```sh
+make check RUN='^TestInfo(CardinalNumber(BuiltinDescriptor|BuiltinCatalog|BuiltinBaseRebind|LogicalDescriptions)|SQLIdentifierBuiltinDescriptor|TimeStampBuiltinDescriptor|YesOrNoBuiltinDescriptor)$'
+```
+

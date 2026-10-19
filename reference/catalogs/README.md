@@ -23,9 +23,11 @@ PostgreSQL18.6 discovery: `CURRENT_TIMESTAMP(2)` and SQLVALUEFUNCTION
 op4/type1184/typmod2/location-1. Failure diagnostics retain the full raw
 default/tree and cursor metadata rather than accepting NULL or a substring.
 `TestReferencePGTypeAdmission` includes the selected `information_schema.yes_or_no`
-domain and companion in the native complete inventory. Its shared SQL independently
-checks domain kind, VARCHAR1043, typmod7, C950 and reciprocal companion ownership;
-catalog presence does not enable array storage. Selected proof in both modes is
+and `information_schema.cardinal_number` domains and companions in the native
+complete inventory. Its shared SQL independently checks domain kind and reciprocal
+companion ownership on both backends: yes_or_no uses VARCHAR1043/typmod7/C950;
+cardinal_number uses INT4/base23/typmod−1/no collation. Catalog presence does not
+enable array storage. Selected proof in both modes is
 `make check RUN='^TestReferencePGTypeAdmission$' REFERENCE=1` and the same command
 without `REFERENCE=1`, each with an external900-second deadline.
 

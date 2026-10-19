@@ -999,6 +999,23 @@ does not promote its array or other information-schema domain siblings, add
 general information-schema views, or change the existing primitive
 `information_schema.table_privileges` provider fields.
 
+The predefined `information_schema.cardinal_number` is a nullable, checked
+domain over `pg_catalog.int4`: `cardinal_number_domain_check` enforces the
+release declaration `CHECK (VALUE >= 0)`. Values 0 through 2147483647 and NULL
+are accepted; NULL passes CHECK UNKNOWN. Negative input fails23514 with the
+schema, domain and constraint identity. Integer syntax and range errors retain
+the base codec's22P02/22003 diagnostics; failed multirow INSERT publishes no
+prefix. Logical column/result usage retains the qualified domain and typmod-1;
+database/sql exposes INT4 and Go int64, with no Length or DecimalSize, even for
+empty/all-NULL results. Both logical and base usages have collation0, not C.
+Native inventory domain13243, namespace13229 and companion13242 are allocated
+identities, not fixed PostgreSQL release OIDs; base INT4 OID23 is fixed.
+Qualified Dump/Reset/Restore retains the builtin column, data and real CHECK
+without emitting CREATE DOMAIN for it. `_cardinal_number` remains lookup-only,
+and `character_data` remains unsupported for executable columns. This promotion
+adds no general information-schema columns/domains providers and does not
+migrate existing information-schema provider fields.
+
 ## Catalog-valued and supporting types
 
 REGCLASS and REGTYPE own unsigned catalog identities; symbolic output is captured

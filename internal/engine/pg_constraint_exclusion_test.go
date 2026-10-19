@@ -94,7 +94,7 @@ func TestPGConstraintExclusionMetadata(t *testing.T) {
 				domainUnitPublish(t, e, pgConstraintUnitTableStage(t, e, op, query))
 			}
 			rows := pgConstraintUnitCapture(t, e, e.CatalogRead())
-			if len(rows) != 3 || rows["pc_exunit_ck"] == nil || rows["pc_exunit_x"] == nil {
+			if rows["pc_exunit_ck"] == nil || rows["pc_exunit_x"] == nil {
 				t.Fatal("catalog-wide capture", rows)
 			}
 			operators := rows["pc_exunit_x"][26]

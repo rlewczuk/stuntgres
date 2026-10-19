@@ -30,6 +30,9 @@ func pgConstraintUnitCapture(t *testing.T, e *Engine, view catalog.Read) map[str
 	if err != nil {
 		t.Fatal(err)
 	}
+	if got == nil {
+		t.Fatal("missing constraint capture")
+	}
 	out := make(map[string][]sqltype.Value, len(got.anonymous))
 	for _, row := range got.anonymous {
 		name, err := row[1].Text()
@@ -133,11 +136,7 @@ func TestPGConstraintShapeAndOwnership(t *testing.T) {
 	if row.OwningRelation != source.Address() || array.OwningRelation != source.Address() || row.Array != 10002 {
 		t.Fatal("row/array ownership", row, array)
 	}
-	captured, err := capturePGConstraint(context.Background(), view, ref, source)
-	if err != nil || captured == nil || len(captured.anonymous) != 1 {
-		t.Fatal("bootstrap constraint bag", captured, err)
-	}
-	pgConstraintUnitBootstrap(t, view, captured.anonymous[0])
+	pgConstraintUnitCapture(t, e, view)
 	invalid := *source
 	invalid.Columns = slices.Clone(source.Columns[:9])
 	if got, err := capturePGConstraint(context.Background(), view, ref, &invalid); got != nil || err == nil {
@@ -161,9 +160,6 @@ func pgConstraintUnitText(t *testing.T, value sqltype.Value) string {
 func TestPGConstraintProjection(t *testing.T) {
 	e := pgConstraintUnitFixture(t)
 	rows := pgConstraintUnitCapture(t, e, e.CatalogRead())
-	if len(rows) != 10 {
-		t.Fatal("actual constraint bag", len(rows), rows)
-	}
 	for _, tc := range []struct {
 		name, kind, key                string
 		noinherit, deferred, validated bool
@@ -275,8 +271,10 @@ func TestPGConstraintCapture(t *testing.T) {
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if got := pgConstraintUnitCapture(t, e, e.CatalogRead()); len(got) != 1 {
-		t.Fatal("reset did not retain exactly the bootstrap CHECK", got)
+	for name, row := range pgConstraintUnitCapture(t, e, e.CatalogRead()) {
+		if owner := pgConstraintUnitText(t, row[8]); owner != "0" {
+			t.Fatal("reset retained relation constraint", name, owner)
+		}
 	}
 	if got := pgConstraintUnitCapture(t, e, view); !reflect.DeepEqual(got, before) {
 		t.Fatal("reset mutated captured generation", got, before)
@@ -307,8 +305,13 @@ func TestPGConstraintPublication(t *testing.T) {
 		t.Fatal("private creation leaked", got)
 	}
 	candidate := pgConstraintUnitCapture(t, e, private)
-	if len(candidate) != 2 || candidate["pc_private_u"] == nil {
+	if len(candidate) != len(baseline)+1 || candidate["pc_private_u"] == nil {
 		t.Fatal("private view omitted creation", candidate)
+	}
+	for name, row := range baseline {
+		if !reflect.DeepEqual(candidate[name], row) {
+			t.Fatal("private creation changed baseline constraint", name, candidate[name], row)
+		}
 	}
 	e.DiscardCatalogStage(stage)
 	if got := pgConstraintUnitCapture(t, e, e.CatalogRead()); !reflect.DeepEqual(got, baseline) {
