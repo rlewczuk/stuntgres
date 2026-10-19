@@ -971,6 +971,26 @@ PostgreSQL nodeToString bytes; compare deparsed semantics, not internal bytes.
 Catalog mutation and row locking remain unsupported through existing native
 readonly-catalog boundaries.
 
+Read-only `pg_catalog.pg_inherits` has exactly `inhrelid OID`, `inhparent OID`,
+`inhseqno INT4` and `inhdetachpending BOOL`, all nonnullable, with no row `oid`.
+It projects direct ordinary-table inheritance, table partition membership and
+real partition-index ancestry from the current catalog generation. Ordinary
+parent order starts at one; partition and index edges use one. Index edges
+remain visible when their parent index is incomplete/invalid. No endpoint SELECT
+filter, transitive closure, index-to-indexed-table link or reverse duplicate is
+added. LIKE copies, typed-table membership alone, views and local/standalone
+indexes do not create rows.
+
+DDL owners already govern transaction-private visibility, savepoint rollback,
+ATTACH/DETACH, DROP and native logical replay. Fresh/held execution observes the
+current generation; captured results survive later changes. Qualified catalog
+lookup remains available through name shadowing, and numeric TEMP discovery is
+distinct from another session's unqualified name lookup. `inhdetachpending` is
+false for all implemented edges: this does not enable concurrent DETACH/FINALIZE.
+Native catalog mutation and row locking retain `0A000` boundaries; PostgreSQL
+ordinary-role mutation instead uses its real catalog permission checks.
+
+
 
 ## COPY streams
 

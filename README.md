@@ -14,6 +14,19 @@ crash durability. Use real PostgreSQL for features outside
 documented [native compatibility limits](docs/DIALECT.md). Consult the
 [PostgreSQL 18 documentation](https://www.postgresql.org/docs/18/sql.html) for SQL syntax.
 
+## Inheritance catalog metadata — change note
+
+`pg_catalog.pg_inherits` exposes the four PostgreSQL 18 fields for actual direct
+ordinary-table, table-partition and partition-index ancestry. Numeric identities
+match `pg_class`; ordinary parent ordinals preserve declaration order. Reads
+follow transactional DDL, savepoints, drops and logical native replay without a
+separate relationship registry. Held statements refresh on execution, while
+already captured rows retain their values. No transitive links or physical
+catalog indexes are invented; concurrent detach remains unsupported.
+See [native boundaries](docs/DIALECT.md#tables-hierarchies-and-materializations),
+[descriptor lifecycle](docs/TABLES.md#inheritance-catalog-projection), and
+[selected proof and smoke](reference/catalogs/README.md#inheritance-metadata-contract).
+
 ## IP address formatting and network inquiries — change note
 
 `abbrev(inet/cidr)`, `host`, `text(inet)`, `family`, `masklen`,

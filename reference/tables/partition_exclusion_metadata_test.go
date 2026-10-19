@@ -10,9 +10,9 @@ func TestReferencePartitionExclusionMetadata(t *testing.T) {
 		run := partitionConstraintRun(t, p, b, prepared)
 		partitionExclusionTree(run, "")
 		run(partitionExclusionGraph())
-		// GiST's released access-method OID is 783. pg_am/pg_inherits are
-		// outside the native catalog surface; inspect the actual backing and
-		// immediate constraint ancestry without requiring either catalog.
+		// GiST's released access-method OID is 783. Inspect the actual backing
+		// index and immediate constraint ancestry here; pg_inherits separately
+		// exposes table/index ancestry rather than constraint ancestry.
 		providers := fixture.Select("SELECT t.relname,i.relam::OID AS relam,c.contype='x' AS is_exclusion,x.indisunique,x.indisvalid,x.indisready,c.conkey::TEXT AS keys,c.conexclop[1]='=(inet,inet)'::regoperator::OID AS equality,c.conexclop[2]='&&(anyrange,anyrange)'::regoperator::OID AS overlap FROM pg_constraint c JOIN pg_class t ON t.oid=c.conrelid JOIN pg_class i ON i.oid=c.conindid JOIN pg_index x ON x.indexrelid=i.oid WHERE t.relname IN ('pe_root','pe_low','pe_other') AND c.contype='x' ORDER BY t.relname",
 			[]string{"relname", "relam", "is_exclusion", "indisunique", "indisvalid", "indisready", "keys", "equality", "overlap"}, []string{"NAME", "OID", "BOOL", "BOOL", "BOOL", "BOOL", "TEXT", "BOOL", "BOOL"},
 			[][]any{{"pe_low", int64(783), true, false, true, true, "{2,3}", true, true}, {"pe_other", int64(783), true, false, true, true, "{2,3}", true, true}, {"pe_root", int64(783), true, false, true, true, "{2,3}", true, true}})

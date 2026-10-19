@@ -199,6 +199,32 @@ Current SELECT authority controls key disclosure, including for owners with revo
 SELECT; ownership is not a disclosure bypass. Native deferrable UNIQUE/PRIMARY KEY
 and temporal-key facilities remain compatibility limits.
 
+### Inheritance catalog projection
+
+`pg_catalog.pg_inherits` is a four-column immutable projection, not a second
+hierarchy owner. Each ordinary `Inheritance.Parents[i]` supplies the child's and
+parent's `pg_class` OIDs with ordinal `i+1`. Table partition membership and
+`SQLIndex.PartitionParent` each supply one immediate edge with ordinal one.
+The indexed-table owner (`SQLIndex.Parent`) and reverse partition child list
+do not supply extra rows. Actual index links are included even while the
+partitioned index remains invalid/incomplete.
+
+Captures use the caller's coherent catalog generation, including its private
+transaction overlay. Existing CREATE/ATTACH/DETACH/DROP publication, rollback and
+savepoint owners therefore determine metadata without separate row maintenance.
+Renames and schema moves preserve endpoints; same-name recreation does not reuse
+the old relation identity. Detaching a subtree severs immediate root links while
+retaining descendant links. Logical Dump contains hierarchy/index DDL, not
+catalog INSERTs; Restore reconstructs edges using the restored identities.
+Already returned eager rows retain their old values across publication and
+native Reset/Restore, including failed atomic replacement.
+
+All four fields are nonnullable: OID, OID, INT4 and BOOL. Ordinary parent order
+is meaningful; an unordered query otherwise returns a bag. There is no row OID,
+transitive closure, extra endpoint privilege filter, or physical catalog-index
+descriptor. `inhdetachpending` remains false because concurrent partition detach
+is not implemented. Native writes and row locks on this catalog are unsupported.
+
 ### Constraint catalog projection
 
 `pg_catalog.pg_constraint` has the released PostgreSQL 18 28-column order and

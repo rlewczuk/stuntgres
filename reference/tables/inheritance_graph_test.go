@@ -19,8 +19,8 @@ func TestReferenceInheritanceGraphLifecycle(t *testing.T) {
 		s.edges("direct_leaf", "base", "left_parent")
 		if s.b.PG {
 			s.values("SELECT conname,coninhcount,conislocal FROM pg_constraint WHERE conrelid='leaf'::regclass ORDER BY conname", []string{"conname", "coninhcount", "conislocal"}, []string{"NAME", "INT2", "BOOL"}, [][]any{{"base_a_not_null", int64(2), false}, {"positive", int64(2), false}})
-			s.values("SELECT inhseqno,inhparent::regclass::text AS parent FROM pg_inherits WHERE inhrelid='leaf'::regclass ORDER BY inhseqno", []string{"inhseqno", "parent"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "left_parent"}, {int64(2), "right_parent"}})
 		}
+		s.values("SELECT inhseqno,inhparent::regclass::text AS parent FROM pg_inherits WHERE inhrelid='leaf'::regclass ORDER BY inhseqno", []string{"inhseqno", "parent"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "left_parent"}, {int64(2), "right_parent"}})
 		s.exec("DROP TABLE direct_leaf", 0)
 		s.exec("DROP TABLE leaf", 0)
 		s.values("SELECT relname FROM pg_class WHERE relname='base' OR relname='left_parent' OR relname='right_parent' ORDER BY relname", []string{"relname"}, []string{"NAME"}, [][]any{{"base"}, {"left_parent"}, {"right_parent"}})

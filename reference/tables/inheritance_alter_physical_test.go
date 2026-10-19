@@ -140,12 +140,7 @@ func TestReferenceInheritanceAlterPhysicalNames(t *testing.T) {
 		s.exec("ALTER TABLE renamed_p SET SCHEMA inherit_dml_move", 0)
 		s.values("SELECT a FROM inherit_dml_move.renamed_p ORDER BY a", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}})
 		fixture.RunStep(s.t, s.p.Ctx, fixture.HeldStatement{Executor: s.c, Statement: held, SQL: q}, s.record, fixture.Select(q, []string{"a"}, []string{"INT4"}, [][]any{{int64(2)}}))
-		// pg_inherits is an explicit PostgreSQL catalog phase; native has no
-		// provider for it. Shared identities, provenance and inherited DML below
-		// independently witness the live public graph after rename/schema move.
-		if s.b.PG {
-			s.values("SELECT inhparent::bigint AS parent,inhrelid::bigint AS child FROM pg_inherits WHERE inhrelid='c'::regclass::oid", []string{"parent", "child"}, []string{"INT8", "INT8"}, [][]any{{parent, child}})
-		}
+		s.values("SELECT inhparent::bigint AS parent,inhrelid::bigint AS child FROM pg_inherits WHERE inhrelid='c'::regclass::oid", []string{"parent", "child"}, []string{"INT8", "INT8"}, [][]any{{parent, child}})
 		s.values("SELECT 'inherit_dml_move.renamed_p'::regclass::bigint AS parent,'c'::regclass::bigint AS child", []string{"parent", "child"}, []string{"INT8", "INT8"}, [][]any{{parent, child}})
 		inheritanceAlterAttributes(s, "c", [][]any{{"a", int64(1), false, int64(1)}})
 		s.exec("UPDATE inherit_dml_move.renamed_p SET a=a", 2)

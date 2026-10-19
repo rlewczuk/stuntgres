@@ -223,6 +223,10 @@ func (e *Engine) initializeCatalogSources() error {
 			{"relfrozenxid", sqltype.Xid}, {"relminmxid", sqltype.Xid},
 			{"relacl", sqltype.ID(1034)}, {"reloptions", sqltype.ID(1009)}, {"relpartbound", sqltype.PgNodeTree},
 		}},
+		{2611, "pg_inherits", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"inhrelid", sqltype.Oid}, {"inhparent", sqltype.Oid}, {"inhseqno", sqltype.Int4}, {"inhdetachpending", sqltype.Bool}}},
 		{2610, "pg_index", []struct {
 			name string
 			typ  sqltype.ID
@@ -316,7 +320,7 @@ func (e *Engine) initializeCatalogSources() error {
 			if spec.oid == 2606 {
 				d.Columns[i].Nullable = i >= 20
 			}
-			if spec.oid == pgAMOID || spec.oid == pgRangeOID || spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 || spec.oid == 2616 || spec.oid == 2617 || spec.oid == 3501 || spec.oid == 2610 {
+			if spec.oid == pgAMOID || spec.oid == pgRangeOID || spec.oid == 2604 || spec.oid == 2224 || spec.oid == 2608 || spec.oid == 2605 || spec.oid == 2616 || spec.oid == 2617 || spec.oid == 3501 || spec.oid == 2610 || spec.oid == 2611 {
 				d.Columns[i].Nullable = false
 			}
 			if spec.oid == ids.ProcedureClassID || spec.oid == ids.TSTemplateClassID {
@@ -454,6 +458,9 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, view catalog.Re
 	}
 	if source.Address().ObjectID == 2606 {
 		return capturePGConstraint(ctx, view, ref, source)
+	}
+	if source.Address().ObjectID == 2611 {
+		return capturePGInherits(ctx, view, ref, source)
 	}
 	if source.Address().ObjectID == 2224 {
 		return capturePGSequence(ctx, view.State(), nil, ref, source)

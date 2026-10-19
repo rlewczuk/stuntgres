@@ -2564,6 +2564,129 @@ runs and smoke do not replace ordinary quickcheck or the post-merge finalcheck
 under its single1800-second deadline.
 
 
+### Inheritance metadata contract
+
+The eight `TestReferencePGInherits` scenarios independently specify PostgreSQL
+18's exact four-column `pg_catalog.pg_inherits` shape: nonnullable OID/OID/INT4/BOOL,
+with no row OID. Endpoints are captured independently through `pg_class`, never
+derived from the catalog under test or compared to another allocator's sequence.
+OID-aware assertions check native int64 versus pq decimal-byte carriers before
+normalizing them. Native nullability is known/nonnullable; pq reports unknown.
+
+Coverage includes declared multiple-parent order and direct-only ancestry,
+LIKE/view/typed/local-index negatives, nested table and real index partitions,
+invalid/incomplete index parents, repeated manual index attachment, future
+partitions, owner/peer savepoints and held reexecution, detach/drop/rename/schema
+move/recreation, PUBLIC discovery without endpoint SELECT, TEMP visibility and
+catalog name shadowing. Native controls assert logical replay, atomic failed
+Restore and retained result values. Diagnostics retain full English messages,
+positions, details/hints and parameter portal context, not SQLSTATE alone.
+PostgreSQL ordinary-role mutation permission errors are separate from native
+virtual-catalog mutation/row-lock `0A000` boundaries.
+
+Fixture details matter: a root UNIQUE constraint uses a matching named child
+UNIQUE constraint when asserting reuse of its captured backing-index identity.
+An ordinary reader receives actual schema USAGE, but not endpoint SELECT.
+Empty row collectors are nonnil to match the shared ordered comparator contract.
+All bodies run on both available backends; there are no discovery filters.
+
+Run each selected definition in both modes, with an external900-second deadline:
+
+```sh
+make check RUN='^TestReferencePGInherits(Shape|Inheritance|PartitionsAndIndexes)$' REFERENCE=1
+make check RUN='^TestReferencePGInherits(Shape|Inheritance|PartitionsAndIndexes)$'
+make check RUN='^TestReferencePGInherits(Transactions|IdentityAndDrop)$' REFERENCE=1
+make check RUN='^TestReferencePGInherits(Transactions|IdentityAndDrop)$'
+make check RUN='^TestReferencePGInherits(Visibility|Controls|Diagnostics)$' REFERENCE=1
+make check RUN='^TestReferencePGInherits(Visibility|Controls|Diagnostics)$'
+make check RUN='^TestReferenceInheritance(GraphLifecycle|AlterPhysicalNames)$' REFERENCE=1
+make check RUN='^TestReferenceInheritance(GraphLifecycle|AlterPhysicalNames)$'
+make check RUN='^TestPGInherits(ShapeAndOwnership|DescriptorEdges|Cancellation)$'
+```
+
+Private units exercise the actual projection directly, including relation2611,
+native rowtype10005/array10004 ownership, column origins, PUBLIC SELECT, typed
+values, generation retention and deterministic cancellation. These native seeded
+type IDs are not asserted as generated PostgreSQL identities. Whole-project
+quickcheck and post-merge finalcheck remain separate gates.
+
+For a small standalone public-API smoke outside the test runner, save this program
+as `.tmp-pg-inherits-smoke/main.go` and run
+`go run ./.tmp-pg-inherits-smoke/main.go` from the repository root with an external
+900-second deadline. It checks ordered numeric identities and logical replay,
+prints `pg_inherits standalone: ok` only after all checks, and exits nonzero on
+failure. Remove the temporary source afterward.
+
+```go
+package main
+
+import (
+    "bytes"
+    "context"
+    "database/sql"
+    "fmt"
+    "os"
+    "time"
+    "stuntgres"
+)
+
+func run() error {
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    defer cancel()
+    connector, err := stuntgres.NewDriver().OpenConnector("inherits-standalone")
+    if err != nil { return err }
+    db := sql.OpenDB(connector)
+    defer db.Close()
+    for _, q := range []string{
+        "CREATE TABLE pi_smoke_p(a INT)",
+        "CREATE TABLE pi_smoke_q(a INT)",
+        "CREATE TABLE pi_smoke_c() INHERITS(pi_smoke_q,pi_smoke_p)",
+    } {
+        if _, err := db.ExecContext(ctx, q); err != nil { return err }
+    }
+    check := func(empty bool) error {
+        rows, err := db.QueryContext(ctx, "SELECT c.relname,p.relname,i.inhseqno,i.inhdetachpending,c.oid=i.inhrelid AS child_identity,p.oid=i.inhparent AS parent_identity FROM pg_catalog.pg_inherits i JOIN pg_class c ON c.oid=i.inhrelid JOIN pg_class p ON p.oid=i.inhparent WHERE c.relname='pi_smoke_c' ORDER BY i.inhseqno")
+        if err != nil { return err }
+        defer rows.Close()
+        n := 0
+        for rows.Next() {
+            var child, parent string
+            var ordinal int64
+            var pending, childIdentity, parentIdentity bool
+            if err := rows.Scan(&child,&parent,&ordinal,&pending,&childIdentity,&parentIdentity); err != nil { return err }
+            if empty || n >= 2 || child != "pi_smoke_c" || parent != []string{"pi_smoke_q","pi_smoke_p"}[n] || ordinal != int64(n+1) || pending || !childIdentity || !parentIdentity {
+                return fmt.Errorf("unexpected edge %s %s %d", child,parent,ordinal)
+            }
+            n++
+        }
+        if err := rows.Err(); err != nil { return err }
+        want := 2
+        if empty { want = 0 }
+        if n != want { return fmt.Errorf("edge count %d, want %d", n,want) }
+        return nil
+    }
+    if err := check(false); err != nil { return err }
+    var dump bytes.Buffer
+    if err := stuntgres.Dump(ctx, db, &dump); err != nil { return err }
+    if err := stuntgres.Reset(ctx, db); err != nil { return err }
+    if err := check(true); err != nil { return err }
+    if err := stuntgres.Restore(ctx, db, bytes.NewReader(dump.Bytes())); err != nil { return err }
+    if err := check(false); err != nil { return err }
+    fmt.Println("pg_inherits standalone: ok")
+    return nil
+}
+
+func main() {
+    if err := run(); err != nil { fmt.Fprintln(os.Stderr,err); os.Exit(1) }
+}
+```
+
+The catalog-part implementation handoff additionally supplies a standalone
+acceptance program covering the complete empty/populated metadata, held
+transaction rollback, explicit partition-index attachment, logical replay and
+missing-column diagnostic. Its expected stdout is
+`pg_inherits smoke: ordered=2 partition_table=1 partition_index=1 rollback=ok restore=ok diagnostics=42703`.
+
 ### Constraint metadata contract
 
 The `TestReferencePGConstraint` scenarios specify the released 28-column
