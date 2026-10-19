@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"iter"
+	"maps"
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -14,10 +15,24 @@ import (
 // bootstrap seed, a clone, a stage candidate or a replacement before
 // publication. A published state is never written again.
 
-// newCatalogState returns an empty state at epoch with empty descriptor and
-// name maps.
+// NewState returns an empty state at epoch with empty descriptor and name maps.
 func NewState(epoch ids.CatalogEpoch) *State {
-	return &State{epoch: epoch, descriptors: make(map[ids.ObjectAddress]Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress)}
+	return NewStateSized(epoch, 0)
+}
+
+// NewStateSized is NewState with room for n descriptors and n names, so a
+// seed of known size fills its maps without rehashing them as they grow.
+func NewStateSized(epoch ids.CatalogEpoch, n int) *State {
+	return &State{epoch: epoch, descriptors: make(map[ids.ObjectAddress]Descriptor, n), names: make(map[ids.NameKey]ids.ObjectAddress, n)}
+}
+
+// cloneMap copies m without rehashing its entries; a nil m yields an empty,
+// writable map. Catalog copies use it because they copy whole catalogs.
+func cloneMap[M ~map[K]V, K comparable, V any](m M) M {
+	if m == nil {
+		return make(M)
+	}
+	return maps.Clone(m)
 }
 
 // newCatalogRead returns the view of state owned by owner.

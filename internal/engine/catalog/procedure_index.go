@@ -2,7 +2,6 @@ package catalog
 
 import (
 	"iter"
-	"maps"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -26,8 +25,7 @@ func (edit *ProcedureIndexEdit) detach() {
 	}
 	index := &ProcedureNameIndex{Buckets: make(map[ProcedureNameKey][]ids.ObjectAddress), SQLNames: make(map[string]int)}
 	if edit.Index != nil {
-		maps.Copy(index.Buckets, edit.Index.Buckets)
-		maps.Copy(index.SQLNames, edit.Index.SQLNames)
+		index.Buckets, index.SQLNames = cloneMap(edit.Index.Buckets), cloneMap(edit.Index.SQLNames)
 	}
 	edit.Index = index
 	edit.touched = make(map[ProcedureNameKey]bool)

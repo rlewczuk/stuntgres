@@ -61,3 +61,27 @@ func (p *dropProvider) clearOperatorLinks(d *catalog.Operator) error {
 	}
 	return nil
 }
+
+// operatorDependsOn reports whether target is one of
+// operatorDependencyAddresses(view, d) without building that list.
+func operatorDependsOn(view catalog.Read, d *catalog.Operator, target ids.ObjectAddress) bool {
+	if target.ObjectID == 0 {
+		return false
+	}
+	if target == d.Namespace() {
+		return true
+	}
+	if target.SubID != 0 {
+		return false
+	}
+	switch target.ClassID {
+	case ids.TypeClassID:
+		return target.ObjectID == d.Left || target.ObjectID == d.Right || target.ObjectID == d.Result
+	case ids.ProcedureClassID:
+		if target.ObjectID == d.Function || target.ObjectID == d.Restriction || target.ObjectID == d.Join {
+			_, ok := view.Find(target)
+			return ok
+		}
+	}
+	return false
+}

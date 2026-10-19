@@ -94,19 +94,30 @@ func (operatorProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) 
 	}
 	return nil
 }
+
+// Seeded operators share one engine-owned backing array, like built-in
+// routines. Both tables are sorted by OID, so metadata is merged in one pass.
 func (e *Engine) initializeOperators() {
 	e.catalog.state.SetOperatorNames(seededOperatorNames)
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
-	for _, row := range builtinOperators {
-		d := &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid}, ObjectNamespace: ns, ObjectRevision: 1, ObjectName: row.name, Left: row.left, Right: row.right, Owner: e.roles.domain.Principal(authorization.BootstrapPrincipalID)}
+	owner := e.roles.domain.Principal(authorization.BootstrapPrincipalID)
+	storage := make([]catalog.Operator, len(builtinOperators))
+	metadata := supportedOperatorMetadata[:]
+	for i, row := range builtinOperators {
+		d := &storage[i]
+		*d = catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid}, ObjectNamespace: ns, ObjectRevision: 1, ObjectName: row.name, Left: row.left, Right: row.right, Owner: owner}
+		if len(metadata) != 0 && metadata[0].oid == row.oid {
+			m := metadata[0]
+			metadata = metadata[1:]
+			d.Result, d.Function = ids.OID(m.result), ids.OID(m.procedure)
+			d.Commutator, d.Negator = ids.OID(m.commutator), ids.OID(m.negator)
+			d.Restriction, d.Join = ids.OID(m.restriction), ids.OID(m.join)
+			d.Hash, d.Merge = m.hash, m.merge
+		}
 		e.catalog.state.SetDescriptor(d.Address(), d)
 		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
-	for _, row := range supportedOperatorMetadata {
-		d := e.catalog.state.MustOperator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: row.oid})
-		d.Result, d.Function = ids.OID(row.result), ids.OID(row.procedure)
-		d.Commutator, d.Negator = ids.OID(row.commutator), ids.OID(row.negator)
-		d.Restriction, d.Join = ids.OID(row.restriction), ids.OID(row.join)
-		d.Hash, d.Merge = row.hash, row.merge
+	if len(metadata) != 0 {
+		panic("stuntgres: operator metadata without a seeded operator")
 	}
 }

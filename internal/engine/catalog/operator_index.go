@@ -27,17 +27,11 @@ type OperatorIndexEdit struct {
 
 func (edit *OperatorIndexEdit) bucket(key OperatorNameKey, extra int) []ids.ObjectAddress {
 	if edit.touched == nil {
-		size := 1
+		var buckets map[OperatorNameKey][]ids.ObjectAddress
 		if edit.Index != nil {
-			size += len(edit.Index.Buckets)
+			buckets = edit.Index.Buckets
 		}
-		buckets := make(map[OperatorNameKey][]ids.ObjectAddress, size)
-		if edit.Index != nil {
-			for key, addresses := range edit.Index.Buckets {
-				buckets[key] = addresses
-			}
-		}
-		edit.Index = &OperatorNameIndex{Buckets: buckets}
+		edit.Index = &OperatorNameIndex{Buckets: cloneMap(buckets)}
 		edit.touched = make(map[OperatorNameKey]bool)
 	}
 	addresses := edit.Index.Buckets[key]

@@ -736,6 +736,23 @@ The affected installed units are
 Public ordering, prepared/native persistence, atomicity and cancellation witnesses
 remain the dual-mode definitions documented in `reference/query_core/README.md`.
 
+### Built-in catalog seed
+
+Every engine seeds the same built-in catalog from compiled tables; only the
+current database descriptor depends on engine options. `builtin_catalog.go`
+therefore validates the seed once per process (the current database on every
+engine) and shares one procedure-name index, as `seededOperatorNames` does for
+operators. A seed that depends on new engine options must be validated per
+engine too. Startup and every publication scale with the seed size, so keep
+seeding and whole-catalog copies free of per-entry rehashing and allocation;
+check `make bench` allocations when adding built-ins.
+
+```sh
+make check RUN='^(TestBuiltinCatalogValidatesForEveryEngineConfiguration|TestBuiltinProcedureNamesMatchSeed|TestOperatorDependsOnMatchesDependencyAddresses)$'
+make check RUN='^TestBuiltinProcedureNamesCopyOnEdit$' RACE=1
+make check RUN='^TestCatalogCopiesStayIndependent$'
+```
+
 ### SQL routine admission boundaries
 
 SQL routines extend stored DEFAULT closure only when a real checked SQL call
