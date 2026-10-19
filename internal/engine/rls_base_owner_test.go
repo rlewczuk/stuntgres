@@ -44,7 +44,7 @@ func TestRLSBaseOwnerPublicationFreshness(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := rowSecurityDecision(auth, current, principal, catalog.PolicySelect, false)
+		got, err := rowSecurityDecision(auth.roles, current, principal, catalog.PolicySelect, false)
 		if err != nil || got != want {
 			t.Fatal("fresh descriptor authority", got, err, want)
 		}

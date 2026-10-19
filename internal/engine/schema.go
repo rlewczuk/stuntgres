@@ -23,24 +23,6 @@ func schemaReserved(name string) error {
 func schemaNotice(op *Operation, code, message string) {
 	op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: code, Message: message})
 }
-func schemaOwner(auth AuthorizationView, name string, identity bool) (authorization.PrincipalRef, error) {
-	if name == "" {
-		return auth.state.CurrentUser, nil
-	}
-	if identity {
-		switch name {
-		case "current_user", "current_role":
-			return auth.state.CurrentUser, nil
-		case "session_user":
-			return auth.state.SessionUser, nil
-		}
-	}
-	role, ok := auth.roles.Lookup(name)
-	if !ok {
-		return authorization.PrincipalRef{}, sqlError("42704", fmt.Sprintf(`role "%s" does not exist`, name))
-	}
-	return role.Ref, nil
-}
 
 // Non-table creation and namespace moves retain their TEMP capability boundary.
 func checkPersistentCreationNamespace(catalog catalog.Read, namespace ids.ObjectAddress) error {
@@ -453,7 +435,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			return nil, err
 		}
 	case *parser.CreateSchema:
-		owner, err := schemaOwner(auth, s.Authorization, s.AuthorizationIdentity)
+		owner, err := schemaOwner(auth.accessView, s.Authorization, s.AuthorizationIdentity)
 		if err != nil {
 			return nil, err
 		}
@@ -533,7 +515,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			}
 			next.ObjectName = s.NewName
 		} else {
-			target, err := schemaOwner(auth, s.Owner, s.OwnerIdentity)
+			target, err := schemaOwner(auth.accessView, s.Owner, s.OwnerIdentity)
 			if err != nil {
 				return nil, err
 			}
@@ -543,10 +525,10 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			if err = own(old); err != nil {
 				return nil, err
 			}
-			if err = ownershipSuccessor(auth, target); err != nil {
+			if err = ownershipSuccessor(auth.accessView, target); err != nil {
 				return nil, err
 			}
-			if err = ownershipDatabaseCreate(auth); err != nil {
+			if err = ownershipDatabaseCreate(auth.accessView, auth); err != nil {
 				return nil, err
 			}
 			next.Owner = target

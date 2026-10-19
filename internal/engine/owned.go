@@ -239,15 +239,15 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			case *catalog.Namespace:
 				err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(stage.Base.Epoch(), a), OwnerOnly: true})
 				if err == nil {
-					err = ownershipSuccessor(auth, target)
+					err = ownershipSuccessor(auth.accessView, target)
 				}
 				if err == nil {
-					err = ownershipDatabaseCreate(auth)
+					err = ownershipDatabaseCreate(auth.accessView, auth)
 				}
 			case *catalog.Collation, *catalog.Conversion, *catalog.Operator, *catalog.Database, *catalog.Extension, *catalog.Procedure, *catalog.TSDictionary:
 				err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(stage.Base.Epoch(), a), OwnerOnly: true})
 				if err == nil {
-					err = ownershipEligibility(auth, target, d.Namespace())
+					err = ownershipEligibility(auth.accessView, auth, target, d.Namespace())
 				}
 			}
 			if err != nil {

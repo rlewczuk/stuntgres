@@ -24,14 +24,6 @@ func captureDeniedQuerySource(view *VisibilityView, ref ids.ObjectRef) (*querySo
 	return &querySource{view: pin, ref: ref, rlsDenied: true}, nil
 }
 
-type rlsDisposition uint8
-
-const (
-	rlsUnrestricted rlsDisposition = iota
-	rlsDefaultDeny
-	rlsNeedsExpressions
-)
-
 func rowSecurityAction(action parser.AlterTableActionKind) bool {
 	return action >= parser.EnableRowSecurity && action <= parser.NoForceRowSecurity
 }
@@ -105,113 +97,6 @@ func rowSecurityKind(d *catalog.Relation, action parser.AlterTableActionKind) er
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action %s cannot be performed on relation "%s"`, rowSecurityActionLabel(action), d.Name()), Detail: "This operation is not supported for " + kind + "."}
 }
 
-// Applicability is metadata only. Even TRUE/FALSE/NULL syntax requires the
-// adjacent expression-enforcement capability; nil clauses contribute nothing.
-func rowSecurityApplies(auth AuthorizationView, d *catalog.Relation, principal authorization.PrincipalRef) (bool, error) {
-	if !d.Security.RLSEnabled {
-		return false, nil
-	}
-	actor, err := auth.roles.Descriptor(principal)
-	if err != nil {
-		return false, err
-	}
-	if actor.Superuser || actor.BypassRLS {
-		return false, nil
-	}
-	if !d.Security.RLSForced {
-		owner, err := auth.roles.InheritsRole(principal, d.Owner)
-		if err != nil {
-			return false, err
-		}
-		if owner {
-			return false, nil
-		}
-	}
-	return true, nil
-}
-
-func rowSecurityDecision(auth AuthorizationView, d *catalog.Relation, principal authorization.PrincipalRef, command catalog.PolicyCommand, proposed bool) (rlsDisposition, error) {
-	applies, err := rowSecurityApplies(auth, d, principal)
-	if err != nil || !applies {
-		return rlsUnrestricted, err
-	}
-	for _, policy := range d.Security.Policies {
-		if !policy.Permissive || policy.Command != catalog.PolicyAll && policy.Command != command {
-			continue
-		}
-		expression := policyExpressionOf(policy.Using)
-		if proposed && command != catalog.PolicySelect {
-			expression = policyExpressionOf(policy.Check)
-			if expression == nil && (policy.Command == catalog.PolicyAll || policy.Command == catalog.PolicyUpdate) {
-				expression = policyExpressionOf(policy.Using)
-			}
-		}
-		if expression == nil {
-			continue
-		}
-		for _, role := range policy.Roles {
-			if role.Public {
-				return rlsNeedsExpressions, nil
-			}
-			applies, err := auth.roles.InheritsRole(principal, role.Ref)
-			if err != nil {
-				return rlsUnrestricted, err
-			}
-			if applies {
-				return rlsNeedsExpressions, nil
-			}
-		}
-	}
-	return rlsDefaultDeny, nil
-}
-
-func rowSecurityGroups(auth AuthorizationView, d *catalog.Relation, principal authorization.PrincipalRef, command catalog.PolicyCommand, proposed, selectRead bool) (rlsDisposition, error) {
-	decision, err := rowSecurityDecision(auth, d, principal, command, proposed)
-	if err != nil || !selectRead || command == catalog.PolicySelect {
-		return decision, err
-	}
-	read, err := rowSecurityDecision(auth, d, principal, catalog.PolicySelect, proposed)
-	if err != nil {
-		return rlsUnrestricted, err
-	}
-	if decision == rlsDefaultDeny || read == rlsDefaultDeny {
-		return rlsDefaultDeny, nil
-	}
-	if decision == rlsNeedsExpressions || read == rlsNeedsExpressions {
-		return rlsNeedsExpressions, nil
-	}
-	return rlsUnrestricted, nil
-}
-
-func rowSecurityExpressionError() error {
-	return sqlError("0A000", "row-security policy expression enforcement is unsupported")
-}
-
-func rowSecurityProposal(decision rlsDisposition, table string) error {
-	switch decision {
-	case rlsDefaultDeny:
-		return sqlError("42501", fmt.Sprintf(`new row violates row-level security policy for table "%s"`, table))
-	case rlsNeedsExpressions:
-		return rowSecurityExpressionError()
-	default:
-		return nil
-	}
-}
-
-func rowSecurityPrincipal(auth AuthorizationView, b binding) authorization.PrincipalRef {
-	principal := auth.state.CurrentUser
-	if b.viewWrite != nil {
-		for _, layer := range b.viewWrite.layers {
-			current := auth.catalog.MustRelation(layer.ref.Address)
-			principal = current.Owner
-			if viewOf(current).invoker {
-				principal = auth.state.CurrentUser
-			}
-		}
-	}
-	return principal
-}
-
 // The caller holds Engine.mu; this never captures row data or mutates identity.
 func (e *Engine) rowSecurityInputLocked(scope *StatementScope, d *catalog.Relation, principal authorization.PrincipalRef, command catalog.PolicyCommand, selectRead bool) (bool, error) {
 	if !d.Security.RLSEnabled {
@@ -226,7 +111,7 @@ func (e *Engine) rowSecurityInputLocked(scope *StatementScope, d *catalog.Relati
 	if principal == (authorization.PrincipalRef{}) {
 		principal = auth.state.CurrentUser
 	}
-	decision, err := rowSecurityGroups(auth, d, principal, command, false, selectRead)
+	decision, err := rowSecurityGroups(auth.roles, d, principal, command, false, selectRead)
 	if err != nil {
 		return false, err
 	}
@@ -234,6 +119,20 @@ func (e *Engine) rowSecurityInputLocked(scope *StatementScope, d *catalog.Relati
 		return false, rowSecurityExpressionError()
 	}
 	return decision == rlsDefaultDeny, nil
+}
+
+// rowSecurityLayers collects the owner and security_invoker flag of each
+// view layer of an auto-updatable view write, outermost first.
+func rowSecurityLayers(view catalog.Read, b binding) []rowSecurityLayer {
+	if b.viewWrite == nil {
+		return nil
+	}
+	layers := make([]rowSecurityLayer, 0, len(b.viewWrite.layers))
+	for _, layer := range b.viewWrite.layers {
+		current := view.MustRelation(layer.ref.Address)
+		layers = append(layers, rowSecurityLayer{owner: current.Owner, invoker: viewOf(current).invoker})
+	}
+	return layers
 }
 
 func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, stmt parser.Statement) error {
@@ -268,13 +167,13 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, st
 	}
 	auth.catalog = e.privateCatalogLocked(scope.owner.catalog)
 	auth.Recapture(auth.catalog)
-	principal := rowSecurityPrincipal(auth, b)
+	principal := rowSecurityPrincipal(auth.state.CurrentUser, rowSecurityLayers(auth.catalog, b))
 	reads := b.returning != nil || len(b.usedColumns) != 0
 	if b.viewWrite != nil {
 		reads = reads || len(b.viewWrite.logical.usedColumns) != 0
 	}
 	if command != catalog.PolicyInsert {
-		decision, err := rowSecurityGroups(auth, b.relation, principal, command, false, reads)
+		decision, err := rowSecurityGroups(auth.roles, b.relation, principal, command, false, reads)
 		if err != nil {
 			return err
 		}
@@ -286,13 +185,13 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, st
 	proposedRead := b.conflict != nil && len(b.conflict.reads) != 0
 	switch stmt.(type) {
 	case *parser.Insert:
-		scope.rlsProposal, err = rowSecurityGroups(auth, b.relation, principal, catalog.PolicyInsert, true, proposedRead)
+		scope.rlsProposal, err = rowSecurityGroups(auth.roles, b.relation, principal, catalog.PolicyInsert, true, proposedRead)
 	case *parser.Update:
-		scope.rlsProposal, err = rowSecurityGroups(auth, b.relation, principal, catalog.PolicyUpdate, true, reads)
+		scope.rlsProposal, err = rowSecurityGroups(auth.roles, b.relation, principal, catalog.PolicyUpdate, true, reads)
 	case *parser.Merge:
-		scope.rlsMergeInsert, err = rowSecurityGroups(auth, b.relation, principal, catalog.PolicyInsert, true, false)
+		scope.rlsMergeInsert, err = rowSecurityGroups(auth.roles, b.relation, principal, catalog.PolicyInsert, true, false)
 		if err == nil {
-			scope.rlsMergeUpdate, err = rowSecurityGroups(auth, b.relation, principal, catalog.PolicyUpdate, true, true)
+			scope.rlsMergeUpdate, err = rowSecurityGroups(auth.roles, b.relation, principal, catalog.PolicyUpdate, true, true)
 		}
 	}
 	return err
