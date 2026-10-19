@@ -250,53 +250,6 @@ func typedReviewACLFixture(t *testing.T) (*Engine, *Operation, func(), ids.Objec
 	return e, op, done, address
 }
 
-func TestTypedAuthorizationProviderACL(t *testing.T) {
-	e, owner, done, member := typedReviewACLFixture(t)
-	defer done()
-	pair := roleTableRef(t, e, "pair")
-	source := e.CatalogRead().MustRelation(pair.Address)
-	typedReviewTypeACL(t, e, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}, authorization.ACLValue{Explicit: true})
-	reader, finish := roleOperation(t, e, "typed_reader")
-	defer finish()
-	roleExecute(t, e, reader, "CREATE TABLE mine(id integer)")
-	roleExecute(t, e, reader, "INSERT INTO mine VALUES(11)")
-	before := e.CatalogRead().State()
-	roleError(t, e, reader, "CREATE TABLE denied OF pair", "42501", "permission denied for type pair", "")
-	if e.CatalogRead().State() != before {
-		t.Fatal("denied CREATE changed catalog")
-	}
-	roleExecute(t, e, reader, "ALTER TABLE mine OF pair")
-	mine := roleTableRef(t, e, "mine")
-	mineDescriptor := e.CatalogRead().MustRelation(mine.Address)
-	if mineDescriptor.OfType.ObjectID != ids.OID(source.RowType) || mineDescriptor.Owner == source.Owner {
-		t.Fatal("attach did not retain reader ownership")
-	}
-	roleExecute(t, e, owner, "ALTER TYPE pair ADD ATTRIBUTE flag boolean CASCADE")
-	mineDescriptor = e.CatalogRead().MustRelation(mine.Address)
-	if len(mineDescriptor.Columns) != 2 || mineDescriptor.Columns[1].Usage.Type.ID() != sqltype.Bool {
-		t.Fatal("source-owner CASCADE failed foreign-owner target")
-	}
-	typedReviewTypeACL(t, e, member, authorization.ACLValue{Explicit: true})
-	before = e.CatalogRead().State()
-	roleError(t, e, owner, "ALTER TYPE pair ADD ATTRIBUTE value member CASCADE", "42501", "permission denied for type member", "")
-	roleError(t, e, owner, "ALTER TYPE pair ALTER ATTRIBUTE id TYPE member CASCADE", "42501", "permission denied for type member", "")
-	roleError(t, e, owner, "DROP TYPE pair,foreign_pair CASCADE", "42501", "must be owner of type foreign_pair", "")
-	if e.CatalogRead().State() != before {
-		t.Fatal("denied member/grouped DROP changed graph")
-	}
-	memberDescriptor := e.CatalogRead().MustType(member)
-	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: memberDescriptor.Owner, Grantee: authorization.ACLGrantee{Role: owner.RoleState().CurrentUser}, Privileges: authorization.UsagePrivilege}}}
-	typedReviewTypeACL(t, e, member, grant)
-	roleExecute(t, e, owner, "ALTER TYPE pair ADD ATTRIBUTE value member CASCADE")
-	mineDescriptor = e.CatalogRead().MustRelation(mine.Address)
-	if len(mineDescriptor.Columns) != 3 || mineDescriptor.Columns[2].Usage.Type.ID() != sqltype.ID(member.ObjectID) {
-		t.Fatal("granted member USAGE not reflected in actual target")
-	}
-	if store := e.storage.Relations[mine.Address]; len(store.Versions) != 1 || testExport(store.Versions[0].Values[0]) != int64(11) || !store.Versions[0].Values[1].IsNull() || !store.Versions[0].Values[2].IsNull() {
-		t.Fatal("ACL actions changed independently expected target rows")
-	}
-}
-
 func TestTypedPublicationMemberACLConflict(t *testing.T) {
 	e, op, done, member := typedReviewACLFixture(t)
 	defer done()

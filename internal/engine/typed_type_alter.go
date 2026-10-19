@@ -75,6 +75,27 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	if !valid {
 		return Result{}, catalog.Conflict{}
 	}
+	// Source ownership does not extend to typed tables or their descendants.
+	// PostgreSQL checks them while recursing each subcommand, so ALTER
+	// ATTRIBUTE TYPE first resolves its new type's USAGE.
+	ownersChecked := false
+	checkOwners := func() error {
+		if ownersChecked {
+			return nil
+		}
+		ownersChecked = true
+		for _, address := range addresses {
+			if err := auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.catalog.Epoch(), address), OwnerOnly: true}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if s.Rename != nil || len(s.Actions) == 0 || s.Actions[0].Action != parser.AlterColumnType {
+		if err := checkOwners(); err != nil {
+			return Result{}, err
+		}
+	}
 	for _, action := range s.Actions {
 		if action.Action == parser.AlterColumnType {
 			if err := rowRewriteError(auth.catalog, source); err != nil {
@@ -103,7 +124,12 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 			return Result{}, err
 		}
 	}
-	for _, action := range s.Actions {
+	for i, action := range s.Actions {
+		if i == 1 {
+			if err := checkOwners(); err != nil {
+				return Result{}, err
+			}
+		}
 		name := action.Column.Text
 		if action.Action == parser.AddColumn {
 			name = action.Definition.Name
@@ -121,6 +147,9 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 			return Result{}, err
 		}
 		stage.domainBases = append(stage.domainBases, auth.catalog.Get(ref.Address))
+	}
+	if err := checkOwners(); err != nil {
+		return Result{}, err
 	}
 	if err := stage.Replace(sourceMutation.next); err != nil {
 		return Result{}, err
