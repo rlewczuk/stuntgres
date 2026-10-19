@@ -73,10 +73,10 @@ func (op *Operation) RoleState() authorization.RoleState {
 }
 
 // AuthorizationView is statement-level authority. It embeds the captured
-// accessView and adds the session and statement inputs: the engine (for
+// access.View and adds the session and statement inputs: the engine (for
 // identity checks and pass-throughs), the session settings and the path
 // inputs. Its Check, CanUse, CheckCreate, Effective and checkColumns are entry
-// points that pass the view itself as the accessEnvironment.
+// points that pass the view itself as the access.Environment.
 type AuthorizationView struct {
 	access.View
 	engine     *Engine
@@ -104,11 +104,11 @@ func (v AuthorizationView) checkColumns(b binding, mask authorization.Privileges
 	return v.View.CheckColumns(v, b.ref, b.relation, mask, indices)
 }
 
-// TemporaryNamespace implements accessEnvironment: the session's own TEMP
+// TemporaryNamespace implements access.Environment: the session's own TEMP
 // namespace as this view sees it.
 func (v AuthorizationView) TemporaryNamespace() ids.ObjectAddress { return temporaryNamespace(v) }
 
-// ReferencePath implements accessEnvironment: the live search path, read
+// ReferencePath implements access.Environment: the live search path, read
 // under the session settings mutex.
 func (v AuthorizationView) ReferencePath() ([]ids.ObjectAddress, error) {
 	return v.engine.referencePath(v)
