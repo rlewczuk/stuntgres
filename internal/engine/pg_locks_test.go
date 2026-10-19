@@ -150,8 +150,8 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		held := e.locks.Checkpoint(ticket)
 		e.locks.Restore(ticket, held)
 		e.mu.Lock()
-		e.recordCommitTimestampLocked(ticket.Ref())
-		e.dropVisibilitySnapshotLocked(ticket.Ref())
+		e.visibility.recordCommitTimestampLocked(ticket.Ref())
+		e.visibility.dropSnapshotLocked(ticket.Ref())
 		e.mu.Unlock()
 		if ticket.AssignedPublicXID() != xid {
 			t.Fatal("history/snapshot consumed lock ownership")
@@ -164,7 +164,7 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		_, waiter := blockingUnitOwner(t, e)
 		request, _ := pgLocksUnitRequest(t, e, waiter, lock.CompletionOf(ticket), lock.TransactionCompletion, lock.CompletionVirtual)
 		e.mu.Lock()
-		e.recordCommitTimestampLocked(ticket.Ref())
+		e.visibility.recordCommitTimestampLocked(ticket.Ref())
 		e.mu.Unlock()
 		pending := pgLocksUnitWait(t, e, waiter)
 		if pending.Kind != lock.TransactionRecord || pending.XID != xid || request == nil || request.Terminal() {
@@ -227,7 +227,7 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		v := e.visibility.entries[ticket.Ref()]
 		v.xid, v.xmin, v.snapshot, v.safeBuilder = 91, 13, true, true
 		e.visibility.entries[ticket.Ref()] = v
-		e.resetVisibilityPhaseLocked(ticket.Ref())
+		e.visibility.resetPhaseLocked(ticket.Ref())
 		after := e.visibility.entries[ticket.Ref()]
 		e.mu.Unlock()
 		if after != (transactionVisibility{ticket: ticket}) {
@@ -238,19 +238,19 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		v = e.visibility.entries[ticket.Ref()]
 		v.xid, v.xmin, v.snapshot, v.safeBuilder = 92, 14, true, true
 		e.visibility.entries[ticket.Ref()] = v
-		e.resetVisibilityPhaseLocked(ticket.Ref())
+		e.visibility.resetPhaseLocked(ticket.Ref())
 		after = e.visibility.entries[ticket.Ref()]
 		e.mu.Unlock()
 		if after != (transactionVisibility{ticket: ticket, assignedXID: xid, fullXID: uint64(xid)}) || ticket.AssignedPublicXID() != xid {
 			t.Fatal("phase reset discarded real assigned ownership", after)
 		}
 		e.mu.Lock()
-		e.recordCommitTimestampLocked(ticket.Ref())
+		e.visibility.recordCommitTimestampLocked(ticket.Ref())
 		if ticket.AssignedPublicXID() != xid {
 			e.mu.Unlock()
 			t.Fatal("bookkeeping impersonated manager release")
 		}
-		e.resetVisibilityPhaseLocked(ticket.Ref())
+		e.visibility.resetPhaseLocked(ticket.Ref())
 		after = e.visibility.entries[ticket.Ref()]
 		e.mu.Unlock()
 		if after != (transactionVisibility{ticket: ticket}) || ticket.AssignedPublicXID() != 0 {

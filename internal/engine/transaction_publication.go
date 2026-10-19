@@ -119,7 +119,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			} else {
 				e.installNotificationsLocked(notifications)
 				e.serializableCommittedLocked(ref, e.visibility.commitSeq)
-				e.recordCommitTimestampLocked(ref)
+				e.visibility.recordCommitTimestampLocked(ref)
 				e.finishPreparedLocked(phase)
 				e.finishDiscardRoleResetLocked(op)
 			}
@@ -467,7 +467,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		preserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.storage.IndexRoots)
 		e.storage.IndexRoots = indexRoots
 		e.visibility.commitSeq++
-		e.recordCommitTimestampLocked(ref)
+		e.visibility.recordCommitTimestampLocked(ref)
 		e.serializableCommittedLocked(ref, e.visibility.commitSeq)
 		e.finishPreparedLocked(phase)
 		e.finishDiscardRoleResetLocked(op)

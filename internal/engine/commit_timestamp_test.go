@@ -38,7 +38,7 @@ func TestCommitTimeAssignment(t *testing.T) {
 	if err := e.visibilityWriteLocked(a); err != nil || e.visibility.entries[a] != first {
 		t.Fatal("repeated ordering admission changed identity", err)
 	}
-	e.recordCommitTimestampLocked(a)
+	e.visibility.recordCommitTimestampLocked(a)
 	if e.visibility.lastCommittedXID != 0 {
 		t.Fatal("ordering-only completion fabricated a commit")
 	}
@@ -54,7 +54,7 @@ func TestCommitTimeAssignment(t *testing.T) {
 	if e.visibility.entries[a].assignedXID != 3 || e.visibility.entries[a].xid != first.xid || e.visibility.commitTimestamps[3].present {
 		t.Fatal("actual assignment changed ordering or published history")
 	}
-	e.dropVisibilitySnapshotLocked(a)
+	e.visibility.dropSnapshotLocked(a)
 	if e.visibility.entries[a].assignedXID != 3 {
 		t.Fatal("snapshot drop consumed actual assignment")
 	}
@@ -78,7 +78,7 @@ func TestCommitTimeAssignment(t *testing.T) {
 	if err := e.assignTransactionXIDLocked(d); err != nil {
 		t.Fatal(err)
 	}
-	e.dropVisibilitySnapshotLocked(d)
+	e.visibility.dropSnapshotLocked(d)
 	if e.visibility.entries[d].xid != 0 || e.visibility.entries[d].assignedXID == 0 {
 		t.Fatal("assigned-only prepared ownership was discarded")
 	}
@@ -101,7 +101,7 @@ func TestCommitTimeAssignment(t *testing.T) {
 	if node.assignedXID != publicXID {
 		t.Fatal("late SSI enrollment lost the assigned public identity")
 	}
-	disabled.recordCommitTimestampLocked(ref)
+	disabled.visibility.recordCommitTimestampLocked(ref)
 	if disabled.visibility.entries[ref].assignedXID != 0 || node.assignedXID != publicXID {
 		t.Fatal("completion consumed the retained SSI diagnostic identity")
 	}
@@ -249,7 +249,7 @@ func TestCommitTimePublication(t *testing.T) {
 					}
 					stamp := e.visibility.lastCommitTimestamp
 					// A successful catalog publisher has already consumed completion.
-					e.recordCommitTimestampLocked(ref)
+					e.visibility.recordCommitTimestampLocked(ref)
 					if e.visibility.lastCommitTimestamp != stamp || e.visibility.entries[ref].assignedXID != 0 {
 						t.Fatal("double completion")
 					}
@@ -267,7 +267,7 @@ func TestCommitTimeReplacement(t *testing.T) {
 			t.Fatal(err)
 		}
 		xid := e.visibility.entries[ref].assignedXID
-		e.recordCommitTimestampLocked(ref)
+		e.visibility.recordCommitTimestampLocked(ref)
 		source := e
 		if foreign {
 			source = New()

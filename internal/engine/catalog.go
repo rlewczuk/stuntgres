@@ -1273,7 +1273,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				e.roles.published = s.roleCandidate
 			}
 			if commitRef != (ids.TxRef{}) {
-				e.recordCommitTimestampLocked(commitRef)
+				e.visibility.recordCommitTimestampLocked(commitRef)
 			}
 			s.lifecycle = catalogPublished
 		}
@@ -1466,7 +1466,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 		e.clearPersistentSequenceMemoryLocked()
 		e.catalog.nextRevision = nextRevision
 		e.fenceSerializableLocked()
-		e.retireCommitTimestampsLocked()
+		e.visibility.retireCommitTimestampsLocked()
 		installed = next.Epoch()
 		return ChangeSet{Replacement: true}, nil
 	}
@@ -1574,7 +1574,7 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.
 	e.clearPersistentSequenceMemoryLocked()
 	e.catalog.nextRevision = nextRevision
 	e.fenceSerializableLocked()
-	e.retireCommitTimestampsLocked()
+	e.visibility.retireCommitTimestampsLocked()
 	return nil
 }
 
