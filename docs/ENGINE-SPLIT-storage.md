@@ -105,10 +105,62 @@ completes the step.
 
 ## Status
 
-- [ ] 6a — `storageStore` state ownership
+- [x] 6a — `storageStore` state ownership (`79c8a6f3a`, `d6bbc8a3e`, then
+  the commit that records this status) *(racecheck skipped at user request;
+  targeted RACE=1 runs passed)*
 - [ ] 6b — `storage` created and types moved
 - [ ] 6c — Aliases removed
 
 Outstanding aliases: none yet.
 
-Notes for later steps: none yet.
+6a results:
+
+- **Store.** `storageStore` (`internal/engine/storage_store.go`) holds
+  `relations` (was `Engine.storage`), `sequences`, `indexRoots`, `nextRow`
+  and `nextVersion`. `Engine` holds it by value as `storage` and never
+  replaces it whole; publication, Restore, foreign replacement and TEMP
+  installation swap its maps under `Engine.mu`. `newEngine` allocates the
+  same two maps as before (`indexRoots` starts nil).
+- **Rewrite.** A go/types selector rewriter changed all 2,008 uses (1,149
+  `storage`, 316 `sequences`, 387 `indexRoots`, 80 `nextRow`, 76
+  `nextVersion`) in 340 production and in-package test files. The
+  per-field census matched before and after; one composite-literal key
+  (`newEngine`) was edited by hand.
+- **Methods moved.** `allocateRowVersionsLocked` (unchanged body) and
+  `indexRootsCurrent`, which replaces `Engine.domainIndexRootsCurrent` and
+  takes the stage's captured roots.
+- **Methods kept on `Engine`.** `privateStorageLocked`,
+  `sequenceGeneratorLocked` and `domainStageIndexRootLocked` first consult
+  the transaction catalog journal or the session; about 36 others
+  (publication, Restore, Dump, replacement, TEMP, index builds, ALTER)
+  combine storage with catalog, visibility or locks and are orchestration.
+- **Kept inline.** Row and version counter bumps in
+  `exclusion_admission.go`, `insert_returning.go`, `update_versions.go`,
+  `index_replacement.go` and `catalog.go` interleave with exclusion and
+  replacement logic and have distinct exhaustion messages. Only their
+  selectors changed, so allocation order and messages are unchanged.
+- **Tests.** Adapted mechanically by the rewrite. None moved or deleted.
+- **Verification.** `make check` storage selections (index, hash, sequence,
+  TRUNCATE, materialized view, exclusion, UPDATE core, INSERT, Restore,
+  Dump, TEMP, domain, commit time, CREATE) passed after each commit, and a
+  `RACE=1` run of concurrent index build, UPDATE core, exclusion, INSERT
+  conflict, TRUNCATE, materialized refresh and sequence tests passed.
+  `quickcheck` passed. The full `racecheck` was skipped at the user's
+  request. `make bench`: 1.52–1.58 ms/op and 7,768 allocations on `master`,
+  1.51–1.56 ms/op and 7,768 allocations after (the <1 ms target is already
+  missed on `master`). `make deps` lists only module paths. Imports are
+  unchanged.
+
+Notes for later steps:
+
+- 6b: the engine bumps `nextRow`/`nextVersion` directly at the inline
+  sites above, and Restore and foreign replacement read and assign both
+  counters as a pair (`prepareRemintedStorage`, `installForeignCatalogLocked`).
+  `storage.Store` needs exported accessors or allocation methods for them
+  that keep each site's order and error text.
+- 6b: about 61 production and 93 test locals or parameters are named
+  `storage`. Rename those that would capture a `storage.X` reference
+  before naming the package inside their scope (as 5f did for `catalog`).
+- 6b: `privateStorageLocked` and `sequenceGeneratorLocked` overlay
+  transaction-private storage on the store; decide with
+  `privateDeletionRoot` whether that overlay belongs with write staging.

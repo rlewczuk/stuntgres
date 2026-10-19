@@ -5,19 +5,17 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `b99d84bdf`.
+Last verified against `master` at `3734198bb`.
 
 ## Next ready sub-steps
 
 - **5g** — optional `catalog.Relation` regrouping (needs 5f ✓) *(needs
   user approval)*.
-- **6a** — `storageStore` state ownership (needs 5e ✓) *(broad rewrite in
-  practice, like 5a)*.
+- **6b** — `storage` created and types moved (needs 6a ✓).
 - **B0** — `access` refined and approved, no code changes (needs 5e ✓).
 
-They may run in parallel on separate branches, except that 5g and 6a are
-broad rewrites and must not run alongside each other or another broad
-rewrite (§8).
+They may run in parallel on separate branches, except that 5g is a broad
+rewrite and must not run alongside another broad rewrite (§8).
 
 ## Task tree
 
@@ -138,7 +136,9 @@ rewrite (§8).
     *(racecheck skipped at user request)*
   - [ ] 5g — Optional `catalog.Relation` regrouping *(needs user approval)*
 - [ ] **Step 6 — `storage`** ([prompt](ENGINE-SPLIT-storage.md); needs 5e)
-  - [ ] 6a — `storageStore` state ownership
+  - [x] 6a — `storageStore` state ownership (`79c8a6f3a`, `d6bbc8a3e`,
+    then the docs commit) *(racecheck skipped at user request; targeted
+    RACE=1 runs passed)*
   - [ ] 6b — `storage` created and types moved
   - [ ] 6c — Aliases removed *(broad rewrite)*
 - [ ] **Step 7 — `visibility`** ([prompt](ENGINE-SPLIT-visibility.md); needs
