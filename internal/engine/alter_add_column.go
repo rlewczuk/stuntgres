@@ -58,7 +58,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 		op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42701", Message: message + ", skipping"})
 		return old, addedColumn{}, nil
 	}
-	if old.AttributeHighWater >= 1600 {
+	if old.ColumnMeta.HighWater >= 1600 {
 		return fail(sqlError("54011", "tables can have at most 1600 columns"))
 	}
 	if serialTypeName(column.TypeName) != "" {
@@ -92,15 +92,15 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 	if declaration.generation != nil {
 		return fail(insertError("0A000", "ADD COLUMN generated declarations are unsupported", declaration.generation.Pos))
 	}
-	attribute := old.AttributeHighWater + 1
+	attribute := old.ColumnMeta.HighWater + 1
 	next := *old
-	next.AttributeHighWater = attribute
+	next.ColumnMeta.HighWater = attribute
 	next.Columns = slices.Clone(old.Columns)
 	next.Attributes = slices.Clone(old.Attributes)
 	next.Index = maps.Clone(old.Index)
-	next.Defaults = maps.Clone(old.Defaults)
-	next.NotNullConstraints = slices.Clone(old.NotNullConstraints)
-	next.CheckConstraints = slices.Clone(old.CheckConstraints)
+	next.ColumnMeta.Defaults = maps.Clone(old.ColumnMeta.Defaults)
+	next.Constraints.NotNull = slices.Clone(old.Constraints.NotNull)
+	next.Constraints.Check = slices.Clone(old.Constraints.Check)
 	next.Index[column.Name] = len(next.Columns)
 	definition := catalog.Column{Name: column.Name, Usage: usage, DeclaredDimensions: int16(len(column.TypeName.ArrayBounds)), Nullable: true, NullabilityKnown: true, OriginTable: uint32(old.Address().ObjectID), OriginAttribute: int16(attribute)}
 	next.Columns = append(next.Columns, definition)
@@ -131,10 +131,10 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 			if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, dependencies: &persisted.Dependencies, commentSnapshot: &persisted.CatalogSnapshot, catalogAliasReferences: &persisted.CatalogAliasReferences}).sql(op.Context(), auth.catalog, node); err != nil {
 				return fail(alterCookingError(err))
 			}
-			if next.Defaults == nil {
-				next.Defaults = make(map[int32]catalog.ColumnDefault)
+			if next.ColumnMeta.Defaults == nil {
+				next.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault)
 			}
-			next.Defaults[attribute] = persisted
+			next.ColumnMeta.Defaults[attribute] = persisted
 			added.expression = node
 			added.dependencies, added.consumer = persisted.Dependencies, old
 		}

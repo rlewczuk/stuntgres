@@ -32,7 +32,7 @@ func partitionConstraintDumpCatalog(view catalog.Read) (catalog.Read, *partition
 	}
 	for _, descriptor := range view.Descriptors() {
 		table, ok := descriptor.(*catalog.Relation)
-		if ok && hierarchyRelation(table) && (len(table.UniqueConstraints) != 0 || len(table.ExclusionConstraints) != 0) {
+		if ok && hierarchyRelation(table) && (len(table.Constraints.Unique) != 0 || len(table.Constraints.Exclusion) != 0) {
 			tables = append(tables, table)
 		}
 	}
@@ -49,11 +49,11 @@ func partitionConstraintDumpCatalog(view catalog.Read) (catalog.Read, *partition
 		// PARTITION OF binds local declarations before cloning inherited keys,
 		// even when the captured table added its locals after inheritance. Name
 		// allocation must not depend on that mutable slice order (or on OIDs).
-		indexes := make([]*catalog.Relation, 0, len(table.UniqueConstraints)+len(table.ExclusionConstraints))
-		for _, c := range table.UniqueConstraints {
+		indexes := make([]*catalog.Relation, 0, len(table.Constraints.Unique)+len(table.Constraints.Exclusion))
+		for _, c := range table.Constraints.Unique {
 			indexes = append(indexes, view.MustRelation(c.Index))
 		}
-		for _, c := range table.ExclusionConstraints {
+		for _, c := range table.Constraints.Exclusion {
 			indexes = append(indexes, view.MustRelation(c.Index))
 		}
 		slices.SortFunc(indexes, func(a, b *catalog.Relation) int {
@@ -71,9 +71,9 @@ func partitionConstraintDumpCatalog(view catalog.Read) (catalog.Read, *partition
 			}
 		}
 		next := *table
-		next.UniqueConstraints = slices.Clone(table.UniqueConstraints)
-		for i := range next.UniqueConstraints {
-			c := &next.UniqueConstraints[i]
+		next.Constraints.Unique = slices.Clone(table.Constraints.Unique)
+		for i := range next.Constraints.Unique {
+			c := &next.Constraints.Unique[i]
 			c.Name = replay.temporary[c.Index]
 			old := view.MustRelation(c.Index)
 			index, definition := *old, *old.SQLIndex
@@ -82,9 +82,9 @@ func partitionConstraintDumpCatalog(view catalog.Read) (catalog.Read, *partition
 			index.SQLIndex = &definition
 			state.SetDescriptor(index.Address(), &index)
 		}
-		next.ExclusionConstraints = slices.Clone(table.ExclusionConstraints)
-		for i := range next.ExclusionConstraints {
-			c := &next.ExclusionConstraints[i]
+		next.Constraints.Exclusion = slices.Clone(table.Constraints.Exclusion)
+		for i := range next.Constraints.Exclusion {
+			c := &next.Constraints.Exclusion[i]
 			c.Name = replay.temporary[c.Index]
 			old := view.MustRelation(c.Index)
 			index, definition := *old, *old.SQLIndex
@@ -106,10 +106,10 @@ func (r *partitionConstraintReplay) tableRenames(view catalog.Read, table *catal
 		r.occupied[table.Namespace()] = used
 	}
 	used[table.Name()] = true
-	for _, c := range table.NotNullConstraints {
+	for _, c := range table.Constraints.NotNull {
 		used[c.Name] = true
 	}
-	for _, c := range table.CheckConstraints {
+	for _, c := range table.Constraints.Check {
 		used[c.Name] = true
 	}
 	for _, index := range partitionIndexDeclarationOrder(view, table) {

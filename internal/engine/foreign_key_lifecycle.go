@@ -119,7 +119,7 @@ func (provider *dropProvider) foreignKeyColumnDependencies(target ids.ObjectAddr
 		if replacement := provider.replacement(address); replacement != nil {
 			descriptor = replacement
 		}
-		if d, ok := descriptor.(*catalog.Relation); ok && len(d.ForeignKeys) != 0 {
+		if d, ok := descriptor.(*catalog.Relation); ok && len(d.Constraints.ForeignKeys) != 0 {
 			present = true
 			break
 		}
@@ -136,7 +136,7 @@ func (provider *dropProvider) foreignKeyColumnDependencies(target ids.ObjectAddr
 		if edge.address.ClassID != 2606 || edge.relation == nil {
 			continue
 		}
-		for _, f := range edge.relation.ForeignKeys {
+		for _, f := range edge.relation.Constraints.ForeignKeys {
 			if f.OID == edge.address.ObjectID {
 				// The column's existing shape pass owns local AUTO removal,
 				// even if discovery first reached this FK through its index.
@@ -203,14 +203,14 @@ func (provider *dropProvider) foreignKeyDependents(edges []domainDependency) err
 		if replacement, ok := provider.replacement(old.Address()).(*catalog.Relation); ok {
 			old = replacement
 		}
-		for i, f := range old.ForeignKeys {
+		for i, f := range old.Constraints.ForeignKeys {
 			if f.OID != edge.address.ObjectID {
 				continue
 			}
 			next := *old
-			next.ForeignKeys = make([]catalog.ForeignKeyConstraint, 0, len(old.ForeignKeys)-1)
-			next.ForeignKeys = append(next.ForeignKeys, old.ForeignKeys[:i]...)
-			next.ForeignKeys = append(next.ForeignKeys, old.ForeignKeys[i+1:]...)
+			next.Constraints.ForeignKeys = make([]catalog.ForeignKeyConstraint, 0, len(old.Constraints.ForeignKeys)-1)
+			next.Constraints.ForeignKeys = append(next.Constraints.ForeignKeys, old.Constraints.ForeignKeys[:i]...)
+			next.Constraints.ForeignKeys = append(next.Constraints.ForeignKeys, old.Constraints.ForeignKeys[i+1:]...)
 			var err error
 			next.ObjectRevision, err = provider.revision(old.Revision())
 			if err != nil {
@@ -232,11 +232,11 @@ func (e *Engine) rebuildAlterForeignKeysLocked(stage *CatalogStage, parent *cata
 	view := e.stageRead(stage)
 	for _, descriptor := range view.Descriptors() {
 		old, ok := descriptor.(*catalog.Relation)
-		if !ok || len(old.ForeignKeys) == 0 {
+		if !ok || len(old.Constraints.ForeignKeys) == 0 {
 			continue
 		}
 		var next *catalog.Relation
-		for i, f := range old.ForeignKeys {
+		for i, f := range old.Constraints.ForeignKeys {
 			affected := false
 			for _, change := range transformations {
 				affected = affected || (old.Address() == parent.Address() && slices.Contains(f.Attributes, change.attribute)) || (f.Target == parent.Address() && slices.Contains(f.Referenced, change.attribute))
@@ -246,14 +246,14 @@ func (e *Engine) rebuildAlterForeignKeysLocked(stage *CatalogStage, parent *cata
 			}
 			if next == nil {
 				copy := *old
-				copy.ForeignKeys = slices.Clone(old.ForeignKeys)
+				copy.Constraints.ForeignKeys = slices.Clone(old.Constraints.ForeignKeys)
 				next = &copy
 				if old.Address() == parent.Address() {
 					*next = *parent
-					next.ForeignKeys = slices.Clone(parent.ForeignKeys)
+					next.Constraints.ForeignKeys = slices.Clone(parent.Constraints.ForeignKeys)
 				}
 			}
-			c := &next.ForeignKeys[i]
+			c := &next.Constraints.ForeignKeys[i]
 			target, ok := view.Relation(c.Target)
 			if c.Target == parent.Address() {
 				target = parent
@@ -300,7 +300,7 @@ func (s *StatementScope) acquireForeignKeyTypeProviders(view catalog.Read, addre
 		if !ok {
 			continue
 		}
-		for _, f := range child.ForeignKeys {
+		for _, f := range child.Constraints.ForeignKeys {
 			if child.Address() != address && f.Target != address {
 				continue
 			}
@@ -342,7 +342,7 @@ func (s *StatementScope) validateAlterForeignKeys(view catalog.Read, address ids
 		if !ok {
 			continue
 		}
-		for _, f := range child.ForeignKeys {
+		for _, f := range child.Constraints.ForeignKeys {
 			if f.NotValid || child.Address() != address && f.Target != address {
 				continue
 			}
@@ -377,7 +377,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 		if !ok {
 			continue
 		}
-		for _, f := range child.ForeignKeys {
+		for _, f := range child.Constraints.ForeignKeys {
 			if installedForeignKey(stage, address, f) {
 				continue
 			}
@@ -424,7 +424,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 		if !ok {
 			continue
 		}
-		for _, f := range child.ForeignKeys {
+		for _, f := range child.Constraints.ForeignKeys {
 			if installedForeignKey(stage, address, f) {
 				continue
 			}

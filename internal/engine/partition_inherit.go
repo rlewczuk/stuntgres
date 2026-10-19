@@ -40,7 +40,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	if err != nil {
 		return nil, err
 	}
-	d.ACL = stage.creationACL(d.Owner, namespace, authorization.DefaultTables)
+	d.Security.ACL = stage.creationACL(d.Owner, namespace, authorization.DefaultTables)
 	for i := range d.Columns {
 		d.Columns[i].DeclaredDimensions = 0
 	}
@@ -75,21 +75,21 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 		return nil, err
 	}
 	nullSyntax := *syntax
-	nullSyntax.Elements = make([]parser.TableElement, 0, len(parent.NotNullConstraints)+len(syntax.Elements))
-	for _, constraint := range parent.NotNullConstraints {
+	nullSyntax.Elements = make([]parser.TableElement, 0, len(parent.Constraints.NotNull)+len(syntax.Elements))
+	for _, constraint := range parent.Constraints.NotNull {
 		slot := parent.IndexForAttribute(constraint.Attribute)
 		nullSyntax.Elements = append(nullSyntax.Elements, parser.TableElement{NotNull: &parser.NotNullConstraint{Column: parser.Identifier{Text: d.Columns[slot].Name}, Name: parser.Identifier{Text: constraint.Name}}})
 	}
 	nullSyntax.Elements = append(nullSyntax.Elements, syntax.Elements...)
-	d.NotNullConstraints, err = bindCreateNotNull(&nullSyntax, d.Columns, declarations, nil, uniques, d.Index)
+	d.Constraints.NotNull, err = bindCreateNotNull(&nullSyntax, d.Columns, declarations, nil, uniques, d.Index)
 	if err != nil {
 		return nil, err
 	}
 	if err = nameCreateNotNull(d, auth.catalog); err != nil {
 		return nil, err
 	}
-	for i := range d.NotNullConstraints {
-		constraint := &d.NotNullConstraints[i]
+	for i := range d.Constraints.NotNull {
+		constraint := &d.Constraints.NotNull[i]
 		slot := d.IndexForAttribute(constraint.Attribute)
 		constraint.PartitionLocal = declarations[slot].columnNotNull
 		for _, element := range syntax.Elements {
@@ -109,26 +109,26 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	if err != nil {
 		return nil, err
 	}
-	if len(parent.Defaults) != 0 || len(localDefaults) != 0 {
-		d.Defaults = make(map[int32]catalog.ColumnDefault, len(parent.Defaults)+len(localDefaults))
+	if len(parent.ColumnMeta.Defaults) != 0 || len(localDefaults) != 0 {
+		d.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault, len(parent.ColumnMeta.Defaults)+len(localDefaults))
 		for i, attribute := range parent.Attributes {
 			if declarations[i].defaultExpr != nil || declarations[i].identity != nil || declarations[i].generation != nil {
 				continue
 			}
-			if definition, ok := parent.Defaults[attribute]; ok {
+			if definition, ok := parent.ColumnMeta.Defaults[attribute]; ok {
 				definition.OID = 0
-				d.Defaults[d.Attributes[i]] = definition
+				d.ColumnMeta.Defaults[d.Attributes[i]] = definition
 			}
 		}
 		for attribute, definition := range localDefaults {
-			d.Defaults[attribute] = definition
+			d.ColumnMeta.Defaults[attribute] = definition
 		}
 	}
 	if err = e.bindCreateGenerations(op, auth, d, declarations, scope.input); err != nil {
 		return nil, err
 	}
-	inherited := make(map[string]catalog.CheckConstraint, len(parent.CheckConstraints))
-	if len(parent.CheckConstraints) != 0 {
+	inherited := make(map[string]catalog.CheckConstraint, len(parent.Constraints.Check))
+	if len(parent.Constraints.Check) != 0 {
 		slots := make(map[int32]int, len(d.Attributes))
 		for i, attribute := range d.Attributes {
 			slots[attribute] = i
@@ -145,7 +145,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 			}
 			return old
 		}
-		for _, original := range parent.CheckConstraints {
+		for _, original := range parent.Constraints.Check {
 			if original.NoInherit {
 				continue
 			}
@@ -170,7 +170,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 				}
 				definition.Dependencies = append(definition.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: revision})
 			}
-			d.CheckConstraints = append(d.CheckConstraints, definition)
+			d.Constraints.Check = append(d.Constraints.Check, definition)
 			inherited[definition.Name] = definition
 		}
 	}

@@ -210,10 +210,10 @@ func TestRestoreInheritedOwnerPair(t *testing.T) {
 	}
 	e.importTargets = targets
 	before := e.CatalogRead().MustRelation(refs["c"].Address)
-	nn := restoredNotNull{ref: refs["c"], attribute: 1, constraint: before.NotNullConstraints[0].OID}
+	nn := restoredNotNull{ref: refs["c"], attribute: 1, constraint: before.Constraints.NotNull[0].OID}
 	roleExecute(t, e, op, "ALTER TABLE public.c OWNER TO captured_owner")
 	after := e.CatalogRead().MustRelation(refs["c"].Address)
-	if after.Owner != owner.Ref || before.Owner == owner.Ref || after.NotNullConstraints[0].OID != nn.constraint {
+	if after.Owner != owner.Ref || before.Owner == owner.Ref || after.Constraints.NotNull[0].OID != nn.constraint {
 		t.Fatal("actual owner transfer changed source capture or physical NN identity")
 	}
 	if err := e.restoreInheritedOwner(op, raw, pair); err == nil {
@@ -226,7 +226,7 @@ func TestRestoreInheritedOwnerPair(t *testing.T) {
 	if err := e.restoreNoInheritNotNull(op, restoreNNRaw("public.c", "a", "local_nn"), nn); err != nil {
 		t.Fatal("legal owner metadata copy invalidated actual NN identity", err)
 	}
-	if current := e.CatalogRead().MustRelation(refs["c"].Address); current.Owner != owner.Ref || !current.NotNullConstraints[0].NoInherit || current.NotNullConstraints[0].OID != nn.constraint {
+	if current := e.CatalogRead().MustRelation(refs["c"].Address); current.Owner != owner.Ref || !current.Constraints.NotNull[0].NoInherit || current.Constraints.NotNull[0].OID != nn.constraint {
 		t.Fatal("paired NN repair changed final captured owner/identity")
 	}
 }

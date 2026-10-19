@@ -196,7 +196,7 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 					case "comment":
 						replacement.Comment = "compatible metadata revision"
 					case "acl":
-						replacement.ACL = authorization.ACLValue{Explicit: true}
+						replacement.Security.ACL = authorization.ACLValue{Explicit: true}
 					}
 					e.catalog.state.SetDescriptor(address, &replacement)
 					restore = func() { e.catalog.state.SetDescriptor(address, original) }

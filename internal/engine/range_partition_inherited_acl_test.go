@@ -114,7 +114,7 @@ func TestRangePartitionInheritedTypeUsageAndCookedSchemaIdentity(t *testing.T) {
 	if child.Columns[1].Usage != parent.Columns[1].Usage || child.Columns[2].Usage != parent.Columns[2].Usage || child.Columns[1].OriginTable != uint32(child.Address().ObjectID) || child.Columns[1].OriginTable == parent.Columns[1].OriginTable {
 		t.Fatal("inherited identity/origin admission did not copy type and refresh child origin")
 	}
-	if len(child.CheckConstraints) != 1 || child.CheckConstraints[0].OID == parent.CheckConstraints[0].OID {
+	if len(child.Constraints.Check) != 1 || child.Constraints.Check[0].OID == parent.Constraints.Check[0].OID {
 		t.Fatal("inherited CHECK identity was not refreshed")
 	}
 	roleExecute(t, e, op, "INSERT INTO public.root(k) VALUES(1)")

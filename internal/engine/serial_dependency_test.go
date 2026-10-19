@@ -27,8 +27,8 @@ func TestSerialIncomingDefaultDependencyFence(t *testing.T) {
 	view := e.CatalogRead()
 	d := view.MustRelation(roleTableRef(t, e, "t").Address)
 	bad := *d
-	bad.Defaults = map[int32]catalog.ColumnDefault{1: d.Defaults[1]}
-	definition := bad.Defaults[1]
+	bad.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: d.ColumnMeta.Defaults[1]}
+	definition := bad.ColumnMeta.Defaults[1]
 	definition.Dependencies = append([]ids.ObjectRef(nil), definition.Dependencies...)
 	for i, ref := range definition.Dependencies {
 		if ref.Address == target {
@@ -36,11 +36,11 @@ func TestSerialIncomingDefaultDependencyFence(t *testing.T) {
 			break
 		}
 	}
-	bad.Defaults[1] = definition
+	bad.ColumnMeta.Defaults[1] = definition
 	if err := (relationProvider{}).Validate(view, &bad); err == nil {
 		t.Fatal("untracked default edge admitted")
 	}
-	if _, err := defaultSQL(context.Background(), view, d.Defaults[1].Expression); err != nil {
+	if _, err := defaultSQL(context.Background(), view, d.ColumnMeta.Defaults[1].Expression); err != nil {
 		t.Fatal("source expression mutated", err)
 	}
 }

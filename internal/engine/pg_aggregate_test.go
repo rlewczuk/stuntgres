@@ -15,7 +15,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600}
 	source := view.MustRelation(address)
 	ref := e.catalog.Domain.Ref(view.Epoch(), address)
-	if source.RowType != 10027 || source.VirtualView || !source.HasIndexes || len(source.Columns) != 22 {
+	if source.RowType != 10027 || source.VirtualView || !source.History.HasIndexes || len(source.Columns) != 22 {
 		t.Fatal("aggregate source descriptor", source)
 	}
 	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10027})
@@ -46,7 +46,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 		if i >= 20 {
 			collation = 950
 		}
-		if c.OriginTable != 2600 || c.OriginAttribute != int16(i+1) || !c.NullabilityKnown || c.Nullable != (i >= 20) || c.Usage.Collation.ID != collation || source.CatalogAttributes[i].NotNull != (i < 20) {
+		if c.OriginTable != 2600 || c.OriginAttribute != int16(i+1) || !c.NullabilityKnown || c.Nullable != (i >= 20) || c.Usage.Collation.ID != collation || source.ColumnMeta.CatalogAttributes[i].NotNull != (i < 20) {
 			t.Fatal("aggregate attribute facts", i, c)
 		}
 	}

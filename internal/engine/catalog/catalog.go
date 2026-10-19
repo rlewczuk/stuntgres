@@ -39,53 +39,87 @@ func (d *Namespace) Name() string { return d.ObjectName }
 
 func (*Namespace) Kind() ids.ObjectKind { return ids.NamespaceObject }
 
+// Relation is a pg_class entry: a table, partitioned table, view,
+// materialized view, index, sequence, composite type, foreign table or
+// catalog relation. Its sub-records are values,
+// so copying a Relation shares their slices and maps exactly as it shares
+// its top-level ones (copy-on-write).
 type Relation struct {
 	ObjectAddress, ObjectNamespace ids.ObjectAddress
 	ObjectName                     string
 	ObjectRevision                 ids.DefinitionRevision
-	SequencePlanStamp              ids.DefinitionRevision
-	Columns                        []Column
-	Index                          map[string]int
-	Attributes                     []int32
-	AttributeHighWater             int32
-	DroppedAttributes              map[int32]AttributeMetadata
-	CatalogAttributes              []CatalogAttribute
-	Owner                          authorization.PrincipalRef
-	ACL                            authorization.ACLValue
-	ColumnACL                      map[int32]authorization.ACLValue
-	Comment                        string
-	ColumnComments                 map[int32]string
-	NotNullConstraints             []NotNullConstraint
-	PhysicalNotNull                map[int32]PhysicalNotNullProof
-	CheckConstraints               []CheckConstraint
-	Policies                       []PolicyDefinition
-	Rules                          RulesPayload
-	RLSEnabled                     bool
-	RLSForced                      bool
-	UniqueConstraints              []UniqueConstraint
-	ExclusionConstraints           []ExclusionConstraint
-	ForeignKeys                    []ForeignKeyConstraint
-	Defaults                       map[int32]ColumnDefault
-	Generations                    map[int32]ColumnGeneration
-	Identities                     map[int32]ColumnIdentity
-	Inheritance                    *TableInheritance
 	RelationKind                   RelationKind
-	HasIndexes                     bool      // Sticky publication history; removing an index does not clear it.
-	HasSubclasses                  bool      // Sticky inheritance/table/index partition publication history.
-	SubclassPredecessor            *Relation // Exact first-subclass marker publication only.
-	SubclassPublication            ids.DefinitionRevision
-	OnCommit                       parser.OnCommitAction
-	Sequence                       *SequenceOptions
-	View                           ViewPayload
-	Populated                      bool                // Independent of stored row count, including populated-empty MVs.
+	Owner                          authorization.PrincipalRef
+	Comment                        string
 	AutoExtensions                 []ids.ObjectAddress // Immutable whole-object AUTO_EXTENSION authority.
-	VirtualView                    bool
-	SQLIndex                       *IndexDefinition
-	Partition                      *PartitionDefinition
-	Membership                     *PartitionMembership
-	RowType                        sqltype.ID
-	OfType                         ids.ObjectAddress
-	Foreign                        *ForeignTableDefinition
+
+	Columns    []Column
+	Index      map[string]int
+	Attributes []int32
+	RowType    sqltype.ID
+	OfType     ids.ObjectAddress
+
+	ColumnMeta  ColumnMetadata
+	Constraints RelationConstraints
+	Security    RelationSecurity
+	History     PublicationHistory
+
+	// Kind payloads.
+	SQLIndex          *IndexDefinition
+	Partition         *PartitionDefinition
+	Membership        *PartitionMembership
+	Inheritance       *TableInheritance
+	Sequence          *SequenceOptions
+	SequencePlanStamp ids.DefinitionRevision
+	View              ViewPayload
+	VirtualView       bool
+	Populated         bool // Independent of stored row count, including populated-empty MVs.
+	Rules             RulesPayload
+	Foreign           *ForeignTableDefinition
+	OnCommit          parser.OnCommitAction
+}
+
+// ColumnMetadata holds per-attribute metadata keyed by attribute number,
+// beside the relation's live Columns and Attributes.
+type ColumnMetadata struct {
+	HighWater         int32 // Highest attribute number ever assigned.
+	Dropped           map[int32]AttributeMetadata
+	CatalogAttributes []CatalogAttribute
+	Comments          map[int32]string
+	Defaults          map[int32]ColumnDefault
+	Generations       map[int32]ColumnGeneration
+	Identities        map[int32]ColumnIdentity
+}
+
+// RelationConstraints holds a relation's table constraints. PhysicalNotNull
+// records attributes that stay physically NOT NULL without a NOT NULL
+// constraint row (after TYPE cleanup or its import counterpart).
+type RelationConstraints struct {
+	NotNull         []NotNullConstraint
+	PhysicalNotNull map[int32]PhysicalNotNullProof
+	Check           []CheckConstraint
+	Unique          []UniqueConstraint
+	Exclusion       []ExclusionConstraint
+	ForeignKeys     []ForeignKeyConstraint
+}
+
+// RelationSecurity holds a relation's access control: its ACL, column ACLs
+// and row-level security.
+type RelationSecurity struct {
+	ACL        authorization.ACLValue
+	ColumnACL  map[int32]authorization.ACLValue
+	Policies   []PolicyDefinition
+	RLSEnabled bool
+	RLSForced  bool
+}
+
+// PublicationHistory records sticky facts about a relation's earlier
+// publications. Replacement may set them but never clear them.
+type PublicationHistory struct {
+	HasIndexes          bool      // Removing an index does not clear it.
+	HasSubclasses       bool      // Inheritance, table or index partition publication.
+	SubclassPredecessor *Relation // Exact first-subclass marker publication only.
+	SubclassPublication ids.DefinitionRevision
 }
 
 func (d *Relation) Address() ids.ObjectAddress { return d.ObjectAddress }

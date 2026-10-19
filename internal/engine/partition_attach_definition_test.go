@@ -15,10 +15,10 @@ func TestPartitionAttachLayout(t *testing.T) {
 	e := New()
 	parent := inheritanceUnitRelation(e, "parent", 32000, "k", "payload")
 	parent.Attributes = []int32{3, 8}
-	parent.AttributeHighWater = 8
+	parent.ColumnMeta.HighWater = 8
 	child := inheritanceUnitRelation(e, "child", 32001, "payload", "k")
 	child.Attributes = []int32{2, 9}
-	child.AttributeHighWater = 9
+	child.ColumnMeta.HighWater = 9
 	layout, err := inheritanceQueryLayout(parent, child)
 	if err != nil {
 		t.Fatal(err)
@@ -67,16 +67,16 @@ func TestPartitionAttachSchema(t *testing.T) {
 	parent := inheritanceUnitRelation(e, "parent", 32010, "k", "payload")
 	child := inheritanceUnitRelation(e, "child", 32011, "payload", "k")
 	parent.Columns[0].Nullable = false
-	parent.NotNullConstraints = []catalog.NotNullConstraint{{OID: 32100, Name: "parent_nn", Attribute: 1}}
+	parent.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 32100, Name: "parent_nn", Attribute: 1}}
 	child.Columns[1].Nullable = false
-	child.NotNullConstraints = []catalog.NotNullConstraint{{OID: 32101, Name: "child_nn", Attribute: 2, PartitionLocal: true}}
+	child.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 32101, Name: "child_nn", Attribute: 2, PartitionLocal: true}}
 	view := inheritanceUnitView(e, parent, child)
 	scope := &StatementScope{op: op}
 	next, err := partitionAttachSchema(scope, view, parent, child)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next == child || next.NotNullConstraints[0].Name != "child_nn" || next.NotNullConstraints[0].OID != 32101 || next.NotNullConstraints[0].PartitionLocal || !child.NotNullConstraints[0].PartitionLocal {
+	if next == child || next.Constraints.NotNull[0].Name != "child_nn" || next.Constraints.NotNull[0].OID != 32101 || next.Constraints.NotNull[0].PartitionLocal || !child.Constraints.NotNull[0].PartitionLocal {
 		t.Fatal("NN identity or source changed")
 	}
 	next.Membership = &catalog.PartitionMembership{Parent: parent.Address()}
@@ -148,23 +148,23 @@ func TestPartitionAttachProof(t *testing.T) {
 			t.Fatal(got, want, err)
 		}
 	}
-	child.CheckConstraints = []catalog.CheckConstraint{{Name: "bounds", Expression: bounds}}
+	child.Constraints.Check = []catalog.CheckConstraint{{Name: "bounds", Expression: bounds}}
 	check(false, false) // nullable CHECK permits UNKNOWN
-	child.NotNullConstraints = []catalog.NotNullConstraint{{Attribute: 1}}
+	child.Constraints.NotNull = []catalog.NotNullConstraint{{Attribute: 1}}
 	check(false, true)
-	child.NotNullConstraints[0].NotValid = true
+	child.Constraints.NotNull[0].NotValid = true
 	check(false, false)
-	child.NotNullConstraints = nil
-	child.CheckConstraints[0].Expression = and(nullTestExpression{Info: expr.Info{Usage: boolean}, child: key, not: true}, bounds)
+	child.Constraints.NotNull = nil
+	child.Constraints.Check[0].Expression = and(nullTestExpression{Info: expr.Info{Usage: boolean}, child: key, not: true}, bounds)
 	check(false, true)
-	child.CheckConstraints[0].NotValid = true
+	child.Constraints.Check[0].NotValid = true
 	check(false, false)
-	child.CheckConstraints[0].NotValid = false
-	child.CheckConstraints[0].NoInherit = true
+	child.Constraints.Check[0].NotValid = false
+	child.Constraints.Check[0].NoInherit = true
 	check(false, true) // local validated NO INHERIT remains a scan proof
-	child.CheckConstraints[0].Expression = or(cmp("<", 1), cmp(">=", 3))
+	child.Constraints.Check[0].Expression = or(cmp("<", 1), cmp(">=", 3))
 	check(true, true) // NULL belongs to the range complement
-	child.CheckConstraints[0].NotValid = true
+	child.Constraints.Check[0].NotValid = true
 	check(true, false)
 	goal := partitionProofTuple([]catalog.PartitionDatum{{Value: value(1)}, {Kind: -1}}, 0, true)
 	if goal.op != "or" || goal.right.op != "=" {

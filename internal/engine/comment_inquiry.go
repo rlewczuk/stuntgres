@@ -117,7 +117,7 @@ func descriptorComment(d catalog.Descriptor, sub int32) string {
 		if sub == 0 {
 			return d.Comment
 		}
-		return d.ColumnComments[sub]
+		return d.ColumnMeta.Comments[sub]
 	}
 	return ""
 }

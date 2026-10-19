@@ -21,7 +21,7 @@ func TestAlterDropColumnCommentsStableAttributes(t *testing.T) {
 	old := e.catalog.state.MustRelation(ref.Address)
 	run(t, e, "ALTER TABLE t DROP b")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if next.Comment != "table keep" || !reflect.DeepEqual(next.Attributes, []int32{1, 3}) || !reflect.DeepEqual(next.ColumnComments, map[int32]string{3: "survivor comment"}) || !reflect.DeepEqual(old.ColumnComments, map[int32]string{2: "removed comment", 3: "survivor comment"}) {
+	if next.Comment != "table keep" || !reflect.DeepEqual(next.Attributes, []int32{1, 3}) || !reflect.DeepEqual(next.ColumnMeta.Comments, map[int32]string{3: "survivor comment"}) || !reflect.DeepEqual(old.ColumnMeta.Comments, map[int32]string{2: "removed comment", 3: "survivor comment"}) {
 		t.Fatal(old, next)
 	}
 	for _, sub := range []int32{2, 3} {
@@ -45,7 +45,7 @@ func TestAlterDropColumnCommentsStableAttributes(t *testing.T) {
 	}
 	invalid := *next
 	invalid.ObjectRevision++
-	invalid.ColumnComments = map[int32]string{2: "invalid dropped payload", 3: "survivor comment"}
+	invalid.ColumnMeta.Comments = map[int32]string{2: "invalid dropped payload", 3: "survivor comment"}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Replace(&invalid); err != nil {
@@ -59,29 +59,29 @@ func TestAlterDropColumnCommentsStableAttributes(t *testing.T) {
 	}
 	root := e.storage.relations[ref.Address]
 	run(t, e, "ALTER TABLE t DROP IF EXISTS missing")
-	if e.catalog.state.Get(ref.Address) != next || e.storage.relations[ref.Address] != root || !reflect.DeepEqual(next.ColumnComments, map[int32]string{3: "survivor comment"}) {
+	if e.catalog.state.Get(ref.Address) != next || e.storage.relations[ref.Address] != root || !reflect.DeepEqual(next.ColumnMeta.Comments, map[int32]string{3: "survivor comment"}) {
 		t.Fatal("missing skip changed comments, descriptor or rows")
 	}
 	run(t, e, "ALTER TABLE t DROP a")
 	last := e.catalog.state.MustRelation(ref.Address)
-	if last.Comment != "table keep" || !reflect.DeepEqual(last.Attributes, []int32{3}) || !reflect.DeepEqual(last.ColumnComments, map[int32]string{3: "survivor comment"}) {
+	if last.Comment != "table keep" || !reflect.DeepEqual(last.Attributes, []int32{3}) || !reflect.DeepEqual(last.ColumnMeta.Comments, map[int32]string{3: "survivor comment"}) {
 		t.Fatal("last survivor comment lost", last)
 	}
 	run(t, e, "ALTER TABLE t DROP c")
 	empty := e.catalog.state.MustRelation(ref.Address)
-	if empty.Comment != "table keep" || len(empty.ColumnComments) != 0 || len(empty.Columns) != 0 || len(empty.Attributes) != 0 {
+	if empty.Comment != "table keep" || len(empty.ColumnMeta.Comments) != 0 || len(empty.Columns) != 0 || len(empty.Attributes) != 0 {
 		t.Fatal("final column comment retained or table comment lost", empty)
 	}
 	if rows := tuples(run(t, e, "SELECT * FROM t")); len(rows) != 2 || len(rows[0]) != 0 || len(rows[1]) != 0 {
 		t.Fatal("empty-width rows lost", rows)
 	}
-	if !reflect.DeepEqual(last.ColumnComments, map[int32]string{3: "survivor comment"}) {
+	if !reflect.DeepEqual(last.ColumnMeta.Comments, map[int32]string{3: "survivor comment"}) {
 		t.Fatal("final drop mutated old comment payload")
 	}
 	run(t, e, "DROP TABLE t")
 	run(t, e, "CREATE TABLE t(a INT,b TEXT,c BIGINT)")
 	replacement := e.catalog.state.MustRelation(roleTableRef(t, e, "t").Address)
-	if replacement.Comment != "" || len(replacement.ColumnComments) != 0 {
+	if replacement.Comment != "" || len(replacement.ColumnMeta.Comments) != 0 {
 		t.Fatal("name recreation inherited comments", replacement)
 	}
 }
@@ -103,7 +103,7 @@ func TestAlterDropColumnRevisionFrontier(t *testing.T) {
 				transition := func(q string) {
 					t.Helper()
 					old := e.catalog.state.MustRelation(ref.Address)
-					revision, columns, table, column := old.Revision(), len(old.Columns), old.Comment, old.ColumnComments[3]
+					revision, columns, table, column := old.Revision(), len(old.Columns), old.Comment, old.ColumnMeta.Comments[3]
 					frontier := e.catalog.nextRevision
 					run(t, e, q)
 					next := e.catalog.state.MustRelation(ref.Address)
@@ -117,7 +117,7 @@ func TestAlterDropColumnRevisionFrontier(t *testing.T) {
 					if e.catalog.nextRevision != want {
 						t.Errorf("%s allocator=%d want=%d installed=%d", q, e.catalog.nextRevision, want, next.Revision())
 					}
-					if old.Revision() != revision || len(old.Columns) != columns || old.Comment != table || old.ColumnComments[3] != column {
+					if old.Revision() != revision || len(old.Columns) != columns || old.Comment != table || old.ColumnMeta.Comments[3] != column {
 						t.Error("retained descriptor mutated")
 					}
 				}

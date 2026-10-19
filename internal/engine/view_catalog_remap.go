@@ -93,10 +93,10 @@ func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.Ob
 		if typesOnly && next.ACLItemImport() == nil && !catalogExpressionTypesChanged(d, typ) {
 			continue
 		}
-		if len(d.Defaults) != 0 {
+		if len(d.ColumnMeta.Defaults) != 0 {
 			copy := *d
-			copy.Defaults = make(map[int32]catalog.ColumnDefault, len(d.Defaults))
-			for attribute, definition := range d.Defaults {
+			copy.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault, len(d.ColumnMeta.Defaults))
+			for attribute, definition := range d.ColumnMeta.Defaults {
 				node, err := remapBoundExpression(definition.Expression, ref, nil)
 				if err != nil {
 					return err
@@ -110,15 +110,15 @@ func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.Ob
 				for i := range definition.Dependencies {
 					definition.Dependencies[i] = ref(definition.Dependencies[i])
 				}
-				copy.Defaults[attribute] = definition
+				copy.ColumnMeta.Defaults[attribute] = definition
 			}
 			d = &copy
 			next.SetDescriptor(address, d)
 		}
-		if len(d.Generations) != 0 {
+		if len(d.ColumnMeta.Generations) != 0 {
 			copy := *d
-			copy.Generations = make(map[int32]catalog.ColumnGeneration, len(d.Generations))
-			for attribute, definition := range d.Generations {
+			copy.ColumnMeta.Generations = make(map[int32]catalog.ColumnGeneration, len(d.ColumnMeta.Generations))
+			for attribute, definition := range d.ColumnMeta.Generations {
 				node, err := remapBoundExpression(definition.Expression, ref, nil)
 				if err != nil {
 					return err
@@ -141,16 +141,16 @@ func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.Ob
 				for i := range definition.Dependencies {
 					definition.Dependencies[i] = ref(definition.Dependencies[i])
 				}
-				copy.Generations[attribute] = definition
+				copy.ColumnMeta.Generations[attribute] = definition
 			}
 			d = &copy
 			next.SetDescriptor(address, d)
 		}
-		if len(d.CheckConstraints) != 0 {
+		if len(d.Constraints.Check) != 0 {
 			copy := *d
-			copy.CheckConstraints = append([]catalog.CheckConstraint(nil), d.CheckConstraints...)
-			for i := range copy.CheckConstraints {
-				c := &copy.CheckConstraints[i]
+			copy.Constraints.Check = append([]catalog.CheckConstraint(nil), d.Constraints.Check...)
+			for i := range copy.Constraints.Check {
+				c := &copy.Constraints.Check[i]
 				node, err := remapBoundExpression(c.Expression, ref, nil)
 				if err != nil {
 					return err
@@ -257,7 +257,7 @@ func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.Ob
 			}
 			next.SetDescriptor(address, d)
 		}
-		if len(d.Policies) != 0 {
+		if len(d.Security.Policies) != 0 {
 			var err error
 			d, err = remapPolicies(view, d, mapping, ref, typ, collation)
 			if err != nil {

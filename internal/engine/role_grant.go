@@ -280,8 +280,8 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 				}
 			}
 		}
-		originalTable := relation.ACL
-		nextTable := relation.ACL
+		originalTable := relation.Security.ACL
+		nextTable := relation.Security.ACL
 		var tableChanged bool
 		if targetMask != 0 {
 			source, available, sourceErr := authorization.ObjectGrantSource(op.Context(), relation.Owner, originalTable, authorization.ACLValue{}, principals, actor.Superuser, targetMask)
@@ -309,7 +309,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			if err != nil {
 				return Result{}, err
 			}
-			tableChanged = tableChanged || available != 0 && !relation.ACL.Explicit
+			tableChanged = tableChanged || available != 0 && !relation.Security.ACL.Explicit
 		}
 		columns := make([]columnGrantRequest, 0)
 		addColumn := func(sub int32, name string, mask authorization.Privileges) {
@@ -355,7 +355,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 		var nextColumns map[int32]authorization.ACLValue
 		var hasColumnPrivileges, columnPrivilegesChecked bool
 		for _, column := range columns {
-			old := relation.ColumnACL[column.sub]
+			old := relation.Security.ColumnACL[column.sub]
 			source, available, sourceErr := authorization.ObjectGrantSource(op.Context(), relation.Owner, originalTable, old, principals, actor.Superuser, column.mask)
 			if sourceErr != nil {
 				return Result{}, sourceErr
@@ -382,10 +382,10 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			if didChange {
 				if nextColumns == nil {
 					if prior.columnsOwned {
-						nextColumns = relation.ColumnACL
+						nextColumns = relation.Security.ColumnACL
 					} else {
-						nextColumns = make(map[int32]authorization.ACLValue, len(relation.ColumnACL)+1)
-						for sub, acl := range relation.ColumnACL {
+						nextColumns = make(map[int32]authorization.ACLValue, len(relation.Security.ColumnACL)+1)
+						for sub, acl := range relation.Security.ColumnACL {
 							nextColumns[sub] = acl
 						}
 					}
@@ -404,9 +404,9 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 				next = &copy
 			}
 			changed[address] = objectGrantChange{descriptor: next, columnsOwned: prior.columnsOwned || nextColumns != nil}
-			next.ACL = nextTable
+			next.Security.ACL = nextTable
 			if nextColumns != nil {
-				next.ColumnACL = nextColumns
+				next.Security.ColumnACL = nextColumns
 			}
 			if err := validateACL(v.roles, next); err != nil {
 				return Result{}, err

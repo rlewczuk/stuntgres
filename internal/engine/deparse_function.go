@@ -289,7 +289,7 @@ func (e deparseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 			if !ok {
 				continue
 			}
-			for _, def := range relation.NotNullConstraints {
+			for _, def := range relation.Constraints.NotNull {
 				if def.OID != ids.OID(id) {
 					continue
 				}
@@ -306,7 +306,7 @@ func (e deparseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 					text += " NOT VALID"
 				}
 			}
-			for _, def := range relation.CheckConstraints {
+			for _, def := range relation.Constraints.Check {
 				if def.OID != ids.OID(id) {
 					continue
 				}
@@ -324,7 +324,7 @@ func (e deparseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 					text += " NOT VALID"
 				}
 			}
-			for _, def := range relation.UniqueConstraints {
+			for _, def := range relation.Constraints.Unique {
 				if def.OID != ids.OID(id) {
 					continue
 				}
@@ -334,7 +334,7 @@ func (e deparseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 					return sqltype.Value{}, err
 				}
 			}
-			for _, def := range relation.ForeignKeys {
+			for _, def := range relation.Constraints.ForeignKeys {
 				if def.OID != ids.OID(id) {
 					continue
 				}
@@ -344,7 +344,7 @@ func (e deparseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 					return sqltype.Value{}, err
 				}
 			}
-			for _, def := range relation.ExclusionConstraints {
+			for _, def := range relation.Constraints.Exclusion {
 				if def.OID != ids.OID(id) {
 					continue
 				}

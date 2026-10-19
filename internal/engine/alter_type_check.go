@@ -19,7 +19,7 @@ type alterTypeCheck struct {
 }
 
 func captureAlterTypeChecks(op *Operation, view catalog.Read, original, survivor *catalog.Relation, actions []parser.AlterTableAction) ([]alterTypeCheck, error) {
-	if len(survivor.CheckConstraints) == 0 || !slices.ContainsFunc(actions, func(a parser.AlterTableAction) bool { return a.Action == parser.AlterColumnType }) {
+	if len(survivor.Constraints.Check) == 0 || !slices.ContainsFunc(actions, func(a parser.AlterTableAction) bool { return a.Action == parser.AlterColumnType }) {
 		return nil, nil
 	}
 	ordered := orderedChecks(survivor)
@@ -44,7 +44,7 @@ func captureAlterTypeChecks(op *Operation, view catalog.Read, original, survivor
 			if !affected {
 				continue
 			}
-			index := slices.IndexFunc(survivor.CheckConstraints, func(c catalog.CheckConstraint) bool { return c.Ordinal == check.Ordinal })
+			index := slices.IndexFunc(survivor.Constraints.Check, func(c catalog.CheckConstraint) bool { return c.Ordinal == check.Ordinal })
 			if slices.ContainsFunc(queue, func(c alterTypeCheck) bool { return c.index == index }) {
 				continue
 			}
@@ -66,7 +66,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 		return next, nil, nil
 	}
 	replacement := *next
-	replacement.CheckConstraints = slices.Clone(next.CheckConstraints)
+	replacement.Constraints.Check = slices.Clone(next.Constraints.Check)
 	columns := make([]queryColumn, len(next.Columns))
 	for i, column := range next.Columns {
 		columns[i] = queryColumn{descriptor: column, slot: i, leaf: 0, physical: i}
@@ -97,7 +97,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 		if err != nil {
 			return nil, nil, alterTypeCheckReparseError(err)
 		}
-		definition := replacement.CheckConstraints[pending.index]
+		definition := replacement.Constraints.Check[pending.index]
 		definition.OID = 0 // Affected TYPE definitions get a new logical identity.
 		definition.Expression, definition.Dependencies, definition.CommentSnapshot, definition.VisibilitySnapshot = node, nil, false, false
 		var dependencies []ids.ObjectRef
@@ -113,13 +113,13 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 			}
 			definition.Dependencies = append(definition.Dependencies, catalog.ExpressionDependency{Ref: dependency, Revision: revision})
 		}
-		replacement.CheckConstraints[pending.index] = definition
+		replacement.Constraints.Check[pending.index] = definition
 	}
 	if err := refreshGenerationChecks(&replacement, auth.catalog); err != nil {
 		return nil, nil, err
 	}
 	for _, pending := range queue {
-		definition := replacement.CheckConstraints[pending.index]
+		definition := replacement.Constraints.Check[pending.index]
 		if !definition.NotValid {
 			ordered = append(ordered, definition)
 		}
@@ -177,7 +177,7 @@ func newAlterRowValidator(relation *catalog.Relation, schema string) alterRowVal
 			continue
 		}
 		invalid := false
-		for _, n := range relation.NotNullConstraints {
+		for _, n := range relation.Constraints.NotNull {
 			if n.Attribute == relation.Attributes[slot] {
 				invalid = n.NotValid
 				break
@@ -191,12 +191,12 @@ func newAlterRowValidator(relation *catalog.Relation, schema string) alterRowVal
 }
 
 func needsNotNullScan(original, next *catalog.Relation) bool {
-	for _, n := range next.NotNullConstraints {
+	for _, n := range next.Constraints.NotNull {
 		if n.NotValid {
 			continue
 		}
 		valid := false
-		for _, old := range original.NotNullConstraints {
+		for _, old := range original.Constraints.NotNull {
 			if old.Attribute == n.Attribute {
 				valid = !old.NotValid
 				break

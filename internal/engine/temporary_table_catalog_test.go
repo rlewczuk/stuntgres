@@ -27,7 +27,7 @@ func temporaryCatalogCandidate(t *testing.T, action parser.OnCommitAction) (*Eng
 	t.Cleanup(op.Done)
 	c := newCatalogChanges()
 	namespace := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, ObjectName: "pg_temp_candidate", ObjectRevision: 1, Owner: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Temporary: session.token}
-	table := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: namespace.Address(), ObjectName: "candidate", ObjectRevision: 1, Owner: namespace.Owner, OnCommit: action, Columns: []catalog.Column{{Name: "v", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}}, Index: map[string]int{"v": 0}, Attributes: []int32{1}, AttributeHighWater: 1}
+	table := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: namespace.Address(), ObjectName: "candidate", ObjectRevision: 1, Owner: namespace.Owner, OnCommit: action, Columns: []catalog.Column{{Name: "v", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}}, Index: map[string]int{"v": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 	e.mu.Lock()
 	e.catalogChangeLocked(c, namespace.Address(), namespace)
 	e.catalogChangeLocked(c, table.Address(), table)
@@ -203,7 +203,7 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 	options.Persistence = "temporary"
-	sequence := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}, ObjectNamespace: table.Namespace(), ObjectName: "retained_sequence", ObjectRevision: 1, SequencePlanStamp: 1, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, AttributeHighWater: 3, RelationKind: catalog.SequenceRelation, Sequence: &options}
+	sequence := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}, ObjectNamespace: table.Namespace(), ObjectName: "retained_sequence", ObjectRevision: 1, SequencePlanStamp: 1, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3}, RelationKind: catalog.SequenceRelation, Sequence: &options}
 	e.mu.Lock()
 	e.catalogChangeLocked(c, sequence.Address(), sequence)
 	view := e.privateCatalogLocked(c)
@@ -292,8 +292,8 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		t.Fatal("missing actual stored row or installed index")
 	}
 	rows, ends, generation := store.versions, store.ends, store.generation
-	dependencies := make(map[int32][]ids.ObjectRef, len(consumer.Generations))
-	for attribute, definition := range consumer.Generations {
+	dependencies := make(map[int32][]ids.ObjectRef, len(consumer.ColumnMeta.Generations))
+	for attribute, definition := range consumer.ColumnMeta.Generations {
 		dependencies[attribute] = slices.Clone(definition.Dependencies)
 	}
 	if _, err := replaceWithFreshCatalog(context.Background(), e); err != nil {
@@ -309,7 +309,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	if err := validateGenerationProviders(retained, consumer); err != nil {
 		t.Fatal("live table/index generation providers rejected", err)
 	}
-	for attribute, definition := range consumer.Generations {
+	for attribute, definition := range consumer.ColumnMeta.Generations {
 		var manifest []ids.ObjectRef
 		renderer := scalarRenderer{owner: consumer, capturedManifest: definition.Dependencies, dependencies: &manifest}
 		if text, err := renderer.sql(context.Background(), retained, definition.Expression); err != nil || text == "" {
@@ -371,7 +371,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	}
 	// This is a real captured row origin, not a provider-kind substitute. Exact
 	// concrete Usage and stable attribute/slot/frame checks remain mandatory.
-	columnNode := consumer.Generations[5].Expression.(arithmeticExpression).left
+	columnNode := consumer.ColumnMeta.Generations[5].Expression.(arithmeticExpression).left
 	for {
 		cast, ok := columnNode.(coercionExpression)
 		if !ok {
@@ -437,7 +437,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		t.Fatal("same-name recreated provider rebound old identity")
 	}
 	for attribute, manifest := range dependencies {
-		if !slices.Equal(consumer.Generations[attribute].Dependencies, manifest) {
+		if !slices.Equal(consumer.ColumnMeta.Generations[attribute].Dependencies, manifest) {
 			t.Fatal("cascade/recreation mutated retained original manifest", attribute)
 		}
 	}

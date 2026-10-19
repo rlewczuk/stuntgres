@@ -92,7 +92,7 @@ func TestAlterRenameLockGrantTime(t *testing.T) {
 				if kind == "revision" {
 					lockAwait(t, done, nil)
 					d := e.catalog.state.MustRelation(ref.Address)
-					if d.Columns[0].Name != "renamed" || len(d.NotNullConstraints) != 1 {
+					if d.Columns[0].Name != "renamed" || len(d.Constraints.NotNull) != 1 {
 						t.Fatal(d)
 					}
 				} else {

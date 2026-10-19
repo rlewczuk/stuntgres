@@ -19,7 +19,7 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 	for _, table := range []*catalog.Relation{f.root, f.leaf} {
 		table.Columns = append(slices.Clone(table.Columns), catalog.Column{Name: "ref", Usage: regclass.Usage(), Nullable: true})
 		table.Attributes = append(slices.Clone(table.Attributes), 99)
-		table.AttributeHighWater = 99
+		table.ColumnMeta.HighWater = 99
 	}
 	other := *f.leaf
 	other.ObjectAddress.ObjectID = 90001
@@ -47,7 +47,7 @@ func TestPartitionAttachDumpPhaseDependencies(t *testing.T) {
 		f.view.State().BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
 	boolean := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)}).SQLType
-	f.leaf.CheckConstraints = []catalog.CheckConstraint{{OID: 90005, Name: "unit_late", NotValid: true, Expression: literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}}}
+	f.leaf.Constraints.Check = []catalog.CheckConstraint{{OID: 90005, Name: "unit_late", NotValid: true, Expression: literalExpression{Info: expr.Info{Usage: boolean.Usage()}, value: sqltype.Boolean(boolean, false)}}}
 	values := make([]sqltype.Value, len(f.leaf.Columns))
 	for i, column := range f.leaf.Columns {
 		values[i] = sqltype.Null(column.Usage.Type)

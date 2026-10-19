@@ -26,10 +26,10 @@ func indexClausesTypes() map[sqltype.ID]*sqltype.Descriptor {
 func indexClausesFixture(t *testing.T) (*catalog.Relation, *catalog.Relation, *catalog.State, map[sqltype.ID]*sqltype.Descriptor) {
 	t.Helper()
 	types := indexClausesTypes()
-	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "t", ObjectRevision: 1, RelationKind: catalog.TableRelation, Attributes: []int32{10, 20, 30}, AttributeHighWater: 30, Columns: []catalog.Column{{Name: "a", Usage: types[sqltype.Int4].Usage()}, {Name: "b", Usage: types[sqltype.Int4].Usage()}, {Name: "p", Usage: types[sqltype.Text].Usage()}}, Index: map[string]int{"a": 0, "b": 1, "p": 2}}
+	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "t", ObjectRevision: 1, RelationKind: catalog.TableRelation, Attributes: []int32{10, 20, 30}, ColumnMeta: catalog.ColumnMetadata{HighWater: 30}, Columns: []catalog.Column{{Name: "a", Usage: types[sqltype.Int4].Usage()}, {Name: "b", Usage: types[sqltype.Int4].Usage()}, {Name: "p", Usage: types[sqltype.Text].Usage()}}, Index: map[string]int{"a": 0, "b": 1, "p": 2}}
 	c, _ := sqltype.DefaultIndexClass(types[sqltype.Int4])
 	def := &catalog.IndexDefinition{Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 10, Class: c}, {Attribute: 20, Class: c, Desc: true, NullsFirst: true}}, Include: []int32{30}, Ready: true, Valid: true, Live: true}
-	index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: parent.Namespace(), ObjectName: "cover", ObjectRevision: 1, RelationKind: catalog.IndexRelation, SQLIndex: def, Columns: append([]catalog.Column(nil), parent.Columns...), Attributes: []int32{1, 2, 3}, AttributeHighWater: 3, Index: map[string]int{"a": 0, "b": 1, "p": 2}}
+	index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: parent.Namespace(), ObjectName: "cover", ObjectRevision: 1, RelationKind: catalog.IndexRelation, SQLIndex: def, Columns: append([]catalog.Column(nil), parent.Columns...), Attributes: []int32{1, 2, 3}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3}, Index: map[string]int{"a": 0, "b": 1, "p": 2}}
 	catalogSnapshot := catalogStateFixture(0, map[ids.ObjectAddress]catalog.Descriptor{parent.Address(): parent, index.Address(): index}, nil)
 	if err := validateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), index); err != nil {
 		t.Fatal(err)
@@ -114,7 +114,7 @@ func TestIndexClausesClassRoots(t *testing.T) {
 	index.SQLIndex = &catalog.IndexDefinition{Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 10, Class: oid, ExplicitClass: true}}, Include: []int32{30}, Ready: true, Valid: true, Live: true}
 	index.Columns = []catalog.Column{parent.Columns[0], parent.Columns[2]}
 	index.Attributes = []int32{1, 2}
-	index.AttributeHighWater = 2
+	index.ColumnMeta.HighWater = 2
 	if err := validateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), index); err != nil {
 		t.Fatal(err)
 	}
@@ -145,12 +145,12 @@ func TestIndexClausesUniquePayload(t *testing.T) {
 	parent, index, catalogSnapshot, types := indexClausesFixture(t)
 	ctx := context.Background()
 	c := catalog.UniqueConstraint{OID: 22000, Name: "cover", Attributes: []int32{10}, Index: index.Address()}
-	parent.UniqueConstraints = []catalog.UniqueConstraint{c}
+	parent.Constraints.Unique = []catalog.UniqueConstraint{c}
 	class, _ := sqltype.DefaultIndexClass(types[sqltype.Int4])
 	index.SQLIndex = &catalog.IndexDefinition{Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 10, Class: class}}, Include: []int32{30}, Unique: true, NullsNotDistinct: c.NullsNotDistinct, Constraint: uniqueBacking(&c), Ready: true, Valid: true, Live: true}
 	index.Columns = []catalog.Column{parent.Columns[0], parent.Columns[2]}
 	index.Attributes = []int32{1, 2}
-	index.AttributeHighWater = 2
+	index.ColumnMeta.HighWater = 2
 	if err := validateIndexDefinition(catalog.NewRead(nil, catalogSnapshot), index); err != nil {
 		t.Fatal(err)
 	}
@@ -446,7 +446,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 			integer, text, varchar := testUsage(e, sqltype.Int4), testUsage(e, sqltype.Text), testUsage(e, sqltype.VarChar)
 			parent.RelationKind = catalog.TableRelation
 			parent.Attributes = []int32{1, 2, 3, 4}
-			parent.AttributeHighWater = 4
+			parent.ColumnMeta.HighWater = 4
 			parent.Columns = []catalog.Column{{Name: "extra", Usage: integer}, {Name: "n", Usage: integer}, {Name: "s", Usage: text}, {Name: "p", Usage: text}}
 			parent.Index = map[string]int{"extra": 0, "n": 1, "s": 2, "p": 3}
 			for i := range parent.Columns {
@@ -470,7 +470,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), Owner: parent.Owner, ObjectName: name, ObjectRevision: 1, RelationKind: catalog.IndexRelation, SQLIndex: definition, Columns: columns, Attributes: attributes, AttributeHighWater: int32(len(columns)), Index: labels}
+				index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), Owner: parent.Owner, ObjectName: name, ObjectRevision: 1, RelationKind: catalog.IndexRelation, SQLIndex: definition, Columns: columns, Attributes: attributes, ColumnMeta: catalog.ColumnMetadata{HighWater: int32(len(columns))}, Index: labels}
 				if err := setup.Create(index); err != nil {
 					t.Fatal(err)
 				}

@@ -98,14 +98,14 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	} else if r.Foreign != nil {
 		return fmt.Errorf("stuntgres: foreign definition on a local relation")
 	}
-	if r.AttributeHighWater < 0 {
+	if r.ColumnMeta.HighWater < 0 {
 		return fmt.Errorf("stuntgres: invalid relation attribute high-water")
 	}
-	if r.RelationKind == catalog.CatalogRelation && len(r.CatalogAttributes) != len(r.Columns) {
+	if r.RelationKind == catalog.CatalogRelation && len(r.ColumnMeta.CatalogAttributes) != len(r.Columns) {
 		return fmt.Errorf("stuntgres: invalid catalog attribute metadata")
 	}
-	for number, history := range r.DroppedAttributes {
-		if number <= 0 || number > r.AttributeHighWater || history.Number != number || !history.Dropped || history.TypeID != 0 || history.NotNull || history.HasDefault || history.Generated != "" || history.Dimensions < 0 || r.IndexForAttribute(number) >= 0 {
+	for number, history := range r.ColumnMeta.Dropped {
+		if number <= 0 || number > r.ColumnMeta.HighWater || history.Number != number || !history.Dropped || history.TypeID != 0 || history.NotNull || history.HasDefault || history.Generated != "" || history.Dimensions < 0 || r.IndexForAttribute(number) >= 0 {
 			return fmt.Errorf("stuntgres: invalid dropped attribute metadata")
 		}
 	}
@@ -115,7 +115,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		if r.RelationKind == catalog.CatalogRelation {
 			ordered = r.Attributes[i] == catalogAttributeNumber(r.Address().ObjectID, c.Name, int32(i+1))
 		}
-		if r.Attributes[i] <= 0 || r.Attributes[i] > r.AttributeHighWater || !ordered || !exists || offset != i {
+		if r.Attributes[i] <= 0 || r.Attributes[i] > r.ColumnMeta.HighWater || !ordered || !exists || offset != i {
 			return fmt.Errorf("stuntgres: invalid relation column identity")
 		}
 		if c.Usage.Type == nil || c.DeclaredDimensions < 0 {
@@ -130,7 +130,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 			return err
 		}
 	}
-	if (r.RLSEnabled || r.RLSForced) && r.RelationKind != catalog.TableRelation && r.RelationKind != catalog.PartitionedRelation {
+	if (r.Security.RLSEnabled || r.Security.RLSForced) && r.RelationKind != catalog.TableRelation && r.RelationKind != catalog.PartitionedRelation {
 		return fmt.Errorf("stuntgres: row-security flags require a table")
 	}
 	if err := validatePolicies(v, r); err != nil {
@@ -146,7 +146,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		return err
 	}
 	if r.RelationKind == catalog.CompositeRelation {
-		if r.RowType == 0 || r.Sequence != nil || r.View != nil || r.SQLIndex != nil || len(r.Defaults) != 0 || len(r.Identities) != 0 || len(r.NotNullConstraints) != 0 || len(r.CheckConstraints) != 0 || len(r.Generations) != 0 || len(r.UniqueConstraints) != 0 || len(r.ExclusionConstraints) != 0 || len(r.ForeignKeys) != 0 {
+		if r.RowType == 0 || r.Sequence != nil || r.View != nil || r.SQLIndex != nil || len(r.ColumnMeta.Defaults) != 0 || len(r.ColumnMeta.Identities) != 0 || len(r.Constraints.NotNull) != 0 || len(r.Constraints.Check) != 0 || len(r.ColumnMeta.Generations) != 0 || len(r.Constraints.Unique) != 0 || len(r.Constraints.Exclusion) != 0 || len(r.Constraints.ForeignKeys) != 0 {
 			return fmt.Errorf("stuntgres: composite backing relation has storage behavior")
 		}
 		for _, c := range r.Columns {
@@ -162,7 +162,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	if r.RelationKind == catalog.IndexRelation {
 		return validateIndexDefinition(v, r)
 	}
-	if r.RelationKind != catalog.TableRelation && r.RelationKind != catalog.PartitionedRelation && r.RelationKind != catalog.ForeignRelation && len(r.CheckConstraints) != 0 {
+	if r.RelationKind != catalog.TableRelation && r.RelationKind != catalog.PartitionedRelation && r.RelationKind != catalog.ForeignRelation && len(r.Constraints.Check) != 0 {
 		return fmt.Errorf("stuntgres: CHECK requires a table descriptor")
 	}
 	if err := validatePartitionDescriptor(v, r); err != nil {
@@ -186,7 +186,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 				return fmt.Errorf("stuntgres: invalid sequence ownership dependency")
 			}
 			if r.Sequence.Identity {
-				identity, exists := table.Identities[owned.SubID]
+				identity, exists := table.ColumnMeta.Identities[owned.SubID]
 				if !exists || identity.Sequence != r.Address() {
 					return fmt.Errorf("stuntgres: inconsistent identity sequence ownership")
 				}
@@ -197,9 +197,9 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	if r.RelationKind == catalog.ViewRelation || r.RelationKind == catalog.MaterializedViewRelation {
 		return validateViewDefinition(v, r)
 	}
-	names := make(map[string]bool, len(r.NotNullConstraints))
-	attrs := make(map[int32]bool, len(r.NotNullConstraints))
-	for _, c := range r.NotNullConstraints {
+	names := make(map[string]bool, len(r.Constraints.NotNull))
+	attrs := make(map[int32]bool, len(r.Constraints.NotNull))
+	for _, c := range r.Constraints.NotNull {
 		if c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || attrs[c.Attribute] || !r.HasAttribute(c.Attribute) {
 			return fmt.Errorf("stuntgres: invalid not-null constraint identity")
 		}
@@ -211,7 +211,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	for i, c := range r.Columns {
 		// Virtual sources declare result nullability without physical table
 		// constraint identities. Existing constraint records still validate above.
-		_, physical := r.PhysicalNotNull[r.Attributes[i]]
+		_, physical := r.Constraints.PhysicalNotNull[r.Attributes[i]]
 		if r.RelationKind != catalog.CatalogRelation && (attrs[r.Attributes[i]] || physical) != (c.NullabilityKnown && !c.Nullable) {
 			return fmt.Errorf("stuntgres: inconsistent not-null projection")
 		}
@@ -228,7 +228,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	if err := validateForeignKeys(v, r, names); err != nil {
 		return err
 	}
-	for attribute, identity := range r.Identities {
+	for attribute, identity := range r.ColumnMeta.Identities {
 		slot := -1
 		for i, live := range r.Attributes {
 			if live == attribute {
@@ -244,7 +244,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		if column.Nullable || !column.NullabilityKnown || id != sqltype.Int2 && id != sqltype.Int4 && id != sqltype.Int8 {
 			return fmt.Errorf("stuntgres: invalid identity column type or nullability")
 		}
-		if _, exists := r.Defaults[attribute]; exists {
+		if _, exists := r.ColumnMeta.Defaults[attribute]; exists {
 			return fmt.Errorf("stuntgres: identity column has default")
 		}
 		sequence, exists := v.Relation(identity.Sequence)
@@ -254,7 +254,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 			return fmt.Errorf("stuntgres: invalid column identity sequence")
 		}
 	}
-	for attribute, definition := range r.Defaults {
+	for attribute, definition := range r.ColumnMeta.Defaults {
 		slot := -1
 		for i, live := range r.Attributes {
 			if live == attribute {
@@ -272,7 +272,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 			return fmt.Errorf("stuntgres: invalid column default expression")
 		}
 	}
-	for attribute, definition := range r.Generations {
+	for attribute, definition := range r.ColumnMeta.Generations {
 		slot := -1
 		for i, live := range r.Attributes {
 			if live == attribute {
@@ -280,8 +280,8 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 				break
 			}
 		}
-		_, hasDefault := r.Defaults[attribute]
-		_, hasIdentity := r.Identities[attribute]
+		_, hasDefault := r.ColumnMeta.Defaults[attribute]
+		_, hasIdentity := r.ColumnMeta.Identities[attribute]
 		if definition.OID == 0 || slot < 0 || definition.Expression == nil || definition.Expression.ResultUsage() != r.Columns[slot].Usage || definition.Planned == nil || definition.Planned.ResultUsage() != r.Columns[slot].Usage || hasDefault || hasIdentity || !generationImmutable(definition.Planned) {
 			return fmt.Errorf("stuntgres: invalid column generation destination")
 		}
@@ -312,7 +312,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	if err := validateGenerationProviders(v, r); err != nil {
 		return err
 	}
-	for sub, text := range r.ColumnComments {
+	for sub, text := range r.ColumnMeta.Comments {
 		if !r.HasAttribute(sub) || text == "" {
 			return fmt.Errorf("stuntgres: invalid relation column comment")
 		}
@@ -1079,7 +1079,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 					return ChangeSet{}, err
 				}
 			}
-			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Policies) != 0 {
+			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Security.Policies) != 0 {
 				if err := validatePolicies(e.catalog.read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
@@ -1094,17 +1094,17 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 					return ChangeSet{}, err
 				}
 			}
-			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.CheckConstraints) != 0 {
+			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Constraints.Check) != 0 {
 				if err := validateCheckProviders(e.catalog.read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}
-			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Defaults) != 0 {
+			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.ColumnMeta.Defaults) != 0 {
 				if err := validateDefaultProviders(e.catalog.read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}
-			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Generations) != 0 {
+			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.ColumnMeta.Generations) != 0 {
 				if err := validateGenerationProviders(e.catalog.read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}

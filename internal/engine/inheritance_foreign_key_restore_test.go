@@ -81,13 +81,13 @@ func TestInheritanceForeignKeyForwardReplay(t *testing.T) {
 				parent := view.MustRelation(roleTableRef(t, e, "p").Address)
 				child := view.MustRelation(roleTableRef(t, e, "c").Address)
 				var forward *catalog.ForeignKeyConstraint
-				for i := range parent.ForeignKeys {
-					if parent.ForeignKeys[i].Name == "forward_fk" {
-						forward = &parent.ForeignKeys[i]
+				for i := range parent.Constraints.ForeignKeys {
+					if parent.Constraints.ForeignKeys[i].Name == "forward_fk" {
+						forward = &parent.Constraints.ForeignKeys[i]
 					}
 				}
-				if len(parent.ForeignKeys) != 3 || forward == nil || forward.NotValid || forward.Target != child.Address() || len(parent.NotNullConstraints) != 1 || !parent.NotNullConstraints[0].NoInherit || !child.Columns[child.Index["a"]].Nullable {
-					t.Fatal("roundtrip changed actual physical constraint facts", parent.ForeignKeys, parent.NotNullConstraints, child.Columns)
+				if len(parent.Constraints.ForeignKeys) != 3 || forward == nil || forward.NotValid || forward.Target != child.Address() || len(parent.Constraints.NotNull) != 1 || !parent.Constraints.NotNull[0].NoInherit || !child.Columns[child.Index["a"]].Nullable {
+					t.Fatal("roundtrip changed actual physical constraint facts", parent.Constraints.ForeignKeys, parent.Constraints.NotNull, child.Columns)
 				}
 				_, err = testExecute(e, context.Background(), statement(t, "INSERT INTO p VALUES(2)"), nil)
 				state(t, err, "23503")

@@ -133,26 +133,26 @@ func partitionDumpNeedsAttach(catalog catalog.Read, d *catalog.Relation) bool {
 			return true
 		}
 		attribute, parentAttribute := d.Attributes[i], parent.Attributes[i]
-		if _, exists := parent.Defaults[parentAttribute]; exists {
-			if _, exists := d.Defaults[attribute]; !exists {
+		if _, exists := parent.ColumnMeta.Defaults[parentAttribute]; exists {
+			if _, exists := d.ColumnMeta.Defaults[attribute]; !exists {
 				return true
 			}
 		}
-		for _, child := range d.NotNullConstraints {
+		for _, child := range d.Constraints.NotNull {
 			if child.Attribute != attribute {
 				continue
 			}
 			if child.NotValid {
 				return true
 			}
-			for _, inherited := range parent.NotNullConstraints {
+			for _, inherited := range parent.Constraints.NotNull {
 				if inherited.Attribute == parentAttribute && child.Name != inherited.Name {
 					return true
 				}
 			}
 		}
 	}
-	for _, check := range d.CheckConstraints {
+	for _, check := range d.Constraints.Check {
 		if check.NotValid || check.NoInherit {
 			return true
 		}
@@ -203,8 +203,8 @@ func partitionChildSQL(ctx context.Context, catalog catalog.Read, d *catalog.Rel
 		var option strings.Builder
 		option.WriteString(quoteIdentifier(column.Name))
 		changed := false
-		childDefault, childHasDefault := d.Defaults[d.Attributes[i]]
-		parentDefault, parentHasDefault := parent.Defaults[parent.Attributes[i]]
+		childDefault, childHasDefault := d.ColumnMeta.Defaults[d.Attributes[i]]
+		parentDefault, parentHasDefault := parent.ColumnMeta.Defaults[parent.Attributes[i]]
 		childSQL, parentSQL := "NULL", "NULL"
 		var err error
 		if childHasDefault {
@@ -224,7 +224,7 @@ func partitionChildSQL(ctx context.Context, catalog catalog.Read, d *catalog.Rel
 			changed = true
 		}
 		if !column.Nullable {
-			for _, constraint := range d.NotNullConstraints {
+			for _, constraint := range d.Constraints.NotNull {
 				if constraint.Attribute == d.Attributes[i] && (parent.Columns[i].Nullable || constraint.PartitionLocal) {
 					option.WriteString(" CONSTRAINT " + quoteIdentifier(constraint.Name) + " NOT NULL")
 					changed = true
@@ -242,7 +242,7 @@ func partitionChildSQL(ctx context.Context, catalog catalog.Read, d *catalog.Rel
 			return "", err
 		}
 		inherited := false
-		for _, ancestor := range parent.CheckConstraints {
+		for _, ancestor := range parent.Constraints.Check {
 			if ancestor.Name != constraint.Name {
 				continue
 			}
@@ -261,7 +261,7 @@ func partitionChildSQL(ctx context.Context, catalog catalog.Read, d *catalog.Rel
 		}
 		appendOption(option)
 	}
-	for _, constraint := range d.UniqueConstraints {
+	for _, constraint := range d.Constraints.Unique {
 		if constraint.Parent != 0 {
 			continue
 		}
@@ -275,7 +275,7 @@ func partitionChildSQL(ctx context.Context, catalog catalog.Read, d *catalog.Rel
 		}
 		appendOption("CONSTRAINT " + quoteIdentifier(constraint.Name) + " " + definition)
 	}
-	for _, constraint := range d.ExclusionConstraints {
+	for _, constraint := range d.Constraints.Exclusion {
 		if constraint.Parent != 0 {
 			continue
 		}

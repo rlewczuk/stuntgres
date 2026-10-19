@@ -28,7 +28,7 @@ func TestPrimaryKeyKindControls(t *testing.T) {
 			t.Fatal("ordinary unique provider became primary", name, metadata, err)
 		}
 	}
-	if !parent.UniqueConstraints[0].Primary {
+	if !parent.Constraints.Unique[0].Primary {
 		t.Fatal("unrelated provider changed retained primary")
 	}
 }
@@ -45,7 +45,7 @@ func TestPrimaryKeyTypedClaimInterning(t *testing.T) {
 		}
 	})
 	parent := primaryKeyUnitRelation(t, e, "typed")
-	constraint := parent.UniqueConstraints[0]
+	constraint := parent.Constraints.Unique[0]
 	index := e.catalog.state.MustRelation(constraint.Index)
 	if !constraint.Primary || !index.SQLIndex.Constraint.Primary {
 		t.Fatal("claim fixture lacks real primary attachment")

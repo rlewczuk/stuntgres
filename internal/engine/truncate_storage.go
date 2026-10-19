@@ -68,7 +68,7 @@ func (e *Engine) truncateGraphPreflightLocked(c *catalogChanges) error {
 			if !ok {
 				continue
 			}
-			for _, fk := range d.ForeignKeys {
+			for _, fk := range d.Constraints.ForeignKeys {
 				if fence.targets[fk.Target] != 0 {
 					return catalog.Conflict{}
 				}

@@ -88,19 +88,19 @@ func TestPartitionAttachNotNullValidity(t *testing.T) {
 			defer done()
 			parent := inheritanceUnitRelation(e, "parent", 32220, "k", "payload")
 			parent.Attributes = []int32{3, 8}
-			parent.AttributeHighWater = 8
+			parent.ColumnMeta.HighWater = 8
 			parent.Columns[1].Nullable = false
-			parent.NotNullConstraints = []catalog.NotNullConstraint{{OID: 32221, Name: "parent_nn", Attribute: 8, NotValid: c.parentInvalid}}
+			parent.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 32221, Name: "parent_nn", Attribute: 8, NotValid: c.parentInvalid}}
 			child := inheritanceUnitRelation(e, "child", 32222, "payload", "k")
 			child.Attributes = []int32{2, 9}
-			child.AttributeHighWater = 9
+			child.ColumnMeta.HighWater = 9
 			child.Columns[0].Nullable, child.Columns[1].Nullable = false, false
 			name := "child_nn"
 			if c.sameName {
 				name = "parent_nn"
 			}
-			child.NotNullConstraints = []catalog.NotNullConstraint{{OID: 32223, Name: name, Attribute: 2, NotValid: c.childInvalid, PartitionLocal: true}, {OID: 32224, Name: "stronger_local_nn", Attribute: 9, NotValid: true, PartitionLocal: true}}
-			original := append([]catalog.NotNullConstraint(nil), child.NotNullConstraints...)
+			child.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 32223, Name: name, Attribute: 2, NotValid: c.childInvalid, PartitionLocal: true}, {OID: 32224, Name: "stronger_local_nn", Attribute: 9, NotValid: true, PartitionLocal: true}}
+			original := append([]catalog.NotNullConstraint(nil), child.Constraints.NotNull...)
 			view := inheritanceUnitView(e, parent, child)
 			next, err := partitionAttachSchema(&StatementScope{op: op}, view, parent, child)
 			if !c.parentInvalid && c.childInvalid {
@@ -115,11 +115,11 @@ func TestPartitionAttachNotNullValidity(t *testing.T) {
 				}
 				matched := original[0]
 				matched.PartitionLocal = false
-				if !reflect.DeepEqual(next.NotNullConstraints, []catalog.NotNullConstraint{matched, original[1]}) {
-					t.Fatal("mapped identity/validity or stronger-local provenance changed", next.NotNullConstraints)
+				if !reflect.DeepEqual(next.Constraints.NotNull, []catalog.NotNullConstraint{matched, original[1]}) {
+					t.Fatal("mapped identity/validity or stronger-local provenance changed", next.Constraints.NotNull)
 				}
 			}
-			if !reflect.DeepEqual(child.NotNullConstraints, original) || child.Membership != nil {
+			if !reflect.DeepEqual(child.Constraints.NotNull, original) || child.Membership != nil {
 				t.Fatal("schema validation mutated original constraints or membership")
 			}
 		})

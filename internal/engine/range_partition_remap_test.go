@@ -82,7 +82,7 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 	oldChildren := slices.Clone(root.Partition.Children)
 	oldLower := slices.Clone(leaf.Membership.Lower)
 	oldUpper := slices.Clone(leaf.Membership.Upper)
-	oldChecks := slices.Clone(leaf.CheckConstraints)
+	oldChecks := slices.Clone(leaf.Constraints.Check)
 	cursor := roleExecute(t, e, op, "SELECT k,payload FROM root")
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -131,7 +131,7 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 	if sequence.Sequence.Owned != expectedOwned || sequence.Owner != currentRoot.Owner {
 		t.Fatal("self remap changed virtual column ownership identity")
 	}
-	if !reflect.DeepEqual(root.Partition.Keys, oldKeys) || !reflect.DeepEqual(root.Partition.Children, oldChildren) || !reflect.DeepEqual(leaf.Membership.Lower, oldLower) || !reflect.DeepEqual(leaf.Membership.Upper, oldUpper) || !reflect.DeepEqual(leaf.CheckConstraints, oldChecks) {
+	if !reflect.DeepEqual(root.Partition.Keys, oldKeys) || !reflect.DeepEqual(root.Partition.Children, oldChildren) || !reflect.DeepEqual(leaf.Membership.Lower, oldLower) || !reflect.DeepEqual(leaf.Membership.Upper, oldUpper) || !reflect.DeepEqual(leaf.Constraints.Check, oldChecks) {
 		t.Fatal("self remap mutated retained descriptors")
 	}
 	if !reflect.DeepEqual(tuples(cursor), [][]driver.Value{{int64(1), int64(1)}, {int64(2), int64(2)}}) {

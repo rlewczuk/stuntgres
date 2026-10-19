@@ -21,15 +21,15 @@ func physicalSameAttributes(a, b []int32) bool {
 }
 
 func physicalPermutedPrimary(table *catalog.Relation) *catalog.UniqueConstraint {
-	if len(table.PhysicalNotNull) == 0 {
+	if len(table.Constraints.PhysicalNotNull) == 0 {
 		return nil
 	}
-	for i := range table.UniqueConstraints {
-		primary := &table.UniqueConstraints[i]
+	for i := range table.Constraints.Unique {
+		primary := &table.Constraints.Unique[i]
 		if !primary.Primary {
 			continue
 		}
-		for _, foreign := range table.ForeignKeys {
+		for _, foreign := range table.Constraints.ForeignKeys {
 			if !foreign.NotValid && foreign.Target == table.Address() && foreign.Index == primary.Index && physicalSameAttributes(foreign.Referenced, primary.Attributes) && !slices.Equal(foreign.Referenced, primary.Attributes) {
 				return primary
 			}
@@ -73,8 +73,8 @@ func emitPhysicalCompetingUniques(view catalog.Read, table *catalog.Relation, ow
 		return nil
 	}
 	qualified := quoteIdentifier(view.Get(table.Namespace()).Name()) + "." + quoteIdentifier(table.Name())
-	for i := range table.UniqueConstraints {
-		constraint := &table.UniqueConstraints[i]
+	for i := range table.Constraints.Unique {
+		constraint := &table.Constraints.Unique[i]
 		index := view.MustRelation(constraint.Index)
 		if partitionReplaySeparateConstraint(view, index) {
 			continue

@@ -956,17 +956,17 @@ func catalogExpressionTypesChanged(d *catalog.Relation, typ func(*sqltype.Descri
 			changed = changed || old != typ(old)
 		})
 	}
-	for _, definition := range d.Defaults {
+	for _, definition := range d.ColumnMeta.Defaults {
 		expression(definition.Expression)
 	}
-	for _, definition := range d.Generations {
+	for _, definition := range d.ColumnMeta.Generations {
 		expression(definition.Expression)
 		expression(definition.Planned)
 	}
-	for _, constraint := range d.CheckConstraints {
+	for _, constraint := range d.Constraints.Check {
 		expression(constraint.Expression)
 	}
-	for _, policy := range d.Policies {
+	for _, policy := range d.Security.Policies {
 		for _, condition := range []*policyExpression{policyExpressionOf(policy.Using), policyExpressionOf(policy.Check)} {
 			if condition != nil {
 				expression(condition.expression)

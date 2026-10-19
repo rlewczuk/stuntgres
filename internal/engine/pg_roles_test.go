@@ -64,7 +64,7 @@ func pgRolesUnitRole(e *Engine, state *roleCatalog, id uint64, name string) auth
 func TestPGRolesDescriptor(t *testing.T) {
 	e := New()
 	d, _ := pgRolesUnitSource(t, e)
-	if d.Name() != "pg_roles" || !d.VirtualView || d.View != nil || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != 13 || len(d.Attributes) != 13 || len(d.Index) != 13 || d.AttributeHighWater != 13 {
+	if d.Name() != "pg_roles" || !d.VirtualView || d.View != nil || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != 13 || len(d.Attributes) != 13 || len(d.Index) != 13 || d.ColumnMeta.HighWater != 13 {
 		t.Fatal("descriptor shape")
 	}
 	names := []string{"rolname", "rolsuper", "rolinherit", "rolcreaterole", "rolcreatedb", "rolcanlogin", "rolreplication", "rolconnlimit", "rolpassword", "rolvaliduntil", "rolbypassrls", "rolconfig", "oid"}
@@ -75,7 +75,7 @@ func TestPGRolesDescriptor(t *testing.T) {
 			t.Fatal("exact pg_roles metadata", i, c)
 		}
 	}
-	if !d.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.ACL.Entries[0].Grantor != d.Owner {
+	if !d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.Security.ACL.Entries[0].Grantor != d.Owner {
 		t.Fatal("PUBLIC SELECT")
 	}
 	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {

@@ -114,7 +114,7 @@ func TestUniqueIndexUnattachedLifecycleAndBinding(t *testing.T) {
 		t.Fatal("parent-only binding missed added index", err)
 	}
 	index, root := btreeRoot(t, e, "ui_ab")
-	if !index.SQLIndex.Unique || index.SQLIndex.Constraint != nil || len(parent.UniqueConstraints) != 0 {
+	if !index.SQLIndex.Unique || index.SQLIndex.Constraint != nil || len(parent.Constraints.Unique) != 0 {
 		t.Fatal("fake attachment")
 	}
 	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
@@ -130,7 +130,7 @@ func TestUniqueIndexUnattachedLifecycleAndBinding(t *testing.T) {
 	if err != nil || len(third.keys) != 0 {
 		t.Fatal("removed index retained enforcement", err)
 	}
-	if !reflect.DeepEqual(parent.UniqueConstraints, third.parent.UniqueConstraints) {
+	if !reflect.DeepEqual(parent.Constraints.Unique, third.parent.Constraints.Unique) {
 		t.Fatal("standalone lifecycle mutated constraints")
 	}
 }

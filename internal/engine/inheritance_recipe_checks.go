@@ -65,7 +65,7 @@ func prepareGenerationPlaceholders(view catalog.Read, tables []dumpRelation) {
 	}
 	for i := range tables {
 		if tables[i].recipePlaceholders {
-			for _, check := range tables[i].descriptor.CheckConstraints {
+			for _, check := range tables[i].descriptor.Constraints.Check {
 				if !check.NotValid {
 					if tables[i].deferredChecks == nil {
 						tables[i].deferredChecks = make(map[string]bool)
@@ -119,13 +119,13 @@ func inheritanceRecipeEvents(ctx context.Context, view catalog.Read, graph map[d
 		prerequisites := components[component]
 		for _, declaration := range prerequisites {
 			table := byOID[declaration.oid]
-			if len(table.descriptor.Generations) == 0 {
+			if len(table.descriptor.ColumnMeta.Generations) == 0 {
 				continue
 			}
 			event := dumpEventKey{oid: declaration.oid, phase: dumpInheritanceRecipes}
 			graph[event] = append([]dumpEventKey(nil), prerequisites...)
 			add := addProvider(event)
-			for _, definition := range table.descriptor.Generations {
+			for _, definition := range table.descriptor.ColumnMeta.Generations {
 				if err := regclassReplayReferences(view, definition.Expression, add); err != nil {
 					return err
 				}
@@ -143,7 +143,7 @@ func inheritanceRecipeEvents(ctx context.Context, view catalog.Read, graph map[d
 		for _, declaration := range prerequisites {
 			table := byOID[declaration.oid]
 			local := false
-			for _, check := range table.descriptor.CheckConstraints {
+			for _, check := range table.descriptor.Constraints.Check {
 				if table.deferredChecks[check.Name] && dumpCheckDeclaration(view, table.descriptor, check) {
 					local = true
 					break
@@ -155,7 +155,7 @@ func inheritanceRecipeEvents(ctx context.Context, view catalog.Read, graph map[d
 			event := dumpEventKey{oid: declaration.oid, phase: dumpInheritanceChecks}
 			graph[event] = append([]dumpEventKey(nil), prerequisites...)
 			add := addProvider(event)
-			for _, check := range table.descriptor.CheckConstraints {
+			for _, check := range table.descriptor.Constraints.Check {
 				if table.deferredChecks[check.Name] && dumpCheckDeclaration(view, table.descriptor, check) {
 					if err := regclassReplayReferences(view, check.Expression, add); err != nil {
 						return err
@@ -184,7 +184,7 @@ func inheritanceRecipeEvents(ctx context.Context, view catalog.Read, graph map[d
 func (t *dumpRelation) emitInheritedGenerations(ctx context.Context, view catalog.Read, emit func(string) error) error {
 	prefix := "ALTER TABLE ONLY " + quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name) + " ALTER COLUMN "
 	for i, column := range t.columns {
-		if definition, exists := t.descriptor.Generations[t.attributes[i]]; exists {
+		if definition, exists := t.descriptor.ColumnMeta.Generations[t.attributes[i]]; exists {
 			text, err := (scalarRenderer{owner: t.descriptor}).sql(ctx, view, definition.Expression)
 			if err != nil {
 				return err
@@ -235,7 +235,7 @@ func (e *Engine) captureRestoredPlaceholders(created ids.ObjectRef, raw *parser.
 	if !ok {
 		return
 	}
-	for attribute, definition := range table.Generations {
+	for attribute, definition := range table.ColumnMeta.Generations {
 		column := table.Columns[table.IndexForAttribute(attribute)].Name
 		declared := false
 		for _, element := range raw.Elements {
@@ -257,7 +257,7 @@ func (e *Engine) captureRestoredPlaceholders(created ids.ObjectRef, raw *parser.
 					compatible = false
 					break
 				}
-				generation, exists := parent.Generations[origin.Attribute]
+				generation, exists := parent.ColumnMeta.Generations[origin.Attribute]
 				if !exists {
 					continue
 				}
@@ -314,7 +314,7 @@ func (e *Engine) pairRestoredGeneration(op *Operation, raw *parser.AlterTable, o
 	}
 	attribute := table.Attributes[slot]
 	record, exists := origins[restoredGenerationKey{ref.Address, attribute}]
-	definition, generated := table.Generations[attribute]
+	definition, generated := table.ColumnMeta.Generations[attribute]
 	if !exists || !generated || record.ref != ref || record.attribute != attribute || record.generation != definition.OID || record.usage != table.Columns[slot].Usage || record.kind != definition.Kind {
 		return reject()
 	}
@@ -342,7 +342,7 @@ func (e *Engine) captureRestoredGeneration(op *Operation, raw *parser.AlterTable
 		return restoredGenerationRecipe{}, ids.ErrCatalogReplaced
 	}
 	attribute := table.Attributes[slot]
-	generation := table.Generations[attribute]
+	generation := table.ColumnMeta.Generations[attribute]
 	return restoredGenerationRecipe{ref: ref, attribute: attribute, generation: generation.OID, usage: table.Columns[slot].Usage, kind: generation.Kind}, nil
 }
 
@@ -402,7 +402,7 @@ func (e *Engine) restoreInheritedCheck(op *Operation, raw *parser.AlterTable, re
 		if !ok {
 			continue
 		}
-		generation, ok := table.Generations[repair.attribute]
+		generation, ok := table.ColumnMeta.Generations[repair.attribute]
 		slot := table.IndexForAttribute(repair.attribute)
 		if !ok || slot < 0 || generation.OID != repair.generation || generation.Kind != repair.kind || table.Columns[slot].Usage != repair.usage {
 			continue
@@ -459,7 +459,7 @@ func inheritedRecipeConnected(view catalog.Read, target, start ids.ObjectAddress
 func capturedGenerationReplayPlan(view catalog.Read) (map[ids.ObjectAddress]*dumpRelation, error) {
 	hasGeneratedInheritance := false
 	for _, descriptor := range view.Descriptors() {
-		if table, ok := descriptor.(*catalog.Relation); ok && table.Inheritance != nil && len(table.Generations) != 0 {
+		if table, ok := descriptor.(*catalog.Relation); ok && table.Inheritance != nil && len(table.ColumnMeta.Generations) != 0 {
 			if namespace, ok := view.Namespace(table.Namespace()); ok && namespace.Temporary == (ids.SessionToken{}) {
 				hasGeneratedInheritance = true
 				break
@@ -481,7 +481,7 @@ func capturedGenerationReplayPlan(view catalog.Read) (map[ids.ObjectAddress]*dum
 		if !inheritanceParticipant(view, table) {
 			continue
 		}
-		captured := dumpRelation{descriptor: table, columns: table.Columns, attributes: table.Attributes, defaults: table.Defaults}
+		captured := dumpRelation{descriptor: table, columns: table.Columns, attributes: table.Attributes, defaults: table.ColumnMeta.Defaults}
 		if err := captured.prepareInheritedRecipes(view); err != nil {
 			return nil, err
 		}
@@ -523,7 +523,7 @@ func (t *dumpRelation) needsGenerationPlaceholders() bool {
 		return false
 	}
 	for attribute, recipe := range t.recipes {
-		if _, generated := t.descriptor.Generations[attribute]; generated && recipe.ExplicitGeneration && (!recipe.Local || !t.descriptor.Inheritance.Columns[attribute].ExplicitGeneration) {
+		if _, generated := t.descriptor.ColumnMeta.Generations[attribute]; generated && recipe.ExplicitGeneration && (!recipe.Local || !t.descriptor.Inheritance.Columns[attribute].ExplicitGeneration) {
 			return true
 		}
 	}

@@ -45,17 +45,17 @@ func generationWriteError(column string, update bool) error {
 func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d *catalog.Relation, declarations []createColumnDeclaration, input sqltype.InputEnvironment) error {
 	for slot, declaration := range declarations {
 		if declaration.generation != nil {
-			if d.Generations == nil {
-				d.Generations = make(map[int32]catalog.ColumnGeneration)
+			if d.ColumnMeta.Generations == nil {
+				d.ColumnMeta.Generations = make(map[int32]catalog.ColumnGeneration)
 			}
 			kind := catalog.GenerationVirtual
 			if declaration.generation.Kind == "stored" {
 				kind = catalog.GenerationStored
 			}
-			d.Generations[d.Attributes[slot]] = catalog.ColumnGeneration{Kind: kind}
+			d.ColumnMeta.Generations[d.Attributes[slot]] = catalog.ColumnGeneration{Kind: kind}
 		}
 	}
-	if len(d.Generations) == 0 {
+	if len(d.ColumnMeta.Generations) == 0 {
 		return nil
 	}
 	ns := e.generationNamespace(auth, d)
@@ -67,7 +67,7 @@ func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d 
 		if err != nil {
 			return err
 		}
-		d.Generations[d.Attributes[slot]] = definition
+		d.ColumnMeta.Generations[d.Attributes[slot]] = definition
 	}
 	return nil
 }
@@ -92,7 +92,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
 	b.querySources = []queryLeaf{{ref: ref, relation: d}}
 	column := d.Columns[slot]
-	kind := d.Generations[d.Attributes[slot]].Kind
+	kind := d.ColumnMeta.Generations[d.Attributes[slot]].Kind
 	if kind == catalog.GenerationVirtual {
 		if err := virtualDestination(column); err != nil {
 			return catalog.ColumnGeneration{}, err
@@ -286,7 +286,7 @@ func prepareGenerationProgram(c *EvalContext, d *catalog.Relation, selected []in
 		if selected != nil {
 			slot = selected[i]
 		}
-		definition, exists := d.Generations[d.Attributes[slot]]
+		definition, exists := d.ColumnMeta.Generations[d.Attributes[slot]]
 		if !exists || definition.Kind != catalog.GenerationStored {
 			continue
 		}
@@ -308,7 +308,7 @@ func prepareGenerationProgram(c *EvalContext, d *catalog.Relation, selected []in
 			if program == nil {
 				program = make([]expr.Expr, len(d.Columns))
 				for i, attribute := range d.Attributes {
-					program[i] = generationRecipeExpression(d.Generations[attribute])
+					program[i] = generationRecipeExpression(d.ColumnMeta.Generations[attribute])
 				}
 			}
 			program[slot] = node
@@ -324,7 +324,7 @@ func prepareGenerationProgram(c *EvalContext, d *catalog.Relation, selected []in
 }
 
 func evaluateGenerations(ctx context.Context, d *catalog.Relation, row []sqltype.Value, c *EvalContext) error {
-	if len(d.Generations) == 0 {
+	if len(d.ColumnMeta.Generations) == 0 {
 		return ctx.Err()
 	}
 	c.Context = ctx
@@ -336,7 +336,7 @@ func evaluateGenerations(ctx context.Context, d *catalog.Relation, row []sqltype
 		return err
 	}
 	for slot, attribute := range d.Attributes {
-		definition, ok := d.Generations[attribute]
+		definition, ok := d.ColumnMeta.Generations[attribute]
 		if !ok {
 			continue
 		}
@@ -465,21 +465,21 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, stor
 			continue
 		}
 		descriptor, ok := next.Relation(target)
-		if !ok || len(descriptor.Generations) == 0 {
+		if !ok || len(descriptor.ColumnMeta.Generations) == 0 {
 			continue
 		}
 		filtered := *descriptor
-		filtered.Generations = nil
-		for attribute, definition := range descriptor.Generations {
+		filtered.ColumnMeta.Generations = nil
+		for attribute, definition := range descriptor.ColumnMeta.Generations {
 			if definition.Kind != catalog.GenerationStored || !generationHasTableOID(definition.Planned) {
 				continue
 			}
-			if filtered.Generations == nil {
-				filtered.Generations = make(map[int32]catalog.ColumnGeneration)
+			if filtered.ColumnMeta.Generations == nil {
+				filtered.ColumnMeta.Generations = make(map[int32]catalog.ColumnGeneration)
 			}
-			filtered.Generations[attribute] = definition
+			filtered.ColumnMeta.Generations[attribute] = definition
 		}
-		if len(filtered.Generations) == 0 {
+		if len(filtered.ColumnMeta.Generations) == 0 {
 			continue
 		}
 		rows := storage[target]
@@ -503,8 +503,8 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, stor
 		}
 		var comparisons map[int]sqltype.Grouping
 		if len(changed[target]) != 0 {
-			comparisons = make(map[int]sqltype.Grouping, len(filtered.Generations))
-			for attribute := range filtered.Generations {
+			comparisons = make(map[int]sqltype.Grouping, len(filtered.ColumnMeta.Generations))
+			for attribute := range filtered.ColumnMeta.Generations {
 				if _, tracked := changed[target][attribute]; !tracked {
 					continue
 				}
@@ -572,7 +572,7 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, stor
 }
 
 func validateGenerationProviders(view catalog.Read, d *catalog.Relation) error {
-	for _, definition := range d.Generations {
+	for _, definition := range d.ColumnMeta.Generations {
 		for _, ref := range definition.Dependencies {
 			address := ref.Address
 			address.SubID = 0
@@ -580,7 +580,7 @@ func validateGenerationProviders(view catalog.Read, d *catalog.Relation) error {
 				return fmt.Errorf("stuntgres: missing generation provider")
 			}
 			if address == d.Address() && ref.Address.SubID != 0 {
-				if _, generated := d.Generations[ref.Address.SubID]; generated {
+				if _, generated := d.ColumnMeta.Generations[ref.Address.SubID]; generated {
 					return fmt.Errorf("stuntgres: generated dependency on generated attribute")
 				}
 			}
@@ -676,7 +676,7 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 		var storage [13]expr.Expr
 		return args(subscriptChildren(n, &storage))
 	case columnExpression:
-		if _, generated := d.Generations[n.origin.Address.SubID]; generated || n.virtual != nil {
+		if _, generated := d.ColumnMeta.Generations[n.origin.Address.SubID]; generated || n.virtual != nil {
 			return fmt.Errorf("stuntgres: generated reference in generation plan")
 		}
 		if !storedReferenceEpochValid(view, d, n.origin) || n.origin.Address.ClassID != d.Address().ClassID || n.origin.Address.ObjectID != d.Address().ObjectID || n.scope != 1 || n.frame != 1 || n.slot < 0 || n.slot >= len(d.Columns) || d.Attributes[n.slot] != n.origin.Address.SubID || usage != d.Columns[n.slot].Usage {
@@ -805,7 +805,7 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 }
 
 func generationDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
-	for _, definition := range d.Generations {
+	for _, definition := range d.ColumnMeta.Generations {
 		for _, dependency := range definition.Dependencies {
 			address := dependency.Address
 			if address.ClassID == target.ClassID && address.ObjectID == target.ObjectID && (target.SubID == 0 || address.SubID == target.SubID) {

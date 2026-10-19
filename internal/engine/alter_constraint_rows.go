@@ -40,19 +40,19 @@ func (s *StatementScope) validateAddedConstraintRows(validator alterRowValidator
 
 func validCheckTraversal(parent *catalog.Relation) *catalog.Relation {
 	valid := 0
-	for _, c := range parent.CheckConstraints {
+	for _, c := range parent.Constraints.Check {
 		if !c.NotValid {
 			valid++
 		}
 	}
-	if valid == len(parent.CheckConstraints) {
+	if valid == len(parent.Constraints.Check) {
 		return parent
 	}
 	next := *parent
-	next.CheckConstraints = make([]catalog.CheckConstraint, 0, valid)
-	for _, c := range parent.CheckConstraints {
+	next.Constraints.Check = make([]catalog.CheckConstraint, 0, valid)
+	for _, c := range parent.Constraints.Check {
 		if !c.NotValid {
-			next.CheckConstraints = append(next.CheckConstraints, c)
+			next.Constraints.Check = append(next.Constraints.Check, c)
 		}
 	}
 	return &next

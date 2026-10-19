@@ -239,7 +239,7 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 					}
 					check.Dependencies = append(check.Dependencies, catalog.ExpressionDependency{Ref: dependency, Revision: d.Revision()})
 				}
-				target.CheckConstraints = []catalog.CheckConstraint{check}
+				target.Constraints.Check = []catalog.CheckConstraint{check}
 			}
 			partitionAttachUnitInstall(t, e, parent, target, leaf)
 			parent = e.catalog.state.MustRelation(parent.Address())

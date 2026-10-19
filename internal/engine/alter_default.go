@@ -45,7 +45,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 		return fail(sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, s.Column.Text, old.Name())))
 	}
 	attr := old.Attributes[slot]
-	if _, generated := old.Generations[attr]; generated {
+	if _, generated := old.ColumnMeta.Generations[attr]; generated {
 		diagnostic := sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is a generated column`, s.Column.Text, old.Name())).(*sqlstate.Error)
 		diagnostic.Hint = "Use ALTER TABLE ... ALTER COLUMN ... SET EXPRESSION instead."
 		if s.Action == parser.DropDefault {
@@ -53,7 +53,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 		}
 		return fail(diagnostic)
 	}
-	if _, ok := old.Identities[attr]; ok {
+	if _, ok := old.ColumnMeta.Identities[attr]; ok {
 		diagnostic := sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is an identity column`, s.Column.Text, old.Name())).(*sqlstate.Error)
 		if s.Action == parser.DropDefault {
 			diagnostic.Hint = "Use ALTER TABLE ... ALTER COLUMN ... DROP IDENTITY instead."
@@ -69,7 +69,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 		if err != nil {
 			return fail(err)
 		}
-	} else if _, present := old.Defaults[attr]; !present {
+	} else if _, present := old.ColumnMeta.Defaults[attr]; !present {
 		op.session.mu.Lock()
 		err = publicationOperationLocked(e, op)
 		op.session.mu.Unlock()
@@ -97,25 +97,25 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	}
 	next := *old
 	next.ObjectRevision++
-	capacity := len(old.Defaults)
+	capacity := len(old.ColumnMeta.Defaults)
 	if definition.Expression == nil {
-		if _, present := old.Defaults[attr]; present {
+		if _, present := old.ColumnMeta.Defaults[attr]; present {
 			capacity--
 		}
-	} else if _, present := old.Defaults[attr]; !present {
+	} else if _, present := old.ColumnMeta.Defaults[attr]; !present {
 		capacity++
 	}
-	next.Defaults = nil
+	next.ColumnMeta.Defaults = nil
 	if capacity != 0 {
-		next.Defaults = make(map[int32]catalog.ColumnDefault, capacity)
+		next.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault, capacity)
 	}
-	for key, value := range old.Defaults {
+	for key, value := range old.ColumnMeta.Defaults {
 		if key != attr {
-			next.Defaults[key] = value
+			next.ColumnMeta.Defaults[key] = value
 		}
 	}
 	if definition.Expression != nil {
-		next.Defaults[attr] = definition
+		next.ColumnMeta.Defaults[attr] = definition
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)

@@ -15,7 +15,7 @@ func copyTargets(relation *catalog.Relation, columns []parser.Identifier) ([]int
 	targets := make([]int, 0, len(relation.Columns))
 	if len(columns) == 0 {
 		for i, attribute := range relation.Attributes {
-			if _, generated := relation.Generations[attribute]; !generated {
+			if _, generated := relation.ColumnMeta.Generations[attribute]; !generated {
 				targets = append(targets, i)
 			}
 		}
@@ -37,7 +37,7 @@ func copyTargets(relation *catalog.Relation, columns []parser.Identifier) ([]int
 				return nil, sqlError("42701", fmt.Sprintf("column \"%s\" specified more than once", name.Text))
 			}
 		}
-		if _, generated := relation.Generations[relation.Attributes[target]]; generated {
+		if _, generated := relation.ColumnMeta.Generations[relation.Attributes[target]]; generated {
 			d := sqlError("42P10", fmt.Sprintf("column \"%s\" is a generated column", name.Text)).(*sqlstate.Error)
 			d.Detail = "Generated columns cannot be used in COPY."
 			return nil, d
@@ -192,7 +192,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		}
 		defaultEvaluation := evaluation
 		defaultEvaluation.routineRecipe, defaultEvaluation.routineGraft = true, false
-		defaultEvaluation.routineReferences = b.relation.Defaults[b.relation.Attributes[i]].Dependencies
+		defaultEvaluation.routineReferences = b.relation.ColumnMeta.Defaults[b.relation.Attributes[i]].Dependencies
 		defaultEvaluation.routineConsumer = b.relation
 		folded, _, planErr := preflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 		if planErr != nil {
@@ -355,7 +355,7 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *binding, auth Authori
 	binder.queryAuth = &auth
 	binder.insertTarget = b.relation
 	e.bindInsertDefaults(b, auth, parser.OverrideSystem)
-	if err := binder.captureRetainedWriteInput(b.defaults, b.relation.Generations, b.relation.CheckConstraints); err != nil {
+	if err := binder.captureRetainedWriteInput(b.defaults, b.relation.ColumnMeta.Generations, b.relation.Constraints.Check); err != nil {
 		return err
 	}
 	s.input = binder.input

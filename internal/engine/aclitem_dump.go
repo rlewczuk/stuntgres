@@ -82,20 +82,20 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, view catalog.Read, ou
 					continue
 				}
 				for i, value := range version.values {
-					if _, generated := relation.Generations[relation.Attributes[i]]; generated {
+					if _, generated := relation.ColumnMeta.Generations[relation.Attributes[i]]; generated {
 						continue
 					}
 					check(value)
 				}
 			}
 		}
-		for _, definition := range relation.Defaults {
+		for _, definition := range relation.ColumnMeta.Defaults {
 			expression(definition.Expression)
 		}
-		for _, definition := range relation.Generations {
+		for _, definition := range relation.ColumnMeta.Generations {
 			expression(definition.Expression)
 		}
-		for _, constraint := range relation.CheckConstraints {
+		for _, constraint := range relation.Constraints.Check {
 			expression(constraint.Expression)
 		}
 		if relation.View != nil {
@@ -128,7 +128,7 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, view catalog.Read, ou
 				check(datum.Value)
 			}
 		}
-		for _, policy := range relation.Policies {
+		for _, policy := range relation.Security.Policies {
 			if policy.Using != nil {
 				expression(policyExpressionOf(policy.Using).expression)
 			}

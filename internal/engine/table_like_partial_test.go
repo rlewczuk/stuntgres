@@ -194,7 +194,7 @@ func TestTableLikePartialUniqueClone(t *testing.T) {
 			copied = index
 		}
 	}
-	if copied == nil || copied.Address() == source.Address() || !copied.SQLIndex.Unique || !copied.SQLIndex.NullsNotDistinct || copied.SQLIndex.Constraint != nil || len(destination.UniqueConstraints) != 0 || copied.SQLIndex.Keys[0].Attribute != 3 || copied.SQLIndex.Predicate == nil || copied.SQLIndex.Predicate == source.SQLIndex.Predicate {
+	if copied == nil || copied.Address() == source.Address() || !copied.SQLIndex.Unique || !copied.SQLIndex.NullsNotDistinct || copied.SQLIndex.Constraint != nil || len(destination.Constraints.Unique) != 0 || copied.SQLIndex.Keys[0].Attribute != 3 || copied.SQLIndex.Predicate == nil || copied.SQLIndex.Predicate == source.SQLIndex.Predicate {
 		t.Fatal("standalone partial unique/backing authority lost", copied)
 	}
 	predicate := copied.SQLIndex.Predicate
@@ -307,7 +307,7 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 							columns[i].OriginTable = uint32(oid)
 							columns[i].OriginAttribute = int16(i + 1)
 						}
-						index = &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: source.Namespace(), ObjectName: "private_partial", ObjectRevision: revision, Owner: source.Owner, Columns: columns, Attributes: attributes, AttributeHighWater: int32(len(attributes)), Index: lookup, RelationKind: catalog.IndexRelation, SQLIndex: definition}
+						index = &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: source.Namespace(), ObjectName: "private_partial", ObjectRevision: revision, Owner: source.Owner, Columns: columns, Attributes: attributes, ColumnMeta: catalog.ColumnMetadata{HighWater: int32(len(attributes))}, Index: lookup, RelationKind: catalog.IndexRelation, SQLIndex: definition}
 						err = stage.Create(index)
 					}
 				}
@@ -336,7 +336,7 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 	}
 	queryCreatePublish(t, e, stage)
 	current := e.CatalogRead().MustRelation(source.Address())
-	if !current.HasIndexes || current.Revision() != source.Revision() || current == source {
+	if !current.History.HasIndexes || current.Revision() != source.Revision() || current == source {
 		t.Fatal("private normalization invariant", current)
 	}
 	if e.storage.indexRoots[index.Address()] == nil {

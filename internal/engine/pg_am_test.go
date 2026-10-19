@@ -64,7 +64,7 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 	d, ref := pgAMUnitSource(t, e)
 	checkDescriptor := func(view catalog.Read, d *catalog.Relation) {
 		t.Helper()
-		if d.Name() != "pg_am" || d.Namespace().ObjectID != 11 || d.RowType != 10015 || !d.HasIndexes || d.VirtualView || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 4 || len(d.Columns) != 4 || len(d.CatalogAttributes) != 4 {
+		if d.Name() != "pg_am" || d.Namespace().ObjectID != 11 || d.RowType != 10015 || !d.History.HasIndexes || d.VirtualView || d.RelationKind != catalog.CatalogRelation || d.ColumnMeta.HighWater != 4 || len(d.Columns) != 4 || len(d.ColumnMeta.CatalogAttributes) != 4 {
 			t.Fatal("descriptor", d)
 		}
 		for i, name := range []string{"oid", "amname", "amhandler", "amtype"} {
@@ -78,13 +78,13 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 			if !ok || c.Name != name || c.Usage.Type != owned || c.Usage.Typmod != -1 || uint32(c.Usage.Collation.ID) != collation || c.Nullable || !c.NullabilityKnown || c.OriginTable != 2601 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[name] != i {
 				t.Fatal("column ownership", i, c)
 			}
-			a := d.CatalogAttributes[i]
+			a := d.ColumnMeta.CatalogAttributes[i]
 			if !a.NotNull || a.Dimensions != 0 || uint32(a.Collation) != collation {
 				t.Fatal("attribute facts", i, a)
 			}
 		}
-		if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
-			t.Fatal("PUBLIC SELECT", d.ACL)
+		if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+			t.Fatal("PUBLIC SELECT", d.Security.ACL)
 		}
 		row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10015})
 		array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10014})

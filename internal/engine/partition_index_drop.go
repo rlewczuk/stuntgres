@@ -113,10 +113,10 @@ func (e *Engine) stagePartitionIndexDrop(stage *CatalogStage, index *catalog.Rel
 		view := e.stageRead(stage)
 		table := view.MustRelation(index.SQLIndex.Parent)
 		next := *table
-		next.UniqueConstraints = slices.Clone(table.UniqueConstraints)
+		next.Constraints.Unique = slices.Clone(table.Constraints.Unique)
 		next.ObjectRevision++
-		next.UniqueConstraints = slices.DeleteFunc(next.UniqueConstraints, func(c catalog.UniqueConstraint) bool { return c.Index == index.Address() })
-		next.ExclusionConstraints = slices.DeleteFunc(slices.Clone(table.ExclusionConstraints), func(c catalog.ExclusionConstraint) bool { return c.Index == index.Address() })
+		next.Constraints.Unique = slices.DeleteFunc(next.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Index == index.Address() })
+		next.Constraints.Exclusion = slices.DeleteFunc(slices.Clone(table.Constraints.Exclusion), func(c catalog.ExclusionConstraint) bool { return c.Index == index.Address() })
 		if err := stagePartitionDescriptor(stage, &next); err != nil {
 			return err
 		}
@@ -131,7 +131,7 @@ func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid ids.OID) 
 		if !ok {
 			continue
 		}
-		for _, c := range table.UniqueConstraints {
+		for _, c := range table.Constraints.Unique {
 			if c.Parent != oid {
 				continue
 			}
@@ -143,7 +143,7 @@ func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid ids.OID) 
 				return err
 			}
 		}
-		for _, c := range table.ExclusionConstraints {
+		for _, c := range table.Constraints.Exclusion {
 			if c.Parent != oid {
 				continue
 			}
@@ -179,20 +179,20 @@ func partitionConstraintDropActions(table *catalog.Relation, actions []parser.Al
 			return false
 		}
 		found := false
-		for _, c := range table.UniqueConstraints {
+		for _, c := range table.Constraints.Unique {
 			if c.Name == action.Constraint.Text {
 				found = true
 				break
 			}
 		}
-		found = found || slices.ContainsFunc(table.ExclusionConstraints, func(c catalog.ExclusionConstraint) bool { return c.Name == action.Constraint.Text })
+		found = found || slices.ContainsFunc(table.Constraints.Exclusion, func(c catalog.ExclusionConstraint) bool { return c.Name == action.Constraint.Text })
 		if found {
 			selected = true
 			continue
 		}
-		if slices.ContainsFunc(table.NotNullConstraints, func(c catalog.NotNullConstraint) bool { return c.Name == action.Constraint.Text }) ||
-			slices.ContainsFunc(table.CheckConstraints, func(c catalog.CheckConstraint) bool { return c.Name == action.Constraint.Text }) ||
-			slices.ContainsFunc(table.ForeignKeys, func(c catalog.ForeignKeyConstraint) bool { return c.Name == action.Constraint.Text }) {
+		if slices.ContainsFunc(table.Constraints.NotNull, func(c catalog.NotNullConstraint) bool { return c.Name == action.Constraint.Text }) ||
+			slices.ContainsFunc(table.Constraints.Check, func(c catalog.CheckConstraint) bool { return c.Name == action.Constraint.Text }) ||
+			slices.ContainsFunc(table.Constraints.ForeignKeys, func(c catalog.ForeignKeyConstraint) bool { return c.Name == action.Constraint.Text }) {
 			return false
 		}
 	}
@@ -213,7 +213,7 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 		view := e.stageRead(stage)
 		current := view.MustRelation(table.Address())
 		found := false
-		for _, c := range current.UniqueConstraints {
+		for _, c := range current.Constraints.Unique {
 			if c.Name != action.Constraint.Text {
 				continue
 			}
@@ -232,7 +232,7 @@ func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, aut
 				return Result{}, err
 			}
 		}
-		for _, c := range current.ExclusionConstraints {
+		for _, c := range current.Constraints.Exclusion {
 			if c.Name != action.Constraint.Text {
 				continue
 			}

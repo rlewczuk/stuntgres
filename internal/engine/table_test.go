@@ -71,7 +71,7 @@ func TestTableCoreLikeOwnershipDescriptors(t *testing.T) {
 		roleExecute(t, e, op, "CREATE TABLE clone(LIKE source)")
 	})
 	clone := e.CatalogRead().MustRelation(roleTableRef(t, e, "clone").Address)
-	if clone.Owner != reader.Ref || clone.ACL.Explicit || len(clone.ColumnACL) != 0 {
+	if clone.Owner != reader.Ref || clone.Security.ACL.Explicit || len(clone.Security.ColumnACL) != 0 {
 		t.Fatal("LIKE copied ACL/owner")
 	}
 }

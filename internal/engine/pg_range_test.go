@@ -71,7 +71,7 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 	d, ref := pgRangeUnitSource(t, e)
 	checkDescriptor := func(view catalog.Read, d *catalog.Relation) {
 		t.Helper()
-		if d.Name() != "pg_range" || d.Namespace().ObjectID != 11 || d.RowType != 10101 || !d.HasIndexes || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 7 || len(d.Columns) != 7 {
+		if d.Name() != "pg_range" || d.Namespace().ObjectID != 11 || d.RowType != 10101 || !d.History.HasIndexes || d.RelationKind != catalog.CatalogRelation || d.ColumnMeta.HighWater != 7 || len(d.Columns) != 7 {
 			t.Fatal("descriptor", d)
 		}
 		for i, name := range []string{"rngtypid", "rngsubtype", "rngmultitypid", "rngcollation", "rngsubopc", "rngcanonical", "rngsubdiff"} {
@@ -85,8 +85,8 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 				t.Fatal("column ownership", i, c)
 			}
 		}
-		if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
-			t.Fatal("PUBLIC read", d.ACL)
+		if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+			t.Fatal("PUBLIC read", d.Security.ACL)
 		}
 		row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10101})
 		array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10100})

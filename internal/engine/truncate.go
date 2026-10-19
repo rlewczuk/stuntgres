@@ -259,7 +259,7 @@ func truncateReferencers(view catalog.Read, selected map[ids.ObjectAddress]int) 
 		if !ok || selected[address] != 0 {
 			continue
 		}
-		for _, fk := range d.ForeignKeys {
+		for _, fk := range d.Constraints.ForeignKeys {
 			if selected[fk.Target] != 0 {
 				parent, _ := view.Relation(fk.Target)
 				if parent != nil {

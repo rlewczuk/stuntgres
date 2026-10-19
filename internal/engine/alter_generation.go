@@ -21,7 +21,7 @@ func (e *Engine) generationCandidate(scope *StatementScope, op *Operation, auth 
 		return nil, 0, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, name, old.Name()))
 	}
 	attribute := old.Attributes[slot]
-	definition, generated := old.Generations[attribute]
+	definition, generated := old.ColumnMeta.Generations[attribute]
 	if !generated {
 		if action.Action == parser.DropExpression && action.IfExists {
 			op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`column "%s" of relation "%s" is not a generated column, skipping`, name, old.Name())})
@@ -33,7 +33,7 @@ func (e *Engine) generationCandidate(scope *StatementScope, op *Operation, auth 
 		message := ""
 		if action.Action == parser.DropExpression {
 			message = "ALTER TABLE / DROP EXPRESSION is not supported for virtual generated columns"
-		} else if len(old.CheckConstraints) != 0 {
+		} else if len(old.Constraints.Check) != 0 {
 			// PostgreSQL18.0 rejects even an unrelated CHECK; newer releases differ.
 			message = "ALTER TABLE / SET EXPRESSION is not supported for virtual generated columns in tables with check constraints"
 		}
@@ -44,9 +44,9 @@ func (e *Engine) generationCandidate(scope *StatementScope, op *Operation, auth 
 		}
 	}
 	next := *old
-	next.Generations = maps.Clone(old.Generations)
+	next.ColumnMeta.Generations = maps.Clone(old.ColumnMeta.Generations)
 	if action.Action == parser.DropExpression {
-		delete(next.Generations, attribute)
+		delete(next.ColumnMeta.Generations, attribute)
 		return &next, 0, nil
 	}
 	if action.Generation == nil {
@@ -65,6 +65,6 @@ func (e *Engine) generationCandidate(scope *StatementScope, op *Operation, auth 
 		}
 		return nil, 0, err
 	}
-	next.Generations[attribute] = replacement
+	next.ColumnMeta.Generations[attribute] = replacement
 	return &next, attribute, nil
 }

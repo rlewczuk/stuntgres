@@ -57,8 +57,8 @@ func TestDefaultFailedRestorePreservesEligibilityAndSurvivors(t *testing.T) {
 	}
 	run(t, e, `ALTER TABLE sentinel DROP a`)
 	live := e.catalog.state.MustRelation(ref.Address)
-	if len(live.Defaults) != 1 || live.Defaults[3].Expression == nil || old.Defaults[2].Expression == nil {
-		t.Fatal("attribute-key ownership changed", live.Defaults, old.Defaults)
+	if len(live.ColumnMeta.Defaults) != 1 || live.ColumnMeta.Defaults[3].Expression == nil || old.ColumnMeta.Defaults[2].Expression == nil {
+		t.Fatal("attribute-key ownership changed", live.ColumnMeta.Defaults, old.ColumnMeta.Defaults)
 	}
 	run(t, e, `INSERT INTO sentinel(id) VALUES(2)`)
 	if got := tuples(run(t, e, `SELECT * FROM sentinel ORDER BY id`)); !reflect.DeepEqual(got, [][]driver.Value{{int64(1), int64(9)}, {int64(2), int64(9)}}) {

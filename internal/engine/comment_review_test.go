@@ -65,7 +65,7 @@ func TestCommentMixedOwnerRoundtrip(t *testing.T) {
 				ref := roleTableRef(t, e, "s.t")
 				nsDesc := e.CatalogRead().MustNamespace(ns.Address)
 				tableDesc := e.CatalogRead().MustRelation(ref.Address)
-				if nsDesc.Owner != schemaRole.Ref || tableDesc.Owner != tableRole.Ref || nsDesc.ACL.Explicit || tableDesc.ACL.Explicit {
+				if nsDesc.Owner != schemaRole.Ref || tableDesc.Owner != tableRole.Ref || nsDesc.ACL.Explicit || tableDesc.Security.ACL.Explicit {
 					t.Fatal("restore changed independent owners or synthesized grants")
 				}
 				if tableRole.Comment != "shared table owner" || schemaRole.Comment != "shared schema owner" {

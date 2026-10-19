@@ -57,8 +57,8 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 	// GRANT-provider extensions. Install them in the canonical private stage.
 	setup := e.BeginCatalogStage(base)
 	copy := *table
-	copy.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, reader, authorization.SelectPrivilege, 0)}}
-	copy.ColumnACL = map[int32]authorization.ACLValue{table.Attributes[1]: {Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, reader, authorization.UpdatePrivilege, authorization.UpdatePrivilege)}}}
+	copy.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, reader, authorization.SelectPrivilege, 0)}}
+	copy.Security.ColumnACL = map[int32]authorization.ACLValue{table.Attributes[1]: {Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, reader, authorization.UpdatePrivilege, authorization.UpdatePrivilege)}}}
 	copy.ObjectRevision++
 	if err := setup.Replace(&copy); err != nil {
 		t.Fatal(err)
@@ -125,10 +125,10 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 		}
 	}
 	moved := current.MustRelation(table.Address())
-	if moved.Owner != target || moved.Attributes[1] != oldTable.Attributes[1] || moved.ACL.Entries[0].Grantor != target || moved.ColumnACL[moved.Attributes[1]].Entries[0].Grantor != target {
+	if moved.Owner != target || moved.Attributes[1] != oldTable.Attributes[1] || moved.Security.ACL.Entries[0].Grantor != target || moved.Security.ColumnACL[moved.Attributes[1]].Entries[0].Grantor != target {
 		t.Fatal("table/column ACL or stable attribute", moved)
 	}
-	if e.storage.relations[table.Address()] != store || len(store.versions) != len(rows) || &store.versions[0] != &rows[0] || oldTable.Owner != owner || oldTable.ACL.Entries[0].Grantor != owner {
+	if e.storage.relations[table.Address()] != store || len(store.versions) != len(rows) || &store.versions[0] != &rows[0] || oldTable.Owner != owner || oldTable.Security.ACL.Entries[0].Grantor != owner {
 		t.Fatal("retained data/descriptor changed")
 	}
 	for a, g := range generators {

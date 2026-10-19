@@ -41,7 +41,7 @@ func TestSequenceRetainedTempDefaultReplacement(t *testing.T) {
 			ref := catalogRef(t, e, view, "imported")
 			relation := view.MustRelation(ref.Address)
 			for slot, attribute := range relation.Attributes {
-				definition := relation.Defaults[attribute]
+				definition := relation.ColumnMeta.Defaults[attribute]
 				if definition.Expression.ResultUsage() != relation.Columns[slot].Usage {
 					t.Fatalf("default/column builtin identity mismatch: column %s", relation.Columns[slot].Name)
 				}
@@ -54,7 +54,7 @@ func TestSequenceRetainedTempDefaultReplacement(t *testing.T) {
 				if source.catalog.state.Get(ref.Address) != sourceDefinition {
 					t.Fatal("normalization mutated source descriptor")
 				}
-				for _, definition := range sourceDefinition.Defaults {
+				for _, definition := range sourceDefinition.ColumnMeta.Defaults {
 					if _, err := defaultSQL(context.Background(), source.CatalogRead(), definition.Expression); err != nil {
 						t.Fatal("normalization mutated source default", err)
 					}

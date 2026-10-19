@@ -52,7 +52,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 			}
 			got := stage.Descriptors[parent.Address()].(*catalog.Relation)
 			want := edge != "ordinary_index"
-			if got.HasSubclasses != want || got.Name() != next.Name() || got.Revision() != next.Revision() || parent.HasSubclasses || next.HasSubclasses {
+			if got.History.HasSubclasses != want || got.Name() != next.Name() || got.Revision() != next.Revision() || parent.History.HasSubclasses || next.History.HasSubclasses {
 				t.Fatal("candidate/source immutability", got, parent, &next)
 			}
 			if base.Get(parent.Address()) != parent {
@@ -64,7 +64,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 			if _, err := e.ValidateCatalogStage(canceled, stage); !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}
-			if parent.HasSubclasses {
+			if parent.History.HasSubclasses {
 				t.Fatal("canceled candidate mutated base")
 			}
 		})
@@ -89,7 +89,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := stage.Descriptors[parent.Address()].(*catalog.Relation)
-	if !got.HasSubclasses || got.Revision() != 7 || got.RowType != 200112 || parent.HasSubclasses {
+	if !got.History.HasSubclasses || got.Revision() != 7 || got.RowType != 200112 || parent.History.HasSubclasses {
 		t.Fatal("same-stage identity/history", got)
 	}
 }
@@ -99,20 +99,20 @@ func TestPgClassSubclassReplacement(t *testing.T) {
 	view, parent := pgClassHistoryCatalog(e)
 	child := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200101}, Inheritance: &catalog.TableInheritance{Parents: []ids.ObjectAddress{parent.Address()}}}
 	view.State().SetDescriptor(child.Address(), child)
-	history := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200102}, HasSubclasses: true, Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
+	history := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200102}, History: catalog.PublicationHistory{HasSubclasses: true}, Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
 	view.State().SetDescriptor(history.Address(), history)
 	if err := normalizeReplacementSubclassHistory(context.Background(), view); err != nil {
 		t.Fatal(err)
 	}
 	got := view.MustRelation(parent.Address())
-	if !got.HasSubclasses || got == parent || parent.HasSubclasses || !history.HasSubclasses {
+	if !got.History.HasSubclasses || got == parent || parent.History.HasSubclasses || !history.History.HasSubclasses {
 		t.Fatal("normalization mutated retained roots", got, parent)
 	}
 	base := e.catalog.read(catalog.CloneState(view.State()))
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	cleared := *got
-	cleared.HasSubclasses = false
+	cleared.History.HasSubclasses = false
 	if err := stage.Replace(&cleared); err == nil {
 		t.Fatal("same-identity replacement cleared lazy history")
 	}

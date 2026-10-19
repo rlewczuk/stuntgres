@@ -21,10 +21,10 @@ func validatePartitionDescriptor(view catalog.Read, d *catalog.Relation) error {
 		return invalid()
 	}
 	if p := d.Partition; p != nil {
-		if len(p.Keys) == 0 || len(p.Keys) > 32 || len(d.Generations) != 0 || len(d.Identities) != 0 {
+		if len(p.Keys) == 0 || len(p.Keys) > 32 || len(d.ColumnMeta.Generations) != 0 || len(d.ColumnMeta.Identities) != 0 {
 			return invalid()
 		}
-		for _, check := range d.CheckConstraints {
+		for _, check := range d.Constraints.Check {
 			if check.NoInherit {
 				return invalid()
 			}

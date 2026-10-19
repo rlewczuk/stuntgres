@@ -253,10 +253,10 @@ func (e *Engine) initializeCatalogSources() error {
 		}{{"schemaname", sqltype.Name}, {"matviewname", sqltype.Name}, {"matviewowner", sqltype.Name}, {"tablespace", sqltype.Name}, {"hasindexes", sqltype.Bool}, {"ispopulated", sqltype.Bool}, {"definition", sqltype.Text}}},
 	} {
 		d := e.catalogSourceDescriptor(spec.oid, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, spec.name, len(spec.columns))
-		d.HasIndexes = representedCatalogHasIndexes(spec.oid)
+		d.History.HasIndexes = representedCatalogHasIndexes(spec.oid)
 		if spec.oid == 1213 || spec.oid == ids.ParameterClassID {
 			d.Owner = e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
-			d.ACL.Entries[0].Grantor = d.Owner
+			d.Security.ACL.Entries[0].Grantor = d.Owner
 		}
 		d.VirtualView = spec.oid == pgLocksOID || spec.oid == pgCursorsOID || spec.oid == 12081 || spec.oid == 12085 || spec.oid == 12048 || spec.oid == 12005 || spec.oid == 12004 || spec.oid == 12014 || spec.oid == 12007 || spec.oid == 12008
 		for i, column := range spec.columns {
@@ -374,7 +374,7 @@ func (e *Engine) initializeCatalogSources() error {
 
 func (e *Engine) catalogSourceDescriptor(oid ids.OID, namespace ids.ObjectAddress, name string, count int) *catalog.Relation {
 	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, RelationKind: catalog.CatalogRelation, Owner: owner, Index: make(map[string]int, count), Attributes: make([]int32, count), Columns: make([]catalog.Column, count), AttributeHighWater: int32(count), ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}}
+	return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectName: name, ObjectRevision: 1, RelationKind: catalog.CatalogRelation, Owner: owner, Index: make(map[string]int, count), Attributes: make([]int32, count), Columns: make([]catalog.Column, count), ColumnMeta: catalog.ColumnMetadata{HighWater: int32(count)}, Security: catalog.RelationSecurity{ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}}}
 }
 
 func (e *Engine) registerCatalogSource(d *catalog.Relation) {
@@ -505,14 +505,14 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, view catalog.Re
 				rows = append(rows, []sqltype.Value{oid(0, uint32(relation.Address().ObjectID)), oid(1, uint32(definition.Parent.ObjectID)), boolean(2, definition.Unique), boolean(3, definition.Constraint != nil && definition.Constraint.Primary), boolean(4, definition.Valid), boolean(5, definition.Ready), boolean(6, definition.Live), boolean(7, definition.NullsNotDistinct)})
 			}
 		case 2604:
-			for attribute, definition := range relation.Defaults {
+			for attribute, definition := range relation.ColumnMeta.Defaults {
 				tree, err := catalogTree(source.Columns[3].Usage.Type, definition.Expression)
 				if err != nil {
 					return nil, err
 				}
 				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), oid(1, uint32(relation.Address().ObjectID)), integer(2, int64(attribute)), tree})
 			}
-			for attribute, definition := range relation.Generations {
+			for attribute, definition := range relation.ColumnMeta.Generations {
 				tree, err := catalogTree(source.Columns[3].Usage.Type, definition.Expression)
 				if err != nil {
 					return nil, err
@@ -555,7 +555,7 @@ func nonuniqueConstraintProvenance(catalog catalog.Read, table *catalog.Relation
 	if table.Membership != nil {
 		parent := catalog.MustRelation(table.Membership.Parent)
 		if check {
-			for _, constraint := range parent.CheckConstraints {
+			for _, constraint := range parent.Constraints.Check {
 				if constraint.Name == name {
 					return false, 1
 				}
@@ -566,7 +566,7 @@ func nonuniqueConstraintProvenance(catalog catalog.Read, table *catalog.Relation
 				parentSlot, exists := parent.Index[table.Columns[slot].Name]
 				if exists {
 					parentAttribute := parent.Attributes[parentSlot]
-					for _, constraint := range parent.NotNullConstraints {
+					for _, constraint := range parent.Constraints.NotNull {
 						if constraint.Attribute == parentAttribute {
 							return false, 1
 						}

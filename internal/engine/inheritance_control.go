@@ -101,18 +101,18 @@ func remapInheritanceConstraintOrigins(next *catalog.State, previous map[ids.Obj
 				remapErr = fmt.Errorf("stuntgres: missing inheritance constraint parent")
 				return origin.Constraint
 			}
-			for _, check := range old.CheckConstraints {
+			for _, check := range old.Constraints.Check {
 				if check.OID == origin.Constraint {
-					for _, current := range parent.CheckConstraints {
+					for _, current := range parent.Constraints.Check {
 						if current.Name == check.Name {
 							return current.OID
 						}
 					}
 				}
 			}
-			for _, notNull := range old.NotNullConstraints {
+			for _, notNull := range old.Constraints.NotNull {
 				if notNull.OID == origin.Constraint {
-					for _, current := range parent.NotNullConstraints {
+					for _, current := range parent.Constraints.NotNull {
 						if current.Attribute == notNull.Attribute {
 							return current.OID
 						}

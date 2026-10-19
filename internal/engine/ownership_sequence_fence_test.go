@@ -38,7 +38,7 @@ func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Sessio
 	dbRole := roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 	sequence := *setup.Base.MustRelation(ref.Address)
 	sequence.Owner = dbRole
-	sequence.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+	sequence.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 		objectACLUnitEntry(dbRole, dbRole, authorization.UsagePrivilege|authorization.SelectPrivilege|authorization.UpdatePrivilege, 0),
 		objectACLUnitEntry(dbRole, reader, authorization.UsagePrivilege, 0),
 		objectACLUnitEntry(bootstrap, reader, authorization.SelectPrivilege, 0),
@@ -131,7 +131,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				if err := targetAuth.CheckCreate(e.catalog.Domain.Ref(ref.Epoch, old.Namespace())); err != nil {
 					t.Fatal("successor lacks actual namespace CREATE", err)
 				}
-				retainedACL := authorization.ACLValue{Explicit: old.ACL.Explicit, Entries: append([]authorization.ACLEntry(nil), old.ACL.Entries...)}
+				retainedACL := authorization.ACLValue{Explicit: old.Security.ACL.Explicit, Entries: append([]authorization.ACLEntry(nil), old.Security.ACL.Entries...)}
 				retainedOptions := *old.Sequence
 				oldRoles, sessionRevision, epoch := e.roles, session.authorization.revision, e.catalog.state.Epoch()
 				originalCatalog := e.catalog.state
@@ -214,7 +214,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 					objectACLUnitEntry(target, reader, authorization.UsagePrivilege, 0),
 					objectACLUnitEntry(bootstrap, reader, authorization.SelectPrivilege, 0),
 				}}
-				if !ok || staged == old || staged.Owner != target || !reflect.DeepEqual(staged.ACL, wantACL) || *staged.Sequence != retainedOptions || candidate.generators[ref.Address] != nil || e.catalog.state != originalCatalog {
+				if !ok || staged == old || staged.Owner != target || !reflect.DeepEqual(staged.Security.ACL, wantACL) || *staged.Sequence != retainedOptions || candidate.generators[ref.Address] != nil || e.catalog.state != originalCatalog {
 					t.Fatal("actual OWNER handler did not stage descriptor/ACL-only transfer without a prefix")
 				}
 				var checkpoint *rangePartitionPhaseContext
@@ -240,7 +240,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				}
 				err = message.end(finishErr)
 				if phase == "healthy" {
-					if err != nil || e.catalog.state.Get(ref.Address) != staged || !reflect.DeepEqual(staged.ACL, wantACL) || len(e.storage.relations[sentinel].versions) != 2 {
+					if err != nil || e.catalog.state.Get(ref.Address) != staged || !reflect.DeepEqual(staged.Security.ACL, wantACL) || len(e.storage.relations[sentinel].versions) != 2 {
 						t.Fatal("healthy selected authority did not publish actual transfer and prefix", err)
 					}
 					if private && e.catalog.state.Get(catalog.CurrentDatabaseAddress) != selectedDB {
@@ -256,7 +256,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 						t.Fatal("veto installed sequence owner/ACL or retained row prefix")
 					}
 				}
-				if e.roles != oldRoles || session.authorization.revision != sessionRevision || e.catalog.state.Epoch() != epoch || old.Owner != dbRole || !reflect.DeepEqual(old.ACL, retainedACL) || *old.Sequence != retainedOptions || auth.catalog.Get(ref.Address) != old || auth.catalog.Get(catalog.CurrentDatabaseAddress) != selectedDB || auth.databasePredecessor != committed || originalCatalog.Get(catalog.CurrentDatabaseAddress) != committed {
+				if e.roles != oldRoles || session.authorization.revision != sessionRevision || e.catalog.state.Epoch() != epoch || old.Owner != dbRole || !reflect.DeepEqual(old.Security.ACL, retainedACL) || *old.Sequence != retainedOptions || auth.catalog.Get(ref.Address) != old || auth.catalog.Get(catalog.CurrentDatabaseAddress) != selectedDB || auth.databasePredecessor != committed || originalCatalog.Get(catalog.CurrentDatabaseAddress) != committed {
 					t.Fatal("publication mutated immutable retained authority or sequence roots")
 				}
 				if e.storage.sequences[ref.Address] != generator || *generator != generatorValue || session.sequences[ref.Address] != memory || *memory != memoryValue || session.lastSequence != lastSequence {

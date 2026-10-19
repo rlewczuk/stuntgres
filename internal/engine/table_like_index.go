@@ -146,7 +146,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 						return err
 					}
 				}
-				destination.UniqueConstraints = append(destination.UniqueConstraints, c)
+				destination.Constraints.Unique = append(destination.Constraints.Unique, c)
 				definition.Constraint = uniqueBacking(&c)
 			}
 			if old.IsExclusion() {
@@ -166,7 +166,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 				if err != nil {
 					return err
 				}
-				destination.ExclusionConstraints = append(destination.ExclusionConstraints, c)
+				destination.Constraints.Exclusion = append(destination.Constraints.Exclusion, c)
 				definition.Constraint = exclusionBacking(&c)
 			}
 			columns := slices.Clone(source.Columns)
@@ -176,7 +176,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 				columns[i].OriginAttribute = int16(i + 1)
 				lookup[columns[i].Name] = i
 			}
-			index := &catalog.Relation{ObjectAddress: address, ObjectNamespace: destination.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: destination.Owner, Columns: columns, Attributes: slices.Clone(source.Attributes), AttributeHighWater: source.AttributeHighWater, Index: lookup, RelationKind: catalog.IndexRelation, SQLIndex: &definition}
+			index := &catalog.Relation{ObjectAddress: address, ObjectNamespace: destination.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: destination.Owner, Columns: columns, Attributes: slices.Clone(source.Attributes), ColumnMeta: catalog.ColumnMetadata{HighWater: source.ColumnMeta.HighWater}, Index: lookup, RelationKind: catalog.IndexRelation, SQLIndex: &definition}
 			if in.options&likeComments != 0 {
 				index.Comment = source.Comment
 			}

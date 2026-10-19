@@ -20,10 +20,10 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	parent.Partition.Children = []ids.ObjectAddress{child.Address()}
 	parent.Partition.DefaultChild = child.Address()
 	class, _ := sqltype.DefaultIndexClass(child.Columns[0].Usage.Type)
-	index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46802}, ObjectNamespace: child.Namespace(), ObjectName: "using_replay_local", ObjectRevision: 1, Owner: child.Owner, RelationKind: catalog.IndexRelation, Columns: slices.Clone(child.Columns), Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"k": 0}, SQLIndex: &catalog.IndexDefinition{Parent: child.Address(), Method: catalog.BtreeMethod, Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Unique: true, Ready: true, Valid: true, Live: true}}
+	index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46802}, ObjectNamespace: child.Namespace(), ObjectName: "using_replay_local", ObjectRevision: 1, Owner: child.Owner, RelationKind: catalog.IndexRelation, Columns: slices.Clone(child.Columns), Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}, Index: map[string]int{"k": 0}, SQLIndex: &catalog.IndexDefinition{Parent: child.Address(), Method: catalog.BtreeMethod, Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Unique: true, Ready: true, Valid: true, Live: true}}
 	index.Columns[0].OriginTable = uint32(index.Address().ObjectID)
 	index.Columns[0].OriginAttribute = 1
-	child.HasIndexes = true
+	child.History.HasIndexes = true
 	partitionAttachUnitInstall(t, e, parent, child, index)
 	child = e.catalog.state.MustRelation(child.Address())
 	index = e.catalog.state.MustRelation(index.Address())

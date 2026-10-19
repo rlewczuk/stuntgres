@@ -49,7 +49,7 @@ func rowSecurityActions(actions []parser.AlterTableAction) bool {
 }
 
 func rowSecurityFlags(old *catalog.Relation, actions []parser.AlterTableAction) *catalog.Relation {
-	enabled, forced := old.RLSEnabled, old.RLSForced
+	enabled, forced := old.Security.RLSEnabled, old.Security.RLSForced
 	for _, action := range actions {
 		switch action.Action {
 		case parser.EnableRowSecurity:
@@ -62,11 +62,11 @@ func rowSecurityFlags(old *catalog.Relation, actions []parser.AlterTableAction) 
 			forced = false
 		}
 	}
-	if enabled == old.RLSEnabled && forced == old.RLSForced {
+	if enabled == old.Security.RLSEnabled && forced == old.Security.RLSForced {
 		return old
 	}
 	next := *old
-	next.RLSEnabled, next.RLSForced = enabled, forced
+	next.Security.RLSEnabled, next.Security.RLSForced = enabled, forced
 	return &next
 }
 
@@ -108,7 +108,7 @@ func rowSecurityKind(d *catalog.Relation, action parser.AlterTableActionKind) er
 // Applicability is metadata only. Even TRUE/FALSE/NULL syntax requires the
 // adjacent expression-enforcement capability; nil clauses contribute nothing.
 func rowSecurityApplies(auth AuthorizationView, d *catalog.Relation, principal authorization.PrincipalRef) (bool, error) {
-	if !d.RLSEnabled {
+	if !d.Security.RLSEnabled {
 		return false, nil
 	}
 	actor, err := auth.roles.Descriptor(principal)
@@ -118,7 +118,7 @@ func rowSecurityApplies(auth AuthorizationView, d *catalog.Relation, principal a
 	if actor.Superuser || actor.BypassRLS {
 		return false, nil
 	}
-	if !d.RLSForced {
+	if !d.Security.RLSForced {
 		owner, err := auth.roles.InheritsRole(principal, d.Owner)
 		if err != nil {
 			return false, err
@@ -135,7 +135,7 @@ func rowSecurityDecision(auth AuthorizationView, d *catalog.Relation, principal 
 	if err != nil || !applies {
 		return rlsUnrestricted, err
 	}
-	for _, policy := range d.Policies {
+	for _, policy := range d.Security.Policies {
 		if !policy.Permissive || policy.Command != catalog.PolicyAll && policy.Command != command {
 			continue
 		}
@@ -214,7 +214,7 @@ func rowSecurityPrincipal(auth AuthorizationView, b binding) authorization.Princ
 
 // The caller holds Engine.mu; this never captures row data or mutates identity.
 func (e *Engine) rowSecurityInputLocked(scope *StatementScope, d *catalog.Relation, principal authorization.PrincipalRef, command catalog.PolicyCommand, selectRead bool) (bool, error) {
-	if !d.RLSEnabled {
+	if !d.Security.RLSEnabled {
 		return false, nil
 	}
 	auth, err := e.authorizationLocked(scope.op)
@@ -256,7 +256,7 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, st
 		return nil
 	}
 	scope.rlsProposalTable = b.relation.Name()
-	if !b.relation.RLSEnabled {
+	if !b.relation.Security.RLSEnabled {
 		return nil
 	}
 	auth, err := e.statementAuthorizationLocked(scope.op, stmt)

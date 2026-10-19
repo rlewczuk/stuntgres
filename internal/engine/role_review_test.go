@@ -200,9 +200,9 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 		unchanged()
 		bad := *original
 		if column {
-			bad.ColumnACL = map[int32]authorization.ACLValue{1: invalid}
+			bad.Security.ColumnACL = map[int32]authorization.ACLValue{1: invalid}
 		} else {
-			bad.ACL = invalid
+			bad.Security.ACL = invalid
 		}
 		view := catalog.CloneState(e.catalog.state)
 		view.SetDescriptor(ref.Address, &bad)
@@ -231,9 +231,9 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 		foreignACL.Entries = append([]authorization.ACLEntry(nil), invalid.Entries...)
 		foreignACL.Entries[0].Grantor = source.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 		if column {
-			foreign.ColumnACL = map[int32]authorization.ACLValue{1: foreignACL}
+			foreign.Security.ColumnACL = map[int32]authorization.ACLValue{1: foreignACL}
 		} else {
-			foreign.ACL = foreignACL
+			foreign.Security.ACL = foreignACL
 		}
 		foreignView := catalog.CloneState(source.catalog.state)
 		foreignView.SetDescriptor(foreignRef.Address, &foreign)

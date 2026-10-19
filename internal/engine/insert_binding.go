@@ -122,10 +122,10 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 					continue
 				}
 				c := b.relation.Columns[b.targets[j]]
-				if _, generated := b.relation.Generations[b.relation.Attributes[b.targets[j]]]; generated {
+				if _, generated := b.relation.ColumnMeta.Generations[b.relation.Attributes[b.targets[j]]]; generated {
 					return generationWriteError(c.Name, false)
 				}
-				if identity, ok := b.relation.Identities[b.relation.Attributes[b.targets[j]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
+				if identity, ok := b.relation.ColumnMeta.Identities[b.relation.Attributes[b.targets[j]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
 					return identityInsertError(c.Name)
 				}
 				if literal, ok := v.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
@@ -158,10 +158,10 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 					c = partial.column(c)
 				}
 			}
-			if _, generated := b.relation.Generations[b.relation.Attributes[b.targets[j]]]; generated {
+			if _, generated := b.relation.ColumnMeta.Generations[b.relation.Attributes[b.targets[j]]]; generated {
 				return generationWriteError(c.Name, false)
 			}
-			if identity, ok := b.relation.Identities[b.relation.Attributes[b.targets[j]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
+			if identity, ok := b.relation.ColumnMeta.Identities[b.relation.Attributes[b.targets[j]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
 				return identityInsertError(c.Name)
 			}
 			var plan expr.Expr
@@ -240,7 +240,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 			return err
 		}
 	}
-	if len(b.relation.Identities) != 0 {
+	if len(b.relation.ColumnMeta.Identities) != 0 {
 		b.insertProjection = make([]int, len(b.relation.Columns))
 		for i := range b.insertProjection {
 			b.insertProjection[i] = -1
@@ -258,23 +258,23 @@ func (e *Engine) bindInsertDefaults(b *binding, auth AuthorizationView, override
 	for _, column := range b.relation.Columns {
 		hasDomains = hasDomains || column.Usage.Type.HasDomainChecks()
 	}
-	if len(b.relation.Defaults) == 0 && len(b.relation.Identities) == 0 && !hasDomains {
+	if len(b.relation.ColumnMeta.Defaults) == 0 && len(b.relation.ColumnMeta.Identities) == 0 && !hasDomains {
 		return
 	}
 	b.defaults = make([]expr.Expr, len(b.relation.Columns))
 	for i, attribute := range b.relation.Attributes {
-		b.defaults[i] = b.relation.Defaults[attribute].Expression
+		b.defaults[i] = b.relation.ColumnMeta.Defaults[attribute].Expression
 		if b.defaults[i] == nil && b.relation.Columns[i].Usage.Type.HasDomainChecks() {
 			b.defaults[i] = domainNullInputExpression(b.relation.Columns[i].Usage)
 		}
-		if identity, ok := b.relation.Identities[attribute]; ok {
+		if identity, ok := b.relation.ColumnMeta.Identities[attribute]; ok {
 			b.defaults[i] = sequenceCallExpression{Info: expr.Info{Usage: b.relation.Columns[i].Usage, Property: expr.Properties{Volatility: expr.Volatile}}, name: "nextval", ref: e.catalog.Domain.Ref(auth.catalog.Epoch(), identity.Sequence), identity: true}
 		}
 	}
 	if override == parser.OverrideUser {
 		b.identityDiscard = make([]bool, len(b.relation.Columns))
 		for i, attribute := range b.relation.Attributes {
-			_, b.identityDiscard[i] = b.relation.Identities[attribute]
+			_, b.identityDiscard[i] = b.relation.ColumnMeta.Identities[attribute]
 		}
 	}
 }

@@ -27,7 +27,7 @@ func TestRegclassDropColumnStagedOwnerDefinitions(t *testing.T) {
 	descriptor, _ := catalogView.Descriptor(ref.Address)
 	old := descriptor.(*catalog.Relation)
 	kept := old.Attributes[old.Index["kept"]]
-	remaining := old.Defaults[kept]
+	remaining := old.ColumnMeta.Defaults[kept]
 	stage := e.BeginCatalogStage(catalogView)
 	defer e.DiscardCatalogStage(stage)
 	scope, err := e.StartStatement(op)
@@ -40,20 +40,20 @@ func TestRegclassDropColumnStagedOwnerDefinitions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(old.Columns) != 3 || len(old.Defaults) != 3 || len(old.CheckConstraints) != 2 {
+	if len(old.Columns) != 3 || len(old.ColumnMeta.Defaults) != 3 || len(old.Constraints.Check) != 2 {
 		t.Fatal("original descriptor mutated")
 	}
-	if len(next.Columns) != 2 || next.Index["kept"] != 0 || next.Index["r"] != 1 || !reflect.DeepEqual(next.Attributes, old.Attributes[1:]) || len(next.Defaults) != 1 || next.Defaults[kept].OID != remaining.OID || remaining.OID == 0 {
-		t.Fatal("staged definitions or stable shape lost", next.Columns, next.Attributes, next.Defaults)
+	if len(next.Columns) != 2 || next.Index["kept"] != 0 || next.Index["r"] != 1 || !reflect.DeepEqual(next.Attributes, old.Attributes[1:]) || len(next.ColumnMeta.Defaults) != 1 || next.ColumnMeta.Defaults[kept].OID != remaining.OID || remaining.OID == 0 {
+		t.Fatal("staged definitions or stable shape lost", next.Columns, next.Attributes, next.ColumnMeta.Defaults)
 	}
-	if len(next.CheckConstraints) != 1 || next.CheckConstraints[0].Name != "rr_kept_positive" || stage.Descriptors[ref.Address] != next {
-		t.Fatal("surviving CHECK or latest staged descriptor lost", next.CheckConstraints)
+	if len(next.Constraints.Check) != 1 || next.Constraints.Check[0].Name != "rr_kept_positive" || stage.Descriptors[ref.Address] != next {
+		t.Fatal("surviving CHECK or latest staged descriptor lost", next.Constraints.Check)
 	}
 	integer, err := sqltype.Integer(next.Columns[0].Usage.Type, 11)
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := next.CheckConstraints[0].Expression.Eval(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{integer, sqltype.String(next.Columns[1].Usage.Type, "0")}})
+	result, err := next.Constraints.Check[0].Expression.Eval(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{integer, sqltype.String(next.Columns[1].Usage.Type, "0")}})
 	if err != nil {
 		t.Fatal("surviving CHECK slot migration", err)
 	}
@@ -111,7 +111,7 @@ func TestRegclassDependencyIdentitySiblingTraversal(t *testing.T) {
 		labels = append(labels, dependent.label)
 	}
 	want := []string{"view rr_order_bridge", "view rr_order_view", "default value for column r of table rr_order_owner", "constraint rr_order_zfirst on table rr_order_owner", "constraint rr_order_afinal on table rr_order_owner"}
-	if !reflect.DeepEqual(labels, want) || ordered[0].oid <= ordered[1].oid || ordered[2].oid != owner.Defaults[owner.Attributes[owner.Index["r"]]].OID || ordered[3].oid != checks[0].check.OID || ordered[4].oid != checks[1].check.OID || ordered[3].oid <= ordered[4].oid {
+	if !reflect.DeepEqual(labels, want) || ordered[0].oid <= ordered[1].oid || ordered[2].oid != owner.ColumnMeta.Defaults[owner.Attributes[owner.Index["r"]]].OID || ordered[3].oid != checks[0].check.OID || ordered[4].oid != checks[1].check.OID || ordered[3].oid <= ordered[4].oid {
 		t.Fatal("provider traversal or genuine sibling identity lost", labels, ordered)
 	}
 	duplicate := supportedDependentLabels(view, []ids.ObjectAddress{target, target}, checks, views, defaults, nil)

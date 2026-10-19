@@ -155,13 +155,13 @@ func partitionProofSame(a, b expr.Expr) bool {
 
 func (p *partitionProof) nonNull(key expr.Expr) bool {
 	if column, ok := key.(columnExpression); ok {
-		for _, constraint := range p.relation.NotNullConstraints {
+		for _, constraint := range p.relation.Constraints.NotNull {
 			if constraint.Attribute == column.origin.Address.SubID && !constraint.NotValid {
 				return true
 			}
 		}
 	}
-	for _, check := range p.relation.CheckConstraints {
+	for _, check := range p.relation.Constraints.Check {
 		if !check.NotValid && partitionCheckNonNull(check.Expression, key) {
 			return true
 		}
@@ -198,7 +198,7 @@ func (p *partitionProof) implies(goal *partitionProofGoal) (bool, error) {
 		}
 		return p.implies(goal.right)
 	}
-	for _, check := range p.relation.CheckConstraints {
+	for _, check := range p.relation.Constraints.Check {
 		if check.NotValid {
 			continue
 		}

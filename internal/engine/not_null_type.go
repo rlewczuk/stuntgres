@@ -15,9 +15,9 @@ func (e *Engine) rebuildAlterNotNullsLocked(stage *CatalogStage, parent *catalog
 		return nil, ids.ErrCatalogReplaced
 	}
 	var next *catalog.Relation
-	for i, n := range parent.NotNullConstraints {
+	for i, n := range parent.Constraints.NotNull {
 		incumbent := false
-		for _, old := range original.NotNullConstraints {
+		for _, old := range original.Constraints.NotNull {
 			if old.OID == n.OID {
 				incumbent = true
 				break
@@ -38,14 +38,14 @@ func (e *Engine) rebuildAlterNotNullsLocked(stage *CatalogStage, parent *catalog
 		}
 		if next == nil {
 			copy := *parent
-			copy.NotNullConstraints = slices.Clone(parent.NotNullConstraints)
+			copy.Constraints.NotNull = slices.Clone(parent.Constraints.NotNull)
 			next = &copy
 		}
 		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return nil, err
 		}
-		next.NotNullConstraints[i].OID = oid
+		next.Constraints.NotNull[i].OID = oid
 	}
 	if next == nil {
 		return parent, nil

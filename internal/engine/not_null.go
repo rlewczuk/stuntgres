@@ -67,7 +67,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				a := &command.Actions[i]
 				a.NoInherit = len(inheritanceChildren(auth.catalog, old.Address())) != 0
 				if slot, ok := old.Index[a.Column.Text]; ok {
-					for _, c := range old.NotNullConstraints {
+					for _, c := range old.Constraints.NotNull {
 						if c.Attribute == old.Attributes[slot] && c.NoInherit {
 							a.NoInherit = true
 						}
@@ -270,7 +270,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				}
 				next, err = e.stageAddedUnique(op, auth, stage, next, action.Unique)
 				if err == nil {
-					addedIndexes = append(addedIndexes, next.UniqueConstraints[len(next.UniqueConstraints)-1].Index)
+					addedIndexes = append(addedIndexes, next.Constraints.Unique[len(next.Constraints.Unique)-1].Index)
 				}
 			} else if action.Action == parser.AddExclusion {
 				if stage == nil {
@@ -278,13 +278,13 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 					stage.authorizeLocked(auth, op.session)
 				}
 				copy := *next
-				copy.ExclusionConstraints = slices.Clone(next.ExclusionConstraints)
+				copy.Constraints.Exclusion = slices.Clone(next.Constraints.Exclusion)
 				next = &copy
 				e.mu.Lock()
 				err = e.stageExclusion(op, scope.input, auth, stage, next, action.Exclusion, true)
 				e.mu.Unlock()
 				if err == nil {
-					addedIndexes = append(addedIndexes, next.ExclusionConstraints[len(next.ExclusionConstraints)-1].Index)
+					addedIndexes = append(addedIndexes, next.Constraints.Exclusion[len(next.Constraints.Exclusion)-1].Index)
 				}
 			} else {
 				next, err = notNullCandidate(op, auth.catalog, next, action, scope.inheritanceNotNullMode(action.Column.Text))
@@ -441,7 +441,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	var storedReplacements []int32
 	for _, attribute := range replacements {
-		if next.Generations[attribute].Kind == catalog.GenerationStored {
+		if next.ColumnMeta.Generations[attribute].Kind == catalog.GenerationStored {
 			storedReplacements = append(storedReplacements, attribute)
 		}
 	}
@@ -512,9 +512,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		rewrite = rewrite || transformation.rewrite
 	}
 	if next != old {
-		next.Defaults = maps.Clone(next.Defaults)
-		next.CheckConstraints = slices.Clone(next.CheckConstraints)
-		next.NotNullConstraints = slices.Clone(next.NotNullConstraints)
+		next.ColumnMeta.Defaults = maps.Clone(next.ColumnMeta.Defaults)
+		next.Constraints.Check = slices.Clone(next.Constraints.Check)
+		next.Constraints.NotNull = slices.Clone(next.Constraints.NotNull)
 		e.mu.Lock()
 		err = e.assignDefinitionOIDsLocked(next)
 		e.mu.Unlock()
@@ -571,7 +571,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		if err != nil {
 			return Result{}, err
 		}
-		addedForeignKeys = append(addedForeignKeys, next.ForeignKeys[len(next.ForeignKeys)-1].OID)
+		addedForeignKeys = append(addedForeignKeys, next.Constraints.ForeignKeys[len(next.Constraints.ForeignKeys)-1].OID)
 		fkIndex++
 	}
 	if hasForeignKeys && next.Revision() == old.Revision() {
@@ -600,7 +600,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 	}
 	for _, added := range additions {
-		if next.Defaults[added.attribute].CatalogSnapshot {
+		if next.ColumnMeta.Defaults[added.attribute].CatalogSnapshot {
 			e.mu.Lock()
 			err = e.captureCommentSnapshotLocked(scope)
 			e.mu.Unlock()
@@ -662,11 +662,11 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	projectedWrites, projectedDeletes := scope.columnProjectionRoots(ref.Address)
 	validator := newAlterRowValidator(next, schema)
 	if len(storedReplacements) != 0 {
-		typeChecks = validCheckTraversal(next).CheckConstraints
+		typeChecks = validCheckTraversal(next).Constraints.Check
 	}
 	if len(typeChecks) != 0 {
 		traversal := *next
-		traversal.CheckConstraints = typeChecks
+		traversal.Constraints.Check = typeChecks
 		validator.checks = &traversal
 		e.mu.Lock()
 		err = e.captureCheckCommentSnapshotLocked(scope, &traversal)
@@ -702,7 +702,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		if action.Action != parser.DropConstraint {
 			continue
 		}
-		for _, c := range old.UniqueConstraints {
+		for _, c := range old.Constraints.Unique {
 			if c.Name == action.Constraint.Text {
 				if err := e.stagePartitionConstraintDrop(stage, c.OID); err != nil {
 					return Result{}, err
@@ -741,7 +741,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	virtualNotNullScan := false
 	if !rewrite {
 		for _, attribute := range replacements {
-			if next.Generations[attribute].Kind == catalog.GenerationVirtual && slices.Contains(validator.notNull, next.IndexForAttribute(attribute)) {
+			if next.ColumnMeta.Generations[attribute].Kind == catalog.GenerationVirtual && slices.Contains(validator.notNull, next.IndexForAttribute(attribute)) {
 				virtualNotNullScan = true
 				break
 			}
@@ -754,7 +754,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 		if len(scanChecks) != 0 {
 			traversal := *next
-			traversal.CheckConstraints = scanChecks
+			traversal.Constraints.Check = scanChecks
 			scanValidator.checks = &traversal
 			e.mu.Lock()
 			err = e.captureCheckCommentSnapshotLocked(scope, &traversal)

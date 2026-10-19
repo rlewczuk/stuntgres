@@ -56,7 +56,7 @@ func pgDescriptionUnitBag(t *testing.T, source *querySource) map[ids.ObjectAddre
 func TestPGDescriptionShape(t *testing.T) {
 	e := New()
 	d, _ := pgDescriptionUnitSource(t, e)
-	if d.Name() != "pg_description" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 4 || len(d.Columns) != 4 {
+	if d.Name() != "pg_description" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.ColumnMeta.HighWater != 4 || len(d.Columns) != 4 {
 		t.Fatal(d)
 	}
 	for i, tc := range []struct {
@@ -88,8 +88,8 @@ func TestPGDescriptionShape(t *testing.T) {
 		{"identity", func(r *catalog.Relation) { r.ObjectAddress.ObjectID = 0 }},
 		{"type", func(r *catalog.Relation) { r.Columns[0].Usage.Type = foreignType }},
 		{"live attribute", func(r *catalog.Relation) { r.Attributes[0] = 0 }},
-		{"constraint record", func(r *catalog.Relation) { r.NotNullConstraints = []catalog.NotNullConstraint{{Attribute: 1}} }},
-		{"column comment", func(r *catalog.Relation) { r.ColumnComments = map[int32]string{99: "dead attribute"} }},
+		{"constraint record", func(r *catalog.Relation) { r.Constraints.NotNull = []catalog.NotNullConstraint{{Attribute: 1}} }},
+		{"column comment", func(r *catalog.Relation) { r.ColumnMeta.Comments = map[int32]string{99: "dead attribute"} }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			invalid := *d
@@ -132,7 +132,7 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	oldState.CloneDescriptors()
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}
 	relation := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
-	d := &catalog.Relation{ObjectAddress: relation, Attributes: []int32{1, 3}, Comment: "whole", ColumnComments: map[int32]string{1: "", 2: "stale dropped", 3: "third"}}
+	d := &catalog.Relation{ObjectAddress: relation, Attributes: []int32{1, 3}, Comment: "whole", ColumnMeta: catalog.ColumnMetadata{Comments: map[int32]string{1: "", 2: "stale dropped", 3: "third"}}}
 	oldState.SetDescriptor(namespace, &catalog.Namespace{ObjectAddress: namespace, Comment: "namespace"})
 	oldState.SetDescriptor(relation, d)
 	old := e.catalog.read(&oldState)
@@ -153,14 +153,14 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	if _, ok := bag[ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000, SubID: 1}]; ok {
 		t.Fatal("empty row projected")
 	}
-	if !reflect.DeepEqual(d.Attributes, []int32{1, 3}) || d.ColumnComments[2] != "stale dropped" {
+	if !reflect.DeepEqual(d.Attributes, []int32{1, 3}) || d.ColumnMeta.Comments[2] != "stale dropped" {
 		t.Fatal("capture mutated descriptor")
 	}
 	newState := oldState
 	newState.CloneDescriptors()
 	updated := *d
 	updated.Comment = "replacement"
-	updated.ColumnComments = map[int32]string{3: "replacement third"}
+	updated.ColumnMeta.Comments = map[int32]string{3: "replacement third"}
 	newState.SetDescriptor(relation, &updated)
 	newRows, err := capturePGDescription(context.Background(), e.catalog.read(&newState), ref, source)
 	if err != nil || pgDescriptionUnitBag(t, newRows)[relation] != "replacement" {

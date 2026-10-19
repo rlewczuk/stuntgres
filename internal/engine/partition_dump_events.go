@@ -293,7 +293,7 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph map[dumpE
 		}
 		rowAfterMembership[oid] = target.phase == dumpTableAttachment && after
 		sources, late = nil, lateRows[oid]
-		for _, check := range t.descriptor.CheckConstraints {
+		for _, check := range t.descriptor.Constraints.Check {
 			if !check.NotValid {
 				continue
 			}
@@ -434,7 +434,7 @@ func partitionDumpEvents(ctx context.Context, view catalog.Read, graph map[dumpE
 					addDumpDependency(graph, event, dumpEventKey{oid: indexOID})
 				}
 			}
-			for _, constraint := range t.descriptor.UniqueConstraints {
+			for _, constraint := range t.descriptor.Constraints.Unique {
 				index := view.MustRelation(constraint.Index)
 				// This local provider does not exist until after the preserving
 				// reattachment. Its terminal name remains a consumer predecessor,

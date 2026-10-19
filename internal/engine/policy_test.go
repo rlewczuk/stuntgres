@@ -142,7 +142,7 @@ func TestRLSPolicyPublicationCanceled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next.Policies = []catalog.PolicyDefinition{{OID: oid, Name: "p", Permissive: true, Command: "all", Roles: []catalog.PolicyRole{{Public: true}}, Using: policyPayloadOf(expression)}}
+	next.Security.Policies = []catalog.PolicyDefinition{{OID: oid, Name: "p", Permissive: true, Command: "all", Roles: []catalog.PolicyRole{{Public: true}}, Using: policyPayloadOf(expression)}}
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	if err = stage.Replace(&next); err != nil {
@@ -158,7 +158,7 @@ func TestRLSPolicyPublicationCanceled(t *testing.T) {
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err == nil {
 		t.Fatal("canceled stage published")
 	}
-	if e.CatalogRead().State() != base.State() || len(d.Policies) != 0 {
+	if e.CatalogRead().State() != base.State() || len(d.Security.Policies) != 0 {
 		t.Fatal("canceled publication changed immutable roots")
 	}
 }
@@ -180,7 +180,7 @@ func TestRLSPolicyRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next.Policies = []catalog.PolicyDefinition{{OID: oid, Name: "p", Command: "all", Permissive: true, Roles: []catalog.PolicyRole{{Ref: d.Owner}, {Ref: d.Owner}}, Using: policyPayloadOf(expression)}}
+	next.Security.Policies = []catalog.PolicyDefinition{{OID: oid, Name: "p", Command: "all", Permissive: true, Roles: []catalog.PolicyRole{{Ref: d.Owner}, {Ref: d.Owner}}, Using: policyPayloadOf(expression)}}
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
@@ -206,10 +206,10 @@ func TestRLSPolicyRemap(t *testing.T) {
 			break
 		}
 	}
-	if copied == nil || len(copied.Policies) != 1 || len(copied.Policies[0].Roles) != 2 {
+	if copied == nil || len(copied.Security.Policies) != 1 || len(copied.Security.Policies[0].Roles) != 2 {
 		t.Fatal("lost attached policy")
 	}
-	p := copied.Policies[0]
+	p := copied.Security.Policies[0]
 	if imported.Roles().ValidatePrincipal(p.Roles[0].Ref) != nil || p.Roles[1].Ref != p.Roles[0].Ref {
 		t.Fatal("lost principal provenance/multiplicity")
 	}
@@ -256,7 +256,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			base := e.CatalogRead()
 			state := catalog.CloneState(base.State())
 			attached := *owner
-			attached.Policies = []catalog.PolicyDefinition{{OID: oid, Name: "p", Command: "all", Permissive: true, Roles: []catalog.PolicyRole{{Public: true}}, Using: policyPayloadOf(expression)}}
+			attached.Security.Policies = []catalog.PolicyDefinition{{OID: oid, Name: "p", Command: "all", Permissive: true, Roles: []catalog.PolicyRole{{Public: true}}, Using: policyPayloadOf(expression)}}
 			state.SetDescriptor(owner.Address(), &attached)
 			base = base.WithState(state)
 			var target ids.ObjectAddress
@@ -292,7 +292,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 				t.Fatal(err)
 			}
 			survivor, ok := stage.Descriptors[owner.Address()].(*catalog.Relation)
-			if !ok || len(survivor.Policies) != 0 || len(attached.Policies) != 1 {
+			if !ok || len(survivor.Security.Policies) != 0 || len(attached.Security.Policies) != 1 {
 				t.Fatal("cascade failed to prune only the staged policy")
 			}
 			if strings.Join(stage.viewCascadeNames, "\n") != "drop cascades to "+strings.ReplaceAll(want, "\n", "\ndrop cascades to ") {

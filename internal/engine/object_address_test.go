@@ -63,7 +63,7 @@ func objectAddressUnitRelation(t *testing.T) (*Engine, catalog.Read, *catalog.Re
 	view := e.CatalogRead()
 	view = view.WithState(catalog.CloneState(view.State()))
 	integer, _ := view.LookupType(sqltype.Int4)
-	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{1259, 48001, 0}, ObjectNamespace: ids.ObjectAddress{2615, 2200, 0}, ObjectName: "address_unit", ObjectRevision: 1, RelationKind: catalog.TableRelation, Columns: []catalog.Column{{Name: "a", Usage: integer.Usage()}, {Name: "c", Usage: integer.Usage()}}, Attributes: []int32{1, 3}, AttributeHighWater: 3, DroppedAttributes: map[int32]catalog.AttributeMetadata{2: {Name: "........pg.dropped.2........", Number: 2, Dropped: true}}}
+	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{1259, 48001, 0}, ObjectNamespace: ids.ObjectAddress{2615, 2200, 0}, ObjectName: "address_unit", ObjectRevision: 1, RelationKind: catalog.TableRelation, Columns: []catalog.Column{{Name: "a", Usage: integer.Usage()}, {Name: "c", Usage: integer.Usage()}}, Attributes: []int32{1, 3}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3, Dropped: map[int32]catalog.AttributeMetadata{2: {Name: "........pg.dropped.2........", Number: 2, Dropped: true}}}}
 	view.State().SetDescriptor(d.Address(), d)
 	view.State().BindName(catalog.DescriptorNameKey(d), d.Address())
 	return e, view, d
@@ -80,15 +80,15 @@ func TestObjectAddressIdentity(t *testing.T) {
 			t.Fatal(tc, identity, err)
 		}
 	}
-	d.NotNullConstraints = []catalog.NotNullConstraint{{OID: 48010, Name: "nn"}}
-	d.CheckConstraints = []catalog.CheckConstraint{{OID: 48011, Name: "ck"}}
-	d.UniqueConstraints = []catalog.UniqueConstraint{{OID: 48012, Name: "uk"}, {OID: 48013, Name: "pk"}}
-	d.ForeignKeys = []catalog.ForeignKeyConstraint{{OID: 48014, Name: "fk"}}
-	d.ExclusionConstraints = []catalog.ExclusionConstraint{{OID: 48015, Name: "ex"}}
-	d.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 48016}}
-	d.Generations = map[int32]catalog.ColumnGeneration{3: {OID: 48017}}
+	d.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 48010, Name: "nn"}}
+	d.Constraints.Check = []catalog.CheckConstraint{{OID: 48011, Name: "ck"}}
+	d.Constraints.Unique = []catalog.UniqueConstraint{{OID: 48012, Name: "uk"}, {OID: 48013, Name: "pk"}}
+	d.Constraints.ForeignKeys = []catalog.ForeignKeyConstraint{{OID: 48014, Name: "fk"}}
+	d.Constraints.Exclusion = []catalog.ExclusionConstraint{{OID: 48015, Name: "ex"}}
+	d.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 48016}}
+	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{3: {OID: 48017}}
 	d.Rules = rulesPayloadOf([]ruleDefinition{{OID: 48018, Name: "rule_unit"}})
-	d.Policies = []catalog.PolicyDefinition{{OID: 48019, Name: "policy_unit"}}
+	d.Security.Policies = []catalog.PolicyDefinition{{OID: 48019, Name: "policy_unit"}}
 	d.View = &viewDefinition{rule: 48022}
 	for _, tc := range []struct {
 		class, id ids.OID

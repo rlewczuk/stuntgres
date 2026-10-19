@@ -102,10 +102,11 @@ provider registry, validation of core kinds, and a pure copy-on-write overlay
 Replace the aliases area by area with a tool aware of `go/types`. This is a
 broad rewrite (§8).
 
-### 5g — Optional: regroup `catalog.Relation` (needs user approval)
+### 5g — Optional: regroup `catalog.Relation`
 
 Group its fields into sub-records (column metadata, constraints, security,
-kind payloads) as a separate readability change. Ask before starting.
+kind payloads) as a separate readability change. Done with user approval;
+see 5g results (kind payloads stayed top-level).
 
 ## Invariants
 
@@ -156,7 +157,7 @@ kind payloads) as a separate readability change. Ask before starting.
 `catalog` imports only `ids`, `expr`, `authorization`, `sqltype`, `parser` and
 `sqlstate`. The engine has no direct access to the `State` maps.
 `CatalogStage` embeds `catalog.Candidate`. The checks in §8.3 pass with no
-startup regression. 5f completes the step; 5g is optional.
+startup regression. 5f completes the step; optional 5g is done too.
 
 ## Status
 
@@ -180,7 +181,10 @@ startup regression. 5f completes the step; 5g is optional.
 - [x] 5f — Aliases removed (`2772419e7`, `c4b8068fc`, `0b9103f6d`,
   `69fb93a49`, `353528e2d`, `78ec4daeb`, then the commit that records this
   status) *(racecheck skipped at user request)*
-- [ ] 5g — Optional `catalog.Relation` regrouping
+- [x] 5g — `catalog.Relation` regrouped into value sub-records
+  (`43c6b86ec`, `47a4495b2`, `089bf7856`, `3ef61771b`, `90f6a9b52`, then
+  the commit that records this status) *(racecheck skipped at user
+  request; targeted RACE=1 runs passed)*
 
 Exported names chosen (5d; applied by 5e's move, with engine aliases):
 
@@ -587,6 +591,61 @@ keeps its constants; it is not a catalog alias.
   <1 ms target that `master` already misses. `make deps` lists only module
   paths. `catalog` still imports only `ids`, `expr`, `authorization`,
   `sqltype`, `parser` and the standard library.
+
+5g results:
+
+- **Decisions (user).** Named sub-records reached as `d.Constraints.Check`,
+  not embedded ones with promoted fields. Kind payloads stay top-level:
+  each is already its own record or pointer, so another wrapper would add
+  churn without clarity.
+- **Layout** (`catalog.go`). Top level: identity, `RelationKind`, `Owner`,
+  `Comment`, `AutoExtensions`, the column shape (`Columns`, `Index`,
+  `Attributes`, `RowType`, `OfType`), the four sub-records, then the kind
+  payloads under a comment. Sub-records, with renames where the group name
+  makes a suffix redundant:
+  - `ColumnMeta ColumnMetadata`: `AttributeHighWater`→`HighWater`,
+    `DroppedAttributes`→`Dropped`, `CatalogAttributes`,
+    `ColumnComments`→`Comments`, `Defaults`, `Generations`, `Identities`.
+  - `Constraints RelationConstraints`: `NotNullConstraints`→`NotNull`,
+    `PhysicalNotNull`, `CheckConstraints`→`Check`,
+    `UniqueConstraints`→`Unique`, `ExclusionConstraints`→`Exclusion`,
+    `ForeignKeys`.
+  - `Security RelationSecurity`: `ACL`, `ColumnACL`, `Policies`,
+    `RLSEnabled`, `RLSForced`.
+  - `History PublicationHistory`: `HasIndexes`, `HasSubclasses`,
+    `SubclassPredecessor`, `SubclassPublication`.
+- **Value semantics.** Sub-records are values, never pointers: `next := *d`
+  copies them and shares their slices and maps exactly as before, so
+  copy-on-write sharing and published-state immutability are unchanged.
+  No reflection walks `Relation` fields by name.
+- **Scope.** Measured on `b9579b397` with go/types: 3,354 uses of the 22
+  moved fields (4 in `catalog`, the rest in the engine), against a grep
+  estimate several times larger. Constraints 1,767, columns 936, security
+  554, history 97. 411 files changed (252 test files).
+- **Tool.** Scratchpad `relx` (go/types; modes `count`, `apply GROUP`,
+  `verify`). It rewrites each selector's field identifier to `Group.New`
+  and folds the moved keys of each `Relation` composite literal into one
+  nested `Group: catalog.T{...}` literal, applying any rewrites inside the
+  copied values. It checks that `catalog` names the package at each
+  literal, renders all files in memory before writing any, and `verify`
+  requires zero type errors and an exact per-object use census (keyed by
+  package, kind, name and type). The `Relation` declaration was edited by
+  hand per group. A first run hit nested edits
+  (`AttributeHighWater: parent.AttributeHighWater`); it was reset and
+  rerun after the fix.
+- **Tests.** Adapted mechanically by the same tool; gofmt expanded some
+  one-line closures that grew past its size limit. None moved, deleted or
+  rewritten by hand. No new seam test: the change adds no semantics.
+- **Verification.** `make build` and targeted `make check` runs (every test
+  in the touched test files plus `^TestCatalog`) after each commit;
+  `quickcheck` passed; a `RACE=1` run of catalog, Restore, replacement,
+  pg_class history, dump priority, default privilege and physical NOT NULL
+  selections passed. `racecheck` skipped at the user's request. No
+  `REFERENCE=1` selection is required for a pure rename. `make bench`
+  (interleaved): 7,768 allocations and about 2.07 MB/op on both; best
+  1.507 ms on `master` and 1.508 ms on the branch, over the <1 ms target
+  that `master` already misses. `make deps` lists only module paths.
+  `catalog` imports are unchanged.
 
 Notes for later steps:
 

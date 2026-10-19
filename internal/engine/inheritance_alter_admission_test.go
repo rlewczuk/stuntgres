@@ -212,7 +212,7 @@ func inheritanceAlterGrandchild(t *testing.T, e *Engine, c *catalog.Relation) *c
 
 func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 	e, p, c := inheritanceDMLPublishedGraph(t)
-	if c.HasSubclasses {
+	if c.History.HasSubclasses {
 		t.Fatal("fixture already has a grandchild")
 	}
 	holder := inheritanceAlterAXHolder(t, e, c)
@@ -226,7 +226,7 @@ func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 	g := inheritanceAlterGrandchild(t, e, c)
 	grown := e.CatalogRead()
 	currentChild := grown.MustRelation(c.Address())
-	if currentChild == c || !currentChild.HasSubclasses || currentChild.SubclassPredecessor != c || currentChild.Revision() != currentChild.SubclassPublication || !inheritanceMarkerPublication(c, currentChild) {
+	if currentChild == c || !currentChild.History.HasSubclasses || currentChild.History.SubclassPredecessor != c || currentChild.Revision() != currentChild.History.SubclassPublication || !inheritanceMarkerPublication(c, currentChild) {
 		t.Fatal("first-grandchild publication was not the actual narrow marker copy")
 	}
 	if grown.Epoch() != beforeGrowth.Epoch() {
@@ -329,7 +329,7 @@ func TestInheritanceAlterAdmissionStops(t *testing.T) {
 		if err := command.scope.Finish(nil); err != nil {
 			t.Fatal(err)
 		}
-		if retiredUnitTable(t, e, "c") != c || retiredUnitTable(t, e, "p").NotNullConstraints[0].OID != p.NotNullConstraints[0].OID {
+		if retiredUnitTable(t, e, "c") != c || retiredUnitTable(t, e, "p").Constraints.NotNull[0].OID != p.Constraints.NotNull[0].OID {
 			t.Fatal("valid root NN changed physical identities")
 		}
 		holder.Finish(nil)
@@ -357,7 +357,7 @@ func TestInheritanceAlterAdmissionStops(t *testing.T) {
 		}
 		current := retiredUnitTable(t, e, "c")
 		attribute := current.Attributes[current.Index["extra"]]
-		if !current.Inheritance.Columns[attribute].Local || len(current.Inheritance.Columns[attribute].Origins) != 1 || !sameGroupExpression(current.Defaults[attribute].Expression, c.Defaults[attribute].Expression) || retiredUnitTable(t, e, "leaf") != leaf {
+		if !current.Inheritance.Columns[attribute].Local || len(current.Inheritance.Columns[attribute].Origins) != 1 || !sameGroupExpression(current.ColumnMeta.Defaults[attribute].Expression, c.ColumnMeta.Defaults[attribute].Expression) || retiredUnitTable(t, e, "leaf") != leaf {
 			t.Fatal("merge replaced local recipe or changed stopped leaf")
 		}
 		inheritanceAlterAssertRows(t, e, current, []sqltype.Value{inheritanceQueryInt(e, 1), inheritanceQueryInt(e, 19)})
@@ -464,7 +464,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			if prepared == nil || prepared.steps[0].drop == nil {
 				t.Fatal("rowtype witness did not use actual DROP preparation")
 			}
-			if prepared.checks.next == nil || len(prepared.checks.next.CheckConstraints) != 1 {
+			if prepared.checks.next == nil || len(prepared.checks.next.Constraints.Check) != 1 {
 				t.Fatal("rowtype fixture did not produce its actual cooked CHECK")
 			}
 			assertShape := func(typ *sqltype.Descriptor, names []string) {
@@ -547,7 +547,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				return
 			}
 			finalComposite, finalArray := false, false
-			walkBoundExpression(prepared.checks.next.CheckConstraints[0].Expression, func(node expr.Expr) {
+			walkBoundExpression(prepared.checks.next.Constraints.Check[0].Expression, func(node expr.Expr) {
 				typ := node.ResultUsage().Type
 				if typ == nil {
 					return
@@ -607,11 +607,11 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				t.Fatal("mixed ADD cooked against original or guessed DROP shape")
 			}
 			cooked := prepared.checks.next
-			if cooked == nil || len(cooked.CheckConstraints) != 1 || len(cooked.NotNullConstraints) != 1 {
+			if cooked == nil || len(cooked.Constraints.Check) != 1 || len(cooked.Constraints.NotNull) != 1 {
 				t.Fatal("mixed fixture did not produce its actual cooked NN/CHECK")
 			}
 			newAttribute := cooked.Attributes[cooked.Index["b"]]
-			if !slices.Equal(constraintAttributeKeys(cooked, cooked.CheckConstraints[0].Expression), []int32{newAttribute}) || cooked.CheckConstraints[0].Name != "ck" || cooked.NotNullConstraints[0].Name != "nn" || cooked.CheckConstraints[0].OID != 0 || cooked.NotNullConstraints[0].OID != 0 {
+			if !slices.Equal(constraintAttributeKeys(cooked, cooked.Constraints.Check[0].Expression), []int32{newAttribute}) || cooked.Constraints.Check[0].Name != "ck" || cooked.Constraints.NotNull[0].Name != "nn" || cooked.Constraints.Check[0].OID != 0 || cooked.Constraints.NotNull[0].OID != 0 {
 				t.Fatal("cached binder retained removed keys/identities or lost chosen names")
 			}
 			key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: p.Namespace(), Name: "old_b"}
@@ -642,10 +642,10 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				t.Fatal(err)
 			}
 			candidate := command.scope.catalog.descriptors[p.Address()].(*catalog.Relation)
-			if candidate.NotNullConstraints[0].OID == 0 || candidate.NotNullConstraints[0].OID == p.NotNullConstraints[0].OID || candidate.CheckConstraints[0].OID == 0 || candidate.CheckConstraints[0].OID == p.CheckConstraints[0].OID || candidate.NotNullConstraints[0].Name != cooked.NotNullConstraints[0].Name || candidate.NotNullConstraints[0].Attribute != cooked.NotNullConstraints[0].Attribute || candidate.CheckConstraints[0].Name != cooked.CheckConstraints[0].Name || !sameGroupExpression(candidate.CheckConstraints[0].Expression, cooked.CheckConstraints[0].Expression) {
+			if candidate.Constraints.NotNull[0].OID == 0 || candidate.Constraints.NotNull[0].OID == p.Constraints.NotNull[0].OID || candidate.Constraints.Check[0].OID == 0 || candidate.Constraints.Check[0].OID == p.Constraints.Check[0].OID || candidate.Constraints.NotNull[0].Name != cooked.Constraints.NotNull[0].Name || candidate.Constraints.NotNull[0].Attribute != cooked.Constraints.NotNull[0].Attribute || candidate.Constraints.Check[0].Name != cooked.Constraints.Check[0].Name || !sameGroupExpression(candidate.Constraints.Check[0].Expression, cooked.Constraints.Check[0].Expression) {
 				t.Fatal("sole pipeline lost exact cooked names/keys/recipe or reused removed fact OIDs")
 			}
-			if cooked.NotNullConstraints[0].OID != 0 || cooked.CheckConstraints[0].OID != 0 {
+			if cooked.Constraints.NotNull[0].OID != 0 || cooked.Constraints.Check[0].OID != 0 {
 				t.Fatal("normal physical OID assignment mutated immutable preparation")
 			}
 			if _, consumed := command.scope.consumedColumnDrops[drop]; !consumed || state.stage == nil {

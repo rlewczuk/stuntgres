@@ -38,33 +38,33 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 	// PostgreSQL accepts view/index targets here, then performs constraint lookup.
 	var backing ids.ObjectAddress
 	kind := byte(0)
-	for _, c := range parent.NotNullConstraints {
+	for _, c := range parent.Constraints.NotNull {
 		if c.Name == raw.Constraint.Text {
 			kind = 'n'
 			break
 		}
 	}
-	for _, c := range parent.CheckConstraints {
+	for _, c := range parent.Constraints.Check {
 		if c.Name == raw.Constraint.Text {
 			kind = 'c'
 			break
 		}
 	}
-	for _, c := range parent.UniqueConstraints {
+	for _, c := range parent.Constraints.Unique {
 		if c.Name == raw.Constraint.Text {
 			kind = 'u'
 			backing = c.Index
 			break
 		}
 	}
-	for _, c := range parent.ExclusionConstraints {
+	for _, c := range parent.Constraints.Exclusion {
 		if c.Name == raw.Constraint.Text {
 			kind = 'x'
 			backing = c.Index
 			break
 		}
 	}
-	for _, c := range parent.ForeignKeys {
+	for _, c := range parent.Constraints.ForeignKeys {
 		if c.Name == raw.Constraint.Text {
 			kind = 'f'
 			break
@@ -149,27 +149,27 @@ func renameLocalConstraint(parent *catalog.Relation, old, destination string, ki
 		}
 		return nil
 	}
-	for _, c := range parent.NotNullConstraints {
+	for _, c := range parent.Constraints.NotNull {
 		if err := collision(c.Name); err != nil {
 			return nil, err
 		}
 	}
-	for _, c := range parent.CheckConstraints {
+	for _, c := range parent.Constraints.Check {
 		if err := collision(c.Name); err != nil {
 			return nil, err
 		}
 	}
-	for _, c := range parent.UniqueConstraints {
+	for _, c := range parent.Constraints.Unique {
 		if err := collision(c.Name); err != nil {
 			return nil, err
 		}
 	}
-	for _, c := range parent.ExclusionConstraints {
+	for _, c := range parent.Constraints.Exclusion {
 		if err := collision(c.Name); err != nil {
 			return nil, err
 		}
 	}
-	for _, c := range parent.ForeignKeys {
+	for _, c := range parent.Constraints.ForeignKeys {
 		if err := collision(c.Name); err != nil {
 			return nil, err
 		}
@@ -180,27 +180,27 @@ func renameLocalConstraint(parent *catalog.Relation, old, destination string, ki
 	next := *parent
 	next.ObjectRevision++
 	if kind == 'n' {
-		next.NotNullConstraints = slices.Clone(parent.NotNullConstraints)
-		for i := range next.NotNullConstraints {
-			if next.NotNullConstraints[i].Name == old {
-				next.NotNullConstraints[i].Name = destination
+		next.Constraints.NotNull = slices.Clone(parent.Constraints.NotNull)
+		for i := range next.Constraints.NotNull {
+			if next.Constraints.NotNull[i].Name == old {
+				next.Constraints.NotNull[i].Name = destination
 				return &next, nil
 			}
 		}
 	} else if kind == 'f' {
-		next.ForeignKeys = slices.Clone(parent.ForeignKeys)
-		for i := range next.ForeignKeys {
-			if next.ForeignKeys[i].Name == old {
-				next.ForeignKeys[i].Name = destination
+		next.Constraints.ForeignKeys = slices.Clone(parent.Constraints.ForeignKeys)
+		for i := range next.Constraints.ForeignKeys {
+			if next.Constraints.ForeignKeys[i].Name == old {
+				next.Constraints.ForeignKeys[i].Name = destination
 				return &next, nil
 			}
 		}
 	} else {
-		next.CheckConstraints = slices.Clone(parent.CheckConstraints)
-		for i := range next.CheckConstraints {
-			if next.CheckConstraints[i].Name == old {
-				next.CheckConstraints[i].Name = destination
-				slices.SortFunc(next.CheckConstraints, func(a, b catalog.CheckConstraint) int { return strings.Compare(a.Name, b.Name) })
+		next.Constraints.Check = slices.Clone(parent.Constraints.Check)
+		for i := range next.Constraints.Check {
+			if next.Constraints.Check[i].Name == old {
+				next.Constraints.Check[i].Name = destination
+				slices.SortFunc(next.Constraints.Check, func(a, b catalog.CheckConstraint) int { return strings.Compare(a.Name, b.Name) })
 				return &next, nil
 			}
 		}

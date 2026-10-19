@@ -48,8 +48,8 @@ func (m exclusionModes) deferred(c *catalog.ExclusionConstraint) bool {
 	return c.InitiallyDeferred
 }
 func exclusionDefinition(parent *catalog.Relation, index *catalog.Relation) *catalog.ExclusionConstraint {
-	for i := range parent.ExclusionConstraints {
-		c := &parent.ExclusionConstraints[i]
+	for i := range parent.Constraints.Exclusion {
+		c := &parent.Constraints.Exclusion[i]
 		if c.Index == index.Address() && c.OID == index.SQLIndex.Constraint.OID {
 			return c
 		}
@@ -234,7 +234,7 @@ func (s *StatementScope) discardExclusionCandidate(ref ids.ObjectRef, proposal *
 }
 func (s *StatementScope) projectExclusionDeletionLocked(e *Engine, candidate deleteCandidate) {
 	parent, ok := e.privateCatalogLocked(s.owner.catalog).Relation(candidate.ref.Address)
-	if !ok || len(parent.ExclusionConstraints) == 0 {
+	if !ok || len(parent.Constraints.Exclusion) == 0 {
 		return
 	}
 	s.beginExclusionProjectionLocked(e)
@@ -245,7 +245,7 @@ func (s *StatementScope) projectExclusionDeletionLocked(e *Engine, candidate del
 	}
 	ends[candidate.row] = candidate.version
 	p.ended[candidate.ref.Address] = ends
-	for _, c := range parent.ExclusionConstraints {
+	for _, c := range parent.Constraints.Exclusion {
 		entries := p.entries[c.Index]
 		next := make([]exclusionEntry, 0, len(entries))
 		for _, entry := range entries {

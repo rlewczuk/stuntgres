@@ -102,7 +102,9 @@ func TestTypeCoreCatalogRejectsNoncurrentColumnTypes(t *testing.T) {
 			ObjectName:      "invalid", ObjectRevision: 1,
 			Columns: []catalog.Column{{Name: "id", Usage: usage}},
 			Index:   map[string]int{"id": 0}, Attributes: []int32{1},
-			AttributeHighWater: 1,
+			ColumnMeta: catalog.ColumnMetadata{
+				HighWater: 1,
+			},
 		}
 		if err := stage.Create(descriptor); err != nil {
 			t.Fatal(err)

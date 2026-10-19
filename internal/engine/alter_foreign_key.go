@@ -88,7 +88,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 			if ok && parent.RelationKind == catalog.TableRelation {
 				var attributes []int32
 				if len(action.ForeignKey.Referenced) == 0 {
-					for _, key := range parent.UniqueConstraints {
+					for _, key := range parent.Constraints.Unique {
 						if key.Primary {
 							attributes = key.Attributes
 							break
@@ -178,7 +178,7 @@ func (s *StatementScope) validateAddedForeignKeys(view catalog.Read, child *cata
 	auth.catalog = view
 	auth.recaptureCatalog(auth.catalog)
 	e := s.op.session.Engine()
-	for _, f := range child.ForeignKeys {
+	for _, f := range child.Constraints.ForeignKeys {
 		if f.NotValid || !slices.Contains(added, f.OID) {
 			continue
 		}
@@ -214,7 +214,7 @@ func installedForeignKey(stage *CatalogStage, address ids.ObjectAddress, f catal
 	if !ok {
 		return false
 	}
-	for _, old := range parent.ForeignKeys {
+	for _, old := range parent.Constraints.ForeignKeys {
 		if old.Name == f.Name && old.Target == f.Target && old.Full == f.Full && old.NotValid == f.NotValid && old.UpdateAction == f.UpdateAction && old.DeleteAction == f.DeleteAction && slices.Equal(old.DeleteAttributes, f.DeleteAttributes) && slices.Equal(old.Attributes, f.Attributes) && slices.Equal(old.Referenced, f.Referenced) {
 			return true
 		}

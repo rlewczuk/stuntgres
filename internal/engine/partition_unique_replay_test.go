@@ -22,8 +22,8 @@ func partitionUniqueReplayUnit(t *testing.T, primary bool) (*Engine, *catalog.Re
 	e.mu.Lock()
 	for _, table := range [3]*catalog.Relation{root, mid, leaf} {
 		table.Columns[0].Nullable = false
-		table.NotNullConstraints = []catalog.NotNullConstraint{{Name: table.Name() + "_nn", Attribute: 1}}
-		table.HasIndexes = true
+		table.Constraints.NotNull = []catalog.NotNullConstraint{{Name: table.Name() + "_nn", Attribute: 1}}
+		table.History.HasIndexes = true
 		// Stored NOT NULL facts need real catalog identities before validation,
 		// just as the canonical CREATE producer assigns them.
 		if err := e.assignDefinitionOIDsLocked(table); err != nil {
@@ -43,7 +43,7 @@ func partitionUniqueReplayUnit(t *testing.T, primary bool) (*Engine, *catalog.Re
 		columns := slices.Clone(table.Columns)
 		columns[0].OriginTable = uint32(id)
 		columns[0].OriginAttribute = 1
-		return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: table.Namespace(), Owner: table.Owner, ObjectName: name, ObjectRevision: 1, RelationKind: catalog.IndexRelation, Columns: columns, Attributes: []int32{1}, AttributeHighWater: 1, Index: map[string]int{"k": 0}, SQLIndex: &catalog.IndexDefinition{Parent: table.Address(), PartitionParent: parent, Method: catalog.BtreeMethod, Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Unique: true, Valid: valid, Ready: true, Live: true}}
+		return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: table.Namespace(), Owner: table.Owner, ObjectName: name, ObjectRevision: 1, RelationKind: catalog.IndexRelation, Columns: columns, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}, Index: map[string]int{"k": 0}, SQLIndex: &catalog.IndexDefinition{Parent: table.Address(), PartitionParent: parent, Method: catalog.BtreeMethod, Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Unique: true, Valid: valid, Ready: true, Live: true}}
 	}
 	ri := index(root, 47203, "unique_replay_root_plain", ids.ObjectAddress{}, false)
 	mi := index(mid, 47204, "unique_replay_mid_plain", ri.Address(), true)
@@ -137,18 +137,18 @@ func TestPartitionDetachUniqueReplayPublication(t *testing.T) {
 				}
 				current := e.catalog.state.MustRelation(mid.Address())
 				child := e.catalog.state.MustRelation(leaf.Address())
-				if len(current.UniqueConstraints) != 1 || len(child.UniqueConstraints) != 1 || child.UniqueConstraints[0].Parent != current.UniqueConstraints[0].OID {
+				if len(current.Constraints.Unique) != 1 || len(child.Constraints.Unique) != 1 || child.Constraints.Unique[0].Parent != current.Constraints.Unique[0].OID {
 					t.Fatal("missing real constraint ancestry")
 				}
-				rootIndex := e.catalog.state.MustRelation(current.UniqueConstraints[0].Index)
-				childIndex := e.catalog.state.MustRelation(child.UniqueConstraints[0].Index)
-				if !rootIndex.SQLIndex.Valid || childIndex.SQLIndex.PartitionParent != rootIndex.Address() || childIndex.SQLIndex.Constraint.Index != child.UniqueConstraints[0].Index || childIndex.SQLIndex.Constraint.Primary != primary {
+				rootIndex := e.catalog.state.MustRelation(current.Constraints.Unique[0].Index)
+				childIndex := e.catalog.state.MustRelation(child.Constraints.Unique[0].Index)
+				if !rootIndex.SQLIndex.Valid || childIndex.SQLIndex.PartitionParent != rootIndex.Address() || childIndex.SQLIndex.Constraint.Index != child.Constraints.Unique[0].Index || childIndex.SQLIndex.Constraint.Primary != primary {
 					t.Fatal("wrong local backing tree")
 				}
 				if e.catalog.state.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47204}) != before.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47204}) || e.catalog.state.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47205}) != before.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47205}) {
 					t.Fatal("attached plain tree consumed")
 				}
-				if len(child.NotNullConstraints) != len(leaf.NotNullConstraints) || len(current.NotNullConstraints) != len(mid.NotNullConstraints) {
+				if len(child.Constraints.NotNull) != len(leaf.Constraints.NotNull) || len(current.Constraints.NotNull) != len(mid.Constraints.NotNull) {
 					t.Fatal("private PK added NN rollout")
 				}
 			})
@@ -181,8 +181,8 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	view := e.CatalogRead()
 	mid = view.MustRelation(mid.Address())
 	leaf = view.MustRelation(leaf.Address())
-	local := view.MustRelation(mid.UniqueConstraints[0].Index)
-	child := view.MustRelation(leaf.UniqueConstraints[0].Index)
+	local := view.MustRelation(mid.Constraints.Unique[0].Index)
+	child := view.MustRelation(leaf.Constraints.Unique[0].Index)
 	if partitionReplayUsingIndex(view, local) || partitionReplayVirtualUniqueRoot(view, child) != local {
 		t.Fatal("virtual definition assigned a physical origin")
 	}
@@ -212,7 +212,7 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	graph[dumpEventKey{oid: local.Address().ObjectID}] = []dumpEventKey{{oid: mid.Address().ObjectID}}
 	indices[local.Address().ObjectID] = len(indices)
 	regclass := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}).SQLType
-	consumer := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47206}, ObjectNamespace: mid.Namespace(), Owner: mid.Owner, ObjectName: "unique_replay_consumer", ObjectRevision: 1, RelationKind: catalog.TableRelation, Columns: []catalog.Column{{Name: "ref", Usage: regclass.Usage()}, {Name: "leaf_ref", Usage: regclass.Usage()}}, Attributes: []int32{1, 2}, AttributeHighWater: 2, Index: map[string]int{"ref": 0, "leaf_ref": 1}}
+	consumer := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47206}, ObjectNamespace: mid.Namespace(), Owner: mid.Owner, ObjectName: "unique_replay_consumer", ObjectRevision: 1, RelationKind: catalog.TableRelation, Columns: []catalog.Column{{Name: "ref", Usage: regclass.Usage()}, {Name: "leaf_ref", Usage: regclass.Usage()}}, Attributes: []int32{1, 2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}, Index: map[string]int{"ref": 0, "leaf_ref": 1}}
 	value := sqltype.String(regclass, strconv.FormatUint(uint64(local.Address().ObjectID), 10))
 	leafValue := sqltype.String(regclass, strconv.FormatUint(uint64(child.Address().ObjectID), 10))
 	state := *view.State()
@@ -249,7 +249,7 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	before(dumpEventKey{oid: consumer.Address().ObjectID}, dumpEventKey{oid: local.Address().ObjectID, phase: dumpRename})
 	before(dumpEventKey{oid: local.Address().ObjectID, phase: dumpRename}, dumpEventKey{oid: consumer.Address().ObjectID, phase: dumpRows})
 	before(dumpEventKey{oid: child.Address().ObjectID, phase: dumpRename}, dumpEventKey{oid: consumer.Address().ObjectID, phase: dumpRows})
-	if len(mid.NotNullConstraints) != 1 || len(leaf.NotNullConstraints) != 1 {
+	if len(mid.Constraints.NotNull) != 1 || len(leaf.Constraints.NotNull) != 1 {
 		t.Fatal("graph erased NN provenance")
 	}
 }

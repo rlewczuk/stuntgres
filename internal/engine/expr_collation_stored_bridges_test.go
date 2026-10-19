@@ -237,8 +237,8 @@ func TestExprCollationDomainDerivation(t *testing.T) {
 		view := e.CatalogRead()
 		ref := catalogRef(t, e, view, "expr_domain_storage")
 		table := view.MustRelation(ref.Address)
-		definition := table.Defaults[table.Attributes[2]].Expression
-		generation := table.Generations[table.Attributes[3]]
+		definition := table.ColumnMeta.Defaults[table.Attributes[2]].Expression
+		generation := table.ColumnMeta.Generations[table.Attributes[3]]
 		if definition.ResultUsage() != table.Columns[2].Usage || generation.Expression.ResultUsage() != table.Columns[3].Usage || generation.Planned.ResultUsage() != table.Columns[3].Usage {
 			t.Fatal("storage lost exact immutable destination usage")
 		}

@@ -495,27 +495,27 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 func ownedAddressByName(d *catalog.Relation, class ids.OID, name string) ids.OID {
 	switch class {
 	case 2606:
-		for _, x := range d.NotNullConstraints {
+		for _, x := range d.Constraints.NotNull {
 			if x.Name == name {
 				return x.OID
 			}
 		}
-		for _, x := range d.CheckConstraints {
+		for _, x := range d.Constraints.Check {
 			if x.Name == name {
 				return x.OID
 			}
 		}
-		for _, x := range d.UniqueConstraints {
+		for _, x := range d.Constraints.Unique {
 			if x.Name == name {
 				return x.OID
 			}
 		}
-		for _, x := range d.ExclusionConstraints {
+		for _, x := range d.Constraints.Exclusion {
 			if x.Name == name {
 				return x.OID
 			}
 		}
-		for _, x := range d.ForeignKeys {
+		for _, x := range d.Constraints.ForeignKeys {
 			if x.Name == name {
 				return x.OID
 			}
@@ -524,10 +524,10 @@ func ownedAddressByName(d *catalog.Relation, class ids.OID, name string) ids.OID
 		for i, col := range d.Columns {
 			if col.Name == name {
 				sub := d.Attributes[i]
-				if def, ok := d.Defaults[sub]; ok {
+				if def, ok := d.ColumnMeta.Defaults[sub]; ok {
 					return def.OID
 				}
-				if def, ok := d.Generations[sub]; ok {
+				if def, ok := d.ColumnMeta.Generations[sub]; ok {
 					return def.OID
 				}
 			}
@@ -542,7 +542,7 @@ func ownedAddressByName(d *catalog.Relation, class ids.OID, name string) ids.OID
 			}
 		}
 	case 3256:
-		for _, x := range d.Policies {
+		for _, x := range d.Security.Policies {
 			if x.Name == name {
 				return x.OID
 			}

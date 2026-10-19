@@ -262,17 +262,17 @@ func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relati
 			return nil
 		}
 	}
-	for _, definition := range relation.Defaults {
+	for _, definition := range relation.ColumnMeta.Defaults {
 		if definition.CatalogSnapshot {
 			return e.captureCommentSnapshotLocked(scope)
 		}
 	}
-	for _, definition := range relation.Generations {
+	for _, definition := range relation.ColumnMeta.Generations {
 		if definition.CatalogSnapshot {
 			return e.captureCommentSnapshotLocked(scope)
 		}
 	}
-	for _, check := range relation.CheckConstraints {
+	for _, check := range relation.Constraints.Check {
 		if check.CommentSnapshot {
 			return e.captureCommentSnapshotLocked(scope)
 		}
@@ -281,7 +281,7 @@ func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relati
 }
 
 func (e *Engine) captureCheckVisibilitySnapshotLocked(scope *StatementScope, relation *catalog.Relation) error {
-	for _, check := range relation.CheckConstraints {
+	for _, check := range relation.Constraints.Check {
 		if check.VisibilitySnapshot {
 			return e.captureVisibilitySnapshotLocked(scope)
 		}

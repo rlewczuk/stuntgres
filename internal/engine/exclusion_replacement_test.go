@@ -21,7 +21,7 @@ func TestExclusionReplacement(t *testing.T) {
 			sessionSQL(t, a, "INSERT INTO portable.domain_t VALUES(7)")
 			before := source.CatalogRead()
 			original := before.MustRelation(roleTableRef(t, source, "portable.t").Address)
-			constraint := original.ExclusionConstraints[0]
+			constraint := original.Constraints.Exclusion[0]
 			sourceRoot := source.storage.indexRoots[constraint.Index]
 			target := New()
 			b := sessionStart(t, target, nil)
@@ -44,14 +44,14 @@ func TestExclusionReplacement(t *testing.T) {
 			}
 			parent := target.catalog.state.MustRelation(roleTableRef(t, target, "portable.t").Address)
 			index, root := btreeRoot(t, target, "portable.ex")
-			current := parent.ExclusionConstraints[0]
+			current := parent.Constraints.Exclusion[0]
 			if current.Index != index.Address() || !backingConstraintPresent(parent, index) || !current.Deferrable || !current.InitiallyDeferred || len(root.entries) != 1 {
 				t.Fatal("replacement broke the actual exclusion closure")
 			}
 			if root == sourceRoot || self && root.entries[0].row == sourceRoot.entries[0].row {
 				t.Fatal("replacement imported source root or row identities")
 			}
-			if !reflect.DeepEqual(original.ExclusionConstraints[0], constraint) {
+			if !reflect.DeepEqual(original.Constraints.Exclusion[0], constraint) {
 				t.Fatal("replacement mutated the source definition")
 			}
 			// Domain providers must bind the destination descriptor, not merely its OID.

@@ -18,7 +18,7 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 	view := e.CatalogRead()
 	descriptor, _ := view.Descriptor(ref.Address)
 	original := descriptor.(*catalog.Relation)
-	predicate := original.CheckConstraints[0].Expression.(comparisonExpression)
+	predicate := original.Constraints.Check[0].Expression.(comparisonExpression)
 	column := predicate.left.(columnExpression)
 	for _, tc := range []struct {
 		name   string
@@ -35,12 +35,12 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			copy := *original
-			copy.CheckConstraints = append([]catalog.CheckConstraint(nil), original.CheckConstraints...)
+			copy.Constraints.Check = append([]catalog.CheckConstraint(nil), original.Constraints.Check...)
 			bad := column
 			tc.change(&bad)
 			p := predicate
 			p.left = bad
-			copy.CheckConstraints[0].Expression = p
+			copy.Constraints.Check[0].Expression = p
 			if err := validateChecks(view, &copy, map[string]bool{}); err == nil {
 				t.Fatal("invalid descriptor accepted")
 			}
@@ -51,15 +51,15 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 		aggregateExpression{Info: expr.Info{Usage: predicate.Usage}, slot: 0},
 	} {
 		copy := *original
-		copy.CheckConstraints = append([]catalog.CheckConstraint(nil), original.CheckConstraints...)
-		copy.CheckConstraints[0].Expression = node
+		copy.Constraints.Check = append([]catalog.CheckConstraint(nil), original.Constraints.Check...)
+		copy.Constraints.Check[0].Expression = node
 		if err := validateChecks(view, &copy, map[string]bool{}); err == nil {
 			t.Fatalf("unpersistable %T accepted", node)
 		}
 	}
 	copy := *original
-	copy.CheckConstraints = append([]catalog.CheckConstraint(nil), original.CheckConstraints...)
-	copy.CheckConstraints[0].Dependencies = nil
+	copy.Constraints.Check = append([]catalog.CheckConstraint(nil), original.Constraints.Check...)
+	copy.Constraints.Check[0].Dependencies = nil
 	if err := validateChecks(view, &copy, map[string]bool{}); err == nil {
 		t.Fatal("missing dependency manifest accepted")
 	}

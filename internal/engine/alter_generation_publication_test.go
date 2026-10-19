@@ -61,11 +61,11 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 				}
 				shape := scope.catalog.storage[ref.Address]
 				if drop {
-					if len(candidate.Generations) != 0 || shape.replacement != store {
+					if len(candidate.ColumnMeta.Generations) != 0 || shape.replacement != store {
 						t.Fatal("DROP rewrote source storage")
 					}
 				} else {
-					if shape.replacement == store || candidate.Generations[2].OID == old.Generations[2].OID {
+					if shape.replacement == store || candidate.ColumnMeta.Generations[2].OID == old.ColumnMeta.Generations[2].OID {
 						t.Fatal("SET lacked detached rewrite/definition")
 					}
 					for i, r := range shape.replacement.versions {
@@ -79,7 +79,7 @@ func TestAlterGeneratedExpressionPublication(t *testing.T) {
 					if err := scope.Finish(nil); err != nil {
 						t.Fatal(err)
 					}
-					if e.catalog.state.Get(ref.Address) != candidate || scope.owner.catalog != nil || snapshot.Get(ref.Address) != old || old.Generations[2].Kind != catalog.GenerationStored {
+					if e.catalog.state.Get(ref.Address) != candidate || scope.owner.catalog != nil || snapshot.Get(ref.Address) != old || old.ColumnMeta.Generations[2].Kind != catalog.GenerationStored {
 						t.Fatal("publication changed retained source/failed install")
 					}
 					for i, row := range store.versions {
@@ -207,14 +207,14 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 					t.Fatal("provider veto changed storage/counters", err)
 				}
 				current := e.catalog.state.MustRelation(ref.Address)
-				if !reflect.DeepEqual(current.Generations, old.Generations) || current.Generations[2].OID != old.Generations[2].OID {
+				if !reflect.DeepEqual(current.ColumnMeta.Generations, old.ColumnMeta.Generations) || current.ColumnMeta.Generations[2].OID != old.ColumnMeta.Generations[2].OID {
 					t.Fatal("failed generation replaced old recipe")
 				}
 				if kind == "cancel" && e.commitSeq != frontier {
 					t.Fatal("canceled generation advanced commit frontier")
 				}
 			}
-			if retained.Get(ref.Address) != old || len(old.Generations) != 1 || len(store.versions) != 2 {
+			if retained.Get(ref.Address) != old || len(old.ColumnMeta.Generations) != 1 || len(store.versions) != 2 {
 				t.Fatal("retained snapshot changed")
 			}
 			lockEmpty(t, e)

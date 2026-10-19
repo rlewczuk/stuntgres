@@ -56,7 +56,7 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	}
 	tableRef := catalogRef(t, e, view, "expr_retag_t")
 	table := view.MustRelation(tableRef.Address)
-	original := table.Defaults[table.Attributes[0]].Expression.(comparisonExpression)
+	original := table.ColumnMeta.Defaults[table.Attributes[0]].Expression.(comparisonExpression)
 	oldRef, conflict := original.predicate.InputCollation()
 	if oldRef.ID != uint32(source.OID) || conflict || original.Usage.Collation.ID != 0 {
 		t.Fatal("BOOL result hid wrong input authority", oldRef, conflict, original.Usage)

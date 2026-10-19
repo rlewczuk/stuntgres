@@ -22,7 +22,7 @@ func objectGrantUnitFixture(t *testing.T) (*Engine, *Operation, authorization.Pr
 	reader := roleAttributeCreate(t, e, op, "grant_reader", true, parser.RoleOptions{}).Ref
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900001}
 	namespace := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
-	relation := &catalog.Relation{ObjectAddress: address, ObjectNamespace: namespace, ObjectName: "grant_unit", Owner: op.RoleState().CurrentUser, Columns: []catalog.Column{{Name: "a"}, {Name: "b"}}, Index: map[string]int{"a": 0, "b": 1}, Attributes: []int32{1, 3}, AttributeHighWater: 3}
+	relation := &catalog.Relation{ObjectAddress: address, ObjectNamespace: namespace, ObjectName: "grant_unit", Owner: op.RoleState().CurrentUser, Columns: []catalog.Column{{Name: "a"}, {Name: "b"}}, Index: map[string]int{"a": 0, "b": 1}, Attributes: []int32{1, 3}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3}}
 	e.catalog.state = catalog.CloneState(e.catalog.state)
 	e.catalog.state.SetDescriptor(address, relation)
 	e.catalog.state.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: relation.Name()}, address)
@@ -57,13 +57,13 @@ func TestObjectGrantSequencePublication(t *testing.T) {
 	}
 	next := e.catalog.state.MustRelation(address)
 	mask := authorization.DefaultMask(authorization.DefaultSequences)
-	if next == original || !next.ACL.Explicit || len(next.ACL.Entries) != 2 || next.ACL.Entries[0].Privileges != mask || next.ACL.Entries[0].GrantOptions != 0 {
-		t.Fatal("wrong sequence baseline", next.ACL)
+	if next == original || !next.Security.ACL.Explicit || len(next.Security.ACL.Entries) != 2 || next.Security.ACL.Entries[0].Privileges != mask || next.Security.ACL.Entries[0].GrantOptions != 0 {
+		t.Fatal("wrong sequence baseline", next.Security.ACL)
 	}
-	if authorization.ACLRights(next.ACL, next.Owner, []authorization.PrincipalRef{reader}, mask, false) != mask {
-		t.Fatal("sequence ALL omitted rights", next.ACL)
+	if authorization.ACLRights(next.Security.ACL, next.Owner, []authorization.PrincipalRef{reader}, mask, false) != mask {
+		t.Fatal("sequence ALL omitted rights", next.Security.ACL)
 	}
-	if next.SequencePlanStamp == original.SequencePlanStamp || e.storage.sequences[address] != generator || generator.last != 11 || original.ACL.Explicit {
+	if next.SequencePlanStamp == original.SequencePlanStamp || e.storage.sequences[address] != generator || generator.last != 11 || original.Security.ACL.Explicit {
 		t.Fatal("ACL publication changed generator or retained descriptor")
 	}
 	before, roles := e.catalog.state, e.roles
@@ -90,10 +90,10 @@ func TestObjectGrantAtomicPublicationAndStableSubID(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := e.catalog.state.MustRelation(address)
-	if next == before.Get(address) || next.ColumnACL[3].Entries[0].Grantee.Role != reader || len(next.ColumnACL[1].Entries) != 0 || e.roles.revision != roles.revision+1 {
+	if next == before.Get(address) || next.Security.ColumnACL[3].Entries[0].Grantee.Role != reader || len(next.Security.ColumnACL[1].Entries) != 0 || e.roles.revision != roles.revision+1 {
 		t.Fatal("wrong immutable/stable publication", next)
 	}
-	if len(before.MustRelation(address).ColumnACL) != 0 {
+	if len(before.MustRelation(address).Security.ColumnACL) != 0 {
 		t.Fatal("retained descriptor mutated")
 	}
 	stableState, stableRoles := e.catalog.state, e.roles
@@ -107,7 +107,7 @@ func TestObjectGrantAtomicPublicationAndStableSubID(t *testing.T) {
 	if err := applyObjectGrantUnit(e, op, request); err != nil {
 		t.Fatal(err)
 	}
-	if len(e.catalog.state.MustRelation(address).ColumnACL[3].Entries) != 0 || len(next.ColumnACL[3].Entries) != 1 {
+	if len(e.catalog.state.MustRelation(address).Security.ColumnACL[3].Entries) != 0 || len(next.Security.ColumnACL[3].Entries) != 1 {
 		t.Fatal("revoke mutated old snapshot")
 	}
 }
@@ -128,18 +128,18 @@ func TestObjectGrantColumnTableIndependence(t *testing.T) {
 		t.Fatal(err)
 	}
 	relation := e.catalog.state.MustRelation(address)
-	if authorization.ACLRights(relation.ACL, relation.Owner, []authorization.PrincipalRef{reader}, authorization.TableGrantPrivileges, false)&authorization.SelectPrivilege == 0 {
+	if authorization.ACLRights(relation.Security.ACL, relation.Owner, []authorization.PrincipalRef{reader}, authorization.TableGrantPrivileges, false)&authorization.SelectPrivilege == 0 {
 		t.Fatal("column revoke negated table grant")
 	}
-	if !relation.ACL.Explicit || len(relation.ACL.Entries) != 2 {
-		t.Fatal("table owner defaults not materialized", relation.ACL)
+	if !relation.Security.ACL.Explicit || len(relation.Security.ACL.Entries) != 2 {
+		t.Fatal("table owner defaults not materialized", relation.Security.ACL)
 	}
 	table.Revoke = true
 	if err := applyObjectGrantUnit(e, op, table); err != nil {
 		t.Fatal(err)
 	}
 	relation = e.catalog.state.MustRelation(address)
-	if authorization.ACLRights(relation.ACL, relation.Owner, []authorization.PrincipalRef{reader}, authorization.TableGrantPrivileges, false) != 0 {
+	if authorization.ACLRights(relation.Security.ACL, relation.Owner, []authorization.PrincipalRef{reader}, authorization.TableGrantPrivileges, false) != 0 {
 		t.Fatal("table revoke retained source rights")
 	}
 }
@@ -338,7 +338,7 @@ func TestObjectGrantMergedColumnMaskWarnings(t *testing.T) {
 						t.Fatalf("revoke=%v notices %#v want %#v", revoke, got, want)
 					}
 					relation := e.catalog.state.MustRelation(address)
-					if !reflect.DeepEqual(relation.ACL, before.MustRelation(address).ACL) || len(relation.ColumnACL[1].Entries) != 0 {
+					if !reflect.DeepEqual(relation.Security.ACL, before.MustRelation(address).Security.ACL) || len(relation.Security.ColumnACL[1].Entries) != 0 {
 						t.Fatal("column request changed table or another stable attribute")
 					}
 					if !options {
@@ -346,13 +346,13 @@ func TestObjectGrantMergedColumnMaskWarnings(t *testing.T) {
 							t.Fatal("zero-option request published")
 						}
 					} else if revoke {
-						if len(relation.ColumnACL[3].Entries) != 0 {
-							t.Fatal("revoke retained selected source rights", relation.ColumnACL)
+						if len(relation.Security.ColumnACL[3].Entries) != 0 {
+							t.Fatal("revoke retained selected source rights", relation.Security.ColumnACL)
 						}
 					} else {
 						wantACL := []authorization.ACLEntry{objectACLUnitEntry(source, target, authorization.SelectPrivilege, 0)}
-						if !reflect.DeepEqual(relation.ColumnACL[3].Entries, wantACL) {
-							t.Fatal("wrong source, eligible mask or stable attribute", relation.ColumnACL)
+						if !reflect.DeepEqual(relation.Security.ColumnACL[3].Entries, wantACL) {
+							t.Fatal("wrong source, eligible mask or stable attribute", relation.Security.ColumnACL)
 						}
 					}
 				}

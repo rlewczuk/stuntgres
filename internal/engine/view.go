@@ -441,12 +441,12 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		d.Index = make(map[string]int, len(d.Columns))
 	}
 	if old == nil {
-		d.ACL = stage.creationACL(d.Owner, d.Namespace(), authorization.DefaultTables)
+		d.Security.ACL = stage.creationACL(d.Owner, d.Namespace(), authorization.DefaultTables)
 	}
 	if scope.viewPersistence == "temporary" {
 		definition.consumer = d.Address()
 	}
-	attribute := d.AttributeHighWater
+	attribute := d.ColumnMeta.HighWater
 	for _, id := range d.Attributes {
 		if id > attribute {
 			attribute = id
@@ -462,7 +462,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		d.Columns[i].OriginAttribute = int16(d.Attributes[i])
 		d.Columns[i].DeclaredDimensions = 0
 	}
-	d.AttributeHighWater = attribute
+	d.ColumnMeta.HighWater = attribute
 	if err = e.stageRowTypeLocked(stage, d); err != nil {
 		e.mu.Unlock()
 		return Result{}, err

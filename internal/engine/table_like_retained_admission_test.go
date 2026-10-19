@@ -21,7 +21,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 			sessionSQL(t, owner, "CREATE TEMP TABLE src(v BIGINT DEFAULT nextval('pg_temp.seed'))")
 			source := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "src")
 			provider := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "seed")
-			original := source.Defaults[1]
+			original := source.ColumnMeta.Defaults[1]
 			manifest := slices.Clone(original.Dependencies)
 			if err := e.Reset(context.Background()); err != nil {
 				t.Fatal(err)
@@ -86,10 +86,10 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			copied := destination.Defaults[1]
+			copied := destination.ColumnMeta.Defaults[1]
 			assertStored := func() {
 				t.Helper()
-				if !reflect.DeepEqual(copied.Expression, original.Expression) || !slices.Equal(copied.Dependencies, manifest) || !reflect.DeepEqual(source.Defaults[1].Expression, original.Expression) || !slices.Equal(source.Defaults[1].Dependencies, manifest) {
+				if !reflect.DeepEqual(copied.Expression, original.Expression) || !slices.Equal(copied.Dependencies, manifest) || !reflect.DeepEqual(source.ColumnMeta.Defaults[1].Expression, original.Expression) || !slices.Equal(source.ColumnMeta.Defaults[1].Dependencies, manifest) {
 					t.Fatal("acquisition rewrote stored node or manifest")
 				}
 			}

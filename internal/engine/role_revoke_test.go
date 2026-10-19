@@ -21,9 +21,9 @@ func objectRevokeUnitFixture(t *testing.T) (*Engine, *Operation, authorization.P
 	leaf := roleAttributeCreate(t, e, op, "revoke_leaf", true, parser.RoleOptions{}).Ref
 	old := e.catalog.state.MustRelation(address)
 	next := *old
-	next.ACL = authorization.MaterializeRelationACL(authorization.ACLValue{}, old.Owner)
-	next.ACL.Entries = append(next.ACL.Entries, objectACLUnitEntry(old.Owner, reader, authorization.SelectPrivilege, authorization.SelectPrivilege))
-	next.ColumnACL = map[int32]authorization.ACLValue{
+	next.Security.ACL = authorization.MaterializeRelationACL(authorization.ACLValue{}, old.Owner)
+	next.Security.ACL.Entries = append(next.Security.ACL.Entries, objectACLUnitEntry(old.Owner, reader, authorization.SelectPrivilege, authorization.SelectPrivilege))
+	next.Security.ColumnACL = map[int32]authorization.ACLValue{
 		1: {Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(old.Owner, target, authorization.UpdatePrivilege, 0)}},
 		3: {Explicit: true, Entries: []authorization.ACLEntry{
 			objectACLUnitEntry(old.Owner, reader, authorization.SelectPrivilege, authorization.SelectPrivilege),
@@ -49,8 +49,8 @@ func TestObjectRevokeAtomicity(t *testing.T) {
 			e, op, _, _, _, address := objectRevokeUnitFixture(t)
 			before, roles := e.catalog.state, e.roles
 			old := before.MustRelation(address)
-			tableBefore := slices.Clone(old.ACL.Entries)
-			columnBefore := slices.Clone(old.ColumnACL[3].Entries)
+			tableBefore := slices.Clone(old.Security.ACL.Entries)
+			columnBefore := slices.Clone(old.Security.ColumnACL[3].Entries)
 			request := objectRevokeUnitRequest()
 			code := ""
 			switch failure {
@@ -69,7 +69,7 @@ func TestObjectRevokeAtomicity(t *testing.T) {
 			}
 			err := applyObjectGrantUnit(e, op, request)
 			var diagnostic *sqlstate.Error
-			if !errors.As(err, &diagnostic) || diagnostic.Code != code || e.catalog.state != before || e.roles != roles || !slices.Equal(old.ACL.Entries, tableBefore) || !slices.Equal(old.ColumnACL[3].Entries, columnBefore) {
+			if !errors.As(err, &diagnostic) || diagnostic.Code != code || e.catalog.state != before || e.roles != roles || !slices.Equal(old.Security.ACL.Entries, tableBefore) || !slices.Equal(old.Security.ColumnACL[3].Entries, columnBefore) {
 				t.Fatal("failed revoke changed catalog or snapshot", failure, err)
 			}
 			if code == "2BP01" && (diagnostic.Message != "dependent privileges exist" || diagnostic.Hint != "Use CASCADE to revoke them too.") {
@@ -91,12 +91,12 @@ func TestObjectRevokeColumnSelection(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := e.catalog.state.MustRelation(address)
-	wantTable := []authorization.ACLEntry{old.ACL.Entries[0], objectACLUnitEntry(old.Owner, reader, authorization.SelectPrivilege, 0)}
+	wantTable := []authorization.ACLEntry{old.Security.ACL.Entries[0], objectACLUnitEntry(old.Owner, reader, authorization.SelectPrivilege, 0)}
 	wantColumn := []authorization.ACLEntry{objectACLUnitEntry(old.Owner, reader, authorization.SelectPrivilege, 0)}
-	if e.catalog.state == before || next == old || e.roles.revision != roles.revision+1 || !slices.Equal(next.ACL.Entries, wantTable) || !slices.Equal(next.ColumnACL[3].Entries, wantColumn) || !reflect.DeepEqual(next.ColumnACL[1], old.ColumnACL[1]) {
+	if e.catalog.state == before || next == old || e.roles.revision != roles.revision+1 || !slices.Equal(next.Security.ACL.Entries, wantTable) || !slices.Equal(next.Security.ColumnACL[3].Entries, wantColumn) || !reflect.DeepEqual(next.Security.ColumnACL[1], old.Security.ColumnACL[1]) {
 		t.Fatal("duplicate/stable/per-column publication", next, e.roles.revision, roles.revision)
 	}
-	if old.ColumnACL[3].Entries[1].Grantee.Role != target || old.ACL.Entries[1].GrantOptions != authorization.SelectPrivilege {
+	if old.Security.ColumnACL[3].Entries[1].Grantee.Role != target || old.Security.ACL.Entries[1].GrantOptions != authorization.SelectPrivilege {
 		t.Fatal("retained original mutated", old)
 	}
 	stable, stableRoles := e.catalog.state, e.roles
@@ -111,7 +111,7 @@ func TestObjectRevokeColumnSelection(t *testing.T) {
 		t.Fatal(err)
 	}
 	next = e.catalog.state.MustRelation(address)
-	if len(next.ColumnACL[3].Entries) != 0 || !slices.Equal(next.ACL.Entries, wantTable) {
+	if len(next.Security.ColumnACL[3].Entries) != 0 || !slices.Equal(next.Security.ACL.Entries, wantTable) {
 		t.Fatal("column revoke changed table or retained grant", next)
 	}
 }
@@ -126,7 +126,7 @@ func TestObjectRevokeNoopPublication(t *testing.T) {
 			t.Fatal(err)
 		}
 		next := e.catalog.state.MustRelation(address)
-		if e.catalog.state == before || e.roles.revision != roles.revision+1 || !reflect.DeepEqual(next.ACL, authorization.MaterializeRelationACL(authorization.ACLValue{}, next.Owner)) || len(next.ColumnACL) != 0 {
+		if e.catalog.state == before || e.roles.revision != roles.revision+1 || !reflect.DeepEqual(next.Security.ACL, authorization.MaterializeRelationACL(authorization.ACLValue{}, next.Owner)) || len(next.Security.ColumnACL) != 0 {
 			t.Fatal("absent table defaults not explicitly materialized", next)
 		}
 		stable, stableRoles := e.catalog.state, e.roles

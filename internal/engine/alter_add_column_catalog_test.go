@@ -19,7 +19,7 @@ func TestAlterAddColumnDescriptorValidation(t *testing.T) {
 		valid     bool
 	}{{3, 1, true}, {0, 1, false}, {-1, 1, false}, {3, 4, false}} {
 		d := *original
-		d.AttributeHighWater = tc.high
+		d.ColumnMeta.HighWater = tc.high
 		d.Attributes = []int32{tc.attribute}
 		stage := e.BeginCatalogStage(auth.catalog)
 		if err := stage.Create(&d); err != nil {
@@ -45,21 +45,21 @@ func TestAlterAddColumnSparseCheckOrdinalsAndOwnership(t *testing.T) {
 	if err := e.bindColumnChecks(scope.op, auth, []*parser.CheckConstraint{raw("CREATE TABLE t(CONSTRAINT original CHECK(a>0))")}, old, scope.input, true, nil); err != nil {
 		t.Fatal(err)
 	}
-	old.CheckConstraints[0].Ordinal = 7
+	old.Constraints.Check[0].Ordinal = 7
 	next := *old
-	next.CheckConstraints = slices.Clone(old.CheckConstraints)
+	next.Constraints.Check = slices.Clone(old.Constraints.Check)
 	checks := []*parser.CheckConstraint{raw("CREATE TABLE t(CONSTRAINT z_first CHECK(a>1))"), raw("CREATE TABLE t(CONSTRAINT a_second CHECK(a<9))")}
 	if err := e.bindColumnChecks(scope.op, auth, checks, &next, scope.input, true, nil); err != nil {
 		t.Fatal(err)
 	}
 	ordered := orderedChecks(&next)
-	if len(ordered) != 3 || ordered[0].Ordinal != 7 || ordered[1].Ordinal != 8 || ordered[2].Ordinal != 9 || ordered[1].Name != "z_first" || ordered[2].Name != "a_second" || next.CheckConstraints[0].Name != "a_second" || len(old.CheckConstraints) != 1 || old.CheckConstraints[0].Name != "original" {
-		t.Fatal("CHECK ordering/source invariant", ordered, next.CheckConstraints, old.CheckConstraints)
+	if len(ordered) != 3 || ordered[0].Ordinal != 7 || ordered[1].Ordinal != 8 || ordered[2].Ordinal != 9 || ordered[1].Name != "z_first" || ordered[2].Name != "a_second" || next.Constraints.Check[0].Name != "a_second" || len(old.Constraints.Check) != 1 || old.Constraints.Check[0].Name != "original" {
+		t.Fatal("CHECK ordering/source invariant", ordered, next.Constraints.Check, old.Constraints.Check)
 	}
 	e.mu.Lock()
 	err := e.assignDefinitionOIDsLocked(&next)
 	e.mu.Unlock()
-	if err != nil || old.CheckConstraints[0].OID != 0 || next.CheckConstraints[0].OID == 0 {
+	if err != nil || old.Constraints.Check[0].OID != 0 || next.Constraints.Check[0].OID == 0 {
 		t.Fatal("OID mutation reached source", err)
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
@@ -83,8 +83,8 @@ func TestAlterAddColumnPrivateSnapshotEqualWidthProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	old := &catalog.Relation{Columns: []catalog.Column{{Name: "old", Usage: u}}, Attributes: []int32{1}, AttributeHighWater: 1}
-	next := &catalog.Relation{Columns: []catalog.Column{{Name: "new", Usage: u}}, Attributes: []int32{2}, AttributeHighWater: 2}
+	old := &catalog.Relation{Columns: []catalog.Column{{Name: "old", Usage: u}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
+	next := &catalog.Relation{Columns: []catalog.Column{{Name: "new", Usage: u}}, Attributes: []int32{2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}}
 	original := &relationStorage{versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{one}}}}
 	historical := []rowVersion{{row: 2, version: 2, born: 1, values: []sqltype.Value{one}}}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}
@@ -131,14 +131,14 @@ func TestAlterAddColumnNativeImportPreservesCeilingAndSource(t *testing.T) {
 		t.Fatal(err)
 	}
 	imported := destination.CatalogRead().MustRelation(next.Address())
-	if imported.AttributeHighWater != 4 || !reflect.DeepEqual(imported.Attributes, []int32{1, 4}) || imported.Columns[1].OriginAttribute != 4 || source.CatalogRead().State() != before.State() || before.Get(next.Address()) != next || old.AttributeHighWater != 3 {
+	if imported.ColumnMeta.HighWater != 4 || !reflect.DeepEqual(imported.Attributes, []int32{1, 4}) || imported.Columns[1].OriginAttribute != 4 || source.CatalogRead().State() != before.State() || before.Get(next.Address()) != next || old.ColumnMeta.HighWater != 3 {
 		t.Fatal("import changed source or stable identity", imported, next, old)
 	}
 	// Foreign replacement adopts an immutable catalog generation. Provider
 	// validity is membership in the installed generation, not pointer inequality
 	// across owners (ReplaceCatalog clones the source catalog and remaps refs).
 	view := destination.CatalogRead()
-	node := imported.Defaults[4].Expression
+	node := imported.ColumnMeta.Defaults[4].Expression
 	usage := node.ResultUsage()
 	provider, exists := view.LookupType(usage.Type.ID())
 	if !exists || provider != usage.Type || usage != imported.Columns[1].Usage {

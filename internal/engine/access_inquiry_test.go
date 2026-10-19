@@ -135,12 +135,12 @@ func TestAccessInquiryRLSDecision(t *testing.T) {
 	}
 	for _, enabled := range []bool{false, true} {
 		for _, forced := range []bool{false, true} {
-			next.RLSEnabled, next.RLSForced = enabled, forced
+			next.Security.RLSEnabled, next.Security.RLSForced = enabled, forced
 			for _, actor := range []authorization.PrincipalRef{owner.Ref, reader.Ref, bypass.Ref, auth.state.CurrentUser} {
 				want := enabled && forced && actor != bypass.Ref && actor != auth.state.CurrentUser
 				// A policy's provider may be irrelevant or even stale; eligibility must
 				// never traverse its roles or demand expression enforcement.
-				next.Policies = []catalog.PolicyDefinition{{Permissive: true, Command: catalog.PolicyAll, Roles: []catalog.PolicyRole{{Public: true}}, Using: policyPayloadOf(using)}}
+				next.Security.Policies = []catalog.PolicyDefinition{{Permissive: true, Command: catalog.PolicyAll, Roles: []catalog.PolicyRole{{Public: true}}, Using: policyPayloadOf(using)}}
 				active, err := rowSecurityApplies(auth, &next, actor)
 				if err != nil || active != want {
 					t.Fatalf("eligibility %v/%v/%v: %v %v", enabled, forced, actor, active, err)
@@ -149,7 +149,7 @@ func TestAccessInquiryRLSDecision(t *testing.T) {
 				if err != nil || (disposition != rlsUnrestricted) != active {
 					t.Fatal("enforcement eligibility diverged", disposition, active, err)
 				}
-				next.Policies[0].Roles = []catalog.PolicyRole{{Ref: e.authorizationDomain.Principal(4294967295)}}
+				next.Security.Policies[0].Roles = []catalog.PolicyRole{{Ref: e.authorizationDomain.Principal(4294967295)}}
 				active, err = rowSecurityApplies(auth, &next, actor)
 				if err != nil || active != want {
 					t.Fatal("inquiry inspected policy", active, err)

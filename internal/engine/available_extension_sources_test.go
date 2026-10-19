@@ -30,11 +30,11 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 	} {
 		d, ref := availableUnitSource(e, spec.oid)
 		owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-		if !d.VirtualView || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != 11 || d.Owner != owner || d.RowType != sqltype.ID(spec.row) || len(d.Columns) != len(spec.names) || d.AttributeHighWater != int32(len(spec.names)) {
+		if !d.VirtualView || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != 11 || d.Owner != owner || d.RowType != sqltype.ID(spec.row) || len(d.Columns) != len(spec.names) || d.ColumnMeta.HighWater != int32(len(spec.names)) {
 			t.Fatal("view identity", d)
 		}
-		if len(d.ACL.Entries) != 1 || !d.ACL.Explicit || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Grantor != owner || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
-			t.Fatal("PUBLIC SELECT", d.ACL)
+		if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Explicit || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Grantor != owner || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+			t.Fatal("PUBLIC SELECT", d.Security.ACL)
 		}
 		for i, c := range d.Columns {
 			owned, _ := e.CatalogRead().LookupType(spec.ids[i])

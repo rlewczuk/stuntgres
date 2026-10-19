@@ -19,7 +19,7 @@ type defaultDependencyEdge struct {
 }
 
 func defaultDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
-	for _, definition := range d.Defaults {
+	for _, definition := range d.ColumnMeta.Defaults {
 		for _, dependency := range definition.Dependencies {
 			a := dependency.Address
 			if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
@@ -33,7 +33,7 @@ func defaultDepends(d *catalog.Relation, target ids.ObjectAddress) bool {
 // Validate only captured provider authority against the merged publication root.
 // Full expression/dependency agreement is already checked on the private stage.
 func validateDefaultProviders(view catalog.Read, d *catalog.Relation) error {
-	for _, definition := range d.Defaults {
+	for _, definition := range d.ColumnMeta.Defaults {
 		if err := validateColumnDefaultProviders(view, d, definition); err != nil {
 			return err
 		}
@@ -106,7 +106,7 @@ func (provider *dropProvider) defaultDependents(targets []ids.ObjectAddress, mod
 			if dropping {
 				continue
 			}
-			definition, ok := d.Defaults[attribute]
+			definition, ok := d.ColumnMeta.Defaults[attribute]
 			if !ok {
 				continue
 			}
@@ -139,9 +139,9 @@ func (provider *dropProvider) defaultDependents(targets []ids.ObjectAddress, mod
 				return nil, err
 			}
 			copy.ObjectRevision = revision
-			copy.Defaults = maps.Clone(d.Defaults)
+			copy.ColumnMeta.Defaults = maps.Clone(d.ColumnMeta.Defaults)
 			for _, attribute := range removed {
-				delete(copy.Defaults, attribute)
+				delete(copy.ColumnMeta.Defaults, attribute)
 			}
 			if err := provider.replace(&copy); err != nil {
 				return nil, err

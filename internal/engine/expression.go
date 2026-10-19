@@ -234,7 +234,7 @@ func (e columnExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	local.Row = row.Row[e.rowStart : e.rowStart+e.rowWidth]
 	recipe := e.virtual
 	if e.virtualOwner != nil {
-		selectVirtualGenerationRecipe(&local, e.virtualOwner, e.virtualOwner.Generations[e.virtualAttribute])
+		selectVirtualGenerationRecipe(&local, e.virtualOwner, e.virtualOwner.ColumnMeta.Generations[e.virtualAttribute])
 	} else if e.origin != (ids.ObjectRef{}) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing virtual generation owner")
 	}
@@ -2263,7 +2263,7 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 			return nil, diagnostic
 		}
 		if column, ok := node.(columnExpression); ok {
-			if _, generated := owner.Generations[column.origin.Address.SubID]; generated {
+			if _, generated := owner.ColumnMeta.Generations[column.origin.Address.SubID]; generated {
 				diagnostic := expr.ErrorAt("42P17", fmt.Sprintf(`cannot use generated column "%s" in column generation expression`, name), raw.Pos).(*sqlstate.Error)
 				diagnostic.Detail = "A generated column cannot reference another generated column."
 				return nil, diagnostic

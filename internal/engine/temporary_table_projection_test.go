@@ -34,7 +34,7 @@ func temporaryProjectionFixture(t *testing.T) (*Engine, *Session, *catalog.Relat
 			}
 		}
 	}
-	if provider == nil || survivor == nil || index == nil || len(survivor.Generations) != 1 || e.storage.indexRoots[index.Address()] == nil {
+	if provider == nil || survivor == nil || index == nil || len(survivor.ColumnMeta.Generations) != 1 || e.storage.indexRoots[index.Address()] == nil {
 		t.Fatal("missing genuine generated/index fixture")
 	}
 	return e, owner, provider, survivor, index
@@ -117,7 +117,7 @@ func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
 			}
 			next := e.catalog.state.MustRelation(survivor.Address())
 			rows := e.storage.relations[survivor.Address()].versions
-			if len(next.Columns) != 2 || next.Columns[1].Name != "z" || len(next.Generations) != 0 || len(oldRows) != 1 || len(oldRows[0].values) != 3 {
+			if len(next.Columns) != 2 || next.Columns[1].Name != "z" || len(next.ColumnMeta.Generations) != 0 || len(oldRows) != 1 || len(oldRows[0].values) != 3 {
 				t.Fatal("shape/snapshot incoherent")
 			}
 			v, er := rows[0].values[1].Integer()
@@ -203,7 +203,7 @@ func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 	if er != nil || value != 9 {
 		t.Fatal("maximum projected z", value, er)
 	}
-	if len(maximum.Generations) != 1 || len(survivor.Generations) != 1 {
+	if len(maximum.ColumnMeta.Generations) != 1 || len(survivor.ColumnMeta.Generations) != 1 {
 		t.Fatal("captured generation mutated")
 	}
 	e.DiscardCatalogStage(stage)

@@ -41,7 +41,7 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 	view := e.CatalogRead()
 	d, _ := pgDBRoleSettingUnitSource(t, e, view)
 	owner := e.Roles().LookupRef("postgres")
-	if d.Name() != "pg_db_role_setting" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.RelationKind != catalog.CatalogRelation || d.VirtualView || d.AttributeHighWater != 3 || len(d.Columns) != 3 || d.Owner != owner || !d.HasIndexes {
+	if d.Name() != "pg_db_role_setting" || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}) || d.RelationKind != catalog.CatalogRelation || d.VirtualView || d.ColumnMeta.HighWater != 3 || len(d.Columns) != 3 || d.Owner != owner || !d.History.HasIndexes {
 		t.Fatal("relation identity", d)
 	}
 	names := [...]string{"setdatabase", "setrole", "setconfig"}
@@ -70,8 +70,8 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 	if err := (relationProvider{}).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
-	if !d.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Grantor != owner || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal("PUBLIC SELECT", d.ACL)
+	if !d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Grantor != owner || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal("PUBLIC SELECT", d.Security.ACL)
 	}
 	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10054})
 	array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10053})
@@ -199,13 +199,13 @@ func TestPGDBRoleSettingAuthorization(t *testing.T) {
 		d, _ := pgDBRoleSettingUnitSource(t, e, base)
 		next := *d
 		next.ObjectRevision++
-		next.ACL = authorization.ACLValue{Explicit: true}
-		next.ColumnACL = nil
+		next.Security.ACL = authorization.ACLValue{Explicit: true}
+		next.Security.ColumnACL = nil
 		if table {
-			next.ACL.Entries = []authorization.ACLEntry{{Grantor: d.Owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}
+			next.Security.ACL.Entries = []authorization.ACLEntry{{Grantor: d.Owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}
 		}
 		if column {
-			next.ColumnACL = map[int32]authorization.ACLValue{
+			next.Security.ColumnACL = map[int32]authorization.ACLValue{
 				1: {Explicit: true, Entries: []authorization.ACLEntry{{Grantor: d.Owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}},
 			}
 		}

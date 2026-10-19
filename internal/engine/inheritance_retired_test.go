@@ -45,15 +45,15 @@ func TestInheritanceConstraintHistoricalOrigins(t *testing.T) {
 	c := retiredUnitTable(t, e, "c")
 	leaf := retiredUnitTable(t, e, "leaf")
 	before := e.CatalogRead()
-	nn := c.NotNullConstraints[0]
-	ck := c.CheckConstraints[0]
-	parentNN := p.NotNullConstraints[0].OID
-	parentCK := p.CheckConstraints[0].OID
+	nn := c.Constraints.NotNull[0]
+	ck := c.Constraints.Check[0]
+	parentNN := p.Constraints.NotNull[0].OID
+	parentCK := p.Constraints.Check[0].OID
 	roleExecute(t, e, op, "ALTER TABLE p DROP COLUMN a")
 	current := retiredUnitTable(t, e, "c")
 	parent := retiredUnitTable(t, e, "p")
 	bottom := retiredUnitTable(t, e, "leaf")
-	if !reflect.DeepEqual(current.NotNullConstraints, c.NotNullConstraints) || !reflect.DeepEqual(current.CheckConstraints, c.CheckConstraints) {
+	if !reflect.DeepEqual(current.Constraints.NotNull, c.Constraints.NotNull) || !reflect.DeepEqual(current.Constraints.Check, c.Constraints.Check) {
 		t.Fatal("DROP changed retained physical OID, recipe, validity or NO INHERIT")
 	}
 	for _, pair := range []struct {
@@ -85,7 +85,7 @@ func TestInheritanceConstraintHistoricalOrigins(t *testing.T) {
 		p      catalog.InheritedConstraint
 		source ids.OID
 	}{
-		{bottom.Inheritance.NotNull[bottom.NotNullConstraints[0].Attribute], nn.OID},
+		{bottom.Inheritance.NotNull[bottom.Constraints.NotNull[0].Attribute], nn.OID},
 		{bottom.Inheritance.Checks[ck.Name], ck.OID},
 	} {
 		if pair.p.Count() != 1 || len(pair.p.Retired) != 0 || len(pair.p.Origins) != 1 || pair.p.Origins[0].Parent != c.Address() || pair.p.Origins[0].Constraint != pair.source {
@@ -99,8 +99,8 @@ func TestInheritanceConstraintHistoricalOrigins(t *testing.T) {
 	// Its second removal contributes another lifetime, not another copy of the old.
 	roleExecute(t, e, op, "ALTER TABLE p ADD COLUMN a INT,ADD CONSTRAINT nn NOT NULL a,ADD CONSTRAINT ck CHECK(a>0)")
 	replacement := retiredUnitTable(t, e, "p")
-	newNN := replacement.NotNullConstraints[0].OID
-	newCK := replacement.CheckConstraints[0].OID
+	newNN := replacement.Constraints.NotNull[0].OID
+	newCK := replacement.Constraints.Check[0].OID
 	if newNN == parentNN || newCK == parentCK || replacement.Attributes[replacement.Index["a"]] == 1 {
 		t.Fatal("re-add reused retired source identity")
 	}
@@ -136,8 +136,8 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 	next := *p
 	next.Columns = slices.Clone(p.Columns[1:])
 	next.Attributes = slices.Clone(p.Attributes[1:])
-	next.NotNullConstraints = nil
-	next.CheckConstraints = nil
+	next.Constraints.NotNull = nil
+	next.Constraints.Check = nil
 	action := parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: "a"}}
 	scope.recordInheritanceAlterAction(p, &next, action)
 	event := state.events[p.Address()]
@@ -152,8 +152,8 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 	// A caller flag, a DROP CONSTRAINT, or an unrelated source OID is not a
 	// certificate of an actual removed contributing column provider.
 	for _, bad := range []inheritanceAlterEvent{
-		{action: parser.AlterTableAction{Action: parser.DropConstraint}, retiredNotNull: p.NotNullConstraints, retiredChecks: p.CheckConstraints},
-		{action: action, attribute: 1, retiredNotNull: []catalog.NotNullConstraint{{OID: p.NotNullConstraints[0].OID + 100000, Name: "nn", Attribute: 1}}},
+		{action: parser.AlterTableAction{Action: parser.DropConstraint}, retiredNotNull: p.Constraints.NotNull, retiredChecks: p.Constraints.Check},
+		{action: action, attribute: 1, retiredNotNull: []catalog.NotNullConstraint{{OID: p.Constraints.NotNull[0].OID + 100000, Name: "nn", Attribute: 1}}},
 	} {
 		state.events[p.Address()] = []inheritanceAlterEvent{bad}
 		g := cloneInheritance(c.Inheritance)
@@ -178,14 +178,14 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 			bad := provenance
 			bad.Retired = slices.Clone(provenance.Retired)
 			mutate(&bad.Retired[0])
-			if err := validateRetiredInheritance(view, current, bad, current.NotNullConstraints[0].OID, false); err == nil {
+			if err := validateRetiredInheritance(view, current, bad, current.Constraints.NotNull[0].OID, false); err == nil {
 				t.Fatal("forged runtime lineage validated", name)
 			}
 		})
 	}
 	duplicate := provenance
 	duplicate.Retired = append(slices.Clone(provenance.Retired), provenance.Retired[0])
-	if err := validateRetiredInheritance(view, current, duplicate, current.NotNullConstraints[0].OID, false); err == nil {
+	if err := validateRetiredInheritance(view, current, duplicate, current.Constraints.NotNull[0].OID, false); err == nil {
 		t.Fatal("duplicate source lifetime validated")
 	}
 	// Retirement must not relax exact current provider OID/key validation.
@@ -214,15 +214,15 @@ func TestInheritanceConstraintHistoryValidity(t *testing.T) {
 		roleExecute(t, e, op, q)
 	}
 	old := retiredUnitTable(t, e, "c")
-	if !old.NotNullConstraints[0].NotValid || !old.CheckConstraints[0].NotValid {
+	if !old.Constraints.NotNull[0].NotValid || !old.Constraints.Check[0].NotValid {
 		t.Fatal("invalid fixture did not reach actual child fact")
 	}
 	roleExecute(t, e, op, "ALTER TABLE p DROP COLUMN a")
 	current := retiredUnitTable(t, e, "c")
-	if !reflect.DeepEqual(current.NotNullConstraints, old.NotNullConstraints) || !reflect.DeepEqual(current.CheckConstraints, old.CheckConstraints) {
+	if !reflect.DeepEqual(current.Constraints.NotNull, old.Constraints.NotNull) || !reflect.DeepEqual(current.Constraints.Check, old.Constraints.Check) {
 		t.Fatal("retirement silently validated or rebuilt invalid enforcement")
 	}
-	for _, dependency := range current.CheckConstraints[0].Dependencies {
+	for _, dependency := range current.Constraints.Check[0].Dependencies {
 		if dependency.Ref.Address.ClassID == ids.RelationClassID && dependency.Ref.Address.ObjectID == retiredUnitTable(t, e, "p").Address().ObjectID && dependency.Ref.Address.SubID == 1 {
 			t.Fatal("retained history pinned the removed live source column")
 		}

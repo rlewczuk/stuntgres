@@ -22,10 +22,10 @@ func TestAlterDefaultDescriptor(t *testing.T) {
 	old := read.MustRelation(ref.Address)
 	storage := e.storage.relations[ref.Address]
 	ends, generation := storage.ends, storage.generation
-	oldA, oldB := old.Defaults[old.Attributes[0]], old.Defaults[old.Attributes[1]]
+	oldA, oldB := old.ColumnMeta.Defaults[old.Attributes[0]], old.ColumnMeta.Defaults[old.Attributes[1]]
 	run(t, e, "ALTER TABLE t ALTER renamed SET DEFAULT 7")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if next == old || next.Revision() != old.Revision()+1 || next.Address() != old.Address() || !reflect.DeepEqual(next.Attributes, old.Attributes) || &next.Columns[0] != &old.Columns[0] || next.Defaults[old.Attributes[1]].Expression != oldB.Expression || old.Defaults[old.Attributes[0]].Expression != oldA.Expression || read.Get(ref.Address) != old {
+	if next == old || next.Revision() != old.Revision()+1 || next.Address() != old.Address() || !reflect.DeepEqual(next.Attributes, old.Attributes) || &next.Columns[0] != &old.Columns[0] || next.ColumnMeta.Defaults[old.Attributes[1]].Expression != oldB.Expression || old.ColumnMeta.Defaults[old.Attributes[0]].Expression != oldA.Expression || read.Get(ref.Address) != old {
 		t.Fatal("descriptor immutability/stable attributes violated")
 	}
 	if e.storage.relations[ref.Address] != storage || storage.ends != ends || storage.generation != generation || len(storage.versions) != 1 {
@@ -38,10 +38,10 @@ func TestAlterDefaultDescriptor(t *testing.T) {
 	}
 	run(t, e, "ALTER TABLE t ALTER renamed DROP DEFAULT")
 	d := e.catalog.state.MustRelation(ref.Address)
-	if _, ok := d.Defaults[old.Attributes[0]]; ok {
+	if _, ok := d.ColumnMeta.Defaults[old.Attributes[0]]; ok {
 		t.Fatal("default retained")
 	}
-	if d.Defaults[old.Attributes[1]].Expression != oldB.Expression {
+	if d.ColumnMeta.Defaults[old.Attributes[1]].Expression != oldB.Expression {
 		t.Fatal("other default changed")
 	}
 	run(t, e, "ALTER TABLE t ALTER renamed DROP DEFAULT")

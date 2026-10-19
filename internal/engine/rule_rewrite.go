@@ -191,7 +191,7 @@ func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses 
 // Loan only original callable dependencies, after its actual containing recipe
 // certifies lifetime (including the existing retained-TEMP epoch bridge).
 func loanRuleDefaultDependencies(view catalog.Read, parent *catalog.Relation, slot int, dependencies *[]catalog.ExpressionDependency, private *bool) error {
-	definition, ok := parent.Defaults[parent.Attributes[slot]]
+	definition, ok := parent.ColumnMeta.Defaults[parent.Attributes[slot]]
 	if !ok || definition.OID == 0 || definition.Expression == nil || definition.Expression.ResultUsage() != parent.Columns[slot].Usage {
 		return fmt.Errorf("stuntgres: invalid rule DEFAULT source")
 	}

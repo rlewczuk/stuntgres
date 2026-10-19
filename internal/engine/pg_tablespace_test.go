@@ -68,8 +68,8 @@ func TestPGTablespaceDescriptorCapture(t *testing.T) {
 	if d.Owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) || d.RowType == 0 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || !representedSummaryTable(1213) {
 		t.Fatal("catalog identity", d)
 	}
-	if !reflect.DeepEqual(d.Attributes, []int32{1, 2, 3, 4, 5}) || d.AttributeHighWater != 5 {
-		t.Fatal("attribute positions", d.Attributes, d.AttributeHighWater)
+	if !reflect.DeepEqual(d.Attributes, []int32{1, 2, 3, 4, 5}) || d.ColumnMeta.HighWater != 5 {
+		t.Fatal("attribute positions", d.Attributes, d.ColumnMeta.HighWater)
 	}
 	for i, want := range []struct {
 		name string
@@ -84,8 +84,8 @@ func TestPGTablespaceDescriptorCapture(t *testing.T) {
 			t.Fatal("column lookup", want.name, index, ok)
 		}
 	}
-	if !d.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.ACL.Entries[0].Grantor != d.Owner {
-		t.Fatal("public readonly ACL", d.ACL)
+	if !d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.Security.ACL.Entries[0].Grantor != d.Owner {
+		t.Fatal("public readonly ACL", d.Security.ACL)
 	}
 	row := e.catalog.state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)})
 	if row.OwningRelation != d.Address() || row.Owner != d.Owner {

@@ -15,13 +15,13 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TABLE leaf PARTITION OF root(CONSTRAINT positive CHECK(k>0)) DEFAULT")
 	parent := rangePartitionRelation(t, e, "root")
 	child := rangePartitionRelation(t, e, "leaf")
-	if len(parent.CheckConstraints) != 1 || len(child.CheckConstraints) != 1 || parent.CheckConstraints[0].OID == child.CheckConstraints[0].OID {
+	if len(parent.Constraints.Check) != 1 || len(child.Constraints.Check) != 1 || parent.Constraints.Check[0].OID == child.Constraints.Check[0].OID {
 		t.Fatal("equal actual CHECK duplicated inherited constraint or reused identity")
 	}
 	if parent.Columns[0].OriginTable == child.Columns[0].OriginTable {
 		t.Fatal("cooked row origin was not reowned")
 	}
-	original := child.CheckConstraints[0].Expression
+	original := child.Constraints.Check[0].Expression
 	auth, err := op.Authorization()
 	if err != nil {
 		t.Fatal(err)
@@ -34,7 +34,7 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 		{"k>0", true}, {"(k)>0", true}, {"0<k", false}, {"k>0+0", false}, {"k>1", false},
 	} {
 		definition := *child
-		definition.CheckConstraints = nil
+		definition.Constraints.Check = nil
 		syntax := statement(t, "CREATE TABLE leaf(k INT,CONSTRAINT actual CHECK("+test.expression+"))").(*parser.CreateTable)
 		e.mu.Lock()
 		err := e.bindCreateChecks(op, auth, syntax, &definition, sqltype.InputEnvironment{}, nil)
@@ -42,7 +42,7 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(test, err)
 		}
-		if len(definition.CheckConstraints) != 1 || equality.sameGroupExpression(original, definition.CheckConstraints[0].Expression) != test.equal {
+		if len(definition.Constraints.Check) != 1 || equality.sameGroupExpression(original, definition.Constraints.Check[0].Expression) != test.equal {
 			t.Fatal("cooked tree comparison simplified or retargeted definition", test)
 		}
 	}
@@ -60,7 +60,7 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 	if !equality.sameGroupExpression(implicit, explicit) || grouping.sameGroupExpression(implicit, explicit) {
 		t.Fatal("CHECK-only coercion identity changed grouping semantics")
 	}
-	if len(child.CheckConstraints) != 1 || !equality.sameGroupExpression(child.CheckConstraints[0].Expression, original) {
+	if len(child.Constraints.Check) != 1 || !equality.sameGroupExpression(child.Constraints.Check[0].Expression, original) {
 		t.Fatal("private equality binding mutated installed CHECK")
 	}
 }

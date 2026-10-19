@@ -577,7 +577,7 @@ func (e *Engine) validateMutationRow(s *StatementScope, b binding, schema string
 			return e.rowConstraintError(s, b, schema, column.Name, "", row)
 		}
 	}
-	if len(b.relation.CheckConstraints) != 0 {
+	if len(b.relation.Constraints.Check) != 0 {
 		constraint, err := validateCheckRow(b.relation, row, eval)
 		if err != nil {
 			return err

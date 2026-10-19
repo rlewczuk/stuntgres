@@ -19,7 +19,7 @@ func TestTableLikeDefinitionDependencyOrder(t *testing.T) {
 	run(t, e, "CREATE INDEX later_index ON ordinary(a) WHERE ('anchor'::regclass IS NOT NULL) AND a>0")
 	table := e.CatalogRead().MustRelation(roleTableRef(t, e, "ordinary").Address)
 	var first, second catalog.CheckConstraint
-	for _, check := range table.CheckConstraints {
+	for _, check := range table.Constraints.Check {
 		if check.Name == "c2" {
 			first = check
 		}

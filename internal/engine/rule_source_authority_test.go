@@ -37,7 +37,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					reader, _ := auth.roles.Lookup("pg_read_all_data")
 					auth.state.CurrentUser = actor.Ref
 					src.Owner, sink.Owner = owner, owner
-					src.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.SelectPrivilege, Grantor: owner}}}
+					src.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.SelectPrivilege, Grantor: owner}}}
 					input := *src
 					input.ObjectAddress.ObjectID += 2
 					input.ObjectName, input.Rules = "input", nil
@@ -105,7 +105,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					if err := auth.checkQuerySources(sources); err != nil {
 						t.Fatal("canonical source authorization rejected resolved principals", err)
 					}
-					input.ACL = authorization.ACLValue{Explicit: true}
+					input.Security.ACL = authorization.ACLValue{Explicit: true}
 					err = auth.checkQuerySources(sources)
 					if dependent && !effective {
 						if err == nil || !strings.Contains(err.Error(), "permission denied for table input") {

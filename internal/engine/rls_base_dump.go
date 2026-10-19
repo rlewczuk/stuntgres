@@ -15,7 +15,7 @@ func rowSecurityDumpGroups(ctx context.Context, view catalog.Read, roles authori
 	var groups []dumpPolicyGroup
 	for _, descriptor := range view.Descriptors() {
 		d, ok := descriptor.(*catalog.Relation)
-		if !ok || !d.RLSEnabled && !d.RLSForced {
+		if !ok || !d.Security.RLSEnabled && !d.Security.RLSForced {
 			continue
 		}
 		if err := ctx.Err(); err != nil {
@@ -31,10 +31,10 @@ func rowSecurityDumpGroups(ctx context.Context, view catalog.Read, roles authori
 		}
 		table := quoteIdentifier(ns.Name()) + "." + quoteIdentifier(d.Name())
 		var sql strings.Builder
-		if d.RLSEnabled {
+		if d.Security.RLSEnabled {
 			sql.WriteString("ALTER TABLE " + table + " ENABLE ROW LEVEL SECURITY;\n")
 		}
-		if d.RLSForced {
+		if d.Security.RLSForced {
 			sql.WriteString("ALTER TABLE " + table + " FORCE ROW LEVEL SECURITY;\n")
 		}
 		groups = append(groups, dumpPolicyGroup{owner: owner.Name, table: table, sql: sql.String()})

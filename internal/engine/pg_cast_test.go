@@ -25,7 +25,7 @@ func pgCastUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef
 func TestPGCastShapeAndOwnership(t *testing.T) {
 	e := New()
 	d, _ := pgCastUnitSource(t, e)
-	if d.Name() != "pg_cast" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 6 || len(d.Columns) != 6 {
+	if d.Name() != "pg_cast" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.ColumnMeta.HighWater != 6 || len(d.Columns) != 6 {
 		t.Fatal(d)
 	}
 	for i, name := range []string{"oid", "castsource", "casttarget", "castfunc", "castcontext", "castmethod"} {
@@ -52,8 +52,8 @@ func TestPGCastShapeAndOwnership(t *testing.T) {
 	if rows, err := capturePGCast(context.Background(), e.CatalogRead(), ids.ObjectRef{}, &invalid); err == nil || rows != nil {
 		t.Fatal("foreign source capture", rows, err)
 	}
-	if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal("PUBLIC SELECT", d.ACL)
+	if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal("PUBLIC SELECT", d.Security.ACL)
 	}
 	class := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
 	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(e.catalog.read(e.catalog.state), e.roles), ids.ObjectRef{}, class)

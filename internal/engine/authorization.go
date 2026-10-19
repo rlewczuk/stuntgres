@@ -268,7 +268,7 @@ func descriptorACL(d catalog.Descriptor) (authorization.PrincipalRef, authorizat
 	case *catalog.Namespace:
 		return d.Owner, d.ACL, nil
 	case *catalog.Relation:
-		return d.Owner, d.ACL, d.ColumnACL
+		return d.Owner, d.Security.ACL, d.Security.ColumnACL
 	case *catalog.Type:
 		return d.Owner, d.ACL, nil
 	case *catalog.Collation:
@@ -543,7 +543,7 @@ func validateACL(r authorization.Read, d catalog.Descriptor) error {
 		return err
 	}
 	if relation, ok := d.(*catalog.Relation); ok {
-		for _, policy := range relation.Policies {
+		for _, policy := range relation.Security.Policies {
 			for _, role := range policy.Roles {
 				if role.Public {
 					if role.Ref != (authorization.PrincipalRef{}) {
@@ -584,7 +584,7 @@ func descriptorReferences(d catalog.Descriptor) []authorization.PrincipalRef {
 	owner, acl, cols := descriptorACL(d)
 	refs := []authorization.PrincipalRef{owner}
 	if relation, ok := d.(*catalog.Relation); ok {
-		for _, policy := range relation.Policies {
+		for _, policy := range relation.Security.Policies {
 			for _, role := range policy.Roles {
 				if !role.Public {
 					refs = append(refs, role.Ref)
@@ -851,16 +851,16 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 		}
 		n := *d
 		if ref.Address.SubID == 0 {
-			n.ACL = acl
+			n.Security.ACL = acl
 		} else {
-			n.ColumnACL = make(map[int32]authorization.ACLValue, len(d.ColumnACL)+1)
-			for k, v := range d.ColumnACL {
-				n.ColumnACL[k] = v
+			n.Security.ColumnACL = make(map[int32]authorization.ACLValue, len(d.Security.ColumnACL)+1)
+			for k, v := range d.Security.ColumnACL {
+				n.Security.ColumnACL[k] = v
 			}
 			if acl.Explicit {
-				n.ColumnACL[ref.Address.SubID] = acl
+				n.Security.ColumnACL[ref.Address.SubID] = acl
 			} else {
-				delete(n.ColumnACL, ref.Address.SubID)
+				delete(n.Security.ColumnACL, ref.Address.SubID)
 			}
 		}
 		next = &n

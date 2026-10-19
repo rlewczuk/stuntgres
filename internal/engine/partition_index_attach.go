@@ -171,10 +171,10 @@ func (e *Engine) stagePartitionIndexAttach(op *Operation, stage *CatalogStage, p
 		if parent.SQLIndex.Constraint != nil {
 			table := view.MustRelation(child.SQLIndex.Parent)
 			changed := *table
-			changed.UniqueConstraints = slices.Clone(table.UniqueConstraints)
+			changed.Constraints.Unique = slices.Clone(table.Constraints.Unique)
 			changed.ObjectRevision++
-			for i := range changed.UniqueConstraints {
-				c := &changed.UniqueConstraints[i]
+			for i := range changed.Constraints.Unique {
+				c := &changed.Constraints.Unique[i]
 				if c.Index == child.Address() {
 					c.Parent = parent.SQLIndex.Constraint.OID
 					c.IsLocal = false
@@ -197,12 +197,12 @@ func validatePartitionIndex(view catalog.Read, index, table *catalog.Relation) e
 		return err
 	}
 	if d.PartitionParent == (ids.ObjectAddress{}) {
-		for _, c := range table.UniqueConstraints {
+		for _, c := range table.Constraints.Unique {
 			if c.Index == index.Address() && c.Parent != 0 {
 				return fmt.Errorf("stuntgres: orphan partition constraint ancestry")
 			}
 		}
-		for _, c := range table.ExclusionConstraints {
+		for _, c := range table.Constraints.Exclusion {
 			if c.Index == index.Address() && c.Parent != 0 {
 				return fmt.Errorf("stuntgres: orphan partition exclusion ancestry")
 			}
@@ -251,12 +251,12 @@ func validatePartitionIndex(view catalog.Read, index, table *catalog.Relation) e
 			expected = parent.SQLIndex.Constraint.OID
 		}
 		found := false
-		for _, c := range table.UniqueConstraints {
+		for _, c := range table.Constraints.Unique {
 			if c.Index == index.Address() && c.Parent == expected && c.IsLocal == (expected == 0) {
 				found = true
 			}
 		}
-		for _, c := range table.ExclusionConstraints {
+		for _, c := range table.Constraints.Exclusion {
 			if c.Index == index.Address() && c.Parent == expected && c.IsLocal == (expected == 0) {
 				source := exclusionDefinition(parentTable, parent)
 				found = source != nil && c.Deferrable == source.Deferrable && c.InitiallyDeferred == source.InitiallyDeferred

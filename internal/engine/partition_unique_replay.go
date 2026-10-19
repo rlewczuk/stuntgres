@@ -175,7 +175,7 @@ func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *O
 	if err != nil {
 		return Result{}, err
 	}
-	index := e.stageRead(stage).MustRelation(next.UniqueConstraints[len(next.UniqueConstraints)-1].Index)
+	index := e.stageRead(stage).MustRelation(next.Constraints.Unique[len(next.Constraints.Unique)-1].Index)
 	if err = partitionUniqueCoverage(next, index.SQLIndex); err != nil {
 		return Result{}, err
 	}

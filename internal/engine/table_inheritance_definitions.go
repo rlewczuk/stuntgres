@@ -19,7 +19,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 		declaration := b.createDeclarations[slot]
 		graph.Columns[d.Attributes[slot]] = catalog.InheritedColumn{Local: b.createLocalColumns[c.Name], ExplicitDefault: declaration.defaultExpr != nil || declaration.serial || declaration.copiedDefault, ExplicitGeneration: declaration.generation != nil || declaration.copiedGeneration}
 	}
-	for _, c := range d.NotNullConstraints {
+	for _, c := range d.Constraints.NotNull {
 		graph.NotNull[c.Attribute] = catalog.InheritedConstraint{Local: true}
 	}
 	var defaultConflicts, generationConflicts map[int32]bool
@@ -35,7 +35,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 			provenance.Origins = append(provenance.Origins, catalog.InheritanceOrigin{Parent: in.source.Address(), Attribute: in.source.Attributes[slot]})
 			graph.Columns[target] = provenance
 		}
-		for _, c := range in.source.NotNullConstraints {
+		for _, c := range in.source.Constraints.NotNull {
 			if c.NoInherit {
 				continue
 			}
@@ -45,8 +45,8 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 			provenance := graph.NotNull[target]
 			provenance.Origins = append(provenance.Origins, catalog.InheritanceOrigin{Parent: in.source.Address(), Attribute: c.Attribute, Constraint: c.OID})
 			graph.NotNull[target] = provenance
-			if !slices.ContainsFunc(d.NotNullConstraints, func(n catalog.NotNullConstraint) bool { return n.Attribute == target }) {
-				d.NotNullConstraints = append(d.NotNullConstraints, catalog.NotNullConstraint{Name: c.Name, Attribute: target})
+			if !slices.ContainsFunc(d.Constraints.NotNull, func(n catalog.NotNullConstraint) bool { return n.Attribute == target }) {
+				d.Constraints.NotNull = append(d.Constraints.NotNull, catalog.NotNullConstraint{Name: c.Name, Attribute: target})
 			}
 			d.Columns[targetSlot].Nullable = false
 		}
@@ -55,8 +55,8 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 			// LIKE expressions arrive after inherited conflicts are checked; only a
 			// raw child DEFAULT (including serial) can resolve a parent conflict.
 			declaration := b.createDeclarations[mapper.targetSlots[sourceSlot]]
-			if old, ok := in.source.Defaults[sourceAttribute]; ok && declaration.defaultExpr == nil && !declaration.serial {
-				if incumbent, ok := d.Defaults[target]; ok && !sameGroupExpression(incumbent.Expression, old.Expression) {
+			if old, ok := in.source.ColumnMeta.Defaults[sourceAttribute]; ok && declaration.defaultExpr == nil && !declaration.serial {
+				if incumbent, ok := d.ColumnMeta.Defaults[target]; ok && !sameGroupExpression(incumbent.Expression, old.Expression) {
 					if defaultConflicts == nil {
 						defaultConflicts = make(map[int32]bool)
 					}
@@ -67,12 +67,12 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 				if err := validateCookedDefaultTemporary(copied.Expression, auth.catalog.MustNamespace(d.Namespace()).Temporary); err != nil {
 					return err
 				}
-				if d.Defaults == nil {
-					d.Defaults = make(map[int32]catalog.ColumnDefault)
+				if d.ColumnMeta.Defaults == nil {
+					d.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault)
 				}
-				d.Defaults[target] = copied
+				d.ColumnMeta.Defaults[target] = copied
 			}
-			if old, ok := in.source.Generations[sourceAttribute]; ok && declaration.generation == nil {
+			if old, ok := in.source.ColumnMeta.Generations[sourceAttribute]; ok && declaration.generation == nil {
 				node, err := mapper.remap(old.Expression, d, auth.catalog)
 				if err != nil {
 					return err
@@ -81,7 +81,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 				if err != nil {
 					return err
 				}
-				if incumbent, ok := d.Generations[target]; ok && !sameGroupExpression(incumbent.Expression, node) {
+				if incumbent, ok := d.ColumnMeta.Generations[target]; ok && !sameGroupExpression(incumbent.Expression, node) {
 					if generationConflicts == nil {
 						generationConflicts = make(map[int32]bool)
 					}
@@ -91,10 +91,10 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 				if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &copied.Dependencies, commentSnapshot: &copied.CatalogSnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 					return err
 				}
-				if d.Generations == nil {
-					d.Generations = make(map[int32]catalog.ColumnGeneration)
+				if d.ColumnMeta.Generations == nil {
+					d.ColumnMeta.Generations = make(map[int32]catalog.ColumnGeneration)
 				}
-				d.Generations[target] = copied
+				d.ColumnMeta.Generations[target] = copied
 			}
 		}
 		for _, old := range orderedChecks(in.source) {
@@ -108,14 +108,14 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 			provenance := graph.Checks[old.Name]
 			provenance.Origins = append(provenance.Origins, catalog.InheritanceOrigin{Parent: in.source.Address(), Constraint: old.OID})
 			graph.Checks[old.Name] = provenance
-			incumbent := slices.IndexFunc(d.CheckConstraints, func(c catalog.CheckConstraint) bool { return c.Name == old.Name })
+			incumbent := slices.IndexFunc(d.Constraints.Check, func(c catalog.CheckConstraint) bool { return c.Name == old.Name })
 			if incumbent >= 0 {
-				if !sameGroupExpression(d.CheckConstraints[incumbent].Expression, node) {
+				if !sameGroupExpression(d.Constraints.Check[incumbent].Expression, node) {
 					return sqlError("42710", fmt.Sprintf(`check constraint name "%s" appears multiple times but with different expressions`, old.Name))
 				}
 				continue
 			}
-			copied := catalog.CheckConstraint{Name: old.Name, Ordinal: len(d.CheckConstraints), Expression: node}
+			copied := catalog.CheckConstraint{Name: old.Name, Ordinal: len(d.Constraints.Check), Expression: node}
 			var dependencies []ids.ObjectRef
 			if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &dependencies, commentSnapshot: &copied.CommentSnapshot, visibilitySnapshot: &copied.VisibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 				return err
@@ -129,7 +129,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 				}
 				copied.Dependencies = append(copied.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: revision})
 			}
-			d.CheckConstraints = append(d.CheckConstraints, copied)
+			d.Constraints.Check = append(d.Constraints.Check, copied)
 		}
 	}
 	for slot, attribute := range d.Attributes {
@@ -145,16 +145,16 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 		}
 	}
 	used := make(map[string]bool)
-	for _, constraint := range d.CheckConstraints {
+	for _, constraint := range d.Constraints.Check {
 		used[constraint.Name] = true
 	}
-	for _, constraint := range d.NotNullConstraints {
+	for _, constraint := range d.Constraints.NotNull {
 		if graph.NotNull[constraint.Attribute].Local && constraint.Name != "" {
 			used[constraint.Name] = true
 		}
 	}
-	for i := range d.NotNullConstraints {
-		constraint := &d.NotNullConstraints[i]
+	for i := range d.Constraints.NotNull {
+		constraint := &d.Constraints.NotNull[i]
 		if graph.NotNull[constraint.Attribute].Local {
 			continue
 		}
@@ -164,6 +164,6 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 			used[constraint.Name] = true
 		}
 	}
-	slices.SortFunc(d.CheckConstraints, func(a, b catalog.CheckConstraint) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortFunc(d.Constraints.Check, func(a, b catalog.CheckConstraint) int { return strings.Compare(a.Name, b.Name) })
 	return nil
 }

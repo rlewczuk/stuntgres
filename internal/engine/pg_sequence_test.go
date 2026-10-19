@@ -59,7 +59,7 @@ func pgSequenceUnitBag(t *testing.T, source *querySource) map[uint32][]any {
 func TestPGSequenceShape(t *testing.T) {
 	e := New()
 	d, _ := pgSequenceUnitSource(t, e)
-	if d.Name() != "pg_sequence" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.AttributeHighWater != 8 || len(d.Columns) != 8 {
+	if d.Name() != "pg_sequence" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.ColumnMeta.HighWater != 8 || len(d.Columns) != 8 {
 		t.Fatal(d)
 	}
 	for i, tc := range []struct {
@@ -94,7 +94,7 @@ func TestPGSequenceShape(t *testing.T) {
 		{"identity", func(r *catalog.Relation) { r.ObjectAddress.ObjectID = 0 }},
 		{"type", func(r *catalog.Relation) { r.Columns[0].Usage.Type = foreignType }},
 		{"live attribute", func(r *catalog.Relation) { r.Attributes[0] = 0 }},
-		{"constraint record", func(r *catalog.Relation) { r.NotNullConstraints = []catalog.NotNullConstraint{{Attribute: 1}} }},
+		{"constraint record", func(r *catalog.Relation) { r.Constraints.NotNull = []catalog.NotNullConstraint{{Attribute: 1}} }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			invalid := *d
@@ -106,8 +106,8 @@ func TestPGSequenceShape(t *testing.T) {
 			}
 		})
 	}
-	if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal("PUBLIC SELECT", d.ACL)
+	if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal("PUBLIC SELECT", d.Security.ACL)
 	}
 	class := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
 	rows, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roleRead(e.catalog.read(e.catalog.state), e.roles), ids.ObjectRef{}, class)

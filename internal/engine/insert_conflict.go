@@ -69,7 +69,7 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 	c := &boundInsertConflict{targets: b.targets}
 	b.conflict = c
 	if raw.Constraint.Text != "" {
-		for _, u := range b.relation.UniqueConstraints {
+		for _, u := range b.relation.Constraints.Unique {
 			if u.Name == raw.Constraint.Text {
 				c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: u.OID}
 				c.namedIndex = u.Index
@@ -79,7 +79,7 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 				return nil
 			}
 		}
-		for _, definition := range b.relation.ExclusionConstraints {
+		for _, definition := range b.relation.Constraints.Exclusion {
 			if definition.Name != raw.Constraint.Text {
 				continue
 			}
@@ -105,13 +105,13 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 			}
 			return nil
 		}
-		for _, check := range b.relation.CheckConstraints {
+		for _, check := range b.relation.Constraints.Check {
 			if check.Name == raw.Constraint.Text {
 				c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}
 				return nil
 			}
 		}
-		for _, nn := range b.relation.NotNullConstraints {
+		for _, nn := range b.relation.Constraints.NotNull {
 			if nn.Name == raw.Constraint.Text {
 				c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: nn.OID}
 				return nil

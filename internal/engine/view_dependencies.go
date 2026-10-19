@@ -73,27 +73,27 @@ func constraintName(parent *catalog.Relation, address ids.ObjectAddress) string 
 	if parent == nil || address.ClassID != 2606 || address.ObjectID == 0 || address.SubID != 0 {
 		return ""
 	}
-	for _, c := range parent.UniqueConstraints {
+	for _, c := range parent.Constraints.Unique {
 		if c.OID == address.ObjectID {
 			return c.Name
 		}
 	}
-	for _, c := range parent.ExclusionConstraints {
+	for _, c := range parent.Constraints.Exclusion {
 		if c.OID == address.ObjectID {
 			return c.Name
 		}
 	}
-	for _, c := range parent.CheckConstraints {
+	for _, c := range parent.Constraints.Check {
 		if c.OID == address.ObjectID {
 			return c.Name
 		}
 	}
-	for _, c := range parent.NotNullConstraints {
+	for _, c := range parent.Constraints.NotNull {
 		if c.OID == address.ObjectID {
 			return c.Name
 		}
 	}
-	for _, c := range parent.ForeignKeys {
+	for _, c := range parent.Constraints.ForeignKeys {
 		if c.OID == address.ObjectID {
 			return c.Name
 		}
@@ -296,7 +296,7 @@ func supportedDependentLabelsWithPolicies(catalog catalog.Read, targets []ids.Ob
 	dependents = append(dependents, other...)
 	for _, edge := range defaults {
 		label := "default value for column " + dependencyIdentifier(edge.column) + " of table " + dependencyRelationName(catalog, edge.relation, path)
-		dependents = append(dependents, supportedDependent{oid: edge.relation.Defaults[edge.attribute].OID, target: edge.target, label: label})
+		dependents = append(dependents, supportedDependent{oid: edge.relation.ColumnMeta.Defaults[edge.attribute].OID, target: edge.target, label: label})
 	}
 	for _, edge := range checks {
 		label := "constraint " + dependencyIdentifier(edge.check.Name) + " on table " + dependencyRelationName(catalog, edge.relation, path)

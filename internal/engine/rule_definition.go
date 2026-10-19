@@ -127,7 +127,7 @@ func ruleResultCheck(d *catalog.Relation, schema []catalog.Column, selectRule bo
 	if selectRule {
 		prefix = "SELECT rule's target list"
 	}
-	if d.AttributeHighWater > int32(len(d.Columns)) {
+	if d.ColumnMeta.HighWater > int32(len(d.Columns)) {
 		message := "cannot create a RETURNING list for a relation containing dropped columns"
 		if selectRule {
 			message = "cannot convert relation containing dropped columns to view"

@@ -299,9 +299,9 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 		next.ObjectRevision++
 		if parentIndex.SQLIndex.Constraint != nil {
 			changed := *child
-			changed.UniqueConstraints = slices.Clone(child.UniqueConstraints)
-			for i := range changed.UniqueConstraints {
-				c := &changed.UniqueConstraints[i]
+			changed.Constraints.Unique = slices.Clone(child.Constraints.Unique)
+			for i := range changed.Constraints.Unique {
+				c := &changed.Constraints.Unique[i]
 				if c.Index == candidate.Address() {
 					c.Parent = parentIndex.SQLIndex.Constraint.OID
 					c.IsLocal = false
@@ -347,7 +347,7 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 	if err != nil {
 		return nil, err
 	}
-	index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: child.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: child.Owner, RelationKind: catalog.IndexRelation, SQLIndex: mapped, Columns: slices.Clone(parentIndex.Columns), Attributes: slices.Clone(parentIndex.Attributes), AttributeHighWater: parentIndex.AttributeHighWater, Index: make(map[string]int, len(parentIndex.Columns))}
+	index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: child.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: child.Owner, RelationKind: catalog.IndexRelation, SQLIndex: mapped, Columns: slices.Clone(parentIndex.Columns), Attributes: slices.Clone(parentIndex.Attributes), ColumnMeta: catalog.ColumnMetadata{HighWater: parentIndex.ColumnMeta.HighWater}, Index: make(map[string]int, len(parentIndex.Columns))}
 	for i := range index.Columns {
 		index.Columns[i].OriginTable = uint32(oid)
 		index.Columns[i].OriginAttribute = int16(i + 1)
@@ -361,21 +361,21 @@ func (e *Engine) stagePartitionIndexChild(op *Operation, stage *CatalogStage, ta
 		changed := *child
 		if parentIndex.SQLIndex.IsExclusion() {
 			var source catalog.ExclusionConstraint
-			for _, c := range table.ExclusionConstraints {
+			for _, c := range table.Constraints.Exclusion {
 				if c.OID == backing.OID {
 					source = c
 					break
 				}
 			}
 			c := catalog.ExclusionConstraint{OID: cid, Name: name, Index: index.Address(), Parent: backing.OID, Operators: mapped.Exclusion, Deferrable: source.Deferrable, InitiallyDeferred: source.InitiallyDeferred}
-			changed.ExclusionConstraints = append(slices.Clone(child.ExclusionConstraints), c)
+			changed.Constraints.Exclusion = append(slices.Clone(child.Constraints.Exclusion), c)
 			mapped.Constraint = exclusionBacking(&c)
 		} else {
 			c := catalog.UniqueConstraint{OID: cid, Name: name, Index: index.Address(), Parent: backing.OID, Primary: backing.Primary, NullsNotDistinct: mapped.NullsNotDistinct, Attributes: make([]int32, len(mapped.Keys))}
 			for i, key := range mapped.Keys {
 				c.Attributes[i] = key.Attribute
 			}
-			changed.UniqueConstraints = append(slices.Clone(child.UniqueConstraints), c)
+			changed.Constraints.Unique = append(slices.Clone(child.Constraints.Unique), c)
 			mapped.Constraint = uniqueBacking(&c)
 		}
 		if err = stagePartitionDescriptor(stage, &changed); err != nil {
@@ -427,14 +427,14 @@ func appendPartitionInlineIndexes(view catalog.Read, table *catalog.Relation, in
 		end := len(indexes)
 		write := start
 		for _, inherited := range indexes[start:end] {
-			for _, constraint := range table.UniqueConstraints {
+			for _, constraint := range table.Constraints.Unique {
 				if constraint.Parent == inherited.SQLIndex.Constraint.OID {
 					indexes[write] = view.MustRelation(constraint.Index)
 					write++
 					break
 				}
 			}
-			for _, constraint := range table.ExclusionConstraints {
+			for _, constraint := range table.Constraints.Exclusion {
 				if constraint.Parent == inherited.SQLIndex.Constraint.OID {
 					indexes[write] = view.MustRelation(constraint.Index)
 					write++
@@ -444,13 +444,13 @@ func appendPartitionInlineIndexes(view catalog.Read, table *catalog.Relation, in
 		}
 		indexes = indexes[:write]
 	}
-	for _, constraint := range table.UniqueConstraints {
+	for _, constraint := range table.Constraints.Unique {
 		index := view.MustRelation(constraint.Index)
 		if constraint.Parent == 0 && !usingIndexDump(index) {
 			indexes = append(indexes, index)
 		}
 	}
-	for _, constraint := range table.ExclusionConstraints {
+	for _, constraint := range table.Constraints.Exclusion {
 		if constraint.Parent == 0 {
 			indexes = append(indexes, view.MustRelation(constraint.Index))
 		}

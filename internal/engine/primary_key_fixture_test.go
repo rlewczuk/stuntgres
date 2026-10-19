@@ -52,7 +52,7 @@ func primaryKeyUnitFixture(t *testing.T) (*Engine, *Operation, *catalog.Relation
 		}
 	}
 	parent := primaryKeyUnitRelation(t, e, "t")
-	index := e.catalog.state.MustRelation(parent.UniqueConstraints[0].Index)
+	index := e.catalog.state.MustRelation(parent.Constraints.Unique[0].Index)
 	return e, owner, parent, index
 }
 

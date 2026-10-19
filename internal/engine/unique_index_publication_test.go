@@ -119,10 +119,10 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 		t.Fatal("invalid unique fixture")
 	}
 	if attached {
-		if index.SQLIndex.Constraint == nil || len(parent.UniqueConstraints) != 1 || parent.UniqueConstraints[0].Index != index.Address() {
+		if index.SQLIndex.Constraint == nil || len(parent.Constraints.Unique) != 1 || parent.Constraints.Unique[0].Index != index.Address() {
 			t.Fatal("attachment must be genuine")
 		}
-	} else if index.SQLIndex.Constraint != nil || len(parent.UniqueConstraints) != 0 {
+	} else if index.SQLIndex.Constraint != nil || len(parent.Constraints.Unique) != 0 {
 		t.Fatal("standalone fixture fabricated attachment")
 	}
 	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {

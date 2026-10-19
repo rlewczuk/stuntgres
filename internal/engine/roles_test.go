@@ -339,7 +339,7 @@ func TestRoleDumpRestorePreservesLiveIdentities(t *testing.T) {
 		for name, owner := range owners {
 			ref := roleTableRef(t, e, name)
 			d := e.catalog.state.MustRelation(ref.Address)
-			if d.Owner != owner || d.ACL.Explicit || len(d.ColumnACL) != 0 {
+			if d.Owner != owner || d.Security.ACL.Explicit || len(d.Security.ColumnACL) != 0 {
 				t.Fatal("reset changed restored table authority", name, query)
 			}
 		}

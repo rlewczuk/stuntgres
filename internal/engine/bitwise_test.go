@@ -19,14 +19,14 @@ func TestBitwiseDefaultValidationAndRetag(t *testing.T) {
 	if err := (relationProvider{}).Validate(view, old); err != nil {
 		t.Fatal(err)
 	}
-	root := old.Defaults[1].Expression.(bitwiseExpression)
+	root := old.ColumnMeta.Defaults[1].Expression.(bitwiseExpression)
 	for _, mutate := range []func(bitwiseExpression) bitwiseExpression{
 		func(n bitwiseExpression) bitwiseExpression { n.left = nil; return n },
 		func(n bitwiseExpression) bitwiseExpression { n.right = nil; return n },
 		func(n bitwiseExpression) bitwiseExpression { n.operator = sqltype.BitwiseOperator(255); return n },
 		func(n bitwiseExpression) bitwiseExpression { n.operator = sqltype.BitwiseOr; return n },
 		func(n bitwiseExpression) bitwiseExpression { n.provider = sqltype.Bitwise{}; return n },
-		func(n bitwiseExpression) bitwiseExpression { n.right = old.Defaults[2].Expression; return n },
+		func(n bitwiseExpression) bitwiseExpression { n.right = old.ColumnMeta.Defaults[2].Expression; return n },
 		func(n bitwiseExpression) bitwiseExpression {
 			l := n.left.(literalExpression)
 			l.Property.RowDependent = true
@@ -46,8 +46,8 @@ func TestBitwiseDefaultValidationAndRetag(t *testing.T) {
 			t.Fatal("invalid bitwise default accepted")
 		}
 	}
-	shift := old.Defaults[2].Expression.(bitwiseExpression)
-	shift.right = old.Defaults[3].Expression
+	shift := old.ColumnMeta.Defaults[2].Expression.(bitwiseExpression)
+	shift.right = old.ColumnMeta.Defaults[3].Expression
 	if _, err := defaultSQL(context.Background(), view, shift); err == nil {
 		t.Fatal("SMALLINT bound shift count accepted")
 	}
@@ -68,7 +68,7 @@ func TestBitwiseDefaultValidationAndRetag(t *testing.T) {
 	if err != nil || n != 1 {
 		t.Fatal(v, err)
 	}
-	if _, ok := old.Defaults[1].Expression.(bitwiseExpression); !ok {
+	if _, ok := old.ColumnMeta.Defaults[1].Expression.(bitwiseExpression); !ok {
 		t.Fatal("catalog mutated")
 	}
 	replacement := New()
@@ -77,7 +77,7 @@ func TestBitwiseDefaultValidationAndRetag(t *testing.T) {
 		return x
 	}
 	for _, attribute := range []int32{1, 2, 3} {
-		original := old.Defaults[attribute].Expression
+		original := old.ColumnMeta.Defaults[attribute].Expression
 		rebound, changed, err := retagBoundTypes(replacement.CatalogRead(), original, retag)
 		if err != nil || !changed || rebound.ResultUsage().Type == original.ResultUsage().Type {
 			t.Fatal(rebound, changed, err)
@@ -114,7 +114,7 @@ func TestBitwiseScopedCastDefaultSerializationAndRetag(t *testing.T) {
 	}
 	ctx := &EvalContext{Context: context.Background()}
 	for _, attribute := range []int32{1, 2} {
-		original := table.Defaults[attribute].Expression
+		original := table.ColumnMeta.Defaults[attribute].Expression
 		rebound, changed, err := retagBoundTypes(replacement.CatalogRead(), original, retag)
 		if err != nil || !changed {
 			t.Fatal(rebound, changed, err)
@@ -144,7 +144,7 @@ func TestBitwiseScopedCastDefaultSerializationAndRetag(t *testing.T) {
 		run(t, replacement, "INSERT INTO "+name+" DEFAULT VALUES")
 		restoredRef := roleTableRef(t, replacement, name)
 		restored := replacement.CatalogRead().MustRelation(restoredRef.Address)
-		value, err := restored.Defaults[1].Expression.Eval(ctx)
+		value, err := restored.ColumnMeta.Defaults[1].Expression.Eval(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -270,7 +270,7 @@ func TestBitwiseConstantNullDefaultRemainsAnalyzed(t *testing.T) {
 	view := e.CatalogRead()
 	ref := roleTableRef(t, e, "null_default")
 	table := view.MustRelation(ref.Address)
-	original := table.Defaults[1].Expression
+	original := table.ColumnMeta.Defaults[1].Expression
 	before, err := defaultSQL(context.Background(), view, original)
 	if err != nil {
 		t.Fatal(err)
@@ -283,10 +283,10 @@ func TestBitwiseConstantNullDefaultRemainsAnalyzed(t *testing.T) {
 	if value, err := planned.Eval(ctx); err != nil || !value.IsNull() || value.Type() != original.ResultUsage().Type {
 		t.Fatal(value, err)
 	}
-	if _, ok := table.Defaults[1].Expression.(bitwiseExpression); !ok {
+	if _, ok := table.ColumnMeta.Defaults[1].Expression.(bitwiseExpression); !ok {
 		t.Fatal("stored default replaced")
 	}
-	after, err := defaultSQL(context.Background(), view, table.Defaults[1].Expression)
+	after, err := defaultSQL(context.Background(), view, table.ColumnMeta.Defaults[1].Expression)
 	if err != nil || before != after {
 		t.Fatal(before, after, err)
 	}

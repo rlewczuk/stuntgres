@@ -136,7 +136,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 		seen[ref.Address] = true
 		b.createInheritance = append(b.createInheritance, createInheritanceInput{ref, source})
 		for sourceSlot, c := range source.Columns {
-			definition, isGenerated := source.Generations[source.Attributes[sourceSlot]]
+			definition, isGenerated := source.ColumnMeta.Generations[source.Attributes[sourceSlot]]
 			if slot, ok := index[c.Name]; ok {
 				op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`merging multiple inherited definitions of column "%s"`, c.Name)})
 				if err := inheritanceColumnConflict(auth.catalog, merged[slot], c, false); err != nil {
@@ -214,7 +214,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 	for _, in := range b.createLikes {
 		if in.options&likeGenerated != 0 {
 			for i, attribute := range in.source.Attributes {
-				if _, exists := in.source.Generations[attribute]; exists {
+				if _, exists := in.source.ColumnMeta.Generations[attribute]; exists {
 					name := in.source.Columns[i].Name
 					if isGenerated, inherited := generated[name]; inherited && !isGenerated {
 						diagnostic := sqlError("42611", fmt.Sprintf(`child column "%s" specifies generation expression`, name)).(*sqlstate.Error)
@@ -229,7 +229,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 			continue
 		}
 		for i, attribute := range in.source.Attributes {
-			_, specified := in.source.Defaults[attribute]
+			_, specified := in.source.ColumnMeta.Defaults[attribute]
 			if in.source.Inheritance != nil {
 				specified = specified || in.source.Inheritance.Columns[attribute].ExplicitDefault
 			}

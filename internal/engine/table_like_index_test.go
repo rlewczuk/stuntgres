@@ -33,12 +33,12 @@ func TestTableLikeIndexClone(t *testing.T) {
 		}
 		count++
 		definition := index.SQLIndex
-		if definition.Parent != destination.Address() || index.Owner != destination.Owner || !definition.Ready || !definition.Valid || !definition.Live || index.ACL.Explicit {
+		if definition.Parent != destination.Address() || index.Owner != destination.Owner || !definition.Ready || !definition.Valid || !definition.Live || index.Security.ACL.Explicit {
 			t.Fatal(index)
 		}
 		switch index.Name() {
 		case "clone_a_key":
-			if definition.Keys[0].Attribute != 3 || !definition.Unique || !definition.NullsNotDistinct || definition.Constraint == nil || definition.Constraint.OID == 0 || definition.Constraint.Index != index.Address() || definition.Constraint.Name != index.Name() || len(destination.UniqueConstraints) != 1 || destination.UniqueConstraints[0].OID != definition.Constraint.OID {
+			if definition.Keys[0].Attribute != 3 || !definition.Unique || !definition.NullsNotDistinct || definition.Constraint == nil || definition.Constraint.OID == 0 || definition.Constraint.Index != index.Address() || definition.Constraint.Name != index.Name() || len(destination.Constraints.Unique) != 1 || destination.Constraints.Unique[0].OID != definition.Constraint.OID {
 				t.Fatal("backing constraint mismatch", index)
 			}
 		case "clone_b_a_idx":

@@ -29,7 +29,7 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *catalog.
 		return parent, nil
 	}
 	var next *catalog.Relation
-	for i, old := range parent.UniqueConstraints {
+	for i, old := range parent.Constraints.Unique {
 		index, ok := stage.Base.Relation(old.Index)
 		if !ok {
 			// A TYPE-reminted standalone index was already rebuilt before its
@@ -50,10 +50,10 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *catalog.
 		}
 		if next == nil {
 			clone := *parent
-			clone.UniqueConstraints = slices.Clone(parent.UniqueConstraints)
+			clone.Constraints.Unique = slices.Clone(parent.Constraints.Unique)
 			next = &clone
 		}
-		c := &next.UniqueConstraints[i]
+		c := &next.Constraints.Unique[i]
 		ref := e.catalog.Domain.Ref(stage.Base.Epoch(), old.Index)
 		if err := stage.removeObjectLocked(ref, false); err != nil {
 			return nil, err

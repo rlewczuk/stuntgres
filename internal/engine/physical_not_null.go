@@ -9,8 +9,8 @@ import (
 )
 
 func physicalPrimaryForAttribute(table *catalog.Relation, attribute int32) *catalog.UniqueConstraint {
-	for i := range table.UniqueConstraints {
-		constraint := &table.UniqueConstraints[i]
+	for i := range table.Constraints.Unique {
+		constraint := &table.Constraints.Unique[i]
 		if constraint.Primary && slices.Contains(constraint.Attributes, attribute) {
 			return constraint
 		}
@@ -19,7 +19,7 @@ func physicalPrimaryForAttribute(table *catalog.Relation, attribute int32) *cata
 }
 
 func capturePhysicalPrimarySupport(table *catalog.Relation, primary *catalog.UniqueConstraint) *catalog.PhysicalPrimarySupport {
-	for _, proof := range table.PhysicalNotNull {
+	for _, proof := range table.Constraints.PhysicalNotNull {
 		if proof.Support != nil && proof.Support.Constraint == primary.OID && proof.Support.Index == primary.Index {
 			return proof.Support
 		}
@@ -35,7 +35,7 @@ func capturePhysicalPrimarySupport(table *catalog.Relation, primary *catalog.Uni
 // It has not rebound the primary yet; the ordinary TYPE rebuilder still owns
 // fresh key/index identities and supplies the completed binding below.
 func physicalNotNullFromType(old, candidate *catalog.Relation, fact catalog.NotNullConstraint) (catalog.PhysicalNotNullProof, bool) {
-	if old.Inheritance == nil || fact.OID == 0 || fact.NotValid || fact.NoInherit || !slices.Contains(old.NotNullConstraints, fact) {
+	if old.Inheritance == nil || fact.OID == 0 || fact.NotValid || fact.NoInherit || !slices.Contains(old.Constraints.NotNull, fact) {
 		return catalog.PhysicalNotNullProof{}, false
 	}
 	primary := physicalPrimaryForAttribute(old, fact.Attribute)
@@ -98,7 +98,7 @@ func physicalPrimarySupportValid(view catalog.Read, table *catalog.Relation, pri
 
 func validatePhysicalNotNull(view catalog.Read, table *catalog.Relation, ordinary map[int32]bool) error {
 	var validated *catalog.PhysicalPrimarySupport
-	for attribute, proof := range table.PhysicalNotNull {
+	for attribute, proof := range table.Constraints.PhysicalNotNull {
 		if ordinary[attribute] || !physicalNotNullOriginValid(view, table, attribute, proof) {
 			return fmt.Errorf("stuntgres: invalid physical not-null origin")
 		}
@@ -132,38 +132,38 @@ func validatePhysicalNotNull(view catalog.Read, table *catalog.Relation, ordinar
 // Real NN creation/column retirement supersedes the exceptional physical flag.
 // Callers already own a detached relation candidate; the old map stays immutable.
 func prunePhysicalNotNull(next *catalog.Relation) {
-	if len(next.PhysicalNotNull) == 0 {
+	if len(next.Constraints.PhysicalNotNull) == 0 {
 		return
 	}
 	var copied bool
-	for attribute := range next.PhysicalNotNull {
+	for attribute := range next.Constraints.PhysicalNotNull {
 		slot := next.IndexForAttribute(attribute)
-		ordinary := slices.ContainsFunc(next.NotNullConstraints, func(fact catalog.NotNullConstraint) bool { return fact.Attribute == attribute })
+		ordinary := slices.ContainsFunc(next.Constraints.NotNull, func(fact catalog.NotNullConstraint) bool { return fact.Attribute == attribute })
 		if slot >= 0 && !next.Columns[slot].Nullable && !ordinary {
 			continue
 		}
 		if !copied {
-			next.PhysicalNotNull = maps.Clone(next.PhysicalNotNull)
+			next.Constraints.PhysicalNotNull = maps.Clone(next.Constraints.PhysicalNotNull)
 			copied = true
 		}
-		delete(next.PhysicalNotNull, attribute)
+		delete(next.Constraints.PhysicalNotNull, attribute)
 	}
-	if len(next.PhysicalNotNull) == 0 {
-		next.PhysicalNotNull = nil
+	if len(next.Constraints.PhysicalNotNull) == 0 {
+		next.Constraints.PhysicalNotNull = nil
 	}
 }
 
 // Rebind only after the existing ordinary TYPE/unique/index providers finish.
 // This does not mint constraints, indexes or NN records and performs no row work.
 func rebindPhysicalNotNullType(stage *CatalogStage, parent *catalog.Relation, changes []columnTransformation) (*catalog.Relation, error) {
-	if len(parent.PhysicalNotNull) == 0 {
+	if len(parent.Constraints.PhysicalNotNull) == 0 {
 		return parent, nil
 	}
 	next := *parent
 	prunePhysicalNotNull(&next)
 	var support *catalog.PhysicalPrimarySupport
-	copied := next.PhysicalNotNull != nil && len(next.PhysicalNotNull) != len(parent.PhysicalNotNull)
-	for attribute, proof := range next.PhysicalNotNull {
+	copied := next.Constraints.PhysicalNotNull != nil && len(next.Constraints.PhysicalNotNull) != len(parent.Constraints.PhysicalNotNull)
+	for attribute, proof := range next.Constraints.PhysicalNotNull {
 		primary := physicalPrimaryForAttribute(&next, attribute)
 		if primary == nil && (proof.Support != nil || proof.Retired == nil && proof.Cause.Kind != catalog.PhysicalNotNullImportFlag) {
 			return nil, fmt.Errorf("stuntgres: missing rebuilt physical not-null primary")
@@ -181,7 +181,7 @@ func rebindPhysicalNotNullType(stage *CatalogStage, parent *catalog.Relation, ch
 			continue
 		}
 		if !copied {
-			next.PhysicalNotNull = maps.Clone(next.PhysicalNotNull)
+			next.Constraints.PhysicalNotNull = maps.Clone(next.Constraints.PhysicalNotNull)
 			copied = true
 		}
 		if primary != nil && support == nil {
@@ -197,9 +197,9 @@ func rebindPhysicalNotNullType(stage *CatalogStage, parent *catalog.Relation, ch
 		if primary != nil {
 			proof.Support = support
 		}
-		next.PhysicalNotNull[attribute] = proof
+		next.Constraints.PhysicalNotNull[attribute] = proof
 	}
-	if !copied && len(next.PhysicalNotNull) == len(parent.PhysicalNotNull) {
+	if !copied && len(next.Constraints.PhysicalNotNull) == len(parent.Constraints.PhysicalNotNull) {
 		return parent, nil
 	}
 	if err := stage.Replace(&next); err != nil {
@@ -212,8 +212,8 @@ func rebindPhysicalNotNullType(stage *CatalogStage, parent *catalog.Relation, ch
 // independently surviving physical attribute flag or revive an NN row.
 func transitionPhysicalNotNull(old, next *catalog.Relation) {
 	prunePhysicalNotNull(next)
-	copied := len(old.PhysicalNotNull) != len(next.PhysicalNotNull)
-	for attribute, proof := range next.PhysicalNotNull {
+	copied := len(old.Constraints.PhysicalNotNull) != len(next.Constraints.PhysicalNotNull)
+	for attribute, proof := range next.Constraints.PhysicalNotNull {
 		if proof.Support == nil || physicalPrimaryForAttribute(next, attribute) != nil {
 			continue
 		}
@@ -222,11 +222,11 @@ func transitionPhysicalNotNull(old, next *catalog.Relation) {
 			continue
 		}
 		if !copied {
-			next.PhysicalNotNull = maps.Clone(next.PhysicalNotNull)
+			next.Constraints.PhysicalNotNull = maps.Clone(next.Constraints.PhysicalNotNull)
 			copied = true
 		}
 		proof.Retired, proof.Support = proof.Support, nil
-		next.PhysicalNotNull[attribute] = proof
+		next.Constraints.PhysicalNotNull[attribute] = proof
 	}
 }
 
@@ -234,7 +234,7 @@ func transitionPhysicalNotNull(old, next *catalog.Relation) {
 // and its strict import counterpart retire the same actual definition without
 // deciding the independent physical attribute flag here.
 func removeDetachedNotNullMetadata(next *catalog.Relation, fact catalog.NotNullConstraint) {
-	next.NotNullConstraints = slices.DeleteFunc(next.NotNullConstraints, func(candidate catalog.NotNullConstraint) bool { return candidate.OID == fact.OID })
+	next.Constraints.NotNull = slices.DeleteFunc(next.Constraints.NotNull, func(candidate catalog.NotNullConstraint) bool { return candidate.OID == fact.OID })
 	if next.Inheritance != nil {
 		delete(next.Inheritance.NotNull, fact.Attribute)
 	}

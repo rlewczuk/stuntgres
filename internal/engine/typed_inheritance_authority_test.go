@@ -17,7 +17,7 @@ func TestTypedInheritanceRetainedConstraintAndDefaultAuthority(t *testing.T) {
 			e := New()
 			parent := inheritanceUnitRelation(e, "p", 22000, "id")
 			child := inheritanceUnitRelation(e, "c", 22001, "id")
-			child.Attributes, child.AttributeHighWater = []int32{7}, 7
+			child.Attributes, child.ColumnMeta.HighWater = []int32{7}, 7
 			child.Columns[0].OriginAttribute = 7
 			child.Columns[0].Nullable = false
 			boolean := testUsage(e, sqltype.Bool)
@@ -28,9 +28,9 @@ func TestTypedInheritanceRetainedConstraintAndDefaultAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			defaultExpression := literalExpression{Info: expr.Info{Usage: integer}, value: value}
-			child.NotNullConstraints = []catalog.NotNullConstraint{{OID: 23001, Name: "c_id_not_null", Attribute: 7}}
-			child.CheckConstraints = []catalog.CheckConstraint{{OID: 23003, Name: "positive", Expression: predicate}}
-			child.Defaults = map[int32]catalog.ColumnDefault{7: {OID: 23005, Expression: defaultExpression}}
+			child.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 23001, Name: "c_id_not_null", Attribute: 7}}
+			child.Constraints.Check = []catalog.CheckConstraint{{OID: 23003, Name: "positive", Expression: predicate}}
+			child.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{7: {OID: 23005, Expression: defaultExpression}}
 			column := catalog.InheritedColumn{Local: kind != "other_parent", Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: 1}}}
 			nn := catalog.InheritedConstraint{Local: kind == "local", Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: 1, Constraint: 23000}}}
 			check := catalog.InheritedConstraint{Local: kind == "local", Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Constraint: 23002}}}
@@ -39,9 +39,9 @@ func TestTypedInheritanceRetainedConstraintAndDefaultAuthority(t *testing.T) {
 			if kind == "other_parent" {
 				other = inheritanceUnitRelation(e, "q", 22002, "id")
 				other.Columns[0].Nullable = false
-				other.NotNullConstraints = []catalog.NotNullConstraint{{OID: 23010, Name: "q_id_not_null", Attribute: 1}}
-				other.CheckConstraints = []catalog.CheckConstraint{{OID: 23011, Name: "positive", Expression: predicate}}
-				other.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 23012, Expression: defaultExpression}}
+				other.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 23010, Name: "q_id_not_null", Attribute: 1}}
+				other.Constraints.Check = []catalog.CheckConstraint{{OID: 23011, Name: "positive", Expression: predicate}}
+				other.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 23012, Expression: defaultExpression}}
 				parents = append(parents, other.Address())
 				column.Origins = append(column.Origins, catalog.InheritanceOrigin{Parent: other.Address(), Attribute: 1})
 				nn.Origins = append(nn.Origins, catalog.InheritanceOrigin{Parent: other.Address(), Attribute: 1, Constraint: 23010})
@@ -65,7 +65,7 @@ func TestTypedInheritanceRetainedConstraintAndDefaultAuthority(t *testing.T) {
 			if err := validateInheritance(view, &next); err != nil {
 				t.Fatal(err)
 			}
-			if !reflect.DeepEqual(next.NotNullConstraints, child.NotNullConstraints) || !reflect.DeepEqual(next.CheckConstraints, child.CheckConstraints) || !reflect.DeepEqual(next.Defaults, child.Defaults) || next.Columns[0].Nullable {
+			if !reflect.DeepEqual(next.Constraints.NotNull, child.Constraints.NotNull) || !reflect.DeepEqual(next.Constraints.Check, child.Constraints.Check) || !reflect.DeepEqual(next.ColumnMeta.Defaults, child.ColumnMeta.Defaults) || next.Columns[0].Nullable {
 				t.Fatal("retained physical definition changed", next)
 			}
 			if other == nil {
@@ -91,7 +91,7 @@ func TestTypedSameUsageTypeActionUsesIndependentAttributes(t *testing.T) {
 	child := inheritanceUnitRelation(e, "c", 22002, "id", "note")
 	child.Columns = append([]catalog.Column(nil), table.Columns...)
 	child.Attributes = []int32{3, 8}
-	child.AttributeHighWater = 8
+	child.ColumnMeta.HighWater = 8
 	for i, attribute := range child.Attributes {
 		child.Columns[i].OriginTable, child.Columns[i].OriginAttribute = uint32(child.Address().ObjectID), int16(attribute)
 	}

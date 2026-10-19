@@ -137,7 +137,7 @@ func foreignRequiredAttributes(relation *catalog.Relation, uses []int) ([]int32,
 		if slot < 0 || slot >= len(relation.Attributes) {
 			return nil, fmt.Errorf("stuntgres: invalid foreign required attribute")
 		}
-		if generation, ok := relation.Generations[relation.Attributes[slot]]; ok && generation.Kind == catalog.GenerationVirtual {
+		if generation, ok := relation.ColumnMeta.Generations[relation.Attributes[slot]]; ok && generation.Kind == catalog.GenerationVirtual {
 			walkBoundExpression(generation.Planned, func(node expr.Expr) {
 				if column, ok := node.(columnExpression); ok {
 					add(column.slot)

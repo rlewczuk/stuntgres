@@ -92,7 +92,7 @@ func pgGroupUnitMembers(t *testing.T, row []sqltype.Value, want ...uint32) {
 func TestPGGroupDescriptor(t *testing.T) {
 	e := New()
 	d, _ := pgGroupUnitSource(t, e)
-	if d.Name() != "pg_group" || !d.VirtualView || d.View != nil || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != 3 || len(d.Attributes) != 3 || len(d.Index) != 3 || d.AttributeHighWater != 3 {
+	if d.Name() != "pg_group" || !d.VirtualView || d.View != nil || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != 3 || len(d.Attributes) != 3 || len(d.Index) != 3 || d.ColumnMeta.HighWater != 3 {
 		t.Fatal("descriptor shape")
 	}
 	for i, typ := range []sqltype.ID{sqltype.Name, sqltype.Oid, 1028} {
@@ -104,7 +104,7 @@ func TestPGGroupDescriptor(t *testing.T) {
 			t.Fatal("exact group metadata", i, c)
 		}
 	}
-	if !d.ACL.Explicit || len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.ACL.Entries[0].Grantor != d.Owner || d.Owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
+	if !d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.Security.ACL.Entries[0].Grantor != d.Owner || d.Owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 		t.Fatal("PUBLIC SELECT/owner")
 	}
 	if err := (relationProvider{}).Validate(e.CatalogRead(), d); err != nil {

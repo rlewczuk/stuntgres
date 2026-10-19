@@ -90,7 +90,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 			}
 			defaultEvaluation := evaluation
 			defaultEvaluation.routineRecipe, defaultEvaluation.routineGraft = true, false
-			defaultEvaluation.routineReferences = job.child.Defaults[job.child.Attributes[plan.targets[i]]].Dependencies
+			defaultEvaluation.routineReferences = job.child.ColumnMeta.Defaults[job.child.Attributes[plan.targets[i]]].Dependencies
 			defaultEvaluation.routineConsumer = job.child
 			folded, _, err := preflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 			if err != nil {

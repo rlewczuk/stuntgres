@@ -24,10 +24,10 @@ func TestAlterRenameIdentity(t *testing.T) {
 	if roleTableRef(t, e, "newtable") != ref || next.Address() != old.Address() || next.Namespace() != old.Namespace() || next.Owner != old.Owner || next.Revision() != old.Revision()+2 || middle.Revision() != old.Revision()+1 {
 		t.Fatal("rename changed identity", old, middle, next)
 	}
-	if e.storage.relations[ref.Address] != storage || &storage.versions[0].values[0] != backing || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.NotNullConstraints, old.NotNullConstraints) || !reflect.DeepEqual(next.ColumnComments, old.ColumnComments) || !reflect.DeepEqual(next.ColumnACL, old.ColumnACL) || !reflect.DeepEqual(next.ACL, old.ACL) {
+	if e.storage.relations[ref.Address] != storage || &storage.versions[0].values[0] != backing || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.Constraints.NotNull, old.Constraints.NotNull) || !reflect.DeepEqual(next.ColumnMeta.Comments, old.ColumnMeta.Comments) || !reflect.DeepEqual(next.Security.ColumnACL, old.Security.ColumnACL) || !reflect.DeepEqual(next.Security.ACL, old.Security.ACL) {
 		t.Fatal("rename changed storage/dependencies", old, next)
 	}
-	if next.Columns[1].Name != "renamed" || next.Columns[1].OriginAttribute != 3 || next.ColumnComments[3] != "survivor" || old.Columns[1].Name != "c" {
+	if next.Columns[1].Name != "renamed" || next.Columns[1].OriginAttribute != 3 || next.ColumnMeta.Comments[3] != "survivor" || old.Columns[1].Name != "c" {
 		t.Fatal("sparse identity or immutable descriptor lost", old, next)
 	}
 	if held.Rows.Schema()[1].Name != "c" || !reflect.DeepEqual(tuples(held), [][]driver.Value{{int64(7), int64(9)}}) {

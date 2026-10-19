@@ -34,20 +34,20 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 					t.Fatal(q, err)
 				}
 				private = s.transactions.catalog.descriptors[ownerRef.Address].(*catalog.Relation)
-				if len(private.Policies) != 1 || private.Policies[0].OID == 0 {
-					t.Fatal("missing actual private policy identity", private.Policies)
+				if len(private.Security.Policies) != 1 || private.Security.Policies[0].OID == 0 {
+					t.Fatal("missing actual private policy identity", private.Security.Policies)
 				}
 				if i == 0 {
-					oid = private.Policies[0].OID
-				} else if private.Policies[0].OID != oid {
-					t.Fatal("ALTER/rename allocated another policy identity", private.Policies[0].OID, oid)
+					oid = private.Security.Policies[0].OID
+				} else if private.Security.Policies[0].OID != oid {
+					t.Fatal("ALTER/rename allocated another policy identity", private.Security.Policies[0].OID, oid)
 				}
-				if e.catalog.state != base || e.commitSeq != frontier || e.catalog.state.Get(ownerRef.Address) != owner || len(owner.Policies) != 0 {
+				if e.catalog.state != base || e.commitSeq != frontier || e.catalog.state.Get(ownerRef.Address) != owner || len(owner.Security.Policies) != 0 {
 					t.Fatal("private policy escaped before owner publication")
 				}
 			}
-			if private.Policies[0].Name != "renamed" || private.Policies[0].Using == nil || private.Policies[0].Check == nil {
-				t.Fatal("ALTER/rename lost private policy definition", private.Policies)
+			if private.Security.Policies[0].Name != "renamed" || private.Security.Policies[0].Using == nil || private.Security.Policies[0].Check == nil {
+				t.Fatal("ALTER/rename lost private policy definition", private.Security.Policies)
 			}
 			e.mu.Lock()
 			view := e.privateCatalogLocked(s.transactions.catalog)
@@ -65,7 +65,7 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			pruned, ok := stage.Descriptors[ownerRef.Address].(*catalog.Relation)
-			if !ok || len(pruned.Policies) != 0 || len(private.Policies) != 1 || private.Policies[0].OID != oid || len(owner.Policies) != 0 {
+			if !ok || len(pruned.Security.Policies) != 0 || len(private.Security.Policies) != 1 || private.Security.Policies[0].OID != oid || len(owner.Security.Policies) != 0 {
 				t.Fatal("closure mutated immutable private or committed policy root")
 			}
 			if disposition == "commit" {
@@ -73,7 +73,7 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 				published := e.catalog.state.MustRelation(ownerRef.Address)
-				if published != private || len(published.Policies) != 1 || published.Policies[0].OID != oid || published.Policies[0].Name != "renamed" || e.commitSeq != frontier+1 || len(owner.Policies) != 0 {
+				if published != private || len(published.Security.Policies) != 1 || published.Security.Policies[0].OID != oid || published.Security.Policies[0].Name != "renamed" || e.commitSeq != frontier+1 || len(owner.Security.Policies) != 0 {
 					t.Fatal("true end did not retain actual policy identity")
 				}
 				return
@@ -83,12 +83,12 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 				candidate := s.transactions.catalog.descriptors[ownerRef.Address].(*catalog.Relation)
-				if len(candidate.Policies) != 0 || s.transactions.catalog.descriptors[dependency.Address] != nil || e.catalog.state != base || e.catalog.state.Get(dependency.Address) == nil {
+				if len(candidate.Security.Policies) != 0 || s.transactions.catalog.descriptors[dependency.Address] != nil || e.catalog.state != base || e.catalog.state.Get(dependency.Address) == nil {
 					t.Fatal("private cascade omitted policy pruning or published early")
 				}
 			}
 			_, err = m.step(statement(t, "SELECT missing"))
-			if err == nil || m.end(err) != err || e.catalog.state != base || e.commitSeq != frontier || e.catalog.state.Get(ownerRef.Address) != owner || len(owner.Policies) != 0 || e.catalog.state.Get(dependency.Address) == nil {
+			if err == nil || m.end(err) != err || e.catalog.state != base || e.commitSeq != frontier || e.catalog.state.Get(ownerRef.Address) != owner || len(owner.Security.Policies) != 0 || e.catalog.state.Get(dependency.Address) == nil {
 				t.Fatal("late failure published policy/dependency roots", err)
 			}
 		})

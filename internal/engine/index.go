@@ -629,7 +629,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			columns[i].OriginAttribute = int16(i + 1)
 		}
 		d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, Columns: columns, Attributes: attributes, Index: lookup, RelationKind: catalog.IndexRelation, SQLIndex: definition}
-		d.AttributeHighWater = int32(len(attributes))
+		d.ColumnMeta.HighWater = int32(len(attributes))
 		if s.Concurrent.Character != 0 {
 			definition.Ready, definition.Valid = false, false
 			if err := e.visibilityWriteLocked(scope.txRef); err != nil {

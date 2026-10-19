@@ -110,7 +110,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		if !ok {
 			continue
 		}
-		for _, policy := range relation.Policies {
+		for _, policy := range relation.Security.Policies {
 			for _, condition := range []*policyExpression{policyExpressionOf(policy.Using), policyExpressionOf(policy.Check)} {
 				if condition == nil {
 					continue
@@ -183,20 +183,20 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 			retainExpression := func(node expr.Expr) {
 				walkBoundExpression(node, func(node expr.Expr) { retainBuiltin(node.ResultUsage().Type) })
 			}
-			for _, definition := range relation.Defaults {
+			for _, definition := range relation.ColumnMeta.Defaults {
 				retainExpression(definition.Expression)
 			}
-			for _, definition := range relation.CheckConstraints {
+			for _, definition := range relation.Constraints.Check {
 				retainExpression(definition.Expression)
 			}
-			for _, policy := range relation.Policies {
+			for _, policy := range relation.Security.Policies {
 				for _, condition := range []*policyExpression{policyExpressionOf(policy.Using), policyExpressionOf(policy.Check)} {
 					if condition != nil {
 						walkQueryArgumentExpression(condition.expression, func(node expr.Expr) { retainBuiltin(node.ResultUsage().Type) })
 					}
 				}
 			}
-			for _, definition := range relation.Generations {
+			for _, definition := range relation.ColumnMeta.Generations {
 				retainExpression(definition.Expression)
 				retainExpression(definition.Planned)
 			}
@@ -422,33 +422,33 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 				if dest, ok := mapping[n.Namespace()]; ok {
 					n.ObjectNamespace = dest
 				}
-				if len(r.UniqueConstraints) != 0 {
-					n.UniqueConstraints = append([]catalog.UniqueConstraint(nil), r.UniqueConstraints...)
-					for i := range n.UniqueConstraints {
-						if dest, ok := mapping[n.UniqueConstraints[i].Index]; ok {
-							n.UniqueConstraints[i].Index = dest
+				if len(r.Constraints.Unique) != 0 {
+					n.Constraints.Unique = append([]catalog.UniqueConstraint(nil), r.Constraints.Unique...)
+					for i := range n.Constraints.Unique {
+						if dest, ok := mapping[n.Constraints.Unique[i].Index]; ok {
+							n.Constraints.Unique[i].Index = dest
 						}
 					}
 				}
 				if err := remapPhysicalNotNullReferences(r, &n, mapping); err != nil {
 					return err
 				}
-				if len(r.ExclusionConstraints) != 0 {
-					n.ExclusionConstraints = append([]catalog.ExclusionConstraint(nil), r.ExclusionConstraints...)
-					for i := range n.ExclusionConstraints {
-						if dest, ok := mapping[n.ExclusionConstraints[i].Index]; ok {
-							n.ExclusionConstraints[i].Index = dest
+				if len(r.Constraints.Exclusion) != 0 {
+					n.Constraints.Exclusion = append([]catalog.ExclusionConstraint(nil), r.Constraints.Exclusion...)
+					for i := range n.Constraints.Exclusion {
+						if dest, ok := mapping[n.Constraints.Exclusion[i].Index]; ok {
+							n.Constraints.Exclusion[i].Index = dest
 						}
 					}
 				}
-				if len(r.ForeignKeys) != 0 {
-					n.ForeignKeys = append([]catalog.ForeignKeyConstraint(nil), r.ForeignKeys...)
-					for i := range n.ForeignKeys {
-						if dest, ok := mapping[n.ForeignKeys[i].Target]; ok {
-							n.ForeignKeys[i].Target = dest
+				if len(r.Constraints.ForeignKeys) != 0 {
+					n.Constraints.ForeignKeys = append([]catalog.ForeignKeyConstraint(nil), r.Constraints.ForeignKeys...)
+					for i := range n.Constraints.ForeignKeys {
+						if dest, ok := mapping[n.Constraints.ForeignKeys[i].Target]; ok {
+							n.Constraints.ForeignKeys[i].Target = dest
 						}
-						if dest, ok := mapping[n.ForeignKeys[i].Index]; ok {
-							n.ForeignKeys[i].Index = dest
+						if dest, ok := mapping[n.Constraints.ForeignKeys[i].Index]; ok {
+							n.Constraints.ForeignKeys[i].Index = dest
 						}
 					}
 				}
@@ -479,13 +479,13 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 					}
 					n.Sequence = &o
 				}
-				if len(r.Identities) != 0 {
-					n.Identities = make(map[int32]catalog.ColumnIdentity, len(r.Identities))
-					for attribute, identity := range r.Identities {
+				if len(r.ColumnMeta.Identities) != 0 {
+					n.ColumnMeta.Identities = make(map[int32]catalog.ColumnIdentity, len(r.ColumnMeta.Identities))
+					for attribute, identity := range r.ColumnMeta.Identities {
 						if destination, ok := mapping[identity.Sequence]; ok {
 							identity.Sequence = destination
 						}
-						n.Identities[attribute] = identity
+						n.ColumnMeta.Identities[attribute] = identity
 					}
 				}
 				d = &n
@@ -544,7 +544,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	next.SetOperatorNames(operators.Index)
 	for address, descriptor := range temporary {
 		relation, ok := descriptor.(*catalog.Relation)
-		if !ok || len(relation.Policies) == 0 && len(rulesOf(relation)) == 0 {
+		if !ok || len(relation.Security.Policies) == 0 && len(rulesOf(relation)) == 0 {
 			continue
 		}
 		view := e.catalog.read(next)
@@ -553,7 +553,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		// Replacement preflight certified these exact TEMP providers. They
 		// enter the candidate after imported expressions have been remapped,
 		// so advance their frozen definition refs without applying import IDs.
-		if len(relation.Policies) != 0 {
+		if len(relation.Security.Policies) != 0 {
 			replacement, err := remapPolicies(view, relation, nil, remap, typ, nil)
 			if err != nil {
 				return err
@@ -586,7 +586,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		return err
 	}
 	for _, descriptor := range next.Descriptors() {
-		if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Policies) != 0 {
+		if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Security.Policies) != 0 {
 			if err := validatePolicies(e.catalog.read(next), relation); err != nil {
 				return err
 			}
@@ -772,11 +772,11 @@ func (e *Engine) retainTemporaryViewProvidersLocked(next *catalog.State, tempora
 				return fail()
 			}
 			candidate, ok := next.Relation(address)
-			if !ok || candidate.RelationKind != old.RelationKind || candidate.Namespace() != old.Namespace() || candidate.Name() != old.Name() || candidate.Owner != old.Owner || candidate.VirtualView != old.VirtualView || candidate.HasIndexes != old.HasIndexes || candidate.HasSubclasses != old.HasSubclasses || candidate.AttributeHighWater != old.AttributeHighWater || !slices.Equal(candidate.Attributes, old.Attributes) || len(candidate.Columns) != len(old.Columns) || candidate.ACL.Explicit != old.ACL.Explicit || !slices.Equal(candidate.ACL.Entries, old.ACL.Entries) || len(candidate.ColumnACL) != len(old.ColumnACL) {
+			if !ok || candidate.RelationKind != old.RelationKind || candidate.Namespace() != old.Namespace() || candidate.Name() != old.Name() || candidate.Owner != old.Owner || candidate.VirtualView != old.VirtualView || candidate.History.HasIndexes != old.History.HasIndexes || candidate.History.HasSubclasses != old.History.HasSubclasses || candidate.ColumnMeta.HighWater != old.ColumnMeta.HighWater || !slices.Equal(candidate.Attributes, old.Attributes) || len(candidate.Columns) != len(old.Columns) || candidate.Security.ACL.Explicit != old.Security.ACL.Explicit || !slices.Equal(candidate.Security.ACL.Entries, old.Security.ACL.Entries) || len(candidate.Security.ColumnACL) != len(old.Security.ColumnACL) {
 				return fail()
 			}
-			for attribute, acl := range old.ColumnACL {
-				other, ok := candidate.ColumnACL[attribute]
+			for attribute, acl := range old.Security.ColumnACL {
+				other, ok := candidate.Security.ColumnACL[attribute]
 				if !ok || other.Explicit != acl.Explicit || !slices.Equal(other.Entries, acl.Entries) {
 					return fail()
 				}

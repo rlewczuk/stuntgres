@@ -50,15 +50,15 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 		}
 		next := *old
 		next.ObjectRevision++
-		next.Defaults = maps.Clone(old.Defaults)
+		next.ColumnMeta.Defaults = maps.Clone(old.ColumnMeta.Defaults)
 		attribute := old.Attributes[childSlot]
 		if definition.Expression == nil {
-			delete(next.Defaults, attribute)
+			delete(next.ColumnMeta.Defaults, attribute)
 		} else {
-			if next.Defaults == nil {
-				next.Defaults = make(map[int32]catalog.ColumnDefault)
+			if next.ColumnMeta.Defaults == nil {
+				next.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault)
 			}
-			next.Defaults[attribute] = definition
+			next.ColumnMeta.Defaults[attribute] = definition
 		}
 		if next.Inheritance != nil {
 			next.Inheritance = cloneInheritance(old.Inheritance)

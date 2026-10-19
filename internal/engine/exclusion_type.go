@@ -23,11 +23,11 @@ func rebindExclusionOperators(parent *catalog.Relation, definition *catalog.Inde
 	return operators, nil
 }
 func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *catalog.Relation, transformations []columnTransformation) (*catalog.Relation, error) {
-	if len(parent.ExclusionConstraints) == 0 || len(transformations) == 0 {
+	if len(parent.Constraints.Exclusion) == 0 || len(transformations) == 0 {
 		return parent, nil
 	}
 	var next *catalog.Relation
-	for i, old := range parent.ExclusionConstraints {
+	for i, old := range parent.Constraints.Exclusion {
 		index, ok := stage.Base.Relation(old.Index)
 		if !ok {
 			if current, exists := stage.Descriptors[old.Index].(*catalog.Relation); exists && current.SQLIndex != nil {
@@ -53,10 +53,10 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *catal
 		}
 		if next == nil {
 			copy := *parent
-			copy.ExclusionConstraints = slices.Clone(parent.ExclusionConstraints)
+			copy.Constraints.Exclusion = slices.Clone(parent.Constraints.Exclusion)
 			next = &copy
 		}
-		c := &next.ExclusionConstraints[i]
+		c := &next.Constraints.Exclusion[i]
 		if err := stage.removeObjectLocked(e.catalog.Domain.Ref(stage.Base.Epoch(), old.Index), false); err != nil {
 			return nil, err
 		}
@@ -106,11 +106,11 @@ func (e *Engine) rebuildAlterExclusionsLocked(stage *CatalogStage, parent *catal
 func rebindImportedExclusions(next *catalog.State) error {
 	for address, descriptor := range next.Descriptors() {
 		parent, ok := descriptor.(*catalog.Relation)
-		if !ok || len(parent.ExclusionConstraints) == 0 {
+		if !ok || len(parent.Constraints.Exclusion) == 0 {
 			continue
 		}
 		var replacement *catalog.Relation
-		for i, constraint := range parent.ExclusionConstraints {
+		for i, constraint := range parent.Constraints.Exclusion {
 			index, ok := next.Relation(constraint.Index)
 			if !ok || index.SQLIndex == nil {
 				return fmt.Errorf("stuntgres: invalid imported exclusion attachment")
@@ -136,10 +136,10 @@ func rebindImportedExclusions(next *catalog.State) error {
 			}
 			if replacement == nil {
 				copy := *parent
-				copy.ExclusionConstraints = slices.Clone(parent.ExclusionConstraints)
+				copy.Constraints.Exclusion = slices.Clone(parent.Constraints.Exclusion)
 				replacement = &copy
 			}
-			replacement.ExclusionConstraints[i].Operators = operators
+			replacement.Constraints.Exclusion[i].Operators = operators
 			indexCopy, definitionCopy := *index, *definition
 			definitionCopy.Exclusion = operators
 			indexCopy.SQLIndex = &definitionCopy

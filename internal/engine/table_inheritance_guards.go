@@ -136,7 +136,7 @@ func inheritanceAlterActionsGuard(catalog catalog.Read, relation *catalog.Relati
 			if relation.Inheritance == nil {
 				continue
 			}
-			for _, constraint := range relation.NotNullConstraints {
+			for _, constraint := range relation.Constraints.NotNull {
 				matches := action.Action == parser.DropConstraint && constraint.Name == action.Constraint.Text
 				if slot, exists := relation.Index[action.Column.Text]; action.Action == parser.DropNotNull && exists {
 					matches = constraint.Attribute == relation.Attributes[slot]

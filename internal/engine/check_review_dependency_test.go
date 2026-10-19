@@ -46,7 +46,7 @@ func checkReviewDependencyValid(t *testing.T, e *Engine) {
 		if !ok {
 			continue
 		}
-		for _, c := range d.CheckConstraints {
+		for _, c := range d.Constraints.Check {
 			for _, dep := range c.Dependencies {
 				if err := e.ValidateObjectRef(read, dep.Ref); err != nil {
 					t.Fatalf("orphan CHECK %s on %s: %v", c.Name, d.Name(), err)
@@ -104,7 +104,7 @@ func TestCheckReviewDependencyPrivateDeletionThenPublication(t *testing.T) {
 		if !present("s") || guard != originalGuard {
 			t.Fatal("failed deletion changed providers or existing CHECK")
 		}
-	} else if present("s") || len(guard.CheckConstraints) != 0 {
+	} else if present("s") || len(guard.Constraints.Check) != 0 {
 		t.Fatal("successful CASCADE failed to publish every removal")
 	}
 	sessionSQL(t, a, "INSERT INTO guard VALUES(10)")
@@ -188,7 +188,7 @@ func TestCheckReviewDependencyRestrictComplete(t *testing.T) {
 			transactionRows(t, a, "SELECT a FROM t ORDER BY a", 1, 2, 3)
 			read := e.CatalogRead()
 			table := read.MustRelation(catalogRef(t, e, read, "t").Address)
-			if len(table.CheckConstraints) != 0 {
+			if len(table.Constraints.Check) != 0 {
 				t.Fatal("CASCADE retained CHECK dependents")
 			}
 			for _, name := range []string{"s", "v"} {

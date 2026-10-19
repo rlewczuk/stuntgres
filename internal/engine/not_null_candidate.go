@@ -20,7 +20,7 @@ const (
 func notNullCandidate(op *Operation, view catalog.Read, old *catalog.Relation, a parser.AlterTableAction, recursion notNullRecursion) (*catalog.Relation, error) {
 	slot, index := -1, -1
 	if a.Action == parser.DropConstraint {
-		for i, c := range old.NotNullConstraints {
+		for i, c := range old.Constraints.NotNull {
 			if c.Name == a.Constraint.Text {
 				index = i
 				for j, attr := range old.Attributes {
@@ -32,19 +32,19 @@ func notNullCandidate(op *Operation, view catalog.Read, old *catalog.Relation, a
 				break
 			}
 		}
-		for _, c := range old.CheckConstraints {
+		for _, c := range old.Constraints.Check {
 			if c.Name == a.Constraint.Text {
 				next := *old
-				next.CheckConstraints = make([]catalog.CheckConstraint, 0, len(old.CheckConstraints)-1)
-				for _, constraint := range old.CheckConstraints {
+				next.Constraints.Check = make([]catalog.CheckConstraint, 0, len(old.Constraints.Check)-1)
+				for _, constraint := range old.Constraints.Check {
 					if constraint.Name != a.Constraint.Text {
-						next.CheckConstraints = append(next.CheckConstraints, constraint)
+						next.Constraints.Check = append(next.Constraints.Check, constraint)
 					}
 				}
 				return &next, nil
 			}
 		}
-		for i, c := range old.UniqueConstraints {
+		for i, c := range old.Constraints.Unique {
 			if c.Name == a.Constraint.Text {
 				if c.Parent != 0 {
 					return nil, sqlError("42P16", fmt.Sprintf(`cannot drop inherited constraint "%s" of relation "%s"`, c.Name, old.Name()))
@@ -57,28 +57,28 @@ func notNullCandidate(op *Operation, view catalog.Read, old *catalog.Relation, a
 					return nil, err
 				}
 				next := *old
-				next.UniqueConstraints = make([]catalog.UniqueConstraint, 0, len(old.UniqueConstraints)-1)
-				next.UniqueConstraints = append(next.UniqueConstraints, old.UniqueConstraints[:i]...)
-				next.UniqueConstraints = append(next.UniqueConstraints, old.UniqueConstraints[i+1:]...)
+				next.Constraints.Unique = make([]catalog.UniqueConstraint, 0, len(old.Constraints.Unique)-1)
+				next.Constraints.Unique = append(next.Constraints.Unique, old.Constraints.Unique[:i]...)
+				next.Constraints.Unique = append(next.Constraints.Unique, old.Constraints.Unique[i+1:]...)
 				transitionPhysicalNotNull(old, &next)
 				return &next, nil
 			}
 		}
-		for i, c := range old.ExclusionConstraints {
+		for i, c := range old.Constraints.Exclusion {
 			if c.Name == a.Constraint.Text {
 				next := *old
-				next.ExclusionConstraints = make([]catalog.ExclusionConstraint, 0, len(old.ExclusionConstraints)-1)
-				next.ExclusionConstraints = append(next.ExclusionConstraints, old.ExclusionConstraints[:i]...)
-				next.ExclusionConstraints = append(next.ExclusionConstraints, old.ExclusionConstraints[i+1:]...)
+				next.Constraints.Exclusion = make([]catalog.ExclusionConstraint, 0, len(old.Constraints.Exclusion)-1)
+				next.Constraints.Exclusion = append(next.Constraints.Exclusion, old.Constraints.Exclusion[:i]...)
+				next.Constraints.Exclusion = append(next.Constraints.Exclusion, old.Constraints.Exclusion[i+1:]...)
 				return &next, nil
 			}
 		}
-		for i, c := range old.ForeignKeys {
+		for i, c := range old.Constraints.ForeignKeys {
 			if c.Name == a.Constraint.Text {
 				next := *old
-				next.ForeignKeys = make([]catalog.ForeignKeyConstraint, 0, len(old.ForeignKeys)-1)
-				next.ForeignKeys = append(next.ForeignKeys, old.ForeignKeys[:i]...)
-				next.ForeignKeys = append(next.ForeignKeys, old.ForeignKeys[i+1:]...)
+				next.Constraints.ForeignKeys = make([]catalog.ForeignKeyConstraint, 0, len(old.Constraints.ForeignKeys)-1)
+				next.Constraints.ForeignKeys = append(next.Constraints.ForeignKeys, old.Constraints.ForeignKeys[:i]...)
+				next.Constraints.ForeignKeys = append(next.Constraints.ForeignKeys, old.Constraints.ForeignKeys[i+1:]...)
 				return &next, nil
 			}
 		}
@@ -104,7 +104,7 @@ func notNullCandidate(op *Operation, view catalog.Read, old *catalog.Relation, a
 		if !ok {
 			return nil, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Column.Text, old.Name()))
 		}
-		for i, c := range old.NotNullConstraints {
+		for i, c := range old.Constraints.NotNull {
 			if c.Attribute == old.Attributes[slot] {
 				index = i
 				break
@@ -113,18 +113,18 @@ func notNullCandidate(op *Operation, view catalog.Read, old *catalog.Relation, a
 	}
 	adding := a.Action == parser.SetNotNull || a.Action == parser.AddNotNull
 	if a.Action == parser.DropNotNull && index < 0 {
-		if _, physical := old.PhysicalNotNull[old.Attributes[slot]]; physical {
+		if _, physical := old.Constraints.PhysicalNotNull[old.Attributes[slot]]; physical {
 			return nil, sqlError("XX000", fmt.Sprintf(`cache lookup failed for not-null constraint on column "%s" of relation "%s"`, old.Columns[slot].Name, old.Name()))
 		}
 	}
 	if !adding {
-		_, identity := old.Identities[old.Attributes[slot]]
+		_, identity := old.ColumnMeta.Identities[old.Attributes[slot]]
 		// ALTER COLUMN checks identity before entering constraint removal.
 		// Named DROP reaches the primary-key protection first instead.
 		if identity && a.Action != parser.DropConstraint {
 			return nil, sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is an identity column`, old.Columns[slot].Name, old.Name()))
 		}
-		for _, constraint := range old.UniqueConstraints {
+		for _, constraint := range old.Constraints.Unique {
 			if constraint.Primary && slices.Contains(constraint.Attributes, old.Attributes[slot]) {
 				return nil, sqlError("42P16", fmt.Sprintf(`column "%s" is in a primary key`, old.Columns[slot].Name))
 			}
@@ -135,7 +135,7 @@ func notNullCandidate(op *Operation, view catalog.Read, old *catalog.Relation, a
 	}
 	if adding && index >= 0 {
 		if a.Action == parser.AddNotNull {
-			constraint := old.NotNullConstraints[index]
+			constraint := old.Constraints.NotNull[index]
 			if constraint.NoInherit != a.NoInherit {
 				diagnostic := sqlError("55000", fmt.Sprintf(`cannot change NO INHERIT status of NOT NULL constraint "%s" on relation "%s"`, constraint.Name, old.Name())).(*sqlstate.Error)
 				diagnostic.Hint = "You might need to make the existing constraint inheritable using ALTER TABLE ... ALTER CONSTRAINT ... INHERIT."
@@ -154,7 +154,7 @@ func notNullCandidate(op *Operation, view catalog.Read, old *catalog.Relation, a
 			}
 		}
 		if a.Action == parser.SetNotNull {
-			constraint := old.NotNullConstraints[index]
+			constraint := old.Constraints.NotNull[index]
 			if constraint.NoInherit && !a.NoInherit {
 				return nil, sqlError("0A000", fmt.Sprintf(`cannot change NO INHERIT status of NOT NULL constraint "%s" on relation "%s"`, constraint.Name, old.Name()))
 			}
@@ -175,15 +175,15 @@ func notNullCandidate(op *Operation, view catalog.Read, old *catalog.Relation, a
 				return nil, sqlError("42P16", "constraint must be validated on child tables too")
 			}
 		}
-		if !old.NotNullConstraints[index].NotValid || a.NotValid {
+		if !old.Constraints.NotNull[index].NotValid || a.NotValid {
 			return old, nil
 		}
 		if a.Action == parser.AddNotNull {
-			return nil, incompatibleNotValid(old.NotNullConstraints[index].Name, old.Name())
+			return nil, incompatibleNotValid(old.Constraints.NotNull[index].Name, old.Name())
 		}
 		next := *old
-		next.NotNullConstraints = slices.Clone(old.NotNullConstraints)
-		next.NotNullConstraints[index].NotValid = false
+		next.Constraints.NotNull = slices.Clone(old.Constraints.NotNull)
+		next.Constraints.NotNull[index].NotValid = false
 		return &next, nil
 	}
 	if !adding && index < 0 {
@@ -202,13 +202,13 @@ func notNullCandidate(op *Operation, view catalog.Read, old *catalog.Relation, a
 	next.Columns = append([]catalog.Column(nil), old.Columns...)
 	next.Columns[slot].Nullable = !adding
 	if adding {
-		next.NotNullConstraints = make([]catalog.NotNullConstraint, len(old.NotNullConstraints)+1)
-		copy(next.NotNullConstraints, old.NotNullConstraints)
-		next.NotNullConstraints[len(old.NotNullConstraints)] = catalog.NotNullConstraint{Name: name, Attribute: old.Attributes[slot], NotValid: a.NotValid, NoInherit: a.NoInherit}
+		next.Constraints.NotNull = make([]catalog.NotNullConstraint, len(old.Constraints.NotNull)+1)
+		copy(next.Constraints.NotNull, old.Constraints.NotNull)
+		next.Constraints.NotNull[len(old.Constraints.NotNull)] = catalog.NotNullConstraint{Name: name, Attribute: old.Attributes[slot], NotValid: a.NotValid, NoInherit: a.NoInherit}
 	} else {
-		next.NotNullConstraints = make([]catalog.NotNullConstraint, 0, len(old.NotNullConstraints)-1)
-		next.NotNullConstraints = append(next.NotNullConstraints, old.NotNullConstraints[:index]...)
-		next.NotNullConstraints = append(next.NotNullConstraints, old.NotNullConstraints[index+1:]...)
+		next.Constraints.NotNull = make([]catalog.NotNullConstraint, 0, len(old.Constraints.NotNull)-1)
+		next.Constraints.NotNull = append(next.Constraints.NotNull, old.Constraints.NotNull[:index]...)
+		next.Constraints.NotNull = append(next.Constraints.NotNull, old.Constraints.NotNull[index+1:]...)
 	}
 	transitionPhysicalNotNull(old, &next)
 	return &next, nil

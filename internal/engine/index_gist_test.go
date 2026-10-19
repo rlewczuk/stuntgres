@@ -115,7 +115,7 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 			index.RelationKind = catalog.IndexRelation
 			index.Columns = append([]catalog.Column(nil), parent.Columns...)
 			index.SQLIndex.Parent = parent.Address()
-			parent.ExclusionConstraints = []catalog.ExclusionConstraint{{
+			parent.Constraints.Exclusion = []catalog.ExclusionConstraint{{
 				OID: index.SQLIndex.Constraint.OID, Name: index.Name(), Index: index.Address(),
 				IsLocal: true, Operators: index.SQLIndex.Exclusion,
 			}}

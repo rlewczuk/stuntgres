@@ -33,8 +33,8 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			}
 			baseRef := ruleUnitRef(e, base)
 			inner.Owner, inner.RelationKind = owner.Ref, catalog.ViewRelation
-			inner.ACL = grant(actor.Ref)
-			inner.ACL.Entries = append(inner.ACL.Entries, grant(owner.Ref).Entries...)
+			inner.Security.ACL = grant(actor.Ref)
+			inner.Security.ACL.Entries = append(inner.Security.ACL.Entries, grant(owner.Ref).Entries...)
 			inner.View = &viewDefinition{invoker: shape == "invoker" || shape == "definer_over_invoker", sources: []viewLeaf{{ref: baseRef, reads: []int32{1}, attributes: []int32{1, 2}}}}
 			viewOf(inner).query = &BoundQuery{Root: &sourceNode{querySchema: querySchema(base.Columns), ref: baseRef}}
 			root := inner
@@ -56,7 +56,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			if callerReads {
 				reader, other = actor.Ref, owner.Ref
 			}
-			base.ACL = grant(reader)
+			base.Security.ACL = grant(reader)
 			auth.recaptureCatalog(e.catalog.read(e.catalog.state))
 			auth.state.CurrentUser = owner.Ref
 			leaf := queryLeaf{ref: ruleUnitRef(e, root), relation: root, principal: actor.Ref}
@@ -94,7 +94,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			// Capture a genuinely new catalog ACL snapshot. Collection must use
 			// that snapshot, while an already paired snapshot remains unchanged.
 			revoked := *base
-			revoked.ACL = grant(other)
+			revoked.Security.ACL = grant(other)
 			next := catalog.CloneState(e.catalog.state)
 			next.SetDescriptor(base.Address(), &revoked)
 			current := auth

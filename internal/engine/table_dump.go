@@ -94,7 +94,7 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalog catalog.Read, emit 
 			if i > 0 {
 				line.WriteString(", ")
 			}
-			if _, generated := t.descriptor.Generations[t.attributes[i]]; generated {
+			if _, generated := t.descriptor.ColumnMeta.Generations[t.attributes[i]]; generated {
 				line.WriteString("DEFAULT")
 				continue
 			}
@@ -168,7 +168,7 @@ func (e *Engine) validateRestoredDefault(op *Operation, s *parser.AlterTableDefa
 		return nil
 	}
 	slot, ok := d.Index[s.Column.Text]
-	if !ok || !defaultReplayDeferrable(d.Defaults[d.Attributes[slot]]) {
+	if !ok || !defaultReplayDeferrable(d.ColumnMeta.Defaults[d.Attributes[slot]]) {
 		return sqlError("0A000", "restore accepts only deferred captured-reference or regclass defaults")
 	}
 	return nil

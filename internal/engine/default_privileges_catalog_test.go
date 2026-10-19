@@ -74,7 +74,7 @@ func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	combined := f.e.privateCatalogLocked(changes)
 	err := f.e.catalogPreflightLocked(changes)
 	f.e.mu.Unlock()
-	if err != nil || combined.Get(table.Address()) != table || authorization.ACLRights(table.ACL, f.owner, []authorization.PrincipalRef{f.reader}, authorization.SelectPrivilege, false)&authorization.SelectPrivilege != authorization.SelectPrivilege {
+	if err != nil || combined.Get(table.Address()) != table || authorization.ACLRights(table.Security.ACL, f.owner, []authorization.PrincipalRef{f.reader}, authorization.SelectPrivilege, false)&authorization.SelectPrivilege != authorization.SelectPrivilege {
 		t.Fatal("later retained creation missed default", err)
 	}
 	if _, observed := changes.defaultReads[key]; observed {

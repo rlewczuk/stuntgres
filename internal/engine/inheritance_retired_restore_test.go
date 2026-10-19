@@ -188,7 +188,7 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	e, op, a := retiredImportFixture(t)
 	q := retiredRepairSQL("c", "nn", "n", false, false, 1, retiredRow("n", "0:7", "77"))
 	old := retiredUnitTable(t, e, "c")
-	oid := old.NotNullConstraints[0].OID
+	oid := old.Constraints.NotNull[0].OID
 	for name, mutate := range map[string]func(*restoredHistoricalFact){
 		"epoch": func(f *restoredHistoricalFact) { f.ref.Epoch++ }, "owner": func(f *restoredHistoricalFact) { f.ref = New().catalog.Domain.Ref(f.ref.Epoch, f.ref.Address) },
 		"oid": func(f *restoredHistoricalFact) { f.oid++ }, "name": func(f *restoredHistoricalFact) { f.name = "wrong" },
@@ -250,7 +250,7 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	badTemp := retiredAuthorityClone(a)
 	tempFact := badTemp.facts[oid]
 	tempFact.ref = tempRef
-	tempFact.oid = temp.NotNullConstraints[0].OID
+	tempFact.oid = temp.Constraints.NotNull[0].OID
 	badTemp.facts[tempFact.oid] = tempFact
 	tempSQL := strings.ReplaceAll(q, "public.c", "pg_temp.history_temp")
 	retiredReject(t, e, op, tempSQL, badTemp)
@@ -274,11 +274,11 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 		t.Fatal("actual paired NN repair rejected", err)
 	}
 	current := retiredUnitTable(t, e, "c")
-	p := current.Inheritance.NotNull[current.NotNullConstraints[0].Attribute]
+	p := current.Inheritance.NotNull[current.Constraints.NotNull[0].Attribute]
 	if p.Local || p.Count() != 2 || len(p.Origins) != 1 || len(p.Retired) != 1 || p.Retired[0].Archive == 0 || !p.Retired[0].Replayed || p.Retired[0].Attribute != 1 || p.Retired[0].Parent.Address != retiredUnitTable(t, e, "p").Address() {
 		t.Fatal("archival rank was treated as current b/live identity", p)
 	}
-	if !reflect.DeepEqual(current.Columns, old.Columns) || !reflect.DeepEqual(current.NotNullConstraints, old.NotNullConstraints) || !reflect.DeepEqual(current.CheckConstraints, old.CheckConstraints) || current.Revision() != old.Revision()+1 || len(old.Inheritance.NotNull[current.NotNullConstraints[0].Attribute].Retired) != 0 {
+	if !reflect.DeepEqual(current.Columns, old.Columns) || !reflect.DeepEqual(current.Constraints.NotNull, old.Constraints.NotNull) || !reflect.DeepEqual(current.Constraints.Check, old.Constraints.Check) || current.Revision() != old.Revision()+1 || len(old.Inheritance.NotNull[current.Constraints.NotNull[0].Attribute].Retired) != 0 {
 		t.Fatal("repair changed anything beyond lineage/locality/revision")
 	}
 	retiredReject(t, e, op, q, a)
@@ -296,15 +296,15 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 		t.Fatal("consistent shared source rejected", err)
 	}
 	d := retiredUnitTable(t, e, "d")
-	dh := d.Inheritance.NotNull[d.NotNullConstraints[0].Attribute].Retired[0]
+	dh := d.Inheritance.NotNull[d.Constraints.NotNull[0].Attribute].Retired[0]
 	if dh.Archive != p.Retired[0].Archive {
 		t.Fatal("one imported source namespace mapped inconsistently")
 	}
 	// Distinct source epochs/OIDs remain distinct even if their numeric old OID
 	// happens to equal a live provider. Archive namespace prevents live aliasing.
-	liveQ := retiredUnitTable(t, e, "q").NotNullConstraints[0].OID
+	liveQ := retiredUnitTable(t, e, "q").Constraints.NotNull[0].OID
 	check := retiredRepairSQL("c", "ck", "c", false, false, 1, retiredRow("c", "0:7", "78"))
-	checkOID := old.CheckConstraints[0].OID
+	checkOID := old.Constraints.Check[0].OID
 	for name, mutate := range map[string]func(*restoredHistoricalFact){
 		"recipe":   func(f *restoredHistoricalFact) { f.expression = nil },
 		"validity": func(f *restoredHistoricalFact) { f.notValid = true },
@@ -320,8 +320,8 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	if err := e.restoreRetiredConstraint(op, retiredRaw(t, check), a); err != nil {
 		t.Fatal(err)
 	}
-	ck := retiredUnitTable(t, e, "c").CheckConstraints[0]
-	saved := a.facts[retiredUnitTable(t, e, "f").NotNullConstraints[0].OID]
+	ck := retiredUnitTable(t, e, "c").Constraints.Check[0]
+	saved := a.facts[retiredUnitTable(t, e, "f").Constraints.NotNull[0].OID]
 	distinct := retiredRepairSQL("f", "nn", "n", false, false, 1, retiredRow("n", "0:8", fmt.Sprint(liveQ))+", "+retiredRow("n", "0:9", fmt.Sprint(liveQ)))
 	if err := e.restoreRetiredConstraint(op, retiredRaw(t, distinct), a); err != nil {
 		t.Fatal("archival identities falsely aliased current OID namespace", err)
@@ -331,7 +331,7 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	if fp.Count() != 3 || len(fp.Retired) != 2 || fp.Retired[0].Lifetime == fp.Retired[1].Lifetime || fp.Retired[0].Archive != dh.Archive {
 		t.Fatal("distinct archived lifetimes collapsed", fp)
 	}
-	if ck.NotValid || ck.NoInherit || ck.OID != old.CheckConstraints[0].OID {
+	if ck.NotValid || ck.NoInherit || ck.OID != old.Constraints.Check[0].OID {
 		t.Fatal("CHECK repair changed validity/kind/identity")
 	}
 	if err := validateInheritance(e.CatalogRead(), f); err != nil {
@@ -385,8 +385,8 @@ func TestRestoreConstraintHistoryAtomicity(t *testing.T) {
 			t.Fatal(err)
 		}
 		c := retiredUnitTable(t, e, "c")
-		h := c.Inheritance.NotNull[c.NotNullConstraints[0].Attribute].Retired[0]
-		if h.Archive <= prior || h.Archive == 0 || h.Parent.Epoch != e.CatalogRead().Epoch() || h.Own != c.NotNullConstraints[0].OID || !h.Replayed {
+		h := c.Inheritance.NotNull[c.Constraints.NotNull[0].Attribute].Retired[0]
+		if h.Archive <= prior || h.Archive == 0 || h.Parent.Epoch != e.CatalogRead().Epoch() || h.Own != c.Constraints.NotNull[0].OID || !h.Replayed {
 			t.Fatal("redump/import reused archive/live namespace", h)
 		}
 		prior = h.Archive
@@ -401,7 +401,7 @@ func TestRestoreConstraintHistoryPrimarySupport(t *testing.T) {
 	e, op, a := retiredImportFixture(t)
 	roleExecute(t, e, op, "ALTER TABLE ONLY d ADD CONSTRAINT d_pk PRIMARY KEY(a)")
 	d := retiredUnitTable(t, e, "d")
-	oid := d.NotNullConstraints[0].OID
+	oid := d.Constraints.NotNull[0].OID
 	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 	captureHistoricalRelation(e.CatalogRead(), ref, a.facts)
 	before := a.facts[oid]
@@ -410,7 +410,7 @@ func TestRestoreConstraintHistoryPrimarySupport(t *testing.T) {
 		t.Fatal("ordinary validated NN with genuine primary support rejected", err)
 	}
 	current := retiredUnitTable(t, e, "d")
-	if current.NotNullConstraints[0].OID != oid || current.NotNullConstraints[0].NoInherit || current.NotNullConstraints[0].NotValid || len(current.UniqueConstraints) != 1 || !current.UniqueConstraints[0].Primary {
+	if current.Constraints.NotNull[0].OID != oid || current.Constraints.NotNull[0].NoInherit || current.Constraints.NotNull[0].NotValid || len(current.Constraints.Unique) != 1 || !current.Constraints.Unique[0].Primary {
 		t.Fatal("history repair borrowed NO INHERIT prohibition or damaged real primary enforcement")
 	}
 	if err := validateInheritance(e.CatalogRead(), current); err != nil {

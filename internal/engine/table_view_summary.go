@@ -26,11 +26,11 @@ func (e *Engine) markStageIndexHistoryLocked(stage *CatalogStage) error {
 		if !ok || (parent.RelationKind != catalog.TableRelation && parent.RelationKind != catalog.MaterializedViewRelation && parent.RelationKind != catalog.PartitionedRelation) {
 			return fmt.Errorf("stuntgres: invalid index parent")
 		}
-		if parent.HasIndexes {
+		if parent.History.HasIndexes {
 			continue
 		}
 		next := *parent
-		next.HasIndexes = true
+		next.History.HasIndexes = true
 		if staged {
 			// Preserve the complete already-staged parent and its revision/rowtype;
 			// UNIQUE can create the parent and its indexes in this same candidate.
@@ -66,9 +66,9 @@ func normalizeReplacementIndexHistory(ctx context.Context, view catalog.Read) er
 		if !ok || (parent.RelationKind != catalog.TableRelation && parent.RelationKind != catalog.MaterializedViewRelation && parent.RelationKind != catalog.PartitionedRelation) {
 			return fmt.Errorf("stuntgres: invalid index parent")
 		}
-		if !parent.HasIndexes {
+		if !parent.History.HasIndexes {
 			next := *parent
-			next.HasIndexes = true
+			next.History.HasIndexes = true
 			view.State().SetDescriptor(parent.Address(), &next)
 		}
 	}
@@ -125,7 +125,7 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, view catalog.Read,
 			if builtinTable && (relation.Address().ObjectID == 2396 || relation.Address().ObjectID == 1213 || relation.Address().ObjectID == 1262 || relation.Address().ObjectID == 2964 || relation.Address().ObjectID == ids.ParameterClassID) {
 				tablespace = text(3, "pg_global")
 			}
-			rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.Name()), text(2, owner.Name), tablespace, boolean(4, relation.HasIndexes || builtinTable), boolean(5, false), boolean(6, false), boolean(7, relation.RLSEnabled)})
+			rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.Name()), text(2, owner.Name), tablespace, boolean(4, relation.History.HasIndexes || builtinTable), boolean(5, false), boolean(6, false), boolean(7, relation.Security.RLSEnabled)})
 		} else {
 			definition := builtinDefinition
 			if relation.View != nil {
@@ -142,7 +142,7 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, view catalog.Read,
 				definition += ";"
 			}
 			if source.Address().ObjectID == 12006 {
-				rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.Name()), text(2, owner.Name), sqltype.Null(source.Columns[3].Usage.Type), boolean(4, relation.HasIndexes), boolean(5, relation.Populated), text(6, definition)})
+				rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.Name()), text(2, owner.Name), sqltype.Null(source.Columns[3].Usage.Type), boolean(4, relation.History.HasIndexes), boolean(5, relation.Populated), text(6, definition)})
 			} else {
 				rows = append(rows, []sqltype.Value{text(0, schema), text(1, relation.Name()), text(2, owner.Name), text(3, definition)})
 			}

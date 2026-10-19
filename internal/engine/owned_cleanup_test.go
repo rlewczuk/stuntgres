@@ -141,7 +141,7 @@ func TestReassignOwnedSourceSetAndUnrelatedGrant(t *testing.T) {
 	}
 	other := base.MustRelation(base.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ownership_other"}))
 	grant := *other
-	grant.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.SelectPrivilege, authorization.SelectPrivilege), objectACLUnitEntry(source, reader, authorization.SelectPrivilege, 0)}}
+	grant.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.SelectPrivilege, authorization.SelectPrivilege), objectACLUnitEntry(source, reader, authorization.SelectPrivilege, 0)}}
 	grant.ObjectRevision++
 	if err := setup.Replace(&grant); err != nil {
 		t.Fatal(err)
@@ -289,10 +289,10 @@ func TestDropOwnedCleanupPolicyDeletionUnion(t *testing.T) {
 	store := e.storage.relations[survivor]
 	versions := store.versions
 	ownershipUnitExec(t, e, "DROP OWNED BY ownership_source RESTRICT")
-	if e.catalog.state.Get(root) != nil || len(e.catalog.state.MustRelation(survivor).Policies) != 0 {
+	if e.catalog.state.Get(root) != nil || len(e.catalog.state.MustRelation(survivor).Security.Policies) != 0 {
 		t.Fatal("pending sole-target policy falsely restricted its owner-root dependency")
 	}
-	if len(original.Policies) != 1 || before.Get(root) == nil || e.storage.relations[survivor] != store || &store.versions[0] != &versions[0] {
+	if len(original.Security.Policies) != 1 || before.Get(root) == nil || e.storage.relations[survivor] != store || &store.versions[0] != &versions[0] {
 		t.Fatal("cleanup changed retained policy/catalog or surviving rows")
 	}
 }
@@ -404,17 +404,17 @@ func TestDropOwnedSQLGrantorProvenance(t *testing.T) {
 	original := e.catalog.state.MustRelation(address)
 	received := objectACLUnitEntry(owner, source, authorization.SelectPrivilege, authorization.SelectPrivilege)
 	delegated := objectACLUnitEntry(source, downstream, authorization.SelectPrivilege, 0)
-	if original.Owner != owner || !slices.Contains(original.ACL.Entries, received) || !slices.Contains(original.ACL.Entries, delegated) {
-		t.Fatal("actual SQL GRANT lost current-role provenance", original.ACL)
+	if original.Owner != owner || !slices.Contains(original.Security.ACL.Entries, received) || !slices.Contains(original.Security.ACL.Entries, delegated) {
+		t.Fatal("actual SQL GRANT lost current-role provenance", original.Security.ACL)
 	}
-	retained := append([]authorization.ACLEntry(nil), original.ACL.Entries...)
+	retained := append([]authorization.ACLEntry(nil), original.Security.ACL.Entries...)
 	store := e.storage.relations[address]
 	roleExecute(t, e, op, "DROP OWNED BY ownership_sql_source RESTRICT")
 	current := e.catalog.state.MustRelation(address)
-	if current.Owner != owner || slices.Contains(current.ACL.Entries, received) || !slices.Contains(current.ACL.Entries, delegated) {
-		t.Fatal("cleanup did not retain supported SQL-origin delegation", current.ACL)
+	if current.Owner != owner || slices.Contains(current.Security.ACL.Entries, received) || !slices.Contains(current.Security.ACL.Entries, delegated) {
+		t.Fatal("cleanup did not retain supported SQL-origin delegation", current.Security.ACL)
 	}
-	if !slices.Equal(original.ACL.Entries, retained) || e.storage.relations[address] != store {
+	if !slices.Equal(original.Security.ACL.Entries, retained) || e.storage.relations[address] != store {
 		t.Fatal("cleanup changed retained ACL or surviving storage")
 	}
 	before, roles := e.catalog.state, e.roles

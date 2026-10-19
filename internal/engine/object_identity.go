@@ -137,7 +137,7 @@ func objectAttributeName(view catalog.Read, d *catalog.Relation, sub int32) stri
 			return d.Columns[i].Name
 		}
 	}
-	if old, ok := d.DroppedAttributes[sub]; ok {
+	if old, ok := d.ColumnMeta.Dropped[sub]; ok {
 		return old.Name
 	}
 	if sub < 0 && sub >= -6 && hasSystemAttributes(view, d) {
@@ -387,38 +387,38 @@ func identifyOwnedAddress(view catalog.Read, path []ids.ObjectAddress, a ids.Obj
 func ownedAddressName(d *catalog.Relation, a ids.ObjectAddress) (string, int32) {
 	switch a.ClassID {
 	case 2606:
-		for _, x := range d.NotNullConstraints {
+		for _, x := range d.Constraints.NotNull {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}
 		}
-		for _, x := range d.CheckConstraints {
+		for _, x := range d.Constraints.Check {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}
 		}
-		for _, x := range d.UniqueConstraints {
+		for _, x := range d.Constraints.Unique {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}
 		}
-		for _, x := range d.ExclusionConstraints {
+		for _, x := range d.Constraints.Exclusion {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}
 		}
-		for _, x := range d.ForeignKeys {
+		for _, x := range d.Constraints.ForeignKeys {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}
 		}
 	case 2604:
-		for sub, x := range d.Defaults {
+		for sub, x := range d.ColumnMeta.Defaults {
 			if x.OID == a.ObjectID {
 				return "default", sub
 			}
 		}
-		for sub, x := range d.Generations {
+		for sub, x := range d.ColumnMeta.Generations {
 			if x.OID == a.ObjectID {
 				return "generation", sub
 			}
@@ -433,7 +433,7 @@ func ownedAddressName(d *catalog.Relation, a ids.ObjectAddress) (string, int32) 
 			}
 		}
 	case 3256:
-		for _, x := range d.Policies {
+		for _, x := range d.Security.Policies {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}

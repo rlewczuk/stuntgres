@@ -93,11 +93,11 @@ func TestInheritanceControlsConstraintOriginRemap(t *testing.T) {
 	e := New()
 	parent := inheritanceLifecycleTable(e, 20000, "p")
 	child := inheritanceLifecycleTable(e, 20001, "c", parent.Address())
-	parent.NotNullConstraints = []catalog.NotNullConstraint{{OID: 22000, Name: "nn", Attribute: 1}}
+	parent.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 22000, Name: "nn", Attribute: 1}}
 	child.Inheritance.NotNull[1] = catalog.InheritedConstraint{Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: 1, Constraint: 22000}}}
 	old := map[ids.ObjectAddress]catalog.Descriptor{parent.Address(): parent, child.Address(): child}
 	changed := *parent
-	changed.NotNullConstraints = []catalog.NotNullConstraint{{OID: 30000, Name: "nn", Attribute: 1}}
+	changed.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 30000, Name: "nn", Attribute: 1}}
 	next := catalog.CloneState(e.catalog.state)
 	next.SetDescriptor(parent.Address(), &changed)
 	next.SetDescriptor(child.Address(), child)
@@ -115,9 +115,9 @@ func TestInheritanceControlsRetainedDefinitionCollision(t *testing.T) {
 	temp := inheritanceControlsTemporary(e, 20000, "tp")
 	temp.Columns = []catalog.Column{{Name: "a", Usage: testUsage(e, sqltype.Int4), Nullable: false, NullabilityKnown: true}}
 	temp.Attributes = []int32{1}
-	temp.AttributeHighWater = 1
+	temp.ColumnMeta.HighWater = 1
 	temp.Index = map[string]int{"a": 0}
-	temp.NotNullConstraints = []catalog.NotNullConstraint{{OID: 22000, Name: "tp_a_nn", Attribute: 1}}
+	temp.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 22000, Name: "tp_a_nn", Attribute: 1}}
 	source := New()
 	parent := inheritanceLifecycleTable(source, 22000, "p")
 	child := inheritanceLifecycleTable(source, 20001, "c", parent.Address())
@@ -134,7 +134,7 @@ func TestInheritanceControlsRetainedDefinitionCollision(t *testing.T) {
 	if mapped.ObjectID == 22000 || next.Get(mapped).Name() != "p" {
 		t.Fatal("imported object did not yield to retained definition identity", mapped)
 	}
-	if next.Get(temp.Address()) != temp || temp.NotNullConstraints[0].OID != 22000 {
+	if next.Get(temp.Address()) != temp || temp.Constraints.NotNull[0].OID != 22000 {
 		t.Fatal("retained definition or descriptor changed")
 	}
 	if err := validateDefinitionOIDs(e.catalog.read(next)); err != nil {
@@ -154,19 +154,19 @@ func TestInheritanceControlsRetainedChecksAndConstraintCollisions(t *testing.T) 
 		for _, table := range []*catalog.Relation{p, c} {
 			table.Columns = []catalog.Column{{Name: "b", Usage: usage, Nullable: false, NullabilityKnown: true, OriginTable: uint32(table.Address().ObjectID), OriginAttribute: 1}}
 			table.Attributes = []int32{1}
-			table.AttributeHighWater = 1
+			table.ColumnMeta.HighWater = 1
 			table.Index = map[string]int{"b": 0}
 		}
-		p.NotNullConstraints = []catalog.NotNullConstraint{{OID: 23000, Name: "nn", Attribute: 1}}
-		c.NotNullConstraints = []catalog.NotNullConstraint{{OID: 23001, Name: "nn", Attribute: 1}}
+		p.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 23000, Name: "nn", Attribute: 1}}
+		c.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 23001, Name: "nn", Attribute: 1}}
 		for _, table := range []*catalog.Relation{p, c} {
 			ref := owner.catalog.Domain.Ref(owner.CatalogRead().Epoch(), table.Address())
 			ref.Address.SubID = 1
-			table.CheckConstraints = []catalog.CheckConstraint{{OID: 23002 + table.Address().ObjectID - p.Address().ObjectID, Name: "ck", Expression: columnExpression{Info: expr.Info{Usage: usage}, origin: ref, scope: 1, frame: 1, slot: 0}}}
+			table.Constraints.Check = []catalog.CheckConstraint{{OID: 23002 + table.Address().ObjectID - p.Address().ObjectID, Name: "ck", Expression: columnExpression{Info: expr.Info{Usage: usage}, origin: ref, scope: 1, frame: 1, slot: 0}}}
 		}
 		c.Inheritance.Columns[1] = catalog.InheritedColumn{Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 1}}}
-		c.Inheritance.NotNull[1] = catalog.InheritedConstraint{Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 1, Constraint: p.NotNullConstraints[0].OID}}}
-		c.Inheritance.Checks["ck"] = catalog.InheritedConstraint{Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Constraint: p.CheckConstraints[0].OID}}}
+		c.Inheritance.NotNull[1] = catalog.InheritedConstraint{Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 1, Constraint: p.Constraints.NotNull[0].OID}}}
+		c.Inheritance.Checks["ck"] = catalog.InheritedConstraint{Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Constraint: p.Constraints.Check[0].OID}}}
 	}
 	installDefinitions(e, temp, tempChild)
 	installDefinitions(source, parent, child)
@@ -180,15 +180,15 @@ func TestInheritanceControlsRetainedChecksAndConstraintCollisions(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next.Get(temp.Address()) != temp || next.Get(tempChild.Address()) != tempChild || storage[tempChild.Address()] != retainedStorage || temp.NotNullConstraints[0].OID != 23000 || temp.CheckConstraints[0].OID != 23002 {
+	if next.Get(temp.Address()) != temp || next.Get(tempChild.Address()) != tempChild || storage[tempChild.Address()] != retainedStorage || temp.Constraints.NotNull[0].OID != 23000 || temp.Constraints.Check[0].OID != 23002 {
 		t.Fatal("retained TEMP graph, storage or definition identity changed")
 	}
 	imported := next.MustRelation(child.Address())
 	mappedParent := next.MustRelation(imported.Inheritance.Parents[0])
-	if mappedParent.Address() == parent.Address() || mappedParent.NotNullConstraints[0].OID == 23000 || mappedParent.CheckConstraints[0].OID == 23002 {
+	if mappedParent.Address() == parent.Address() || mappedParent.Constraints.NotNull[0].OID == 23000 || mappedParent.Constraints.Check[0].OID == 23002 {
 		t.Fatal("imported identities did not yield to retained TEMP definitions")
 	}
-	if imported.Inheritance.NotNull[1].Origins[0].Constraint != mappedParent.NotNullConstraints[0].OID || imported.Inheritance.Checks["ck"].Origins[0].Constraint != mappedParent.CheckConstraints[0].OID {
+	if imported.Inheritance.NotNull[1].Origins[0].Constraint != mappedParent.Constraints.NotNull[0].OID || imported.Inheritance.Checks["ck"].Origins[0].Constraint != mappedParent.Constraints.Check[0].OID {
 		t.Fatal("imported provenance retained old definition IDs")
 	}
 	if err := validateDefinitionOIDs(e.catalog.read(next)); err != nil {
@@ -199,7 +199,7 @@ func TestInheritanceControlsRetainedChecksAndConstraintCollisions(t *testing.T) 
 			t.Fatal(table.Name(), err)
 		}
 	}
-	if parent.Address() != child.Inheritance.Parents[0] || parent.NotNullConstraints[0].OID != 23000 || parent.CheckConstraints[0].OID != 23002 {
+	if parent.Address() != child.Inheritance.Parents[0] || parent.Constraints.NotNull[0].OID != 23000 || parent.Constraints.Check[0].OID != 23002 {
 		t.Fatal("replacement mutated imported source definitions")
 	}
 }
@@ -216,18 +216,18 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 		for _, table := range []*catalog.Relation{p, c} {
 			table.Columns = []catalog.Column{{Name: "a", Usage: usage, Nullable: false, NullabilityKnown: true, OriginTable: uint32(table.Address().ObjectID), OriginAttribute: 1}, {Name: "b", Usage: testUsage(owner, sqltype.Bool), Nullable: true, NullabilityKnown: true, OriginTable: uint32(table.Address().ObjectID), OriginAttribute: 2}}
 			table.Attributes = []int32{1, 2}
-			table.AttributeHighWater = 2
+			table.ColumnMeta.HighWater = 2
 			table.Index = map[string]int{"a": 0, "b": 1}
 			ref := owner.catalog.Domain.Ref(owner.CatalogRead().Epoch(), table.Address())
 			ref.Address.SubID = 2
-			table.CheckConstraints = []catalog.CheckConstraint{{OID: 23002 + table.Address().ObjectID - p.Address().ObjectID, Name: "ck", Expression: columnExpression{Info: expr.Info{Usage: table.Columns[1].Usage}, origin: ref, scope: 1, frame: 1, slot: 1}}}
+			table.Constraints.Check = []catalog.CheckConstraint{{OID: 23002 + table.Address().ObjectID - p.Address().ObjectID, Name: "ck", Expression: columnExpression{Info: expr.Info{Usage: table.Columns[1].Usage}, origin: ref, scope: 1, frame: 1, slot: 1}}}
 		}
-		p.NotNullConstraints = []catalog.NotNullConstraint{{OID: 23000, Name: "nn", Attribute: 1}}
-		c.NotNullConstraints = []catalog.NotNullConstraint{{OID: 23001, Name: "nn", Attribute: 1}}
+		p.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 23000, Name: "nn", Attribute: 1}}
+		c.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 23001, Name: "nn", Attribute: 1}}
 		c.Inheritance.Columns[1] = catalog.InheritedColumn{Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 1}}}
-		c.Inheritance.NotNull[1] = catalog.InheritedConstraint{Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 1, Constraint: p.NotNullConstraints[0].OID}}}
+		c.Inheritance.NotNull[1] = catalog.InheritedConstraint{Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 1, Constraint: p.Constraints.NotNull[0].OID}}}
 		c.Inheritance.Columns[2] = catalog.InheritedColumn{Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 2}}}
-		c.Inheritance.Checks["ck"] = catalog.InheritedConstraint{Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Constraint: p.CheckConstraints[0].OID}}}
+		c.Inheritance.Checks["ck"] = catalog.InheritedConstraint{Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Constraint: p.Constraints.Check[0].OID}}}
 	}
 	install(e, temp, tempChild)
 	install(source, parent, child)
@@ -243,8 +243,8 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 	index.ObjectNamespace = temp.Namespace()
 	index.RelationKind = catalog.IndexRelation
 	constraint := catalog.ExclusionConstraint{OID: parent.Address().ObjectID, Name: index.Name(), Index: index.Address(), Operators: []sqltype.ExclusionOperator{operator}}
-	tempChild.ExclusionConstraints = []catalog.ExclusionConstraint{constraint}
-	tempChild.HasIndexes = true
+	tempChild.Constraints.Exclusion = []catalog.ExclusionConstraint{constraint}
+	tempChild.History.HasIndexes = true
 	index.SQLIndex = &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: tempChild.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}, Constraint: exclusionBacking(&constraint), Exclusion: constraint.Operators, Ready: true, Valid: true, Live: true}
 	inheritanceLifecycleInstall(e, index)
 	inheritanceLifecycleInstall(source, parent, child)
@@ -272,10 +272,10 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 		t.Fatal("imported inheritance origins did not follow parent mapping")
 	}
 	mappedParent := next.MustRelation(mapped)
-	if mappedParent.Columns[0].OriginTable != uint32(mapped.ObjectID) || mappedParent.Columns[1].OriginTable != uint32(mapped.ObjectID) || imported.Inheritance.NotNull[1].Origins[0].Constraint != mappedParent.NotNullConstraints[0].OID || imported.Inheritance.Checks["ck"].Origins[0].Constraint != mappedParent.CheckConstraints[0].OID {
+	if mappedParent.Columns[0].OriginTable != uint32(mapped.ObjectID) || mappedParent.Columns[1].OriginTable != uint32(mapped.ObjectID) || imported.Inheritance.NotNull[1].Origins[0].Constraint != mappedParent.Constraints.NotNull[0].OID || imported.Inheritance.Checks["ck"].Origins[0].Constraint != mappedParent.Constraints.Check[0].OID {
 		t.Fatal("imported row/constraint origins did not follow mapping")
 	}
-	if e.catalog.state != before || next.Get(temp.Address()) != temp || next.Get(tempChild.Address()) != tempChild || next.Get(index.Address()) != index || storage[temp.Address()] != retainedParentStorage || storage[tempChild.Address()] != retainedChildStorage || index.SQLIndex != originalIndex || !reflect.DeepEqual(tempChild.ExclusionConstraints[0], constraint) || !backingConstraintPresent(tempChild, index) {
+	if e.catalog.state != before || next.Get(temp.Address()) != temp || next.Get(tempChild.Address()) != tempChild || next.Get(index.Address()) != index || storage[temp.Address()] != retainedParentStorage || storage[tempChild.Address()] != retainedChildStorage || index.SQLIndex != originalIndex || !reflect.DeepEqual(tempChild.Constraints.Exclusion[0], constraint) || !backingConstraintPresent(tempChild, index) {
 		t.Fatal("retained TEMP descriptors, exclusion attachment, storage or source authority changed")
 	}
 	if source.catalog.state.Get(parent.Address()) != parent || source.catalog.state.Get(child.Address()) != child || child.Inheritance.Parents[0] != parent.Address() || child.Inheritance.Columns[1].Origins[0].Parent != parent.Address() || parent.Columns[0].OriginTable != uint32(parent.Address().ObjectID) || child.Inheritance.NotNull[1].Origins[0].Constraint != 23000 {

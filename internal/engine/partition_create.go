@@ -83,7 +83,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 		return nil, err
 	}
 	if partition != nil {
-		for _, constraint := range child.CheckConstraints {
+		for _, constraint := range child.Constraints.Check {
 			if constraint.NoInherit {
 				return nil, sqlError("42P16", fmt.Sprintf(`cannot add NO INHERIT constraint to partitioned table "%s"`, child.Name()))
 			}
@@ -128,7 +128,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 	}
 	// Invalid keys/bounds and inherited definitions win over this declared
 	// implementation boundary; neither path publishes allocated auxiliaries.
-	pending.unsupportedCombination = len(child.Generations) != 0 || len(child.Identities) != 0
+	pending.unsupportedCombination = len(child.ColumnMeta.Generations) != 0 || len(child.ColumnMeta.Identities) != 0
 	for _, element := range syntax.Elements {
 		if element.Column != nil && serialTypeName(element.Column.TypeName) != "" {
 			pending.unsupportedCombination = true
@@ -141,13 +141,13 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	if p == nil {
 		return nil
 	}
-	for _, constraint := range p.child.UniqueConstraints {
+	for _, constraint := range p.child.Constraints.Unique {
 		index := p.stage.Descriptors[constraint.Index].(*catalog.Relation)
 		if err := partitionUniqueCoverage(p.child, index.SQLIndex); err != nil {
 			return err
 		}
 	}
-	for _, constraint := range p.child.ExclusionConstraints {
+	for _, constraint := range p.child.Constraints.Exclusion {
 		index := p.stage.Descriptors[constraint.Index].(*catalog.Relation)
 		if err := partitionUniqueCoverage(p.child, index.SQLIndex); err != nil {
 			return err

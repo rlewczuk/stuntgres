@@ -228,13 +228,13 @@ func TestForeignKeyDefinitionAuthority(t *testing.T) {
 	sessionSQL(t, c, "CREATE UNIQUE INDEX wrong_key ON p(note)")
 	view := e.CatalogRead()
 	child := view.MustRelation(catalogRef(t, e, view, "c").Address)
-	original := child.ForeignKeys[0]
+	original := child.Constraints.ForeignKeys[0]
 	for _, change := range []func(*catalog.ForeignKeyConstraint){func(f *catalog.ForeignKeyConstraint) { f.OID = 0 }, func(f *catalog.ForeignKeyConstraint) { f.Target.ObjectID = 0 }, func(f *catalog.ForeignKeyConstraint) { f.Referenced = []int32{99} }, func(f *catalog.ForeignKeyConstraint) { f.Index = catalogRef(t, e, view, "wrong_key").Address }, func(f *catalog.ForeignKeyConstraint) { f.Attributes = []int32{99} }} {
 		copy := *child
-		copy.ForeignKeys = slices.Clone(child.ForeignKeys)
-		change(&copy.ForeignKeys[0])
+		copy.Constraints.ForeignKeys = slices.Clone(child.Constraints.ForeignKeys)
+		change(&copy.Constraints.ForeignKeys[0])
 		if err := validateForeignKeys(view, &copy, map[string]bool{}); err == nil {
-			t.Fatal("invalid attachment admitted", copy.ForeignKeys[0])
+			t.Fatal("invalid attachment admitted", copy.Constraints.ForeignKeys[0])
 		}
 	}
 	index := view.MustRelation(original.Index)
@@ -258,7 +258,7 @@ func TestForeignKeyDefinitionAuthority(t *testing.T) {
 			t.Fatal("invalid selected index authority", phase)
 		}
 	}
-	if !reflect.DeepEqual(child.ForeignKeys[0], original) || child.ForeignKeys[0].Target != ref.Address {
+	if !reflect.DeepEqual(child.Constraints.ForeignKeys[0], original) || child.Constraints.ForeignKeys[0].Target != ref.Address {
 		t.Fatal("validation mutated source attachment")
 	}
 }
@@ -268,15 +268,15 @@ func TestForeignKeyTypeIdentityIsolation(t *testing.T) {
 	view := e.CatalogRead()
 	childAddress := catalogRef(t, e, view, "c").Address
 	old := view.MustRelation(childAddress)
-	definition := old.ForeignKeys[0]
+	definition := old.Constraints.ForeignKeys[0]
 	parent := view.MustRelation(ref.Address)
 	index := view.MustRelation(definition.Index)
 	sessionSQL(t, c, "ALTER TABLE p ALTER id TYPE BIGINT")
 	next := e.CatalogRead().MustRelation(childAddress)
-	if next.Address() != old.Address() || next.ForeignKeys[0].OID == definition.OID || next.ForeignKeys[0].Index == definition.Index || next.ForeignKeys[0].Target != definition.Target || !slices.Equal(next.ForeignKeys[0].Attributes, definition.Attributes) || !slices.Equal(next.ForeignKeys[0].Referenced, definition.Referenced) {
-		t.Fatal("TYPE did not rebuild exact attachment", definition, next.ForeignKeys[0])
+	if next.Address() != old.Address() || next.Constraints.ForeignKeys[0].OID == definition.OID || next.Constraints.ForeignKeys[0].Index == definition.Index || next.Constraints.ForeignKeys[0].Target != definition.Target || !slices.Equal(next.Constraints.ForeignKeys[0].Attributes, definition.Attributes) || !slices.Equal(next.Constraints.ForeignKeys[0].Referenced, definition.Referenced) {
+		t.Fatal("TYPE did not rebuild exact attachment", definition, next.Constraints.ForeignKeys[0])
 	}
-	if !reflect.DeepEqual(old.ForeignKeys[0], definition) || view.Get(ref.Address) != parent || view.Get(index.Address()) != index {
+	if !reflect.DeepEqual(old.Constraints.ForeignKeys[0], definition) || view.Get(ref.Address) != parent || view.Get(index.Address()) != index {
 		t.Fatal("TYPE changed retained catalog")
 	}
 	sessionSQL(t, c, "INSERT INTO c VALUES(1)")

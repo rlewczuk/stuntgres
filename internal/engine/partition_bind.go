@@ -51,7 +51,7 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *cat
 			key.Attribute = d.Attributes[slot]
 			usage = d.Columns[slot].Usage
 			key.Label = r.Column.Text
-			if _, generated := d.Generations[key.Attribute]; generated {
+			if _, generated := d.ColumnMeta.Generations[key.Attribute]; generated {
 				diagnostic := sqlError("42P17", "cannot use generated column in partition key")
 				return nil, partitionGeneratedError(diagnostic, r.Pos, key.Label)
 			}
@@ -82,7 +82,7 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *cat
 				return nil, sqlError("42P17", "cannot use constant expression as partition key")
 			}
 			for _, slot := range binder.querySources[0].uses {
-				if _, generated := d.Generations[d.Attributes[slot]]; generated {
+				if _, generated := d.ColumnMeta.Generations[d.Attributes[slot]]; generated {
 					return nil, partitionGeneratedError(sqlError("42P17", "cannot use generated column in partition key"), r.Pos, d.Columns[slot].Name)
 				}
 			}

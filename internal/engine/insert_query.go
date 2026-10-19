@@ -50,7 +50,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 		out.querySources = binder.querySources
 	} else {
 		out.insertSubquerySource = s.Source.Values.Order != nil || s.Source.Values.Bounds != nil
-		query, err = binder.bindValues(s.Source.Values, s.Override == parser.OverrideUser && len(out.relation.Identities) != 0)
+		query, err = binder.bindValues(s.Source.Values, s.Override == parser.OverrideUser && len(out.relation.ColumnMeta.Identities) != 0)
 	}
 	if err != nil {
 		return err
@@ -83,10 +83,10 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 				target = partial.column(target)
 			}
 		}
-		if _, generated := out.relation.Generations[out.relation.Attributes[out.targets[i]]]; generated {
+		if _, generated := out.relation.ColumnMeta.Generations[out.relation.Attributes[out.targets[i]]]; generated {
 			return generationWriteError(target.Name, false)
 		}
-		if identity, ok := out.relation.Identities[out.relation.Attributes[out.targets[i]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
+		if identity, ok := out.relation.ColumnMeta.Identities[out.relation.Attributes[out.targets[i]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
 			return identityInsertError(target.Name)
 		}
 		assigned, err := binder.assignOutput(expr, target)
@@ -389,7 +389,7 @@ func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, pa
 	// Bind uniqueness before opening the producer: opening can itself evaluate
 	// rows. A target without unique indexes needs no per-row catalog recapture;
 	// its epoch is still checked when the completed batch reaches Apply.
-	unique := len(b.relation.UniqueConstraints) != 0
+	unique := len(b.relation.Constraints.Unique) != 0
 	if scope != nil && scope.partitionInsert == nil {
 		bound, err := scope.bindUniqueWrite(b.ref)
 		if err != nil {
@@ -534,7 +534,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 				return indexWriteBatch{}, scope.op.session.Engine().rowConstraintError(scope, b, schema, c.Name, "", row)
 			}
 		}
-		if len(b.relation.CheckConstraints) != 0 {
+		if len(b.relation.Constraints.Check) != 0 {
 			constraint, checkErr := validateCheckRow(b.relation, row, &evaluation)
 			if checkErr != nil {
 				return indexWriteBatch{}, checkErr

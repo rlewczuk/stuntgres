@@ -16,7 +16,7 @@ import (
 func validateUniques(view catalog.Read, parent *catalog.Relation, names map[string]bool) error {
 	primary := false
 	var physicalSupport *catalog.PhysicalPrimarySupport
-	for _, c := range parent.UniqueConstraints {
+	for _, c := range parent.Constraints.Unique {
 		if (parent.RelationKind != catalog.TableRelation && parent.RelationKind != catalog.PartitionedRelation) || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || len(c.Attributes) == 0 || len(c.Attributes) > 32 {
 			return fmt.Errorf("stuntgres: invalid unique constraint identity")
 		}
@@ -47,14 +47,14 @@ func validateUniques(view catalog.Read, parent *catalog.Relation, names map[stri
 					return fmt.Errorf("stuntgres: nullable primary key")
 				}
 				found := false
-				for _, n := range parent.NotNullConstraints {
+				for _, n := range parent.Constraints.NotNull {
 					if n.Attribute == a {
 						found = true
 						break
 					}
 				}
 				if !found {
-					proof, exists := parent.PhysicalNotNull[a]
+					proof, exists := parent.Constraints.PhysicalNotNull[a]
 					if !exists || !physicalNotNullOriginValid(view, parent, a, proof) || proof.Support == nil {
 						return fmt.Errorf("stuntgres: missing primary not-null identity")
 					}
@@ -80,7 +80,7 @@ func (e *Engine) stageCreateUniques(op *Operation, stage *CatalogStage, d *catal
 func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *catalog.Relation, declarations []createUniqueConstraint, altering bool) error {
 	for _, declaration := range declarations {
 		for _, attribute := range declaration.Attributes {
-			if definition, ok := d.Generations[attribute]; ok && definition.Kind == catalog.GenerationVirtual {
+			if definition, ok := d.ColumnMeta.Generations[attribute]; ok && definition.Kind == catalog.GenerationVirtual {
 				message := "unique constraints on virtual generated columns are not supported"
 				if declaration.Primary {
 					message = "primary keys on virtual generated columns are not supported"
@@ -89,31 +89,31 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *c
 			}
 		}
 	}
-	start := len(d.UniqueConstraints)
+	start := len(d.Constraints.Unique)
 	constraints := make([]catalog.UniqueConstraint, start+len(declarations))
-	copy(constraints, d.UniqueConstraints)
-	d.UniqueConstraints = constraints
+	copy(constraints, d.Constraints.Unique)
+	d.Constraints.Unique = constraints
 	for i := range declarations {
-		d.UniqueConstraints[start+i] = declarations[i].UniqueConstraint
-		d.UniqueConstraints[start+i].IsLocal = true
+		d.Constraints.Unique[start+i] = declarations[i].UniqueConstraint
+		d.Constraints.Unique[start+i].IsLocal = true
 		if source := declarations[i].source; source != nil {
 			stage.captureLikeSource(source)
 		}
 	}
 	local := make(map[string]bool)
-	for _, c := range d.NotNullConstraints {
+	for _, c := range d.Constraints.NotNull {
 		local[c.Name] = true
 	}
-	for _, c := range d.CheckConstraints {
+	for _, c := range d.Constraints.Check {
 		local[c.Name] = true
 	}
-	for _, c := range d.UniqueConstraints[:start] {
+	for _, c := range d.Constraints.Unique[:start] {
 		local[c.Name] = true
 	}
-	for _, c := range d.ExclusionConstraints {
+	for _, c := range d.Constraints.Exclusion {
 		local[c.Name] = true
 	}
-	for _, c := range d.ForeignKeys {
+	for _, c := range d.Constraints.ForeignKeys {
 		local[c.Name] = true
 	}
 	view := e.stageRead(stage)
@@ -128,8 +128,8 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *c
 	}
 	used[d.Name()] = true
 	indices := make([]*catalog.Relation, 0, len(declarations))
-	for i := start; i < len(d.UniqueConstraints); i++ {
-		c := &d.UniqueConstraints[i]
+	for i := start; i < len(d.Constraints.Unique); i++ {
+		c := &d.Constraints.Unique[i]
 		if c.Name == d.Name() {
 			return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, c.Name))
 		}
@@ -219,7 +219,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *c
 			}
 			index.Columns = slices.Clone(source.Columns)
 			index.Attributes = slices.Clone(source.Attributes)
-			index.AttributeHighWater = source.AttributeHighWater
+			index.ColumnMeta.HighWater = source.ColumnMeta.HighWater
 			if declarations[i-start].copyComments {
 				index.Comment = source.Comment
 			}
@@ -227,7 +227,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *c
 			definition.Keys = make([]catalog.IndexKey, len(c.Attributes))
 			index.Columns = make([]catalog.Column, len(c.Attributes))
 			index.Attributes = make([]int32, len(c.Attributes))
-			index.AttributeHighWater = int32(len(c.Attributes))
+			index.ColumnMeta.HighWater = int32(len(c.Attributes))
 			for j, a := range c.Attributes {
 				column := d.Columns[slices.Index(d.Attributes, a)]
 				class, ok := sqltype.DefaultIndexClass(column.Usage.Type)

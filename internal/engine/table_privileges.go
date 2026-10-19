@@ -80,9 +80,9 @@ func captureTablePrivileges(ctx context.Context, view catalog.Read, auth Authori
 		if err != nil {
 			return nil, err
 		}
-		entries := relation.ACL.Entries
+		entries := relation.Security.ACL.Entries
 		var baseline [1]authorization.ACLEntry
-		if !relation.ACL.Explicit {
+		if !relation.Security.ACL.Explicit {
 			baseline[0] = authorization.ACLEntry{Grantor: relation.Owner, Grantee: authorization.ACLGrantee{Role: relation.Owner}, Privileges: authorization.TableGrantPrivileges}
 			entries = baseline[:]
 		}

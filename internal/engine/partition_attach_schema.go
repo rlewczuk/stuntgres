@@ -58,7 +58,7 @@ func partitionAttachEligibility(view catalog.Read, parent, child *catalog.Relati
 		return sqlError("42809", fmt.Sprintf(`cannot attach a temporary relation as partition of permanent relation "%s"`, parent.Name()))
 	}
 	for _, attribute := range child.Attributes {
-		if _, ok := child.Identities[attribute]; ok {
+		if _, ok := child.ColumnMeta.Identities[attribute]; ok {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: fmt.Sprintf(`table "%s" being attached contains an identity column "%s"`, child.Name(), child.Columns[child.IndexForAttribute(attribute)].Name), Detail: "The new partition may not contain an identity column."}
 		}
 	}
@@ -68,7 +68,7 @@ func partitionAttachEligibility(view catalog.Read, parent, child *catalog.Relati
 		if !ok {
 			continue
 		}
-		for _, foreign := range table.ForeignKeys {
+		for _, foreign := range table.Constraints.ForeignKeys {
 			if table.Address() == child.Address() || foreign.Target == child.Address() {
 				return sqlError("0A000", "foreign keys involving partition hierarchies are unsupported")
 			}
@@ -103,8 +103,8 @@ func partitionAttachSchema(ctxScope *StatementScope, view catalog.Read, parent, 
 		if !column.Nullable && other.Nullable {
 			return nil, sqlError("42804", fmt.Sprintf(`column "%s" in child table "%s" must be marked NOT NULL`, column.Name, child.Name()))
 		}
-		_, generated := child.Generations[child.Attributes[slot]]
-		_, requiredGeneration := parent.Generations[parent.Attributes[i]]
+		_, generated := child.ColumnMeta.Generations[child.Attributes[slot]]
+		_, requiredGeneration := parent.ColumnMeta.Generations[parent.Attributes[i]]
 		if generated && !requiredGeneration {
 			return nil, sqlError("42804", fmt.Sprintf(`column "%s" in child table must not be a generated column`, column.Name))
 		}
@@ -115,23 +115,23 @@ func partitionAttachSchema(ctxScope *StatementScope, view catalog.Read, parent, 
 		}
 		in.targetSlots[i] = slot
 	}
-	for _, required := range parent.NotNullConstraints {
+	for _, required := range parent.Constraints.NotNull {
 		parentSlot := parent.IndexForAttribute(required.Attribute)
 		attribute := child.Attributes[in.targetSlots[parentSlot]]
-		at := slices.IndexFunc(child.NotNullConstraints, func(c catalog.NotNullConstraint) bool { return c.Attribute == attribute })
-		if at >= 0 && !required.NotValid && child.NotNullConstraints[at].NotValid {
-			return nil, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with NOT VALID constraint on child table "%s"`, child.NotNullConstraints[at].Name, child.Name()))
+		at := slices.IndexFunc(child.Constraints.NotNull, func(c catalog.NotNullConstraint) bool { return c.Attribute == attribute })
+		if at >= 0 && !required.NotValid && child.Constraints.NotNull[at].NotValid {
+			return nil, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with NOT VALID constraint on child table "%s"`, child.Constraints.NotNull[at].Name, child.Name()))
 		}
 	}
-	for _, required := range parent.CheckConstraints {
+	for _, required := range parent.Constraints.Check {
 		if required.NoInherit {
 			continue
 		}
-		at := slices.IndexFunc(child.CheckConstraints, func(c catalog.CheckConstraint) bool { return c.Name == required.Name })
+		at := slices.IndexFunc(child.Constraints.Check, func(c catalog.CheckConstraint) bool { return c.Name == required.Name })
 		if at < 0 {
 			return nil, sqlError("42804", fmt.Sprintf(`child table is missing constraint "%s"`, required.Name))
 		}
-		actual := child.CheckConstraints[at]
+		actual := child.Constraints.Check[at]
 		mapped, err := in.remap(required.Expression, child, view)
 		if err != nil {
 			return nil, err
@@ -153,9 +153,9 @@ func partitionAttachSchema(ctxScope *StatementScope, view catalog.Read, parent, 
 	next := *child
 	// PostgreSQL turns matched existing NN/CHECK facts into inherited facts, but
 	// retains their identities and names. NN matching is by mapped attribute.
-	next.NotNullConstraints = slices.Clone(child.NotNullConstraints)
-	for i := range next.NotNullConstraints {
-		constraint := &next.NotNullConstraints[i]
+	next.Constraints.NotNull = slices.Clone(child.Constraints.NotNull)
+	for i := range next.Constraints.NotNull {
+		constraint := &next.Constraints.NotNull[i]
 		slot := child.IndexForAttribute(constraint.Attribute)
 		parentSlot := parent.Index[child.Columns[slot].Name]
 		if !parent.Columns[parentSlot].Nullable {

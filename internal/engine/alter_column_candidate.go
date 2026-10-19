@@ -45,7 +45,7 @@ func ordinaryColumnDrop(provider *dropProvider, old *catalog.Relation, ref ids.O
 	target := ref.Address
 	target.SubID = old.Attributes[slot]
 	for _, attribute := range old.Attributes {
-		definition, generated := old.Generations[attribute]
+		definition, generated := old.ColumnMeta.Generations[attribute]
 		if !generated || attribute == target.SubID {
 			continue
 		}
@@ -124,11 +124,11 @@ func dropColumnMetadata(ctx context.Context, view catalog.Read, descriptor func(
 		delete(foreign.Columns, target.SubID)
 		next.Foreign = &foreign
 	}
-	next.DroppedAttributes = maps.Clone(old.DroppedAttributes)
-	if next.DroppedAttributes == nil {
-		next.DroppedAttributes = make(map[int32]catalog.AttributeMetadata)
+	next.ColumnMeta.Dropped = maps.Clone(old.ColumnMeta.Dropped)
+	if next.ColumnMeta.Dropped == nil {
+		next.ColumnMeta.Dropped = make(map[int32]catalog.AttributeMetadata)
 	}
-	next.DroppedAttributes[history.Number] = history
+	next.ColumnMeta.Dropped[history.Number] = history
 	next.Columns = make([]catalog.Column, 0, len(old.Columns)-1)
 	next.Attributes = make([]int32, 0, len(old.Attributes)-1)
 	next.Index = make(map[string]int, len(old.Index)-1)
@@ -143,14 +143,14 @@ func dropColumnMetadata(ctx context.Context, view catalog.Read, descriptor func(
 		next.Columns = append(next.Columns, column)
 		next.Attributes = append(next.Attributes, old.Attributes[i])
 	}
-	next.NotNullConstraints = nil
-	for _, constraint := range old.NotNullConstraints {
+	next.Constraints.NotNull = nil
+	for _, constraint := range old.Constraints.NotNull {
 		if constraint.Attribute != old.Attributes[slot] {
-			next.NotNullConstraints = append(next.NotNullConstraints, constraint)
+			next.Constraints.NotNull = append(next.Constraints.NotNull, constraint)
 		}
 	}
-	next.UniqueConstraints = nil
-	for _, constraint := range old.UniqueConstraints {
+	next.Constraints.Unique = nil
+	for _, constraint := range old.Constraints.Unique {
 		dependent := false
 		for _, attribute := range constraint.Attributes {
 			if attribute == old.Attributes[slot] {
@@ -164,32 +164,32 @@ func dropColumnMetadata(ctx context.Context, view catalog.Read, descriptor func(
 		}
 		dependent = dependent || slices.Contains(index.SQLIndex.Include, old.Attributes[slot])
 		if !dependent {
-			next.UniqueConstraints = append(next.UniqueConstraints, constraint)
+			next.Constraints.Unique = append(next.Constraints.Unique, constraint)
 		}
 	}
-	next.ExclusionConstraints = nil
-	for _, constraint := range old.ExclusionConstraints {
+	next.Constraints.Exclusion = nil
+	for _, constraint := range old.Constraints.Exclusion {
 		index, ok := descriptor(constraint.Index).(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
 			return nil, fmt.Errorf("stuntgres: missing dropped-column exclusion index")
 		}
 		if !uniqueIndexTypeAffected(index.SQLIndex, []columnTransformation{{attribute: old.Attributes[slot]}}) {
-			next.ExclusionConstraints = append(next.ExclusionConstraints, constraint)
+			next.Constraints.Exclusion = append(next.Constraints.Exclusion, constraint)
 		}
 	}
-	next.ForeignKeys = nil
-	for _, f := range old.ForeignKeys {
+	next.Constraints.ForeignKeys = nil
+	for _, f := range old.Constraints.ForeignKeys {
 		if !slices.Contains(f.Attributes, old.Attributes[slot]) {
-			next.ForeignKeys = append(next.ForeignKeys, f)
+			next.Constraints.ForeignKeys = append(next.Constraints.ForeignKeys, f)
 		}
 	}
-	next.CheckConstraints = nil
-	if len(old.CheckConstraints) != 0 {
+	next.Constraints.Check = nil
+	if len(old.Constraints.Check) != 0 {
 		slots := make(map[int32]int, len(next.Attributes))
 		for i, attr := range next.Attributes {
 			slots[attr] = i
 		}
-		for _, c := range old.CheckConstraints {
+		for _, c := range old.Constraints.Check {
 			dependent := false
 			for _, dep := range c.Dependencies {
 				if dep.Ref.Address == target {
@@ -205,28 +205,28 @@ func dropColumnMetadata(ctx context.Context, view catalog.Read, descriptor func(
 				return nil, err
 			}
 			c.Expression = expression
-			next.CheckConstraints = append(next.CheckConstraints, c)
+			next.Constraints.Check = append(next.Constraints.Check, c)
 		}
 	}
-	if _, exists := old.Defaults[old.Attributes[slot]]; exists {
-		next.Defaults = nil
-		if len(old.Defaults) > 1 {
-			next.Defaults = make(map[int32]catalog.ColumnDefault, len(old.Defaults)-1)
-			for attribute, definition := range old.Defaults {
+	if _, exists := old.ColumnMeta.Defaults[old.Attributes[slot]]; exists {
+		next.ColumnMeta.Defaults = nil
+		if len(old.ColumnMeta.Defaults) > 1 {
+			next.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault, len(old.ColumnMeta.Defaults)-1)
+			for attribute, definition := range old.ColumnMeta.Defaults {
 				if attribute != old.Attributes[slot] {
-					next.Defaults[attribute] = definition
+					next.ColumnMeta.Defaults[attribute] = definition
 				}
 			}
 		}
 	}
-	next.Generations = nil
-	if len(old.Generations) != 0 {
+	next.ColumnMeta.Generations = nil
+	if len(old.ColumnMeta.Generations) != 0 {
 		slots := make(map[int32]int, len(next.Attributes))
 		for i, attribute := range next.Attributes {
 			slots[attribute] = i
 		}
-		next.Generations = make(map[int32]catalog.ColumnGeneration, len(old.Generations))
-		for attribute, definition := range old.Generations {
+		next.ColumnMeta.Generations = make(map[int32]catalog.ColumnGeneration, len(old.ColumnMeta.Generations))
+		for attribute, definition := range old.ColumnMeta.Generations {
 			if attribute == target.SubID {
 				continue
 			}
@@ -240,48 +240,48 @@ func dropColumnMetadata(ctx context.Context, view catalog.Read, descriptor func(
 				return nil, err
 			}
 			definition.Expression = node
-			next.Generations[attribute] = definition
+			next.ColumnMeta.Generations[attribute] = definition
 		}
 	}
 	if err := refreshGenerationChecks(&next, view); err != nil {
 		return nil, err
 	}
-	if _, exists := old.Identities[old.Attributes[slot]]; exists {
-		next.Identities = make(map[int32]catalog.ColumnIdentity, len(old.Identities)-1)
-		for attribute, identity := range old.Identities {
+	if _, exists := old.ColumnMeta.Identities[old.Attributes[slot]]; exists {
+		next.ColumnMeta.Identities = make(map[int32]catalog.ColumnIdentity, len(old.ColumnMeta.Identities)-1)
+		for attribute, identity := range old.ColumnMeta.Identities {
 			if attribute != old.Attributes[slot] {
-				next.Identities[attribute] = identity
+				next.ColumnMeta.Identities[attribute] = identity
 			}
 		}
 	}
-	if _, exists := old.ColumnACL[old.Attributes[slot]]; exists {
-		next.ColumnACL = nil
-		for sub, acl := range old.ColumnACL {
+	if _, exists := old.Security.ColumnACL[old.Attributes[slot]]; exists {
+		next.Security.ColumnACL = nil
+		for sub, acl := range old.Security.ColumnACL {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
 			if sub == old.Attributes[slot] {
 				continue
 			}
-			if next.ColumnACL == nil {
-				next.ColumnACL = make(map[int32]authorization.ACLValue, len(old.ColumnACL)-1)
+			if next.Security.ColumnACL == nil {
+				next.Security.ColumnACL = make(map[int32]authorization.ACLValue, len(old.Security.ColumnACL)-1)
 			}
-			next.ColumnACL[sub] = acl
+			next.Security.ColumnACL[sub] = acl
 		}
 	}
-	if _, exists := old.ColumnComments[old.Attributes[slot]]; exists {
-		next.ColumnComments = nil
-		for sub, text := range old.ColumnComments {
+	if _, exists := old.ColumnMeta.Comments[old.Attributes[slot]]; exists {
+		next.ColumnMeta.Comments = nil
+		for sub, text := range old.ColumnMeta.Comments {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
 			if sub == old.Attributes[slot] {
 				continue
 			}
-			if next.ColumnComments == nil {
-				next.ColumnComments = make(map[int32]string, len(old.ColumnComments)-1)
+			if next.ColumnMeta.Comments == nil {
+				next.ColumnMeta.Comments = make(map[int32]string, len(old.ColumnMeta.Comments)-1)
 			}
-			next.ColumnComments[sub] = text
+			next.ColumnMeta.Comments[sub] = text
 		}
 	}
 	transitionPhysicalNotNull(old, &next)

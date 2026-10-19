@@ -20,6 +20,18 @@ standard library, and never the engine or its sibling `functions`.
   default ACL records, ...) live here too. Identity fields are
   `ObjectAddress`, `ObjectNamespace`, `ObjectName` and `ObjectRevision`; read
   them through the `Descriptor` methods.
+- **Relation layout.** `Relation` keeps identity, kind, owner, comment and
+  the live column shape (`Columns`, `Index`, `Attributes`, `RowType`,
+  `OfType`) at the top level, then four sub-records: `ColumnMeta`
+  (`ColumnMetadata`: attribute high-water mark, dropped attributes, catalog
+  attribute facts, column comments, defaults, generations, identities),
+  `Constraints` (`RelationConstraints`: NOT NULL, physical NOT NULL, check,
+  unique, exclusion, foreign keys), `Security` (`RelationSecurity`: ACL,
+  column ACLs, policies, RLS flags) and `History` (`PublicationHistory`:
+  sticky publication facts). The kind payloads (`SQLIndex`, `Partition`,
+  `Membership`, `Inheritance`, `Sequence`, `View`, `Rules`, `Foreign`, ...)
+  stay top-level. Sub-records are values, never pointers, so copying a
+  `Relation` shares their slices and maps exactly like its top-level ones.
 - **Payload interfaces.** Engine-defined payloads stay behind interfaces
   that expose only what catalog code needs: `ViewPayload`, `RulesPayload`,
   `PolicyPayload` and `ExtensionImplementation`. Expression payloads hold

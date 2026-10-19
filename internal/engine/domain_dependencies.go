@@ -253,7 +253,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 						}
 					}
 				}
-				for _, policy := range d.Policies {
+				for _, policy := range d.Security.Policies {
 					if policyDepends(policy, target) {
 						direct = append(direct, domainDependency{address: ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}, target: target, root: root, oid: policy.OID, label: "policy " + dependencyIdentifier(policy.Name) + " on table " + name, relation: d})
 					}
@@ -267,7 +267,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 					if droppedColumns[column] {
 						continue
 					}
-					if definition, ok := d.Defaults[column.SubID]; ok {
+					if definition, ok := d.ColumnMeta.Defaults[column.SubID]; ok {
 						for _, ref := range definition.Dependencies {
 							if ref.Address == target {
 								direct = append(direct, domainDependency{address: ids.ObjectAddress{ClassID: 2604, ObjectID: definition.OID}, target: target, root: root, oid: definition.OID, label: "default value for column " + dependencyIdentifier(c.Name) + " of table " + name, relation: d})
@@ -275,7 +275,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 							}
 						}
 					}
-					if definition, generated := d.Generations[column.SubID]; generated && target != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(c.Usage.Type.ID())}) {
+					if definition, generated := d.ColumnMeta.Generations[column.SubID]; generated && target != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(c.Usage.Type.ID())}) {
 						for _, ref := range definition.Dependencies {
 							if ref.Address == target {
 								direct = append(direct, domainDependency{address: column, target: target, root: root, oid: a.ObjectID, ordinal: column.SubID, label: "column " + dependencyIdentifier(c.Name) + " of table " + name, relation: d, column: c.Name})
@@ -284,7 +284,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 						}
 					}
 				}
-				for _, check := range d.CheckConstraints {
+				for _, check := range d.Constraints.Check {
 					automatic := false
 					depends := false
 					for _, dep := range check.Dependencies {
@@ -299,7 +299,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 						direct = append(direct, domainDependency{address: ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}, target: target, root: root, oid: orderOID, ordinal: ordinal, label: "constraint " + dependencyIdentifier(check.Name) + " on table " + name, relation: d})
 					}
 				}
-				for _, f := range d.ForeignKeys {
+				for _, f := range d.Constraints.ForeignKeys {
 					depends := target == f.Index || target == f.Target
 					if target.ClassID == f.Target.ClassID && target.ObjectID == f.Target.ObjectID && target.SubID != 0 {
 						depends = slices.Contains(f.Referenced, target.SubID)
@@ -404,7 +404,7 @@ func (provider *dropProvider) restrictError(targets []ids.ObjectAddress, edges [
 		if !edge.automatic {
 			target := edge.target
 			if edge.address.ClassID == 2606 && edge.relation != nil {
-				for _, f := range edge.relation.ForeignKeys {
+				for _, f := range edge.relation.Constraints.ForeignKeys {
 					if f.OID == edge.address.ObjectID && edge.root.ClassID == f.Target.ClassID && edge.root.ObjectID == f.Target.ObjectID {
 						target = edge.root
 						break

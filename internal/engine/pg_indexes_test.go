@@ -56,7 +56,7 @@ func TestPGIndexesDescriptors(t *testing.T) {
 	c := e.CatalogRead()
 	d, ref := pgIndexesUnitSource(t, c)
 	names := []string{"schemaname", "tablename", "indexname", "tablespace", "indexdef"}
-	if d.Name() != "pg_indexes" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || len(d.Columns) != 5 || d.AttributeHighWater != 5 {
+	if d.Name() != "pg_indexes" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || len(d.Columns) != 5 || d.ColumnMeta.HighWater != 5 {
 		t.Fatal(d)
 	}
 	for i, col := range d.Columns {
@@ -78,8 +78,8 @@ func TestPGIndexesDescriptors(t *testing.T) {
 	if row.OwningRelation != d.Address() {
 		t.Fatal("row type linkage", row)
 	}
-	if len(d.ACL.Entries) != 1 || !d.ACL.Entries[0].Grantee.Public || d.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
-		t.Fatal(d.ACL)
+	if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
+		t.Fatal(d.Security.ACL)
 	}
 	s := pgIndexesUnitCapture(t, c, catalogAuthorization(e, c))
 	if s.ref != ref || s.anonymous == nil || len(s.anonymous) != 0 {

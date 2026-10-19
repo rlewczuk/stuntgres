@@ -108,8 +108,8 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	tableRef := e.catalog.Domain.Ref(catalog.Epoch(), table.Address())
 	viewRef := e.catalog.Domain.Ref(catalog.Epoch(), view.Address())
 	origins := []quoteOrigin{
-		{owner: tableRef, attribute: table.Attributes[0], definition: table.Defaults[table.Attributes[0]].OID},
-		{owner: tableRef, attribute: table.Attributes[1], definition: table.Defaults[table.Attributes[1]].OID},
+		{owner: tableRef, attribute: table.Attributes[0], definition: table.ColumnMeta.Defaults[table.Attributes[0]].OID},
+		{owner: tableRef, attribute: table.Attributes[1], definition: table.ColumnMeta.Defaults[table.Attributes[1]].OID},
 		{owner: viewRef, definition: viewOf(view).rule, revision: viewOf(view).quoteRevision},
 		{},
 	}
@@ -299,8 +299,8 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		}
 		source := append([]quoteConstant(nil), before.quotes...)
 		beforeRelation := primaryKeyUnitRelation(t, engine, "sv_retry")
-		aDefinition := beforeRelation.Defaults[beforeRelation.Attributes[2]].OID
-		bDefinition := beforeRelation.Defaults[beforeRelation.Attributes[3]].OID
+		aDefinition := beforeRelation.ColumnMeta.Defaults[beforeRelation.Attributes[2]].OID
+		bDefinition := beforeRelation.ColumnMeta.Defaults[beforeRelation.Attributes[3]].OID
 		initial := map[string]bool{"root": false, "stored": false, `E'\\x00015c'`: false}
 		for _, capture := range source {
 			value, err := capture.value.Text()
@@ -345,7 +345,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 			t.Fatal("retry did not publish fresh owner-qualified group and stamps")
 		}
 		relation := primaryKeyUnitRelation(t, engine, "sv_retry")
-		if relation.Defaults[relation.Attributes[2]].OID != aDefinition || relation.Defaults[relation.Attributes[3]].OID == bDefinition {
+		if relation.ColumnMeta.Defaults[relation.Attributes[2]].OID != aDefinition || relation.ColumnMeta.Defaults[relation.Attributes[3]].OID == bDefinition {
 			t.Fatal("retry did not preserve a and replace b DEFAULT identity")
 		}
 		catalog := engine.CatalogRead()
@@ -369,7 +369,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 				default:
 					t.Fatal("unexpected retry DEFAULT attribute")
 				}
-				if capture.origin.definition != relation.Defaults[capture.origin.attribute].OID {
+				if capture.origin.definition != relation.ColumnMeta.Defaults[capture.origin.attribute].OID {
 					t.Fatal("retry retained obsolete DEFAULT definition")
 				}
 			}
@@ -405,7 +405,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 			}
 			want := "root"
 			if capture.origin.owner != (ids.ObjectRef{}) {
-				if capture.origin.owner != ref || capture.origin.definition != relation.Defaults[capture.origin.attribute].OID {
+				if capture.origin.owner != ref || capture.origin.definition != relation.ColumnMeta.Defaults[capture.origin.attribute].OID {
 					t.Fatal("MERGE default lost physical origin", capture.origin)
 				}
 				switch capture.origin.attribute {
@@ -423,7 +423,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 			seen[want] = true
 		}
 		for _, attribute := range relation.Attributes[1:3] {
-			node := relation.Defaults[attribute].Expression.(functions.StringVariadic)
+			node := relation.ColumnMeta.Defaults[attribute].Expression.(functions.StringVariadic)
 			if quoteOriginOf(node) != (quoteOrigin{}) {
 				t.Fatal("MERGE stamped catalog DEFAULT source")
 			}
@@ -502,7 +502,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 				for _, capture := range group.entries {
 					want := "root"
 					if capture.origin.owner != (ids.ObjectRef{}) {
-						if capture.origin.owner != ref || capture.origin.definition != relation.Defaults[capture.origin.attribute].OID {
+						if capture.origin.owner != ref || capture.origin.definition != relation.ColumnMeta.Defaults[capture.origin.attribute].OID {
 							t.Fatal("operation-local default origin lost")
 						}
 						switch capture.origin.attribute {

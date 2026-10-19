@@ -15,15 +15,15 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 	run(t, e, "CREATE TABLE t(k INT CONSTRAINT u UNIQUE,v TEXT)")
 	ref := roleTableRef(t, e, "t")
 	parent := e.catalog.state.MustRelation(ref.Address)
-	if len(parent.UniqueConstraints) != 1 {
-		t.Fatal(parent.UniqueConstraints)
+	if len(parent.Constraints.Unique) != 1 {
+		t.Fatal(parent.Constraints.Unique)
 	}
-	c := parent.UniqueConstraints[0]
+	c := parent.Constraints.Unique[0]
 	index, empty := btreeRoot(t, e, "u")
 	if c.OID == 0 || c.Index != index.Address() || !index.SQLIndex.Unique || index.SQLIndex.Constraint == nil || index.SQLIndex.Constraint.OID != c.OID || index.SQLIndex.Parent != parent.Address() || index.Owner != parent.Owner || index.Namespace() != parent.Namespace() || len(empty.entries) != 0 {
 		t.Fatal("broken parent/index closure")
 	}
-	if index.AttributeHighWater != int32(len(index.Attributes)) {
+	if index.ColumnMeta.HighWater != int32(len(index.Attributes)) {
 		t.Fatal("backing column identities exceed their allocation high-water")
 	}
 	run(t, e, "INSERT INTO t VALUES(1,'a'),(NULL,'n'),(NULL,'n')")
@@ -46,7 +46,7 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 	}
 	run(t, e, "ALTER TABLE t ALTER k TYPE BIGINT")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if next.Address() != parent.Address() || next.UniqueConstraints[0].OID == c.OID || next.UniqueConstraints[0].Index == c.Index {
+	if next.Address() != parent.Address() || next.Constraints.Unique[0].OID == c.OID || next.Constraints.Unique[0].Index == c.Index {
 		t.Fatal("TYPE identity contract")
 	}
 	if _, ok := e.catalog.state.Find(c.Index); ok {

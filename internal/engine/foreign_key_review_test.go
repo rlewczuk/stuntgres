@@ -36,7 +36,7 @@ func TestForeignKeyIndexProbeVisitBounds(t *testing.T) {
 	view := e.CatalogRead()
 	parent := view.MustRelation(catalogRef(t, e, view, "p").Address)
 	child := view.MustRelation(catalogRef(t, e, view, "c").Address)
-	f := child.ForeignKeys[0]
+	f := child.Constraints.ForeignKeys[0]
 	index := view.MustRelation(f.Index)
 	comparisons, err := bindForeignKeyComparison(view, child, parent, index, f)
 	if err != nil {
@@ -100,7 +100,7 @@ func TestForeignKeySelectedFamilyAuthority(t *testing.T) {
 	view := e.CatalogRead()
 	parent := view.MustRelation(parentRef.Address)
 	child := view.MustRelation(catalogRef(t, e, view, "c").Address)
-	f := child.ForeignKeys[0]
+	f := child.Constraints.ForeignKeys[0]
 	index := view.MustRelation(f.Index)
 	numeric, ok := view.LookupType(sqltype.Numeric)
 	if !ok {
@@ -123,7 +123,7 @@ func TestForeignKeySelectedFamilyAuthority(t *testing.T) {
 	if _, err := bindForeignKeyComparison(e.catalog.read(state), child, parent, index, f); err == nil {
 		t.Fatal("missing actual type generation admitted")
 	}
-	if child.Columns[0].Usage.Type.ID() != sqltype.Int4 || child.ForeignKeys[0].Index != index.Address() {
+	if child.Columns[0].Usage.Type.ID() != sqltype.Int4 || child.Constraints.ForeignKeys[0].Index != index.Address() {
 		t.Fatal("binding changed the source attachment")
 	}
 	sessionSQL(t, s, "INSERT INTO c VALUES(1)")
@@ -136,7 +136,7 @@ func TestForeignKeyTypeFailedSnapshotAuthority(t *testing.T) {
 	childRef := catalogRef(t, e, view, "c")
 	child := view.MustRelation(childRef.Address)
 	parent := view.MustRelation(parentRef.Address)
-	f := child.ForeignKeys[0]
+	f := child.Constraints.ForeignKeys[0]
 	index := view.MustRelation(f.Index)
 	parentStore, childStore := e.storage.relations[parentRef.Address], e.storage.relations[childRef.Address]
 	parentRows, childRows := slices.Clone(parentStore.versions), slices.Clone(childStore.versions)
@@ -161,16 +161,16 @@ func TestForeignKeyTypeFailedSnapshotAuthority(t *testing.T) {
 		if e.CatalogRead().State() != view.State() || e.storage.relations[parentRef.Address] != parentStore || e.storage.relations[childRef.Address] != childStore || e.storage.indexRoots[f.Index] != root {
 			t.Fatal("failed TYPE published metadata/storage/index authority", trial.sql)
 		}
-		if !reflect.DeepEqual(parentStore.versions, parentRows) || !reflect.DeepEqual(childStore.versions, childRows) || !reflect.DeepEqual(root.entries, entries) || !reflect.DeepEqual(child.ForeignKeys[0], f) {
+		if !reflect.DeepEqual(parentStore.versions, parentRows) || !reflect.DeepEqual(childStore.versions, childRows) || !reflect.DeepEqual(root.entries, entries) || !reflect.DeepEqual(child.Constraints.ForeignKeys[0], f) {
 			t.Fatal("failed TYPE mutated borrowed data or attachment", trial.sql)
 		}
 	}
 	sessionSQL(t, s, "ALTER TABLE c ALTER pid TYPE BIGINT")
 	next := e.CatalogRead().MustRelation(childRef.Address)
-	if next == child || next.ForeignKeys[0].OID == f.OID || next.ForeignKeys[0].Index != f.Index || next.ForeignKeys[0].Target != parent.Address() || e.CatalogRead().Get(index.Address()) != index {
-		t.Fatal("successful child TYPE lost stable supporting/target identities", next.ForeignKeys[0], f)
+	if next == child || next.Constraints.ForeignKeys[0].OID == f.OID || next.Constraints.ForeignKeys[0].Index != f.Index || next.Constraints.ForeignKeys[0].Target != parent.Address() || e.CatalogRead().Get(index.Address()) != index {
+		t.Fatal("successful child TYPE lost stable supporting/target identities", next.Constraints.ForeignKeys[0], f)
 	}
-	if view.Get(childRef.Address) != child || view.Get(parentRef.Address) != parent || !reflect.DeepEqual(child.ForeignKeys[0], f) || !reflect.DeepEqual(childStore.versions, childRows) || !reflect.DeepEqual(root.entries, entries) {
+	if view.Get(childRef.Address) != child || view.Get(parentRef.Address) != parent || !reflect.DeepEqual(child.Constraints.ForeignKeys[0], f) || !reflect.DeepEqual(childStore.versions, childRows) || !reflect.DeepEqual(root.entries, entries) {
 		t.Fatal("successful TYPE changed retained snapshot authority")
 	}
 	sessionSQL(t, s, "INSERT INTO c VALUES(1)")
@@ -226,7 +226,7 @@ func TestForeignKeyCreateOutcomeIdentity(t *testing.T) {
 	if skipped != (ids.ObjectRef{}) || e.CatalogRead().State() != view.State() {
 		t.Fatal("no-op masqueraded as a successful creation", skipped)
 	}
-	if len(view.MustRelation(ref.Address).ForeignKeys) != 0 {
+	if len(view.MustRelation(ref.Address).Constraints.ForeignKeys) != 0 {
 		t.Fatal("no-op attached ignored foreign-key metadata")
 	}
 }

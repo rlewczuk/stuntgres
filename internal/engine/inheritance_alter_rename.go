@@ -86,7 +86,7 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Op
 		if kind == 'c' {
 			inherited = root.Inheritance.Checks[name].Count() != 0
 		} else {
-			for _, c := range root.NotNullConstraints {
+			for _, c := range root.Constraints.NotNull {
 				if c.Name == name {
 					inherited = root.Inheritance.NotNull[c.Attribute].Count() != 0
 				}
@@ -98,13 +98,13 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Op
 		return Result{}, sqlError("42P16", fmt.Sprintf(`cannot rename inherited constraint "%s"`, name))
 	}
 	if kind == 'c' {
-		for _, c := range root.CheckConstraints {
+		for _, c := range root.Constraints.Check {
 			if c.Name == name {
 				noInherit = c.NoInherit
 			}
 		}
 	} else {
-		for _, c := range root.NotNullConstraints {
+		for _, c := range root.Constraints.NotNull {
 			if c.Name == name {
 				noInherit = c.NoInherit
 			}
@@ -131,7 +131,7 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Op
 		if old != root {
 			provenance := old.Inheritance.Checks[name]
 			if kind == 'n' {
-				for _, c := range old.NotNullConstraints {
+				for _, c := range old.Constraints.NotNull {
 					if c.Name == name {
 						provenance = old.Inheritance.NotNull[c.Attribute]
 					}
