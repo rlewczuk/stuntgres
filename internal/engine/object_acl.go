@@ -24,8 +24,8 @@ type objectACLExpression struct {
 var objectACLLabels = [3]string{"classid", "objid", "objsubid"}
 var objectACLTypes = [3]sqltype.ID{sqltype.Oid, sqltype.Oid, sqltype.Int4}
 
-func (b *expressionBinder) bindObjectACL(raw parser.FunctionExpr) (expr.Expr, error) {
-	var operands [3]comparisonOperand
+func bindObjectACL(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, error) {
+	var operands [3]functions.Argument
 	var small [3]string
 	names := small[:0]
 	if len(raw.Args) <= 3 {
@@ -34,7 +34,7 @@ func (b *expressionBinder) bindObjectACL(raw parser.FunctionExpr) (expr.Expr, er
 		names = make([]string, len(raw.Args))
 	}
 	for i, child := range raw.Args {
-		operand, err := b.comparisonOperand(child)
+		operand, err := b.AnalyzeArgument(child, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
 		if err != nil {
 			return nil, err
 		}
@@ -43,36 +43,24 @@ func (b *expressionBinder) bindObjectACL(raw parser.FunctionExpr) (expr.Expr, er
 		}
 		if i < len(names) {
 			names[i] = "unknown"
-			if typ := operand.descriptor(); typ != nil {
+			if typ := operand.Usage.Type; typ != nil {
 				names[i] = typ.DiagnosticName()
 			}
 			names[i] = functions.NamedArgumentType(raw, i, names[i])
 		}
 	}
-	if _, err := b.bindAggregateFilter(parser.AggregateExpr{Filter: raw.Filter}); err != nil {
+	if err := b.AnalyzeFilter(raw.Filter); err != nil {
 		return nil, err
 	}
-	if len(raw.Args) > 100 {
-		return nil, expr.ErrorAt("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+	if err := inquiryCallSyntax(b, raw); err != nil {
+		return nil, err
 	}
-	issue := functions.FunctionLabels(raw)
-	switch {
-	case issue.Malformed:
-		return nil, fmt.Errorf("invalid function argument labels")
-	case issue.Positional:
-		return nil, expr.ErrorAt("42601", "positional argument cannot follow named argument", issue.Position)
-	case issue.Duplicate != "":
-		return nil, expr.ErrorAt("42601", fmt.Sprintf("argument name %q used more than once", issue.Duplicate), issue.Position)
-	}
-	if b.defaultConsumer {
-		return nil, expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
-	}
-	visible, err := b.builtinVisible(raw.Name, functionLookup)
+	visible, err := b.BuiltinVisible(raw.Name)
 	if err != nil {
 		return nil, err
 	}
 	if !visible || raw.Name.Parts[len(raw.Name.Parts)-1].Text != "pg_get_acl" || len(raw.Args) != 3 {
-		return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
 	n := objectACLExpression{slots: [3]uint8{0, 1, 2}}
 	var occupied [3]bool
@@ -87,47 +75,36 @@ func (b *expressionBinder) bindObjectACL(raw parser.FunctionExpr) (expr.Expr, er
 				}
 			}
 			if slot < 0 {
-				return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+				return nil, b.SignatureError(raw.Name, raw.Pos, names)
 			}
 			n.slots[i], n.labels[i] = uint8(slot), label
 		}
 		slot := n.slots[i]
 		if occupied[slot] {
-			return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+			return nil, b.SignatureError(raw.Name, raw.Pos, names)
 		}
 		occupied[slot] = true
-		if operands[i].descriptor() != nil {
-			if _, failure := sqltype.PlanCoercion(operands[i].node.ResultUsage(), b.typ(objectACLTypes[slot]).Usage(), sqltype.Implicit); failure != nil {
-				return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+		if operands[i].Usage.Type != nil {
+			if _, failure := sqltype.PlanCoercion(operands[i].Usage, b.Type(objectACLTypes[slot]).Usage(), sqltype.Implicit); failure != nil {
+				return nil, b.SignatureError(raw.Name, raw.Pos, names)
 			}
 		}
 	}
 	properties := expr.Properties{Volatility: expr.Stable}
 	for i := range n.args {
-		target := b.typ(objectACLTypes[n.slots[i]]).Usage()
-		arg, err := b.finalizeOperand(operands[i], target.Type)
+		arg, err := coerceInquiryFormal(b, operands[i], raw.Args[i], b.Type(objectACLTypes[n.slots[i]]).Usage(), func() error {
+			return b.SignatureError(raw.Name, raw.Pos, names)
+		})
 		if err != nil {
 			return nil, err
-		}
-		if arg.ResultUsage() != target {
-			plan, failure := sqltype.PlanCoercion(arg.ResultUsage(), target, sqltype.Implicit)
-			if failure != nil {
-				return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
-			}
-			arg = coercionExpression{b.info(target, raw.Args[i].SourcePosition(), coercionProperties(arg, plan)), arg, plan, sqltype.Implicit, false}
 		}
 		n.args[i] = arg
 		properties = expr.MergeProperties(properties, arg.Properties())
 	}
-	switch {
-	case raw.Distinct:
-		return nil, expr.ErrorAt("42809", "DISTINCT specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
-	case len(raw.Order) != 0:
-		return nil, expr.ErrorAt("42809", "ORDER BY specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
-	case raw.Filter != nil:
-		return nil, expr.ErrorAt("42809", "FILTER specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
+	if err := inquiryDecorationError(raw); err != nil {
+		return nil, err
 	}
-	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.ACLItemArray).Usage(), raw.Pos, properties), catalogRoutineProvider, "pg_get_acl", objectACLTypes[:]...)
+	info, err := b.BuiltinRoutineInfo(b.Info(b.Type(sqltype.ACLItemArray).Usage(), raw.Pos, properties), functions.CatalogRoutineProvider, "pg_get_acl", objectACLTypes[:]...)
 	if err != nil {
 		return nil, err
 	}

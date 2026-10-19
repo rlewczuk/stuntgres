@@ -2962,6 +2962,12 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 			return nil, err
 		}
 		return coercionExpression{info, node, request.Plan, sqltype.Explicit, false}, nil
+	case functions.BareFormalArgument:
+		node := argument.Expression
+		if node == nil || !request.Planned {
+			return nil, fmt.Errorf("stuntgres: invalid bare function argument coercion")
+		}
+		return coercionExpression{b.info(request.Target, argument.Raw.SourcePosition(), coercionProperties(node, request.Plan)), node, request.Plan, sqltype.Implicit, false}, nil
 	case functions.AssignmentFormalArgument:
 		return b.bind(argument.Raw, expressionPolicy{context: assignmentContext, expected: request.Target, mode: sqltype.Implicit})
 	case functions.DirectFormalArgument:

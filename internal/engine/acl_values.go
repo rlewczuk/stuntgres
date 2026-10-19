@@ -63,7 +63,7 @@ func (n aclValueExpression) baseProperties() expr.Properties {
 	}
 	return p
 }
-func (b *expressionBinder) bindACLValue(raw parser.FunctionExpr) (expr.Expr, error) {
+func bindACLValue(b functions.Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	kind := aclDefault
 	if strings.EqualFold(name, "makeaclitem") {
@@ -73,7 +73,7 @@ func (b *expressionBinder) bindACLValue(raw parser.FunctionExpr) (expr.Expr, err
 		kind = aclExplode
 	}
 	types := kind.types()
-	var operands [4]comparisonOperand
+	var operands [4]functions.Argument
 	var small [4]string
 	names := small[:0]
 	if len(raw.Args) <= 4 {
@@ -85,7 +85,11 @@ func (b *expressionBinder) bindACLValue(raw parser.FunctionExpr) (expr.Expr, err
 		// The object-kind slot consumes internal CHAR input just like the
 		// existing textual function roles. Keep general CHAR casts/storage
 		// excluded; in particular, typed TEXT is not an implicit CHAR input.
-		o, err := b.stringOperand(child, kind == aclDefault && i == 0)
+		intent := functions.StringOtherArgument
+		if kind == aclDefault && i == 0 {
+			intent = functions.StringTextArgument
+		}
+		o, err := b.AnalyzeArgument(child, functions.AnalysisRequest{Intent: intent})
 		if err != nil {
 			return nil, err
 		}
@@ -94,8 +98,8 @@ func (b *expressionBinder) bindACLValue(raw parser.FunctionExpr) (expr.Expr, err
 		}
 		if i < len(names) {
 			names[i] = "unknown"
-			if d := o.descriptor(); d != nil {
-				names[i] = b.diagnosticTypeName(d)
+			if d := o.Usage.Type; d != nil {
+				names[i] = b.DiagnosticTypeName(d)
 			}
 			names[i] = functions.NamedArgumentType(raw, i, names[i])
 		}
@@ -103,7 +107,7 @@ func (b *expressionBinder) bindACLValue(raw parser.FunctionExpr) (expr.Expr, err
 	if err := functions.ValidateCallSyntax(b, raw); err != nil {
 		return nil, err
 	}
-	visible, err := b.builtinVisible(raw.Name, functionLookup)
+	visible, err := b.BuiltinVisible(raw.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -117,15 +121,15 @@ func (b *expressionBinder) bindACLValue(raw parser.FunctionExpr) (expr.Expr, err
 	}
 	if valid {
 		for i, t := range types {
-			if operands[i].descriptor() != nil {
-				if _, err := sqltype.PlanCoercion(operands[i].node.ResultUsage(), b.typ(t).Usage(), sqltype.Implicit); err != nil {
+			if operands[i].Usage.Type != nil {
+				if _, err := sqltype.PlanCoercion(operands[i].Usage, b.Type(t).Usage(), sqltype.Implicit); err != nil {
 					valid = false
 				}
 			}
 		}
 	}
 	if !valid {
-		return nil, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, false)
+		return nil, functions.ResolutionError(raw.Name, raw.Pos, names, false)
 	}
 	if err := functions.CallDecorationError(raw); err != nil {
 		return nil, err
@@ -136,30 +140,50 @@ func (b *expressionBinder) bindACLValue(raw parser.FunctionExpr) (expr.Expr, err
 	n := aclValueExpression{kind: kind, named: named}
 	p := n.baseProperties()
 	for i, t := range types {
-		arg, err := b.coerceConditional(operands[i], b.typ(t).Usage(), name)
+		arg, err := b.CoerceArgument(operands[i], functions.CoercionRequest{Intent: functions.ConditionalArgument, Target: b.Type(t).Usage(), Label: name})
 		if err != nil {
 			return nil, err
 		}
 		n.args[i] = arg
 		p = expr.MergeProperties(p, arg.Properties())
 	}
-	result := b.typ(sqltype.ACLItemArray).Usage()
+	result := b.Type(sqltype.ACLItemArray).Usage()
 	if kind == aclMake {
-		result = b.typ(sqltype.ACLItem).Usage()
+		result = b.Type(sqltype.ACLItem).Usage()
 	}
 	if kind == aclExplode {
-		members := []sqltype.CompositeMember{{Attribute: 1, Name: "grantor", Usage: b.typ(sqltype.Oid).Usage()}, {Attribute: 2, Name: "grantee", Usage: b.typ(sqltype.Oid).Usage()}, {Attribute: 3, Name: "privilege_type", Usage: b.typ(sqltype.Text).Usage()}, {Attribute: 4, Name: "is_grantable", Usage: b.typ(sqltype.Bool).Usage()}}
+		members := []sqltype.CompositeMember{{Attribute: 1, Name: "grantor", Usage: b.Type(sqltype.Oid).Usage()}, {Attribute: 2, Name: "grantee", Usage: b.Type(sqltype.Oid).Usage()}, {Attribute: 3, Name: "privilege_type", Usage: b.Type(sqltype.Text).Usage()}, {Attribute: 4, Name: "is_grantable", Usage: b.Type(sqltype.Bool).Usage()}}
 		shape, err := sqltype.RecordShape(members)
 		if err != nil {
 			return nil, err
 		}
 		result = shape.Usage()
 	}
-	n.Info = b.info(result, raw.Pos, p)
-	n.Info, err = b.builtinRoutineInfo(n.Info, catalogRoutineProvider, kind.name(), types...)
+	n.Info, err = b.BuiltinRoutineInfo(b.Info(result, raw.Pos, p), functions.CatalogRoutineProvider, kind.name(), types...)
 	if err != nil {
 		return nil, err
 	}
+	return n, nil
+}
+
+// bindACLContains is the fixed aclitem[] @> aclitem operator over analyzed
+// operands; namespace is the explicit operator schema, if any.
+func bindACLContains(b functions.Binder, operands [2]functions.Argument, namespace string, pos parser.Position) (expr.Expr, error) {
+	n := aclValueExpression{kind: aclContains, namespace: namespace}
+	properties := n.baseProperties()
+	for i, typ := range n.kind.types() {
+		arg, err := b.CoerceArgument(operands[i], functions.CoercionRequest{Intent: functions.ConditionalArgument, Target: b.Type(typ).Usage(), Label: "@>"})
+		if err != nil {
+			return nil, err
+		}
+		n.args[i] = arg
+		properties = expr.MergeProperties(properties, arg.Properties())
+	}
+	info, err := b.BuiltinOperatorRoutineInfo(b.Info(b.Type(sqltype.Bool).Usage(), pos, properties), "@>", sqltype.ACLItemArray, sqltype.ACLItem)
+	if err != nil {
+		return nil, err
+	}
+	n.Info = info
 	return n, nil
 }
 func (n aclValueExpression) values(c *EvalContext) ([4]sqltype.Value, bool, error) {

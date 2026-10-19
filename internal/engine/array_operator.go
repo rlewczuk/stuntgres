@@ -49,25 +49,11 @@ func (b *expressionBinder) finishArrayMembership(raw parser.OperatorExpr, operan
 	// ACL arrays select the fixed array/item signature for an unknown RHS;
 	// a known array RHS still belongs to the generic array/array operator.
 	if raw.Name.Parts[len(raw.Name.Parts)-1].Text == "@>" && (right != nil && right.BaseType().ID() == sqltype.ACLItem && (left == nil || left.BaseType().ID() == sqltype.ACLItemArray) || right == nil && left != nil && left.BaseType().ID() == sqltype.ACLItemArray) {
-		n := aclValueExpression{kind: aclContains}
-		properties := n.baseProperties()
-		for i, typ := range n.kind.types() {
-			arg, err := b.coerceConditional(operands[i], b.typ(typ).Usage(), "@>")
-			if err != nil {
-				return nil, err
-			}
-			n.args[i] = arg
-			properties = expr.MergeProperties(properties, arg.Properties())
-		}
+		namespace := ""
 		if len(raw.Name.Parts) == 2 {
-			n.namespace = raw.Name.Parts[0].Text
+			namespace = raw.Name.Parts[0].Text
 		}
-		n.Info = b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties)
-		n.Info, err = b.builtinOperatorRoutineInfo(n.Info, "@>", sqltype.ACLItemArray, sqltype.ACLItem)
-		if err != nil {
-			return nil, err
-		}
-		return n, nil
+		return bindACLContains(b, [2]functions.Argument{operandArgument(operands[0]), operandArgument(operands[1])}, namespace, raw.Pos)
 	}
 	var selected *sqltype.Descriptor
 	for _, d := range []*sqltype.Descriptor{left, right} {
