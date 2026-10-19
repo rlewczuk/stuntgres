@@ -188,6 +188,26 @@ plan.
 Remove them with a tool aware of `go/types`. This is a broad rewrite: do not
 run it in parallel with 6c or with another broad rewrite (§8).
 
+### B5 — Move the binding walkers (after step 12d)
+
+Added when the later waves were planned. The binding walkers stayed in the
+engine because they read `binding`, `queryLeaf`, `queryRowMark` and lock
+modes: `AuthorizationView.checkBinding`, `checkQuerySources`,
+`checkColumns`, `checkViewWrite`, `checkViewRowMarks` and
+`checkViewRowMarksExpanded` (all in `authorization.go`), and the
+`row_security` walkers added at `2205fe385` (`checkRowSecurityBinding`,
+`checkRowSecurityRuleProgram`, `checkRowSecuritySource` in
+`row_security_setting.go`). Once step 12d has
+moved `binding` into `analyze` and step 10c the row marks into `plan`:
+
+1. Re-measure the walkers' reach with the appendix tool.
+2. Move them next to the binding they walk, in `analyze`, as functions that
+   take the binding and an `access.View` (or the root's `AuthorizationView`
+   entry points), calling `access` for each object. `access` must not import
+   `analyze` or `plan`.
+3. Keep privilege decisions, error order and messages identical; run the
+   reference selections listed under "Targeted tests" with `REFERENCE=1`.
+
 ## Invariants
 
 - Privilege decisions, SQLSTATEs, messages, notice order and grantor
@@ -266,6 +286,7 @@ run it in parallel with 6c or with another broad rewrite (§8).
 - [x] Names cleanup — diagnostic name helpers moved to `catalog`, the
   `access` copy deleted (`9a73852a6`, `416945ecb`, then the commit that
   records this status) *(racecheck skipped at user request)*
+- [ ] B5 — Binding walkers moved next to `binding` (needs step 12d)
 
 No aliases remain: B4 removed the nine B3 aliases and deleted
 `internal/engine/access_aliases.go`. Part A, B1 and B2 added none.

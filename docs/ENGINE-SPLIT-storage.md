@@ -60,6 +60,18 @@ metadata, and per-session sequence memories (currval and lastval).
 Remove them with a tool aware of `go/types`. Do not run this in parallel with
 another broad rewrite (§8).
 
+### 6d — Optional: confine store map writes
+
+Added when the later waves were planned (measured at `75fe0d710`).
+`storage.Store` exposes `Relations`, `Sequences` and `IndexRoots` as exported
+maps, and the engine assigns to them directly at 17 sites (for example
+`e.storage.Relations[a] = ...` in publication, Restore, foreign replacement
+and TEMP installation). As 5b did for `catalog.State`, route the writes
+through a few `Locked` methods (install one, replace all, remove one) that
+document the caller-holds-`Engine.mu` contract. Reads can stay as they are.
+Keep publication atomic: a whole-map swap stays one assignment under
+`Engine.mu`.
+
 ## Invariants
 
 - Published roots stay immutable and shared copy-on-write. Never copy row
@@ -114,6 +126,7 @@ completes the step.
 - [x] 6c — Aliases removed (`518fd7141`, `4c9a2a229`, `33c1b6f43`,
   `a57f5648e`, then the commit that records this status) *(racecheck
   skipped at user request)*
+- [ ] 6d — Optional: store map writes confined to methods
 
 Outstanding aliases: none. 6b kept 14 unexported type aliases in
 `internal/engine/storage_aliases.go`; 6c removed them all.
