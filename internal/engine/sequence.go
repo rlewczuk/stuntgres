@@ -156,7 +156,7 @@ func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationV
 		return ids.ObjectAddress{}, err
 	}
 	fresh.catalog = e.privateCatalogLocked(changes)
-	fresh.recaptureCatalog(fresh.catalog)
+	fresh.Recapture(fresh.catalog)
 	*auth = fresh
 	// Keep the captured incarnation, not a replacement now found by name.
 	r, ok := auth.catalog.Relation(ref.Address)
@@ -219,7 +219,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			return Result{}, err
 		}
 		auth.catalog = e.privateCatalogLocked(changes)
-		auth.recaptureCatalog(auth.catalog)
+		auth.Recapture(auth.catalog)
 		if table, ok := changes.descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
 			auth.stagedTemporary = table.Address()
 		}
@@ -429,7 +429,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			// pg_temp may stage a namespace. Resolve permissions and endpoints
 			// against that same private catalog, without publishing on rejection.
 			auth.catalog = e.privateCatalogLocked(changes)
-			auth.recaptureCatalog(auth.catalog)
+			auth.Recapture(auth.catalog)
 			if table, ok := changes.descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
 				auth.stagedTemporary = table.Address()
 			}

@@ -30,7 +30,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		return err
 	}
 	auth.catalog = view
-	auth.recaptureCatalog(auth.catalog)
+	auth.Recapture(auth.catalog)
 	var captures []catalogOverlayIndex
 	for a, d := range view.Descriptors() {
 		index, ok := d.(*catalog.Relation)

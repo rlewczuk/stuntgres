@@ -24,7 +24,7 @@ func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage
 	}
 	if len(changes.descriptors) != 0 {
 		auth.catalog = e.stageRead(stage)
-		auth.recaptureCatalog(auth.catalog)
+		auth.Recapture(auth.catalog)
 		if ns, ok := auth.catalog.Namespace(ref.Address); ok && !ns.TemporaryToast && auth.session != nil && ns.Temporary == auth.session.token {
 			auth.stagedTemporary = ns.Address()
 		}

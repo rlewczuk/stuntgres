@@ -52,13 +52,13 @@ func checkPersistentCreationNamespace(catalog catalog.Read, namespace ids.Object
 
 func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ids.ObjectAddress, owner authorization.PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ids.ObjectRef) error {
 	auth.catalog = stage.Base
-	auth.recaptureCatalog(auth.catalog)
+	auth.Recapture(auth.catalog)
 	if namespace, ok := auth.catalog.Namespace(ns); ok && !namespace.TemporaryToast && auth.session != nil && namespace.Temporary == auth.session.token {
 		auth.stagedTemporary = ns
 	}
 	if len(stage.Descriptors) != 0 || len(stage.Removals) != 0 || len(stage.OldNames) != 0 {
 		auth.catalog = e.stageRead(stage)
-		auth.recaptureCatalog(auth.catalog)
+		auth.Recapture(auth.catalog)
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: name}
@@ -82,7 +82,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	}
 	if len(stage.Descriptors) != 0 || len(stage.Removals) != 0 || len(stage.OldNames) != 0 {
 		auth.catalog = e.stageRead(stage)
-		auth.recaptureCatalog(auth.catalog)
+		auth.Recapture(auth.catalog)
 	}
 	b, err := e.describe(op.Context(), s, auth, ids.ObjectRef{}, input, op, nil, nil)
 	if err != nil {
@@ -129,7 +129,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	}
 	// All owned sequences and their defaults share the private CREATE candidate.
 	auth.catalog = e.stageRead(stage)
-	auth.recaptureCatalog(auth.catalog)
+	auth.Recapture(auth.catalog)
 	// Preserve operation safety, but resolve diagnostic names lazily against
 	// the staged catalog that owns these defaults, generations and CHECKs.
 	input.TypeDiagnosticName = nil

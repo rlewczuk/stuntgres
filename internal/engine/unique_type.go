@@ -218,7 +218,7 @@ func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, c
 		return nil, err
 	}
 	auth.catalog = candidate
-	auth.recaptureCatalog(auth.catalog)
+	auth.Recapture(auth.catalog)
 	evaluation.catalog, evaluation.Output = candidate, output
 	named := false
 	for _, index := range indexes {

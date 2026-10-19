@@ -27,7 +27,7 @@ func TestDefaultPrivilegesArrayAuthority(t *testing.T) {
 		}
 		if err == nil {
 			auth.catalog = f.e.stageRead(stage)
-			auth.recaptureCatalog(auth.catalog)
+			auth.Recapture(auth.catalog)
 		}
 		f.e.mu.Unlock()
 		if err != nil {
@@ -100,7 +100,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 		t.Fatal(err)
 	}
 	auth.catalog = f.e.catalog.read(state)
-	auth.recaptureCatalog(auth.catalog)
+	auth.Recapture(auth.catalog)
 	auth.state.CurrentUser = f.reader
 	ref := f.e.catalog.Domain.Ref(state.Epoch(), f.schema)
 	for _, privilege := range []authorization.Privileges{authorization.UsagePrivilege, authorization.CreatePrivilege, authorization.UsagePrivilege | authorization.CreatePrivilege} {
@@ -131,7 +131,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 		candidate.SetDescriptor(f.schema, &invalidNamespace)
 		invalid := auth
 		invalid.catalog = f.e.catalog.read(candidate)
-		invalid.recaptureCatalog(invalid.catalog)
+		invalid.Recapture(invalid.catalog)
 		invalid.session = &Session{token: token}
 		defaultUnitDiagnostic(t, invalid.CanUse(ref), "42501", "permission denied for schema "+namespace.Name())
 	}
@@ -144,7 +144,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	ordinary.SetDescriptor(f.schema, &permanent)
 	ordinaryAuth := auth
 	ordinaryAuth.catalog = f.e.catalog.read(ordinary)
-	ordinaryAuth.recaptureCatalog(ordinaryAuth.catalog)
+	ordinaryAuth.Recapture(ordinaryAuth.catalog)
 	defaultUnitDiagnostic(t, ordinaryAuth.CanUse(ref), "42501", "permission denied for schema "+namespace.Name())
 	foreign := ref
 	foreign = New().catalog.Domain.Ref(foreign.Epoch, foreign.Address)

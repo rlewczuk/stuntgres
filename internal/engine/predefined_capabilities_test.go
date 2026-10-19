@@ -72,7 +72,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	withColumnState := catalog.CloneState(state)
 	withColumnState.SetDescriptor(table.Address(), &withColumn)
 	v.catalog = e.catalog.read(withColumnState)
-	v.recaptureCatalog(v.catalog)
+	v.Recapture(v.catalog)
 	if got, err := v.Effective(column, false); err != nil || got != authorization.SelectPrivilege|authorization.InsertPrivilege|authorization.UpdatePrivilege|authorization.ReferencesPrivilege {
 		t.Fatal("ACL plus capability", got, err)
 	}

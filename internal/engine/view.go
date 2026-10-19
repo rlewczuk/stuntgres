@@ -251,7 +251,7 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 		return err
 	}
 	auth.catalog = e.privateCatalogLocked(changes)
-	auth.recaptureCatalog(auth.catalog)
+	auth.Recapture(auth.catalog)
 	if table, ok := changes.descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == s.op.session.token {
 		auth.stagedTemporary = table.Address()
 	}
@@ -284,7 +284,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	ns := scope.viewCreationNamespace
 	if scope.viewChanges != nil {
 		auth.catalog = e.privateCatalogLocked(scope.viewChanges)
-		auth.recaptureCatalog(auth.catalog)
+		auth.Recapture(auth.catalog)
 		if table, ok := scope.viewChanges.descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
 			auth.stagedTemporary = table.Address()
 		}

@@ -71,8 +71,8 @@ func (v accessView) Ref(address ids.ObjectAddress) ids.ObjectRef {
 	return v.owner.Domain.Ref(v.catalog.Epoch(), address)
 }
 
-// recaptureCatalog binds a substituted catalog to the same immutable role root.
-func (v *accessView) recaptureCatalog(catalog catalog.Read) {
+// Recapture binds a substituted catalog to the same immutable role root.
+func (v *accessView) Recapture(catalog catalog.Read) {
 	v.catalog = catalog
 	v.pairedCatalog = catalog
 	v.roles = roleRead(v.owner, v.owner.Principals, catalog, v.roleRecord)

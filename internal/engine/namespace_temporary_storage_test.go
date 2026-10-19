@@ -64,7 +64,7 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 		if token == owner.token {
 			auth = ownerAuth
 		}
-		auth.recaptureCatalog(view)
+		auth.Recapture(view)
 		e.mu.Lock()
 		refs, err := e.queryTableRefsLocked(auth, auth.state.CurrentUser, []queryLeaf{leaf}, nil, token, queryRowMark{})
 		e.mu.Unlock()

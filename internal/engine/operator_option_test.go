@@ -231,7 +231,7 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 	} {
 		stage := operatorUnitStage(t, e, op, auth, definition)
 		collationUnitPublish(t, e, stage)
-		auth.recaptureCatalog(e.CatalogRead())
+		auth.Recapture(e.CatalogRead())
 	}
 	signature := parser.OperatorSignature{Name: operatorUnitName("public", "#=#"), Left: parser.TypeName{Name: "int4"}, Right: parser.TypeName{Name: "int4"}}
 	source, err := e.findUtilityOperator(op, auth, signature)
@@ -264,14 +264,14 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 		t.Fatal("private reciprocal updates changed published roots")
 	}
 	collationUnitPublish(t, e, stage)
-	auth.recaptureCatalog(e.CatalogRead())
+	auth.Recapture(e.CatalogRead())
 	// Shell lookup must also precede protected fields; CREATE retains its own
 	// forward-shell path and supplies a real shell for this competitor.
 	shellGenerator := operatorUnitDefinition("#~#", "int4eq")
 	shellGenerator.Options = append(shellGenerator.Options, parser.OperatorOption{Name: "commutator", HasValue: true, Kind: parser.OperatorOptionNameArgument, Reference: operatorUnitName("public", "#!#")})
 	stage = operatorUnitStage(t, e, op, auth, shellGenerator)
 	collationUnitPublish(t, e, stage)
-	auth.recaptureCatalog(e.CatalogRead())
+	auth.Recapture(e.CatalogRead())
 	for _, tc := range []struct{ options, code, message string }{
 		{"hashes=false,commutator=OPERATOR(public.#?#)", "42883", "operator does not exist: integer public.#?# integer"},
 		{"hashes=false,merges=false", "42P13", `operator attribute "merges" cannot be changed if it has already been set`},
@@ -300,7 +300,7 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 	}
 	stage = operatorUnitStage(t, e, op, auth, operatorUnitDefinition("#%#", "int4pl"))
 	collationUnitPublish(t, e, stage)
-	auth.recaptureCatalog(e.CatalogRead())
+	auth.Recapture(e.CatalogRead())
 	signature.Name = operatorUnitName("public", "#%#")
 	for _, tc := range []struct{ options, code, message string }{
 		{"negator=OPERATOR(public.#?#),hashes", "42883", "operator does not exist: integer public.#?# integer"},
@@ -331,7 +331,7 @@ func TestUserOperatorCreationCheckpoints(t *testing.T) {
 	} {
 		stage := operatorUnitStage(t, e, op, auth, definition)
 		collationUnitPublish(t, e, stage)
-		auth.recaptureCatalog(e.CatalogRead())
+		auth.Recapture(e.CatalogRead())
 	}
 	// Both a defined duplicate and an existing shell must survive failures
 	// before target admission, with no private source or forward peer staged.
@@ -369,7 +369,7 @@ func TestUserOperatorParameterCheckpoints(t *testing.T) {
 		definition := &parser.CreateOperator{Name: operatorUnitName("public", symbol), Options: operatorParsedOptions(t, "rightarg=int4,function=int4um")}
 		stage := operatorUnitStage(t, e, op, auth, definition)
 		collationUnitPublish(t, e, stage)
-		auth.recaptureCatalog(e.CatalogRead())
+		auth.Recapture(e.CatalogRead())
 	}
 	signature := parser.OperatorSignature{Name: operatorUnitName("public", "##~"), Right: parser.TypeName{Name: "int4"}}
 	for _, tc := range []struct{ options, message string }{
@@ -431,7 +431,7 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 		t.Fatal("forward peer setup mutated the published root")
 	}
 	collationUnitPublish(t, e, stage)
-	auth.recaptureCatalog(e.CatalogRead())
+	auth.Recapture(e.CatalogRead())
 	sourceBefore, shellBefore := *source, *shell
 	completion := operatorUnitDefinition("#!#", "int4ne")
 	completion.Options = append(completion.Options, operatorParsedOptions(t, "commutator=OPERATOR(public.#!#),negator=OPERATOR(public.#=#)")...)
@@ -446,7 +446,7 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 		t.Fatal("completion changed an immutable predecessor")
 	}
 	collationUnitPublish(t, e, stage)
-	auth.recaptureCatalog(e.CatalogRead())
+	auth.Recapture(e.CatalogRead())
 
 	// Commutator setup creates and links a private forward shell before the
 	// negator's reciprocal conflict. Ordinary stage discard must suffice.

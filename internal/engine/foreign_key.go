@@ -159,7 +159,7 @@ func foreignKeyReferencesAllowed(auth AuthorizationView, parent *catalog.Relatio
 func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, child *catalog.Relation, raw parser.ForeignKeyConstraint, target, supporting ids.ObjectAddress) error {
 	view := e.stageRead(stage)
 	auth.catalog = view
-	auth.recaptureCatalog(auth.catalog)
+	auth.Recapture(auth.catalog)
 	ref := e.catalog.Domain.Ref(view.Epoch(), target)
 	var err error
 	if target == (ids.ObjectAddress{}) {
@@ -298,7 +298,7 @@ func (e *Engine) stageCreateForeignKeys(auth AuthorizationView, stage *CatalogSt
 		var target ids.ObjectAddress
 		if len(targets) != 0 {
 			auth.catalog = e.stageRead(stage)
-			auth.recaptureCatalog(auth.catalog)
+			auth.Recapture(auth.catalog)
 			current, err := e.resolveReference(auth, raw.Target)
 			if err != nil {
 				return err

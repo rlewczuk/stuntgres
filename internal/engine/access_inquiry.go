@@ -163,7 +163,7 @@ func (n accessInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if scope.catalog != nil {
-		auth.recaptureCatalog(e.privateCatalogLocked(scope.catalog))
+		auth.Recapture(e.privateCatalogLocked(scope.catalog))
 	}
 	principal := c.expressionPrincipal()
 	var result bool

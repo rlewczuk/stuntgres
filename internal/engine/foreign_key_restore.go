@@ -151,7 +151,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 		child := view.MustRelation(declaration.child.Address)
 		auth := declaration.auth
 		auth.catalog = view
-		auth.recaptureCatalog(auth.catalog)
+		auth.Recapture(auth.catalog)
 		for _, definition := range declaration.definitions {
 			if definition.boundSlot < 0 || definition.boundSlot >= len(child.Constraints.ForeignKeys) || definition.boundOID == 0 || child.Constraints.ForeignKeys[definition.boundSlot].OID != definition.boundOID {
 				return ids.ErrCatalogReplaced

@@ -538,7 +538,7 @@ func (e *Engine) resolveOperatorLink(auth AuthorizationView, stage *CatalogStage
 		}
 	} else if peer.Address() != d.Address() {
 		peerAuth := auth
-		peerAuth.recaptureCatalog(view)
+		peerAuth.Recapture(view)
 		if err = peerAuth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.catalog.Epoch(), peer.Address()), OwnerOnly: true}); err != nil {
 			return nil, err
 		}

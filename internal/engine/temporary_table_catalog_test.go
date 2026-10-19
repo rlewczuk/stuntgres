@@ -178,7 +178,7 @@ func TestTemporaryTableStagedNamespaceAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	auth.catalog = e.privateCatalogLocked(c)
-	auth.recaptureCatalog(auth.catalog)
+	auth.Recapture(auth.catalog)
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_temp"}, {Text: "explicit_identity"}}}
 	if _, err := e.creationNamespace(auth, name); err == nil {
 		t.Fatal("generic creation gained TEMP alias authority")

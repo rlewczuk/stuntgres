@@ -172,7 +172,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	collectAuth.recaptureCatalog(scope.inheritanceCatalog)
+	collectAuth.Recapture(scope.inheritanceCatalog)
 	e.mu.Lock()
 	refs, err := e.queryTableRefsLocked(collectAuth, collectAuth.state.CurrentUser, scope.querySources, nil, op.session.token, queryRowMark{})
 	var view *VisibilityView

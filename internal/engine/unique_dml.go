@@ -195,7 +195,7 @@ retry:
 		auth, captureErr := s.writeAuthorizationLocked(e)
 		if captureErr == nil {
 			auth.catalog = view
-			auth.recaptureCatalog(view)
+			auth.Recapture(view)
 			b.typeName, captureErr = e.captureTypeDiagnosticName(auth)
 		}
 		e.mu.Unlock()
@@ -432,7 +432,7 @@ retry:
 		parent, index = currentParent, currentIndex
 		auth, err := s.writeAuthorizationLocked(e)
 		auth.catalog = current
-		auth.recaptureCatalog(auth.catalog)
+		auth.Recapture(auth.catalog)
 		namespace, _ := current.Namespace(parent.Namespace())
 		root := e.storage.IndexRoots[index.Address()]
 		if changes := s.owner.catalog; changes != nil {

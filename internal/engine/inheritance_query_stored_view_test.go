@@ -251,7 +251,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			}
 			e.mu.Lock()
 			catalog := scope.inheritanceRead(e.privateCatalogLocked(scope.owner.catalog))
-			collectAuth.recaptureCatalog(catalog)
+			collectAuth.Recapture(catalog)
 			refs, captureErr := e.queryTableRefsLocked(collectAuth, collectAuth.state.CurrentUser, scope.querySources, nil, op.session.token, queryRowMark{})
 			var snapshot *VisibilityView
 			if captureErr == nil {

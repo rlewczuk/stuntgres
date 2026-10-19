@@ -117,7 +117,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 				return nil, err
 			}
 			auth.catalog = catalog
-			auth.recaptureCatalog(auth.catalog)
+			auth.Recapture(auth.catalog)
 			source, err := capturePGIndexes(ctx, catalog, auth, ref, d)
 			e.mu.Unlock()
 			return source, err
@@ -184,7 +184,7 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ids.Object
 		return AuthorizationView{}, err
 	}
 	auth.catalog = e.privateCatalogLocked(scope.owner.catalog)
-	auth.recaptureCatalog(auth.catalog)
+	auth.Recapture(auth.catalog)
 	return auth, authorizeViewSourceSnapshot(auth, ref, definition, invoker, mark)
 }
 

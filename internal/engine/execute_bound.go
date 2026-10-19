@@ -413,7 +413,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			return Result{}, err
 		}
 		collectAuth := auth
-		collectAuth.recaptureCatalog(scope.inheritanceRead(auth.catalog))
+		collectAuth.Recapture(scope.inheritanceRead(auth.catalog))
 		refs, err := e.queryTableRefsLocked(collectAuth, auth.state.CurrentUser, b.querySources, []ids.ObjectRef{b.ref}, scope.op.session.token, queryRowMark{})
 		if err != nil {
 			e.mu.Unlock()
@@ -461,7 +461,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		var view *VisibilityView
 		if len(b.querySources) != 0 || len(scope.inheritedTargets) != 0 {
 			collectAuth := auth
-			collectAuth.recaptureCatalog(scope.inheritanceRead(auth.catalog))
+			collectAuth.Recapture(scope.inheritanceRead(auth.catalog))
 			refs, collectErr := e.queryTableRefsLocked(collectAuth, auth.state.CurrentUser, b.querySources, scope.mutationTargetRefs(b.ref), scope.op.session.token, queryRowMark{})
 			if collectErr != nil {
 				e.mu.Unlock()
@@ -666,7 +666,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		var viewErr error
 		if len(b.querySources) != 0 || len(scope.inheritedTargets) != 0 {
 			collectAuth := auth
-			collectAuth.recaptureCatalog(scope.inheritanceRead(auth.catalog))
+			collectAuth.Recapture(scope.inheritanceRead(auth.catalog))
 			refs, err := e.queryTableRefsLocked(collectAuth, auth.state.CurrentUser, b.querySources, scope.mutationTargetRefs(b.ref), scope.op.session.token, queryRowMark{})
 			if err != nil {
 				e.mu.Unlock()

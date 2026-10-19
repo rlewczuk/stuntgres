@@ -222,7 +222,7 @@ func (e *Engine) rowSecurityInputLocked(scope *StatementScope, d *catalog.Relati
 		return false, err
 	}
 	auth.catalog = e.privateCatalogLocked(scope.owner.catalog)
-	auth.recaptureCatalog(auth.catalog)
+	auth.Recapture(auth.catalog)
 	if principal == (authorization.PrincipalRef{}) {
 		principal = auth.state.CurrentUser
 	}
@@ -267,7 +267,7 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, st
 		auth.state.CurrentUser = scope.ruleActionAuth.state.CurrentUser
 	}
 	auth.catalog = e.privateCatalogLocked(scope.owner.catalog)
-	auth.recaptureCatalog(auth.catalog)
+	auth.Recapture(auth.catalog)
 	principal := rowSecurityPrincipal(auth, b)
 	reads := b.returning != nil || len(b.usedColumns) != 0
 	if b.viewWrite != nil {

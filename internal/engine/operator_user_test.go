@@ -46,7 +46,7 @@ func TestUserOperatorCatalogShellCompletion(t *testing.T) {
 	if shell.Function != 0 || shell.Result != 0 || shell.Negator != a.ObjectID || shell.Owner != auth.state.CurrentUser {
 		t.Fatal("invalid forward shell", shell)
 	}
-	auth.recaptureCatalog(view)
+	auth.Recapture(view)
 	complete := operatorUnitDefinition("#!#", "int4ne")
 	complete.Options = append(complete.Options, parser.OperatorOption{Name: "negator", HasValue: true, Kind: parser.OperatorOptionNameArgument, Reference: operatorUnitName("public", "#=#")})
 	stage = operatorUnitStage(t, e, op, auth, complete)
@@ -58,7 +58,7 @@ func TestUserOperatorCatalogShellCompletion(t *testing.T) {
 	if shell.Function != 0 || shell.Result != 0 {
 		t.Fatal("published predecessor mutated")
 	}
-	auth.recaptureCatalog(e.CatalogRead())
+	auth.Recapture(e.CatalogRead())
 	bad := operatorUnitDefinition("#?#", "int4pl")
 	bad.Options = append(bad.Options, parser.OperatorOption{Name: "negator", HasValue: true, Kind: parser.OperatorOptionNameArgument, Reference: operatorUnitName("public", "#@#")})
 	stage = e.BeginCatalogStage(auth.catalog)
@@ -383,7 +383,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 			t.Fatal("stored recipe must retain both operator and actual routine exactly once", manifest)
 		}
 		_, auth := conversionUnitAuth(t, e)
-		auth.recaptureCatalog(view)
+		auth.Recapture(view)
 		recipe := EvalContext{routineRecipe: true, routineReferences: manifest}
 		if err := checkRecipeRoutineDescriptor(&recipe, auth, nil, routine); err != nil {
 			t.Fatal("stored provider admission", err)
@@ -510,7 +510,7 @@ func TestUserOperatorCatalogExactUtilityLifecycle(t *testing.T) {
 	create.Options = append(create.Options, parser.OperatorOption{Name: "commutator", HasValue: true, Kind: parser.OperatorOptionNameArgument, Reference: create.Name})
 	stage := operatorUnitStage(t, e, op, auth, create)
 	collationUnitPublish(t, e, stage)
-	auth.recaptureCatalog(e.CatalogRead())
+	auth.Recapture(e.CatalogRead())
 	signature := parser.OperatorSignature{Name: create.Name, Left: parser.TypeName{Name: "int4"}, Right: parser.TypeName{Name: "int4"}}
 	d, err := e.findUtilityOperator(op, auth, signature)
 	if err != nil {
@@ -539,7 +539,7 @@ func TestUserOperatorCatalogExactUtilityLifecycle(t *testing.T) {
 		t.Fatal("exact ALTER lookup", err)
 	}
 	collationUnitPublish(t, e, stage)
-	auth.recaptureCatalog(e.CatalogRead())
+	auth.Recapture(e.CatalogRead())
 	altered := auth.catalog.MustOperator(d.Address())
 	if !altered.Hash || altered.Address() != d.Address() || d.Hash {
 		t.Fatal("ALTER must preserve identity and immutable predecessor", altered, d)
@@ -566,7 +566,7 @@ func TestUserOperatorCatalogOrphanShellDumpNameCollision(t *testing.T) {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
-	auth.recaptureCatalog(e.CatalogRead())
+	auth.Recapture(e.CatalogRead())
 	declaration, err := operatorDumpDeclaration(context.Background(), auth.catalog, auth.roles, shell)
 	if err != nil {
 		t.Fatal(err)
@@ -589,10 +589,10 @@ func TestUserOperatorCatalogDropClosureRootsAndLinks(t *testing.T) {
 	create.Options = append(create.Options, parser.OperatorOption{Name: "negator", HasValue: true, Kind: parser.OperatorOptionNameArgument, Reference: operatorUnitName("public", "#!#")})
 	stage := operatorUnitStage(t, e, op, auth, create)
 	collationUnitPublish(t, e, stage)
-	auth.recaptureCatalog(e.CatalogRead())
+	auth.Recapture(e.CatalogRead())
 	stage = operatorUnitStage(t, e, op, auth, operatorUnitDefinition("#~#", "int4pl"))
 	collationUnitPublish(t, e, stage)
-	auth.recaptureCatalog(e.CatalogRead())
+	auth.Recapture(e.CatalogRead())
 	public := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	key := func(name string) ids.NameKey {
 		return ids.NameKey{ClassID: ids.OperatorClassID, Namespace: public, Name: name, Signature: "23,23"}

@@ -125,7 +125,7 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *binding)
 		return err
 	}
 	auth.catalog = e.privateCatalogLocked(scope.owner.catalog)
-	auth.recaptureCatalog(auth.catalog)
+	auth.Recapture(auth.catalog)
 	original := len(b.viewWrite.logical.querySources)
 	for i := original; i < len(b.querySources); i++ {
 		rewritten := false

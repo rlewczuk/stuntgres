@@ -226,7 +226,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 	// search path, under the actual script execution principal. In particular,
 	// unqualified function lookup excludes the installer's own TEMP namespace.
 	auth.catalog = e.stageRead(stage)
-	auth.recaptureCatalog(auth.catalog)
+	auth.Recapture(auth.catalog)
 	auth.state.CurrentUser = owner
 	if err := auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), ext.TargetNamespace)); err != nil {
 		return err

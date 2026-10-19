@@ -66,7 +66,7 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 			}
 			use := e.catalog.Domain.Ref(current.Epoch(), viewAddress)
 			auth := namespaceCapturedAuthorization(t, owner)
-			auth.recaptureCatalog(current)
+			auth.Recapture(current)
 			e.mu.Lock()
 			refs, err := e.queryTableRefsLocked(auth, auth.state.CurrentUser, []queryLeaf{{ref: use, relation: original}}, nil, owner.token, queryRowMark{})
 			_, staleErr := e.queryTableRefsLocked(auth, auth.state.CurrentUser, []queryLeaf{{ref: oldBase, relation: current.MustRelation(baseAddress)}}, nil, ids.SessionToken{}, queryRowMark{})
