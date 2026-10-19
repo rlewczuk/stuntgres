@@ -43,6 +43,19 @@ func preflightComposite(c *EvalContext, node expr.Composite, decisiveDefaults bo
 			}
 			return preflightValue(c, expr.InfoOf(next), sqltype.Null(next.ResultUsage().Type), nil)
 		}
+		// Parameter expressions deliberately remain symbolic after child
+		// preflight. Apply the ordinary typed-frame strict-NULL proof before
+		// planning computation can admit a routine that will not be invoked.
+		pruned, folded, err := foldStrictParameterNull(c, next)
+		if err != nil {
+			return nil, false, err
+		}
+		if folded {
+			if kind == expr.PreflightRegexNullOrEvaluate {
+				c.FunctionRegexExecution().Reset()
+			}
+			return pruned, true, nil
+		}
 		return preflightEvaluate(c, next, changed)
 	case expr.PreflightEvaluate:
 		return preflightEvaluate(c, next, changed)

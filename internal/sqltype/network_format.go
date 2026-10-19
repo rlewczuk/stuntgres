@@ -17,6 +17,11 @@ const (
 	NetworkMasklen
 	NetworkSameFamily
 	NetworkBroadcast
+	NetworkHostmask
+	NetworkNetmask
+	NetworkNetwork
+	NetworkMerge
+	NetworkSetMasklen
 )
 
 func (k NetworkFormatKind) Name() string {
@@ -33,10 +38,20 @@ func (k NetworkFormatKind) Name() string {
 		return "inet_same_family"
 	case NetworkBroadcast:
 		return "broadcast"
+	case NetworkHostmask:
+		return "hostmask"
+	case NetworkNetmask:
+		return "netmask"
+	case NetworkNetwork:
+		return "network"
+	case NetworkMerge:
+		return "inet_merge"
+	case NetworkSetMasklen:
+		return "set_masklen"
 	}
 	return ""
 }
-func (k NetworkFormatKind) Result() ID {
+func (k NetworkFormatKind) ResultFor(left ID) ID {
 	switch k {
 	case NetworkAbbrev, NetworkHost:
 		return Text
@@ -44,13 +59,19 @@ func (k NetworkFormatKind) Result() ID {
 		return Int4
 	case NetworkSameFamily:
 		return Bool
-	case NetworkBroadcast:
+	case NetworkBroadcast, NetworkHostmask, NetworkNetmask:
 		return Inet
+	case NetworkNetwork, NetworkMerge:
+		return Cidr
+	case NetworkSetMasklen:
+		if IsNetwork(left) {
+			return left
+		}
 	}
 	return 0
 }
 func (k NetworkFormatKind) Arity() int {
-	if k == NetworkSameFamily {
+	if k == NetworkSameFamily || k == NetworkMerge || k == NetworkSetMasklen {
 		return 2
 	}
 	if k.Name() != "" {
@@ -72,6 +93,16 @@ func NetworkFormatFunction(name string) NetworkFormatKind {
 		return NetworkSameFamily
 	case "broadcast":
 		return NetworkBroadcast
+	case "hostmask":
+		return NetworkHostmask
+	case "netmask":
+		return NetworkNetmask
+	case "network":
+		return NetworkNetwork
+	case "inet_merge":
+		return NetworkMerge
+	case "set_masklen":
+		return NetworkSetMasklen
 	}
 	return 0
 }
@@ -84,17 +115,25 @@ type NetworkFormat struct {
 }
 
 func BindNetworkFormat(kind NetworkFormatKind, result, left, right *Descriptor) (NetworkFormat, error) {
-	valid := kind.Arity() != 0 && result != nil && result.id == kind.Result() && left != nil && left.id == Inet
-	if kind == NetworkAbbrev {
-		valid = result != nil && result.id == Text && left != nil && IsNetwork(left.id)
+	valid := kind.Arity() != 0 && result != nil && left != nil
+	if valid {
+		valid = result.id == kind.ResultFor(left.id) && (left.id == Inet || (kind == NetworkAbbrev || kind == NetworkSetMasklen) && left.id == Cidr)
 	}
-	if kind == NetworkSameFamily {
-		valid = valid && right == left
-	} else {
-		valid = valid && right == nil
-	}
-	if kind == NetworkBroadcast {
-		valid = valid && result == left
+	if valid {
+		switch kind {
+		case NetworkSameFamily, NetworkMerge:
+			valid = right == left
+		case NetworkSetMasklen:
+			valid = right != nil && right == left.networkMasklen && right.id == Int4
+		default:
+			valid = right == nil
+		}
+		switch kind {
+		case NetworkBroadcast, NetworkHostmask, NetworkNetmask, NetworkSetMasklen:
+			valid = valid && result == left
+		case NetworkNetwork, NetworkMerge:
+			valid = valid && result == left.networkCIDR
+		}
 	}
 	if !valid {
 		return NetworkFormat{}, fmt.Errorf("invalid network formatting signature")
@@ -139,11 +178,25 @@ func (p NetworkFormat) Unary(ctx context.Context, a Value) (Value, error) {
 			}
 		}
 		return Value{typ: p.result, network: n}, nil
+	case NetworkHostmask, NetworkNetmask:
+		width := networkWidth(n)
+		for i := range width {
+			bits := min(8, max(0, int(n.prefix)-i*8))
+			mask := byte(0xff << (8 - bits))
+			if p.kind == NetworkHostmask {
+				mask = ^mask
+			}
+			n.address[i] = mask
+		}
+		n.prefix = uint8(width * 8)
+		return Value{typ: p.result, network: n}, nil
+	case NetworkNetwork:
+		return Value{typ: p.result, network: n.masked()}, nil
 	}
 	return Value{}, fmt.Errorf("invalid network formatting operation")
 }
 func (p NetworkFormat) Binary(ctx context.Context, a, b Value) (Value, error) {
-	if p.kind != NetworkSameFamily || p.result == nil || p.left == nil || p.right != p.left || a.typ != p.left || b.typ != p.right {
+	if p.kind.Arity() != 2 || p.result == nil || p.left == nil || p.right == nil || a.typ != p.left || b.typ != p.right {
 		return Value{}, fmt.Errorf("invalid binary network formatting values")
 	}
 	if err := ctx.Err(); err != nil {
@@ -152,10 +205,46 @@ func (p NetworkFormat) Binary(ctx context.Context, a, b Value) (Value, error) {
 	if a.null || b.null {
 		return Null(p.result), nil
 	}
-	if !a.network.valid(false) || !b.network.valid(false) {
+	if !a.network.valid(p.left.id == Cidr) {
 		return Value{}, fmt.Errorf("invalid network datum")
 	}
-	return Boolean(p.result, a.network.family == b.network.family), nil
+	n := a.network
+	if p.kind == NetworkSetMasklen {
+		width := int64(networkWidth(n) * 8)
+		mask := b.integer
+		if mask == -1 {
+			mask = width
+		}
+		if mask < 0 || mask > width {
+			return Value{}, failure("22023", fmt.Sprintf("invalid mask length: %d", b.integer))
+		}
+		n.prefix = uint8(mask)
+		if p.left.id == Cidr {
+			n = n.masked()
+		}
+		return Value{typ: p.result, network: n}, nil
+	}
+	if !b.network.valid(false) {
+		return Value{}, fmt.Errorf("invalid network datum")
+	}
+	if p.kind == NetworkSameFamily {
+		return Boolean(p.result, n.family == b.network.family), nil
+	}
+	if p.kind != NetworkMerge {
+		return Value{}, fmt.Errorf("invalid network formatting operation")
+	}
+	if n.family != b.network.family {
+		return Value{}, failure("22023", "cannot merge addresses from different families")
+	}
+	prefix := min(n.prefix, b.network.prefix)
+	for bit := uint8(0); bit < prefix; bit++ {
+		if (n.address[bit/8]^b.network.address[bit/8])&(0x80>>(bit%8)) != 0 {
+			prefix = bit
+			break
+		}
+	}
+	n.prefix = prefix
+	return Value{typ: p.result, network: n.masked()}, nil
 }
 
 // This bounded translation preserves REL_18_6 inet_cidr_ntop's truncated-word,

@@ -35,6 +35,92 @@ domain/base catalog identity; a late malformed UTF8 parameter raising 22021
 without partial insertion; and native Dump/Reset/Restore with fresh reads.
 The PostgreSQL phase shares the SQL assertions but has no native-control API.
 
+### INET mask, network and merge contract
+
+The untagged `TestReferenceINETMaskValues`, `Boundaries`, `Resolution`,
+`MetadataAndBinds`, `Diagnostics`, `RoutineIdentity`, `Authorization`, `Stored`
+and `FeatureSmoke` definitions cover exactly `hostmask(inet)`,
+`netmask(inet)`, `network(inet)`, `inet_merge(inet,inet)` and both
+`set_masklen(inet/cidr,integer)` overloads. Values are independently specified
+from the PostgreSQL18 manual/released sources and explicit bit-boundary
+reasoning, not native-derived goldens or backend equality alone.
+
+Root observed all nine corrected PostgreSQL-only discovery definitions pass
+against pinned18.6, then removed the temporary filter and observed genuine
+unsupported native function/ACL failures before releasing production work.
+Those initial gates are not final dual-mode implementation proof. The completed
+definitions run every available backend, with native-only control phases for
+Reset/Dump/Restore. Routine identity uses the existing public regprocedure
+signature/return/strictness metadata on both backends; additional pg_proc columns
+not exposed by native are checked explicitly on PostgreSQL only, without
+expanding native catalog infrastructure.
+Unknown setter inference is exercised through the SAME genuinely unconstrained
+held statement in both modes, including textual INTEGER binds, NULL and -1
+recovery with exact INET metadata and retained host bits. The supplementary
+`pg_prepared_statements` parameter vector is PostgreSQL-only: native does not
+expose that preexisting catalog relation.
+
+Pinned18.6 corrected three source-derived hostmask spellings:
+IPv6 /96 gives `::255.255.255.255`, /97 gives `::127.255.255.255`, and
+/111 gives `::0.1.255.255`. It confirmed -1 as full width, INET versus CIDR
+setter return types and host-bit handling, preferred unknown INET/INTEGER
+inference, complete unpositioned22023 provider diagnostics at Execute, strict
+NULL/input-child distinctions, and constant/parameter preflight under
+FALSE/empty/LIMIT0 versus excluded row-dependent laziness.
+The nonthrowing hostmask/netmask/network inquiries retain the ordinary
+simplifier. Merge/setter calls use the existing shared strict-NULL-or-evaluate
+preflight owner: children convert first, then literal/imported-parameter NULL
+proofs discard non-invocations before routine admission, then the immutable
+evaluator applies its ordinary row/stage/domain dependence checks. This
+preserves both provider failures without demanded rows and strict-NULL ACL
+frontiers; no executable-result cache or global eager-function rule is added.
+
+For each of the six signatures, pinned18.6 also observed a non-NULL all-constant
+call on the SAME already-warmed PostgreSQL statement succeeds after EXECUTE
+revocation; direct/new prepared calls still fail42501. Only that exact PG held
+route has a backend-specific expectation. Native analysis identities remain
+non-executable metadata, not a new result or permission cache. Exact setter
+sibling-overload isolation and ordinary table/schema privileges remain separate.
+
+Root-only selected commands, with an external900-second deadline each:
+
+```sh
+make check RUN='^TestReferenceINETMask(Values|Boundaries|Resolution|MetadataAndBinds|Diagnostics|RoutineIdentity)$' REFERENCE=1
+make check RUN='^TestReferenceINETMask(Authorization|Stored|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceINETMask(Values|Boundaries|Resolution|MetadataAndBinds|Diagnostics|RoutineIdentity)$'
+make check RUN='^TestReferenceINETMask(Authorization|Stored|FeatureSmoke)$'
+make check RUN='^TestNetworkMask(Values|Boundaries|Validation|Reconstruction|StrictDemand|Cancellation|OriginalAuthority|StoredLiteralIdentity|ParserAdmission|Allocations)$'
+```
+
+Repeat both selected reference modes after definition/implementation edits.
+Use `make quickcheck` for whole-project Docker-free verification. Existing
+neighboring `TestReferenceINETFormat` dual-mode selectors below also cover the
+shared carrier/result-selection changes.
+
+Standalone public consumer source is handed to root as
+`local://net-mask-smoke.go`. Materialize it as
+`net-mask-smoke-temporary/main.go` within this module, run
+`go run ./net-mask-smoke-temporary/main.go` with external900-second deadline,
+and remove the temporary directory after recording evidence. No permanent
+smoke command is installed. The consumer asserts six manual results,
+nonbyte IPv6, -1 suffix distinctions, direct/held and empty/all-NULL metadata,
+complete held-error recovery, generated/default/view recipes, same/fresh
+Driver restoration and retained cursor ownership. Expected exit0, empty stderr,
+and these summaries printed only after all assertions and checked closes:
+
+```text
+masks: 0.0.0.3 | 255.255.255.0 | 192.168.1.0/24
+rewrite/merge: 192.168.1.5/16 | 192.168.0.0/16 | 192.168.0.0/22
+ipv6: ::7fff | ffff:ffff:ffff:ffff:ffff:ffff:ffff:8000 | 2001:db8::8000/113
+full-width: -1 accepted for INET/CIDR; CIDR suffix retained
+metadata/null: INET INET CIDR INET CIDR CIDR; empty/all-NULL preserved
+held recovery: 22023 invalid mask; 22023 mixed families; valid again
+stored replay: all six signatures; same/fresh Driver 3 rows
+```
+
+These operations add no containment, INET XOR/shifts, network arrays,
+grouping/hash providers, DNS or OS networking.
+
 ### INET formatting oracle-first contract
 
 The untagged `TestReferenceINETFormatValues`, `Abbreviation`, `Broadcast`,

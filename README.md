@@ -39,18 +39,20 @@ large-object storage and physical tablespace placement retain their native bound
 See [native contracts](docs/DIALECT.md#object-privilege-grants) and
 [selected proof and smoke](reference/object_grants/README.md#non-table-object-revocation).
 
-## IP address formatting and network inquiries — change note
+## IP address formatting, masks and networks — change note
 
 `abbrev(inet/cidr)`, `host`, `text(inet)`, `family`, `masklen`,
-`inet_same_family` and `broadcast` use the existing typed network expression
-and routine-authorization paths. CIDR abbreviation is distinct from promoted
-INET output; TEXT conversion always includes the prefix. IPv4, IPv6 and mapped
-IPv6 retain their family and prefix semantics, including IPv6 broadcast
-arithmetic. Stored expressions replay symbolically through native Dump/Restore.
-Adjacent network helpers, containment, arrays and OS networking remain excluded.
+`inet_same_family`, `broadcast`, `hostmask`, `netmask`, `network`,
+`inet_merge` and both `set_masklen(inet/cidr,integer)` overloads use the
+existing typed network expression and routine-authorization paths. Masks
+return full-width INET; network and merge return canonical CIDR. Prefix
+rewriting preserves INET host bits but clears excluded CIDR bits, with -1
+selecting the full address width. IPv4, IPv6 and mapped IPv6 preserve their
+family semantics. Stored expressions replay symbolically through native
+Dump/Restore. Containment, XOR/shifts, arrays and OS networking remain excluded.
 See [network transport](docs/TYPES.md#textual-structured-and-network-transport),
 [native authority boundaries](docs/DIALECT.md) and
-[selected proof and standalone smoke](reference/types/README.md#inet-formatting-oracle-first-contract).
+[selected proof and standalone smoke](reference/types/README.md#inet-mask-network-and-merge-contract).
 
 
 ## Comparison resolution and predicates — change note

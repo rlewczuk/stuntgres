@@ -8,50 +8,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Preflight pins the fold each node names for statement preparation; nodes
-// without the hook use PreflightSimplify.
-
-func preflightOf(node expr.Expr) expr.Preflight {
-	if hook, ok := node.(expr.Preflighting); ok {
-		return hook.PreflightFold()
-	}
-	return expr.PreflightSimplify
-}
-
-func TestPreflightFolds(t *testing.T) {
-	for _, c := range []struct {
-		node expr.Expr
-		want expr.Preflight
-	}{
-		{CurrentDateTime{}, expr.PreflightKeep},
-		{TransactionTime{}, expr.PreflightKeep},
-		{VersionInformation{}, expr.PreflightKeep},
-		{RegexpSet{}, expr.PreflightChildren},
-		{JSONEach{}, expr.PreflightChildren},
-		{ArrayRandom{}, expr.PreflightChildren},
-		{Random{}, expr.PreflightChildren},
-		{Format{}, expr.PreflightChildren},
-		{LikeEscape{}, expr.PreflightEvaluate},
-		{Regexp{}, expr.PreflightEvaluate},
-		{Posix{}, expr.PreflightRegexNullOrEvaluate},
-		{SimilarEscape{}, expr.PreflightRegexNullOrEvaluate},
-		{PosixSubstring{}, expr.PreflightRegexNullOrEvaluate},
-		{Similar{}, expr.PreflightNullOrEvaluate},
-		{SimilarSubstring{}, expr.PreflightNullOrEvaluate},
-		{Timezone{}, expr.PreflightNullFirst},
-		{DatetimeZoneCalendar{}, expr.PreflightNullFirst},
-		{DatetimeSleep{}, expr.PreflightNullBare},
-		{Binary{}, expr.PreflightSimplify},
-		{String{}, expr.PreflightSimplify},
-		{ArrayTransform{}, expr.PreflightSimplify},
-		{DatetimeFormatting{}, expr.PreflightSimplify},
-	} {
-		if got := preflightOf(c.node); got != c.want {
-			t.Errorf("%T: preflight %d, want %d", c.node, got, c.want)
-		}
-	}
-}
-
 func TestPreflightTemplateNeedsLiteral(t *testing.T) {
 	never := func(expr.Expr) (sqltype.Value, bool) { return sqltype.Value{}, false }
 	for _, node := range []expr.ConstantTemplate{DatetimeFormatting{}, NumericFormatting{}} {

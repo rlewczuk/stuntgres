@@ -14,7 +14,7 @@ func networkFormatPlan(t *testing.T, k NetworkFormatKind, input ID) (NetworkForm
 	if k.Arity() == 2 {
 		right = types[input]
 	}
-	p, err := BindNetworkFormat(k, types[k.Result()], types[input], right)
+	p, err := BindNetworkFormat(k, types[k.ResultFor(input)], types[input], right)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,7 @@ func TestNetworkFormatValues(t *testing.T) {
 			v := networkOperatorValue(t, types[Inet], tc.input)
 			before := v
 			got, err := p.Unary(context.Background(), v)
-			if err != nil || got.typ != types[k.Result()] || got.null {
+			if err != nil || got.typ != types[k.ResultFor(Inet)] || got.null {
 				t.Fatal(tc, k, got, err)
 			}
 			switch k {
@@ -170,7 +170,7 @@ func TestNetworkFormatValidation(t *testing.T) {
 		if _, err := BindNetworkFormat(k, types[Text], types[Text], right); err == nil {
 			t.Fatal("invalid signature accepted", k)
 		}
-		if k.Result() != Text {
+		if k.ResultFor(Inet) != Text {
 			if _, err := BindNetworkFormat(k, types[Text], types[Inet], right); err == nil {
 				t.Fatal("wrong result accepted", k)
 			}

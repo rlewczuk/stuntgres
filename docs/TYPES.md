@@ -275,15 +275,31 @@ appends the prefix, including /32 or /128, without expanding IPv6 hextets.
 `inet_same_family(inet,inet)` returns BOOL and compares families, not subnets.
 `broadcast(inet)` returns INET with all host bits set, preserving family/prefix;
 IPv6 support is address arithmetic, not an OS broadcast protocol.
-CIDR promotes implicitly to INET except for its distinct abbrev overload.
+`hostmask(inet)` and `netmask(inet)` return INET with a full-width prefix:
+hostmask sets only host bits, while netmask sets only network bits.
+`network(inet)` clears host bits and returns CIDR with the input prefix.
+`inet_merge(inet,inet)` returns the smallest CIDR containing both input networks,
+not just their host addresses; different families fail22023
+`cannot merge addresses from different families`.
+`set_masklen(inet,integer)` changes only the prefix, preserving host bits.
+`set_masklen(cidr,integer)` changes the prefix and clears newly excluded bits;
+widening it later cannot restore lost bits. Both accept -1 as32 for IPv4 or128
+for IPv6; every other negative or excessive mask fails22023
+`invalid mask length: N`. These provider errors have no Position or Context.
+INET omits full-width suffixes; CIDR retains /32 or /128.
+Canonical compatible/mapped IPv6 output follows the same existing codec,
+including dotted compatible hostmasks such as `::255.255.255.255`.
+CIDR promotes implicitly to INET except for its distinct abbrev and set_masklen
+overloads. Unknown setter arguments prefer INET/INTEGER; SMALLINT masks promote
+implicitly, while typed BIGINT/NUMERIC/TEXT masks require explicit casts.
 All selected signatures are strict and immutable, with typed NULL results and
 computed result metadata preserved for empty/all-NULL streams. Original inputs
 remain immutable. Stored defaults, generated columns, CHECKs and views use
 ordinary symbolic native replay. Held statements check current routine EXECUTE;
 the narrowly observed PostgreSQL warmed-constant distinction is documented in
 [dialect authorization](DIALECT.md).
-Containment, network/netmask/hostmask/set_masklen/inet_merge, INET XOR/shifts and
-network array/grouping/hash providers remain excluded.
+Containment, INET XOR/shifts and network array/grouping/hash providers remain
+excluded; none of these computations perform DNS or OS networking.
 
 BIT/VARBIT byte binds are textual digits, never packed bits. Typed-nil bytes are
 NULL; nonnil empty bytes can represent a nonnull empty value. Metadata reports

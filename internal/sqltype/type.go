@@ -120,6 +120,8 @@ type Descriptor struct {
 	rangeBoolean                  *Descriptor
 	multirangeRange               *Descriptor
 	multirangeCompanion           *Descriptor
+	networkCIDR                   *Descriptor
+	networkMasklen                *Descriptor
 	lookupOnly                    bool
 	catalogNullOwner              *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
 	namespace                     string
@@ -282,6 +284,20 @@ func Builtins() []*Descriptor {
 		{id: Regdictionary, name: "regdictionary", sql: "REGDICTIONARY", database: "REGDICTIONARY", associatedArray: 3770},
 		{id: Void, name: "void", sql: "VOID", database: "VOID"},
 		{id: Unknown, name: "unknown"},
+	}
+	var networkCIDR, networkMasklen *Descriptor
+	for _, d := range types {
+		switch d.id {
+		case Cidr:
+			networkCIDR = d
+		case Int4:
+			networkMasklen = d
+		}
+	}
+	for _, d := range types {
+		if IsNetwork(d.id) {
+			d.networkCIDR, d.networkMasklen = networkCIDR, networkMasklen
+		}
 	}
 	for _, family := range []struct {
 		rangeID, subtypeID, companionID ID

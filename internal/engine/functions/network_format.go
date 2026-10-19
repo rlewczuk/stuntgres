@@ -91,6 +91,18 @@ func NetworkFormatIntrinsicRule() expr.IntrinsicPropertyRule { return expr.Exact
 
 func (e NetworkFormat) IntrinsicVolatility() expr.Volatility { return expr.Immutable }
 
+// PreflightFold retains the ordinary simplifier for nonthrowing inquiries.
+// Merge/setter provider errors use the shared strict-NULL-or-evaluate owner:
+// children preflight first, then NULL proofs, then dependence-gated computation.
+func (e NetworkFormat) PreflightFold() expr.Preflight {
+	switch e.Kind {
+	case sqltype.NetworkMerge, sqltype.NetworkSetMasklen:
+		return expr.PreflightNullOrEvaluate
+	default:
+		return expr.PreflightSimplify
+	}
+}
+
 func (e NetworkFormat) ValidateStoredProvider() error { return e.Validate() }
 
 var _ expr.Renderable = NetworkFormat{}
@@ -125,9 +137,9 @@ func (e NetworkFormat) Substitute(info expr.Info, children []expr.Expr) (expr.Ex
 	if err := checkChildren("NetworkFormat", children, e.Kind.Arity()); err != nil {
 		return nil, err
 	}
-	e.Info = info
-	copy(e.Args[:], children)
-	return e, nil
+	args := e.Args
+	copy(args[:], children)
+	return e.Reconstruct(info, args)
 }
 
 // ClosureTransparent implements expr.ClosureTransparent.

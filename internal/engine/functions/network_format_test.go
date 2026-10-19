@@ -21,7 +21,7 @@ func networkFormatUnit(t *testing.T, kind sqltype.NetworkFormatKind, input sqlty
 	for i := range kind.Arity() {
 		args[i] = stringUnitArgument{Info: expr.Info{Usage: types[input].Usage()}, value: v, order: &order, index: i}
 	}
-	node, err := NewNetworkFormat(expr.Info{Usage: types[kind.Result()].Usage()}, kind, args)
+	node, err := NewNetworkFormat(expr.Info{Usage: types[kind.ResultFor(input)].Usage()}, kind, args)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestNetworkFormatReconstruction(t *testing.T) {
 			}
 			args[i] = stringUnitArgument{Info: expr.Info{Usage: types[sqltype.Inet].Usage()}, value: v, order: &order, index: i}
 		}
-		remapped, err := original.Reconstruct(expr.Info{Usage: types[kind.Result()].Usage()}, args)
+		remapped, err := original.Reconstruct(expr.Info{Usage: types[kind.ResultFor(sqltype.Inet)].Usage()}, args)
 		if err != nil || remapped.Validate() != nil {
 			t.Fatal(err)
 		}
@@ -51,7 +51,7 @@ func TestNetworkFormatReconstruction(t *testing.T) {
 			t.Fatal("reconstruction retained foreign descriptors")
 		}
 		got, err := remapped.Eval(c)
-		if err != nil || got.Type() != types[kind.Result()] {
+		if err != nil || got.Type() != types[kind.ResultFor(sqltype.Inet)] {
 			t.Fatal(got, err)
 		}
 		source, err := original.Eval(c)
@@ -73,7 +73,7 @@ func TestNetworkFormatReconstruction(t *testing.T) {
 		}
 		bad = original
 		bad.Usage = types[sqltype.Bool].Usage()
-		if kind.Result() != sqltype.Bool && bad.Validate() == nil {
+		if kind.ResultFor(sqltype.Inet) != sqltype.Bool && bad.Validate() == nil {
 			t.Fatal("wrong result")
 		}
 		if kind.Arity() == 1 {

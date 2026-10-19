@@ -1601,8 +1601,14 @@ session lifetimes, not fabricated PostgreSQL helper-script parity.
   distinct from INET display, host omits prefixes, and text always includes
   them. Family/masklen return INT4, same-family returns BOOL, broadcast returns
   INET with host bits set for either family. All are strict and immutable.
-  This adds no INET XOR/shifts, containment, network/netmask/hostmask/
-  set_masklen/inet_merge, network arrays, grouping/hash providers or OS networking.
+  `hostmask`/`netmask` return full-width INET, `network`/`inet_merge` canonical
+  CIDR, and `set_masklen(inet/cidr,integer)` preserves its selected result type.
+  INET rewriting retains host bits; CIDR rewriting clears excluded bits.
+  Both accept -1 as full width and reject other invalid lengths with22023.
+  Merge requires the same address family. These strict immutable signatures
+  share ordinary metadata, exact overload ACLs and symbolic stored replay.
+  This adds no INET XOR/shifts, containment, network arrays, grouping/hash
+  providers or OS networking.
 - XID/CID/XID8 are distinct scalar identifiers, not integer/OID aliases or
   generated system attributes. XID supports equality/inequality (including INT4
   only on its right); CID only equality; XID8 unsigned comparisons/order.
