@@ -53,16 +53,6 @@ func closedTransactionTimeDefault(node expr.Expr) bool {
 		valid := true
 		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
-	case functions.ACLValue:
-		if n.Kind == functions.ACLExplode {
-			return false
-		}
-		for _, child := range n.Children() {
-			if !closedTransactionTimeDefault(child) {
-				return false
-			}
-		}
-		return true
 	case catalogUserNameExpression:
 		return closedTransactionTimeDefault(n.arg)
 	case catalogForeignKeysExpression, extensionPathsExpression:
@@ -79,6 +69,8 @@ func closedTransactionTimeDefault(node expr.Expr) bool {
 		valid := true
 		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
+	case expr.ConditionalClosure:
+		return n.ClosedDefault(closedTransactionTimeDefault)
 	case expr.ClosureTransparent:
 		// Function nodes the closure looks through.
 		valid := true

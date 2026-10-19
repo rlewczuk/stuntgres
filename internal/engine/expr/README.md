@@ -178,9 +178,17 @@ without a hook gets the switch's previous generic behavior:
 - **`FunctionSyntax`** (`LooksLikeFunction`): PostgreSQL's
   `looks_like_function` for index keys; `pg_get_indexdef` prints such keys
   bare and parenthesizes the rest.
+- **`ConditionalClosure`** (`ClosedDefault`): a node may refuse closed-DEFAULT
+  admission; otherwise every relevant child must satisfy the caller's supplied
+  predicate. Inspection neither evaluates nor mutates nodes or children.
+  `closedTransactionTimeDefault` adopts this for scalar ACL calls versus
+  `aclexplode`, after dependency guards and explicit leaf/engine-wrapper cases,
+  before unconditional transparency and stable fallback. UUID closure does not
+  dispatch it and retains its existing ACL root-volatility fallback.
 - **`ClosureTransparent`**: calls whose closed-DEFAULT closure is their
-  children's (`closedUUIDDefault`, `closedTransactionTimeDefault`); other
-  calls are closed only when at most stable.
+  children's (`closedUUIDDefault`, `closedTransactionTimeDefault`); retained
+  independently of conditional closure. Other calls use each caller's existing
+  specialized cases or at-most-stable fallback.
 
 Adopted switches: the lexical walk (`boundExpressionChildren`), join legality
 (`joinExpressionSides`), planned volatility, generated admission
@@ -248,3 +256,18 @@ fresh arguments/search_path and retained native descriptions. Native richer
 pairs and pq's unknown pair are independent expectations; see
 [`reference/dml`](../../../reference/dml/README.md#result-nullability).
 The standalone smoke described there complements, not replaces, selected proof.
+
+The engine's real-provider conditional closure regressions cover every scalar
+ACL slot, set refusal, dependency/fallback precedence, UUID/time asymmetry,
+context-free immutable inspection and the SQL-routine fallback consumer:
+
+```sh
+make check RUN='^TestConditionalDefaultClosure(ACLScalars|ACLExclusion|DependenciesAndFallback|PolicyPrecedence|Inspection|SQLRoutineConsumer)$'
+```
+
+See [functions Testing](../functions/README.md#testing) for the unchanged public
+dual-mode selections and actual default-binding/rendering/replay smoke. Baseline
+characterization and post-adoption selected proof, smoke and quickcheck passed.
+Full racecheck timed out; racecheck and finalcheck are explicitly waived by the
+user, not reported as passing. The current instruction permits only quickcheck
+for remaining verification; see functions Testing for the retained evidence.

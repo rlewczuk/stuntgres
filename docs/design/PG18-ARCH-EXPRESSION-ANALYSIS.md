@@ -49,6 +49,13 @@ func (b *expressionBinder) Bind(raw parser.Expr, policy ExprPolicy) (ExpressionA
 
 `expressionBinder` is private statement-binder state holding its operation context, catalog/type view, resolution context, scope allocation and parameter constraints. Bind adds analysis-private nodes/dependencies; **whole-statement successful finalization** freezes nodes, children, usages, providers, dependencies and descriptions. Failure publishes no executable binding or partial public metadata.
 
+The implemented optional node protocol is documented in
+[`internal/engine/expr/README.md`](../../internal/engine/expr/README.md#node-protocol).
+Its `ConditionalClosure.ClosedDefault` hook is immutable, non-evaluating DEFAULT
+inspection under caller-owned closure policy, not a runtime evaluator or a grant
+of catalog/ACL authority. This concrete protocol does not change the illustrative
+analysis contracts above.
+
 | Bound form | Retained immutable data | Evaluation |
 |---|---|---|
 | Literal | Concrete Usage, typed constant/materialization plan, occurrence | No raw unknown runtime Value |
@@ -176,6 +183,9 @@ Column Eval follows exactly Depth outer links, checks Scope, reads Frame/Slot. M
 
 Ownership/allocation rules:
 - Bound plans contain no execution values, contexts, frames, scratch or mutable caches; concurrent executions never mutate nodes/descriptions.
+- Conditional DEFAULT inspection may refuse or inspect relevant children using
+  the caller's predicate, never Eval, runtime authority or mutable node caches;
+  see the implemented `ConditionalClosure` protocol linked in §2.
 - Each execution owns frames/parameters/stages and reusable scratch sized once for required calls/output. Nested live arguments use nonoverlapping scratch. Borrowed rows/argument slices cannot be retained by providers.
 - Detach mutable external inputs once at import; share immutable strings/scalars/descriptors. No redundant whole-snapshot copying, primitive boxing or descriptors per cell. Returned Values cannot wrap mutable borrowed scratch.
 - Frame maps describe logical setup, not per-cell allocation/catalog work; compile IDs to indexed access when appropriate without changing semantics.

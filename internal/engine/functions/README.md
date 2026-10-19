@@ -633,6 +633,11 @@ Nodes also implement the optional `expr` hooks that the engine's switches ask
   pattern and volatile array calls that never reach an index.
 - `ClosureTransparent` on the calls that both closed-DEFAULT checks look
   through.
+- `ClosedDefault` (`expr.ConditionalClosure`) on `ACLValue`: scalar kinds
+  inspect every written argument with the caller's predicate; `aclexplode`
+  refuses unconditionally. Only transaction-time closure adopts this hook,
+  after dependency and explicit-leaf checks and before transparency/fallback.
+  The unconditional `ClosureTransparent` marker remains separate.
 - `Render` on every node the deparser and node-tree output display: one
   `expr.Rendering` with the node-tree header and inputs, and the SQL shape
   (leaf text, call, infix operator or keyword-syntax template) with the
@@ -738,6 +743,14 @@ planning, only preflights its children, keeps its kind, notation, slots and
 labels in its grouping identity, and answers index key syntax; only
 `ACLValue` is a stored generation provider. `inquiry_call.go` holds the
 shared envelope of `pg_get_acl` and the access inquiries.
+
+`ACLValue.ClosedDefault` reads its inline `Args` by the existing kind arity,
+without returning a copied receiver's `Children` slice, rebuilding, evaluating,
+validating privileges or retaining the callback. Inspection leaves Info, children
+and notation unchanged. It does not implement `ClosureTransparent`: UUID closure
+keeps the old root-volatility fallback, including stable set-kind carriers, and
+does not gain scalar ACL transparency. These checks are admission policies, not
+general node-validity checks.
 
 `DaitchMokotoff` owns the complete PostgreSQL REL_18_0 phoneme chart, narrow
 UTF8/Latin1 scanner and correlated digit-prefix state machine. Codes retain
@@ -911,6 +924,60 @@ make check RUN='^Test(ACLValues|ACLValue|ACLNodes|ObjectACL|AccessInquiry|PGPara
 make check RUN='^TestReference(ACLValues|ACLItem|ObjectACL|AccessRole|ObjectGrant(AccessInquiry|ACLGetter|ACLValue|TypeRawACL)|ObjectAddressRoutineFacts)'
 make check REFERENCE=1 RUN='^TestReference(ACLValues|ACLItem|ObjectACL|AccessRole|ObjectGrant(AccessInquiry|ACLGetter|ACLValue|TypeRawACL)|ObjectAddressRoutineFacts)'
 ```
+
+Conditional DEFAULT closure has six focused private engine regressions using
+actual bound providers and the real predicates, not interface membership or
+callback counts. They cover all scalar argument slots, unselected CASE arms,
+unconditional set refusal, dependency guards, stable fallback, selected leaves,
+UUID shift/calendar asymmetry, non-Eval/immutability and SQL-routine fallback.
+The contextual internal-CHAR slot uses a genuine bound parameter child with an
+explicitly inconsistent copied root to isolate recursion from the global guard.
+
+```sh
+make check RUN='^TestConditionalDefaultClosure(ACLScalars|ACLExclusion|DependenciesAndFallback|PolicyPrecedence|Inspection|SQLRoutineConsumer)$'
+make check RUN='^Test(TransactionTimeExpressionContracts|UUIDGenerationBinderNullAndDemand|UUIDGenerationCapturedNullTyping|DatetimeSleepStored|ClosureTransparencyExcludesGenerators|ACLNodesProtocol|SQLRoutineDefaultClosureBoundary)$'
+make check RUN='^TestReferenceACLValues(Controls|Smoke|Lifecycle)$' REFERENCE=1
+make check RUN='^TestReferenceACLValues(Controls|Smoke|Lifecycle)$'
+make check RUN='^TestReferenceUUIDGeneration(StoredConsumersAndControls|FeatureSmoke)$' REFERENCE=1
+make check RUN='^TestReferenceUUIDGeneration(StoredConsumersAndControls|FeatureSmoke)$'
+make check RUN='^TestReferenceDatetime(TxTimes(StoredConsumers|NativeReplay|Immutability)|SleepStored)$' REFERENCE=1
+make check RUN='^TestReferenceDatetime(TxTimes(StoredConsumers|NativeReplay|Immutability)|SleepStored)$'
+```
+
+The unchanged public scenarios independently assert ACL rows/types/empty shapes,
+fresh demanded UUIDs and stable shift guards, consuming-statement/wall clocks,
+supplied-value bypass, symbolic definitions and actual native Dump/Reset/Restore
+with retained rows and future demand. Real mode uses the pinned PostgreSQL 18.6
+UTF8/C fixture; native controls do not imply a PostgreSQL control API.
+
+The supplemental public smoke for this adoption is root's corrected temporary
+program, run from repository root:
+
+```sh
+timeout 900s go run /tmp/stuntgres-conditional-closure-smoke-01a1552f.go
+```
+
+It checks direct and same-held prepared inserts/reads, three volatile scalar ACL
+defaults, v4/v7 freshness, supplied-value bypass versus demanded invalid-privilege
+error, symbolic Dump and actual Reset/Restore retaining rows before fresh inserts.
+Expected exit 0 and stdout:
+`conditional closure smoke: direct/held/default bypass/render/native replay passed`.
+Root observed that smoke before adoption (`tests-1.md`) and all eight selected
+baseline checks above (`tests-2.md`) in
+`.cswd/parts/PG18-ENGINE-SPLIT-FUNCTIONS-CONDITIONAL-CLOSURE/`.
+Post-adoption build, both focused internal selections, selected public proofs in
+native and pinned PostgreSQL modes, the actual external smoke and full quickcheck
+passed (`tests-3.md`); production dependencies were module/stdlib-only
+(`tests-4.md`). The selected definitions and smoke argv above retain that proof,
+not a request to rerun them under the user's later verification restriction.
+Full racecheck did not pass: attempts timed out, with an interrupted attempt also
+retained (`tests-3.md` through `tests-5.md`). The user then instructed, “Please
+skip all checks except quickcheck”; remaining racecheck and finalcheck are
+explicitly waived, not passing. Only `make quickcheck` is authorized for further
+verification in this part. Root's fresh quickcheck passed (`tests-7.md`), and the
+independent review completed with PASS and no blocking findings (`review-1.md`).
+That review's low stale-handoff prose finding is corrected here; subsequent
+rebase/remedy verification is root-owned. Existing public definitions are unchanged.
 
 Node protocol on function nodes:
 

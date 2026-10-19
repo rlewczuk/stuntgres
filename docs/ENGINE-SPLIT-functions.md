@@ -76,8 +76,10 @@ for fixed receiver storage. Still listing function nodes: function sources
 
 Remaining F2 items (details in "Later-wave refresh" at the end of Status):
 function sources, including the engine's `seriesExpression` and
-`unnestExpression` markers; `SQLJSON` rendering; and a conditional closure hook
-for the closed-DEFAULT check. Function sources remain broad.
+`unnestExpression` markers and `SQLJSON` rendering. The conditional closed-DEFAULT
+hook is implemented with passing selected proof and quickcheck; racecheck/finalcheck
+are waived by the user. See the current adoption note below. Function sources
+remain broad.
 
 The result-nullability cutover asks `expr.ResultNullability` at explicit
 SELECT/RETURNING sites, independently of Composite. Nine owners answer beside
@@ -184,7 +186,8 @@ Tier C has a refined plan.
   [x] `Arguments()` [x] view literal capture [ ] function sources
   (with `seriesExpression` and `unnestExpression`) [ ] `SQLJSON` rendering
   [x] result nullability hook (racecheck/finalcheck waived at user request)
-  [ ] conditional closure hook (session 4: `063fe2d1e` identity, `622b3d3ba`
+  [x] conditional closure hook (selected proof and quickcheck passed;
+  racecheck/finalcheck waived by user; session 4: `063fe2d1e` identity, `622b3d3ba`
   rewrite, `a187f7f5d` preflight, `39c887998` index, `b2675f4c2`
   substitution, `632814b91` DEFAULT closure, `25fcad768` `Arguments()`,
   then the docs commit)
@@ -1622,7 +1625,9 @@ Tier C ACL record, measured at its start on `5cc6fe6e5` and rebased onto
   nullability (`query_bind.go`, `returning.go`), `view_literals.go`, the
   closed-DEFAULT case (`transaction_time.go`; `ClosureTransparent` cannot
   exclude `aclexplode`) and the stored-default owner guard (`default.go`;
-  `Replay.RelationOnly` would change its message).
+  `Replay.RelationOnly` would change its message). This records that session's
+  retained cases: later capture work removed its view-literal case, and the
+  conditional-closure adoption below replaces its concrete DEFAULT case.
 - Corrections. Three protocol defaults differ from the old cases only on
   paths no consumer distinguishes, and the probe below matched: planned
   volatility of `pg_get_acl` and the access inquiries is now STABLE merged
@@ -1677,8 +1682,10 @@ Notes for later steps (Tier C ACL):
 - The result-nullability protocol cutover now removes those concrete cases from
   `query_bind.go` and `returning.go`. A set-source hook
   remains separate work (the function-source switches, see the F2 session 4 notes).
-- A conditional closure hook (closed when every child is, unless the node
-  says otherwise) would let `aclexplode` drop its closed-DEFAULT case.
+- The conditional closure hook proposed here is implemented by the current
+  adoption below: scalar ACL kinds require closed children and `aclexplode`
+  refuses. Selected post-adoption proof and quickcheck passed; full racecheck
+  timed out and racecheck/finalcheck are explicitly waived by the user.
 - `reference/types/README.md` lists `TestACLValues*` selectors, some of
   which now run in `functions` and one (`EmptyArray`) names no test; fix it
   in a task that may edit `reference/`.
@@ -1758,3 +1765,44 @@ the two `CheckReview` provider-wait tests) was fixed on `fix/pg186-drift`
 (`89606a6d5` through `0af65c1f6`). The `to_date` TM collation failure is an
 upstream regression recorded as a release difference; see
 [POSTGRES_REGRESSION.md](POSTGRES_REGRESSION.md).
+
+### Conditional closed-DEFAULT adoption
+
+Group A Item 5 adds `expr.ConditionalClosure.ClosedDefault` beside the retained
+`ClosureTransparent` marker. `ACLValue` owns scalar all-written-child checking
+and unconditional set-kind refusal; it inspects its inline argument storage,
+without calling `Children`, Eval, Rebuild or privilege validation, and retains
+no callback or mutable state. Transaction-time closure dispatches the hook after
+dependency guards and explicit leaf/engine-wrapper cases, before transparency
+and stable fallback. No new SQL/default capability is introduced.
+
+The measured consumer count is three per predicate: raw DEFAULT admission in
+`default.go`, stored scalar rendering in that file, and the fallback in
+`sql_routine_default.go`. Those consumers are unchanged. UUID closure does not
+adopt this hook: ACL uses its old root-volatility fallback, selected UUID shift
+arguments still require at-most-stable closure, and the UUID-only calendar
+traversal remains distinct from the time policy. SQL-routine fallback still
+requires a genuine SQL routine before granting its separate default allowance.
+
+Six real-provider package-function characterizations and the unchanged selected
+public ACL, UUID consumer/feature-smoke and datetime/sleep definitions passed
+before adoption (root `tests-2.md`); the corrected direct/held/default-bypass and
+actual native replay smoke passed before adoption (`tests-1.md`). Evidence is in
+`.cswd/parts/PG18-ENGINE-SPLIT-FUNCTIONS-CONDITIONAL-CLOSURE/`.
+Post-adoption build, focused internal selections, selected public dual-mode
+proof, actual external smoke and full quickcheck passed (`tests-3.md`);
+`make deps` passed with module/stdlib-only production dependencies (`tests-4.md`).
+Full racecheck attempts failed by timeout, with an interrupted attempt also
+retained (`tests-3.md` through `tests-5.md`). The user's subsequent instruction,
+“Please skip all checks except quickcheck”, explicitly waives remaining
+racecheck and finalcheck; neither is claimed passing. Only quickcheck is now
+authorized for further verification. Selected Item 5 is ticked on this evidence
+and waiver; parent F2 and remaining neighboring work stay open. Root's fresh
+quickcheck passed (`tests-7.md`), and the independent review completed with PASS
+and no blocking findings (`review-1.md`). That review's low stale-handoff prose
+finding is corrected here; subsequent rebase/remedy verification is root-owned.
+See [functions Testing](../internal/engine/functions/README.md#testing) for the
+retained selectors, independent outcomes and exercised smoke argv. Sources,
+SQLJSON rendering and the engine-owned catalog/xid cases remain separate work;
+the adjacent result-nullability protocol is now integrated as described above.
+

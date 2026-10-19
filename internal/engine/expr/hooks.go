@@ -203,6 +203,14 @@ type Substitutable interface {
 	Substitute(info Info, children []Expr) (Expr, error)
 }
 
+// ConditionalClosure supplies a node-specific closed-DEFAULT decision.
+// The adopting caller owns dependency/leaf policy and the child predicate.
+// Implementations may refuse; otherwise every relevant child must pass.
+// Inspection never evaluates or mutates the node or its children.
+type ConditionalClosure interface {
+	ClosedDefault(closed func(Expr) bool) bool
+}
+
 // ClosureTransparent marks a call that the closed-DEFAULT checks look
 // through: the DEFAULT is closed when every child is. Those checks decide
 // whether a DEFAULT built around a volatile generator (gen_random_uuid(), the

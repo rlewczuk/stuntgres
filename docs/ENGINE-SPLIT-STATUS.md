@@ -82,7 +82,9 @@ Steps 1, 2 and 4–7 and `access` are done.
     - [ ] `SQLJSON` rendering
     - [x] result nullability hook (`query_bind.go`, `returning.go`; explicit
       SELECT/RETURNING protocol; racecheck/finalcheck waived at user request)
-    - [ ] conditional closure hook (closed-DEFAULT check)
+    - [x] conditional closure hook (closed-DEFAULT check; selected proof and
+      quickcheck passed; racecheck/finalcheck waived by user;
+      [adoption/evidence note](ENGINE-SPLIT-functions.md#conditional-closed-default-adoption))
   - [x] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot
     family: UUID extraction (`60dc1cedd`, `cd4a88387`, `5d59e5737`, docs
     `9bca9b2b6`)
@@ -311,8 +313,10 @@ in the prompt file's Status section.
    [functions](ENGINE-SPLIT-functions.md) F2 · needs —
 4. [x] Functions F2: result nullability hook — explicit SELECT/RETURNING protocol;
    racecheck/finalcheck waived · [functions](ENGINE-SPLIT-functions.md) F2 · needs —
-5. [ ] Functions F2: conditional closure hook —
-   [functions](ENGINE-SPLIT-functions.md) F2 · needs —
+5. [x] Functions F2: conditional closure hook —
+   [functions](ENGINE-SPLIT-functions.md#conditional-closed-default-adoption)
+   F2 · needs — · selected proof/quickcheck passed; racecheck/finalcheck
+   explicitly waived by user
 6. [ ] Functions F3 aliases removed —
    [functions](ENGINE-SPLIT-functions.md) Status, "Later-wave refresh" ·
    needs — · **broad**

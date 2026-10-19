@@ -269,6 +269,20 @@ func (n ACLValue) Validate() error {
 // Children are the written arguments of the kind's arity.
 func (n ACLValue) Children() []expr.Expr { return n.Args[:aclValueArity[n.Kind]] }
 
+// ClosedDefault refuses the set kind; scalar calls require every written
+// argument to satisfy the adopting caller's closure policy.
+func (n ACLValue) ClosedDefault(closed func(expr.Expr) bool) bool {
+	if n.Kind == ACLExplode {
+		return false
+	}
+	for i := range aclValueArity[n.Kind] {
+		if !closed(n.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
 func (n ACLValue) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	if int(n.Kind) >= len(aclValueArity) {
 		return nil, fmt.Errorf("stuntgres: invalid stored ACL recipe")
