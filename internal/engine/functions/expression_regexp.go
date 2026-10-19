@@ -257,3 +257,57 @@ func (call RegexpCall) rendering(tree string) expr.Rendering {
 	}
 	return writtenCall(tree+call.Plan.Name(), call.Args, call.Plan.Name(), args, false)
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e Regexp) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(Regexp)
+	return ok && e.RegexpCall.sameGroup(o.RegexpCall, same)
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e RegexpSet) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(RegexpSet)
+	return ok && e.RegexpCall.sameGroup(o.RegexpCall, same)
+}
+
+func (c RegexpCall) sameGroup(other RegexpCall, same func(a, b expr.Expr) bool) bool {
+	if c.Plan != other.Plan || len(c.Args) != len(other.Args) {
+		return false
+	}
+	for i, arg := range c.Args {
+		if !same(arg, other.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// PreflightFold implements expr.Preflighting.
+func (e RegexpSet) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// PreflightFold implements expr.Preflighting.
+func (e Regexp) PreflightFold() expr.Preflight { return expr.PreflightEvaluate }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e Regexp) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e Regexp) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Regexp", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}
+
+// Substitute implements expr.Substitutable.
+func (e RegexpSet) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Regexp", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e Regexp) ClosureTransparent() {}

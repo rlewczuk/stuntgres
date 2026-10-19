@@ -16,7 +16,6 @@ type JSONExtract struct {
 	Variadic bool
 }
 
-func (e JSONExtract) Arguments() []expr.Expr { return e.Args }
 func (e JSONExtract) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -97,7 +96,7 @@ func (e JSONExtract) Render() (expr.Rendering, error) {
 	if err := e.Validate(); err != nil {
 		return expr.Rendering{}, err
 	}
-	spec := writtenCall("JSON extraction "+e.Plan.Name(), e.Arguments(), e.Plan.Name(), renderArgs(e.Args), e.Variadic)
+	spec := writtenCall("JSON extraction "+e.Plan.Name(), e.Args, e.Plan.Name(), renderArgs(e.Args), e.Variadic)
 	if len(e.Labels) > 0 {
 		for i := range spec.Args {
 			spec.Args[i].Label = e.Labels[i]
@@ -105,3 +104,32 @@ func (e JSONExtract) Render() (expr.Rendering, error) {
 	}
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONExtract) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONExtract)
+	if !ok || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
+		return false
+	}
+	for i, arg := range e.Args {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e JSONExtract) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e JSONExtract) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONExtract", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e JSONExtract) ClosureTransparent() {}

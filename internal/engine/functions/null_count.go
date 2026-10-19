@@ -167,3 +167,35 @@ func (e NullCount) Render() (expr.Rendering, error) {
 	}
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e NullCount) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(NullCount)
+	if !ok || e.Kind != o.Kind || len(e.Args) != len(o.Args) {
+		return false
+	}
+	for i := range e.Args {
+		if !same(e.Args[i], o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// PreflightFold implements expr.Preflighting.
+func (e NullCount) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e NullCount) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e NullCount) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("NullCount", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e NullCount) ClosureTransparent() {}

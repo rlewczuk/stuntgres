@@ -43,7 +43,6 @@ type JSONBPathExists struct {
 	Variadic     bool
 }
 
-func (e *JSONBPathExists) Arguments() []expr.Expr { return e.Args[:] }
 func (e JSONBPathExists) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -92,7 +91,6 @@ type JSONBPathMatch struct {
 	Variadic     bool
 }
 
-func (e *JSONBPathMatch) Arguments() []expr.Expr { return e.Args[:] }
 func (e JSONBPathMatch) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -141,7 +139,6 @@ type JSONBPathQueryFirst struct {
 	Variadic     bool
 }
 
-func (e *JSONBPathQueryFirst) Arguments() []expr.Expr { return e.Args[:] }
 func (e JSONBPathQueryFirst) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -190,7 +187,6 @@ type JSONBPathQuery struct {
 	Variadic     bool
 }
 
-func (e *JSONBPathQuery) Arguments() []expr.Expr { return e.Args[:] }
 func (e JSONBPathQuery) EvalSet(c expr.Context) ([]sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -286,3 +282,121 @@ func jsonbPathQueryRendering(args [4]expr.Expr, count int, slots [4]uint8, label
 	}
 	return writtenCall("JSONPath query", args[:], name, written, variadic), nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONBPathExists) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONBPathExists)
+	// Redundant VARIADIC is presentation only for this nonvariadic routine.
+	if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
+		return false
+	}
+	for i, arg := range e.Args[:] {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONBPathMatch) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONBPathMatch)
+	// Redundant VARIADIC is presentation only for this nonvariadic routine.
+	if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
+		return false
+	}
+	for i, arg := range e.Args[:] {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONBPathQueryFirst) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONBPathQueryFirst)
+	// Redundant VARIADIC is presentation only for this nonvariadic routine.
+	if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
+		return false
+	}
+	for i, arg := range e.Args[:] {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONBPathQuery) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONBPathQuery)
+	// Redundant VARIADIC is presentation only for this nonvariadic routine.
+	if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
+		return false
+	}
+	for i, arg := range e.Args[:] {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e JSONBPathExists) LooksLikeFunction() bool { return true }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e JSONBPathMatch) LooksLikeFunction() bool { return true }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e JSONBPathQueryFirst) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e JSONBPathExists) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONBPathExists", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}
+
+// Substitute implements expr.Substitutable.
+func (e JSONBPathMatch) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONBPathMatch", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}
+
+// Substitute implements expr.Substitutable.
+func (e JSONBPathQueryFirst) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONBPathQueryFirst", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}
+
+// Substitute implements expr.Substitutable.
+func (e JSONBPathQuery) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONBPathQuery", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e JSONBPathExists) ClosureTransparent() {}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e JSONBPathMatch) ClosureTransparent() {}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e JSONBPathQueryFirst) ClosureTransparent() {}

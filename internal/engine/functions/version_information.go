@@ -111,3 +111,18 @@ func (e VersionInformation) Render() (expr.Rendering, error) {
 	}
 	return expr.Rendering{Tree: fmt.Sprintf("VersionInformation kind %d", e.Kind), Form: expr.FormLeaf, Text: e.Kind.Name() + "()"}, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e VersionInformation) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(VersionInformation)
+	return ok && e.Kind == o.Kind
+}
+
+// GroupLeaf implements expr.GroupLeaf.
+func (e VersionInformation) GroupLeaf() {}
+
+// PreflightFold implements expr.Preflighting.
+func (e VersionInformation) PreflightFold() expr.Preflight { return expr.PreflightKeep }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e VersionInformation) LooksLikeFunction() bool { return true }

@@ -49,7 +49,7 @@ func closedTransactionTimeDefault(node expr.Expr) bool {
 		return n.Validate(expr.PropertiesMatch(n.Property, n.Kind.IntrinsicRule())) == nil
 	case functions.DatetimeSleep:
 		return n.Validate(expr.PropertiesMatch(n.Property, functions.DatetimeSleepIntrinsicRule()), n.Arg != nil) && closedTransactionTimeDefault(n.Arg)
-	case rowExpression, fieldExpression, functions.Posix, functions.PosixSubstring, functions.Similar, functions.SimilarEscape, functions.SimilarSubstring, functions.Regexp:
+	case rowExpression, fieldExpression:
 		valid := true
 		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
@@ -71,36 +71,16 @@ func closedTransactionTimeDefault(node expr.Expr) bool {
 		return n.arg == nil || closedTransactionTimeDefault(n.arg)
 	case commitTimestampExpression:
 		return n.arg == nil || closedTransactionTimeDefault(n.arg)
-	case functions.UUIDExtract:
-		return closedTransactionTimeDefault(n.Arg)
-	case functions.NetworkFormat:
-		for _, arg := range n.Args[:n.Kind.Arity()] {
-			if !closedTransactionTimeDefault(arg) {
-				return false
-			}
-		}
-		return true
-	case functions.ArrayRandom:
-		valid := true
-		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedTransactionTimeDefault(child) })
-		return valid
-	case functions.ArrayTransform, functions.RangeOperator, functions.RangeInspect, functions.Enum, functions.ArraySearch, functions.ArrayInspect:
-		valid := true
-		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedTransactionTimeDefault(child) })
-		return valid
 	case scalarArrayComparisonExpression:
 		valid := true
 		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
-	case functions.SQLJSON, functions.JSONPredicate:
+	case coercionExpression, collationExpression, comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression, nullTestExpression, truthTestExpression, logicalExpression, distinctExpression, conditionalExpression, caseExpression:
 		valid := true
 		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
-	case functions.JSONBPathExists, functions.JSONBPathMatch, functions.JSONBPathQueryFirst, functions.JSONBPathQueryArray, functions.JSONBSet, functions.JSONStripNulls, functions.JSONExtract:
-		valid := true
-		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedTransactionTimeDefault(child) })
-		return valid
-	case coercionExpression, collationExpression, comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression, functions.LikeEscape, nullTestExpression, truthTestExpression, logicalExpression, distinctExpression, conditionalExpression, functions.Binary, functions.DatetimeJustify, functions.DatetimeAgeFinite, functions.DatetimeMake, functions.DatetimeFormatting, functions.NumericFormatting, functions.String, functions.Timezone, functions.Math, functions.NullCount, functions.Format, functions.StringVariadic, functions.JSONCreate, caseExpression:
+	case expr.ClosureTransparent:
+		// Function nodes the closure looks through.
 		valid := true
 		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid

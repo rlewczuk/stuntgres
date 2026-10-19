@@ -113,7 +113,7 @@ func (b *expressionBinder) bindFunctionSource(raw parser.FunctionExpr) (expr.Exp
 func functionCallArguments(bound expr.Expr) []expr.Expr {
 	switch call := bound.(type) {
 	case functions.JSONBPathQuery:
-		return call.Arguments()
+		return call.Children()
 	case catalogUserNameExpression:
 		return []expr.Expr{call.arg}
 	case catalogForeignKeysExpression:

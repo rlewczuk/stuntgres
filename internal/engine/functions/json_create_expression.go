@@ -217,3 +217,32 @@ func (e JSONCreate) Render() (expr.Rendering, error) {
 	spec.Replay.CatalogSnapshot = catalogArguments(e.Args)
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONCreate) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONCreate)
+	if !ok || e.Kind != o.Kind || e.Variadic != o.Variadic || len(e.Args) != len(o.Args) {
+		return false
+	}
+	for i := range e.Args {
+		if !same(e.Args[i], o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// PreflightFold implements expr.Preflighting.
+func (e JSONCreate) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e JSONCreate) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+// Its provider re-derives from the child usages, as preflight always did.
+func (e JSONCreate) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	return e.Rebuild(info, children)
+}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e JSONCreate) ClosureTransparent() {}

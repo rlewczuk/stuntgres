@@ -280,3 +280,32 @@ func (e Random) replayFault() error {
 	}
 	return nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e Random) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(Random)
+	if !ok || e.Name != o.Name || len(e.Args) != len(o.Args) {
+		return false
+	}
+	for i := range e.Args {
+		if !same(e.Args[i], o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// PreflightFold implements expr.Preflighting.
+func (e Random) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e Random) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e Random) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Random", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}

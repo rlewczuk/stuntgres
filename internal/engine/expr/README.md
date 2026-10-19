@@ -122,6 +122,37 @@ without a hook gets the switch's previous generic behavior:
   or cast NAME, typed or ambiguously spelled literals, or type NULL intervals.
   Binary and string operators state their `pg_catalog` schema, which display
   shows bare and replay qualifies.
+- **`GroupIdentity`** (`SameGroup`): whether another expression is the same
+  grouping expression (GROUP BY matching, DISTINCT ON, CHECK definition
+  equality). The node compares its own identity and calls the engine's `same`
+  for children, so frames and subqueries stay engine knowledge; `definition`
+  selects CHECK definition equality. Nodes without it never match.
+- **`GroupLeaf`**: the childless calls (SQL value functions, transaction
+  clocks, version information) that the grouping rewrite leaves unchanged;
+  it rebuilds every other call over its rewritten children as stage
+  dependent.
+- **`Preflighting`** (`PreflightFold`): how statement preparation folds a call
+  after preflighting its children: conditional simplification (default),
+  keep (the leaves), children only, evaluate an immutable independent call,
+  NULL-or-evaluate (with a regex execution reset for the POSIX and SIMILAR
+  ESCAPE calls), NULL before preflight, or a bare NULL (`pg_sleep`).
+  **`ConstantTemplate`** (`SpecializeTemplate`) lets the formatting calls
+  parse a literal template once, before simplification.
+- **`Substitutable`** (`Substitute`): replace metadata and children but keep
+  the provider and derived inputs. Preflight and the grouping rewrite swapped
+  children in place, and `Rebuild` would rebind the provider and could reject
+  a preflighted child (`pg_size_bytes('1 MB'::name)`). `Substitute` uses the
+  hook and falls back to `Rebuild`; `MapSubstituted` maps through it.
+- **`EvaluationOrdered`** (`EvaluationOrder`): child indices in evaluation
+  order for a node whose `Children` keep written order (`ArrayTransform` with
+  named arguments). `MapSubstituted` follows it, so preflight errors keep
+  formal-slot precedence.
+- **`FunctionSyntax`** (`LooksLikeFunction`): PostgreSQL's
+  `looks_like_function` for index keys; `pg_get_indexdef` prints such keys
+  bare and parenthesizes the rest.
+- **`ClosureTransparent`**: calls whose closed-DEFAULT closure is their
+  children's (`closedUUIDDefault`, `closedTransactionTimeDefault`); other
+  calls are closed only when at most stable.
 
 Adopted switches: the lexical walk (`boundExpressionChildren`), join legality
 (`joinExpressionSides`), planned volatility, generated admission
@@ -129,11 +160,20 @@ Adopted switches: the lexical walk (`boundExpressionChildren`), join legality
 conditional planning (`simplifyConditionalNode`, `conditionalConstantInputs`),
 retag (`mapBoundExpressionReader`), remap (`remapScalarExpression`), node-tree
 output (`appendBoundTree`), SQL deparse (`pgRenderer.sql`, interpreted in
-`deparse_rendering.go`) and stored scalar SQL (`scalarRenderer.sql` and
-`scalarFunctionSQL`, interpreted in `scalar_rendering.go`). The walk keeps one
-explicit `Timezone` case: it visits the value before the zone, unlike
-PostgreSQL, a divergence kept until a compatibility fix. The preflight and
-aggregate switches still list function nodes.
+`deparse_rendering.go`), stored scalar SQL (`scalarRenderer.sql` and
+`scalarFunctionSQL`, interpreted in `scalar_rendering.go`), grouping identity
+(`sameGroupExpressionIn`), the grouping rewrite (`rewriteGroup`), aggregate
+occurrence (`aggregateOccurrence`), preflight (`preflightCoercionNode`,
+interpreted in `preflight_composite.go`), index key display
+(`pgIndexFunctionExpression`) and the closed-DEFAULT checks. The walk, the
+grouping rewrite and aggregate occurrence keep one explicit `Timezone` case:
+they visit the value before the zone, unlike PostgreSQL, a divergence kept
+until a compatibility fix. The uuid closed-DEFAULT check keeps explicit cases
+for `date_trunc`, `date_bin` and the zone calendar calls, which only it looks
+through. Still listing function nodes: view literal capture
+(`view_literals.go`), function sources (`string_table_bind.go`,
+`string_set_query.go`, `string_set_lower.go`) and the explicit `SQLJSON`
+deparse and stored SQL cases.
 
 ## What stays in the engine
 
@@ -150,12 +190,14 @@ with no type parameters.
 ## Testing
 
 Unit tests pin the helpers: property merging, intrinsic rules, `InfoOf`,
-the positioned errors, and the `Walk`/`Map` protocol helpers. The hook
-implementations are pinned by the `functions` tests (see its README).
+the positioned errors, and the `Walk`/`Map`/`MapSubstituted` protocol
+helpers. The hook implementations are pinned by the `functions` tests (see
+its README).
 Expression evaluation itself is covered by the engine and `functions` tests
 and the `reference/` suite.
 
 ```sh
 make check RUN='^Test(MergeProperties|IntrinsicPropertyRules|InfoOf|ErrorAt|WithPosition)'
 make check RUN='^Test(WalkVisitsPreOrderAndSkipsNil|MapUnchangedKeepsNode|MapChangedRebuildsCopy|MapPropagatesErrors)$'
+make check RUN='^Test(MapSubstitutedFollowsEvaluationOrderAndKeepsPositions|SubstitutePrefersTheHook)$'
 ```

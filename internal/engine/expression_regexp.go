@@ -6,37 +6,6 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func preflightRegexpCall(c *EvalContext, call functions.RegexpCall, decisive bool) (functions.RegexpCall, bool, error) {
-	var args []expr.Expr
-	for i, old := range call.Args {
-		next, did, err := preflightCoercionsWithPolicy(c, old, decisive)
-		if err != nil {
-			return call, false, err
-		}
-		if did {
-			if args == nil {
-				args = append([]expr.Expr(nil), call.Args...)
-			}
-			args[i] = next
-		}
-	}
-	if args != nil {
-		call.Args = args
-	}
-	return call, args != nil, nil
-}
-func sameRegexpCall(a, b functions.RegexpCall, same func(expr.Expr, expr.Expr) bool) bool {
-	if a.Plan != b.Plan || len(a.Args) != len(b.Args) {
-		return false
-	}
-	for i, arg := range a.Args {
-		if !same(arg, b.Args[i]) {
-			return false
-		}
-	}
-	return true
-}
-
 func (b *expressionBinder) regexpPlacement(call functions.RegexpCall) error {
 	context := b.regexpClause
 	hint := context == "CASE" || context == "COALESCE"

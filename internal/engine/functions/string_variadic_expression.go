@@ -275,3 +275,32 @@ func (e StringVariadic) Render() (expr.Rendering, error) {
 func variadicRendering(tree, name string, args []expr.Expr, variadic bool) expr.Rendering {
 	return expr.Rendering{Tree: tree, Inputs: args, Form: expr.FormCall, Name: name, Quote: expr.QuoteIdentifier, Args: listedArgs(args), Variadic: variadic}
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e StringVariadic) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(StringVariadic)
+	if !ok || e.Name != o.Name || e.AnyElement != o.AnyElement || e.Variadic != o.Variadic || len(e.Args) != len(o.Args) {
+		return false
+	}
+	for i := range e.Args {
+		if !same(e.Args[i], o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e StringVariadic) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e StringVariadic) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("StringVariadic", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e StringVariadic) ClosureTransparent() {}

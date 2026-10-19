@@ -348,9 +348,7 @@ the remaining processing calls (typeof, length, keys, each, elements, JSON
 records). `json_object`/`jsonb_object` sat in the final switch, so they use
 `ExactSpelling` and `SharedGates`. The slot calls (`jsonb_set*`, JSONPath
 calls, `json_strip_nulls`) share `bindSlots` in `json_slot_bind.go`.
-`json_extract_children.go` exports `MapJSONExtractChildren` for the engine's
-preflight switch until it adopts the protocol; `JSONBPathQueryName` serves
-aggregate binding.
+`JSONBPathQueryName` serves aggregate binding.
 
 Shared scalar call helpers live in `call_syntax.go`: `ValidateCallSyntax`
 (FILTER analysis, the 100-argument limit, labels), `CallLabelError` (the
@@ -448,9 +446,9 @@ To add or port a builtin family:
    engine's wrapper node and its validation stay in the engine; switches keep
    explicit wrapper cases ahead of their protocol branch, because the wrapper's
    catalog identity is engine state.
-6. Helpers that remaining engine switches still call (preflight, aggregate
-   binding, stored scalar SQL) stay exported until those switches adopt the
-   protocol.
+6. Helpers that remaining engine switches still call (view literal capture,
+   function sources, aggregate binding) stay exported until those switches
+   adopt the protocol.
 
 ## Node protocol
 
@@ -483,6 +481,27 @@ Nodes also implement the optional `expr` hooks that the engine's switches ask
   environment and change bit.
 - `Annotation`/`WithAnnotation` on `StringVariadic`, whose quote-capture origin
   the engine owns.
+- `SameGroup` on every node that grouping can match: its own identity (kind,
+  plan, written-slot provenance where it matters), with children compared by
+  the engine. Presentation never counts: TRIM spelling, `pg_catalog`
+  qualification, redundant VARIADIC. `CurrentDateTime` precision counts only
+  for CHECK definition equality.
+- `GroupLeaf` on the three leaves, which the grouping rewrite leaves
+  unstaged.
+- `PreflightFold` on nodes whose preflight is not "children, then conditional
+  simplification" (see the `expr` README for the kinds), and
+  `SpecializeTemplate` on `DatetimeFormatting` and `NumericFormatting`.
+- `Substitute` on every node with children: the old in-place child swap that
+  preflight and the grouping rewrite rely on, without rebinding the provider.
+  `SQLJSON` and `JSONCreate` rebuild instead, as preflight always did for
+  them.
+- `EvaluationOrder` on `ArrayTransform`, whose `Args` keep written slots.
+- `LooksLikeFunction` for index key display: true for calls written as calls,
+  false for operators (`||` String, ArraySearch membership, RangeOperator,
+  JSONB existence and containment `Binary`), AT TIME ZONE and the set,
+  pattern and volatile array calls that never reach an index.
+- `ClosureTransparent` on the calls that both closed-DEFAULT checks look
+  through.
 - `Render` on every node the deparser and node-tree output display: one
   `expr.Rendering` with the node-tree header and inputs, and the SQL shape
   (leaf text, call, infix operator or keyword-syntax template) with the
@@ -498,10 +517,12 @@ Nodes also implement the optional `expr` hooks that the engine's switches ask
   `Levenshtein`, `Pgcrypto`) have no `Render`: only their engine wrappers
   display, with the installed procedure's schema.
 
-A new node implements `Children`, `Rebuild`, `IntrinsicVolatility` and
-`Render`, and each
-other hook whose default (fold as a constant, never strict, not a stored
-provider, rebuild on change) does not describe it.
+A new node implements `Children`, `Rebuild`, `Substitute`,
+`IntrinsicVolatility`, `Render` and `SameGroup`, and each other hook whose
+default (fold as a constant, never strict, not a stored provider, rebuild on
+change, preflight by simplification, parenthesized index key, not looked
+through by DEFAULT closure) does not describe it. `Arguments()` is gone where
+it duplicated `Children()`; nodes slice their argument arrays directly.
 
 ## What stays in the engine
 
@@ -520,8 +541,7 @@ SQL replays function nodes from their `expr.Rendering` (`Replay` in the
 `expr` README); a node states its stored form there, next to its display.
 The SQL/JSON constructor's query form, RETURNING coercion and SQL rendering
 (`sqljson_expression.go`, `sqljson_query.go`, `sqljson_deparse.go`) stay in
-the engine; preflight, grouping, DEFAULT closure, index inquiry and view
-literal capture name `SQLJSON`/`JSONPredicate` explicitly.
+the engine; view literal capture names `SQLJSON`/`JSONPredicate` explicitly.
 
 Physical-session RNG, UUID clock/entropy and SQL time ownership stay in the
 engine: `random.go`, the `EvalContext` clock and sleep methods in
@@ -547,8 +567,7 @@ exported: `FinishArrayTransform` (the `||` operator), `ArraySearchNode` (the
 not registered: their operands are analyzed with string intents, and they
 move with the string family. `unnest` and `generate_subscripts` stay with the
 engine's set-returning functions, and the array/range operators with operator
-binding. `array_node_children.go` holds the array nodes' child-mapping
-helpers for the engine's preflight switch until it adopts the protocol.
+binding.
 
 ## Family notes
 
@@ -677,6 +696,8 @@ Node protocol on function nodes:
 
 ```sh
 make check RUN='^Test(Composite|IntrinsicVolatilityExcludesChildren|PlanningHooks|RetagReportsDerivedInputChanges|StringVariadicAnnotationRoundTrip|Render)'
+make check RUN='^Test(GroupIdentity|GroupLeaf|Preflight|SubstituteKeepsTheProvider|ArrayTransformEvaluatesFormalSlots|FunctionSyntax|ClosureTransparency)'
+make check RUN='Group|Having|Aggregate|Distinct|Index|Default|Closed'
 make check RUN='^TestReference(DeparseConstraints|DeparseRelations|View|Generated|Default|Check)'
 make check RUN='^TestReference.*(Dump|Restore|StoredConsumers)'
 ```

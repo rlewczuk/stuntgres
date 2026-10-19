@@ -7,7 +7,6 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -223,52 +222,13 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 // Inquiry and original TYPE buffers share this rule; canonical Dump does not.
 func pgIndexFunctionExpression(node expr.Expr) bool {
 	switch n := node.(type) {
-	case functions.String:
-		return n.Plan.Name() != "||"
-	case functions.SQLJSON, functions.JSONPredicate:
-		return true
-	case functions.StringVariadic, functions.JSONCreate:
-		return true
+	case installedUUIDOsspFunctionExpression:
+		// The wrapper embeds a UUIDGeneration but has kept the default.
+		return false
+	case unnestExpression:
+		return false
 	case indexPropertyExpression:
 		return true
-	case functions.DatetimeJustify:
-		return true
-	case functions.DatetimeExtract:
-		return true
-	case functions.DatetimeOverlaps:
-		return true
-	case functions.DatetimeTrunc, functions.DatetimeBin:
-		return true
-	case functions.DatetimeZoneCalendar:
-		return true
-	case functions.Timezone:
-		return n.Function
-	case functions.DatetimeAgeFinite:
-		return true
-	case functions.JSONStripNulls:
-		return true
-	case functions.JSONExtract:
-		return true
-	case functions.JSONBPathQueryArray:
-		return true
-	case functions.JSONBPathExists:
-		return true
-	case functions.JSONBPathMatch:
-		return true
-	case functions.JSONBPathQueryFirst:
-		return true
-	case functions.JSONBSet:
-		return true
-	case functions.DatetimeMake:
-		return true
-	case functions.ArrayRandom, unnestExpression:
-		return false
-	case functions.ArrayTransform:
-		return true
-	case functions.ArrayInspect:
-		return true
-	case functions.ArraySearch:
-		return !n.Plan.Membership()
 	case aclValueExpression:
 		return n.kind != aclContains
 	case catalogUserNameExpression, catalogForeignKeysExpression:
@@ -277,26 +237,12 @@ func pgIndexFunctionExpression(node expr.Expr) bool {
 		return true
 	case commitTimestampExpression:
 		return true
-	case functions.UUIDExtract:
-		return true
-	case functions.NetworkFormat:
-		return true
-	case functions.RangeOperator:
-		return false
-	case functions.RangeInspect:
-		return true
-	case functions.Enum, functions.PosixSubstring, functions.Regexp:
-		return true
-	case functions.DatetimeSleep:
-		return true
-	case functions.Binary:
-		return !functions.JSONBExistenceName(n.Plan.Name()) && !functions.JSONBContainmentName(n.Plan.Name())
 	case namespaceInquiryExpression, blockingInquiryExpression, accessInquiryExpression, objectACLExpression, objectAddressExpression:
 		return true
-	case functions.VersionInformation:
+	case advisoryExpression, sequenceCallExpression, currentSchemasExpression, visibilityInquiryExpression, commentInquiryExpression, deparseExpression, conditionalExpression, identityExpression:
 		return true
-	case functions.Math, functions.Random, advisoryExpression, functions.UUIDGeneration, functions.NullCount, sequenceCallExpression, currentSchemasExpression, visibilityInquiryExpression, commentInquiryExpression, deparseExpression, conditionalExpression, identityExpression, functions.CurrentDateTime, functions.TransactionTime:
-		return true
+	case expr.FunctionSyntax:
+		return n.LooksLikeFunction()
 	default:
 		return false
 	}

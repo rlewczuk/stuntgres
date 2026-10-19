@@ -57,7 +57,7 @@ func TestDatetimeAgeFiniteBindingPropertiesAndRemap(t *testing.T) {
 		if rebound.ResultUsage().Type != replacements[tc.result] || rebound.ResultUsage().Type == e.ResultUsage().Type {
 			t.Fatal("retained result authority")
 		}
-		for i, arg := range rebound.Arguments() {
+		for i, arg := range rebound.Children() {
 			if arg.ResultUsage().Type == e.Args[i].ResultUsage().Type {
 				t.Fatal("retained child authority")
 			}

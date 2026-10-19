@@ -20,8 +20,6 @@ type JSONBSet struct {
 	Variadic     bool
 }
 
-func (e *JSONBSet) Arguments() []expr.Expr { return e.Args[:e.Count] }
-
 func (e JSONBSet) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -94,3 +92,33 @@ func (e JSONBSet) Render() (expr.Rendering, error) {
 	}
 	return writtenCall("JSONB replacement "+e.Plan.Name(), e.Args[:e.Count], e.Plan.Name(), args, e.Variadic), nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONBSet) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONBSet)
+	if !ok || e.Plan.Name() != o.Plan.Name() || e.Count != o.Count {
+		return false
+	}
+	for i, arg := range e.Args[:e.Count] {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e JSONBSet) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e JSONBSet) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONBSet", children, e.Count); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e JSONBSet) ClosureTransparent() {}

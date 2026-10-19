@@ -148,3 +148,32 @@ func (e Format) Render() (expr.Rendering, error) {
 	spec.Replay.CatalogSnapshot = catalogArguments(e.Args)
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e Format) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(Format)
+	if !ok || e.Variadic != o.Variadic || len(e.Args) != len(o.Args) {
+		return false
+	}
+	for i := range e.Args {
+		if !same(e.Args[i], o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// PreflightFold implements expr.Preflighting.
+func (e Format) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// Substitute implements expr.Substitutable.
+func (e Format) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Format", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e Format) ClosureTransparent() {}

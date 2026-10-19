@@ -53,12 +53,6 @@ func (e Timezone) Eval(c expr.Context) (sqltype.Value, error) {
 func (e Timezone) IntrinsicStable() bool {
 	return e.Local || e.Value.ResultUsage().Type.BaseType().ID() == sqltype.Timetz && e.Zone.ResultUsage().Type.BaseType().ID() != sqltype.Interval
 }
-func (e Timezone) Arguments() []expr.Expr {
-	if e.Local {
-		return []expr.Expr{e.Value}
-	}
-	return []expr.Expr{e.Zone, e.Value}
-}
 
 // Timezone implements expr.Composite. Children follow evaluation order, Zone
 // before Value, as in PostgreSQL's timezone(zone, value); AT LOCAL has no Zone
@@ -97,7 +91,7 @@ var _ expr.Renderable = Timezone{}
 // Render implements expr.Renderable.
 func (e Timezone) Render() (expr.Rendering, error) {
 	if e.Function {
-		return callRendering("Datetime timezone", e.Arguments(), "timezone", e.Arguments()), nil
+		return callRendering("Datetime timezone", e.Children(), "timezone", e.Children()), nil
 	}
 	text, arg := expr.TextPiece, expr.ArgPiece
 	if e.Local {
@@ -105,3 +99,23 @@ func (e Timezone) Render() (expr.Rendering, error) {
 	}
 	return expr.Rendering{Tree: "AtTimeZone", Inputs: []expr.Expr{e.Value, e.Zone}, Form: expr.FormTemplate, Args: hiddenArgs(e.Value, e.Zone), Pieces: []expr.Piece{text("("), arg(0), text(" AT TIME ZONE "), arg(1), text(")")}}, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e Timezone) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(Timezone)
+	return ok && e.Local == o.Local && same(e.Value, o.Value) && (e.Local || same(e.Zone, o.Zone))
+}
+
+// PreflightFold implements expr.Preflighting.
+func (e Timezone) PreflightFold() expr.Preflight { return expr.PreflightNullFirst }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e Timezone) LooksLikeFunction() bool { return e.Function }
+
+// Substitute implements expr.Substitutable.
+func (e Timezone) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	return e.Rebuild(info, children)
+}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e Timezone) ClosureTransparent() {}

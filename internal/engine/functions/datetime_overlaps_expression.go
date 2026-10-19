@@ -17,8 +17,6 @@ type DatetimeOverlaps struct {
 	Folded [2]sqltype.Value
 }
 
-func (e DatetimeOverlaps) Arguments() []expr.Expr { return e.Args[:] }
-
 func (e DatetimeOverlaps) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -351,7 +349,7 @@ var _ expr.Renderable = DatetimeOverlaps{}
 
 // Render implements expr.Renderable.
 func (e DatetimeOverlaps) Render() (expr.Rendering, error) {
-	spec := expr.Rendering{Tree: "Datetime overlaps", Inputs: e.Arguments()}
+	spec := expr.Rendering{Tree: "Datetime overlaps", Inputs: e.Args[:]}
 	if e.Syntax == parser.SQLFunctionSyntax {
 		text, arg := expr.TextPiece, expr.ArgPiece
 		spec.Form, spec.Args = expr.FormTemplate, hiddenArgs(e.Args[:]...)
@@ -367,4 +365,33 @@ func (e DatetimeOverlaps) Render() (expr.Rendering, error) {
 		}
 	}
 	return spec, nil
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e DatetimeOverlaps) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(DatetimeOverlaps)
+	if !ok || e.Plan != o.Plan || e.WrapperContext != o.WrapperContext {
+		return false
+	}
+	// Folded endpoints are a deterministic derivative of the physical
+	// literal arguments below, not another SQL child or signature.
+	for i, arg := range e.Args {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e DatetimeOverlaps) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e DatetimeOverlaps) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeOverlaps", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
 }

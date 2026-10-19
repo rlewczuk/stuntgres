@@ -173,3 +173,32 @@ func (e ArraySearch) Render() (expr.Rendering, error) {
 	spec.SimpleCast = true
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e ArraySearch) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(ArraySearch)
+	if !ok || !e.Plan.Equal(o.Plan) || e.Namespace != o.Namespace || len(e.Args) != len(o.Args) {
+		return false
+	}
+	for i := range e.Args {
+		if !same(e.Args[i], o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e ArraySearch) LooksLikeFunction() bool { return !e.Plan.Membership() }
+
+// Substitute implements expr.Substitutable.
+func (e ArraySearch) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("ArraySearch", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e ArraySearch) ClosureTransparent() {}

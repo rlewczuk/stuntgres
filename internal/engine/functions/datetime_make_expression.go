@@ -18,8 +18,6 @@ type DatetimeMake struct {
 	Labels       [7]string // Written order; empty denotes positional Syntax.
 }
 
-func (e *DatetimeMake) Arguments() []expr.Expr { return e.Args[:e.Count] }
-
 func (e DatetimeMake) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -27,13 +25,13 @@ func (e DatetimeMake) Eval(c expr.Context) (sqltype.Value, error) {
 	}
 	// Preflight already visited/folded constant children. Runtime strictness can
 	// now short circuit a constant NULL without invoking the constructor/zone.
-	for _, arg := range e.Arguments() {
+	for _, arg := range e.Args[:e.Count] {
 		if c.FunctionLiteralNull(arg) {
 			return sqltype.Null(e.Usage.Type), nil
 		}
 	}
 	var values [7]sqltype.Value
-	for i, arg := range e.Arguments() {
+	for i, arg := range e.Args[:e.Count] {
 		value, err := arg.Eval(c)
 		if err != nil {
 			return sqltype.Value{}, err
@@ -200,3 +198,33 @@ func (e DatetimeMake) Render() (expr.Rendering, error) {
 	}
 	return writtenCall("Datetime constructor "+e.Plan.Name(), e.Args[:e.Count], e.Plan.Name(), args, false), nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e DatetimeMake) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(DatetimeMake)
+	if !ok || e.Plan.Name() != o.Plan.Name() || e.Count != o.Count {
+		return false
+	}
+	for i, arg := range e.Args[:e.Count] {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e DatetimeMake) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e DatetimeMake) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeMake", children, e.Count); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e DatetimeMake) ClosureTransparent() {}

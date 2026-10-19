@@ -76,20 +76,3 @@ func (b *expressionBinder) bindNetworkFormat(raw parser.FunctionExpr) (expr.Expr
 	}
 	return functions.NewNetworkFormat(info, kind, args)
 }
-
-func mapNetworkFormatChildren(e functions.NetworkFormat, mapChild func(expr.Expr) (expr.Expr, bool, error)) (functions.NetworkFormat, bool, error) {
-	changed := false
-	for i, arg := range e.Args[:e.Kind.Arity()] {
-		next, did, err := mapChild(arg)
-		if err != nil {
-			return e, false, err
-		}
-		e.Args[i] = next
-		changed = changed || did
-	}
-	if !changed {
-		return e, false, nil
-	}
-	next, err := e.Reconstruct(e.Info, e.Args)
-	return next, true, err
-}

@@ -225,3 +225,35 @@ func (e ArrayRandom) Render() (expr.Rendering, error) {
 	spec.Replay.Validate = e.Validate
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e ArrayRandom) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(ArrayRandom)
+	if !ok || e.Kind != o.Kind || e.ResultUsage() != o.ResultUsage() || len(e.Args) != len(o.Args) {
+		return false
+	}
+	for i := range e.Args {
+		if !same(e.Args[i], o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// PreflightFold implements expr.Preflighting.
+func (e ArrayRandom) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e ArrayRandom) LooksLikeFunction() bool { return false }
+
+// Substitute implements expr.Substitutable.
+func (e ArrayRandom) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("ArrayRandom", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e ArrayRandom) ClosureTransparent() {}

@@ -1,6 +1,10 @@
 package expr
 
-import "stuntgres/internal/sqltype"
+import (
+	"context"
+
+	"stuntgres/internal/sqltype"
+)
 
 // Optional hooks a Composite node implements when an engine switch needs more
 // than its children. Each hook is named for the single question it answers;
@@ -93,4 +97,100 @@ type Retaggable interface {
 type Annotated interface {
 	Annotation() any
 	WithAnnotation(any) Expr
+}
+
+// GroupIdentity nodes decide whether another expression is the same grouping
+// expression: GROUP BY matching, DISTINCT ON and CHECK definition equality.
+// SameGroup compares the node's own identity and uses same for children, so
+// the engine keeps its frame and query comparisons. definition selects CHECK
+// definition equality, which ignores presentation-only differences. Nodes
+// without the hook never match.
+type GroupIdentity interface {
+	SameGroup(other Expr, same func(a, b Expr) bool, definition bool) bool
+}
+
+// GroupLeaf marks a childless call that grouping leaves unchanged when it
+// rewrites an expression above its keys: the SQL value functions, the
+// transaction clocks and version information. Grouping rebuilds every other
+// call over its rewritten children and marks it stage dependent.
+type GroupLeaf interface {
+	GroupLeaf()
+}
+
+// Preflight is how statement preparation folds a call once the engine has
+// preflighted its children (materialized their immutable conversions).
+type Preflight uint8
+
+const (
+	// PreflightSimplify runs the engine's conditional simplification on the
+	// call over its preflighted children.
+	PreflightSimplify Preflight = iota
+	// PreflightKeep leaves a childless leaf call as it is.
+	PreflightKeep
+	// PreflightChildren only preflights the children.
+	PreflightChildren
+	// PreflightEvaluate evaluates the call when it is immutable and depends on
+	// no row, stage or domain.
+	PreflightEvaluate
+	// PreflightNullOrEvaluate replaces the call with a typed NULL when a
+	// preflighted child is a literal NULL, and otherwise acts as
+	// PreflightEvaluate.
+	PreflightNullOrEvaluate
+	// PreflightRegexNullOrEvaluate is PreflightNullOrEvaluate for calls that
+	// own regular-expression execution state, which the NULL replacement
+	// resets.
+	PreflightRegexNullOrEvaluate
+	// PreflightNullFirst replaces the call with a typed NULL when a child is a
+	// literal NULL before preflight, and otherwise acts as PreflightSimplify.
+	PreflightNullFirst
+	// PreflightNullBare replaces the call with a NULL that keeps only its
+	// usage and position when a preflighted child is a literal NULL.
+	PreflightNullBare
+)
+
+// Preflighting selects a node's Preflight; nodes without it use
+// PreflightSimplify.
+type Preflighting interface {
+	PreflightFold() Preflight
+}
+
+// ConstantTemplate nodes specialize their provider for a literal template
+// argument during preflight, before conditional simplification. literal reports
+// the value of a literal child; SpecializeTemplate returns whether the node
+// changed.
+type ConstantTemplate interface {
+	SpecializeTemplate(ctx context.Context, literal func(Expr) (sqltype.Value, bool)) (Expr, bool, error)
+}
+
+// EvaluationOrdered nodes list their children in written order although they
+// evaluate them in another (named arguments bound to formal slots).
+// EvaluationOrder returns the child indices in evaluation order;
+// MapSubstituted follows it.
+type EvaluationOrdered interface {
+	EvaluationOrder() []int
+}
+
+// FunctionSyntax answers PostgreSQL's looks_like_function for index
+// definitions: pg_get_indexdef prints a key that looks like a function call
+// bare and parenthesizes every other expression. Nodes without the hook are
+// parenthesized.
+type FunctionSyntax interface {
+	LooksLikeFunction() bool
+}
+
+// Substitutable nodes replace their metadata and children while keeping their
+// provider and every input derived at binding. Passes that substitute
+// equivalent children (statement preflight, grouping rewrite) use it instead of
+// Rebuild, which rebinds the provider against the new children.
+type Substitutable interface {
+	Substitute(info Info, children []Expr) (Expr, error)
+}
+
+// ClosureTransparent marks a call that the closed-DEFAULT checks look
+// through: the DEFAULT is closed when every child is. Those checks decide
+// whether a DEFAULT built around a volatile generator (gen_random_uuid(), the
+// transaction clocks) needs no row, parameter or stage. Other calls are closed
+// only when no more than stable.
+type ClosureTransparent interface {
+	ClosureTransparent()
 }

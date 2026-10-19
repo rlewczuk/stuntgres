@@ -102,3 +102,33 @@ func (e NetworkFormat) Render() (expr.Rendering, error) {
 	spec.Replay.Validate = e.Validate
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e NetworkFormat) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(NetworkFormat)
+	if !ok || e.Kind != o.Kind || e.Plan != o.Plan {
+		return false
+	}
+	for i := range e.Kind.Arity() {
+		if !same(e.Args[i], o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e NetworkFormat) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e NetworkFormat) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("NetworkFormat", children, e.Kind.Arity()); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e NetworkFormat) ClosureTransparent() {}

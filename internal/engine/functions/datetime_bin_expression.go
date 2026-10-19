@@ -11,8 +11,6 @@ type DatetimeBin struct {
 	Args [3]expr.Expr
 }
 
-func (e DatetimeBin) Arguments() []expr.Expr { return e.Args[:] }
-
 func (e DatetimeBin) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -131,9 +129,9 @@ func (e DatetimeBin) Reconstruct(info expr.Info, args [3]expr.Expr, retain func(
 // and any argument slots beyond Children.
 var _ expr.Composite = DatetimeBin{}
 
-func (e DatetimeBin) Children() []expr.Expr { return e.Arguments() }
+func (e DatetimeBin) Children() []expr.Expr { return e.Args[:] }
 func (e DatetimeBin) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
-	if err := checkChildren("DatetimeBin", children, len(e.Arguments())); err != nil {
+	if err := checkChildren("DatetimeBin", children, len(e.Args[:])); err != nil {
 		return nil, err
 	}
 	args := e.Args
@@ -161,5 +159,32 @@ var _ expr.Renderable = DatetimeBin{}
 
 // Render implements expr.Renderable.
 func (e DatetimeBin) Render() (expr.Rendering, error) {
-	return callRendering("Datetime binning", e.Arguments(), "date_bin", e.Arguments()), nil
+	return callRendering("Datetime binning", e.Args[:], "date_bin", e.Args[:]), nil
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e DatetimeBin) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(DatetimeBin)
+	if !ok || e.Plan != o.Plan {
+		return false
+	}
+	for i, arg := range e.Args {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e DatetimeBin) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e DatetimeBin) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeBin", children, len(e.Args[:])); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
 }

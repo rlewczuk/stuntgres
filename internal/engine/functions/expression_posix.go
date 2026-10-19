@@ -190,3 +190,49 @@ func (e PosixSubstring) Render() (expr.Rendering, error) {
 	}
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e Posix) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(Posix)
+	return ok && e.Provider == o.Provider && e.Operator == o.Operator && same(e.Left, o.Left) && same(e.Right, o.Right)
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e PosixSubstring) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(PosixSubstring)
+	return ok && e.Provider == o.Provider && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1])
+}
+
+// PreflightFold implements expr.Preflighting.
+func (e Posix) PreflightFold() expr.Preflight { return expr.PreflightRegexNullOrEvaluate }
+
+// PreflightFold implements expr.Preflighting.
+func (e PosixSubstring) PreflightFold() expr.Preflight { return expr.PreflightRegexNullOrEvaluate }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e PosixSubstring) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e PosixSubstring) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("PosixSubstring", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}
+
+// Substitute implements expr.Substitutable.
+func (e Posix) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Posix", children, 2); err != nil {
+		return nil, err
+	}
+	e.Info, e.Left, e.Right = info, children[0], children[1]
+	return e, nil
+}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e Posix) ClosureTransparent() {}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e PosixSubstring) ClosureTransparent() {}

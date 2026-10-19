@@ -187,7 +187,7 @@ func TestQueryCycleOwnership(t *testing.T) {
 	if !validExpressionUsage(view, c.path.Usage()) || validExpressionUsage(view, mapped.Usage()) {
 		t.Fatal("foreign leaf accepted")
 	}
-	if sameRecordUsage(c.path.Usage(), mapped.Usage()) {
+	if sqltype.SameRecordUsage(c.path.Usage(), mapped.Usage()) {
 		t.Fatal("foreign same-OID internal leaf accepted")
 	}
 	engine, bound, err := recursiveUnitBind(t, "WITH RECURSIVE r(n) AS (SELECT 1 UNION SELECT r.n FROM (VALUES(7),(8)) e(x) CROSS JOIN r) CYCLE n SET cyc USING path SELECT * FROM r")
@@ -322,7 +322,7 @@ func TestQueryCycleSignature(t *testing.T) {
 	if !sameStatementResultUsage(a.path.Usage(), b.path.Usage()) {
 		t.Fatal("public RECORD[] OID froze private member shape")
 	}
-	if sameRecordUsage(a.path.Usage(), b.path.Usage()) {
+	if sqltype.SameRecordUsage(a.path.Usage(), b.path.Usage()) {
 		t.Fatal("internal shape validation weakened")
 	}
 	if sameStatementUsage(small.Usage(), big.Usage()) {

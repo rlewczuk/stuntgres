@@ -170,3 +170,56 @@ func JSONPredicateSuffix(kind string, unique, not bool) string {
 	}
 	return text + ")"
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e SQLJSON) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(SQLJSON)
+	if !ok || e.Raw.Kind != o.Raw.Kind || e.Raw.Absent != o.Raw.Absent || e.Raw.Unique != o.Raw.Unique || len(e.Args) != len(o.Args) {
+		return false
+	}
+	for i := range e.Args {
+		if !same(e.Args[i], o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONPredicate) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONPredicate)
+	return ok && e.Kind == o.Kind && e.Unique == o.Unique && e.Not == o.Not && same(e.Child, o.Child)
+}
+
+// PreflightFold implements expr.Preflighting.
+func (e SQLJSON) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// PreflightFold implements expr.Preflighting.
+func (e JSONPredicate) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e SQLJSON) LooksLikeFunction() bool { return true }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e JSONPredicate) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e JSONPredicate) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONPredicate", children, 1); err != nil {
+		return nil, err
+	}
+	e.Info, e.Child = info, children[0]
+	return e, nil
+}
+
+// Substitute implements expr.Substitutable.
+// Its provider re-derives from the child usages, as preflight always did.
+func (e SQLJSON) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	return e.Rebuild(info, children)
+}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e SQLJSON) ClosureTransparent() {}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e JSONPredicate) ClosureTransparent() {}

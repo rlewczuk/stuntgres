@@ -80,3 +80,25 @@ func (e RangeOperator) Render() (expr.Rendering, error) {
 	}
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e RangeOperator) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(RangeOperator)
+	return ok && e.Plan == o.Plan && e.Namespace == o.Namespace && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1])
+}
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e RangeOperator) LooksLikeFunction() bool { return false }
+
+// Substitute implements expr.Substitutable.
+func (e RangeOperator) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("RangeOperator", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e RangeOperator) ClosureTransparent() {}

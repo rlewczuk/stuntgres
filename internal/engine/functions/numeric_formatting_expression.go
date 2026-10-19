@@ -94,3 +94,37 @@ var _ expr.Renderable = NumericFormatting{}
 func (e NumericFormatting) Render() (expr.Rendering, error) {
 	return callRendering("NumericFormatting "+e.Plan.Name(), e.Args[:], e.Plan.Name(), e.Args[:]), nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e NumericFormatting) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(NumericFormatting)
+	return ok && e.Plan.Name() == o.Plan.Name() && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1])
+}
+
+// SpecializeTemplate implements expr.ConstantTemplate: a literal template
+// argument selects its parsed format once.
+func (e NumericFormatting) SpecializeTemplate(ctx context.Context, literal func(expr.Expr) (sqltype.Value, bool)) (expr.Expr, bool, error) {
+	template, ok := literal(e.Args[1])
+	if !ok {
+		return e, false, nil
+	}
+	plan, changed, err := e.Plan.WithConstantTemplate(ctx, template)
+	if err != nil || !changed {
+		return e, false, err
+	}
+	e.Plan = plan
+	return e, true, nil
+}
+
+// Substitute implements expr.Substitutable.
+func (e NumericFormatting) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("NumericFormatting", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e NumericFormatting) ClosureTransparent() {}

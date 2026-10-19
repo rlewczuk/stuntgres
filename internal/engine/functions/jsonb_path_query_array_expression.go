@@ -19,8 +19,6 @@ type JSONBPathQueryArray struct {
 	Variadic     bool // Written presentation only; the selected routine is nonvariadic.
 }
 
-func (e *JSONBPathQueryArray) Arguments() []expr.Expr { return e.Args[:] }
-
 func (e JSONBPathQueryArray) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -93,3 +91,34 @@ func (e JSONBPathQueryArray) Render() (expr.Rendering, error) {
 	}
 	return writtenCall("JSONPath array query", e.Args[:], "jsonb_path_query_array", args, e.Variadic), nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONBPathQueryArray) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONBPathQueryArray)
+	// Redundant VARIADIC is presentation only for this nonvariadic routine.
+	if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
+		return false
+	}
+	for i, arg := range e.Args[:] {
+		if !same(arg, o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e JSONBPathQueryArray) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e JSONBPathQueryArray) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONBPathQueryArray", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e JSONBPathQueryArray) ClosureTransparent() {}

@@ -376,3 +376,88 @@ func (e SimilarSubstring) Render() (expr.Rendering, error) {
 	}
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e LikeEscape) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(LikeEscape)
+	return ok && e.Provider == o.Provider && same(e.Pattern, o.Pattern) && same(e.Escape, o.Escape)
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e Similar) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(Similar)
+	return ok && e.Provider == o.Provider && e.Operator == o.Operator && same(e.Left, o.Left) && same(e.Right, o.Right)
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e SimilarEscape) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(SimilarEscape)
+	return ok && e.Provider == o.Provider && e.Omitted == o.Omitted && same(e.Pattern, o.Pattern) && same(e.Escape, o.Escape)
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e SimilarSubstring) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(SimilarSubstring)
+	return ok && e.Provider == o.Provider && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1]) && same(e.Args[2], o.Args[2])
+}
+
+// PreflightFold implements expr.Preflighting.
+func (e LikeEscape) PreflightFold() expr.Preflight { return expr.PreflightEvaluate }
+
+// PreflightFold implements expr.Preflighting.
+func (e SimilarEscape) PreflightFold() expr.Preflight { return expr.PreflightRegexNullOrEvaluate }
+
+// PreflightFold implements expr.Preflighting.
+func (e Similar) PreflightFold() expr.Preflight { return expr.PreflightNullOrEvaluate }
+
+// PreflightFold implements expr.Preflighting.
+func (e SimilarSubstring) PreflightFold() expr.Preflight { return expr.PreflightNullOrEvaluate }
+
+// Substitute implements expr.Substitutable.
+func (e SimilarSubstring) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("SimilarSubstring", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}
+
+// Substitute implements expr.Substitutable.
+func (e Similar) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Similar", children, 2); err != nil {
+		return nil, err
+	}
+	e.Info, e.Left, e.Right = info, children[0], children[1]
+	return e, nil
+}
+
+// Substitute implements expr.Substitutable.
+func (e LikeEscape) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("LikeEscape", children, 2); err != nil {
+		return nil, err
+	}
+	e.Info, e.Pattern, e.Escape = info, children[0], children[1]
+	return e, nil
+}
+
+// Substitute implements expr.Substitutable.
+func (e SimilarEscape) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("SimilarEscape", children, 2); err != nil {
+		return nil, err
+	}
+	e.Info, e.Pattern, e.Escape = info, children[0], children[1]
+	return e, nil
+}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e Similar) ClosureTransparent() {}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e SimilarEscape) ClosureTransparent() {}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e SimilarSubstring) ClosureTransparent() {}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e LikeEscape) ClosureTransparent() {}

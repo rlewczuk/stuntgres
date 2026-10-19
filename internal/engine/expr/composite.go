@@ -33,9 +33,43 @@ func Walk(node Expr, children func(Expr, func(Expr)), visit func(Expr)) {
 // RegclassRef, which InfoOf does not copy. Unchanged nodes are returned as
 // they are.
 func Map(node Composite, child func(Expr) (Expr, bool, error)) (Expr, bool, error) {
+	return mapChildren(node, nil, child, node.Rebuild)
+}
+
+// MapSubstituted is Map for passes that replace children by equivalent ones
+// without rebinding the node's provider (statement preflight). It visits the
+// children in evaluation order (EvaluationOrdered) and substitutes them
+// (Substitute); the children keep their written positions.
+func MapSubstituted(node Composite, child func(Expr) (Expr, bool, error)) (Expr, bool, error) {
+	var order []int
+	if hook, ok := node.(EvaluationOrdered); ok {
+		order = hook.EvaluationOrder()
+	}
+	return mapChildren(node, order, child, func(info Info, children []Expr) (Expr, error) {
+		return Substitute(node, info, children)
+	})
+}
+
+// Substitute replaces a node's metadata and children through Substitutable,
+// keeping its provider and derived inputs; other nodes Rebuild.
+func Substitute(node Composite, info Info, children []Expr) (Expr, error) {
+	if hook, ok := node.(Substitutable); ok {
+		return hook.Substitute(info, children)
+	}
+	return node.Rebuild(info, children)
+}
+
+func mapChildren(node Composite, order []int, child func(Expr) (Expr, bool, error), rebuild func(Info, []Expr) (Expr, error)) (Expr, bool, error) {
 	children := node.Children()
+	if order == nil {
+		order = make([]int, len(children))
+		for i := range order {
+			order[i] = i
+		}
+	}
 	var mapped []Expr
-	for i, original := range children {
+	for _, i := range order {
+		original := children[i]
 		if original == nil {
 			continue
 		}
@@ -54,7 +88,7 @@ func Map(node Composite, child func(Expr) (Expr, bool, error)) (Expr, bool, erro
 	if mapped == nil {
 		return node, false, nil
 	}
-	rebuilt, err := node.Rebuild(InfoOf(node), mapped)
+	rebuilt, err := rebuild(InfoOf(node), mapped)
 	if err != nil {
 		return nil, false, err
 	}

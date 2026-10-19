@@ -136,3 +136,63 @@ func TestMapPropagatesErrors(t *testing.T) {
 		t.Fatalf("Map rebuild error = %v, want %v", err, rebuildFailure)
 	}
 }
+
+// orderedComposite evaluates its children in reverse written order.
+type orderedComposite struct{ testComposite }
+
+func (e orderedComposite) EvaluationOrder() []int {
+	order := make([]int, len(e.args))
+	for i := range order {
+		order[i] = len(order) - 1 - i
+	}
+	return order
+}
+
+func TestMapSubstitutedFollowsEvaluationOrderAndKeepsPositions(t *testing.T) {
+	args := []Expr{testLeaf{name: "a"}, nil, testLeaf{name: "b"}}
+	var visited []string
+	got, changed, err := MapSubstituted(orderedComposite{testComposite{name: "root", args: args}}, func(child Expr) (Expr, bool, error) {
+		visited = append(visited, nodeName(child))
+		return testLeaf{name: nodeName(child) + "'"}, true, nil
+	})
+	if err != nil || !changed || len(visited) != 2 || visited[0] != "b" || visited[1] != "a" {
+		t.Fatalf("MapSubstituted visited %v, changed %v, err %v; want b then a", visited, changed, err)
+	}
+	rebuilt := got.(testComposite)
+	if nodeName(rebuilt.args[0]) != "a'" || rebuilt.args[1] != nil || nodeName(rebuilt.args[2]) != "b'" {
+		t.Fatalf("rebuilt children %v kept no written positions", rebuilt.args)
+	}
+	visited = nil
+	if _, _, err := MapSubstituted(testComposite{name: "root", args: args}, func(child Expr) (Expr, bool, error) {
+		visited = append(visited, nodeName(child))
+		return child, false, nil
+	}); err != nil || len(visited) != 2 || visited[0] != "a" {
+		t.Fatalf("unordered node visited %v, err %v; want written order", visited, err)
+	}
+}
+
+// substitutingComposite records substitutions instead of rebuilding.
+type substitutingComposite struct {
+	testComposite
+	substitutions *int
+}
+
+func (e substitutingComposite) Substitute(info Info, args []Expr) (Expr, error) {
+	*e.substitutions++
+	e.Info, e.args = info, args
+	return e, nil
+}
+
+func TestSubstitutePrefersTheHook(t *testing.T) {
+	rebuilds, substitutions := 0, 0
+	args := []Expr{testLeaf{name: "a"}}
+	node := substitutingComposite{testComposite{name: "root", args: args, rebuilds: &rebuilds}, &substitutions}
+	got, changed, err := MapSubstituted(node, func(Expr) (Expr, bool, error) { return testLeaf{name: "b"}, true, nil })
+	if err != nil || !changed || substitutions != 1 || rebuilds != 0 || nodeName(got.(substitutingComposite).args[0]) != "b" {
+		t.Fatalf("MapSubstituted: changed %v, err %v, substitutions %d, rebuilds %d", changed, err, substitutions, rebuilds)
+	}
+	plain := testComposite{name: "root", args: args, rebuilds: &rebuilds}
+	if _, err := Substitute(plain, Info{}, []Expr{testLeaf{name: "c"}}); err != nil || rebuilds != 1 {
+		t.Fatalf("Substitute without the hook: err %v, rebuilds %d; want one Rebuild", err, rebuilds)
+	}
+}

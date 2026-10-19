@@ -340,7 +340,7 @@ func (b *expressionBinder) sameWindowCall(a, c windowCall) bool {
 	}
 	// Arguments can own child queries hidden by the window leaf. This is
 	// semantic target equality, not permission to merge volatile executions.
-	if (a.operation == windowSum || a.operation.evaluatesArgument()) && (!sameRecordUsage(a.expression.ResultUsage(), c.expression.ResultUsage()) || !b.sameQueryTarget(a.argument, c.argument) || !b.sameQueryTarget(a.ordinal, c.ordinal) || !b.sameQueryTarget(a.defaultValue, c.defaultValue)) {
+	if (a.operation == windowSum || a.operation.evaluatesArgument()) && (!sqltype.SameRecordUsage(a.expression.ResultUsage(), c.expression.ResultUsage()) || !b.sameQueryTarget(a.argument, c.argument) || !b.sameQueryTarget(a.ordinal, c.ordinal) || !b.sameQueryTarget(a.defaultValue, c.defaultValue)) {
 		return false
 	}
 	if a.raw != nil || c.raw != nil {

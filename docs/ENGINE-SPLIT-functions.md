@@ -64,9 +64,15 @@ through the `expr.Renderable` hook.
 
 State after the third F2 session: stored scalar SQL (`scalar_function_sql.go`
 and the function cases of `default.go`) reads the same `Rendering`, extended
-with `Replay`, and its helpers are gone. Still to do: removing `Arguments()`
-where it duplicates `Children()`, once no switch calls it (preflight and
-aggregate binding still do).
+with `Replay`, and its helpers are gone.
+
+State after the fourth F2 session: grouping identity, the grouping rewrite,
+aggregate occurrence, preflight, index key display and the closed-DEFAULT
+checks have one protocol branch each, and `Arguments()` no longer duplicates
+`Children()`. Still listing function nodes: view literal capture
+(`view_literals.go`, keyed on raw syntax), function sources (the set cursor in
+`string_set_query.go` and its classifiers) and the explicit `SQLJSON` deparse
+and stored SQL cases; see the session 4 notes.
 
 ### F3 — Binder interface and registry, with a pilot family
 
@@ -159,6 +165,13 @@ Tier C has a refined plan.
   math helpers, docs `ec2fba8bd`; session 2: `68cbeefed` node tree,
   `42ec6b7e5` deparse, then the docs commit; session 3: `2e7673441`
   replay protocol, `cca30a78c` stored scalar SQL, then the docs commit)
+  [x] grouping identity [x] grouping rewrite and aggregate occurrence
+  [x] preflight [x] index key display [x] closed DEFAULT checks
+  [x] `Arguments()` [ ] view literal capture [ ] function sources
+  [ ] `SQLJSON` rendering (session 4: `063fe2d1e` identity, `622b3d3ba`
+  rewrite, `a187f7f5d` preflight, `39c887998` index, `b2675f4c2`
+  substitution, `632814b91` DEFAULT closure, `25fcad768` `Arguments()`,
+  then the docs commit)
 - [x] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot family:
   UUID extraction (`60dc1cedd` seam, `cd4a88387` port, `5d59e5737` move,
   docs `9bca9b2b6`)
@@ -1379,6 +1392,119 @@ Notes for later steps (JSON operators and SQL/JSON):
   `functions.JSONPredicateSuffix`.
 - The `JSON_ARRAY(SELECT ...)` subquery form and the constructor's RETURNING
   coercion stay with the engine's query and coercion nodes.
+
+F2 session 4 record (the remaining switches; the requested stored scalar SQL
+sub-step was already done), measured at its start on `50d842db3` and rebased
+onto `5cc6fe6e5`:
+
+- Function-node cases removed: grouping identity 57
+  (`sameGroupExpressionIn`), grouping rewrite 53 (`rewriteGroup`), aggregate
+  occurrence 53 (`aggregateOccurrence`), preflight 54
+  (`preflightCoercionNode`, now `preflight_composite.go`), index key display
+  41 (`pgIndexFunctionExpression`) and 38 from each closed-DEFAULT check
+  (`closedUUIDDefault`, `closedTransactionTimeDefault`). Each switch has one
+  final protocol branch after the installed-routine wrapper cases.
+- Hooks (reasons in the `expr` README): `GroupIdentity`, `GroupLeaf`,
+  `Preflighting` with `ConstantTemplate`, `Substitutable`,
+  `EvaluationOrdered`, `FunctionSyntax` and `ClosureTransparent`, plus
+  `expr.MapSubstituted` and `expr.Substitute`. `sqltype.SameRecordUsage` and
+  `OccurrenceRecordArray` replace the engine's pure record-shape helpers so
+  the record nodes can compare usages.
+- Corrections to the plan: `Rebuild` is not a drop-in for the old in-place
+  child writes. Preflight produced a child usage the provider would not bind
+  again (`pg_size_bytes('1 MB'::name)` failed `TestReferenceSizeSignatures`
+  with "invalid math argument usage" until `b2675f4c2`), so preflight and the
+  grouping rewrite substitute children through `Substitutable`. The grouping
+  rewrite left the three leaves unstaged but staged zero-argument `random()`
+  and `gen_random_uuid()`; no volatility rule reproduces that
+  (`clock_timestamp()` is volatile and unstaged), hence `GroupLeaf`.
+  `ArrayTransform` preflights in formal-slot order while its `Children` keep
+  written order, hence `EvaluationOrdered`. The two closed-DEFAULT checks
+  differ on `date_trunc`, `date_bin` and the zone calendar calls (only the uuid
+  check looks through them), which stay explicit there.
+- Deferred, as the plan allowed for function sources: view literal capture
+  pairs raw parser syntax with bound nodes, so the operands depend on the raw
+  syntax kind, and several cases record display state (implicit casts of
+  array and sleep arguments, SUBSTRING flags, the omitted SIMILAR escape).
+  Reusing `Render` does not reproduce it exactly. Function sources open
+  typed set cursors on the execution path (`functionSetCursor`); a protocol
+  cursor needs an `expr` cursor interface.
+- Deleted: `functions.MapArray*Children` (`array_node_children.go`),
+  `MapJSONExtractChildren` (`json_extract_children.go`),
+  `JSONBRecord.MapChildren`, `mapNetworkFormatChildren`,
+  `mapRangeOperatorChildren`, `preflightRegexpCall`, `sameRegexpCall`,
+  `expr.MapEvaluated` (renamed before landing) and the 17 `Arguments()`
+  methods.
+- Byte identity: a throwaway probe (not committed) ran 214 statements direct
+  and prepared on master and the branch: GROUP BY matching and its errors
+  over every node family, aggregates nested in calls in WHERE and HAVING,
+  DISTINCT ON, preflight folds with literal NULLs, templates and named
+  arguments, 25 stored DEFAULTs with `pg_get_expr`, CHECK constraints, 19
+  expression indexes with `pg_get_indexdef`, a grouped view and set-returning
+  calls in FROM. Output was identical.
+
+Tests in F2 session 4: added `functions/group_identity_test.go`
+(`TestGroupIdentityPrecisionOnlyUnderDefinitionEquality`,
+`TestGroupIdentityIgnoresPresentation`,
+`TestGroupIdentityTimezoneLocalIgnoresZone`,
+`TestGroupLeafMarksOnlyChildlessLeaves`), `functions/preflight_test.go`
+(`TestPreflightFolds`, `TestPreflightTemplateNeedsLiteral`,
+`TestArrayTransformEvaluatesFormalSlots`, `TestSubstituteKeepsTheProvider`),
+`functions/function_syntax_test.go` (`TestFunctionSyntaxFollowsSpelling`,
+`TestClosureTransparencyExcludesGenerators`) and in `expr`
+`TestMapSubstitutedFollowsEvaluationOrderAndKeepsPositions` and
+`TestSubstitutePrefersTheHook`. Adapted, because they called deleted
+helpers: the child-mapping checks of `TestArrayInspectStoredRemap` (now
+`expr.Map`; the changed-child case maps a same-generation child, because
+`Rebuild` revalidates and rejects the other generation's type), the
+unchanged-mapping check of `TestArrayRelationalExpressionOwners` (now
+`expr.Map`), the checks in `TestArrayTransformResolverOwners` and
+`TestArrayTransformNamedAndConcatSelection` (now `expr.MapSubstituted`,
+still pinning formal-slot order), the copy-on-write checks of
+`TestJSONExtractInferenceAndLifecycle` and
+`TestJSONBExtractInferenceAndLifecycle` (now `expr.Map`) and five engine
+tests that read `Arguments()` (now `Children()`).
+No test moved or was deleted; no reference test changed.
+
+Verification in F2 session 4: `make quickcheck` passed (it caught the
+`Rebuild` regression fixed in `b2675f4c2`) and passed again on the rebased
+branch; `make deps` lists only module paths; `expr` and `functions` import no
+engine state packages. Quick mode and `REFERENCE=1` passed on both backends
+with no failures for
+`^TestReference(Group|Aggregate|Having|Window|Distinct|QueryAggregate|QueryWindow|GroupingSets)`,
+`^TestReference(View|Generated|Default|Check|Deparse|Index)`,
+`^TestReference(Datetime|Regexp|Regex|Similar|Posix|Timezone|AtTimeZone|String|JSON|SQLJSON|Array|Range|Binary|Math|Format|UUID|Enum|NullCount|Random|Size)`
+and `^TestReference.*(Dump|Restore|StoredConsumers|SetReturning|FunctionScan|RowsFrom)`.
+Racecheck skipped at the user's request; no bench (plan-time and
+statement-preparation paths, not startup).
+
+Notes for later steps (F2 session 4):
+
+- View literal capture (`captureNormalizedViewLiteralTree`, 67 function-node
+  references) needs a written-operands hook that knows the raw syntax kind
+  (call or operator) and reports the display state the capture records; the
+  `Rendering` written arguments are the natural source once they cover the
+  SQL-standard templates.
+- Function sources: `isQuerySet`, `validFunctionSourceCall`,
+  `functionCallArguments`, `withFunctionCallArguments`,
+  `sameQuerySetOccurrence` and `openFunctionCall` need a set-source hook and a
+  cursor seam that keeps the typed cursors allocation-free.
+- Conditional simplification maps `ArrayTransform` children in written order
+  since session 1 (`4c54eaf54`), while preflight keeps formal-slot order.
+  With named arguments in reverse order and two failing constant arguments
+  the reported error could differ from PostgreSQL's positional evaluation;
+  check against 18.6 and use `expr.MapSubstituted`-style ordering if so.
+- Compatibility gaps seen in the probe, identical on master: a stored
+  `DEFAULT pg_size_bytes('1 MB'::name)` fails with "invalid stored math
+  provider" (PostgreSQL accepts it); `CREATE INDEX ON t (substring(a from
+  'b'))` and `(extract(year from ...))` are syntax errors, although
+  PostgreSQL's `index_elem` accepts `func_expr_common_subexpr` without extra
+  parentheses; `pg_get_indexdef` fails with "unsupported deparse constant type
+  4072" for an index over `jsonb_path_query_first(j, '$.k')`. Each needs
+  reference coverage first.
+- `pgIndexFunctionExpression` answers false for installed extension calls
+  (for example an index on fuzzystrmatch `soundex(a)`), which PostgreSQL
+  prints bare; check before giving the wrappers `FunctionSyntax`.
 
 The PostgreSQL 18.6 oracle drift listed in these records (UUIDv7 shifts,
 `json_strip_nulls`, EXTRACT quoting, final sigma, Hangul TBASE, lock rechecks

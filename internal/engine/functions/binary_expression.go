@@ -593,3 +593,35 @@ func (e Binary) Operator() bool {
 	}
 	return false
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e Binary) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(Binary)
+	// SQL-special spelling is display provenance, not semantic identity.
+	if !ok || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
+		return false
+	}
+	for i := range e.Args {
+		if !same(e.Args[i], o.Args[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e Binary) LooksLikeFunction() bool {
+	return !JSONBExistenceName(e.Plan.Name()) && !JSONBContainmentName(e.Plan.Name())
+}
+
+// Substitute implements expr.Substitutable.
+func (e Binary) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Binary", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e Binary) ClosureTransparent() {}

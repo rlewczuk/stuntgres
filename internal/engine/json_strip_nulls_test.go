@@ -78,7 +78,7 @@ func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
 		t.Fatal(next, changed, err)
 	}
 	n := next.(functions.JSONStripNulls)
-	for i, arg := range n.Arguments() {
+	for i, arg := range n.Children() {
 		if arg.ResultUsage().Type != fresh[e.Args[i].ResultUsage().Type.ID()] {
 			t.Fatal("retag lost authority", i)
 		}

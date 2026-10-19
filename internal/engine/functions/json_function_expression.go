@@ -261,3 +261,75 @@ func (e JSONElements) Render() (expr.Rendering, error) {
 	spec.Replay.Validate = unsupportedReplay
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONKeys) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONKeys)
+	return ok && e.Plan == o.Plan && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONBElements) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONBElements)
+	return ok && e.Plan == o.Plan && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONEach) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONEach)
+	return ok && e.Plan.Name() == o.Plan.Name() && sqltype.SameRecordUsage(e.ResultUsage(), o.ResultUsage()) && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
+}
+
+// SameGroup implements expr.GroupIdentity.
+func (e JSONElements) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(JSONElements)
+	return ok && e.Plan == o.Plan && len(e.Args) == 1 && len(o.Args) == 1 && same(e.Args[0], o.Args[0])
+}
+
+// PreflightFold implements expr.Preflighting.
+func (e JSONKeys) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// PreflightFold implements expr.Preflighting.
+func (e JSONBElements) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// PreflightFold implements expr.Preflighting.
+func (e JSONEach) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// PreflightFold implements expr.Preflighting.
+func (e JSONElements) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// Substitute implements expr.Substitutable.
+func (e JSONKeys) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONKeys", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}
+
+// Substitute implements expr.Substitutable.
+func (e JSONEach) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONEach", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}
+
+// Substitute implements expr.Substitutable.
+func (e JSONElements) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONElements", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}
+
+// Substitute implements expr.Substitutable.
+func (e JSONBElements) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONBElements", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}

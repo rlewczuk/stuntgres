@@ -456,8 +456,8 @@ func TestArrayRelationalExpressionOwners(t *testing.T) {
 	if !sameGroupExpression(call, qualified) {
 		t.Fatal("namespace spelling changed resolved identity")
 	}
-	next, changed, err := functions.MapArrayRandomChildren(call, func(child expr.Expr) (expr.Expr, bool, error) { return child, false, nil })
-	if err != nil || changed || &next.Args[0] != &call.Args[0] {
+	next, changed, err := expr.Map(call, func(child expr.Expr) (expr.Expr, bool, error) { return child, false, nil })
+	if err != nil || changed || &next.(functions.ArrayRandom).Args[0] != &call.Args[0] {
 		t.Fatal("unchanged child mapping copied")
 	}
 	for _, f := range []func(*EvalContext, expr.Expr, bool) (expr.Expr, bool, error){simplifyConditional, preflightCoercionsWithPolicy} {

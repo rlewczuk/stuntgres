@@ -5,7 +5,7 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `50d842db3`.
+Last verified against `master` at `5cc6fe6e5`.
 
 ## Next ready sub-steps
 
@@ -13,9 +13,9 @@ Last verified against `master` at `50d842db3`.
   sequence inquiry functions (needs steps 4, 5 and 7 ✓). Refinement first:
   narrow `functions` capabilities or homes in the owning subsystem; see the
   functions prompt file.
-- **F2 remainder** — remove `Arguments()` where it duplicates `Children()`,
-  once preflight and aggregate binding stop calling it (all nine switches
-  are done; see the F2 section of the functions prompt file).
+- **F2 remainder** — view literal capture and function sources, the last
+  engine switches that list function nodes, plus the `SQLJSON` rendering
+  (broad rewrite; see the F2 session 4 notes in the functions prompt file).
 
 Steps 1, 2 and 4–7 and `access` are done. The later waves have no prompt
 files yet.
@@ -58,6 +58,17 @@ files yet.
     - [x] join legality (`144458647`; protocol membership `c6de24e8f`, docs
       `ec2fba8bd`)
     - [x] stored scalar SQL (`2e7673441`, `cca30a78c`, docs `b0d07f5e5`)
+    - [x] grouping identity (`063fe2d1e`)
+    - [x] grouping rewrite and aggregate occurrence (`622b3d3ba`,
+      substitution `b2675f4c2`)
+    - [x] preflight (`a187f7f5d`, substitution `b2675f4c2`)
+    - [x] index key display (`39c887998`)
+    - [x] closed DEFAULT checks (`632814b91`)
+    - [x] `Arguments()` removed (`25fcad768`, then the docs commit)
+      *(racecheck skipped at user request)*
+    - [ ] view literal capture
+    - [ ] function sources
+    - [ ] `SQLJSON` rendering
   - [x] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot
     family: UUID extraction (`60dc1cedd`, `cd4a88387`, `5d59e5737`, docs
     `9bca9b2b6`)

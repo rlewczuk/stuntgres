@@ -11,8 +11,6 @@ type DatetimeJustify struct {
 	Arg  expr.Expr
 }
 
-func (e DatetimeJustify) Arguments() []expr.Expr { return []expr.Expr{e.Arg} }
-
 func (e DatetimeJustify) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -83,5 +81,26 @@ var _ expr.Renderable = DatetimeJustify{}
 
 // Render implements expr.Renderable.
 func (e DatetimeJustify) Render() (expr.Rendering, error) {
-	return callRendering("Datetime "+e.Plan.Name(), e.Arguments(), e.Plan.Name(), e.Arguments()), nil
+	return callRendering("Datetime "+e.Plan.Name(), []expr.Expr{e.Arg}, e.Plan.Name(), []expr.Expr{e.Arg}), nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e DatetimeJustify) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(DatetimeJustify)
+	return ok && e.Plan.Name() == o.Plan.Name() && same(e.Arg, o.Arg)
+}
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e DatetimeJustify) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e DatetimeJustify) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeJustify", children, 1); err != nil {
+		return nil, err
+	}
+	e.Info, e.Arg = info, children[0]
+	return e, nil
+}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e DatetimeJustify) ClosureTransparent() {}

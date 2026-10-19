@@ -385,3 +385,46 @@ func (e ArrayTransform) Render() (expr.Rendering, error) {
 	spec.Replay.Name = e.Kind.Name()
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e ArrayTransform) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(ArrayTransform)
+	if !ok || e.Kind != o.Kind || len(e.Args) != len(o.Args) || !e.Sort.Equal(o.Sort) {
+		return false
+	}
+	for i := range e.Args {
+		if !same(e.Formal(i), o.Formal(i)) {
+			return false
+		}
+	}
+	return true
+}
+
+// EvaluationOrder implements expr.EvaluationOrdered: Args keep their written
+// slots, and evaluation follows the formal slots.
+func (e ArrayTransform) EvaluationOrder() []int {
+	order := make([]int, 0, len(e.Args))
+	for slot := range e.Args {
+		for i := range e.Args {
+			if int(e.Slots[i]) == slot {
+				order = append(order, i)
+			}
+		}
+	}
+	return order
+}
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e ArrayTransform) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e ArrayTransform) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("ArrayTransform", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}
+
+// ClosureTransparent implements expr.ClosureTransparent.
+func (e ArrayTransform) ClosureTransparent() {}

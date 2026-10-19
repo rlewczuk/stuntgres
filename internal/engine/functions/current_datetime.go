@@ -111,3 +111,18 @@ func (e CurrentDateTime) Render() (expr.Rendering, error) {
 	spec.Replay.Text = text
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e CurrentDateTime) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(CurrentDateTime)
+	return ok && e.Kind == o.Kind && e.HasPrecision == o.HasPrecision && (!definition || e.Precision == o.Precision)
+}
+
+// GroupLeaf implements expr.GroupLeaf.
+func (e CurrentDateTime) GroupLeaf() {}
+
+// PreflightFold implements expr.Preflighting.
+func (e CurrentDateTime) PreflightFold() expr.Preflight { return expr.PreflightKeep }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e CurrentDateTime) LooksLikeFunction() bool { return true }

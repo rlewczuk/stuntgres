@@ -362,10 +362,10 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		}
 	}
 	for _, column := range b.query.Root.Schema() {
-		if occurrenceRecordArray(column.Usage.Type) || column.Usage.Type.ID() == 2249 && column.Usage.Type.IsComposite() {
+		if sqltype.OccurrenceRecordArray(column.Usage.Type) || column.Usage.Type.ID() == 2249 && column.Usage.Type.IsComposite() {
 			e.mu.Unlock()
 			typeName := "record"
-			if occurrenceRecordArray(column.Usage.Type) {
+			if sqltype.OccurrenceRecordArray(column.Usage.Type) {
 				typeName = "record[]"
 			}
 			return Result{}, sqlError("42P16", fmt.Sprintf(`column "%s" has pseudo-type %s`, column.Name, typeName))

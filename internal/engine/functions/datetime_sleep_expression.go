@@ -274,3 +274,24 @@ func (e DatetimeSleep) Render() (expr.Rendering, error) {
 	spec.Replay.Types = []*sqltype.Descriptor{e.ClockUsage.Type}
 	return spec, nil
 }
+
+// SameGroup implements expr.GroupIdentity.
+func (e DatetimeSleep) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
+	o, ok := other.(DatetimeSleep)
+	return ok && e.Kind == o.Kind && same(e.Arg, o.Arg)
+}
+
+// PreflightFold implements expr.Preflighting.
+func (x DatetimeSleep) PreflightFold() expr.Preflight { return expr.PreflightNullBare }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (x DatetimeSleep) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (x DatetimeSleep) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeSleep", children, 1); err != nil {
+		return nil, err
+	}
+	x.Info, x.Arg = info, children[0]
+	return x, nil
+}
