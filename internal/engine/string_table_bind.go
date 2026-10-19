@@ -21,8 +21,8 @@ func isQuerySet(expr expr.Expr) bool {
 	if call, ok := expr.(transactionIdentityExpression); ok {
 		return call.kind == identityMembers
 	}
-	if call, ok := expr.(aclValueExpression); ok {
-		return call.kind == aclExplode
+	if call, ok := expr.(functions.ACLValue); ok {
+		return call.Kind == functions.ACLExplode
 	}
 	if record, ok := expr.(functions.JSONRecord); ok {
 		return record.Plan.ReturnsSet()
@@ -42,8 +42,8 @@ func validFunctionSourceCall(expr expr.Expr) bool {
 	switch call := expr.(type) {
 	case functions.JSONBPathQuery, catalogUserNameExpression, catalogForeignKeysExpression:
 		return true
-	case aclValueExpression:
-		return call.kind != aclContains
+	case functions.ACLValue:
+		return call.Kind != functions.ACLContains
 	case objectAddressExpression, functions.JSONBRecord:
 		return true
 	case transactionIdentityExpression:
@@ -118,8 +118,8 @@ func functionCallArguments(bound expr.Expr) []expr.Expr {
 		return []expr.Expr{call.arg}
 	case catalogForeignKeysExpression:
 		return nil
-	case aclValueExpression:
-		return call.arguments()
+	case functions.ACLValue:
+		return call.Children()
 	case objectAddressExpression:
 		return call.args[:]
 	case functions.JSONRecord:
@@ -182,11 +182,11 @@ func withFunctionCallArguments(bound expr.Expr, args []expr.Expr) (expr.Expr, er
 			return nil, fmt.Errorf("stuntgres: invalid catalog foreign-key arguments")
 		}
 		return call, nil
-	case aclValueExpression:
-		if len(args) != len(call.arguments()) {
+	case functions.ACLValue:
+		if len(args) != len(call.Children()) {
 			return nil, fmt.Errorf("stuntgres: invalid ACL call arguments")
 		}
-		copy(call.args[:], args)
+		copy(call.Args[:], args)
 		return call, nil
 	case objectAddressExpression:
 		if len(args) != 3 {

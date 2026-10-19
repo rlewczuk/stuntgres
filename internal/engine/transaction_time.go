@@ -53,11 +53,11 @@ func closedTransactionTimeDefault(node expr.Expr) bool {
 		valid := true
 		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedTransactionTimeDefault(child) })
 		return valid
-	case aclValueExpression:
-		if n.kind == aclExplode {
+	case functions.ACLValue:
+		if n.Kind == functions.ACLExplode {
 			return false
 		}
-		for _, child := range n.arguments() {
+		for _, child := range n.Children() {
 			if !closedTransactionTimeDefault(child) {
 				return false
 			}

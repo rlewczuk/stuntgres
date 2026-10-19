@@ -1,4 +1,4 @@
-package engine
+package functions
 
 import (
 	"context"
@@ -32,30 +32,20 @@ func (c *aclValuesScanContext) Err() error {
 }
 
 func TestACLValuesScanCancellation(t *testing.T) {
-	e, c := aclValuesUnitContext(t)
-	view := e.CatalogRead()
-	d, _ := view.LookupType(sqltype.ACLItem)
-	zero, err := sqltype.ACLItemValue(d, &e.roles.aclAuthority, 0, 0, 0, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	runtime := newACLTestRuntime()
+	zero := aclTestItem(t, runtime.authority, 0, 0, 0, 0)
 	items := make([]sqltype.Value, 8192)
 	for i := range items {
 		items[i] = zero
 	}
-	array := mustACLValuesArray(t, view, items...)
-	candidate, err := sqltype.ACLItemValue(d, &e.roles.aclAuthority, 10, 10, 2, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	original := c.Context
+	array := aclTestArray(t, items...)
+	candidate := aclTestItem(t, runtime.authority, 10, 10, 2, 0)
+	original := context.Background()
 	calibration := &aclValuesScanContext{Context: original}
-	c.Context = calibration
-	if err := checkACLValue(c, array); err != nil {
+	if err := checkACLValue(calibration, runtime, array); err != nil {
 		t.Fatal(err)
 	}
 	validationChecks := calibration.calls
-	c.Context = original
 	for _, phase := range []string{"null_validation", "authority_validation", "containment"} {
 		t.Run(phase, func(t *testing.T) {
 			after := max(2, validationChecks/4)
@@ -68,43 +58,40 @@ func TestACLValuesScanCancellation(t *testing.T) {
 			ctx, cancel := context.WithCancel(original)
 			defer cancel()
 			scanning := &aclValuesScanContext{Context: ctx, cancel: cancel, after: after}
-			c.Context = scanning
-			defer func() { c.Context = original }()
 			var failure error
 			if phase == "containment" {
-				_, failure = aclValueContains(c, array, candidate)
+				_, failure = aclContains(scanning, runtime, array, candidate)
 			} else {
-				failure = checkACLValue(c, array)
+				failure = checkACLValue(scanning, runtime, array)
 			}
 			if !errors.Is(failure, context.Canceled) || !errors.Is(ctx.Err(), context.Canceled) {
 				t.Fatalf("scan did not observe in-progress cancellation: %v", failure)
 			}
-			c.Context = original
-			if err := checkACLValue(c, array); err != nil {
+			if err := checkACLValue(original, runtime, array); err != nil {
 				t.Fatal("same-owner validation recovery", err)
 			}
-			found, err := aclValueContains(c, array, candidate)
+			found, err := aclContains(original, runtime, array, candidate)
 			if err != nil || found {
 				t.Fatal("same-owner containment recovery", found, err)
 			}
 		})
 	}
 	t.Run("zero_rights_expansion", func(t *testing.T) {
-		shape := aclValuesUnitShape(t, view)
-		cursor := aclExplodeCursor{array: array}
+		shape := aclTestShape(t)
+		cursor := ACLExplodeCursor{array: array}
 		progress := -1
 		ctx, cancel := context.WithCancel(original)
 		defer cancel()
 		scanning := &aclValuesScanContext{Context: ctx, cancel: cancel, after: 3, observe: func() { progress = cursor.index }}
-		_, present, err := cursor.next(scanning, shape)
+		_, present, err := cursor.Next(scanning, shape)
 		if !errors.Is(err, context.Canceled) || present || !cursor.closed || cursor.array.Type() != nil {
 			t.Fatal("in-progress expansion cancellation/cleanup", present, err)
 		}
 		if progress <= 0 || progress >= array.ArrayLen() {
 			t.Fatal("cancellation did not occur inside zero-rights scan", progress)
 		}
-		restarted := aclExplodeCursor{array: array}
-		_, present, err = restarted.next(original, shape)
+		restarted := ACLExplodeCursor{array: array}
+		_, present, err = restarted.Next(original, shape)
 		if err != nil || present || !restarted.closed {
 			t.Fatal("fresh invocation recovery", present, err)
 		}

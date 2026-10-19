@@ -328,21 +328,6 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 			n.args[i] = child(n.args[i])
 		}
 		next = n
-	case aclValueExpression:
-		for i := range n.arguments() {
-			n.args[i] = child(n.args[i])
-		}
-		next = n
-	case objectACLExpression:
-		for i := range n.args {
-			n.args[i] = child(n.args[i])
-		}
-		next = n
-	case accessInquiryExpression:
-		for i := range n.count {
-			n.args[i] = child(n.args[i])
-		}
-		next = n
 	case namespaceInquiryExpression:
 		if n.arg != nil {
 			n.arg = child(n.arg)

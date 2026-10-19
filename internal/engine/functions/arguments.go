@@ -144,6 +144,11 @@ const (
 	// conversion (Plan, Planned) to the bound Expression, as an explicit cast
 	// to Target.
 	JSONFormattedArgument
+	// BareFormalArgument applies the planned implicit conversion (Plan,
+	// Planned) to an already finalized Expression, positioned at the raw
+	// argument and without a cast routine identity, as pg_get_acl and the
+	// access inquiries coerce their fixed formals.
+	BareFormalArgument
 )
 
 type CoercionRequest struct {

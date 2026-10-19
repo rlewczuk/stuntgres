@@ -326,23 +326,16 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 			*r.commentSnapshot = true
 		}
 		return n.sql("pg_catalog."+n.op.name(), func(arg expr.Expr) (string, error) { return r.sql(ctx, view, arg) })
-	case aclValueExpression:
-		return n.sql(func(arg expr.Expr) (string, error) { return r.sql(ctx, view, arg) })
-	case objectACLExpression:
+	case functions.ObjectACL:
 		if r.owner == nil {
 			return "", fmt.Errorf("stuntgres: object ACL inquiries are unsupported in stored defaults")
 		}
-		return n.sql("pg_catalog.pg_get_acl", func(arg expr.Expr) (string, error) {
-			return r.sql(ctx, view, arg)
-		})
-	case accessInquiryExpression:
+		return r.scalarFunctionSQL(ctx, view, n)
+	case functions.AccessInquiry:
 		if r.owner == nil {
 			return "", fmt.Errorf("stuntgres: access inquiries are unsupported in stored defaults")
 		}
-		if err := n.validateStored(); err != nil {
-			return "", err
-		}
-		return r.functionSQL(ctx, view, "pg_catalog."+n.name(), n.arguments())
+		return r.scalarFunctionSQL(ctx, view, n)
 	case namespaceInquiryExpression:
 		if err := n.validateStored(); err != nil {
 			return "", err

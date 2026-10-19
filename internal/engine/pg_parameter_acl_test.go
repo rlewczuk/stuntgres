@@ -318,6 +318,29 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 	pgParameterACLUnitEntries(t, e, captured.anonymous[0][2], map[uint32][3]uint32{10: {10, 12288, 0}, uint32(reader.ID()): {10, 4096, 0}})
 }
 
+// Cancel a real context after an initially successful progress observation.
+// No goroutines, sleeps, fabricated Err result or production hook is needed.
+// Calibration places cancellation within a scan, not at its entry boundary;
+// assertions concern cancellation/recovery, never an exact polling count.
+type aclValuesScanContext struct {
+	context.Context
+	cancel       context.CancelFunc
+	calls, after int
+	observe      func()
+}
+
+func (c *aclValuesScanContext) Err() error {
+	err := c.Context.Err()
+	c.calls++
+	if c.cancel != nil && c.calls == c.after && err == nil {
+		if c.observe != nil {
+			c.observe()
+		}
+		c.cancel()
+	}
+	return err
+}
+
 func TestPGParameterACLCancellation(t *testing.T) {
 	e, op, _ := pgParameterACLUnitFixture(t)
 	if err := applyObjectGrantUnit(e, op, parameterSpaceRequest("parameter", "pacl_unit.cancel")); err != nil {

@@ -619,42 +619,6 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			return next, changed || simplified, err
 		}
 		return e, changed, nil
-	case aclValueExpression:
-		changed := false
-		for i, arg := range e.arguments() {
-			next, did, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
-			if err != nil {
-				return nil, false, err
-			}
-			if did {
-				e.args[i], changed = next, true
-			}
-		}
-		return e, changed, nil
-	case objectACLExpression:
-		changed := false
-		for i, arg := range e.args {
-			next, did, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
-			if err != nil {
-				return nil, false, err
-			}
-			if did {
-				e.args[i], changed = next, true
-			}
-		}
-		return e, changed, nil
-	case accessInquiryExpression:
-		changed := false
-		for i, arg := range e.arguments() {
-			next, did, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
-			if err != nil {
-				return nil, false, err
-			}
-			if did {
-				e.args[i], changed = next, true
-			}
-		}
-		return e, changed, nil
 	case namespaceInquiryExpression:
 		if e.arg == nil {
 			return e, false, nil
@@ -2962,6 +2926,12 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 			return nil, err
 		}
 		return coercionExpression{info, node, request.Plan, sqltype.Explicit, false}, nil
+	case functions.BareFormalArgument:
+		node := argument.Expression
+		if node == nil || !request.Planned {
+			return nil, fmt.Errorf("stuntgres: invalid bare function argument coercion")
+		}
+		return coercionExpression{b.info(request.Target, argument.Raw.SourcePosition(), coercionProperties(node, request.Plan)), node, request.Plan, sqltype.Implicit, false}, nil
 	case functions.AssignmentFormalArgument:
 		return b.bind(argument.Raw, expressionPolicy{context: assignmentContext, expected: request.Target, mode: sqltype.Implicit})
 	case functions.DirectFormalArgument:

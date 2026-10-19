@@ -181,7 +181,7 @@ call to another provider does not create a second row.
 | LIKE/ILIKE/POSIX | 26 | `internal/engine/expression_like.go:bindLike`; `internal/engine/functions/expression_posix.go:CoercePatternArguments/PatternAllowed`. NAME/BPCHAR/TEXT left, TEXT right, all four LIKE/ILIKE spellings and all four regex spellings; BYTEA only LIKE/not-LIKE. Unicode collation ILIKE boundary unchanged. |
 | String/binary concat and prefix | 6 | `internal/engine/string_expression.go:bindStringConcat/bindStringPrefix`; `functions/string_expression.go:SelectStringConcat`. TEXT/TEXT, TEXT/anynonarray, anynonarray/TEXT, BYTEA/BYTEA, VARBIT/VARBIT concat; TEXT/TEXT ^@. Array/JSONB priority remains distinct. |
 | Array membership and concat | 6 | `internal/engine/array_operator.go:finishArrayMembership/selectArrayConcat`. Three anyarray membership records; anycompatiblearray concat, append and prepend. No per-element synthetic identities. JSON[] element failure does not remove generic anyarray admission. |
-| ACL item inclusion | 1 | `internal/engine/array_operator.go:finishArrayMembership` selects fixed ACLITEM[]1034/ACLITEM1033 before generic array membership; `acl_values.go:aclValueContains` matches authority, grantee/grantor and rights/options inclusion. Released968 is concrete, not a synthetic anyarray record. |
+| ACL item inclusion | 1 | `internal/engine/array_operator.go:finishArrayMembership` selects fixed ACLITEM[]1034/ACLITEM1033 before generic array membership; `internal/engine/functions/acl_items.go:aclContains` matches authority, grantee/grantor and rights/options inclusion. Released968 is concrete, not a synthetic anyarray record. |
 | JSON/JSONB | 21 | `json_operator_bind.go` in internal/engine/functions (formerly five engine files). Twelve extraction records (JSON/JSONB, TEXT/INT4 keys or TEXT[] path, document/TEXT result); JSONB existence three, containment two, concat one, deletion TEXT/INT4 two, path-delete one. SMALLINT keys coerce to INT4. **Released3398 JSONB-TEXT[] deletion excluded**: current SelectJSONBDelete selects TEXT or INT4 only. |
 | Range/multirange noncomparison | 42 | `internal/engine/range_operator.go:bindRangeShared` and `internal/sqltype/range_operator.go:RangeOperatorResult/BindRangeOperator`. Released same-family set operations; declared range/multirange cross-shape relationships, adjacency and ordering; generic element contains/contained-by. Intersect the physical helper with released records: never manufacture every shape the helper could admit. |
 | Excluded identities | 254 | Remaining release signatures have no exact executable routed provider. Geometry, unsupported XID symbols, full-text, root/absolute-value, network containment, pattern-order symbols, record scalar comparison, JSONPath operators and JSONB-TEXT[] deletion remain aliases only. |
@@ -466,12 +466,12 @@ the545-row synchronization below supersedes that inventory, not its history.
 Root approved Review2 on the544-row candidate, then performed the mandatory
 rebase onto63296f382f5e765879c0c4ce944174b1241a75f9. The exhaustive actual-binder
 proof exposed one newly available exact signature:968
-`@>(aclitem[],aclitem)`→BOOL, selected as `aclValueExpression`. This is catalog
+`@>(aclitem[],aclitem)`→BOOL, selected as `functions.ACLValue` (kind `ACLContains`). This is catalog
 synchronization to existing integrated behavior, not a new operator/provider.
 
 Current `array_operator.go:finishArrayMembership` routes known ACLITEM[]/ACLITEM
 to its dedicated ACL branch before ordinary array/array membership.
-`acl_values.go:aclContains` declares exactly1034/1033 and BOOL; its evaluator
+`functions.BindACLContains` (`acl_value_bind.go`) declares exactly1034/1033 and BOOL; its evaluator
 requires matching ACL authority/grantee/grantor and rights/options inclusion
 within one stored entry. A known array RHS still selects generic membership.
 

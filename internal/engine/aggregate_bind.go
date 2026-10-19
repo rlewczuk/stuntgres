@@ -163,39 +163,6 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			}
 		}
 		return true
-	case aclValueExpression:
-		o, ok := other.(aclValueExpression)
-		if !ok || e.kind != o.kind || e.named != o.named || e.namespace != o.namespace {
-			return false
-		}
-		for i, arg := range e.arguments() {
-			if !same(arg, o.args[i]) {
-				return false
-			}
-		}
-		return true
-	case objectACLExpression:
-		o, ok := other.(objectACLExpression)
-		if !ok || e.slots != o.slots || e.labels != o.labels {
-			return false
-		}
-		for i, arg := range e.args {
-			if !same(arg, o.args[i]) {
-				return false
-			}
-		}
-		return true
-	case accessInquiryExpression:
-		o, ok := other.(accessInquiryExpression)
-		if !ok || e.rowSecurity != o.rowSecurity || e.count != o.count {
-			return false
-		}
-		for i := range e.count {
-			if !same(e.args[i], o.args[i]) {
-				return false
-			}
-		}
-		return true
 	case namespaceInquiryExpression:
 		o, ok := other.(namespaceInquiryExpression)
 		return ok && e.kind == o.kind && (e.arg == nil && o.arg == nil || e.arg != nil && o.arg != nil && same(e.arg, o.arg))
@@ -537,24 +504,6 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		bound = e
 	case objectAddressExpression:
 		for i := range e.args {
-			e.args[i] = rewrite(e.args[i])
-		}
-		stage(&e.Info)
-		bound = e
-	case aclValueExpression:
-		for i := range e.arguments() {
-			e.args[i] = rewrite(e.args[i])
-		}
-		stage(&e.Info)
-		bound = e
-	case objectACLExpression:
-		for i := range e.args {
-			e.args[i] = rewrite(e.args[i])
-		}
-		stage(&e.Info)
-		bound = e
-	case accessInquiryExpression:
-		for i := range e.count {
 			e.args[i] = rewrite(e.args[i])
 		}
 		stage(&e.Info)
@@ -904,18 +853,6 @@ func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 		walk(e.arg)
 	case objectAddressExpression:
 		for _, arg := range e.args {
-			walk(arg)
-		}
-	case aclValueExpression:
-		for _, arg := range e.arguments() {
-			walk(arg)
-		}
-	case objectACLExpression:
-		for _, arg := range e.args {
-			walk(arg)
-		}
-	case accessInquiryExpression:
-		for _, arg := range e.arguments() {
 			walk(arg)
 		}
 	case namespaceInquiryExpression:

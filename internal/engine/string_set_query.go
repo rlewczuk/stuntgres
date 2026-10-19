@@ -96,7 +96,7 @@ type functionSetCursor struct {
 	numericSeries          sqltype.NumericSeriesCursor
 	array                  sqltype.Value
 	owned                  []sqltype.Value
-	acl                    aclExplodeCursor
+	acl                    functions.ACLExplodeCursor
 	catalogKeys            *catalogForeignKeyValues
 	position               int
 	scalar                 sqltype.Value
@@ -132,7 +132,7 @@ func (s *functionSetCursor) close() {
 		s.record.Close()
 	}
 	if s.initialized && s.kind == functionACLCursor {
-		s.acl.close()
+		s.acl.Close()
 	}
 	s.owned = nil
 	s.catalogKeys = nil
@@ -237,9 +237,9 @@ func openFunctionCall(c *EvalContext, expression expr.Expr) (functionSetCursor, 
 			return functionSetCursor{}, err
 		}
 		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
-	case aclValueExpression:
-		if call.kind == aclExplode {
-			cursor, err := call.openACL(c)
+	case functions.ACLValue:
+		if call.Kind == functions.ACLExplode {
+			cursor, err := call.OpenExplode(c)
 			if err != nil {
 				return functionSetCursor{}, err
 			}
@@ -562,7 +562,7 @@ func (s *functionSetCursor) next(ctx context.Context, typ *sqltype.Descriptor) (
 		return sqltype.Value{}, false, fmt.Errorf("stuntgres: unopened function set cursor")
 	}
 	if s.kind == functionACLCursor {
-		return s.acl.next(ctx, typ)
+		return s.acl.Next(ctx, typ)
 	}
 	if s.kind == functionCatalogKeysCursor {
 		return s.nextCatalogForeignKey(typ)

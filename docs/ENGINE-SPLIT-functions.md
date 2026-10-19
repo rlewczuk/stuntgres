@@ -110,9 +110,10 @@ and stored SQL cases; see the session 4 notes.
   move. FILTER, DISTINCT, ORDER, grouping and window execution stay in the
   engine's grouping code. `aggregate_bind.go` is the largest single item;
   split it over several sessions if needed.
-- Tier C (catalog, ACL, xid, advisory-lock and sequence inquiry) waits for
-  steps 4, 5 and 7. Refine it then: narrow capability interfaces in
-  `functions`, or homes in the owning subsystem.
+- Tier C (catalog, ACL, xid, advisory-lock and sequence inquiry) waited for
+  steps 4, 5 and 7. Its refined plan is the "Tier C refinement" part of the
+  Status section: one part per subsystem, each with a narrow capability
+  interface in `functions`.
 
 ## Invariants
 
@@ -208,7 +209,11 @@ Tier C has a refined plan.
   `a18766bcc` ordered-set and hypothetical-set, `c4a15e187` window
   functions, then the docs commit; `int_array_aggregate` keeps its engine
   branch)
-- [ ] Tier C refined (after steps 4, 5 and 7)
+- [ ] Tier C refined (after steps 4, 5 and 7; plan in "Tier C refinement"
+  below): [x] ACL SQL function nodes (`b3ce43139` seam, `574de18f1` port,
+  `436322070` move, `75d906ea8` protocol hooks, then the docs commit)
+  [ ] catalog inquiry [ ] transaction identity and commit timestamps
+  [ ] advisory locks [ ] sequence calls
 
 `Binder` methods added beyond the F3 set: `AnalyzeFilter` (F3, for the
 pilot's shared call envelope; FILTER analysis is used by 27 glue files, so it
@@ -1505,6 +1510,153 @@ Notes for later steps (F2 session 4):
 - `pgIndexFunctionExpression` answers false for installed extension calls
   (for example an index on fuzzystrmatch `soundex(a)`), which PostgreSQL
   prints bare; check before giving the wrappers `FunctionSyntax`.
+
+Tier C refinement, measured on `5cc6fe6e5` with the ACL part done first:
+
+- **Pattern.** A Tier C family moves like a Tier A family (seam, port in
+  place, move), with one addition for evaluation: a narrow capability
+  interface in `functions` (`ACLRuntime` is the first), which nodes recover
+  from `expr.Context` by type assertion and the engine's `*EvalContext`
+  implements with a compile-time assertion. The interface takes values
+  (OIDs, names, text), and the engine method keeps the lock, authorization
+  recapture and error order of the old `Eval`. `expr.Context` does not grow
+  per family. Bind code uses `Binder`; registry entries keep the chain's
+  position (these branches sit before the shared gates).
+- **What stays in the engine** for every part: the capability
+  implementation, set-returning admission and function scans (the
+  function-source switches have no set-source hook yet), result nullability
+  (`query_bind.go`, `returning.go`), view literal pairing, the
+  closed-DEFAULT check, and statement input/output adapters such as the
+  aclitem and regrole resolvers and formatters.
+- **Parts**, one session each, can run in parallel: they touch the same
+  switch files, `function.go` and these docs, so rebase early.
+  - ACL SQL function nodes: done (record below).
+  - Catalog inquiry: `catalogUserNameExpression`,
+    `catalogForeignKeysExpression`, `objectAddressExpression`,
+    `namespaceInquiryExpression`, `currentSchemasExpression`,
+    `visibilityInquiryExpression`, `indexPropertyExpression`,
+    `commentInquiryExpression` and `deparseExpression`. They read the
+    statement's catalog snapshot and search path: a catalog inquiry
+    capability.
+  - Transaction identity and commit timestamps:
+    `transactionIdentityExpression`, `commitTimestampExpression` and
+    `age(xid)` (`BindDatetimeAgeFinite` then loses its node-builder value).
+    They read `visibility` state: a transaction capability.
+  - Advisory locks: `advisoryExpression` over the `lock` package's advisory
+    manager: a lock capability.
+  - Sequence calls: `sequenceCallExpression`, with its prepared-literal and
+    DEFAULT rules from `AGENTS.md`; the most constrained part, last.
+  - `blockingInquiryExpression` (`pg_blocking_pids` and friends) goes with
+    the advisory or catalog part, whichever reads its state.
+
+Tier C ACL record, measured at its start on `5cc6fe6e5` and rebased onto
+`6f71c048e` (F2 session 4 and the access-names cleanup):
+
+- Scope. Three engine nodes: `aclValueExpression` (`acldefault`,
+  `makeaclitem`, `aclexplode` and the `aclitem[] @> aclitem` operator),
+  `objectACLExpression` (`pg_get_acl`) and `accessInquiryExpression`
+  (`pg_has_role`, `row_security_active`), in `acl_values.go`,
+  `acl_explode.go`, `object_acl.go` and `access_inquiry.go` (about 1,090
+  lines). `has_*_privilege` exists only as catalog routine identities; no
+  node binds it, so nothing ported.
+- Seam. `functions.ACLRuntime`: `ACLAuthority` (also `ACLAuthoritySource`),
+  `ObjectACL`, `RoleMembership` and `RowSecurityActive`. The engine
+  implementation is `acl_runtime.go`. The aclitem algorithms (privilege
+  names, default masks, array validation, containment, the explode cursor)
+  moved to `functions/acl_items.go` as private helpers; `aclDefaultMasks`
+  keeps its own copy of the masks, as the authorization A1 notes asked.
+- Port. The binders needed no new `Binder` method, but one coercion intent:
+  `pg_get_acl` and the access inquiries finalize each argument and then
+  build a bare implicit coercion at the raw argument without a cast routine
+  identity; `ExactFormalArgument` would attach one (and so change stored
+  dependencies) and returns the planning error instead of the missing
+  signature. `BareFormalArgument` covers it. Their shared envelope is
+  `inquiry_call.go`.
+- Registry. The chain matched all three families case-insensitively before
+  the shared gates (`ACLValueFunctionName`, `EqualFold("pg_get_acl")`,
+  `AccessInquiryFunctionName`), so they register by `Names` with no fields;
+  `pg_get_acl`'s branch preceded the access inquiries, whose predicate also
+  names it. No earlier chain predicate claims these names.
+- Nodes. `ACLValue`, `ObjectACL` and `AccessInquiry` implement `Children`,
+  `Rebuild`, `IntrinsicVolatility`, `PlanningFold` (`FoldNever`, as the old
+  constant-inputs case and the default branch decided), `Render` with
+  replay, `PreflightFold` (`PreflightChildren`), `SameGroup` and
+  `LooksLikeFunction`; `ACLValue` alone is a `StoredProvider`. The display
+  forms needed no new `Rendering` field: the always-qualified
+  `pg_catalog.acldefault` is a verbatim name with `Replay.Name`, the labels
+  are verbatim, and `@>` is a template, which keeps the always-quoted
+  `OPERATOR("pg_catalog".@>)` in display and replay.
+- Switch cases removed: walk, join legality, retag, remap, conditional
+  simplify and constant inputs, volatility, generated admission, `tableoid`
+  and stored validation, node tree, deparse, stored scalar SQL, index key
+  syntax, grouping identity, grouping rewrite, aggregate walk and preflight.
+  Kept (now naming the exported types): function-source switches
+  (`string_table_bind.go`, `string_set_query.go`, `string_set_lower.go`),
+  nullability (`query_bind.go`, `returning.go`), `view_literals.go`, the
+  closed-DEFAULT case (`transaction_time.go`; `ClosureTransparent` cannot
+  exclude `aclexplode`) and the stored-default owner guard (`default.go`;
+  `Replay.RelationOnly` would change its message).
+- Corrections. Three protocol defaults differ from the old cases only on
+  paths no consumer distinguishes, and the probe below matched: planned
+  volatility of `pg_get_acl` and the access inquiries is now STABLE merged
+  with the planned children instead of the analyzed properties (they differ
+  only as STABLE against VOLATILE, and every consumer compares with
+  IMMUTABLE or VOLATILE through children that stay volatile); conditional
+  simplification keeps the analyzed properties instead of recomputing them
+  from the simplified children, as for every function node; the `tableoid`
+  walk of generated columns now visits their children (they are never
+  admitted to generated columns).
+- Deviations. The aclitem helpers moved with the nodes rather than in the
+  seam commit, so no temporary exports were needed; the F2 session 4 hooks
+  landed during the session and were adopted in a fourth commit.
+- Byte identity. A throwaway probe (not committed) ran 33 expressions over
+  every form (the four kinds, `acl =>`, `OPERATOR(pg_catalog.@>)`, named and
+  reordered `pg_get_acl`, the OID/name overloads, int8/int2 implicit
+  coercions, both `row_security_active` overloads) through direct and
+  prepared results, views (plain and pretty), CHECK constraints and
+  `conbin` node trees, expression indexes, STORED and VIRTUAL generated
+  columns, defaults, domain CHECKs, GROUP BY, DISTINCT ON and HAVING, and
+  native Dump, with `quote_all_identifiers` off and on. Output was identical
+  on master and after every commit.
+
+Tests: moved to `functions/acl_items_test.go` and
+`acl_items_cancellation_test.go` (adapted to a fake `ACLRuntime`):
+`TestACLValuesDefaults`, `TestACLValuesPrivileges`,
+`TestACLValuesContainment` (gained foreign-item, foreign-array and
+missing-authority cases), `TestACLValuesInvocation` and
+`TestACLValuesScanCancellation`. Added `functions/acl_protocol_test.go`
+(`TestACLValueEvaluatesThroughRuntime`, `TestObjectACLEvaluatesSlots`,
+`TestAccessInquiryEvaluatesRoles`, `TestACLNodesProtocol`,
+`TestACLNodesRender`); `TestLookupClaimsRegisteredNames` gained the ACL
+claims and near-miss non-claims and failed before registration. Adapted:
+`acl_values_test.go` (`TestACLValuesZeroIdentity` checks the foreign
+authority through the containment node; `TestACLValuesStoredRecipe`),
+`acl_value_routine_authority_test.go`, `object_acl_test.go` (the named
+render check reads `Render`) and `access_inquiry_test.go` use the exported
+types; `pg_parameter_acl_test.go` keeps its own copy of the counting scan
+context. No test was deleted.
+
+Verification: `make quickcheck` passed (48 packages); `make deps` lists only
+module paths; `functions` imports no engine state packages. Quick mode and
+`REFERENCE=1` passed, on both backends with no failures, for
+`^TestReference(ACLValues|ACLItem|ObjectACL|AccessRole|ObjectGrant(AccessInquiry|ACLGetter|ACLValue|TypeRawACL)|ObjectAddressRoutineFacts)`,
+`^TestReference(View|Generated|Default|Check|Deparse|SearchPath)` and
+`^TestReference.*(Dump|Restore|StoredConsumers)`. Bench skipped: bind and
+evaluation paths only, no startup code changed. Racecheck skipped at the
+user's request.
+
+Notes for later steps (Tier C ACL):
+
+- A nullability hook (`query_bind.go`, `returning.go`) and a set-source hook
+  (the function-source switches, see the F2 session 4 notes) would remove
+  the remaining per-node cases of every Tier C part.
+- A conditional closure hook (closed when every child is, unless the node
+  says otherwise) would let `aclexplode` drop its closed-DEFAULT case.
+- `reference/types/README.md` lists `TestACLValues*` selectors, some of
+  which now run in `functions` and one (`EmptyArray`) names no test; fix it
+  in a task that may edit `reference/`.
+- `has_*_privilege` is catalog identity only; executing it is a feature,
+  not part of the split.
 
 The PostgreSQL 18.6 oracle drift listed in these records (UUIDv7 shifts,
 `json_strip_nulls`, EXTRACT quoting, final sigma, Hangul TBASE, lock rechecks

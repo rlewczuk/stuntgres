@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -161,7 +162,7 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 			descriptor.Nullable, descriptor.NullabilityKnown = false, true
 		case currentSchemasExpression:
 			descriptor.Nullable, descriptor.NullabilityKnown = true, true
-		case accessInquiryExpression, objectACLExpression, aclValueExpression:
+		case functions.AccessInquiry, functions.ObjectACL, functions.ACLValue:
 			descriptor.Nullable, descriptor.NullabilityKnown = true, true
 		case namespaceInquiryExpression:
 			descriptor.Nullable, descriptor.NullabilityKnown = column.kind == otherTempNamespace, true
