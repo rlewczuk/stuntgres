@@ -51,14 +51,14 @@ and never the engine.
 
 ## What stays in the engine
 
-Write staging (`WriteStage`), the transaction-private deletion overlay
-(`privateDeletionRoot`, `deleteCandidate`) and `liveVersion`, the overlays
+Write staging (`WriteStage`), the overlays
 that consult the transaction catalog journal (`privateStorageLocked`,
 `sequenceGeneratorLocked`, `domainStageIndexRootLocked`), DML candidate
 building, index builds and maintenance orchestration, Restore, Dump and
 replacement, sequence DDL and transactional sequence metadata, and session
 sequence memories. `indexOutputMatches` stays in the engine because it
-compares index key semantics.
+compares index key semantics. The transaction-private deletion overlay and
+`LiveVersion` belong to [`visibility`](../visibility/README.md).
 
 ## Testing
 

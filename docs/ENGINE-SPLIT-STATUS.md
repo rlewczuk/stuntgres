@@ -5,19 +5,17 @@ One-page progress tracker for the `internal/engine` split. The plan is
 Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page only shows what is done and what comes next.
 
-Last verified against `master` at `ce0c3d233`.
+Last verified against `master` at `1b3a12a08`.
 
 ## Next ready sub-steps
 
-- **7b** — `visibility` created and types moved (needs 7a ✓). Exporting
-  the registry and tracker fields in place may be broad; see the 7a notes in
-  the prompt file.
+- **7c** — `visibility` aliases removed (needs 7b ✓). Broad rewrite; see
+  the 7b notes in the prompt file.
 - **B4** — `access` aliases removed (needs B3 ✓). Broad rewrite; see the
   B3 notes in the prompt file.
 
-They may run in parallel on separate branches, but not two broad rewrites
-at the same time (§8): if 7b exports the registry fields broadly, run it
-and B4 one after the other.
+Both are broad rewrites (§8): run them one after the other, not in
+parallel.
 
 ## Task tree
 
@@ -155,7 +153,10 @@ and B4 one after the other.
   - [x] 7a — `visibilityRegistry` state ownership (`f556f670c`,
     `e2745162f`, `89aed2c58`, then the docs commit) *(racecheck skipped at
     user request; targeted RACE=1 runs passed)*
-  - [ ] 7b — `visibility` created and types moved
+  - [x] 7b — `visibility` created and types moved (`41a569c1c`,
+    `e896f75d7`, `334ddf32c`, `eb53b840a`, then the docs commit)
+    *(racecheck skipped at user request; targeted RACE=1 runs passed;
+    REFERENCE=1 MERGE RR `/postgres` drift also fails on `master`)*
   - [ ] 7c — Aliases removed *(broad rewrite)*
 - [ ] **Authorization and `access`**
   ([prompt](ENGINE-SPLIT-authorization.md); Part A needs —, Part B needs 5e)

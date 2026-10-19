@@ -5,13 +5,10 @@
 Follow the [shared testing guide](../../docs/TESTING.md) for common policy and
 public/private test placement. Run these commands from the repository root.
 
-Transaction identity uses the sole canonical full-XID allocator, owned by
-`visibilityRegistry` (`Engine.visibility`) under Engine.mu.
-Sparse retained status and optional timestamp reservations index that full identity;
-low32 mirrors remain explicit consumers, and an exact atomic full phase mirror
-prevents old status from following a later index phase with the same low bits.
-The live-low index makes collision checking constant-time, including the
-publication-to-manager-release gap. Tracking OFF allocates no timestamp map.
+Transaction identity, commit order, commit timestamps, snapshot views and SSI
+belong to `visibility.Registry` (`Engine.visibility`) under Engine.mu; see
+[visibility/README.md](visibility/README.md), which also lists the identity
+and commit-timestamp selectors.
 
 MultiXact records, counters and version history belong to the lock manager; see
 [lock/README.md](lock/README.md). Raw candidate grants imply neither assignment
@@ -29,9 +26,6 @@ or UPSERT's separate affected-row cardinality check. Physical events still prece
 unique/RETURNING boundaries, and Finish discards private stages on failure.
 
 ```sh
-make check RUN='^TestTransactionIdentity(AgeArithmetic|Allocation|History|Completion|MultiHistory|GrantActions|Savepoint|Binding)$'
-make check RUN='^TestTransactionIdentity(MultiHistory|GrantActions|Savepoint|Completion)$' RACE=1
-make check RUN='^TestCommitTime(Assignment|Publication|Replacement|Expression)$'
 make check RUN='^TestPGLocks(ProjectionModes|TransactionLifetime|PredicateLifetime)$'
 make check RUN='^TestUpdateCore(MultirowAllocation|StagedPrefixOverlap|SparseAllocation)$'
 make check RUN='^Test(WalkBoundExpressionVisitsCompositeChildren|InstalledFunctionRebuildKeepsWrapper)$'

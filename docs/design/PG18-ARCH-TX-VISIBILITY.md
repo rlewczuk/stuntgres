@@ -28,7 +28,7 @@ Selected scope: transaction/session ownership; autocommit/explicit/aborted state
 | Physical Session | One persistent Transaction resource delegate. It remains attached while idle and across transaction incarnations. SessionToken and DatabaseTarget, not a numeric ID alone, qualify authority. |
 | TransactionOwner | Current transaction incarnation/options/state; private successful statement overlays; savepoint stack; transaction snapshot pin; registered participant/observer lifecycle. |
 | StatementScope | One admitted request's temporary analysis/execution references and mutable write stage; mandatory completion before releasing its Operation. Snapshot acquisition is conditional. |
-| VisibilityView / Snapshot / retained portal output | Immutable retained data-read lifetime, not permission to commit. A named portal's execution/position is feature-owned; private-write result retention never publishes rolled-back writes. |
+| VisibilityView (now `visibility.View`) / Snapshot / retained portal output | Immutable retained data-read lifetime, not permission to commit. A named portal's execution/position is feature-owned; private-write result retention never publishes rolled-back writes. |
 | Feature participant | Actual settings/temp/portal/provider state; TX coordinates marks/end, not a competing feature store. |
 
 A physical session has at most one current transaction incarnation. Operation admission does not imply concurrent mutation of that owner: transaction entrypoints serialize per-session statement/control state changes, without defining cross-session lock scheduling. A TxRef cannot authorize another Engine, target or session. Publication either installs the entire validated batch or installs nothing. Peers cannot observe private rows, descriptors, edges or intermediate commit state. Immutable published payloads are never changed in place. Unrelated committed changes must not be lost by installing an old whole-database copy.
@@ -126,6 +126,7 @@ type VersionWrite struct {
     New VersionRef // zero only for delete
     Values []driver.Value // owned immutable payload; nil for delete
 }
+// VisibilityView: now visibility.View; see internal/engine/visibility/README.md.
 func (v *VisibilityView) Tx() TxRef
 func (v *VisibilityView) Command() CommandID
 func (v *VisibilityView) Frontier() CommitSeq

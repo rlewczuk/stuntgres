@@ -833,7 +833,7 @@ See [SEARCH design](design/PG18-QUERY-CTE-RECURSIVE-SEARCH.md).
 Modifying definitions are separate mandatory execution roots, not lazy SELECT
 projects. The existing command binders share one parameter/dependency owner;
 command-occurrence target contexts switch inside one StatementScope, operation,
-lock ticket, WriteStage and VisibilityView. The complete physical source/target
+lock ticket, WriteStage and data view (`visibility.View`). The complete physical source/target
 union is captured before effects. Every physical scan uses statement-entry
 committed/prior-transaction roots, not sibling stage writes. Constraints retain
 their shared private-stage visibility, while RETURNING explicitly communicates
