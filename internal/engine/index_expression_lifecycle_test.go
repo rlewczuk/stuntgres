@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -44,7 +45,7 @@ func expressionWantRoot(t *testing.T, e *Engine, name string, want [][]string) *
 	}
 	live := make(map[ids.VersionID]ids.RowID)
 	for _, row := range store.Versions {
-		if liveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, nil) {
+		if visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, nil) {
 			live[row.Version] = row.Row
 		}
 	}

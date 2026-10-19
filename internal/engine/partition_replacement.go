@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -68,7 +69,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			if !liveVersion(version, ^ids.CommitSeq(0), store.Ends, nil) {
+			if !visibility.LiveVersion(version, ^ids.CommitSeq(0), store.Ends, nil) {
 				continue
 			}
 			var original []sqltype.Value

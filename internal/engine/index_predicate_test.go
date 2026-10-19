@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -359,7 +360,7 @@ func partialMaskFixture(t *testing.T) (partialIndexFixture, *StatementScope, que
 	scope := &StatementScope{owner: &transactionOwner{isolation: ReadCommitted}}
 	leaf := queryLeaf{ref: f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address()), relation: f.parent, storage: f.store, partialCandidate: f.index}
 	data := &visibilityData{Catalog: f.e.CatalogRead(), Frontier: f.e.visibility.CommitSeq(), Committed: map[ids.ObjectAddress][]storage.RowVersion{f.parent.Address(): f.store.Versions}, SingleGeneration: f.store}
-	view := newVisibilityView(data)
+	view := visibility.NewView(data)
 	t.Cleanup(view.Release)
 	return f, scope, leaf, view
 }

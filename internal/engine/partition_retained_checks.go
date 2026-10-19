@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
@@ -37,7 +38,7 @@ func (h partitionRowHistory) nextRow(ctx context.Context, position *int, candida
 		}
 		original := h.store.Versions[*position]
 		*position = *position + 1
-		if !liveVersion(original, h.frontier, h.store.Ends, nil) {
+		if !visibility.LiveVersion(original, h.frontier, h.store.Ends, nil) {
 			continue
 		}
 		if original.Row != candidate.Row || original.Version != candidate.Version {

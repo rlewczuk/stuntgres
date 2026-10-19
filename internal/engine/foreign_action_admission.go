@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
@@ -144,7 +145,7 @@ func (s *StatementScope) foreignActionRow(ref ids.ObjectRef, candidate storage.R
 		if err := s.repeatableConflict(row, stored.Ends); err != nil {
 			return storage.RowVersion{}, false, err
 		}
-		return row, liveVersion(row, e.visibility.CommitSeq(), stored.Ends, nil), nil
+		return row, visibility.LiveVersion(row, e.visibility.CommitSeq(), stored.Ends, nil), nil
 	}
 	return storage.RowVersion{}, false, fmt.Errorf("stuntgres: missing internal action predecessor")
 }

@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 )
 
 // Validation is shared by prepare and commit. Only commit constructs install
@@ -65,7 +66,7 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materia
 			} else {
 				predecessor, slot, found = rowByID(p.root, row.Row, -1)
 			}
-			if !found || predecessor.Version != row.Base || !liveVersion(predecessor, ids.CommitSeq(^uint64(0)), p.ends, nil) {
+			if !found || predecessor.Version != row.Base || !visibility.LiveVersion(predecessor, ids.CommitSeq(^uint64(0)), p.ends, nil) {
 				return errors.New("stuntgres: stale update predecessor")
 			}
 			if materialize {
@@ -102,7 +103,7 @@ func (e *Engine) prepareRowPublication(p *rowPublication, ref ids.TxRef, materia
 			if !found || predecessor.Version != candidate.Version || candidate.Own && predecessor.Base != candidate.Base || len(predecessor.Values) != len(p.relation.Columns) {
 				return errors.New("stuntgres: invalid deletion predecessor")
 			}
-			if !candidate.Own && !liveVersion(predecessor, ids.CommitSeq(^uint64(0)), p.ends, nil) {
+			if !candidate.Own && !visibility.LiveVersion(predecessor, ids.CommitSeq(^uint64(0)), p.ends, nil) {
 				return errors.New("stuntgres: deletion predecessor already ended")
 			}
 			if materialize {

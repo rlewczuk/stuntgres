@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
@@ -94,7 +95,7 @@ func buildHashIndexRoot(evaluation *EvalContext, parent *catalog.Relation, d *ca
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if !liveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, nil) {
+		if !visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, nil) {
 			continue
 		}
 		matches, err := preparation.predicateMatches(evaluation, parent, d, row.Values, nil, &binding)

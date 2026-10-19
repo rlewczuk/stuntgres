@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -298,7 +299,7 @@ func buildIndexEntries(evaluation *EvalContext, parent *catalog.Relation, d *cat
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if liveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, nil) {
+		if visibility.LiveVersion(row, ids.CommitSeq(^uint64(0)), store.Ends, nil) {
 			matches, err := preparation.predicateMatches(evaluation, parent, d, row.Values, &o, nil)
 			if err != nil {
 				return nil, err

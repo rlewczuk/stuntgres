@@ -84,12 +84,6 @@ func TestTransactionCopiedScopeStageViewAndSnapshot(t *testing.T) {
 	if e.storage.RowFrontier() != before {
 		t.Fatal("failed Apply transferred ownership/allocated identity")
 	}
-	forged := &VisibilityView{self: scope.view}
-	forged.data.Store(data)
-	forged.Release()
-	if forged.Retain() != nil || scope.view.Catalog().Epoch() == 0 {
-		t.Fatal("copied view affected original authority")
-	}
 	actual := result.Rows.(*finalRows)
 	forgedResult := &finalRows{self: actual, source: actual.source}
 	forgedResult.Close()

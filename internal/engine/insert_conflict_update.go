@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -249,6 +250,6 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 	if err := s.repeatableConflict(row, store.Ends); err != nil {
 		return storage.RowVersion{}, nil, "", false, err
 	}
-	live := liveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address]) && !uniqueRowDeleted(row.Row, s.stage.deletes[ref.Address])
+	live := visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address]) && !uniqueRowDeleted(row.Row, s.stage.deletes[ref.Address])
 	return row, parent, namespace.Name(), live, nil
 }

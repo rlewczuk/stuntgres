@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -227,7 +228,7 @@ func materializedConcurrentRows(ctx context.Context, view catalog.Read, parent *
 			continue
 		}
 		for i := oldAt; i < oldEnd; i++ {
-			if !liveVersion(previous.Versions[oldEntries[i].Position], frontier, previous.Ends, nil) {
+			if !visibility.LiveVersion(previous.Versions[oldEntries[i].Position], frontier, previous.Ends, nil) {
 				continue
 			}
 			values := previous.Versions[oldEntries[i].Position].Values

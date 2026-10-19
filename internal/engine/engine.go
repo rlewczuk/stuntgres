@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -154,7 +155,7 @@ func newEngine(providers []catalog.Provider, definitions []SettingDefinition, da
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
 	e := &Engine{catalog: catalogStore{Owner: catalog.Owner{Domain: &ids.Domain{}, Providers: map[ids.OID]catalog.Provider{}}, nextOID: 16384, nextRevision: 2}, storage: storage.Store{Relations: map[ids.ObjectAddress]*storage.Relation{}}}
 	e.catalog.Principals, e.catalog.ACLAuthority = &e.roles.domain, &e.roles.aclAuthority
-	e.visibility = newVisibilityRegistry(trackCommitTimestamp)
+	e.visibility = visibility.NewRegistry(trackCommitTimestamp)
 	e.locks = lock.New(e.catalog.Domain)
 	e.storage.Sequences = make(map[ids.ObjectAddress]*storage.SequenceGenerator)
 	e.roles.initialize()

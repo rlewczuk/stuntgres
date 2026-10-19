@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -27,7 +28,7 @@ type foreignKeyRows struct {
 
 func (r foreignKeyRows) each(visit func(storage.RowVersion) (bool, error)) error {
 	for _, v := range r.committed {
-		if r.shadow[v.Row] != 0 || !liveVersion(v, r.frontier, r.ends, r.priorDeletes) || !liveVersion(v, r.frontier, r.ends, r.currentDeletes) {
+		if r.shadow[v.Row] != 0 || !visibility.LiveVersion(v, r.frontier, r.ends, r.priorDeletes) || !visibility.LiveVersion(v, r.frontier, r.ends, r.currentDeletes) {
 			continue
 		}
 		if stop, err := visit(v); err != nil || stop {
@@ -35,7 +36,7 @@ func (r foreignKeyRows) each(visit func(storage.RowVersion) (bool, error)) error
 		}
 	}
 	for _, v := range r.own {
-		if r.shadow[v.Row]&2 != 0 || !liveVersion(v, r.frontier, nil, r.priorDeletes) || !liveVersion(v, r.frontier, nil, r.currentDeletes) {
+		if r.shadow[v.Row]&2 != 0 || !visibility.LiveVersion(v, r.frontier, nil, r.priorDeletes) || !visibility.LiveVersion(v, r.frontier, nil, r.currentDeletes) {
 			continue
 		}
 		if stop, err := visit(v); err != nil || stop {
@@ -43,7 +44,7 @@ func (r foreignKeyRows) each(visit func(storage.RowVersion) (bool, error)) error
 		}
 	}
 	for _, v := range r.staged {
-		if !liveVersion(v, r.frontier, nil, r.currentDeletes) {
+		if !visibility.LiveVersion(v, r.frontier, nil, r.currentDeletes) {
 			continue
 		}
 		if stop, err := visit(v); err != nil || stop {
@@ -59,7 +60,7 @@ func (r foreignKeyRows) previous(id ids.RowID) (storage.RowVersion, bool) {
 		}
 	}
 	for _, v := range r.committed {
-		if v.Row == id && liveVersion(v, r.frontier, r.ends, r.priorDeletes) {
+		if v.Row == id && visibility.LiveVersion(v, r.frontier, r.ends, r.priorDeletes) {
 			return v, true
 		}
 	}

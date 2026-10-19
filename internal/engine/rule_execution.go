@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -149,7 +150,7 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 			if scope.view != originalView {
 				scope.view.Release()
 			}
-			scope.view = newVisibilityView(&data)
+			scope.view = visibility.NewView(&data)
 			scope.ownWrites, scope.ownDeletes = data.Own, data.Deleted
 		}
 		e.mu.Lock()

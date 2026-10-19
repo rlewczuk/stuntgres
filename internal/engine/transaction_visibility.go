@@ -2,74 +2,11 @@ package engine
 
 import (
 	"errors"
-	"sync/atomic"
 
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 )
-
-// VisibilityView retains exact immutable relation-local roots, not copied row
-// values. Each handle has independent release authority. The immutable data is
-// naturally reclaimed after the last view/result owner; no registry is needed.
-// A committed TRUNCATE incarnation can be newer than the retained snapshot.
-// This flag is capture metadata for the existing selector, not another frontier.
-type visibilityGeneration struct {
-	Storage          *storage.Relation
-	NeedsBirthFilter bool
-}
-
-type visibilityData struct {
-	Tx                     ids.TxRef
-	Command                ids.CommandID
-	Frontier               ids.CommitSeq
-	RewrittenFrontiers     map[ids.ObjectAddress]ids.CommitSeq
-	Catalog                catalog.Read
-	Committed              map[ids.ObjectAddress][]storage.RowVersion
-	Generations            map[ids.ObjectAddress]visibilityGeneration
-	SingleGeneration       *storage.Relation
-	SingleNeedsBirthFilter bool
-	Own                    map[ids.ObjectAddress][]storage.RowVersion
-	Ends                   map[ids.ObjectAddress]*storage.DeletionRoot
-	Deleted                map[ids.ObjectAddress]*privateDeletionRoot
-}
-
-func (d *visibilityData) GenerationAt(address ids.ObjectAddress) *storage.Relation {
-	if d.Generations != nil {
-		return d.Generations[address].Storage
-	}
-	if _, ok := d.Committed[address]; ok {
-		return d.SingleGeneration
-	}
-	return nil
-}
-
-func (d *visibilityData) NeedsBirthFilterAt(address ids.ObjectAddress) bool {
-	if d.Generations != nil {
-		return d.Generations[address].NeedsBirthFilter
-	}
-	_, captured := d.Committed[address]
-	return captured && d.SingleNeedsBirthFilter
-}
-
-func (d *visibilityData) FrontierAt(address ids.ObjectAddress) ids.CommitSeq {
-	if frontier, ok := d.RewrittenFrontiers[address]; ok {
-		return frontier
-	}
-	return d.Frontier
-}
-
-type VisibilityView struct {
-	self *VisibilityView
-	data atomic.Pointer[visibilityData]
-}
-
-func newVisibilityView(data *visibilityData) *VisibilityView {
-	v := &VisibilityView{}
-	v.self = v
-	v.data.Store(data)
-	return v
-}
 
 func (s *StatementScope) AcquireDataView(ref ids.ObjectRef) (*VisibilityView, error) {
 	if err := s.active(); err != nil {
@@ -120,7 +57,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 		existing = s.partitionValidationView
 	}
 	if existing != nil {
-		data := existing.data.Load()
+		data := existing.Load()
 		if data == nil {
 			return nil, errors.New("stuntgres: visibility view is released")
 		}
@@ -254,7 +191,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 			return nil, err
 		}
 	}
-	captured := newVisibilityView(data)
+	captured := visibility.NewView(data)
 	if latest {
 		s.partitionValidationView = captured
 	} else {
@@ -262,40 +199,3 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 	}
 	return captured, nil
 }
-
-func (v *VisibilityView) Retain() *VisibilityView {
-	if v == nil || v.self != v {
-		return nil
-	}
-	data := v.data.Load()
-	if data == nil {
-		return nil
-	}
-	return newVisibilityView(data)
-}
-
-func (v *VisibilityView) Release() {
-	if v != nil && v.self == v {
-		v.data.Store(nil)
-	}
-}
-
-// Load returns the captured data, or nil once this handle is released.
-// Unlike Data it does not panic and does not check the handle's identity.
-func (v *VisibilityView) Load() *visibilityData { return v.data.Load() }
-
-func (v *VisibilityView) Data() *visibilityData {
-	if v == nil || v.self != v {
-		panic("stuntgres: visibility view is released")
-	}
-	data := v.data.Load()
-	if data == nil {
-		panic("stuntgres: visibility view is released")
-	}
-	return data
-}
-
-func (v *VisibilityView) Tx() ids.TxRef           { return v.Data().Tx }
-func (v *VisibilityView) Command() ids.CommandID  { return v.Data().Command }
-func (v *VisibilityView) Frontier() ids.CommitSeq { return v.Data().Frontier }
-func (v *VisibilityView) Catalog() catalog.Read   { return v.Data().Catalog }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -139,12 +140,12 @@ func TestPreparedSerializableOverlapUsesActualOutcome(t *testing.T) {
 	e.mu.Unlock()
 	reader := serializableUnitNode(t, e, false)
 	e.mu.Lock()
-	if !serializableOverlap(writer, reader) {
+	if !visibility.SerializableOverlap(writer, reader) {
 		e.mu.Unlock()
 		t.Fatal("snapshot acquired during prepared interval lost overlap")
 	}
 	e.visibility.SerializableCommittedLocked(writer.Ref, e.visibility.CommitSeq())
-	if writer.Order != prepareOrder || writer.CommitOrder <= reader.SnapshotOrder || !serializableOverlap(writer, reader) {
+	if writer.Order != prepareOrder || writer.CommitOrder <= reader.SnapshotOrder || !visibility.SerializableOverlap(writer, reader) {
 		e.mu.Unlock()
 		t.Fatal("actual completion erased prepared-interval overlap or prepare order")
 	}
@@ -152,7 +153,7 @@ func TestPreparedSerializableOverlapUsesActualOutcome(t *testing.T) {
 	later := serializableUnitNode(t, e, false)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if serializableOverlap(writer, later) {
+	if visibility.SerializableOverlap(writer, later) {
 		t.Fatal("postcommit snapshot still overlapped finished writer")
 	}
 }

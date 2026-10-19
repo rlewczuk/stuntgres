@@ -204,30 +204,3 @@ func (e *Engine) safeSnapshotBlockingPidsLocked(pid ids.SessionID, typ *sqltype.
 	}
 	return values, nil
 }
-
-// safeSnapshotBlocker is a live read-write transaction that a DEFERRABLE
-// safe-snapshot acquisition still waits out.
-type safeSnapshotBlocker struct {
-	Session  ids.SessionToken
-	Prepared bool
-}
-
-// safeSnapshotBlockersLocked lists the writers blocking session's unresolved
-// DEFERRABLE acquisition in domain and epoch, or nil when it has none.
-// Caller holds Engine.mu.
-func (reg *visibilityRegistry) SafeSnapshotBlockersLocked(domain *ids.Domain, epoch ids.CatalogEpoch, session ids.SessionToken) []safeSnapshotBlocker {
-	for ref, node := range reg.Serializable.Nodes {
-		if ref.Domain() != domain || ref.Epoch() != epoch || ref.Session() != session || node.Prepared || !node.Captured || !node.ReadOnly || !node.Deferrable || node.Aborted || node.Ended || node.Committed || node.Resolved || node.Ready == nil {
-			continue
-		}
-		var blockers []safeSnapshotBlocker
-		for writer := range node.Possible {
-			if writer.Ref.Domain() != domain || writer.Ref.Epoch() != ref.Epoch() || reg.Serializable.Nodes[writer.Ref] != writer || writer.Aborted || writer.Ended || writer.Committed {
-				continue
-			}
-			blockers = append(blockers, safeSnapshotBlocker{Session: writer.Ref.Session(), Prepared: writer.Prepared})
-		}
-		return blockers
-	}
-	return nil
-}

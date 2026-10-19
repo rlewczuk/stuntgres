@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -22,7 +23,7 @@ func TestTransactionIdentityAgeArithmetic(t *testing.T) {
 		{3, 0, 2147483647}, {3, 1, 2147483647}, {3, 2, 2147483647}, {3, 3, 0},
 		{3, 4294967295, 4}, {2147483651, 3, -2147483648}, {4294967295, 3, -4},
 	} {
-		if got := transactionAge(tc.now, tc.xid); got != tc.want {
+		if got := visibility.Age(tc.now, tc.xid); got != tc.want {
 			t.Fatalf("age(%d,%d)=%d want %d", tc.now, tc.xid, got, tc.want)
 		}
 	}
@@ -48,12 +49,12 @@ func TestTransactionIdentityAgeArithmetic(t *testing.T) {
 
 func TestTransactionIdentityAllocation(t *testing.T) {
 	for _, tc := range []struct{ last, want uint64 }{{2, 3}, {4294967294, 4294967295}, {4294967295, 4294967299}, {8589934591, 8589934595}, {math.MaxUint64 - 1, math.MaxUint64}} {
-		got, err := nextFullTransactionID(tc.last)
+		got, err := visibility.NextFullXID(tc.last)
 		if err != nil || got != tc.want {
 			t.Fatal(tc, got, err)
 		}
 	}
-	if _, err := nextFullTransactionID(math.MaxUint64); err == nil {
+	if _, err := visibility.NextFullXID(math.MaxUint64); err == nil {
 		t.Fatal("full identity wrapped")
 	}
 	e := New()

@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 )
 
 // Historical ALTER worklists are separate from unconditional successor DML.
@@ -24,7 +25,7 @@ func (s *StatementScope) validateAddedConstraintRows(validator alterRowValidator
 			if err := s.op.Context().Err(); err != nil {
 				return err
 			}
-			if committed && replaced[row.Row] || !liveVersion(row, frontier, ends, deletes) {
+			if committed && replaced[row.Row] || !visibility.LiveVersion(row, frontier, ends, deletes) {
 				continue
 			}
 			if err := validator.validate(row.Values, &evaluation); err != nil {

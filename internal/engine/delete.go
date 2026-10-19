@@ -7,41 +7,9 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
-
-type deleteCandidate struct {
-	Ref     ids.ObjectRef
-	Storage *storage.Relation
-	Row     ids.RowID
-	Version ids.VersionID
-	Base    ids.VersionID
-	Ordinal int
-	Own     bool
-}
-type privateDeletionRoot struct{ Rows map[ids.RowID]deleteCandidate }
-
-// A private replacement and an older retained snapshot may share RowID without
-// sharing lineage. End only the deleted version and its actual replacement base.
-func liveVersion(v storage.RowVersion, frontier ids.CommitSeq, ends *storage.DeletionRoot, own *privateDeletionRoot) bool {
-	if own != nil {
-		if deleted, ok := own.Rows[v.Row]; ok && (v.Version == deleted.Version || deleted.Base != 0 && v.Version == deleted.Base) {
-			return false
-		}
-	}
-	if v.Born == 0 {
-		return true
-	}
-	if v.Born > frontier {
-		return false
-	}
-	if ends != nil {
-		if end, deleted := ends.Rows[v.Row]; deleted && end.Version == v.Version && end.End <= frontier {
-			return false
-		}
-	}
-	return true
-}
 
 func mergeDeletions(previous, staged map[ids.ObjectAddress]*privateDeletionRoot) map[ids.ObjectAddress]*privateDeletionRoot {
 	if len(staged) == 0 {
@@ -167,7 +135,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (deleted bool, err error)
 	if !found || !ok || len(original.Values) != len(relation.Columns) {
 		return false, errors.New("stuntgres: invalid deletion predecessor")
 	}
-	if !liveVersion(original, e.visibility.CommitSeq(), storage.Ends, s.ownDeletes[candidate.Ref.Address]) {
+	if !visibility.LiveVersion(original, e.visibility.CommitSeq(), storage.Ends, s.ownDeletes[candidate.Ref.Address]) {
 		return false, nil
 	}
 	candidate.Version, candidate.Ordinal = original.Version, slot
@@ -386,7 +354,7 @@ func (s *StatementScope) latestDeleteRow(candidate deleteCandidate) (storage.Row
 	if err := s.repeatableConflict(row, store.Ends); err != nil {
 		return storage.RowVersion{}, false, err
 	}
-	return row, liveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[candidate.Ref.Address]), nil
+	return row, visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[candidate.Ref.Address]), nil
 }
 
 // The nil selection path remains allocation-free for undeleted prefixes.
@@ -446,7 +414,7 @@ func selectQuerySource(ctx context.Context, source *querySource, frontier ids.Co
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		live := liveVersion(source.versionAt(raw), frontier, ends, own)
+		live := visibility.LiveVersion(source.versionAt(raw), frontier, ends, own)
 		if source.visible == nil && (!live || raw != ordinal) {
 			source.visible = make([]int, ordinal, total)
 			for j := range ordinal {

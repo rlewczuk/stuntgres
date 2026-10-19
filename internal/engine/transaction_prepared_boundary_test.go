@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -692,7 +693,7 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	}
 	updatePosition, update := preparedBoundaryUpdate(t, entry, parent)
 	predecessor, predecessorSlot, found := rowByID(publication.root, update.Row, -1)
-	if !found || predecessor.Version != update.Base || !liveVersion(predecessor, entry.frontier, publication.ends, nil) {
+	if !found || predecessor.Version != update.Base || !visibility.LiveVersion(predecessor, entry.frontier, publication.ends, nil) {
 		t.Fatal("structural fixture omitted a live genuine UPDATE predecessor")
 	}
 	if err := e.prepareRowPublication(&publication, entry.ref, false); err != nil {

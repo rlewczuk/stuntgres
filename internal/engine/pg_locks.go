@@ -56,28 +56,6 @@ func (e *Engine) capturePGPredicateLocksLocked() ([]lock.Record, error) {
 	return records, nil
 }
 
-// predicateLockHolder is a relevant serializable transaction and the
-// relations it has read (SIRead locks). reads is the tracker's live set: read
-// it only while Engine.mu is still held.
-type predicateLockHolder struct {
-	Ref      ids.TxRef
-	Prepared bool
-	Reads    map[ids.ObjectAddress]struct{}
-}
-
-// predicateLocksLocked lists the relevant serializable transactions of epoch
-// with their read sets. Caller holds Engine.mu.
-func (reg *visibilityRegistry) PredicateLocksLocked(epoch ids.CatalogEpoch) []predicateLockHolder {
-	var holders []predicateLockHolder
-	for ref, node := range reg.Serializable.Nodes {
-		if ref.Epoch() != epoch || node.Ref != ref || !serializableRelevant(node) {
-			continue
-		}
-		holders = append(holders, predicateLockHolder{Ref: ref, Prepared: node.Prepared, Reads: node.Reads})
-	}
-	return holders
-}
-
 // Consumes Engine.mu. Only scalar SSI/database facts are captured before the
 // manager is entered. Captured sources own values; prepared handles own recipes.
 func (e *Engine) capturePGLocksLocked(ctx context.Context, ref ids.ObjectRef, d *catalog.Relation) (*querySource, error) {

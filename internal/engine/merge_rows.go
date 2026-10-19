@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -526,13 +527,13 @@ func (e *Engine) latestMergeRow(s *StatementScope, ref ids.ObjectRef, candidate 
 	}
 	current, hint := store.Versions, candidate.slot
 	if own, _, found := rowByID(s.ownWrites[ref.Address], candidate.Row, -1); found {
-		return own, liveVersion(own, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address]), nil
+		return own, visibility.LiveVersion(own, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address]), nil
 	}
 	row, _, found := rowByID(current, candidate.Row, hint)
 	if !found {
 		return storage.RowVersion{}, false, errors.New("stuntgres: invalid MERGE predecessor")
 	}
-	live := liveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address])
+	live := visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address])
 	if !live && stableIsolation(s.owner.isolation) && store.Ends != nil {
 		if tombstone, ok := store.Ends.Rows[row.Row]; ok && tombstone.Version == row.Version && tombstone.End > s.owner.frontier {
 			return storage.RowVersion{}, false, sqlError("40001", "could not serialize access due to concurrent delete")

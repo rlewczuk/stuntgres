@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"testing"
 	"time"
@@ -126,8 +127,8 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 				t.Fatal("physical source did not retain captured storage/versions/ends/frontier", address)
 			}
 		}
-		if innerEnds == nil || len(innerEnds.Rows) != 1 || liveVersion(deleted, frontier, snapshot.Ends[inner.Address()], nil) ||
-			!liveVersion(innerVersions[0], frontier, snapshot.Ends[inner.Address()], nil) {
+		if innerEnds == nil || len(innerEnds.Rows) != 1 || visibility.LiveVersion(deleted, frontier, snapshot.Ends[inner.Address()], nil) ||
+			!visibility.LiveVersion(innerVersions[0], frontier, snapshot.Ends[inner.Address()], nil) {
 			t.Fatal("captured source end root did not distinguish deleted and live versions")
 		}
 		aliases := 0

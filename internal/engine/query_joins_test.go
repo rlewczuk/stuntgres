@@ -395,12 +395,6 @@ func TestQueryJoinsVisibilityReleaseAuthority(t *testing.T) {
 	_, query, source := queryJoinsFixture(t, "SELECT a.k FROM a JOIN b USING(k)")
 	for _, child := range source.sources {
 		data := child.view.Data()
-		forged := VisibilityView{self: child.view}
-		forged.data.Store(data)
-		forged.Release()
-		if forged.Retain() != nil || child.view.Data() != data {
-			t.Fatal("forged view acquired release authority")
-		}
 		retained := child.view.Retain()
 		retained.Release()
 		retained.Release()

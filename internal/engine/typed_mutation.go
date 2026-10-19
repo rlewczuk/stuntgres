@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -209,7 +210,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 			if err := scope.op.Context().Err(); err != nil {
 				return err
 			}
-			if !liveVersion(row, frontier, replacement.Ends, nil) {
+			if !visibility.LiveVersion(row, frontier, replacement.Ends, nil) {
 				continue
 			}
 			if err := validator.validate(row.Values, &evaluation); err != nil {
