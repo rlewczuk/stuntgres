@@ -53,12 +53,6 @@ func (e Timezone) Eval(c expr.Context) (sqltype.Value, error) {
 func (e Timezone) IntrinsicStable() bool {
 	return e.Local || e.Value.ResultUsage().Type.BaseType().ID() == sqltype.Timetz && e.Zone.ResultUsage().Type.BaseType().ID() != sqltype.Interval
 }
-func (e Timezone) Arguments() []expr.Expr {
-	if e.Local {
-		return []expr.Expr{e.Value}
-	}
-	return []expr.Expr{e.Zone, e.Value}
-}
 
 // Timezone implements expr.Composite. Children follow evaluation order, Zone
 // before Value, as in PostgreSQL's timezone(zone, value); AT LOCAL has no Zone
@@ -97,7 +91,7 @@ var _ expr.Renderable = Timezone{}
 // Render implements expr.Renderable.
 func (e Timezone) Render() (expr.Rendering, error) {
 	if e.Function {
-		return callRendering("Datetime timezone", e.Arguments(), "timezone", e.Arguments()), nil
+		return callRendering("Datetime timezone", e.Children(), "timezone", e.Children()), nil
 	}
 	text, arg := expr.TextPiece, expr.ArgPiece
 	if e.Local {

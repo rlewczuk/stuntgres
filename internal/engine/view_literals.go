@@ -755,22 +755,22 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			return children(r.Args, n.Args)
 		}
 		if n, ok := bound.(functions.DatetimeJustify); ok {
-			return children(r.Args, n.Arguments())
+			return children(r.Args, n.Children())
 		}
 		if n, ok := bound.(functions.DatetimeExtract); ok {
-			return children(r.Args, n.Arguments())
+			return children(r.Args, n.Children())
 		}
 		if n, ok := bound.(functions.DatetimeOverlaps); ok {
-			return children(r.Args, n.Arguments())
+			return children(r.Args, n.Children())
 		}
 		if n, ok := bound.(functions.DatetimeBin); ok {
-			return children(r.Args, n.Arguments())
+			return children(r.Args, n.Children())
 		}
 		if n, ok := bound.(functions.DatetimeTrunc); ok {
-			return children(r.Args, n.Arguments())
+			return children(r.Args, n.Children())
 		}
 		if n, ok := bound.(functions.DatetimeZoneCalendar); ok {
-			return children(r.Args, n.Arguments())
+			return children(r.Args, n.Children())
 		}
 		if n, ok := bound.(functions.Timezone); ok && n.Function {
 			if n.Local {
@@ -779,7 +779,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			return children(r.Args, []expr.Expr{n.Zone, n.Value})
 		}
 		if n, ok := bound.(functions.DatetimeAgeFinite); ok {
-			return children(r.Args, n.Arguments())
+			return children(r.Args, n.Children())
 		}
 		if n, ok := bound.(functions.JSONStripNulls); ok {
 			if len(r.Args) != n.WrittenCount {

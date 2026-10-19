@@ -11,8 +11,6 @@ type DatetimeJustify struct {
 	Arg  expr.Expr
 }
 
-func (e DatetimeJustify) Arguments() []expr.Expr { return []expr.Expr{e.Arg} }
-
 func (e DatetimeJustify) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -83,7 +81,7 @@ var _ expr.Renderable = DatetimeJustify{}
 
 // Render implements expr.Renderable.
 func (e DatetimeJustify) Render() (expr.Rendering, error) {
-	return callRendering("Datetime "+e.Plan.Name(), e.Arguments(), e.Plan.Name(), e.Arguments()), nil
+	return callRendering("Datetime "+e.Plan.Name(), []expr.Expr{e.Arg}, e.Plan.Name(), []expr.Expr{e.Arg}), nil
 }
 
 // SameGroup implements expr.GroupIdentity.

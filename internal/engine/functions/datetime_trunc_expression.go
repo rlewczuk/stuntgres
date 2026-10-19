@@ -12,15 +12,13 @@ type DatetimeTrunc struct {
 	Count int
 }
 
-func (e DatetimeTrunc) Arguments() []expr.Expr { return e.Args[:e.Count] }
-
 func (e DatetimeTrunc) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	var values [3]sqltype.Value
-	for i, arg := range e.Arguments() {
+	for i, arg := range e.Args[:e.Count] {
 		v, err := arg.Eval(c)
 		if err != nil {
 			return sqltype.Value{}, err
@@ -159,9 +157,9 @@ func (e DatetimeTrunc) Reconstruct(info expr.Info, args [3]expr.Expr, retain fun
 // and any argument slots beyond Children.
 var _ expr.Composite = DatetimeTrunc{}
 
-func (e DatetimeTrunc) Children() []expr.Expr { return e.Arguments() }
+func (e DatetimeTrunc) Children() []expr.Expr { return e.Args[:e.Count] }
 func (e DatetimeTrunc) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
-	if err := checkChildren("DatetimeTrunc", children, len(e.Arguments())); err != nil {
+	if err := checkChildren("DatetimeTrunc", children, len(e.Args[:e.Count])); err != nil {
 		return nil, err
 	}
 	args := e.Args
@@ -191,7 +189,7 @@ var _ expr.Renderable = DatetimeTrunc{}
 
 // Render implements expr.Renderable.
 func (e DatetimeTrunc) Render() (expr.Rendering, error) {
-	return callRendering("Datetime truncation", e.Arguments(), "date_trunc", e.Arguments()), nil
+	return callRendering("Datetime truncation", e.Args[:e.Count], "date_trunc", e.Args[:e.Count]), nil
 }
 
 // SameGroup implements expr.GroupIdentity.
@@ -200,7 +198,7 @@ func (e DatetimeTrunc) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool
 	if !ok || e.Plan != o.Plan || e.Count != o.Count {
 		return false
 	}
-	for i, arg := range e.Arguments() {
+	for i, arg := range e.Args[:e.Count] {
 		if !same(arg, o.Args[i]) {
 			return false
 		}
@@ -213,7 +211,7 @@ func (e DatetimeTrunc) LooksLikeFunction() bool { return true }
 
 // Substitute implements expr.Substitutable.
 func (e DatetimeTrunc) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
-	if err := checkChildren("DatetimeTrunc", children, len(e.Arguments())); err != nil {
+	if err := checkChildren("DatetimeTrunc", children, len(e.Args[:e.Count])); err != nil {
 		return nil, err
 	}
 	e.Info = info

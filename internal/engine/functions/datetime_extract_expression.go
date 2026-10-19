@@ -17,8 +17,6 @@ type DatetimeExtract struct {
 	DateWrapperContext bool
 }
 
-func (e DatetimeExtract) Arguments() []expr.Expr { return e.Args[:] }
-
 func (e DatetimeExtract) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -169,9 +167,9 @@ func (e DatetimeExtract) Reconstruct(info expr.Info, args [2]expr.Expr, retain f
 // and any argument slots beyond Children.
 var _ expr.Composite = DatetimeExtract{}
 
-func (e DatetimeExtract) Children() []expr.Expr { return e.Arguments() }
+func (e DatetimeExtract) Children() []expr.Expr { return e.Args[:] }
 func (e DatetimeExtract) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
-	if err := checkChildren("DatetimeExtract", children, len(e.Arguments())); err != nil {
+	if err := checkChildren("DatetimeExtract", children, len(e.Args[:])); err != nil {
 		return nil, err
 	}
 	args := e.Args
@@ -199,7 +197,7 @@ var _ expr.Renderable = DatetimeExtract{}
 
 // Render implements expr.Renderable.
 func (e DatetimeExtract) Render() (expr.Rendering, error) {
-	spec := callRendering("Datetime extraction "+e.Plan.Name(), e.Arguments(), e.Plan.Name(), e.Arguments())
+	spec := callRendering("Datetime extraction "+e.Plan.Name(), e.Args[:], e.Plan.Name(), e.Args[:])
 	if e.Syntax == parser.SQLFunctionSyntax {
 		// The field displays as an identifier, like PostgreSQL's ruleutils.
 		spec.Form, spec.Args = expr.FormTemplate, hiddenArgs(e.Args[1])
@@ -222,7 +220,7 @@ func (e DatetimeExtract) LooksLikeFunction() bool { return true }
 
 // Substitute implements expr.Substitutable.
 func (e DatetimeExtract) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
-	if err := checkChildren("DatetimeExtract", children, len(e.Arguments())); err != nil {
+	if err := checkChildren("DatetimeExtract", children, len(e.Args[:])); err != nil {
 		return nil, err
 	}
 	e.Info = info

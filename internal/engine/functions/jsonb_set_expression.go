@@ -20,8 +20,6 @@ type JSONBSet struct {
 	Variadic     bool
 }
 
-func (e *JSONBSet) Arguments() []expr.Expr { return e.Args[:e.Count] }
-
 func (e JSONBSet) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -101,7 +99,7 @@ func (e JSONBSet) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, def
 	if !ok || e.Plan.Name() != o.Plan.Name() || e.Count != o.Count {
 		return false
 	}
-	for i, arg := range e.Arguments() {
+	for i, arg := range e.Args[:e.Count] {
 		if !same(arg, o.Args[i]) {
 			return false
 		}

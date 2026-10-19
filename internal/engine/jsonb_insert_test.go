@@ -76,7 +76,7 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 			if r.WrittenSlots != n.WrittenSlots || r.Labels != n.Labels || r.WrittenCount != n.WrittenCount || r.Variadic != n.Variadic || r.Plan.Name() != "jsonb_insert" {
 				t.Fatal("presentation lost", r)
 			}
-			for i, arg := range r.Arguments() {
+			for i, arg := range r.Children() {
 				if arg.ResultUsage().Type != fresh[typeIDs[i]] || n.Args[i].ResultUsage().Type == arg.ResultUsage().Type {
 					t.Fatal("descriptor remapping", i)
 				}

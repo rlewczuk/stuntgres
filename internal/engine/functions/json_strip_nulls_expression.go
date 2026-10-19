@@ -18,8 +18,6 @@ type JSONStripNulls struct {
 	Variadic     bool
 }
 
-func (e *JSONStripNulls) Arguments() []expr.Expr { return e.Args[:] }
-
 func (e JSONStripNulls) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -94,7 +92,7 @@ func (e JSONStripNulls) SameGroup(other expr.Expr, same func(a, b expr.Expr) boo
 	if !ok {
 		return false
 	}
-	for i, arg := range e.Arguments() {
+	for i, arg := range e.Args[:] {
 		if !same(arg, o.Args[i]) {
 			return false
 		}

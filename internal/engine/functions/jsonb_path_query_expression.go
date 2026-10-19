@@ -43,7 +43,6 @@ type JSONBPathExists struct {
 	Variadic     bool
 }
 
-func (e *JSONBPathExists) Arguments() []expr.Expr { return e.Args[:] }
 func (e JSONBPathExists) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -92,7 +91,6 @@ type JSONBPathMatch struct {
 	Variadic     bool
 }
 
-func (e *JSONBPathMatch) Arguments() []expr.Expr { return e.Args[:] }
 func (e JSONBPathMatch) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -141,7 +139,6 @@ type JSONBPathQueryFirst struct {
 	Variadic     bool
 }
 
-func (e *JSONBPathQueryFirst) Arguments() []expr.Expr { return e.Args[:] }
 func (e JSONBPathQueryFirst) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -190,7 +187,6 @@ type JSONBPathQuery struct {
 	Variadic     bool
 }
 
-func (e *JSONBPathQuery) Arguments() []expr.Expr { return e.Args[:] }
 func (e JSONBPathQuery) EvalSet(c expr.Context) ([]sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -294,7 +290,7 @@ func (e JSONBPathExists) SameGroup(other expr.Expr, same func(a, b expr.Expr) bo
 	if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
 		return false
 	}
-	for i, arg := range e.Arguments() {
+	for i, arg := range e.Args[:] {
 		if !same(arg, o.Args[i]) {
 			return false
 		}
@@ -309,7 +305,7 @@ func (e JSONBPathMatch) SameGroup(other expr.Expr, same func(a, b expr.Expr) boo
 	if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
 		return false
 	}
-	for i, arg := range e.Arguments() {
+	for i, arg := range e.Args[:] {
 		if !same(arg, o.Args[i]) {
 			return false
 		}
@@ -324,7 +320,7 @@ func (e JSONBPathQueryFirst) SameGroup(other expr.Expr, same func(a, b expr.Expr
 	if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
 		return false
 	}
-	for i, arg := range e.Arguments() {
+	for i, arg := range e.Args[:] {
 		if !same(arg, o.Args[i]) {
 			return false
 		}
@@ -339,7 +335,7 @@ func (e JSONBPathQuery) SameGroup(other expr.Expr, same func(a, b expr.Expr) boo
 	if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
 		return false
 	}
-	for i, arg := range e.Arguments() {
+	for i, arg := range e.Args[:] {
 		if !same(arg, o.Args[i]) {
 			return false
 		}

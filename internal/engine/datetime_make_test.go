@@ -114,7 +114,7 @@ func TestDatetimeMakeProperties(t *testing.T) {
 		if rebound.ResultUsage().Type != replacement[e.Usage.Type.ID()] || e.ResultUsage().Type == rebound.ResultUsage().Type {
 			t.Fatal("descriptor authority", name)
 		}
-		for i := range rebound.Arguments() {
+		for i := range rebound.Children() {
 			if rebound.Args[i].ResultUsage().Type == e.Args[i].ResultUsage().Type {
 				t.Fatal("retained old child descriptor", name, i)
 			}

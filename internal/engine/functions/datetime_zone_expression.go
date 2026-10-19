@@ -13,21 +13,19 @@ type DatetimeZoneCalendar struct {
 	Provider sqltype.Arithmetic
 }
 
-func (e DatetimeZoneCalendar) Arguments() []expr.Expr { return e.Args[:e.Count] }
-
 func (e DatetimeZoneCalendar) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	for _, arg := range e.Arguments() {
+	for _, arg := range e.Args[:e.Count] {
 		if c.FunctionLiteralNull(arg) {
 			return sqltype.Null(e.Usage.Type), nil
 		}
 	}
 	var values [3]sqltype.Value
 	null := false
-	for i, arg := range e.Arguments() {
+	for i, arg := range e.Args[:e.Count] {
 		v, err := arg.Eval(c)
 		if err != nil {
 			return sqltype.Value{}, err
@@ -228,7 +226,7 @@ func (e DatetimeZoneCalendar) Reconstruct(info expr.Info, args [3]expr.Expr) (Da
 // arithmetic provider from the children and keeps trailing argument slots.
 var _ expr.Composite = DatetimeZoneCalendar{}
 
-func (e DatetimeZoneCalendar) Children() []expr.Expr { return e.Arguments() }
+func (e DatetimeZoneCalendar) Children() []expr.Expr { return e.Args[:e.Count] }
 func (e DatetimeZoneCalendar) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
 	if err := checkChildren("DatetimeZoneCalendar", children, e.Count); err != nil {
 		return nil, err
@@ -259,7 +257,7 @@ var _ expr.Renderable = DatetimeZoneCalendar{}
 
 // Render implements expr.Renderable.
 func (e DatetimeZoneCalendar) Render() (expr.Rendering, error) {
-	return callRendering("Datetime "+e.Name, e.Arguments(), e.Name, e.Arguments()), nil
+	return callRendering("Datetime "+e.Name, e.Args[:e.Count], e.Name, e.Args[:e.Count]), nil
 }
 
 // SameGroup implements expr.GroupIdentity.
@@ -268,7 +266,7 @@ func (e DatetimeZoneCalendar) SameGroup(other expr.Expr, same func(a, b expr.Exp
 	if !ok || e.Name != o.Name || e.Count != o.Count {
 		return false
 	}
-	for i, arg := range e.Arguments() {
+	for i, arg := range e.Args[:e.Count] {
 		if !same(arg, o.Args[i]) {
 			return false
 		}

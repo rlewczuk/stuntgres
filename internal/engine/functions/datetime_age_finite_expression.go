@@ -12,20 +12,18 @@ type DatetimeAgeFinite struct {
 	Count int
 }
 
-func (e DatetimeAgeFinite) Arguments() []expr.Expr { return e.Args[:e.Count] }
-
 func (e DatetimeAgeFinite) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	for _, arg := range e.Arguments() {
+	for _, arg := range e.Args[:e.Count] {
 		if c.FunctionLiteralNull(arg) {
 			return sqltype.Null(e.Usage.Type), nil
 		}
 	}
 	var values [2]sqltype.Value
-	for i, arg := range e.Arguments() {
+	for i, arg := range e.Args[:e.Count] {
 		value, err := arg.Eval(c)
 		if err != nil {
 			return sqltype.Value{}, err
@@ -204,9 +202,9 @@ func (e DatetimeAgeFinite) Reconstruct(info expr.Info, args [2]expr.Expr, retain
 // and any argument slots beyond Children.
 var _ expr.Composite = DatetimeAgeFinite{}
 
-func (e DatetimeAgeFinite) Children() []expr.Expr { return e.Arguments() }
+func (e DatetimeAgeFinite) Children() []expr.Expr { return e.Args[:e.Count] }
 func (e DatetimeAgeFinite) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
-	if err := checkChildren("DatetimeAgeFinite", children, len(e.Arguments())); err != nil {
+	if err := checkChildren("DatetimeAgeFinite", children, len(e.Args[:e.Count])); err != nil {
 		return nil, err
 	}
 	args := e.Args
@@ -236,7 +234,7 @@ var _ expr.Renderable = DatetimeAgeFinite{}
 
 // Render implements expr.Renderable.
 func (e DatetimeAgeFinite) Render() (expr.Rendering, error) {
-	return callRendering("Datetime "+e.Plan.Name(), e.Arguments(), e.Plan.Name(), e.Arguments()), nil
+	return callRendering("Datetime "+e.Plan.Name(), e.Args[:e.Count], e.Plan.Name(), e.Args[:e.Count]), nil
 }
 
 // SameGroup implements expr.GroupIdentity.
@@ -245,7 +243,7 @@ func (e DatetimeAgeFinite) SameGroup(other expr.Expr, same func(a, b expr.Expr) 
 	if !ok || e.Plan.Name() != o.Plan.Name() || e.Plan.InputID() != o.Plan.InputID() || e.Count != o.Count {
 		return false
 	}
-	for i, arg := range e.Arguments() {
+	for i, arg := range e.Args[:e.Count] {
 		if !same(arg, o.Args[i]) {
 			return false
 		}
@@ -258,7 +256,7 @@ func (e DatetimeAgeFinite) LooksLikeFunction() bool { return true }
 
 // Substitute implements expr.Substitutable.
 func (e DatetimeAgeFinite) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
-	if err := checkChildren("DatetimeAgeFinite", children, len(e.Arguments())); err != nil {
+	if err := checkChildren("DatetimeAgeFinite", children, len(e.Args[:e.Count])); err != nil {
 		return nil, err
 	}
 	e.Info = info

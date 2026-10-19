@@ -18,8 +18,6 @@ type DatetimeMake struct {
 	Labels       [7]string // Written order; empty denotes positional Syntax.
 }
 
-func (e *DatetimeMake) Arguments() []expr.Expr { return e.Args[:e.Count] }
-
 func (e DatetimeMake) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -27,13 +25,13 @@ func (e DatetimeMake) Eval(c expr.Context) (sqltype.Value, error) {
 	}
 	// Preflight already visited/folded constant children. Runtime strictness can
 	// now short circuit a constant NULL without invoking the constructor/zone.
-	for _, arg := range e.Arguments() {
+	for _, arg := range e.Args[:e.Count] {
 		if c.FunctionLiteralNull(arg) {
 			return sqltype.Null(e.Usage.Type), nil
 		}
 	}
 	var values [7]sqltype.Value
-	for i, arg := range e.Arguments() {
+	for i, arg := range e.Args[:e.Count] {
 		value, err := arg.Eval(c)
 		if err != nil {
 			return sqltype.Value{}, err
@@ -207,7 +205,7 @@ func (e DatetimeMake) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool,
 	if !ok || e.Plan.Name() != o.Plan.Name() || e.Count != o.Count {
 		return false
 	}
-	for i, arg := range e.Arguments() {
+	for i, arg := range e.Args[:e.Count] {
 		if !same(arg, o.Args[i]) {
 			return false
 		}

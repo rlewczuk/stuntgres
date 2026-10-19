@@ -88,7 +88,7 @@ func TestJSONBSetRetagRemapAndPresentation(t *testing.T) {
 		t.Fatal(next, changed, err)
 	}
 	n := next.(functions.JSONBSet)
-	for i, arg := range n.Arguments() {
+	for i, arg := range n.Children() {
 		if arg.ResultUsage().Type != fresh[e.Args[i].ResultUsage().Type.ID()] || arg.ResultUsage().Type == e.Args[i].ResultUsage().Type {
 			t.Fatal("retag lost child authority", i)
 		}

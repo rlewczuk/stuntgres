@@ -16,7 +16,6 @@ type JSONExtract struct {
 	Variadic bool
 }
 
-func (e JSONExtract) Arguments() []expr.Expr { return e.Args }
 func (e JSONExtract) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -97,7 +96,7 @@ func (e JSONExtract) Render() (expr.Rendering, error) {
 	if err := e.Validate(); err != nil {
 		return expr.Rendering{}, err
 	}
-	spec := writtenCall("JSON extraction "+e.Plan.Name(), e.Arguments(), e.Plan.Name(), renderArgs(e.Args), e.Variadic)
+	spec := writtenCall("JSON extraction "+e.Plan.Name(), e.Args, e.Plan.Name(), renderArgs(e.Args), e.Variadic)
 	if len(e.Labels) > 0 {
 		for i := range spec.Args {
 			spec.Args[i].Label = e.Labels[i]

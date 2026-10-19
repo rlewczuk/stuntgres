@@ -17,8 +17,6 @@ type DatetimeOverlaps struct {
 	Folded [2]sqltype.Value
 }
 
-func (e DatetimeOverlaps) Arguments() []expr.Expr { return e.Args[:] }
-
 func (e DatetimeOverlaps) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -351,7 +349,7 @@ var _ expr.Renderable = DatetimeOverlaps{}
 
 // Render implements expr.Renderable.
 func (e DatetimeOverlaps) Render() (expr.Rendering, error) {
-	spec := expr.Rendering{Tree: "Datetime overlaps", Inputs: e.Arguments()}
+	spec := expr.Rendering{Tree: "Datetime overlaps", Inputs: e.Args[:]}
 	if e.Syntax == parser.SQLFunctionSyntax {
 		text, arg := expr.TextPiece, expr.ArgPiece
 		spec.Form, spec.Args = expr.FormTemplate, hiddenArgs(e.Args[:]...)

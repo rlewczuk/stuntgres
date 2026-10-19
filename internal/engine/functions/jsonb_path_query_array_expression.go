@@ -19,8 +19,6 @@ type JSONBPathQueryArray struct {
 	Variadic     bool // Written presentation only; the selected routine is nonvariadic.
 }
 
-func (e *JSONBPathQueryArray) Arguments() []expr.Expr { return e.Args[:] }
-
 func (e JSONBPathQueryArray) Eval(c expr.Context) (sqltype.Value, error) {
 	ctx, err := evaluationContext(c)
 	if err != nil {
@@ -101,7 +99,7 @@ func (e JSONBPathQueryArray) SameGroup(other expr.Expr, same func(a, b expr.Expr
 	if !ok || e.WrittenCount != o.WrittenCount || e.WrittenSlots != o.WrittenSlots || e.Labels != o.Labels {
 		return false
 	}
-	for i, arg := range e.Arguments() {
+	for i, arg := range e.Args[:] {
 		if !same(arg, o.Args[i]) {
 			return false
 		}
