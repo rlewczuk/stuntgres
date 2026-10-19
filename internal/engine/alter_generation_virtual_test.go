@@ -184,7 +184,7 @@ func TestVirtualGenerationOriginalAdmission(t *testing.T) {
 	}
 	invoker := evaluation
 	invoker.routineAuthority = &readerAuthority
-	err = validateExpressionJoinExecution(&invoker, column, readerAuthority.catalog)
+	err = validateExpressionJoinExecution(&invoker, column, readerAuthority.Catalog)
 	var denied interface{ SQLState() string }
 	if !errors.As(err, &denied) || denied.SQLState() != "42501" {
 		t.Fatal("generation did not enforce current invoker", err)

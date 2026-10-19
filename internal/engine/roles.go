@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -68,24 +69,24 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 	case *parser.RoleMembership:
 		return e.membershipLocked(op, v, s)
 	case *parser.RoleSelection:
-		target := v.state.SessionUser
-		if s.Reset && v.state.ResetRole != (authorization.PrincipalRef{}) {
-			target = v.state.ResetRole
+		target := v.State.SessionUser
+		if s.Reset && v.State.ResetRole != (authorization.PrincipalRef{}) {
+			target = v.State.ResetRole
 		} else if !s.Reset && s.Name != "none" {
-			d, ok := v.roles.Lookup(s.Name)
+			d, ok := v.Roles.Lookup(s.Name)
 			if !ok {
 				return Result{}, sqlError("22023", fmt.Sprintf("role \"%s\" does not exist", s.Name))
 			}
 			target = d.Ref
 		}
 		if s.Reset {
-			if _, err := v.roles.Descriptor(target); err != nil {
+			if _, err := v.Roles.Descriptor(target); err != nil {
 				return Result{}, err
 			}
 		} else {
-			allowed := target == v.state.SessionUser
+			allowed := target == v.State.SessionUser
 			if !allowed {
-				allowed, err = v.roles.CanSetRole(v.state.SessionUser, target)
+				allowed, err = v.Roles.CanSetRole(v.State.SessionUser, target)
 				if err != nil {
 					return Result{}, err
 				}
@@ -114,15 +115,15 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 		a.revision++
 		return Result{}, nil
 	case *parser.SessionAuthorization:
-		target := v.state.Authenticated
+		target := v.State.Authenticated
 		if !s.Default {
-			d, ok := v.roles.Lookup(s.Name)
+			d, ok := v.Roles.Lookup(s.Name)
 			if !ok {
 				return Result{}, sqlError("22023", fmt.Sprintf("role \"%s\" does not exist", s.Name))
 			}
 			target = d.Ref
 		}
-		auth, _ := v.roles.Descriptor(v.state.Authenticated)
+		auth, _ := v.Roles.Descriptor(v.State.Authenticated)
 		if !auth.Superuser && target != auth.Ref {
 			return Result{}, sqlError("42501", fmt.Sprintf("permission denied to set session authorization \"%s\"", s.Name))
 		}
@@ -146,88 +147,13 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 		a.revision++
 		return Result{}, nil
 	case *parser.DropRole:
-		actor, exists := v.roles.Find(v.state.CurrentUser)
+		actor, exists := v.Roles.Find(v.State.CurrentUser)
 		if !exists || !actor.Superuser {
 			return Result{}, roleDiagnostic("42501", "permission denied to drop role", "Only roles with the CREATEROLE attribute and the ADMIN option on the target roles may drop roles.")
 		}
 		return e.dropRolesLocked(op, v, s)
 	}
 	return Result{}, fmt.Errorf("stuntgres: invalid role statement")
-}
-
-type roleDependency struct {
-	address     ids.ObjectAddress
-	kind        byte // PostgreSQL shared dependency types: ACL ('a'), owner ('o').
-	description string
-	policyTable ids.ObjectAddress
-	policyName  string
-}
-
-// A nil collector stops at the first dependency without building diagnostics.
-// Admission and final publication share the exact same descriptor classification.
-func descriptorRoleDependencies(d catalog.Descriptor, ref authorization.PrincipalRef, deps *[]roleDependency) bool {
-	if relation, ok := d.(*catalog.Relation); ok {
-		for _, policy := range relation.Security.Policies {
-			for _, role := range policy.Roles {
-				if !role.Public && role.Ref == ref {
-					if recordRoleDependency(deps, roleDependency{address: ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}, kind: 'r', policyTable: relation.Address(), policyName: policy.Name}) {
-						return true
-					}
-				}
-			}
-		}
-	}
-	if typ, ok := d.(*catalog.Type); ok && typ.OwningRelation != (ids.ObjectAddress{}) {
-		// Dependent row/array ownership belongs to the relation; independent
-		// composite types still carry their own named ACL dependency.
-		if !typ.SQLType.IsComposite() {
-			return false
-		}
-		if typ.Owner == ref {
-			return false
-		}
-	}
-	if relation, ok := d.(*catalog.Relation); ok && relation.RelationKind == catalog.IndexRelation {
-		// Index ownership belongs to its validated parent relation.
-		return false
-	}
-	owner, acl, columns := descriptorACL(d)
-	if owner == ref {
-		if typ, array := d.(*catalog.Type); array && typ.SQLType.IsArray() {
-			// Associated array ownership is represented by its parent.
-			return false
-		}
-		// The owner's shared ACL dependencies are represented by ownership.
-		return recordRoleDependency(deps, roleDependency{address: d.Address(), kind: 'o'})
-	}
-	if aclRoleDependencies(d.Address(), acl, ref, deps) {
-		return true
-	}
-	for sub, acl := range columns {
-		address := d.Address()
-		address.SubID = sub
-		if aclRoleDependencies(address, acl, ref, deps) {
-			return true
-		}
-	}
-	return false
-}
-
-func aclRoleDependencies(address ids.ObjectAddress, acl authorization.ACLValue, ref authorization.PrincipalRef, deps *[]roleDependency) bool {
-	for _, entry := range acl.Entries {
-		if entry.Grantor == ref || !entry.Grantee.Public && entry.Grantee.Role == ref {
-			return recordRoleDependency(deps, roleDependency{address: address, kind: 'a'})
-		}
-	}
-	return false
-}
-
-func recordRoleDependency(deps *[]roleDependency, dependency roleDependency) bool {
-	if deps == nil {
-		return true
-	}
-	*deps = append(*deps, dependency)
-	return false
 }
 
 // PostgreSQL 18 quote_identifier quotes every keyword except UNRESERVED.
@@ -276,7 +202,7 @@ func dependencyIdentifier(name string) string {
 
 func relationDiagnosticName(auth AuthorizationView, relation *catalog.Relation) string {
 	path, _ := auth.engine.referencePath(auth)
-	return relationDiagnosticNameAt(auth.catalog, relation, path)
+	return relationDiagnosticNameAt(auth.Catalog, relation, path)
 }
 
 func relationVisibleAt(catalog catalog.Read, relation *catalog.Relation, path []ids.ObjectAddress) bool {
@@ -296,16 +222,16 @@ func relationDiagnosticNameAt(catalog catalog.Read, relation *catalog.Relation, 
 	return dependencyIdentifier(catalog.Get(relation.Namespace()).Name()) + "." + name
 }
 
-func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
-	view := auth.catalog
-	if dep.kind == 'r' {
-		relation := view.MustRelation(dep.policyTable)
-		return "target of policy " + dependencyIdentifier(dep.policyName) + " on table " + relationDiagnosticName(auth, relation)
+func dependencyDescription(auth AuthorizationView, dep access.RoleDependency) string {
+	view := auth.Catalog
+	if dep.Kind == 'r' {
+		relation := view.MustRelation(dep.PolicyTable)
+		return "target of policy " + dependencyIdentifier(dep.PolicyName) + " on table " + relationDiagnosticName(auth, relation)
 	}
-	if dep.description != "" {
-		return dep.description
+	if dep.Description != "" {
+		return dep.Description
 	}
-	address := dep.address
+	address := dep.Address
 	address.SubID = 0
 	d := view.Get(address)
 	name := dependencyIdentifier(d.Name())
@@ -332,7 +258,7 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 		kind = foreignLabel(foreign.Address().ClassID) + " "
 		if foreign.Address().ClassID == ids.ForeignMappingClassID {
 			kind = "user mapping for "
-			mapped, _ := auth.roles.Descriptor(foreign.MappedRole)
+			mapped, _ := auth.Roles.Descriptor(foreign.MappedRole)
 			name = dependencyIdentifier(mapped.Name) + " on server " + dependencyIdentifier(view.Get(foreign.Server).Name())
 		}
 	}
@@ -343,11 +269,11 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 	if relation, ok := d.(*catalog.Relation); ok {
 		kind = relationDiagnosticKind(relation) + " "
 		name = relationDiagnosticName(auth, relation)
-		if dep.address.SubID != 0 {
+		if dep.Address.SubID != 0 {
 			// getObjectDescription interpolates the raw attribute name; only
 			// getRelationDescription applies diagnostic identifier quoting.
 			for slot, attribute := range relation.Attributes {
-				if attribute == dep.address.SubID {
+				if attribute == dep.Address.SubID {
 					kind = "column " + relation.Columns[slot].Name + " of table "
 					break
 				}
@@ -375,7 +301,7 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 		name = strings.TrimPrefix(dependencyObject(view, c.Address(), path), "conversion ")
 	}
 	prefix := "privileges for "
-	if dep.kind == 'o' {
+	if dep.Kind == 'o' {
 		prefix = "owner of "
 	}
 	return prefix + kind + name
@@ -384,14 +310,14 @@ func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.D
 	targets := make(map[authorization.PrincipalRef]authorization.RoleDescriptor, len(s.Names))
 	ordered := make([]authorization.PrincipalRef, 0, len(s.Names))
 	for _, name := range s.Names {
-		d, ok := v.roles.Lookup(name)
+		d, ok := v.Roles.Lookup(name)
 		if !ok {
 			return Result{}, sqlError("42704", fmt.Sprintf("role \"%s\" does not exist", name))
 		}
-		if d.Ref == v.state.CurrentUser {
+		if d.Ref == v.State.CurrentUser {
 			return Result{}, sqlError("55006", "current user cannot be dropped")
 		}
-		if d.Ref == v.state.SessionUser {
+		if d.Ref == v.State.SessionUser {
 			return Result{}, sqlError("55006", "session user cannot be dropped")
 		}
 		if _, ok := targets[d.Ref]; !ok {
@@ -401,43 +327,43 @@ func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.D
 	}
 	// Hypothetical endpoint cleanup precedes every dependency check. A grantor
 	// alone is not an endpoint and therefore retains its membership dependency.
-	retained := v.roleRecord.root.RetainedMemberships(targets)
+	retained := v.RoleRecord.Root.RetainedMemberships(targets)
 	for _, ref := range ordered {
 		d := targets[ref]
 		if d.Predefined() {
 			return Result{}, roleDiagnostic("2BP01", "cannot drop role "+d.Name+" because it is required by the database system", "")
 		}
-		var dependencies []roleDependency
-		for _, object := range v.catalog.Descriptors() {
-			descriptorRoleDependencies(object, ref, &dependencies)
+		var dependencies []access.RoleDependency
+		for _, object := range v.Catalog.Descriptors() {
+			access.DescriptorRoleDependencies(object, ref, &dependencies)
 		}
-		defaultRoleDependencies(v.catalog, v.roles, ref, &dependencies)
+		access.DefaultRoleDependencies(v.Catalog, v.Roles, ref, &dependencies)
 		for edge := range retained {
 			if edge.Grantor == ref {
-				member, _ := v.roles.Descriptor(edge.Member)
-				role, _ := v.roles.Descriptor(edge.Role)
-				dependencies = append(dependencies, roleDependency{kind: 'a', description: "privileges for membership of role " + member.Name + " in role " + role.Name})
+				member, _ := v.Roles.Descriptor(edge.Member)
+				role, _ := v.Roles.Descriptor(edge.Role)
+				dependencies = append(dependencies, access.RoleDependency{Kind: 'a', Description: "privileges for membership of role " + member.Name + " in role " + role.Name})
 			}
 		}
 		for _, feature := range e.roles.referencingFeatures(ref) {
-			dependencies = append(dependencies, roleDependency{kind: 'a', description: "privileges for " + feature})
+			dependencies = append(dependencies, access.RoleDependency{Kind: 'a', Description: "privileges for " + feature})
 		}
 		if len(dependencies) > 0 {
 			sort.Slice(dependencies, func(i, j int) bool {
 				a, b := dependencies[i], dependencies[j]
-				if a.address.ObjectID != b.address.ObjectID {
-					return a.address.ObjectID < b.address.ObjectID
+				if a.Address.ObjectID != b.Address.ObjectID {
+					return a.Address.ObjectID < b.Address.ObjectID
 				}
-				if a.address.ClassID != b.address.ClassID {
-					return a.address.ClassID < b.address.ClassID
+				if a.Address.ClassID != b.Address.ClassID {
+					return a.Address.ClassID < b.Address.ClassID
 				}
-				if a.address.SubID != b.address.SubID {
-					return uint32(a.address.SubID) < uint32(b.address.SubID)
+				if a.Address.SubID != b.Address.SubID {
+					return uint32(a.Address.SubID) < uint32(b.Address.SubID)
 				}
-				if a.kind != b.kind {
-					return a.kind < b.kind
+				if a.Kind != b.Kind {
+					return a.Kind < b.Kind
 				}
-				return a.description < b.description
+				return a.Description < b.Description
 			})
 			details := make([]string, len(dependencies))
 			for i, dep := range dependencies {
@@ -446,16 +372,16 @@ func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.D
 			return Result{}, roleDiagnostic("2BP01", fmt.Sprintf("role \"%s\" cannot be dropped because some objects depend on it", d.Name), strings.Join(details, "\n"))
 		}
 	}
-	if v.roleRecord.revision == ^uint64(0) {
+	if v.RoleRecord.Revision == ^uint64(0) {
 		return Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
-	n := v.roleRecord.root.Retire(targets)
+	n := v.RoleRecord.Root.Retire(targets)
 	op.session.mu.Lock()
 	defer op.session.mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
-	e.installOperationRolesLocked(op, &roleCatalog{root: n, revision: v.roleRecord.revision + 1})
+	e.installOperationRolesLocked(op, &roleCatalog{Root: n, Revision: v.RoleRecord.Revision + 1})
 	if t := op.session.transactions; t.retainsTransaction() {
 		// installOperationRolesLocked cloned the same catalog owner; no saved
 		// candidate shares this mutable set. Standalone publication needs none.

@@ -1,4 +1,4 @@
-package engine
+package access
 
 import (
 	"context"
@@ -9,76 +9,82 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// accessView is the immutable captured authorization pair: a catalog read
+// View is the immutable captured authorization pair: a catalog read
 // and the role read taken from the same publication, with the identities
 // that decide privileges. It holds no engine or session pointer. The catalog
 // owner stands in for the engine: a view rejects every reference and catalog
 // that the owner does not back, and every stale epoch.
 //
-// The privilege checks are methods of accessView. The two inputs that belong
+// The privilege checks are methods of View. The two inputs that belong
 // to the session, the own TEMP namespace and the reference search path, come
-// from an accessEnvironment at call time. AuthorizationView embeds an
-// accessView and passes itself as that environment.
-type accessView struct {
-	owner         *catalog.Owner
-	catalog       catalog.Read
-	pairedCatalog catalog.Read
-	roleRecord    *roleCatalog
-	roles         authorization.Read
+// from an Environment at call time. The engine's AuthorizationView embeds
+// a View and passes itself as that environment.
+type View struct {
+	Owner         *catalog.Owner
+	Catalog       catalog.Read
+	PairedCatalog catalog.Read
+	RoleRecord    *RoleRecord
+	Roles         authorization.Read
 	// Committed predecessor captured under Engine.mu, distinct from private
 	// database authority retained by catalog/roles.
-	databasePredecessor catalog.Descriptor
-	state               authorization.RoleState
+	DatabasePredecessor catalog.Descriptor
+	State               authorization.RoleState
 	// Actual session identities remain distinct from trusted import authority.
-	sessionRoleState authorization.RoleState
-	revision         uint64
+	SessionRoleState authorization.RoleState
+	Revision         uint64
 	// Only command admission can retain an actually installed, unnamed role ID.
 	// Arbitrary stale/retired actor substitutions do not acquire this authority.
-	missingCurrent authorization.PrincipalRef
+	MissingCurrent authorization.PrincipalRef
 }
 
-// accessEnvironment supplies the session inputs of the privilege checks.
+// Environment supplies the session inputs of the privilege checks.
 // Both are read lazily, at the moment a check needs them, and never captured
 // as values: TemporaryNamespace returns the session's own TEMP namespace (or
 // the zero address), and ReferencePath returns the search path used to
 // qualify type names in diagnostics. Keep it exactly two methods wide.
-type accessEnvironment interface {
+type Environment interface {
 	TemporaryNamespace() ids.ObjectAddress
 	ReferencePath() ([]ids.ObjectAddress, error)
 }
 
-type AccessRequirement struct {
+// Requirement names the privileges, or the ownership, a check demands on
+// one object.
+type Requirement struct {
 	Object     ids.ObjectRef
 	Privileges authorization.Privileges
 	OwnerOnly  bool
 	OwnerNoun  string // Utility diagnostic context; never changes authority.
 }
-type AuthorizationStamp struct {
+
+// Stamp identifies a captured view: its catalog epoch, the role
+// publication revision and the session authorization revision.
+type Stamp struct {
 	Catalog        ids.CatalogEpoch
 	Roles, Session uint64
 }
 
-func (v accessView) Roles() authorization.Read { return v.roles }
-func (v accessView) Stamp() AuthorizationStamp {
-	if v.roleRecord == nil {
-		return AuthorizationStamp{}
+// Stamp returns the view's stamp, or the zero stamp without a role record.
+func (v View) Stamp() Stamp {
+	if v.RoleRecord == nil {
+		return Stamp{}
 	}
-	return AuthorizationStamp{v.catalog.Epoch(), v.roleRecord.revision, v.revision}
+	return Stamp{v.Catalog.Epoch(), v.RoleRecord.Revision, v.Revision}
 }
 
 // Ref returns the reference to address in the view's catalog epoch.
-func (v accessView) Ref(address ids.ObjectAddress) ids.ObjectRef {
-	return v.owner.Domain.Ref(v.catalog.Epoch(), address)
+func (v View) Ref(address ids.ObjectAddress) ids.ObjectRef {
+	return v.Owner.Domain.Ref(v.Catalog.Epoch(), address)
 }
 
 // Recapture binds a substituted catalog to the same immutable role root.
-func (v *accessView) Recapture(catalog catalog.Read) {
-	v.catalog = catalog
-	v.pairedCatalog = catalog
-	v.roles = roleRead(v.owner, v.owner.Principals, catalog, v.roleRecord)
+func (v *View) Recapture(catalog catalog.Read) {
+	v.Catalog = catalog
+	v.PairedCatalog = catalog
+	v.Roles = RoleRead(v.Owner, v.Owner.Principals, catalog, v.RoleRecord)
 }
 
-func descriptorACL(d catalog.Descriptor) (authorization.PrincipalRef, authorization.ACLValue, map[int32]authorization.ACLValue) {
+// DescriptorACL returns the owner, ACL and column ACLs that decide access to d.
+func DescriptorACL(d catalog.Descriptor) (authorization.PrincipalRef, authorization.ACLValue, map[int32]authorization.ACLValue) {
 	switch d := d.(type) {
 	case *catalog.Database:
 		return d.Owner, d.ACL, nil
@@ -112,7 +118,9 @@ func descriptorACL(d catalog.Descriptor) (authorization.PrincipalRef, authorizat
 	}
 	return authorization.PrincipalRef{}, authorization.ACLValue{}, nil
 }
-func classPrivileges(d catalog.Descriptor) authorization.Privileges {
+
+// ClassPrivileges returns the privileges that can be granted on d.
+func ClassPrivileges(d catalog.Descriptor) authorization.Privileges {
 	if d.Kind() == ids.ForeignWrapperObject || d.Kind() == ids.ForeignServerObject {
 		return authorization.UsagePrivilege
 	}
@@ -148,11 +156,15 @@ func classPrivileges(d catalog.Descriptor) authorization.Privileges {
 	}
 	return authorization.TableGrantPrivileges
 }
-func (v accessView) object(ref ids.ObjectRef) (catalog.Descriptor, error) {
-	if v.owner == nil || v.catalog.Owner() != v.owner || v.catalog.State() == nil || !v.roles.BelongsTo(v.owner.Principals) || v.roles != roleRead(v.owner, v.owner.Principals, v.catalog, v.roleRecord) || v.pairedCatalog != v.catalog || v.roles.DatabaseOwner() != v.catalog.MustDatabase(catalog.CurrentDatabaseAddress).Owner || ref.Domain() != v.owner.Domain || ref.Epoch != v.catalog.Epoch() {
+
+// Object resolves ref in the view's catalog. It rejects references and
+// views that the view's catalog owner does not back, stale epochs, unpaired
+// role reads and descriptors whose owner is not a live principal.
+func (v View) Object(ref ids.ObjectRef) (catalog.Descriptor, error) {
+	if v.Owner == nil || v.Catalog.Owner() != v.Owner || v.Catalog.State() == nil || !v.Roles.BelongsTo(v.Owner.Principals) || v.Roles != RoleRead(v.Owner, v.Owner.Principals, v.Catalog, v.RoleRecord) || v.PairedCatalog != v.Catalog || v.Roles.DatabaseOwner() != v.Catalog.MustDatabase(catalog.CurrentDatabaseAddress).Owner || ref.Domain() != v.Owner.Domain || ref.Epoch != v.Catalog.Epoch() {
 		return nil, fmt.Errorf("stuntgres: foreign or stale authorization object")
 	}
-	d, ok := v.catalog.Descriptor(ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID})
+	d, ok := v.Catalog.Descriptor(ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID})
 	if !ok || ref.Address.SubID < 0 {
 		return nil, fmt.Errorf("stuntgres: invalid authorization object")
 	}
@@ -162,8 +174,8 @@ func (v accessView) object(ref ids.ObjectRef) (catalog.Descriptor, error) {
 			return nil, fmt.Errorf("stuntgres: invalid authorization column")
 		}
 	}
-	owner, _, _ := descriptorACL(d)
-	if _, err := v.roles.Descriptor(owner); err != nil {
+	owner, _, _ := DescriptorACL(d)
+	if _, err := v.Roles.Descriptor(owner); err != nil {
 		return nil, err
 	}
 	return d, nil
@@ -171,24 +183,26 @@ func (v accessView) object(ref ids.ObjectRef) (catalog.Descriptor, error) {
 
 // ownsTemporaryNamespace reports whether ns is the environment's own TEMP
 // namespace. The environment is consulted only for a temporary namespace.
-func ownsTemporaryNamespace(env accessEnvironment, ns *catalog.Namespace) bool {
+func ownsTemporaryNamespace(env Environment, ns *catalog.Namespace) bool {
 	return ns != nil && !ns.TemporaryToast && ns.Temporary != (ids.SessionToken{}) && env.TemporaryNamespace() == ns.Address()
 }
 
-func (v accessView) Effective(env accessEnvironment, ref ids.ObjectRef, grantOptions bool) (authorization.Privileges, error) {
-	d, err := v.object(ref)
+// Effective returns the privileges the current user holds on ref, or the
+// grantable ones with grantOptions. env supplies the own TEMP namespace.
+func (v View) Effective(env Environment, ref ids.ObjectRef, grantOptions bool) (authorization.Privileges, error) {
+	d, err := v.Object(ref)
 	if err != nil {
 		return 0, err
 	}
-	owner, acl, columns := descriptorACL(d)
-	if err := v.roles.ValidatePrincipal(v.state.CurrentUser); err != nil {
+	owner, acl, columns := DescriptorACL(d)
+	if err := v.Roles.ValidatePrincipal(v.State.CurrentUser); err != nil {
 		return 0, err
 	}
-	actor, actorExists := v.roles.Find(v.state.CurrentUser)
-	if !actorExists && v.state.CurrentUser != v.missingCurrent {
+	actor, actorExists := v.Roles.Find(v.State.CurrentUser)
+	if !actorExists && v.State.CurrentUser != v.MissingCurrent {
 		return 0, fmt.Errorf("stuntgres: stale principal")
 	}
-	mask := classPrivileges(d)
+	mask := ClassPrivileges(d)
 	if ref.Address.SubID > 0 {
 		mask = authorization.ColumnGrantPrivileges
 	}
@@ -199,11 +213,11 @@ func (v accessView) Effective(env accessEnvironment, ref ids.ObjectRef, grantOpt
 	// current role. Keep this ordinary namespace authority separate from object
 	// ACLs, namespace ownership and delegation, and from private maintenance.
 	if ns, ok := d.(*catalog.Namespace); ok && !grantOptions && ownsTemporaryNamespace(env, ns) {
-		return v.ownTemporaryPrivileges(env)
+		return v.OwnTemporaryPrivileges(env)
 	}
-	principals := []authorization.PrincipalRef{v.state.CurrentUser}
+	principals := []authorization.PrincipalRef{v.State.CurrentUser}
 	if actorExists {
-		principals, err = v.roles.RoleClosure(context.Background(), actor.Ref, true)
+		principals, err = v.Roles.RoleClosure(context.Background(), actor.Ref, true)
 		if err != nil {
 			return 0, err
 		}
@@ -229,14 +243,14 @@ func (v accessView) Effective(env accessEnvironment, ref ids.ObjectRef, grantOpt
 		rights |= authorization.ACLRights(columns[ref.Address.SubID], authorization.PrincipalRef{}, principals, mask, grantOptions)
 	}
 	if !grantOptions && actorExists {
-		rights |= predefinedPrivileges(d, principals)
+		rights |= PredefinedPrivileges(d, principals)
 	}
 	return rights & mask, nil
 }
 
 // Own TEMP namespaces remain usable after revocation, but CREATE is contingent
 // on the current effective role's database TEMP privilege, not authentication.
-func (v accessView) ownTemporaryPrivileges(env accessEnvironment) (authorization.Privileges, error) {
+func (v View) OwnTemporaryPrivileges(env Environment) (authorization.Privileges, error) {
 	rights, err := v.Effective(env, v.Ref(catalog.CurrentDatabaseAddress), false)
 	if err != nil {
 		return 0, err
@@ -247,8 +261,10 @@ func (v accessView) ownTemporaryPrivileges(env accessEnvironment) (authorization
 	return authorization.UsagePrivilege, nil
 }
 
-func (v accessView) Check(env accessEnvironment, req AccessRequirement) error {
-	d, err := v.object(req.Object)
+// Check enforces req for the current user. Denials carry PostgreSQL's
+// SQLSTATE and message; env supplies the TEMP namespace and the type path.
+func (v View) Check(env Environment, req Requirement) error {
+	d, err := v.Object(req.Object)
 	if err != nil {
 		return err
 	}
@@ -256,20 +272,20 @@ func (v accessView) Check(env accessEnvironment, req AccessRequirement) error {
 		req.Object.Address.ObjectID = ids.OID(t.SQLType.Element().ID())
 		return v.Check(env, req)
 	}
-	if err := v.roles.ValidatePrincipal(v.state.CurrentUser); err != nil {
+	if err := v.Roles.ValidatePrincipal(v.State.CurrentUser); err != nil {
 		return err
 	}
-	if _, exists := v.roles.Find(v.state.CurrentUser); !exists && v.state.CurrentUser != v.missingCurrent {
+	if _, exists := v.Roles.Find(v.State.CurrentUser); !exists && v.State.CurrentUser != v.MissingCurrent {
 		return fmt.Errorf("stuntgres: stale principal")
 	}
-	owner, _, _ := descriptorACL(d)
+	owner, _, _ := DescriptorACL(d)
 	if req.OwnerOnly {
 		if req.Privileges != 0 {
 			return fmt.Errorf("stuntgres: owner check has ordinary mask")
 		}
-		allowed := v.state.CurrentUser == owner
-		if _, exists := v.roles.Find(v.state.CurrentUser); exists && !allowed {
-			allowed, err = v.roles.InheritsRole(v.state.CurrentUser, owner)
+		allowed := v.State.CurrentUser == owner
+		if _, exists := v.Roles.Find(v.State.CurrentUser); exists && !allowed {
+			allowed, err = v.Roles.InheritsRole(v.State.CurrentUser, owner)
 			if err != nil {
 				return err
 			}
@@ -280,7 +296,7 @@ func (v accessView) Check(env accessEnvironment, req AccessRequirement) error {
 		kind := "table"
 		if t, ok := d.(*catalog.Type); ok {
 			path, _ := env.ReferencePath()
-			return sqlError("42501", "must be owner of type "+typeDiagnosticNameAt(v.catalog, t, path))
+			return sqlError("42501", "must be owner of type "+typeDiagnosticNameAt(v.Catalog, t, path))
 		}
 		if d.Kind() == ids.NamespaceObject {
 			kind = "schema"
@@ -321,7 +337,7 @@ func (v accessView) Check(env accessEnvironment, req AccessRequirement) error {
 		name := d.Name()
 		return sqlError("42501", fmt.Sprintf("must be owner of %s %s", kind, name))
 	}
-	mask := classPrivileges(d)
+	mask := ClassPrivileges(d)
 	if req.Object.Address.SubID > 0 {
 		mask = authorization.ColumnGrantPrivileges
 	}
@@ -341,7 +357,7 @@ func (v accessView) Check(env accessEnvironment, req AccessRequirement) error {
 			return sqlError("42501", "permission denied for type "+t.SQLType.DiagnosticName())
 		}
 		path, _ := env.ReferencePath()
-		return sqlError("42501", "permission denied for type "+typeDiagnosticNameAt(v.catalog, t, path))
+		return sqlError("42501", "permission denied for type "+typeDiagnosticNameAt(v.Catalog, t, path))
 	}
 	if d.Kind() == ids.NamespaceObject {
 		kind = "schema"
@@ -372,19 +388,23 @@ func (v accessView) Check(env accessEnvironment, req AccessRequirement) error {
 	}
 	return sqlError("42501", fmt.Sprintf("permission denied for %s %s", kind, name))
 }
-func (v accessView) CanUse(env accessEnvironment, ref ids.ObjectRef) error {
-	return v.Check(env, AccessRequirement{Object: ref, Privileges: authorization.UsagePrivilege})
+
+// CanUse checks USAGE on ref.
+func (v View) CanUse(env Environment, ref ids.ObjectRef) error {
+	return v.Check(env, Requirement{Object: ref, Privileges: authorization.UsagePrivilege})
 }
-func (v accessView) CheckCreate(env accessEnvironment, ref ids.ObjectRef) error {
-	return v.Check(env, AccessRequirement{Object: ref, Privileges: authorization.CreatePrivilege})
+
+// CheckCreate checks CREATE on ref.
+func (v View) CheckCreate(env Environment, ref ids.ObjectRef) error {
+	return v.Check(env, Requirement{Object: ref, Privileges: authorization.CreatePrivilege})
 }
 
 // CheckColumns checks mask on the columns of relation at the given dense
 // column indices. With no indices, any live column, or the whole relation,
 // can supply the privilege.
-func (v accessView) CheckColumns(env accessEnvironment, ref ids.ObjectRef, relation *catalog.Relation, mask authorization.Privileges, indices []int) error {
+func (v View) CheckColumns(env Environment, ref ids.ObjectRef, relation *catalog.Relation, mask authorization.Privileges, indices []int) error {
 	if relation.RelationKind == catalog.SequenceRelation && mask != authorization.SelectPrivilege {
-		return v.Check(env, AccessRequirement{Object: ref, Privileges: mask})
+		return v.Check(env, Requirement{Object: ref, Privileges: mask})
 	}
 	whole, err := v.Effective(env, ref, false)
 	if err != nil {
@@ -407,7 +427,7 @@ func (v accessView) CheckColumns(env accessEnvironment, ref ids.ObjectRef, relat
 				return nil
 			}
 		}
-		return v.Check(env, AccessRequirement{Object: ref, Privileges: mask})
+		return v.Check(env, Requirement{Object: ref, Privileges: mask})
 	}
 	// The usual small relation needs no allocation to deduplicate actual uses.
 	// Larger column-only ACL manifests use one bit per stable column position.
@@ -428,7 +448,7 @@ func (v accessView) CheckColumns(env accessEnvironment, ref ids.ObjectRef, relat
 		*word |= bit
 		column := ref
 		column.Address.SubID = relation.Attributes[index]
-		return v.Check(env, AccessRequirement{Object: column, Privileges: mask})
+		return v.Check(env, Requirement{Object: column, Privileges: mask})
 	}
 	for _, index := range indices {
 		if err := check(index); err != nil {
@@ -438,7 +458,8 @@ func (v accessView) CheckColumns(env accessEnvironment, ref ids.ObjectRef, relat
 	return nil
 }
 
-func validateACL(r authorization.Read, d catalog.Descriptor) error {
+// ValidateACL checks that every principal and ACL of d belongs to r.
+func ValidateACL(r authorization.Read, d catalog.Descriptor) error {
 	// Immutable builtin identities have no principal or role-owned ACL.
 	switch t := d.(type) {
 	case *catalog.ForeignObject:
@@ -451,7 +472,7 @@ func validateACL(r authorization.Read, d catalog.Descriptor) error {
 	case *catalog.TSTemplate:
 		return nil
 	}
-	owner, acl, cols := descriptorACL(d)
+	owner, acl, cols := DescriptorACL(d)
 	if _, err := r.Descriptor(owner); err != nil {
 		return err
 	}
@@ -468,7 +489,7 @@ func validateACL(r authorization.Read, d catalog.Descriptor) error {
 			}
 		}
 	}
-	if err := authorization.ValidateACL(r, acl, classPrivileges(d)); err != nil {
+	if err := authorization.ValidateACL(r, acl, ClassPrivileges(d)); err != nil {
 		return err
 	}
 	for sub, a := range cols {

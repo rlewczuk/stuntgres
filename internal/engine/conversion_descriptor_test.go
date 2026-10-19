@@ -95,7 +95,7 @@ func TestConversionDescriptorCreateAndMoveUniqueness(t *testing.T) {
 	e := New()
 	op, auth := conversionUnitAuth(t, e)
 	create := &parser.CreateConversion{Name: conversionUnitName("public", "first"), Source: "UTF8", Destination: "LATIN1", Function: conversionUnitName("pg_catalog", "utf8_to_iso8859_1"), Default: true}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	e.mu.Lock()
 	err := e.stageCreateConversionLocked(op, auth, stage, create)
 	e.mu.Unlock()
@@ -180,7 +180,7 @@ func TestConversionDescriptorNoopAndPinBoundaries(t *testing.T) {
 	collationUnitPublish(t, e, stage)
 	op, auth := conversionUnitAuth(t, e)
 	before := e.CatalogRead()
-	auth.state.CurrentUser = auth.roles.LookupRef("pg_monitor")
+	auth.State.CurrentUser = auth.Roles.LookupRef("pg_monitor")
 	for _, alteration := range []*parser.AlterConversion{
 		{Name: conversionUnitName("public", "unchanged"), Action: "schema", Target: parser.Identifier{Text: "public"}},
 		{Name: conversionUnitName("public", "unchanged"), Action: "owner", Target: parser.Identifier{Text: "postgres"}},
@@ -194,7 +194,7 @@ func TestConversionDescriptorNoopAndPinBoundaries(t *testing.T) {
 		}
 		e.DiscardCatalogStage(stage)
 	}
-	auth.state.CurrentUser = e.roles.domain.Principal(10)
+	auth.State.CurrentUser = e.roles.domain.Principal(10)
 	stage = e.BeginCatalogStage(before)
 	e.mu.Lock()
 	err := e.stageAlterConversionLocked(op, auth, stage, &parser.AlterConversion{Name: conversionUnitName("public", "unchanged"), Action: "rename", Target: parser.Identifier{Text: "unchanged"}})

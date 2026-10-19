@@ -507,12 +507,12 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		if err = scope.captureIdentityLocked(auth); err != nil {
 			return fail(err)
 		}
-		parent, ok := auth.catalog.Relation(scope.lockedRef.Address)
+		parent, ok := auth.Catalog.Relation(scope.lockedRef.Address)
 		if !ok {
 			return fail(ids.ErrCatalogReplaced)
 		}
 		if scope.op.restoreTableDestination {
-			bootstrap, err := auth.roles.Descriptor(auth.state.Authenticated)
+			bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
 			if err != nil || !bootstrap.Superuser || e.importTargets == nil {
 				return fail(fmt.Errorf("stuntgres: invalid trusted restore index authority"))
 			}
@@ -526,7 +526,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			}
 			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot create index on relation "%s"`, parent.Name()), Detail: fmt.Sprintf("This operation is not supported for %ss.", relationDiagnosticKind(parent))})
 		}
-		ns := e.catalog.Domain.Ref(auth.catalog.Epoch(), parent.Namespace())
+		ns := e.catalog.Domain.Ref(auth.Catalog.Epoch(), parent.Namespace())
 		if err = auth.CheckCreate(ns); err != nil {
 			denied, ok := err.(*sqlstate.Error)
 			if !scope.op.restoreTableDestination || !ok || denied.Code != "42501" {
@@ -573,12 +573,12 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 				}
 			}
 			name = generatedRelationName(parent.Name(), addition.String(), "idx", func(n string) bool {
-				_, ok := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: n})
+				_, ok := auth.Catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: n})
 				return ok
 			})
 		}
 		key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name}
-		if _, exists := auth.catalog.LookupName(key); exists {
+		if _, exists := auth.Catalog.LookupName(key); exists {
 			e.mu.Unlock()
 			if s.IfNotExists {
 				scope.op.existingRelationNotice(name)
@@ -625,7 +625,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 				return fail(err)
 			}
 		}
-		base := auth.catalog
+		base := auth.Catalog
 		stage := e.BeginCatalogStage(base)
 		stage.authorizeLocked(auth, scope.op.session)
 		stage.indexOutput = scope.output

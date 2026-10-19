@@ -52,7 +52,7 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 	defer scope.Finish(errors.New("candidate-only unit"))
 	old := e.catalog.state.MustRelation(ref.Address)
 	original := old.ColumnMeta.Generations[2]
-	retained := auth.catalog
+	retained := auth.Catalog
 	unaffected := old.ColumnMeta.Generations[3]
 	next, attribute, err := e.generationCandidate(scope, admin, auth, old, alterGenerationAction(alterGenerationLiteral(8)))
 	if err != nil || attribute != 2 || next == old || next.ColumnMeta.Generations[2].OID != 0 || next.ColumnMeta.Generations[2].Kind != catalog.GenerationStored {

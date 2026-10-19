@@ -125,8 +125,8 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 	}
 	for _, rewrite := range b.ruleCTEs {
 		caller := fresh
-		caller.state.CurrentUser = rewrite.caller.state.CurrentUser
-		if err := caller.roles.ValidatePrincipal(caller.state.CurrentUser); err != nil {
+		caller.State.CurrentUser = rewrite.caller.State.CurrentUser
+		if err := caller.Roles.ValidatePrincipal(caller.State.CurrentUser); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}

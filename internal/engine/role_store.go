@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
@@ -32,7 +33,7 @@ type roleStore struct {
 // initialize seeds the predefined roles and the principal allocator. It runs
 // once, while the engine is not yet shared.
 func (s *roleStore) initialize() {
-	s.published = &roleCatalog{root: authorization.Seed(&s.domain), revision: 1}
+	s.published = &roleCatalog{Root: authorization.Seed(&s.domain), Revision: 1}
 	s.nextPrincipal = authorization.LastPredefinedRoleID + 1
 }
 
@@ -47,7 +48,7 @@ func (s *roleStore) principalCandidateLocked() (authorization.PrincipalRef, erro
 		id = authorization.LastPredefinedRoleID + 1
 	}
 	ref := s.domain.Principal(id)
-	if _, exists := s.published.root.Read(authorization.PrincipalRef{}).Find(ref); exists {
+	if _, exists := s.published.Root.Read(authorization.PrincipalRef{}).Find(ref); exists {
 		return authorization.PrincipalRef{}, fmt.Errorf("stuntgres: principal identity already allocated")
 	}
 	return ref, nil
@@ -57,25 +58,7 @@ func (s *roleStore) principalCandidateLocked() (authorization.PrincipalRef, erro
 // owner. It is empty unless view belongs to owner, the catalog owner this
 // store backs, and root belongs to this store's domain.
 func (s *roleStore) read(owner *catalog.Owner, view catalog.Read, root *roleCatalog) authorization.Read {
-	return roleRead(owner, &s.domain, view, root)
-}
-
-// roleRead returns the role view of root as seen by view's current database
-// owner. It is empty unless view belongs to owner and root belongs to the
-// principals domain.
-func roleRead(owner *catalog.Owner, principals *authorization.Domain, view catalog.Read, root *roleCatalog) authorization.Read {
-	if view.Owner() != owner || view.State() == nil || root == nil {
-		return authorization.Read{}
-	}
-	database, ok := view.Database(catalog.CurrentDatabaseAddress)
-	if !ok {
-		return authorization.Read{}
-	}
-	read := root.root.Read(database.Owner)
-	if !read.BelongsTo(principals) {
-		return authorization.Read{}
-	}
-	return read
+	return access.RoleRead(owner, &s.domain, view, root)
 }
 
 // setReferencesLocked replaces one feature's copied role references and
@@ -83,7 +66,7 @@ func roleRead(owner *catalog.Owner, principals *authorization.Domain, view catal
 // feature. The registry map is copied, never mutated in place; nothing
 // changes on revision exhaustion or cancellation.
 func (s *roleStore) setReferencesLocked(ctx context.Context, feature string, refs []authorization.PrincipalRef) error {
-	if s.published.revision == ^uint64(0) {
+	if s.published.Revision == ^uint64(0) {
 		return fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
 	next := make(map[string][]authorization.PrincipalRef, len(s.references)+1)
@@ -95,7 +78,7 @@ func (s *roleStore) setReferencesLocked(ctx context.Context, feature string, ref
 	} else {
 		next[feature] = append([]authorization.PrincipalRef(nil), refs...)
 	}
-	roles := s.published.advance()
+	roles := s.published.Advance()
 	if err := ctx.Err(); err != nil {
 		return err
 	}

@@ -93,8 +93,8 @@ func TestObjectRevokeColumnSelection(t *testing.T) {
 	next := e.catalog.state.MustRelation(address)
 	wantTable := []authorization.ACLEntry{old.Security.ACL.Entries[0], objectACLUnitEntry(old.Owner, reader, authorization.SelectPrivilege, 0)}
 	wantColumn := []authorization.ACLEntry{objectACLUnitEntry(old.Owner, reader, authorization.SelectPrivilege, 0)}
-	if e.catalog.state == before || next == old || e.roles.published.revision != roles.revision+1 || !slices.Equal(next.Security.ACL.Entries, wantTable) || !slices.Equal(next.Security.ColumnACL[3].Entries, wantColumn) || !reflect.DeepEqual(next.Security.ColumnACL[1], old.Security.ColumnACL[1]) {
-		t.Fatal("duplicate/stable/per-column publication", next, e.roles.published.revision, roles.revision)
+	if e.catalog.state == before || next == old || e.roles.published.Revision != roles.Revision+1 || !slices.Equal(next.Security.ACL.Entries, wantTable) || !slices.Equal(next.Security.ColumnACL[3].Entries, wantColumn) || !reflect.DeepEqual(next.Security.ColumnACL[1], old.Security.ColumnACL[1]) {
+		t.Fatal("duplicate/stable/per-column publication", next, e.roles.published.Revision, roles.Revision)
 	}
 	if old.Security.ColumnACL[3].Entries[1].Grantee.Role != target || old.Security.ACL.Entries[1].GrantOptions != authorization.SelectPrivilege {
 		t.Fatal("retained original mutated", old)
@@ -126,7 +126,7 @@ func TestObjectRevokeNoopPublication(t *testing.T) {
 			t.Fatal(err)
 		}
 		next := e.catalog.state.MustRelation(address)
-		if e.catalog.state == before || e.roles.published.revision != roles.revision+1 || !reflect.DeepEqual(next.Security.ACL, authorization.MaterializeRelationACL(authorization.ACLValue{}, next.Owner)) || len(next.Security.ColumnACL) != 0 {
+		if e.catalog.state == before || e.roles.published.Revision != roles.Revision+1 || !reflect.DeepEqual(next.Security.ACL, authorization.MaterializeRelationACL(authorization.ACLValue{}, next.Owner)) || len(next.Security.ColumnACL) != 0 {
 			t.Fatal("absent table defaults not explicitly materialized", next)
 		}
 		stable, stableRoles := e.catalog.state, e.roles.published
@@ -141,9 +141,9 @@ func TestObjectRevokePublicationFence(t *testing.T) {
 		t.Run(failure, func(t *testing.T) {
 			e, op, _, _, _, _ := objectRevokeUnitFixture(t)
 			if failure == "revision" {
-				e.roles.published = e.roles.published.advance()
+				e.roles.published = e.roles.published.Advance()
 				saturated := *e.roles.published
-				saturated.revision = ^uint64(0)
+				saturated.Revision = ^uint64(0)
 				e.roles.published = &saturated
 			} else {
 				op.session.mu.Lock()

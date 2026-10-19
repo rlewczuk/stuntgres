@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -363,7 +364,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if b.returning != nil {
 			results = b.returning.schema
 		}
-		if err := checkStatementSignature(*scope.Expected, StatementDescription{Parameters: b.parameters, Results: results, catalogOwner: auth.catalog.Owner(), catalogEpoch: auth.catalog.Epoch()}); err != nil {
+		if err := checkStatementSignature(*scope.Expected, StatementDescription{Parameters: b.parameters, Results: results, catalogOwner: auth.Catalog.Owner(), catalogEpoch: auth.Catalog.Epoch()}); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -418,8 +419,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want %d", count, b.parameters.Count)
 	}
 	canonical := make([]sqltype.Value, count)
-	evaluation := EvalContext{Context: ctx, Parameters: canonical, statementScope: scope, catalog: auth.catalog, Input: scope.input, Output: scope.output}
-	scope.domainInputCatalog = auth.catalog
+	evaluation := EvalContext{Context: ctx, Parameters: canonical, statementScope: scope, catalog: auth.Catalog, Input: scope.input, Output: scope.output}
+	scope.domainInputCatalog = auth.Catalog
 	scope.routineAuth = auth
 	scope.routineDependencies = b.dependencies
 	for _, usage := range b.parameters.Types {
@@ -435,7 +436,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		// Complete each parameter/member input before decoding the next one.
 		// CHECK recipes use this captured authority and run without Engine.mu.
-		captured := auth.catalog
+		captured := auth.Catalog
 		e.mu.Unlock()
 		err = importFrame(ctx, b.parameters, canonical, evaluation.Input)
 		e.mu.Lock()
@@ -453,7 +454,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, err
 		}
 		scope.routineAuth = auth
-		if err := validateCapturedInputBinding(captured, auth.catalog, b.dependencies); err != nil {
+		if err := validateCapturedInputBinding(captured, auth.Catalog, b.dependencies); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -501,7 +502,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement, b binding, auth AuthorizationView, canonical []sqltype.Value, candidate StatementDescription, quoteCapturesChanged bool) (Result, error) {
 	op := scope.op
 	ctx := op.Context()
-	evaluation := EvalContext{Context: ctx, Parameters: canonical, statementScope: scope, catalog: auth.catalog, Input: scope.input, Output: scope.output}
+	evaluation := EvalContext{Context: ctx, Parameters: canonical, statementScope: scope, catalog: auth.Catalog, Input: scope.input, Output: scope.output}
 	var err error
 	var creationStage *CatalogStage
 	var creationDescriptor *catalog.Relation
@@ -540,7 +541,7 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 	quoteCaptures := quoteCaptureCandidate{}
 	if b.parameters.Count == 0 {
 		quoteCaptures = quoteCaptureCandidate{entries: candidate.quotes, private: quoteCapturesChanged}
-		quoteCaptures.prune(auth.catalog)
+		quoteCaptures.prune(auth.Catalog)
 	}
 	evaluation.quoteCaptures = &quoteCaptures
 	// Planning-owned physical conversions and CHECK recipe initialization
@@ -567,7 +568,7 @@ func (e *Engine) validatePhysicalInsertRow(scope *StatementScope, b binding, nam
 	if err := evaluateGenerations(evaluation.Context, b.relation, row, evaluation); err != nil {
 		return err
 	}
-	if err := rowSecurityProposal(scope.rlsProposal, scope.rlsProposalTable); err != nil {
+	if err := access.RowSecurityProposal(scope.rlsProposal, scope.rlsProposalTable); err != nil {
 		return err
 	}
 	return validatePhysicalRowConstraints(b.relation, schema, row, evaluation, func() (string, error) { return e.rowConstraintDetail(scope, named, row) })

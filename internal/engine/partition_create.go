@@ -53,7 +53,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 		if err != nil {
 			return nil, err
 		}
-		parent = auth.catalog.MustRelation(ref.Address)
+		parent = auth.Catalog.MustRelation(ref.Address)
 		if ref != scope.lockedRef || parent != scope.lockedDescriptor {
 			return nil, ids.ErrCatalogReplaced
 		}
@@ -69,7 +69,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 			return nil, err
 		}
 	} else {
-		if err := e.schemaTableLocked(op, auth, stage, syntax, namespace, auth.state.CurrentUser, scope.input, scope.foreignKeyTargets); err != nil {
+		if err := e.schemaTableLocked(op, auth, stage, syntax, namespace, auth.State.CurrentUser, scope.input, scope.foreignKeyTargets); err != nil {
 			return nil, err
 		}
 	}
@@ -77,8 +77,8 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 	address := stage.Names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name}]
 	child := stage.Descriptors[address].(*catalog.Relation)
 	keyAuth := auth
-	keyAuth.catalog = e.stageRead(stage)
-	keyAuth.Recapture(keyAuth.catalog)
+	keyAuth.Catalog = e.stageRead(stage)
+	keyAuth.Recapture(keyAuth.Catalog)
 	partition, err := e.bindPartitionKeys(op, keyAuth, child, syntax.PartitionBy, scope.input)
 	if err != nil {
 		return nil, err
@@ -102,13 +102,13 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 		child.Membership = pending.bound
 		stage.domainBases = append(stage.domainBases, parent)
 		if pending.bound.DefaultBound && parent.Partition.DefaultChild != (ids.ObjectAddress{}) {
-			existing := auth.catalog.MustRelation(parent.Partition.DefaultChild)
+			existing := auth.Catalog.MustRelation(parent.Partition.DefaultChild)
 			return nil, expr.ErrorAt("42P17", fmt.Sprintf(`partition "%s" conflicts with existing default partition "%s"`, name, existing.Name()), syntax.PartitionOf.Bound.Pos)
 		}
 		if !pending.bound.DefaultBound && parent.Partition.DefaultChild != (ids.ObjectAddress{}) {
-			defaultRelation := auth.catalog.MustRelation(parent.Partition.DefaultChild)
-			err = partitionPhysicalDescendants(auth.catalog, defaultRelation, func(leaf *catalog.Relation) error {
-				ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), leaf.Address())
+			defaultRelation := auth.Catalog.MustRelation(parent.Partition.DefaultChild)
+			err = partitionPhysicalDescendants(auth.Catalog, defaultRelation, func(leaf *catalog.Relation) error {
+				ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), leaf.Address())
 				pending.defaultLeaves = append(pending.defaultLeaves, ref)
 				stage.domainBases = append(stage.domainBases, leaf)
 				storage := e.privateStorageLocked(scope.owner.catalog, leaf.Address())
@@ -176,7 +176,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 		if p.unsupportedCombination {
 			return sqlError("0A000", "partitioned table constraint combination is unsupported")
 		}
-		evaluation.catalog, evaluation.routineAuthority = p.auth.catalog, &p.auth
+		evaluation.catalog, evaluation.routineAuthority = p.auth.Catalog, &p.auth
 		for _, ref := range p.defaultLeaves {
 			leaf, ok := view.Relation(ref.Address)
 			if !ok {

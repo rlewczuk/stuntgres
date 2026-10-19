@@ -26,7 +26,7 @@ func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *
 	e.roles.published = roles
 	root, leaf := roleTableRef(t, e, "root"), roleTableRef(t, e, "leaf")
 	setup := e.BeginCatalogStage(e.CatalogRead())
-	dbOwner := roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
+	dbOwner := roles.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 	for _, ref := range []ids.ObjectRef{root, leaf} {
 		if err := stageOwnership(setup, setup.Base.Get(ref.Address), dbOwner); err != nil {
 			t.Fatal(err)
@@ -78,16 +78,16 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+				actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 				if err != nil || actor.Superuser {
 					t.Fatal("fixture is not an ordinary actor", err)
 				}
-				dbRole := auth.roles.LookupRef("pg_database_owner")
-				table := auth.catalog.MustRelation(root.Address)
-				if table.Owner != dbRole || auth.databasePredecessor != committed || auth.pairedCatalog != auth.catalog {
+				dbRole := auth.Roles.LookupRef("pg_database_owner")
+				table := auth.Catalog.MustRelation(root.Address)
+				if table.Owner != dbRole || auth.DatabasePredecessor != committed || auth.PairedCatalog != auth.Catalog {
 					t.Fatal("fixture did not capture canonical paired DB authority")
 				}
-				if private && auth.catalog.Get(catalog.CurrentDatabaseAddress) == committed {
+				if private && auth.Catalog.Get(catalog.CurrentDatabaseAddress) == committed {
 					t.Fatal("private authority is not distinct from committed predecessor")
 				}
 				if err := auth.Check(AccessRequirement{Object: root, OwnerOnly: true}); err != nil {
@@ -119,7 +119,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					if private {
 						database.Owner = actor.Ref
 					} else {
-						database.Owner = oldRoles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+						database.Owner = oldRoles.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 					}
 					database.ObjectRevision++
 					if err := stage.Replace(&database); err != nil {
@@ -196,7 +196,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					t.Fatal("missing partition constraint DB predecessor veto", err)
 				}
 				indexMaintenanceUnchanged(t, e, before)
-				if e.roles.published != oldRoles || !reflect.DeepEqual(e.storage.Relations[leaf].Versions, rows) || len(table.Constraints.Unique) != 1 || auth.databasePredecessor != committed || auth.catalog.Get(root.Address) != table || len(auth.catalog.MustRelation(leaf).Constraints.Unique) != 2 {
+				if e.roles.published != oldRoles || !reflect.DeepEqual(e.storage.Relations[leaf].Versions, rows) || len(table.Constraints.Unique) != 1 || auth.DatabasePredecessor != committed || auth.Catalog.Get(root.Address) != table || len(auth.Catalog.MustRelation(leaf).Constraints.Unique) != 2 {
 					t.Fatal("veto mutated retained roles, constraints or storage")
 				}
 			})

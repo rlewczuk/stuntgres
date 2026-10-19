@@ -18,7 +18,7 @@ func TestExtremaArgumentColumnAuthorization(t *testing.T) {
 	reader, _ := e.Roles().Lookup("extrema_acl_reader")
 	column := ref
 	column.Address.SubID = 1
-	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
+	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
 	if err := e.SetObjectACL(context.Background(), column, grant); err != nil {
 		t.Fatal(err)
 	}

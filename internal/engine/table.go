@@ -30,7 +30,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		}
 		kind, missing := "table", name.Parts[len(name.Parts)-1].Text
 		if len(name.Parts) == 2 {
-			_, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Parts[0].Text})
+			_, exists := auth.Catalog.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Parts[0].Text})
 			if name.Parts[0].Text == "pg_temp" {
 				exists = temporaryNamespace(auth) != (ids.ObjectAddress{})
 			}
@@ -60,7 +60,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 			})
 			continue
 		}
-		relation := auth.catalog.MustRelation(ref.Address)
+		relation := auth.Catalog.MustRelation(ref.Address)
 		if relation.RelationKind != catalog.TableRelation && relation.RelationKind != catalog.PartitionedRelation {
 			if relation.RelationKind == catalog.IndexRelation {
 				e.mu.Unlock()
@@ -84,7 +84,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		}
 		tableErr := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 		if tableErr != nil {
-			descriptor := auth.catalog.Get(ref.Address)
+			descriptor := auth.Catalog.Get(ref.Address)
 			nsref := e.catalog.Domain.Ref(ref.Epoch, descriptor.Namespace())
 			if err := auth.Check(AccessRequirement{Object: nsref, OwnerOnly: true}); err != nil {
 				e.mu.Unlock()
@@ -96,8 +96,8 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 	}
 	temporary := true
 	for _, ref := range refs {
-		relation := auth.catalog.Get(ref.Address)
-		namespace := auth.catalog.MustNamespace(relation.Namespace())
+		relation := auth.Catalog.Get(ref.Address)
+		namespace := auth.Catalog.MustNamespace(relation.Namespace())
 		if namespace.Temporary != op.session.token {
 			temporary = false
 			break
@@ -114,7 +114,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		}
 		return Result{}, nil
 	}
-	base := auth.catalog
+	base := auth.Catalog
 	var changes *catalogChanges
 	if temporary {
 		changes = cloneCatalogChanges(scope.owner.catalog)

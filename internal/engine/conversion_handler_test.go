@@ -15,7 +15,7 @@ func TestConversionHandlerEmptyProbePrecedence(t *testing.T) {
 	e := New()
 	op, auth := conversionUnitAuth(t, e)
 	create := &parser.CreateConversion{Name: conversionUnitName("public", "probe"), Source: "UTF8", Destination: "LATIN1", Function: conversionUnitName("pg_catalog", "utf8_to_iso8859_1")}
-	view := auth.catalog
+	view := auth.Catalog
 	// Corrupt actual routine metadata in an unpublished candidate, preserving
 	// its real six-argument identity/provider, to exercise return-type admission.
 	candidate := catalog.CloneState(view.State())
@@ -23,7 +23,7 @@ func TestConversionHandlerEmptyProbePrecedence(t *testing.T) {
 	procedure.Result = 25
 	candidate.SetDescriptor(procedure.Address(), &procedure)
 	auth.Recapture(e.catalog.read(candidate))
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	e.mu.Lock()
 	err := e.stageCreateConversionLocked(op, auth, stage, create)
 	e.mu.Unlock()
@@ -43,7 +43,7 @@ func TestConversionHandlerEmptyProbePrecedence(t *testing.T) {
 	collationUnitPublish(t, e, stage)
 	_, auth = conversionUnitAuth(t, e)
 	create.Default, create.Destination = true, "LATIN2"
-	stage = e.BeginCatalogStage(auth.catalog)
+	stage = e.BeginCatalogStage(auth.Catalog)
 	e.mu.Lock()
 	err = e.stageCreateConversionLocked(op, auth, stage, create)
 	e.mu.Unlock()

@@ -257,10 +257,17 @@ run it in parallel with 6c or with another broad rewrite (§8).
   (`8e41e7091`, `a0fa8edec`, `7d5e526b8`, `809a3ed62`, then the commit that
   records this status) *(racecheck skipped at user request; targeted RACE=1
   runs passed)*
-- [ ] B3 — `access` created and code moved
+- [x] B3 — `access` created and code moved (`8e529feda`, `0d549283e`,
+  `9cfb1306b`, `a168628d4`, then the commit that records this status)
+  *(racecheck skipped at user request; targeted RACE=1 runs passed)*
 - [ ] B4 — Aliases removed
 
-Outstanding aliases: none (Part A, B1 and B2 added none).
+Outstanding aliases (B3, in `internal/engine/access_aliases.go`):
+`accessView` (`access.View`), `accessEnvironment` (`access.Environment`),
+`AccessRequirement` (`access.Requirement`), `AuthorizationStamp`
+(`access.Stamp`), `roleCatalog` (`access.RoleRecord`), `rlsDisposition`
+(`access.RLSDisposition`) and the constants `rlsUnrestricted`,
+`rlsDefaultDeny` and `rlsNeedsExpressions`. Part A, B1 and B2 added none.
 
 A1 outcome. The re-measure (`go/types`, free declarations) found that most
 listed candidates are not authorization algorithms, and found others that are:
@@ -532,3 +539,87 @@ Notes for later steps (B2):
   listed in *Target shape* that are still in other files (`databaseRights`,
   `predefinedPrivileges`, `rawObjectACL`, `objectACLClass`, the role
   dependency scans).
+
+B3 results:
+
+- **Field access.** The engine reads and writes the view's fields directly:
+  besides about 2,300 reads, production code re-targets copies about 95
+  times (`auth.catalog = view` 54, `auth.state.CurrentUser = x` 39). So the
+  fields are exported rather than wrapped in accessors, as catalog
+  descriptors were in 5d (§7.3): `Owner`, `Catalog`, `PairedCatalog`,
+  `RoleRecord`, `Roles` (replacing the `Roles()` method, which had three
+  test callers), `DatabasePredecessor`, `State`, `SessionRoleState`,
+  `Revision` and `MissingCurrent`. A view is a value, so writes touch only a
+  copy; the captured roots stay immutable.
+- **Rewrites.** A go/types tool renamed by object identity and compared a
+  reference census of every object before and after (289,250 objects,
+  identical). The first pass exported the view fields, `roleCatalog`'s
+  `Root`, `Revision` and `Advance`, and the `roleDependency` and
+  `rowSecurityLayer` fields (2,748 identifiers in 482 files). The second
+  exported the moved function and type names in place (209 identifiers in
+  70 files).
+- **Move.** `internal/engine/access` holds `view.go` (`View`, `Environment`,
+  `Requirement`, `Stamp`, the checks, `Object`, `DescriptorACL`,
+  `ClassPrivileges`, `ValidateACL`), `ownership.go`, `rls.go`
+  (`RLSDisposition`, `RowSecurityLayer`, ...), `roles.go` (`RoleRecord`,
+  `RoleRead`), `role_dependencies.go` (`RoleDependency`, the scans),
+  `privileges.go` (`DatabaseRights`, `PredefinedPrivileges`, `RawObjectACL`,
+  `ObjectACLClass`), `names.go` (copies of `dependencyIdentifier`,
+  `typeDiagnosticNameAt` and `quoteIdentifier`) and `errors.go`
+  (`sqlError`). It imports `catalog`, `authorization`, `ids`, `parser`,
+  `sqlstate` and the standard library. The engine files `access_view.go`,
+  `access_ownership.go`, `access_rls.go` and `predefined_roles.go` are gone;
+  153 references in 65 engine files are qualified as `access.X`.
+  `roleStore.read` delegates to `access.RoleRead`.
+- **Deviations.** `View.object` became the exported `Object`: seven
+  production and six test call sites in the engine (`routine_admission.go`,
+  `sequence.go`, `data_type_privileges.go`, ...) resolve objects through it,
+  which the B2 census did not show. `aclRoleDependencies`,
+  `recordRoleDependency` and `ownsTemporaryNamespace` stay unexported in
+  `access`.
+- **Tests.** No engine test could move: all of them build an engine. They
+  were adapted by the rewrites only (the three `Roles()` callers, the
+  `ownTemporaryPrivileges` and `object` callers). New standalone tests in
+  `access/view_test.go` build a catalog owner, a seeded role root and a
+  current database without an engine: `TestViewRejectsForeignOrStaleObjects`,
+  `TestRoleReadRequiresOwnerDomainAndRoot`,
+  `TestViewTemporaryNamespaceOnlyFromEnvironment` and
+  `TestRowSecurityPrincipalFollowsInnermostDefiner`. Mutating the epoch,
+  pairing, reference-domain, role owner and role domain checks, the lazy
+  TEMP lookup, the TEMP CREATE right and either RowSecurityPrincipal branch
+  makes them fail. Removing only the catalog-owner comparison in `Object`
+  does not, because the paired role-read check rejects the same views.
+  None deleted.
+- **Verification.** `make build` and a targeted `make check` selection
+  (authorization, roles, ownership, access, RLS, policies, default
+  privileges, object ACLs and grants, databases, predefined roles,
+  `pg_group`, `pg_class` ACLs, data type privileges, membership,
+  collations, foreign objects, schemas, extensions, renames, rule sources,
+  `pg_indexes`, range partition Restore, driver batches, table privileges,
+  Dump and Restore) passed after each commit. `RACE=1` passed for the
+  README concurrency set, the access-view and role-store seam tests and the
+  new `access` tests. `quickcheck` passed. The README reference set plus
+  `TestReferenceAccessRole.*`, `TestReferenceForeignActionsAuthorization.*`,
+  `TestReferenceSchemaAuthorization` and
+  `TestReferenceTypedTableAuthorization` passed in quick mode and with
+  `REFERENCE=1` after the rebase onto `ce0c3d233`, which fixed the two
+  PostgreSQL 18.6 oracle drifts recorded in B2 (before it, those two failed
+  on the real-server side only). `quickcheck` passed again after the
+  rebase. The full `racecheck`
+  was skipped at the user's request. `make bench`: 1.53–1.68 ms/op before
+  and 1.52–1.85 ms/op after, 7,769 allocations in both (the first run 7,777
+  in both); the <1 ms target is already missed on `master`. `make deps`
+  lists only module paths. `AGENTS.md` stays at 100 lines (`access` joins
+  the subpackage list).
+
+Notes for later steps (B3):
+
+- **B4:** the aliases above have about 170 production and 130 test uses
+  (`AccessRequirement` 97 and 43); `AuthorizationStamp` has none left. `AuthorizationView` embeds `accessView`,
+  so replacing that alias renames the embedded field from `accessView` to
+  `View` (`v.accessView.Check` becomes `v.View.Check`, and test literals
+  change key). `fixedAccessEnvironment` (engine tests) can stay.
+- **Later:** `access/names.go` duplicates the engine's diagnostic name
+  helpers. A shared home below both (for example `catalog`, which already
+  owns the type descriptors) would remove the copy; the engine has about 80
+  uses.

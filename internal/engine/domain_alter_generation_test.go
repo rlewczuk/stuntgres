@@ -41,7 +41,7 @@ func domainAlterGenerationIndexes(t *testing.T) {
 			raw.Constraints[0].Check.NotValid = true
 			e.mu.Lock()
 			auth, err := e.authorizationLocked(op)
-			stage := e.BeginCatalogStage(auth.catalog)
+			stage := e.BeginCatalogStage(auth.Catalog)
 			next := *d
 			next.DomainChecks = slices.Clone(d.DomainChecks)
 			if err == nil {

@@ -94,7 +94,7 @@ func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]ids
 	}
 	var result []ids.ObjectAddress
 	if auth.pathPrefix != (ids.ObjectAddress{}) && !auth.materializedPopulation {
-		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), auth.pathPrefix)
+		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), auth.pathPrefix)
 		if err := auth.CanUse(ref); err != nil {
 			return nil, false, err
 		}
@@ -106,11 +106,11 @@ func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]ids
 			continue
 		}
 		if name == "$user" {
-			principal := auth.state.CurrentUser
+			principal := auth.State.CurrentUser
 			if auth.namespaceUser != (authorization.PrincipalRef{}) {
 				principal = auth.namespaceUser
 			}
-			d, exists := auth.roles.Find(principal)
+			d, exists := auth.Roles.Find(principal)
 			if !exists {
 				continue
 			}
@@ -145,7 +145,7 @@ func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]ids
 		if duplicate {
 			continue
 		}
-		rights, err := auth.Effective(e.catalog.Domain.Ref(auth.catalog.Epoch(), a), false)
+		rights, err := auth.Effective(e.catalog.Domain.Ref(auth.Catalog.Epoch(), a), false)
 		if err != nil {
 			return nil, false, err
 		}
@@ -238,7 +238,7 @@ func (p namespaceSelection) at(i int) ids.ObjectAddress {
 // Relations retain missing-object diagnostics; other named providers diagnose
 // a missing explicit namespace before considering signatures or type names.
 func (e *Engine) lookupNamespaces(auth AuthorizationView, name parser.ObjectName, kind lookupKind) (namespaceSelection, error) {
-	if err := e.catalog.validateCatalogViewLocked(auth.catalog); err != nil {
+	if err := e.catalog.validateCatalogViewLocked(auth.Catalog); err != nil {
 		return namespaceSelection{}, err
 	}
 	return e.lookupNamespacesSnapshot(auth, name, kind)
@@ -267,7 +267,7 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 	ns, _ := auth.definitionNamespace(a)
 	foreignTemporary := ns.Temporary != (ids.SessionToken{}) && !ns.TemporaryToast && !ownTemporaryNamespace(auth, ns)
 	if foreignTemporary {
-		actor, exists := auth.roles.Find(auth.state.CurrentUser)
+		actor, exists := auth.Roles.Find(auth.State.CurrentUser)
 		foreignTemporary = !exists || !actor.Superuser
 	}
 	if foreignTemporary && kind != installedFunctionLookup {
@@ -276,7 +276,7 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 		}
 		return namespaceSelection{}, expr.ErrorAt("42501", fmt.Sprintf("permission denied for schema %s", ns.Name()), n.Pos)
 	}
-	if err := auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), a)); err != nil {
+	if err := auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), a)); err != nil {
 		if diagnostic, ok := err.(*sqlstate.Error); ok && n.Pos.Character > 0 {
 			copy := *diagnostic
 			copy.Position = strconv.Itoa(n.Pos.Character)
@@ -318,7 +318,7 @@ func (e *Engine) creationNamespaceWithSystem(auth AuthorizationView, name parser
 // Resolve creation without establishing a deferred temporary namespace.
 // Callers requiring an existing namespace retain the rejecting policy above.
 func (e *Engine) creationNamespaceDestination(auth AuthorizationView, name parser.ObjectName, system bool) (ids.ObjectRef, bool, error) {
-	if err := e.catalog.validateCatalogViewLocked(auth.catalog); err != nil {
+	if err := e.catalog.validateCatalogViewLocked(auth.Catalog); err != nil {
 		return ids.ObjectRef{}, false, err
 	}
 	if len(name.Parts) < 1 || len(name.Parts) > 2 {
@@ -328,14 +328,14 @@ func (e *Engine) creationNamespaceDestination(auth AuthorizationView, name parse
 	if len(name.Parts) == 2 {
 		n := name.Parts[0].Text
 		if n == "pg_temp" {
-			ns, ok := auth.catalog.Namespace(auth.stagedTemporary)
+			ns, ok := auth.Catalog.Namespace(auth.stagedTemporary)
 			if !ok || !ownTemporaryNamespace(auth, ns) {
 				return ids.ObjectRef{}, true, nil
 			}
 			a = ns.Address()
 		} else {
 			var ok bool
-			a, ok = auth.catalog.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: n})
+			a, ok = auth.Catalog.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: n})
 			if !ok {
 				return ids.ObjectRef{}, false, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, n))
 			}
@@ -356,5 +356,5 @@ func (e *Engine) creationNamespaceDestination(auth AuthorizationView, name parse
 	if !system && a.ObjectID == ids.PGCatalogNamespaceOID {
 		return ids.ObjectRef{}, false, sqlError("0A000", "system schema creation is unsupported")
 	}
-	return e.catalog.Domain.Ref(auth.catalog.Epoch(), a), false, nil
+	return e.catalog.Domain.Ref(auth.Catalog.Epoch(), a), false, nil
 }

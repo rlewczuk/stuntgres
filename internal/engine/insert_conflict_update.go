@@ -222,8 +222,8 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 	if err != nil {
 		return storage.RowVersion{}, nil, "", false, err
 	}
-	auth.catalog = catalog
-	auth.Recapture(auth.catalog)
+	auth.Catalog = catalog
+	auth.Recapture(auth.Catalog)
 	if err := auth.checkBinding(bindingForConflict(ref, parent, s.insertConflict), &parser.Insert{}); err != nil {
 		return storage.RowVersion{}, nil, "", false, err
 	}

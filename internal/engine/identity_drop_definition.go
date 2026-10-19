@@ -108,10 +108,10 @@ func (e *Engine) captureIdentityDropDefinitionLocked(provider *dropProvider, tab
 	if err != nil {
 		return capture, err
 	}
-	if fresh.catalog.Epoch() != provider.base.Epoch() || provider.removed(ref.Address) {
+	if fresh.Catalog.Epoch() != provider.base.Epoch() || provider.removed(ref.Address) {
 		return capture, ids.ErrCatalogReplaced
 	}
-	descriptor := fresh.catalog.Get(ref.Address)
+	descriptor := fresh.Catalog.Get(ref.Address)
 	if staged := provider.replacement(ref.Address); staged != nil {
 		descriptor = staged
 	}
@@ -120,14 +120,14 @@ func (e *Engine) captureIdentityDropDefinitionLocked(provider *dropProvider, tab
 		return capture, err
 	}
 	// An earlier genuine observation is never overwritten by the refresh.
-	observed := fresh.catalog.Get(ref.Address)
+	observed := fresh.Catalog.Get(ref.Address)
 	if prior, captured := provider.prepared.observed[ref.Address]; captured && prior != observed {
 		return capture, ids.ErrCatalogReplaced
 	}
 	provider.prepared.observed[ref.Address] = observed
 	provider.prepared.grants = append(provider.prepared.grants, ref)
-	provider.base = fresh.catalog
-	provider.prepared.discovery = fresh.catalog
+	provider.base = fresh.Catalog
+	provider.prepared.discovery = fresh.Catalog
 	provider.identitySource = sequence
 	provider.prepared.recordEffect(dropEffect{identityRoots: []ids.ObjectAddress{ref.Address}, identityState: e.catalog.state})
 	return identityDropCapture{sequence: ref, original: e.catalog.state.Get(ref.Address)}, nil
@@ -144,7 +144,7 @@ func (e *Engine) prepareIdentityDropDefinition(scope *StatementScope, auth Autho
 	if action.Action != parser.DropIdentity {
 		return nil, fmt.Errorf("stuntgres: invalid identity drop")
 	}
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{})
+	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{})
 	if old != nil {
 		ref.Address = old.Address()
 	}

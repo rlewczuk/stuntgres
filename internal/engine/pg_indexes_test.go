@@ -155,12 +155,12 @@ func TestPGIndexesVisibilityPolicy(t *testing.T) {
 			}
 			c := e.CatalogRead()
 			auth := catalogAuthorization(e, c)
-			auth.state.CurrentUser = reader.Ref
+			auth.State.CurrentUser = reader.Ref
 			if tc.owner {
-				auth.state.CurrentUser = owner.Ref
+				auth.State.CurrentUser = owner.Ref
 			}
 			if tc.super {
-				auth.state.CurrentUser = e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+				auth.State.CurrentUser = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 			}
 			source := pgIndexesUnitCapture(t, c, auth)
 			if source.anonymous == nil {
@@ -189,7 +189,7 @@ func TestPGIndexesCaptureRetentionAndStableColumnACL(t *testing.T) {
 		ref.Address.SubID = sub
 		acl := authorization.ACLValue{Explicit: true}
 		if rights != 0 {
-			acl.Entries = []authorization.ACLEntry{{Grantor: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}
+			acl.Entries = []authorization.ACLEntry{{Grantor: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}
 		}
 		if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 			t.Fatal(err)
@@ -198,7 +198,7 @@ func TestPGIndexesCaptureRetentionAndStableColumnACL(t *testing.T) {
 	capture := func() (catalog.Read, AuthorizationView) {
 		c := e.CatalogRead()
 		auth := catalogAuthorization(e, c)
-		auth.state.CurrentUser = reader.Ref
+		auth.State.CurrentUser = reader.Ref
 		return c, auth
 	}
 	grant(2, authorization.SelectPrivilege)
@@ -245,13 +245,13 @@ func TestPGIndexesCaptureRetentionAndStableColumnACL(t *testing.T) {
 		}
 	}
 	mixed := auth
-	mixed.catalog = e.CatalogRead()
+	mixed.Catalog = e.CatalogRead()
 	if _, err := capturePGIndexes(context.Background(), old, mixed, ref, d); err == nil {
 		t.Fatal("mixed authorization capture accepted")
 	}
 	broken := auth
-	broken.roles = foreign.Roles()
-	broken.roleRecord = foreign.roles.published
+	broken.Roles = foreign.Roles()
+	broken.RoleRecord = foreign.roles.published
 	if _, err := capturePGIndexes(context.Background(), old, broken, ref, d); err == nil {
 		t.Fatal("unexpected authorization failure swallowed")
 	}
@@ -276,7 +276,7 @@ func TestPGIndexesSourceInvokerAndFreshAuthorization(t *testing.T) {
 		e.mu.Lock()
 		_, ref := pgIndexesUnitSource(t, e.privateCatalogLocked(scope.owner.catalog))
 		// A surrounding definition principal must not replace the operation actor.
-		s, err := e.openRelationSourceLocked(scope, ref, e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
+		s, err := e.openRelationSourceLocked(scope, ref, e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
 		err = scope.Finish(err)
 		if err != nil {
 			t.Fatal(err)
@@ -288,7 +288,7 @@ func TestPGIndexesSourceInvokerAndFreshAuthorization(t *testing.T) {
 	}
 	column := parent
 	column.Address.SubID = 2
-	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	old := capture()

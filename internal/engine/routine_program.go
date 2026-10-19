@@ -47,19 +47,19 @@ func (p *routineAdmissionProgram) record(c *EvalContext, dependencies []catalog.
 		return err
 	}
 	for _, call := range p.calls {
-		if call.reference == ref && call.consumer == c.routineConsumer && call.actor == auth.state.CurrentUser {
+		if call.reference == ref && call.consumer == c.routineConsumer && call.actor == auth.State.CurrentUser {
 			return nil
 		}
 	}
-	p.calls = append(p.calls, routineAdmission{routine: routine, reference: ref, consumer: c.routineConsumer, body: c.routineBodyContext, actor: auth.state.CurrentUser})
+	p.calls = append(p.calls, routineAdmission{routine: routine, reference: ref, consumer: c.routineConsumer, body: c.routineBodyContext, actor: auth.State.CurrentUser})
 	return nil
 }
 
 func (p *routineAdmissionProgram) readmit(auth AuthorizationView) error {
 	for _, call := range p.calls {
 		current := auth
-		current.state.CurrentUser = call.actor
-		if err := current.roles.ValidatePrincipal(call.actor); err != nil {
+		current.State.CurrentUser = call.actor
+		if err := current.Roles.ValidatePrincipal(call.actor); err != nil {
 			return err
 		}
 		dependency := [1]catalog.ExpressionDependency{{Ref: call.reference, Revision: call.routine.Revision()}}

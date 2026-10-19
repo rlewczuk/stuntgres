@@ -109,28 +109,28 @@ func (e *Engine) captureRestoredDomainOwner(op *Operation, created ids.ObjectRef
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if !partitionConstraintReplayImport(e, op, auth) || created.Domain() != e.catalog.Domain || created.Epoch != auth.catalog.Epoch() || created.Address.ClassID != ids.TypeClassID || created.Address.SubID != 0 {
+	if !partitionConstraintReplayImport(e, op, auth) || created.Domain() != e.catalog.Domain || created.Epoch != auth.Catalog.Epoch() || created.Address.ClassID != ids.TypeClassID || created.Address.SubID != 0 {
 		return reject()
 	}
 	if _, captured := e.importTargets[owner]; !captured {
 		return reject()
 	}
-	domain, ok := auth.catalog.Type(created.Address)
+	domain, ok := auth.Catalog.Type(created.Address)
 	if !ok || !domain.SQLType.IsDomain() {
 		return reject()
 	}
-	namespace, ok := auth.catalog.Namespace(domain.ObjectNamespace)
+	namespace, ok := auth.Catalog.Namespace(domain.ObjectNamespace)
 	if !ok || namespace.Temporary != (ids.SessionToken{}) {
 		return reject()
 	}
-	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
 		return restoredDomainOwner{}, err
 	}
 	if !actor.Superuser || domain.Owner != actor.Ref || owner == actor.Ref {
 		return reject()
 	}
-	if _, err := auth.roles.Descriptor(owner); err != nil {
+	if _, err := auth.Roles.Descriptor(owner); err != nil {
 		return restoredDomainOwner{}, err
 	}
 	return restoredDomainOwner{ref: created, domain: domain, namespace: namespace, owner: owner, creator: actor.Ref}, nil
@@ -152,7 +152,7 @@ func (e *Engine) restoreDomainOwner(op *Operation, raw *parser.AlterOwner, pair 
 	if err != nil {
 		return err
 	}
-	owner, err := auth.roles.Descriptor(pair.owner)
+	owner, err := auth.Roles.Descriptor(pair.owner)
 	if err != nil {
 		return err
 	}

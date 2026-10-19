@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -67,7 +68,7 @@ func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parse
 		if err != nil {
 			return nil, err
 		}
-		targets = append(targets, v.catalog.Get(ref.Address))
+		targets = append(targets, v.Catalog.Get(ref.Address))
 	}
 	for _, target := range s.Routines {
 		if err := op.Context().Err(); err != nil {
@@ -77,25 +78,25 @@ func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parse
 		if err != nil {
 			return nil, err
 		}
-		targets = append(targets, v.catalog.Get(ref.Address))
+		targets = append(targets, v.Catalog.Get(ref.Address))
 	}
 	for _, name := range s.Schemas {
 		if err := op.Context().Err(); err != nil {
 			return nil, err
 		}
-		addr := v.catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Text})
+		addr := v.Catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Text})
 		if name.Text == "pg_temp" {
 			addr = temporaryNamespace(v)
 		}
 		if addr == (ids.ObjectAddress{}) {
 			return nil, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, name.Text))
 		}
-		ref := e.catalog.Domain.Ref(v.catalog.Epoch(), addr)
+		ref := e.catalog.Domain.Ref(v.Catalog.Epoch(), addr)
 		if err := v.Check(AccessRequirement{Object: ref, Privileges: authorization.UsagePrivilege}); err != nil {
 			return nil, err
 		}
 		start := len(targets)
-		for _, descriptor := range v.catalog.Descriptors() {
+		for _, descriptor := range v.Catalog.Descriptors() {
 			if err := op.Context().Err(); err != nil {
 				return nil, err
 			}
@@ -134,11 +135,11 @@ type objectGrantChange struct {
 
 func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser.ObjectGrant) (Result, error) {
 	if s.Grantor != nil {
-		grantor, err := authorization.MembershipRole(v.roles, v.state, *s.Grantor)
+		grantor, err := authorization.MembershipRole(v.Roles, v.State, *s.Grantor)
 		if err != nil {
 			return Result{}, err
 		}
-		if grantor != v.state.CurrentUser {
+		if grantor != v.State.CurrentUser {
 			return Result{}, sqlError("0A000", "grantor must be current user")
 		}
 	}
@@ -170,7 +171,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			grantees[i] = authorization.ACLGrantee{Public: true}
 			continue
 		}
-		role, err := authorization.MembershipRole(v.roles, v.state, spec.Role)
+		role, err := authorization.MembershipRole(v.Roles, v.State, spec.Role)
 		if err != nil {
 			return Result{}, err
 		}
@@ -203,11 +204,11 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 	if unavailable != "" {
 		return Result{}, sqlError("0A000", unavailable)
 	}
-	actor, err := v.roles.Descriptor(v.state.CurrentUser)
+	actor, err := v.Roles.Descriptor(v.State.CurrentUser)
 	if err != nil {
 		return Result{}, err
 	}
-	principals, err := v.roles.RoleClosure(op.Context(), actor.Ref, true)
+	principals, err := v.Roles.RoleClosure(op.Context(), actor.Ref, true)
 	if err != nil {
 		return Result{}, err
 	}
@@ -230,7 +231,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			if next != nil {
 				changed[address] = objectGrantChange{descriptor: next}
 				if candidate == nil {
-					candidate = catalog.CloneState(v.catalog.State())
+					candidate = catalog.CloneState(v.Catalog.State())
 				}
 				if parameter, ok := next.(*catalog.Parameter); ok {
 					installParameterGrant(candidate, parameter)
@@ -289,7 +290,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 				return Result{}, sourceErr
 			}
 			if available == 0 {
-				hasRelationPrivileges := authorization.ACLRights(originalTable, relation.Owner, principals, classMask, false) != 0 || predefinedPrivileges(relation, principals) != 0
+				hasRelationPrivileges := authorization.ACLRights(originalTable, relation.Owner, principals, classMask, false) != 0 || access.PredefinedPrivileges(relation, principals) != 0
 				if !hasRelationPrivileges {
 					return Result{}, sqlError("42501", "permission denied for "+noun+" "+relation.Name())
 				}
@@ -304,7 +305,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 						materialized = authorization.MaterializeRelationACL(originalTable, relation.Owner)
 					}
 				}
-				nextTable, tableChanged, err = authorization.ChangeObjectACL(op.Context(), v.roles, materialized, relation.Owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
+				nextTable, tableChanged, err = authorization.ChangeObjectACL(op.Context(), v.Roles, materialized, relation.Owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
 			}
 			if err != nil {
 				return Result{}, err
@@ -363,7 +364,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			if available == 0 {
 				if !columnPrivilegesChecked {
 					hasColumnPrivileges = authorization.ACLRights(originalTable, relation.Owner, principals, authorization.ColumnGrantPrivileges, false)&authorization.ColumnGrantPrivileges != 0 ||
-						predefinedPrivileges(relation, principals)&authorization.ColumnGrantPrivileges != 0
+						access.PredefinedPrivileges(relation, principals)&authorization.ColumnGrantPrivileges != 0
 					columnPrivilegesChecked = true
 				}
 				if !hasColumnPrivileges && authorization.ACLRights(old, authorization.PrincipalRef{}, principals, authorization.ColumnGrantPrivileges, false)&authorization.ColumnGrantPrivileges == 0 {
@@ -375,7 +376,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			if column.sub <= 0 {
 				continue
 			}
-			next, didChange, err := authorization.ChangeObjectACL(op.Context(), v.roles, old, relation.Owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
+			next, didChange, err := authorization.ChangeObjectACL(op.Context(), v.Roles, old, relation.Owner, source, grantees, available, s.GrantOption, s.Revoke, s.OptionOnly, s.Cascade)
 			if err != nil {
 				return Result{}, err
 			}
@@ -408,7 +409,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			if nextColumns != nil {
 				next.Security.ColumnACL = nextColumns
 			}
-			if err := validateACL(v.roles, next); err != nil {
+			if err := access.ValidateACL(v.Roles, next); err != nil {
 				return Result{}, err
 			}
 			if next.RelationKind == catalog.SequenceRelation {
@@ -419,7 +420,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 				next.SequencePlanStamp = stamp
 			}
 			if candidate == nil {
-				candidate = catalog.CloneState(v.catalog.State())
+				candidate = catalog.CloneState(v.Catalog.State())
 			}
 			candidate.SetDescriptor(address, next)
 		}
@@ -432,10 +433,10 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			return Result{}, err
 		}
 	}
-	if v.roleRecord.revision == ^uint64(0) {
+	if v.RoleRecord.Revision == ^uint64(0) {
 		return Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
-	roles := v.roleRecord.advance()
+	roles := v.RoleRecord.Advance()
 	op.session.mu.Lock()
 	defer op.session.mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {

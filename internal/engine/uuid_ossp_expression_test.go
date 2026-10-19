@@ -276,10 +276,10 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		func(d *catalog.Procedure) { d.RoutineKind = catalog.ProcedureRoutine },
 	} {
 		auth := *evaluation.routineAuthority
-		auth.catalog = auth.catalog.WithState(catalog.CloneState(auth.catalog.State()))
+		auth.Catalog = auth.Catalog.WithState(catalog.CloneState(auth.Catalog.State()))
 		bad := *captured
 		mutate(&bad)
-		auth.catalog.State().SetDescriptor(n.ref.Address, &bad)
+		auth.Catalog.State().SetDescriptor(n.ref.Address, &bad)
 		probe := evaluation
 		probe.routineAuthority = &auth
 		if sameRoutineDeclaration(&bad, captured) || admitRoutineCall(&probe, node, true, false) == nil {
@@ -412,8 +412,8 @@ func TestUUIDOsspRoutineDefaultACL(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		current := auth.catalog.MustProcedure(address)
-		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), address)
+		current := auth.Catalog.MustProcedure(address)
+		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), address)
 		rights, err := auth.Effective(ref, false)
 		if err != nil || current.ACL.Explicit != tc.explicit || (rights&authorization.ExecutePrivilege != 0) != tc.execute || !sameRoutineDeclaration(current, original) {
 			t.Fatal("default/explicit current EXECUTE", tc.sql, current.ACL, rights, err)

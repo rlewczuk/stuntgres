@@ -8,22 +8,22 @@ func refreshRuleActionCTEs(auth AuthorizationView, b binding) (binding, error) {
 	if len(b.ctes) == 0 {
 		return b, nil
 	}
-	mapper := newRuleTreeMapper(auth.catalog, nil, 0, nil, ruleTreeMapping{mutation: func(definition *cteDefinition) (binding, error) {
+	mapper := newRuleTreeMapper(auth.Catalog, nil, 0, nil, ruleTreeMapping{mutation: func(definition *cteDefinition) (binding, error) {
 		body := *definition.mutation
 		// Stored modifier recipes need a private execution workspace even when
 		// catalog identity and every expression are unchanged. This mapper also
 		// visits action-owned descendant definitions and reconnects their scans;
 		// enclosing statement providers never enter this stored-action path.
 		body.conflict = body.conflict.instantiate()
-		if body.ref.Epoch != auth.catalog.Epoch() {
+		if body.ref.Epoch != auth.Catalog.Epoch() {
 			return body, ids.ErrCatalogReplaced
 		}
-		current, ok := auth.catalog.Relation(body.ref.Address)
+		current, ok := auth.Catalog.Relation(body.ref.Address)
 		if !ok {
 			return body, ids.ErrCatalogReplaced
 		}
 		var err error
-		body, err = refreshRuleBinding(auth.catalog, body, current)
+		body, err = refreshRuleBinding(auth.Catalog, body, current)
 		if err != nil {
 			return body, err
 		}

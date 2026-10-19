@@ -105,8 +105,8 @@ func (e *Engine) preparePhysicalNotNullConstructor(op *Operation, raw *parser.Al
 	if err != nil {
 		return nil, err
 	}
-	old, ok := auth.catalog.Relation(ref.Address)
-	if !ok || old.RelationKind != catalog.TableRelation || old.Partition != nil || old.Membership != nil || created[ref.Address] != ref || inheritanceHasChildren(auth.catalog, old.Address()) || slices.ContainsFunc(old.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Primary }) {
+	old, ok := auth.Catalog.Relation(ref.Address)
+	if !ok || old.RelationKind != catalog.TableRelation || old.Partition != nil || old.Membership != nil || created[ref.Address] != ref || inheritanceHasChildren(auth.Catalog, old.Address()) || slices.ContainsFunc(old.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Primary }) {
 		return reject()
 	}
 	seen := make(map[int32]bool, len(repairs))
@@ -142,10 +142,10 @@ func (e *Engine) capturePhysicalNotNullConstructor(op *Operation, constructor *p
 	reject := func() (*restoredPhysicalNotNull, error) {
 		return nil, sqlError("0A000", restorePhysicalNotNullBoundary)
 	}
-	if !partitionConstraintReplayImport(e, op, auth) || constructor.ref.Epoch != auth.catalog.Epoch() {
+	if !partitionConstraintReplayImport(e, op, auth) || constructor.ref.Epoch != auth.Catalog.Epoch() {
 		return reject()
 	}
-	current, ok := auth.catalog.Relation(constructor.ref.Address)
+	current, ok := auth.Catalog.Relation(constructor.ref.Address)
 	if !ok || current == constructor.before || current.Owner != constructor.before.Owner || current.RelationKind != catalog.TableRelation || current.Partition != nil || current.Membership != nil {
 		return reject()
 	}
@@ -189,7 +189,7 @@ func (e *Engine) capturePhysicalNotNullConstructor(op *Operation, constructor *p
 			}
 			if pair.primary == nil {
 				pair.primary = capturePhysicalPrimarySupport(current, primary)
-				if !physicalPrimarySupportValid(auth.catalog, current, primary, pair.primary) {
+				if !physicalPrimarySupportValid(auth.Catalog, current, primary, pair.primary) {
 					return reject()
 				}
 				if constructor.indexName != "" && !physicalImportedIndexMatches(indexes[primary.Index], constructor, current, primary) {
@@ -229,7 +229,7 @@ func (e *Engine) restorePhysicalNotNull(op *Operation, raw *parser.Delete, pair 
 	if err != nil {
 		return err
 	}
-	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
 		return err
 	}
@@ -237,7 +237,7 @@ func (e *Engine) restorePhysicalNotNull(op *Operation, raw *parser.Delete, pair 
 		return sqlError("42501", "permission denied for table pg_constraint")
 	}
 	e.mu.Lock()
-	if !partitionConstraintReplayImport(e, op, auth) || auth.roleRecord != pair.authority.roleRecord || auth.catalog.Epoch() != pair.ref.Epoch || auth.catalog.Get(pair.ref.Address) != pair.current {
+	if !partitionConstraintReplayImport(e, op, auth) || auth.RoleRecord != pair.authority.RoleRecord || auth.Catalog.Epoch() != pair.ref.Epoch || auth.Catalog.Get(pair.ref.Address) != pair.current {
 		e.mu.Unlock()
 		return reject()
 	}
@@ -247,7 +247,7 @@ func (e *Engine) restorePhysicalNotNull(op *Operation, raw *parser.Delete, pair 
 		return err
 	}
 	old := pair.current
-	if ref != pair.ref || old.Partition != nil || old.Membership != nil || inheritanceHasChildren(auth.catalog, old.Address()) {
+	if ref != pair.ref || old.Partition != nil || old.Membership != nil || inheritanceHasChildren(auth.Catalog, old.Address()) {
 		e.mu.Unlock()
 		return reject()
 	}
@@ -273,7 +273,7 @@ func (e *Engine) restorePhysicalNotNull(op *Operation, raw *parser.Delete, pair 
 			e.mu.Unlock()
 			return reject()
 		}
-	} else if !physicalPrimarySupportValid(auth.catalog, old, primary, pair.primary) {
+	} else if !physicalPrimarySupportValid(auth.Catalog, old, primary, pair.primary) {
 		e.mu.Unlock()
 		return reject()
 	}
@@ -300,7 +300,7 @@ func (e *Engine) restorePhysicalNotNull(op *Operation, raw *parser.Delete, pair 
 		next.Constraints.PhysicalNotNull = make(map[int32]catalog.PhysicalNotNullProof)
 	}
 	next.Constraints.PhysicalNotNull[fact.attribute] = catalog.PhysicalNotNullProof{Cause: cause, Usage: fact.usage, Support: pair.primary}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -62,7 +63,7 @@ func (e *Engine) foreignProcedureLocked(auth AuthorizationView, name *parser.Obj
 	if err != nil {
 		return nil, err
 	}
-	p := procedureInNamespaces(auth.catalog, path, name.Parts[len(name.Parts)-1].Text, signature)
+	p := procedureInNamespaces(auth.Catalog, path, name.Parts[len(name.Parts)-1].Text, signature)
 	if p == nil {
 		args := ""
 		if signature == catalog.ForeignValidatorSignature {
@@ -86,14 +87,14 @@ func foreignMappedRole(auth AuthorizationView, role parser.GrantGrantee) (author
 	if role.Public {
 		return authorization.PrincipalRef{}, nil
 	}
-	name, identity := ownershipRoleOperand(role.Role)
-	return schemaOwner(auth.accessView, name, identity)
+	name, identity := access.OwnershipRoleOperand(role.Role)
+	return access.SchemaOwner(auth.accessView, name, identity)
 }
 func foreignMappingAuthority(auth AuthorizationView, server *catalog.ForeignObject, role authorization.PrincipalRef) error {
 	if err := auth.Check(AccessRequirement{Object: foreignRef(auth, server), OwnerOnly: true}); err == nil {
 		return nil
 	}
-	if role == auth.state.CurrentUser {
+	if role == auth.State.CurrentUser {
 		return auth.Check(AccessRequirement{Object: foreignRef(auth, server), Privileges: authorization.UsagePrivilege})
 	}
 	return sqlError("42501", "must be owner of foreign server "+server.Name())
@@ -143,7 +144,7 @@ func (e *Engine) executeForeignDDL(scope *StatementScope, s *parser.ForeignDDL, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
 	jobs, roots, err := e.stageForeignLocked(scope, auth, stage, s)
 	e.mu.Unlock()
@@ -173,14 +174,14 @@ func (e *Engine) executeForeignDDL(scope *StatementScope, s *parser.ForeignDDL, 
 
 func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, s *parser.ForeignDDL) ([]foreignValidation, []ids.ObjectAddress, error) {
 	op := scope.op
-	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
 		return nil, nil, err
 	}
 	var successor authorization.PrincipalRef
 	if s.Owner != nil {
-		targetName, identity := ownershipRoleOperand(*s.Owner)
-		successor, err = schemaOwner(auth.accessView, targetName, identity)
+		targetName, identity := access.OwnershipRoleOperand(*s.Owner)
+		successor, err = access.SchemaOwner(auth.accessView, targetName, identity)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -215,7 +216,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 			}
 			return nil, nil, err
 		}
-		server, err = findForeign(auth.catalog, ids.ForeignServerClassID, s.Server.Text)
+		server, err = findForeign(auth.Catalog, ids.ForeignServerClassID, s.Server.Text)
 		if err != nil {
 			if s.Action == "drop" && s.IfExists {
 				schemaNotice(op, "00000", fmt.Sprintf(`server "%s" does not exist, skipping`, s.Server.Text))
@@ -228,7 +229,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		}
 		name = catalog.ForeignMappingName(server.Address(), role)
 		stage.domainBases = append(stage.domainBases, server)
-		wrapper, _ = auth.catalog.Foreign(server.Wrapper)
+		wrapper, _ = auth.Catalog.Foreign(server.Wrapper)
 	}
 	if s.Action == "drop" {
 		names := s.Names
@@ -240,7 +241,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 			if len(n.Parts) != 1 {
 				return nil, nil, sqlError("42601", "SQL/MED global names cannot be qualified")
 			}
-			d, er := findForeign(auth.catalog, class, n.Parts[0].Text)
+			d, er := findForeign(auth.Catalog, class, n.Parts[0].Text)
 			if er != nil {
 				if class == ids.ForeignMappingClassID {
 					message := foreignMappingDiagnostic(auth, role, server, false)
@@ -268,7 +269,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		}
 		return nil, roots, nil
 	}
-	old, _ = findForeign(auth.catalog, class, name)
+	old, _ = findForeign(auth.Catalog, class, name)
 	if s.Action == "create" && old != nil {
 		message := fmt.Sprintf(`%s "%s" already exists`, foreignLabel(class), name)
 		if class == ids.ForeignMappingClassID {
@@ -284,7 +285,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		if class == ids.ForeignMappingClassID {
 			return nil, nil, sqlError("42704", foreignMappingDiagnostic(auth, role, server, false))
 		}
-		_, err = findForeign(auth.catalog, class, name)
+		_, err = findForeign(auth.Catalog, class, name)
 		return nil, nil, err
 	}
 	var next catalog.ForeignObject
@@ -300,7 +301,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		if er != nil {
 			return nil, nil, er
 		}
-		next = catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: class, ObjectID: oid}, ObjectName: name, Owner: auth.state.CurrentUser}
+		next = catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: class, ObjectID: oid}, ObjectName: name, Owner: auth.State.CurrentUser}
 	}
 	next.ObjectRevision, err = e.catalog.revisionLocked()
 	if err != nil {
@@ -333,7 +334,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		wrapper = &next
 	case ids.ForeignServerClassID:
 		if old == nil {
-			wrapper, err = findForeign(auth.catalog, ids.ForeignWrapperClassID, s.Server.Text)
+			wrapper, err = findForeign(auth.Catalog, ids.ForeignWrapperClassID, s.Server.Text)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -343,7 +344,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 			next.Wrapper = wrapper.Address()
 			next.ServerType = s.ServerType
 		} else {
-			wrapper, _ = auth.catalog.Foreign(old.Wrapper)
+			wrapper, _ = auth.Catalog.Foreign(old.Wrapper)
 		}
 		if s.VersionSet {
 			next.Version = s.Version
@@ -354,7 +355,7 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 		next.Owner = role
 		next.MappedName = "public"
 		if role != (authorization.PrincipalRef{}) {
-			mapped, er := auth.roles.Descriptor(role)
+			mapped, er := auth.Roles.Descriptor(role)
 			if er != nil {
 				return nil, nil, er
 			}
@@ -441,7 +442,7 @@ func foreignCommandTag(s *parser.ForeignDDL) string {
 func foreignMappingDiagnostic(auth AuthorizationView, role authorization.PrincipalRef, server *catalog.ForeignObject, exists bool) string {
 	name := "public"
 	if role != (authorization.PrincipalRef{}) {
-		if descriptor, ok := auth.roles.Find(role); ok {
+		if descriptor, ok := auth.Roles.Find(role); ok {
 			name = descriptor.Name
 		}
 	}
@@ -453,7 +454,7 @@ func foreignMappingDiagnostic(auth AuthorizationView, role authorization.Princip
 }
 
 func foreignOwnershipEligibility(auth AuthorizationView, object *catalog.ForeignObject, target authorization.PrincipalRef) error {
-	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
 		return err
 	}
@@ -466,7 +467,7 @@ func foreignOwnershipEligibility(auth AuthorizationView, object *catalog.Foreign
 		if !actor.Superuser {
 			return failure("Must be superuser to change owner of a foreign-data wrapper.")
 		}
-		recipient, err := auth.roles.Descriptor(target)
+		recipient, err := auth.Roles.Descriptor(target)
 		if err != nil {
 			return err
 		}
@@ -481,14 +482,14 @@ func foreignOwnershipEligibility(auth AuthorizationView, object *catalog.Foreign
 	if err = auth.Check(AccessRequirement{Object: foreignRef(auth, object), OwnerOnly: true}); err != nil {
 		return err
 	}
-	if err = ownershipEligibility(auth.accessView, auth, target, ids.ObjectAddress{}); err != nil {
+	if err = access.OwnershipEligibility(auth.accessView, auth, target, ids.ObjectAddress{}); err != nil {
 		return err
 	}
-	wrapper, ok := auth.catalog.Foreign(object.Wrapper)
+	wrapper, ok := auth.Catalog.Foreign(object.Wrapper)
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
 	recipient := auth
-	recipient.state.CurrentUser = target
+	recipient.State.CurrentUser = target
 	return recipient.Check(AccessRequirement{Object: foreignRef(recipient, wrapper), Privileges: authorization.UsagePrivilege})
 }

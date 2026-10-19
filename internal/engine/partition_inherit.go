@@ -29,14 +29,14 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	for _, column := range parent.Columns {
 		typ := column.Usage.Type
 		if typ.IsUserDefined() || typ.IsArray() && typ.Element().IsDomain() {
-			ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
+			ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
 			if err := auth.CanUse(ref); err != nil {
 				return nil, err
 			}
-			stage.domainBases = append(stage.domainBases, auth.catalog.Get(ref.Address))
+			stage.domainBases = append(stage.domainBases, auth.Catalog.Get(ref.Address))
 		}
 	}
-	d, err := e.newTableDescriptorLocked(namespace, name, auth.state.CurrentUser, slices.Clone(parent.Columns), nil)
+	d, err := e.newTableDescriptorLocked(namespace, name, auth.State.CurrentUser, slices.Clone(parent.Columns), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 		}
 		declarations[slot] = declaration
 	}
-	uniques, err := bindCreateUniques(syntax, d.Index, nil, auth.catalog)
+	uniques, err := bindCreateUniques(syntax, d.Index, nil, auth.Catalog)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	if err != nil {
 		return nil, err
 	}
-	if err = nameCreateNotNull(d, auth.catalog); err != nil {
+	if err = nameCreateNotNull(d, auth.Catalog); err != nil {
 		return nil, err
 	}
 	for i := range d.Constraints.NotNull {
@@ -101,8 +101,8 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	if err = e.stageCreateIdentities(auth, stage, d, syntax); err != nil {
 		return nil, err
 	}
-	auth.catalog = e.stageRead(stage)
-	auth.Recapture(auth.catalog)
+	auth.Catalog = e.stageRead(stage)
+	auth.Recapture(auth.Catalog)
 	binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
 	binder.queryAuth = &auth
 	localDefaults, err := bindCreateDefaults(binder, d.Columns, declarations)
@@ -141,7 +141,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 					old.Address.SubID = d.Attributes[parent.IndexForAttribute(attribute)]
 				}
 				old = e.catalog.Domain.Ref(old.Epoch, old.Address)
-				old.Epoch = auth.catalog.Epoch()
+				old.Epoch = auth.Catalog.Epoch()
 			}
 			return old
 		}
@@ -156,7 +156,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 				return nil, err
 			}
 			var refs []ids.ObjectRef
-			_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &refs, commentSnapshot: &definition.CommentSnapshot, visibilitySnapshot: &definition.VisibilitySnapshot}).sql(op.Context(), auth.catalog, definition.Expression)
+			_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.Roles}, owner: d, dependencies: &refs, commentSnapshot: &definition.CommentSnapshot, visibilitySnapshot: &definition.VisibilitySnapshot}).sql(op.Context(), auth.Catalog, definition.Expression)
 			if err != nil {
 				return nil, err
 			}
@@ -165,7 +165,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 				address := ref.Address
 				address.SubID = 0
 				revision := d.Revision()
-				if object, ok := auth.catalog.Descriptor(address); ok {
+				if object, ok := auth.Catalog.Descriptor(address); ok {
 					revision = object.Revision()
 				}
 				definition.Dependencies = append(definition.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: revision})

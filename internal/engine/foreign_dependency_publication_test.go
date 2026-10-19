@@ -87,7 +87,7 @@ func fdwPrepareLateUnitDrop(t *testing.T, e *Engine, scope *StatementScope, quer
 		var auth AuthorizationView
 		auth, err = e.authorizationLocked(scope.op)
 		if err == nil {
-			stage = e.BeginCatalogStage(auth.catalog)
+			stage = e.BeginCatalogStage(auth.Catalog)
 			stage.authorizeLocked(auth, scope.op.session)
 			_, roots, err = e.stageForeignLocked(scope, auth, stage, foreign)
 		}

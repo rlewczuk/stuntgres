@@ -183,7 +183,7 @@ func TestDefaultPrivilegesControls(t *testing.T) {
 	// dump/restore fail, nor require a broadened generic TypeObject fallback.
 	stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 	f.schema = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	f.owner = f.e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	f.owner = f.e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	table := defaultUnitTable(t, f, stage, "pristine", f.owner)
 	if err = defaultUnitPublish(t, f.e, stage); err != nil {
 		t.Fatal(err)

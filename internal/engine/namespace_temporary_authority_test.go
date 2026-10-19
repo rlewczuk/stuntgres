@@ -34,7 +34,7 @@ func TestPGNamespaceTemporarySuperuserAuthority(t *testing.T) {
 				defaultUnitDiagnostic(t, err, "42501", "permission denied for schema "+name)
 			}
 		}
-		if temporaryNamespace(auth) != (ids.ObjectAddress{}) || ownTemporaryNamespace(auth, auth.catalog.MustNamespace(namespace)) {
+		if temporaryNamespace(auth) != (ids.ObjectAddress{}) || ownTemporaryNamespace(auth, auth.Catalog.MustNamespace(namespace)) {
 			t.Fatal("qualified usage granted physical namespace adoption")
 		}
 	}
@@ -44,7 +44,7 @@ func TestPGNamespaceTemporarySuperuserAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ordinary.state.Authenticated != superuser.state.Authenticated || ordinary.state.CurrentUser == superuser.state.CurrentUser {
+	if ordinary.State.Authenticated != superuser.State.Authenticated || ordinary.State.CurrentUser == superuser.State.CurrentUser {
 		t.Fatal("SET ROLE did not preserve bootstrap authenticator and change actor")
 	}
 	check(ordinary, false)
@@ -59,7 +59,7 @@ func TestPGNamespaceTemporarySuperuserAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	check(retired, true)
-	if retired.catalog.Get(toast) != superuser.catalog.Get(toast) {
+	if retired.Catalog.Get(toast) != superuser.Catalog.Get(toast) {
 		t.Fatal("retirement changed captured toast identity")
 	}
 	roleErrorPosition(t, e, peer, "SELECT i FROM "+name+".namespace_usage_object", "42P01", `relation "`+name+`.namespace_usage_object" does not exist`, "", "15")

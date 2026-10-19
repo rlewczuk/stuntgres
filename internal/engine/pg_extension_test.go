@@ -26,7 +26,7 @@ func pgExtensionUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.Obje
 func pgExtensionUnitShape(t *testing.T, e *Engine) *catalog.Relation {
 	t.Helper()
 	d, _ := pgExtensionUnitSource(t, e)
-	owner := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	if d.Name() != "pg_extension" || d.Namespace().ObjectID != 11 || d.RelationKind != catalog.CatalogRelation || d.ColumnMeta.HighWater != 8 || len(d.Columns) != 8 || d.Owner != owner || owner.ID() != 10 {
 		t.Fatal("relation identity", d, owner)
 	}

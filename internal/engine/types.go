@@ -171,7 +171,7 @@ func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage,
 		if err != nil {
 			return sqltype.Usage{}, err
 		}
-		if err := auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())})); err != nil {
+		if err := auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())})); err != nil {
 			return sqltype.Usage{}, err
 		}
 	}
@@ -203,11 +203,11 @@ func (e *Engine) resolveTableColumnType(raw parser.TypeName, op *Operation) (sql
 	if authErr != nil {
 		return sqltype.Usage{}, authErr
 	}
-	bootstrap, authErr := auth.roles.Descriptor(auth.state.Authenticated)
+	bootstrap, authErr := auth.Roles.Descriptor(auth.State.Authenticated)
 	if authErr != nil || !bootstrap.Superuser || e.importTargets == nil {
 		return sqltype.Usage{}, fmt.Errorf("stuntgres: invalid trusted restore column authority")
 	}
-	typ, ok := auth.catalog.LookupType(privateScalar)
+	typ, ok := auth.Catalog.LookupType(privateScalar)
 	if !ok || !typ.Concrete() || typ.IsUserDefined() {
 		return sqltype.Usage{}, fmt.Errorf("stuntgres: missing builtin restore column type")
 	}

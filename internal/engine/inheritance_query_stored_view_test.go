@@ -97,7 +97,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				}
 				d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: 1, Owner: parent.Owner, RelationKind: catalog.ViewRelation, View: viewPayloadOf(definition), Columns: append([]catalog.Column(nil), b.query.Root.Schema()...), Index: map[string]int{"i": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 				d.Columns[0].OriginTable, d.Columns[0].OriginAttribute = uint32(oid), 1
-				viewStage := e.BeginCatalogStage(auth.catalog)
+				viewStage := e.BeginCatalogStage(auth.Catalog)
 				bindErr = e.stageRowTypeLocked(viewStage, d)
 				if bindErr == nil {
 					bindErr = viewStage.Create(d)
@@ -252,7 +252,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			e.mu.Lock()
 			catalog := scope.inheritanceRead(e.privateCatalogLocked(scope.owner.catalog))
 			collectAuth.Recapture(catalog)
-			refs, captureErr := e.queryTableRefsLocked(collectAuth, collectAuth.state.CurrentUser, scope.querySources, nil, op.session.token, queryRowMark{})
+			refs, captureErr := e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, scope.querySources, nil, op.session.token, queryRowMark{})
 			var snapshot *VisibilityView
 			if captureErr == nil {
 				snapshot, captureErr = scope.acquireDataViewsLocked(e, refs)

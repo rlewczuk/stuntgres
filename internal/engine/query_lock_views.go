@@ -337,7 +337,7 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 }
 
 func (v AuthorizationView) checkViewRowMarks(d *catalog.Relation, inherited queryRowMark, invoker authorization.PrincipalRef) error {
-	if _, err := validateViewReadGraph(v.catalog, []queryLeaf{{relation: d}}); err != nil {
+	if _, err := validateViewReadGraph(v.Catalog, []queryLeaf{{relation: d}}); err != nil {
 		return err
 	}
 	return v.checkViewRowMarksExpanded(d, inherited, invoker)
@@ -354,11 +354,11 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *catalog.Relation, inheri
 	if viewOf(d).invoker {
 		principal = invoker
 	}
-	v.state.CurrentUser = principal
+	v.State.CurrentUser = principal
 	for i, leaf := range viewOf(d).sources {
 		mark := viewLeafRowMark(viewOf(d), i, inherited)
-		child, ok := v.catalog.Relation(leaf.ref.Address)
-		if !ok || !storedViewReferenceValid(v.catalog, d, leaf.ref) {
+		child, ok := v.Catalog.Relation(leaf.ref.Address)
+		if !ok || !storedViewReferenceValid(v.Catalog, d, leaf.ref) {
 			return ids.ErrCatalogReplaced
 		}
 		indices := make([]int, 0, len(leaf.reads))
@@ -375,7 +375,7 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *catalog.Relation, inheri
 				return fmt.Errorf("stuntgres: missing view source attribute")
 			}
 		}
-		use, err := storedViewUseReference(v.catalog, d, leaf.ref)
+		use, err := storedViewUseReference(v.Catalog, d, leaf.ref)
 		if err != nil {
 			return err
 		}

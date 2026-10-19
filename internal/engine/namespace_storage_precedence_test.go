@@ -111,12 +111,12 @@ func TestPGNamespaceViewStoragePrecedence(t *testing.T) {
 	denied := namespaceCapturedAuthorization(t, peer)
 	collect := func(auth AuthorizationView, viewName, code, message string) {
 		t.Helper()
-		address := auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: viewName})
-		relation := auth.catalog.MustRelation(address)
-		leaf := queryLeaf{ref: e.catalog.Domain.Ref(auth.catalog.Epoch(), address), relation: relation}
+		address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: viewName})
+		relation := auth.Catalog.MustRelation(address)
+		leaf := queryLeaf{ref: e.catalog.Domain.Ref(auth.Catalog.Epoch(), address), relation: relation}
 		before, sequence, oid, revision := e.catalog.state, e.visibility.commitSeq, e.catalog.nextOID, e.catalog.nextRevision
 		e.mu.Lock()
-		refs, err := e.queryTableRefsLocked(auth, auth.state.CurrentUser, []queryLeaf{leaf}, nil, peer.token, queryRowMark{})
+		refs, err := e.queryTableRefsLocked(auth, auth.State.CurrentUser, []queryLeaf{leaf}, nil, peer.token, queryRowMark{})
 		e.mu.Unlock()
 		defaultUnitDiagnostic(t, err, code, message)
 		if len(refs) != 0 || e.catalog.state != before || e.visibility.commitSeq != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[base] != store || !sameVersionRoot(store.Versions, root) || store.Ends != ends || peer.temporaryNamespace != (ids.ObjectAddress{}) || peer.transactions.accessedTemporary {

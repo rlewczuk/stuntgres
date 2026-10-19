@@ -14,11 +14,11 @@ func parameterSetAllowed(op *Operation, name string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	role, exists := view.roles.Find(view.state.CurrentUser)
+	role, exists := view.Roles.Find(view.State.CurrentUser)
 	if exists && role.Superuser {
 		return true, nil
 	}
-	address := view.catalog.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: settingFold(name)})
+	address := view.Catalog.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: settingFold(name)})
 	if address == (ids.ObjectAddress{}) {
 		return false, nil
 	}

@@ -18,9 +18,9 @@ func TestCompositeAlterDescriptorCandidate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), source.Address())
+	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), source.Address())
 	action := parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: "note"}}
 	usage := testUsage(e, sqltype.Int4)
 	e.mu.Lock()

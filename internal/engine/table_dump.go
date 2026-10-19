@@ -164,7 +164,7 @@ func (e *Engine) validateRestoredDefault(op *Operation, s *parser.AlterTableDefa
 	if err != nil {
 		return err
 	}
-	d := auth.catalog.MustRelation(ref.Address)
+	d := auth.Catalog.MustRelation(ref.Address)
 	if inheritedDefaultReplay(s, d) {
 		return nil
 	}

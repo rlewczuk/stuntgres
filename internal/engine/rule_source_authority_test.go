@@ -32,10 +32,10 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					owner := auth.state.CurrentUser
-					actor, _ := auth.roles.Lookup("pg_monitor")
-					reader, _ := auth.roles.Lookup("pg_read_all_data")
-					auth.state.CurrentUser = actor.Ref
+					owner := auth.State.CurrentUser
+					actor, _ := auth.Roles.Lookup("pg_monitor")
+					reader, _ := auth.Roles.Lookup("pg_read_all_data")
+					auth.State.CurrentUser = actor.Ref
 					src.Owner, sink.Owner = owner, owner
 					src.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.SelectPrivilege, Grantor: owner}}}
 					input := *src
@@ -44,9 +44,9 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					next := catalog.CloneState(e.catalog.state)
 					next.SetDescriptor(input.Address(), &input)
 					e.catalog.state = next
-					auth.catalog = e.catalog.read(next)
-					auth.pairedCatalog = auth.catalog
-					auth.roles = e.roles.read(e.catalog.owner(), auth.catalog, auth.roleRecord)
+					auth.Catalog = e.catalog.read(next)
+					auth.PairedCatalog = auth.Catalog
+					auth.Roles = e.roles.read(e.catalog.owner(), auth.Catalog, auth.RoleRecord)
 					inputRef, lookupRef := ruleUnitRef(e, &input), ruleUnitRef(e, sink)
 					original := ruleUnitInsert(e, src, 1, 10).binding
 					original.querySources = []queryLeaf{{ref: inputRef, relation: &input, uses: []int{0}}}

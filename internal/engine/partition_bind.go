@@ -56,12 +56,12 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *cat
 				return nil, partitionGeneratedError(diagnostic, r.Pos, key.Label)
 			}
 		} else {
-			ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
+			ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
 			columns := make([]queryColumn, len(d.Columns))
 			for j, c := range d.Columns {
 				columns[j] = queryColumn{descriptor: c, slot: j, leaf: 0, physical: j}
 			}
-			namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: d.Name(), original: d.Name(), schema: auth.catalog.Get(d.Namespace()).Name(), ref: ref, columns: columns}}, frame: d.Columns}
+			namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: d.Name(), original: d.Name(), schema: auth.Catalog.Get(d.Namespace()).Name(), ref: ref, columns: columns}}, frame: d.Columns}
 			binder := newExpressionBinder(op.Context(), e, input, op, nil)
 			binder.partitionConsumer, binder.noParameters, binder.queryAuth = "partition key expression", true, &auth
 			binder.queryNamespace = &namespace
@@ -70,7 +70,7 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *cat
 			if err != nil {
 				return nil, err
 			}
-			evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: binder.input, catalog: auth.catalog}
+			evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: binder.input, catalog: auth.Catalog}
 			planned, _, err := preflightCoercionsWithPolicy(&evaluation, node, true)
 			if err != nil {
 				return nil, err
@@ -87,7 +87,7 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *cat
 				}
 			}
 			key.Derived = &catalog.DerivedIndexKey{Definition: node, Execution: planned, Attributes: d.Attributes}
-			text, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &key.Derived.Dependencies}).sql(op.Context(), auth.catalog, node)
+			text, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.Roles}, owner: d, dependencies: &key.Derived.Dependencies}).sql(op.Context(), auth.Catalog, node)
 			if err != nil {
 				return nil, err
 			}
@@ -171,10 +171,10 @@ func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, d
 	if err != nil {
 		return nil, err
 	}
-	if auth.catalog.Epoch() != p.auth.catalog.Epoch() {
+	if auth.Catalog.Epoch() != p.auth.Catalog.Epoch() {
 		return nil, ids.ErrCatalogReplaced
 	}
-	if auth.revision != p.stage.authRevision || auth.roleRecord.revision != p.stage.roleRevision {
+	if auth.Revision != p.stage.authRevision || auth.RoleRecord.Revision != p.stage.roleRevision {
 		return nil, fmt.Errorf("stuntgres: authorization changed before publication")
 	}
 	binder := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)

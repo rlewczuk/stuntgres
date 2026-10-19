@@ -102,7 +102,7 @@ func TestTableLikeInvalidIndexDescriptors(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	candidate := catalog.CloneState(auth.catalog.State())
+	candidate := catalog.CloneState(auth.Catalog.State())
 	for _, name := range []string{"invalid_source", "dropping_source"} {
 		ref := ids.ObjectRef{Address: candidate.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name})}
 		original := candidate.MustRelation(ref.Address)
@@ -115,11 +115,11 @@ func TestTableLikeInvalidIndexDescriptors(t *testing.T) {
 		copy.SQLIndex = &definition
 		candidate.SetDescriptor(ref.Address, &copy)
 	}
-	auth.catalog = e.catalog.read(candidate)
-	auth.Recapture(auth.catalog)
-	stage := e.BeginCatalogStage(auth.catalog)
+	auth.Catalog = e.catalog.read(candidate)
+	auth.Recapture(auth.Catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	syntax := statement(t, "CREATE TABLE clone(LIKE src INCLUDING INDEXES)").(*parser.CreateTable)
-	err = e.schemaTableLocked(op, auth, stage, syntax, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
+	err = e.schemaTableLocked(op, auth, stage, syntax, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

@@ -61,7 +61,7 @@ func (e *Engine) captureOperatorInput(auth AuthorizationView, op *Operation) (ca
 	if err != nil {
 		return capturedOperatorInput{}, err
 	}
-	return capturedOperatorInput{types: types, path: path, groups: collectOperatorGroups(auth.catalog)}, nil
+	return capturedOperatorInput{types: types, path: path, groups: collectOperatorGroups(auth.Catalog)}, nil
 }
 func (r capturedOperatorInput) OperatorParameter(slot int, empty bool) sqltype.OperatorResolver {
 	r.types = r.types.RegtypeParameter(slot, empty).(capturedRegtypeInput)
@@ -76,7 +76,7 @@ func (r capturedOperatorInput) numeric(ctx context.Context, text string) (uint32
 			return 0, false, nil
 		}
 	}
-	oid, _ := r.types.auth.catalog.LookupType(sqltype.Oid)
+	oid, _ := r.types.auth.Catalog.LookupType(sqltype.Oid)
 	v, err := oid.Input(ctx, text, -1)
 	if err != nil {
 		return 0, true, err
@@ -106,7 +106,7 @@ func (r capturedOperatorInput) candidates(text string) ([]*catalog.Operator, err
 	}
 	path := r.path
 	if len(parts) == 2 {
-		ns := r.types.auth.catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text})
+		ns := r.types.auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text})
 		if parts[0].Text == "pg_temp" {
 			ns = r.types.temporary
 		}

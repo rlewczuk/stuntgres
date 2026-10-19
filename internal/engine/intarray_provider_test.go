@@ -7,6 +7,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -65,7 +66,7 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 		if member == nil || member.Namespace() != ext.TargetNamespace || extensionMembership(member) != ext.Address() {
 			t.Fatal("membership", address)
 		}
-		owner, _, _ := descriptorACL(member)
+		owner, _, _ := access.DescriptorACL(member)
 		if owner != ext.Owner {
 			t.Fatal("owner", address)
 		}
@@ -250,7 +251,7 @@ func intarrayUnitTemporaryNamespace(t *testing.T, e *Engine, op *Operation) *cat
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
 	for _, descriptor := range changes.descriptors {
 		if err := stage.Create(descriptor); err != nil {

@@ -90,7 +90,7 @@ func TestUserOperatorCatalogEstimatorReleasedIdentity(t *testing.T) {
 		if err != nil || id != tc.want || releasedOperatorEstimatorResult(id) != 701 {
 			t.Fatal(id, err)
 		}
-		if _, callable := auth.catalog.Find(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}); callable {
+		if _, callable := auth.Catalog.Find(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}); callable {
 			t.Fatal("estimator identity fabricated a callable declaration", id)
 		}
 	}

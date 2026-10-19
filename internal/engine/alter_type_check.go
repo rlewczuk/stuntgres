@@ -71,7 +71,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 	for i, column := range next.Columns {
 		columns[i] = queryColumn{descriptor: column, slot: i, leaf: 0, physical: i}
 	}
-	qualifier := queryQualifier{name: next.Name(), original: next.Name(), schema: auth.catalog.Get(next.Namespace()).Name(), ref: ref, columns: columns}
+	qualifier := queryQualifier{name: next.Name(), original: next.Name(), schema: auth.Catalog.Get(next.Namespace()).Name(), ref: ref, columns: columns}
 	namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: next.Columns}
 	var ordered []catalog.CheckConstraint
 	for _, pending := range queue {
@@ -101,21 +101,21 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 		definition.OID = 0 // Affected TYPE definitions get a new logical identity.
 		definition.Expression, definition.Dependencies, definition.CommentSnapshot, definition.VisibilitySnapshot = node, nil, false, false
 		var dependencies []ids.ObjectRef
-		if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: &replacement, dependencies: &dependencies, commentSnapshot: &definition.CommentSnapshot, visibilitySnapshot: &definition.VisibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
+		if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.Roles}, owner: &replacement, dependencies: &dependencies, commentSnapshot: &definition.CommentSnapshot, visibilitySnapshot: &definition.VisibilitySnapshot}).sql(op.Context(), auth.Catalog, node); err != nil {
 			return nil, nil, err
 		}
 		for _, dependency := range dependencies {
 			address := dependency.Address
 			address.SubID = 0
 			revision := replacement.Revision()
-			if descriptor, exists := auth.catalog.Descriptor(address); exists {
+			if descriptor, exists := auth.Catalog.Descriptor(address); exists {
 				revision = descriptor.Revision()
 			}
 			definition.Dependencies = append(definition.Dependencies, catalog.ExpressionDependency{Ref: dependency, Revision: revision})
 		}
 		replacement.Constraints.Check[pending.index] = definition
 	}
-	if err := refreshGenerationChecks(&replacement, auth.catalog); err != nil {
+	if err := refreshGenerationChecks(&replacement, auth.Catalog); err != nil {
 		return nil, nil, err
 	}
 	for _, pending := range queue {

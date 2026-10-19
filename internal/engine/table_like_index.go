@@ -26,7 +26,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 			continue
 		}
 		var sources []*catalog.Relation
-		for _, descriptor := range auth.catalog.Descriptors() {
+		for _, descriptor := range auth.Catalog.Descriptors() {
 			index, ok := descriptor.(*catalog.Relation)
 			if ok && index.SQLIndex != nil && index.SQLIndex.Parent == in.source.Address() && index.SQLIndex.Live {
 				sources = append(sources, index)
@@ -73,33 +73,33 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 					key.Attribute = mapped
 					continue
 				}
-				node, err := in.remap(key.Derived.Definition, destination, auth.catalog)
+				node, err := in.remap(key.Derived.Definition, destination, auth.Catalog)
 				if err != nil {
 					return err
 				}
-				execution, err := in.remap(key.Derived.Execution, destination, auth.catalog)
+				execution, err := in.remap(key.Derived.Execution, destination, auth.Catalog)
 				if err != nil {
 					return err
 				}
 				derived := &catalog.DerivedIndexKey{Definition: node, Execution: execution, Attributes: destination.Attributes}
-				if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &derived.Dependencies}).sql(op.Context(), auth.catalog, node); err != nil {
+				if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.Roles}, owner: destination, dependencies: &derived.Dependencies}).sql(op.Context(), auth.Catalog, node); err != nil {
 					return err
 				}
 				key.Derived = derived
 			}
 			if old.Predicate != nil {
-				node, err := in.remap(old.Predicate.Definition, destination, auth.catalog)
+				node, err := in.remap(old.Predicate.Definition, destination, auth.Catalog)
 				if err != nil {
 					return err
 				}
-				execution, err := in.remap(old.Predicate.Execution, destination, auth.catalog)
+				execution, err := in.remap(old.Predicate.Execution, destination, auth.Catalog)
 				if err != nil {
 					return err
 				}
 				predicate := &catalog.IndexPredicate{Definition: node, Execution: execution, Attributes: destination.Attributes}
 				// The analyzed tree retains external dependencies even when the
 				// execution tree has folded their containing arm away.
-				if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: destination, dependencies: &predicate.Dependencies}).sql(op.Context(), auth.catalog, node); err != nil {
+				if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.Roles}, owner: destination, dependencies: &predicate.Dependencies}).sql(op.Context(), auth.Catalog, node); err != nil {
 					return err
 				}
 				definition.Predicate = predicate

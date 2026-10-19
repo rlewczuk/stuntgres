@@ -178,7 +178,7 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 		// parameter-only binding. Borrow the original actual manifest without
 		// replacing the statement's main-query authority or dependencies.
 		var actualProgram routineAdmissionProgram
-		evaluation := EvalContext{Context: ctx, statementScope: s, catalog: auth.catalog, Input: input, Output: s.output, routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies, routineProgram: &actualProgram}
+		evaluation := EvalContext{Context: ctx, statementScope: s, catalog: auth.Catalog, Input: input, Output: s.output, routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies, routineProgram: &actualProgram}
 		for _, node := range nodes {
 			if sqltype.ContainsDomainChecks(node.ResultUsage().Type) {
 				evaluation.Input.DomainChecks = &evaluation
@@ -190,7 +190,7 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 			if err != nil {
 				return err
 			}
-			if err := validateExpressionJoinExecution(&evaluation, prepared, auth.catalog); err != nil {
+			if err := validateExpressionJoinExecution(&evaluation, prepared, auth.Catalog); err != nil {
 				return err
 			}
 			nodes[i] = prepared
@@ -227,7 +227,7 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 		if err != nil {
 			return err
 		}
-		if err := validateCapturedInputBinding(auth.catalog, current.catalog, binder.dependencies); err != nil {
+		if err := validateCapturedInputBinding(auth.Catalog, current.Catalog, binder.dependencies); err != nil {
 			return err
 		}
 		e.mu.Unlock()

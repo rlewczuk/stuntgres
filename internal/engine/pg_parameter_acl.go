@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -27,7 +28,7 @@ func (e *Engine) capturePGParameterACL(ctx context.Context, view catalog.Read, r
 		if err := (parameterProvider{e.settingsDefinitions}).Validate(view, d); err != nil {
 			return nil, err
 		}
-		if err := validateACL(roles, d); err != nil {
+		if err := access.ValidateACL(roles, d); err != nil {
 			return nil, err
 		}
 		id, err := sqltype.OIDValue(source.Columns[0].Usage.Type, uint32(d.Address().ObjectID))

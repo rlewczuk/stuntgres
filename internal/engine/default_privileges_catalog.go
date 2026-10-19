@@ -96,40 +96,6 @@ func (s *CatalogStage) removeSchemaDefaults(schema ids.ObjectAddress) {
 		s.DefaultACLs[key] = nil
 	}
 }
-func defaultRoleDependencies(view catalog.Read, roles authorization.Read, ref authorization.PrincipalRef, deps *[]roleDependency) bool {
-	for key, record := range view.State().DefaultACLs() {
-		kind := byte('a')
-		dependent := key.Creator == ref
-		if dependent {
-			kind = 'o'
-		} else {
-			for _, entry := range record.ACL.Entries {
-				if entry.Grantor == ref || !entry.Grantee.Public && entry.Grantee.Role == ref {
-					dependent = true
-					break
-				}
-			}
-		}
-		if !dependent {
-			continue
-		}
-		if deps == nil {
-			return true
-		}
-		creator, _ := roles.Descriptor(key.Creator)
-		class := [...]string{"", "relations", "sequences", "functions", "types", "schemas", "large objects"}[key.Class]
-		description := "default privileges on new " + class + " belonging to role " + creator.Name
-		if key.Schema != (ids.ObjectAddress{}) {
-			description += " in schema " + view.Get(key.Schema).Name()
-		}
-		prefix := "privileges for "
-		if kind == 'o' {
-			prefix = "owner of "
-		}
-		*deps = append(*deps, roleDependency{kind: kind, description: prefix + description})
-	}
-	return false
-}
 func (e *Engine) creationACLChangesLocked(c *catalogChanges, view catalog.Read, owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
 	for _, namespace := range []ids.ObjectAddress{{}, schema} {
 		key := catalog.DefaultACLKey{Creator: owner, Schema: namespace, Class: class}

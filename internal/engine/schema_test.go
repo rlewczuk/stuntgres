@@ -229,7 +229,7 @@ func TestSchemaAuthorizationAndIndependentOwners(t *testing.T) {
 	roleError(t, e, admin, "ALTER SCHEMA owned RENAME TO renamed", "42501", "permission denied for database stuntgres", "")
 	roleExecute(t, e, admin, "ALTER SCHEMA owned OWNER TO owner")
 	roleExecute(t, e, admin, "RESET SESSION AUTHORIZATION")
-	bootstrap := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	bootstrap := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	for _, tc := range []struct {
 		name   string
 		rights authorization.Privileges

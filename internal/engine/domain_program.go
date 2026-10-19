@@ -53,7 +53,7 @@ func (p *routineAdmissionProgram) initializePhase(original *routineAdmissionProg
 		if err := admitRoutineDescriptor(auth, dependency[:], call.routine, call.consumer); err != nil {
 			return call.body.annotate(err)
 		}
-		call.actor = auth.state.CurrentUser
+		call.actor = auth.State.CurrentUser
 		p.calls = append(p.calls, call)
 	}
 	return nil

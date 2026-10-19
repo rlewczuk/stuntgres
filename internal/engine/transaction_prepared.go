@@ -131,7 +131,7 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 		auth, authErr := s.op.Authorization()
 		err = authErr
 		if err == nil {
-			entry = &preparedTransaction{gid: control.GID, owner: auth.state.CurrentUser, ref: ref, prepared: time.Now().UTC().Truncate(time.Microsecond), database: s.op.session.databaseName, ticket: t.ticket, writes: t.writes, deletes: t.deletes, catalog: t.catalog, roots: t.roots, frontier: t.frontier, options: TxOptions{Isolation: t.isolation, ReadOnly: t.readOnly, Deferrable: t.deferrable}}
+			entry = &preparedTransaction{gid: control.GID, owner: auth.State.CurrentUser, ref: ref, prepared: time.Now().UTC().Truncate(time.Microsecond), database: s.op.session.databaseName, ticket: t.ticket, writes: t.writes, deletes: t.deletes, catalog: t.catalog, roots: t.roots, frontier: t.frontier, options: TxOptions{Isolation: t.isolation, ReadOnly: t.readOnly, Deferrable: t.deferrable}}
 			e.mu.Lock()
 			if e.prepared == nil {
 				e.prepared = make(map[string]*preparedTransaction)
@@ -174,8 +174,8 @@ func (e *Engine) completePrepared(op *Operation, gid string, commit bool) error 
 		err = sqlError("42704", `prepared transaction with identifier "`+gid+`" does not exist`)
 	}
 	if err == nil {
-		actor, exists := auth.roles.Find(auth.state.CurrentUser)
-		if auth.state.CurrentUser != entry.owner && (!exists || !actor.Superuser) {
+		actor, exists := auth.Roles.Find(auth.State.CurrentUser)
+		if auth.State.CurrentUser != entry.owner && (!exists || !actor.Superuser) {
 			err = &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied to finish prepared transaction", Hint: "Must be superuser or the user that prepared the transaction."}
 		}
 	}

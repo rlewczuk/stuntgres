@@ -46,7 +46,7 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 	if err != nil {
 		return err
 	}
-	table, ok := auth.catalog.Relation(ref.Address)
+	table, ok := auth.Catalog.Relation(ref.Address)
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
@@ -57,18 +57,18 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 	if err != nil {
 		return err
 	}
-	parent := auth.catalog.MustRelation(table.Membership.Parent)
-	chosen := partitionPreservedReplayChild(auth.catalog, parent)
+	parent := auth.Catalog.MustRelation(table.Membership.Parent)
+	chosen := partitionPreservedReplayChild(auth.Catalog, parent)
 	if chosen == nil || chosen.Address() != table.Address() {
 		return nil
 	}
 	var selected *catalog.Relation
-	for _, descriptor := range auth.catalog.Descriptors() {
+	for _, descriptor := range auth.Catalog.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
-		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address() || !partitionIndexPreservedInvalid(auth.catalog, index) {
+		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address() || !partitionIndexPreservedInvalid(auth.Catalog, index) {
 			continue
 		}
-		child := partitionDumpIndexBacking(auth.catalog, index.Address(), table.Address())
+		child := partitionDumpIndexBacking(auth.Catalog, index.Address(), table.Address())
 		if child == nil || child.SQLIndex.Constraint != nil || child.SQLIndex.Predicate != nil || len(child.SQLIndex.Include) != 0 || child.SQLIndex.NullsNotDistinct != bound.NullsNotDistinct || len(child.SQLIndex.Keys) != len(bound.Attributes) {
 			continue
 		}
@@ -104,7 +104,7 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 		captured.descriptors = append(captured.descriptors, node)
 		if node.Partition != nil {
 			for _, address := range node.Partition.Children {
-				if !capture(auth.catalog.MustRelation(address)) {
+				if !capture(auth.Catalog.MustRelation(address)) {
 					return false
 				}
 			}
@@ -114,7 +114,7 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 	if !capture(table) {
 		return nil
 	}
-	for _, descriptor := range auth.catalog.Descriptors() {
+	for _, descriptor := range auth.Catalog.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
 		if ok && index.SQLIndex != nil && tables[index.SQLIndex.Parent] {
 			captured.descriptors = append(captured.descriptors, index)
@@ -138,7 +138,7 @@ func partitionUniqueReplayAllowed(op *Operation, auth AuthorizationView, raw *pa
 		return false
 	}
 	for _, descriptor := range origin.descriptors {
-		if auth.catalog.Get(descriptor.Address()) != descriptor {
+		if auth.Catalog.Get(descriptor.Address()) != descriptor {
 			return false
 		}
 	}
@@ -148,7 +148,7 @@ func partitionUniqueReplayAllowed(op *Operation, auth AuthorizationView, raw *pa
 // Consume Engine.mu like the canonical ALTER executor. The existing binder,
 // recursive virtual-index producer, validator and Finish overlay own all effects.
 func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) (Result, error) {
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), table.Address())
+	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), table.Address())
 	origin := op.restorePartitionUnique
 	e.mu.Unlock()
 	if err := scope.acquirePartitionDescendants(ref, lock.AccessExclusive); err != nil {
@@ -163,7 +163,7 @@ func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *O
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
 	stage.indexOutput = scope.output
 	for _, descriptor := range origin.descriptors {

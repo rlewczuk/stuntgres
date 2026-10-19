@@ -97,7 +97,7 @@ func (r capturedRegObjectInput) ResolveRegcollation(ctx context.Context, input s
 			return missing()
 		}
 		if ns.Temporary != (ids.SessionToken{}) && ns.Temporary != r.token {
-			actor, exists := r.auth.roles.Find(r.auth.state.CurrentUser)
+			actor, exists := r.auth.Roles.Find(r.auth.State.CurrentUser)
 			if !exists || !actor.Superuser {
 				return 0, sqlError("42501", "permission denied for schema "+ns.Name())
 			}

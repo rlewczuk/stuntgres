@@ -52,7 +52,7 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 		t.Fatal("copied lease granted")
 	}
 	foreign := auth
-	foreign.catalog = source.CatalogRead()
+	foreign.Catalog = source.CatalogRead()
 	if partitionUsingIndexReplayAllowed(op, foreign, raw, child) {
 		t.Fatal("foreign catalog granted")
 	}

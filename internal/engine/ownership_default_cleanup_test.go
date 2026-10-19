@@ -30,7 +30,7 @@ func TestDropOwnedDefaultCanonicalCleanup(t *testing.T) {
 	oldACL := append([]authorization.ACLEntry(nil), before.DefaultACL(baseline).ACL.Entries...)
 	stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 	defer f.e.DiscardCatalogStage(stage)
-	stage.roleRevision = f.e.roles.published.revision
+	stage.roleRevision = f.e.roles.published.Revision
 	// Namespace AUTO tombstones precede cleanup and must not be resurrected.
 	stage.removeSchemaDefaults(f.schema)
 	if err := stageOwnedCleanup(context.Background(), stage, f.e.roles.read(f.e.catalog.owner(), stage.Base, f.e.roles.published), f.e.roles.published, map[authorization.PrincipalRef]bool{f.owner: true}); err != nil {

@@ -18,9 +18,9 @@ func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*cat
 		return nil, err
 	}
 	for i := range path.count() {
-		found := auth.catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
+		found := auth.Catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
 		if len(found) == 1 {
-			return auth.catalog.MustType(found[0]), nil
+			return auth.Catalog.MustType(found[0]), nil
 		}
 	}
 	return nil, expr.ErrorAt("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)), name.Parts[0].Pos)
@@ -55,9 +55,9 @@ func (e *Engine) bindTypedColumns(auth AuthorizationView, s *parser.CreateTable)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	source, err := standaloneComposite(auth.catalog, typ, path)
+	source, err := standaloneComposite(auth.Catalog, typ, path)
 	if err == nil {
-		err = auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), typ.Address()))
+		err = auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), typ.Address()))
 	}
 	if err != nil {
 		return nil, nil, nil, err
@@ -166,11 +166,11 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 		if err != nil {
 			return fail(err)
 		}
-		source, err := standaloneComposite(auth.catalog, typ, path)
+		source, err := standaloneComposite(auth.Catalog, typ, path)
 		if err == nil {
 			// Like CREATE OF, attachment needs source USAGE (PostgreSQL 18.6,
 			// CVE-2026-6470), checked before inheritance and shape.
-			err = auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), typ.Address()))
+			err = auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), typ.Address()))
 		}
 		if err != nil {
 			return fail(err)
@@ -187,10 +187,10 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth A
 		return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
 	}
 	next.ObjectRevision++
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
 	if next.OfType != (ids.ObjectAddress{}) {
-		stage.domainBases = append(stage.domainBases, auth.catalog.Get(next.OfType))
+		stage.domainBases = append(stage.domainBases, auth.Catalog.Get(next.OfType))
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)

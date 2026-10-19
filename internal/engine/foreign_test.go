@@ -8,6 +8,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -52,7 +53,7 @@ func TestFDWOptionsTransform(t *testing.T) {
 func TestFDWCatalogOverlay(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
-	owner := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	wrapper := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignWrapperClassID, ObjectID: 40000}, ObjectRevision: 1, ObjectName: "unit_wrapper", Owner: owner, Options: []catalog.ForeignOption{{"a", "1"}}}
 	server := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignServerClassID, ObjectID: 40001}, ObjectRevision: 1, ObjectName: "unit_server", Owner: owner, Wrapper: wrapper.Address()}
 	server.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}
@@ -90,8 +91,8 @@ func TestFDWCatalogOverlay(t *testing.T) {
 	if got := descriptorReferences(public); len(got) != 0 {
 		t.Fatal("PUBLIC acquired a principal dependency", got)
 	}
-	mappedOwner, _, _ := descriptorACL(mapping)
-	publicOwner, _, _ := descriptorACL(public)
+	mappedOwner, _, _ := access.DescriptorACL(mapping)
+	publicOwner, _, _ := access.DescriptorACL(public)
 	if mappedOwner != owner || publicOwner != (authorization.PrincipalRef{}) {
 		t.Fatal("mapping ownership is not mapped identity", mappedOwner, publicOwner)
 	}
@@ -113,8 +114,8 @@ func TestFDWCatalogOverlay(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	auth.state.CurrentUser = auth.roles.LookupRef("pg_read_all_data")
-	if auth.state.CurrentUser == (authorization.PrincipalRef{}) {
+	auth.State.CurrentUser = auth.Roles.LookupRef("pg_read_all_data")
+	if auth.State.CurrentUser == (authorization.PrincipalRef{}) {
 		t.Fatal("missing real predefined reader")
 	}
 	for _, d := range []*catalog.ForeignObject{wrapper, server} {
@@ -135,7 +136,7 @@ func TestFDWCatalogOverlay(t *testing.T) {
 			t.Fatal("PUBLIC usage acquired grant options", rights, err)
 		}
 	}
-	if classPrivileges(mapping) != 0 || classPrivileges(public) != 0 {
+	if access.ClassPrivileges(mapping) != 0 || access.ClassPrivileges(public) != 0 {
 		t.Fatal("mapping exposed a grantable ACL mask")
 	}
 	alter := e.BeginCatalogStage(e.CatalogRead())
@@ -288,7 +289,7 @@ func TestFDWProcedureACLCOW(t *testing.T) {
 			ref := e.catalog.Domain.Ref(base.Epoch(), ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: selected.ID})
 			original := base.MustProcedure(ref.Address)
 			retained := catalogAuthorization(e, base)
-			retained.state.CurrentUser = retained.roles.LookupRef("pg_read_all_data")
+			retained.State.CurrentUser = retained.Roles.LookupRef("pg_read_all_data")
 			if rights, err := retained.Effective(ref, false); err != nil || rights != authorization.ExecutePrivilege {
 				t.Fatal("initial authority unavailable", rights, err)
 			}
@@ -320,12 +321,12 @@ func TestFDWProcedureACLCOW(t *testing.T) {
 				t.Fatal("ACL copy lost native payload eligibility", err)
 			}
 			fresh := catalogAuthorization(e, current)
-			fresh.state.CurrentUser = retained.state.CurrentUser
+			fresh.State.CurrentUser = retained.State.CurrentUser
 			if rights, err := fresh.Effective(ref, false); err != nil || rights != 0 {
 				t.Fatal("original reference ignored current ACL", rights, err)
 			}
 			materializedAuthority := catalogAuthorization(e, materializedCatalog)
-			materializedAuthority.state.CurrentUser = retained.state.CurrentUser
+			materializedAuthority.State.CurrentUser = retained.State.CurrentUser
 			if rights, err := materializedAuthority.Effective(ref, false); err != nil || rights != authorization.ExecutePrivilege {
 				t.Fatal("revoke mutated materialized authority snapshot", rights, err)
 			}

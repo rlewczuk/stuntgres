@@ -41,13 +41,13 @@ func TestMembershipImmutableDefaultsAndAtomicity(t *testing.T) {
 	}
 	oldPublication := e.roles.published
 	old := e.Roles()
-	revision := oldPublication.revision
+	revision := oldPublication.Revision
 	roleExecute(t, e, op, "GRANT r TO m")
 	readPublication := e.roles.published
 	read := e.Roles()
 	edges := read.Memberships()
-	if len(edges) != 4 || edges[3].Admin || !edges[3].Inherit || !edges[3].Set || readPublication.revision != revision+1 || len(old.Memberships()) != 3 {
-		t.Fatal(edges, readPublication.revision, revision)
+	if len(edges) != 4 || edges[3].Admin || !edges[3].Inherit || !edges[3].Set || readPublication.Revision != revision+1 || len(old.Memberships()) != 3 {
+		t.Fatal(edges, readPublication.Revision, revision)
 	}
 	edges[3].Inherit = false
 	if !read.Memberships()[3].Inherit {
@@ -129,7 +129,7 @@ func TestMembershipInitialAttributeCutover(t *testing.T) {
 	owned, _ := e.Roles().Lookup("owned")
 	creator, _ := e.Roles().Lookup("creator")
 	edges := e.Roles().Memberships()
-	if len(edges) != 6 || edges[4] != (authorization.Membership{Role: owned.Ref, Member: creator.Ref, Grantor: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Admin: true}) || edges[5].Role != owned.Ref || edges[5].Member != child.Ref || !edges[5].Inherit || !edges[5].Set {
+	if len(edges) != 6 || edges[4] != (authorization.Membership{Role: owned.Ref, Member: creator.Ref, Grantor: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Admin: true}) || edges[5].Role != owned.Ref || edges[5].Member != child.Ref || !edges[5].Inherit || !edges[5].Set {
 		t.Fatal("creator ADMIN and initial membership were not combined", edges)
 	}
 	roleExecute(t, e, actor, "ALTER ROLE owned LOGIN")
@@ -141,8 +141,8 @@ func TestMembershipReferenceValidationAndRevision(t *testing.T) {
 	run(t, e, "CREATE ROLE m")
 	r, _ := e.Roles().Lookup("r")
 	m, _ := e.Roles().Lookup("m")
-	bootstrap := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	foreign := New().roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	bootstrap := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	foreign := New().roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	for _, ref := range []authorization.PrincipalRef{{}, foreign} {
 		for _, edge := range []authorization.Membership{{Role: ref, Member: m.Ref, Grantor: bootstrap}, {Role: r.Ref, Member: ref, Grantor: bootstrap}, {Role: r.Ref, Member: m.Ref, Grantor: ref}} {
 			before := e.roles.published
@@ -152,7 +152,7 @@ func TestMembershipReferenceValidationAndRevision(t *testing.T) {
 		}
 	}
 	saturated := *e.roles.published
-	saturated.revision = ^uint64(0)
+	saturated.Revision = ^uint64(0)
 	e.roles.published = &saturated
 	before := e.roles.published
 	if err := grantMembership(t, e, authorization.Membership{Role: r.Ref, Member: m.Ref, Grantor: bootstrap}); err == nil || e.roles.published != before || len(fixtureEdges(e.roles.published)) != 3 {
@@ -197,7 +197,7 @@ func TestMembershipCancelledCandidate(t *testing.T) {
 	cancel()
 	// Closure is also used inside planning; cancellation cannot return a prefix.
 	old := e.roles.published
-	refs, err := (e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)).RoleClosure(ctx, e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), false)
+	refs, err := (e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)).RoleClosure(ctx, e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), false)
 	if err != context.Canceled || refs != nil || !reflect.DeepEqual(e.roles.published, old) {
 		t.Fatal(fmt.Sprint(refs), err)
 	}
@@ -302,7 +302,7 @@ func TestMembershipRevokeOriginalRowActions(t *testing.T) {
 		t.Fatal(edges, retained.Memberships())
 	}
 	for _, edge := range edges {
-		if edge.Grantor != e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") || edge.Admin || !edge.Inherit || !edge.Set {
+		if edge.Grantor != e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres") || edge.Admin || !edge.Inherit || !edge.Set {
 			t.Fatal("independent source changed", edge)
 		}
 	}
@@ -346,7 +346,7 @@ func TestMembershipRevokeEntryAuthority(t *testing.T) {
 		}
 		want = append(want, edge)
 	}
-	if len(want) != len(original)-1 || !reflect.DeepEqual(want, e.Roles().Memberships()) || !reflect.DeepEqual(original, retained.Memberships()) || e.roles.published.revision != retainedPublication.revision+1 || e.catalog.state != catalog {
+	if len(want) != len(original)-1 || !reflect.DeepEqual(want, e.Roles().Memberships()) || !reflect.DeepEqual(original, retained.Memberships()) || e.roles.published.Revision != retainedPublication.Revision+1 || e.catalog.state != catalog {
 		t.Fatal("entry batch publication", original, e.Roles().Memberships())
 	}
 	published := e.roles.published

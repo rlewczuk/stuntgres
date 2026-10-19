@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -111,7 +112,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 				t.Fatal("template acquired owner", refs)
 			}
 		} else {
-			owner, _, _ := descriptorACL(d)
+			owner, _, _ := access.DescriptorACL(d)
 			if owner != ext.Owner {
 				t.Fatal("superuser member ownership")
 			}
@@ -307,7 +308,7 @@ func TestExtensionProviderPublication(t *testing.T) {
 				e.catalog.state = catalog.CloneState(e.catalog.state)
 				e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
 			case "roles":
-				e.roles.published = e.roles.published.advance()
+				e.roles.published = e.roles.published.Advance()
 			case "database":
 				next := *e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
 				next.ObjectRevision++

@@ -33,7 +33,7 @@ func (e *Engine) validateRestoreIdentityConfiguration(op *Operation, syntax *par
 	if err != nil {
 		return err
 	}
-	relation, ok := auth.catalog.Relation(ref.Address)
+	relation, ok := auth.Catalog.Relation(ref.Address)
 	if !ok || relation.Sequence == nil || !relation.Sequence.Identity {
 		return sqlError("0A000", "restore accepts only generated sequence ownership or identity configuration")
 	}

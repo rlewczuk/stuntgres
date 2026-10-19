@@ -23,8 +23,8 @@ func temporaryViewCandidate(t *testing.T, action parser.OnCommitAction, query st
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	auth.catalog = e.privateCatalogLocked(changes)
-	auth.Recapture(auth.catalog)
+	auth.Catalog = e.privateCatalogLocked(changes)
+	auth.Recapture(auth.Catalog)
 	auth.stagedTemporary = table.Namespace()
 	b, err := e.describe(op.Context(), raw, auth, ids.ObjectRef{}, sqltype.InputEnvironment{}, nil, nil, nil)
 	if err != nil {
@@ -38,7 +38,7 @@ func temporaryViewCandidate(t *testing.T, action parser.OnCommitAction, query st
 	}
 	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20007}, ObjectNamespace: table.Namespace(), ObjectName: "candidate_view", ObjectRevision: 1, Owner: table.Owner, RelationKind: catalog.ViewRelation, View: viewPayloadOf(definition), Columns: append([]catalog.Column(nil), b.query.Root.Schema()...), Index: map[string]int{"v": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 	definition.consumer = d.Address()
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	err = e.stageRowTypeLocked(stage, d)
 	e.mu.Unlock()
 	if err != nil {

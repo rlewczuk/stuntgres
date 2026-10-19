@@ -74,12 +74,12 @@ func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d 
 }
 
 func (e *Engine) generationNamespace(auth AuthorizationView, d *catalog.Relation) queryNamespace {
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
+	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
 	columns := make([]queryColumn, len(d.Columns))
 	for i, c := range d.Columns {
 		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
 	}
-	qualifier := queryQualifier{name: d.Name(), original: d.Name(), schema: auth.catalog.Get(d.Namespace()).Name(), ref: ref, columns: columns}
+	qualifier := queryQualifier{name: d.Name(), original: d.Name(), schema: auth.Catalog.Get(d.Namespace()).Name(), ref: ref, columns: columns}
 	return queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: d.Columns}
 }
 
@@ -90,7 +90,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 	b.noParameters = true
 	b.queryAuth = &auth
 	b.queryNamespace = ns
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
+	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
 	b.querySources = []queryLeaf{{ref: ref, relation: d}}
 	column := d.Columns[slot]
 	kind := d.ColumnMeta.Generations[d.Attributes[slot]].Kind
@@ -109,7 +109,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 			return catalog.ColumnGeneration{}, err
 		}
 	}
-	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: b.input, catalog: auth.catalog, routineAuthority: &auth, routineRecipe: true, routineChecks: b.dependencies}
+	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: b.input, catalog: auth.Catalog, routineAuthority: &auth, routineRecipe: true, routineChecks: b.dependencies}
 	node, _, err = simplifyConditional(&evaluation, node, true)
 	if err != nil {
 		return catalog.ColumnGeneration{}, err
@@ -152,7 +152,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 		return catalog.ColumnGeneration{}, err
 	}
 	definition := catalog.ColumnGeneration{Kind: kind, Expression: analyzed, Planned: node}
-	_, err = (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, owner: d, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot}).sql(op.Context(), auth.catalog, analyzed)
+	_, err = (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.Roles}, owner: d, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot}).sql(op.Context(), auth.Catalog, analyzed)
 	return definition, err
 }
 

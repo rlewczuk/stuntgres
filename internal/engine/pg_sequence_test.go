@@ -225,7 +225,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	owner.catalog = own
 	scope := &StatementScope{op: op, owner: owner}
 	e.mu.Lock()
-	captured, err := e.openRelationSourceLocked(scope, ref, e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
+	captured, err := e.openRelationSourceLocked(scope, ref, e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
 	if err != nil || !reflect.DeepEqual(pgSequenceUnitBag(t, captured), want) {
 		t.Fatal("retained base plus own overlay", err)
 	}

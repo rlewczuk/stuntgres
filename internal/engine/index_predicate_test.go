@@ -372,7 +372,7 @@ func TestPartialIndexCandidateMask(t *testing.T) {
 	if mask == nil {
 		t.Fatal("coherent committed root did not attach")
 	}
-	auth := AuthorizationView{accessView: accessView{catalog: f.e.CatalogRead()}}
+	auth := AuthorizationView{accessView: accessView{Catalog: f.e.CatalogRead()}}
 	binder := expressionBinder{queryAuth: &auth}
 	if binder.partialIndexCandidate(leaf.ref, f.predicate) != f.index {
 		t.Fatal("bound caller did not select candidate")
@@ -472,7 +472,7 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 		})
 	}
 	f := newPartialIndexFixture(t)
-	auth := AuthorizationView{accessView: accessView{catalog: f.e.CatalogRead()}}
+	auth := AuthorizationView{accessView: accessView{Catalog: f.e.CatalogRead()}}
 	b := expressionBinder{queryAuth: &auth}
 	param := parameterExpression{Info: expr.Info{Usage: f.predicate.Usage, Property: expr.Properties{ParameterDependent: true}}, number: 1}
 	ref := f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address())

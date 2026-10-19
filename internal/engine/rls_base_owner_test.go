@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"testing"
@@ -12,7 +13,7 @@ func TestRLSBaseOwnerPublicationFreshness(t *testing.T) {
 	defer done()
 	roleExecute(t, e, op, "CREATE ROLE rls_publication_reader")
 	roleExecute(t, e, op, "CREATE ROLE rls_publication_bypass BYPASSRLS")
-	reader, bypass := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("rls_publication_reader"), e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("rls_publication_bypass")
+	reader, bypass := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_publication_reader"), e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_publication_bypass")
 	publish := func(next *catalog.Relation) {
 		t.Helper()
 		base := e.CatalogRead()
@@ -44,7 +45,7 @@ func TestRLSBaseOwnerPublicationFreshness(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := rowSecurityDecision(auth.roles, current, principal, catalog.PolicySelect, false)
+		got, err := access.RowSecurityDecision(auth.Roles, current, principal, catalog.PolicySelect, false)
 		if err != nil || got != want {
 			t.Fatal("fresh descriptor authority", got, err, want)
 		}

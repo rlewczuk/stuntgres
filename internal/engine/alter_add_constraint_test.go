@@ -61,7 +61,7 @@ func TestAlterAddConstraintStableKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
 	raw, err := parser.Parse("ALTER TABLE t ADD CONSTRAINT added UNIQUE(b,a)")
 	if err != nil {
@@ -263,7 +263,7 @@ func TestAlterAddConstraintAtomicity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
 	raw, err := parser.Parse("ALTER TABLE t ADD CONSTRAINT bad UNIQUE(b)")
 	if err != nil {
@@ -357,7 +357,7 @@ func TestAlterAddConstraintControls(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	malformed := e.BeginCatalogStage(auth.catalog)
+	malformed := e.BeginCatalogStage(auth.Catalog)
 	invalid := *source
 	invalid.Constraints.ForeignKeys = slices.Clone(source.Constraints.ForeignKeys)
 	invalid.Constraints.ForeignKeys[0].Index = source.Address()

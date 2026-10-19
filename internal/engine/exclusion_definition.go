@@ -45,8 +45,8 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 	if err := validateIndexMethod(&methodCheck); err != nil {
 		return err
 	}
-	auth.catalog = e.stageRead(stage)
-	auth.Recapture(auth.catalog)
+	auth.Catalog = e.stageRead(stage)
+	auth.Recapture(auth.Catalog)
 	predicate, err := e.bindIndexPredicate(op, input, auth, parent, s.Predicate)
 	if err != nil {
 		return err
@@ -92,8 +92,8 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 		return indexCapability("index storage parameters are unsupported", s.WithPos)
 	}
 	name := raw.Name.Text
-	used := constraintNames(auth.catalog, parent.Namespace(), parent)
-	for key := range auth.catalog.Names() {
+	used := constraintNames(auth.Catalog, parent.Namespace(), parent)
+	for key := range auth.Catalog.Names() {
 		if key.ClassID == ids.RelationClassID && key.Namespace == parent.Namespace() {
 			used[key.Name] = true
 		}
@@ -106,7 +106,7 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 		name = generatedConstraintName(parent.Name(), strings.Join(labels, "_"), "excl", used)
 	} else {
 		if _, altering := stage.Base.Find(parent.Address()); altering {
-			if auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name}) != (ids.ObjectAddress{}) {
+			if auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name}) != (ids.ObjectAddress{}) {
 				return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 			}
 		}

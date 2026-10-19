@@ -58,7 +58,7 @@ func TestDomainProgramInvokerAndRIOwnerPhases(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal(err)
 			}
-			view := auth.catalog
+			view := auth.Catalog
 			childRef := view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "phase_child"})
 			child := view.MustRelation(childRef[0])
 			ownerAuth := foreignActionOwner(auth, child.Owner)
@@ -96,7 +96,7 @@ func TestDomainProgramInvokerAndRIOwnerPhases(t *testing.T) {
 			if last != 1 {
 				t.Fatal("phase admission replayed CHECK truth", last)
 			}
-			if scope.routineAuth.state.CurrentUser != auth.state.CurrentUser {
+			if scope.routineAuth.State.CurrentUser != auth.State.CurrentUser {
 				t.Fatal("local RI phase replaced original invoker")
 			}
 			// Publication re-admits the actual successfully consumed actor, not
@@ -163,7 +163,7 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal(err)
 			}
-			view := auth.catalog
+			view := auth.Catalog
 			childRef := view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "inquiry_phase_child"})
 			child := view.MustRelation(childRef[0])
 			ownerAuth := foreignActionOwner(auth, child.Owner)
@@ -199,7 +199,7 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 				t.Fatal("authorized first actual body entry", err)
 			}
 			nullCountUnitDiagnostic(t, enter(second), sqlstate.Error{Code: "42501", Message: "permission denied for function oideq", Context: `SQL function "obj_description" statement 1`})
-			if scope.routineAuth.state.CurrentUser != auth.state.CurrentUser {
+			if scope.routineAuth.State.CurrentUser != auth.State.CurrentUser {
 				t.Fatal("lazy local owner changed statement invoker")
 			}
 			roleExecute(t, e, admin, "REVOKE EXECUTE ON FUNCTION pg_catalog.oideq(oid,oid) FROM "+allowed)

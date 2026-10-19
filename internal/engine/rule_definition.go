@@ -253,7 +253,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 		if err := validateRuleActionCTEs(action, b); err != nil {
 			return r, err
 		}
-		b = retainRuleCTEPresentation(auth.catalog, b)
+		b = retainRuleCTEPresentation(auth.Catalog, b)
 		b.ruleTemplate = true
 		if b.parameters.Count != 0 {
 			return r, sqlError("42P02", "there is no parameter $1")
@@ -287,6 +287,6 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 		r.actions = append(r.actions, ruleAction{syntax: action, binding: b, presentation: presentation, modifierPresentations: modifiers})
 	}
 	var err error
-	r.references, err = ruleReferences(scope.op.Context(), auth.catalog, r)
+	r.references, err = ruleReferences(scope.op.Context(), auth.Catalog, r)
 	return r, err
 }

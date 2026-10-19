@@ -23,15 +23,15 @@ func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage
 		}
 	}
 	if len(changes.descriptors) != 0 {
-		auth.catalog = e.stageRead(stage)
-		auth.Recapture(auth.catalog)
-		if ns, ok := auth.catalog.Namespace(ref.Address); ok && !ns.TemporaryToast && auth.session != nil && ns.Temporary == auth.session.token {
+		auth.Catalog = e.stageRead(stage)
+		auth.Recapture(auth.Catalog)
+		if ns, ok := auth.Catalog.Namespace(ref.Address); ok && !ns.TemporaryToast && auth.session != nil && ns.Temporary == auth.session.token {
 			auth.stagedTemporary = ns.Address()
 		}
 	}
-	ns := auth.catalog.MustNamespace(ref.Address)
+	ns := auth.Catalog.MustNamespace(ref.Address)
 	if ns.Temporary != (ids.SessionToken{}) && !ownTemporaryNamespace(*auth, ns) {
-		actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+		actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 		if err != nil {
 			return ids.ObjectRef{}, err
 		}

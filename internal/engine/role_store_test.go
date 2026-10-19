@@ -38,7 +38,7 @@ func TestRoleStoreSetReferencesFailuresLeaveStateUnchanged(t *testing.T) {
 	if err := e.roles.setReferencesLocked(ctx, "kept", nil); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled update: %v", err)
 	}
-	e.roles.published = &roleCatalog{root: published.root, revision: ^uint64(0)}
+	e.roles.published = &roleCatalog{Root: published.Root, Revision: ^uint64(0)}
 	exhausted := e.roles.published
 	if err := e.roles.setReferencesLocked(context.Background(), "kept", nil); err == nil || err.Error() != "stuntgres: authorization revision exhausted" {
 		t.Fatalf("exhausted update: %v", err)
@@ -53,8 +53,8 @@ func TestRoleStoreSetReferencesFailuresLeaveStateUnchanged(t *testing.T) {
 	if _, ok := references["added"]; ok {
 		t.Fatal("update mutated the previous registry map")
 	}
-	if e.roles.published.revision != published.revision+1 {
-		t.Fatalf("revision %d after %d", e.roles.published.revision, published.revision)
+	if e.roles.published.Revision != published.Revision+1 {
+		t.Fatalf("revision %d after %d", e.roles.published.Revision, published.Revision)
 	}
 	got := e.roles.referencingFeatures(ref)
 	slices.Sort(got)

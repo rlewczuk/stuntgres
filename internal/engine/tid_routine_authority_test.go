@@ -45,7 +45,7 @@ func TestTIDRoutineAuthority(t *testing.T) {
 			}
 			binder := newExpressionBinder(context.Background(), e, input, reader, nil)
 			binder.queryAuth, binder.ref = &auth, ref
-			binder.relation = auth.catalog.MustRelation(ref.Address)
+			binder.relation = auth.Catalog.MustRelation(ref.Address)
 			node, err := binder.bind(raw, expressionPolicy{context: projectionContext})
 			e.mu.Unlock()
 			if err != nil {
@@ -61,13 +61,13 @@ func TestTIDRoutineAuthority(t *testing.T) {
 				t.Fatal("released canonical declaration", declaration, node.ResultUsage())
 			}
 			address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: test.id}
-			if auth.catalog.Get(address) != outer || outer.Address() != address || outer.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || outer.Name() != test.name || outer.Signature != "27,27" || outer.Result != 16 || outer.RoutineKind != catalog.FunctionRoutine || !outer.Strict || outer.Volatility != expr.Immutable {
+			if auth.Catalog.Get(address) != outer || outer.Address() != address || outer.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || outer.Name() != test.name || outer.Signature != "27,27" || outer.Result != 16 || outer.RoutineKind != catalog.FunctionRoutine || !outer.Strict || outer.Volatility != expr.Immutable {
 				t.Fatal("selected original owned descriptor", outer)
 			}
 			if len(outer.Body) != 0 {
 				t.Fatal("INTERNAL TID operator acquired SQL helper edges", outer.Body)
 			}
-			wantRef := e.catalog.Domain.Ref(auth.catalog.Epoch(), address)
+			wantRef := e.catalog.Domain.Ref(auth.Catalog.Epoch(), address)
 			procedures := 0
 			for _, dependency := range binder.dependencies {
 				if dependency.Ref.Address.ClassID != ids.ProcedureClassID {

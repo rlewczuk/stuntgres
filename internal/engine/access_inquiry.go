@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -170,14 +171,14 @@ func (n accessInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if n.rowSecurity {
 		// Schema lookup belongs to this expression's user as well, not a rule or
 		// view's independent relation-authorization identity.
-		auth.state.CurrentUser = principal
+		auth.State.CurrentUser = principal
 		var d *catalog.Relation
 		if n.args[0].ResultUsage().Type.ID() == sqltype.Oid {
 			oid, failure := values[0].OID()
 			if failure != nil {
 				return sqltype.Value{}, failure
 			}
-			d, _ = auth.catalog.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)})
+			d, _ = auth.Catalog.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)})
 		} else {
 			text, failure := values[0].Text()
 			if failure != nil {
@@ -195,10 +196,10 @@ func (n accessInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 			if failure != nil {
 				return sqltype.Value{}, failure
 			}
-			d, _ = auth.catalog.Relation(ref.Address)
+			d, _ = auth.Catalog.Relation(ref.Address)
 		}
 		if d != nil {
-			result, err = rowSecurityApplies(auth.roles, d, principal)
+			result, err = access.RowSecurityApplies(auth.Roles, d, principal)
 		}
 	} else {
 		actor := uint64(principal.ID())
@@ -222,7 +223,7 @@ func (n accessInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		if failure != nil {
 			return sqltype.Value{}, failure
 		}
-		result, err = authorization.HasRole(c.Context, auth.roles, &e.roles.domain, actor, target, mask)
+		result, err = authorization.HasRole(c.Context, auth.Roles, &e.roles.domain, actor, target, mask)
 	}
 	if err != nil {
 		return sqltype.Value{}, err
@@ -239,7 +240,7 @@ func accessRoleArgument(auth AuthorizationView, arg expr.Expr, value sqltype.Val
 	if err != nil {
 		return 0, err
 	}
-	role, ok := auth.roles.Lookup(name)
+	role, ok := auth.Roles.Lookup(name)
 	if !ok {
 		return 0, sqlError("42704", fmt.Sprintf(`role "%s" does not exist`, name))
 	}

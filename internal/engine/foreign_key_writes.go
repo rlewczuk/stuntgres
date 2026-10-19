@@ -155,8 +155,8 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 		return err
 	}
 	e.mu.Lock()
-	auth.catalog = e.privateCatalogLocked(s.owner.catalog)
-	auth.Recapture(auth.catalog)
+	auth.Catalog = e.privateCatalogLocked(s.owner.catalog)
+	auth.Recapture(auth.Catalog)
 	temporary := raw.Persistence == "temporary" || len(raw.Name.Parts) == 2 && raw.Name.Parts[0].Text == "pg_temp"
 	var destination ids.ObjectAddress
 	if temporary {
@@ -170,7 +170,7 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 		destination = ns.Address
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	if raw.IfNotExists && destination != (ids.ObjectAddress{}) && auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination, Name: name}) != (ids.ObjectAddress{}) {
+	if raw.IfNotExists && destination != (ids.ObjectAddress{}) && auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination, Name: name}) != (ids.ObjectAddress{}) {
 		e.mu.Unlock()
 		return nil
 	}
@@ -195,7 +195,7 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 						self = true
 						break
 					}
-					if auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name}) != (ids.ObjectAddress{}) {
+					if auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name}) != (ids.ObjectAddress{}) {
 						break
 					}
 				}
@@ -256,12 +256,12 @@ func (s *StatementScope) checkForeignKeys() error {
 	if s.catalog != nil {
 		changes = s.catalog
 	}
-	auth.catalog = e.privateCatalogLocked(changes)
-	auth.Recapture(auth.catalog)
+	auth.Catalog = e.privateCatalogLocked(changes)
+	auth.Recapture(auth.Catalog)
 	e.mu.Unlock()
 	for i := range jobs {
 		job := &jobs[i]
-		if err = refreshForeignActionJob(auth.catalog, job); err != nil {
+		if err = refreshForeignActionJob(auth.Catalog, job); err != nil {
 			return err
 		}
 		f := job.definition
@@ -272,8 +272,8 @@ func (s *StatementScope) checkForeignKeys() error {
 		if admission := s.foreignActionAdmissions[job.parent.Address()]; admission != nil && admission.mutated {
 			parentAuth = foreignActionOwner(auth, admission.relation.Owner)
 		}
-		childRef := e.catalog.Domain.Ref(auth.catalog.Epoch(), job.child.Address())
-		parentRef := e.catalog.Domain.Ref(auth.catalog.Epoch(), f.Target)
+		childRef := e.catalog.Domain.Ref(auth.Catalog.Epoch(), job.child.Address())
+		parentRef := e.catalog.Domain.Ref(auth.Catalog.Epoch(), f.Target)
 		parentRows, err := s.captureForeignKeyRows(parentRef, f.Index)
 		if err != nil {
 			return err

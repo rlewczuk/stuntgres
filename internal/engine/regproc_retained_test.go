@@ -181,7 +181,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 		if len(b.regtypeConstants) != 1 || !reflect.DeepEqual(b.regtypeConstants[0], cells[0]) {
 			t.Fatal("retained mixed capture lost qualification or operand stamps", b.regtypeConstants)
 		}
-		operator, _ := auth.catalog.LookupType(sqltype.Regoperator)
+		operator, _ := auth.Catalog.LookupType(sqltype.Regoperator)
 		value, err = b.operatorConstant("missing operator", operator, pos)
 		oid, oidErr := value.OperatorOID()
 		if err != nil || oidErr != nil || oid != 551 {

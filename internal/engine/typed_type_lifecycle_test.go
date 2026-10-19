@@ -143,7 +143,7 @@ func TestTypedPublicationFinalAuthorizationFence(t *testing.T) {
 			}
 			stage := typedRenameStage(t, e, source, table)
 			defer e.DiscardCatalogStage(stage)
-			stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roleRecord.revision
+			stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.Revision, auth.RoleRecord.Revision
 			prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 			if err != nil {
 				t.Fatal(err)
@@ -157,7 +157,7 @@ func TestTypedPublicationFinalAuthorizationFence(t *testing.T) {
 			} else {
 				e.mu.Lock()
 				next := *e.roles.published
-				next.revision++
+				next.Revision++
 				e.roles.published = &next
 				e.mu.Unlock()
 			}

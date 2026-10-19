@@ -75,7 +75,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 		return nil, err
 	}
 	key := ids.NameKey{ClassID: ids.ExtensionClassID, Name: s.Name.Text}
-	if auth.catalog.NameAddress(key) != (ids.ObjectAddress{}) {
+	if auth.Catalog.NameAddress(key) != (ids.ObjectAddress{}) {
 		if s.IfNotExists {
 			op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42710", Message: fmt.Sprintf(`extension "%s" already exists, skipping`, s.Name.Text)})
 			return nil, nil
@@ -125,7 +125,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	}
 	var namespace ids.ObjectAddress
 	if schema != nil {
-		namespace = auth.catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: schema.Text})
+		namespace = auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: schema.Text})
 		if namespace == (ids.ObjectAddress{}) {
 			return nil, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, schema.Text))
 		}
@@ -139,7 +139,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 		}
 		namespace = path[0]
 	}
-	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +147,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 		if !registration.Trusted {
 			return nil, sqlError("42501", fmt.Sprintf(`permission denied to create extension "%s"`, s.Name.Text))
 		}
-		rights, err := auth.Effective(e.catalog.Domain.Ref(auth.catalog.Epoch(), catalog.CurrentDatabaseAddress), false)
+		rights, err := auth.Effective(e.catalog.Domain.Ref(auth.Catalog.Epoch(), catalog.CurrentDatabaseAddress), false)
 		if err != nil {
 			return nil, err
 		}
@@ -168,7 +168,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 		return nil, err
 	}
 	ext := &catalog.Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: oid}, ObjectRevision: rev, ObjectName: s.Name.Text, Version: version, TargetNamespace: namespace, Owner: actor.Ref}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
 	stage.extensionNamespace = namespace
 	if err := stage.Create(ext); err != nil {
@@ -225,10 +225,10 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 	// The script resolves supplied helper names against its coherent staged
 	// search path, under the actual script execution principal. In particular,
 	// unqualified function lookup excludes the installer's own TEMP namespace.
-	auth.catalog = e.stageRead(stage)
-	auth.Recapture(auth.catalog)
-	auth.state.CurrentUser = owner
-	if err := auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), ext.TargetNamespace)); err != nil {
+	auth.Catalog = e.stageRead(stage)
+	auth.Recapture(auth.Catalog)
+	auth.State.CurrentUser = owner
+	if err := auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), ext.TargetNamespace)); err != nil {
 		return err
 	}
 	// Extension scripts replace, rather than prefix, the caller's path. The
@@ -241,7 +241,7 @@ func (p *unaccentProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 		signature catalog.ProcedureSignature
 		arguments string
 	}{{"unaccent_init", catalog.UnaccentInitSignature, "internal"}, {"unaccent_lexize", catalog.UnaccentLexizeSignature, "internal, internal, internal, internal"}} {
-		procedure := procedureInNamespaces(auth.catalog, namespaceSelection{path: path}, helper.name, helper.signature)
+		procedure := procedureInNamespaces(auth.Catalog, namespaceSelection{path: path}, helper.name, helper.signature)
 		if procedure == nil {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: fmt.Sprintf("function %s(%s) does not exist", helper.name, helper.arguments), Context: unaccentTemplateContext}
 		}

@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -20,7 +21,7 @@ func TestDropOwnedUnionCanonicalExtensionMembers(t *testing.T) {
 				target := roleAttributeCreate(t, e, op, "own_target", false, parser.RoleOptions{})
 				original := e.CatalogRead()
 				member := original.Get(extension.Members[index])
-				owner, _, _ := descriptorACL(member)
+				owner, _, _ := access.DescriptorACL(member)
 				stage := e.BeginCatalogStage(original)
 				defer e.DiscardCatalogStage(stage)
 				if owner == (authorization.PrincipalRef{}) {
@@ -44,11 +45,11 @@ func TestDropOwnedUnionCanonicalExtensionMembers(t *testing.T) {
 					t.Fatal("canonical member reassignment", result, err)
 				}
 				reassigned := e.catalog.state.Get(member.Address())
-				actual, _, _ := descriptorACL(reassigned)
+				actual, _, _ := access.DescriptorACL(reassigned)
 				if actual != target.Ref || e.catalog.state.Get(extension.Address()) != extension || sourceGeneration == reassigned {
 					t.Fatal("independent member reassignment")
 				}
-				previous, _, _ := descriptorACL(sourceGeneration)
+				previous, _, _ := access.DescriptorACL(sourceGeneration)
 				if previous != source.Ref {
 					t.Fatal("old member generation mutated")
 				}

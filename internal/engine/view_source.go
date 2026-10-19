@@ -108,7 +108,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		if d.Address().ObjectID == ids.ParameterClassID {
 			roles = scope.commentRoles
 		} else {
-			roles = e.roles.read(e.catalog.owner(), catalog, scope.deparseAuth.roleRecord)
+			roles = e.roles.read(e.catalog.owner(), catalog, scope.deparseAuth.RoleRecord)
 		}
 		if d.Address().ObjectID == 12002 {
 			auth, err := e.authorizationLocked(scope.op)
@@ -116,8 +116,8 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 				e.mu.Unlock()
 				return nil, err
 			}
-			auth.catalog = catalog
-			auth.Recapture(auth.catalog)
+			auth.Catalog = catalog
+			auth.Recapture(auth.Catalog)
 			source, err := capturePGIndexes(ctx, catalog, auth, ref, d)
 			e.mu.Unlock()
 			return source, err
@@ -183,26 +183,26 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ids.Object
 	if err != nil {
 		return AuthorizationView{}, err
 	}
-	auth.catalog = e.privateCatalogLocked(scope.owner.catalog)
-	auth.Recapture(auth.catalog)
+	auth.Catalog = e.privateCatalogLocked(scope.owner.catalog)
+	auth.Recapture(auth.Catalog)
 	return auth, authorizeViewSourceSnapshot(auth, ref, definition, invoker, mark)
 }
 
 // The source collector and execution fences use the same captured owner/invoker
 // checks; neither substitutes a live role/catalog sample during recursion.
 func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark queryRowMark) error {
-	d, ok := auth.catalog.Relation(ref.Address)
-	if !ok || ref.Domain() != auth.owner.Domain || ref.Epoch != auth.catalog.Epoch() || viewOf(d) != definition {
+	d, ok := auth.Catalog.Relation(ref.Address)
+	if !ok || ref.Domain() != auth.Owner.Domain || ref.Epoch != auth.Catalog.Epoch() || viewOf(d) != definition {
 		return ids.ErrCatalogReplaced
 	}
 	principal := d.Owner
 	if definition.invoker {
 		principal = invoker
 	}
-	auth.state.CurrentUser = principal
+	auth.State.CurrentUser = principal
 	for _, leaf := range definition.sources {
-		source, ok := auth.catalog.Relation(leaf.ref.Address)
-		if !ok || !storedViewReferenceValid(auth.catalog, d, leaf.ref) {
+		source, ok := auth.Catalog.Relation(leaf.ref.Address)
+		if !ok || !storedViewReferenceValid(auth.Catalog, d, leaf.ref) {
 			return ids.ErrCatalogReplaced
 		}
 		if leaf.analysisOnly {
@@ -222,7 +222,7 @@ func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, defi
 				return fmt.Errorf("stuntgres: missing view source attribute")
 			}
 		}
-		use, err := storedViewUseReference(auth.catalog, d, leaf.ref)
+		use, err := storedViewUseReference(auth.Catalog, d, leaf.ref)
 		if err != nil {
 			return err
 		}
@@ -230,7 +230,7 @@ func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, defi
 			return err
 		}
 	}
-	if mark.mode != 0 || viewHasStoredRowMarks(d, auth.catalog) {
+	if mark.mode != 0 || viewHasStoredRowMarks(d, auth.Catalog) {
 		return auth.checkViewRowMarks(d, mark, invoker)
 	}
 	return nil

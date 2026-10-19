@@ -115,9 +115,9 @@ func (p *pgSequencesSource) complete(ctx context.Context, ref ids.ObjectRef, row
 	if err != nil {
 		return err
 	}
-	auth.catalog = e.privateCatalogLocked(p.scope.owner.catalog)
-	auth.Recapture(auth.catalog)
-	relation, ok := auth.catalog.Relation(ref.Address)
+	auth.Catalog = e.privateCatalogLocked(p.scope.owner.catalog)
+	auth.Recapture(auth.Catalog)
+	relation, ok := auth.Catalog.Relation(ref.Address)
 	if !ok || relation.RelationKind != catalog.SequenceRelation {
 		return sqlError("XX000", fmt.Sprintf("could not open relation with OID %d", ref.Address.ObjectID))
 	}

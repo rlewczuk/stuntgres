@@ -51,11 +51,11 @@ func (e identityExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	}
 	if s.foreignActionAuth != nil {
 		auth := s.foreignActionAuth
-		role, err := auth.roles.Descriptor(auth.state.CurrentUser)
+		role, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		name, _ := auth.catalog.LookupType(sqltype.Name)
+		name, _ := auth.Catalog.LookupType(sqltype.Name)
 		identity.current, identity.currentMissing = sqltype.String(name, role.Name), authorization.PrincipalRef{}
 	}
 	switch e.kind {
@@ -86,7 +86,7 @@ func (e identityExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		}
 		result := sqltype.Null(e.Usage.Type)
 		if len(path) > 0 {
-			result = sqltype.String(e.Usage.Type, auth.catalog.Get(path[0]).Name())
+			result = sqltype.String(e.Usage.Type, auth.Catalog.Get(path[0]).Name())
 		}
 		if s.foreignActionAuth == nil && s.ruleActionAuth == nil {
 			s.currentSchemaResult = result
@@ -99,26 +99,26 @@ func (e identityExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 // Capture the seven selected identities under the binding catalog/authorization
 // authority. Their leaves retain no session and perform no live role lookup.
 func (s *StatementScope) captureIdentityLocked(auth AuthorizationView) error {
-	name, _ := auth.catalog.LookupType(sqltype.Name)
-	text, _ := auth.catalog.LookupType(sqltype.Text)
-	if err := auth.roles.ValidatePrincipal(auth.state.CurrentUser); err != nil {
+	name, _ := auth.Catalog.LookupType(sqltype.Name)
+	text, _ := auth.Catalog.LookupType(sqltype.Text)
+	if err := auth.Roles.ValidatePrincipal(auth.State.CurrentUser); err != nil {
 		return err
 	}
-	current, currentExists := auth.roles.Find(auth.state.CurrentUser)
-	if err := auth.roles.ValidatePrincipal(auth.state.SessionUser); err != nil {
+	current, currentExists := auth.Roles.Find(auth.State.CurrentUser)
+	if err := auth.Roles.ValidatePrincipal(auth.State.SessionUser); err != nil {
 		return err
 	}
-	session, sessionExists := auth.roles.Find(auth.state.SessionUser)
-	s.identity = identitySnapshot{database: sqltype.String(name, s.op.session.databaseName), system: sqltype.Null(text), currentPrincipal: auth.state.CurrentUser}
+	session, sessionExists := auth.Roles.Find(auth.State.SessionUser)
+	s.identity = identitySnapshot{database: sqltype.String(name, s.op.session.databaseName), system: sqltype.Null(text), currentPrincipal: auth.State.CurrentUser}
 	if sessionExists {
 		s.identity.session = sqltype.String(name, session.Name)
 	} else {
-		s.identity.sessionMissing = auth.state.SessionUser
+		s.identity.sessionMissing = auth.State.SessionUser
 	}
 	if currentExists {
 		s.identity.current = sqltype.String(name, current.Name)
 	} else {
-		s.identity.currentMissing = auth.state.CurrentUser
+		s.identity.currentMissing = auth.State.CurrentUser
 	}
 	return nil
 }
@@ -127,7 +127,7 @@ func (s *StatementScope) captureIdentityLocked(auth AuthorizationView) error {
 func (c *EvalContext) expressionPrincipal() authorization.PrincipalRef {
 	s := c.liveScope()
 	if s.foreignActionAuth != nil {
-		return s.foreignActionAuth.state.CurrentUser
+		return s.foreignActionAuth.State.CurrentUser
 	}
 	if c.query != nil && c.query.source.authority != nil && c.query.source.authority.expression != nil {
 		return c.query.source.authority.expression.identity.currentPrincipal

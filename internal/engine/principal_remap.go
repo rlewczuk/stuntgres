@@ -282,8 +282,8 @@ func (e *Engine) restoreStage() *Engine {
 	if err := stage.InstallForeignDefinitions(e.foreignWrappers, e.foreignValidators, e.foreignValueImporter, e.foreignValueExporter); err != nil {
 		panic(err)
 	}
-	stage.importTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef, sourceRoles.root.Read(authorization.PrincipalRef{}).RoleCount())
-	roles := sourceRoles.root.Reprovenance(&stage.roles.domain, stage.importTargets)
+	stage.importTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef, sourceRoles.Root.Read(authorization.PrincipalRef{}).RoleCount())
+	roles := sourceRoles.Root.Reprovenance(&stage.roles.domain, stage.importTargets)
 	retainedDatabase := *database
 	retainedDatabase.Owner = stage.roles.domain.Principal(database.Owner.ID())
 	retainedDatabase.ACL.Entries = append([]authorization.ACLEntry(nil), database.ACL.Entries...)
@@ -295,7 +295,7 @@ func (e *Engine) restoreStage() *Engine {
 		}
 	}
 	stage.catalog.state.SetDescriptor(catalog.CurrentDatabaseAddress, &retainedDatabase)
-	stage.roles.published = &roleCatalog{root: roles, revision: sourceRoles.revision}
+	stage.roles.published = &roleCatalog{Root: roles, Revision: sourceRoles.Revision}
 	stage.roles.nextPrincipal = nextPrincipal
 	return stage
 }

@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -87,7 +88,7 @@ func (e *Engine) checkOperatorArgumentUsage(auth AuthorizationView, id ids.OID) 
 	if id == 0 {
 		return nil
 	}
-	return auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id}))
+	return auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id}))
 }
 
 func (e *Engine) operatorArgument(op *Operation, auth AuthorizationView, raw parser.TypeName) (ids.OID, error) {
@@ -131,12 +132,12 @@ func (e *Engine) findUtilityOperator(op *Operation, auth AuthorizationView, s pa
 	key := catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID}, Left: left, Right: right, ObjectName: s.Name.Parts[len(s.Name.Parts)-1].Text}
 	for i := range path.count() {
 		key.ObjectNamespace = path.at(i)
-		a := auth.catalog.NameAddress(catalog.DescriptorNameKey(&key))
-		if d, ok := auth.catalog.Operator(a); ok {
+		a := auth.Catalog.NameAddress(catalog.DescriptorNameKey(&key))
+		if d, ok := auth.Catalog.Operator(a); ok {
 			return d, nil
 		}
 	}
-	return nil, sqlError("42883", "operator does not exist: "+operatorInputName(auth.catalog, left, right, s.Name))
+	return nil, sqlError("42883", "operator does not exist: "+operatorInputName(auth.Catalog, left, right, s.Name))
 }
 func (e *Engine) operatorRoutine(auth AuthorizationView, name parser.ObjectName, inputs []ids.OID) (*catalog.Procedure, error) {
 	path, err := e.lookupNamespaces(auth, name, functionLookup)
@@ -147,18 +148,18 @@ func (e *Engine) operatorRoutine(auth AuthorizationView, name parser.ObjectName,
 	types := make([]string, len(inputs))
 	for i, id := range inputs {
 		ids[i] = strconv.FormatUint(uint64(id), 10)
-		if t, ok := auth.catalog.LookupType(sqltype.ID(id)); ok {
+		if t, ok := auth.Catalog.LookupType(sqltype.ID(id)); ok {
 			types[i] = t.DiagnosticName()
 		}
 	}
-	d := procedureInNamespaces(auth.catalog, path, name.Parts[len(name.Parts)-1].Text, catalog.ProcedureSignature(strings.Join(ids, ",")))
+	d := procedureInNamespaces(auth.Catalog, path, name.Parts[len(name.Parts)-1].Text, catalog.ProcedureSignature(strings.Join(ids, ",")))
 	if d == nil {
 		return nil, sqlError("42883", "function "+objectNameText(name)+"("+strings.Join(types, ", ")+") does not exist")
 	}
 	if d.RoutineKind != 'f' {
 		return nil, sqlError("42809", objectNameText(name)+" is not a function")
 	}
-	if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
+	if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
 		return nil, err
 	}
 	return d, nil
@@ -206,10 +207,10 @@ func (e *Engine) operatorEstimator(auth AuthorizationView, name parser.ObjectNam
 	if join {
 		signature = "2281,26,2281,21,2281"
 	}
-	identity, count := selectRoutine(auth.catalog, path, n, &signature)
+	identity, count := selectRoutine(auth.Catalog, path, n, &signature)
 	if join {
 		four := catalog.ProcedureSignature("2281,26,2281,21")
-		alternate, other := selectRoutine(auth.catalog, path, n, &four)
+		alternate, other := selectRoutine(auth.Catalog, path, n, &four)
 		identity, count, err = operatorEstimatorVariant(name, identity, count, alternate, other)
 		if err != nil {
 			return 0, err
@@ -224,17 +225,17 @@ func (e *Engine) operatorEstimator(auth AuthorizationView, name parser.ObjectNam
 		return 0, err
 	}
 	result := releasedOperatorEstimatorResult(identity.ID)
-	if d, ok := auth.catalog.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: identity.ID}); ok {
+	if d, ok := auth.Catalog.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: identity.ID}); ok {
 		if d.RoutineKind != catalog.FunctionRoutine {
 			return 0, sqlError("42809", objectNameText(name)+" is not a function")
 		}
 		result = d.Result
-		if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
+		if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
 			return 0, err
 		}
 		builtin = d.Seeded()
 		if !builtin {
-			actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+			actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 			if err != nil {
 				return 0, err
 			}
@@ -506,11 +507,11 @@ func (e *Engine) resolveOperatorLink(auth AuthorizationView, stage *CatalogStage
 		}
 	}
 	if peer != nil && !allowShell && peer.Function == 0 {
-		return nil, sqlError("42883", "operator is only a shell: "+operatorInputName(auth.catalog, left, right, name))
+		return nil, sqlError("42883", "operator is only a shell: "+operatorInputName(auth.Catalog, left, right, name))
 	}
 	if peer == nil {
 		if !allowShell {
-			return nil, sqlError("42883", "operator does not exist: "+operatorInputName(auth.catalog, left, right, name))
+			return nil, sqlError("42883", "operator does not exist: "+operatorInputName(auth.Catalog, left, right, name))
 		}
 		ns, err := e.collationCreationNamespaceLocked(&auth, stage, name)
 		if err != nil {
@@ -532,14 +533,14 @@ func (e *Engine) resolveOperatorLink(auth AuthorizationView, stage *CatalogStage
 		if err != nil {
 			return nil, err
 		}
-		peer = &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}, ObjectNamespace: ns.Address, ObjectRevision: rev, ObjectName: symbol, Left: left, Right: right, Owner: auth.state.CurrentUser}
+		peer = &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id}, ObjectNamespace: ns.Address, ObjectRevision: rev, ObjectName: symbol, Left: left, Right: right, Owner: auth.State.CurrentUser}
 		if err = stage.Create(peer); err != nil {
 			return nil, err
 		}
 	} else if peer.Address() != d.Address() {
 		peerAuth := auth
 		peerAuth.Recapture(view)
-		if err = peerAuth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.catalog.Epoch(), peer.Address()), OwnerOnly: true}); err != nil {
+		if err = peerAuth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), peer.Address()), OwnerOnly: true}); err != nil {
 			return nil, err
 		}
 	}
@@ -676,11 +677,11 @@ func (e *Engine) stageCreateOperatorLocked(op *Operation, auth AuthorizationView
 	if err != nil {
 		return err
 	}
-	if err = auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: routine.Result})); err != nil {
+	if err = auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: routine.Result})); err != nil {
 		return err
 	}
 	symbol := s.Name.Parts[len(s.Name.Parts)-1].Text
-	next := catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID}, ObjectNamespace: ns.Address, ObjectName: symbol, Left: l, Right: r, Owner: auth.state.CurrentUser, Result: routine.Result, Function: routine.Address().ObjectID}
+	next := catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID}, ObjectNamespace: ns.Address, ObjectName: symbol, Left: l, Right: r, Owner: auth.State.CurrentUser, Result: routine.Result, Function: routine.Address().ObjectID}
 	// DefineOperator resolves surviving estimators before OperatorCreate checks
 	// the name, parameter combinations, and only then duplicate/shell ownership.
 	comm, neg, err := e.collectOperatorOptions(auth, &next, s.Options, false)
@@ -693,12 +694,12 @@ func (e *Engine) stageCreateOperatorLocked(op *Operation, auth AuthorizationView
 	if err = validateOperatorOptions(&next, comm, neg); err != nil {
 		return err
 	}
-	old, _ := auth.catalog.Operator(auth.catalog.NameAddress(catalog.DescriptorNameKey(&next)))
+	old, _ := auth.Catalog.Operator(auth.Catalog.NameAddress(catalog.DescriptorNameKey(&next)))
 	if old != nil {
 		if old.Function != 0 {
 			return sqlError("42723", "operator "+symbol+" already exists")
 		}
-		if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.catalog.Epoch(), old.Address()), OwnerOnly: true}); err != nil {
+		if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), old.Address()), OwnerOnly: true}); err != nil {
 			return err
 		}
 		next.ObjectAddress = old.Address()
@@ -761,14 +762,14 @@ func (e *Engine) stageAlterOperatorLocked(op *Operation, auth AuthorizationView,
 		if err = e.conversionCheckCreate(op, auth, ns); err != nil {
 			return err
 		}
-		source := auth.catalog.MustNamespace(d.Namespace())
-		target := auth.catalog.MustNamespace(ns.Address)
+		source := auth.Catalog.MustNamespace(d.Namespace())
+		target := auth.Catalog.MustNamespace(ns.Address)
 		if source.Temporary != (ids.SessionToken{}) || target.Temporary != (ids.SessionToken{}) {
 			return sqlError("0A000", "cannot move objects into or out of temporary schemas")
 		}
 		next.ObjectNamespace = ns.Address
 	}
-	if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address()), OwnerOnly: true}); err != nil {
+	if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), OwnerOnly: true}); err != nil {
 		return err
 	}
 	if operatorSeeded(d) {
@@ -776,14 +777,14 @@ func (e *Engine) stageAlterOperatorLocked(op *Operation, auth AuthorizationView,
 	}
 	switch s.Action {
 	case "owner":
-		target, err := schemaOwner(auth.accessView, s.Target.Text, s.OwnerIdentity)
+		target, err := access.SchemaOwner(auth.accessView, s.Target.Text, s.OwnerIdentity)
 		if err != nil {
 			return err
 		}
 		if target == d.Owner {
 			return nil
 		}
-		if err = ownershipEligibility(auth.accessView, auth, target, d.Namespace()); err != nil {
+		if err = access.OwnershipEligibility(auth.accessView, auth, target, d.Namespace()); err != nil {
 			return err
 		}
 		next.Owner = target
@@ -852,9 +853,9 @@ func (e *Engine) stageDropOperatorLocked(op *Operation, auth AuthorizationView, 
 			}
 			return err
 		}
-		namespaceOwner := auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Namespace()), OwnerOnly: true}) == nil
+		namespaceOwner := auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Namespace()), OwnerOnly: true}) == nil
 		if !namespaceOwner {
-			if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address()), OwnerOnly: true}); err != nil {
+			if err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), OwnerOnly: true}); err != nil {
 				if diag, ok := err.(*sqlstate.Error); ok && diag.Code == "42501" {
 					return sqlError("42501", "must be owner of operator "+objectNameText(sig.Name))
 				}
@@ -863,7 +864,7 @@ func (e *Engine) stageDropOperatorLocked(op *Operation, auth AuthorizationView, 
 		}
 		if operatorSeeded(d) {
 			path, _ := e.referencePath(auth)
-			return sqlError("2BP01", "cannot drop "+dependencyObject(auth.catalog, d.Address(), path)+" because it is required by the database system")
+			return sqlError("2BP01", "cannot drop "+dependencyObject(auth.Catalog, d.Address(), path)+" because it is required by the database system")
 		}
 		if !seen[d.Address()] {
 			seen[d.Address()] = true

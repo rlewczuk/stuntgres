@@ -190,7 +190,7 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input Protoc
 			auth, lookupErr := e.authorizationLocked(s.op)
 			if lookupErr == nil {
 				for i, oid := range entry.parameterOIDs {
-					typ, ok := auth.catalog.LookupType(sqltype.ID(oid))
+					typ, ok := auth.Catalog.LookupType(sqltype.ID(oid))
 					if !ok {
 						lookupErr = sqlError("42704", fmt.Sprintf("type with OID %d does not exist", oid))
 						break
@@ -431,7 +431,7 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 			if captureErr != nil {
 				return out, captureErr
 			}
-			catalog = auth.catalog
+			catalog = auth.Catalog
 			p.outputRows.operatorGroups = nil
 			catalogReady = true
 		}

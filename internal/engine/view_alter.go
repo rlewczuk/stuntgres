@@ -13,7 +13,7 @@ import (
 // PostgreSQL uses different callbacks for column, dependency and other forms.
 // Keep admission and execution on the same action-specific authority contract.
 func alterViewAuthority(auth AuthorizationView, ref ids.ObjectRef, s *parser.AlterView) error {
-	d := auth.catalog.MustRelation(ref.Address)
+	d := auth.Catalog.MustRelation(ref.Address)
 	kind, label := catalog.ViewRelation, "view"
 	ownerChecked := false
 	if s.Materialized {
@@ -74,7 +74,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 	if ref != scope.lockedRef {
 		return fail(ids.ErrCatalogReplaced)
 	}
-	old := auth.catalog.MustRelation(ref.Address)
+	old := auth.Catalog.MustRelation(ref.Address)
 	if err = alterViewAuthority(auth, ref, s); err != nil {
 		return fail(err)
 	}
@@ -93,11 +93,11 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 	var extension *catalog.Extension
 	switch s.Action {
 	case "depends", "no_depends":
-		address, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.ExtensionClassID, Name: s.Target.Text})
+		address, exists := auth.Catalog.LookupName(ids.NameKey{ClassID: ids.ExtensionClassID, Name: s.Target.Text})
 		if !exists {
 			return fail(sqlError("42704", fmt.Sprintf(`extension "%s" does not exist`, s.Target.Text)))
 		}
-		extension, _ = auth.catalog.Extension(address)
+		extension, _ = auth.Catalog.Extension(address)
 		if extension == nil {
 			return fail(ids.ErrCatalogReplaced)
 		}
@@ -164,7 +164,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 			return fail(err)
 		}
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.session)
 	if extension != nil {
 		stage.querySources = []catalog.Descriptor{extension}
@@ -196,8 +196,8 @@ func viewDropOwner(auth AuthorizationView, ref ids.ObjectRef, d *catalog.Relatio
 	if ownerErr == nil {
 		return nil
 	}
-	ns := auth.catalog.MustNamespace(d.Namespace())
-	allowed, err := auth.roles.InheritsRole(auth.state.CurrentUser, ns.Owner)
+	ns := auth.Catalog.MustNamespace(d.Namespace())
+	allowed, err := auth.Roles.InheritsRole(auth.State.CurrentUser, ns.Owner)
 	if err != nil {
 		return err
 	}
@@ -237,7 +237,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 			notices = append(notices, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: diagnostic.Message + ", skipping"})
 			continue
 		}
-		d := auth.catalog.MustRelation(ref.Address)
+		d := auth.Catalog.MustRelation(ref.Address)
 		if d.RelationKind != kind {
 			hint := "Use DROP TABLE to remove a table."
 			switch d.RelationKind {
@@ -262,7 +262,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 			refs = append(refs, ref)
 		}
 	}
-	epoch := auth.catalog.Epoch()
+	epoch := auth.Catalog.Epoch()
 	e.mu.Unlock()
 	sort.Slice(refs, func(i, j int) bool { return refs[i].Address.ObjectID < refs[j].Address.ObjectID })
 	policy := lock.Policy{TimeoutSlot: &scope.op.lockWait, Timeout: scope.op.lockTimeout, StatementDeadline: scope.op.statementDeadline, Source: scope.op.sourceContext}
@@ -289,12 +289,12 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if epoch != auth.catalog.Epoch() {
+	if epoch != auth.Catalog.Epoch() {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	for _, ref := range refs {
-		d, ok := auth.catalog.Relation(ref.Address)
+		d, ok := auth.Catalog.Relation(ref.Address)
 		if !ok || ref.Domain() != e.catalog.Domain {
 			e.mu.Unlock()
 			return Result{}, ids.ErrCatalogReplaced
@@ -304,7 +304,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 			return Result{}, err
 		}
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.session)
 	stage.dependencyPath, err = e.referencePath(auth)
 	if err != nil {

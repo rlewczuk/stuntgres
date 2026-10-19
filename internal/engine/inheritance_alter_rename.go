@@ -16,7 +16,7 @@ func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *Operat
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if only && inheritanceHasChildren(auth.catalog, root.Address()) {
+	if only && inheritanceHasChildren(auth.Catalog, root.Address()) {
 		e.mu.Unlock()
 		return Result{}, sqlError("42P16", fmt.Sprintf(`inherited column "%s" must be renamed in child tables too`, column))
 	}
@@ -32,7 +32,7 @@ func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *Operat
 		}
 		root = current
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
@@ -70,7 +70,7 @@ func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *Operat
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
-		_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: auth.catalog.Epoch()})
+		_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()})
 	}
 	if err == nil {
 		scope.completed = true
@@ -110,7 +110,7 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Op
 			}
 		}
 	}
-	if raw.Only && !noInherit && inheritanceHasChildren(auth.catalog, root.Address()) {
+	if raw.Only && !noInherit && inheritanceHasChildren(auth.Catalog, root.Address()) {
 		e.mu.Unlock()
 		return Result{}, sqlError("42P16", fmt.Sprintf(`inherited constraint "%s" must be renamed in child tables too`, name))
 	}
@@ -119,7 +119,7 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Op
 		return Result{}, err
 	}
 	root = targets[0]
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
@@ -163,7 +163,7 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Op
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
-		_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: auth.catalog.Epoch()})
+		_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()})
 	}
 	if err == nil {
 		scope.completed = true
@@ -190,7 +190,7 @@ func (scope *StatementScope) acquireInheritanceDefinitions(root *catalog.Relatio
 		if err != nil {
 			return fail(err)
 		}
-		view := auth.catalog
+		view := auth.Catalog
 		if view.Epoch() != epoch {
 			return fail(ids.ErrCatalogReplaced)
 		}

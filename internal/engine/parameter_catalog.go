@@ -51,8 +51,8 @@ func (e *Engine) grantParameterDescriptorLocked(v AuthorizationView, name string
 	if err != nil {
 		return nil, err
 	}
-	if address := v.catalog.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: key}); address != (ids.ObjectAddress{}) {
-		d, ok := v.catalog.Parameter(address)
+	if address := v.Catalog.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: key}); address != (ids.ObjectAddress{}) {
+		d, ok := v.Catalog.Parameter(address)
 		if !ok || d == nil {
 			return nil, fmt.Errorf("stuntgres: invalid parameter catalog identity")
 		}

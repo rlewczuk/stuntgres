@@ -166,10 +166,10 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 				}
 			}
 			changed := *evaluation.routineAuthority
-			changed.catalog = changed.catalog.WithState(catalog.CloneState(changed.catalog.State()))
+			changed.Catalog = changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 			replacement := *captured
 			replacement.Strict = false
-			changed.catalog.State().SetDescriptor(address, &replacement)
+			changed.Catalog.State().SetDescriptor(address, &replacement)
 			probe = evaluation
 			probe.routineAuthority = &changed
 			if err := admitRoutineCall(&probe, call, false, false); err == nil {

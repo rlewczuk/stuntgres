@@ -23,7 +23,7 @@ func ownershipCleanupStage(t *testing.T) (*Engine, *CatalogStage, *catalog.Names
 	}
 	ownershipUnitPublish(t, e, setup)
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	stage.roleRevision = e.roles.published.revision
+	stage.roleRevision = e.roles.published.Revision
 	if err := stageOwnedCleanup(context.Background(), stage, e.roles.read(e.catalog.owner(), stage.Base, e.roles.published), e.roles.published, map[authorization.PrincipalRef]bool{source: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 				cancel()
 			case "role":
 				next := *e.roles.published
-				next.revision++
+				next.Revision++
 				e.roles.published = &next
 			case "catalog":
 				replacement := *ns
@@ -89,7 +89,7 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 				ownershipUnitPublish(t, e, other)
 			case "database":
 				replacement := *e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
-				replacement.Owner = e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_target")
+				replacement.Owner = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("ownership_target")
 				replacement.ObjectRevision++
 				other := e.BeginCatalogStage(e.CatalogRead())
 				if err := other.Replace(&replacement); err != nil {
@@ -114,7 +114,7 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 				e.catalog.state = next
 			case "role-headroom":
 				next := *e.roles.published
-				next.revision = ^uint64(0)
+				next.Revision = ^uint64(0)
 				e.roles.published = &next
 			case "invalid-member":
 				next := *stage.roleCandidate
@@ -232,9 +232,9 @@ func TestReassignOwnedPublicationCompetingRoleChange(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	address := auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ownership_fenced"})
+	address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ownership_fenced"})
 	stage := e.ownershipStage(auth, op)
-	if err = stageOwnership(stage, auth.catalog.Get(address), target); err != nil {
+	if err = stageOwnership(stage, auth.Catalog.Get(address), target); err != nil {
 		t.Fatal(err)
 	}
 	p, err := e.ValidateCatalogStage(context.Background(), stage)

@@ -61,14 +61,14 @@ func (s *StatementScope) writeAuthorizationLocked(e *Engine) (AuthorizationView,
 	// authority and RI owner substitution remain local to the returned view.
 	s.routineAuth = auth
 	if s.ruleActionAuth != nil {
-		auth.state.CurrentUser = s.ruleActionAuth.state.CurrentUser
-		if err = auth.roles.ValidatePrincipal(auth.state.CurrentUser); err != nil {
+		auth.State.CurrentUser = s.ruleActionAuth.State.CurrentUser
+		if err = auth.Roles.ValidatePrincipal(auth.State.CurrentUser); err != nil {
 			return AuthorizationView{}, err
 		}
 	}
 	if s.foreignActionAuth != nil {
-		auth.state.CurrentUser = s.foreignActionAuth.state.CurrentUser
-		if err = auth.roles.ValidatePrincipal(auth.state.CurrentUser); err != nil {
+		auth.State.CurrentUser = s.foreignActionAuth.State.CurrentUser
+		if err = auth.Roles.ValidatePrincipal(auth.State.CurrentUser); err != nil {
 			return AuthorizationView{}, err
 		}
 	}
@@ -202,7 +202,7 @@ func (s *StatementScope) recordForeignActionReplacement(ref ids.ObjectRef, old, 
 
 func foreignActionOwner(auth AuthorizationView, owner authorization.PrincipalRef) AuthorizationView {
 	if owner != (authorization.PrincipalRef{}) {
-		auth.state.CurrentUser = owner
+		auth.State.CurrentUser = owner
 	}
 	return auth
 }

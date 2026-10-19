@@ -292,11 +292,11 @@ func (s *StatementScope) partitionIndexTransaction(stmt parser.Statement) bool {
 		if err != nil {
 			return false
 		}
-		index, ok := auth.catalog.Relation(ref.Address)
+		index, ok := auth.Catalog.Relation(ref.Address)
 		if !ok || index.SQLIndex == nil {
 			return false
 		}
-		table, ok := auth.catalog.Relation(index.SQLIndex.Parent)
+		table, ok := auth.Catalog.Relation(index.SQLIndex.Parent)
 		if !ok || table.Partition == nil && index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) {
 			return false
 		}

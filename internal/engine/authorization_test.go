@@ -21,7 +21,7 @@ import (
 // Host catalog fixtures resolve as the real bootstrap principal, not as a
 // zero/default-allow authorization view. Caller holds e.mu.
 func catalogAuthorization(e *Engine, view catalog.Read) AuthorizationView {
-	return AuthorizationView{accessView: accessView{owner: e.catalog.owner(), pairedCatalog: view, roleRecord: e.roles.published, catalog: view, roles: e.roles.read(e.catalog.owner(), view, e.roles.published), state: authorization.RoleState{CurrentUser: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}}, engine: e}
+	return AuthorizationView{accessView: accessView{Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.roles.published, Catalog: view, Roles: e.roles.read(e.catalog.owner(), view, e.roles.published), State: authorization.RoleState{CurrentUser: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}}, engine: e}
 }
 
 func roleTableRef(t *testing.T, e *Engine, name string) ids.ObjectRef {
@@ -118,7 +118,7 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 	}
 	namespace := e.catalog.Domain.Ref(e.catalog.state.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	entry.Privileges = authorization.UsagePrivilege
-	entry.Grantor = e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	entry.Grantor = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
 		t.Fatal(err)
 	}
@@ -288,7 +288,7 @@ func TestAuthorizationExhaustionAndCancellationDoNotPublish(t *testing.T) {
 	roleExecute(t, e, op, "CREATE ROLE retained")
 	before = e.roles.published
 	saturated := *e.roles.published
-	saturated.revision = ^uint64(0)
+	saturated.Revision = ^uint64(0)
 	e.roles.published = &saturated
 	before = e.roles.published
 	if _, err := e.Execute(op, statement(t, "DROP ROLE retained"), 0, nil); err == nil {
@@ -443,7 +443,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	roleExecute(t, e, op, "CREATE TABLE sentinel(id INT)")
-	namespaceOwner := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
+	namespaceOwner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 	namespace := e.catalog.Domain.Ref(e.catalog.state.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	original := e.catalog.state.MustNamespace(namespace.Address).ACL
 	// Same grantors/grantees/effective rights, split and reordered entries.
@@ -470,7 +470,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 		t.Fatal("restored sentinel behavior", got)
 	}
 	ref := roleTableRef(t, restored, "sentinel")
-	if restored.catalog.state.MustRelation(ref.Address).Owner != restored.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
+	if restored.catalog.state.MustRelation(ref.Address).Owner != restored.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 		t.Fatal("dump did not preserve sentinel owner")
 	}
 	changed := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
@@ -585,7 +585,7 @@ func TestAuthorizationLargeColumnManifestAndRepeatedUses(t *testing.T) {
 	column := ref
 	column.Address.SubID = 65
 	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
-		{Grantor: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege},
+		{Grantor: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege},
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -635,7 +635,7 @@ func TestAuthorizationStampRetainsRolePublication(t *testing.T) {
 	}
 	stamp := held.Stamp()
 	oldPublication := e.roles.published
-	oldEdges := held.Roles().Memberships()
+	oldEdges := held.Roles.Memberships()
 	if err := e.SetRoleReferences(context.Background(), "stamp fixture", []authorization.PrincipalRef{op.RoleState().CurrentUser}); err != nil {
 		t.Fatal(err)
 	}
@@ -643,7 +643,7 @@ func TestAuthorizationStampRetainsRolePublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if held.Stamp() != stamp || fresh.Stamp().Roles != stamp.Roles+1 || fresh.roleRecord == oldPublication || !reflect.DeepEqual(held.Roles().Memberships(), oldEdges) {
+	if held.Stamp() != stamp || fresh.Stamp().Roles != stamp.Roles+1 || fresh.RoleRecord == oldPublication || !reflect.DeepEqual(held.Roles.Memberships(), oldEdges) {
 		t.Fatal("role-only publication changed held stamp/root")
 	}
 	ref := roleTableRef(t, e, "stamp_retained")
@@ -654,7 +654,7 @@ func TestAuthorizationStampRetainsRolePublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if held.Stamp() != stamp || fresh.Stamp().Roles != stamp.Roles+1 || newest.Stamp().Roles != stamp.Roles+2 || newest.roleRecord == fresh.roleRecord || !reflect.DeepEqual(held.Roles().Memberships(), oldEdges) {
+	if held.Stamp() != stamp || fresh.Stamp().Roles != stamp.Roles+1 || newest.Stamp().Roles != stamp.Roles+2 || newest.RoleRecord == fresh.RoleRecord || !reflect.DeepEqual(held.Roles.Memberships(), oldEdges) {
 		t.Fatal("ACL-only publication changed held stamp/root")
 	}
 }

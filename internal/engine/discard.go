@@ -202,7 +202,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 		e.mu.Unlock()
 		return err
 	}
-	base := auth.catalog
+	base := auth.Catalog
 	owned := make(map[ids.ObjectAddress]bool)
 	for address, d := range base.Descriptors() {
 		if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == session.token {

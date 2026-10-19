@@ -208,7 +208,7 @@ func TestPGAttributeDeclaredRank(t *testing.T) {
 	}{{0, `"pg_catalog"."_int4"`}, {1, "INTEGER[]"}, {2, "INTEGER[][]"}} {
 		column := next.Columns[1]
 		column.DeclaredDimensions = tc.rank
-		text, err := catalogColumnDeclaration(auth.catalog, column)
+		text, err := catalogColumnDeclaration(auth.Catalog, column)
 		if err != nil || text != tc.want {
 			t.Fatal("rank rendering", tc, text, err)
 		}
@@ -229,7 +229,7 @@ func TestPGAttributeDroppedHistory(t *testing.T) {
 	e, scope, auth, old := alterAddUnitScope(t)
 	old.Columns[0].Usage = testUsage(e, sqltype.ID(1007))
 	old.Columns[0].DeclaredDimensions = 2
-	initial := e.BeginCatalogStage(auth.catalog)
+	initial := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(initial)
 	if err := initial.Create(old); err != nil {
 		t.Fatal(err)
@@ -238,7 +238,7 @@ func TestPGAttributeDroppedHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.PublishCatalog(publication, PublicationToken{Epoch: auth.catalog.Epoch()}); err != nil {
+	if _, err := e.PublishCatalog(publication, PublicationToken{Epoch: auth.Catalog.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	base := e.CatalogRead()

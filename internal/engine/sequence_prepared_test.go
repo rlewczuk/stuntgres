@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -233,7 +234,7 @@ func TestSequencePreparedEffectiveAuthority(t *testing.T) {
 	for _, q := range []string{"CREATE USER reader", "CREATE USER reader2", "CREATE SCHEMA a", "CREATE SCHEMA b", "CREATE SCHEMA reader", "CREATE SCHEMA reader2", "CREATE SEQUENCE a.s START 100", "CREATE SEQUENCE b.s START 10", "CREATE SEQUENCE reader.s START 30", "CREATE SEQUENCE reader2.s START 300"} {
 		sessionSQL(t, s, q)
 	}
-	owner := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	grant := func(name string, rights authorization.Privileges) {
 		t.Helper()
 		var ref ids.ObjectRef
@@ -351,8 +352,8 @@ func TestSequencePreparedRevokedMemory(t *testing.T) {
 	sessionSQL(t, s, "CREATE USER reader")
 	sessionSQL(t, s, "CREATE SEQUENCE s CACHE 10")
 	ref := roleTableRef(t, e, "s")
-	owner := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	reader := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("reader")
+	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	reader := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("reader")
 	grant := func(rights authorization.Privileges) {
 		t.Helper()
 		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: rights}}}
@@ -486,7 +487,7 @@ func TestSequencePreparedNamespaceExhaustion(t *testing.T) {
 			t.Fatal("failed namespace ACL published catalog or authorization")
 		}
 		d, _ := e.CatalogRead().Descriptor(ref.Address)
-		_, acl, _ := descriptorACL(d)
+		_, acl, _ := access.DescriptorACL(d)
 		if !acl.Explicit {
 			t.Fatal("failed ACL update removed the live ACL")
 		}

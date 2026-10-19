@@ -259,7 +259,7 @@ func (e *Engine) restoreRetiredConstraint(op *Operation, raw *parser.Update, aut
 		e.mu.Unlock()
 		return reject()
 	}
-	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil || !actor.Superuser {
 		e.mu.Unlock()
 		return reject()
@@ -269,12 +269,12 @@ func (e *Engine) restoreRetiredConstraint(op *Operation, raw *parser.Update, aut
 		e.mu.Unlock()
 		return err
 	}
-	old, ok := auth.catalog.Relation(ref.Address)
+	old, ok := auth.Catalog.Relation(ref.Address)
 	if !ok || old.Inheritance == nil {
 		e.mu.Unlock()
 		return reject()
 	}
-	namespace, ok := auth.catalog.Namespace(old.Namespace())
+	namespace, ok := auth.Catalog.Namespace(old.Namespace())
 	if !ok || namespace.Temporary != (ids.SessionToken{}) {
 		e.mu.Unlock()
 		return reject()
@@ -364,7 +364,7 @@ func (e *Engine) restoreRetiredConstraint(op *Operation, raw *parser.Update, aut
 	} else {
 		next.Inheritance.NotNull[fact.attributes[0]] = provenance
 	}
-	staged := e.BeginCatalogStage(auth.catalog)
+	staged := e.BeginCatalogStage(auth.Catalog)
 	staged.authorizeLocked(auth, op.session)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(staged)

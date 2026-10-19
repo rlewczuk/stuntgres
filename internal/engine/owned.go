@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -16,15 +17,15 @@ func ownedSources(auth AuthorizationView, specs []parser.RoleSpec, reassign bool
 	refs := make(map[authorization.PrincipalRef]bool, len(specs))
 	protected := authorization.PrincipalRef{}
 	for _, spec := range specs {
-		ref, err := authorization.MembershipRole(auth.roles, auth.state, spec)
+		ref, err := authorization.MembershipRole(auth.Roles, auth.State, spec)
 		if err != nil {
 			return nil, authorization.PrincipalRef{}, err
 		}
-		role, err := auth.roles.Descriptor(ref)
+		role, err := auth.Roles.Descriptor(ref)
 		if err != nil {
 			return nil, authorization.PrincipalRef{}, err
 		}
-		allowed, err := auth.roles.InheritsRole(auth.state.CurrentUser, ref)
+		allowed, err := auth.Roles.InheritsRole(auth.State.CurrentUser, ref)
 		if err != nil {
 			return nil, authorization.PrincipalRef{}, err
 		}
@@ -37,7 +38,7 @@ func ownedSources(auth AuthorizationView, specs []parser.RoleSpec, reassign bool
 			}
 			return nil, authorization.PrincipalRef{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: message, Detail: detail}
 		}
-		if (role.Predefined() || ref == auth.owner.Principals.Principal(authorization.BootstrapPrincipalID)) && protected == (authorization.PrincipalRef{}) {
+		if (role.Predefined() || ref == auth.Owner.Principals.Principal(authorization.BootstrapPrincipalID)) && protected == (authorization.PrincipalRef{}) {
 			protected = ref
 		}
 		refs[ref] = true
@@ -47,7 +48,7 @@ func ownedSources(auth AuthorizationView, specs []parser.RoleSpec, reassign bool
 func ownedRoots(catalog catalog.Read, sources map[authorization.PrincipalRef]bool) []ids.ObjectAddress {
 	var roots []ids.ObjectAddress
 	for a, d := range catalog.Descriptors() {
-		owner, _, _ := descriptorACL(d)
+		owner, _, _ := access.DescriptorACL(d)
 		if sources[owner] && ownershipRoot(catalog, d) {
 			roots = append(roots, a)
 		}
@@ -124,23 +125,23 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 	}
 	if reassign {
 		s := stmt.(*parser.ReassignOwned)
-		target, err = authorization.MembershipRole(auth.roles, auth.state, s.Target)
+		target, err = authorization.MembershipRole(auth.Roles, auth.State, s.Target)
 		if err != nil {
 			return fail(err)
 		}
-		allowed, err := auth.roles.InheritsRole(auth.state.CurrentUser, target)
+		allowed, err := auth.Roles.InheritsRole(auth.State.CurrentUser, target)
 		if err != nil {
 			return fail(err)
 		}
 		if !allowed {
-			role, _ := auth.roles.Descriptor(target)
+			role, _ := auth.Roles.Descriptor(target)
 			return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied to reassign objects", Detail: fmt.Sprintf(`Only roles with privileges of role "%s" may reassign objects to it.`, role.Name)})
 		}
 	}
 	// PostgreSQL resolves and authorizes utility operands before entering the
 	// shared-dependency handler that refuses protected sources.
 	if protected != (authorization.PrincipalRef{}) {
-		role, _ := auth.roles.Descriptor(protected)
+		role, _ := auth.Roles.Descriptor(protected)
 		noun := "drop objects owned by"
 		if reassign {
 			noun = "reassign ownership of objects owned by"
@@ -152,7 +153,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		scope.completed = true
 		return Result{}, scope.op.Context().Err()
 	}
-	roots := ownedRoots(auth.catalog, sources)
+	roots := ownedRoots(auth.Catalog, sources)
 	if reassign {
 		local := roots[:0]
 		for _, address := range roots {
@@ -181,20 +182,20 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		}
 		for _, a := range roots {
 			var extension ids.ObjectAddress
-			switch d := auth.catalog.Get(a).(type) {
+			switch d := auth.Catalog.Get(a).(type) {
 			case *catalog.Procedure:
 				extension = d.Extension
 			case *catalog.TSDictionary:
 				extension = d.Extension
 			}
 			if extension != (ids.ObjectAddress{}) && !pending[extension] {
-				d := auth.catalog.MustExtension(extension)
-				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(auth.catalog, a, path) + " because extension " + dependencyIdentifier(d.Name()) + " requires it", Hint: "You can drop extension " + dependencyIdentifier(d.Name()) + " instead."})
+				d := auth.Catalog.MustExtension(extension)
+				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(auth.Catalog, a, path) + " because extension " + dependencyIdentifier(d.Name()) + " requires it", Hint: "You can drop extension " + dependencyIdentifier(d.Name()) + " instead."})
 			}
 		}
 		end := len(roots)
 		for _, a := range roots[:end] {
-			if extension, ok := auth.catalog.Extension(a); ok {
+			if extension, ok := auth.Catalog.Extension(a); ok {
 				for _, member := range extension.Members {
 					if !pending[member] {
 						roots = append(roots, member)
@@ -223,7 +224,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 	if reassign {
 		for _, a := range roots {
 			d := stage.Base.Get(a)
-			owner, _, _ := descriptorACL(d)
+			owner, _, _ := access.DescriptorACL(d)
 			if owner == target {
 				continue
 			}
@@ -234,20 +235,20 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 				foreign := d.(*catalog.ForeignObject)
 				err = foreignOwnershipEligibility(auth, foreign, target)
 				if err == nil && foreign.Address().ClassID == ids.ForeignServerClassID {
-					stage.domainBases = append(stage.domainBases, auth.catalog.Get(foreign.Wrapper))
+					stage.domainBases = append(stage.domainBases, auth.Catalog.Get(foreign.Wrapper))
 				}
 			case *catalog.Namespace:
 				err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(stage.Base.Epoch(), a), OwnerOnly: true})
 				if err == nil {
-					err = ownershipSuccessor(auth.accessView, target)
+					err = access.OwnershipSuccessor(auth.accessView, target)
 				}
 				if err == nil {
-					err = ownershipDatabaseCreate(auth.accessView, auth)
+					err = access.OwnershipDatabaseCreate(auth.accessView, auth)
 				}
 			case *catalog.Collation, *catalog.Conversion, *catalog.Operator, *catalog.Database, *catalog.Extension, *catalog.Procedure, *catalog.TSDictionary:
 				err = auth.Check(AccessRequirement{Object: e.catalog.Domain.Ref(stage.Base.Epoch(), a), OwnerOnly: true})
 				if err == nil {
-					err = ownershipEligibility(auth.accessView, auth, target, d.Namespace())
+					err = access.OwnershipEligibility(auth.accessView, auth, target, d.Namespace())
 				}
 			}
 			if err != nil {
@@ -294,7 +295,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		// PostgreSQL collects actual policy and grantor-membership deletions
 		// alongside ownership roots. Prepare cleanup once, still entirely private,
 		// before discovering consumers of the complete pending deletion union.
-		if err = stageOwnedCleanup(scope.op.Context(), stage, auth.roles, auth.roleRecord, sources); err != nil {
+		if err = stageOwnedCleanup(scope.op.Context(), stage, auth.Roles, auth.RoleRecord, sources); err != nil {
 			return Result{}, err
 		}
 		if primaryRoot != (ids.ObjectAddress{}) && ownedCleanupAddsDeletionRoot(stage, sources) {

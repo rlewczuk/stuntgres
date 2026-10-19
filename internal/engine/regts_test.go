@@ -253,8 +253,8 @@ func TestRegTSPreparedCapture(t *testing.T) {
 	}
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
 	b.queryAuth = &auth
-	dictionary, _ := auth.catalog.LookupType(sqltype.Regdictionary)
-	config, _ := auth.catalog.LookupType(sqltype.Regconfig)
+	dictionary, _ := auth.Catalog.LookupType(sqltype.Regdictionary)
+	config, _ := auth.Catalog.LookupType(sqltype.Regconfig)
 	for _, tc := range []struct {
 		typ    *sqltype.Descriptor
 		text   string
@@ -285,7 +285,7 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
 	actor := roleAttributeCreate(t, e, admin, "reg_ts_acl_actor", true, parser.RoleOptions{})
-	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 60000}, ObjectRevision: 1, ObjectName: "reg_ts_acl", Owner: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ACL: authorization.ACLValue{Explicit: true}}
+	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 60000}, ObjectRevision: 1, ObjectName: "reg_ts_acl", Owner: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ACL: authorization.ACLValue{Explicit: true}}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Create(ns); err != nil {
 		t.Fatal(err)

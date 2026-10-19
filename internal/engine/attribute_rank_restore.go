@@ -25,7 +25,7 @@ func (e *Engine) restoreAttributeRank(op *Operation, raw *parser.Update) error {
 	if err != nil {
 		return err
 	}
-	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
 		return err
 	}
@@ -33,11 +33,11 @@ func (e *Engine) restoreAttributeRank(op *Operation, raw *parser.Update) error {
 		return sqlError("42501", "permission denied for table pg_attribute")
 	}
 	e.mu.Lock()
-	if e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.roleRecord != e.roles.published || auth.catalog.Owner() == nil || auth.catalog.Owner().Domain != e.catalog.Domain || auth.catalog.State() != e.catalog.state || auth.catalog.Epoch() != e.catalog.state.Epoch() {
+	if e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() {
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: invalid trusted restore attribute rank authority")
 	}
-	bootstrap, err := auth.roles.Descriptor(auth.state.Authenticated)
+	bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
 	if err != nil || !bootstrap.Superuser {
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: invalid trusted restore attribute rank authority")
@@ -47,7 +47,7 @@ func (e *Engine) restoreAttributeRank(op *Operation, raw *parser.Update) error {
 		e.mu.Unlock()
 		return err
 	}
-	old, ok := auth.catalog.Relation(ref.Address)
+	old, ok := auth.Catalog.Relation(ref.Address)
 	if !ok || old.RelationKind != catalog.TableRelation {
 		e.mu.Unlock()
 		return sqlError("0A000", restoreAttributeRankBoundary)
@@ -73,7 +73,7 @@ func (e *Engine) restoreAttributeRank(op *Operation, raw *parser.Update) error {
 	next.ObjectRevision++
 	next.Columns = slices.Clone(old.Columns)
 	next.Columns[slot].DeclaredDimensions = rank
-	staged := e.BeginCatalogStage(auth.catalog)
+	staged := e.BeginCatalogStage(auth.Catalog)
 	staged.authorizeLocked(auth, op.session)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(staged)

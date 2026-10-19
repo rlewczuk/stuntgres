@@ -47,17 +47,17 @@ func captureTablePrivileges(ctx context.Context, view catalog.Read, auth Authori
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if view.Owner() == nil || view.State() == nil || auth.owner != view.Owner() || auth.catalog.State() != view.State() || auth.roleRecord == nil || ref.Domain() != view.Owner().Domain || ref.Epoch != view.Epoch() || source == nil || source.Address() != ref.Address || source.Address().ObjectID != tablePrivilegesOID || view.Get(ref.Address) != source {
+	if view.Owner() == nil || view.State() == nil || auth.Owner != view.Owner() || auth.Catalog.State() != view.State() || auth.RoleRecord == nil || ref.Domain() != view.Owner().Domain || ref.Epoch != view.Epoch() || source == nil || source.Address() != ref.Address || source.Address().ObjectID != tablePrivilegesOID || view.Get(ref.Address) != source {
 		return nil, fmt.Errorf("stuntgres: invalid table_privileges capture")
 	}
-	if err := auth.roles.ValidatePrincipal(auth.state.CurrentUser); err != nil {
+	if err := auth.Roles.ValidatePrincipal(auth.State.CurrentUser); err != nil {
 		return nil, err
 	}
-	actor, actorExists := auth.roles.Find(auth.state.CurrentUser)
+	actor, actorExists := auth.Roles.Find(auth.State.CurrentUser)
 	var principals []authorization.PrincipalRef
 	if actorExists && !actor.Superuser {
 		var err error
-		principals, err = auth.roles.RoleClosure(ctx, actor.Ref, true)
+		principals, err = auth.Roles.RoleClosure(ctx, actor.Ref, true)
 		if err != nil {
 			return nil, err
 		}
@@ -76,7 +76,7 @@ func captureTablePrivileges(ctx context.Context, view catalog.Read, auth Authori
 		if namespace == nil {
 			return nil, fmt.Errorf("stuntgres: missing privilege namespace")
 		}
-		owner, err := auth.roles.Descriptor(relation.Owner)
+		owner, err := auth.Roles.Descriptor(relation.Owner)
 		if err != nil {
 			return nil, err
 		}
@@ -87,7 +87,7 @@ func captureTablePrivileges(ctx context.Context, view catalog.Read, auth Authori
 			entries = baseline[:]
 		}
 		for _, entry := range entries {
-			grantor, err := auth.roles.Descriptor(entry.Grantor)
+			grantor, err := auth.Roles.Descriptor(entry.Grantor)
 			if err != nil {
 				return nil, err
 			}
@@ -103,7 +103,7 @@ func captureTablePrivileges(ctx context.Context, view catalog.Read, auth Authori
 			}
 			ownerGrantee := false
 			if !entry.Grantee.Public {
-				grantee, err := auth.roles.Descriptor(entry.Grantee.Role)
+				grantee, err := auth.Roles.Descriptor(entry.Grantee.Role)
 				if err != nil {
 					return nil, err
 				}
@@ -112,11 +112,11 @@ func captureTablePrivileges(ctx context.Context, view catalog.Read, auth Authori
 					ownerGrantee = grantee.Ref == owner.Ref || grantee.Superuser
 					if !ownerGrantee {
 						closure := principals
-						if grantee.Ref != auth.state.CurrentUser {
+						if grantee.Ref != auth.State.CurrentUser {
 							var known bool
 							closure, known = granteeClosures[grantee.Ref]
 							if !known {
-								closure, err = auth.roles.RoleClosure(ctx, grantee.Ref, true)
+								closure, err = auth.Roles.RoleClosure(ctx, grantee.Ref, true)
 								if err != nil {
 									return nil, err
 								}

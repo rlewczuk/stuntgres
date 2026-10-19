@@ -110,11 +110,11 @@ func (s *StatementScope) stageTruncate() error {
 		}
 	}
 	changes := cloneCatalogChanges(s.owner.catalog)
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, s.op.session)
 	for _, selected := range s.truncateRelations {
 		ref := selected.ref
-		d, ok := auth.catalog.Relation(ref.Address)
+		d, ok := auth.Catalog.Relation(ref.Address)
 		store := e.privateStorageLocked(s.owner.catalog, ref.Address)
 		if !ok || d.Namespace() != selected.relation.Namespace() || !sameRelationRowShape(d, selected.relation) || store != selected.storage {
 			err = ids.ErrCatalogReplaced
@@ -123,7 +123,7 @@ func (s *StatementScope) stageTruncate() error {
 		if err = checkTruncate(auth, ref, d, selected.privilege, false); err != nil {
 			break
 		}
-		if err = s.relationCursorPreflight(auth.catalog, ref.Address, "TRUNCATE"); err != nil {
+		if err = s.relationCursorPreflight(auth.Catalog, ref.Address, "TRUNCATE"); err != nil {
 			break
 		}
 		stage.querySources = append(stage.querySources, d)
@@ -160,7 +160,7 @@ func (s *StatementScope) stageTruncate() error {
 		shape.snapshot, shape.hasSnapshot = nil, false
 		shape.fills = nil
 		changes.storage[ref.Address] = shape
-		e.fenceEmptyIndexStorageLocked(auth.catalog.State(), changes, ref.Address)
+		e.fenceEmptyIndexStorageLocked(auth.Catalog.State(), changes, ref.Address)
 		if err = e.serializableWriteLocked(s, ref, []serializableWrite{{rewrite: true}}); err != nil {
 			break
 		}
@@ -168,7 +168,7 @@ func (s *StatementScope) stageTruncate() error {
 	if err == nil {
 		// Recheck closure against the same coherent catalog used to capture stores.
 		// SQL installation is blocked by selected AX; host replacement is fenced.
-		if len(truncateReferencers(auth.catalog, s.truncateSelected)) != 0 {
+		if len(truncateReferencers(auth.Catalog, s.truncateSelected)) != 0 {
 			err = catalog.Conflict{}
 		}
 	}
@@ -177,7 +177,7 @@ func (s *StatementScope) stageTruncate() error {
 		sequences, err = s.stageTruncateSequences(auth, stage)
 	}
 	if err == nil {
-		changes.truncateFences = append(changes.truncateFences, truncateGraphFence{base: auth.catalog.State(), targets: s.truncateSelected, token: s.op.session.token, restart: s.truncateRestart, sequences: sequences})
+		changes.truncateFences = append(changes.truncateFences, truncateGraphFence{base: auth.Catalog.State(), targets: s.truncateSelected, token: s.op.session.token, restart: s.truncateRestart, sequences: sequences})
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
@@ -187,7 +187,7 @@ func (s *StatementScope) stageTruncate() error {
 	for _, selected := range s.truncateRelations {
 		address := selected.ref.Address
 		if selected.relation.RelationKind != catalog.PartitionedRelation {
-			if err := transportEmptyIndexStorage(s.op.Context(), auth.catalog.State(), changes, stage, address, changes.storage[address].replacement); err != nil {
+			if err := transportEmptyIndexStorage(s.op.Context(), auth.Catalog.State(), changes, stage, address, changes.storage[address].replacement); err != nil {
 				return err
 			}
 		}
@@ -210,7 +210,7 @@ func (e *Engine) truncateNameCurrent(auth AuthorizationView, named truncateName)
 	if ref != named.ref {
 		return ids.ErrCatalogReplaced
 	}
-	descriptor, ok := auth.catalog.Relation(ref.Address)
+	descriptor, ok := auth.Catalog.Relation(ref.Address)
 	if !ok || descriptor.Namespace() != named.namespace {
 		return ids.ErrCatalogReplaced
 	}

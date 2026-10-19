@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -49,7 +50,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 			ref  authorization.PrincipalRef
 			want authorization.Privileges
 		}{{owner, tc.ownerRights}, {reader, tc.readerRights}} {
-			rights, err := databaseRights(context.Background(), catalog, e.roles.read(e.catalog.owner(), catalog, roles), item.ref)
+			rights, err := access.DatabaseRights(context.Background(), catalog, e.roles.read(e.catalog.owner(), catalog, roles), item.ref)
 			if err != nil || rights != item.want {
 				t.Fatal("NULL/empty/legacy policy", item.ref, rights, item.want, err)
 			}
@@ -64,7 +65,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if rights, err := databaseRights(ctx, base, e.roles.read(e.catalog.owner(), base, e.roles.published), owner); rights != 0 || !errors.Is(err, context.Canceled) {
+	if rights, err := access.DatabaseRights(ctx, base, e.roles.read(e.catalog.owner(), base, e.roles.published), owner); rights != 0 || !errors.Is(err, context.Canceled) {
 		t.Fatal("superuser must not bypass cancellation", rights, err)
 	}
 }
@@ -110,8 +111,8 @@ func TestDatabaseTemporaryCapturedRights(t *testing.T) {
 	e, owner, _, _, reader := ownershipUnitRoles()
 	base := e.CatalogRead()
 	auth := catalogAuthorization(e, base)
-	auth.state.CurrentUser = reader
-	if rights, err := auth.accessView.ownTemporaryPrivileges(auth); err != nil || rights != authorization.UsagePrivilege|authorization.CreatePrivilege {
+	auth.State.CurrentUser = reader
+	if rights, err := auth.accessView.OwnTemporaryPrivileges(auth); err != nil || rights != authorization.UsagePrivilege|authorization.CreatePrivilege {
 		t.Fatal("PUBLIC TEMP baseline", rights, err)
 	}
 	candidate := catalog.CloneState(base.State())
@@ -119,20 +120,20 @@ func TestDatabaseTemporaryCapturedRights(t *testing.T) {
 	next.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.DatabasePrivileges}}}
 	candidate.SetDescriptor(catalog.CurrentDatabaseAddress, &next)
 	fresh := catalogAuthorization(e, e.catalog.read(candidate))
-	fresh.state.CurrentUser = reader
-	if rights, err := fresh.accessView.ownTemporaryPrivileges(fresh); err != nil || rights != authorization.UsagePrivilege {
+	fresh.State.CurrentUser = reader
+	if rights, err := fresh.accessView.OwnTemporaryPrivileges(fresh); err != nil || rights != authorization.UsagePrivilege {
 		t.Fatal("revoked own namespace keeps USAGE only", rights, err)
 	}
-	if rights, err := auth.accessView.ownTemporaryPrivileges(auth); err != nil || rights != authorization.UsagePrivilege|authorization.CreatePrivilege {
+	if rights, err := auth.accessView.OwnTemporaryPrivileges(auth); err != nil || rights != authorization.UsagePrivilege|authorization.CreatePrivilege {
 		t.Fatal("retained pair mutated", rights, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := databaseRights(ctx, fresh.catalog, fresh.roles, reader); !errors.Is(err, context.Canceled) {
+	if _, err := access.DatabaseRights(ctx, fresh.Catalog, fresh.Roles, reader); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	foreign := New().roles.domain.Principal(reader.ID())
-	if _, err := databaseRights(context.Background(), fresh.catalog, fresh.roles, foreign); err == nil {
+	if _, err := access.DatabaseRights(context.Background(), fresh.Catalog, fresh.Roles, foreign); err == nil {
 		t.Fatal("foreign principal accepted")
 	}
 }
@@ -152,7 +153,7 @@ func TestDatabaseTemporaryDeniedAllocation(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	auth.state.CurrentUser = reader
+	auth.State.CurrentUser = reader
 	base, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
 	changes := cloneCatalogChanges(s.transactions.catalog)
 	ref, err := e.relationCreationNamespaceLocked(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: "database_denied"}}}, "temporary", changes)

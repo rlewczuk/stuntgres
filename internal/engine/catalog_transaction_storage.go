@@ -46,7 +46,7 @@ type catalogAuthority struct {
 
 // Caller holds Engine.mu; never derive entry authority from a later live view.
 func (v AuthorizationView) catalogAuthorityLocked(ref ids.ObjectRef, descriptor catalog.Descriptor) *catalogAuthority {
-	return &catalogAuthority{session: v.session, authorization: v.revision, roles: v.roleRecord.revision, ref: ref, descriptor: descriptor, databaseAuthority: v.catalog.Get(catalog.CurrentDatabaseAddress), databasePredecessor: v.databasePredecessor}
+	return &catalogAuthority{session: v.session, authorization: v.Revision, roles: v.RoleRecord.Revision, ref: ref, descriptor: descriptor, databaseAuthority: v.Catalog.Get(catalog.CurrentDatabaseAddress), databasePredecessor: v.DatabasePredecessor}
 }
 
 // Statement authority expires at successful Finish, never at outer Commit.
@@ -56,7 +56,7 @@ func (e *Engine) catalogAuthorityPreflightLocked(a *catalogAuthority, c *catalog
 	if a == nil {
 		return nil
 	}
-	if a.session.authorization.revision != a.authorization || e.sessionRolesLocked(a.session).revision != a.roles || e.catalog.state.Get(a.ref.Address) != a.descriptor {
+	if a.session.authorization.revision != a.authorization || e.sessionRolesLocked(a.session).Revision != a.roles || e.catalog.state.Get(a.ref.Address) != a.descriptor {
 		return catalog.Conflict{}
 	}
 	if a.databasePredecessor != nil {

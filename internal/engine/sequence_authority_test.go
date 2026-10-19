@@ -87,7 +87,7 @@ func TestSequenceNamespacePrivilegeCheckpoints(t *testing.T) {
 	roleExecute(t, e, op, "CREATE SEQUENCE private.s")
 	ref := roleTableRef(t, e, "private.s")
 	namespace := e.catalog.Domain.Ref(e.catalog.state.Epoch(), e.catalog.state.Get(ref.Address).Namespace())
-	bootstrap := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	bootstrap := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}

@@ -25,7 +25,7 @@ func collationRenameBootstrapFixture(e *Engine, op *Operation, name string) erro
 	if err = op.Context().Err(); err != nil {
 		return err
 	}
-	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
 		return err
 	}
@@ -33,17 +33,17 @@ func collationRenameBootstrapFixture(e *Engine, op *Operation, name string) erro
 		return fmt.Errorf("bootstrap rename fixture requires actual superuser authority")
 	}
 	ref := e.roles.domain.Principal(10)
-	d, err := auth.roles.Descriptor(ref)
+	d, err := auth.Roles.Descriptor(ref)
 	if err != nil {
 		return err
 	}
 	if name == "" {
 		return fmt.Errorf("empty fixture role name")
 	}
-	if _, exists := auth.roles.Lookup(name); exists {
+	if _, exists := auth.Roles.Lookup(name); exists {
 		return fmt.Errorf("fixture role name already exists")
 	}
-	if e.roles.published.revision == ^uint64(0) {
+	if e.roles.published.Revision == ^uint64(0) {
 		return fmt.Errorf("authorization revision exhausted")
 	}
 	n := cloneRoleFixture(e.roles.published)
@@ -81,7 +81,7 @@ func TestCollationBootstrapPrincipalNameReuse(t *testing.T) {
 	}
 	want := beforeDescriptor
 	want.Name = "original_bootstrap"
-	if actual != want || e.roles.published.revision != beforeRolesPublication.revision+1 || !reflect.DeepEqual(fixtureEdges(e.roles.published), fixtureEdges(beforeRolesPublication)) {
+	if actual != want || e.roles.published.Revision != beforeRolesPublication.Revision+1 || !reflect.DeepEqual(fixtureEdges(e.roles.published), fixtureEdges(beforeRolesPublication)) {
 		t.Fatal("rename changed genuine role identity", actual, want)
 	}
 	old, err := beforeRoles.Descriptor(bootstrap)

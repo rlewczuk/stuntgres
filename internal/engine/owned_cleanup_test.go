@@ -64,8 +64,8 @@ func TestDropOwnedMembershipProvenance(t *testing.T) {
 	setFixtureEdges(e.roles.published, append(fixtureEdges(e.roles.published), authorization.Membership{Role: target, Member: source, Grantor: owner, Admin: true}, authorization.Membership{Role: target, Member: reader, Grantor: source, Admin: true, Inherit: true, Set: true}, authorization.Membership{Role: target, Member: owner, Grantor: reader, Inherit: true}))
 	old := e.roles.published
 	retained := append([]authorization.Membership(nil), fixtureEdges(old)...)
-	next, err := ownedMembershipCandidate(context.Background(), e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), old), old.revision, map[authorization.PrincipalRef]bool{source: true})
-	if err != nil || next == nil || next.revision != old.revision+1 || !reflect.DeepEqual(fixtureEdges(old), retained) {
+	next, err := ownedMembershipCandidate(context.Background(), e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), old), old.Revision, map[authorization.PrincipalRef]bool{source: true})
+	if err != nil || next == nil || next.Revision != old.Revision+1 || !reflect.DeepEqual(fixtureEdges(old), retained) {
 		t.Fatal(next, err)
 	}
 	for _, edge := range fixtureEdges(next) {
@@ -73,10 +73,10 @@ func TestDropOwnedMembershipProvenance(t *testing.T) {
 			t.Fatal("unsupported downstream membership survived", edge)
 		}
 	}
-	if next.root.Read(authorization.PrincipalRef{}).RoleCount() != old.root.Read(authorization.PrincipalRef{}).RoleCount() || fixtureRole(next, source) != fixtureRole(old, source) {
+	if next.Root.Read(authorization.PrincipalRef{}).RoleCount() != old.Root.Read(authorization.PrincipalRef{}).RoleCount() || fixtureRole(next, source) != fixtureRole(old, source) {
 		t.Fatal("DROP OWNED removed role endpoint")
 	}
-	if noChange, err := ownedMembershipCandidate(context.Background(), e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), old), old.revision, map[authorization.PrincipalRef]bool{target: true}); err != nil || noChange != nil {
+	if noChange, err := ownedMembershipCandidate(context.Background(), e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), old), old.Revision, map[authorization.PrincipalRef]bool{target: true}); err != nil || noChange != nil {
 		t.Fatal("unchanged membership cloned/revised", noChange, err)
 	}
 }
@@ -184,7 +184,7 @@ func TestDropOwnedTypeACLAndCancellation(t *testing.T) {
 	base = e.CatalogRead()
 	roles := e.roles.published
 	stage := e.BeginCatalogStage(base)
-	stage.roleRevision = roles.revision
+	stage.roleRevision = roles.Revision
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if err := stageOwnedCleanup(ctx, stage, e.roles.read(e.catalog.owner(), base, roles), roles, map[authorization.PrincipalRef]bool{source: true}); !errors.Is(err, context.Canceled) {
@@ -194,7 +194,7 @@ func TestDropOwnedTypeACLAndCancellation(t *testing.T) {
 		t.Fatal("canceled cleanup mutated state")
 	}
 	stage = e.BeginCatalogStage(base)
-	stage.roleRevision = roles.revision
+	stage.roleRevision = roles.Revision
 	if err := stageOwnedCleanup(context.Background(), stage, e.roles.read(e.catalog.owner(), base, roles), roles, map[authorization.PrincipalRef]bool{source: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +247,7 @@ func TestDropOwnedCollectedCleanupPrimary(t *testing.T) {
 				setFixtureEdges(graph, append(fixtureEdges(graph),
 					authorization.Membership{Role: target, Member: source, Grantor: owner, Admin: true, Inherit: true, Set: true},
 					authorization.Membership{Role: target, Member: reader, Grantor: source, Inherit: true, Set: true}))
-				graph.revision++
+				graph.Revision++
 				e.roles.published = graph
 			}
 			before, roles := e.catalog.state, e.roles.published
@@ -397,9 +397,9 @@ func TestDropOwnedSQLGrantorProvenance(t *testing.T) {
 	} {
 		roleExecute(t, e, op, q)
 	}
-	owner := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_sql_owner")
-	source := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_sql_source")
-	downstream := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("ownership_sql_downstream")
+	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("ownership_sql_owner")
+	source := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("ownership_sql_source")
+	downstream := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("ownership_sql_downstream")
 	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ownership_sql_support"})
 	original := e.catalog.state.MustRelation(address)
 	received := objectACLUnitEntry(owner, source, authorization.SelectPrivilege, authorization.SelectPrivilege)

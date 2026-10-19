@@ -59,7 +59,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 		if err := inheritanceColumnGuard(old, column, "rename", parser.Position{}); err != nil {
 			return fail(err)
 		}
-		if inheritanceParticipant(auth.catalog, old) {
+		if inheritanceParticipant(auth.Catalog, old) {
 			return e.renameInheritanceColumnLocked(scope, op, auth, old, column, destination, only)
 		}
 		if old.RelationKind == catalog.SequenceRelation {
@@ -77,7 +77,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 		if err = auth.CheckCreate(e.catalog.Domain.Ref(ref.Epoch, old.Namespace())); err != nil {
 			return fail(err)
 		}
-		if _, exists := auth.catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: old.Namespace(), Name: destination}); exists {
+		if _, exists := auth.Catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: old.Namespace(), Name: destination}); exists {
 			return fail(sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, destination)))
 		}
 	}
@@ -99,7 +99,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 			}
 		}
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
 	if !columnRename && old.SQLIndex != nil && old.SQLIndex.Constraint != nil {
 		if err = stageBackingIndexRename(stage, &next); err != nil {

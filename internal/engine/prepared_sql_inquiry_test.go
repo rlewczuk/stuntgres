@@ -53,7 +53,7 @@ func TestPreparedSQLActualNoSnapshotDemand(t *testing.T) {
 				_ = scope.Finish(err)
 				t.Fatal(err)
 			}
-			if scope.commentCatalog.State() != nil || scope.deparseAuth.roleRecord != nil || scope.visibilityCatalog.State() != nil || scope.deparsePath != nil {
+			if scope.commentCatalog.State() != nil || scope.deparseAuth.RoleRecord != nil || scope.visibilityCatalog.State() != nil || scope.deparsePath != nil {
 				t.Fatal("primitive/dead actual captured catalog environment")
 			}
 			if frame[0].Type() != formal.Types[0].Type {

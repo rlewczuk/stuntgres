@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"sort"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -101,12 +102,12 @@ func TestDefaultPrivilegesDependencies(t *testing.T) {
 	for _, class := range []string{"tables", "sequences", "functions", "types", "schemas", "large objects"} {
 		f.grant(t, class, "all", nil)
 	}
-	var got []roleDependency
-	defaultRoleDependencies(f.e.CatalogRead(), f.e.Roles(), f.reader, &got)
+	var got []access.RoleDependency
+	access.DefaultRoleDependencies(f.e.CatalogRead(), f.e.Roles(), f.reader, &got)
 	descriptions := make([]string, len(got))
 	for i, dep := range got {
-		descriptions[i] = dep.description
-		if dep.kind != 'a' {
+		descriptions[i] = dep.Description
+		if dep.Kind != 'a' {
 			t.Fatal("recipient dependency kind", dep)
 		}
 	}
@@ -117,12 +118,12 @@ func TestDefaultPrivilegesDependencies(t *testing.T) {
 		t.Fatal(descriptions, want)
 	}
 	got = nil
-	defaultRoleDependencies(f.e.CatalogRead(), f.e.Roles(), f.owner, &got)
+	access.DefaultRoleDependencies(f.e.CatalogRead(), f.e.Roles(), f.owner, &got)
 	if len(got) != 6 {
 		t.Fatal("creator default dependencies", got)
 	}
 	for _, dep := range got {
-		if dep.kind != 'o' {
+		if dep.Kind != 'o' {
 			t.Fatal("creator not owner dependency", dep)
 		}
 	}
@@ -143,10 +144,10 @@ func TestDefaultPrivilegesDependencies(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if f.e.catalog.state.DefaultACLCount() != 0 || defaultRoleDependencies(f.e.CatalogRead(), f.e.Roles(), f.reader, nil) {
+	if f.e.catalog.state.DefaultACLCount() != 0 || access.DefaultRoleDependencies(f.e.CatalogRead(), f.e.Roles(), f.reader, nil) {
 		t.Fatal("baseline reversal retained default dependencies")
 	}
-	if !descriptorRoleDependencies(table, f.reader, nil) {
+	if !access.DescriptorRoleDependencies(table, f.reader, nil) {
 		t.Fatal("default reversal erased materialized dependency")
 	}
 	if err := f.e.roleRetirementPreflightLocked(changes, f.e.catalog.state); err != nil {
@@ -162,7 +163,7 @@ func TestDefaultPrivilegesDependencies(t *testing.T) {
 	if err := f.apply(empty); err != nil {
 		t.Fatal(err)
 	}
-	if !defaultRoleDependencies(f.e.CatalogRead(), f.e.Roles(), f.owner, nil) {
+	if !access.DefaultRoleDependencies(f.e.CatalogRead(), f.e.Roles(), f.owner, nil) {
 		t.Fatal("stored empty lost creator dependency")
 	}
 }
@@ -188,11 +189,11 @@ func TestDefaultPrivilegesSchemaLifecycle(t *testing.T) {
 	if f.e.catalog.state.DefaultACL(scoped) != record {
 		t.Fatal("rename lost identity-bound scoped policy")
 	}
-	var dependencies []roleDependency
-	defaultRoleDependencies(f.e.CatalogRead(), f.e.Roles(), f.reader, &dependencies)
+	var dependencies []access.RoleDependency
+	access.DefaultRoleDependencies(f.e.CatalogRead(), f.e.Roles(), f.reader, &dependencies)
 	found := false
 	for _, dep := range dependencies {
-		if dep.description == "privileges for default privileges on new relations belonging to role default_owner in schema renamed" {
+		if dep.Description == "privileges for default privileges on new relations belonging to role default_owner in schema renamed" {
 			found = true
 		}
 	}

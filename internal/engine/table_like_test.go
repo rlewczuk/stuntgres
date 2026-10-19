@@ -21,12 +21,12 @@ func tableLikeBuild(t *testing.T, e *Engine, op *Operation, query string) (*Cata
 	if err != nil {
 		return nil, nil, err
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	if syntax.Persistence == "temporary" {
 		namespace = op.session.temporaryNamespace
 	}
-	err = e.schemaTableLocked(op, auth, stage, syntax, namespace, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
+	err = e.schemaTableLocked(op, auth, stage, syntax, namespace, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	var destination *catalog.Relation
 	if err == nil {
 		destination = stage.Descriptors[stage.Names[ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: syntax.Name.Parts[len(syntax.Name.Parts)-1].Text}]].(*catalog.Relation)

@@ -30,9 +30,9 @@ func evaluatePartitionRecipe(evaluation *EvalContext, owner *catalog.Relation, k
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	identity := partitionRoutineIdentity{owner: owner, phase: local.domainPhase, actor: auth.state.CurrentUser}
+	identity := partitionRoutineIdentity{owner: owner, phase: local.domainPhase, actor: auth.State.CurrentUser}
 	if scope != nil {
-		identity.ri = scope.foreignActionAuth != nil && scope.foreignActionAuth.state.CurrentUser == auth.state.CurrentUser
+		identity.ri = scope.foreignActionAuth != nil && scope.foreignActionAuth.State.CurrentUser == auth.State.CurrentUser
 	}
 	var expressions []expr.Expr
 	if scope != nil {

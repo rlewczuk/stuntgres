@@ -96,5 +96,5 @@ func (e *Engine) captureRegObjectRowsValueLocked(rows *finalRows, auth Authoriza
 			return err
 		}
 	}
-	return captureRegObjectOutputValue(rows, auth.catalog, *path, value)
+	return captureRegObjectOutputValue(rows, auth.Catalog, *path, value)
 }

@@ -22,7 +22,7 @@ func operatorUnitDefinition(name, function string) *parser.CreateOperator {
 }
 func operatorUnitStage(t *testing.T, e *Engine, op *Operation, auth AuthorizationView, s *parser.CreateOperator) *CatalogStage {
 	t.Helper()
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	e.mu.Lock()
 	err := e.stageCreateOperatorLocked(op, auth, stage, s)
 	e.mu.Unlock()
@@ -43,7 +43,7 @@ func TestUserOperatorCatalogShellCompletion(t *testing.T) {
 	a := view.NameAddress(ids.NameKey{ClassID: ids.OperatorClassID, Namespace: public, Name: "#=#", Signature: "23,23"})
 	shellAddress := view.NameAddress(ids.NameKey{ClassID: ids.OperatorClassID, Namespace: public, Name: "#!#", Signature: "23,23"})
 	shell := view.MustOperator(shellAddress)
-	if shell.Function != 0 || shell.Result != 0 || shell.Negator != a.ObjectID || shell.Owner != auth.state.CurrentUser {
+	if shell.Function != 0 || shell.Result != 0 || shell.Negator != a.ObjectID || shell.Owner != auth.State.CurrentUser {
 		t.Fatal("invalid forward shell", shell)
 	}
 	auth.Recapture(view)
@@ -61,7 +61,7 @@ func TestUserOperatorCatalogShellCompletion(t *testing.T) {
 	auth.Recapture(e.CatalogRead())
 	bad := operatorUnitDefinition("#?#", "int4pl")
 	bad.Options = append(bad.Options, parser.OperatorOption{Name: "negator", HasValue: true, Kind: parser.OperatorOptionNameArgument, Reference: operatorUnitName("public", "#@#")})
-	stage = e.BeginCatalogStage(auth.catalog)
+	stage = e.BeginCatalogStage(auth.Catalog)
 	e.mu.Lock()
 	err := e.stageCreateOperatorLocked(op, auth, stage, bad)
 	e.mu.Unlock()
@@ -69,7 +69,7 @@ func TestUserOperatorCatalogShellCompletion(t *testing.T) {
 	if !errors.As(err, &d) || d.Code != "42P13" || d.Message != "only boolean operators can have negators" {
 		t.Fatal(err)
 	}
-	if e.CatalogRead().State() != auth.catalog.State() {
+	if e.CatalogRead().State() != auth.Catalog.State() {
 		t.Fatal("failed stage published")
 	}
 }
@@ -519,8 +519,8 @@ func TestUserOperatorCatalogExactUtilityLifecycle(t *testing.T) {
 	if d.Address().ClassID != ids.OperatorClassID || d.Function != 65 || d.Commutator != d.Address().ObjectID {
 		t.Fatal("self link must select the exact existing definition", d)
 	}
-	base := auth.catalog.State()
-	stage = e.BeginCatalogStage(auth.catalog)
+	base := auth.Catalog.State()
+	stage = e.BeginCatalogStage(auth.Catalog)
 	e.mu.Lock()
 	err = e.stageCreateOperatorLocked(op, auth, stage, create)
 	e.mu.Unlock()
@@ -531,7 +531,7 @@ func TestUserOperatorCatalogExactUtilityLifecycle(t *testing.T) {
 	if e.CatalogRead().State() != base {
 		t.Fatal("duplicate changed the published catalog")
 	}
-	stage = e.BeginCatalogStage(auth.catalog)
+	stage = e.BeginCatalogStage(auth.Catalog)
 	e.mu.Lock()
 	err = e.stageAlterOperatorLocked(op, auth, stage, &parser.AlterOperator{Signature: signature, Action: "options", Options: []parser.OperatorOption{{Name: "hashes", HasValue: true, Kind: parser.OperatorOptionStringArgument, Value: "true"}}})
 	e.mu.Unlock()
@@ -540,11 +540,11 @@ func TestUserOperatorCatalogExactUtilityLifecycle(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	auth.Recapture(e.CatalogRead())
-	altered := auth.catalog.MustOperator(d.Address())
+	altered := auth.Catalog.MustOperator(d.Address())
 	if !altered.Hash || altered.Address() != d.Address() || d.Hash {
 		t.Fatal("ALTER must preserve identity and immutable predecessor", altered, d)
 	}
-	stage = e.BeginCatalogStage(auth.catalog)
+	stage = e.BeginCatalogStage(auth.Catalog)
 	if err := e.stageDropOperatorLocked(op, auth, stage, &parser.DropOperator{Signatures: []parser.OperatorSignature{signature}}); err != nil {
 		t.Fatal("exact DROP lookup", err)
 	}
@@ -560,14 +560,14 @@ func TestUserOperatorCatalogOrphanShellDumpNameCollision(t *testing.T) {
 	shell := &catalog.Operator{
 		ObjectAddress:   ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000},
 		ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID},
-		ObjectRevision:  1, ObjectName: "#?#", Left: 23, Right: 23, Owner: auth.state.CurrentUser,
+		ObjectRevision:  1, ObjectName: "#?#", Left: 23, Right: 23, Owner: auth.State.CurrentUser,
 	}
 	if err := stage.Create(shell); err != nil {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
 	auth.Recapture(e.CatalogRead())
-	declaration, err := operatorDumpDeclaration(context.Background(), auth.catalog, auth.roles, shell)
+	declaration, err := operatorDumpDeclaration(context.Background(), auth.Catalog, auth.Roles, shell)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -577,7 +577,7 @@ func TestUserOperatorCatalogOrphanShellDumpNameCollision(t *testing.T) {
 		!strings.Contains(declaration.sql, "DROP OPERATOR "+prefix+"#~!# ") {
 		t.Fatal("orphan generator must skip occupied exact signature", declaration.sql)
 	}
-	if existing := auth.catalog.NameAddress(ids.NameKey{ClassID: ids.OperatorClassID, Namespace: shell.Namespace(), Name: "#~~#", Signature: "23,23"}); existing == (ids.ObjectAddress{}) {
+	if existing := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.OperatorClassID, Namespace: shell.Namespace(), Name: "#~~#", Signature: "23,23"}); existing == (ids.ObjectAddress{}) {
 		t.Fatal("dump lost the occupied definition")
 	}
 }
@@ -597,17 +597,17 @@ func TestUserOperatorCatalogDropClosureRootsAndLinks(t *testing.T) {
 	key := func(name string) ids.NameKey {
 		return ids.NameKey{ClassID: ids.OperatorClassID, Namespace: public, Name: name, Signature: "23,23"}
 	}
-	survivorAddress := auth.catalog.NameAddress(key("#=#"))
-	survivor := auth.catalog.MustOperator(survivorAddress)
-	shellAddress := auth.catalog.NameAddress(key("#!#"))
-	otherAddress := auth.catalog.NameAddress(key("#~#"))
+	survivorAddress := auth.Catalog.NameAddress(key("#=#"))
+	survivor := auth.Catalog.MustOperator(survivorAddress)
+	shellAddress := auth.Catalog.NameAddress(key("#!#"))
+	otherAddress := auth.Catalog.NameAddress(key("#~#"))
 	if survivor.Negator != shellAddress.ObjectID {
 		t.Fatal("missing forward-shell link", survivor)
 	}
 	signature := func(name string) parser.OperatorSignature {
 		return parser.OperatorSignature{Name: operatorUnitName("public", name), Left: parser.TypeName{Name: "int4"}, Right: parser.TypeName{Name: "int4"}}
 	}
-	stage = e.BeginCatalogStage(auth.catalog)
+	stage = e.BeginCatalogStage(auth.Catalog)
 	if err := e.stageDropOperatorLocked(op, auth, stage, &parser.DropOperator{Signatures: []parser.OperatorSignature{signature("#!#"), signature("#~#"), signature("#!#")}}); err != nil {
 		t.Fatal(err)
 	}
@@ -633,7 +633,7 @@ func TestUserOperatorCatalogDropClosureRootsAndLinks(t *testing.T) {
 	if next.Negator != 0 || next.Function != survivor.Function || next.Revision() == survivor.Revision() {
 		t.Fatal("surviving peer was not atomically relinked", next)
 	}
-	if survivor.Negator != shellAddress.ObjectID || auth.catalog.Get(shellAddress) == nil {
+	if survivor.Negator != shellAddress.ObjectID || auth.Catalog.Get(shellAddress) == nil {
 		t.Fatal("DROP mutated its captured predecessor")
 	}
 }

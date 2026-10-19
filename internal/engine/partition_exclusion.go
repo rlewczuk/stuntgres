@@ -23,7 +23,7 @@ func partitionExclusionAddActions(raw *parser.AlterTable) bool {
 }
 
 func (e *Engine) executePartitionExclusionAddLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) (Result, error) {
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), table.Address())
+	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), table.Address())
 	e.mu.Unlock()
 	if err := scope.acquirePartitionDescendants(ref, lock.AccessExclusive); err != nil {
 		return Result{}, err
@@ -34,11 +34,11 @@ func (e *Engine) executePartitionExclusionAddLocked(scope *StatementScope, op *O
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if auth.catalog.Get(table.Address()) != table {
+	if auth.Catalog.Get(table.Address()) != table {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
 	stage.indexOutput = scope.output
 	for _, descriptor := range scope.partitionRelations {

@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -69,7 +70,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 				}
 				return nil, nil, err
 			}
-			d := auth.catalog.MustRelation(ref.Address)
+			d := auth.Catalog.MustRelation(ref.Address)
 			if d.RelationKind != catalog.ForeignRelation {
 				return nil, nil, sqlError("42809", fmt.Sprintf(`"%s" is not a foreign table`, d.Name()))
 			}
@@ -98,7 +99,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 		}
 		return nil, nil, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, key.Name))
 	}
-	server, err := findForeign(auth.catalog, ids.ForeignServerClassID, s.Server.Text)
+	server, err := findForeign(auth.Catalog, ids.ForeignServerClassID, s.Server.Text)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -108,7 +109,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 	if err = foreignTableDeclaration(s.Table); err != nil {
 		return nil, nil, err
 	}
-	if err = e.schemaTableLocked(scope.op, auth, stage, foreignTableSyntax(s.Table), ns.Address, auth.state.CurrentUser, scope.input, nil); err != nil {
+	if err = e.schemaTableLocked(scope.op, auth, stage, foreignTableSyntax(s.Table), ns.Address, auth.State.CurrentUser, scope.input, nil); err != nil {
 		return nil, nil, err
 	}
 	d, ok := stage.Descriptors[stage.LookupName(key)].(*catalog.Relation)
@@ -121,7 +122,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 	if err != nil {
 		return nil, nil, err
 	}
-	wrapper, ok := auth.catalog.Foreign(server.Wrapper)
+	wrapper, ok := auth.Catalog.Foreign(server.Wrapper)
 	if !ok {
 		return nil, nil, fmt.Errorf("stuntgres: missing foreign-data wrapper")
 	}
@@ -171,7 +172,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 		}
 		return Result{}, err
 	}
-	old := auth.catalog.MustRelation(ref.Address)
+	old := auth.Catalog.MustRelation(ref.Address)
 	if old.RelationKind != catalog.ForeignRelation {
 		e.mu.Unlock()
 		return Result{}, sqlError("42809", fmt.Sprintf(`"%s" is not a foreign table`, old.Name()))
@@ -185,7 +186,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 		return Result{}, err
 	}
 	if s.Owner != nil {
-		target, identity := ownershipRoleOperand(*s.Owner)
+		target, identity := access.OwnershipRoleOperand(*s.Owner)
 		e.mu.Unlock()
 		return e.executeRelationOwnership(scope, s.Name, target, identity, "foreign table", s.IfExists, 0)
 	}
@@ -199,17 +200,17 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 			return e.alterSchemaLocked(scope, scope.op, auth, inner, 0)
 		}
 	}
-	server, ok := auth.catalog.Foreign(old.Foreign.Server)
+	server, ok := auth.Catalog.Foreign(old.Foreign.Server)
 	if !ok {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
-	wrapper, ok := auth.catalog.Foreign(server.Wrapper)
+	wrapper, ok := auth.Catalog.Foreign(server.Wrapper)
 	if !ok {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.session)
 	stage.domainBases = append(stage.domainBases, server, wrapper)
 	e.mu.Unlock()
@@ -302,7 +303,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 			var candidate *catalog.Relation
 			switch a.Action {
 			case parser.SetNotNull, parser.DropNotNull, parser.AddNotNull, parser.DropConstraint:
-				candidate, err = notNullCandidate(scope.op, auth.catalog, &next, a, notNullDirect)
+				candidate, err = notNullCandidate(scope.op, auth.Catalog, &next, a, notNullDirect)
 			case parser.AddCheck:
 				candidate = &next
 				candidate.Constraints.Check = slices.Clone(next.Constraints.Check)
@@ -318,7 +319,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 				candidate, added, err = e.addColumnCandidate(scope, scope.op, auth, &next, a, nil)
 				if err == nil && added.column != nil {
 					if added.declaration.notNull {
-						candidate, err = notNullCandidate(scope.op, auth.catalog, candidate, parser.AlterTableAction{Action: parser.SetNotNull, Column: a.Column}, notNullDirect)
+						candidate, err = notNullCandidate(scope.op, auth.Catalog, candidate, parser.AlterTableAction{Action: parser.SetNotNull, Column: a.Column}, notNullDirect)
 					}
 					if err == nil {
 						var checks []*parser.CheckConstraint
@@ -365,7 +366,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 			next = *candidate
 		}
 		if pass == 0 {
-			pendingChecks, err = captureAlterTypeChecks(scope.op, auth.catalog, old, &next, typeActions)
+			pendingChecks, err = captureAlterTypeChecks(scope.op, auth.Catalog, old, &next, typeActions)
 		}
 		if err == nil && pass == 1 {
 			var rebound *catalog.Relation

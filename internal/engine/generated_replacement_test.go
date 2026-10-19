@@ -58,7 +58,7 @@ type generatedRepairFixture struct {
 func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	t.Helper()
 	e, view, d := generatedUnitDescriptor(t)
-	d.Owner = e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	d.Owner = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	oldAddress := d.Address()
 	d.ObjectAddress.ObjectID = 26000
 	oid, _ := view.LookupType(sqltype.Oid)
@@ -193,7 +193,7 @@ func TestGeneratedReplacementStaleAuthority(t *testing.T) {
 				f.target.catalog.state.SetNamespaceGeneration(f.target.catalog.state.NamespaceGeneration() + 1)
 			case "Roles":
 				roles := *f.target.roles.published
-				roles.revision++
+				roles.Revision++
 				f.target.roles.published = &roles
 			case "Temporary":
 				next := catalog.CloneState(f.target.catalog.state)

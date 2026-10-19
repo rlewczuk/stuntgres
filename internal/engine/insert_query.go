@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
@@ -44,7 +45,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 		for i, descriptor := range out.relation.Columns {
 			columns[i] = queryColumn{descriptor: descriptor, slot: i, leaf: queryTargetLeaf, physical: i}
 		}
-		target := queryQualifier{name: out.relation.Name(), original: out.relation.Name(), ref: out.ref, columns: columns, schema: auth.catalog.Get(out.relation.Namespace()).Name(), lateralForbidden: true}
+		target := queryQualifier{name: out.relation.Name(), original: out.relation.Name(), ref: out.ref, columns: columns, schema: auth.Catalog.Get(out.relation.Namespace()).Name(), lateralForbidden: true}
 		binder.queryHidden = append(binder.queryHidden, target)
 		query, err = binder.bindSelect(sel, true)
 		out.querySources = binder.querySources
@@ -512,7 +513,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 			return indexWriteBatch{}, err
 		}
 		if scope != nil {
-			if err := rowSecurityProposal(scope.rlsProposal, scope.rlsProposalTable); err != nil {
+			if err := access.RowSecurityProposal(scope.rlsProposal, scope.rlsProposalTable); err != nil {
 				return indexWriteBatch{}, err
 			}
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -265,7 +266,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 		}
 	}
 	for _, observation := range c.extensionAuthority {
-		if e.roles.published.revision != observation.roles || observation.namespace == nil || observation.database == nil ||
+		if e.roles.published.Revision != observation.roles || observation.namespace == nil || observation.database == nil ||
 			e.catalog.state.Get(observation.namespace.Address()) != observation.namespace ||
 			e.catalog.state.Get(observation.database.Address()) != observation.database {
 			return catalog.Conflict{}
@@ -300,7 +301,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	}
 	for _, d := range c.descriptors {
 		if d != nil {
-			if err := validateACL(read, d); err != nil {
+			if err := access.ValidateACL(read, d); err != nil {
 				return err
 			}
 		}

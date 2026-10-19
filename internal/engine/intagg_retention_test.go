@@ -43,7 +43,7 @@ func intaggUnitTemporaryView(t *testing.T, e *Engine, op *Operation, namespace *
 		}
 		d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: namespace.Address(), ObjectName: name, ObjectRevision: revision, Owner: namespace.Owner, RelationKind: catalog.ViewRelation, View: viewPayloadOf(definition), Columns: append([]catalog.Column(nil), b.query.Root.Schema()...), Index: map[string]int{"v": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 		definition.consumer = d.Address()
-		stage := e.BeginCatalogStage(auth.catalog)
+		stage := e.BeginCatalogStage(auth.Catalog)
 		if err := e.stageRowTypeLocked(stage, d); err != nil {
 			e.DiscardCatalogStage(stage)
 			return nil, nil, err

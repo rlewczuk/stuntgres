@@ -38,10 +38,10 @@ func TestMaterializedViewAuthorization(t *testing.T) {
 		t.Fatal(err)
 	}
 	d.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: d.Owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.SelectPrivilege}}}
-	auth.catalog, auth.state.CurrentUser = e.stageRead(stage), reader
-	auth.Recapture(auth.catalog)
-	baseRef := e.catalog.Domain.Ref(auth.catalog.Epoch(), base.Address())
-	mvRef := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
+	auth.Catalog, auth.State.CurrentUser = e.stageRead(stage), reader
+	auth.Recapture(auth.Catalog)
+	baseRef := e.catalog.Domain.Ref(auth.Catalog.Epoch(), base.Address())
+	mvRef := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
 	viewOf(d).sources = []viewLeaf{{ref: baseRef, reads: []int32{1}, attributes: []int32{1}}}
 	mvSources := []queryLeaf{{ref: mvRef, relation: d, uses: []int{0}}}
 	if err := auth.checkQuerySources(mvSources); err != nil {
@@ -52,7 +52,7 @@ func TestMaterializedViewAuthorization(t *testing.T) {
 		t.Fatalf("base unexpectedly readable: %v", err)
 	}
 	e.mu.Lock()
-	refs, err := e.queryTableRefsLocked(auth, auth.state.CurrentUser, mvSources, nil, ids.SessionToken{}, queryRowMark{})
+	refs, err := e.queryTableRefsLocked(auth, auth.State.CurrentUser, mvSources, nil, ids.SessionToken{}, queryRowMark{})
 	e.mu.Unlock()
 	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectRef{mvRef}) {
 		t.Fatalf("physical read expanded frozen source references: %v %v", refs, err)

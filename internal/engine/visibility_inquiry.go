@@ -232,14 +232,14 @@ func (e visibilityInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, erro
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+		actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 		if !actor.Superuser {
 			return sqltype.Value{}, sqlError("42501", "must be superuser to import system collations")
 		}
-		if _, exists := auth.catalog.Descriptor(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(oid)}); !exists {
+		if _, exists := auth.Catalog.Descriptor(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(oid)}); !exists {
 			return sqltype.Value{}, sqlError("3F000", fmt.Sprintf("schema with OID %d does not exist", oid))
 		}
 		return sqltype.Value{}, sqlError("0A000", "system collation import is unsupported in embedded mode")
@@ -306,7 +306,7 @@ func (e *Engine) captureVisibilitySnapshotLocked(scope *StatementScope) error {
 	otherExplicit := make([]ids.ObjectAddress, len(explicit))
 	copy(otherExplicit, explicit)
 	others := e.effectivePath(auth, otherExplicit, conversionLookup)
-	scope.visibilityCatalog = auth.catalog
+	scope.visibilityCatalog = auth.Catalog
 	scope.visibilityRelationPath, scope.visibilityOtherPath = relations, others
 	return nil
 }

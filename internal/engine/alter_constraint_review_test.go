@@ -36,7 +36,7 @@ func TestAlterAddConstraintBackingRetirement(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := raw[0].(*parser.AlterTable).Actions
-	next, err := notNullCandidate(op, auth.catalog, old, actions[1], notNullDirect)
+	next, err := notNullCandidate(op, auth.Catalog, old, actions[1], notNullDirect)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func TestAlterAddConstraintDropModeIsolation(t *testing.T) {
 			next := old
 			for _, action := range actions {
 				if action.Action == parser.DropConstraint {
-					next, err = notNullCandidate(op, auth.catalog, next, action, notNullDirect)
+					next, err = notNullCandidate(op, auth.Catalog, next, action, notNullDirect)
 					if err != nil {
 						t.Fatal(err)
 					}

@@ -194,7 +194,7 @@ retry:
 		}
 		auth, captureErr := s.writeAuthorizationLocked(e)
 		if captureErr == nil {
-			auth.catalog = view
+			auth.Catalog = view
 			auth.Recapture(view)
 			b.typeName, captureErr = e.captureTypeDiagnosticName(auth)
 		}
@@ -431,8 +431,8 @@ retry:
 		}
 		parent, index = currentParent, currentIndex
 		auth, err := s.writeAuthorizationLocked(e)
-		auth.catalog = current
-		auth.Recapture(auth.catalog)
+		auth.Catalog = current
+		auth.Recapture(auth.Catalog)
 		namespace, _ := current.Namespace(parent.Namespace())
 		root := e.storage.IndexRoots[index.Address()]
 		if changes := s.owner.catalog; changes != nil {

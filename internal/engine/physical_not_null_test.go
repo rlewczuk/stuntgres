@@ -18,7 +18,7 @@ func physicalNotNullFixture(t *testing.T) (*Engine, *CatalogStage, *catalog.Rela
 	t.Helper()
 	e := New()
 	base := e.CatalogRead()
-	owner := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	usage := testUsage(e, sqltype.Int4)
 	mint := func() ids.OID {

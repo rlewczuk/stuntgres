@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -49,7 +50,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		d, err := view.object(ref)
+		d, err := view.Object(ref)
 		if err != nil {
 			return err
 		}
@@ -62,7 +63,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 		acl.Entries = append([]authorization.ACLEntry(nil), acl.Entries...)
 		next.ACL = acl
 		next.ACLSyntheticDefault = false
-		stage := e.BeginCatalogStage(view.catalog)
+		stage := e.BeginCatalogStage(view.Catalog)
 		defer e.DiscardCatalogStage(stage)
 		if err = stage.Replace(&next); err != nil {
 			return err
@@ -80,11 +81,11 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		d, err := view.object(ref)
+		d, err := view.Object(ref)
 		if err != nil {
 			t.Fatal(err)
 		}
-		mask := classPrivileges(d)
+		mask := access.ClassPrivileges(d)
 		got, err := view.Effective(ref, false)
 		if err != nil || got != mask {
 			t.Fatal(d.Name(), got, mask, err)
@@ -125,11 +126,11 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		d, err := view.object(ref)
+		d, err := view.Object(ref)
 		if err != nil {
 			t.Fatal(err)
 		}
-		mask := classPrivileges(d)
+		mask := access.ClassPrivileges(d)
 		if err := view.Check(AccessRequirement{Object: ref, Privileges: mask}); err != nil {
 			t.Fatal("all inherited bits", d.Name(), err)
 		}

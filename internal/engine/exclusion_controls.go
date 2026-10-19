@@ -91,8 +91,8 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 		return Result{}, err
 	}
 	e.mu.Lock()
-	auth.catalog = e.privateCatalogLocked(s.owner.catalog)
-	auth.Recapture(auth.catalog)
+	auth.Catalog = e.privateCatalogLocked(s.owner.catalog)
+	auth.Recapture(auth.Catalog)
 	s.beginExclusionProjectionLocked(e)
 	e.mu.Unlock()
 	candidate := s.exclusionModes
@@ -112,7 +112,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 			for i := range path.count() {
 				namespace := path.at(i)
 				matched := false
-				for _, descriptor := range auth.catalog.Descriptors() {
+				for _, descriptor := range auth.Catalog.Descriptors() {
 					parent, ok := descriptor.(*catalog.Relation)
 					if !ok || parent.Namespace() != namespace || parent.RelationKind != catalog.TableRelation && parent.RelationKind != catalog.PartitionedRelation {
 						continue
@@ -165,7 +165,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 		// independent local declarations. Catalog iteration has no tree order.
 		for changed := true; changed; {
 			changed = false
-			for _, descriptor := range auth.catalog.Descriptors() {
+			for _, descriptor := range auth.Catalog.Descriptors() {
 				parent, ok := descriptor.(*catalog.Relation)
 				if !ok {
 					continue

@@ -101,7 +101,7 @@ func (e *Engine) pairRestoredNotNull(op *Operation, raw *parser.AlterTable, orig
 	if err != nil {
 		return restoredNotNull{}, err
 	}
-	relation, ok := auth.catalog.Relation(ref.Address)
+	relation, ok := auth.Catalog.Relation(ref.Address)
 	if !ok {
 		return restoredNotNull{}, sqlError("0A000", restoreNoInheritBoundary)
 	}
@@ -135,7 +135,7 @@ func (e *Engine) restoreNoInheritNotNull(op *Operation, raw *parser.Update, orig
 	if err != nil {
 		return err
 	}
-	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
 		return err
 	}
@@ -152,7 +152,7 @@ func (e *Engine) restoreNoInheritNotNull(op *Operation, raw *parser.Update, orig
 		e.mu.Unlock()
 		return err
 	}
-	old, ok := auth.catalog.Relation(ref.Address)
+	old, ok := auth.Catalog.Relation(ref.Address)
 	if !ok || old.RelationKind != catalog.TableRelation || origin.ref != ref {
 		e.mu.Unlock()
 		return sqlError("0A000", restoreNoInheritBoundary)
@@ -194,7 +194,7 @@ func (e *Engine) restoreNoInheritNotNull(op *Operation, raw *parser.Update, orig
 	next.ObjectRevision++
 	next.Constraints.NotNull = slices.Clone(old.Constraints.NotNull)
 	next.Constraints.NotNull[index].NoInherit = true
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)

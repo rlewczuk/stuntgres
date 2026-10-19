@@ -300,11 +300,11 @@ func (e *Engine) pairRestoredGeneration(op *Operation, raw *parser.AlterTable, o
 	if err != nil {
 		return err
 	}
-	table, ok := auth.catalog.Relation(ref.Address)
+	table, ok := auth.Catalog.Relation(ref.Address)
 	if !ok {
 		return reject()
 	}
-	namespace, namespaceOK := auth.catalog.Namespace(table.Namespace())
+	namespace, namespaceOK := auth.Catalog.Namespace(table.Namespace())
 	if !namespaceOK || namespace.Temporary != (ids.SessionToken{}) {
 		return reject()
 	}
@@ -318,7 +318,7 @@ func (e *Engine) pairRestoredGeneration(op *Operation, raw *parser.AlterTable, o
 	if !exists || !generated || record.ref != ref || record.attribute != attribute || record.generation != definition.OID || record.usage != table.Columns[slot].Usage || record.kind != definition.Kind {
 		return reject()
 	}
-	if (relationProvider{}).Validate(auth.catalog, table) != nil {
+	if (relationProvider{}).Validate(auth.Catalog, table) != nil {
 		return reject()
 	}
 	return nil
@@ -333,7 +333,7 @@ func (e *Engine) captureRestoredGeneration(op *Operation, raw *parser.AlterTable
 	if err != nil {
 		return restoredGenerationRecipe{}, err
 	}
-	table, ok := auth.catalog.Relation(ref.Address)
+	table, ok := auth.Catalog.Relation(ref.Address)
 	if !ok {
 		return restoredGenerationRecipe{}, ids.ErrCatalogReplaced
 	}
@@ -372,7 +372,7 @@ func (e *Engine) restoreInheritedCheck(op *Operation, raw *parser.AlterTable, re
 	if !partitionConstraintReplayImport(e, op, auth) {
 		return reject()
 	}
-	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
+	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
 		return err
 	}
@@ -383,22 +383,22 @@ func (e *Engine) restoreInheritedCheck(op *Operation, raw *parser.AlterTable, re
 	if err != nil {
 		return err
 	}
-	target, ok := auth.catalog.Relation(ref.Address)
+	target, ok := auth.Catalog.Relation(ref.Address)
 	if !ok || target.RelationKind != catalog.TableRelation || target.Partition != nil || target.Membership != nil {
 		return reject()
 	}
-	namespace, namespaceOK := auth.catalog.Namespace(target.Namespace())
+	namespace, namespaceOK := auth.Catalog.Namespace(target.Namespace())
 	if !namespaceOK || namespace.Temporary != (ids.SessionToken{}) {
 		return reject()
 	}
-	if validateInheritance(auth.catalog, target) != nil {
+	if validateInheritance(auth.Catalog, target) != nil {
 		return reject()
 	}
 	for _, repair := range repairs {
 		if repair.ref.Domain() != ref.Domain() || repair.ref.Epoch != ref.Epoch {
 			continue
 		}
-		table, ok := auth.catalog.Relation(repair.ref.Address)
+		table, ok := auth.Catalog.Relation(repair.ref.Address)
 		if !ok {
 			continue
 		}
@@ -407,10 +407,10 @@ func (e *Engine) restoreInheritedCheck(op *Operation, raw *parser.AlterTable, re
 		if !ok || slot < 0 || generation.OID != repair.generation || generation.Kind != repair.kind || table.Columns[slot].Usage != repair.usage {
 			continue
 		}
-		if (relationProvider{}).Validate(auth.catalog, table) != nil {
+		if (relationProvider{}).Validate(auth.Catalog, table) != nil {
 			continue
 		}
-		if inheritedRecipeConnected(auth.catalog, target.Address(), table.Address()) {
+		if inheritedRecipeConnected(auth.Catalog, target.Address(), table.Address()) {
 			return nil
 		}
 	}
@@ -511,7 +511,7 @@ func (e *Engine) closeRestoredRecipesForData(op *Operation, raw *parser.Insert, 
 	}
 	retained := repairs[:0]
 	for _, repair := range repairs {
-		if !inheritedRecipeConnected(auth.catalog, ref.Address, repair.ref.Address) {
+		if !inheritedRecipeConnected(auth.Catalog, ref.Address, repair.ref.Address) {
 			retained = append(retained, repair)
 		}
 	}

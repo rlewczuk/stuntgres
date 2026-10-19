@@ -56,7 +56,7 @@ func (e *Engine) resolveRestoredForeignKeyTargets(pending *restoredForeignKeys) 
 			namespace := path.at(at)
 			definition.path[at] = namespace
 			if definition.target == (ids.ObjectAddress{}) {
-				definition.target = pending.auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: definition.raw.Target.Parts[len(definition.raw.Target.Parts)-1].Text})
+				definition.target = pending.auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: definition.raw.Target.Parts[len(definition.raw.Target.Parts)-1].Text})
 			}
 		}
 	}
@@ -150,8 +150,8 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 	for _, declaration := range pending {
 		child := view.MustRelation(declaration.child.Address)
 		auth := declaration.auth
-		auth.catalog = view
-		auth.Recapture(auth.catalog)
+		auth.Catalog = view
+		auth.Recapture(auth.Catalog)
 		for _, definition := range declaration.definitions {
 			if definition.boundSlot < 0 || definition.boundSlot >= len(child.Constraints.ForeignKeys) || definition.boundOID == 0 || child.Constraints.ForeignKeys[definition.boundSlot].OID != definition.boundOID {
 				return ids.ErrCatalogReplaced
@@ -186,7 +186,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 }
 
 func validateForeignKeyData(ctx context.Context, auth AuthorizationView, child, parent *catalog.Relation, f catalog.ForeignKeyConstraint, comparisons []foreignKeyComparison, children, parents foreignKeyRows, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
-	index, ok := auth.catalog.Relation(f.Index)
+	index, ok := auth.Catalog.Relation(f.Index)
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}

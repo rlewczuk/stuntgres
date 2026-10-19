@@ -15,9 +15,9 @@ func domainUnitTable(t *testing.T, e *Engine, op *Operation, q string) *catalog.
 	raw := statement(t, q).(*parser.CreateTable)
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	if err == nil {
-		err = e.schemaTableLocked(op, auth, stage, raw, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.state.CurrentUser, sqltype.InputEnvironment{}, nil)
+		err = e.schemaTableLocked(op, auth, stage, raw, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	}
 	e.mu.Unlock()
 	if err != nil {

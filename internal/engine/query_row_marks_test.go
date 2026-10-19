@@ -74,7 +74,7 @@ func TestQueryLockSelectedACLAndViewPrincipals(t *testing.T) {
 	}
 	roleExecute(t, e, op, "CREATE SEQUENCE s")
 	reader, _ := e.Roles().Lookup("mark_reader")
-	grantor := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grantor := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	grant := func(ref ids.ObjectRef, rights authorization.Privileges) {
 		t.Helper()
 		acl := authorization.ACLValue{Explicit: true}
@@ -102,7 +102,7 @@ func TestQueryLockSelectedACLAndViewPrincipals(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		auth.state.CurrentUser = reader.Ref
+		auth.State.CurrentUser = reader.Ref
 		binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 		binder.queryAuth = &auth
 		raw := statement(t, q).(*parser.Select)

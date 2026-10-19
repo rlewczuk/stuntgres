@@ -32,21 +32,21 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 	}
 	parent := scope.lockedDescriptor.(*catalog.Relation)
 	if parent.Partition == nil {
-		return fail(partitionDetachKindError(auth.catalog, parent, false))
+		return fail(partitionDetachKindError(auth.Catalog, parent, false))
 	}
 	if err := e.partitionAttachName(auth, raw.Name, scope.lockedRef); err != nil {
 		return fail(err)
 	}
 	defaultAddress := parent.Partition.DefaultChild
 	if defaultAddress != (ids.ObjectAddress{}) {
-		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), defaultAddress)
+		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), defaultAddress)
 		if err := scope.observePartitionRelationLocked(e, ref); err != nil {
 			return fail(err)
 		}
 	}
 	e.mu.Unlock()
 	if defaultAddress != (ids.ObjectAddress{}) {
-		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), defaultAddress)
+		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), defaultAddress)
 		if err := scope.acquirePartitionLock(ref, lock.AccessExclusive); err != nil {
 			return Result{}, err
 		}
@@ -58,9 +58,9 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 		candidate, err = e.resolveRelationReference(auth, raw.Partition, true)
 	}
 	if err == nil {
-		child := auth.catalog.MustRelation(candidate.Address)
+		child := auth.Catalog.MustRelation(candidate.Address)
 		if child.RelationKind == catalog.IndexRelation || child.RelationKind == catalog.CompositeRelation {
-			err = partitionDetachKindError(auth.catalog, child, true)
+			err = partitionDetachKindError(auth.Catalog, child, true)
 		}
 		if err == nil {
 			err = scope.observePartitionRelationLocked(e, candidate)
@@ -97,14 +97,14 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 	if err == nil {
 		err = scope.validateLockedRelation(e)
 	}
-	if err == nil && auth.catalog.Get(parent.Address()) != parent {
+	if err == nil && auth.Catalog.Get(parent.Address()) != parent {
 		err = ids.ErrCatalogReplaced
 	}
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	catalog = auth.catalog
+	catalog = auth.Catalog
 	child = catalog.MustRelation(candidate.Address)
 	stage := e.BeginCatalogStage(catalog)
 	stage.authorizeLocked(auth, op.session)

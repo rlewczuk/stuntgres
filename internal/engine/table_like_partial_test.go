@@ -284,8 +284,8 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 		err = e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE anchor(a INT)").(*parser.CreateTable), source.Namespace(), source.Owner, sqltype.InputEnvironment{}, nil)
 	}
 	if err == nil {
-		auth.catalog = e.stageRead(stage)
-		auth.Recapture(auth.catalog)
+		auth.Catalog = e.stageRead(stage)
+		auth.Recapture(auth.Catalog)
 	}
 	raw := statement(t, "CREATE INDEX private_partial ON private_source(k) WHERE active AND ('anchor'::regclass IS NOT NULL)").(*parser.CreateIndex)
 	var index *catalog.Relation
@@ -315,8 +315,8 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 		}
 	}
 	if err == nil {
-		auth.catalog = e.stageRead(stage)
-		auth.Recapture(auth.catalog)
+		auth.Catalog = e.stageRead(stage)
+		auth.Recapture(auth.Catalog)
 		err = e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE clone(lead TEXT,LIKE private_source INCLUDING ALL)").(*parser.CreateTable), source.Namespace(), source.Owner, sqltype.InputEnvironment{}, nil)
 	}
 	e.mu.Unlock()

@@ -29,8 +29,8 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		e.mu.Unlock()
 		return err
 	}
-	auth.catalog = view
-	auth.Recapture(auth.catalog)
+	auth.Catalog = view
+	auth.Recapture(auth.Catalog)
 	var captures []catalogOverlayIndex
 	for a, d := range view.Descriptors() {
 		index, ok := d.(*catalog.Relation)
@@ -101,8 +101,8 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		indexAuth := auth
 		if r := stage.materializedReplacement; r != nil && r.concurrent && r.original.Address() == parent.Address() {
 			building = false
-			indexAuth.state.CurrentUser = parent.Owner
-			if _, err := indexAuth.roles.Descriptor(parent.Owner); err != nil {
+			indexAuth.State.CurrentUser = parent.Owner
+			if _, err := indexAuth.Roles.Descriptor(parent.Owner); err != nil {
 				return err
 			}
 		}

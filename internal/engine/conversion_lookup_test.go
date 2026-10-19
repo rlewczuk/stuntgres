@@ -88,9 +88,9 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 	e := New()
 	op, auth := conversionUnitAuth(t, e)
-	actor := auth.roles.LookupRef("pg_monitor")
-	auth.state.CurrentUser = actor
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375})
+	actor := auth.Roles.LookupRef("pg_monitor")
+	auth.State.CurrentUser = actor
+	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375})
 	if err := auth.Check(AccessRequirement{Object: ref, Privileges: authorization.ExecutePrivilege}); err != nil {
 		t.Fatal("real PUBLIC EXECUTE default", err)
 	}
@@ -103,7 +103,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 	if refreshErr != nil {
 		t.Fatal(refreshErr)
 	}
-	auth.state.CurrentUser = actor
+	auth.State.CurrentUser = actor
 	var stage *CatalogStage
 	var err error
 	withPublicSchemaUnitOwner(t, e, "pg_monitor", func() {
@@ -113,10 +113,10 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 		if refreshErr != nil {
 			t.Fatal(refreshErr)
 		}
-		auth.state.CurrentUser = actor
+		auth.State.CurrentUser = actor
 		create := &parser.CreateConversion{Name: conversionUnitName("public", "denied"), Source: "UTF8", Destination: "LATIN1", Function: conversionUnitName("pg_catalog", "utf8_to_iso8859_1")}
-		stage = e.BeginCatalogStage(auth.catalog)
-		before := auth.catalog.State()
+		stage = e.BeginCatalogStage(auth.Catalog)
+		before := auth.Catalog.State()
 		e.mu.Lock()
 		err = e.stageCreateConversionLocked(op, auth, stage, create)
 		e.mu.Unlock()
@@ -135,9 +135,9 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 	if refreshErr != nil {
 		t.Fatal(refreshErr)
 	}
-	auth.state.CurrentUser = actor
+	auth.State.CurrentUser = actor
 	private := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, ObjectName: "private", ObjectRevision: 1, Owner: e.roles.domain.Principal(10)}
-	stage = e.BeginCatalogStage(auth.catalog)
+	stage = e.BeginCatalogStage(auth.Catalog)
 	if err = stage.Create(private); err != nil {
 		t.Fatal(err)
 	}
@@ -148,11 +148,11 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 	if refreshErr != nil {
 		t.Fatal(refreshErr)
 	}
-	auth.state.CurrentUser = actor
-	if err = auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), private.Address())); err == nil {
+	auth.State.CurrentUser = actor
+	if err = auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), private.Address())); err == nil {
 		t.Fatal("private schema supplied implicit USAGE")
 	}
-	if err = e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(auth.catalog.Epoch(), private.Address()), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: private.Owner, Grantee: authorization.ACLGrantee{Role: actor}, Privileges: authorization.UsagePrivilege}}}); err != nil {
+	if err = e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(auth.Catalog.Epoch(), private.Address()), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: private.Owner, Grantee: authorization.ACLGrantee{Role: actor}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
@@ -161,8 +161,8 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 	if refreshErr != nil {
 		t.Fatal(refreshErr)
 	}
-	auth.state.CurrentUser = actor
-	if err = auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), private.Address())); err != nil {
+	auth.State.CurrentUser = actor
+	if err = auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), private.Address())); err != nil {
 		t.Fatal("actual namespace USAGE grant", err)
 	}
 }

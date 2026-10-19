@@ -85,8 +85,8 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth.catalog = view
-	auth.Recapture(auth.catalog)
+	auth.Catalog = view
+	auth.Recapture(auth.Catalog)
 	held, got := defaultUnitProjection(t, view, auth)
 	var want [][]string
 	for _, privilege := range []string{"INSERT", "SELECT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER"} {
@@ -108,7 +108,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatal("projection origins/kinds/bits/options", got, want)
 	}
-	auth.state.CurrentUser = f.reader
+	auth.State.CurrentUser = f.reader
 	_, readerRows := defaultUnitProjection(t, view, auth)
 	readerWant := [][]string{
 		{"default_owner", "default_reader", "unit_database", "default_schema", "proof_named", "SELECT", "YES", "YES"},
@@ -120,12 +120,12 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	if !reflect.DeepEqual(readerRows, readerWant) {
 		t.Fatal("grantee visibility was filtered by namespace/table SELECT or invented inherited origins", readerRows)
 	}
-	auth.state.CurrentUser = f.member
+	auth.State.CurrentUser = f.member
 	_, memberRows := defaultUnitProjection(t, view, auth)
 	if !reflect.DeepEqual(memberRows, want) {
 		t.Fatal("inherited grantor visibility", memberRows)
 	}
-	roles := cloneRoleFixture(auth.roleRecord)
+	roles := cloneRoleFixture(auth.RoleRecord)
 	edges := fixtureEdges(roles)
 	for i := range edges {
 		if edges[i].Member == f.member {
@@ -134,7 +134,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 		}
 	}
 	setFixtureEdges(roles, edges)
-	auth.roleRecord = roles
+	auth.RoleRecord = roles
 	auth.Recapture(view)
 	_, setRows := defaultUnitProjection(t, view, auth)
 	setWant := [][]string{{"default_owner", "PUBLIC", "unit_database", "default_schema", "proof_named", "INSERT", "NO", "NO"}, {"default_owner", "default_member", "unit_database", "default_schema", "proof_member", "UPDATE", "NO", "NO"}}
@@ -157,10 +157,10 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	renamed.Name = "renamed_reader"
 	putFixtureRole(actor, renamed)
 
-	auth.roleRecord = actor
+	auth.RoleRecord = actor
 	auth.Recapture(f.e.catalog.read(changed))
-	auth.state.CurrentUser = f.reader
-	_, fresh := defaultUnitProjection(t, auth.catalog, auth)
+	auth.State.CurrentUser = f.reader
+	_, fresh := defaultUnitProjection(t, auth.Catalog, auth)
 	freshWant := [][]string{{"default_owner", "renamed_reader", "unit_database", "default_schema", "proof_partition", "SELECT", "NO", "YES"}, {"default_owner", "renamed_reader", "unit_database", "default_schema", "proof_update_only", "UPDATE", "NO", "NO"}}
 	defaultUnitSortRows(freshWant)
 	if !reflect.DeepEqual(fresh, freshWant) || !reflect.DeepEqual(held.anonymous, before) {

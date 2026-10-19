@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -80,7 +81,7 @@ func TestMaterializedAlterOwnerAttachments(t *testing.T) {
 				t.Fatal("dependent type ACL ownership origin not transferred", typ.Name(), typ.ACL)
 			}
 		}
-		if descriptorRoleDependencies(typ, d.Owner, nil) {
+		if access.DescriptorRoleDependencies(typ, d.Owner, nil) {
 			t.Fatal("dependent type prevents former owner's retirement", typ.Name())
 		}
 	}
@@ -305,7 +306,7 @@ func TestMaterializedAlterPublication(t *testing.T) {
 			stage.querySources = []catalog.Descriptor{ext}
 			stage.authSession = op.session
 			stage.authRevision = op.session.authorization.revision
-			stage.roleRevision = e.roles.published.revision
+			stage.roleRevision = e.roles.published.Revision
 			if err := stage.Replace(&next); err != nil {
 				t.Fatal(err)
 			}
@@ -323,7 +324,7 @@ func TestMaterializedAlterPublication(t *testing.T) {
 			case "cancel":
 				cancel()
 			case "role":
-				e.roles.published.revision++
+				e.roles.published.Revision++
 			case "authorization":
 				op.session.authorization.revision++
 			}
@@ -490,7 +491,7 @@ func TestMaterializedAlterQueuedAuthority(t *testing.T) {
 		}()
 		lockPending(t, e, 1)
 		changed := *d
-		changed.Owner = e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		changed.Owner = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 		changed.ObjectRevision++
 		stage = e.BeginCatalogStage(e.CatalogRead())
 		if err := stage.Replace(&changed); err != nil {

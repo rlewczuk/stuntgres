@@ -61,7 +61,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 		}
 		return fail(diagnostic)
 	}
-	if inheritanceParticipant(auth.catalog, old) {
+	if inheritanceParticipant(auth.Catalog, old) {
 		return e.alterInheritanceDefaultLocked(scope, op, auth, s, old)
 	}
 	var definition catalog.ColumnDefault
@@ -118,7 +118,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	if definition.Expression != nil {
 		next.ColumnMeta.Defaults[attr] = definition
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
@@ -148,11 +148,11 @@ func (e *Engine) cookAlterDefaultLocked(scope *StatementScope, op *Operation, au
 	var definition catalog.ColumnDefault
 	binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
 	binder.queryAuth = &auth
-	binder.defaultTemporary = auth.catalog.MustNamespace(old.Namespace()).Temporary
+	binder.defaultTemporary = auth.Catalog.MustNamespace(old.Namespace()).Temporary
 	var err error
 	definition.Expression, err = binder.bindDefault(expression, old.Columns[slot])
 	if err == nil {
-		_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(op.Context(), auth.catalog, definition.Expression)
+		_, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.Roles}, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(op.Context(), auth.Catalog, definition.Expression)
 	}
 	if err != nil {
 		var diagnostic *sqlstate.Error

@@ -38,7 +38,7 @@ type sequencePathCache struct {
 }
 
 func (e *Engine) sequenceEnvironmentLocked(auth AuthorizationView) (sequenceEnvironment, error) {
-	key := sequencePathKey{role: auth.state.CurrentUser, authorization: auth.revision, roles: auth.roleRecord.revision, namespace: auth.catalog.State().NamespaceGeneration(), epoch: auth.catalog.Epoch(), temp: temporaryNamespace(auth), prefix: auth.pathPrefix, database: auth.catalog.Get(catalog.CurrentDatabaseAddress)}
+	key := sequencePathKey{role: auth.State.CurrentUser, authorization: auth.Revision, roles: auth.RoleRecord.Revision, namespace: auth.Catalog.State().NamespaceGeneration(), epoch: auth.Catalog.Epoch(), temp: temporaryNamespace(auth), prefix: auth.pathPrefix, database: auth.Catalog.Get(catalog.CurrentDatabaseAddress)}
 	if auth.session != nil && auth.session.transactions != nil {
 		key.private = auth.session.transactions.catalog
 	}
@@ -74,7 +74,7 @@ func (e *Engine) sequenceAnalysisLocked(auth AuthorizationView, constants []sequ
 	if err != nil {
 		return sequenceAnalysis{}, err
 	}
-	return sequenceAnalysis{constants: constants, path: path, private: auth.session.transactions.catalog, session: auth.session.token, namespace: auth.catalog.State().NamespaceGeneration()}, nil
+	return sequenceAnalysis{constants: constants, path: path, private: auth.session.transactions.catalog, session: auth.session.token, namespace: auth.Catalog.State().NamespaceGeneration()}, nil
 }
 func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *sequenceAnalysis) (bool, error) {
 	if analysis == nil || len(analysis.constants) == 0 {
@@ -84,7 +84,7 @@ func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *s
 	if err != nil {
 		return false, err
 	}
-	changed := analysis.session != auth.session.token || analysis.private != auth.session.transactions.catalog || analysis.namespace != auth.catalog.State().NamespaceGeneration() || !sameSequenceEnvironment(path, analysis.path)
+	changed := analysis.session != auth.session.token || analysis.private != auth.session.transactions.catalog || analysis.namespace != auth.Catalog.State().NamespaceGeneration() || !sameSequenceEnvironment(path, analysis.path)
 	for _, constant := range analysis.constants {
 		ref := constant.ref
 		if ref.Domain() != e.catalog.Domain {
@@ -93,18 +93,18 @@ func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *s
 		if constant.temporary != (ids.SessionToken{}) && constant.temporary != auth.session.token {
 			return false, ids.ErrCatalogReplaced
 		}
-		if ref.Epoch != auth.catalog.Epoch() {
+		if ref.Epoch != auth.Catalog.Epoch() {
 			// Native replacement permits only the original owner's exact live temp.
-			d, ok := auth.catalog.Relation(ref.Address)
+			d, ok := auth.Catalog.Relation(ref.Address)
 			if !ok || constant.temporary != auth.session.token || d.RelationKind != catalog.SequenceRelation {
 				return false, ids.ErrCatalogReplaced
 			}
-			ns, ok := auth.catalog.Namespace(d.Namespace())
+			ns, ok := auth.Catalog.Namespace(d.Namespace())
 			if !ok || ns.Temporary != constant.temporary {
 				return false, ids.ErrCatalogReplaced
 			}
 		}
-		d, ok := auth.catalog.Relation(ref.Address)
+		d, ok := auth.Catalog.Relation(ref.Address)
 		if !ok {
 			if constant.stamp != 0 {
 				changed = true
@@ -127,7 +127,7 @@ func (e *Engine) pinSequenceReplacementLocked(auth AuthorizationView, previous *
 		return nil
 	}
 	for _, old := range previous.constants {
-		if old.ref.Epoch == auth.catalog.Epoch() {
+		if old.ref.Epoch == auth.Catalog.Epoch() {
 			continue
 		}
 		found := false

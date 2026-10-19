@@ -21,22 +21,22 @@ func (a AuthorizationView) definitionDescriptor(address ids.ObjectAddress) (cata
 	if a.definition != nil {
 		return a.definition.descriptor(address)
 	}
-	return a.catalog.Descriptor(address)
+	return a.Catalog.Descriptor(address)
 }
 func (a AuthorizationView) definitionLookup(key ids.NameKey) ids.ObjectAddress {
 	if a.definition != nil {
 		return a.definition.lookup(key)
 	}
-	return a.catalog.NameAddress(key)
+	return a.Catalog.NameAddress(key)
 }
 func (a AuthorizationView) definitionDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
 	if a.definition != nil {
 		return a.definition.descriptors()
 	}
-	return a.catalog.Descriptors()
+	return a.Catalog.Descriptors()
 }
 func (a AuthorizationView) definitionType(id sqltype.ID) (*sqltype.Descriptor, bool) {
-	return definitionTypeAt(a.catalog, a.definition, id)
+	return definitionTypeAt(a.Catalog, a.definition, id)
 }
 
 type stageDefinitionReader struct{ stage *CatalogStage }
@@ -123,7 +123,7 @@ func definitionDescriptorAt(view catalog.Read, reader definitionReader, address 
 }
 
 func (a AuthorizationView) definitionArray(element *sqltype.Descriptor) (*sqltype.Descriptor, bool) {
-	return definitionArrayAt(a.catalog, a.definition, element)
+	return definitionArrayAt(a.Catalog, a.definition, element)
 }
 
 func definitionTypeAt(view catalog.Read, reader definitionReader, id sqltype.ID) (*sqltype.Descriptor, bool) {

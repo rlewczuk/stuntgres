@@ -347,11 +347,11 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 	evaluation.catalog, evaluation.Output = view, output
 	if auth == nil {
 		// Trusted replacement has catalog identity but no SQL principal.
-		auth = &AuthorizationView{accessView: accessView{catalog: view}}
+		auth = &AuthorizationView{accessView: accessView{Catalog: view}}
 	} else {
 		disclosure := *auth
-		disclosure.catalog = view
-		disclosure.Recapture(disclosure.catalog)
+		disclosure.Catalog = view
+		disclosure.Recapture(disclosure.Catalog)
 		auth = &disclosure
 	}
 	if auth.engine != nil {
@@ -368,11 +368,11 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 		owner, runtime := runtimeOwners[parent.Address()]
 		indexAuth := auth
 		if runtime && auth.engine != nil {
-			if _, err := auth.roles.Descriptor(owner); err != nil {
+			if _, err := auth.Roles.Descriptor(owner); err != nil {
 				return nil, err
 			}
 			disclosure := *auth
-			disclosure.state.CurrentUser = owner
+			disclosure.State.CurrentUser = owner
 			indexAuth = &disclosure
 		}
 		if parent.Partition != nil {
@@ -613,7 +613,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *catalogChanges
 			auth, err = s.writeAuthorizationLocked(e)
 		}
 		if err == nil {
-			auth.catalog = view
+			auth.Catalog = view
 			auth.Recapture(view)
 			input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
 		}

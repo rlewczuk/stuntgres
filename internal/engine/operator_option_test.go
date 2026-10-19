@@ -182,7 +182,7 @@ func TestUserOperatorOptionExtraction(t *testing.T) {
 func TestUserOperatorArgumentValidationOrder(t *testing.T) {
 	e := New()
 	op, auth := conversionUnitAuth(t, e)
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23})
+	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23})
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +194,7 @@ func TestUserOperatorArgumentValidationOrder(t *testing.T) {
 			t.Fatal(err)
 		}
 		auth = refreshed
-		auth.state.CurrentUser = auth.roles.LookupRef("pg_monitor")
+		auth.State.CurrentUser = auth.Roles.LookupRef("pg_monitor")
 		for _, tc := range []struct{ options, code, message, detail string }{
 			{"leftarg=userop_missing_type", "42P13", "operator function must be specified", ""},
 			{"leftarg=userop_missing_type,function=int4um", "42704", `type "userop_missing_type" does not exist`, ""},
@@ -209,7 +209,7 @@ func TestUserOperatorArgumentValidationOrder(t *testing.T) {
 		} {
 			s := &parser.CreateOperator{Name: operatorUnitName("public", "#%#"), Options: operatorParsedOptions(t, tc.options)}
 			before := e.CatalogRead().State()
-			stage := e.BeginCatalogStage(auth.catalog)
+			stage := e.BeginCatalogStage(auth.Catalog)
 			e.mu.Lock()
 			err = e.stageCreateOperatorLocked(op, auth, stage, s)
 			e.mu.Unlock()
@@ -246,7 +246,7 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 	}
 	// Both references are captured from the original stage, but their updates
 	// must accumulate on the same actual private peer rather than stale copies.
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	e.mu.Lock()
 	err = e.stageAlterOperatorLocked(op, auth, stage, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, "commutator=OPERATOR(public.#@#),negator=OPERATOR(public.#@#),hashes,merges")})
 	e.mu.Unlock()
@@ -260,7 +260,7 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 		reciprocal.Commutator != source.Address().ObjectID || reciprocal.Negator != source.Address().ObjectID {
 		t.Fatal("staged roots lost one link kind", next, reciprocal)
 	}
-	if source.Commutator != 0 || source.Negator != 0 || peer.Commutator != 0 || peer.Negator != 0 || e.CatalogRead().State() != auth.catalog.State() {
+	if source.Commutator != 0 || source.Negator != 0 || peer.Commutator != 0 || peer.Negator != 0 || e.CatalogRead().State() != auth.Catalog.State() {
 		t.Fatal("private reciprocal updates changed published roots")
 	}
 	collationUnitPublish(t, e, stage)
@@ -287,7 +287,7 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 	} {
 		t.Run(tc.options, func(t *testing.T) {
 			before := e.CatalogRead().State()
-			stage := e.BeginCatalogStage(auth.catalog)
+			stage := e.BeginCatalogStage(auth.Catalog)
 			e.mu.Lock()
 			err := e.stageAlterOperatorLocked(op, auth, stage, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
 			e.mu.Unlock()
@@ -309,12 +309,12 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 		{"commutator=OPERATOR(public.#@#),merges", "42P13", "only boolean operators can merge join"},
 	} {
 		t.Run(tc.options, func(t *testing.T) {
-			stage := e.BeginCatalogStage(auth.catalog)
+			stage := e.BeginCatalogStage(auth.Catalog)
 			e.mu.Lock()
 			err := e.stageAlterOperatorLocked(op, auth, stage, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
 			e.mu.Unlock()
 			operatorOptionDiagnostic(t, err, tc.code, tc.message, "")
-			if e.CatalogRead().State() != auth.catalog.State() || len(stage.Descriptors) != 0 {
+			if e.CatalogRead().State() != auth.Catalog.State() || len(stage.Descriptors) != 0 {
 				t.Fatal("parameter validation followed reciprocal mutation", tc.options)
 			}
 			e.DiscardCatalogStage(stage)
@@ -344,7 +344,7 @@ func TestUserOperatorCreationCheckpoints(t *testing.T) {
 			t.Run(symbol+"/"+tc.options, func(t *testing.T) {
 				definition := operatorUnitDefinition(symbol, "int4pl")
 				definition.Options = append(definition.Options, operatorParsedOptions(t, tc.options)...)
-				stage := e.BeginCatalogStage(auth.catalog)
+				stage := e.BeginCatalogStage(auth.Catalog)
 				e.mu.Lock()
 				err := e.stageCreateOperatorLocked(op, auth, stage, definition)
 				e.mu.Unlock()
@@ -353,7 +353,7 @@ func TestUserOperatorCreationCheckpoints(t *testing.T) {
 					code, message = "42602", `"invalid" is not a valid operator name`
 				}
 				operatorOptionDiagnostic(t, err, code, message, "")
-				if e.CatalogRead().State() != auth.catalog.State() || len(stage.Descriptors) != 0 {
+				if e.CatalogRead().State() != auth.Catalog.State() || len(stage.Descriptors) != 0 {
 					t.Fatal("CREATE semantic failure changed published/private roots")
 				}
 				e.DiscardCatalogStage(stage)
@@ -388,7 +388,7 @@ func TestUserOperatorParameterCheckpoints(t *testing.T) {
 				command = "ALTER"
 			}
 			t.Run(command+"/"+tc.options, func(t *testing.T) {
-				stage := e.BeginCatalogStage(auth.catalog)
+				stage := e.BeginCatalogStage(auth.Catalog)
 				e.mu.Lock()
 				var err error
 				if alter {
@@ -399,7 +399,7 @@ func TestUserOperatorParameterCheckpoints(t *testing.T) {
 				}
 				e.mu.Unlock()
 				operatorOptionDiagnostic(t, err, "42P13", tc.message, "")
-				if e.CatalogRead().State() != auth.catalog.State() || len(stage.Descriptors) != 0 {
+				if e.CatalogRead().State() != auth.Catalog.State() || len(stage.Descriptors) != 0 {
 					t.Fatal("parameter failure changed source, peers or forward shells")
 				}
 				e.DiscardCatalogStage(stage)
@@ -424,7 +424,7 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 	shell := staged.MustOperator(staged.NameAddress(key("#!#")))
 	if source.Commutator != shell.Address().ObjectID || source.Negator != shell.Address().ObjectID ||
 		shell.Commutator != source.Address().ObjectID || shell.Negator != source.Address().ObjectID ||
-		shell.Function != 0 || shell.Result != 0 || shell.Owner != auth.state.CurrentUser {
+		shell.Function != 0 || shell.Result != 0 || shell.Owner != auth.State.CurrentUser {
 		t.Fatal("same forward shell lost identity, owner or one reciprocal kind", source, shell)
 	}
 	if e.CatalogRead().State() != before || before.NameAddress(key("#=#")) != (ids.ObjectAddress{}) || before.NameAddress(key("#!#")) != (ids.ObjectAddress{}) {
@@ -438,11 +438,11 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 	stage = operatorUnitStage(t, e, op, auth, completion)
 	completed := e.stageRead(stage).MustOperator(shell.Address())
 	if completed.Address() != shell.Address() || completed.Function != 144 || completed.Result != 16 ||
-		completed.Owner != auth.state.CurrentUser || completed.Commutator != completed.Address().ObjectID ||
+		completed.Owner != auth.State.CurrentUser || completed.Commutator != completed.Address().ObjectID ||
 		completed.Negator != source.Address().ObjectID {
 		t.Fatal("shell completion lost stable identity or self/peer links", completed)
 	}
-	if *source != sourceBefore || *shell != shellBefore || e.CatalogRead().State() != auth.catalog.State() {
+	if *source != sourceBefore || *shell != shellBefore || e.CatalogRead().State() != auth.Catalog.State() {
 		t.Fatal("completion changed an immutable predecessor")
 	}
 	collationUnitPublish(t, e, stage)
@@ -450,13 +450,13 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 
 	// Commutator setup creates and links a private forward shell before the
 	// negator's reciprocal conflict. Ordinary stage discard must suffice.
-	before = auth.catalog.State()
+	before = auth.Catalog.State()
 	source = before.MustOperator(source.Address())
 	completed = before.MustOperator(completed.Address())
 	sourceBefore, shellBefore = *source, *completed
 	failed := operatorUnitDefinition("#?#", "int4eq")
 	failed.Options = append(failed.Options, operatorParsedOptions(t, "commutator=OPERATOR(public.#@#),negator=OPERATOR(public.#=#)")...)
-	stage = e.BeginCatalogStage(auth.catalog)
+	stage = e.BeginCatalogStage(auth.Catalog)
 	e.mu.Lock()
 	err := e.stageCreateOperatorLocked(op, auth, stage, failed)
 	e.mu.Unlock()

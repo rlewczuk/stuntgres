@@ -19,7 +19,7 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 	}
 	trustedDestination := op != nil && op.restoreTableDestination
 	if trustedDestination {
-		bootstrap, guardErr := auth.roles.Descriptor(auth.state.Authenticated)
+		bootstrap, guardErr := auth.Roles.Descriptor(auth.State.Authenticated)
 		if guardErr != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return fmt.Errorf("stuntgres: invalid trusted restore composite destination authority")
 		}
@@ -30,7 +30,7 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 			return err
 		}
 	}
-	if err := checkPersistentCreationNamespace(auth.catalog, ns.Address); err != nil {
+	if err := checkPersistentCreationNamespace(auth.Catalog, ns.Address); err != nil {
 		return err
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
@@ -38,7 +38,7 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 	if err != nil {
 		return err
 	}
-	if !available || relationTypeNameOccupied(auth.catalog, ns.Address, name) {
+	if !available || relationTypeNameOccupied(auth.Catalog, ns.Address, name) {
 		return sqlError("42710", fmt.Sprintf(`type "%s" already exists`, name))
 	}
 	if stage.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}) != (ids.ObjectAddress{}) {
@@ -79,14 +79,14 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 		if err != nil {
 			return err
 		}
-		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
+		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
 		if err := auth.CanUse(ref); err != nil {
 			return err
 		}
-		stage.domainBases = append(stage.domainBases, auth.catalog.Get(ref.Address))
+		stage.domainBases = append(stage.domainBases, auth.Catalog.Get(ref.Address))
 		columns[i] = catalog.Column{Name: member.Name, Usage: usage, DeclaredDimensions: int16(len(raw.ArrayBounds)), Nullable: true, NullabilityKnown: true}
 	}
-	relation, err := e.newTableDescriptorLocked(ns.Address, name, auth.state.CurrentUser, columns, index)
+	relation, err := e.newTableDescriptorLocked(ns.Address, name, auth.State.CurrentUser, columns, index)
 	if err != nil {
 		return err
 	}

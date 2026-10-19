@@ -25,12 +25,12 @@ func (e *Engine) resolveAlterDomainLocked(auth AuthorizationView, name parser.Ob
 		return nil, ids.ObjectRef{}, err
 	}
 	for i := range path.count() {
-		found := auth.catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
+		found := auth.Catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
 		if len(found) == 0 {
 			continue
 		}
-		d := auth.catalog.MustType(found[0])
-		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
+		d := auth.Catalog.MustType(found[0])
+		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
 		diagnosticPath, err := e.referencePath(auth)
 		if err != nil {
 			return nil, ref, err
@@ -40,7 +40,7 @@ func (e *Engine) resolveAlterDomainLocked(auth AuthorizationView, name parser.Ob
 		}
 		if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
-				err = sqlError("42501", "must be owner of type "+typeDiagnosticNameAt(auth.catalog, d, diagnosticPath))
+				err = sqlError("42501", "must be owner of type "+typeDiagnosticNameAt(auth.Catalog, d, diagnosticPath))
 			}
 			return nil, ref, err
 		}
@@ -82,11 +82,11 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.domainAlter = op.Context()
 	stage.authorizeLocked(auth, op.session)
 	scope.routineAuth = auth
-	scope.domainInputCatalog = auth.catalog
+	scope.domainInputCatalog = auth.Catalog
 	stage.domainBases = append(stage.domainBases, old)
 	next := *old
 	next.DomainChecks = slices.Clone(old.DomainChecks)
@@ -151,7 +151,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		chosen := next
 		chosen.DomainChecks = []catalog.DomainCheckConstraint{next.DomainChecks[selected]}
 		scope.routineDependencies = chosen.DomainChecks[0].Dependencies
-		evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, statementScope: scope, catalog: auth.catalog, Input: scope.input, Output: scope.output}
+		evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, statementScope: scope, catalog: auth.Catalog, Input: scope.input, Output: scope.output}
 		evaluation.Input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
 		if err != nil {
 			return Result{}, err
@@ -159,7 +159,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		if err := evaluation.prepareOwnDomainChecks(&chosen); err != nil {
 			return Result{}, err
 		}
-		fence, discoveryErr := domainUsesAt(auth.catalog, ref.Address, diagnosticPath)
+		fence, discoveryErr := domainUsesAt(auth.Catalog, ref.Address, diagnosticPath)
 		if fence != nil {
 			for _, relation := range fence.reads {
 				if err := scope.acquireSequence(e.catalog.Domain.Ref(ref.Epoch, relation.Address()), lock.AccessShare, true); err != nil {
@@ -213,7 +213,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		stage.domainValidation = fence
 		for _, use := range fence.uses {
 			writes, deletes := scope.columnProjectionRoots(use.relation.Address())
-			if err := evaluation.validateSelectedDomainRows(auth.catalog, &chosen, use, frontier, writes, deletes); err != nil {
+			if err := evaluation.validateSelectedDomainRows(auth.Catalog, &chosen, use, frontier, writes, deletes); err != nil {
 				return Result{}, err
 			}
 		}

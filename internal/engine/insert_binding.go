@@ -193,7 +193,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 				if plan != nil {
 					source = plan.ResultUsage().Type
 				}
-				return insertValueError(auth.catalog, err, c, v, source)
+				return insertValueError(auth.Catalog, err, c, v, source)
 			}
 			b.expressions[rowIndex][j] = plan
 		}
@@ -268,7 +268,7 @@ func (e *Engine) bindInsertDefaults(b *binding, auth AuthorizationView, override
 			b.defaults[i] = domainNullInputExpression(b.relation.Columns[i].Usage)
 		}
 		if identity, ok := b.relation.ColumnMeta.Identities[attribute]; ok {
-			b.defaults[i] = sequenceCallExpression{Info: expr.Info{Usage: b.relation.Columns[i].Usage, Property: expr.Properties{Volatility: expr.Volatile}}, name: "nextval", ref: e.catalog.Domain.Ref(auth.catalog.Epoch(), identity.Sequence), identity: true}
+			b.defaults[i] = sequenceCallExpression{Info: expr.Info{Usage: b.relation.Columns[i].Usage, Property: expr.Properties{Volatility: expr.Volatile}}, name: "nextval", ref: e.catalog.Domain.Ref(auth.Catalog.Epoch(), identity.Sequence), identity: true}
 		}
 	}
 	if override == parser.OverrideUser {

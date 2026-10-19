@@ -355,15 +355,15 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			// CREATE, not USAGE; body lookup retains its independent authority.
 			ns := s.viewCreationNamespace
 			if s.viewChanges != nil {
-				auth.catalog = e.privateCatalogLocked(s.viewChanges)
-				auth.Recapture(auth.catalog)
+				auth.Catalog = e.privateCatalogLocked(s.viewChanges)
+				auth.Recapture(auth.Catalog)
 			}
 			err = auth.CheckCreate(ns)
 			if err == nil {
 				s.viewCreationNamespace = ns
-				address := auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text})
+				address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text})
 				if address != (ids.ObjectAddress{}) {
-					ref = e.catalog.Domain.Ref(auth.catalog.Epoch(), address)
+					ref = e.catalog.Domain.Ref(auth.Catalog.Epoch(), address)
 				}
 			}
 		} else if mode == lock.AccessShare || mode == lock.RowShare || mode == lock.RowExclusive {
@@ -387,7 +387,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			if ref.Domain() != nil {
 				err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 				if err == nil {
-					d := auth.catalog.MustRelation(ref.Address)
+					d := auth.Catalog.MustRelation(ref.Address)
 					if d.RelationKind != catalog.ViewRelation {
 						err = sqlError("42809", fmt.Sprintf(`"%s" is not a view`, d.Name()))
 					}
@@ -402,23 +402,23 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			if ref.Domain() != nil {
 				err = parentAuth.Check(AccessRequirement{Object: ref, OwnerOnly: true, OwnerNoun: policyOwnerNoun(stmt)})
 				if _, altering := stmt.(*parser.AlterTable); altering && err == nil {
-					err = alterTableLookupKind(parentAuth.catalog.MustRelation(ref.Address))
+					err = alterTableLookupKind(parentAuth.Catalog.MustRelation(ref.Address))
 				}
 			}
 			if tableRename && ref.Domain() != nil && err == nil {
-				err = auth.CheckCreate(e.catalog.Domain.Ref(ref.Epoch, auth.catalog.Get(ref.Address).Namespace()))
+				err = auth.CheckCreate(e.catalog.Domain.Ref(ref.Epoch, auth.Catalog.Get(ref.Address).Namespace()))
 			}
 		}
 		if err == nil && ref.Domain() != nil {
-			err = partitionConsumerBoundary(s.op, auth, stmt, auth.catalog.MustRelation(ref.Address))
+			err = partitionConsumerBoundary(s.op, auth, stmt, auth.Catalog.MustRelation(ref.Address))
 		}
 	}
 	var definitionStamp ids.DefinitionRevision
 	var materializedAlterAuthority *catalog.Relation
 	if err == nil && ref.Domain() != nil {
-		definitionStamp = preparedDefinitionStamp(auth.catalog.Get(ref.Address), s.op.session)
+		definitionStamp = preparedDefinitionStamp(auth.Catalog.Get(ref.Address), s.op.session)
 		if utility, ok := stmt.(*parser.AlterView); ok && utility.Materialized {
-			materializedAlterAuthority = auth.catalog.MustRelation(ref.Address)
+			materializedAlterAuthority = auth.Catalog.MustRelation(ref.Address)
 		}
 		_, attaching := stmt.(*parser.AlterTableAttachPartition)
 		_, detaching := stmt.(*parser.AlterTableDetachPartition)
@@ -446,10 +446,10 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			var path []ids.ObjectAddress
 			path, err = e.referencePath(auth)
 			if err == nil {
-				source, err = standaloneComposite(auth.catalog, typ, path)
+				source, err = standaloneComposite(auth.Catalog, typ, path)
 			}
 			if err == nil {
-				typedSourceRef = e.catalog.Domain.Ref(auth.catalog.Epoch(), source.Address())
+				typedSourceRef = e.catalog.Domain.Ref(auth.Catalog.Epoch(), source.Address())
 			}
 		}
 	}
@@ -611,10 +611,10 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	if viewReplacement {
 		ns := s.viewCreationNamespace
 		if s.viewChanges != nil {
-			auth.catalog = e.privateCatalogLocked(s.viewChanges)
-			auth.Recapture(auth.catalog)
+			auth.Catalog = e.privateCatalogLocked(s.viewChanges)
+			auth.Recapture(auth.Catalog)
 		}
-		if auth.catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}) != ref.Address {
+		if auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}) != ref.Address {
 			return ids.ErrCatalogReplaced
 		}
 		if err := auth.CheckCreate(ns); err != nil {

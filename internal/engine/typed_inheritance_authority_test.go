@@ -115,7 +115,7 @@ func TestTypedSameUsageTypePreservesPhysicalRoot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
 	next := *table
 	next.ObjectRevision++
@@ -123,7 +123,7 @@ func TestTypedSameUsageTypePreservesPhysicalRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := e.storage.Relations[table.Address()]
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), table.Address())
+	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), table.Address())
 	ref.Address.SubID = 1
 	node := columnExpression{Info: expr.Info{Usage: table.Columns[0].Usage}, origin: ref, scope: 1, frame: 1, slot: 0}
 	mutation := typedRelationMutation{old: table, next: &next, transforms: []columnTransformation{{attribute: 1, expression: node}}}

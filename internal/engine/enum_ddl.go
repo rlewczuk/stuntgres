@@ -47,15 +47,15 @@ func (e *Engine) resolveAlterEnumLocked(auth AuthorizationView, name parser.Obje
 		return nil, ids.ObjectRef{}, err
 	}
 	for i := range path.count() {
-		found := auth.catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
+		found := auth.Catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
 		if len(found) == 0 {
 			continue
 		}
-		d, ok := auth.catalog.Type(found[0])
+		d, ok := auth.Catalog.Type(found[0])
 		if !ok {
 			return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid type descriptor")
 		}
-		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
+		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
 		if !d.SQLType.IsEnum() {
 			display := d.SQLType.DiagnosticName()
 			if d.SQLType.IsUserDefined() || d.SQLType.IsDomain() || d.SQLType.IsComposite() {
@@ -63,7 +63,7 @@ func (e *Engine) resolveAlterEnumLocked(auth AuthorizationView, name parser.Obje
 				if err != nil {
 					return nil, ref, err
 				}
-				display = typeDiagnosticNameAt(auth.catalog, d, path)
+				display = typeDiagnosticNameAt(auth.Catalog, d, path)
 			}
 			return nil, ref, sqlError("42809", display+" is not an enum")
 		}
@@ -113,7 +113,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		return Result{}, err
 	}
 	changes := cloneCatalogChanges(scope.owner.catalog)
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
 	if create, ok := stmt.(*parser.CreateEnum); ok {
 		if err := e.stageCreateEnumLocked(op, auth, stage, create); err != nil {

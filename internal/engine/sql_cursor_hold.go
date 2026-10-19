@@ -104,7 +104,7 @@ func (s *StatementScope) authorizeSQLCursor(c *sqlCursor) error {
 			case ids.ProcedureClassID, ids.TypeClassID:
 				// These are the original callable and typed binding lifetimes.
 			case ids.RelationClassID:
-				original, _ := c.routineAuth.catalog.Relation(dependency.Ref.Address)
+				original, _ := c.routineAuth.Catalog.Relation(dependency.Ref.Address)
 				if original == nil || original.View == nil {
 					// Base source shape/storage is fenced by the existing query
 					// source guards, not unrelated metadata revision equality.
@@ -114,7 +114,7 @@ func (s *StatementScope) authorizeSQLCursor(c *sqlCursor) error {
 				continue
 			}
 			var descriptor catalog.Descriptor
-			descriptor, err = auth.object(dependency.Ref)
+			descriptor, err = auth.Object(dependency.Ref)
 			if err != nil {
 				break
 			}
@@ -132,7 +132,7 @@ func (s *StatementScope) authorizeSQLCursor(c *sqlCursor) error {
 		return err
 	}
 	evaluation := c.state.evaluation(s.op.Context())
-	return validateQueryJoinExecution(&evaluation, c.root, auth.catalog, 0)
+	return validateQueryJoinExecution(&evaluation, c.root, auth.Catalog, 0)
 }
 
 func (c *sqlCursor) openProducer(s *StatementScope) error {
@@ -241,13 +241,13 @@ func (s *StatementScope) captureSQLCursorOutput(rows *finalRows, catalog catalog
 		return err
 	}
 	for _, value := range rows.values {
-		if err := captureRegroleOutputValue(rows, capturedRegroleOutput{owner: e, roles: auth.roles, quoteAll: rows.output.QuoteAllIdentifiers}, value); err != nil {
+		if err := captureRegroleOutputValue(rows, capturedRegroleOutput{owner: e, roles: auth.Roles, quoteAll: rows.output.QuoteAllIdentifiers}, value); err != nil {
 			return err
 		}
 		if err := captureRegObjectOutputValue(rows, catalog, collationPath, value); err != nil {
 			return err
 		}
-		if err := captureACLItemOutputValue(rows, capturedACLItemOutput{owner: e, roles: auth.roles}, value); err != nil {
+		if err := captureACLItemOutputValue(rows, capturedACLItemOutput{owner: e, roles: auth.Roles}, value); err != nil {
 			return err
 		}
 		if err := captureRegclassOutputValue(rows, catalog, path, value); err != nil {

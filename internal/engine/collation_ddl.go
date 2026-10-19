@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -47,7 +48,7 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 		return err
 	}
 	if op != nil && op.restoreTableDestination {
-		bootstrap, guardErr := auth.roles.Descriptor(auth.state.Authenticated)
+		bootstrap, guardErr := auth.Roles.Descriptor(auth.State.Authenticated)
 		if guardErr != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return fmt.Errorf("stuntgres: invalid trusted restore collation authority")
 		}
@@ -59,7 +60,7 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 		}
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
-	d := catalog.Collation{ObjectName: name, ObjectNamespace: ns.Address, Owner: auth.state.CurrentUser, Provider: "c", Deterministic: true, Encoding: 6}
+	d := catalog.Collation{ObjectName: name, ObjectNamespace: ns.Address, Owner: auth.State.CurrentUser, Provider: "c", Deterministic: true, Encoding: 6}
 	from := s.From
 	options := make(map[string]*parser.CollationOption, len(s.Options))
 	for i := range s.Options {
@@ -201,7 +202,7 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 	if d.Version == nil {
 		d.Version = actual
 	}
-	if err = collationVersionWarning(op, &d, auth.catalog, actual); err != nil {
+	if err = collationVersionWarning(op, &d, auth.Catalog, actual); err != nil {
 		return err
 	}
 	d.OID, err = e.catalog.allocateOIDLocked()
@@ -222,7 +223,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 	}
 	var ownerTarget authorization.PrincipalRef
 	if s.Action == "owner" {
-		ownerTarget, err = schemaOwner(auth.accessView, s.Target.Text, s.OwnerIdentity)
+		ownerTarget, err = access.SchemaOwner(auth.accessView, s.Target.Text, s.OwnerIdentity)
 		if err != nil {
 			return err
 		}
@@ -230,7 +231,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 			return nil
 		}
 	}
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
+	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
 	if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 		return err
 	}
@@ -266,8 +267,8 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 		if err = auth.CheckCreate(dest); err != nil {
 			return err
 		}
-		sourceNamespace := auth.catalog.MustNamespace(d.Namespace())
-		targetNamespace := auth.catalog.MustNamespace(dest.Address)
+		sourceNamespace := auth.Catalog.MustNamespace(d.Namespace())
+		targetNamespace := auth.Catalog.MustNamespace(dest.Address)
 		if d.Namespace() == dest.Address {
 			return nil
 		}
@@ -276,14 +277,14 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 		}
 		next.ObjectNamespace = dest.Address
 	case "owner":
-		if err = ownershipEligibility(auth.accessView, auth, ownerTarget, d.Namespace()); err != nil {
+		if err = access.OwnershipEligibility(auth.accessView, auth, ownerTarget, d.Namespace()); err != nil {
 			return err
 		}
 		next.Owner = ownerTarget
 	}
 	key := catalog.DescriptorNameKey(&next)
 	if a := stage.LookupName(key); a != (ids.ObjectAddress{}) && a != d.Address() {
-		return sqlError("42710", fmt.Sprintf(`collation "%s" already exists in schema "%s"`, next.Name(), auth.catalog.Get(next.Namespace()).Name()))
+		return sqlError("42710", fmt.Sprintf(`collation "%s" already exists in schema "%s"`, next.Name(), auth.Catalog.Get(next.Namespace()).Name()))
 	}
 	next.ObjectRevision, err = e.catalog.revisionLocked()
 	if err != nil {
@@ -303,7 +304,7 @@ func (e *Engine) stageDropCollationLocked(op *Operation, auth AuthorizationView,
 			}
 			return err
 		}
-		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), d.Address())
+		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
 		if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}
@@ -312,7 +313,7 @@ func (e *Engine) stageDropCollationLocked(op *Operation, auth AuthorizationView,
 			if pathErr != nil {
 				return pathErr
 			}
-			return sqlError("2BP01", "cannot drop "+dependencyObject(auth.catalog, d.Address(), path)+" because it is required by the database system")
+			return sqlError("2BP01", "cannot drop "+dependencyObject(auth.Catalog, d.Address(), path)+" because it is required by the database system")
 		}
 		if !seen[d.Address()] {
 			seen[d.Address()] = true

@@ -107,7 +107,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	b, auth, bindErr := e.bindCopyLocked(s, syntax)
 	e.mu.Unlock()
 	s.input.DomainChecks = s
-	s.domainInputCatalog = auth.catalog
+	s.domainInputCatalog = auth.Catalog
 	if bindErr != nil {
 		return 0, bindErr
 	}
@@ -123,7 +123,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	} else if err = copyRelationKind(b.relation, false); err != nil {
 		return 0, err
 	}
-	if err := checkTemporaryStorageAccess(auth.catalog, b.relation, s.op.session.token); err != nil {
+	if err := checkTemporaryStorageAccess(auth.Catalog, b.relation, s.op.session.token); err != nil {
 		return 0, err
 	}
 	options, err = parseCopyOptions(syntax)
@@ -160,7 +160,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	if err != nil {
 		return 0, err
 	}
-	evaluation := EvalContext{Context: s.op.Context(), Input: s.input, Output: s.output, statementScope: s, catalog: auth.catalog}
+	evaluation := EvalContext{Context: s.op.Context(), Input: s.input, Output: s.output, statementScope: s, catalog: auth.Catalog}
 	selected := make([]bool, len(b.relation.Columns))
 	for _, target := range b.targets {
 		selected[target] = true
@@ -198,7 +198,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		if planErr != nil {
 			return 0, planErr
 		}
-		if planErr = validateExpressionJoinExecution(&defaultEvaluation, folded, auth.catalog); planErr != nil {
+		if planErr = validateExpressionJoinExecution(&defaultEvaluation, folded, auth.Catalog); planErr != nil {
 			return 0, planErr
 		}
 		b.defaults[i] = folded
@@ -227,7 +227,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	}
 	schema := ""
 	if err == nil {
-		schema = auth.catalog.Get(b.relation.Namespace()).Name()
+		schema = auth.Catalog.Get(b.relation.Namespace()).Name()
 		s.routineAuth = auth
 		e.markTemporaryAccessLocked(s, b.ref)
 	}
@@ -298,7 +298,7 @@ func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b bindi
 	}
 	s.routineAuth = auth
 	b.ref = s.lockedRef
-	b.relation, _ = auth.catalog.Relation(b.ref.Address)
+	b.relation, _ = auth.Catalog.Relation(b.ref.Address)
 	if b.relation == nil {
 		err = ids.ErrCatalogReplaced
 		return
@@ -369,7 +369,7 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *binding, auth Authori
 			s.input.Regtype, err = e.captureRegtypeInput(auth, s.op)
 		}
 		if err == nil && usage.Type.ContainsRegrole() && s.input.Regrole == nil {
-			s.input.Regrole = capturedRegroleInput{roles: auth.roles}
+			s.input.Regrole = capturedRegroleInput{roles: auth.Roles}
 		}
 		if err == nil && usage.Type.ContainsOperatorAlias() && s.input.Operator == nil {
 			s.input.Operator, err = e.captureOperatorInput(auth, s.op)

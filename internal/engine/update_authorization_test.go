@@ -25,7 +25,7 @@ func TestUpdateCoreColumnAuthority(t *testing.T) {
 	column.Address.SubID = 1
 	grant := func(ref ids.ObjectRef, privileges authorization.Privileges) {
 		t.Helper()
-		err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: role.Ref}, Privileges: privileges}}})
+		err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: role.Ref}, Privileges: privileges}}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -70,7 +70,7 @@ func TestUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 						t.Helper()
 						target := ref
 						target.Address.SubID = subID
-						acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("nn_acl_owner"), Grantee: authorization.ACLGrantee{Role: role.Ref}, Privileges: privileges}}}
+						acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("nn_acl_owner"), Grantee: authorization.ACLGrantee{Role: role.Ref}, Privileges: privileges}}}
 						if err := e.SetObjectACL(context.Background(), target, acl); err != nil {
 							t.Fatal(err)
 						}

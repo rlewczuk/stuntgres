@@ -13,8 +13,8 @@ import (
 )
 
 func materializedRefreshAccess(auth AuthorizationView, ref ids.ObjectRef) error {
-	d, ok := auth.catalog.Relation(ref.Address)
-	if !ok || ref.Domain() != auth.owner.Domain || ref.Epoch != auth.catalog.Epoch() {
+	d, ok := auth.Catalog.Relation(ref.Address)
+	if !ok || ref.Domain() != auth.Owner.Domain || ref.Epoch != auth.Catalog.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	if d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation && d.RelationKind != catalog.MaterializedViewRelation {
@@ -42,7 +42,7 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 		err = materializedRefreshAccess(auth, ref)
 	}
 	if err == nil {
-		observed = auth.catalog.MustRelation(ref.Address)
+		observed = auth.Catalog.MustRelation(ref.Address)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -72,7 +72,7 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 	auth, err = e.authorizationLocked(s.op)
 	var current *catalog.Relation
 	if err == nil {
-		current, _ = auth.catalog.Relation(ref.Address)
+		current, _ = auth.Catalog.Relation(ref.Address)
 	}
 	if err == nil && (s.txRef.Epoch() != e.catalog.state.Epoch() || !materializedRefreshCompatible(observed, current)) {
 		err = ids.ErrCatalogReplaced
@@ -81,7 +81,7 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 		err = materializedRefreshAccess(auth, ref)
 	}
 	if err == nil && stmt.Concurrent.Character != 0 {
-		err = materializedConcurrentAdmission(auth.catalog, current, stmt.NoData)
+		err = materializedConcurrentAdmission(auth.Catalog, current, stmt.NoData)
 	}
 	if err == nil {
 		s.lockedRef, s.lockedDescriptor, s.lockedStorage = ref, current, e.authorizationStorageLocked(auth, ref.Address)
@@ -127,7 +127,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	d := caller.catalog.MustRelation(ref.Address)
+	d := caller.Catalog.MustRelation(ref.Address)
 	if d != scope.lockedDescriptor || e.authorizationStorageLocked(caller, ref.Address) != scope.lockedStorage {
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
@@ -140,7 +140,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 	var ownDeletes *privateDeletionRoot
 	frontier := e.visibility.commitSeq
 	if concurrent {
-		indices = materializedEligibleIndexes(caller.catalog, d)
+		indices = materializedEligibleIndexes(caller.Catalog, d)
 		previous = *scope.lockedStorage
 		var root *storage.IndexRoot
 		if len(indices) != 0 {
@@ -156,7 +156,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 		oldEntries = root.Entries
 		ownRows, ownDeletes = scope.columnProjectionRoots(d.Address())
 	}
-	stage := e.BeginCatalogStage(caller.catalog)
+	stage := e.BeginCatalogStage(caller.Catalog)
 	stage.authorizeLocked(caller, scope.op.session)
 	stage.querySources = scope.materializedSources
 	stage.materializedSourceView = scope.materializedSourceView
@@ -193,7 +193,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 				return Result{}, err
 			}
 		}
-		rows, err = materializedConcurrentRows(scope.op.Context(), caller.catalog, d, &previous, frontier, oldEntries, indices, rows, scope.output)
+		rows, err = materializedConcurrentRows(scope.op.Context(), caller.Catalog, d, &previous, frontier, oldEntries, indices, rows, scope.output)
 		if err != nil {
 			return Result{}, err
 		}
@@ -244,7 +244,7 @@ func (e *Engine) materializedRefreshRowsLocked(scope *StatementScope, ref ids.Ob
 		candidate.Operator, candidate.Regproc, candidate.ACLItem = nil, nil, nil
 		candidate.TypeDiagnosticName = nil
 		captureEnumOperationSafety(op, &candidate)
-		err = captureRetainedDefinitionInput(auth.catalog, viewOf(d),
+		err = captureRetainedDefinitionInput(auth.Catalog, viewOf(d),
 			func() error { return e.captureElementInput(auth, op, &candidate) },
 			func(typ *sqltype.Descriptor) error { return e.captureTypeDiagnosticInput(auth, op, &candidate, typ) })
 		if err == nil {

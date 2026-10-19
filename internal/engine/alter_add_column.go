@@ -66,7 +66,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if auth.catalog.Epoch() != e.catalog.state.Epoch() {
+	if auth.Catalog.Epoch() != e.catalog.state.Epoch() {
 		return fail(ids.ErrCatalogReplaced)
 	}
 	var usage sqltype.Usage
@@ -121,14 +121,14 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 	if declaration.defaultExpr != nil {
 		binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
 		binder.queryAuth = &auth
-		binder.defaultTemporary = auth.catalog.MustNamespace(old.Namespace()).Temporary
+		binder.defaultTemporary = auth.Catalog.MustNamespace(old.Namespace()).Temporary
 		node, err := binder.bindDefault(declaration.defaultExpr, definition)
 		if err != nil {
 			return fail(alterCookingError(err))
 		}
 		if !structuralNull(node) {
 			persisted := catalog.ColumnDefault{Expression: node}
-			if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.roles}, dependencies: &persisted.Dependencies, commentSnapshot: &persisted.CatalogSnapshot, catalogAliasReferences: &persisted.CatalogAliasReferences}).sql(op.Context(), auth.catalog, node); err != nil {
+			if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.Roles}, dependencies: &persisted.Dependencies, commentSnapshot: &persisted.CatalogSnapshot, catalogAliasReferences: &persisted.CatalogAliasReferences}).sql(op.Context(), auth.Catalog, node); err != nil {
 				return fail(alterCookingError(err))
 			}
 			if next.ColumnMeta.Defaults == nil {
@@ -139,7 +139,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 			added.dependencies, added.consumer = persisted.Dependencies, old
 		}
 	}
-	if err := refreshGenerationChecks(&next, auth.catalog); err != nil {
+	if err := refreshGenerationChecks(&next, auth.Catalog); err != nil {
 		return fail(err)
 	}
 	return &next, added, nil
@@ -148,7 +148,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 func planAddedColumns(scope *StatementScope, additions []addedColumn) (map[int32]sqltype.Value, bool, error) {
 	var fills map[int32]sqltype.Value
 	perRow := false
-	evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: scope.routineAuth.catalog}
+	evaluation := EvalContext{Context: scope.op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output, catalog: scope.routineAuth.Catalog}
 	for i := range additions {
 		added := &additions[i]
 		if added.expression != nil {

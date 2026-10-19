@@ -43,7 +43,7 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 		t.Fatal("copied operation granted")
 	}
 	foreign := auth
-	foreign.catalog = source.CatalogRead()
+	foreign.Catalog = source.CatalogRead()
 	if partitionCheckReplayAllowed(op, foreign, raw, child) {
 		t.Fatal("foreign catalog granted")
 	}

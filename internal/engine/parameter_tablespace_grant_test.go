@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -53,7 +54,7 @@ func TestObjectGrantParameterPublication(t *testing.T) {
 			if !ok || d == nil || address.ClassID != ids.ParameterClassID || d.Revision() == 0 || d.Owner != e.roles.domain.Principal(authorization.BootstrapPrincipalID) {
 				t.Fatal("parameter did not acquire real catalog authority")
 			}
-			if before.NameAddress(catalog.DescriptorNameKey(d)) != (ids.ObjectAddress{}) || e.roles.published.revision != roles.revision+1 || !d.ACL.Explicit || len(d.ACL.Entries) != 2 {
+			if before.NameAddress(catalog.DescriptorNameKey(d)) != (ids.ObjectAddress{}) || e.roles.published.Revision != roles.Revision+1 || !d.ACL.Explicit || len(d.ACL.Entries) != 2 {
 				t.Fatal("wrong sparse immutable parameter publication", d.ACL)
 			}
 			if authorization.ACLRights(d.ACL, d.Owner, []authorization.PrincipalRef{reader}, mask, true) != mask || !slices.Contains(descriptorReferences(d), reader) {
@@ -67,7 +68,7 @@ func TestObjectGrantParameterPublication(t *testing.T) {
 				t.Fatal("copied parameter descriptor accepted as authority")
 			}
 			copy.Owner = authorization.PrincipalRef{}
-			if err := validateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), &copy); err == nil {
+			if err := access.ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), &copy); err == nil {
 				t.Fatal("parameter zero owner accepted")
 			}
 			stable, stableRoles := e.catalog.state, e.roles.published
@@ -135,7 +136,7 @@ func TestObjectGrantTablespacePublication(t *testing.T) {
 				t.Fatal("copied tablespace descriptor accepted as authority")
 			}
 			copy.Owner = authorization.PrincipalRef{}
-			if err := validateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), &copy); err == nil {
+			if err := access.ValidateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), &copy); err == nil {
 				t.Fatal("tablespace zero owner accepted")
 			}
 			stable, roles := e.catalog.state, e.roles.published

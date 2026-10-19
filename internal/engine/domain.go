@@ -19,7 +19,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	}
 	trustedDestination := op != nil && op.restoreTableDestination
 	if trustedDestination {
-		bootstrap, guardErr := auth.roles.Descriptor(auth.state.Authenticated)
+		bootstrap, guardErr := auth.Roles.Descriptor(auth.State.Authenticated)
 		if guardErr != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return fmt.Errorf("stuntgres: invalid trusted restore domain destination authority")
 		}
@@ -30,7 +30,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 			return err
 		}
 	}
-	if err = checkPersistentCreationNamespace(auth.catalog, ns.Address); err != nil {
+	if err = checkPersistentCreationNamespace(auth.Catalog, ns.Address); err != nil {
 		return err
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
@@ -38,7 +38,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	if err != nil {
 		return err
 	}
-	if !available || relationTypeNameOccupied(auth.catalog, ns.Address, name) {
+	if !available || relationTypeNameOccupied(auth.Catalog, ns.Address, name) {
 		return sqlError("42710", fmt.Sprintf(`type "%s" already exists`, name))
 	}
 	for _, c := range s.Constraints {
@@ -63,8 +63,8 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	if err != nil {
 		return err
 	}
-	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())})
-	stage.domainBases = append(stage.domainBases, auth.catalog.Get(ref.Address))
+	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())})
+	stage.domainBases = append(stage.domainBases, auth.Catalog.Get(ref.Address))
 	if err = auth.CanUse(ref); err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	if err != nil {
 		return err
 	}
-	namespace := auth.catalog.Get(ns.Address).Name()
+	namespace := auth.Catalog.Get(ns.Address).Name()
 	declaration := dependencyIdentifier(namespace) + "." + dependencyIdentifier(name)
 	hasChecks := false
 	for _, constraint := range s.Constraints {
@@ -86,7 +86,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	if err != nil {
 		return err
 	}
-	acl, synthetic := stage.creationTypeACL(auth.state.CurrentUser, ns.Address)
+	acl, synthetic := stage.creationTypeACL(auth.State.CurrentUser, ns.Address)
 	arrayOID, err := e.catalog.allocateOIDLocked()
 	if err != nil {
 		return err
@@ -101,14 +101,14 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 			return err
 		}
 	}
-	domain := &catalog.Type{SQLType: typ, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.state.CurrentUser, ACL: acl, ACLSyntheticDefault: synthetic, Dimensions: int32(len(s.Base.ArrayBounds)), Array: array.ID()}
+	domain := &catalog.Type{SQLType: typ, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.State.CurrentUser, ACL: acl, ACLSyntheticDefault: synthetic, Dimensions: int32(len(s.Base.ArrayBounds)), Array: array.ID()}
 	if err := e.bindDomainChecks(op, auth, stage, domain, s.Constraints, input); err != nil {
 		return err
 	}
 	if err = stage.Create(domain); err != nil {
 		return err
 	}
-	return stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.state.CurrentUser, ACL: authorization.DefaultBaseline(auth.state.CurrentUser, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
+	return stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.State.CurrentUser, ACL: authorization.DefaultBaseline(auth.State.CurrentUser, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
 }
 
 func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropDomain) error {
@@ -120,7 +120,7 @@ func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, st
 		}
 		var found []ids.ObjectAddress
 		for i := range path.count() {
-			found = auth.catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
+			found = auth.Catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
 			if len(found) != 0 {
 				break
 			}
@@ -132,11 +132,11 @@ func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, st
 			}
 			return sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)))
 		}
-		target := auth.catalog.MustType(found[0])
+		target := auth.Catalog.MustType(found[0])
 		if !target.SQLType.IsDomain() {
 			return sqlError("42809", fmt.Sprintf(`"%s" is not a domain`, objectNameText(name)))
 		}
-		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), target.Address())
+		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), target.Address())
 		if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}

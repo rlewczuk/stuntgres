@@ -83,7 +83,7 @@ func TestArrayAggregateColumnACL(t *testing.T) {
 			check := func(denied bool) {
 				t.Helper()
 				current := catalogAuthorization(e, e.CatalogRead())
-				current.state.CurrentUser = reader
+				current.State.CurrentUser = reader
 				err := current.checkQuerySources(b.querySources)
 				if !denied {
 					if err != nil {

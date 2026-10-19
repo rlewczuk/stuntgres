@@ -127,10 +127,10 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("foreign retag manufactured original authority")
 			}
 			changed := *evaluation.routineAuthority
-			changed.catalog = changed.catalog.WithState(catalog.CloneState(changed.catalog.State()))
+			changed.Catalog = changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 			replacement := *captured
 			replacement.Strict = false
-			changed.catalog.State().SetDescriptor(address, &replacement)
+			changed.Catalog.State().SetDescriptor(address, &replacement)
 			probe = evaluation
 			probe.routineAuthority = &changed
 			if err := admitRoutineCall(&probe, node, false, false); err == nil {

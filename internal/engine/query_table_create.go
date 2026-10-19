@@ -23,12 +23,12 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 		}
 		return nil, nil, false, err
 	}
-	if err = checkPersistentCreationNamespace(auth.catalog, ns.Address); err != nil {
+	if err = checkPersistentCreationNamespace(auth.Catalog, ns.Address); err != nil {
 		return nil, nil, false, err
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}
-	if _, exists := auth.catalog.LookupName(key); exists {
+	if _, exists := auth.Catalog.LookupName(key); exists {
 		if s.IfNotExists {
 			op.existingRelationNotice(name)
 			return nil, nil, true, nil
@@ -38,7 +38,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 	if err = auth.CheckCreate(ns); err != nil {
 		return nil, nil, false, err
 	}
-	stage := e.BeginCatalogStage(auth.catalog)
+	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
 	available, err := e.displaceAssociatedArrayLocked(stage, ns.Address, name)
 	if err != nil {
@@ -104,10 +104,10 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 		}
 		if dependencyType.IsUserDefined() {
 			address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(dependencyType.ID())}
-			if err = auth.CanUse(e.catalog.Domain.Ref(auth.catalog.Epoch(), address)); err != nil {
+			if err = auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), address)); err != nil {
 				return nil, nil, false, err
 			}
-			descriptor := auth.catalog.Get(address)
+			descriptor := auth.Catalog.Get(address)
 			if descriptor == nil {
 				return nil, nil, false, errors.New("stuntgres: query table type definition is missing")
 			}
@@ -119,17 +119,17 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 	// publication, including for NO DATA. Stored data has no dependency on them.
 	for _, leaf := range b.querySources {
 		stage.querySources = append(stage.querySources, leaf.relation)
-		if descriptor := auth.catalog.Get(leaf.relation.Namespace()); descriptor != nil {
+		if descriptor := auth.Catalog.Get(leaf.relation.Namespace()); descriptor != nil {
 			stage.querySources = append(stage.querySources, descriptor)
 		}
 	}
-	owner := auth.state.CurrentUser
+	owner := auth.State.CurrentUser
 	if s.Form == parser.CreateMaterializedView && op.restoreTableDestination {
 		directive, err := e.authorizationLocked(op)
 		if err != nil {
 			return nil, nil, false, err
 		}
-		owner = directive.state.CurrentUser
+		owner = directive.State.CurrentUser
 	}
 	d, err := e.newTableDescriptorLocked(ns.Address, name, owner, columns, names)
 	if err != nil {

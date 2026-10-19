@@ -27,10 +27,10 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 	if s.catalog != nil {
 		changes = s.catalog
 	}
-	auth.catalog = e.privateCatalogLocked(changes)
-	auth.Recapture(auth.catalog)
+	auth.Catalog = e.privateCatalogLocked(changes)
+	auth.Recapture(auth.Catalog)
 	relevant := false
-	for _, descriptor := range auth.catalog.Descriptors() {
+	for _, descriptor := range auth.Catalog.Descriptors() {
 		child, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
@@ -68,7 +68,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 	again := true
 	for again {
 		again = false
-		for _, descriptor := range auth.catalog.Descriptors() {
+		for _, descriptor := range auth.Catalog.Descriptors() {
 			child, ok := descriptor.(*catalog.Relation)
 			if !ok {
 				continue
@@ -96,7 +96,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 	}
 	var jobs []foreignKeyJob
 	modes := make(map[ids.ObjectRef]lock.Mode)
-	for _, descriptor := range auth.catalog.Descriptors() {
+	for _, descriptor := range auth.Catalog.Descriptors() {
 		child, ok := descriptor.(*catalog.Relation)
 		if !ok {
 			continue
@@ -105,22 +105,22 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 			if !changed[child.Address()] && !changed[f.Target] {
 				continue
 			}
-			parent, pok := auth.catalog.Relation(f.Target)
-			index, iok := auth.catalog.Relation(f.Index)
+			parent, pok := auth.Catalog.Relation(f.Target)
+			index, iok := auth.Catalog.Relation(f.Index)
 			if !pok || !iok {
 				e.mu.Unlock()
 				return nil, auth, ids.ErrCatalogReplaced
 			}
 			jobs = append(jobs, foreignKeyJob{child: child, parent: parent, index: index, definition: f})
 			for _, a := range []ids.ObjectAddress{child.Address(), parent.Address()} {
-				ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), a)
+				ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), a)
 				if modes[ref] == 0 {
 					modes[ref] = lock.RowShare
 				}
 			}
 			d := directions[f.Target]
 			if d&1 != 0 && f.DeleteAction >= parser.ForeignKeyCascade || d&2 != 0 && f.UpdateAction >= parser.ForeignKeyCascade {
-				modes[e.catalog.Domain.Ref(auth.catalog.Epoch(), child.Address())] = lock.RowExclusive
+				modes[e.catalog.Domain.Ref(auth.Catalog.Epoch(), child.Address())] = lock.RowExclusive
 			}
 		}
 	}
@@ -137,15 +137,15 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 		}
 	}
 	e.mu.Lock()
-	auth.catalog = e.privateCatalogLocked(changes)
-	auth.Recapture(auth.catalog)
+	auth.Catalog = e.privateCatalogLocked(changes)
+	auth.Recapture(auth.Catalog)
 	e.mu.Unlock()
 	for i := range jobs {
 		job := &jobs[i]
-		if err = refreshForeignActionJob(auth.catalog, job); err != nil {
+		if err = refreshForeignActionJob(auth.Catalog, job); err != nil {
 			return nil, auth, err
 		}
-		job.comparisons, err = bindForeignKeyComparison(auth.catalog, job.child, job.parent, job.index, job.definition)
+		job.comparisons, err = bindForeignKeyComparison(auth.Catalog, job.child, job.parent, job.index, job.definition)
 		if err != nil {
 			return nil, auth, err
 		}
@@ -194,7 +194,7 @@ func (s *StatementScope) settleForeignActions() error {
 	e := s.op.session.Engine()
 	// Borrow the initiating predecessor/successor images before any action merge.
 	for a, rows := range s.stage.rows {
-		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), a)
+		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), a)
 		image, err := s.captureForeignKeyRows(ref, ids.ObjectAddress{})
 		if err != nil {
 			return err
@@ -215,7 +215,7 @@ func (s *StatementScope) settleForeignActions() error {
 		if root == nil {
 			continue
 		}
-		ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), a)
+		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), a)
 		image, err := s.captureForeignKeyRows(ref, ids.ObjectAddress{})
 		if err != nil {
 			return err

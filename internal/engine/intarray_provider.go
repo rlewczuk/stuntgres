@@ -30,7 +30,7 @@ func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 	if err != nil {
 		return err
 	}
-	if !available || relationTypeNameOccupied(auth.catalog, ext.TargetNamespace, "query_int") {
+	if !available || relationTypeNameOccupied(auth.Catalog, ext.TargetNamespace, "query_int") {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "query_int" already exists`, Context: intarrayTypeContext}
 	}
 	ext.Members = make([]ids.ObjectAddress, 3)
@@ -41,7 +41,7 @@ func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 		}
 		ext.Members[i] = ids.ObjectAddress{ClassID: class, ObjectID: oid}
 	}
-	ns := auth.catalog.Get(ext.TargetNamespace).Name()
+	ns := auth.Catalog.Get(ext.TargetNamespace).Name()
 	typ, err := sqltype.QueryInt(sqltype.ID(ext.Members[0].ObjectID), "query_int", dependencyIdentifier(ns)+".query_int")
 	if err != nil {
 		return err
