@@ -238,16 +238,10 @@ type Conflict struct{}
 func (Conflict) Error() string { return "stuntgres: catalog publication conflict" }
 
 func CloneState(s *State) *State {
-	n := &State{epoch: s.epoch, namespaceGeneration: s.namespaceGeneration, descriptors: make(map[ids.ObjectAddress]Descriptor, s.DescriptorCount()), names: make(map[ids.NameKey]ids.ObjectAddress, s.NameCount())}
+	n := &State{epoch: s.epoch, namespaceGeneration: s.namespaceGeneration, descriptors: cloneMap(s.descriptors), names: cloneMap(s.names)}
 	n.defaultACLs = s.defaultACLs
 	n.operatorNames = s.operatorNames
 	n.procedureNames = s.procedureNames
-	for k, v := range s.Descriptors() {
-		n.SetDescriptor(k, v)
-	}
-	for k, v := range s.Names() {
-		n.BindName(k, v)
-	}
 	if len(s.dumpPriorities) != 0 {
 		n.dumpPriorities = make(map[ids.ObjectAddress]ids.OID, len(s.dumpPriorities))
 		for address, priority := range s.dumpPriorities {

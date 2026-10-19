@@ -142,16 +142,10 @@ func (c *Candidate) RecordRemoval(ref ids.ObjectRef, d Descriptor) {
 // applied. It has its own descriptor and name maps, and keeps the dump
 // priorities of the objects that remain.
 func (c *Candidate) State() *State {
-	ds := make(map[ids.ObjectAddress]Descriptor, c.Base.DescriptorCount()+len(c.Descriptors))
-	ns := make(map[ids.NameKey]ids.ObjectAddress, c.Base.NameCount()+len(c.Names))
+	ds := cloneMap(c.Base.state.descriptors)
+	ns := cloneMap(c.Base.state.names)
 	operators := OperatorIndexEdit{Index: c.Base.state.operatorNames}
 	procedures := ProcedureIndexEdit{Index: c.Base.state.procedureNames}
-	for k, v := range c.Base.Descriptors() {
-		ds[k] = v
-	}
-	for k, v := range c.Base.Names() {
-		ns[k] = v
-	}
 	for a, removal := range c.Removals {
 		d := removal.Descriptor
 		operators.Replace(c.Base.Get(a), c.Descriptors[a])
