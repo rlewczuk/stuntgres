@@ -71,15 +71,15 @@ aggregate occurrence, preflight, index key display and the closed-DEFAULT
 checks have one protocol branch each, and `Arguments()` no longer duplicates
 `Children()`. View literal capture subsequently adopted explicit raw-kind
 admission and written operands through `expr.Capturable`, with indexed access
-for fixed receiver storage. Still listing function nodes: function sources
-(the set cursor and classifiers) and explicit `SQLJSON` rendering.
+for fixed receiver storage. Function sources now use explicit source capabilities
+and provider-local cursors; explicit `SQLJSON` rendering remains separate work.
 
 Remaining F2 items (details in "Later-wave refresh" at the end of Status):
-function sources, including the engine's `seriesExpression` and
-`unnestExpression` markers and `SQLJSON` rendering. The conditional closed-DEFAULT
-hook is implemented with passing selected proof and quickcheck; racecheck/finalcheck
-are waived by the user. See the current adoption note below. Function sources
-remain broad.
+`SQLJSON` rendering. The conditional closed-DEFAULT hook is implemented with
+passing selected proof and quickcheck; racecheck/finalcheck are waived by the
+user. See the current adoption note below. The broad function-source conversion
+is complete, including the engine's `seriesExpression`, `subscriptsExpression`
+and `unnestExpression` markers.
 
 The result-nullability cutover asks `expr.ResultNullability` at explicit
 SELECT/RETURNING sites, independently of Composite. Nine owners answer beside
@@ -183,8 +183,8 @@ Tier C has a refined plan.
   replay protocol, `cca30a78c` stored scalar SQL, then the docs commit)
   [x] grouping identity [x] grouping rewrite and aggregate occurrence
   [x] preflight [x] index key display [x] closed DEFAULT checks
-  [x] `Arguments()` [x] view literal capture [ ] function sources
-  (with `seriesExpression` and `unnestExpression`) [ ] `SQLJSON` rendering
+  [x] `Arguments()` [x] view literal capture [x] function sources
+  (with series/subscripts/unnest; remaining checks waived) [ ] `SQLJSON` rendering
   [x] result nullability hook (racecheck/finalcheck waived at user request)
   [x] conditional closure hook (selected proof and quickcheck passed;
   racecheck/finalcheck waived by user; session 4: `063fe2d1e` identity, `622b3d3ba`
@@ -1455,8 +1455,8 @@ onto `5cc6fe6e5`:
   runtime children and `Render`. The subsequent capture conversion uses
   `expr.Capturable` and allocation-free indexed access to fixed node storage;
   the engine still owns structural paths, coercions and catalog identities.
-  Function sources remain deferred: their execution cursor still needs an
-  `expr` cursor interface.
+  Function sources subsequently adopted the explicit source capabilities and
+  by-value cursor documented in `internal/engine/expr/README.md`.
 - Deleted: `functions.MapArray*Children` (`array_node_children.go`),
   `MapJSONExtractChildren` (`json_extract_children.go`),
   `JSONBRecord.MapChildren`, `mapNetworkFormatChildren`,
@@ -1515,10 +1515,10 @@ Notes for later steps (F2 session 4):
   Focused internal and pinned PostgreSQL18.6 witnesses, byte-identical public
   deparse/Dump smoke and quickcheck passed; remaining checks were waived at
   user request. Package READMEs document the protocol and exact selectors.
-- Function sources: `isQuerySet`, `validFunctionSourceCall`,
-  `functionCallArguments`, `withFunctionCallArguments`,
-  `sameQuerySetOccurrence` and `openFunctionCall` need a set-source hook and a
-  cursor seam that keeps the typed cursors allocation-free.
+- Function sources are now converted: explicit admission/cardinality, OUT names,
+  occurrence identity and invocation opening use the expression protocol.
+  Primitive opening remains allocation-free; complex providers add one native
+  pointer-state allocation per invocation, without per-cell adapters or a union.
 - Conditional simplification maps `ArrayTransform` children in written order
   since session 1 (`4c54eaf54`), while preflight keeps formal-slot order.
   With named arguments in reverse order and two failing constant arguments
@@ -1741,14 +1741,24 @@ the catalog/session/blocking inquiry kinds.
   explicit written-operands protocol; SQLJSON query/RETURNING, coercions,
   occurrence maps and installed identities stay engine-owned. The original
   1,481-line file/71-reference measurement is historical, not remaining work.
-- **F2 leftovers still present:** `isQuerySet`, `validFunctionSourceCall`, `functionCallArguments`,
-  `withFunctionCallArguments` (`string_table_bind.go`, 45 references);
-  `sameQuerySetOccurrence` (`string_set_lower.go`); `openFunctionCall` and
-  `functionSetCursor` (`string_set_query.go:205` and `:88`; the cursor has 97
-  uses in 3 files). The engine's `seriesExpression` (`series_expression.go`,
-  a retained target marker) and `unnestExpression` (`range_more.go`) are set
-  sources handled by the same switches; the function-sources item covers
-  them.
+- **F2 function-source cutover completed:** typed admission,
+  cardinality, OUT names, occurrence comparison and opening now use the small
+  `expr` source capabilities. Provider-local named callbacks own advancement
+  and release through the safe by-value `expr.SourceCursor`; the old central
+  cursor tags/union and argument inventories are removed. Series, subscripts
+  and unnest participate in Composite/Substitutable and marker visitor hooks.
+  Equivalent lexical rewrites retain selected providers. Engine scheduling,
+  layout, Tier C state and installed-intagg identity remain engine-owned.
+  Protocol/lifetime contracts and selected proof commands live in the `expr`,
+  `functions` and engine READMEs. Quickcheck, 51 bounded dual-mode selections,
+  selected lifecycle races and genuine same/fresh-driver replay smoke passed.
+  Native cancellation synchronization follows `SourceCursor.Next`; public
+  expected outcomes are unchanged. Further tests except quickcheck, including
+  full racecheck and post-integration finalcheck, were waived by the user.
+  The latest quickcheck retry failed the unchanged LIKE cancellation observer
+  before cancellation was issued; the user explicitly waived that failure for
+  integration. Earlier post-rebase quickcheck passed; the failed retry remains
+  recorded rather than represented as passing.
 - **F3 aliases.** `routine_declaration.go` keeps `type routineProvider =
   functions.RoutineProvider` and 23 constant aliases, "temporary aliases for
   the provider vocabulary that moved to functions in F3". They have about
@@ -1802,7 +1812,7 @@ quickcheck passed (`tests-7.md`), and the independent review completed with PASS
 and no blocking findings (`review-1.md`). That review's low stale-handoff prose
 finding is corrected here; subsequent rebase/remedy verification is root-owned.
 See [functions Testing](../internal/engine/functions/README.md#testing) for the
-retained selectors, independent outcomes and exercised smoke argv. Sources,
+retained selectors, independent outcomes and exercised smoke argv.
 SQLJSON rendering and the engine-owned catalog/xid cases remain separate work;
 the adjacent result-nullability protocol is now integrated as described above.
 

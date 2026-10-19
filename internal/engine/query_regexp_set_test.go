@@ -103,9 +103,9 @@ func regexpSetUnitLower(engine *Engine, root LogicalNode, expressions []expr.Exp
 }
 func functionSetUnitArgument(t *testing.T, calls []expr.Expr, callIndex, argumentIndex int, value expr.Expr) {
 	t.Helper()
-	args := append([]expr.Expr(nil), functionCallArguments(calls[callIndex])...)
+	args := append([]expr.Expr(nil), expr.Expr(calls[callIndex]).(expr.Composite).Children()...)
 	args[argumentIndex] = value
-	next, err := withFunctionCallArguments(calls[callIndex], args)
+	next, err := expr.Substitute(expr.Expr(calls[callIndex]).(expr.Composite), expr.InfoOf(calls[callIndex]), args)
 	if err != nil {
 		t.Fatal(err)
 	}

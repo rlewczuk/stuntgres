@@ -5,6 +5,63 @@
 Follow the [shared testing guide](../../docs/TESTING.md) for common policy and
 public/private test placement. Run these commands from the repository root.
 
+### Closed function-source protocol
+
+`string_set_query.go` owns invocation scheduling, zip/lateral demand, layout,
+ordinality and cleanup, not provider dispatch. `SourceAdmission` separates
+closed FROM eligibility from target-set cardinality; OUT names do not control
+record expansion. `openFunctionSource` requires explicit admission and opening.
+Engine-only catalog/transaction/commit/object-address/extension providers retain
+their original state/validation authority. Unnest retains real intagg procedure,
+object-ref, owner-domain/epoch and revision checks in installed remap/retag,
+render, dependency and stored-admission routes.
+
+Series/subscripts/unnest now expose immutable lexical children, substitution,
+grouping, volatility, no-fold/preflight and rendering hooks. Equivalent stage
+rewrites use `expr.Substitute` without provider re-resolution. Engine position
+and both-set guards precede owner occurrence comparison: identityMembers remains
+nonreflexive and RegexpSet remains concrete-family-only. Neither grouping nor
+arbitrary function spelling replaces these rules.
+
+Existing private source units remain engine-owned because they bind real calls,
+query frames or catalog authority; their cursor checks now use Next/Close,
+values/presence, typed EOF and released shared state, with no legacy union shim.
+Marker child-mapping units use MapSubstituted. The substitution regression
+retains a selected JSONRecord provider across an equivalent child's foreign
+analysis descriptor, including actual nested-recordset/scalar survivor execution
+through lowering and preflight. Only equivalent-child stage traversal enables
+source substitution; catalog generation remapping still uses Rebuild/Retag.
+New source seam units cover numeric independent ownership,
+present scalar NULL/zero-width zip in both directions, partial-open failure,
+precanceled/no-argument evaluation, exhausted cancellation and retained payload.
+
+```sh
+make check RUN='^TestSourceProtocol(Substitution|Occurrence|CursorOwnership|Presence|Cleanup|Cancellation|BorrowedLifetime)$'
+make check RACE=1 RUN='^TestSourceProtocol(CursorOwnership|Presence|Cleanup|Cancellation|BorrowedLifetime)$'
+make check RUN='^TestSeries(Binding|Cursor|Overflow|ExpressionHooks|Lowering|Cancellation)$'
+make check RUN='^TestSubscripts(Binding|Cursor|Bounds|ExpressionHooks|Lowering|Cancellation|Finalization)$'
+make check RUN='^TestNumericSeries(Binding|Invocation|ExpressionHooks)$'
+make check RUN='^TestArrayRelational(UnnestCursor|CompositeNull|ZeroWidthComposite|ExpressionOwners|Reownership|Cancellation)$'
+make check RUN='^TestReferenceSRFFrom(Consumers|Lifecycle|Controls|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferenceSRFFrom(Consumers|Lifecycle|Controls|FeatureSmoke)$'
+```
+
+Public reference outcomes remain unchanged. The native cancellation fixture
+observes the new `SourceCursor.Next` advancement frame instead of the removed
+cursor method; same-worker admission, cancellation, join and recovery assertions
+are retained. Complete family selectors live in their owning reference READMEs.
+Observed proof includes full quickcheck, real-driver direct/held/mixed zip/
+per-left LATERAL and Dump/Reset/Restore smoke, and allocation/escape comparisons.
+Selected lifecycle races passed before the user waived further tests except
+quickcheck. Full racecheck was interrupted; post-change startup benchmarking and
+finalcheck were waived, not passing. The refactor makes no new SQL admission or
+startup-performance claim.
+The latest quickcheck retry failed the unchanged LIKE cancellation observer
+(`TestReferenceLikeHeldEnteredCancellation/normalizer`) before it issued
+cancellation. The user explicitly waived that failure for integration; the
+earlier post-rebase quickcheck passed. No passing latest retry is claimed.
+
+
 Stored literal capture pairs raw normalized preorder with explicitly admitted
 `expr.Capturable` written operands. Engine-owned wrappers run first; structural
 query/clause/target/node/source/row keys, selected-parent argument annotations,

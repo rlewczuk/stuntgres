@@ -55,14 +55,14 @@ func subscriptsUnit(t *testing.T, view catalog.Read, dimensions []sqltype.ArrayD
 
 func subscriptsUnitRead(t *testing.T, e subscriptsExpression) []int64 {
 	t.Helper()
-	cursor, err := openFunctionCall(&EvalContext{Context: context.Background()}, e)
+	cursor, err := openFunctionSource(&EvalContext{Context: context.Background()}, e)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cursor.close()
+	defer cursor.Close()
 	var got []int64
 	for {
-		v, present, err := cursor.next(context.Background(), e.ResultUsage().Type)
+		v, present, err := cursor.Next(context.Background())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -93,7 +93,7 @@ func TestSubscriptsBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	e, ok := x.(subscriptsExpression)
-	if !ok || e.ResultUsage().Type.ID() != sqltype.Int4 || !e.Properties().StageDependent || !e.Properties().ParameterDependent || !b.queryHasTargetSet || !validFunctionSourceCall(e) {
+	if !ok || e.ResultUsage().Type.ID() != sqltype.Int4 || !e.Properties().StageDependent || !e.Properties().ParameterDependent || !b.queryHasTargetSet || !sourceAdmitted(e) {
 		t.Fatal(x)
 	}
 	if b.parameters[1].Type == nil || !b.parameters[1].Type.IsArray() || b.parameters[2].Type.ID() != sqltype.Bool {
@@ -153,7 +153,7 @@ func TestSubscriptsCursor(t *testing.T) {
 		t.Fatal("evaluation continued after child error")
 		return sqltype.Value{}, nil
 	})
-	if _, err := openFunctionCall(&EvalContext{Context: context.Background()}, e); err != sentinel {
+	if _, err := openFunctionSource(&EvalContext{Context: context.Background()}, e); err != sentinel {
 		t.Fatal(err)
 	}
 }
@@ -176,21 +176,21 @@ func TestSubscriptsBounds(t *testing.T) {
 	}
 	e := subscriptsUnit(t, view, []sqltype.ArrayDimension{{Lower: -2, Length: 3}}, 1)
 	c := &EvalContext{Context: context.Background()}
-	first, err := openFunctionCall(c, e)
+	first, err := openFunctionSource(c, e)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer first.close()
-	second, err := openFunctionCall(c, e)
+	defer first.Close()
+	second, err := openFunctionSource(c, e)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer second.close()
+	defer second.Close()
 	for _, tc := range []struct {
-		cursor *functionSetCursor
+		cursor *expr.SourceCursor
 		want   int64
 	}{{&first, -2}, {&first, -1}, {&second, -2}} {
-		v, ok, err := tc.cursor.next(c.Context, e.ResultUsage().Type)
+		v, ok, err := tc.cursor.Next(c.Context)
 		n, _ := v.Integer()
 		if err != nil || !ok || n != tc.want {
 			t.Fatal("shared invocation state", n, tc.want, err)
@@ -248,7 +248,7 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 		},
 	} {
 		n, _, err := fold()
-		if err != nil || !isQuerySet(n) {
+		if err != nil || !sourceReturnsSet(n) {
 			t.Fatal(n, err)
 		}
 	}
@@ -269,7 +269,7 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 		t.Fatal("reverse child volatility erased")
 	}
 	replacement := other.args[2]
-	n, did, err := original.mapChildren(func(arg expr.Expr) (expr.Expr, bool, error) {
+	n, did, err := expr.MapSubstituted(original, func(arg expr.Expr) (expr.Expr, bool, error) {
 		if arg == original.args[2] {
 			return replacement, true, nil
 		}
@@ -278,7 +278,7 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 	if err != nil || !did || !sameGroupExpression(n, other) || sameGroupExpression(original, other) {
 		t.Fatal("copy-on-change", n, did, err)
 	}
-	if _, err := withFunctionCallArguments(original, original.args[:2]); err == nil {
+	if _, err := expr.Substitute(expr.Expr(original).(expr.Composite), expr.InfoOf(original), original.args[:2]); err == nil {
 		t.Fatal("unchecked argument replacement")
 	}
 }
@@ -344,25 +344,25 @@ func TestSubscriptsCancellation(t *testing.T) {
 	view := New().CatalogRead()
 	e := subscriptsUnit(t, view, []sqltype.ArrayDimension{{Lower: 3, Length: 3}}, 1)
 	ctx, cancel := context.WithCancel(context.Background())
-	cursor, err := openFunctionCall(&EvalContext{Context: ctx}, e)
+	cursor, err := openFunctionSource(&EvalContext{Context: ctx}, e)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok, err := cursor.next(ctx, e.ResultUsage().Type); err != nil || !ok {
+	if _, ok, err := cursor.Next(ctx); err != nil || !ok {
 		t.Fatal(ok, err)
 	}
 	cancel()
-	if _, ok, err := cursor.next(ctx, e.ResultUsage().Type); ok || err != context.Canceled {
+	if _, ok, err := cursor.Next(ctx); ok || err != context.Canceled {
 		t.Fatal(ok, err)
 	}
-	cursor.close()
-	cursor.close()
-	if !cursor.exhausted || cursor.owned != nil {
+	cursor.Close()
+	cursor.Close()
+	if !cursor.Exhausted || cursor.Values != nil {
 		t.Fatal("cursor cleanup")
 	}
 	calls := 0
 	e.args[0] = queryProbe(e.args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Value{}, nil })
-	if _, err := openFunctionCall(&EvalContext{Context: ctx}, e); err != context.Canceled || calls != 0 {
+	if _, err := openFunctionSource(&EvalContext{Context: ctx}, e); err != context.Canceled || calls != 0 {
 		t.Fatal("pre-admission cancellation", calls, err)
 	}
 }

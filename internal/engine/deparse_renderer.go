@@ -687,31 +687,14 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		return renderRowComparison(n, child, spelling)
 	case scalarArrayComparisonExpression:
 		return renderScalarArrayComparison(n, child, r.identifier)
-	case seriesExpression:
-		argRenderer := r
-		argRenderer.showImplicit = true
-		args := make([]string, len(n.args))
-		for i, arg := range n.args {
-			var err error
-			args[i], err = argRenderer.sql(ctx, arg, pgRenderParent{})
-			if err != nil {
-				return "", err
-			}
-		}
-		return pgIdentifier("generate_series") + "(" + strings.Join(args, ", ") + ")", nil
-	case subscriptsExpression:
-		argRenderer := r
-		argRenderer.showImplicit = true
-		args := make([]string, len(n.args))
-		for i, arg := range n.args {
-			var err error
-			args[i], err = argRenderer.sql(ctx, arg, pgRenderParent{})
-			if err != nil {
-				return "", err
-			}
-		}
-		return pgIdentifier("generate_subscripts") + "(" + strings.Join(args, ", ") + ")", nil
 	case unnestExpression:
+		if n.procedure == nil {
+			spec, err := n.Render()
+			if err != nil {
+				return "", err
+			}
+			return r.rendering(ctx, node, spec, parent)
+		}
 		argRenderer := r
 		argRenderer.showImplicit = true
 		arg, err := argRenderer.sql(ctx, n.args[0], pgRenderParent{})

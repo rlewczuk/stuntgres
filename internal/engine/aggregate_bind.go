@@ -260,31 +260,6 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			}
 		}
 		return true
-	case seriesExpression:
-		o, ok := other.(seriesExpression)
-		if !ok || e.ResultUsage() != o.ResultUsage() || len(e.args) != len(o.args) {
-			return false
-		}
-		for i, arg := range e.args {
-			if !same(arg, o.args[i]) {
-				return false
-			}
-		}
-		return true
-	case subscriptsExpression:
-		o, ok := other.(subscriptsExpression)
-		if !ok || e.ResultUsage() != o.ResultUsage() || len(e.args) != len(o.args) {
-			return false
-		}
-		for i, arg := range e.args {
-			if !same(arg, o.args[i]) {
-				return false
-			}
-		}
-		return true
-	case unnestExpression:
-		o, ok := other.(unnestExpression)
-		return ok && sameIntaggIdentity(e.procedure, e.ref, o.procedure, o.ref) && e.ResultUsage() == o.ResultUsage() && same(e.args[0], o.args[0])
 	case comparisonExpression:
 		o, ok := other.(comparisonExpression)
 		return ok && e.predicate.Equal(o.predicate) && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
@@ -645,24 +620,6 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		}
 		stage(&e.Info)
 		bound = e
-	case seriesExpression:
-		e.args = append([]expr.Expr(nil), e.args...)
-		for i := range e.args {
-			e.args[i] = rewrite(e.args[i])
-		}
-		stage(&e.Info)
-		bound = e
-	case subscriptsExpression:
-		e.args = append([]expr.Expr(nil), e.args...)
-		for i := range e.args {
-			e.args[i] = rewrite(e.args[i])
-		}
-		stage(&e.Info)
-		bound = e
-	case unnestExpression:
-		e.args = []expr.Expr{rewrite(e.args[0])}
-		stage(&e.Info)
-		bound = e
 	case comparisonExpression:
 		e.left = rewrite(e.left)
 		e.right = rewrite(e.right)
@@ -910,16 +867,6 @@ func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 		for _, item := range e.items {
 			walk(item)
 		}
-	case seriesExpression:
-		for _, arg := range e.args {
-			walk(arg)
-		}
-	case subscriptsExpression:
-		for _, arg := range e.args {
-			walk(arg)
-		}
-	case unnestExpression:
-		walk(e.args[0])
 	case comparisonExpression:
 		walk(e.left)
 		walk(e.right)

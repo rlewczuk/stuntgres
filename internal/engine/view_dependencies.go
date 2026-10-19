@@ -643,13 +643,13 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 			}
 			base := n.baseWidth
 			for i, original := range n.template.origins {
-				if !isQuerySet(original) || original.ResultUsage() != n.Schema()[base+i].Usage {
+				if !sourceReturnsSet(original) || original.ResultUsage() != n.Schema()[base+i].Usage {
 					return fmt.Errorf("stuntgres: invalid stored string marker layout")
 				}
 			}
 			for i, scalar := range n.template.scalars {
 				request := n.template.scalarRequests[i]
-				if request < 0 || request >= len(n.template.expressions) || scalar == nil || isQuerySet(scalar) || n.template.expressions[request] == nil || isQuerySet(n.template.expressions[request]) || scalar.SourcePosition() != n.template.expressions[request].SourcePosition() || scalar.ResultUsage() != n.template.expressions[request].ResultUsage() {
+				if request < 0 || request >= len(n.template.expressions) || scalar == nil || sourceReturnsSet(scalar) || n.template.expressions[request] == nil || sourceReturnsSet(n.template.expressions[request]) || scalar.SourcePosition() != n.template.expressions[request].SourcePosition() || scalar.ResultUsage() != n.template.expressions[request].ResultUsage() {
 					return fmt.Errorf("stuntgres: invalid stored string scalar owner")
 				}
 				if scalar == nil || scalar.ResultUsage() != n.Schema()[base+n.markerWidth+i].Usage {
@@ -671,7 +671,7 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 						return fmt.Errorf("stuntgres: duplicate stored string call slot")
 					}
 				}
-				if !isQuerySet(call) || call.ResultUsage() != n.Schema()[base+slot].Usage {
+				if !sourceReturnsSet(call) || call.ResultUsage() != n.Schema()[base+slot].Usage {
 					return fmt.Errorf("stuntgres: invalid stored string set usage")
 				}
 			}

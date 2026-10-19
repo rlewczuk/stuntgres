@@ -72,7 +72,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if tc.base >= 0 {
 				arity = 2
 			}
-			if len(call.Args) != arity || call.Plan.BaseIndex() != tc.base || call.Defined || call.Plan.ResultUsage() != call.ResultUsage() || call.Plan.ReturnsSet() != tc.set || isQuerySet(call) != tc.set || !validFunctionSourceCall(call) || binder.queryHasTargetSet != tc.set {
+			if len(call.Args) != arity || call.Plan.BaseIndex() != tc.base || call.Defined || call.Plan.ResultUsage() != call.ResultUsage() || call.Plan.ReturnsSet() != tc.set || sourceReturnsSet(call) != tc.set || !sourceAdmitted(call) || binder.queryHasTargetSet != tc.set {
 				t.Fatal("physical arity/base/defined/source/project identity", call)
 			}
 			if call.Properties().Volatility != expr.Stable || call.Properties().StageDependent != tc.set || call.Properties().DomainDependent || call.Properties().RuntimeDomainConversion {

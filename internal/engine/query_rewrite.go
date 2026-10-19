@@ -64,7 +64,7 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(expr.Expr) (expr.Exp
 	stringCalls := func(old []expr.Expr) []expr.Expr {
 		var next []expr.Expr
 		for i, call := range old {
-			original := functionCallArguments(call)
+			original := call.(expr.Composite).Children()
 			arguments := args(original)
 			if len(arguments) == 0 || &arguments[0] == &original[0] {
 				continue
@@ -73,7 +73,7 @@ func rewriteQueryExpressions(node LogicalNode, rewrite func(expr.Expr) (expr.Exp
 				next = append([]expr.Expr(nil), old...)
 			}
 			if err == nil {
-				next[i], err = withFunctionCallArguments(call, arguments)
+				next[i], err = expr.Substitute(call.(expr.Composite), expr.InfoOf(call), arguments)
 			}
 		}
 		if next == nil {

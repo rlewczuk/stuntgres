@@ -722,7 +722,7 @@ func (b *expressionBinder) noteFunctionSignature(name parser.ObjectName, pos par
 func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (result expr.Expr, failure error) {
 	before := b.fromSetObservation
 	defer func() {
-		if failure != nil || b.aggregateClause != "FROM" || !isQuerySet(result) {
+		if failure != nil || b.aggregateClause != "FROM" || !sourceReturnsSet(result) {
 			return
 		}
 		if b.fromSetObservation != before {
@@ -832,7 +832,7 @@ func (b *expressionBinder) bindCompositeBase(raw parser.Expr) (expr.Expr, error)
 	return node, err
 }
 func (b *expressionBinder) demandWholePresence(node expr.Expr) (expr.Expr, error) {
-	next, _, err := mapBoundExpressionReader(b.bindingCatalog(), b.definitionReader(), node, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root LogicalNode) (LogicalNode, error) { return root, nil }, nil, func(child expr.Expr) (expr.Expr, bool, error) {
+	next, _, err := mapBoundExpressionReader(b.bindingCatalog(), b.definitionReader(), node, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root LogicalNode) (LogicalNode, error) { return root, nil }, nil, false, func(child expr.Expr) (expr.Expr, bool, error) {
 		row, ok := child.(rowExpression)
 		if !ok || row.wholeNames == nil || row.presenceSlot != 0 {
 			return child, false, nil

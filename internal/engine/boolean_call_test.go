@@ -79,7 +79,7 @@ func TestBooleanCallPredicateSetRejection(t *testing.T) {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		b.aggregateClause = "SELECT"
 		node, err := b.bind(call, expressionPolicy{context: projectionContext})
-		if err != nil || !isQuerySet(node) {
+		if err != nil || !sourceReturnsSet(node) {
 			t.Fatal("standalone set projection changed", node, err)
 		}
 	}

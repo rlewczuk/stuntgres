@@ -41,7 +41,7 @@ func TestJSONBRecordBinding(t *testing.T) {
 		t.Fatal("lost definition usage", node, ns)
 	}
 	call := source.calls[0].(functions.JSONBRecord)
-	if isQuerySet(call) || !validFunctionSourceCall(call) || !call.Definitions || call.Unresolved || call.Properties().Volatility != expr.Stable {
+	if sourceReturnsSet(call) || !sourceAdmitted(call) || !call.Definitions || call.Unresolved || call.Properties().Volatility != expr.Stable {
 		t.Fatal("invalid scalar properties", call)
 	}
 	eval := &EvalContext{Context: context.Background()}
@@ -89,15 +89,15 @@ func TestJSONBRecordBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	set := node.(*functionFromNode).calls[0]
-	if !isQuerySet(set) || functionFromCallWidth(set) != 2 || !set.Properties().StageDependent {
+	if !sourceReturnsSet(set) || functionFromCallWidth(set) != 2 || !set.Properties().StageDependent {
 		t.Fatal("recordset placement/width", set)
 	}
-	cursor, err := openFunctionCall(eval, set)
+	cursor, err := openFunctionSource(eval, set)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cursor.close()
-	if cursor.owned != nil || !cursor.exhausted {
+	cursor.Close()
+	if cursor.Values != nil || !cursor.Exhausted {
 		t.Fatal("recordset rows retained after close")
 	}
 	raw.ColumnDefinitions = nil

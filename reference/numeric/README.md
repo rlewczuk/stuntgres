@@ -148,6 +148,10 @@ symbolic series views, genuine persisted INT4/INT8 data, retained rows/schema,
 same/fresh Driver Dump/Reset/Restore and actual emitted SQL replay on PG.
 Restore rejection of INSERT query sources remains truthful and atomic;
 zero-step SQL inside a rejected script is not claimed to execute.
+The native gate observes `SourceCursor.Next` in the same goroutine as the named
+worker. This follows provider admission after the function-source protocol
+cutover; it does not pin the deleted cursor representation or change expected
+cancellation, atomic publication, worker joining or same-owner recovery.
 
 Root runs each reference group in both modes after edits, with external900s
 per invocation. These selectors supplement whole-project `make quickcheck`:

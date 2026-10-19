@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 )
 
@@ -21,61 +20,19 @@ func querySetDepth(bound expr.Expr) int {
 			depth = d
 		}
 	})
-	if isQuerySet(bound) {
+	if sourceReturnsSet(bound) {
 		depth++
 	}
 	return depth
 }
 func sameQuerySetOccurrence(a, b expr.Expr) bool {
-	if !isQuerySet(a) || !isQuerySet(b) || a.SourcePosition() != b.SourcePosition() {
+	if !sourceReturnsSet(a) || !sourceReturnsSet(b) || a.SourcePosition() != b.SourcePosition() {
 		return false
 	}
-	switch first := a.(type) {
-	case catalogForeignKeysExpression:
-		second, ok := b.(catalogForeignKeysExpression)
-		return ok && sqltype.SameRecordUsage(first.ResultUsage(), second.ResultUsage())
-	case extensionPathsExpression:
-		second, ok := b.(extensionPathsExpression)
-		return ok && sqltype.SameRecordUsage(first.ResultUsage(), second.ResultUsage())
-	case functions.JSONBPathQuery:
-		second, ok := b.(functions.JSONBPathQuery)
-		return ok && first.ResultUsage() == second.ResultUsage()
-	case functions.ACLValue:
-		second, ok := b.(functions.ACLValue)
-		return ok && first.Kind == functions.ACLExplode && second.Kind == functions.ACLExplode && sqltype.SameRecordUsage(first.ResultUsage(), second.ResultUsage())
-	case seriesExpression:
-		second, ok := b.(seriesExpression)
-		return ok && first.ResultUsage() == second.ResultUsage() && len(first.args) == len(second.args)
-	case subscriptsExpression:
-		second, ok := b.(subscriptsExpression)
-		return ok && first.ResultUsage() == second.ResultUsage() && len(first.args) == len(second.args)
-	case unnestExpression:
-		second, ok := b.(unnestExpression)
-		return ok && sameIntaggIdentity(first.procedure, first.ref, second.procedure, second.ref) && first.ResultUsage() == second.ResultUsage()
-	case functions.JSONKeys:
-		second, ok := b.(functions.JSONKeys)
-		return ok && first.Plan.Name() == second.Plan.Name()
-	case functions.JSONBRecord:
-		second, ok := b.(functions.JSONBRecord)
-		return ok && first.Name == second.Name && sqltype.SameRecordUsage(first.ResultUsage(), second.ResultUsage())
-	case functions.JSONBElements:
-		second, ok := b.(functions.JSONBElements)
-		return ok && first.Plan.Name() == second.Plan.Name() && first.ResultUsage() == second.ResultUsage()
-	case functions.JSONRecord:
-		second, ok := b.(functions.JSONRecord)
-		return ok && first.Plan.Name() == second.Plan.Name() && first.Plan.BaseIndex() == second.Plan.BaseIndex() && first.Defined == second.Defined && sqltype.SameRecordUsage(first.ResultUsage(), second.ResultUsage())
-	case functions.JSONEach:
-		second, ok := b.(functions.JSONEach)
-		return ok && first.Plan.Name() == second.Plan.Name() && sqltype.SameRecordUsage(first.ResultUsage(), second.ResultUsage())
-	case functions.JSONElements:
-		second, ok := b.(functions.JSONElements)
-		return ok && first.Plan.Name() == second.Plan.Name() && first.ResultUsage() == second.ResultUsage()
-	case functions.RegexpSet:
-		_, ok := b.(functions.RegexpSet)
-		return ok
-	default:
-		return isStringSet(a) && isStringSet(b)
+	if occurrence, ok := a.(expr.SourceOccurrence); ok {
+		return occurrence.SameSourceOccurrence(b)
 	}
+	return false
 }
 
 // Requests identify this clause's required occurrences. Companions share only
@@ -93,7 +50,7 @@ func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []expr.Expr
 	for level := range maxDepth {
 		for _, bound := range requests {
 			walkBoundExpression(bound, func(e expr.Expr) {
-				if !isQuerySet(e) || querySetDepth(e) != level+1 {
+				if !sourceReturnsSet(e) || querySetDepth(e) != level+1 {
 					return
 				}
 				for _, previous := range template.origins {
@@ -107,7 +64,7 @@ func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []expr.Expr
 	}
 	if attempts {
 		for i, expr := range requests {
-			if !isQuerySet(expr) && expr.ResultUsage().Type != nil {
+			if !sourceReturnsSet(expr) && expr.ResultUsage().Type != nil {
 				template.scalars = append(template.scalars, expr)
 				template.scalarRequests = append(template.scalarRequests, i)
 			}
@@ -150,7 +107,7 @@ func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []expr.Expr
 	rewrite := func(bound expr.Expr, sql99 bool, beforeDepth int) (expr.Expr, error) {
 		return b.mapQuerySetStage(bound, func(e expr.Expr) (expr.Expr, bool, error) {
 			for i, original := range template.origins {
-				if (sameQuerySetOccurrence(e, original) || sql99 && isQuerySet(e) && b.sameGroupExpression(e, original)) && querySetDepth(e) < beforeDepth {
+				if (sameQuerySetOccurrence(e, original) || sql99 && sourceReturnsSet(e) && b.sameGroupExpression(e, original)) && querySetDepth(e) < beforeDepth {
 					return column(original, i), true, nil
 				}
 			}
@@ -165,7 +122,7 @@ func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []expr.Expr
 				continue
 			}
 			call := original
-			args := append([]expr.Expr(nil), functionCallArguments(call)...)
+			args := append([]expr.Expr(nil), call.(expr.Composite).Children()...)
 			for j, arg := range args {
 				var err error
 				args[j], err = rewrite(arg, false, level+1)
@@ -173,7 +130,7 @@ func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []expr.Expr
 					return nil, err
 				}
 			}
-			call, err := withFunctionCallArguments(call, args)
+			call, err := expr.Substitute(call.(expr.Composite), expr.InfoOf(call), args)
 			if err != nil {
 				return nil, err
 			}
@@ -290,8 +247,8 @@ func preflightQuerySet(c *EvalContext, n *setProjectNode) (LogicalNode, error) {
 		return columnExpression{Info: info, scope: 1, frame: n.frame, slot: n.baseWidth + slot}
 	}
 	rewrite := func(bound expr.Expr, beforeDepth int) (expr.Expr, error) {
-		next, _, err := mapBoundExpression(c.catalog, bound, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d },
-			func(root LogicalNode) (LogicalNode, error) { return root, nil }, nil, func(e expr.Expr) (expr.Expr, bool, error) {
+		next, _, err := mapBoundExpressionReader(c.catalog, nil, bound, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d },
+			func(root LogicalNode) (LogicalNode, error) { return root, nil }, nil, true, func(e expr.Expr) (expr.Expr, bool, error) {
 				for i, original := range template.origins {
 					if sameQuerySetOccurrence(e, original) && querySetDepth(e) < beforeDepth {
 						return column(original, i), true, nil
@@ -333,14 +290,14 @@ func preflightQuerySet(c *EvalContext, n *setProjectNode) (LogicalNode, error) {
 				continue
 			}
 			call := marker
-			args := append([]expr.Expr(nil), functionCallArguments(call)...)
+			args := append([]expr.Expr(nil), call.(expr.Composite).Children()...)
 			for j, arg := range args {
 				args[j], err = rewrite(arg, level+1)
 				if err != nil {
 					return nil, err
 				}
 			}
-			call, err := withFunctionCallArguments(call, args)
+			call, err := expr.Substitute(call.(expr.Composite), expr.InfoOf(call), args)
 			if err != nil {
 				return nil, err
 			}
@@ -463,8 +420,8 @@ func querySetProjectionDepth(expressions []expr.Expr) (int, bool) {
 	for _, expression := range expressions {
 		current := querySetDepth(expression)
 		if current > depth {
-			depth, upper = current, !isQuerySet(expression)
-		} else if current > 0 && current == depth && !isQuerySet(expression) {
+			depth, upper = current, !sourceReturnsSet(expression)
+		} else if current > 0 && current == depth && !sourceReturnsSet(expression) {
 			upper = true
 		}
 	}
@@ -525,7 +482,7 @@ func querySetPeerClosure(requests []expr.Expr, companions [][]expr.Expr) ([]expr
 		templates = append(templates, expressions...)
 		for _, expression := range expressions {
 			walkBoundExpression(expression, func(marker expr.Expr) {
-				if isQuerySet(marker) && querySetDepth(marker) <= depth {
+				if sourceReturnsSet(marker) && querySetDepth(marker) <= depth {
 					requests = append(requests, marker)
 				}
 			})

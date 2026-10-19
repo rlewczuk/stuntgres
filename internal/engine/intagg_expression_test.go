@@ -133,21 +133,21 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 	}
 	count := 0
 	n.args = []expr.Expr{queryProbe(n.args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { count++; return input, nil })}
-	first, err := openFunctionCall(c, n)
+	first, err := openFunctionSource(c, n)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer first.close()
-	second, err := openFunctionCall(c, n)
+	defer first.Close()
+	second, err := openFunctionSource(c, n)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer second.close()
-	if count != 2 || first.array != input || second.array != input {
+	defer second.Close()
+	if count != 2 || first.Value != input || second.Value != input {
 		t.Fatal("once per open/shared payload", count)
 	}
 	for _, want := range []any{int64(2), int64(2), nil} {
-		value, present, err := first.next(c.Context, n.Usage.Type)
+		value, present, err := first.Next(c.Context)
 		if err != nil || !present || value.Type() != n.Usage.Type {
 			t.Fatal("stored element", value, present, err)
 		}
@@ -159,10 +159,10 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 			t.Fatal(v, err)
 		}
 	}
-	if _, present, err := first.next(c.Context, n.Usage.Type); err != nil || present {
+	if _, present, err := first.Next(c.Context); err != nil || present {
 		t.Fatal("extra element", present, err)
 	}
-	if _, present, err := second.next(c.Context, n.Usage.Type); err != nil || !present {
+	if _, present, err := second.Next(c.Context); err != nil || !present {
 		t.Fatal("cursor state shared", present, err)
 	}
 	for _, wholeNull := range []bool{false, true} {
@@ -170,19 +170,20 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 		if wholeNull {
 			empty.args = []expr.Expr{literalExpression{Info: expr.InfoOf(empty.args[0]), value: sqltype.Null(empty.args[0].ResultUsage().Type)}}
 		}
-		cursor, err := openFunctionCall(c, empty)
+		cursor, err := openFunctionSource(c, empty)
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, present, err := cursor.next(c.Context, empty.Usage.Type)
-		cursor.close()
+		_, present, err := cursor.Next(c.Context)
+		cursor.Close()
 		if err != nil || present {
 			t.Fatal("whole NULL/empty yielded row", present, err)
 		}
 	}
-	mapped, changed, err := n.mapChildren(func(arg expr.Expr) (expr.Expr, bool, error) {
+	rewritten, changed, err := expr.MapSubstituted(n, func(arg expr.Expr) (expr.Expr, bool, error) {
 		return literalExpression{Info: expr.InfoOf(arg), value: input}, true, nil
 	})
+	mapped := rewritten.(unnestExpression)
 	if err != nil || !changed || mapped.procedure != n.procedure || mapped.ref != n.ref {
 		t.Fatal("child rewrite lost installation", err)
 	}

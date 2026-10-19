@@ -41,7 +41,7 @@ func seriesNativeCancelWorker(ctx context.Context, c *sql.Conn, st *sql.Stmt, q 
 
 func seriesNativeCancel(t *testing.T, p *fixture.Pair, c *sql.Conn, q string, prepared, query bool, providerFrames ...string) {
 	t.Helper()
-	providerFrame := "functionSetCursor).next"
+	providerFrame := "SourceCursor).Next"
 	if len(providerFrames) != 0 {
 		providerFrame = providerFrames[0]
 	}

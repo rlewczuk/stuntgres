@@ -100,12 +100,6 @@ func boundExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
 	case likeExpression:
 		walk(e.left)
 		walk(e.right)
-	case seriesExpression:
-		args(e.args)
-	case subscriptsExpression:
-		args(e.args)
-	case unnestExpression:
-		args(e.args)
 	case logicalExpression:
 		walk(e.left)
 		walk(e.right)

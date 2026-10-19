@@ -10,7 +10,7 @@ import (
 func rejectRegexpSets(bound expr.Expr, context string, lateralHint bool) error {
 	var first expr.Expr
 	walkBoundExpression(bound, func(node expr.Expr) {
-		if isQuerySet(node) && (first == nil || node.SourcePosition().Offset < first.SourcePosition().Offset) {
+		if sourceReturnsSet(node) && (first == nil || node.SourcePosition().Offset < first.SourcePosition().Offset) {
 			first = node
 		}
 	})

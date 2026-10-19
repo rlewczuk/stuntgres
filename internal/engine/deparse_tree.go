@@ -146,19 +146,6 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 		if err == nil {
 			err = args(n.items)
 		}
-	case seriesExpression:
-		fmt.Fprint(out, "Series generate_series")
-		err = args(n.args)
-	case subscriptsExpression:
-		fmt.Fprint(out, "Subscripts generate_subscripts")
-		err = args(n.args)
-	case unnestExpression:
-		if n.procedure != nil {
-			fmt.Fprintf(out, "Intagg %s", n.procedure.Name())
-		} else {
-			fmt.Fprint(out, "Unnest")
-		}
-		err = args(n.args)
 	case comparisonExpression:
 		fmt.Fprintf(out, "Compare %s namespace %q", n.operator, n.namespace)
 		err = pair(n.left, n.right)

@@ -755,18 +755,6 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 		if changed {
 			return e, true, nil
 		}
-	case seriesExpression:
-		return e.mapChildren(func(arg expr.Expr) (expr.Expr, bool, error) {
-			return preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
-		})
-	case subscriptsExpression:
-		return e.mapChildren(func(arg expr.Expr) (expr.Expr, bool, error) {
-			return preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
-		})
-	case unnestExpression:
-		return e.mapChildren(func(arg expr.Expr) (expr.Expr, bool, error) {
-			return preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
-		})
 	case likeExpression:
 		left, lc, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
 		if err != nil {
@@ -2166,7 +2154,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 	if _, logical := node.(logicalExpression); policy.booleanConstruct != "" && !logical {
 		returnsSet := false
 		walkBoundExpression(node, func(child expr.Expr) {
-			returnsSet = returnsSet || isQuerySet(child)
+			returnsSet = returnsSet || sourceReturnsSet(child)
 		})
 		if returnsSet {
 			return nil, expr.ErrorAt("42804", fmt.Sprintf("argument of %s must not return a set", policy.booleanConstruct), parser.ExpressionStart(raw))

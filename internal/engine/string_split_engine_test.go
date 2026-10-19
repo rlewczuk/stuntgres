@@ -67,7 +67,7 @@ func TestStringSplitExpansion(t *testing.T) {
 					text := binder.typ(sqltype.Text)
 					var observed []int
 					node.scalars[0] = mathObservedArgument{Info: expr.InfoOf(node.scalars[0]), value: sqltype.String(text, "s"), order: &observed, index: 0, err: scenario.scalarError}
-					functionSetUnitArgument(t, node.calls, 0, 0, mathObservedArgument{Info: expr.InfoOf(functionCallArguments(node.calls[0])[0]), value: sqltype.String(text, scenario.input), order: &observed, index: 1, err: scenario.sourceError})
+					functionSetUnitArgument(t, node.calls, 0, 0, mathObservedArgument{Info: expr.InfoOf(expr.Expr(node.calls[0]).(expr.Composite).Children()[0]), value: sqltype.String(text, scenario.input), order: &observed, index: 1, err: scenario.sourceError})
 					stage, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, node)
 					if err != nil {
 						t.Fatal(err)
@@ -208,7 +208,7 @@ func TestStringSplitExpansion(t *testing.T) {
 						}
 					}
 					for i, call := range expansion.calls {
-						for j, argument := range functionCallArguments(call) {
+						for j, argument := range expr.Expr(call).(expr.Composite).Children() {
 							var next expr.Expr
 							next, err = instrument(argument)
 							if err != nil {
@@ -296,7 +296,7 @@ func TestStringSplitExpansion(t *testing.T) {
 			node.scalars[i] = mathObservedArgument{Info: expr.Info{Usage: node.scalars[i].ResultUsage(), Property: expr.Properties{Volatility: expr.Volatile}}, value: sqltype.String(node.scalars[i].ResultUsage().Type, value), order: &trace, index: i}
 		}
 		for i, value := range []string{"a,b", "x"} {
-			argument := functionCallArguments(node.calls[i])[0]
+			argument := expr.Expr(node.calls[i]).(expr.Composite).Children()[0]
 			functionSetUnitArgument(t, node.calls, i, 0, mathObservedArgument{Info: expr.Info{Usage: argument.ResultUsage(), Property: expr.Properties{Volatility: expr.Volatile}}, value: sqltype.String(argument.ResultUsage().Type, value), order: &trace, index: 10 + i})
 		}
 		stage, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, node)
@@ -891,7 +891,7 @@ func TestStringSplitPreflight(t *testing.T) {
 						}
 						stage.scalars[0] = mathObservedArgument{Info: expr.InfoOf(stage.scalars[0]), value: value, order: &trace, index: 0}
 						for i, call := range stage.calls {
-							value, err := functionCallArguments(call)[0].Eval(evaluation)
+							value, err := expr.Expr(call).(expr.Composite).Children()[0].Eval(evaluation)
 							if err != nil {
 								t.Fatal(err)
 							}
@@ -899,7 +899,7 @@ func TestStringSplitPreflight(t *testing.T) {
 							if !value.IsNull() {
 								event = 2
 							}
-							functionSetUnitArgument(t, stage.calls, i, 0, mathObservedArgument{Info: expr.InfoOf(functionCallArguments(call)[0]), value: value, order: &trace, index: event})
+							functionSetUnitArgument(t, stage.calls, i, 0, mathObservedArgument{Info: expr.InfoOf(expr.Expr(call).(expr.Composite).Children()[0]), value: value, order: &trace, index: event})
 						}
 					}
 					executable, err := openQueryNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, private)

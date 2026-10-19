@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `74e2564aa`. The later-wave plans
+Last verified against `master` at `b9e93292b`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,7 +15,7 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 3 remainder** — F2 items 2, 3 and 5 (2 broad), F3 aliases item 6
+- **Step 3 remainder** — F2 item 3, F3 aliases item 6
   (broad), and the Tier C parts 7–9 (catalog inquiry with session identity,
   transaction identity and commit timestamps, advisory locks with blocking
   inquiry). One session each. They touch the same switch files; rebase early.
@@ -77,8 +77,8 @@ Steps 1, 2 and 4–7 and `access` are done.
       *(racecheck skipped at user request)*
     - [x] view literal capture *(broad; explicit written-operands protocol;
       racecheck/finalcheck waived at user request)*
-    - [ ] function sources, with `seriesExpression` and `unnestExpression`
-      *(broad)*
+    - [x] function sources, with `seriesExpression` and `unnestExpression`
+      *(broad; quickcheck and public smoke; remaining checks waived at user request)*
     - [ ] `SQLJSON` rendering
     - [x] result nullability hook (`query_bind.go`, `returning.go`; explicit
       SELECT/RETURNING protocol; racecheck/finalcheck waived at user request)
@@ -306,9 +306,13 @@ in the prompt file's Status section.
 
 1. [x] Functions F2: view literal capture —
    [functions](ENGINE-SPLIT-functions.md) F2 · needs — · **broad**
-2. [ ] Functions F2: function sources (with `seriesExpression`,
+2. [x] Functions F2: function sources (with `seriesExpression`,
    `unnestExpression`) — [functions](ENGINE-SPLIT-functions.md) F2 · needs
    — · **broad**
+   Typed source protocol, provider-local cursors and immutable marker cutover.
+   Earlier quickcheck, selected dual-mode/race proof and replay smoke passed.
+   Latest quickcheck LIKE-observer failure and further tests, including
+   racecheck/finalcheck, explicitly waived at user request.
 3. [ ] Functions F2: `SQLJSON` rendering —
    [functions](ENGINE-SPLIT-functions.md) F2 · needs —
 4. [x] Functions F2: result nullability hook — explicit SELECT/RETURNING protocol;

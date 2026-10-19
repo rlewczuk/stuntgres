@@ -29,9 +29,12 @@ func retagBoundTypesWithQuery(view catalog.Read, node expr.Expr, retainedType fu
 // mapBoundExpression shares the complete copy-on-change traversal with catalog
 // retagging. A leaf rewrite runs before children, without evaluating expressions.
 func mapBoundExpression(view catalog.Read, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *catalog.Relation, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...collationRemapper) (expr.Expr, bool, error) {
-	return mapBoundExpressionReader(view, nil, node, retainedType, queryMapper, recipe, leaf, collations...)
+	return mapBoundExpressionReader(view, nil, node, retainedType, queryMapper, recipe, false, leaf, collations...)
 }
-func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *catalog.Relation, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...collationRemapper) (expr.Expr, bool, error) {
+
+// substituteSources is only for equivalent-child query-stage rewrites. Catalog
+// generation remapping keeps Rebuild/Retag and their provider validation.
+func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error), recipe *catalog.Relation, substituteSources bool, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...collationRemapper) (expr.Expr, bool, error) {
 	if node == nil {
 		return nil, false, nil
 	}
@@ -137,7 +140,7 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		return next
 	}
 	mapChild := func(old expr.Expr) (expr.Expr, bool, error) {
-		next, replaced, failure := mapBoundExpressionReader(view, reader, old, retainedType, queryMapper, recipe, leaf, collations...)
+		next, replaced, failure := mapBoundExpressionReader(view, reader, old, retainedType, queryMapper, recipe, substituteSources, leaf, collations...)
 		changed = changed || replaced
 		if next != nil && (leaf != nil || replaced) {
 			info.Property = expr.MergeProperties(info.Property, next.Properties())
@@ -186,14 +189,6 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		}
 		changed = changed || targets[0] != n.target
 		n.target = targets[0]
-		n.Info = info
-		rebound = n
-	case seriesExpression:
-		n.args = children(n.args)
-		n.Info = info
-		rebound = n
-	case subscriptsExpression:
-		n.args = children(n.args)
 		n.Info = info
 		rebound = n
 	case unnestExpression:
@@ -989,7 +984,11 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		if err != nil {
 			return node, false, err
 		}
-		if hook, ok := n.(expr.Retaggable); ok {
+		if _, source := n.(expr.Source); substituteSources && source {
+			if changed {
+				rebound, err = expr.Substitute(n, info, mapped)
+			}
+		} else if hook, ok := n.(expr.Retaggable); ok {
 			rebound, changed, err = hook.Retag(info, mapped, changed, retagEnvironment(view, retainedType, collations))
 		} else if changed {
 			rebound, err = n.Rebuild(info, mapped)

@@ -68,6 +68,31 @@ Late-child composition, error recovery and actuals-once proof:
 selector with `REFERENCE=1`. These definitions also cover SQL routine bodies
 and stored views, including a bounded native Dump/Reset/Restore phase.
 
+## Closed source providers
+
+Source-capable nodes implement `expr.Source` and `SourceOpening` beside their
+family (`*_source.go`); there is no central function/provider registry or cursor
+tag. Admission, set cardinality, scalar OUT labels and physical record layout
+are separate questions. `String` admits only `string_to_table`, ACL excludes
+containment, RangeInspect admits only the constructor, and Binary admits only
+its selected JSON carrier. This is not general scalar-FROM fallback.
+
+JSON/string/ACL providers use their existing native cursors and named next/close
+callbacks; integer/subscripts/array advancement stays by the engine-owned
+markers. JSONB record/path and regexp sets preserve complete-private conversion
+before publishing any row (including demanded late errors under LIMIT).
+Argument evaluation remains once per open in native order, using owner fields,
+not a retained `Children` slice. Scalar NULL is one present row; EOF is typed
+NULL with false presence. Every demanded invocation has independent state, and
+close/EOF/error/cancellation release it without invalidating emitted values.
+
+Occurrence hooks preserve each family's exact existing identity, not structural
+child/group equality. In particular RegexpSet compares concrete family only
+after engine set/position guards. Equivalent-child substitution preserves
+selected providers and written-slot provenance; it never calls Reconstruct to
+resolve a replacement provider. Catalog/session/installed-intagg authority and
+query scheduling remain in the engine, not this package.
+
 ## Binder
 
 `Binder` (`binder.go`) is what bind code may ask of the engine's analyzer; the
@@ -861,6 +886,31 @@ without allocating code strings, so two empty/no-letter inputs agree4.
 There is no input-length limit, Unicode normalization or transliteration.
 
 ## Testing
+
+Function-source private binding/scheduling/authority units remain engine-owned:
+their fixtures require the real analyzer and installed/catalog identities.
+Existing sqltype native cursor/kernel units stay beside those kernels. Engine
+units now consume `SourceCursor.Next/Close`, presence, typed EOF, independent
+state and retained payload instead of obsolete union tags. Public reference
+outcomes remain unchanged; the numeric native cancellation fixture observes
+`SourceCursor.Next` instead of the removed cursor method, preserving its
+same-worker admission, no-publication, join and recovery assertions.
+
+```sh
+make check RUN='^TestSourceProtocol(Substitution|Occurrence|CursorOwnership|Presence|Cleanup|Cancellation|BorrowedLifetime)$'
+make check RACE=1 RUN='^TestSourceProtocol(CursorOwnership|Presence|Cleanup|Cancellation|BorrowedLifetime)$'
+make check RUN='^Test(JSONEachFromPaddingAndTargetSlot|JSONElementsNullPresenceAndPadding)$'
+make check RUN='^TestACLValues(Invocation|ScanCancellation)$'
+make check RUN='^TestReferenceJSONRecord(Values|Metadata|Grammar|Held|Composition|Diagnostics)$'
+make check REFERENCE=1 RUN='^TestReferenceJSONRecord(Values|Metadata|Grammar|Held|Composition|Diagnostics)$'
+```
+
+The complete family-specific public selectors remain in their owning reference
+READMEs (numeric, binary_json_arrays, strings, patterns_encoding, types,
+catalogs, locking_transactions, object_address and object_grants). Each selected
+batch requires native and pinned PostgreSQL modes; whole-project quickcheck is
+Docker-free, not a substitute for that proof.
+
 
 Run from repository root; use `make check RUN='...'` for individual or small
 cohesive selections. Registry shape and claims:

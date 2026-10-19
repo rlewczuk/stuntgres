@@ -37,8 +37,8 @@ func TestQueryWindowOffsetLowering(t *testing.T) {
 	b.queryFrame = 7
 	marker := stringSplitMarker(t, b, 11, stringSplitLiteral(b, "a,b"), stringSplitLiteral(b, ","))
 	peer := stringSplitMarker(t, b, 21, stringSplitLiteral(b, "x,y,z"), stringSplitLiteral(b, ","))
-	markerArgs := append([]expr.Expr(nil), functionCallArguments(marker)...)
-	peerArgs := append([]expr.Expr(nil), functionCallArguments(peer)...)
+	markerArgs := append([]expr.Expr(nil), expr.Expr(marker).(expr.Composite).Children()...)
+	peerArgs := append([]expr.Expr(nil), expr.Expr(peer).(expr.Composite).Children()...)
 	argument := stringSplitLiteral(b, "value")
 	offset, err := sqltype.Integer(b.typ(sqltype.Int4), 100)
 	if err != nil {
@@ -77,7 +77,7 @@ func TestQueryWindowOffsetLowering(t *testing.T) {
 	if !reflect.DeepEqual(calls[0].argument, argument) || !reflect.DeepEqual(calls[0].ordinal, ordinal) || !reflect.DeepEqual(calls[1], retainedCalls[1]) {
 		t.Fatal("ordered default writeback displaced another child", calls)
 	}
-	if !reflect.DeepEqual(functionCallArguments(marker), markerArgs) || !reflect.DeepEqual(functionCallArguments(peer), peerArgs) || !reflect.DeepEqual(retainedCalls[0].defaultValue, marker) || !reflect.DeepEqual(retainedCompanion, []expr.Expr{marker, peer}) || !reflect.DeepEqual(retainedSpecs[0].partition, []expr.Expr{stringSplitLiteral(b, "partition")}) || !reflect.DeepEqual(retainedSpecs[0].order, []sortKey{{expression: stringSplitLiteral(b, "order")}}) {
+	if !reflect.DeepEqual(expr.Expr(marker).(expr.Composite).Children(), markerArgs) || !reflect.DeepEqual(expr.Expr(peer).(expr.Composite).Children(), peerArgs) || !reflect.DeepEqual(retainedCalls[0].defaultValue, marker) || !reflect.DeepEqual(retainedCompanion, []expr.Expr{marker, peer}) || !reflect.DeepEqual(retainedSpecs[0].partition, []expr.Expr{stringSplitLiteral(b, "partition")}) || !reflect.DeepEqual(retainedSpecs[0].order, []sortKey{{expression: stringSplitLiteral(b, "order")}}) {
 		t.Fatal("lowering mutated retained input ownership")
 	}
 	node, ok := root.(*setProjectNode)
@@ -120,7 +120,7 @@ func TestQueryWindowOffsetLowering(t *testing.T) {
 	}
 	// The reusable analyzed markers still own their original arguments after the
 	// executable stage has consumed them, rather than retaining execution buffers.
-	if !reflect.DeepEqual(functionCallArguments(marker), markerArgs) || !reflect.DeepEqual(functionCallArguments(peer), peerArgs) {
+	if !reflect.DeepEqual(expr.Expr(marker).(expr.Composite).Children(), markerArgs) || !reflect.DeepEqual(expr.Expr(peer).(expr.Composite).Children(), peerArgs) {
 		t.Fatal("execution mutated retained marker arguments")
 	}
 }

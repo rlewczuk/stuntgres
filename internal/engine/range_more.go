@@ -25,16 +25,6 @@ func (e unnestExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted unnest call")
 }
-func (e unnestExpression) mapChildren(mapper func(expr.Expr) (expr.Expr, bool, error)) (unnestExpression, bool, error) {
-	arg, changed, err := mapper(e.args[0])
-	if err != nil {
-		return e, false, err
-	}
-	if changed {
-		e.args = []expr.Expr{arg}
-	}
-	return e, changed, nil
-}
 func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (expr.Expr, error) {
 	var small [1]functions.Argument
 	var operands []functions.Argument

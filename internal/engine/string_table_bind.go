@@ -10,68 +10,11 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func isStringSet(expr expr.Expr) bool {
-	e, ok := expr.(functions.String)
-	return ok && e.Plan.Name() == "string_to_table"
-}
-func isQuerySet(expr expr.Expr) bool {
-	if _, ok := expr.(extensionPathsExpression); ok {
-		return true
-	}
-	if _, ok := expr.(catalogForeignKeysExpression); ok {
-		return true
-	}
-	if call, ok := expr.(transactionIdentityExpression); ok {
-		return call.kind == identityMembers
-	}
-	if call, ok := expr.(functions.ACLValue); ok {
-		return call.Kind == functions.ACLExplode
-	}
-	if record, ok := expr.(functions.JSONRecord); ok {
-		return record.Plan.ReturnsSet()
-	}
-	if call, ok := expr.(functions.JSONBRecord); ok {
-		return call.ReturnsSet()
-	}
-	switch expr.(type) {
-	case functions.JSONBPathQuery:
-		return true
-	case functions.RegexpSet, functions.JSONKeys, functions.JSONEach, functions.JSONElements, functions.JSONBElements, seriesExpression, subscriptsExpression, unnestExpression:
-		return true
-	}
-	return isStringSet(expr)
-}
-func validFunctionSourceCall(expr expr.Expr) bool {
-	switch call := expr.(type) {
-	case functions.JSONBPathQuery, catalogUserNameExpression, catalogForeignKeysExpression, extensionPathsExpression:
-		return true
-	case functions.ACLValue:
-		return call.Kind != functions.ACLContains
-	case objectAddressExpression, functions.JSONBRecord:
-		return true
-	case transactionIdentityExpression:
-		return true
-	case commitTimestampExpression, functions.JSONRecord:
-		return true
-	case functions.String:
-		return isStringSet(call)
-	case functions.RegexpSet:
-		return call.Plan.ReturnsSet()
-	case functions.JSONKeys, functions.JSONEach, functions.JSONElements, functions.JSONBElements, seriesExpression, subscriptsExpression, unnestExpression:
-		return true
-	case functions.RangeInspect:
-		return call.Plan.Operation() == sqltype.RangeConstruct
-	case functions.Binary:
-		return parser.JSONFunctionName(call.Plan.Name())
-	case functions.Regexp:
-		return !call.Plan.ReturnsSet()
-	default:
-		return false
-	}
-}
+func sourceReturnsSet(e expr.Expr) bool { return expr.IsSetSource(e) }
+func sourceAdmitted(e expr.Expr) bool   { return expr.AdmitsSource(e) }
 
 // Selected rendering and binding share a lane; typed admission remains owned
-// by validFunctionSourceCall after ordinary function resolution.
+// by the node's SourceAdmission after ordinary function resolution.
 func selectedFunctionSourceName(name string) bool {
 	return name == "jsonb_path_query" || parser.RegexpFunctionName(name) || parser.JSONFunctionName(name) ||
 		parser.CatalogRelationFunctionName(name) ||
@@ -80,13 +23,7 @@ func selectedFunctionSourceName(name string) bool {
 }
 
 // A selected scalar OUT name controls the column label, not the range alias.
-func functionScalarOutName(expr expr.Expr) string {
-	switch expr.(type) {
-	case functions.JSONElements, functions.JSONBElements:
-		return "value"
-	}
-	return ""
-}
+func sourceOutName(e expr.Expr) string { return expr.SourceOutName(e) }
 
 // FROM placement follows successful call completion, not lexical offsets.
 // enterQuery isolates this observation from expression-owned child queries.
@@ -108,180 +45,10 @@ func (b *expressionBinder) bindFunctionSource(raw parser.FunctionExpr) (expr.Exp
 	if _, ok := expr.(objectAddressExpression); ok {
 		b.catalogSnapshot = true
 	}
-	if !isQuerySet(expr) && b.fromSetObservation != before {
+	if !sourceReturnsSet(expr) && b.fromSetObservation != before {
 		return nil, nestedFromSetError(b.fromSetObservation.pos)
 	}
 	return expr, nil
-}
-func functionCallArguments(bound expr.Expr) []expr.Expr {
-	switch call := bound.(type) {
-	case functions.JSONBPathQuery:
-		return call.Children()
-	case catalogUserNameExpression:
-		return []expr.Expr{call.arg}
-	case catalogForeignKeysExpression:
-		return nil
-	case extensionPathsExpression:
-		return []expr.Expr{call.arg}
-	case functions.ACLValue:
-		return call.Children()
-	case objectAddressExpression:
-		return call.args[:]
-	case functions.JSONRecord:
-		return call.Args
-	case functions.JSONBRecord:
-		return call.Args
-	case transactionIdentityExpression:
-		if call.arg != nil {
-			return []expr.Expr{call.arg}
-		}
-		return nil
-	case commitTimestampExpression:
-		if call.arg != nil {
-			return []expr.Expr{call.arg}
-		}
-		return nil
-	case seriesExpression:
-		return call.args
-	case subscriptsExpression:
-		return call.args
-	case unnestExpression:
-		return call.args
-	case functions.RangeInspect:
-		return call.Args
-	case functions.String:
-		return call.Args
-	case functions.RegexpSet:
-		return call.Args
-	case functions.JSONKeys:
-		return call.Args
-	case functions.JSONBElements:
-		return call.Args
-	case functions.JSONEach:
-		return call.Args
-	case functions.JSONElements:
-		return call.Args
-	case functions.Binary:
-		return call.Args
-	case functions.Regexp:
-		return call.Args
-	default:
-		return nil
-	}
-}
-func withFunctionCallArguments(bound expr.Expr, args []expr.Expr) (expr.Expr, error) {
-	switch call := bound.(type) {
-	case functions.JSONBPathQuery:
-		if len(args) != 4 {
-			return nil, fmt.Errorf("invalid JSONPath query arguments")
-		}
-		return call.Reconstruct(call.Info, [4]expr.Expr{args[0], args[1], args[2], args[3]})
-	case catalogUserNameExpression:
-		if len(args) != 1 {
-			return nil, fmt.Errorf("stuntgres: invalid catalog role-name arguments")
-		}
-		call.arg = args[0]
-		return call, nil
-	case catalogForeignKeysExpression:
-		if len(args) != 0 {
-			return nil, fmt.Errorf("stuntgres: invalid catalog foreign-key arguments")
-		}
-		return call, nil
-	case extensionPathsExpression:
-		if len(args) != 1 {
-			return nil, fmt.Errorf("stuntgres: invalid extension path arguments")
-		}
-		call.arg = args[0]
-		return call, nil
-	case functions.ACLValue:
-		if len(args) != len(call.Children()) {
-			return nil, fmt.Errorf("stuntgres: invalid ACL call arguments")
-		}
-		copy(call.Args[:], args)
-		return call, nil
-	case objectAddressExpression:
-		if len(args) != 3 {
-			return nil, fmt.Errorf("stuntgres: invalid object address arguments")
-		}
-		copy(call.args[:], args)
-		return call, nil
-	case functions.JSONRecord:
-		return call.Reconstruct(call.Info, args)
-	case functions.JSONBRecord:
-		return call.Reconstruct(call.Info, args)
-	case transactionIdentityExpression:
-		if (call.arg == nil) != (len(args) == 0) || len(args) > 1 {
-			return nil, fmt.Errorf("stuntgres: invalid transaction identity arguments")
-		}
-		if len(args) == 1 {
-			call.arg = args[0]
-		}
-		return call, nil
-	case commitTimestampExpression:
-		if len(args) != 0 {
-			if call.arg == nil || len(args) != 1 {
-				return nil, fmt.Errorf("stuntgres: invalid commit timestamp arguments")
-			}
-			call.arg = args[0]
-		} else if call.arg != nil {
-			return nil, fmt.Errorf("stuntgres: missing commit timestamp argument")
-		}
-		return call, nil
-	case seriesExpression:
-		if len(args) != len(call.args) {
-			return nil, fmt.Errorf("stuntgres: invalid series arguments")
-		}
-		call.args = args
-		return call, nil
-	case subscriptsExpression:
-		if len(args) != len(call.args) {
-			return nil, fmt.Errorf("stuntgres: invalid subscripts arguments")
-		}
-		call.args = args
-		return call, nil
-	case unnestExpression:
-		if len(args) != 1 {
-			return nil, fmt.Errorf("stuntgres: invalid unnest arguments")
-		}
-		call.args = args
-		return call, nil
-	case functions.RangeInspect:
-		return call.Reconstruct(call.Info, args)
-	case functions.String:
-		call.Args = args
-		return call, nil
-	case functions.RegexpSet:
-		call.Args = args
-		return call, nil
-	case functions.JSONKeys:
-		if len(args) != 1 {
-			return nil, fmt.Errorf("stuntgres: invalid JSON keys arguments")
-		}
-		call.Args = args
-		return call, nil
-	case functions.JSONBElements:
-		return call.Reconstruct(call.Info, args)
-	case functions.JSONEach:
-		if len(args) != 1 {
-			return nil, fmt.Errorf("stuntgres: invalid JSON each arguments")
-		}
-		call.Args = args
-		return call, nil
-	case functions.JSONElements:
-		if len(args) != 1 {
-			return nil, fmt.Errorf("stuntgres: invalid JSON elements arguments")
-		}
-		call.Args = args
-		return call, nil
-	case functions.Binary:
-		call.Args = args
-		return call, nil
-	case functions.Regexp:
-		call.Args = args
-		return call, nil
-	default:
-		return nil, fmt.Errorf("stuntgres: invalid closed function call")
-	}
 }
 
 func (b *expressionBinder) stringSetAllowed(pos parser.Position) error {
@@ -358,7 +125,8 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 		if len(call.ColumnDefinitions) != 0 {
 			return nil, queryNamespace{}, expr.ErrorAt("42601", functionColumnDefinitionMessage(bound), call.ColumnDefinitions[0].Name.Pos)
 		}
-		if !isStringSet(bound) {
+		stringCall, stringOwner := bound.(functions.String)
+		if !stringOwner || stringCall.Plan.Name() != "string_to_table" {
 			return nil, queryNamespace{}, expr.ErrorAt("0A000", "function table source is unsupported", call.Pos)
 		}
 		calls[i] = bound
@@ -389,7 +157,7 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 // Only local expressions are rewritten; expression-owned queries retain their
 // own stage/frame ownership through the existing mapper.
 func (b *expressionBinder) mapQuerySetStage(bound expr.Expr, leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, error) {
-	mapped, _, err := mapBoundExpression(b.bindingCatalog(), bound, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, func(n LogicalNode) (LogicalNode, error) { return n, nil }, nil, func(e expr.Expr) (expr.Expr, bool, error) {
+	mapped, _, err := mapBoundExpressionReader(b.bindingCatalog(), nil, bound, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, func(n LogicalNode) (LogicalNode, error) { return n, nil }, nil, true, func(e expr.Expr) (expr.Expr, bool, error) {
 		// Window slots are assigned through shared binder-owned pointers. A
 		// local SRF rewrite must not clone them before their final slot shift.
 		if _, ok := e.(*windowExpression); ok {
@@ -435,7 +203,7 @@ func (b *expressionBinder) stringFromContext() bool {
 func (b *expressionBinder) functionCaptures(calls []expr.Expr) []functionCorrelation {
 	var captures []functionCorrelation
 	for _, call := range calls {
-		for _, arg := range functionCallArguments(call) {
+		for _, arg := range call.(expr.Composite).Children() {
 			walkQueryArgumentExpression(arg, func(expr expr.Expr) {
 				column, ok := expr.(columnExpression)
 				if !ok || column.frame != b.frameID() {

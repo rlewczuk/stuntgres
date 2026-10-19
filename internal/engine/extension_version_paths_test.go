@@ -18,7 +18,7 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 	if err := call.validate(); err != nil {
 		t.Fatal(err)
 	}
-	if call.Properties().Volatility != expr.Stable || call.arg.ResultUsage().Type.ID() != sqltype.Name || !isQuerySet(call) || !validFunctionSourceCall(call) {
+	if call.Properties().Volatility != expr.Stable || call.arg.ResultUsage().Type.ID() != sqltype.Name || !sourceReturnsSet(call) || !sourceAdmitted(call) {
 		t.Fatal("typed SRF contract")
 	}
 	count := 0
@@ -38,12 +38,12 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 	if err := validateGenerationPlan(e.CatalogRead(), nil, mapped); err != nil {
 		t.Fatal("persisted typed plan validation", err)
 	}
-	args := functionCallArguments(call)
-	reconstructed, err := withFunctionCallArguments(call, args)
+	args := expr.Expr(call).(expr.Composite).Children()
+	reconstructed, err := expr.Substitute(expr.Expr(call).(expr.Composite), expr.InfoOf(call), args)
 	if err != nil || !sameGroupExpression(call, reconstructed) {
 		t.Fatal("path reconstruction", err)
 	}
-	if _, err := withFunctionCallArguments(call, nil); err == nil {
+	if _, err := expr.Substitute(expr.Expr(call).(expr.Composite), expr.InfoOf(call), nil); err == nil {
 		t.Fatal("missing reconstructed argument admitted")
 	}
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)

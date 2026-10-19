@@ -10,7 +10,7 @@ import (
 )
 
 // A series is a retained typed target marker, never an executable generator.
-// Invocation-private arithmetic lives in the shared functionSetCursor.
+// Invocation-private arithmetic lives in the owner's source cursor.
 type seriesExpression struct {
 	expr.Info
 	args []expr.Expr
@@ -22,24 +22,6 @@ func (e seriesExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted generate_series set call")
-}
-
-func (e seriesExpression) mapChildren(mapper func(expr.Expr) (expr.Expr, bool, error)) (seriesExpression, bool, error) {
-	changed := false
-	for i, arg := range e.args {
-		next, did, err := mapper(arg)
-		if err != nil {
-			return e, false, err
-		}
-		if did {
-			if !changed {
-				e.args = append([]expr.Expr(nil), e.args...)
-			}
-			e.args[i] = next
-			changed = true
-		}
-	}
-	return e, changed, nil
 }
 
 type seriesSignature struct {

@@ -43,7 +43,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 		if shape.ID() != 2249 || shape.CompositeLen() != 2 || shape.CompositeMember(0).Name != "key" || shape.CompositeMember(1).Name != "value" || shape.CompositeMember(0).Usage.Type != b.typ(sqltype.Text) || shape.CompositeMember(1).Usage.Type != b.typ(valueID) || !validExpressionUsage(view, original.ResultUsage()) {
 			t.Fatal("analysis shape", shape)
 		}
-		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.queryHasTargetSet || !isQuerySet(original) || querySetDepth(original) != 1 {
+		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.queryHasTargetSet || !sourceReturnsSet(original) || querySetDepth(original) != 1 {
 			t.Fatal("set properties", original)
 		}
 		fresh := jsonObjectUnitTypes()
@@ -55,12 +55,12 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 		if next.ResultUsage().Type == shape || next.Plan.ResultUsage() != next.ResultUsage() || next.ResultUsage().Type.CompositeMember(0).Usage.Type != fresh[sqltype.Text] || next.ResultUsage().Type.CompositeMember(1).Usage.Type != fresh[valueID] || next.Args[0].ResultUsage().Type != fresh[inputID] || next.SourcePosition() != original.SourcePosition() || next.Properties() != original.Properties() {
 			t.Fatal("mixed-generation remap", next)
 		}
-		cursor, err := openFunctionCall(&EvalContext{Context: context.Background()}, next)
+		cursor, err := openFunctionSource(&EvalContext{Context: context.Background()}, next)
 		if err != nil {
 			t.Fatal(err)
 		}
-		row, present, err := cursor.next(context.Background(), next.ResultUsage().Type)
-		cursor.close()
+		row, present, err := cursor.Next(context.Background())
+		cursor.Close()
 		if err != nil || !present || row.Type() != next.ResultUsage().Type || row.CompositeField(0).Type() != fresh[sqltype.Text] || row.CompositeField(1).Type() != fresh[valueID] {
 			t.Fatal("remapped provider", row, present, err)
 		}
@@ -78,11 +78,11 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 			t.Fatal("stored reconstruction", clone, err)
 		}
 		folded, _, err := preflightCoercions(&EvalContext{Context: context.Background()}, original)
-		if err != nil || !isQuerySet(folded) {
+		if err != nil || !sourceReturnsSet(folded) {
 			t.Fatal("preflight folded set", folded, err)
 		}
 		folded, _, err = simplifyConditional(&EvalContext{Context: context.Background()}, original, false)
-		if err != nil || !isQuerySet(folded) {
+		if err != nil || !sourceReturnsSet(folded) {
 			t.Fatal("simplifier folded set", folded, err)
 		}
 		text, err := (pgRenderer{view: view}).sql(context.Background(), original, pgRenderParent{})
@@ -151,14 +151,15 @@ func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 		if err != nil || present {
 			t.Fatal("exhausted source", present, err)
 		}
-		// The same invocation in a SELECT stage stores one record slot.
-		invocation, err = openFunctionInvocation(&EvalContext{Context: context.Background()}, &functionFromNode{calls: []expr.Expr{marker}})
+		// The real target stage stores one record slot instead of FROM fields.
+		node := regexpSetUnitLayout(&setProjectNode{querySchema: querySchema{{Usage: marker.ResultUsage()}}, child: &singletonNode{}, calls: []expr.Expr{marker}, frame: 1})
+		stage, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, node)
 		if err != nil {
 			t.Fatal(err)
 		}
 		target := make([]sqltype.Value, 1)
-		present, err = invocation.next(context.Background(), []expr.Expr{marker}, target, nil)
-		invocation.close()
+		present, err = stage.Next(context.Background(), target)
+		stage.Close()
 		if err != nil || !present || target[0].CompositeLen() != 2 {
 			t.Fatal("target flattened", target, present, err)
 		}

@@ -75,7 +75,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				}
 			} else {
 				enum, ok := node.(unnestExpression)
-				if !ok || !validFunctionSourceCall(enum) || !binder.queryHasTargetSet {
+				if !ok || !sourceAdmitted(enum) || !binder.queryHasTargetSet {
 					t.Fatal("lost genuine set carrier")
 				}
 				captured, ref = enum.procedure, enum.ref
@@ -91,12 +91,12 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					}
 				}
 				if tc.name == "enum_null" || tc.name == "enum_parameter" {
-					cursor, err := openFunctionCall(&evaluation, enum)
+					cursor, err := openFunctionSource(&evaluation, enum)
 					if err != nil {
 						t.Fatal(err)
 					}
-					_, present, err := cursor.next(evaluation.Context, enum.Usage.Type)
-					cursor.close()
+					_, present, err := cursor.Next(evaluation.Context)
+					cursor.Close()
 					if err != nil || present {
 						t.Fatal("NULL enum is not an empty set", present, err)
 					}

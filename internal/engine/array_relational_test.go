@@ -151,21 +151,21 @@ func TestArrayRelationalUnnestCursor(t *testing.T) {
 	var evaluations int
 	input, _ := e.args[0].Eval(c)
 	e.args[0] = queryProbe(e.args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { evaluations++; return input, nil })
-	first, err := openFunctionCall(c, e)
+	first, err := openFunctionSource(c, e)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer first.close()
-	second, err := openFunctionCall(c, e)
+	defer first.Close()
+	second, err := openFunctionSource(c, e)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer second.close()
-	if first.array != input || second.array != input {
+	defer second.Close()
+	if first.Value != input || second.Value != input {
 		t.Fatal("copied input payload")
 	}
 	for i, want := range []any{int64(1), nil, int64(3), int64(4)} {
-		got, present, err := first.next(c.Context, e.Usage.Type)
+		got, present, err := first.Next(c.Context)
 		if err != nil || !present || got.Type() != e.Usage.Type {
 			t.Fatal(i, got, present, err)
 		}
@@ -180,10 +180,10 @@ func TestArrayRelationalUnnestCursor(t *testing.T) {
 			}
 		}
 	}
-	if got, present, err := first.next(c.Context, e.Usage.Type); err != nil || present || !got.IsNull() {
+	if got, present, err := first.Next(c.Context); err != nil || present || !got.IsNull() {
 		t.Fatal(got, present, err)
 	}
-	if got, present, err := second.next(c.Context, e.Usage.Type); err != nil || !present || got.IsNull() {
+	if got, present, err := second.Next(c.Context); err != nil || !present || got.IsNull() {
 		t.Fatal("shared cursor position", got, present, err)
 	}
 	if evaluations != 2 {
@@ -194,14 +194,14 @@ func TestArrayRelationalUnnestCursor(t *testing.T) {
 		if input == "{1}" {
 			e.args[0] = literalExpression{Info: expr.Info{Usage: e.args[0].ResultUsage()}, value: sqltype.Null(e.args[0].ResultUsage().Type)}
 		}
-		cursor, err := openFunctionCall(c, e)
+		cursor, err := openFunctionSource(c, e)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if v, present, err := cursor.next(c.Context, e.Usage.Type); err != nil || present || !v.IsNull() || v.Type() != e.Usage.Type {
+		if v, present, err := cursor.Next(c.Context); err != nil || present || !v.IsNull() || v.Type() != e.Usage.Type {
 			t.Fatal(v, present, err)
 		}
-		cursor.close()
+		cursor.Close()
 	}
 }
 
@@ -565,14 +565,14 @@ func TestArrayRelationalCancellation(t *testing.T) {
 	if result, err := call.Eval(c); err != nil || result.ArrayLen() != 1024 {
 		t.Fatal("owner did not recover", result, err)
 	}
-	cursor, err := openFunctionCall(c, arrayRelationalUnitUnnest(t, "{1,2}"))
+	cursor, err := openFunctionSource(c, arrayRelationalUnitUnnest(t, "{1,2}"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cursor.close()
+	defer cursor.Close()
 	canceled, stop := context.WithCancel(context.Background())
 	stop()
-	if _, _, err := cursor.next(canceled, call.Usage.Type.Element()); !errors.Is(err, context.Canceled) {
+	if _, _, err := cursor.Next(canceled); !errors.Is(err, context.Canceled) {
 		t.Fatal(fmt.Sprint(err))
 	}
 }

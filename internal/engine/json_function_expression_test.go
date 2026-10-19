@@ -96,7 +96,7 @@ func TestJSONFunctionKeysMarkerPropertiesAndPlacement(t *testing.T) {
 			t.Fatal(err)
 		}
 		marker, ok := node.(functions.JSONKeys)
-		if !ok || !marker.Properties().StageDependent || !marker.Properties().ParameterDependent || marker.Properties().RowDependent || marker.Properties().Volatility != expr.Immutable || !b.queryHasTargetSet || !isQuerySet(marker) {
+		if !ok || !marker.Properties().StageDependent || !marker.Properties().ParameterDependent || marker.Properties().RowDependent || marker.Properties().Volatility != expr.Immutable || !b.queryHasTargetSet || !sourceReturnsSet(marker) {
 			t.Fatal(node)
 		}
 		// Each family owns its own parameter signature, never infers from a Go value.
@@ -139,12 +139,12 @@ func TestJSONFunctionKeysRetagWalkRewriteAndDeparse(t *testing.T) {
 	if next.ResultUsage().Type != fresh[sqltype.Text] || next.Args[0].ResultUsage().Type != fresh[sqltype.JSON] || next.Plan.ResultUsage() != next.ResultUsage() || next.SourcePosition() != original.SourcePosition() || next.Properties() != original.Properties() {
 		t.Fatal(next)
 	}
-	cursor, err := openFunctionCall(&EvalContext{Context: context.Background()}, next)
+	cursor, err := openFunctionSource(&EvalContext{Context: context.Background()}, next)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cursor.close()
-	value, present, err := cursor.next(context.Background(), fresh[sqltype.Text])
+	defer cursor.Close()
+	value, present, err := cursor.Next(context.Background())
 	text, _ := value.Text()
 	if err != nil || !present || text != "b" || value.Type() != fresh[sqltype.Text] {
 		t.Fatal(value, present, err)
@@ -163,11 +163,11 @@ func TestJSONFunctionKeysRetagWalkRewriteAndDeparse(t *testing.T) {
 		t.Fatal(clone, err)
 	}
 	folded, _, err := preflightCoercions(&EvalContext{Context: context.Background()}, original)
-	if err != nil || !isQuerySet(folded) {
+	if err != nil || !sourceReturnsSet(folded) {
 		t.Fatal("preflight folded set", folded, err)
 	}
 	folded, _, err = simplifyConditional(&EvalContext{Context: context.Background()}, original, false)
-	if err != nil || !isQuerySet(folded) {
+	if err != nil || !sourceReturnsSet(folded) {
 		t.Fatal("conditional folded set", folded, err)
 	}
 	text, err = (pgRenderer{view: view}).sql(context.Background(), original, pgRenderParent{})
@@ -220,7 +220,7 @@ func TestJSONFunctionSetZipPaddingEmptyAndChildOnce(t *testing.T) {
 	}
 	failure := errors.New("selected child failure")
 	a.Args = []expr.Expr{queryProbe(json.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
-	if cursor, err := openFunctionCall(&EvalContext{Context: context.Background()}, a); !errors.Is(err, failure) || cursor.initialized {
+	if cursor, err := openFunctionSource(&EvalContext{Context: context.Background()}, a); !errors.Is(err, failure) || cursor.Type != nil {
 		t.Fatal("published failed invocation", cursor, err)
 	}
 }

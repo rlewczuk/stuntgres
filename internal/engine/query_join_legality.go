@@ -730,12 +730,6 @@ func joinExpressionSides(node expr.Expr, leftWidth, rightWidth int) (uint8, erro
 		children = []expr.Expr{e.left, e.right}
 	case likeExpression:
 		children = []expr.Expr{e.left, e.right}
-	case seriesExpression:
-		children = e.args
-	case subscriptsExpression:
-		children = e.args
-	case unnestExpression:
-		children = e.args
 	case nullTestExpression:
 		children = []expr.Expr{e.child}
 	case truthTestExpression:

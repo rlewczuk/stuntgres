@@ -475,7 +475,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			}
 			function, composite := root.(*functionFromNode)
 			composite = composite && len(function.calls) == 1 && function.calls[0].ResultUsage().Type.BaseType().IsComposite()
-			hasScalarOut := function != nil && len(function.calls) == 1 && functionScalarOutName(function.calls[0]) != ""
+			hasScalarOut := function != nil && len(function.calls) == 1 && sourceOutName(function.calls[0]) != ""
 			if calls == 1 && !composite && !hasScalarOut {
 				ns.columns[0].descriptor.Name = n.Name.Text
 			}
@@ -905,21 +905,21 @@ func rebaseFunctionCorrelation(view catalog.Read, root LogicalNode, frame uint32
 		copy.calls = append([]expr.Expr(nil), n.calls...)
 		for i := range copy.calls {
 			var args []expr.Expr
-			for j, arg := range functionCallArguments(copy.calls[i]) {
+			for j, arg := range copy.calls[i].(expr.Composite).Children() {
 				next, changed, err := rewrite(arg)
 				if err != nil {
 					return nil, err
 				}
 				if changed {
 					if args == nil {
-						args = append([]expr.Expr(nil), functionCallArguments(copy.calls[i])...)
+						args = append([]expr.Expr(nil), copy.calls[i].(expr.Composite).Children()...)
 					}
 					args[j] = next
 				}
 			}
 			if args != nil {
 				var err error
-				copy.calls[i], err = withFunctionCallArguments(copy.calls[i], args)
+				copy.calls[i], err = expr.Substitute(copy.calls[i].(expr.Composite), expr.InfoOf(copy.calls[i]), args)
 				if err != nil {
 					return nil, err
 				}
@@ -998,7 +998,7 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
-		if !validFunctionSourceCall(node) {
+		if !sourceAdmitted(node) {
 			return nil, queryNamespace{}, expr.ErrorAt("0A000", "function table source is unsupported", raw.Pos)
 		}
 		calls[i] = node
@@ -1008,7 +1008,7 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 				schema = append(schema, catalog.Column{Name: member.Name, Usage: member.Usage})
 			}
 		} else {
-			if out := functionScalarOutName(node); out != "" {
+			if out := sourceOutName(node); out != "" {
 				name = out
 			}
 			schema = append(schema, catalog.Column{Name: name, Usage: node.ResultUsage()})

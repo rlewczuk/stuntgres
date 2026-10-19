@@ -354,18 +354,6 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 		})
 		changed = changed || replaced
 		expression = e
-	case seriesExpression:
-		return e.mapChildren(func(arg expr.Expr) (expr.Expr, bool, error) {
-			return simplifyConditional(c, arg, decisiveDefaults)
-		})
-	case subscriptsExpression:
-		return e.mapChildren(func(arg expr.Expr) (expr.Expr, bool, error) {
-			return simplifyConditional(c, arg, decisiveDefaults)
-		})
-	case unnestExpression:
-		return e.mapChildren(func(arg expr.Expr) (expr.Expr, bool, error) {
-			return simplifyConditional(c, arg, decisiveDefaults)
-		})
 	case comparisonExpression:
 		e.left, err = child(e.left)
 		if err == nil {

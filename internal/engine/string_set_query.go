@@ -6,7 +6,6 @@ import (
 	"math"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 )
 
@@ -66,82 +65,11 @@ type setProjectNode struct {
 
 func (*setProjectNode) logicalNode() {}
 
-type functionCursorKind uint8
+type functionSetInvocation struct{ cursors []expr.SourceCursor }
 
-const (
-	functionStringCursor functionCursorKind = iota
-	functionOwnedSetCursor
-	functionScalarCursor
-	functionJSONKeysCursor
-	functionJSONEachCursor
-	functionJSONElementsCursor
-	functionJSONBElementsCursor
-	functionSeriesCursor
-	functionMultirangeCursor
-	functionArrayCursor
-	functionNumericSeriesCursor
-	functionJSONRecordCursor
-	functionACLCursor
-	functionCatalogKeysCursor
-)
-
-type functionSetCursor struct {
-	cursor                 sqltype.StringFieldCursor
-	keys                   sqltype.JSONKeyCursor
-	each                   sqltype.JSONEachCursor
-	record                 sqltype.JSONRecordCursor
-	binaryElements         sqltype.JSONBElementCursor
-	members                sqltype.MultirangeCursor
-	elements               sqltype.JSONElementsCursor
-	numericSeries          sqltype.NumericSeriesCursor
-	array                  sqltype.Value
-	owned                  []sqltype.Value
-	acl                    functions.ACLExplodeCursor
-	catalogKeys            *catalogForeignKeyValues
-	position               int
-	scalar                 sqltype.Value
-	kind                   functionCursorKind
-	exhausted, initialized bool
-	current, stop, step    int64
-}
-type functionSetInvocation struct{ cursors []functionSetCursor }
-
-func (s *functionSetCursor) close() {
-	if s.initialized && s.kind == functionStringCursor {
-		s.cursor.Close()
-	}
-	if s.initialized && s.kind == functionJSONKeysCursor {
-		s.keys.Close()
-	}
-	if s.initialized && s.kind == functionJSONEachCursor {
-		s.each.Close()
-	}
-	if s.initialized && s.kind == functionJSONBElementsCursor {
-		s.binaryElements.Close()
-	}
-	if s.initialized && s.kind == functionMultirangeCursor {
-		s.members.Close()
-	}
-	if s.initialized && s.kind == functionJSONElementsCursor {
-		s.elements.Close()
-	}
-	if s.initialized && s.kind == functionNumericSeriesCursor {
-		s.numericSeries.Close()
-	}
-	if s.initialized && s.kind == functionJSONRecordCursor {
-		s.record.Close()
-	}
-	if s.initialized && s.kind == functionACLCursor {
-		s.acl.Close()
-	}
-	s.owned = nil
-	s.catalogKeys = nil
-	s.array = sqltype.Value{}
-	s.exhausted = true
-}
 func (s *functionSetInvocation) close() {
 	for i := range s.cursors {
-		s.cursors[i].close()
+		s.cursors[i].Close()
 	}
 	s.cursors = nil
 }
@@ -180,18 +108,18 @@ func preflightFunctionFrom(c *EvalContext, n *functionFromNode) (LogicalNode, er
 	return &copy, nil
 }
 
-func (n *functionFromNode) openCall(c *EvalContext, i int) (functionSetCursor, error) {
+func (n *functionFromNode) openCall(c *EvalContext, i int) (expr.SourceCursor, error) {
 	if n.scalarNull != nil && n.scalarNull[i] {
 		if err := evaluationContext(c); err != nil {
-			return functionSetCursor{}, err
+			return expr.SourceCursor{}, err
 		}
-		return functionSetCursor{scalar: sqltype.Null(n.calls[i].ResultUsage().Type), kind: functionScalarCursor, initialized: true}, nil
+		return expr.ScalarSource(sqltype.Null(n.calls[i].ResultUsage().Type)), nil
 	}
-	return openFunctionCall(c, n.calls[i])
+	return openFunctionSource(c, n.calls[i])
 }
 
 func openFunctionInvocation(c *EvalContext, n *functionFromNode) (functionSetInvocation, error) {
-	s := functionSetInvocation{cursors: make([]functionSetCursor, len(n.calls))}
+	s := functionSetInvocation{cursors: make([]expr.SourceCursor, len(n.calls))}
 	for i := range n.calls {
 		cursor, err := n.openCall(c, i)
 		if err != nil {
@@ -202,455 +130,17 @@ func openFunctionInvocation(c *EvalContext, n *functionFromNode) (functionSetInv
 	}
 	return s, nil
 }
-func openFunctionCall(c *EvalContext, expression expr.Expr) (functionSetCursor, error) {
-	switch call := expression.(type) {
-	case functions.JSONBPathQuery:
-		values, err := call.EvalSet(c)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		return functionSetCursor{owned: values, kind: functionOwnedSetCursor, initialized: true}, nil
-	case catalogUserNameExpression:
-		value, err := call.Eval(c)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
-	case catalogForeignKeysExpression:
-		if err := evaluationContext(c); err != nil {
-			return functionSetCursor{}, err
-		}
-		if err := call.validate(); err != nil {
-			return functionSetCursor{}, err
-		}
-		return functionSetCursor{catalogKeys: call.metadata, kind: functionCatalogKeysCursor, initialized: true}, nil
-	case extensionPathsExpression:
-		rows, err := call.open(c)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		return functionSetCursor{owned: rows, kind: functionOwnedSetCursor, initialized: true}, nil
-	case transactionIdentityExpression:
-		if call.kind == identityMembers {
-			rows, err := call.openMembers(c)
-			if err != nil {
-				return functionSetCursor{}, err
-			}
-			return functionSetCursor{owned: rows, kind: functionOwnedSetCursor, initialized: true}, nil
-		}
-		value, err := call.Eval(c)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
-	case functions.ACLValue:
-		if call.Kind == functions.ACLExplode {
-			cursor, err := call.OpenExplode(c)
-			if err != nil {
-				return functionSetCursor{}, err
-			}
-			return functionSetCursor{acl: cursor, kind: functionACLCursor, initialized: true}, nil
-		}
-		value, err := call.Eval(c)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
-	case functions.JSONRecord:
-		if err := evaluationContext(c); err != nil {
-			return functionSetCursor{}, err
-		}
-		if !call.Plan.ReturnsSet() {
-			value, err := call.Eval(c)
-			if err != nil {
-				return functionSetCursor{}, err
-			}
-			return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
-		}
-		var values [2]sqltype.Value
-		for i, arg := range call.Args {
-			value, err := arg.Eval(c)
-			if err != nil {
-				return functionSetCursor{}, err
-			}
-			values[i] = value
-		}
-		cursor, err := call.Plan.Open(c.Context, values[:len(call.Args)], c.FunctionInput())
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		return functionSetCursor{record: cursor, kind: functionJSONRecordCursor, initialized: true}, nil
-	case functions.JSONBRecord:
-		if call.ReturnsSet() {
-			values, err := call.EvalSet(c)
-			if err != nil {
-				return functionSetCursor{}, err
-			}
-			return functionSetCursor{owned: values, kind: functionOwnedSetCursor, initialized: true}, nil
-		}
-		value, err := call.Eval(c)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
-	case seriesExpression:
-		if err := evaluationContext(c); err != nil {
-			return functionSetCursor{}, err
-		}
-		if len(call.args) != 2 && len(call.args) != 3 {
-			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid series arguments")
-		}
-		if call.ResultUsage().Type.ID() == sqltype.Numeric {
-			var values [3]sqltype.Value
-			for i, arg := range call.args {
-				value, err := arg.Eval(c)
-				if err != nil {
-					return functionSetCursor{}, err
-				}
-				values[i] = value
-			}
-			cursor, err := sqltype.OpenNumericSeries(c.Context, values[0], values[1], values[2:len(call.args)]...)
-			if err != nil {
-				return functionSetCursor{}, err
-			}
-			return functionSetCursor{kind: functionNumericSeriesCursor, initialized: true, numericSeries: cursor}, nil
-		}
-		var values [3]int64
-		values[2] = 1
-		null := false
-		for i, arg := range call.args {
-			v, err := arg.Eval(c)
-			if err != nil {
-				return functionSetCursor{}, err
-			}
-			if v.IsNull() {
-				null = true
-			} else {
-				values[i], err = v.Integer()
-				if err != nil {
-					return functionSetCursor{}, err
-				}
-			}
-		}
-		cursor := functionSetCursor{kind: functionSeriesCursor, initialized: true, current: values[0], stop: values[1], step: values[2], exhausted: null}
-		if null {
-			return cursor, nil
-		}
-		if cursor.step == 0 {
-			return functionSetCursor{}, sqlError("22023", "step size cannot equal zero")
-		}
-		cursor.exhausted = cursor.step > 0 && cursor.current > cursor.stop || cursor.step < 0 && cursor.current < cursor.stop
-		return cursor, nil
-	case unnestExpression:
-		if err := evaluationContext(c); err != nil {
-			return functionSetCursor{}, err
-		}
-		value, err := call.args[0].Eval(c)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		if input := call.args[0].ResultUsage().Type; input.BaseType().IsArray() {
-			if value.Type() != input || input.BaseType().Element() != call.ResultUsage().Type {
-				return functionSetCursor{}, fmt.Errorf("stuntgres: invalid array unnest generation")
-			}
-			return functionSetCursor{array: value, kind: functionArrayCursor, initialized: true, exhausted: value.IsNull() || value.ArrayLen() == 0}, nil
-		}
-		cursor, err := sqltype.OpenMultirange(c.Context, call.args[0].ResultUsage(), call.ResultUsage(), value)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		return functionSetCursor{members: cursor, kind: functionMultirangeCursor, initialized: true}, nil
-	case subscriptsExpression:
-		if err := evaluationContext(c); err != nil {
-			return functionSetCursor{}, err
-		}
-		if len(call.args) != 2 && len(call.args) != 3 {
-			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid subscripts arguments")
-		}
-		var values [3]sqltype.Value
-		null := false
-		for i, arg := range call.args {
-			value, err := arg.Eval(c)
-			if err != nil {
-				return functionSetCursor{}, err
-			}
-			values[i] = value
-			null = null || value.IsNull()
-		}
-		cursor := functionSetCursor{kind: functionSeriesCursor, initialized: true, exhausted: true, step: 1}
-		if null {
-			return cursor, nil
-		}
-		dimension, err := values[1].Integer()
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		if dimension <= 0 || dimension > int64(values[0].ArrayRank()) {
-			return cursor, nil
-		}
-		reverse := false
-		if len(call.args) == 3 {
-			reverse, err = values[2].Boolean()
-			if err != nil {
-				return functionSetCursor{}, err
-			}
-		}
-		dim := values[0].ArrayDimension(int(dimension) - 1)
-		lower := int64(dim.Lower)
-		upper := lower + int64(dim.Length) - 1
-		cursor.current, cursor.stop = lower, upper
-		if reverse {
-			cursor.current, cursor.stop, cursor.step = upper, lower, -1
-		}
-		cursor.exhausted = dim.Length == 0
-		return cursor, nil
-	case functions.JSONKeys:
-		if err := evaluationContext(c); err != nil {
-			return functionSetCursor{}, err
-		}
-		if len(call.Args) != 1 {
-			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid JSON keys arguments")
-		}
-		value, err := call.Args[0].Eval(c)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		cursor, err := call.Plan.Open(c.Context, value)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		return functionSetCursor{keys: cursor, kind: functionJSONKeysCursor, initialized: true}, nil
-	case functions.JSONBElements:
-		if err := evaluationContext(c); err != nil {
-			return functionSetCursor{}, err
-		}
-		if len(call.Args) != 1 {
-			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid JSONB elements arguments")
-		}
-		value, err := call.Args[0].Eval(c)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		cursor, err := call.Plan.Open(c.Context, value)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		return functionSetCursor{binaryElements: cursor, kind: functionJSONBElementsCursor, initialized: true}, nil
-	case functions.JSONEach:
-		if err := evaluationContext(c); err != nil {
-			return functionSetCursor{}, err
-		}
-		if len(call.Args) != 1 {
-			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid JSON each arguments")
-		}
-		value, err := call.Args[0].Eval(c)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		cursor, err := call.Plan.Open(c.Context, value)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		return functionSetCursor{each: cursor, kind: functionJSONEachCursor, initialized: true}, nil
-	case objectAddressExpression:
-		value, err := call.Eval(c)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
-	case commitTimestampExpression:
-		value, err := call.Eval(c)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
-	case functions.RangeInspect:
-		if !validFunctionSourceCall(call) {
-			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid closed function source")
-		}
-		value, err := call.Eval(c)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
-	case functions.JSONElements:
-		if err := evaluationContext(c); err != nil {
-			return functionSetCursor{}, err
-		}
-		if len(call.Args) != 1 {
-			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid JSON elements arguments")
-		}
-		value, err := call.Args[0].Eval(c)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		cursor, err := call.Plan.Open(c.Context, value)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		return functionSetCursor{elements: cursor, kind: functionJSONElementsCursor, initialized: true}, nil
-	case functions.Binary:
-		if !validFunctionSourceCall(call) {
-			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid closed function source")
-		}
-		value, err := call.Eval(c)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
-	case functions.RegexpSet:
-		values, err := call.EvalSet(c)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		return functionSetCursor{owned: values, kind: functionOwnedSetCursor, initialized: true}, nil
-	case functions.Regexp:
-		value, err := call.Eval(c)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		return functionSetCursor{scalar: value, kind: functionScalarCursor, initialized: true}, nil
-	case functions.String:
-		if !isStringSet(call) {
-			return functionSetCursor{}, fmt.Errorf("stuntgres: invalid closed function source")
-		}
-		var values [4]sqltype.Value
-		for j, arg := range call.Args {
-			v, err := arg.Eval(c)
-			if err != nil {
-				return functionSetCursor{}, err
-			}
-			values[j] = v
-		}
-		output := c.Output
-		scope := c.liveScope()
-		output.Regclass, output.Regtype = scope, scope
-		output.Regrole = scope
-		output.Regcollation, output.Regnamespace = scope, scope
-		output.Regproc = scope
-		output.Operator = scope
-		output.RegTS = scope
-		cursor, err := call.Plan.OpenStringTable(c.Context, values, c.Input, output)
-		if err != nil {
-			return functionSetCursor{}, err
-		}
-		return functionSetCursor{cursor: cursor, initialized: true}, nil
-	default:
-		return functionSetCursor{}, fmt.Errorf("stuntgres: invalid closed function source")
+func openFunctionSource(c *EvalContext, expression expr.Expr) (expr.SourceCursor, error) {
+	if !expr.AdmitsSource(expression) {
+		return expr.SourceCursor{}, fmt.Errorf("stuntgres: invalid closed function source")
 	}
-}
-func (s *functionSetInvocation) next(ctx context.Context, calls []expr.Expr, row []sqltype.Value, slots []int) (bool, error) {
-	present := false
-	for i := range s.cursors {
-		cursor := &s.cursors[i]
-		slot := i
-		if slots != nil {
-			slot = slots[i]
-		}
-		value, ok, err := cursor.next(ctx, calls[i].ResultUsage().Type)
-		if err != nil {
-			return false, err
-		}
-		row[slot] = value
-		present = present || ok
+	opening, ok := expression.(expr.SourceOpening)
+	if !ok {
+		return expr.SourceCursor{}, fmt.Errorf("stuntgres: invalid closed function source")
 	}
-	return present, ctx.Err()
+	return opening.OpenSource(c)
 }
 
-func (s *functionSetCursor) next(ctx context.Context, typ *sqltype.Descriptor) (sqltype.Value, bool, error) {
-	if err := ctx.Err(); err != nil {
-		return sqltype.Value{}, false, err
-	}
-	if s.exhausted {
-		return sqltype.Null(typ), false, nil
-	}
-	if !s.initialized {
-		return sqltype.Value{}, false, fmt.Errorf("stuntgres: unopened function set cursor")
-	}
-	if s.kind == functionACLCursor {
-		return s.acl.Next(ctx, typ)
-	}
-	if s.kind == functionCatalogKeysCursor {
-		return s.nextCatalogForeignKey(typ)
-	}
-	if s.kind == functionArrayCursor {
-		if s.position == s.array.ArrayLen() {
-			s.close()
-			return sqltype.Null(typ), false, nil
-		}
-		value := s.array.ArrayElement(s.position)
-		if value.Type() != typ {
-			return sqltype.Value{}, false, fmt.Errorf("stuntgres: invalid array unnest element generation")
-		}
-		s.position++
-		return value, true, nil
-	}
-	if s.kind == functionSeriesCursor {
-		if s.step > 0 && s.current > s.stop || s.step < 0 && s.current < s.stop {
-			s.exhausted = true
-			return sqltype.Null(typ), false, nil
-		}
-		value, err := sqltype.Integer(typ, s.current)
-		if err != nil {
-			return sqltype.Value{}, false, err
-		}
-		minimum, maximum := int64(math.MinInt64), int64(math.MaxInt64)
-		if typ.ID() == sqltype.Int4 {
-			minimum, maximum = math.MinInt32, math.MaxInt32
-		}
-		if s.step > 0 && s.current > maximum-s.step || s.step < 0 && s.current < minimum-s.step {
-			s.exhausted = true
-		} else {
-			s.current += s.step
-		}
-		return value, true, nil
-	}
-	if s.kind == functionOwnedSetCursor {
-		if s.position < len(s.owned) {
-			value := s.owned[s.position]
-			s.position++
-			return value, true, nil
-		}
-		s.close()
-		return sqltype.Null(typ), false, nil
-	}
-	if s.kind == functionScalarCursor {
-		if s.position == 0 {
-			s.position++
-			return s.scalar, true, nil
-		}
-		s.exhausted = true
-		return sqltype.Null(typ), false, nil
-	}
-	var value sqltype.Value
-	var present bool
-	var err error
-	if s.kind == functionNumericSeriesCursor {
-		value, present, err = s.numericSeries.Next(ctx)
-	} else if s.kind == functionJSONKeysCursor {
-		value, present, err = s.keys.Next(ctx)
-	} else if s.kind == functionJSONEachCursor {
-		value, present, err = s.each.Next(ctx)
-	} else if s.kind == functionJSONRecordCursor {
-		value, present, err = s.record.Next(ctx)
-	} else if s.kind == functionJSONBElementsCursor {
-		value, present, err = s.binaryElements.Next(ctx)
-	} else if s.kind == functionMultirangeCursor {
-		value, present, err = s.members.Next(ctx)
-	} else if s.kind == functionJSONElementsCursor {
-		value, present, err = s.elements.Next(ctx)
-	} else {
-		value, present, err = s.cursor.Next(ctx)
-	}
-	if err != nil {
-		return sqltype.Value{}, false, err
-	}
-	if !present {
-		s.close()
-		return sqltype.Null(typ), false, nil
-	}
-	return value, true, nil
-}
 func openFunctionFromNode(ctx context.Context, state *queryState, n *functionFromNode) (indexedStage, error) {
 	if n.frame == 0 {
 		return indexedStage{}, fmt.Errorf("stuntgres: invalid function source frame")
@@ -763,7 +253,7 @@ func openSetProjectNode(ctx context.Context, state *queryState, n *setProjectNod
 			child.Close()
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid string set call slot")
 		}
-		if !isQuerySet(n.calls[i]) || n.calls[i].ResultUsage() != n.Schema()[base+slot].Usage {
+		if !sourceReturnsSet(n.calls[i]) || n.calls[i].ResultUsage() != n.Schema()[base+slot].Usage {
 			child.Close()
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid function set call usage")
 		}
@@ -825,7 +315,7 @@ func openSetProjectNode(ctx context.Context, state *queryState, n *setProjectNod
 				evaluation.bindQueryRow(child.source, child.index(i))
 				evaluation.orderValues = child.orderRow(i)
 				copy(frame, evaluation.Row)
-				invocation = functionSetInvocation{cursors: make([]functionSetCursor, len(n.calls))}
+				invocation = functionSetInvocation{cursors: make([]expr.SourceCursor, len(n.calls))}
 			}
 			present := len(n.calls) == 0 // Zero-depth groups have one scalar attempt.
 			for _, step := range n.steps {
@@ -839,14 +329,14 @@ func openSetProjectNode(ctx context.Context, state *queryState, n *setProjectNod
 				}
 				call := n.calls[step.index]
 				cursor := &invocation.cursors[step.index]
-				if !cursor.initialized {
-					opened, err := openFunctionCall(&evaluation, call)
+				if cursor.Type == nil {
+					opened, err := openFunctionSource(&evaluation, call)
 					if err != nil {
 						return false, err
 					}
 					*cursor = opened
 				}
-				value, field, err := cursor.next(ctx, call.ResultUsage().Type)
+				value, field, err := cursor.Next(ctx)
 				if err != nil {
 					return false, err
 				}
@@ -904,7 +394,7 @@ func validateFunctionFromLayout(n *functionFromNode) error {
 			}
 		}
 		width := functionFromCallWidth(call)
-		if !validFunctionSourceCall(call) || width < 0 || offset+width > len(n.Schema()) {
+		if !sourceAdmitted(call) || width < 0 || offset+width > len(n.Schema()) {
 			return fmt.Errorf("stuntgres: invalid function source layout")
 		}
 		for j := range width {
@@ -934,7 +424,7 @@ func (s *functionSetInvocation) nextFrom(ctx context.Context, calls []expr.Expr,
 	present, offset := false, 0
 	for i := range s.cursors {
 		typ := calls[i].ResultUsage().Type
-		value, ok, err := s.cursors[i].next(ctx, typ)
+		value, ok, err := s.cursors[i].Next(ctx)
 		if err != nil {
 			return false, err
 		}

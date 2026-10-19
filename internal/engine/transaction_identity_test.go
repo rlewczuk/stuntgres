@@ -307,7 +307,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 		if err != nil || mapped.(transactionIdentityExpression).validate() != nil {
 			t.Fatal("retag provider", err)
 		}
-		if !reflect.DeepEqual(functionCallArguments(n), functionCallArguments(persisted)) {
+		if !reflect.DeepEqual(expr.Expr(n).(expr.Composite).Children(), expr.Expr(persisted).(expr.Composite).Children()) {
 			t.Fatal("source argument reconstruction")
 		}
 	}

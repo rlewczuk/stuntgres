@@ -30,7 +30,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			node, binder, evaluation := strictNullUnitBind(t, e, op, scope, tc.expression)
 			carrier, ok := node.(seriesExpression)
-			if !ok || len(carrier.args) != tc.arity || !validFunctionSourceCall(carrier) || !binder.queryHasTargetSet {
+			if !ok || len(carrier.args) != tc.arity || !sourceAdmitted(carrier) || !binder.queryHasTargetSet {
 				t.Fatal("original SRF arity/source/project carrier", node)
 			}
 			captured, err := expressionRoutineDescriptor(node)

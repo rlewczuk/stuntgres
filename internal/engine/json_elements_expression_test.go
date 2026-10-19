@@ -40,7 +40,7 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 		if original.ResultUsage().Type != b.typ(id) || original.ResultUsage().Type.IsComposite() || !validExpressionUsage(view, original.ResultUsage()) {
 			t.Fatal("scalar result usage", original)
 		}
-		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.queryHasTargetSet || !isQuerySet(original) || querySetDepth(original) != 1 {
+		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.queryHasTargetSet || !sourceReturnsSet(original) || querySetDepth(original) != 1 {
 			t.Fatal("set properties", original)
 		}
 		fresh := jsonObjectUnitTypes()
@@ -55,12 +55,12 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 		if original.ResultUsage().Type != b.typ(id) || original.Args[0].ResultUsage().Type != b.typ(sqltype.JSON) {
 			t.Fatal("retained marker mutated")
 		}
-		cursor, err := openFunctionCall(&EvalContext{Context: context.Background()}, next)
+		cursor, err := openFunctionSource(&EvalContext{Context: context.Background()}, next)
 		if err != nil {
 			t.Fatal(err)
 		}
-		value, present, err := cursor.next(context.Background(), fresh[id])
-		cursor.close()
+		value, present, err := cursor.Next(context.Background())
+		cursor.Close()
 		if err != nil || !present || value.Type() != fresh[id] {
 			t.Fatal("retagged provider", value, present, err)
 		}
@@ -78,11 +78,11 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 			t.Fatal("stored remap", clone, err)
 		}
 		folded, _, err := preflightCoercions(&EvalContext{Context: context.Background()}, original)
-		if err != nil || !isQuerySet(folded) {
+		if err != nil || !sourceReturnsSet(folded) {
 			t.Fatal("preflight folded set", folded, err)
 		}
 		folded, _, err = simplifyConditional(&EvalContext{Context: context.Background()}, original, false)
-		if err != nil || !isQuerySet(folded) {
+		if err != nil || !sourceReturnsSet(folded) {
 			t.Fatal("simplifier folded set", folded, err)
 		}
 		text, err := (pgRenderer{view: view}).sql(context.Background(), original, pgRenderParent{})
@@ -106,10 +106,10 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 		if err := validateFunctionFromLayout(root); err != nil {
 			t.Fatal(err)
 		}
-		if functionFromCallWidth(original) != 1 || functionScalarOutName(original) != "value" {
+		if functionFromCallWidth(original) != 1 || sourceOutName(original) != "value" {
 			t.Fatal("scalar OUT layout", original)
 		}
-		if functionScalarOutName(original.Args[0]) != "" {
+		if sourceOutName(original.Args[0]) != "" {
 			t.Fatal("OUT naming escaped selected function")
 		}
 	}
@@ -149,13 +149,14 @@ func TestJSONElementsNullPresenceAndPadding(t *testing.T) {
 		if err != nil || present {
 			t.Fatal("exhausted source", present, err)
 		}
-		invocation, err = openFunctionInvocation(&EvalContext{Context: context.Background()}, &functionFromNode{calls: []expr.Expr{marker}})
+		node := regexpSetUnitLayout(&setProjectNode{querySchema: querySchema{{Usage: marker.ResultUsage()}}, child: &singletonNode{}, calls: []expr.Expr{marker}, frame: 1})
+		stage, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, node)
 		if err != nil {
 			t.Fatal(err)
 		}
 		target := make([]sqltype.Value, 1)
-		present, err = invocation.next(context.Background(), []expr.Expr{marker}, target, nil)
-		invocation.close()
+		present, err = stage.Next(context.Background(), target)
+		stage.Close()
 		if err != nil || !present || target[0].Type() != marker.ResultUsage().Type || target[0].IsNull() != (name == "json_array_elements_text") {
 			t.Fatal("scalar target slot", target, present, err)
 		}

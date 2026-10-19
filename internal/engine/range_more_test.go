@@ -29,7 +29,7 @@ func moreUnitExpression(t *testing.T, view catalog.Read) unnestExpression {
 func TestRangeMoreExpressionCursor(t *testing.T) {
 	view := New().CatalogRead()
 	e := moreUnitExpression(t, view)
-	if !isQuerySet(e) || !validFunctionSourceCall(e) || len(functionCallArguments(e)) != 1 {
+	if !sourceReturnsSet(e) || !sourceAdmitted(e) || len(expr.Expr(e).(expr.Composite).Children()) != 1 {
 		t.Fatal("missing SRF classification")
 	}
 	c := &EvalContext{Context: context.Background()}
@@ -39,24 +39,24 @@ func TestRangeMoreExpressionCursor(t *testing.T) {
 	count := 0
 	value := e.args[0].(literalExpression).value
 	e.args[0] = queryProbe(e.args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { count++; return value, nil })
-	first, err := openFunctionCall(c, e)
+	first, err := openFunctionSource(c, e)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer first.close()
-	second, err := openFunctionCall(c, e)
+	defer first.Close()
+	second, err := openFunctionSource(c, e)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer second.close()
+	defer second.Close()
 	if count != 2 {
 		t.Fatal("argument not once per invocation", count)
 	}
 	for _, tc := range []struct {
-		cursor *functionSetCursor
+		cursor *expr.SourceCursor
 		want   string
 	}{{&first, "[1,3)"}, {&first, "[8,9)"}, {&second, "[1,3)"}} {
-		v, present, err := tc.cursor.next(c.Context, e.ResultUsage().Type)
+		v, present, err := tc.cursor.Next(c.Context)
 		if err != nil || !present {
 			t.Fatal(v, present, err)
 		}
@@ -68,16 +68,16 @@ func TestRangeMoreExpressionCursor(t *testing.T) {
 	if count != 2 {
 		t.Fatal("argument re-evaluated per member", count)
 	}
-	if v, present, err := first.next(c.Context, e.ResultUsage().Type); err != nil || present || !v.IsNull() {
+	if v, present, err := first.Next(c.Context); err != nil || present || !v.IsNull() {
 		t.Fatal(v, present, err)
 	}
 	ctx, cancel := context.WithCancel(c.Context)
 	cancel()
-	if _, _, err := second.next(ctx, e.ResultUsage().Type); !errors.Is(err, context.Canceled) {
+	if _, _, err := second.Next(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	second.close()
-	second.close()
+	second.Close()
+	second.Close()
 }
 
 func TestRangeMoreExpressionHooks(t *testing.T) {
@@ -100,11 +100,12 @@ func TestRangeMoreExpressionHooks(t *testing.T) {
 	if sameQuerySetOccurrence(e, n) || !sameQuerySetOccurrence(e, e) {
 		t.Fatal("occurrence identity")
 	}
-	mapped, changed, err := e.mapChildren(func(expr.Expr) (expr.Expr, bool, error) { return n.args[0], true, nil })
+	rewritten, changed, err := expr.MapSubstituted(e, func(expr.Expr) (expr.Expr, bool, error) { return n.args[0], true, nil })
+	mapped := rewritten.(unnestExpression)
 	if err != nil || !changed || mapped.args[0].ResultUsage() != n.args[0].ResultUsage() || e.args[0].ResultUsage() == n.args[0].ResultUsage() {
 		t.Fatal("child map mutated source", err)
 	}
-	if _, err := withFunctionCallArguments(e, nil); err == nil {
+	if _, err := expr.Substitute(expr.Expr(e).(expr.Composite), expr.InfoOf(e), nil); err == nil {
 		t.Fatal("invalid replacement arity")
 	}
 }

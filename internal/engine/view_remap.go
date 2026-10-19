@@ -252,12 +252,6 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 	case arithmeticExpression:
 		n.left, n.right = child(n.left), child(n.right)
 		next = n
-	case seriesExpression:
-		n.args = args(n.args)
-		next = n
-	case subscriptsExpression:
-		n.args = args(n.args)
-		next = n
 	case unnestExpression:
 		n.args = args(n.args)
 		if ref != nil && n.procedure != nil {

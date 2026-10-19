@@ -152,7 +152,7 @@ func TestRegexpScalarOuterFromFrame(t *testing.T) {
 				t.Fatal("function lost its inner lexical frame", n.frame)
 			}
 			for _, call := range n.calls {
-				for _, arg := range functionCallArguments(call) {
+				for _, arg := range expr.Expr(call).(expr.Composite).Children() {
 					walkBoundExpression(arg, func(child expr.Expr) {
 						if column, ok := child.(columnExpression); ok {
 							captured++

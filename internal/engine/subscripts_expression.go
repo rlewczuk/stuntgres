@@ -24,24 +24,6 @@ func (e subscriptsExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted generate_subscripts set call")
 }
 
-func (e subscriptsExpression) mapChildren(mapper func(expr.Expr) (expr.Expr, bool, error)) (subscriptsExpression, bool, error) {
-	changed := false
-	for i, arg := range e.args {
-		next, did, err := mapper(arg)
-		if err != nil {
-			return e, false, err
-		}
-		if did {
-			if !changed {
-				e.args = append([]expr.Expr(nil), e.args...)
-			}
-			e.args[i] = next
-			changed = true
-		}
-	}
-	return e, changed, nil
-}
-
 func (b *expressionBinder) bindSubscripts(raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	var storage [100]comparisonOperand
 	for i, arg := range raw.Args {

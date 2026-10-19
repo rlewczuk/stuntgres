@@ -73,7 +73,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			if tc.populate {
 				arity = 2
 			}
-			if len(call.Args) != arity || call.Definitions || call.Unresolved != tc.anonymous || call.ReturnsSet() != tc.set || isQuerySet(call) != tc.set || !validFunctionSourceCall(call) || binder.queryHasTargetSet != tc.set {
+			if len(call.Args) != arity || call.Definitions || call.Unresolved != tc.anonymous || call.ReturnsSet() != tc.set || sourceReturnsSet(call) != tc.set || !sourceAdmitted(call) || binder.queryHasTargetSet != tc.set {
 				t.Fatal("physical/source/project contract", call)
 			}
 			if call.Properties().Volatility != expr.Stable || call.Properties().StageDependent != tc.set || !call.Properties().RuntimeDomainConversion || call.Properties().DomainDependent {

@@ -84,7 +84,7 @@ func (n ACLValue) values(c expr.Context) ([4]sqltype.Value, bool, error) {
 		return values, false, err
 	}
 	null := false
-	for i, arg := range n.Children() {
+	for i, arg := range n.Args[:aclValueArity[n.Kind]] {
 		v, err := arg.Eval(c)
 		if err != nil {
 			return values, false, err

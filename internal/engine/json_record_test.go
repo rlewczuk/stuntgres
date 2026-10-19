@@ -33,7 +33,7 @@ func TestJSONRecordBinding(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	scalar := jsonRecordUnitCall(t, b, "json_to_record", false)
-	if isQuerySet(scalar) || !validFunctionSourceCall(scalar) || scalar.ResultUsage().Type.IsComposite() || !scalar.ResultUsage().Type.IsDeferredRecord() || plannedVolatility(scalar) != expr.Stable {
+	if sourceReturnsSet(scalar) || !sourceAdmitted(scalar) || scalar.ResultUsage().Type.IsComposite() || !scalar.ResultUsage().Type.IsDeferredRecord() || plannedVolatility(scalar) != expr.Stable {
 		t.Fatal("deferred scalar/set identity", scalar)
 	}
 	if _, err := scalar.Eval(&EvalContext{Context: context.Background()}); err == nil {
@@ -48,7 +48,7 @@ func TestJSONRecordBinding(t *testing.T) {
 		t.Fatal(v, err)
 	}
 	set := jsonRecordUnitCall(t, b, "json_to_recordset", true)
-	if !isQuerySet(set) || !set.Properties().StageDependent || plannedVolatility(set) != expr.Stable {
+	if !sourceReturnsSet(set) || !set.Properties().StageDependent || plannedVolatility(set) != expr.Stable {
 		t.Fatal("set-stage classification", set)
 	}
 }

@@ -266,23 +266,23 @@ func TestSRFFromStoredEligibility(t *testing.T) {
 	view := New().CatalogRead()
 	calls := []expr.Expr{seriesUnit(t, d, 1, 2), subscriptsUnit(t, view, []sqltype.ArrayDimension{{Lower: 1, Length: 2}}, 1)}
 	for _, original := range calls {
-		if !validFunctionSourceCall(original) {
+		if !sourceAdmitted(original) {
 			t.Fatal("stored call rejected", original)
 		}
-		args := append([]expr.Expr(nil), functionCallArguments(original)...)
+		args := append([]expr.Expr(nil), expr.Expr(original).(expr.Composite).Children()...)
 		first := args[0]
 		args[0] = queryProbe(first.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { return first.Eval(c) })
-		mapped, err := withFunctionCallArguments(original, args)
-		if err != nil || !validFunctionSourceCall(mapped) {
+		mapped, err := expr.Substitute(expr.Expr(original).(expr.Composite), expr.InfoOf(original), args)
+		if err != nil || !sourceAdmitted(mapped) {
 			t.Fatal(mapped, err)
 		}
-		if _, ok := functionCallArguments(original)[0].(literalExpression); !ok {
+		if _, ok := expr.Expr(original).(expr.Composite).Children()[0].(literalExpression); !ok {
 			t.Fatal("immutable original overwritten")
 		}
 		if got := srfFromUnitRows(t, srfFromUnitNode(t, mapped)); !reflect.DeepEqual(got, [][]any{{int64(1), int64(1)}, {int64(2), int64(2)}}) {
 			t.Fatal(got)
 		}
-		if _, err := withFunctionCallArguments(original, args[:1]); err == nil {
+		if _, err := expr.Substitute(expr.Expr(original).(expr.Composite), expr.InfoOf(original), args[:1]); err == nil {
 			t.Fatal("malformed remap admitted")
 		}
 	}

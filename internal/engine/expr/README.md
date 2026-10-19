@@ -4,7 +4,8 @@ The expression contract shared by the engine and `internal/engine/functions`.
 It imports only `ids`, `parser`, `sqlstate`, `sqltype` and the standard
 library, and sits at layer L2 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
-It owns types and small pure helpers; it has no state and no mutex.
+It owns types and small pure helpers, including invocation-private cursor handles;
+it has no shared state and no mutex.
 
 ## The contract
 
@@ -206,10 +207,43 @@ grouping rewrite and aggregate occurrence keep one explicit `Timezone` case:
 they visit the value before the zone, unlike PostgreSQL, a divergence kept
 until a compatibility fix. The uuid closed-DEFAULT check keeps explicit cases
 for `date_trunc`, `date_bin` and the zone calendar calls, which only it looks
-through. Function sources (`string_table_bind.go`, `string_set_query.go`,
-`string_set_lower.go`) and the explicit `SQLJSON` deparse and stored SQL cases
-remain separate engine work. Literal capture uses `Capturable` only after
-engine-owned wrappers, coercions, constructors and query-frame boundaries.
+through. Function sources use the explicit capabilities in `source.go`; the
+engine retains query scheduling, lexical-frame boundaries, layout and installed
+identity authority. Explicit `SQLJSON` deparse and stored SQL cases remain
+separate work. Literal capture uses `Capturable` only after engine-owned
+wrappers, coercions, constructors and query-frame boundaries.
+
+## Closed function sources
+
+`Source.SourceAdmission` answers two independent questions: FROM admission and
+set cardinality. Neither a spelling nor `Composite`/`Renderable` membership
+admits a call. `ScalarSourceOut` only supplies an OUT label; it says nothing
+about cardinality or physical composite expansion. `SourceOccurrence` compares
+the owner's occurrence identity after engine set/position guards; grouping
+identity is a different contract. `SourceOpening` opens fresh execution-private
+state. All lexical rewrites use `Children` and `Substitute`, retaining the
+selected provider, provenance and original immutable template.
+
+`SourceCursor` is a safe by-value handle with documented shared primitive fields
+and noncapturing named provider callbacks, not an interface allocation per open
+or a provider-tagged union. Scalars/vectors/arithmetic/borrowed arrays use the
+shared fields. Complex providers store their own native cursor pointer in
+`State`; catalog keys borrow existing immutable metadata instead. Only owner
+callbacks interpret that payload. Do not retain an evaluation context,
+node, child slice or closure. Never copy a live native-state handle to obtain
+independent iteration (numeric cursors contain mutable big integers).
+`Release` receives only native `State`, not the whole handle: passing the
+handle to an indirect release callback would allocate even for primitive
+sources with no native state. Complex native cursors require one pointer-state
+allocation at this safe type-erasure boundary, not a per-row adapter or a
+second wrapper. Integer/scalar/array opening remains allocation-free.
+
+`Next` checks cancellation before unopened/exhausted state, returns typed NULL
+with `present=false` at EOF, and releases payload/native references on EOF,
+error or cancellation. `Close` is idempotent and prevents further emission.
+A SQL NULL can be present, and a zero-width composite can contribute a row.
+Emitted borrowed immutable values remain valid after close. The engine closes
+partial sibling opens and owns invocation scheduling/early finish.
 
 Result descriptor construction (`query_bind.go`, `returning.go`) independently
 asks `ResultNullability` without requiring Composite membership.
@@ -240,6 +274,7 @@ make check RUN='^Test(MergeProperties|IntrinsicPropertyRules|InfoOf|ErrorAt|With
 make check RUN='^Test(WalkVisitsPreOrderAndSkipsNil|MapUnchangedKeepsNode|MapChangedRebuildsCopy|MapPropagatesErrors)$'
 make check RUN='^Test(MapSubstitutedFollowsEvaluationOrderAndKeepsPositions|SubstitutePrefersTheHook)$'
 make check RUN='^TestCaptureOperands(WrittenSlots|RawKinds|SpecialAnnotations|NoAllocations)$'
+make check RUN='^TestSourceCursor(ScalarPresence|OwnedLifetime)$'
 ```
 
 Result descriptor kind/site boundaries (including immutable value/pointer

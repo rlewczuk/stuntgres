@@ -47,7 +47,7 @@ func TestCatalogRelationsBinding(t *testing.T) {
 	if err != nil || !value.IsNull() || value.Type().ID() != sqltype.Name {
 		t.Fatal("strict typed null", value, err)
 	}
-	if scalar.arg.ResultUsage().Type.ID() != sqltype.Oid || scalar.ResultUsage().Type.ID() != sqltype.Name || !isQuerySet(set) || isQuerySet(scalar) {
+	if scalar.arg.ResultUsage().Type.ID() != sqltype.Oid || scalar.ResultUsage().Type.ID() != sqltype.Name || !sourceReturnsSet(set) || sourceReturnsSet(scalar) {
 		t.Fatal("physical signature")
 	}
 	for _, declaration := range builtinRoutineDeclarations {
@@ -90,8 +90,8 @@ func TestCatalogRelationsConsumers(t *testing.T) {
 		if err := validateGenerationPlan(e.CatalogRead(), nil, mapped); err != nil {
 			t.Fatal("typed persisted plan validation", err)
 		}
-		args := functionCallArguments(sample.node)
-		reconstructed, err := withFunctionCallArguments(sample.node, args)
+		args := expr.Expr(sample.node).(expr.Composite).Children()
+		reconstructed, err := expr.Substitute(expr.Expr(sample.node).(expr.Composite), expr.InfoOf(sample.node), args)
 		if err != nil || !sameGroupExpression(sample.node, reconstructed) {
 			t.Fatal("source reconstruction", err)
 		}

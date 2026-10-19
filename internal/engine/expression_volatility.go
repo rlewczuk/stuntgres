@@ -102,12 +102,6 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 		return children(n.left, n.right)
 	case likeExpression:
 		return children(n.left, n.right)
-	case seriesExpression:
-		return children(n.args...)
-	case subscriptsExpression:
-		return children(n.args...)
-	case unnestExpression:
-		return children(n.args...)
 	case nullTestExpression:
 		return children(n.child)
 	case truthTestExpression:

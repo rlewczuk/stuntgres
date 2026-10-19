@@ -234,10 +234,10 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 					t.Fatal("nonpruned original graph did not demand its manifest")
 				}
 				cursor, err := execution.openCall(&probe, 0)
-				if err != nil || !cursor.scalar.IsNull() || !cursor.initialized {
+				if err != nil || !cursor.Value.IsNull() || cursor.Type == nil {
 					t.Fatal("typed NULL source cursor", cursor, err)
 				}
-				cursor.close()
+				cursor.Close()
 				if tc.parameter {
 					value, err := sqltype.OIDValue(binder.parameters[1].Type, 1247)
 					if err != nil {
@@ -381,10 +381,10 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 			t.Fatal("known NULL source was not pruned")
 		}
 		cursor, err := execution.openCall(&sourceEvaluation, 0)
-		if err != nil || !cursor.scalar.IsNull() || cursor.scalar.Type() != source.calls[0].ResultUsage().Type {
+		if err != nil || !cursor.Value.IsNull() || cursor.Value.Type() != source.calls[0].ResultUsage().Type {
 			t.Fatal("literal sibling source typed NULL", cursor, err)
 		}
-		cursor.close()
+		cursor.Close()
 		if source.scalarNull != nil || !reflect.DeepEqual(sourceInfo, expr.InfoOf(source.calls[0])) || !reflect.DeepEqual(sourceSchema, execution.querySchema) || !reflect.DeepEqual(sourceManifest, sourceBinder.dependencies) {
 			t.Fatal("literal sibling pruning changed original Info/schema/manifest")
 		}

@@ -39,14 +39,14 @@ func seriesUnitType(t *testing.T, id sqltype.ID) *sqltype.Descriptor {
 }
 func seriesUnitRead(t *testing.T, e seriesExpression) []int64 {
 	t.Helper()
-	cursor, err := openFunctionCall(&EvalContext{Context: context.Background()}, e)
+	cursor, err := openFunctionSource(&EvalContext{Context: context.Background()}, e)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cursor.close()
+	defer cursor.Close()
 	var out []int64
 	for {
-		v, ok, err := cursor.next(context.Background(), e.ResultUsage().Type)
+		v, ok, err := cursor.Next(context.Background())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -78,7 +78,7 @@ func TestSeriesBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	e, ok := x.(seriesExpression)
-	if !ok || e.ResultUsage().Type.ID() != sqltype.Int4 || !e.Properties().StageDependent || !b.queryHasTargetSet || !validFunctionSourceCall(e) {
+	if !ok || e.ResultUsage().Type.ID() != sqltype.Int4 || !e.Properties().StageDependent || !b.queryHasTargetSet || !sourceAdmitted(e) {
 		t.Fatal(x)
 	}
 	if _, err = e.Eval(&EvalContext{Context: context.Background()}); err == nil {
@@ -108,7 +108,7 @@ func TestSeriesCursor(t *testing.T) {
 		}
 	}
 	e := seriesUnit(t, d, 1, 3, 0)
-	_, err := openFunctionCall(&EvalContext{Context: context.Background()}, e)
+	_, err := openFunctionSource(&EvalContext{Context: context.Background()}, e)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "22023" || diagnostic.Message != "step size cannot equal zero" || diagnostic.Position != "" {
 		t.Fatal(err)
@@ -121,7 +121,7 @@ func TestSeriesCursor(t *testing.T) {
 	}
 	sentinel := errors.New("sibling error")
 	e.args[1] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, sentinel })
-	if _, err := openFunctionCall(&EvalContext{Context: context.Background()}, e); err != sentinel {
+	if _, err := openFunctionSource(&EvalContext{Context: context.Background()}, e); err != sentinel {
 		t.Fatal(err)
 	}
 }
@@ -230,7 +230,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 		},
 	} {
 		n, _, err := fold()
-		if err != nil || !isQuerySet(n) {
+		if err != nil || !sourceReturnsSet(n) {
 			t.Fatal(n, err)
 		}
 	}
@@ -340,22 +340,22 @@ func TestSeriesLowering(t *testing.T) {
 
 func TestSeriesCancellation(t *testing.T) {
 	d := seriesUnitType(t, sqltype.Int8)
-	cursor, err := openFunctionCall(&EvalContext{Context: context.Background()}, seriesUnit(t, d, 1, math.MaxInt64))
+	cursor, err := openFunctionSource(&EvalContext{Context: context.Background()}, seriesUnit(t, d, 1, math.MaxInt64))
 	if err != nil {
 		t.Fatal(err)
 	}
-	v, ok, err := cursor.next(context.Background(), d)
+	v, ok, err := cursor.Next(context.Background())
 	if err != nil || !ok {
 		t.Fatal(v, ok, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, ok, err := cursor.next(ctx, d); ok || err != context.Canceled {
+	if _, ok, err := cursor.Next(ctx); ok || err != context.Canceled {
 		t.Fatal(ok, err)
 	}
-	cursor.close()
-	cursor.close()
-	if _, ok, err := cursor.next(ctx, d); ok || err != context.Canceled || !cursor.exhausted {
+	cursor.Close()
+	cursor.Close()
+	if _, ok, err := cursor.Next(ctx); ok || err != context.Canceled || !cursor.Exhausted {
 		t.Fatal(ok, err)
 	}
 	r := newFinalRows(querySchema{{Name: "v", Usage: d.Usage()}}, 2)

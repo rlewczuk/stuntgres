@@ -27,14 +27,14 @@ func numericSeriesUnit(t *testing.T, d *sqltype.Descriptor, args ...string) seri
 
 func numericSeriesUnitRead(t *testing.T, e seriesExpression) []sqltype.Value {
 	t.Helper()
-	cursor, err := openFunctionCall(&EvalContext{Context: context.Background()}, e)
+	cursor, err := openFunctionSource(&EvalContext{Context: context.Background()}, e)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cursor.close()
+	defer cursor.Close()
 	var values []sqltype.Value
 	for {
-		v, ok, err := cursor.next(context.Background(), e.ResultUsage().Type)
+		v, ok, err := cursor.Next(context.Background())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -57,7 +57,7 @@ func TestNumericSeriesBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	e, ok := x.(seriesExpression)
-	if !ok || e.ResultUsage().Type.ID() != sqltype.Numeric || e.ResultUsage() != e.ResultUsage().Type.Usage() || !validFunctionSourceCall(e) || !b.queryHasTargetSet {
+	if !ok || e.ResultUsage().Type.ID() != sqltype.Numeric || e.ResultUsage() != e.ResultUsage().Type.Usage() || !sourceAdmitted(e) || !b.queryHasTargetSet {
 		t.Fatal(x)
 	}
 	want := numericSeriesUnit(t, e.ResultUsage().Type, "0.1", "0.3", "0.1")
@@ -84,7 +84,7 @@ func TestNumericSeriesInvocation(t *testing.T) {
 	}
 	sentinel := errors.New("sibling evaluation")
 	e.args[1] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, sentinel })
-	if _, err := openFunctionCall(&EvalContext{Context: context.Background()}, e); err != sentinel {
+	if _, err := openFunctionSource(&EvalContext{Context: context.Background()}, e); err != sentinel {
 		t.Fatal(err)
 	}
 }

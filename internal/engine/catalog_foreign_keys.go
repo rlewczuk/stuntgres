@@ -300,19 +300,3 @@ func newCatalogForeignKeyValues(shape *sqltype.Descriptor) (*catalogForeignKeyVa
 	}
 	return result, nil
 }
-
-func (s *functionSetCursor) nextCatalogForeignKey(shape *sqltype.Descriptor) (sqltype.Value, bool, error) {
-	if s.position == len(catalogForeignKeys) {
-		s.close()
-		return sqltype.Null(shape), false, nil
-	}
-	link := &catalogForeignKeys[s.position]
-	metadata := &s.catalogKeys.fields[s.position]
-	s.position++
-	fields := make([]sqltype.Value, 6)
-	copy(fields, metadata[:])
-	fields[4] = sqltype.Boolean(shape.CompositeMember(4).Usage.Type, link.array)
-	fields[5] = sqltype.Boolean(shape.CompositeMember(5).Usage.Type, link.optional)
-	value, err := sqltype.OwnedCompositeValue(shape, fields)
-	return value, err == nil, err
-}

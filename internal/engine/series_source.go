@@ -1,0 +1,103 @@
+package engine
+
+import (
+	"context"
+	"fmt"
+	"math"
+
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/sqltype"
+)
+
+func (e seriesExpression) SourceAdmission() (bool, bool) { return true, true }
+
+func (e seriesExpression) SameSourceOccurrence(other expr.Expr) bool {
+	o, ok := other.(seriesExpression)
+	return ok && e.ResultUsage() == o.ResultUsage() && len(e.args) == len(o.args)
+}
+
+func (e seriesExpression) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
+	c := evalContext(ctx)
+	if err := evaluationContext(c); err != nil {
+		return expr.SourceCursor{}, err
+	}
+	if len(e.args) != 2 && len(e.args) != 3 {
+		return expr.SourceCursor{}, fmt.Errorf("stuntgres: invalid series arguments")
+	}
+	if e.Usage.Type.ID() == sqltype.Numeric {
+		var values [3]sqltype.Value
+		for i, arg := range e.args {
+			value, err := arg.Eval(c)
+			if err != nil {
+				return expr.SourceCursor{}, err
+			}
+			values[i] = value
+		}
+		cursor, err := sqltype.OpenNumericSeries(c.Context, values[0], values[1], values[2:len(e.args)]...)
+		if err != nil {
+			return expr.SourceCursor{}, err
+		}
+		return expr.NewSourceCursor(expr.SourceCursor{
+			Type: e.Usage.Type, State: &cursor,
+			Advance: nextNumericSeriesSource, Release: closeNumericSeriesSource,
+		}), nil
+	}
+	var values [3]int64
+	values[2] = 1
+	null := false
+	for i, arg := range e.args {
+		v, err := arg.Eval(c)
+		if err != nil {
+			return expr.SourceCursor{}, err
+		}
+		if v.IsNull() {
+			null = true
+		} else {
+			values[i], err = v.Integer()
+			if err != nil {
+				return expr.SourceCursor{}, err
+			}
+		}
+	}
+	cursor := expr.NewSourceCursor(expr.SourceCursor{
+		Type: e.Usage.Type, Current: values[0], Stop: values[1], Step: values[2],
+		Exhausted: null, Advance: nextIntegerSource,
+	})
+	if null {
+		return cursor, nil
+	}
+	if cursor.Step == 0 {
+		return expr.SourceCursor{}, sqlError("22023", "step size cannot equal zero")
+	}
+	cursor.Exhausted = cursor.Step > 0 && cursor.Current > cursor.Stop || cursor.Step < 0 && cursor.Current < cursor.Stop
+	return cursor, nil
+}
+
+func nextNumericSeriesSource(ctx context.Context, s *expr.SourceCursor) (sqltype.Value, bool, error) {
+	return s.State.(*sqltype.NumericSeriesCursor).Next(ctx)
+}
+
+func closeNumericSeriesSource(state any) {
+	state.(*sqltype.NumericSeriesCursor).Close()
+}
+
+// Series and subscripts share checked arithmetic, not a provider discriminator.
+func nextIntegerSource(_ context.Context, s *expr.SourceCursor) (sqltype.Value, bool, error) {
+	if s.Step > 0 && s.Current > s.Stop || s.Step < 0 && s.Current < s.Stop {
+		return sqltype.Value{}, false, nil
+	}
+	value, err := sqltype.Integer(s.Type, s.Current)
+	if err != nil {
+		return sqltype.Value{}, false, err
+	}
+	minimum, maximum := int64(math.MinInt64), int64(math.MaxInt64)
+	if s.Type.ID() == sqltype.Int4 {
+		minimum, maximum = math.MinInt32, math.MaxInt32
+	}
+	if s.Step > 0 && s.Current > maximum-s.Step || s.Step < 0 && s.Current < minimum-s.Step {
+		s.Exhausted = true
+	} else {
+		s.Current += s.Step
+	}
+	return value, true, nil
+}

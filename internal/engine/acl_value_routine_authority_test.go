@@ -48,12 +48,12 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			if got := call.Properties().Volatility; got != tc.volatility {
 				t.Fatalf("physical volatility: got %v, want %v", got, tc.volatility)
 			}
-			if got := isQuerySet(call); got != tc.set {
-				t.Fatalf("isQuerySet: got %t, want %t", got, tc.set)
+			if got := sourceReturnsSet(call); got != tc.set {
+				t.Fatalf("sourceReturnsSet: got %t, want %t", got, tc.set)
 			}
 			// Containment is deliberately not a function-source capability.
-			if got, want := validFunctionSourceCall(call), tc.kind != functions.ACLContains; got != want {
-				t.Fatalf("validFunctionSourceCall: got %t, want %t", got, want)
+			if got, want := sourceAdmitted(call), tc.kind != functions.ACLContains; got != want {
+				t.Fatalf("sourceAdmitted: got %t, want %t", got, want)
 			}
 			// bindACLValue returns the bare carrier directly, without setting
 			// the binder's target-set observation. Actual set classification
