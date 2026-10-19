@@ -27,6 +27,18 @@ See [native boundaries](docs/DIALECT.md#tables-hierarchies-and-materializations)
 [descriptor lifecycle](docs/TABLES.md#inheritance-catalog-projection), and
 [selected proof and smoke](reference/catalogs/README.md#inheritance-metadata-contract).
 
+## Non-table object revocation — coverage change note
+
+Focused PostgreSQL18.6 reference scenarios now cover the existing object REVOKE
+path: grantor-scoped ordinary versus grant-option removal, RESTRICT atomicity,
+CASCADE, and surviving PUBLIC/inherited/independent grants. Same-held sequence
+and parameterized routine consumers prove effective-access transitions; schema,
+type/domain, database, parameter, SQL/MED and tablespace witnesses exercise real
+uses. No new revoke engine or external provider is introduced. Language execution,
+large-object storage and physical tablespace placement retain their native bounds.
+See [native contracts](docs/DIALECT.md#object-privilege-grants) and
+[selected proof and smoke](reference/object_grants/README.md#non-table-object-revocation).
+
 ## IP address formatting and network inquiries — change note
 
 `abbrev(inet/cidr)`, `host`, `text(inet)`, `family`, `masklen`,

@@ -7,6 +7,77 @@ fixture usage, and oracle-first workflow. Run the commands below from the
 repository root. Role, membership and row-security proofs remain in
 [reference/roles](../roles/README.md#testing).
 
+### Non-table object revocation
+
+These focused scenarios exercise the existing shared ACL/revoke path; this
+coverage adds no production revoke implementation or external provider.
+
+- `TestReferenceObjectRevokeFamilies`: independent table SELECT with schema
+  USAGE/CREATE, surviving inherited/PUBLIC origins, same-held schema-reader
+  denial after the final origin disappears, and enum/domain new-dependency
+  denial while old rows and enum casts remain valid.
+- `TestReferenceObjectRevokeDependencies`: schema CREATE and TYPE/DOMAIN USAGE
+  delegation; default/explicit RESTRICT `2BP01 dependent privileges exist`,
+  exact Hint `Use CASCADE to revoke them too.`, unchanged ACLs and consumers;
+  option-only CASCADE versus ordinary removal; alternate ordinary/option origins;
+  non-superuser owner self-revocation; failed late-target atomicity.
+- `TestReferenceObjectRevokeDiagnostics`: exact invalid-mask, unknown-privilege,
+  column-list, authority and grantor errors, plus complete ordered WARNING01006
+  diagnostics. Partial named sequence SELECT,UPDATE revoke emits ten warnings:
+  relation first, then tableoid, cmax, xmax, cmin, xmin, ctid, last_value, log_cnt,
+  is_called. ALL suppresses only the relation warning, retaining nine column
+  warnings. Repeated already-effective owner revoke remains quiet.
+- `TestReferenceObjectRevokeFeatureSmoke`: direct/per-step-prepared utilities
+  with SAME-held sequence and demanded parameterized `abs($1::integer)` consumers.
+  Sequence100/101 survives RESTRICT; CASCADE denies the delegate without
+  advancing, grantor reaches102, PUBLIC restores103, final state is103/true.
+  Held abs returns7, survives RESTRICT, denies after CASCADE, retains grantor7,
+  restores independent7, and denies after final ordinary revoke.
+
+Focused extensions retain the existing assertions in DatabaseAdmission,
+SequenceTargets, RoutineSchemaExpansion, NativeBoundaries and
+ParametersTablespaces. Failed routine expansion is checked through raw proacl on
+PostgreSQL and actual still-allowed function use on both backends; native pg_proc
+does not expose proacl. Database CREATE removal denies new schema creation while
+existing data7 remains; sequence revocation leaves outside/later explicitly
+granted sequences usable; FUNCTIONS/PROCEDURES/ROUTINES stay partitioned.
+Real PostgreSQL language declarations, large-object bytes6162→6364 and private
+tablespace data42 exercise post-use revocation. Native legal language/large-object
+revoke retains exact0A000 boundaries, physical placement remains unavailable, and
+ALTER SYSTEM remains syntax-rejected. Existing parameter SET and fresh CONNECT
+proofs are reused, as is
+[`TestReferenceFDWObjectGrants`](../tables/fdw_object_grants_test.go) for actual
+wrapper/server creation consumers, provenance, held access and warnings.
+
+Run each selector in native and pinned PostgreSQL18.6 modes; these commands are
+proof instructions, not a claim that a future run has passed:
+
+```sh
+timeout 900s make check RUN='^TestReferenceObjectRevoke(Families|Dependencies|Diagnostics)$'
+timeout 900s make check RUN='^TestReferenceObjectRevoke(Families|Dependencies|Diagnostics)$' REFERENCE=1
+timeout 900s make check RUN='^TestReferenceObjectGrant(SequenceTargets|RoutineSchemaExpansion)$'
+timeout 900s make check RUN='^TestReferenceObjectGrant(SequenceTargets|RoutineSchemaExpansion)$' REFERENCE=1
+timeout 900s make check RUN='^TestReferenceObjectGrant(DatabaseAdmission|NativeBoundaries|ParametersTablespaces)$'
+timeout 900s make check RUN='^TestReferenceObjectGrant(DatabaseAdmission|NativeBoundaries|ParametersTablespaces)$' REFERENCE=1
+# Observed feature-smoke contract, also run as a real public API program:
+timeout 900s make check RUN='^TestReferenceObjectRevokeFeatureSmoke$'
+timeout 900s make check RUN='^TestReferenceObjectRevokeFeatureSmoke$' REFERENCE=1
+```
+
+The standalone public API smoke was run separately from the tests with
+`go run /tmp/revoke-objects-smoke.go` from the worktree. It uses a fresh Driver,
+real sequence, SAME-held parameterized abs, exact diagnostics, affected counts,
+metadata and final sequence-state assertions. Its observed stdout was:
+
+```text
+sequence 100,101; RESTRICT 2BP01; CASCADE delegate 42501; grantor 102; PUBLIC 103; final 103/true
+held parameterized abs 7; RESTRICT 2BP01 unchanged; CASCADE 42501; grantor 7; independent 7; final 42501
+```
+
+The temporary smoke source is session evidence, not a repository deliverable or
+runtime dependency. No PG-only discovery filter remains in the tests. The shared
+testing guide's selected dual-mode and whole-project verification rules still apply.
+
 ### Sequence object grants
 
 `TestReferenceObjectGrantSequences` exercises direct/prepared sequence grants,

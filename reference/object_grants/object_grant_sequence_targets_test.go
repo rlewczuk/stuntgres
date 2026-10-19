@@ -57,7 +57,30 @@ func TestReferenceObjectGrantSequenceTargets(t *testing.T) {
 			fixture.RoleGrantPermissionDenied(run, "SELECT x FROM og_seq_scope.t", "table", "t")
 			fixture.RoleGrantPermissionDenied(run, "GRANT USAGE ON ALL SEQUENCES IN SCHEMA og_seq_other TO og_object_other", "sequence", "outside")
 		})
+		var revokeOwner string
+		if err := c.QueryRowContext(p.Ctx, "SELECT current_user").Scan(&revokeOwner); err != nil {
+			t.Fatal(err)
+		}
+		revokeACL := func() {
+			s := fixture.Select("SELECT unnest(relacl) AS acl FROM pg_class WHERE oid='og_seq_scope.second'::regclass", []string{"acl"}, []string{"ACLITEM"}, [][]any{{revokeOwner + "=rwU/" + revokeOwner}, {"og_object_reader=rwU/" + revokeOwner}})
+			s.Bag = true
+			run(s)
+		}
+		revokeACL()
+		fixture.RoleGrantError(run, "REVOKE ALL ON ALL SEQUENCES IN SCHEMA og_seq_scope,og_seq_missing FROM og_object_reader", "3F000", `schema "og_seq_missing" does not exist`)
+		revokeACL()
+		fixture.RoleGrantActor(run, "og_object_reader", func() {
+			run(fixture.Select("SELECT nextval('og_seq_scope.second') AS v", []string{"v"}, []string{"INT8"}, [][]any{{int64(21)}}))
+		})
+		run(fixture.Exec("GRANT USAGE ON SEQUENCE og_seq_other.outside TO og_object_reader", 0))
 		run(fixture.Exec("REVOKE ALL ON ALL SEQUENCES IN SCHEMA og_seq_scope FROM og_object_reader", 0))
+		run(fixture.Exec("CREATE SEQUENCE og_seq_scope.after_revoke START 50", 0))
+		run(fixture.Exec("GRANT USAGE ON SEQUENCE og_seq_scope.after_revoke TO og_object_reader", 0))
+		fixture.RoleGrantActor(run, "og_object_reader", func() {
+			fixture.RoleGrantPermissionDenied(run, "SELECT nextval('og_seq_scope.second')", "sequence", "second")
+			run(fixture.Select("SELECT nextval('og_seq_other.outside') AS v", []string{"v"}, []string{"INT8"}, [][]any{{int64(30)}}))
+			run(fixture.Select("SELECT nextval('og_seq_scope.after_revoke') AS v", []string{"v"}, []string{"INT8"}, [][]any{{int64(50)}}))
+		})
 		run(fixture.Exec("GRANT SELECT ON ALL TABLES IN SCHEMA og_seq_scope TO og_object_reader", 0))
 		fixture.RoleGrantActor(run, "og_object_reader", func() {
 			run(fixture.Select("SELECT x FROM og_seq_scope.t", []string{"x"}, []string{"INT4"}, [][]any{{int64(7)}}))

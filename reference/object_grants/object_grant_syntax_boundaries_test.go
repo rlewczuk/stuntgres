@@ -136,6 +136,7 @@ func TestReferenceObjectGrantNativeBoundaries(t *testing.T) {
 					"GRANT USAGE ON LANGUAGE plpgsql TO PUBLIC",
 					"REVOKE USAGE ON LANGUAGE plpgsql FROM og_object_reader,og_object_other CASCADE",
 					"DROP FUNCTION IF EXISTS public.og_boundary_lang()",
+					"DROP FUNCTION IF EXISTS public.og_boundary_lang_denied()",
 				}
 				if lo != 0 {
 					queries = append(queries, fmt.Sprintf("SELECT lo_unlink(%d)", lo))
@@ -182,6 +183,8 @@ func TestReferenceObjectGrantNativeBoundaries(t *testing.T) {
 			}
 			if !b.PG && !strings.HasPrefix(tc.target, "FOREIGN ") {
 				fixture.RoleGrantError(run, "REVOKE "+tc.privilege+" ON "+tc.target+" FROM og_object_reader", "0A000", tc.unsupported+" privileges are unsupported in embedded mode")
+				fixture.RoleGrantError(run, "REVOKE GRANT OPTION FOR "+tc.privilege+" ON "+tc.target+" FROM og_object_reader", "0A000", tc.unsupported+" privileges are unsupported in embedded mode")
+				fixture.RoleGrantError(run, "REVOKE "+tc.privilege+" ON "+tc.target+" FROM og_object_reader CASCADE", "0A000", tc.unsupported+" privileges are unsupported in embedded mode")
 			}
 		}
 		run(fixture.Exec("REVOKE USAGE ON FOREIGN DATA WRAPPER og_boundary_fdw FROM og_object_reader", 0))
@@ -208,6 +211,11 @@ func TestReferenceObjectGrantNativeBoundaries(t *testing.T) {
 				run(fixture.Exec(createFunction, 0))
 				run(fixture.Select("SELECT public.og_boundary_lang() AS v", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
 			})
+			run(fixture.Exec("REVOKE USAGE ON LANGUAGE plpgsql FROM og_object_reader", 0))
+			fixture.RoleGrantActor(run, "og_object_reader", func() {
+				fixture.RoleGrantPermissionDenied(run, "CREATE FUNCTION public.og_boundary_lang_denied() RETURNS integer LANGUAGE plpgsql AS $$BEGIN RETURN 7; END$$", "language", "plpgsql")
+				run(fixture.Select("SELECT public.og_boundary_lang() AS v", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
+			})
 
 			run(fixture.Exec("REVOKE ALL ON LARGE OBJECT "+loTarget+" FROM og_object_reader", 0))
 			read := "SELECT encode(lo_get(" + loTarget + "),'hex') AS v"
@@ -232,6 +240,18 @@ func TestReferenceObjectGrantNativeBoundaries(t *testing.T) {
 				// INV_WRITE also requests read permission (REL_18_0 inv_open).
 				fixture.RoleGrantPermissionDenied(run, write, "large object", loTarget)
 			})
+			run(fixture.Exec("GRANT SELECT ON LARGE OBJECT "+loTarget+" TO og_object_reader", 0))
+			run(fixture.Exec("REVOKE UPDATE ON LARGE OBJECT "+loTarget+" FROM og_object_reader", 0))
+			fixture.RoleGrantActor(run, "og_object_reader", func() {
+				run(fixture.Select(read, []string{"v"}, []string{"TEXT"}, [][]any{{"6364"}}))
+				fixture.RoleGrantPermissionDenied(run, write, "large object", loTarget)
+			})
+			run(fixture.Exec("REVOKE SELECT,UPDATE ON LARGE OBJECT "+loTarget+" FROM og_object_reader", 0))
+			fixture.RoleGrantActor(run, "og_object_reader", func() {
+				fixture.RoleGrantPermissionDenied(run, read, "large object", loTarget)
+				fixture.RoleGrantPermissionDenied(run, write, "large object", loTarget)
+			})
+			run(fixture.Select(read, []string{"v"}, []string{"TEXT"}, [][]any{{"6364"}}))
 		}
 
 		// Numeric series now has a genuine provider; the original route must

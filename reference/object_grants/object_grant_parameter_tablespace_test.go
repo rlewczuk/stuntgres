@@ -243,7 +243,7 @@ func objectGrantTablespacePlacement(t *testing.T, p *fixture.Pair, b fixture.Bac
 	objectGrantSpaceContainer(t, p, "test ! -e "+directory+" && mkdir "+directory+" && chown postgres:postgres "+directory)
 	defer objectGrantSpaceContainer(t, p, "rmdir "+directory)
 	defer func() {
-		for _, q := range []string{"RESET SESSION AUTHORIZATION", "DROP TABLE IF EXISTS og_parameter_space.placed", "DROP TABLESPACE IF EXISTS og_parameter_physical"} {
+		for _, q := range []string{"RESET SESSION AUTHORIZATION", "DROP TABLE IF EXISTS og_parameter_space.revoke_denied", "DROP TABLE IF EXISTS og_parameter_space.placed", "DROP TABLESPACE IF EXISTS og_parameter_physical"} {
 			if _, err := c.ExecContext(p.Ctx, q); err != nil {
 				t.Error("physical tablespace cleanup", q, err)
 			}
@@ -259,7 +259,13 @@ func objectGrantTablespacePlacement(t *testing.T, p *fixture.Pair, b fixture.Bac
 		run(fixture.Exec("INSERT INTO og_parameter_space.placed VALUES(42)", 1))
 		run(fixture.Select("SELECT x FROM og_parameter_space.placed", []string{"x"}, []string{"INT4"}, [][]any{{int64(42)}}))
 	})
+	run(fixture.Exec("REVOKE CREATE ON TABLESPACE og_parameter_physical FROM og_object_reader", 0))
+	fixture.RoleGrantActor(run, "og_object_reader", func() {
+		fixture.RoleGrantPermissionDenied(run, "CREATE TABLE og_parameter_space.revoke_denied(x INT) TABLESPACE og_parameter_physical", "tablespace", "og_parameter_physical")
+		run(fixture.Select("SELECT x FROM og_parameter_space.placed", []string{"x"}, []string{"INT4"}, [][]any{{int64(42)}}))
+	})
 	run(fixture.Select("SELECT t.spcname FROM pg_class c JOIN pg_tablespace t ON t.oid=c.reltablespace WHERE c.oid='og_parameter_space.placed'::regclass", []string{"spcname"}, []string{"NAME"}, [][]any{{"og_parameter_physical"}}))
+	run(fixture.Select("SELECT relname FROM pg_class WHERE relname='revoke_denied' AND relnamespace='og_parameter_space'::regnamespace", []string{"relname"}, []string{"NAME"}, [][]any{}))
 }
 
 // The existing public fixture Container facility owns the filesystem namespace;

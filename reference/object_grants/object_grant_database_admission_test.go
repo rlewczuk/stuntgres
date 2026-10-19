@@ -252,6 +252,12 @@ func TestReferenceObjectGrantDatabaseAdmission(t *testing.T) {
 		// CREATE alone grants a real schema operation, not TEMP or CONNECT.
 		run(fixture.Exec("GRANT CREATE ON DATABASE "+quotedDB+" TO "+login, 0))
 		use(fixture.Exec("CREATE SCHEMA og_database_created", 0))
+		run(fixture.Exec("REVOKE CREATE ON DATABASE "+quotedDB+" FROM "+login, 0))
+		deny(use, "CREATE SCHEMA og_database_revoke_denied", "permission denied for database "+database)
+		run(fixture.Select("SELECT nspname FROM pg_namespace WHERE nspname='og_database_revoke_denied'", []string{"nspname"}, []string{"NAME"}, [][]any{}))
+		use(fixture.Select("SELECT x FROM og_database_old", []string{"x"}, []string{"INT4"}, [][]any{{int64(7)}}))
+		// Restore the independently asserted later CTc provenance inventory.
+		run(fixture.Exec("GRANT CREATE ON DATABASE "+quotedDB+" TO "+login, 0))
 		deny(use, "CREATE TEMP TABLE og_database_create_only(x INT)", tempDenied)
 		fresh(false)
 		run(fixture.Exec("GRANT CONNECT ON DATABASE "+quotedDB+" TO "+login, 0))

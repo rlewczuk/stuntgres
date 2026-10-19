@@ -538,6 +538,37 @@ Valid LANGUAGE and LARGE OBJECT targets retain class-specific unavailable native
 upper-case LARGE OBJECT family prefix. Invalid privilege masks, malformed syntax
 and actual role/grantor diagnostics remain separate.
 
+Ordinary REVOKE removes selected privileges and their grant options only from the
+selected grantor's origin; GRANT OPTION FOR preserves ordinary use. Default and
+explicit RESTRICT reject dependent grants with `2BP01 dependent privileges exist`
+and Hint `Use CASCADE to revoke them too.`, without publishing a prefix. CASCADE
+removes downstream grants when their grant-option support disappears, not when
+an independent ordinary grant still permits the recipient's use. Surviving
+PUBLIC, inherited and independent origins remain additive; ownership retains
+implicit grant authority even after an owner's ordinary privilege is revoked.
+
+The held schema reader in the PostgreSQL18.6 revoke scenario also denies access
+after its final USAGE origin is removed. Type/domain USAGE removal denies new
+persistent dependencies, not existing datum reads or enum literal casts. Database
+CONNECT removal denies fresh admission without evicting admitted sessions.
+ALL IN SCHEMA revokes current matching objects only, preserving outside-schema
+objects and later explicitly granted objects. Native procedures remain a genuinely
+empty expansion; no procedure runtime or native `pg_proc.proacl` column is added.
+
+Partial named sequence SELECT,UPDATE revocation emits WARNING01006 first for the
+relation and then for columns tableoid, cmax, xmax, cmin, xmin, ctid, last_value,
+log_cnt and is_called. ALL suppresses the relation's partial warning but retains
+those nine column warnings. An already-effective owner revoke is not itself a
+reason to emit a warning.
+
+Valid plain, option-only and CASCADE language/large-object revocations retain the
+same native unavailable errors above. ALTER SYSTEM still has no native file-write
+mechanism. Physical tablespace placement remains unavailable natively; pg_default
+default placement is not a CREATE-privilege denial witness, and pg_global retains
+its separate shared-relations restriction. Supported SQL/MED USAGE revocation
+denies new server/foreign-table/user-mapping creation where applicable, without
+inventing a remote provider or a new USAGE gate on existing foreign scans.
+
 Native prepared analysis retains identities, not executable permission decisions.
 Genuine selected providers check fresh EXECUTE before actual folding or surviving
 execution admission, including stored consumers. Known released lookup-only
