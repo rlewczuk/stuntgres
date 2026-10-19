@@ -9,44 +9,44 @@ import (
 )
 
 func TestReferenceJSONPathNavigateCancellation(t *testing.T) {
-	jsonpathNavigateScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
-		run(fixture.Exec(`CREATE TABLE jpn_active(id int,v jsonb,p jsonpath)`, 0))
-		run(fixture.Exec(`CREATE TABLE jpn_cancel_out(id int,v jsonb)`, 0))
-		run(fixture.Exec(`INSERT INTO jpn_active VALUES(1,'[0]','$'),(2,'[0]','$'),(3,'[0]','$'),(4,'[0]','$'),(5,'[0]','$')`, 5))
-		run(fixture.Exec(`INSERT INTO jpn_cancel_out VALUES(0,'99')`, 1))
-		large := `["` + strings.Repeat("x", 32<<20) + `",` + strings.Repeat("0,", 1<<16) + `0]`
-		readSQL := `SELECT sum(length(jsonb_path_query_array(v,p)::text)) AS n FROM jpn_active`
-		writeSQL := `INSERT INTO jpn_cancel_out SELECT id,jsonb_path_query_array(v,p) FROM jpn_active ORDER BY id`
-		read, err := c.PrepareContext(p.Ctx, readSQL)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer read.Close()
-		write, err := c.PrepareContext(p.Ctx, writeSQL)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer write.Close()
-		if !b.PG {
-			ctx, cancel := context.WithCancel(p.Ctx)
-			cancel()
-			rows, err := read.QueryContext(ctx)
-			if rows != nil {
-				rows.Close()
-				t.Fatal("precanceled read published rows")
-			}
-			fixture.LexicalOrdinary(t, err, context.Canceled)
-			result, err := write.ExecContext(ctx)
-			if result != nil {
-				t.Fatal("precanceled write published result")
-			}
-			fixture.LexicalOrdinary(t, err, context.Canceled)
-		}
-		provider := "sqltype.JSONBPathQueryArrayPlan.Evaluate"
-		for _, path := range []string{`$[*]`, `strict $.**`, `$[*]?(@ == @)`, `$[*]?(@ like_regex "x+$")`, `$`} {
-			t.Run(path, func(t *testing.T) {
+	for _, path := range []string{`$[*]`, `strict $.**`, `$[*]?(@ == @)`, `$[*]?(@ like_regex "x+$")`, `$`} {
+		t.Run(path, func(t *testing.T) {
+			// Each traversal owns its fixture deadline, records and held recovery.
+			jsonpathNavigateScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 				run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
+				run(fixture.Exec(`CREATE TABLE jpn_active(id int,v jsonb,p jsonpath)`, 0))
+				run(fixture.Exec(`CREATE TABLE jpn_cancel_out(id int,v jsonb)`, 0))
+				run(fixture.Exec(`INSERT INTO jpn_active VALUES(1,'[0]','$'),(2,'[0]','$'),(3,'[0]','$'),(4,'[0]','$'),(5,'[0]','$')`, 5))
+				run(fixture.Exec(`INSERT INTO jpn_cancel_out VALUES(0,'99')`, 1))
+				large := `["` + strings.Repeat("x", 32<<20) + `",` + strings.Repeat("0,", 1<<16) + `0]`
+				readSQL := `SELECT sum(length(jsonb_path_query_array(v,p)::text)) AS n FROM jpn_active`
+				writeSQL := `INSERT INTO jpn_cancel_out SELECT id,jsonb_path_query_array(v,p) FROM jpn_active ORDER BY id`
+				read, err := c.PrepareContext(p.Ctx, readSQL)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer read.Close()
+				write, err := c.PrepareContext(p.Ctx, writeSQL)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer write.Close()
+				if !b.PG {
+					ctx, cancel := context.WithCancel(p.Ctx)
+					cancel()
+					rows, err := read.QueryContext(ctx)
+					if rows != nil {
+						rows.Close()
+						t.Fatal("precanceled read published rows")
+					}
+					fixture.LexicalOrdinary(t, err, context.Canceled)
+					result, err := write.ExecContext(ctx)
+					if result != nil {
+						t.Fatal("precanceled write published result")
+					}
+					fixture.LexicalOrdinary(t, err, context.Canceled)
+				}
+				provider := "sqltype.JSONBPathQueryArrayPlan.Evaluate"
 				// Import typed data first: admission must observe evaluator work, not input.
 				run(fixture.Prepared(fixture.Exec(`UPDATE jpn_active SET v=$1,p=$2 WHERE id>1`, 4, large, path)))
 				fixture.BinaryConversionActiveCancel(t, p, b, c, readSQL, provider, func(ctx context.Context) fixture.RelationOutcome {
@@ -66,6 +66,6 @@ func TestReferenceJSONPathNavigateCancellation(t *testing.T) {
 				run(fixture.Select(`SELECT id,v FROM jpn_cancel_out ORDER BY id`, []string{"id", "v"}, []string{"INT4", "JSONB"}, [][]any{{int64(0), `99`}, {int64(1), `[[0]]`}, {int64(2), `[[0]]`}, {int64(3), `[[0]]`}, {int64(4), `[[0]]`}, {int64(5), `[[0]]`}}))
 				run(fixture.Exec(`DELETE FROM jpn_cancel_out WHERE id>0`, 5))
 			})
-		}
-	})
+		})
+	}
 }

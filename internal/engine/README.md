@@ -139,6 +139,23 @@ collision state, immutable bags, one-updater filtering, real grant/cancel paths,
 busy prepared claims and symbolic original provider ownership; public SQL and
 all-six-function smoke remain in `reference/locking_transactions`.
 
+`TestRowLockViews`, `TestRowLockViewProvenance` and `TestRowLockViewStored`
+observe a nonterminal request for the exact requested mode on a physical row
+held by the blocking transaction before triggering the controlled caller deadline
+with `lockWaitCaller(t, true)`. These contention/provenance/strength witnesses
+retain `context.DeadlineExceeded`, no result cursor and no affected rows without
+racing a wall-clock deadline against enqueue. In particular, the restored-layout
+case must still block `FOR KEY SHARE` behind the stored `FOR UPDATE` mark after
+column rename/drop and real Dump/Restore. Queue observation, worker execution,
+result collection and cleanup retain their existing five-second bounds. Worker
+goroutines return outcomes; only the owning test goroutine makes fatal
+assertions. Dedicated timeout-budget tests remain unchanged.
+
+```sh
+make check RUN='^(TestRowLockViews|TestRowLockView(Provenance|Stored|Recheck|Lifetime))$'
+make check RUN='^(TestRowLockViews|TestRowLockView(Provenance|Stored|Recheck|Lifetime))$' RACE=1
+```
+
 
 `TestObjectACLTypeSetterProvenance` exercises actual `Engine.SetObjectACL`
 publication for domains, enums and standalone composites. Genuine replacement

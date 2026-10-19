@@ -2024,8 +2024,8 @@ types/collations, exactly once each. The supplementary `TestPgcryptoControlRemap
 component regression retains its manually mapped descriptor coverage; it is not
 evidence of actual Restore collision handling.
 
-`TestReferencePgcryptoConsumersAndControls` includes a native-only real-pipeline
-relocation phase. An ordinary independent-Driver replay establishes candidate
+`TestReferencePgcryptoRelocation` owns independent native-only real-pipeline
+relocation scenarios. An ordinary independent-Driver replay establishes candidate
 procedure identities. A second identically initialized destination allocates
 live TEMP sequences until all fourteen procedure OIDs have actual cross-class
 collisions. Public Restore must relocate every imported procedure while retaining
@@ -2072,9 +2072,34 @@ dispatch; the private mutation unit checks both descriptor and parent validation
 These are source assertions requiring fresh selected native and pinned-reference
 proof; test definitions alone are not passing evidence.
 
+Hashing and AES control workloads are deliberately separate fixture owners.
+`ConsumersAndControls` checks shared direct/prepared stored consumers, exact
+CHECK diagnostics/atomicity and procedure dependencies. `RetainedControls`
+owns unread rows/metadata and held calls across real Dump/Reset/Restore.
+`ReplayAtomicity` gives every malformed-owner variant and other failed replay
+its own scenario; `ReplayLifecycle` owns cancellation and missing-owner
+destination atomicity. `Relocation` independently reconstructs the real collision
+pipeline for each refusal, retaining the complete held/direct, identity,
+dependency, TEMP, fresh-write and failed-write postconditions after that refusal.
+In each case the same consumer setup and fixed expectations run on both backends;
+native control phases are explicit, not simulated in PostgreSQL.
+Each leaf calls the existing `pgcryptoCase` and gets its own unchanged30-second
+fixture. No scenario renews a deadline or retries an expired operation. In
+particular, all nine malformed-owner forms are exercised both before and after
+forced relocation, rather than dropping their repeated refusal postconditions.
+
+Focused workload remedy proof (all changed/new public definitions, both modes
+and selected race coverage):
+
 ```sh
-make check RUN='^TestReferencePgcrypto(Password(Identity|Vectors|SaltGeneration|Diagnostics|OverloadsAndNull|ConsumersAndControls|Relocation|Cancellation|FeatureSmoke)|DigestVectors|HMACVectors|OverloadsAndParameters|DiagnosticsAndNull|InstalledIdentity|ConsumersAndControls|FeatureSmoke)$'
-make check REFERENCE=1 RUN='^TestReferencePgcrypto(Password(Identity|Vectors|SaltGeneration|Diagnostics|OverloadsAndNull|ConsumersAndControls|Relocation|Cancellation|FeatureSmoke)|DigestVectors|HMACVectors|OverloadsAndParameters|DiagnosticsAndNull|InstalledIdentity|ConsumersAndControls|FeatureSmoke)$'
+make check RUN='^TestReferencePgcrypto(AES)?(ConsumersAndControls|RetainedControls|ReplayAtomicity|ReplayLifecycle|Relocation)$' REFERENCE=1
+make check RUN='^TestReferencePgcrypto(AES)?(ConsumersAndControls|RetainedControls|ReplayAtomicity|ReplayLifecycle|Relocation)$'
+make check RUN='^TestReferencePgcrypto(AES)?(ConsumersAndControls|RetainedControls|ReplayAtomicity|ReplayLifecycle|Relocation)$' RACE=1
+```
+
+```sh
+make check RUN='^TestReferencePgcrypto(Password(Identity|Vectors|SaltGeneration|Diagnostics|OverloadsAndNull|ConsumersAndControls|Relocation|Cancellation|FeatureSmoke)|DigestVectors|HMACVectors|OverloadsAndParameters|DiagnosticsAndNull|InstalledIdentity|ConsumersAndControls|RetainedControls|ReplayAtomicity|ReplayLifecycle|Relocation|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferencePgcrypto(Password(Identity|Vectors|SaltGeneration|Diagnostics|OverloadsAndNull|ConsumersAndControls|Relocation|Cancellation|FeatureSmoke)|DigestVectors|HMACVectors|OverloadsAndParameters|DiagnosticsAndNull|InstalledIdentity|ConsumersAndControls|RetainedControls|ReplayAtomicity|ReplayLifecycle|Relocation|FeatureSmoke)$'
 make check RUN='^TestReferenceAvailableExtensionsFiltering$'
 make check REFERENCE=1 RUN='^TestReferenceAvailableExtensionsFiltering$'
 make check RUN='^TestReferenceBinaryHash(Vectors|MD5Overloads|Consumers|Controls|Diagnostics|Quoted|Metadata|Inference|PreparedOwnership|Smoke)$'
@@ -2135,8 +2160,8 @@ make check REFERENCE=1 RUN='^TestReferencePgcryptoRandomFeatureSmoke$'
 env GODEBUG=fips140=off make check RUN='^TestReferencePgcryptoRandomFIPSMode$'
 env GODEBUG=fips140=on make check RUN='^TestReferencePgcryptoRandomFIPSMode$'
 make check RACE=1 RUN='^TestReferencePgcryptoRandom(ConsumersAndControls|Relocation)$'
-make check RUN='^TestReferencePgcrypto(InstalledIdentity|ConsumersAndControls|FeatureSmoke|Password(Identity|ConsumersAndControls|Relocation|FeatureSmoke))$'
-make check REFERENCE=1 RUN='^TestReferencePgcrypto(InstalledIdentity|ConsumersAndControls|FeatureSmoke|Password(Identity|ConsumersAndControls|Relocation|FeatureSmoke))$'
+make check RUN='^TestReferencePgcrypto(InstalledIdentity|ConsumersAndControls|RetainedControls|ReplayAtomicity|ReplayLifecycle|Relocation|FeatureSmoke|Password(Identity|ConsumersAndControls|Relocation|FeatureSmoke))$'
+make check REFERENCE=1 RUN='^TestReferencePgcrypto(InstalledIdentity|ConsumersAndControls|RetainedControls|ReplayAtomicity|ReplayLifecycle|Relocation|FeatureSmoke|Password(Identity|ConsumersAndControls|Relocation|FeatureSmoke))$'
 make check RUN='^TestReferenceUUIDGeneration(Signatures|BitsMetadataAndOrder|StoredConsumersAndControls|FeatureSmoke)$'
 make check REFERENCE=1 RUN='^TestReferenceUUIDGeneration(Signatures|BitsMetadataAndOrder|StoredConsumersAndControls|FeatureSmoke)$'
 make check RUN='^(TestPgcrypto(Random(Resolution|Evaluation|Cancellation|Binding)|ProviderIdentity|ExpressionIdentity|OwnerMetadata|ControlRemap|OverloadResolution|StrictDemand|Cancellation)|TestExtensionOwnerManifestAdmission|TestUUIDGenerationPacking)$'
@@ -2212,9 +2237,9 @@ binary PKCS length frames, nopad ending preservation, empty results, aliases,
 type-option precedence and complete logical diagnostics. Discovery filters and
 unknown-value logging are removed before native regression and final proof.
 Direct/new/held calls preserve BYTEA metadata and strict source-order demand.
-The AES consumer scenario independently resolves actual procedure dependencies
-for defaults/generated/CHECK/index/view/nested recipes, exercises all fourteen
-held/direct calls through Reset/Restore and forces actual cross-class collisions.
+The AES consumer/control scenarios independently resolve actual procedure dependencies
+for defaults/generated/CHECK/index/view/nested recipes, exercise all fourteen
+held/direct calls through Reset/Restore and force actual cross-class collisions.
 Named owners, unread bytes/metadata, detached output ownership, live fresh writes
 and refused replay atomicity are public API witnesses, not serialized-cipher-state
 tests. Native CFB/legacy cipher exclusions assert0A000 separately from pinned
@@ -2228,14 +2253,14 @@ make check RUN='^TestReferencePgcryptoAES(NISTVectors|PostgresFixtures|KeyAndIV|
 make check REFERENCE=1 RUN='^TestReferencePgcryptoAES(NISTVectors|PostgresFixtures|KeyAndIV|OverloadsAndFrames)$'
 make check RUN='^TestReferencePgcryptoAES(PaddingAndDiagnostics|TypeGrammar|NullAndDemand|Unsupported)$'
 make check REFERENCE=1 RUN='^TestReferencePgcryptoAES(PaddingAndDiagnostics|TypeGrammar|NullAndDemand|Unsupported)$'
-make check RUN='^TestReferencePgcryptoAES(Identity|ConsumersAndControls|FeatureSmoke)$'
-make check REFERENCE=1 RUN='^TestReferencePgcryptoAES(Identity|ConsumersAndControls|FeatureSmoke)$'
-make check RUN='^TestReferencePgcrypto(InstalledIdentity|ConsumersAndControls|FeatureSmoke)$'
-make check REFERENCE=1 RUN='^TestReferencePgcrypto(InstalledIdentity|ConsumersAndControls|FeatureSmoke)$'
+make check RUN='^TestReferencePgcryptoAES(Identity|ConsumersAndControls|RetainedControls|ReplayAtomicity|ReplayLifecycle|Relocation|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferencePgcryptoAES(Identity|ConsumersAndControls|RetainedControls|ReplayAtomicity|ReplayLifecycle|Relocation|FeatureSmoke)$'
+make check RUN='^TestReferencePgcrypto(InstalledIdentity|ConsumersAndControls|RetainedControls|ReplayAtomicity|ReplayLifecycle|Relocation|FeatureSmoke)$'
+make check REFERENCE=1 RUN='^TestReferencePgcrypto(InstalledIdentity|ConsumersAndControls|RetainedControls|ReplayAtomicity|ReplayLifecycle|Relocation|FeatureSmoke)$'
 make check RUN='^TestReferencePgcryptoPassword(Identity|ConsumersAndControls|Relocation|FeatureSmoke)$'
 make check REFERENCE=1 RUN='^TestReferencePgcryptoPassword(Identity|ConsumersAndControls|Relocation|FeatureSmoke)$'
 make check RUN='^TestPgcryptoAES(Vectors|KeyIV|Padding|Parser|Cancellation|Carrier)$'
-make check RACE=1 RUN='^(TestPgcryptoAESCancellation|TestReferencePgcryptoAES(OverloadsAndFrames|ConsumersAndControls))$'
+make check RACE=1 RUN='^(TestPgcryptoAESCancellation|TestReferencePgcryptoAES(OverloadsAndFrames|ConsumersAndControls|RetainedControls|ReplayAtomicity|ReplayLifecycle|Relocation))$'
 ```
 
 Raw AES feature smoke is `make check RUN='^TestReferencePgcryptoAESFeatureSmoke$'`,

@@ -142,7 +142,7 @@ func pgcryptoConsumerDependencies(t *testing.T, p *fixture.Pair, c *sql.Conn, r 
 	return addresses
 }
 
-func pgcryptoForcedRelocation(t *testing.T, p *fixture.Pair, source, baseline *sql.Conn, sourceRecord, baselineRecord *fixture.Recorder, script string, check, view, nested, failure fixture.Step) {
+func pgcryptoForcedRelocation(t *testing.T, p *fixture.Pair, source, baseline *sql.Conn, sourceRecord, baselineRecord *fixture.Recorder, script string, check, view, nested, failure fixture.Step, refusal string) {
 	t.Helper()
 	// The ordinary replay supplies actual candidate identities, independently
 	// of allocator assumptions about the original SQL creation sequence.
@@ -281,61 +281,61 @@ func pgcryptoForcedRelocation(t *testing.T, p *fixture.Pair, source, baseline *s
 			t.Fatal("consumer witness changed persistent data")
 		}
 	}
-	badReplays := []string{
-		strings.Replace(script, "VERSION '1.4'", "VERSION 'missing'", 1),
-		strings.Replace(script, "stuntgres-extension-owners-v1", "stuntgres-extension-owners-v2", 1),
-		script + "\nCREATE EXTENSION nonexistent_provider;",
-		script + "\nINVALID SQL;",
-		// A staging engine may not borrow the live destination's private TEMP
-		// namespace even when its concrete name is known.
-		"CREATE EXTENSION pgcrypto SCHEMA \"" + strings.ReplaceAll(temp.schema, "\"", "\"\"") + "\" VERSION '1.4';",
-	}
-	badReplays = append(badReplays, pgcryptoInvalidOwnerDumps(t, script)...)
-	for i, bad := range badReplays {
+	// Each independently initialized collision destination exercises one refusal
+	// with the complete postcondition, rather than spending one fixture deadline
+	// on every malformed manifest and lifecycle transition.
+	if refusal != "dependent_temp_view" {
 		before := extensionDump(t, p.Ctx, other)
 		unread := pgcryptoCaptureTemp(t, p, c)
-		err := stuntgres.Restore(p.Ctx, other, strings.NewReader(bad))
-		if err == nil {
-			t.Fatal("invalid destination replay accepted", i)
-		}
-		if i == 4 {
-			var diagnostic *stuntgres.Error
-			if !errors.As(err, &diagnostic) || diagnostic.Code != "3F000" {
-				t.Fatal("private TEMP placement diagnostic", err)
+		if refusal == "cancellation" {
+			ctx, cancel := context.WithCancel(p.Ctx)
+			err = stuntgres.Restore(ctx, other, &fixture.CatalogControlCancelReader{Cancel: cancel})
+			cancel()
+			if !errors.Is(err, context.Canceled) {
+				t.Fatal("cancelled destination replay", err)
+			}
+		} else {
+			var bad string
+			if refusal == "private_temp" {
+				// Staging may not borrow the live private TEMP namespace.
+				bad = "CREATE EXTENSION pgcrypto SCHEMA \"" + strings.ReplaceAll(temp.schema, "\"", "\"\"") + "\" VERSION '1.4';"
+			} else {
+				bad = pgcryptoReplayFailure(t, script, refusal)
+			}
+			err = stuntgres.Restore(p.Ctx, other, strings.NewReader(bad))
+			if err == nil {
+				t.Fatal("invalid destination replay accepted", refusal)
+			}
+			if refusal == "private_temp" {
+				var diagnostic *stuntgres.Error
+				if !errors.As(err, &diagnostic) || diagnostic.Code != "3F000" {
+					t.Fatal("private TEMP placement diagnostic", err)
+				}
 			}
 		}
 		postcondition(before)
 		unread.unchanged(t, p, c, r)
 		unread.consume(t)
 	}
-	before := extensionDump(t, p.Ctx, other)
-	unread := pgcryptoCaptureTemp(t, p, c)
-	ctx, cancel := context.WithCancel(p.Ctx)
-	err = stuntgres.Restore(ctx, other, &fixture.CatalogControlCancelReader{Cancel: cancel})
-	cancel()
-	if !errors.Is(err, context.Canceled) {
-		t.Fatal("cancelled destination replay", err)
-	}
-	postcondition(before)
-	unread.unchanged(t, p, c, r)
-	unread.consume(t)
 	if err := held.QueryRowContext(p.Ctx).Scan(&next); err != nil || next != 74 {
 		t.Fatal("failed replay changed retained generator", next, err)
 	}
-	fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("CREATE TEMP VIEW pgcrypto_stale_capture AS SELECT id,digest FROM pgcrypto_view", 0))
-	stale := pgcryptoCaptureTempView(t, p, c)
-	if stale.namespace != temp.namespace || stale.target != consumerIDs["view_relation"] {
-		t.Fatal("blocking TEMP view namespace/target", stale)
+	if refusal == "dependent_temp_view" {
+		fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("CREATE TEMP VIEW pgcrypto_stale_capture AS SELECT id,digest FROM pgcrypto_view", 0))
+		stale := pgcryptoCaptureTempView(t, p, c)
+		if stale.namespace != temp.namespace || stale.target != consumerIDs["view_relation"] {
+			t.Fatal("blocking TEMP view namespace/target", stale)
+		}
+		blockingView = &stale
+		blockingView.unchanged(t, p, c, r)
+		before := extensionDump(t, p.Ctx, other)
+		err = stuntgres.Restore(p.Ctx, other, strings.NewReader(script))
+		if err == nil || err.Error() != "stuntgres: catalog replacement with live temporary view persistent dependencies is unsupported" {
+			t.Fatal("stale persistent consumer identity not refused", err)
+		}
+		postcondition(before)
+		fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT digest FROM pgcrypto_stale_capture ORDER BY id", []string{"digest"}, []string{"BYTEA"}, [][]any{{pgcryptoBytes(t, pgcryptoDigestVectors[3].abc)}, {nil}, {pgcryptoBytes(t, pgcryptoDigestVectors[3].abc)}}))
 	}
-	blockingView = &stale
-	blockingView.unchanged(t, p, c, r)
-	before = extensionDump(t, p.Ctx, other)
-	err = stuntgres.Restore(p.Ctx, other, strings.NewReader(script))
-	if err == nil || err.Error() != "stuntgres: catalog replacement with live temporary view persistent dependencies is unsupported" {
-		t.Fatal("stale persistent consumer identity not refused", err)
-	}
-	postcondition(before)
-	fixture.RunStep(t, p.Ctx, c, r, fixture.Select("SELECT digest FROM pgcrypto_stale_capture ORDER BY id", []string{"digest"}, []string{"BYTEA"}, [][]any{{pgcryptoBytes(t, pgcryptoDigestVectors[3].abc)}, {nil}, {pgcryptoBytes(t, pgcryptoDigestVectors[3].abc)}}))
 	temp.consume(t)
 	fixture.RunStep(t, p.Ctx, source, sourceRecord, fixture.Select("SELECT count(*) FROM pgcrypto_stored", []string{"count"}, []string{"INT8"}, [][]any{{int64(3)}}))
 	fixture.RunStep(t, p.Ctx, baseline, baselineRecord, check)

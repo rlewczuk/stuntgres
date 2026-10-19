@@ -9,24 +9,25 @@ import (
 )
 
 func TestReferenceJSONPathQueryCancellation(t *testing.T) {
-	jsonpathQueryScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
-		run(fixture.Exec(`CREATE TABLE jpq_active(id int,doc jsonb,path jsonpath,repetitions int)`, 0))
-		run(fixture.Exec(`INSERT INTO jpq_active VALUES(1,'[0]','exists($[*])',1),(2,'[0]','exists($[*])',1),(3,'[0]','exists($[*])',1)`, 3))
-		run(fixture.Exec(`CREATE TABLE jpq_cancel_out(id int,v jsonb)`, 0))
-		run(fixture.Exec(`INSERT INTO jpq_cancel_out VALUES(0,'99')`, 1))
-		run(fixture.Exec(`CREATE SEQUENCE jpq_cancel_progress`, 0))
-		resetProgress := func() {
-			run(fixture.Select(`SELECT setval('jpq_cancel_progress',1,false) AS progress`, []string{"progress"}, []string{"INT8"}, [][]any{{int64(1)}}))
-		}
-		large := `["` + strings.Repeat("x", 32<<20) + `",` + strings.Repeat("0,", 1<<16) + `0]`
-		for _, tc := range []struct{ name, provider, path string }{
-			{"jsonb_path_exists", "sqltype.JSONBPathExistsPlan.Evaluate", `strict $[*]?(@ like_regex "x+$" && @ == "never")`},
-			{"jsonb_path_match", "sqltype.JSONBPathMatchPlan.Evaluate", `strict exists($[*]?(@ like_regex "x+$" && @ == "never"))`},
-			{"jsonb_path_query_first", "sqltype.JSONBPathQueryFirstPlan.Evaluate", `$[*]?(@ like_regex "x+$" && @ == "never")`},
-			{"jsonb_path_query", "sqltype.JSONBPathQueryPlan.Evaluate", `$[*]?(@ like_regex "x+$" && @ == "never")`},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
+	for _, tc := range []struct{ name, provider, path string }{
+		{"jsonb_path_exists", "sqltype.JSONBPathExistsPlan.Evaluate", `strict $[*]?(@ like_regex "x+$" && @ == "never")`},
+		{"jsonb_path_match", "sqltype.JSONBPathMatchPlan.Evaluate", `strict exists($[*]?(@ like_regex "x+$" && @ == "never"))`},
+		{"jsonb_path_query_first", "sqltype.JSONBPathQueryFirstPlan.Evaluate", `$[*]?(@ like_regex "x+$" && @ == "never")`},
+		{"jsonb_path_query", "sqltype.JSONBPathQueryPlan.Evaluate", `$[*]?(@ like_regex "x+$" && @ == "never")`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Each consumer owns its fixture deadline, records and held recovery.
+			jsonpathQueryScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+				run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
+				run(fixture.Exec(`CREATE TABLE jpq_active(id int,doc jsonb,path jsonpath,repetitions int)`, 0))
+				run(fixture.Exec(`INSERT INTO jpq_active VALUES(1,'[0]','exists($[*])',1),(2,'[0]','exists($[*])',1),(3,'[0]','exists($[*])',1)`, 3))
+				run(fixture.Exec(`CREATE TABLE jpq_cancel_out(id int,v jsonb)`, 0))
+				run(fixture.Exec(`INSERT INTO jpq_cancel_out VALUES(0,'99')`, 1))
+				run(fixture.Exec(`CREATE SEQUENCE jpq_cancel_progress`, 0))
+				resetProgress := func() {
+					run(fixture.Select(`SELECT setval('jpq_cancel_progress',1,false) AS progress`, []string{"progress"}, []string{"INT8"}, [][]any{{int64(1)}}))
+				}
+				large := `["` + strings.Repeat("x", 32<<20) + `",` + strings.Repeat("0,", 1<<16) + `0]`
 				// Evaluate the expensive predicate but never transfer its large input.
 				path := tc.path
 				// Sort by the computed result: source-id ordering alone can precede
@@ -132,6 +133,6 @@ func TestReferenceJSONPathQueryCancellation(t *testing.T) {
 				run(fixture.Select(`SELECT id,v FROM jpq_cancel_out ORDER BY id`, []string{"id", "v"}, []string{"INT4", "JSONB"}, [][]any{{int64(0), `99`}, {int64(1), `true`}, {int64(2), `true`}, {int64(3), `true`}}))
 				run(fixture.Exec(`DELETE FROM jpq_cancel_out WHERE id>0`, 3))
 			})
-		}
-	})
+		})
+	}
 }

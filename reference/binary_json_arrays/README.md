@@ -2043,6 +2043,13 @@ work and recovery, native Dump/Reset/Restore/fresh-driver replay, old cursors,
 deterministic redump, all-formal Restore parameter rejection and actual emitted
 SQL replay on PostgreSQL.
 
+Cancellation gives each of the five traversal paths its own scenario and existing
+30-second fixture context, rather than charging all paths to one shared deadline.
+Each case retains the full 32MiB typed document, both native precanceled calls,
+real evaluator/server admission, canceled read and write, sentinel-only rollback
+and recovery on the same physical connection and preheld statements. Read/write
+phases stay together; no evaluator workload or admission proof is reduced.
+
 Variadic pins redundant final `VARIADIC` acceptance for positional calls and
 named/mixed calls whose final written formal matches its supplied ordinal.
 Reordered final names or a final named silent argument skipping vars fail42883;
@@ -2057,7 +2064,7 @@ descendant leaves; a `last` lower bound with a finite upper bound selects
 nothing and does not demand a continuation. Numeric ranges retain preorder.
 
 Run each small batch in both modes; each command has an external900-second
-deadline. Add `REFERENCE=1` to each native command for the pinned18.0 counterpart:
+deadline. Add `REFERENCE=1` to each native command for the pinned18.6 counterpart:
 
 ```sh
 make check RUN='^TestReferenceJSONPathNavigate(Navigation|Recursive|ScopeVariables)$'
@@ -2127,6 +2134,13 @@ not merely Bind activity; it drains pq RowDescription cursors to a genuine
 terminal57014 without accepting successful rows or nil errors. Native admission
 observes each typed consumer's evaluator stack. Same-owner held recovery and
 sentinel-preserving canceled writes remain mandatory.
+Each consumer subtest creates its own scenario, with the existing 30-second
+fixture deadline covering its cohesive read/write cancellation and recovery.
+Setup, progress observers and step helpers belong to that backend callback's
+`testing.T`; no child invokes a parent test's fatal helper. The 32MiB predicate
+input and 100 repetitions remain unchanged. Read/write phases are not split:
+both retain their original preheld statements and physical connection through
+cancellation, terminal-error observation, sentinel checks and successful reuse.
 
 The same scenario bodies run on native and PostgreSQL backends without
 discovery filters. Native-only control phases remain explicit.
@@ -2138,6 +2152,15 @@ both without and with `REFERENCE=1`:
 make check RUN='^TestReferenceJSONPathQuery(Values|Nulls|Demand|Arguments|Diagnostics)$' REFERENCE=1
 make check RUN='^TestReferenceJSONPathQuery(Metadata|RoutineAuthority|HeldParameters|FromComposition)$' REFERENCE=1
 make check RUN='^TestReferenceJSONPathQuery(Consumers|Controls|Atomicity|Cancellation|FeatureSmoke)$' REFERENCE=1
+```
+
+For the cancellation-lifetime remedy, select both complete definitions in each
+mode, then select race proof without changing their fixture deadlines:
+
+```sh
+make check RUN='^TestReferenceJSONPath(Navigate|Query)Cancellation$' REFERENCE=1
+make check RUN='^TestReferenceJSONPath(Navigate|Query)Cancellation$'
+make check RUN='^TestReferenceJSONPath(Navigate|Query)Cancellation$' RACE=1
 ```
 
 The focused result-policy regression is

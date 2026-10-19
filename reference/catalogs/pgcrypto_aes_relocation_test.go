@@ -13,7 +13,7 @@ import (
 
 // Exercise AES recipes in real Restore relocation, not only standalone members.
 // Candidate OIDs come from a separate ordinary replay, never allocator guesses.
-func pgcryptoAESRelocation(t *testing.T, p *fixture.Pair, source *sql.Conn, sourceRecord *fixture.Recorder, script string, stored, view, nested, failure fixture.Step) {
+func pgcryptoAESRelocation(t *testing.T, p *fixture.Pair, source *sql.Conn, sourceRecord *fixture.Recorder, script string, stored, view, nested, failure fixture.Step, refusal string) {
 	t.Helper()
 	baseline, bc, br := pgcryptoControlDestination(t, p, "pgcrypto_aes_baseline")
 	fixture.RunStep(t, p.Ctx, bc, br, fixture.Exec("CREATE USER pgcrypto_owner NOSUPERUSER", 0))
@@ -99,15 +99,16 @@ func pgcryptoAESRelocation(t *testing.T, p *fixture.Pair, source *sql.Conn, sour
 	}
 	post()
 	before := extensionDump(t, p.Ctx, other)
-	for _, bad := range append(pgcryptoInvalidOwnerDumps(t, script), script+"\nINVALID SQL;") {
-		if err := stuntgres.Restore(p.Ctx, other, strings.NewReader(bad)); err == nil {
-			t.Fatal("invalid AES relocation replay accepted")
-		}
-		if extensionDump(t, p.Ctx, other) != before {
-			t.Fatal("AES collision refusal changed target")
-		}
-		post()
+	// A complete collision replay and its refusal witness own this fixture.
+	// Repeating every manifest variant uses separate fixtures, not a renewed
+	// deadline or a shortened postcondition inside the same scenario.
+	if err := stuntgres.Restore(p.Ctx, other, strings.NewReader(pgcryptoReplayFailure(t, script, refusal))); err == nil {
+		t.Fatal("invalid AES relocation replay accepted")
 	}
+	if extensionDump(t, p.Ctx, other) != before {
+		t.Fatal("AES collision refusal changed target")
+	}
+	post()
 	if !old.Next() {
 		t.Fatal("lost unread relocated AES result", old.Err())
 	}

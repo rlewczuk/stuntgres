@@ -11,32 +11,45 @@ import (
 	"testing"
 )
 
+func pgcryptoAESConsumerSetup(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder) (stored, view, nested, failure fixture.Step) {
+	t.Helper()
+	run := func(s fixture.Step) { t.Helper(); fixture.RunStep(t, p.Ctx, c, r, s) }
+	run(fixture.Exec("CREATE USER pgcrypto_owner SUPERUSER", 0))
+	run(fixture.Exec("CREATE SCHEMA pgcrypto_part AUTHORIZATION pgcrypto_owner", 0))
+	run(fixture.Exec("SET SESSION AUTHORIZATION pgcrypto_owner", 0))
+	run(fixture.Exec("CREATE EXTENSION pgcrypto SCHEMA pgcrypto_part", 0))
+	run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
+	pgcryptoInventory(t, p, c, "pgcrypto_owner", "pgcrypto_owner")
+	run(fixture.Exec("CREATE TABLE pgcrypto_aes_stored(id integer,p bytea DEFAULT 'foo'::bytea,c bytea DEFAULT pgcrypto_part.encrypt('foo','0123456789','aes'),g bytea GENERATED ALWAYS AS(pgcrypto_part.encrypt_iv(p,'0123456','abcd','aes')) STORED)", 0))
+	run(fixture.Exec("CREATE INDEX pgcrypto_aes_idx ON pgcrypto_aes_stored ((pgcrypto_part.encrypt_iv(p,'0123456','abcd','aes')))", 0))
+	run(fixture.Exec("CREATE VIEW pgcrypto_aes_view AS SELECT id,pgcrypto_part.decrypt(c,'0123456789','aes') AS p,pgcrypto_part.decrypt_iv(g,'0123456','abcd','aes') AS ivp FROM pgcrypto_aes_stored", 0))
+	run(fixture.Exec("CREATE VIEW pgcrypto_aes_nested AS SELECT id,(SELECT pgcrypto_part.decrypt_iv('\\x2c24cb7da91d6d5699801268b0f5adad'::bytea,'0123456','abcd','aes')) AS p FROM pgcrypto_aes_view", 0))
+	run(fixture.Exec("INSERT INTO pgcrypto_aes_stored(id,p) VALUES(1,'foo'),(2,NULL)", 2))
+	stored = fixture.Select("SELECT id,c,g FROM pgcrypto_aes_stored ORDER BY id", []string{"id", "c", "g"}, []string{"INT4", "BYTEA", "BYTEA"}, [][]any{{int64(1), pgcryptoBytes(t, "f397f03d2819b7172b68d0706fda4693"), pgcryptoBytes(t, "2c24cb7da91d6d5699801268b0f5adad")}, {int64(2), pgcryptoBytes(t, "f397f03d2819b7172b68d0706fda4693"), nil}})
+	view = fixture.Select("SELECT id,p,ivp FROM pgcrypto_aes_view ORDER BY id", []string{"id", "p", "ivp"}, []string{"INT4", "BYTEA", "BYTEA"}, [][]any{{int64(1), "foo", "foo"}, {int64(2), "foo", nil}})
+	nested = fixture.Select("SELECT id,p FROM pgcrypto_aes_nested ORDER BY id", []string{"id", "p"}, []string{"INT4", "BYTEA"}, [][]any{{int64(1), "foo"}, {int64(2), "foo"}})
+	for _, s := range []fixture.Step{stored, view, nested} {
+		run(s)
+		run(fixture.Prepared(s))
+	}
+	run(fixture.Exec("CREATE TABLE pgcrypto_aes_atomic(p bytea CONSTRAINT pgcrypto_aes_valid CHECK(pgcrypto_part.encrypt(p,'0123456789','aes')='\\xf397f03d2819b7172b68d0706fda4693'::bytea))", 0))
+	failure = fixture.ImplicitError("INSERT INTO pgcrypto_aes_atomic VALUES('foo'),('wrong')", fixture.Diagnostic{Code: "23514", Message: `new row for relation "pgcrypto_aes_atomic" violates check constraint "pgcrypto_aes_valid"`, Detail: `Failing row contains (\x77726f6e67).`, Schema: "public", Table: "pgcrypto_aes_atomic", Constraint: "pgcrypto_aes_valid"})
+	run(failure)
+	run(fixture.Select("SELECT count(*) FROM pgcrypto_aes_atomic", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
+	pgcryptoAESDependencies(t, p, c, r)
+	return
+}
+
 func TestReferencePgcryptoAESConsumersAndControls(t *testing.T) {
 	pgcryptoCase(t, false, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
-		run := func(s fixture.Step) { t.Helper(); fixture.RunStep(t, p.Ctx, c, r, s) }
-		run(fixture.Exec("CREATE USER pgcrypto_owner SUPERUSER", 0))
-		run(fixture.Exec("CREATE SCHEMA pgcrypto_part AUTHORIZATION pgcrypto_owner", 0))
-		run(fixture.Exec("SET SESSION AUTHORIZATION pgcrypto_owner", 0))
-		run(fixture.Exec("CREATE EXTENSION pgcrypto SCHEMA pgcrypto_part", 0))
-		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
-		pgcryptoInventory(t, p, c, "pgcrypto_owner", "pgcrypto_owner")
-		run(fixture.Exec("CREATE TABLE pgcrypto_aes_stored(id integer,p bytea DEFAULT 'foo'::bytea,c bytea DEFAULT pgcrypto_part.encrypt('foo','0123456789','aes'),g bytea GENERATED ALWAYS AS(pgcrypto_part.encrypt_iv(p,'0123456','abcd','aes')) STORED)", 0))
-		run(fixture.Exec("CREATE INDEX pgcrypto_aes_idx ON pgcrypto_aes_stored ((pgcrypto_part.encrypt_iv(p,'0123456','abcd','aes')))", 0))
-		run(fixture.Exec("CREATE VIEW pgcrypto_aes_view AS SELECT id,pgcrypto_part.decrypt(c,'0123456789','aes') AS p,pgcrypto_part.decrypt_iv(g,'0123456','abcd','aes') AS ivp FROM pgcrypto_aes_stored", 0))
-		run(fixture.Exec("CREATE VIEW pgcrypto_aes_nested AS SELECT id,(SELECT pgcrypto_part.decrypt_iv('\\x2c24cb7da91d6d5699801268b0f5adad'::bytea,'0123456','abcd','aes')) AS p FROM pgcrypto_aes_view", 0))
-		run(fixture.Exec("INSERT INTO pgcrypto_aes_stored(id,p) VALUES(1,'foo'),(2,NULL)", 2))
-		stored := fixture.Select("SELECT id,c,g FROM pgcrypto_aes_stored ORDER BY id", []string{"id", "c", "g"}, []string{"INT4", "BYTEA", "BYTEA"}, [][]any{{int64(1), pgcryptoBytes(t, "f397f03d2819b7172b68d0706fda4693"), pgcryptoBytes(t, "2c24cb7da91d6d5699801268b0f5adad")}, {int64(2), pgcryptoBytes(t, "f397f03d2819b7172b68d0706fda4693"), nil}})
-		view := fixture.Select("SELECT id,p,ivp FROM pgcrypto_aes_view ORDER BY id", []string{"id", "p", "ivp"}, []string{"INT4", "BYTEA", "BYTEA"}, [][]any{{int64(1), "foo", "foo"}, {int64(2), "foo", nil}})
-		nested := fixture.Select("SELECT id,p FROM pgcrypto_aes_nested ORDER BY id", []string{"id", "p"}, []string{"INT4", "BYTEA"}, [][]any{{int64(1), "foo"}, {int64(2), "foo"}})
-		for _, s := range []fixture.Step{stored, view, nested} {
-			run(s)
-			run(fixture.Prepared(s))
-		}
-		run(fixture.Exec("CREATE TABLE pgcrypto_aes_atomic(p bytea CONSTRAINT pgcrypto_aes_valid CHECK(pgcrypto_part.encrypt(p,'0123456789','aes')='\\xf397f03d2819b7172b68d0706fda4693'::bytea))", 0))
-		failure := fixture.ImplicitError("INSERT INTO pgcrypto_aes_atomic VALUES('foo'),('wrong')", fixture.Diagnostic{Code: "23514", Message: `new row for relation "pgcrypto_aes_atomic" violates check constraint "pgcrypto_aes_valid"`, Detail: `Failing row contains (\x77726f6e67).`, Schema: "public", Table: "pgcrypto_aes_atomic", Constraint: "pgcrypto_aes_valid"})
-		run(failure)
-		run(fixture.Select("SELECT count(*) FROM pgcrypto_aes_atomic", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}))
-		pgcryptoAESDependencies(t, p, c, r)
+		pgcryptoAESConsumerSetup(t, p, c, r)
+	})
+}
+
+func TestReferencePgcryptoAESRetainedControls(t *testing.T) {
+	pgcryptoCase(t, false, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
+		stored, view, nested, failure := pgcryptoAESConsumerSetup(t, p, c, r)
+		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, r, s) }
 		if pg {
 			return
 		}
@@ -97,20 +110,43 @@ func TestReferencePgcryptoAESConsumersAndControls(t *testing.T) {
 		run(fixture.Exec("INSERT INTO pgcrypto_aes_stored(id) VALUES(3)", 1))
 		pgcryptoResult(t, p, c, r, "g", "SELECT g FROM pgcrypto_aes_stored WHERE id=3", "2c24cb7da91d6d5699801268b0f5adad")
 		run(failure)
-		before := extensionDump(t, p.Ctx, p.Native)
-		badReplays := []string{dump.String() + "\nINVALID SQL;", strings.Replace(dump.String(), "VERSION '1.4'", "VERSION 'missing'", 1)}
-		badReplays = append(badReplays, pgcryptoInvalidOwnerDumps(t, dump.String())...)
-		for _, script := range badReplays {
-			if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(script)); err == nil {
-				t.Fatal("invalid replay accepted")
-			}
-			if extensionDump(t, p.Ctx, p.Native) != before {
-				t.Fatal("failed replay published changes")
-			}
-			pgcryptoResult(t, p, c, r, "encrypt", "SELECT pgcrypto_part.encrypt('foo','0123456789','aes')", "f397f03d2819b7172b68d0706fda4693")
+	})
+}
+
+func TestReferencePgcryptoAESReplayAtomicity(t *testing.T) {
+	for _, name := range append([]string{"sql", "version"}, pgcryptoInvalidOwnerKinds()...) {
+		t.Run(name, func(t *testing.T) {
+			pgcryptoCase(t, false, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
+				pgcryptoAESConsumerSetup(t, p, c, r)
+				if pg {
+					return // Shared SQL above; native Restore has no PostgreSQL API.
+				}
+				script := extensionDump(t, p.Ctx, p.Native)
+				fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("INSERT INTO pgcrypto_aes_stored(id) VALUES(3)", 1))
+				before := extensionDump(t, p.Ctx, p.Native)
+				if err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(pgcryptoReplayFailure(t, script, name))); err == nil {
+					t.Fatal("invalid replay accepted")
+				}
+				if extensionDump(t, p.Ctx, p.Native) != before {
+					t.Fatal("failed replay published changes")
+				}
+				pgcryptoResult(t, p, c, r, "encrypt", "SELECT pgcrypto_part.encrypt('foo','0123456789','aes')", "f397f03d2819b7172b68d0706fda4693")
+			})
+		})
+	}
+}
+
+func TestReferencePgcryptoAESReplayLifecycle(t *testing.T) {
+	pgcryptoCase(t, false, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
+		pgcryptoAESConsumerSetup(t, p, c, r)
+		if pg {
+			return
 		}
+		script := extensionDump(t, p.Ctx, p.Native)
+		fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("INSERT INTO pgcrypto_aes_stored(id) VALUES(3)", 1))
+		before := extensionDump(t, p.Ctx, p.Native)
 		cancelCtx, cancel := context.WithCancel(p.Ctx)
-		err = stuntgres.Restore(cancelCtx, p.Native, &fixture.CatalogControlCancelReader{Cancel: cancel})
+		err := stuntgres.Restore(cancelCtx, p.Native, &fixture.CatalogControlCancelReader{Cancel: cancel})
 		cancel()
 		if !errors.Is(err, context.Canceled) || extensionDump(t, p.Ctx, p.Native) != before {
 			t.Fatal("canceled replay changed AES target", err)
@@ -120,14 +156,29 @@ func TestReferencePgcryptoAESConsumersAndControls(t *testing.T) {
 			t.Fatal(err)
 		}
 		missingBefore := extensionDump(t, p.Ctx, missing)
-		if err := stuntgres.Restore(p.Ctx, missing, strings.NewReader(dump.String())); err == nil {
+		if err := stuntgres.Restore(p.Ctx, missing, strings.NewReader(script)); err == nil {
 			t.Fatal("missing owner accepted")
 		}
 		if extensionDump(t, p.Ctx, missing) != missingBefore {
 			t.Fatal("missing owner changed sentinel")
 		}
-		pgcryptoAESRelocation(t, p, c, r, dump.String(), stored, view, nested, failure)
 	})
+}
+
+func TestReferencePgcryptoAESRelocation(t *testing.T) {
+	for _, name := range append(pgcryptoInvalidOwnerKinds(), "sql") {
+		t.Run(name, func(t *testing.T) {
+			pgcryptoCase(t, false, func(t *testing.T, p *fixture.Pair, c *sql.Conn, r *fixture.Recorder, pg bool) {
+				stored, view, nested, failure := pgcryptoAESConsumerSetup(t, p, c, r)
+				if pg {
+					return
+				}
+				script := extensionDump(t, p.Ctx, p.Native)
+				fixture.RunStep(t, p.Ctx, c, r, fixture.Exec("INSERT INTO pgcrypto_aes_stored(id) VALUES(3)", 1))
+				pgcryptoAESRelocation(t, p, c, r, script, stored, view, nested, failure, name)
+			})
+		})
+	}
 }
 
 func TestReferencePgcryptoAESFeatureSmoke(t *testing.T) {
