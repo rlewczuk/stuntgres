@@ -113,7 +113,7 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 func TestInheritanceAlterAtomicity(t *testing.T) {
 	e, p, c := inheritanceDMLPublishedGraph(t)
 	before := e.CatalogRead()
-	parentStore, childStore := e.storage[p.Address()], e.storage[c.Address()]
+	parentStore, childStore := e.storage.relations[p.Address()], e.storage.relations[c.Address()]
 	parentRows := append([]rowVersion(nil), parentStore.versions...)
 	childRows := append([]rowVersion(nil), childStore.versions...)
 	stage := e.BeginCatalogStage(before)
@@ -122,7 +122,7 @@ func TestInheritanceAlterAtomicity(t *testing.T) {
 		next := *old
 		next.ObjectRevision++
 		next.Comment = "candidate"
-		store := e.storage[old.Address()]
+		store := e.storage.relations[old.Address()]
 		ref := e.catalog.Domain.Ref(before.Epoch(), old.Address())
 		if err := stage.alterRelation(context.Background(), ref, &next, store, store, len(store.versions), store.generation, store.ends); err != nil {
 			t.Fatal(err)
@@ -134,7 +134,7 @@ func TestInheritanceAlterAtomicity(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(context.Background(), stage); err == nil {
 		t.Fatal("stale later child observation validated")
 	}
-	if e.CatalogRead().State() != before.State() || e.storage[p.Address()] != parentStore || e.storage[c.Address()] != childStore {
+	if e.CatalogRead().State() != before.State() || e.storage.relations[p.Address()] != parentStore || e.storage.relations[c.Address()] != childStore {
 		t.Fatal("late child veto partially published catalog/store identities")
 	}
 	if !reflect.DeepEqual(parentRows, parentStore.versions) || !reflect.DeepEqual(childRows, childStore.versions) {

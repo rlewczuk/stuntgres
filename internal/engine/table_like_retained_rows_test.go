@@ -153,7 +153,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 				t.Fatal("duplicate copied column accepted")
 			}
 			for address := range candidate.Descriptors {
-				if e.CatalogRead().Get(address) != nil || e.storage[address] != nil || e.indexRoots[address] != nil || e.sequences[address] != nil {
+				if e.CatalogRead().Get(address) != nil || e.storage.relations[address] != nil || e.storage.indexRoots[address] != nil || e.storage.sequences[address] != nil {
 					t.Fatal("failed copied candidate published a fragment", address)
 				}
 			}
@@ -166,12 +166,12 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, index := range clonedIndexes {
-				root := e.indexRoots[index.Address()]
+				root := e.storage.indexRoots[index.Address()]
 				if root == nil || len(root.entries) != 0 {
 					t.Fatal("copied root not fresh empty", root)
 				}
 				for _, old := range indexes {
-					if root == e.indexRoots[old.Address()] {
+					if root == e.storage.indexRoots[old.Address()] {
 						t.Fatal("copied root aliases source")
 					}
 				}

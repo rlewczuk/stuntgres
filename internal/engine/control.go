@@ -556,7 +556,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				options + " AS " + body + ";\n"
 			if r.RelationKind == catalog.MaterializedViewRelation {
 				sql = "CREATE MATERIALIZED VIEW " + quoteIdentifier(ns.Name()) + "." + quoteIdentifier(r.Name()) + columns + " AS " + body + " WITH NO DATA;\n"
-				storage := e.storage[a]
+				storage := e.storage.relations[a]
 				if storage == nil {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: materialized view storage is missing")
@@ -618,7 +618,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			continue
 		}
 		if r.RelationKind == catalog.SequenceRelation {
-			g := e.sequences[a]
+			g := e.storage.sequences[a]
 			if g == nil {
 				e.mu.Unlock()
 				return fmt.Errorf("stuntgres: sequence state missing")
@@ -646,7 +646,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			sequences = append(sequences, sequence)
 			continue
 		}
-		storage := e.storage[a]
+		storage := e.storage.relations[a]
 		if storage == nil && r.Partition == nil {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: relation storage is missing")
@@ -768,7 +768,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		linked := make(map[ids.ObjectAddress]dumpSequence, len(r.Identities))
 		for _, identity := range r.Identities {
 			sequence := e.catalog.state.MustRelation(identity.Sequence)
-			linked[identity.Sequence] = dumpSequence{owner: principal.Name, schema: ns.Name(), name: sequence.Name(), options: *sequence.Sequence, state: *e.sequences[identity.Sequence], comment: sequence.Comment}
+			linked[identity.Sequence] = dumpSequence{owner: principal.Name, schema: ns.Name(), name: sequence.Name(), options: *sequence.Sequence, state: *e.storage.sequences[identity.Sequence], comment: sequence.Comment}
 		}
 		var versions []rowVersion
 		var ends *deletionRoot

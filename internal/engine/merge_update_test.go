@@ -76,7 +76,7 @@ func TestMergeUpdatePublication(t *testing.T) {
 	sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
 	sessionSQL(t, peer, "INSERT INTO t VALUES(1,10)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	before := append([]rowVersion(nil), e.storage[ref.Address].versions...)
+	before := append([]rowVersion(nil), e.storage.relations[ref.Address].versions...)
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -95,7 +95,7 @@ func TestMergeUpdatePublication(t *testing.T) {
 		scope.Finish(errors.New("bad result"))
 		t.Fatal(result)
 	}
-	if !reflect.DeepEqual(before, e.storage[ref.Address].versions) {
+	if !reflect.DeepEqual(before, e.storage.relations[ref.Address].versions) {
 		scope.Finish(errors.New("early publish"))
 		t.Fatal("Execute escaped private stage")
 	}
@@ -103,7 +103,7 @@ func TestMergeUpdatePublication(t *testing.T) {
 	if err = scope.Finish(sentinel); !errors.Is(err, sentinel) {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(before, e.storage[ref.Address].versions) {
+	if !reflect.DeepEqual(before, e.storage.relations[ref.Address].versions) {
 		t.Fatal("failed Finish published mixed prefix")
 	}
 	transactionRows(t, peer, "SELECT v FROM t", 10)

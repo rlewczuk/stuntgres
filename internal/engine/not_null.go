@@ -150,7 +150,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if scope.inheritanceAlter != nil {
 		changes = scope.inheritanceAlter.changes
 	}
-	original := e.storage[ref.Address]
+	original := e.storage.relations[ref.Address]
 	store := e.privateStorageLocked(changes, ref.Address)
 	if store == nil {
 		return fail(fmt.Errorf("stuntgres: relation storage is missing"))

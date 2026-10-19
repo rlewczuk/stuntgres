@@ -22,7 +22,7 @@ func domainAlterUnitFence(t *testing.T, e *Engine, view catalog.Read, target ids
 	}
 	for i := range f.uses {
 		use := &f.uses[i]
-		use.storage = e.storage[use.relation.Address()]
+		use.storage = e.storage.relations[use.relation.Address()]
 		if use.storage == nil {
 			t.Fatal("missing physical use")
 		}
@@ -106,20 +106,20 @@ func TestDomainAlterConstraintDiscovery(t *testing.T) {
 	view := e.CatalogRead()
 	d := domainUnitType(t, view, "d")
 	f := domainAlterUnitFence(t, e, view, d.Address())
-	if len(f.uses) != 1 || f.uses[0].relation != table || !slices.Equal(f.uses[0].columns, []int{0, 1}) || !f.current(view, e.storage) {
+	if len(f.uses) != 1 || f.uses[0].relation != table || !slices.Equal(f.uses[0].columns, []int{0, 1}) || !f.current(view, e.storage.relations) {
 		t.Fatal("physical target/attribute deduplication", f.uses)
 	}
 	domainUnitTable(t, e, op, "CREATE TABLE public.unrelated(v integer)")
-	if !f.current(e.CatalogRead(), e.storage) {
+	if !f.current(e.CatalogRead(), e.storage.relations) {
 		t.Fatal("unrelated declaration invalidated observation")
 	}
 	domainUnitTable(t, e, op, "CREATE TABLE public.late(v public.child)")
-	if f.current(e.CatalogRead(), e.storage) {
+	if f.current(e.CatalogRead(), e.storage.relations) {
 		t.Fatal("late direct use escaped observation")
 	}
 	f = domainAlterUnitFence(t, e, e.CatalogRead(), d.Address())
 	domainUnitTable(t, e, op, "CREATE TABLE public.blocker(v public.unstored[])")
-	if f.current(e.CatalogRead(), e.storage) {
+	if f.current(e.CatalogRead(), e.storage.relations) {
 		t.Fatal("late stored container escaped observation")
 	}
 	_, err := domainUsesAt(e.CatalogRead(), d.Address(), []ids.ObjectAddress{})
@@ -151,7 +151,7 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := &relationStorage{generation: 3, versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{value, arrayValue, composite}}}}
-	e.storage[table.Address()] = store
+	e.storage.relations[table.Address()] = store
 	e.commitSeq = 3
 	// A permanently FALSE recipe proves pure retagging does not check old data.
 	raw := statement(t, "CREATE DOMAIN public.unused AS integer CONSTRAINT positive CHECK(FALSE)").(*parser.CreateDomain)
@@ -184,7 +184,7 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 	if !newD.DomainChecks[0].NotValid || !newChild.SQLType.HasDomainChecks() || newD.SQLType.ID() != d.SQLType.ID() || newChild.SQLType.ID() != child.SQLType.ID() || newChild.SQLType.DomainBase().Type != newD.SQLType {
 		t.Fatal("same-ID checked ancestry lost")
 	}
-	mapped := e.storage[table.Address()]
+	mapped := e.storage.relations[table.Address()]
 	if mapped == store || mapped.versions[0].values[0].Type() != newChild.SQLType || store.versions[0].values[0].Type() != child.SQLType || d.SQLType.HasDomainChecks() {
 		t.Fatal("old row/type roots mutated")
 	}

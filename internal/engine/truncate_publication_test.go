@@ -19,9 +19,9 @@ func TestTruncateGraphPartitions(t *testing.T) {
 	}
 	root, nested := roleTableRef(t, e, "r"), roleTableRef(t, e, "nested")
 	left, right := roleTableRef(t, e, "left_leaf"), roleTableRef(t, e, "right_leaf")
-	oldLeft, oldRight := e.storage[left.Address], e.storage[right.Address]
+	oldLeft, oldRight := e.storage.relations[left.Address], e.storage.relations[right.Address]
 	scope := truncateUnitStage(t, e, s, "r")
-	if len(scope.truncateRelations) != 4 || len(scope.catalog.storage) != 2 || e.storage[root.Address] != nil || e.storage[nested.Address] != nil {
+	if len(scope.truncateRelations) != 4 || len(scope.catalog.storage) != 2 || e.storage.relations[root.Address] != nil || e.storage.relations[nested.Address] != nil {
 		t.Fatal("virtual authorities became physical stores or a real leaf was omitted")
 	}
 	for _, ref := range []ids.ObjectRef{root, nested, left, right} {
@@ -40,13 +40,13 @@ func TestTruncateGraphPartitions(t *testing.T) {
 		t.Fatal(err)
 	}
 	scope.op.Done()
-	if e.storage[left.Address] != oldLeft || e.storage[right.Address] != oldRight || oldLeft.truncateLineage != nil || oldRight.truncateLineage != nil {
+	if e.storage.relations[left.Address] != oldLeft || e.storage.relations[right.Address] != oldRight || oldLeft.truncateLineage != nil || oldRight.truncateLineage != nil {
 		t.Fatal("partition cancellation changed a leaf")
 	}
 	truncateUnitError(t, e, s, "TRUNCATE ONLY r", "42809")
 	stmt := truncateUnitAST("left_leaf")
 	truncateUnitExecute(t, e, s, stmt)
-	if len(e.storage[left.Address].versions) != 0 || e.storage[right.Address] != oldRight || len(oldRight.versions) != 1 {
+	if len(e.storage.relations[left.Address].versions) != 0 || e.storage.relations[right.Address] != oldRight || len(oldRight.versions) != 1 {
 		t.Fatal("direct leaf changed sibling")
 	}
 	lockEmpty(t, e)
@@ -96,7 +96,7 @@ func TestTruncateFinalVetoAdditional(t *testing.T) {
 			tx := transactionBegin(t, s)
 			sessionSQL(t, s, "INSERT INTO p VALUES(3)")
 			sessionSQL(t, s, "SAVEPOINT preserve")
-			oldP, oldQ := e.storage[p.Address], e.storage[q.Address]
+			oldP, oldQ := e.storage.relations[p.Address], e.storage.relations[q.Address]
 			writes := s.transactions.writes[p.Address]
 			scope := truncateUnitStage(t, e, s, "p", "q")
 			switch kind {
@@ -140,7 +140,7 @@ func TestTruncateFinalVetoAdditional(t *testing.T) {
 			transactionEnd(t, s, tx, false)
 			if kind == "epoch" {
 				transactionRows(t, s, "SELECT id FROM p", 9)
-			} else if len(e.storage[p.Address].versions) != 2 || e.storage[q.Address] != oldQ {
+			} else if len(e.storage.relations[p.Address].versions) != 2 || e.storage.relations[q.Address] != oldQ {
 				t.Fatal("failed truncate overrode real host publication")
 			}
 			lockEmpty(t, e)
@@ -154,7 +154,7 @@ func TestTruncateAdmissionNamespace(t *testing.T) {
 	sessionSQL(t, waiter, "SET search_path=public,other")
 	tx := transactionBegin(t, holder)
 	sessionSQL(t, holder, "LOCK p IN ACCESS SHARE MODE")
-	old := e.storage[p.Address]
+	old := e.storage.relations[p.Address]
 	done, _ := truncateUnitAsync(t, e, waiter, truncateUnitAST("p"))
 	lockPending(t, e, 1)
 	base := e.CatalogRead()
@@ -174,7 +174,7 @@ func TestTruncateAdmissionNamespace(t *testing.T) {
 	truncateUnitPublish(t, e, stage)
 	transactionEnd(t, holder, tx, false)
 	lockAwait(t, done, ids.ErrCatalogReplaced)
-	if e.storage[p.Address] != old || old.truncateLineage != nil || len(old.versions) != 2 || e.catalog.state.Get(p.Address).Namespace() != destination {
+	if e.storage.relations[p.Address] != old || old.truncateLineage != nil || len(old.versions) != 2 || e.catalog.state.Get(p.Address).Namespace() != destination {
 		t.Fatal("queued name followed another namespace or undid real control publication")
 	}
 	transactionRows(t, waiter, "SELECT id FROM other.p ORDER BY id", 1, 2)

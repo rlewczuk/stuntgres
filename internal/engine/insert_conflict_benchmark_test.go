@@ -20,12 +20,12 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 				for i := range f.store.versions {
 					f.store.versions[i] = rowVersion{row: ids.RowID(i + 1), version: ids.VersionID(i + 1), born: 1, values: insertConflictUnitRow(b, f, int64(size-i))}
 				}
-				f.e.nextRow, f.e.nextVersion, f.e.commitSeq = uint64(size), uint64(size), 1
+				f.e.storage.nextRow, f.e.storage.nextVersion, f.e.commitSeq = uint64(size), uint64(size), 1
 				root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, f.index.SQLIndex, f.store, nil)
 				if err != nil {
 					b.Fatal(err)
 				}
-				f.e.indexRoots[f.index.Address()] = root
+				f.e.storage.indexRoots[f.index.Address()] = root
 				session, err := f.e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: f.parent.Owner})
 				if err != nil {
 					b.Fatal(err)

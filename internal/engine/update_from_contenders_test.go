@@ -32,7 +32,7 @@ func TestUpdateFromQueuedContenderRecheck(t *testing.T) {
 				expected = &description
 			}
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			original := e.storage[ref.Address].versions[0]
+			original := e.storage.relations[ref.Address].versions[0]
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "UPDATE t SET v=20 WHERE id=1")
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -91,7 +91,7 @@ func TestUpdateFromQueuedContenderRecheck(t *testing.T) {
 			if got.scope == nil || len(got.scope.querySources) != 0 {
 				t.Fatal("statement source admission leaked")
 			}
-			store := e.storage[ref.Address]
+			store := e.storage.relations[ref.Address]
 			if len(store.versions) != 1 || store.versions[0].row != original.row || store.versions[0].version == original.version || testExport(original.values[1]) != int64(10) {
 				t.Fatal("physical target identity or captured predecessor changed", store.versions, original)
 			}

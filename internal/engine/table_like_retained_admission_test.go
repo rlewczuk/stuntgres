@@ -200,7 +200,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 					assertHold()
 				} else {
 					err = context.Canceled
-					if e.CatalogRead().Get(destination.Address()) != nil || e.storage[destination.Address()] != nil {
+					if e.CatalogRead().Get(destination.Address()) != nil || e.storage.relations[destination.Address()] != nil {
 						t.Fatal("rolled back candidate published")
 					}
 				}
@@ -214,7 +214,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 				if outcome == "pointer" && err.Error() != "stuntgres: definition provider disappeared before publication" {
 					t.Fatal("retained pointer fence not exercised", err)
 				}
-				if e.CatalogRead().Get(destination.Address()) != nil || e.storage[destination.Address()] != nil || e.indexRoots[destination.Address()] != nil {
+				if e.CatalogRead().Get(destination.Address()) != nil || e.storage.relations[destination.Address()] != nil || e.storage.indexRoots[destination.Address()] != nil {
 					t.Fatal("failed admission published candidate fragments")
 				}
 			}

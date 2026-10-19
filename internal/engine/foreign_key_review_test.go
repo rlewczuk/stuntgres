@@ -42,10 +42,10 @@ func TestForeignKeyIndexProbeVisitBounds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := e.indexRoots[f.Index]
+	root := e.storage.indexRoots[f.Index]
 	original := slices.Clone(root.entries)
-	rows := foreignKeyRows{committed: e.storage[parent.Address()].versions, ends: e.storage[parent.Address()].ends, frontier: e.commitSeq, root: root, index: f.Index}
-	missing := e.storage[catalogRef(t, e, view, "probe_input").Address].versions[0].values
+	rows := foreignKeyRows{committed: e.storage.relations[parent.Address()].versions, ends: e.storage.relations[parent.Address()].ends, frontier: e.commitSeq, root: root, index: f.Index}
+	missing := e.storage.relations[catalogRef(t, e, view, "probe_input").Address].versions[0].values
 	for _, target := range []int{0, 2048, 4095, 4096} {
 		t.Run(fmt.Sprint(target), func(t *testing.T) {
 			values := missing
@@ -138,9 +138,9 @@ func TestForeignKeyTypeFailedSnapshotAuthority(t *testing.T) {
 	parent := view.MustRelation(parentRef.Address)
 	f := child.ForeignKeys[0]
 	index := view.MustRelation(f.Index)
-	parentStore, childStore := e.storage[parentRef.Address], e.storage[childRef.Address]
+	parentStore, childStore := e.storage.relations[parentRef.Address], e.storage.relations[childRef.Address]
 	parentRows, childRows := slices.Clone(parentStore.versions), slices.Clone(childStore.versions)
-	root := e.indexRoots[f.Index]
+	root := e.storage.indexRoots[f.Index]
 	entries := slices.Clone(root.entries)
 	for _, trial := range []struct{ sql, code string }{
 		{"ALTER TABLE p ALTER id TYPE BIGINT USING id+10", "23503"},
@@ -158,7 +158,7 @@ func TestForeignKeyTypeFailedSnapshotAuthority(t *testing.T) {
 		if !errors.As(err, &diagnostic) || diagnostic.Code != trial.code {
 			t.Fatal(trial.sql, err)
 		}
-		if e.CatalogRead().State() != view.State() || e.storage[parentRef.Address] != parentStore || e.storage[childRef.Address] != childStore || e.indexRoots[f.Index] != root {
+		if e.CatalogRead().State() != view.State() || e.storage.relations[parentRef.Address] != parentStore || e.storage.relations[childRef.Address] != childStore || e.storage.indexRoots[f.Index] != root {
 			t.Fatal("failed TYPE published metadata/storage/index authority", trial.sql)
 		}
 		if !reflect.DeepEqual(parentStore.versions, parentRows) || !reflect.DeepEqual(childStore.versions, childRows) || !reflect.DeepEqual(root.entries, entries) || !reflect.DeepEqual(child.ForeignKeys[0], f) {

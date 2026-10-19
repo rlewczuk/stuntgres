@@ -25,12 +25,12 @@ func TestDomainCheckIndexSnapshotTransport(t *testing.T) {
 						run(t, source, query)
 					}
 					sequence := roleTableRef(t, source, "steps").Address
-					if source.sequences[sequence].last != 2 {
-						t.Fatal("index event replayed before snapshot", source.sequences[sequence].last)
+					if source.storage.sequences[sequence].last != 2 {
+						t.Fatal("index event replayed before snapshot", source.storage.sequences[sequence].last)
 					}
 					indexAddress := roleTableRef(t, source, "checked_idx").Address
 					parentAddress := roleTableRef(t, source, "subject").Address
-					oldRoot, oldStore := source.indexRoots[indexAddress], source.storage[parentAddress]
+					oldRoot, oldStore := source.storage.indexRoots[indexAddress], source.storage.relations[parentAddress]
 					oldRows := slices.Clone(oldStore.versions)
 					target := New()
 					if self {
@@ -40,11 +40,11 @@ func TestDomainCheckIndexSnapshotTransport(t *testing.T) {
 						t.Fatal(err)
 					}
 					importedSequence := roleTableRef(t, target, "steps").Address
-					if target.sequences[importedSequence].last != 2 || source.sequences[sequence].last != 2 {
+					if target.storage.sequences[importedSequence].last != 2 || source.storage.sequences[sequence].last != 2 {
 						t.Fatal("snapshot replayed CHECK SQL")
 					}
-					newStore := target.storage[roleTableRef(t, target, "subject").Address]
-					newRoot := target.indexRoots[roleTableRef(t, target, "checked_idx").Address]
+					newStore := target.storage.relations[roleTableRef(t, target, "subject").Address]
+					newRoot := target.storage.indexRoots[roleTableRef(t, target, "checked_idx").Address]
 					if len(newStore.versions) != 1 || newRoot == oldRoot || newStore == oldStore {
 						t.Fatal("snapshot retained old physical authority")
 					}
@@ -85,26 +85,26 @@ func TestDomainCheckIndexSnapshotTransport(t *testing.T) {
 func TestDomainCheckIndexSnapshotRejectsMissingAndMalformedRoots(t *testing.T) {
 	f := newPartialIndexFixture(t)
 	ctx := context.Background()
-	if _, err := f.e.captureIndexSnapshot(ctx, f.e.CatalogRead(), f.e.storage, nil, f.e.commitSeq); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := f.e.captureIndexSnapshot(ctx, f.e.CatalogRead(), f.e.storage.relations, nil, f.e.commitSeq); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("missing root accepted", err)
 	}
-	original := f.e.indexRoots[f.index.Address()]
+	original := f.e.storage.indexRoots[f.index.Address()]
 	malformed := *original
 	malformed.entries = slices.Clone(original.entries)
 	malformed.entries[0].position = len(f.store.versions)
 	roots := map[ids.ObjectAddress]*logicalIndexRoot{f.index.Address(): &malformed}
-	previous := f.e.indexRoots
-	f.e.indexRoots = roots
-	if _, err := f.e.captureIndexSnapshot(ctx, f.e.CatalogRead(), f.e.storage, roots, f.e.commitSeq); !errors.Is(err, ids.ErrCatalogReplaced) {
+	previous := f.e.storage.indexRoots
+	f.e.storage.indexRoots = roots
+	if _, err := f.e.captureIndexSnapshot(ctx, f.e.CatalogRead(), f.e.storage.relations, roots, f.e.commitSeq); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("malformed source provenance accepted", err)
 	}
-	f.e.indexRoots = previous
+	f.e.storage.indexRoots = previous
 	if original.entries[0].position == malformed.entries[0].position {
 		t.Fatal("rejection mutated source")
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	if _, err := f.e.captureIndexSnapshot(canceled, f.e.CatalogRead(), f.e.storage, f.e.indexRoots, f.e.commitSeq); !errors.Is(err, context.Canceled) {
+	if _, err := f.e.captureIndexSnapshot(canceled, f.e.CatalogRead(), f.e.storage.relations, f.e.storage.indexRoots, f.e.commitSeq); !errors.Is(err, context.Canceled) {
 		t.Fatal("cancellation lost", err)
 	}
 }

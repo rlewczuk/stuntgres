@@ -192,7 +192,7 @@ retry:
 			}
 		}
 	}
-	if uint64(len(rows)) > ^uint64(0)-e.nextVersion {
+	if uint64(len(rows)) > ^uint64(0)-e.storage.nextVersion {
 		return errors.New("stuntgres: version identity exhausted")
 	}
 	var versions, distinctRows []rowVersion
@@ -216,8 +216,8 @@ retry:
 		if predecessor.born != 0 {
 			base = predecessor.version
 		}
-		e.nextVersion++
-		versions[i] = rowVersion{row: predecessor.row, version: ids.VersionID(e.nextVersion), base: base, values: row, keyChangedAt: predecessor.keyChangedAt, pendingKeyChange: predecessor.pendingKeyChange, indexAdmission: admission}
+		e.storage.nextVersion++
+		versions[i] = rowVersion{row: predecessor.row, version: ids.VersionID(e.storage.nextVersion), base: base, values: row, keyChangedAt: predecessor.keyChangedAt, pendingKeyChange: predecessor.pendingKeyChange, indexAdmission: admission}
 	}
 	if batch.states != nil {
 		for i := range versions {

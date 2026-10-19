@@ -45,7 +45,7 @@ func (e *Engine) capturePartialMaskLocked(scope *StatementScope, leaf queryLeaf,
 	if len(data.own[parent]) != 0 || data.deleted[parent] != nil || len(data.rewrittenFrontiers) != 0 || data.frontierAt(parent) != e.commitSeq {
 		return nil
 	}
-	store := e.storage[parent]
+	store := e.storage.relations[parent]
 	if store == nil || data.generationAt(parent) != store || leaf.storage != store || len(data.committed[parent]) != len(store.versions) || data.ends[parent] != store.ends {
 		return nil
 	}
@@ -60,7 +60,7 @@ func (e *Engine) capturePartialMaskLocked(scope *StatementScope, leaf queryLeaf,
 	if e.catalog.state.Get(candidate.Address()) != candidate || candidate.SQLIndex.Parent != parent {
 		return nil
 	}
-	root := e.indexRoots[candidate.Address()]
+	root := e.storage.indexRoots[candidate.Address()]
 	if root == nil || root.membership == nil {
 		return nil
 	}

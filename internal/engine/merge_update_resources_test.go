@@ -36,7 +36,7 @@ func mergeUpdateRowModes(t *testing.T, targetOnly bool) {
 			sessionSQL(t, s, "CREATE TABLE t(id INT NOT NULL UNIQUE,v INT)")
 			sessionSQL(t, s, "INSERT INTO t VALUES(1,10)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			row := e.storage[ref.Address].versions[0].row
+			row := e.storage.relations[ref.Address].versions[0].row
 			resource := lock.Resource{ObjectRef: ref, Row: row}
 			tx := transactionBegin(t, s)
 			sessionSQL(t, s, "SAVEPOINT before_merge")

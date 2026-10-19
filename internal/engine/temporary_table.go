@@ -280,7 +280,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 			shape = catalogStorageChange{original: r.predecessor, root: r.predecessor.versions, ends: r.ends, generation: r.generation}
 		}
 		if !exists {
-			shape.materializedContinuous = r.concurrent && r.predecessor == e.storage[a]
+			shape.materializedContinuous = r.concurrent && r.predecessor == e.storage.relations[a]
 		} else {
 			shape.materializedContinuous = shape.materializedContinuous && r.concurrent
 		}

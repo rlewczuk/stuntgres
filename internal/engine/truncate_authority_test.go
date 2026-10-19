@@ -137,7 +137,7 @@ func TestTruncateGraph(t *testing.T) {
 			}
 			child := roleTableRef(t, e, "c")
 			scope := truncateUnitStage(t, e, s, "p")
-			old := e.storage[p.Address]
+			old := e.storage.relations[p.Address]
 			if kind == "foreign-key" {
 				truncateUnitFK(t, e, p, child)
 			} else {
@@ -147,7 +147,7 @@ func TestTruncateGraph(t *testing.T) {
 				t.Fatalf("late host graph: %v", err)
 			}
 			scope.op.Done()
-			if e.storage[p.Address] != old || old.truncateLineage != nil || len(old.versions) != 2 {
+			if e.storage.relations[p.Address] != old || old.truncateLineage != nil || len(old.versions) != 2 {
 				t.Fatal("late graph veto changed rows")
 			}
 		})
@@ -170,7 +170,7 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 		t.Fatal("fixture did not create distinct session-owned temporary descendants")
 	}
 	peerRef := e.catalog.Domain.Ref(view.Epoch(), peerAddress)
-	oldPeer := e.storage[peerAddress]
+	oldPeer := e.storage.relations[peerAddress]
 	oldVersions, oldEnds, oldGeneration := oldPeer.versions, oldPeer.ends, oldPeer.generation
 	scope := truncateUnitStage(t, e, owner, "p")
 	_, stagedPeer := scope.catalog.storage[peerAddress]
@@ -199,7 +199,7 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 		t.Fatal(err)
 	}
 	scope.op.Done()
-	if e.storage[peerAddress] != oldPeer || !sameVersionRoot(oldPeer.versions, oldVersions) || oldPeer.ends != oldEnds || oldPeer.generation != oldGeneration || oldPeer.truncateLineage != nil {
+	if e.storage.relations[peerAddress] != oldPeer || !sameVersionRoot(oldPeer.versions, oldVersions) || oldPeer.ends != oldEnds || oldPeer.generation != oldGeneration || oldPeer.truncateLineage != nil {
 		t.Fatal("foreign-session temporary storage was replaced or stamped")
 	}
 	transactionRows(t, peer, "SELECT id FROM renamed_peer_child", 3)
@@ -235,7 +235,7 @@ func TestTruncateLocks(t *testing.T) {
 	prefix = lockState.Resources[lock.Resource{ObjectRef: p}]
 	blocked = lockState.Resources[lock.Resource{ObjectRef: q}]
 	clean := prefix == nil && blocked != nil && len(blocked.Pending) == 0
-	if !clean || len(e.storage[p.Address].versions) != 2 || len(e.storage[q.Address].versions) != 1 {
+	if !clean || len(e.storage.relations[p.Address].versions) != 2 || len(e.storage.relations[q.Address].versions) != 1 {
 		t.Fatal("cancellation retained prefix or changed roots")
 	}
 	transactionEnd(t, holder, tx, false)
@@ -248,7 +248,7 @@ func TestTruncateAdmission(t *testing.T) {
 			waiter := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "LOCK p IN ACCESS SHARE MODE")
-			old := e.storage[p.Address]
+			old := e.storage.relations[p.Address]
 			versions, ends := old.versions, old.ends
 			done, _ := truncateUnitAsync(t, e, waiter, truncateUnitAST("p"))
 			lockPending(t, e, 1)
@@ -306,7 +306,7 @@ func TestTruncateAdmission(t *testing.T) {
 			if only {
 				want = 1
 			}
-			if len(e.storage[p.Address].versions) != 0 || len(e.storage[child.Address].versions) != want {
+			if len(e.storage.relations[p.Address].versions) != 0 || len(e.storage.relations[child.Address].versions) != want {
 				t.Fatal("grant-time hierarchy/ONLY selection wrong")
 			}
 			lockEmpty(t, e)
@@ -315,7 +315,7 @@ func TestTruncateAdmission(t *testing.T) {
 	t.Run("queued-same-lineage", func(t *testing.T) {
 		e, holder, p, _ := truncateUnitFixture(t)
 		waiter := sessionStart(t, e, nil)
-		original := e.storage[p.Address]
+		original := e.storage.relations[p.Address]
 		frontier := e.commitSeq
 		tx := transactionBegin(t, holder)
 		truncateUnitExecute(t, e, holder, truncateUnitAST("p"))
@@ -323,7 +323,7 @@ func TestTruncateAdmission(t *testing.T) {
 		lockPending(t, e, 1)
 		transactionEnd(t, holder, tx, true)
 		truncateUnitJoin(t, done, "")
-		if e.storage[p.Address].generation != original.generation+2 || !sameTruncateLineage(original, e.storage[p.Address]) || e.commitSeq != frontier+2 {
+		if e.storage.relations[p.Address].generation != original.generation+2 || !sameTruncateLineage(original, e.storage.relations[p.Address]) || e.commitSeq != frontier+2 {
 			t.Fatal("queued truncate was retargeted or rejected legal lineage")
 		}
 		lockEmpty(t, e)
@@ -343,7 +343,7 @@ func TestTruncateAdmission(t *testing.T) {
 		truncateUnitFK(t, e, p, child)
 		transactionEnd(t, holder, tx, false)
 		truncateUnitJoin(t, done, "")
-		if len(e.storage[p.Address].versions) != 0 || len(e.storage[child.Address].versions) != 0 {
+		if len(e.storage.relations[p.Address].versions) != 0 || len(e.storage.relations[child.Address].versions) != 0 {
 			t.Fatal("grant-time incoming graph was not captured")
 		}
 		lockEmpty(t, e)
@@ -361,7 +361,7 @@ func TestTruncateAuthority(t *testing.T) {
 	sessionSQL(t, waiter, "SET SESSION AUTHORIZATION reader")
 	tx := transactionBegin(t, holder)
 	sessionSQL(t, holder, "LOCK p IN ACCESS SHARE MODE")
-	original := e.storage[p.Address]
+	original := e.storage.relations[p.Address]
 	done, _ := truncateUnitAsync(t, e, waiter, truncateUnitAST("p"))
 	lockPending(t, e, 1)
 	if err := e.SetObjectACL(context.Background(), p, authorization.ACLValue{Explicit: true}); err != nil {
@@ -369,7 +369,7 @@ func TestTruncateAuthority(t *testing.T) {
 	}
 	transactionEnd(t, holder, tx, false)
 	truncateUnitJoin(t, done, "42501")
-	if e.storage[p.Address] != original || original.truncateLineage != nil {
+	if e.storage.relations[p.Address] != original || original.truncateLineage != nil {
 		t.Fatal("revoked queued statement changed incarnation")
 	}
 	lockEmpty(t, e)
@@ -385,7 +385,7 @@ func TestTruncateFinalVeto(t *testing.T) {
 				sessionSQL(t, s, "SAVEPOINT recover")
 			}
 			priorWrites := s.transactions.writes[p.Address]
-			oldP, oldQ := e.storage[p.Address], e.storage[q.Address]
+			oldP, oldQ := e.storage.relations[p.Address], e.storage.relations[q.Address]
 			ctx, cancel := context.WithCancel(context.Background())
 			scope, op := truncateUnitScope(t, e, s, ctx)
 			if _, err := scope.Execute(truncateUnitAST("p", "q"), 0, nil); err != nil {
@@ -396,7 +396,7 @@ func TestTruncateFinalVeto(t *testing.T) {
 				t.Fatal("final cancellation not vetoed", err)
 			}
 			op.Done()
-			if e.storage[p.Address] != oldP || e.storage[q.Address] != oldQ || oldP.truncateLineage != nil || oldQ.truncateLineage != nil {
+			if e.storage.relations[p.Address] != oldP || e.storage.relations[q.Address] != oldQ || oldP.truncateLineage != nil || oldQ.truncateLineage != nil {
 				t.Fatal("final cancellation partially published roots")
 			}
 			if explicit {

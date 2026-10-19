@@ -16,7 +16,7 @@ func TestUpdateCoreRowResourceAuthority(t *testing.T) {
 	sessionSQL(t, a, "CREATE TABLE t(v INT)")
 	sessionSQL(t, a, "INSERT INTO t VALUES(1),(1)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	versions := e.storage[ref.Address].versions
+	versions := e.storage.relations[ref.Address].versions
 	ta := transactionBegin(t, a)
 	tb := transactionBegin(t, b)
 	resource := lock.Resource{ObjectRef: ref, Row: versions[0].row}

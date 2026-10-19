@@ -88,7 +88,7 @@ func TestIndexMaintenanceDropParentAddressOrdering(t *testing.T) {
 	transactionEnd(t, holder, tx, false)
 	lockEmpty(t, e)
 	sessionSQL(t, utility, "DROP INDEX bi,ai2,ai,ai CASCADE")
-	if len(e.indexRoots) != 0 {
+	if len(e.storage.indexRoots) != 0 {
 		t.Fatal("deduplicated multi-parent drop left roots")
 	}
 	lockEmpty(t, e)
@@ -173,7 +173,7 @@ func TestIndexMaintenanceGrantIncludesCommittedWriterOnly(t *testing.T) {
 			} else {
 				btreeWantKeys(t, e, "ix", "1")
 			}
-			if e.indexRoots[index.Address()] == old {
+			if e.storage.indexRoots[index.Address()] == old {
 				t.Fatal("waited rebuild reused predecessor")
 			}
 			if got := btreeKeys(t, old); len(got) != 1 || got[0] != "1" {
@@ -392,14 +392,14 @@ func TestIndexMaintenanceGrantCompatibleRevision(t *testing.T) {
 			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
-			if e.indexRoots[index.Address()] != oldRoot {
+			if e.storage.indexRoots[index.Address()] != oldRoot {
 				t.Fatal("compatible fixture revision rebuilt a root")
 			}
 			transactionEnd(t, writer, tx, false)
 			if err := await(); err != nil {
 				t.Fatal("same-incarnation compatible revision was rejected", err)
 			}
-			if e.catalog.state.Get(ref.Address) != &next || e.indexRoots[index.Address()] == oldRoot {
+			if e.catalog.state.Get(ref.Address) != &next || e.storage.indexRoots[index.Address()] == oldRoot {
 				t.Fatal("grant did not retain the current descriptor and publish a real fresh root")
 			}
 			btreeWantKeys(t, e, "ix", "1", "2")

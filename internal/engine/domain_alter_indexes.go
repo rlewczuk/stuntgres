@@ -71,7 +71,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 
 func (e *Engine) domainIndexRootsCurrent(stage *CatalogStage) bool {
 	for address, root := range stage.domainIndexRoots {
-		if e.indexRoots[address] != root {
+		if e.storage.indexRoots[address] != root {
 			return false
 		}
 	}

@@ -32,7 +32,7 @@ func inheritanceDMLScope(t *testing.T, e *Engine, p *catalog.Relation, ctx conte
 	}
 	s.lockedRef = e.catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
 	s.lockedDescriptor = p
-	s.lockedStorage = e.storage[p.Address()]
+	s.lockedStorage = e.storage.relations[p.Address()]
 	if err = e.locks.Acquire(ctx, s.ticket, lock.Resource{ObjectRef: s.lockedRef}, lock.RowExclusive); err != nil {
 		s.Finish(err)
 		done()
@@ -126,7 +126,7 @@ func TestInheritanceDMLAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	child := s.inheritedTargets[0]
-	if s.mutationStorage(child.ref) != e.storage[c.Address()] || s.mutationStorage(s.lockedRef) != e.storage[p.Address()] {
+	if s.mutationStorage(child.ref) != e.storage.relations[c.Address()] || s.mutationStorage(s.lockedRef) != e.storage.relations[p.Address()] {
 		t.Fatal("manifest lost stores")
 	}
 	foreign := child.ref

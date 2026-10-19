@@ -54,12 +54,12 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 				}
 				f.store.versions = append(f.store.versions, rowVersion{row: ids.RowID(i + 2), version: ids.VersionID(i + 2), born: 1, values: values})
 			}
-			f.e.nextRow, f.e.nextVersion, f.e.commitSeq = 3, 3, 1
+			f.e.storage.nextRow, f.e.storage.nextVersion, f.e.commitSeq = 3, 3, 1
 			root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.parent, &definition, f.store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
-			f.e.indexRoots[f.index.Address()] = root
+			f.e.storage.indexRoots[f.index.Address()] = root
 			want := map[ids.RowID]int{1: 0}
 			if !partial {
 				want[2] = 1
@@ -93,16 +93,16 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 					row.born = 2
 					row.base = 0
 					p.next[publicationSlot(&p, i)] = row
-					f.e.nextRow = max(f.e.nextRow, uint64(row.row))
-					f.e.nextVersion = max(f.e.nextVersion, uint64(row.version))
+					f.e.storage.nextRow = max(f.e.storage.nextRow, uint64(row.row))
+					f.e.storage.nextVersion = max(f.e.storage.nextVersion, uint64(row.version))
 				}
 				f.e.commitSeq = 2
 				f.store = &relationStorage{versions: p.next, ends: p.nextEnds}
 				if p.nextEnds == nil {
 					f.store.ends = p.ends
 				}
-				f.e.storage[f.parent.Address()] = f.store
-				f.e.indexRoots[f.index.Address()] = root
+				f.e.storage.relations[f.parent.Address()] = f.store
+				f.e.storage.indexRoots[f.index.Address()] = root
 				insertConflictWantHints(t, root, f.store, want)
 			}
 			want[4] = 3
@@ -150,9 +150,9 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			nextCatalog.CloneDescriptors()
 			nextCatalog.SetDescriptor(parent.Address(), &parent)
 			nextCatalog.SetDescriptor(index.Address(), &index)
-			stores := maps.Clone(f.e.storage)
+			stores := maps.Clone(f.e.storage.relations)
 			stores[parent.Address()] = &shaped
-			prepared, err := f.e.prepareIndexCatalog(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.e.catalog.state, &nextCatalog, stores, f.e.indexRoots, map[ids.ObjectAddress]bool{parent.Address(): true}, nil, scope.output, nil, nil, nil)
+			prepared, err := f.e.prepareIndexCatalog(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.e.catalog.state, &nextCatalog, stores, f.e.storage.indexRoots, map[ids.ObjectAddress]bool{parent.Address(): true}, nil, scope.output, nil, nil, nil)
 			if err != nil {
 				t.Fatal("trusted shape reconstruction", err)
 			}
@@ -173,10 +173,10 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 			scope, ref := insertConflictUnitScope(t, f)
 			scope.owner.isolation = isolation
 			scope.owner.frontier = 1
-			root := *f.e.indexRoots[f.index.Address()]
+			root := *f.e.storage.indexRoots[f.index.Address()]
 			root.entries = slices.Clone(root.entries)
 			root.entries[0].position = -1
-			f.e.indexRoots[f.index.Address()] = &root
+			f.e.storage.indexRoots[f.index.Address()] = &root
 			admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 10)}, indexWriteBatch{}, nil)
 			if stableIsolation(isolation) {
 				if admitted || !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -194,7 +194,7 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 		})
 	}
 	f := insertConflictUniqueFixture(t)
-	entry := f.e.indexRoots[f.index.Address()].entries[0]
+	entry := f.e.storage.indexRoots[f.index.Address()].entries[0]
 	for _, change := range []func(*logicalIndexEntry){func(e *logicalIndexEntry) { e.position = -1 }, func(e *logicalIndexEntry) { e.position = len(f.store.versions) }, func(e *logicalIndexEntry) { e.row++ }, func(e *logicalIndexEntry) { e.version++ }} {
 		bad := entry
 		change(&bad)
@@ -208,7 +208,7 @@ func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
 	f.store.versions = append(f.store.versions, rowVersion{row: 2, version: 2, born: 2, values: insertConflictUnitRow(t, f, 20)})
 	f.store.ends = &deletionRoot{rows: map[ids.RowID]rowEnd{1: {version: 1}}}
-	f.e.nextRow, f.e.nextVersion, f.e.commitSeq = 2, 2, 2
+	f.e.storage.nextRow, f.e.storage.nextVersion, f.e.commitSeq = 2, 2, 2
 	authOp, done := roleOperation(t, f.e, "postgres")
 	defer done()
 	auth, err := authOp.Authorization()

@@ -118,7 +118,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 			e.mu.Unlock()
 			return 0, err
 		}
-		store := e.storage[parent.Address()]
+		store := e.storage.relations[parent.Address()]
 		if store == nil {
 			e.mu.Unlock()
 			return 0, ids.ErrCatalogReplaced
@@ -183,7 +183,7 @@ func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *pars
 			e.mu.Unlock()
 			return err
 		}
-		if !index.SQLIndex.Ready || !index.SQLIndex.Live || index.SQLIndex.Valid || e.indexRoots[address] == nil {
+		if !index.SQLIndex.Ready || !index.SQLIndex.Live || index.SQLIndex.Valid || e.storage.indexRoots[address] == nil {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: invalid concurrent index validity phase")
 		}

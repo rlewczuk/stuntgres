@@ -60,7 +60,7 @@ func copySequenceState(source *Engine, view catalog.Read) (map[ids.ObjectAddress
 		if !ok || r.RelationKind != catalog.SequenceRelation {
 			continue
 		}
-		g := source.sequences[a]
+		g := source.storage.sequences[a]
 		if g == nil {
 			return nil, fmt.Errorf("stuntgres: sequence state missing")
 		}
@@ -534,10 +534,10 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		operators.Replace(next.Get(a), d)
 		next.SetDescriptor(a, d)
 		next.BindName(catalog.DescriptorNameKey(d), a)
-		if rows := e.storage[a]; rows != nil {
+		if rows := e.storage.relations[a]; rows != nil {
 			storage[a] = rows
 		}
-		if g := e.sequences[a]; g != nil {
+		if g := e.storage.sequences[a]; g != nil {
 			sequences[a] = g
 		}
 	}

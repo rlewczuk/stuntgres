@@ -174,10 +174,10 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 					op.session.mu.Unlock()
 				case "storage":
 					address := scope.lockedRef.Address
-					original := e.storage[address]
+					original := e.storage.relations[address]
 					replacement := *original
-					e.storage[address] = &replacement
-					restore = func() { e.storage[address] = original }
+					e.storage.relations[address] = &replacement
+					restore = func() { e.storage.relations[address] = original }
 				case "attribute", "type", "width", "comment", "acl":
 					address := scope.lockedRef.Address
 					original := e.catalog.state.Get(address)
@@ -256,7 +256,7 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 				t.Error("Finish changed failure", err, executeErr)
 			}
 			if mode == "comment" || mode == "acl" {
-				store := e.storage[address]
+				store := e.storage.relations[address]
 				if store == nil || len(store.versions) != 1 || testExport(store.versions[0].values[0]) != int64(42) {
 					t.Error("compatible metadata lost publication")
 				}

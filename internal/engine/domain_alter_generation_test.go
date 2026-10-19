@@ -30,9 +30,9 @@ func domainAlterGenerationIndexes(t *testing.T) {
 			sequence := roleTableRef(t, e, "steps").Address
 			parent := roleTableRef(t, e, "subject").Address
 			index := roleTableRef(t, e, "checked_idx").Address
-			store, root := e.storage[parent], e.indexRoots[index]
+			store, root := e.storage.relations[parent], e.storage.indexRoots[index]
 			beforeRows := slices.Clone(store.versions)
-			beforeCount := e.sequences[sequence].last
+			beforeCount := e.storage.sequences[sequence].last
 			if beforeCount != 2 {
 				t.Fatal("setup did not produce exactly two CHECK events", beforeCount)
 			}
@@ -61,10 +61,10 @@ func domainAlterGenerationIndexes(t *testing.T) {
 				t.Fatal(err)
 			}
 			domainUnitPublish(t, e, stage)
-			if e.sequences[sequence].last != beforeCount {
+			if e.storage.sequences[sequence].last != beforeCount {
 				t.Fatal("generation remap replayed SQL truth")
 			}
-			current := e.storage[parent]
+			current := e.storage.relations[parent]
 			if len(current.versions) != len(beforeRows) || current.ends != store.ends || current.generation != store.generation {
 				t.Fatal("transport lost all-version storage lineage")
 			}
@@ -99,7 +99,7 @@ func domainAlterGenerationIndexes(t *testing.T) {
 					t.Fatal("index key retained stale logical conversion authority", err)
 				}
 			}
-			newRoot := e.indexRoots[index]
+			newRoot := e.storage.indexRoots[index]
 			if root.hash == nil {
 				if len(newRoot.entries) != len(root.entries) {
 					t.Fatal("B-tree membership changed")

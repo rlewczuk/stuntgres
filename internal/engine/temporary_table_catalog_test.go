@@ -41,7 +41,7 @@ func TestCatalogTemporaryStorageAbsence(t *testing.T) {
 	if err := e.catalogPreflightLocked(c); err != nil {
 		t.Fatal(err)
 	}
-	if c.storage[table.Address()].original != nil || e.storage[table.Address()] != nil {
+	if c.storage[table.Address()].original != nil || e.storage.relations[table.Address()] != nil {
 		t.Fatal("invented committed predecessor")
 	}
 	mark := cloneCatalogChanges(c)
@@ -51,7 +51,7 @@ func TestCatalogTemporaryStorageAbsence(t *testing.T) {
 	if mark.descriptors[table.Address()] != table || mark.storage[table.Address()].replacement != c.storage[table.Address()].replacement {
 		t.Fatal("savepoint descriptor/action/store rewritten")
 	}
-	e.storage[table.Address()] = &relationStorage{}
+	e.storage.relations[table.Address()] = &relationStorage{}
 	if _, ok := e.catalogPreflightLocked(c).(catalog.Conflict); !ok {
 		t.Fatal("committed absence was not fenced")
 	}
@@ -86,7 +86,7 @@ func TestTemporaryTableCommitCandidate(t *testing.T) {
 		if err != nil {
 			t.Fatal(action, err)
 		}
-		if e.catalog.state.Get(table.Address()) != nil || e.storage[table.Address()] != nil || len(writes[table.Address()]) != 1 || c.descriptors[table.Address()] != table || mark.descriptors[table.Address()] != table {
+		if e.catalog.state.Get(table.Address()) != nil || e.storage.relations[table.Address()] != nil || len(writes[table.Address()]) != 1 || c.descriptors[table.Address()] != table || mark.descriptors[table.Address()] != table {
 			t.Fatal("commit preparation mutated reachable predecessor")
 		}
 		switch action {
@@ -165,7 +165,7 @@ func TestTemporaryTableCanceledPublication(t *testing.T) {
 	writes := map[ids.ObjectAddress][]rowVersion{table.Address(): {{row: 1, version: 1, values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
 	err = e.publishRows(op, scope.txRef, writes, nil, c, nil, nil)
 	scope.Finish(err)
-	if !errors.Is(err, context.Canceled) || e.catalog.state != original || e.storage[table.Address()] != nil || c.descriptors[table.Address()] != table || len(writes[table.Address()]) != 1 {
+	if !errors.Is(err, context.Canceled) || e.catalog.state != original || e.storage.relations[table.Address()] != nil || c.descriptors[table.Address()] != table || len(writes[table.Address()]) != 1 {
 		t.Fatal("canceled final commit changed catalog/action/write roots", err)
 	}
 }
@@ -286,8 +286,8 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	consumer := lookup(before, "live_consumer", owner.token)
 	persistent := lookup(before, "persistent_consumer", ids.SessionToken{})
 	foreign := lookup(before, "live_provider", peer.token)
-	store := e.storage[consumer.Address()]
-	indexRoot := e.indexRoots[providerIndex.Address()]
+	store := e.storage.relations[consumer.Address()]
+	indexRoot := e.storage.indexRoots[providerIndex.Address()]
 	if store == nil || len(store.versions) != 1 || indexRoot == nil {
 		t.Fatal("missing actual stored row or installed index")
 	}
@@ -300,7 +300,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		t.Fatal(err)
 	}
 	retained := e.CatalogRead()
-	if retained.Epoch() <= before.Epoch() || retained.Get(provider.Address()) != provider || retained.Get(providerIndex.Address()) != providerIndex || retained.Get(consumer.Address()) != consumer || e.storage[consumer.Address()] != store || e.indexRoots[providerIndex.Address()] != indexRoot {
+	if retained.Epoch() <= before.Epoch() || retained.Get(provider.Address()) != provider || retained.Get(providerIndex.Address()) != providerIndex || retained.Get(consumer.Address()) != consumer || e.storage.relations[consumer.Address()] != store || e.storage.indexRoots[providerIndex.Address()] != indexRoot {
 		t.Fatal("replacement did not retain actual descriptors/store/root")
 	}
 	if !sameVersionRoot(store.versions, rows) || store.ends != ends || store.generation != generation {
@@ -423,7 +423,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		t.Fatal("pre-removed owned-index closure omitted/duplicated sibling or consumed independent generation", ownedIndexes, columns)
 	}
 	e.DiscardCatalogStage(preflight)
-	if e.CatalogRead().State() != retained.State() || e.storage[consumer.Address()] != store || e.indexRoots[providerIndex.Address()] != indexRoot || !sameVersionRoot(store.versions, rows) || store.ends != ends {
+	if e.CatalogRead().State() != retained.State() || e.storage.relations[consumer.Address()] != store || e.storage.indexRoots[providerIndex.Address()] != indexRoot || !sameVersionRoot(store.versions, rows) || store.ends != ends {
 		t.Fatal("closure discovery mutated genuine catalog/row/index predecessors")
 	}
 	sessionSQL(t, owner, "DROP TABLE live_provider CASCADE")

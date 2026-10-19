@@ -112,7 +112,7 @@ func TestTransactionAppendScalingAndRelationRetention(t *testing.T) {
 			sessionSQL(t, s, "CREATE TABLE t(v INT)")
 			sessionSQL(t, s, "CREATE TABLE u(v INT)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			store := e.storage[ref.Address]
+			store := e.storage.relations[ref.Address]
 			changes, copied := 0, 0
 			var retained *finalRows
 			for i := range n {

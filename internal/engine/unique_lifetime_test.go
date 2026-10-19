@@ -150,7 +150,7 @@ func TestUniqueRealRetainedTemporaryRemapping(t *testing.T) {
 			original := before.MustRelation(roleTableRef(t, source, "portable.t").Address)
 			originalConstraint := original.UniqueConstraints[0]
 			originalConstraint.Attributes = append([]int32(nil), originalConstraint.Attributes...)
-			sourceRoot := source.indexRoots[originalConstraint.Index]
+			sourceRoot := source.storage.indexRoots[originalConstraint.Index]
 			var dump bytes.Buffer
 			if err := source.Dump(ctx, &dump); err != nil {
 				t.Fatal(err)
@@ -165,7 +165,7 @@ func TestUniqueRealRetainedTemporaryRemapping(t *testing.T) {
 			_, description := sequencePreparedDescription(t, target, b, "SELECT nextval('kept')")
 			tempRef := description.sequences.constants[0].ref
 			temp := target.catalog.state.Get(tempRef.Address)
-			generator := target.sequences[tempRef.Address]
+			generator := target.storage.sequences[tempRef.Address]
 			memory := b.sequences[tempRef.Address]
 			if !self && tempRef.Address.ObjectID != original.Address().ObjectID {
 				t.Fatal("fixture must produce a real retained TEMP address collision", tempRef.Address, original.Address())
@@ -173,7 +173,7 @@ func TestUniqueRealRetainedTemporaryRemapping(t *testing.T) {
 			if _, err := target.ReplaceCatalog(ctx, source, before); err != nil {
 				t.Fatal(err)
 			}
-			if target.catalog.state.Get(tempRef.Address) != temp || target.sequences[tempRef.Address] != generator || b.sequences[tempRef.Address] != memory {
+			if target.catalog.state.Get(tempRef.Address) != temp || target.storage.sequences[tempRef.Address] != generator || b.sequences[tempRef.Address] != memory {
 				t.Fatal("retained TEMP identity changed")
 			}
 			parent := target.catalog.state.MustRelation(roleTableRef(t, target, "portable.t").Address)
@@ -213,7 +213,7 @@ func TestUniquePrivateBaselineRootsAndBindingLifetime(t *testing.T) {
 	sessionSQL(t, a, "INSERT INTO t VALUES(0,1)")
 	parentRef := roleTableRef(t, e, "t")
 	original := e.catalog.state.MustRelation(parentRef.Address)
-	originalRoot := e.indexRoots[original.UniqueConstraints[0].Index]
+	originalRoot := e.storage.indexRoots[original.UniqueConstraints[0].Index]
 	ar := transactionBegin(t, a)
 	op, err := a.Acquire(context.Background())
 	if err != nil {
@@ -302,7 +302,7 @@ func TestUniquePrivateBaselineRootsAndBindingLifetime(t *testing.T) {
 		t.Fatal("DML rebuilt/modified baseline instead of overlaying effects")
 	}
 	transactionEnd(t, a, ar, false)
-	if e.catalog.state.Get(parentRef.Address) != original || e.indexRoots[original.UniqueConstraints[0].Index] != originalRoot {
+	if e.catalog.state.Get(parentRef.Address) != original || e.storage.indexRoots[original.UniqueConstraints[0].Index] != originalRoot {
 		t.Fatal("rollback changed committed closure")
 	}
 	uniqueClaimsEmpty(t, e)

@@ -91,7 +91,7 @@ func TestTransactionVisibilityVersionsAndRetention(t *testing.T) {
 	}
 	e.mu.Lock()
 	var versions []rowVersion
-	for _, store := range e.storage {
+	for _, store := range e.storage.relations {
 		versions = append(versions, store.versions...)
 	}
 	e.mu.Unlock()
@@ -305,12 +305,12 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 		t.Fatal("command wrapped")
 	}
 	transactionEnd(t, a, ref, false)
-	e.nextRow = ^uint64(0)
+	e.storage.nextRow = ^uint64(0)
 	_, err = e.Execute(op, statement(t, "INSERT INTO t VALUES(1)"), 0, nil)
 	if err == nil {
 		t.Fatal("row identity wrapped")
 	}
-	e.nextRow = 0
+	e.storage.nextRow = 0
 	ref = transactionBegin(t, a)
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	e.commitSeq = ids.CommitSeq(^uint64(0))
@@ -364,7 +364,7 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				catalogRef(t, e, e.CatalogRead(), "t").Address,
 				catalogRef(t, e, e.CatalogRead(), "u").Address,
 			}
-			stores := [2]*relationStorage{e.storage[addresses[0]], e.storage[addresses[1]]}
+			stores := [2]*relationStorage{e.storage.relations[addresses[0]], e.storage.relations[addresses[1]]}
 			roots := [2][]rowVersion{stores[0].versions, stores[1].versions}
 			records := [2][]rowVersion{}
 			for i, root := range roots {
@@ -491,7 +491,7 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				if published {
 					wantLen++
 				}
-				if e.storage[addresses[i]] != stores[i] || len(current) != wantLen {
+				if e.storage.relations[addresses[i]] != stores[i] || len(current) != wantLen {
 					t.Fatalf("relation %d storage/visible length changed unexpectedly", i)
 				}
 				sameRoot := &current[0] == &root[0]

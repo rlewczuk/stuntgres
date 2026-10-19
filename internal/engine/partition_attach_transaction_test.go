@@ -112,7 +112,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 		if _, err := deleting.AcquireDataView(ref); err != nil {
 			t.Fatal(err)
 		}
-		store := e.storage[ref.Address]
+		store := e.storage.relations[ref.Address]
 		row := store.versions[0]
 		candidate := deleteCandidate{ref: ref, storage: store, row: row.row, version: row.version, ordinal: 0}
 		if err := deleting.acquireRow(candidate); err != nil {

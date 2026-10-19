@@ -21,7 +21,7 @@ func foreignActionLockFixture(t *testing.T, definition string) (*Engine, *Sessio
 		sessionSQL(t, c, q)
 	}
 	ref := catalogRef(t, e, e.CatalogRead(), "c")
-	return e, a, b, c, ref, e.storage[ref.Address].versions[0].row
+	return e, a, b, c, ref, e.storage.relations[ref.Address].versions[0].row
 }
 
 func TestForeignActionsLocks(t *testing.T) {
@@ -76,14 +76,14 @@ func TestForeignActionsLocks(t *testing.T) {
 			b.transactions.mu.Unlock()
 			transactionEnd(t, a, holder, true)
 			holderEnded = true
-			latest := e.storage[ref.Address].versions[0]
+			latest := e.storage.relations[ref.Address].versions[0]
 			lockAwait(t, done, nil)
 			joined = true
 			foreignKeyHeldMode(t, e, ref, row, ticket, tc.held)
 			b.transactions.mu.Lock()
 			if tc.name == "delete" {
 				root := b.transactions.deletes[ref.Address]
-				if root == nil || root.rows[row].version != latest.version || root.rows[row].storage != e.storage[ref.Address] {
+				if root == nil || root.rows[row].version != latest.version || root.rows[row].storage != e.storage.relations[ref.Address] {
 					b.transactions.mu.Unlock()
 					t.Fatal("delete failed latest physical predecessor")
 				}
@@ -148,7 +148,7 @@ func TestForeignActionsCancellation(t *testing.T) {
 				}
 			} else {
 				parent := catalogRef(t, e, e.CatalogRead(), "p")
-				if len(e.storage[parent.Address].versions) != 1 || len(e.storage[ref.Address].versions) != 1 || e.storage[ref.Address].ends != nil {
+				if len(e.storage.relations[parent.Address].versions) != 1 || len(e.storage.relations[ref.Address].versions) != 1 || e.storage.relations[ref.Address].ends != nil {
 					t.Fatal("cancel published a partial action")
 				}
 			}
@@ -180,7 +180,7 @@ func TestForeignActionsDiagnostics(t *testing.T) {
 		t.Fatal(d, err, want)
 	}
 	admission := scope.foreignActionAdmissions[ref.Address]
-	if admission == nil || admission.ref != ref || admission.tx != scope.txRef || scope.lockedRef != named || len(scope.stage.rows[ref.Address]) != 0 || e.storage[ref.Address].versions[0].row != row {
+	if admission == nil || admission.ref != ref || admission.tx != scope.txRef || scope.lockedRef != named || len(scope.stage.rows[ref.Address]) != 0 || e.storage.relations[ref.Address].versions[0].row != row {
 		t.Fatal("local report bypassed captured child authority")
 	}
 }
@@ -198,7 +198,7 @@ func TestForeignActionsPrepared(t *testing.T) {
 		t.Fatal("Prepare demanded an action/default", probe.ordinal, description.analysis)
 	}
 	ref := catalogRef(t, e, e.CatalogRead(), "d")
-	originals := append([]rowVersion(nil), e.storage[ref.Address].versions...)
+	originals := append([]rowVersion(nil), e.storage.relations[ref.Address].versions...)
 	// Replace the current evaluator at the established private default seam. The
 	// retained initiating analysis must never own an executable child plan/value.
 	current := &defaultOrdinal{ordinal: 5}
@@ -210,7 +210,7 @@ func TestForeignActionsPrepared(t *testing.T) {
 	if probe.ordinal != 0 || current.ordinal != 7 {
 		t.Fatal("Execute used a captured default", probe.ordinal, current.ordinal)
 	}
-	rows := e.storage[ref.Address].versions
+	rows := e.storage.relations[ref.Address].versions
 	if len(rows) != 2 || rows[0].row != originals[0].row || rows[1].row != originals[1].row || rows[0].version == originals[0].version || rows[1].version == originals[1].version {
 		t.Fatal("prepared action lost child lineage", rows, originals)
 	}
@@ -262,7 +262,7 @@ func TestForeignActionsLocksTwoPhase(t *testing.T) {
 			if len(e.prepared) != 0 {
 				t.Fatal("completed action prepared owner retained")
 			}
-			storage := e.storage[ref.Address]
+			storage := e.storage.relations[ref.Address]
 			if commit {
 				if storage.ends == nil {
 					t.Fatal("prepared commit lost child deletion")
@@ -370,7 +370,7 @@ func TestForeignActionsLocksSnapshot(t *testing.T) {
 			transactionEnd(t, waiter, ref, false)
 			ended = true
 			parent := catalogRef(t, e, e.CatalogRead(), "p")
-			if e.storage[parent.Address].ends != nil || e.storage[child.Address].ends != nil {
+			if e.storage.relations[parent.Address].ends != nil || e.storage.relations[child.Address].ends != nil {
 				t.Fatal("failed stable action published a deletion")
 			}
 			transactionRows(t, creator, "SELECT pid FROM c", 2)

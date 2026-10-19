@@ -290,7 +290,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	})
 	t.Run("event_source_identity", func(t *testing.T) {
 		f := viewWriteMechanics(t)
-		original := binding{relation: f.base, ref: f.baseRef, storage: f.e.storage[f.base.Address()], targets: []int{0}, usedColumns: []int{0}, update: &boundUpdate{assignments: []expr.Expr{literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, value: sqltype.Null(f.integer)}}}}
+		original := binding{relation: f.base, ref: f.baseRef, storage: f.e.storage.relations[f.base.Address()], targets: []int{0}, usedColumns: []int{0}, update: &boundUpdate{assignments: []expr.Expr{literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, value: sqltype.Null(f.integer)}}}}
 		producer, err := makeRuleProducer(f.e.CatalogRead(), original, "UPDATE")
 		if err != nil {
 			t.Fatal(err)

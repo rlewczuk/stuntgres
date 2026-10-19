@@ -12,7 +12,7 @@ func TestMergeSourceUpdatePublication(t *testing.T) {
 	sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
 	sessionSQL(t, peer, "INSERT INTO t VALUES(1,10),(2,20)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	before := append([]rowVersion(nil), e.storage[ref.Address].versions...)
+	before := append([]rowVersion(nil), e.storage.relations[ref.Address].versions...)
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)

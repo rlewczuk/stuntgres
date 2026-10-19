@@ -26,14 +26,10 @@ type Engine struct {
 	catalog              catalogStore
 	databaseName         string
 	databaseNameError    error
-	storage              map[ids.ObjectAddress]*relationStorage
-	sequences            map[ids.ObjectAddress]*sequenceGenerator
-	indexRoots           map[ids.ObjectAddress]*logicalIndexRoot
+	storage              storageStore
 	sessionMu            sync.Mutex
 	sessions             map[ids.SessionToken]*Session
 	settingsDefinitions  map[string]SettingDefinition
-	nextRow              uint64
-	nextVersion          uint64
 	commitSeq            ids.CommitSeq
 	diagnosticTx         uint32
 	visibilityXID        uint64
@@ -172,12 +168,12 @@ func NewWithSettings(definitions []SettingDefinition, database string, trackComm
 
 func newEngine(providers []catalog.Provider, definitions []SettingDefinition, database string, trackCommitTimestamp bool) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
-	e := &Engine{catalog: catalogStore{Owner: catalog.Owner{Domain: &ids.Domain{}, Providers: map[ids.OID]catalog.Provider{}}, nextOID: 16384, nextRevision: 2}, storage: map[ids.ObjectAddress]*relationStorage{}}
+	e := &Engine{catalog: catalogStore{Owner: catalog.Owner{Domain: &ids.Domain{}, Providers: map[ids.OID]catalog.Provider{}}, nextOID: 16384, nextRevision: 2}, storage: storageStore{relations: map[ids.ObjectAddress]*relationStorage{}}}
 	e.catalog.Principals, e.catalog.ACLAuthority = &e.authorizationDomain, &e.aclAuthority
 	e.trackCommitTimestamp = trackCommitTimestamp
 	e.assignedXID, e.commitTimestampBase = 2, 3
 	e.locks = lock.New(e.catalog.Domain)
-	e.sequences = make(map[ids.ObjectAddress]*sequenceGenerator)
+	e.storage.sequences = make(map[ids.ObjectAddress]*sequenceGenerator)
 	e.initializeRoles()
 	e.initializeSettings(definitions)
 	for _, p := range providers {

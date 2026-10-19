@@ -26,10 +26,10 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf,
 	}
 	a := leaf.ref.Address
 	store := data.generationAt(a)
-	if store == nil || store != e.storage[a] || data.frontierAt(a) != e.commitSeq || data.deleted[a] != nil || len(source.committed) != len(store.versions) || data.ends[a] != store.ends {
+	if store == nil || store != e.storage.relations[a] || data.frontierAt(a) != e.commitSeq || data.deleted[a] != nil || len(source.committed) != len(store.versions) || data.ends[a] != store.ends {
 		return nil
 	}
-	for address, carrier := range e.indexRoots {
+	for address, carrier := range e.storage.indexRoots {
 		index, ok := data.catalog.Relation(address)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Method != catalog.HashMethod || index.SQLIndex.Parent != a || carrier == nil || carrier.hash == nil {
 			continue

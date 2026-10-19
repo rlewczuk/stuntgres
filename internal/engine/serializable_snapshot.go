@@ -34,8 +34,8 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 		node.exempt = false
 		node.possible = nil
 		node.ready = nil
-		roots := make(map[ids.ObjectAddress]transactionRoot, len(e.storage))
-		for address, storage := range e.storage {
+		roots := make(map[ids.ObjectAddress]transactionRoot, len(e.storage.relations))
+		for address, storage := range e.storage.relations {
 			if relation, ok := e.catalog.state.Relation(address); ok {
 				roots[address] = transactionRoot{storage.versions, storage.ends, storage, relation}
 			}

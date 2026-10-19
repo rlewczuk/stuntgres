@@ -122,7 +122,7 @@ func TestSerializableSafeSnapshotUnsafeRejectsRootsAndRecaptures(t *testing.T) {
 	writer.outgoing[out] = struct{}{}
 	out.incoming[writer] = struct{}{}
 	e.serializableCommittedLocked(out.ref, e.commitSeq)
-	old := e.storage[ref.Address]
+	old := e.storage.relations[ref.Address]
 	e.mu.Unlock()
 	scope, node := serializableUnitAcquisition(t, e, context.Background(), true, true)
 	join := serializableUnitCaptureWorker(t, scope)
@@ -132,7 +132,7 @@ func TestSerializableSafeSnapshotUnsafeRejectsRootsAndRecaptures(t *testing.T) {
 		t.Fatal("candidate did not capture old root")
 	}
 	next := &relationStorage{generation: old.generation + 1}
-	e.storage[ref.Address] = next
+	e.storage.relations[ref.Address] = next
 	e.commitSeq++
 	e.serializableCommittedLocked(writer.ref, e.commitSeq)
 	e.endSerializableLocked(writer.ref, true)
@@ -217,12 +217,12 @@ func TestSerializableSafeSnapshotCancelAndEpochFence(t *testing.T) {
 				// cancellation or invalid input. Failed preparation must leave
 				// both committed authority and the unresolved candidate intact.
 				e.mu.Lock()
-				nextRow := e.nextRow
-				e.nextRow = ^uint64(0)
+				nextRow := e.storage.nextRow
+				e.storage.nextRow = ^uint64(0)
 				e.mu.Unlock()
 				changes, err := e.ReplaceCatalog(context.Background(), replacementSource, replacement)
 				e.mu.Lock()
-				e.nextRow = nextRow
+				e.storage.nextRow = nextRow
 				e.mu.Unlock()
 				if err == nil || err.Error() != "stuntgres: row identity exhausted" {
 					t.Fatal("replacement preparation failure", changes, err)

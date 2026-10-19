@@ -433,7 +433,7 @@ retry:
 		auth.catalog = current
 		auth.recaptureCatalog(auth.catalog)
 		namespace, _ := current.Namespace(parent.Namespace())
-		root := e.indexRoots[index.Address()]
+		root := e.storage.indexRoots[index.Address()]
 		if changes := s.owner.catalog; changes != nil {
 			if private := changes.uniqueRoots[index.Address()]; private != nil {
 				root = private

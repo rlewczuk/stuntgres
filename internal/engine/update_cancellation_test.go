@@ -63,7 +63,7 @@ func TestUpdateCoreMidExecutionCancellation(t *testing.T) {
 				sessionSQL(t, peer, "CREATE TABLE t(v INT)")
 				sessionSQL(t, peer, "INSERT INTO t VALUES(1),(2)")
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				saved := e.storage[ref.Address].versions
+				saved := e.storage.relations[ref.Address].versions
 				var tx ids.TxRef
 				if explicit {
 					tx = transactionBegin(t, a)

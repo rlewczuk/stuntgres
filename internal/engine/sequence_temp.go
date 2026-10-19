@@ -225,19 +225,19 @@ func (e *Engine) temporaryCleanupStale(stage *CatalogStage, indexes *temporarySe
 		return true
 	}
 	for address, shape := range stage.rowShapes {
-		store := e.storage[address]
+		store := e.storage.relations[address]
 		if store != shape.original || store == nil || store.generation != shape.generation || store.ends != shape.observedEnds || !sameVersionRoot(store.versions, shape.root) {
 			return true
 		}
 	}
 	for address, candidate := range stage.indexCandidates {
-		if index, ok := stage.Descriptors[address].(*catalog.Relation); ok && index.SQLIndex != nil && !candidate.matches(e.storage[index.SQLIndex.Parent]) {
+		if index, ok := stage.Descriptors[address].(*catalog.Relation); ok && index.SQLIndex != nil && !candidate.matches(e.storage.relations[index.SQLIndex.Parent]) {
 			return true
 		}
 	}
 	if indexes != nil {
 		for address, root := range indexes.previous {
-			if e.indexRoots[address] != root {
+			if e.storage.indexRoots[address] != root {
 				return true
 			}
 		}
@@ -259,14 +259,14 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 		}
 	}
 	for address, shape := range stage.rowShapes {
-		store := e.storage[address]
+		store := e.storage.relations[address]
 		if store != shape.original || store.generation != shape.generation || store.ends != shape.observedEnds || !sameVersionRoot(store.versions, shape.root) {
 			return false, nil
 		}
 	}
 	if indexes != nil {
 		for address, root := range indexes.previous {
-			if e.indexRoots[address] != root {
+			if e.storage.indexRoots[address] != root {
 				return false, nil
 			}
 		}
@@ -277,16 +277,16 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 		}
 	}
 	next := e.stageRead(stage).State()
-	sequences := make(map[ids.ObjectAddress]*sequenceGenerator, len(e.sequences))
-	for a, g := range e.sequences {
+	sequences := make(map[ids.ObjectAddress]*sequenceGenerator, len(e.storage.sequences))
+	for a, g := range e.storage.sequences {
 		sequences[a] = g
 	}
-	storage := make(map[ids.ObjectAddress]*relationStorage, len(e.storage))
-	for a, store := range e.storage {
+	storage := make(map[ids.ObjectAddress]*relationStorage, len(e.storage.relations))
+	for a, store := range e.storage.relations {
 		storage[a] = store
 	}
-	roots := make(map[ids.ObjectAddress]*logicalIndexRoot, len(e.indexRoots))
-	for a, root := range e.indexRoots {
+	roots := make(map[ids.ObjectAddress]*logicalIndexRoot, len(e.storage.indexRoots))
+	for a, root := range e.storage.indexRoots {
 		roots[a] = root
 	}
 	for address, shape := range stage.rowShapes {
@@ -312,7 +312,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 			}
 		}
 	}
-	e.catalog.state, e.sequences, e.storage, e.indexRoots = next, sequences, storage, roots
+	e.catalog.state, e.storage.sequences, e.storage.relations, e.storage.indexRoots = next, sequences, storage, roots
 	stage.lifecycle = catalogPublished
 	e.catalog.nextRevision = nextRevision
 	s.sequences = nil
@@ -338,7 +338,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 	for address := range stage.Removals {
 		index, ok := stage.Base.Relation(address)
 		if ok && index.SQLIndex != nil {
-			result.previous[address] = e.indexRoots[address]
+			result.previous[address] = e.storage.indexRoots[address]
 		}
 	}
 	if len(stage.rowShapes) == 0 {
@@ -365,7 +365,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 		if !ok || index.SQLIndex == nil || !parents[index.SQLIndex.Parent] || !index.SQLIndex.Ready {
 			continue
 		}
-		result.previous[address] = e.indexRoots[address]
+		result.previous[address] = e.storage.indexRoots[address]
 	}
 	e.mu.Unlock()
 	changes := newCatalogChanges()

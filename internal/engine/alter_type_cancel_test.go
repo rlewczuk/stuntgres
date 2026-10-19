@@ -20,7 +20,7 @@ func TestAlterTypeCancellationAndReplacement(t *testing.T) {
 				run(t, e, "CREATE TABLE t("+fixture.declaration+")")
 				run(t, e, "INSERT INTO t VALUES"+fixture.seed)
 				ref := roleTableRef(t, e, "t")
-				old, storage := e.catalog.state.Get(ref.Address), e.storage[ref.Address]
+				old, storage := e.catalog.state.Get(ref.Address), e.storage.relations[ref.Address]
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				op, cleanup, err := testOperation(e, ctx)
@@ -46,7 +46,7 @@ func TestAlterTypeCancellationAndReplacement(t *testing.T) {
 				}}
 				_, err = e.Execute(op, statement(t, "ALTER TABLE t "+fixture.action), 0, nil)
 				if kind == "cancel" {
-					if !errors.Is(err, context.Canceled) || e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != storage {
+					if !errors.Is(err, context.Canceled) || e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage {
 						t.Fatal(err, "published canceled rewrite")
 					}
 					run(t, e, "ALTER TABLE t "+fixture.action)

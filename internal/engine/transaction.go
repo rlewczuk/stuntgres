@@ -1001,17 +1001,17 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 // identities. Engine.mu protects both checked counters; failed work may leave gaps.
 func (e *Engine) allocateRowVersionsLocked(rows [][]sqltype.Value, admission *catalog.State) ([]rowVersion, error) {
 	n := uint64(len(rows))
-	if n > ^uint64(0)-e.nextRow {
+	if n > ^uint64(0)-e.storage.nextRow {
 		return nil, errors.New("stuntgres: row identity exhausted")
 	}
-	if n > ^uint64(0)-e.nextVersion {
+	if n > ^uint64(0)-e.storage.nextVersion {
 		return nil, errors.New("stuntgres: version identity exhausted")
 	}
 	versions := make([]rowVersion, len(rows))
 	for i, row := range rows {
-		e.nextRow++
-		e.nextVersion++
-		versions[i] = rowVersion{row: ids.RowID(e.nextRow), version: ids.VersionID(e.nextVersion), values: row, indexAdmission: admission}
+		e.storage.nextRow++
+		e.storage.nextVersion++
+		versions[i] = rowVersion{row: ids.RowID(e.storage.nextRow), version: ids.VersionID(e.storage.nextVersion), values: row, indexAdmission: admission}
 	}
 	return versions, nil
 }

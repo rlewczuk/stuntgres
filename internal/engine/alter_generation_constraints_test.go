@@ -89,10 +89,10 @@ func TestAlterGeneratedExpressionConstraintRoots(t *testing.T) {
 			}
 			ref := catalogRef(t, e, e.CatalogRead(), "g")
 			old := e.catalog.state.MustRelation(ref.Address)
-			store := e.storage[ref.Address]
+			store := e.storage.relations[ref.Address]
 			catalog := e.catalog.state
-			roots := maps.Clone(e.indexRoots)
-			rowID, versionID, commit := e.nextRow, e.nextVersion, e.commitSeq
+			roots := maps.Clone(e.storage.indexRoots)
+			rowID, versionID, commit := e.storage.nextRow, e.storage.nextVersion, e.commitSeq
 			generation, ends := store.generation, store.ends
 			values := make([][]sqltype.Value, len(store.versions))
 			for i, row := range store.versions {
@@ -133,14 +133,14 @@ func TestAlterGeneratedExpressionConstraintRoots(t *testing.T) {
 			if !errors.As(err, &diagnostic) || diagnostic.Code != code {
 				t.Fatal("constraint rewrite accepted/incorrect failure", kind, err)
 			}
-			if e.catalog.state != catalog || e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != store || store.generation != generation || store.ends != ends || e.nextRow != rowID || e.nextVersion != versionID || e.commitSeq != commit || scope.owner.catalog != nil || !reflect.DeepEqual(scope.owner.writes, writes) || !reflect.DeepEqual(scope.owner.deletes, deletes) {
+			if e.catalog.state != catalog || e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != store || store.generation != generation || store.ends != ends || e.storage.nextRow != rowID || e.storage.nextVersion != versionID || e.commitSeq != commit || scope.owner.catalog != nil || !reflect.DeepEqual(scope.owner.writes, writes) || !reflect.DeepEqual(scope.owner.deletes, deletes) {
 				t.Fatal("constraint failure leaked private/installed roots/counters")
 			}
-			if len(e.indexRoots) != len(roots) {
+			if len(e.storage.indexRoots) != len(roots) {
 				t.Fatal("index inventory changed")
 			}
 			for address, root := range roots {
-				if e.indexRoots[address] != root {
+				if e.storage.indexRoots[address] != root {
 					t.Fatal("index/FK root changed", address)
 				}
 			}

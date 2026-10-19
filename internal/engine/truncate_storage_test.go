@@ -63,20 +63,20 @@ func TestTruncateGeneration(t *testing.T) {
 	for _, commit := range []bool{false, true} {
 		t.Run(map[bool]string{false: "rollback", true: "commit"}[commit], func(t *testing.T) {
 			e, s, p, q := truncateUnitFixture(t)
-			originalP, originalQ := e.storage[p.Address], e.storage[q.Address]
+			originalP, originalQ := e.storage.relations[p.Address], e.storage.relations[q.Address]
 			versions, ends, generation := originalP.versions, originalP.ends, originalP.generation
 			descriptor, frontier := e.catalog.state.Get(p.Address), e.commitSeq
 			scope := truncateUnitStage(t, e, s, "p", "q")
 			for _, ref := range []ids.ObjectRef{p, q} {
 				shape := scope.catalog.storage[ref.Address]
-				if shape.original != e.storage[ref.Address] || len(shape.replacement.versions) != 0 || shape.replacement.ends != nil || !shape.truncated || !shape.rewritten || shape.replacement.generation != shape.original.generation+1 {
+				if shape.original != e.storage.relations[ref.Address] || len(shape.replacement.versions) != 0 || shape.replacement.ends != nil || !shape.truncated || !shape.rewritten || shape.replacement.generation != shape.original.generation+1 {
 					t.Fatal("not an empty generation replacement", shape)
 				}
 				if shape.relation != e.catalog.state.Get(ref.Address) {
 					t.Fatal("descriptor copied/reminted")
 				}
 			}
-			if e.storage[p.Address] != originalP || e.storage[q.Address] != originalQ || originalP.truncateLineage != nil || originalQ.truncateLineage != nil || e.commitSeq != frontier {
+			if e.storage.relations[p.Address] != originalP || e.storage.relations[q.Address] != originalQ || originalP.truncateLineage != nil || originalQ.truncateLineage != nil || e.commitSeq != frontier {
 				t.Fatal("staging published or stamped predecessor")
 			}
 			var err error
@@ -90,10 +90,10 @@ func TestTruncateGeneration(t *testing.T) {
 				t.Fatal("retained predecessor/definition changed")
 			}
 			if commit {
-				if e.storage[p.Address] == originalP || e.storage[q.Address] == originalQ || !sameTruncateLineage(originalP, e.storage[p.Address]) || e.commitSeq != frontier+1 {
+				if e.storage.relations[p.Address] == originalP || e.storage.relations[q.Address] == originalQ || !sameTruncateLineage(originalP, e.storage.relations[p.Address]) || e.commitSeq != frontier+1 {
 					t.Fatal("not one atomic frontier")
 				}
-			} else if e.storage[p.Address] != originalP || e.storage[q.Address] != originalQ || originalP.truncateLineage != nil || e.commitSeq != frontier {
+			} else if e.storage.relations[p.Address] != originalP || e.storage.relations[q.Address] != originalQ || originalP.truncateLineage != nil || e.commitSeq != frontier {
 				t.Fatal("rollback changed committed lineage/roots")
 			}
 		})
@@ -102,11 +102,11 @@ func TestTruncateGeneration(t *testing.T) {
 func TestTruncateIndexes(t *testing.T) {
 	e, s, p, _ := truncateUnitFixture(t)
 	index := roleTableRef(t, e, "p_pkey")
-	retained := e.indexRoots[index.Address]
+	retained := e.storage.indexRoots[index.Address]
 	tx := transactionBegin(t, s)
 	scope := truncateUnitStage(t, e, s, "p")
 	candidate := scope.catalog.uniqueRoots[index.Address]
-	if candidate == nil || len(candidate.entries) != 0 || len(retained.entries) != 2 || e.indexRoots[index.Address] != retained {
+	if candidate == nil || len(candidate.entries) != 0 || len(retained.entries) != 2 || e.storage.indexRoots[index.Address] != retained {
 		t.Fatal("private index root not rebuilt independently")
 	}
 	if err := scope.Finish(nil); err != nil {
@@ -114,11 +114,11 @@ func TestTruncateIndexes(t *testing.T) {
 	}
 	scope.op.Done()
 	shape := s.transactions.catalog.storage[p.Address]
-	if e.storage[p.Address] == shape.replacement {
+	if e.storage.relations[p.Address] == shape.replacement {
 		t.Fatal("explicit generation published before commit")
 	}
 	transactionEnd(t, s, tx, true)
-	if len(e.indexRoots[index.Address].entries) != 0 || len(retained.entries) != 2 {
+	if len(e.storage.indexRoots[index.Address].entries) != 0 || len(retained.entries) != 2 {
 		t.Fatal("live/retained index roots confused")
 	}
 }
@@ -130,7 +130,7 @@ func TestTruncatePrivateRoots(t *testing.T) {
 	}
 	pWrites, pDeletes := s.transactions.writes[p.Address], s.transactions.deletes[p.Address]
 	qWrites := s.transactions.writes[q.Address]
-	original := e.storage[p.Address]
+	original := e.storage.relations[p.Address]
 	truncateUnitExecute(t, e, s, truncateUnitAST("p"))
 	first := s.transactions.catalog.storage[p.Address]
 	if len(s.transactions.writes[p.Address]) != 0 || s.transactions.deletes[p.Address] != nil || !sameVersionRoot(s.transactions.writes[q.Address], qWrites) {
@@ -174,34 +174,34 @@ func TestTruncateSavepoints(t *testing.T) {
 }
 func TestTruncateProvenance(t *testing.T) {
 	e, s, p, _ := truncateUnitFixture(t)
-	first := e.storage[p.Address]
+	first := e.storage.relations[p.Address]
 	truncateUnitExecute(t, e, s, truncateUnitAST("p"))
-	second := e.storage[p.Address]
+	second := e.storage.relations[p.Address]
 	truncateUnitExecute(t, e, s, truncateUnitAST("p"))
-	third := e.storage[p.Address]
+	third := e.storage.relations[p.Address]
 	if !sameTruncateLineage(first, second) || !sameTruncateLineage(first, third) {
 		t.Fatal("successive truncations lost bounded lineage")
 	}
 	retained := slices.Clone(first.versions)
 	sessionSQL(t, s, "ALTER TABLE p ADD note TEXT")
-	ordinary := e.storage[p.Address]
+	ordinary := e.storage.relations[p.Address]
 	if ordinary.truncateLineage != nil || sameTruncateLineage(first, ordinary) {
 		t.Fatal("ordinary rewrite bridged truncate provenance")
 	}
 	truncateUnitExecute(t, e, s, truncateUnitAST("p"))
-	if sameTruncateLineage(first, e.storage[p.Address]) || !sameTruncateLineage(ordinary, e.storage[p.Address]) || len(first.versions) != len(retained) {
+	if sameTruncateLineage(first, e.storage.relations[p.Address]) || !sameTruncateLineage(ordinary, e.storage.relations[p.Address]) || len(first.versions) != len(retained) {
 		t.Fatal("new incarnation reused retired lineage or old rows changed")
 	}
 	// A non-TRUNCATE replacement inside the same private overlay also breaks
 	// continuity; a later private TRUNCATE must not restamp the committed head.
 	tx := transactionBegin(t, s)
-	committed := e.storage[p.Address]
+	committed := e.storage.relations[p.Address]
 	token := committed.truncateLineage
 	truncateUnitExecute(t, e, s, truncateUnitAST("p"))
 	sessionSQL(t, s, "ALTER TABLE p ADD extra INT")
 	truncateUnitExecute(t, e, s, truncateUnitAST("p"))
 	transactionEnd(t, s, tx, true)
-	if committed.truncateLineage != token || sameTruncateLineage(committed, e.storage[p.Address]) {
+	if committed.truncateLineage != token || sameTruncateLineage(committed, e.storage.relations[p.Address]) {
 		t.Fatal("private ordinary rewrite silently bridged lineage")
 	}
 }

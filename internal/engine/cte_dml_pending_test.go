@@ -22,7 +22,7 @@ func cteDMLPendingBoundary(t *testing.T, replacement bool) {
 	}
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	audit := catalogRef(t, e, e.CatalogRead(), "audit")
-	row := e.storage[ref.Address].versions[0].row
+	row := e.storage.relations[ref.Address].versions[0].row
 	tx := transactionBegin(t, holder)
 	sessionSQL(t, holder, "UPDATE t SET v=99 WHERE id=1")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -101,8 +101,8 @@ func cteDMLPendingBoundary(t *testing.T, replacement bool) {
 		// Exercise the genuine physical-storage fence while a different target
 		// is active/pending. The same SQL identity must not authorize a new root.
 		e.mu.Lock()
-		old := e.storage[audit.Address]
-		e.storage[audit.Address] = &relationStorage{versions: old.versions, ends: old.ends, generation: old.generation}
+		old := e.storage.relations[audit.Address]
+		e.storage.relations[audit.Address] = &relationStorage{versions: old.versions, ends: old.ends, generation: old.generation}
 		e.mu.Unlock()
 		want = ids.ErrCatalogReplaced
 		transactionEnd(t, holder, tx, false)

@@ -31,7 +31,7 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 				indexAddress = parent.ExclusionConstraints[0].Index
 			}
 			index := e.catalog.state.MustRelation(indexAddress)
-			store, root := e.storage[ref.Address], e.indexRoots[indexAddress]
+			store, root := e.storage.relations[ref.Address], e.storage.indexRoots[indexAddress]
 			// Populate representable descriptor comment through the existing stage provider;
 			// public COMMENT ON INDEX is intentionally absent.
 			copied := *index
@@ -53,7 +53,7 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 			sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
 			after := e.catalog.state.MustRelation(ref.Address)
 			backing := e.catalog.state.MustRelation(indexAddress)
-			if after == parent || backing == index || after.Address() != parent.Address() || backing.Address() != index.Address() || e.storage[ref.Address] != store || e.indexRoots[indexAddress] != root {
+			if after == parent || backing == index || after.Address() != parent.Address() || backing.Address() != index.Address() || e.storage.relations[ref.Address] != store || e.storage.indexRoots[indexAddress] != root {
 				t.Fatal("rename copied storage/root or changed group identity")
 			}
 			if backing.Name() != "new" || backing.Comment != "backing comment" || backing.SQLIndex.Constraint.Name != "new" || backing.SQLIndex.Constraint.OID != index.SQLIndex.Constraint.OID || !backingConstraintPresent(after, backing) {
@@ -86,7 +86,7 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 			}
 			// Ordinary backing-index rename still uses the same group helper.
 			sessionSQL(t, s, "ALTER INDEX new RENAME TO again")
-			if e.indexRoots[indexAddress] != root || !backingConstraintPresent(e.catalog.state.MustRelation(ref.Address), e.catalog.state.MustRelation(indexAddress)) {
+			if e.storage.indexRoots[indexAddress] != root || !backingConstraintPresent(e.catalog.state.MustRelation(ref.Address), e.catalog.state.MustRelation(indexAddress)) {
 				t.Fatal("ordinary helper caller changed root/group")
 			}
 		})
@@ -138,7 +138,7 @@ func TestConstraintRenamePrivateOverlay(t *testing.T) {
 	ref := roleTableRef(t, e, "t")
 	old := e.catalog.state.MustRelation(ref.Address)
 	index := old.UniqueConstraints[0].Index
-	store, root := e.storage[ref.Address], e.indexRoots[index]
+	store, root := e.storage.relations[ref.Address], e.storage.indexRoots[index]
 	sessionSQL(t, s, "BEGIN")
 	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
 	tx := s.transactions
@@ -158,11 +158,11 @@ func TestConstraintRenamePrivateOverlay(t *testing.T) {
 	}
 	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT new TO old")
 	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
-	if tx.catalog.originals[ref.Address] != old || e.storage[ref.Address] != store || e.indexRoots[index] != root {
+	if tx.catalog.originals[ref.Address] != old || e.storage.relations[ref.Address] != store || e.storage.indexRoots[index] != root {
 		t.Fatal("name reuse lost originals/storage/root")
 	}
 	sessionSQL(t, s, "COMMIT")
-	if e.storage[ref.Address] != store || e.indexRoots[index] != root {
+	if e.storage.relations[ref.Address] != store || e.storage.indexRoots[index] != root {
 		t.Fatal("metadata commit copied roots")
 	}
 }
@@ -178,7 +178,7 @@ func TestConstraintRenamePublicationFences(t *testing.T) {
 				old := e.catalog.state.MustRelation(ref.Address)
 				index := old.UniqueConstraints[0].Index
 				backing := e.catalog.state.Get(index)
-				store, root := e.storage[ref.Address], e.indexRoots[index]
+				store, root := e.storage.relations[ref.Address], e.storage.indexRoots[index]
 				var dump bytes.Buffer
 				if err := e.Dump(context.Background(), &dump); err != nil {
 					t.Fatal(err)
@@ -248,7 +248,7 @@ func TestConstraintRenamePublicationFences(t *testing.T) {
 					}
 					return
 				}
-				if e.catalog.state.Get(index) != backing || e.storage[ref.Address] != store || e.indexRoots[index] != root {
+				if e.catalog.state.Get(index) != backing || e.storage.relations[ref.Address] != store || e.storage.indexRoots[index] != root {
 					t.Fatal("failed rename partially published backing/storage")
 				}
 				if change != "descriptor" && e.catalog.state.Get(ref.Address) != old {
@@ -328,12 +328,12 @@ func TestConstraintRenameNotNullIdentity(t *testing.T) {
 	ref := roleTableRef(t, e, "t")
 	before := e.catalog.state.MustRelation(ref.Address)
 	definition := before.NotNullConstraints[0]
-	storage := e.storage[ref.Address]
+	storage := e.storage.relations[ref.Address]
 	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
 	after := e.catalog.state.MustRelation(ref.Address)
 	renamed := after.NotNullConstraints[0]
 	renamed.Name = definition.Name
-	if after == before || before.NotNullConstraints[0].Name != "old" || !reflect.DeepEqual(renamed, definition) || !reflect.DeepEqual(after.Columns, before.Columns) || &after.Attributes[0] != &before.Attributes[0] || e.storage[ref.Address] != storage {
+	if after == before || before.NotNullConstraints[0].Name != "old" || !reflect.DeepEqual(renamed, definition) || !reflect.DeepEqual(after.Columns, before.Columns) || &after.Attributes[0] != &before.Attributes[0] || e.storage.relations[ref.Address] != storage {
 		t.Fatal("NOT NULL rename changed stable attribute/enforcement/storage")
 	}
 }

@@ -66,7 +66,7 @@ func TestQueryTableCreateDemand(t *testing.T) {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)
-	if calls != 2 || predicates != 3 || len(e.storage[d.Address()].versions) != 2 {
+	if calls != 2 || predicates != 3 || len(e.storage.relations[d.Address()].versions) != 2 {
 		t.Fatal("publication demanded query again")
 	}
 }
@@ -138,7 +138,7 @@ func TestQueryTableCreateCleanup(t *testing.T) {
 			t.Fatal(result, count, err, closes)
 		}
 		queryCreateAssertAbsent(t, e, d)
-		if e.nextRow != 0 || e.nextVersion != 0 || e.commitSeq != 0 {
+		if e.storage.nextRow != 0 || e.storage.nextVersion != 0 || e.commitSeq != 0 {
 			t.Fatal("cleanup failure reserved or published data")
 		}
 	}

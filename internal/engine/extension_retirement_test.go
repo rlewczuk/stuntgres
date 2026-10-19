@@ -31,11 +31,11 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 	roleExecute(t, e, installer, "INSERT INTO ext_peer_keep VALUES(77)")
 	peerNamespace := e.catalog.state.Get(installer.session.temporaryNamespace)
 	peerTable := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: peerNamespace.Address(), Name: "ext_peer_keep"})
-	peerDescriptor, peerStore := e.catalog.state.Get(peerTable), e.storage[peerTable]
-	store := e.storage[survivor.Address()]
+	peerDescriptor, peerStore := e.catalog.state.Get(peerTable), e.storage.relations[peerTable]
+	store := e.storage.relations[survivor.Address()]
 	retained, retainedEnds := store.versions, store.ends
 	index := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.Namespace(), Name: "ext_survivor_id"})
-	root := e.indexRoots[index]
+	root := e.storage.indexRoots[index]
 	held := roleExecute(t, e, installer, "SELECT txt FROM public.ext_survivor")
 	defer held.Rows.Close()
 	provider := e.catalog.Providers[ids.RelationClassID]
@@ -131,7 +131,7 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 	}
 	extensionTemporaryGoneUnit(t, e, ext)
 	current := e.catalog.state.MustRelation(survivor.Address())
-	if current == survivor || len(current.Defaults) != 0 || len(current.CheckConstraints) != 0 || e.storage[survivor.Address()] != store || e.indexRoots[index] != root || !sameVersionRoot(retained, store.versions) || store.ends != retainedEnds {
+	if current == survivor || len(current.Defaults) != 0 || len(current.CheckConstraints) != 0 || e.storage.relations[survivor.Address()] != store || e.storage.indexRoots[index] != root || !sameVersionRoot(retained, store.versions) || store.ends != retainedEnds {
 		t.Fatal("stale retirement lost surviving storage/index or failed pruning")
 	}
 	for _, name := range []string{"ext_view", "ext_chain", "ext_stale_late"} {
@@ -139,7 +139,7 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 			t.Fatal("late closure retained", name)
 		}
 	}
-	if e.catalog.state.Get(peerNamespace.Address()) != peerNamespace || e.catalog.state.Get(peerTable) != peerDescriptor || e.storage[peerTable] != peerStore {
+	if e.catalog.state.Get(peerNamespace.Address()) != peerNamespace || e.catalog.state.Get(peerTable) != peerDescriptor || e.storage.relations[peerTable] != peerStore {
 		t.Fatal("retirement changed independent peer TEMP")
 	}
 	if owner.session.temporaryNamespace != (ids.ObjectAddress{}) {
@@ -174,7 +174,7 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 	}
 	if mixed {
 		collated := e.catalog.state.MustRelation(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.Namespace(), Name: "ext_collation_survivor"}))
-		if len(collated.Columns) != 1 || collated.Columns[0].Name != "id" || len(e.storage[collated.Address()].versions) != 1 {
+		if len(collated.Columns) != 1 || collated.Columns[0].Name != "id" || len(e.storage.relations[collated.Address()].versions) != 1 {
 			t.Fatal("mixed collation consumer not projected")
 		}
 	}
@@ -189,11 +189,11 @@ func extensionTemporarySaturatedEnd(t *testing.T) {
 	roleExecute(t, e, installer, "INSERT INTO ext_max_peer VALUES(77)")
 	peerNamespace := e.catalog.state.Get(installer.session.temporaryNamespace)
 	peerTable := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: peerNamespace.Address(), Name: "ext_max_peer"})
-	peerDescriptor, peerStore := e.catalog.state.Get(peerTable), e.storage[peerTable]
-	store := e.storage[survivor.Address()]
+	peerDescriptor, peerStore := e.catalog.state.Get(peerTable), e.storage.relations[peerTable]
+	store := e.storage.relations[survivor.Address()]
 	retained, ends := store.versions, store.ends
 	index := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: survivor.Namespace(), Name: "ext_survivor_id"})
-	root := e.indexRoots[index]
+	root := e.storage.indexRoots[index]
 	maximum := *survivor
 	maximum.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 	e.mu.Lock()
@@ -222,7 +222,7 @@ func extensionTemporarySaturatedEnd(t *testing.T) {
 	if current == &maximum || current.Revision() != maximum.Revision() || len(current.Defaults) != 0 || len(current.CheckConstraints) != 0 || len(maximum.Defaults) != 1 || len(maximum.CheckConstraints) != 1 || e.catalog.nextRevision != maximum.Revision() {
 		t.Fatal("post-drain did not preserve terminal counter/immutable predecessor contract")
 	}
-	if e.storage[survivor.Address()] != store || e.indexRoots[index] != root || !sameVersionRoot(retained, store.versions) || ends != store.ends || e.catalog.state.Get(peerNamespace.Address()) != peerNamespace || e.catalog.state.Get(peerTable) != peerDescriptor || e.storage[peerTable] != peerStore {
+	if e.storage.relations[survivor.Address()] != store || e.storage.indexRoots[index] != root || !sameVersionRoot(retained, store.versions) || ends != store.ends || e.catalog.state.Get(peerNamespace.Address()) != peerNamespace || e.catalog.state.Get(peerTable) != peerDescriptor || e.storage.relations[peerTable] != peerStore {
 		t.Fatal("terminal mixed cleanup changed storage, index, old rows or peer TEMP")
 	}
 	for _, name := range []string{"ext_view", "ext_chain"} {
@@ -233,7 +233,7 @@ func extensionTemporarySaturatedEnd(t *testing.T) {
 	roleExecute(t, e, installer, "INSERT INTO public.ext_survivor(id) VALUES(2)")
 	roleExecute(t, e, installer, "INSERT INTO public.ext_survivor(id,txt) VALUES(3,'Hôtel')")
 	extensionRetirementRowsUnit(t, e, installer)
-	if len(retained) != 1 || len(e.storage[survivor.Address()].versions) != 3 {
+	if len(retained) != 1 || len(e.storage.relations[survivor.Address()].versions) != 3 {
 		t.Fatal("retained versus current row publication")
 	}
 }

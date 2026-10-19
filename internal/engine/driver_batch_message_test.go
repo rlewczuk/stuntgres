@@ -151,7 +151,7 @@ func TestDriverBatchQueuedPrefixCancellation(t *testing.T) {
 			}
 			address := catalogRef(t, e, e.CatalogRead(), "prefix").Address
 			e.mu.Lock()
-			published := len(e.storage[address].versions)
+			published := len(e.storage.relations[address].versions)
 			e.mu.Unlock()
 			if published != 0 || len(a.transactions.writes[address]) != 1 {
 				t.Fatal("prefix was not staged before wait")

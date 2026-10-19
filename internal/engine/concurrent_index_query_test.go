@@ -37,7 +37,7 @@ func TestConcurrentIndexHashInvalidQueryCapture(t *testing.T) {
 		t.Fatal("fixture did not retain the genuinely incomplete bucket root", got)
 	}
 	e.mu.Lock()
-	store := e.storage[index.SQLIndex.Parent]
+	store := e.storage.relations[index.SQLIndex.Parent]
 	currentIdentity := incomplete.storage == store && incomplete.generation == store.generation && incomplete.prefix == len(store.versions) && incomplete.ends == store.ends && len(store.versions) == 3
 	e.mu.Unlock()
 	if !currentIdentity {

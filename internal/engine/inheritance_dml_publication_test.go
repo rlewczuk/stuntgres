@@ -48,7 +48,7 @@ func TestInheritanceDMLAtomicPublication(t *testing.T) {
 				}
 			}
 			for _, ref := range refs {
-				if !reflect.DeepEqual(e.storage[ref.Address].versions, before[ref.Address]) {
+				if !reflect.DeepEqual(e.storage.relations[ref.Address].versions, before[ref.Address]) {
 					t.Fatal("staging published one physical store", ref)
 				}
 			}
@@ -67,7 +67,7 @@ func TestInheritanceDMLAtomicPublication(t *testing.T) {
 					t.Fatal("failed publication consumed a frontier")
 				}
 				for _, ref := range refs {
-					if !reflect.DeepEqual(e.storage[ref.Address].versions, before[ref.Address]) {
+					if !reflect.DeepEqual(e.storage.relations[ref.Address].versions, before[ref.Address]) {
 						t.Fatal("later child veto partially published", ref)
 					}
 				}
@@ -79,7 +79,7 @@ func TestInheritanceDMLAtomicPublication(t *testing.T) {
 					t.Fatal("one statement published multiple frontiers", e.commitSeq, frontier)
 				}
 				for _, ref := range refs {
-					current := e.storage[ref.Address].versions[0]
+					current := e.storage.relations[ref.Address].versions[0]
 					if current.born != e.commitSeq || !reflect.DeepEqual(current.values, []sqltype.Value{inheritanceQueryInt(e, 30)}) {
 						t.Fatal("physical replacement missed shared frontier", current)
 					}

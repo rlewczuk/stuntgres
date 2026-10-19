@@ -162,7 +162,7 @@ func TestCommitTimePublication(t *testing.T) {
 							t.Fatal(err)
 						}
 						writes = map[ids.ObjectAddress][]rowVersion{d.Address(): versions}
-						rowStore = e.storage[d.Address()]
+						rowStore = e.storage.relations[d.Address()]
 					}
 				}
 				barrier := &transactionBarrierContext{Context: ctx, entered: make(chan struct{}), release: make(chan struct{})}

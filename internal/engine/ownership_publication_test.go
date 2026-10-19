@@ -253,7 +253,7 @@ func TestReassignOwnedPublicationCompetingRoleChange(t *testing.T) {
 	// An independent physical session changes real membership after candidate
 	// validation. The delayed publisher must retain that change, not overwrite it.
 	_, grantErr := testExecute(e, context.Background(), statement(t, "GRANT ownership_target TO ownership_reader"), nil)
-	state, roles, store := e.catalog.state, e.roles, e.storage[address]
+	state, roles, store := e.catalog.state, e.roles, e.storage.relations[address]
 	close(release)
 	select {
 	case err = <-result:
@@ -266,7 +266,7 @@ func TestReassignOwnedPublicationCompetingRoleChange(t *testing.T) {
 	if grantErr != nil {
 		t.Fatal(grantErr)
 	}
-	if e.catalog.state != state || e.roles != roles || e.storage[address] != store || state.MustRelation(address).Owner == target {
+	if e.catalog.state != state || e.roles != roles || e.storage.relations[address] != store || state.MustRelation(address).Owner == target {
 		t.Fatal("stale publication erased membership or changed table")
 	}
 }

@@ -18,26 +18,26 @@ func TestDomainCheckIndexPrivateLayoutTransport(t *testing.T) {
 				run(t, e, query)
 			}
 			sequence := roleTableRef(t, e, "steps").Address
-			if e.sequences[sequence].last != 2 {
-				t.Fatal("initial index insertion events", e.sequences[sequence].last)
+			if e.storage.sequences[sequence].last != 2 {
+				t.Fatal("initial index insertion events", e.storage.sequences[sequence].last)
 			}
 			session := sessionStart(t, e, nil)
 			sessionSQL(t, session, "BEGIN")
 			sessionSQL(t, session, "UPDATE subject SET id=3 WHERE id=1")
-			if e.sequences[sequence].last != 3 {
-				t.Fatal("UPDATE replayed predecessor or omitted successor", e.sequences[sequence].last)
+			if e.storage.sequences[sequence].last != 3 {
+				t.Fatal("UPDATE replayed predecessor or omitted successor", e.storage.sequences[sequence].last)
 			}
 			sessionSQL(t, session, "ALTER TABLE subject DROP COLUMN unused")
-			if e.sequences[sequence].last != 3 {
-				t.Fatal("slot projection replayed CHECK", e.sequences[sequence].last)
+			if e.storage.sequences[sequence].last != 3 {
+				t.Fatal("slot projection replayed CHECK", e.storage.sequences[sequence].last)
 			}
 			sessionSQL(t, session, "COMMIT")
-			if e.sequences[sequence].last != 3 {
-				t.Fatal("publication replayed projected CHECK", e.sequences[sequence].last)
+			if e.storage.sequences[sequence].last != 3 {
+				t.Fatal("publication replayed projected CHECK", e.storage.sequences[sequence].last)
 			}
 			parent := roleTableRef(t, e, "subject").Address
-			root := e.indexRoots[roleTableRef(t, e, "checked_idx").Address]
-			store := e.storage[parent]
+			root := e.storage.indexRoots[roleTableRef(t, e, "checked_idx").Address]
+			store := e.storage.relations[parent]
 			check := func(row ids.RowID, version ids.VersionID, position int) {
 				if position < 0 || position >= len(store.versions) || store.versions[position].row != row || store.versions[position].version != version {
 					t.Fatal("projected entry lost actual heap identity/position")
@@ -72,16 +72,16 @@ func TestDomainCheckIndexAutocommitReindexEvents(t *testing.T) {
 		run(t, e, query)
 	}
 	sequence := roleTableRef(t, e, "steps").Address
-	if e.sequences[sequence].last != 2 {
+	if e.storage.sequences[sequence].last != 2 {
 		t.Fatal("initial insertion events")
 	}
 	session := sessionStart(t, e, nil)
 	sessionSQL(t, session, "REINDEX INDEX checked_idx")
-	if e.sequences[sequence].last != 4 {
-		t.Fatal("first real REINDEX build", e.sequences[sequence].last)
+	if e.storage.sequences[sequence].last != 4 {
+		t.Fatal("first real REINDEX build", e.storage.sequences[sequence].last)
 	}
 	sessionSQL(t, session, "REINDEX INDEX checked_idx")
-	if e.sequences[sequence].last != 6 {
-		t.Fatal("earlier build suppressed new REINDEX", e.sequences[sequence].last)
+	if e.storage.sequences[sequence].last != 6 {
+		t.Fatal("earlier build suppressed new REINDEX", e.storage.sequences[sequence].last)
 	}
 }

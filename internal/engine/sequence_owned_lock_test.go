@@ -193,7 +193,7 @@ func TestSequenceOwnedTableLockFailure(t *testing.T) {
 					var generator sequenceGenerator
 					if !create {
 						sequence = catalogRef(t, e, before, "late")
-						generator = *e.sequences[sequence.Address]
+						generator = *e.storage.sequences[sequence.Address]
 					}
 					ctx, cancel := context.WithCancel(context.Background())
 					defer cancel()
@@ -220,7 +220,7 @@ func TestSequenceOwnedTableLockFailure(t *testing.T) {
 					if e.catalog.state != before.State() {
 						t.Fatal("failed ownership published catalog")
 					}
-					if !create && *e.sequences[sequence.Address] != generator {
+					if !create && *e.storage.sequences[sequence.Address] != generator {
 						t.Fatal("failed association changed generator")
 					}
 					assertTemporaryProjectionProviders(t, e)

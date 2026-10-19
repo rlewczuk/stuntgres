@@ -19,7 +19,7 @@ func TestUpdateCoreSameLengthCatalogGuard(t *testing.T) {
 	next.ObjectRevision++
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	original := e.storage[ref.Address]
+	original := e.storage.relations[ref.Address]
 	if err := stage.alterRelation(context.Background(), ref, &next, original, original, len(original.versions), original.generation, original.ends); err != nil {
 		t.Fatal(err)
 	}
@@ -46,8 +46,8 @@ func TestUpdateCoreMultiRelationPreflight(t *testing.T) {
 	sessionSQL(t, b, "INSERT INTO u VALUES(2)")
 	tRef := catalogRef(t, e, e.CatalogRead(), "t")
 	uRef := catalogRef(t, e, e.CatalogRead(), "u")
-	beforeT := append([]rowVersion(nil), e.storage[tRef.Address].versions...)
-	beforeU := append([]rowVersion(nil), e.storage[uRef.Address].versions...)
+	beforeT := append([]rowVersion(nil), e.storage.relations[tRef.Address].versions...)
+	beforeU := append([]rowVersion(nil), e.storage.relations[uRef.Address].versions...)
 	tx := transactionBegin(t, a)
 	sessionSQL(t, a, "UPDATE t SET v=7")
 	sessionSQL(t, a, "UPDATE u SET v=8")
@@ -59,7 +59,7 @@ func TestUpdateCoreMultiRelationPreflight(t *testing.T) {
 	if err == nil {
 		t.Fatal("stale predecessor published")
 	}
-	if !reflect.DeepEqual(beforeT, e.storage[tRef.Address].versions) || !reflect.DeepEqual(beforeU, e.storage[uRef.Address].versions) {
+	if !reflect.DeepEqual(beforeT, e.storage.relations[tRef.Address].versions) || !reflect.DeepEqual(beforeU, e.storage.relations[uRef.Address].versions) {
 		t.Fatal("partial multi-relation commit")
 	}
 	transactionRows(t, b, "SELECT v FROM t", 1)
@@ -77,12 +77,12 @@ func TestUpdateCoreSelfImportRemintsWithoutMutatingViews(t *testing.T) {
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	sessionSQL(t, a, "UPDATE t SET v=2")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	root := e.storage[ref.Address].versions
+	root := e.storage.relations[ref.Address].versions
 	before := root[0]
 	if _, err := e.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	current := e.storage[ref.Address].versions[0]
+	current := e.storage.relations[ref.Address].versions[0]
 	if !reflect.DeepEqual(before, root[0]) || current.row == before.row || current.version <= before.version || current.born <= before.born {
 		t.Fatal("import identities/retention", before, root[0], current)
 	}

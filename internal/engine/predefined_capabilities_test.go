@@ -124,22 +124,22 @@ func TestPredefinedMaintainRebuild(t *testing.T) {
 	roleAttributeApply(t, e, op, &parser.CreateIndex{Name: parser.Identifier{Text: "maintained_index"}, Table: predefinedObjectName("maintained"), Method: "btree", Keys: []parser.IndexKey{{Column: parser.Identifier{Text: "n"}}}})
 	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "maintained_index"})
 	index := e.catalog.state.MustRelation(address)
-	root, storage := e.indexRoots[address], e.storage[index.SQLIndex.Parent]
+	root, storage := e.storage.indexRoots[address], e.storage.relations[index.SQLIndex.Parent]
 	if root == nil || storage == nil {
 		t.Fatal("missing real index or parent storage")
 	}
 	utility := &parser.Reindex{Kind: parser.Identifier{Text: "index"}, Name: predefinedObjectName("maintained_index")}
 	roleAttributeApply(t, e, op, &parser.SessionAuthorization{Name: actor.Name})
 	roleAttributeFailure(t, e, op, utility, "42501")
-	if e.indexRoots[address] != root {
+	if e.storage.indexRoots[address] != root {
 		t.Fatal("denied rebuild replaced root")
 	}
 	roleAttributeApply(t, e, op, &parser.SessionAuthorization{Default: true})
 	roleAttributeApply(t, e, op, predefinedMembership("pg_maintain", actor.Name))
 	roleAttributeApply(t, e, op, &parser.SessionAuthorization{Name: actor.Name})
 	roleAttributeApply(t, e, op, utility)
-	next := e.indexRoots[address]
-	if next == root || !reflect.DeepEqual(next.entries, root.entries) || e.catalog.state.Get(address) != index || e.storage[index.SQLIndex.Parent] != storage {
+	next := e.storage.indexRoots[address]
+	if next == root || !reflect.DeepEqual(next.entries, root.entries) || e.catalog.state.Get(address) != index || e.storage.relations[index.SQLIndex.Parent] != storage {
 		t.Fatal("MAINTAIN did not rebuild real isolated root")
 	}
 	roleAttributeApply(t, e, op, &parser.SessionAuthorization{Default: true})
@@ -148,7 +148,7 @@ func TestPredefinedMaintainRebuild(t *testing.T) {
 	roleAttributeApply(t, e, op, revoke)
 	roleAttributeApply(t, e, op, &parser.SessionAuthorization{Name: actor.Name})
 	roleAttributeFailure(t, e, op, utility, "42501")
-	if e.indexRoots[address] != next {
+	if e.storage.indexRoots[address] != next {
 		t.Fatal("revoked rebuild replaced root")
 	}
 }

@@ -119,14 +119,14 @@ func (s *StatementScope) exclusionCandidateLocked(e *Engine, proposal *indexWrit
 		row.indexAdmission = catalog
 		return row, nil
 	}
-	if e.nextVersion == ^uint64(0) || len(excluded) == 0 && e.nextRow == ^uint64(0) {
+	if e.storage.nextVersion == ^uint64(0) || len(excluded) == 0 && e.storage.nextRow == ^uint64(0) {
 		return rowVersion{}, fmt.Errorf("stuntgres: row identity exhausted")
 	}
-	e.nextVersion++
-	row := rowVersion{version: ids.VersionID(e.nextVersion), values: proposal.values, indexAdmission: catalog}
+	e.storage.nextVersion++
+	row := rowVersion{version: ids.VersionID(e.storage.nextVersion), values: proposal.values, indexAdmission: catalog}
 	if len(excluded) == 0 {
-		e.nextRow++
-		row.row = ids.RowID(e.nextRow)
+		e.storage.nextRow++
+		row.row = ids.RowID(e.storage.nextRow)
 	} else {
 		predecessor := excluded[len(excluded)-1]
 		row.row, row.base = predecessor.row, predecessor.base
@@ -289,7 +289,7 @@ func (s *StatementScope) captureExclusionScan(ref ids.ObjectRef, binding *unique
 	}
 	auth.catalog = view
 	auth.recaptureCatalog(auth.catalog)
-	root := e.indexRoots[index.Address()]
+	root := e.storage.indexRoots[index.Address()]
 	if s.owner.catalog != nil {
 		if private, ok := s.owner.catalog.uniqueRoots[index.Address()]; ok {
 			root = private
@@ -309,7 +309,7 @@ func (s *StatementScope) exclusionScanCurrent(scan exclusionScan, index ids.Obje
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	root := e.indexRoots[index]
+	root := e.storage.indexRoots[index]
 	if s.owner.catalog != nil {
 		if private, ok := s.owner.catalog.uniqueRoots[index]; ok {
 			root = private

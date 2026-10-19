@@ -48,7 +48,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 	for _, a := range cleared {
 		shape, exists := next.storage[a]
 		if !exists {
-			store := e.storage[a]
+			store := e.storage.relations[a]
 			shape = catalogStorageChange{original: store, root: store.versions, ends: store.ends, generation: store.generation}
 		}
 		shape.replacement = &relationStorage{}

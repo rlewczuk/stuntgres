@@ -53,7 +53,7 @@ func TestHashIndexLookupCancellation(t *testing.T) {
 	before := indexMaintenanceCapture(e)
 	unchanged := func() {
 		indexMaintenanceUnchanged(t, e, before)
-		if source.view != view || source.view.read() != data || &source.committed[0] != first || !reflect.DeepEqual(source.committed, rows) || !reflect.DeepEqual(source.visible, visible) || len(source.hashIndexes) != 1 || source.hashIndexes[0].root != root || !reflect.DeepEqual(root.buckets, buckets) || e.indexRoots[index.Address()].hash != root {
+		if source.view != view || source.view.read() != data || &source.committed[0] != first || !reflect.DeepEqual(source.committed, rows) || !reflect.DeepEqual(source.visible, visible) || len(source.hashIndexes) != 1 || source.hashIndexes[0].root != root || !reflect.DeepEqual(root.buckets, buckets) || e.storage.indexRoots[index.Address()].hash != root {
 			t.Fatal("canceled lookup changed retained source/root authority")
 		}
 	}
@@ -158,7 +158,7 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 	}
 	index, old := hashRoot(t, e, "hn")
 	parent := e.catalog.state.MustRelation(index.SQLIndex.Parent)
-	store := e.storage[parent.Address()]
+	store := e.storage.relations[parent.Address()]
 	writer := sessionStart(t, e, nil)
 	ref := transactionBegin(t, writer)
 	active := true
@@ -189,7 +189,7 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 	calibration, stop := context.WithCancel(context.Background())
 	defer stop()
 	counting := &cancelAtErrCheck{Context: calibration, cancel: stop}
-	candidate, err := mergeHashIndexRoot(&EvalContext{Context: counting, Scope: 1, Frame: 1}, parent, index, e.indexRoots[index.Address()], &p, false, true)
+	candidate, err := mergeHashIndexRoot(&EvalContext{Context: counting, Scope: 1, Frame: 1}, parent, index, e.storage.indexRoots[index.Address()], &p, false, true)
 	if err != nil || candidate == nil || candidate.hash == nil || !reflect.DeepEqual(hashKeys(t, candidate.hash), []string{"3", "4", "4", "5"}) {
 		t.Fatal("real merge calibration failed", candidate, err)
 	}

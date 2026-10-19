@@ -211,7 +211,7 @@ func TestRestoreInheritedForeignKeyAtomicity(t *testing.T) {
 	run(t, e, "INSERT INTO sentinel VALUES(91)")
 	before, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
 	sentinel := roleTableRef(t, e, "sentinel")
-	storage := e.storage[sentinel.Address]
+	storage := e.storage.relations[sentinel.Address]
 	const declarations = "CREATE TABLE public.support(k INT UNIQUE);CREATE TABLE public.p(a INT,CONSTRAINT ordinary_fk FOREIGN KEY(a) REFERENCES public.support(k));CREATE TABLE public.c(k INT UNIQUE) INHERITS(public.p);INSERT INTO public.support VALUES(2);INSERT INTO public.p VALUES(2);INSERT INTO public.c(a,k) VALUES(NULL,1);"
 	const foreign = "ALTER TABLE ONLY public.p ADD CONSTRAINT forward_fk FOREIGN KEY(a) REFERENCES public.c(k);"
 	err := e.Restore(context.Background(), strings.NewReader(declarations+foreign))
@@ -232,7 +232,7 @@ func TestRestoreInheritedForeignKeyAtomicity(t *testing.T) {
 	if err := e.Restore(ctx, strings.NewReader(declarations+foreign)); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if e.catalog.state != before || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage[sentinel.Address] != storage || !reflect.DeepEqual(tuples(run(t, e, "SELECT a FROM sentinel")), [][]driver.Value{{int64(91)}}) {
+	if e.catalog.state != before || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.relations[sentinel.Address] != storage || !reflect.DeepEqual(tuples(run(t, e, "SELECT a FROM sentinel")), [][]driver.Value{{int64(91)}}) {
 		t.Fatal("failed/canceled isolated FK replay changed the published target")
 	}
 }

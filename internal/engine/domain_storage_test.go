@@ -55,7 +55,7 @@ func TestDomainCascadeStableAttributesAndRowGenerations(t *testing.T) {
 	}
 	source := &relationStorage{generation: 3, versions: []rowVersion{{row: 42, version: 99, born: 3, values: []sqltype.Value{keep, value, sqltype.Null(chain.SQLType), tail}}}}
 	e.mu.Lock()
-	e.storage[table.Address()] = source
+	e.storage.relations[table.Address()] = source
 	e.commitSeq = 3
 	e.mu.Unlock()
 	retained := e.CatalogRead()
@@ -75,7 +75,7 @@ func TestDomainCascadeStableAttributesAndRowGenerations(t *testing.T) {
 	before := e.CatalogRead().State()
 	err = scope.stageDomainDependents(restrict, parser.DropRestrict)
 	domainUnitDiagnostic(t, err, "2BP01", "cannot drop type a because other objects depend on it")
-	if e.CatalogRead().State() != before || e.storage[table.Address()] != source {
+	if e.CatalogRead().State() != before || e.storage.relations[table.Address()] != source {
 		t.Fatal("RESTRICT changed roots")
 	}
 	cascade := domainUnitStage(t, e, op, "DROP DOMAIN public.a CASCADE")
@@ -85,7 +85,7 @@ func TestDomainCascadeStableAttributesAndRowGenerations(t *testing.T) {
 	domainUnitPublish(t, e, cascade)
 	current := e.CatalogRead()
 	next := current.MustRelation(table.Address())
-	store := e.storage[table.Address()]
+	store := e.storage.relations[table.Address()]
 	if _, ok := current.Descriptor(a.Address()); ok {
 		t.Fatal("root domain retained")
 	}

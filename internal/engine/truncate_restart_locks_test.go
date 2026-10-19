@@ -52,7 +52,7 @@ func TestTruncateRestartLocks(t *testing.T) {
 			} else {
 				sequenceScalar(t, holder, "SELECT nextval('q_id_seq')", 45)
 			}
-			oldP, oldQ, oldPS, oldQS := e.storage[p.Address], e.storage[q.Address], e.sequences[ps.Address], e.sequences[qs.Address]
+			oldP, oldQ, oldPS, oldQS := e.storage.relations[p.Address], e.storage.relations[q.Address], e.storage.sequences[ps.Address], e.storage.sequences[qs.Address]
 			done, cancel := truncateUnitAsync(t, e, waiter, truncateRestartUnitAST("p", "q"))
 			lockPending(t, e, 1)
 			lockState := e.locks.Inspect()
@@ -70,7 +70,7 @@ func TestTruncateRestartLocks(t *testing.T) {
 			}
 			cancel()
 			lockAwait(t, done, context.Canceled)
-			if e.storage[p.Address] != oldP || e.storage[q.Address] != oldQ || e.sequences[ps.Address] != oldPS || e.sequences[qs.Address] != oldQS || oldPS.last != 2 {
+			if e.storage.relations[p.Address] != oldP || e.storage.relations[q.Address] != oldQ || e.storage.sequences[ps.Address] != oldPS || e.storage.sequences[qs.Address] != oldQS || oldPS.last != 2 {
 				t.Fatal("canceled acquisition published prefix")
 			}
 			last := int64(44)
@@ -109,10 +109,10 @@ func TestTruncateRestartLocks(t *testing.T) {
 				}
 				transactionEnd(t, holder, tx, commit)
 				lockAwait(t, done, nil)
-				if commit && e.sequences[ps.Address] != candidate {
+				if commit && e.storage.sequences[ps.Address] != candidate {
 					t.Fatal("commit lost replacement")
 				}
-				if !commit && e.sequences[ps.Address] == candidate {
+				if !commit && e.storage.sequences[ps.Address] == candidate {
 					t.Fatal("rollback installed replacement")
 				}
 				want := int64(3)
@@ -135,7 +135,7 @@ func TestTruncateRestartLocks(t *testing.T) {
 		waiter := sessionStart(t, e, nil)
 		tx := transactionBegin(t, holder)
 		holderTicket := holder.transactions.ticket
-		oldStore, oldGenerator := e.storage[p.Address], e.sequences[ps.Address]
+		oldStore, oldGenerator := e.storage.relations[p.Address], e.storage.sequences[ps.Address]
 		// Pause at OWNED BY's actual first grant, before its table-AS
 		// dependency. TRUNCATE retains table-AX then requests sequence-AX.
 		// The existing shared detector can resolve the closing hard cycle
@@ -211,10 +211,10 @@ func TestTruncateRestartLocks(t *testing.T) {
 			if holder.TransactionState() != TxAborted {
 				t.Fatal("OWNED BY victim did not abort")
 			}
-			if e.sequences[ps.Address] == oldGenerator || e.sequences[ps.Address].last != 1 || e.sequences[ps.Address].called || e.storage[p.Address] == oldStore || len(e.storage[p.Address].versions) != 0 {
+			if e.storage.sequences[ps.Address] == oldGenerator || e.storage.sequences[ps.Address].last != 1 || e.storage.sequences[ps.Address].called || e.storage.relations[p.Address] == oldStore || len(e.storage.relations[p.Address].versions) != 0 {
 				t.Fatal("cycle survivor failed complete restart")
 			}
-		} else if e.sequences[ps.Address] != oldGenerator || e.storage[p.Address] != oldStore || oldGenerator.last != 2 || len(oldStore.versions) != 2 {
+		} else if e.storage.sequences[ps.Address] != oldGenerator || e.storage.relations[p.Address] != oldStore || oldGenerator.last != 2 || len(oldStore.versions) != 2 {
 			t.Fatal("failed reset published a prefix")
 		}
 		transactionEnd(t, holder, tx, false)
@@ -232,7 +232,7 @@ func TestTruncateRestartControlFence(t *testing.T) {
 				e, holder, p, _, ps, _ := truncateRestartUnitFixture(t)
 				waiter := sessionStart(t, e, nil)
 				tx := transactionBegin(t, holder)
-				oldStore, oldGenerator := e.storage[p.Address], e.sequences[ps.Address]
+				oldStore, oldGenerator := e.storage.relations[p.Address], e.storage.sequences[ps.Address]
 				var done <-chan error
 				if phase == "QueuedReset" {
 					r := sessionSQL(t, holder, "SELECT * FROM p_id_seq")
@@ -272,7 +272,7 @@ func TestTruncateRestartControlFence(t *testing.T) {
 					sessionSQL(t, waiter, "CREATE TABLE p(id SERIAL PRIMARY KEY)")
 				}
 				current := roleTableRef(t, e, "p_id_seq")
-				if current == ps || e.sequences[current.Address] == oldGenerator {
+				if current == ps || e.storage.sequences[current.Address] == oldGenerator {
 					t.Fatal("retired generator resurrected")
 				}
 				want := int64(1)

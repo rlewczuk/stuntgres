@@ -82,7 +82,7 @@ func TestDeleteCoreAtomicity(t *testing.T) {
 			if !errors.Is(err, want) || result.Count != 0 || result.Rows != nil {
 				t.Fatal(result, err, want)
 			}
-			if e.commitSeq != originalFrontier || e.storage[b.ref.Address].ends != nil {
+			if e.commitSeq != originalFrontier || e.storage.relations[b.ref.Address].ends != nil {
 				t.Fatal("partial publication")
 			}
 			transactionRows(t, s, "SELECT v FROM t ORDER BY v", 1, 2, 3)
@@ -259,7 +259,7 @@ func TestDeleteCoreStageShapeAuthority(t *testing.T) {
 	}
 	e.mu.Lock()
 	replacement := *b.storage
-	e.storage[b.ref.Address] = &replacement
+	e.storage.relations[b.ref.Address] = &replacement
 	e.mu.Unlock()
 	if _, err := scope.Writes().Delete(candidate); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("changed shape admitted staged deletion", err)
@@ -301,8 +301,8 @@ func TestDeleteCoreCombinedPreflight(t *testing.T) {
 				}
 			case "replaced_shape":
 				// Preserve payload and width: only the exact shape generation changes.
-				replacement := *e.storage[target.Address]
-				e.storage[target.Address] = &replacement
+				replacement := *e.storage.relations[target.Address]
+				e.storage.relations[target.Address] = &replacement
 			case "exhausted_frontier":
 				e.commitSeq = ids.CommitSeq(^uint64(0))
 				frontier = e.commitSeq
@@ -313,7 +313,7 @@ func TestDeleteCoreCombinedPreflight(t *testing.T) {
 			op := transactionOperation(t, a)
 			_, err := e.Commit(op, ref)
 			op.Done()
-			if err == nil || e.commitSeq != frontier || e.storage[target.Address].ends != nil {
+			if err == nil || e.commitSeq != frontier || e.storage.relations[target.Address].ends != nil {
 				t.Fatal("failed combined batch published", err)
 			}
 			// Restore only the deliberately exhausted test frontier to permit read witnesses.
@@ -351,7 +351,7 @@ func TestDeleteCoreDeletedScanCancellation(t *testing.T) {
 	defer cancel()
 	ctx := &cancelAtErrCheck{Context: base, cancel: cancel, at: 2}
 	scope.op.ctx = ctx
-	root := e.storage[scope.lockedRef.Address].ends
+	root := e.storage.relations[scope.lockedRef.Address].ends
 	target := scope.lockedRef // Finish retires admission; retain the exact witness.
 	frontier := e.commitSeq
 	source, err := captureQuerySource(ctx, view, scope.lockedRef)
@@ -359,7 +359,7 @@ func TestDeleteCoreDeletedScanCancellation(t *testing.T) {
 		_ = scope.Finish(err)
 		t.Fatal(source, err, ctx.checks.Load())
 	}
-	if err = scope.Finish(err); !errors.Is(err, context.Canceled) || e.storage[target.Address].ends != root || e.commitSeq != frontier {
+	if err = scope.Finish(err); !errors.Is(err, context.Canceled) || e.storage.relations[target.Address].ends != root || e.commitSeq != frontier {
 		t.Fatal(err, "deleted scan changed state")
 	}
 	transactionRows(t, s, "SELECT v FROM t ORDER BY v")

@@ -38,17 +38,17 @@ func TestIndexMaintenanceMetadataDecorated(t *testing.T) {
 	originalEntries := append([]logicalIndexEntry(nil), oldRoot.entries...)
 	originalTuples := expressionRootTuples(t, oldRoot)
 	run(t, e, "ALTER INDEX decorated RENAME TO renamed")
-	if e.indexRoots[index.Address()] != oldRoot || e.indexRoots[plain.Address()] != oldSibling {
+	if e.storage.indexRoots[index.Address()] != oldRoot || e.storage.indexRoots[plain.Address()] != oldSibling {
 		t.Fatal("decorated rename rebuilt substantive roots")
 	}
 	run(t, e, "REINDEX INDEX renamed")
-	if e.indexRoots[index.Address()] == oldRoot || e.indexRoots[plain.Address()] != oldSibling {
+	if e.storage.indexRoots[index.Address()] == oldRoot || e.storage.indexRoots[plain.Address()] != oldSibling {
 		t.Fatal("selected decorated rebuild affected a sibling or did no real work")
 	}
 	expressionWantRoot(t, e, "renamed", tuples)
-	selected := e.indexRoots[index.Address()]
+	selected := e.storage.indexRoots[index.Address()]
 	run(t, e, "REINDEX TABLE t")
-	if e.indexRoots[index.Address()] == selected || e.indexRoots[plain.Address()] == oldSibling {
+	if e.storage.indexRoots[index.Address()] == selected || e.storage.indexRoots[plain.Address()] == oldSibling {
 		t.Fatal("TABLE omitted an implemented root")
 	}
 	if !reflect.DeepEqual(oldRoot.entries, originalEntries) || !reflect.DeepEqual(expressionRootTuples(t, oldRoot), originalTuples) {
@@ -72,7 +72,7 @@ func TestIndexMaintenanceMetadataDecorated(t *testing.T) {
 	run(t, e, "REINDEX INDEX renamed")
 	expressionWantRoot(t, e, "renamed", tuples)
 	run(t, e, "DROP INDEX renamed,renamed")
-	if e.indexRoots[index.Address()] != nil || e.indexRoots[plain.Address()] == nil {
+	if e.storage.indexRoots[index.Address()] != nil || e.storage.indexRoots[plain.Address()] == nil {
 		t.Fatal("decorated DROP removed a sibling or retained selected root")
 	}
 }

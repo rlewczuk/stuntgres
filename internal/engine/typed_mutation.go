@@ -134,7 +134,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		return nil
 	}
 	e.mu.Lock()
-	store := e.storage[old.Address()]
+	store := e.storage.relations[old.Address()]
 	frontier := e.commitSeq
 	e.mu.Unlock()
 	if store == nil {

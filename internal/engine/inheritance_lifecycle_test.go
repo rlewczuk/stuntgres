@@ -27,7 +27,7 @@ func inheritanceLifecycleInstall(e *Engine, tables ...*catalog.Relation) {
 	for _, table := range tables {
 		e.catalog.state.SetDescriptor(table.Address(), table)
 		e.catalog.state.BindName(catalog.DescriptorNameKey(table), table.Address())
-		e.storage[table.Address()] = &relationStorage{}
+		e.storage.relations[table.Address()] = &relationStorage{}
 	}
 }
 

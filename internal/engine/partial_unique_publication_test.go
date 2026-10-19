@@ -76,10 +76,10 @@ func newPartialUniquePublication(t *testing.T, composite, nnd bool, disclosure s
 	if err := validateIndexDefinition(e.CatalogRead(), index); err != nil {
 		t.Fatal(err)
 	}
-	if len(root.entries) != 2 || !maps.Equal(root.membership, map[ids.RowID]ids.VersionID{e.storage[ref.Address].versions[0].row: e.storage[ref.Address].versions[0].version, e.storage[ref.Address].versions[1].row: e.storage[ref.Address].versions[1].version}) {
+	if len(root.entries) != 2 || !maps.Equal(root.membership, map[ids.RowID]ids.VersionID{e.storage.relations[ref.Address].versions[0].row: e.storage.relations[ref.Address].versions[0].version, e.storage.relations[ref.Address].versions[1].row: e.storage.relations[ref.Address].versions[1].version}) {
 		t.Fatal("seed membership", root)
 	}
-	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), roles: e.roles, stores: maps.Clone(e.storage), storeSnapshots: make(map[ids.ObjectAddress]relationStorage), roots: maps.Clone(e.indexRoots), entries: make(map[ids.ObjectAddress][]logicalIndexEntry), nextRow: e.nextRow, nextVersion: e.nextVersion, frontier: e.commitSeq}
+	f := &uniquePublicationFixture{e: e, parent: parent, index: index, ref: ref, auth: auth, keys: count, catalog: e.catalog.state, descriptors: maps.Collect(e.catalog.state.Descriptors()), names: maps.Collect(e.catalog.state.Names()), roles: e.roles, stores: maps.Clone(e.storage.relations), storeSnapshots: make(map[ids.ObjectAddress]relationStorage), roots: maps.Clone(e.storage.indexRoots), entries: make(map[ids.ObjectAddress][]logicalIndexEntry), nextRow: e.storage.nextRow, nextVersion: e.storage.nextVersion, frontier: e.commitSeq}
 	for a, s := range f.stores {
 		f.storeSnapshots[a] = uniquePublicationStore(s)
 	}
@@ -321,7 +321,7 @@ func TestPartialIndexUniquePublicationRebuildOnlyIdentity(t *testing.T) {
 			definition.Predicate = &predicate
 			index.SQLIndex = &definition
 			next.SetDescriptor(index.Address(), &index)
-			roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.catalog, &next, captureIndexStores(f.e.storage, f.catalog), f.roots, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, &f.auth, nil, nil)
+			roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.catalog, &next, captureIndexStores(f.e.storage.relations, f.catalog), f.roots, nil, nil, nil, materialize, sqltype.OutputEnvironment{}, &f.auth, nil, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

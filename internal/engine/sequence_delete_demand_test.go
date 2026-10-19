@@ -45,7 +45,7 @@ func TestSequenceDeleteUndemandedLocks(t *testing.T) {
 					t.Fatal("wrong live transaction grants", sequenceHeld, sequenceJournaled, targetHeld)
 				}
 				e.mu.Lock()
-				generator := *e.sequences[sequence.Address]
+				generator := *e.storage.sequences[sequence.Address]
 				e.mu.Unlock()
 				if generator.last != 31 || generator.called {
 					t.Fatal("undemanded DELETE allocated", generator)
@@ -93,7 +93,7 @@ func TestSequenceDeleteDecisiveFalseDemand(t *testing.T) {
 		}
 		want := int64(103 + i*3)
 		e.mu.Lock()
-		generator := *e.sequences[ref.Address]
+		generator := *e.storage.sequences[ref.Address]
 		e.mu.Unlock()
 		if generator.last != want || !generator.called {
 			t.Fatal("per-row allocation count", generator, want)

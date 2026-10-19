@@ -250,11 +250,11 @@ func TestConcurrentIndexU7ReplacementRejectsInvalidSourceAndIsAtomic(t *testing.
 	sessionSQL(t, b, "CREATE TABLE sentinel(n INT)")
 	sessionSQL(t, b, "INSERT INTO sentinel VALUES(9)")
 	sourceState, targetState := source.CatalogRead().State(), target.CatalogRead().State()
-	oldOID, oldRevision, oldRow, oldVersion := target.catalog.nextOID, target.catalog.nextRevision, target.nextRow, target.nextVersion
+	oldOID, oldRevision, oldRow, oldVersion := target.catalog.nextOID, target.catalog.nextRevision, target.storage.nextRow, target.storage.nextVersion
 	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err == nil {
 		t.Fatal("invalid source was imported/healed")
 	}
-	if target.CatalogRead().State() != targetState || source.CatalogRead().State() != sourceState || target.catalog.nextOID != oldOID || target.catalog.nextRevision != oldRevision || target.nextRow != oldRow || target.nextVersion != oldVersion {
+	if target.CatalogRead().State() != targetState || source.CatalogRead().State() != sourceState || target.catalog.nextOID != oldOID || target.catalog.nextRevision != oldRevision || target.storage.nextRow != oldRow || target.storage.nextVersion != oldVersion {
 		t.Fatal("failed replacement changed source or destination authority")
 	}
 	for _, stream := range []string{
@@ -304,7 +304,7 @@ func TestConcurrentIndexU7RetainedInvalidTempIsNotImportedOrHealed(t *testing.T)
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	retained := e.catalog.state.Get(original.Address()) == original && e.indexRoots[original.Address()] == nil
+	retained := e.catalog.state.Get(original.Address()) == original && e.storage.indexRoots[original.Address()] == nil
 	e.mu.Unlock()
 	if !retained {
 		t.Fatal("replacement healed or replaced retained not-ready TEMP descriptor")
@@ -328,7 +328,7 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 			base := e.CatalogRead()
 			e.mu.Lock()
 			parent := e.catalog.state.MustRelation(original.SQLIndex.Parent)
-			store := e.storage[parent.Address()]
+			store := e.storage.relations[parent.Address()]
 			snapshot := *store
 			e.mu.Unlock()
 			next, definition := *original, *original.SQLIndex

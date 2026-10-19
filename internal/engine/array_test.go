@@ -370,7 +370,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	}
 	store := &relationStorage{generation: 3, versions: []rowVersion{{row: 42, version: 99, born: 1, values: []sqltype.Value{i, v}}}}
 	e.mu.Lock()
-	e.storage[table.Address()] = store
+	e.storage.relations[table.Address()] = store
 	e.commitSeq = 1
 	e.mu.Unlock()
 	held := newFinalRows(table.Columns, 1)
@@ -394,7 +394,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	}
 	sourceStore := &relationStorage{generation: 2, versions: []rowVersion{{row: 4, version: 7, born: 1, values: []sqltype.Value{sourceInt, sourceText}}}}
 	replacement.mu.Lock()
-	replacement.storage[importedSource.Address()] = sourceStore
+	replacement.storage.relations[importedSource.Address()] = sourceStore
 	replacement.commitSeq = 1
 	replacement.mu.Unlock()
 	importedTypes := make(map[ids.ObjectAddress]*catalog.Type)
@@ -407,7 +407,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 		t.Fatal(err)
 	}
 	current := e.CatalogRead()
-	if current.Get(table.Address()) != table || e.storage[table.Address()] != store || held.Schema()[0].Usage.Type != integer {
+	if current.Get(table.Address()) != table || e.storage.relations[table.Address()] != store || held.Schema()[0].Usage.Type != integer {
 		t.Fatal("retained TEMP identity changed")
 	}
 	if row := store.versions[0]; row.row != 42 || row.version != 99 || row.born != 1 || store.generation != 3 {
@@ -454,7 +454,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 		t.Fatal("missing imported persistent table", importedAddresses)
 	}
 	imported := current.MustRelation(importedAddresses[0])
-	importedStore := e.storage[imported.Address()]
+	importedStore := e.storage.relations[imported.Address()]
 	if importedStore == nil || len(importedStore.versions) != 1 {
 		t.Fatal("missing imported persistent storage", importedStore)
 	}
@@ -462,7 +462,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	if imported.Columns[0].Usage.Type != integer || imported.Columns[1].Usage.Type != text || len(live) != 2 || !sqltype.SameDatum(live[0], i) || !sqltype.SameDatum(live[1], v) {
 		t.Fatal("persistent rows not reowned against retained builtin closure", imported, live)
 	}
-	if sourceStore.versions[0].values[0].Type() != foreign || importedSource.Columns[0].Usage.Type != foreign || replacement.storage[importedSource.Address()] != sourceStore {
+	if sourceStore.versions[0].values[0].Type() != foreign || importedSource.Columns[0].Usage.Type != foreign || replacement.storage.relations[importedSource.Address()] != sourceStore {
 		t.Fatal("source persistent provider/payload mutated")
 	}
 	frame := make([]sqltype.Value, 2)
@@ -487,7 +487,7 @@ func TestArrayRetainedTemporaryDomainBoundaryComponent(t *testing.T) {
 	}
 	store := &relationStorage{generation: 3, versions: []rowVersion{{row: 42, version: 99, born: 1, values: []sqltype.Value{value}}}}
 	e.mu.Lock()
-	e.storage[table.Address()] = store
+	e.storage.relations[table.Address()] = store
 	e.commitSeq = 1
 	e.mu.Unlock()
 	held := newFinalRows(table.Columns, 1)
@@ -497,7 +497,7 @@ func TestArrayRetainedTemporaryDomainBoundaryComponent(t *testing.T) {
 		t.Fatal("compatible exact self replacement", err)
 	}
 	before := e.CatalogRead()
-	oldStore := e.storage[table.Address()]
+	oldStore := e.storage.relations[table.Address()]
 	frontier := e.catalog.nextOID
 	revision := e.catalog.nextRevision
 	unrelated := New()
@@ -516,7 +516,7 @@ func TestArrayRetainedTemporaryDomainBoundaryComponent(t *testing.T) {
 		if err == nil || errors.As(err, &diagnostic) || err.Error() != "stuntgres: catalog replacement with incompatible live temporary user-domain array dependencies is unsupported" {
 			t.Fatal("ordinary boundary", err)
 		}
-		if e.CatalogRead().State() != before.State() || e.storage[table.Address()] != oldStore || e.catalog.nextOID != frontier || e.catalog.nextRevision != revision || before.Get(table.Address()) != table || held.Schema()[0].Usage.Type != typ {
+		if e.CatalogRead().State() != before.State() || e.storage.relations[table.Address()] != oldStore || e.catalog.nextOID != frontier || e.catalog.nextRevision != revision || before.Get(table.Address()) != table || held.Schema()[0].Usage.Type != typ {
 			t.Fatal("rejected replacement changed target state")
 		}
 		domain, _ := before.LookupType(typ.Element().ID())

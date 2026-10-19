@@ -46,7 +46,7 @@ func TestDomainProgramPublicationCurrentAuthority(t *testing.T) {
 			}
 			sequence := catalogRef(t, e, e.CatalogRead(), "publication_steps")
 			e.mu.Lock()
-			generator := e.sequences[sequence.Address]
+			generator := e.storage.sequences[sequence.Address]
 			before := *generator
 			e.mu.Unlock()
 			if before.last != 1 {

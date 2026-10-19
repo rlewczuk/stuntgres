@@ -152,7 +152,7 @@ func TestDeleteCoreCombinedCommit(t *testing.T) {
 	}
 	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 2, 3, 4)
 	transactionRows(t, b, "SELECT v FROM u ORDER BY v", 8)
-	for _, store := range e.storage {
+	for _, store := range e.storage.relations {
 		if store.ends == nil {
 			continue
 		}

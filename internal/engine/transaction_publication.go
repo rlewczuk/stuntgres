@@ -149,14 +149,14 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		}
 		current, frontier := e.catalog.state, e.commitSeq
 		var indexStores map[ids.ObjectAddress]*relationStorage
-		if len(e.indexRoots) != 0 || c != nil {
+		if len(e.storage.indexRoots) != 0 || c != nil {
 			captureCatalog := current
 			if nextCatalog != nil {
 				captureCatalog = nextCatalog
 			}
-			indexStores = captureIndexStores(e.storage, captureCatalog)
+			indexStores = captureIndexStores(e.storage.relations, captureCatalog)
 		}
-		indexPredecessors := e.indexRoots
+		indexPredecessors := e.storage.indexRoots
 		var nextSequences map[ids.ObjectAddress]*sequenceGenerator
 		var nextStorage map[ids.ObjectAddress]*relationStorage
 		var materializedTokens map[ids.ObjectAddress]*materializedLineage
@@ -182,18 +182,18 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 						materializedTokens[address] = token
 					}
 				}
-				nextSequences = make(map[ids.ObjectAddress]*sequenceGenerator, len(e.sequences)+len(c.generators))
-				for a, g := range e.sequences {
+				nextSequences = make(map[ids.ObjectAddress]*sequenceGenerator, len(e.storage.sequences)+len(c.generators))
+				for a, g := range e.storage.sequences {
 					nextSequences[a] = g
 				}
-				nextStorage = make(map[ids.ObjectAddress]*relationStorage, len(e.storage))
-				for a, store := range e.storage {
+				nextStorage = make(map[ids.ObjectAddress]*relationStorage, len(e.storage.relations))
+				for a, store := range e.storage.relations {
 					nextStorage[a] = store
 				}
 			}
 		}
 		capture := func(a ids.ObjectAddress, rows []rowVersion, deletion *privateDeletionRoot) error {
-			original := e.storage[a]
+			original := e.storage.relations[a]
 			store := e.privateStorageLocked(c, a)
 			originalRelation, live := e.catalog.state.Relation(a)
 			relation := originalRelation
@@ -334,10 +334,10 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		if err == nil && e.commitSeq == ids.CommitSeq(^uint64(0)) {
 			err = errors.New("stuntgres: commit sequence exhausted")
 		}
-		changed := !e.notificationPublicationUnchangedLocked(notifications) || e.catalog.state != current || c != nil && e.commitSeq != frontier || !indexStoresUnchanged(e.storage, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
+		changed := !e.notificationPublicationUnchangedLocked(notifications) || e.catalog.state != current || c != nil && e.commitSeq != frontier || !indexStoresUnchanged(e.storage.relations, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
 		if err == nil {
 			for _, p := range prepared {
-				if e.storage[p.address] != p.original || p.store.generation != p.generation || p.store.ends != p.ends || len(p.store.versions) != len(p.root) {
+				if e.storage.relations[p.address] != p.original || p.store.generation != p.generation || p.store.ends != p.ends || len(p.store.versions) != len(p.root) {
 					changed = true
 					break
 				}
@@ -450,8 +450,8 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 					}
 				}
 			}
-			e.sequences = nextSequences
-			e.storage = nextStorage
+			e.storage.sequences = nextSequences
+			e.storage.relations = nextStorage
 			e.catalog.state = nextCatalog
 			e.catalog.nextRevision = nextRevision
 			if c.roles != nil {
@@ -463,8 +463,8 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				}
 			}
 		}
-		preserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.indexRoots)
-		e.indexRoots = indexRoots
+		preserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.storage.indexRoots)
+		e.storage.indexRoots = indexRoots
 		e.commitSeq++
 		e.recordCommitTimestampLocked(ref)
 		e.serializableCommittedLocked(ref, e.commitSeq)

@@ -40,7 +40,7 @@ func (e *Engine) truncateGraphPreflightLocked(c *catalogChanges) error {
 	for _, fence := range c.truncateFences {
 		if fence.restart {
 			for address, generator := range fence.sequences {
-				if e.sequences[address] != generator {
+				if e.storage.sequences[address] != generator {
 					return catalog.Conflict{}
 				}
 			}
@@ -148,7 +148,7 @@ func (s *StatementScope) stageTruncate() error {
 		}
 		shape, exists := changes.storage[ref.Address]
 		if !exists {
-			original := e.storage[ref.Address]
+			original := e.storage.relations[ref.Address]
 			if original == nil {
 				err = ids.ErrCatalogReplaced
 				break

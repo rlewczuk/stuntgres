@@ -120,14 +120,14 @@ func TestCommentQualifiedDiagnostics(t *testing.T) {
 			}
 			before := e.CatalogRead()
 			rolesPublication := e.roles
-			storage := e.storage[roleTableRef(t, e, "private.t").Address]
+			storage := e.storage.relations[roleTableRef(t, e, "private.t").Address]
 			_, err := e.Execute(denied, stmt, 0, nil)
 			var got *sqlstate.Error
 			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message}
 			if !errors.As(err, &got) || *got != want {
 				t.Errorf("prepared=%v %s: full diagnostic %#v want %#v", prepared, tc.q, got, want)
 			}
-			if before.State() != e.CatalogRead().State() || rolesPublication != e.roles || storage != e.storage[roleTableRef(t, e, "private.t").Address] {
+			if before.State() != e.CatalogRead().State() || rolesPublication != e.roles || storage != e.storage.relations[roleTableRef(t, e, "private.t").Address] {
 				t.Fatal("failed comment changed catalog, roles or data")
 			}
 		}

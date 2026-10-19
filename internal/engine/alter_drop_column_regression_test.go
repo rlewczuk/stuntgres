@@ -86,14 +86,14 @@ func TestAlterDropColumnQueuedSameIdentity(t *testing.T) {
 					t.Fatal(got.notices, want)
 				}
 				descriptor := e.catalog.state.Get(ref.Address)
-				storage := e.storage[ref.Address]
+				storage := e.storage.relations[ref.Address]
 				if descriptor.Revision() != beforeDropRevision+1 || len(storage.versions) != 1 || len(storage.versions[0].values) != 2 {
 					t.Fatal(descriptor, storage)
 				}
 				if _, err := e.Execute(op, stmt, 0, nil); err != nil {
 					t.Fatal(err)
 				}
-				if !reflect.DeepEqual(op.DetachNotices(), want) || e.catalog.state.Get(ref.Address) != descriptor || e.storage[ref.Address] != storage {
+				if !reflect.DeepEqual(op.DetachNotices(), want) || e.catalog.state.Get(ref.Address) != descriptor || e.storage.relations[ref.Address] != storage {
 					t.Fatal("repeated skip changed descriptor/storage or notices")
 				}
 			}
@@ -234,7 +234,7 @@ func TestAlterDropColumnLockedBindingShadowCreation(t *testing.T) {
 					}
 				}()
 				lateDescriptor, earlyDescriptor := e.catalog.state.Get(lateRef.Address), e.catalog.state.Get(earlyRef.Address)
-				lateStorage, earlyStorage := e.storage[lateRef.Address], e.storage[earlyRef.Address]
+				lateStorage, earlyStorage := e.storage.relations[lateRef.Address], e.storage.relations[earlyRef.Address]
 				var before bytes.Buffer
 				if err := e.Dump(context.Background(), &before); err != nil {
 					t.Fatal(err)
@@ -250,7 +250,7 @@ func TestAlterDropColumnLockedBindingShadowCreation(t *testing.T) {
 				case <-time.After(5 * time.Second):
 					t.Fatal("native ALTER did not reject shadow while early AX held")
 				}
-				if e.catalog.state.Get(lateRef.Address) != lateDescriptor || e.catalog.state.Get(earlyRef.Address) != earlyDescriptor || e.storage[lateRef.Address] != lateStorage || e.storage[earlyRef.Address] != earlyStorage {
+				if e.catalog.state.Get(lateRef.Address) != lateDescriptor || e.catalog.state.Get(earlyRef.Address) != earlyDescriptor || e.storage.relations[lateRef.Address] != lateStorage || e.storage.relations[earlyRef.Address] != earlyStorage {
 					t.Error("shadow ALTER changed descriptor or storage")
 				}
 				var after bytes.Buffer

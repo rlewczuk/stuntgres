@@ -64,18 +64,18 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 				{row: 1, version: 1, born: 1, values: []sqltype.Value{integer(0, 7), integer(1, 1), sqltype.String(f.leaf.Columns[2].Usage.Type, "first")}},
 				{row: 2, version: 2, born: 1, values: []sqltype.Value{integer(0, 7), integer(1, second), sqltype.String(f.leaf.Columns[2].Usage.Type, "different included payload")}},
 			}}
-			f.e.storage[f.leaf.Address()] = store
+			f.e.storage.relations[f.leaf.Address()] = store
 			oldRoot, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.leaf, local.SQLIndex, store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
-			f.e.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{local.Address(): oldRoot}
+			f.e.storage.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{local.Address(): oldRoot}
 			beforeStore := uniquePublicationStore(store)
 			beforeEntries := slices.Clone(oldRoot.entries)
-			beforeCatalog, beforeRoots := f.e.catalog.state, maps.Clone(f.e.indexRoots)
-			captured := captureIndexStores(f.e.storage, next)
-			roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, current, next, captured, f.e.indexRoots, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
-			if f.e.catalog.state != beforeCatalog || !maps.Equal(f.e.indexRoots, beforeRoots) || !reflect.DeepEqual(*store, beforeStore) || !reflect.DeepEqual(oldRoot.entries, beforeEntries) {
+			beforeCatalog, beforeRoots := f.e.catalog.state, maps.Clone(f.e.storage.indexRoots)
+			captured := captureIndexStores(f.e.storage.relations, next)
+			roots, err := f.e.prepareIndexPublication(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, current, next, captured, f.e.storage.indexRoots, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
+			if f.e.catalog.state != beforeCatalog || !maps.Equal(f.e.storage.indexRoots, beforeRoots) || !reflect.DeepEqual(*store, beforeStore) || !reflect.DeepEqual(oldRoot.entries, beforeEntries) {
 				t.Fatal("private index build mutated original catalog/store/backing")
 			}
 			if duplicate {

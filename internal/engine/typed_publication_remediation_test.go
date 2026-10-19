@@ -67,13 +67,13 @@ func TestTypedSameUsageStoredOwnRowPublicationGuard(t *testing.T) {
 		if populated {
 			roleExecute(t, e, op, "INSERT INTO holder VALUES('(11,kept)')")
 		}
-		before, storage := e.CatalogRead().State(), e.storage[table.Address()]
+		before, storage := e.CatalogRead().State(), e.storage.relations[table.Address()]
 		_, err := e.Execute(op, statement(t, "ALTER TYPE pair ALTER ATTRIBUTE id TYPE integer CASCADE"), 0, nil)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != `cannot alter table "typed" because column "holder.v" uses its row type` {
 			t.Fatal("same-usage semantic action escaped target guard", populated, err)
 		}
-		if e.CatalogRead().State() != before || e.storage[table.Address()] != storage {
+		if e.CatalogRead().State() != before || e.storage.relations[table.Address()] != storage {
 			t.Fatal("rejected same-usage TYPE published", populated)
 		}
 	}

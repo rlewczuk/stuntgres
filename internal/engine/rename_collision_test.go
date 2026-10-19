@@ -16,7 +16,7 @@ func TestAlterRenameCollision(t *testing.T) {
 	roleExecute(t, e, op, "INSERT INTO t VALUES(7,'keep')")
 	ref := roleTableRef(t, e, "t")
 	old := e.catalog.state.Get(ref.Address)
-	storage := e.storage[ref.Address]
+	storage := e.storage.relations[ref.Address]
 	frontier := e.catalog.nextRevision
 	for _, tc := range []struct{ q, code, message string }{
 		{"ALTER TABLE t RENAME missing TO b", "42703", `column "missing" does not exist`},
@@ -31,7 +31,7 @@ func TestAlterRenameCollision(t *testing.T) {
 		if !errors.As(err, &got) || *got != want {
 			t.Fatal(tc, err, got)
 		}
-		if e.catalog.state.Get(ref.Address) != old || e.storage[ref.Address] != storage || e.catalog.nextRevision != frontier {
+		if e.catalog.state.Get(ref.Address) != old || e.storage.relations[ref.Address] != storage || e.catalog.nextRevision != frontier {
 			t.Fatal("failed rename changed identity/storage/frontier")
 		}
 	}

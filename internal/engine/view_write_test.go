@@ -52,10 +52,10 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 		}
 		return v
 	}
-	e.storage[base.Address()] = &relationStorage{generation: 1, versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{value(1), value(10), value(42)}}, {row: 2, version: 2, born: 1, values: []sqltype.Value{value(2), value(20), value(42)}}}}
+	e.storage.relations[base.Address()] = &relationStorage{generation: 1, versions: []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{value(1), value(10), value(42)}}, {row: 2, version: 2, born: 1, values: []sqltype.Value{value(2), value(20), value(42)}}}}
 	e.commitSeq = 1
-	e.nextRow = 2
-	e.nextVersion = 2
+	e.storage.nextRow = 2
+	e.storage.nextVersion = 2
 	return viewWriteFixture{e, base, view, baseRef, viewRef, integer, boolean}
 }
 
@@ -243,7 +243,7 @@ func TestViewWriteDemand(t *testing.T) {
 	t.Run("frozen_live_prefix", func(t *testing.T) {
 		f := viewWriteMechanics(t)
 		f.e.commitSeq = 2
-		store := f.e.storage[f.base.Address()]
+		store := f.e.storage.relations[f.base.Address()]
 		store.ends = &deletionRoot{rows: map[ids.RowID]rowEnd{1: {version: 1, end: 2}}}
 		scope, op := f.scope(t)
 		leaves := []queryLeaf{{ref: f.baseRef, relation: f.base, storage: store, frozenAttributes: []int32{11, 7}}}
@@ -283,7 +283,7 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 	f := viewWriteMechanics(t)
 	holder, _ := f.scope(t)
 	waiter, _ := f.scope(t)
-	old := f.e.storage[f.base.Address()].versions[0]
+	old := f.e.storage.relations[f.base.Address()].versions[0]
 	resource := lock.Resource{ObjectRef: f.baseRef, Row: old.row}
 	if request, err := f.e.locks.StartAcquire(holder.op.Context(), holder.ticket, resource, lock.ForNoKeyUpdate, lock.Policy{}); err != nil || request != nil {
 		t.Fatal(request, err)
@@ -331,7 +331,7 @@ func TestViewWriteCancellation(t *testing.T) {
 	f := viewWriteMechanics(t)
 	holder, _ := f.scope(t)
 	scope, _ := f.scope(t)
-	originals := f.e.storage[f.base.Address()].versions
+	originals := f.e.storage.relations[f.base.Address()].versions
 	resource := lock.Resource{ObjectRef: f.baseRef, Row: originals[0].row}
 	if request, err := f.e.locks.StartAcquire(holder.op.Context(), holder.ticket, resource, lock.ForNoKeyUpdate, lock.Policy{}); err != nil || request != nil {
 		t.Fatal(request, err)
@@ -353,7 +353,7 @@ func TestViewWriteCancellation(t *testing.T) {
 	if err := scope.Finish(context.Canceled); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	current := f.e.storage[f.base.Address()].versions
+	current := f.e.storage.relations[f.base.Address()].versions
 	if current[0].version != originals[0].version || current[1].version != originals[1].version || f.e.commitSeq != 1 || len(scope.stage.rows) != 0 || scope.viewWrite != nil {
 		t.Fatal("canceled stage published or retained resources")
 	}

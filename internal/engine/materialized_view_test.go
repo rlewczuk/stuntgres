@@ -179,12 +179,12 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 			op, done, stage, d := materializedUnitStage(t, e)
 			defer done()
 			e.catalog.state = e.stageRead(stage).State()
-			e.storage[d.Address()] = &relationStorage{}
-			before, store := e.catalog.state, e.storage[d.Address()]
+			e.storage.relations[d.Address()] = &relationStorage{}
+			before, store := e.catalog.state, e.storage.relations[d.Address()]
 			if err := e.importMaterializedSnapshots(context.Background(), op, []materializedSnapshot{{"public", "unit_mv", true, rows}}); err == nil {
 				t.Fatal("accepted noncanonical/effectful snapshot")
 			}
-			if e.catalog.state != before || e.storage[d.Address()] != store || d.Populated {
+			if e.catalog.state != before || e.storage.relations[d.Address()] != store || d.Populated {
 				t.Fatal("failed private import published a prefix")
 			}
 		})
@@ -193,7 +193,7 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 	op, done, stage, d := materializedUnitStage(t, e)
 	defer done()
 	e.catalog.state = e.stageRead(stage).State()
-	e.storage[d.Address()] = &relationStorage{}
+	e.storage.relations[d.Address()] = &relationStorage{}
 	record := materializedSnapshot{"public", "unit_mv", true, "INSERT INTO public.unit_mv VALUES (7),(7),(NULL);"}
 	if err := e.importMaterializedSnapshots(context.Background(), op, []materializedSnapshot{record, record}); err == nil {
 		t.Fatal("duplicate target accepted")
@@ -202,7 +202,7 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 		t.Fatal(err)
 	}
 	current := e.catalog.state.MustRelation(d.Address())
-	stored := e.storage[d.Address()].versions
+	stored := e.storage.relations[d.Address()].versions
 	if current == d || !current.Populated || d.Populated || len(stored) != 3 || !sqltype.SameDatum(stored[0].values[0], stored[1].values[0]) || !stored[2].values[0].IsNull() {
 		t.Fatal("import lost immutable descriptor, duplicate or NULL")
 	}

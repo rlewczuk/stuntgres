@@ -12,7 +12,7 @@ func TestMergeDeleteDeletionBaseAuthority(t *testing.T) {
 	sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
 	sessionSQL(t, peer, "INSERT INTO t VALUES(1,10)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	original := e.storage[ref.Address].versions[0]
+	original := e.storage.relations[ref.Address].versions[0]
 	tx := transactionBegin(t, s)
 	sessionSQL(t, s, "UPDATE t SET v=11")
 	op, err := s.Acquire(context.Background())

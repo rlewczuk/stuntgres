@@ -13,7 +13,7 @@ func (e *Engine) serializableEligibleLocked(ref ids.ObjectRef, changes *catalogC
 		return false
 	}
 	ns, ok := e.privateCatalogLocked(changes).Namespace(d.Namespace())
-	return ok && ns.Temporary == (ids.SessionToken{}) && d.Namespace().ObjectID != ids.PGCatalogNamespaceOID && e.storage[ref.Address] != nil
+	return ok && ns.Temporary == (ids.SessionToken{}) && d.Namespace().ObjectID != ids.PGCatalogNamespaceOID && e.storage.relations[ref.Address] != nil
 }
 
 func (e *Engine) serializableReadLocked(s *StatementScope, ref ids.ObjectRef) error {

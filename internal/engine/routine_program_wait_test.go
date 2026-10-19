@@ -54,7 +54,7 @@ func TestRoutineProgramOriginalCallsAfterUniqueWait(t *testing.T) {
 				lockPending(t, e, 1)
 				sequence := catalogRef(t, e, e.CatalogRead(), "programme_steps")
 				e.mu.Lock()
-				generator := e.sequences[sequence.Address]
+				generator := e.storage.sequences[sequence.Address]
 				before := *generator
 				e.mu.Unlock()
 				if before.last != 2 || !before.called {
@@ -183,7 +183,7 @@ func TestRoutineProgramOriginalCallsAfterSecondUniqueWait(t *testing.T) {
 			routinePendingUniqueIndex(t, e, firstIndex, reader.session)
 			sequence := catalogRef(t, e, e.CatalogRead(), "second_wait_steps")
 			e.mu.Lock()
-			generator := e.sequences[sequence.Address]
+			generator := e.storage.sequences[sequence.Address]
 			before := generator.last
 			e.mu.Unlock()
 			if before != 3 {

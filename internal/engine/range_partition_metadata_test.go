@@ -145,11 +145,11 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	rest := rangePartitionRelation(t, e, "rest")
 	e.mu.Lock()
 	for _, virtual := range []*catalog.Relation{root, middle} {
-		if e.storage[virtual.Address()] != nil {
+		if e.storage.relations[virtual.Address()] != nil {
 			t.Errorf("virtual relation owns storage: %v", virtual.Address())
 		}
 	}
-	if e.storage[leaf.Address()] == nil || e.storage[rest.Address()] == nil {
+	if e.storage.relations[leaf.Address()] == nil || e.storage.relations[rest.Address()] == nil {
 		t.Error("physical leaf lacks storage")
 	}
 	e.mu.Unlock()

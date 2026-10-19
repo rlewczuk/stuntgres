@@ -143,8 +143,8 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	c := inheritanceLifecycleTable(e, 20001, "c", p.Address())
 	inheritanceLifecycleInstall(e, p, c)
 	e.commitSeq = 1
-	e.storage[p.Address()].versions = []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{}}}
-	e.storage[c.Address()].versions = []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{}}, {row: 2, version: 2, born: 1, values: []sqltype.Value{}}}
+	e.storage.relations[p.Address()].versions = []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{}}}
+	e.storage.relations[c.Address()].versions = []rowVersion{{row: 1, version: 1, born: 1, values: []sqltype.Value{}}, {row: 2, version: 2, born: 1, values: []sqltype.Value{}}}
 	op, done, err := testOperation(e, context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -159,7 +159,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
-	leaf := queryLeaf{ref: ref, relation: p, storage: e.storage[p.Address()]}
+	leaf := queryLeaf{ref: ref, relation: p, storage: e.storage.relations[p.Address()]}
 	scope.querySources = []queryLeaf{leaf}
 	if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
@@ -190,7 +190,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	if err = selectQuerySources(op.Context(), source); err != nil || source.count() != 3 {
 		t.Fatal(source.count(), err)
 	}
-	if source.view.read() != view.read() || source.inheritance[1].prefix.view.read() != view.read() || &source.inheritance[1].prefix.committed[0] != &e.storage[c.Address()].versions[0] {
+	if source.view.read() != view.read() || source.inheritance[1].prefix.view.read() != view.read() || &source.inheritance[1].prefix.committed[0] != &e.storage.relations[c.Address()].versions[0] {
 		t.Fatal("hierarchy acquired a second visibility owner or copied immutable rows")
 	}
 	e.mu.Lock()

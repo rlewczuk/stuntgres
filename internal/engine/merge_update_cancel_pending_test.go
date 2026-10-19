@@ -21,7 +21,7 @@ func mergeUpdatePendingCancellation(t *testing.T, targetOnly bool) {
 	sessionSQL(t, peer, "CREATE TABLE t(id INT NOT NULL UNIQUE,v INT)")
 	sessionSQL(t, peer, "INSERT INTO t VALUES(1,10)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	row := e.storage[ref.Address].versions[0].row
+	row := e.storage.relations[ref.Address].versions[0].row
 	tx := transactionBegin(t, holder)
 	sessionSQL(t, holder, "UPDATE t SET v=20")
 	if targetOnly {

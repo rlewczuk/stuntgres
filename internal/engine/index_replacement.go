@@ -20,7 +20,7 @@ type remintedIndexStorage struct {
 }
 
 func (e *Engine) prepareForeignIndexStorage(ctx context.Context, next *catalog.State, storage map[ids.ObjectAddress]*relationStorage, snapshot *indexSnapshot) (remintedIndexStorage, error) {
-	prepared := remintedIndexStorage{catalog: next, baseCatalog: e.catalog.state, baseRow: e.nextRow, baseVersion: e.nextVersion, frontier: e.commitSeq}
+	prepared := remintedIndexStorage{catalog: next, baseCatalog: e.catalog.state, baseRow: e.storage.nextRow, baseVersion: e.storage.nextVersion, frontier: e.commitSeq}
 	var err error
 	prepared.roots, prepared.nextRow, prepared.nextVersion, err = e.prepareRemintedStorage(ctx, next, storage, snapshot)
 	if err == nil {
@@ -48,13 +48,13 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalog.State
 			return nil, 0, 0, fmt.Errorf("stuntgres: replacement cannot import invalid index %s", quoteIdentifier(index.Name()))
 		}
 	}
-	rowID, versionID := e.nextRow, e.nextVersion
+	rowID, versionID := e.storage.nextRow, e.storage.nextVersion
 	if snapshot == nil {
 		return nil, 0, 0, ids.ErrCatalogReplaced
 	}
 	positions := make(map[ids.ObjectAddress]map[indexRowIdentity]int, len(storage))
 	for address, relation := range storage {
-		if descriptor := next.Get(address); descriptor != nil && e.storage[address] == relation {
+		if descriptor := next.Get(address); descriptor != nil && e.storage.relations[address] == relation {
 			if namespace, ok := next.Namespace(descriptor.Namespace()); ok && namespace.Temporary != (ids.SessionToken{}) {
 				continue
 			}
@@ -97,7 +97,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalog.State
 			continue
 		}
 		if retained.Get(address) != nil {
-			root := e.indexRoots[address]
+			root := e.storage.indexRoots[address]
 			if root == nil {
 				return nil, 0, 0, ids.ErrCatalogReplaced
 			}

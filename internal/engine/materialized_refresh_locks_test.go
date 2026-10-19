@@ -114,7 +114,7 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			e := New()
 			d := refreshUnitRelation(t, e)
-			original := e.storage[d.Address()]
+			original := e.storage.relations[d.Address()]
 			first := &parser.RefreshMaterializedView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}, NoData: noData}
 			second := &parser.RefreshMaterializedView{Name: first.Name}
 			a := refreshUnitScope(t, e, context.Background())
@@ -153,7 +153,7 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 				}
 			}
 			execute(a, first)
-			afterA := e.storage[d.Address()]
+			afterA := e.storage.relations[d.Address()]
 			descriptorA := e.catalog.state.MustRelation(d.Address())
 			firstCount := 1
 			if noData {
@@ -175,10 +175,10 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 				t.Fatal(err)
 			}
 			final := e.catalog.state.MustRelation(d.Address())
-			if e.commitSeq != before+2 || e.storage[d.Address()] == afterA || len(e.storage[d.Address()].versions) != 1 || len(afterA.versions) != firstCount || !final.Populated || final.Address() != d.Address() || final.View != d.View || final.RowType != d.RowType {
+			if e.commitSeq != before+2 || e.storage.relations[d.Address()] == afterA || len(e.storage.relations[d.Address()].versions) != 1 || len(afterA.versions) != firstCount || !final.Populated || final.Address() != d.Address() || final.View != d.View || final.RowType != d.RowType {
 				t.Fatal("serialized refresh failed complete immutable replacement")
 			}
-			values := e.storage[d.Address()].versions[0].values
+			values := e.storage.relations[d.Address()].versions[0].values
 			want := refreshUnitRows(t, d, 1)[0]
 			if len(values) != len(want) || values[0] != want[0] {
 				t.Fatal("queued refresh final typed row differs from defining SELECT1")

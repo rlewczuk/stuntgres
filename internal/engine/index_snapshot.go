@@ -47,7 +47,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view catalog.R
 				return root
 			}
 		}
-		return e.indexRoots[address]
+		return e.storage.indexRoots[address]
 	}
 	snapshot := &indexSnapshot{sources: make(map[ids.ObjectAddress]indexSnapshotSource)}
 	for address, descriptor := range view.Descriptors() {

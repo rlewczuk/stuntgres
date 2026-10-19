@@ -21,7 +21,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 				base, frontier := e.catalog.state, e.commitSeq
 				source := catalogRef(t, e, e.CatalogRead(), "refresh_source")
 				index := catalogRef(t, e, e.CatalogRead(), "refresh_source_idx")
-				indexRoot := e.indexRoots[index.Address]
+				indexRoot := e.storage.indexRoots[index.Address]
 				m := batchUnitStart(t, s, context.Background())
 				defer m.end(context.Canceled)
 				name := "refresh_target"
@@ -35,7 +35,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 				view := e.privateCatalogLocked(s.transactions.catalog)
 				e.mu.Unlock()
 				target := catalogRef(t, e, view, name)
-				original := e.storage[target.Address]
+				original := e.storage.relations[target.Address]
 				originalDescriptor := e.catalog.state.Get(target.Address)
 				var root []rowVersion
 				var ends *deletionRoot
@@ -73,7 +73,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 							t.Fatal("replacement row born before true end", row)
 						}
 					}
-					if e.catalog.state != base || e.commitSeq != frontier || e.storage[target.Address] != original || e.catalog.state.Get(target.Address) != originalDescriptor || e.indexRoots[index.Address] != indexRoot {
+					if e.catalog.state != base || e.commitSeq != frontier || e.storage.relations[target.Address] != original || e.catalog.state.Get(target.Address) != originalDescriptor || e.storage.indexRoots[index.Address] != indexRoot {
 						t.Fatal("replacement/source index escaped before message end")
 					}
 					previous = shape.replacement
@@ -83,7 +83,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 					if err := m.end(nil); err != nil {
 						t.Fatal(err)
 					}
-					if e.storage[target.Address] != latest || e.commitSeq != frontier+1 || len(e.storage[source.Address].versions) != 2 || len(e.indexRoots[index.Address].entries) != 2 || len(indexRoot.entries) != 1 {
+					if e.storage.relations[target.Address] != latest || e.commitSeq != frontier+1 || len(e.storage.relations[source.Address].versions) != 2 || len(e.storage.indexRoots[index.Address].entries) != 2 || len(indexRoot.entries) != 1 {
 						t.Fatal("source rows/index and latest replacement did not publish together")
 					}
 					for _, row := range latest.versions {
@@ -96,7 +96,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 					if err == nil || m.end(err) != err {
 						t.Fatal("late failure disposition", err)
 					}
-					if e.catalog.state != base || e.commitSeq != frontier || e.storage[target.Address] != original || e.indexRoots[index.Address] != indexRoot || len(e.storage[source.Address].versions) != 1 {
+					if e.catalog.state != base || e.commitSeq != frontier || e.storage.relations[target.Address] != original || e.storage.indexRoots[index.Address] != indexRoot || len(e.storage.relations[source.Address].versions) != 1 {
 						t.Fatal("late failure published replacement/source/index")
 					}
 					for _, row := range latest.versions {
@@ -124,7 +124,7 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 			target := catalogRef(t, e, e.CatalogRead(), "refresh_target")
 			source := catalogRef(t, e, e.CatalogRead(), "refresh_source")
 			index := catalogRef(t, e, e.CatalogRead(), "refresh_source_idx")
-			original, indexRoot := e.storage[target.Address], e.indexRoots[index.Address]
+			original, indexRoot := e.storage.relations[target.Address], e.storage.indexRoots[index.Address]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			m := batchUnitStart(t, s, ctx)
@@ -160,7 +160,7 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 				original.ends = &deletionRoot{}
 			case "store":
 				copy := *original
-				e.storage[target.Address] = &copy
+				e.storage.relations[target.Address] = &copy
 			case "descriptor":
 				next := catalog.CloneState(e.catalog.state)
 				copy := *next.MustRelation(target.Address)
@@ -172,11 +172,11 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 				copy.revision++
 				e.roles = &copy
 			case "source_index_generation":
-				e.storage[source.Address].generation++
+				e.storage.relations[source.Address].generation++
 			}
-			state, store, frontier := e.catalog.state, e.storage[target.Address], e.commitSeq
+			state, store, frontier := e.catalog.state, e.storage.relations[target.Address], e.commitSeq
 			err = m.end(err)
-			if err == nil || e.catalog.state != state || e.storage[target.Address] != store || e.commitSeq != frontier || e.indexRoots[index.Address] != indexRoot || e.indexRoots[pending.Address] != nil || len(e.storage[source.Address].versions) != 1 {
+			if err == nil || e.catalog.state != state || e.storage.relations[target.Address] != store || e.commitSeq != frontier || e.storage.indexRoots[index.Address] != indexRoot || e.storage.indexRoots[pending.Address] != nil || len(e.storage.relations[source.Address].versions) != 1 {
 				t.Fatal("rejected replacement published rows/catalog/index", err)
 			}
 			if fence == "cancel" && !errors.Is(err, context.Canceled) || fence == "epoch" && !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -199,7 +199,7 @@ func TestDriverBatchMaterializedPromotionSavepoint(t *testing.T) {
 	}
 	target := catalogRef(t, e, e.CatalogRead(), "refresh_target")
 	source := catalogRef(t, e, e.CatalogRead(), "refresh_source")
-	original, frontier := e.storage[target.Address], e.commitSeq
+	original, frontier := e.storage.relations[target.Address], e.commitSeq
 	m := batchUnitStart(t, s, context.Background())
 	defer m.end(context.Canceled)
 	for _, q := range []string{"INSERT INTO refresh_source VALUES(2)", "REFRESH MATERIALIZED VIEW refresh_target"} {
@@ -220,11 +220,11 @@ func TestDriverBatchMaterializedPromotionSavepoint(t *testing.T) {
 	}
 	sessionSQL(t, s, "ROLLBACK TO kept")
 	restored := s.transactions.catalog.storage[target.Address]
-	if s.transactions.state != TxActive || s.transactions.ref != ref || s.transactions.ticket != ticket || s.transactions.start != start || restored.original != shape.original || restored.replacement != shape.replacement || restored.generation != shape.generation || restored.ends != shape.ends || !restored.rewritten || len(s.transactions.writes[source.Address]) != 1 || e.storage[target.Address] != original || e.commitSeq != frontier {
+	if s.transactions.state != TxActive || s.transactions.ref != ref || s.transactions.ticket != ticket || s.transactions.start != start || restored.original != shape.original || restored.replacement != shape.replacement || restored.generation != shape.generation || restored.ends != shape.ends || !restored.rewritten || len(s.transactions.writes[source.Address]) != 1 || e.storage.relations[target.Address] != original || e.commitSeq != frontier {
 		t.Fatal("savepoint recovery rebuilt or published retained replacement authority")
 	}
 	sessionSQL(t, s, "COMMIT")
-	if e.storage[target.Address] != shape.replacement || len(shape.replacement.versions) != 2 || e.commitSeq != frontier+1 {
+	if e.storage.relations[target.Address] != shape.replacement || len(shape.replacement.versions) != 2 || e.commitSeq != frontier+1 {
 		t.Fatal("promoted replacement did not survive savepoint publication")
 	}
 	for _, row := range shape.replacement.versions {

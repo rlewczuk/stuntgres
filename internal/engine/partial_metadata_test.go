@@ -15,7 +15,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	ctx := context.Background()
 	capture := view.read().catalog
 	rows := view.read().committed[f.parent.Address()]
-	oldRoot := f.e.indexRoots[f.index.Address()]
+	oldRoot := f.e.storage.indexRoots[f.index.Address()]
 	ref := f.e.catalog.Domain.Ref(capture.Epoch(), f.index.Address())
 	retained, _, err := projectIndexMetadata(ctx, capture, ref)
 	if err != nil {
@@ -78,7 +78,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	}
 	f.e.mu.Lock()
 	f.e.catalog.state = next
-	f.e.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.Address(): root}
+	f.e.storage.indexRoots = map[ids.ObjectAddress]*logicalIndexRoot{index.Address(): root}
 	f.e.mu.Unlock()
 	current, _, err := projectIndexMetadata(ctx, f.e.CatalogRead(), ref)
 	if err != nil {
