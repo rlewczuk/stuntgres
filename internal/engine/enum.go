@@ -70,7 +70,7 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 		return err
 	}
 	namespace := auth.Catalog.Get(ns.Address).Name()
-	typ, err := sqltype.EnumWithMembers(sqltype.ID(oid), name, dependencyIdentifier(namespace)+"."+dependencyIdentifier(name), members)
+	typ, err := sqltype.EnumWithMembers(sqltype.ID(oid), name, catalog.DependencyIdentifier(namespace)+"."+catalog.DependencyIdentifier(name), members)
 	if err != nil {
 		return err
 	}

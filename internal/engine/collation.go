@@ -26,11 +26,11 @@ func collationName(view catalog.Read, id uint32) string {
 func collationSQLName(view catalog.Read, id uint32) string {
 	if view.State() != nil {
 		if d, ok := view.Collation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)}); ok {
-			return quoteIdentifier(view.Get(d.Namespace()).Name()) + "." + quoteIdentifier(d.Name())
+			return catalog.QuoteIdentifier(view.Get(d.Namespace()).Name()) + "." + catalog.QuoteIdentifier(d.Name())
 		}
 	}
 	if name := collationName(view, id); name != "" {
-		return quoteIdentifier("pg_catalog") + "." + quoteIdentifier(name)
+		return catalog.QuoteIdentifier("pg_catalog") + "." + catalog.QuoteIdentifier(name)
 	}
 	return ""
 }

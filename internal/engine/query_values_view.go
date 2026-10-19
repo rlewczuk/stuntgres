@@ -66,21 +66,21 @@ func viewValuesAt(node LogicalNode, ordinal int) *valuesNode {
 	return visit(node)
 }
 
-func (v *viewRenderer) valuesSQL(ctx context.Context, catalog catalog.Read, source *parser.ValuesQuery, occurrence int) (string, error) {
+func (v *viewRenderer) valuesSQL(ctx context.Context, catalogView catalog.Read, source *parser.ValuesQuery, occurrence int) (string, error) {
 	root := viewValuesAt(v.query.Root, occurrence)
 	if root == nil {
 		return "", fmt.Errorf("stuntgres: missing view VALUES occurrence")
 	}
 	slots := make(map[int]string, len(root.Schema()))
 	for i, column := range root.Schema() {
-		slots[i] = quoteIdentifier(column.Name)
+		slots[i] = catalog.QuoteIdentifier(column.Name)
 	}
 	v.slots[root] = slots
 	rows := make([]string, len(source.Rows))
 	for i, row := range source.Rows {
 		cells := make([]string, 0, len(row))
 		for j, raw := range row {
-			text, err := v.expressionSQL(ctx, catalog, raw, viewLiteralPath{clause: viewValuesCellLiteral, source: occurrence, row: i, target: j})
+			text, err := v.expressionSQL(ctx, catalogView, raw, viewLiteralPath{clause: viewValuesCellLiteral, source: occurrence, row: i, target: j})
 			if err != nil {
 				return "", err
 			}
@@ -97,7 +97,7 @@ func (v *viewRenderer) valuesSQL(ctx context.Context, catalog catalog.Read, sour
 	if source.Order != nil {
 		keys := make([]string, len(source.Order.Keys))
 		for i, key := range source.Order.Keys {
-			part, err := v.expressionSQL(ctx, catalog, key.Expr, viewLiteralPath{clause: viewValuesOrderLiteral, source: occurrence, target: i})
+			part, err := v.expressionSQL(ctx, catalogView, key.Expr, viewLiteralPath{clause: viewValuesOrderLiteral, source: occurrence, target: i})
 			if err != nil {
 				return "", err
 			}
@@ -126,7 +126,7 @@ func (v *viewRenderer) valuesSQL(ctx context.Context, catalog catalog.Read, sour
 			if bound.raw == nil {
 				continue
 			}
-			part, err := v.expressionSQL(ctx, catalog, bound.raw, viewLiteralPath{clause: bound.clause, source: occurrence})
+			part, err := v.expressionSQL(ctx, catalogView, bound.raw, viewLiteralPath{clause: bound.clause, source: occurrence})
 			if err != nil {
 				return "", err
 			}

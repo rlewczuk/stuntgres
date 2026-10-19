@@ -24,7 +24,7 @@ func emitPhysicalSelfForeignKeys(view catalog.Read, table *catalog.Relation, own
 	if len(table.Constraints.PhysicalNotNull) == 0 || len(table.Constraints.ForeignKeys) == 0 {
 		return nil
 	}
-	qualified := quoteIdentifier(view.Get(table.Namespace()).Name()) + "." + quoteIdentifier(table.Name())
+	qualified := catalog.QuoteIdentifier(view.Get(table.Namespace()).Name()) + "." + catalog.QuoteIdentifier(table.Name())
 	for _, foreign := range table.Constraints.ForeignKeys {
 		if !physicalSelfForeignKeyDeferred(table, foreign) {
 			continue
@@ -41,7 +41,7 @@ func emitPhysicalSelfForeignKeys(view catalog.Read, table *catalog.Relation, own
 		if err := setOwner(owner); err != nil {
 			return err
 		}
-		if err := emit("ALTER TABLE ONLY " + qualified + " ADD CONSTRAINT " + quoteIdentifier(foreign.Name) + " " + text + ";\n"); err != nil {
+		if err := emit("ALTER TABLE ONLY " + qualified + " ADD CONSTRAINT " + catalog.QuoteIdentifier(foreign.Name) + " " + text + ";\n"); err != nil {
 			return err
 		}
 	}

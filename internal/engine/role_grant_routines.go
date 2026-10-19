@@ -114,7 +114,7 @@ func grantRoutineArgumentDisplay(v AuthorizationView, inputs []ids.OID) string {
 		}
 		typ := v.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
 		if typ.SQLType.IsUserDefined() {
-			display.WriteString(typeDiagnosticNameAt(v.Catalog, typ, path))
+			display.WriteString(catalog.TypeDiagnosticNameAt(v.Catalog, typ, path))
 		} else {
 			display.WriteString(typ.SQLType.DiagnosticName())
 		}

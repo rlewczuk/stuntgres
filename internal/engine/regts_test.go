@@ -146,7 +146,7 @@ func TestRegTSProviderResolution(t *testing.T) {
 	if got := regTSSpelling(quoted, input.path, 92003, sqltype.Regdictionary, false); got != `"Reg.TS"."select"` {
 		t.Fatal("keyword output", got)
 	}
-	id, err = input.ResolveRegdictionary(context.Background(), quoteIdentifier(input.database)+`."Reg.TS".unaccent`)
+	id, err = input.ResolveRegdictionary(context.Background(), catalog.QuoteIdentifier(input.database)+`."Reg.TS".unaccent`)
 	if err != nil || id != 91000 {
 		t.Fatal("same database lookup", id, err)
 	}

@@ -183,7 +183,7 @@ func (t *dumpRelation) emitRetiredConstraints(view catalog.Read, checks bool, em
 	if graph == nil {
 		return nil
 	}
-	qualified := quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name)
+	qualified := catalog.QuoteIdentifier(t.schema) + "." + catalog.QuoteIdentifier(t.name)
 	emitFact := func(name string, keys []int32, p catalog.InheritedConstraint, check, notValid bool) error {
 		if len(p.Retired) == 0 {
 			return nil
@@ -209,7 +209,7 @@ func (t *dumpRelation) emitRetiredConstraints(view catalog.Read, checks bool, em
 			if !ok {
 				return fmt.Errorf("stuntgres: missing retired constraint parent")
 			}
-			parentName := quoteIdentifier(view.Get(parent.Namespace()).Name()) + "." + quoteIdentifier(parent.Name())
+			parentName := catalog.QuoteIdentifier(view.Get(parent.Namespace()).Name()) + "." + catalog.QuoteIdentifier(parent.Name())
 			rows = append(rows, "("+commentLiteral(parentName)+"::regclass, "+commentLiteral(history.Column)+", "+strconv.FormatInt(int64(history.Attribute), 10)+", "+commentLiteral(kind)+", "+commentLiteral(history.Name)+", "+commentLiteral(strconv.FormatUint(history.Archive, 10)+":"+strconv.FormatUint(history.Lifetime, 10))+", "+commentLiteral(strconv.FormatUint(uint64(history.Constraint), 10))+")")
 			if !slices.Contains(parents, parentName) {
 				parents = append(parents, parentName)

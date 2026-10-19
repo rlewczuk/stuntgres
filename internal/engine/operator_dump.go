@@ -13,7 +13,7 @@ import (
 )
 
 func operatorSQLName(view catalog.Read, d *catalog.Operator) string {
-	return quoteIdentifier(view.Get(d.Namespace()).Name()) + "." + d.Name()
+	return catalog.QuoteIdentifier(view.Get(d.Namespace()).Name()) + "." + d.Name()
 }
 func operatorSQLSignature(view catalog.Read, d *catalog.Operator) (string, error) {
 	arguments := [2]string{"NONE", "NONE"}
@@ -42,7 +42,7 @@ func operatorRoutineSQLName(view catalog.Read, id ids.OID) (string, error) {
 	if namespace == nil {
 		return "", fmt.Errorf("stuntgres: missing operator routine namespace")
 	}
-	return quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(identity.Name), nil
+	return catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(identity.Name), nil
 }
 func operatorDumpDeclaration(ctx context.Context, view catalog.Read, roles authorization.Read, d *catalog.Operator) (dumpDomain, error) {
 	if err := ctx.Err(); err != nil {
@@ -147,7 +147,7 @@ func operatorDumpDefined(ctx context.Context, view catalog.Read, roles authoriza
 		if err != nil {
 			return dumpDomain{}, err
 		}
-		text += "ALTER OPERATOR " + signature + " OWNER TO " + quoteIdentifier(owner.Name) + ";\n"
+		text += "ALTER OPERATOR " + signature + " OWNER TO " + catalog.QuoteIdentifier(owner.Name) + ";\n"
 	}
 	// Create as bootstrap so independently owned forward shells can be completed
 	// and definitions whose owners lack schema CREATE still replay faithfully.

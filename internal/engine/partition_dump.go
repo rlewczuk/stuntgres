@@ -77,7 +77,7 @@ func partitionDumpPredecessors(view catalog.Read, d *catalog.Relation, predecess
 	return predecessors, nil
 }
 
-func partitionKeySQL(ctx context.Context, catalog catalog.Read, d *catalog.Relation) (string, error) {
+func partitionKeySQL(ctx context.Context, catalogView catalog.Read, d *catalog.Relation) (string, error) {
 	if d.Partition == nil {
 		return "", nil
 	}
@@ -92,7 +92,7 @@ func partitionKeySQL(ctx context.Context, catalog catalog.Read, d *catalog.Relat
 			text.WriteString(", ")
 		}
 		if key.Derived != nil {
-			expression, err := (scalarRenderer{owner: d}).sql(ctx, catalog, key.Derived.Definition)
+			expression, err := (scalarRenderer{owner: d}).sql(ctx, catalogView, key.Derived.Definition)
 			if err != nil {
 				return "", err
 			}
@@ -102,17 +102,17 @@ func partitionKeySQL(ctx context.Context, catalog catalog.Read, d *catalog.Relat
 			if slot < 0 {
 				return "", fmt.Errorf("stuntgres: missing partition key attribute")
 			}
-			text.WriteString(quoteIdentifier(d.Columns[slot].Name))
+			text.WriteString(catalog.QuoteIdentifier(d.Columns[slot].Name))
 		}
 		if key.Collation != 0 {
-			name := collationSQLName(catalog, key.Collation)
+			name := collationSQLName(catalogView, key.Collation)
 			if name == "" {
 				return "", fmt.Errorf("stuntgres: unsupported stored collation")
 			}
 			text.WriteString(" COLLATE " + name)
 		}
 		if key.ExplicitClass {
-			text.WriteString(" " + quoteIdentifier("pg_catalog") + "." + quoteIdentifier(key.Class.Name))
+			text.WriteString(" " + catalog.QuoteIdentifier("pg_catalog") + "." + catalog.QuoteIdentifier(key.Class.Name))
 		}
 	}
 	text.WriteString(")")
@@ -163,7 +163,7 @@ func partitionDumpNeedsAttach(catalog catalog.Read, d *catalog.Relation) bool {
 func partitionAttachDumpSQL(ctx context.Context, view catalog.Read, d *catalog.Relation) (string, error) {
 	parent := view.MustRelation(d.Membership.Parent)
 	qualified := func(table *catalog.Relation) string {
-		return quoteIdentifier(view.Get(table.Namespace()).Name()) + "." + quoteIdentifier(table.Name())
+		return catalog.QuoteIdentifier(view.Get(table.Namespace()).Name()) + "." + catalog.QuoteIdentifier(table.Name())
 	}
 	text := "ALTER TABLE " + qualified(parent) + " ATTACH PARTITION " + qualified(d)
 	if d.Membership.DefaultBound {
@@ -185,13 +185,13 @@ func partitionAttachDumpSQL(ctx context.Context, view catalog.Read, d *catalog.R
 
 // PARTITION OF names no new column types. Inherited definitions are supplied
 // by the parent; only local default/nullability/check differences are emitted.
-func partitionChildSQL(ctx context.Context, catalog catalog.Read, d *catalog.Relation, qualified string, deferred map[int32]bool) (string, error) {
-	parent, ok := catalog.Relation(d.Membership.Parent)
+func partitionChildSQL(ctx context.Context, catalogView catalog.Read, d *catalog.Relation, qualified string, deferred map[int32]bool) (string, error) {
+	parent, ok := catalogView.Relation(d.Membership.Parent)
 	if !ok || parent.Partition == nil {
 		return "", fmt.Errorf("stuntgres: missing partition dump parent")
 	}
 	var text strings.Builder
-	text.WriteString("CREATE TABLE " + qualified + " PARTITION OF " + quoteIdentifier(catalog.Get(parent.Namespace()).Name()) + "." + quoteIdentifier(parent.Name()))
+	text.WriteString("CREATE TABLE " + qualified + " PARTITION OF " + catalog.QuoteIdentifier(catalogView.Get(parent.Namespace()).Name()) + "." + catalog.QuoteIdentifier(parent.Name()))
 	var options strings.Builder
 	appendOption := func(option string) {
 		if options.Len() != 0 {
@@ -201,20 +201,20 @@ func partitionChildSQL(ctx context.Context, catalog catalog.Read, d *catalog.Rel
 	}
 	for i, column := range d.Columns {
 		var option strings.Builder
-		option.WriteString(quoteIdentifier(column.Name))
+		option.WriteString(catalog.QuoteIdentifier(column.Name))
 		changed := false
 		childDefault, childHasDefault := d.ColumnMeta.Defaults[d.Attributes[i]]
 		parentDefault, parentHasDefault := parent.ColumnMeta.Defaults[parent.Attributes[i]]
 		childSQL, parentSQL := "NULL", "NULL"
 		var err error
 		if childHasDefault {
-			childSQL, err = defaultSQL(ctx, catalog, childDefault.Expression)
+			childSQL, err = defaultSQL(ctx, catalogView, childDefault.Expression)
 			if err != nil {
 				return "", err
 			}
 		}
 		if parentHasDefault {
-			parentSQL, err = defaultSQL(ctx, catalog, parentDefault.Expression)
+			parentSQL, err = defaultSQL(ctx, catalogView, parentDefault.Expression)
 			if err != nil {
 				return "", err
 			}
@@ -226,7 +226,7 @@ func partitionChildSQL(ctx context.Context, catalog catalog.Read, d *catalog.Rel
 		if !column.Nullable {
 			for _, constraint := range d.Constraints.NotNull {
 				if constraint.Attribute == d.Attributes[i] && (parent.Columns[i].Nullable || constraint.PartitionLocal) {
-					option.WriteString(" CONSTRAINT " + quoteIdentifier(constraint.Name) + " NOT NULL")
+					option.WriteString(" CONSTRAINT " + catalog.QuoteIdentifier(constraint.Name) + " NOT NULL")
 					changed = true
 					break
 				}
@@ -237,7 +237,7 @@ func partitionChildSQL(ctx context.Context, catalog catalog.Read, d *catalog.Rel
 		}
 	}
 	for _, constraint := range orderedChecks(d) {
-		expression, err := (scalarRenderer{owner: d, checkReplayPrecision: true}).sql(ctx, catalog, constraint.Expression)
+		expression, err := (scalarRenderer{owner: d, checkReplayPrecision: true}).sql(ctx, catalogView, constraint.Expression)
 		if err != nil {
 			return "", err
 		}
@@ -246,7 +246,7 @@ func partitionChildSQL(ctx context.Context, catalog catalog.Read, d *catalog.Rel
 			if ancestor.Name != constraint.Name {
 				continue
 			}
-			parentSQL, err := (scalarRenderer{owner: parent, checkReplayPrecision: true}).sql(ctx, catalog, ancestor.Expression)
+			parentSQL, err := (scalarRenderer{owner: parent, checkReplayPrecision: true}).sql(ctx, catalogView, ancestor.Expression)
 			if err != nil {
 				return "", err
 			}
@@ -255,7 +255,7 @@ func partitionChildSQL(ctx context.Context, catalog catalog.Read, d *catalog.Rel
 		if inherited {
 			continue
 		}
-		option := "CONSTRAINT " + quoteIdentifier(constraint.Name) + " CHECK (" + expression + ")"
+		option := "CONSTRAINT " + catalog.QuoteIdentifier(constraint.Name) + " CHECK (" + expression + ")"
 		if constraint.NoInherit {
 			option += " NO INHERIT"
 		}
@@ -265,32 +265,32 @@ func partitionChildSQL(ctx context.Context, catalog catalog.Read, d *catalog.Rel
 		if constraint.Parent != 0 {
 			continue
 		}
-		index := catalog.MustRelation(constraint.Index)
-		if partitionReplaySeparateConstraint(catalog, index) {
+		index := catalogView.MustRelation(constraint.Index)
+		if partitionReplaySeparateConstraint(catalogView, index) {
 			continue
 		}
-		definition, err := (pgRenderer{view: catalog}).uniqueConstraintSQL(d, &constraint)
+		definition, err := (pgRenderer{view: catalogView}).uniqueConstraintSQL(d, &constraint)
 		if err != nil {
 			return "", err
 		}
-		appendOption("CONSTRAINT " + quoteIdentifier(constraint.Name) + " " + definition)
+		appendOption("CONSTRAINT " + catalog.QuoteIdentifier(constraint.Name) + " " + definition)
 	}
 	for _, constraint := range d.Constraints.Exclusion {
 		if constraint.Parent != 0 {
 			continue
 		}
-		index, ok := catalog.Relation(constraint.Index)
+		index, ok := catalogView.Relation(constraint.Index)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing exclusion dump index")
 		}
-		if partitionReplaySeparateConstraint(catalog, index) {
+		if partitionReplaySeparateConstraint(catalogView, index) {
 			continue
 		}
-		definition, err := indexDefinitionSQL(ctx, catalog, index, indexPresentation{dump: true, exclusion: true})
+		definition, err := indexDefinitionSQL(ctx, catalogView, index, indexPresentation{dump: true, exclusion: true})
 		if err != nil {
 			return "", err
 		}
-		appendOption("CONSTRAINT " + quoteIdentifier(constraint.Name) + " " + definition)
+		appendOption("CONSTRAINT " + catalog.QuoteIdentifier(constraint.Name) + " " + definition)
 	}
 	if options.Len() != 0 {
 		text.WriteString(" (" + options.String() + ")")
@@ -300,11 +300,11 @@ func partitionChildSQL(ctx context.Context, catalog catalog.Read, d *catalog.Rel
 	} else if d.Membership.Strategy == parser.PartitionHash {
 		text.WriteString(hashPartitionBoundSQL(d.Membership))
 	} else {
-		lower, err := partitionTupleDumpSQL(ctx, catalog, parent.Partition.Keys, d.Membership.Lower)
+		lower, err := partitionTupleDumpSQL(ctx, catalogView, parent.Partition.Keys, d.Membership.Lower)
 		if err != nil {
 			return "", err
 		}
-		upper, err := partitionTupleDumpSQL(ctx, catalog, parent.Partition.Keys, d.Membership.Upper)
+		upper, err := partitionTupleDumpSQL(ctx, catalogView, parent.Partition.Keys, d.Membership.Upper)
 		if err != nil {
 			return "", err
 		}

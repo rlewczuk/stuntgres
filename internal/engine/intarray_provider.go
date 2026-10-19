@@ -42,7 +42,7 @@ func (p *intarrayProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 		ext.Members[i] = ids.ObjectAddress{ClassID: class, ObjectID: oid}
 	}
 	ns := auth.Catalog.Get(ext.TargetNamespace).Name()
-	typ, err := sqltype.QueryInt(sqltype.ID(ext.Members[0].ObjectID), "query_int", dependencyIdentifier(ns)+".query_int")
+	typ, err := sqltype.QueryInt(sqltype.ID(ext.Members[0].ObjectID), "query_int", catalog.DependencyIdentifier(ns)+".query_int")
 	if err != nil {
 		return err
 	}

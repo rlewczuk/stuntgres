@@ -280,22 +280,22 @@ func (v *viewRenderer) aliasFrom(from viewRenderFrom, ns viewNamespace, name str
 				c.name = v.freshLabel(ns, int32(i+1), false)
 			}
 			used[c.name] = true
-			aliases[i] = quoteIdentifier(c.name)
+			aliases[i] = catalog.QuoteIdentifier(c.name)
 		}
 		if c.slot >= 0 {
-			from.slots[c.slot] = quoteIdentifier(name) + "." + quoteIdentifier(c.name)
+			from.slots[c.slot] = catalog.QuoteIdentifier(name) + "." + catalog.QuoteIdentifier(c.name)
 		}
 	}
 	text := "(" + from.text + ")"
 	if from.relation != "" {
 		text = from.relation
 	}
-	from.text = text + " AS " + quoteIdentifier(name)
+	from.text = text + " AS " + catalog.QuoteIdentifier(name)
 	if len(aliases) > 0 {
 		from.text += "(" + strings.Join(aliases, ", ") + ")"
 	}
 	from.relation = ""
-	from.wholeSQL = quoteIdentifier(name)
+	from.wholeSQL = catalog.QuoteIdentifier(name)
 	v.slots[from.root] = from.slots
 	return from
 }
@@ -388,7 +388,7 @@ func (v *viewRenderer) fromSQL(ctx context.Context, catalog catalog.Read, item p
 	return from, err
 }
 
-func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog catalog.Read, item parser.FromItem) (result viewRenderFrom, failure error) {
+func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Read, item parser.FromItem) (result viewRenderFrom, failure error) {
 	if err := ctx.Err(); err != nil {
 		return viewRenderFrom{}, err
 	}
@@ -410,15 +410,15 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog catalog.Read, 
 	v.namespace++
 	switch n := item.(type) {
 	case *parser.FunctionTable:
-		return v.renderFunctionTableSQL(ctx, catalog, n, ns)
+		return v.renderFunctionTableSQL(ctx, catalogView, n, ns)
 	case *parser.FunctionFrom:
-		return v.renderFunctionTableSQL(ctx, catalog, &parser.FunctionTable{Calls: n.Calls, Ordinality: n.Ordinality, Lateral: n.Lateral, RowsFrom: len(n.Calls) > 1, Pos: n.Pos}, ns)
+		return v.renderFunctionTableSQL(ctx, catalogView, &parser.FunctionTable{Calls: n.Calls, Ordinality: n.Ordinality, Lateral: n.Lateral, RowsFrom: len(n.Calls) > 1, Pos: n.Pos}, ns)
 	case *parser.DerivedQuery:
 		root := viewDerivedAt(viewFromRoot(v.query.Root), n.Query)
 		if root == nil {
 			return viewRenderFrom{}, fmt.Errorf("stuntgres: missing frozen derived query")
 		}
-		text, err := v.selectQuerySQL(ctx, catalog, n.Query, v.queries[n.Query])
+		text, err := v.selectQuerySQL(ctx, catalogView, n.Query, v.queries[n.Query])
 		if err != nil {
 			return viewRenderFrom{}, err
 		}
@@ -431,7 +431,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog catalog.Read, 
 		return aliased, nil
 	case *parser.ValuesQuery:
 		ordinal := ns.ordinal
-		text, err := v.valuesSQL(ctx, catalog, n, ordinal)
+		text, err := v.valuesSQL(ctx, catalogView, n, ordinal)
 		if err != nil {
 			return viewRenderFrom{}, err
 		}
@@ -447,7 +447,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog catalog.Read, 
 		return aliased, nil
 	case *parser.TableReference:
 		if root := viewCTETable(viewFromRoot(v.query.Root), n); root != nil {
-			name := quoteIdentifier(n.Name.Parts[0].Text)
+			name := catalog.QuoteIdentifier(n.Name.Parts[0].Text)
 			from := viewRenderFrom{text: name, relation: name, root: root}
 			for i, column := range root.Schema() {
 				from.columns = append(from.columns, viewRenderColumn{name: column.Name, slot: i})
@@ -461,7 +461,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog catalog.Read, 
 			return viewRenderFrom{}, fmt.Errorf("stuntgres: invalid view source occurrence")
 		}
 		leaf := v.sources[occurrence]
-		d, ok := catalog.Relation(leaf.ref.Address)
+		d, ok := catalogView.Relation(leaf.ref.Address)
 		if !ok {
 			return viewRenderFrom{}, ids.ErrCatalogReplaced
 		}
@@ -474,11 +474,11 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog catalog.Read, 
 			frozen[c.attribute] = c
 		}
 		if v.simple {
-			name := relationDiagnosticNameAt(catalog, d, v.presentation.path)
+			name := relationDiagnosticNameAt(catalogView, d, v.presentation.path)
 			if v.presentation.output.QuoteAllIdentifiers {
 				name = v.presentation.identifier(d.Name())
-				if !relationVisibleAt(catalog, d, v.presentation.path) {
-					name = v.presentation.identifier(catalog.Get(d.Namespace()).Name()) + "." + name
+				if !relationVisibleAt(catalogView, d, v.presentation.path) {
+					name = v.presentation.identifier(catalogView.Get(d.Namespace()).Name()) + "." + name
 				}
 			}
 			if leaf.only {
@@ -505,11 +505,11 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog catalog.Read, 
 		if v.functionSources {
 			if v.presentation.output.QuoteAllIdentifiers {
 				from.relation = v.presentation.identifier(d.Name())
-				if !relationVisibleAt(catalog, d, v.presentation.path) {
-					from.relation = v.presentation.identifier(catalog.Get(d.Namespace()).Name()) + "." + from.relation
+				if !relationVisibleAt(catalogView, d, v.presentation.path) {
+					from.relation = v.presentation.identifier(catalogView.Get(d.Namespace()).Name()) + "." + from.relation
 				}
 			} else {
-				from.relation = relationDiagnosticNameAt(catalog, d, v.presentation.path)
+				from.relation = relationDiagnosticNameAt(catalogView, d, v.presentation.path)
 			}
 			if leaf.only {
 				from.relation = "ONLY " + from.relation
@@ -529,9 +529,9 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog catalog.Read, 
 			v.slots[root] = from.slots
 			return from, nil
 		}
-		from.relation = quoteIdentifier(catalog.Get(d.Namespace()).Name()) + "." + quoteIdentifier(d.Name())
+		from.relation = catalog.QuoteIdentifier(catalogView.Get(d.Namespace()).Name()) + "." + catalog.QuoteIdentifier(d.Name())
 		if v.presentation.deparse && v.presentation.pretty && !v.presentation.output.QuoteAllIdentifiers {
-			from.relation = relationDiagnosticNameAt(catalog, d, v.presentation.path)
+			from.relation = relationDiagnosticNameAt(catalogView, d, v.presentation.path)
 		}
 		if leaf.only {
 			from.relation = "ONLY " + from.relation
@@ -549,13 +549,13 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog catalog.Read, 
 		alias := v.namespaceAlias(ns)
 		aliased := v.aliasFrom(from, ns, alias)
 		if v.rowTargets != nil {
-			aliased.rowTargetSQL = quoteIdentifier(alias)
+			aliased.rowTargetSQL = catalog.QuoteIdentifier(alias)
 		}
 		// A surrounding table alias replaces this default, not nests it.
 		aliased.relation = from.relation
 		return aliased, nil
 	case *parser.AliasReference:
-		from, err := v.renderFromSQL(ctx, catalog, n.Input)
+		from, err := v.renderFromSQL(ctx, catalogView, n.Input)
 		if err != nil {
 			return viewRenderFrom{}, err
 		}
@@ -568,7 +568,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog catalog.Read, 
 		}
 		if v.rowTargets != nil && from.rowSource {
 			from.rowTarget = n.Name.Text
-			from.rowTargetSQL = quoteIdentifier(n.Name.Text)
+			from.rowTargetSQL = catalog.QuoteIdentifier(n.Name.Text)
 		}
 		aliasName := n.Name.Text
 		if aliasName == "" {
@@ -597,7 +597,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog catalog.Read, 
 				}
 			}
 		}
-		left, err := v.fromSQL(ctx, catalog, n.Left)
+		left, err := v.fromSQL(ctx, catalogView, n.Left)
 		if err != nil {
 			return viewRenderFrom{}, err
 		}
@@ -616,7 +616,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog catalog.Read, 
 		}
 		// Frozen column occurrences retain their original full FROM-frame slots.
 		// Execution-only P/L normalization must not replace that public mapping.
-		right, err := v.fromSQL(ctx, catalog, n.Right)
+		right, err := v.fromSQL(ctx, catalogView, n.Right)
 		if err != nil {
 			return viewRenderFrom{}, err
 		}
@@ -651,7 +651,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog catalog.Read, 
 			}
 		}
 		if n.On != nil {
-			on, err := v.expressionSQL(ctx, catalog, n.On, viewLiteralPath{clause: viewJoinLiteral, target: ordinal})
+			on, err := v.expressionSQL(ctx, catalogView, n.On, viewLiteralPath{clause: viewJoinLiteral, target: ordinal})
 			if err != nil {
 				return viewRenderFrom{}, err
 			}
@@ -665,18 +665,18 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog catalog.Read, 
 		} else if len(ns.keys) > 0 {
 			keys := make([]string, len(ns.keys))
 			for i, key := range ns.keys {
-				keys[i] = quoteIdentifier(key)
+				keys[i] = catalog.QuoteIdentifier(key)
 				c := ns.columns[i]
 				from.columns = append(from.columns, viewRenderColumn{name: key, slot: c.slot})
 				// A synthetic merged value is recreated by USING's implicit
 				// common-type binder, never an unsupported explicit cast.
 				if c.slot >= bound.leftWidth+bound.rightWidth {
-					from.slots[c.slot] = quoteIdentifier(usingAlias) + "." + quoteIdentifier(key)
+					from.slots[c.slot] = catalog.QuoteIdentifier(usingAlias) + "." + catalog.QuoteIdentifier(key)
 				}
 			}
 			from.text = "(" + left.text + joinText + right.text + " USING (" + strings.Join(keys, ", ") + ")"
 			if usingAlias != "" {
-				from.text += " AS " + quoteIdentifier(usingAlias)
+				from.text += " AS " + catalog.QuoteIdentifier(usingAlias)
 			}
 			from.text += ")"
 		} else {

@@ -78,7 +78,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 		return err
 	}
 	namespace := auth.Catalog.Get(ns.Address).Name()
-	declaration := dependencyIdentifier(namespace) + "." + dependencyIdentifier(name)
+	declaration := catalog.DependencyIdentifier(namespace) + "." + catalog.DependencyIdentifier(name)
 	hasChecks := false
 	for _, constraint := range s.Constraints {
 		hasChecks = hasChecks || constraint.Check != nil
@@ -149,28 +149,6 @@ func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, st
 	}
 	stage.dependencyPath, _ = e.referencePath(auth)
 	return nil
-}
-
-func typeDiagnosticNameAt(view catalog.Read, d *catalog.Type, path []ids.ObjectAddress) string {
-	if d.SQLType.IsArray() {
-		element, ok := view.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
-		if ok {
-			return typeDiagnosticNameAt(view, element.(*catalog.Type), path) + "[]"
-		}
-	}
-	name := dependencyIdentifier(d.Name())
-	if path == nil {
-		return name
-	}
-	for _, ns := range path {
-		if address, ok := view.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns, Name: d.Name()}); ok {
-			if address == d.Address() {
-				return name
-			}
-			break
-		}
-	}
-	return dependencyIdentifier(view.Get(d.Namespace()).Name()) + "." + name
 }
 
 func validateTypeProviders(view catalog.Read, d catalog.Descriptor) error {

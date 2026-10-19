@@ -578,7 +578,7 @@ func (provider *dropProvider) removeObjectLocked(ref ids.ObjectRef, namespace bo
 			return err
 		}
 	case *catalog.Tablespace:
-		return sqlError("2BP01", "cannot drop tablespace "+dependencyIdentifier(d.Name())+" because it is required by the database system")
+		return sqlError("2BP01", "cannot drop tablespace "+catalog.DependencyIdentifier(d.Name())+" because it is required by the database system")
 	default:
 		return fmt.Errorf("stuntgres: only user relations can be removed")
 	}

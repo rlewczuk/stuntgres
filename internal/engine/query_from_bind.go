@@ -553,7 +553,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			dependent = true
 		}
 		if dependent && (n.Kind == parser.JoinRight || n.Kind == parser.JoinFull) {
-			e := expr.ErrorAt("42P10", "invalid reference to FROM-clause entry for table "+quoteIdentifier(forbidden.name), forbidden.pos).(*sqlstate.Error)
+			e := expr.ErrorAt("42P10", "invalid reference to FROM-clause entry for table "+catalog.QuoteIdentifier(forbidden.name), forbidden.pos).(*sqlstate.Error)
 			e.Detail = "The combining JOIN type must be INNER or LEFT for a LATERAL reference."
 			return nil, queryNamespace{}, e
 		}

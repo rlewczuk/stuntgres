@@ -47,7 +47,7 @@ func (r *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog catalo
 	return prefix + text, nil
 }
 
-func (r *viewRenderer) withClauseSQL(ctx context.Context, catalog catalog.Read, raw []parser.CommonTableExpression, recursive bool, bodyRenderer ...func(parser.Statement) (string, error)) (string, error) {
+func (r *viewRenderer) withClauseSQL(ctx context.Context, catalogView catalog.Read, raw []parser.CommonTableExpression, recursive bool, bodyRenderer ...func(parser.Statement) (string, error)) (string, error) {
 	var definitions []string
 	for _, definition := range raw {
 		var body string
@@ -63,16 +63,16 @@ func (r *viewRenderer) withClauseSQL(ctx context.Context, catalog catalog.Read, 
 			if child == nil {
 				return "", fmt.Errorf("stuntgres: missing retained WITH body")
 			}
-			body, err = r.selectQueryColumnsSQL(ctx, catalog, selection, child, child.Schema(), false)
+			body, err = r.selectQueryColumnsSQL(ctx, catalogView, selection, child, child.Schema(), false)
 		}
 		if err != nil {
 			return "", err
 		}
-		name := quoteIdentifier(definition.Name.Text)
+		name := catalog.QuoteIdentifier(definition.Name.Text)
 		if len(definition.Columns) != 0 {
 			labels := make([]string, len(definition.Columns))
 			for i, column := range definition.Columns {
-				labels[i] = quoteIdentifier(column.Text)
+				labels[i] = catalog.QuoteIdentifier(column.Text)
 			}
 			name += "(" + strings.Join(labels, ", ") + ")"
 		}
@@ -87,37 +87,37 @@ func (r *viewRenderer) withClauseSQL(ctx context.Context, catalog catalog.Read, 
 		if search := definition.Search; search != nil {
 			keys := make([]string, len(search.Keys))
 			for i, key := range search.Keys {
-				keys[i] = quoteIdentifier(key.Text)
+				keys[i] = catalog.QuoteIdentifier(key.Text)
 			}
 			mode := "DEPTH"
 			if search.Breadth {
 				mode = "BREADTH"
 			}
-			suffix = " SEARCH " + mode + " FIRST BY " + strings.Join(keys, ", ") + " SET " + quoteIdentifier(search.Sequence.Text)
+			suffix = " SEARCH " + mode + " FIRST BY " + strings.Join(keys, ", ") + " SET " + catalog.QuoteIdentifier(search.Sequence.Text)
 		}
 		if cycle := definition.Cycle; cycle != nil {
 			keys := make([]string, len(cycle.Keys))
 			for i, key := range cycle.Keys {
-				keys[i] = quoteIdentifier(key.Text)
+				keys[i] = catalog.QuoteIdentifier(key.Text)
 			}
-			suffix += " CYCLE " + strings.Join(keys, ", ") + " SET " + quoteIdentifier(cycle.Mark.Text)
+			suffix += " CYCLE " + strings.Join(keys, ", ") + " SET " + catalog.QuoteIdentifier(cycle.Mark.Text)
 			if cycle.Value != nil {
 				project := r.queries[definition.Query.(*parser.Select)]
 				union, ok := viewFromRoot(project).(*recursiveUnionNode)
 				if !ok || union.cycle == nil {
 					return "", fmt.Errorf("stuntgres: missing stored cycle recipe")
 				}
-				value, err := cycleConstantSQL(catalog, cycle.Value, union.cycle.typedConstants[0])
+				value, err := cycleConstantSQL(catalogView, cycle.Value, union.cycle.typedConstants[0])
 				if err != nil {
 					return "", err
 				}
-				fallback, err := cycleConstantSQL(catalog, cycle.Default, union.cycle.typedConstants[1])
+				fallback, err := cycleConstantSQL(catalogView, cycle.Default, union.cycle.typedConstants[1])
 				if err != nil {
 					return "", err
 				}
 				suffix += " TO " + value + " DEFAULT " + fallback
 			}
-			suffix += " USING " + quoteIdentifier(cycle.Path.Text)
+			suffix += " USING " + catalog.QuoteIdentifier(cycle.Path.Text)
 		}
 		definitions = append(definitions, name+" AS "+hint+"("+body+")"+suffix)
 	}

@@ -53,7 +53,7 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 	}
 	identifier := (pgRenderer{output: presentation.output}).identifier
 	if presentation.dump {
-		identifier = quoteIdentifier
+		identifier = catalog.QuoteIdentifier
 	}
 	schema := view.Get(parent.Namespace()).Name()
 	if !presentation.dump && parent.Namespace() == presentation.temporary {
@@ -141,7 +141,7 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 		if presented.ExplicitClass {
 			sql.WriteByte(' ')
 			if presentation.dump {
-				sql.WriteString(quoteIdentifier("pg_catalog") + ".")
+				sql.WriteString(catalog.QuoteIdentifier("pg_catalog") + ".")
 			}
 			sql.WriteString(identifier(presented.Class.Name))
 		}

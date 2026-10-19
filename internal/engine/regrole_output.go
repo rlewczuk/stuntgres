@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
 )
 
@@ -27,7 +28,7 @@ func (r capturedRegroleOutput) FormatRegrole(id uint32) (string, error) {
 		return strconv.FormatUint(uint64(id), 10), nil
 	}
 	if r.quoteAll {
-		return quoteIdentifier(role.Name), nil
+		return catalog.QuoteIdentifier(role.Name), nil
 	}
 	return regclassIdentifier(role.Name), nil
 }

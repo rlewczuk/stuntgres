@@ -173,7 +173,7 @@ func regclassSpellingAt(view catalog.Read, reader definitionReader, path []ids.O
 
 func regclassIdentifier(name string) string {
 	if parser.IdentifierNeedsQuotes(name) {
-		return quoteIdentifier(name)
+		return catalog.QuoteIdentifier(name)
 	}
 	return name
 }

@@ -43,7 +43,7 @@ func compositeDumpStatement(ctx context.Context, view catalog.Read, roles author
 	}
 	namespace := view.Get(relation.Namespace()).Name()
 	var sql strings.Builder
-	sql.WriteString("CREATE TYPE " + quoteIdentifier(namespace) + "." + quoteIdentifier(relation.Name()) + " AS (")
+	sql.WriteString("CREATE TYPE " + catalog.QuoteIdentifier(namespace) + "." + catalog.QuoteIdentifier(relation.Name()) + " AS (")
 	for i, c := range relation.Columns {
 		if err := ctx.Err(); err != nil {
 			return dumpDomain{}, err
@@ -55,7 +55,7 @@ func compositeDumpStatement(ctx context.Context, view catalog.Read, roles author
 		if err != nil {
 			return dumpDomain{}, err
 		}
-		sql.WriteString(quoteIdentifier(c.Name) + " " + declaration)
+		sql.WriteString(catalog.QuoteIdentifier(c.Name) + " " + declaration)
 		if c.Usage.Collation != c.Usage.Type.Usage().Collation {
 			name := collationSQLName(view, c.Usage.Collation.ID)
 			if name == "" {

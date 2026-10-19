@@ -29,7 +29,7 @@ func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*cat
 func standaloneComposite(view catalog.Read, typ *catalog.Type, path []ids.ObjectAddress) (*catalog.Relation, error) {
 	name := typ.SQLType.DiagnosticName()
 	if typ.SQLType.IsUserDefined() {
-		name = typeDiagnosticNameAt(view, typ, path)
+		name = catalog.TypeDiagnosticNameAt(view, typ, path)
 	}
 	if !typ.SQLType.IsComposite() {
 		return nil, sqlError("42809", "type "+name+" is not a composite type")

@@ -46,7 +46,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalog.State
 			if exists && parent.Partition != nil && index.SQLIndex.Ready && index.SQLIndex.Live {
 				continue
 			}
-			return nil, 0, 0, fmt.Errorf("stuntgres: replacement cannot import invalid index %s", quoteIdentifier(index.Name()))
+			return nil, 0, 0, fmt.Errorf("stuntgres: replacement cannot import invalid index %s", catalog.QuoteIdentifier(index.Name()))
 		}
 	}
 	rowID, versionID := e.storage.RowFrontier(), e.storage.VersionFrontier()

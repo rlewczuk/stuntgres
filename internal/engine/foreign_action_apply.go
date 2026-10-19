@@ -395,9 +395,9 @@ func foreignActionQuery(job *foreignKeyJob, event foreignActionTransition, actio
 	} else {
 		q.WriteString("UPDATE ONLY ")
 	}
-	q.WriteString(quoteIdentifier(view.Get(job.child.Namespace()).Name()))
+	q.WriteString(catalog.QuoteIdentifier(view.Get(job.child.Namespace()).Name()))
 	q.WriteByte('.')
-	q.WriteString(quoteIdentifier(job.child.Name()))
+	q.WriteString(catalog.QuoteIdentifier(job.child.Name()))
 	offset := 0
 	if !deletion {
 		q.WriteString(" SET ")
@@ -409,7 +409,7 @@ func foreignActionQuery(job *foreignKeyJob, event foreignActionTransition, actio
 			if i != 0 {
 				q.WriteString(", ")
 			}
-			q.WriteString(quoteIdentifier(job.child.Columns[slices.Index(job.child.Attributes, a)].Name))
+			q.WriteString(catalog.QuoteIdentifier(job.child.Columns[slices.Index(job.child.Attributes, a)].Name))
 			q.WriteString(" = ")
 			switch action {
 			case parser.ForeignKeyCascade:
@@ -447,7 +447,7 @@ func foreignActionQuery(job *foreignKeyJob, event foreignActionTransition, actio
 			q.WriteString(pgIdentifier(parentInput.Name()))
 		}
 		q.WriteString(" OPERATOR(pg_catalog.=) ")
-		q.WriteString(quoteIdentifier(job.child.Columns[childSlot].Name))
+		q.WriteString(catalog.QuoteIdentifier(job.child.Columns[childSlot].Name))
 		if job.child.Columns[childSlot].Usage.Type != childInput {
 			q.WriteString("::")
 			q.WriteString(pgIdentifier(childInput.NamespaceName()))

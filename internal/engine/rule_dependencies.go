@@ -202,7 +202,7 @@ func ruleDependentLabelsFrom(view catalog.Read, targets []ids.ObjectAddress, pat
 					if observe != nil {
 						observe(d.Address())
 					}
-					dependents = append(dependents, supportedDependent{oid: r.OID, target: target, label: "rule " + dependencyIdentifier(r.Name) + " on " + relationDiagnosticKind(d) + " " + dependencyRelationName(view, d, path)})
+					dependents = append(dependents, supportedDependent{oid: r.OID, target: target, label: "rule " + catalog.DependencyIdentifier(r.Name) + " on " + relationDiagnosticKind(d) + " " + dependencyRelationName(view, d, path)})
 					break
 				}
 			}

@@ -86,7 +86,7 @@ func inheritedForeignKeyPrimary(target *catalog.Relation, foreign *catalog.Forei
 }
 
 func (table *dumpRelation) emitInheritedForeignKeys(view catalog.Read, emit func(string) error) error {
-	qualified := quoteIdentifier(table.schema) + "." + quoteIdentifier(table.name)
+	qualified := catalog.QuoteIdentifier(table.schema) + "." + catalog.QuoteIdentifier(table.name)
 	for i := range table.descriptor.Constraints.ForeignKeys {
 		foreign := &table.descriptor.Constraints.ForeignKeys[i]
 		if !inheritedForeignKeyDeferred(view, table.descriptor, foreign) {
@@ -97,7 +97,7 @@ func (table *dumpRelation) emitInheritedForeignKeys(view catalog.Read, emit func
 		if err != nil {
 			return err
 		}
-		if err := emit("ALTER TABLE ONLY " + qualified + " ADD CONSTRAINT " + quoteIdentifier(foreign.Name) + " " + text + ";\n"); err != nil {
+		if err := emit("ALTER TABLE ONLY " + qualified + " ADD CONSTRAINT " + catalog.QuoteIdentifier(foreign.Name) + " " + text + ";\n"); err != nil {
 			return err
 		}
 	}

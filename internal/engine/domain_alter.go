@@ -42,7 +42,7 @@ func (e *Engine) resolveAlterDomainLocked(auth AuthorizationView, name parser.Ob
 		}
 		if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
-				err = sqlError("42501", "must be owner of type "+typeDiagnosticNameAt(auth.Catalog, d, diagnosticPath))
+				err = sqlError("42501", "must be owner of type "+catalog.TypeDiagnosticNameAt(auth.Catalog, d, diagnosticPath))
 			}
 			return nil, ref, err
 		}

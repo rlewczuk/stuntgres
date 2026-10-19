@@ -78,7 +78,7 @@ func (r scalarRenderer) rendering(ctx context.Context, view catalog.Read, spec e
 			if arg.Label != "" {
 				label := arg.Label
 				if spec.LabelQuote != expr.QuoteVerbatim {
-					label = quoteIdentifier(label)
+					label = catalog.QuoteIdentifier(label)
 				}
 				parts[i] = label + " => " + parts[i]
 			}
@@ -99,7 +99,7 @@ func (r scalarRenderer) rendering(ctx context.Context, view catalog.Read, spec e
 		if spec.Namespace != "" {
 			namespace := pgIdentifier(spec.Namespace)
 			if replay.QuoteNamespace {
-				namespace = quoteIdentifier(spec.Namespace)
+				namespace = catalog.QuoteIdentifier(spec.Namespace)
 			}
 			op = "OPERATOR(" + namespace + "." + op + ")"
 		}

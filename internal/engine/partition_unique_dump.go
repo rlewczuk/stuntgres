@@ -88,7 +88,7 @@ func partitionVirtualUniqueDefinitionSQL(view catalog.Read, index *catalog.Relat
 		if partitionReplayOnlyExclusion(index) {
 			only = "ONLY "
 		}
-		return "ALTER TABLE " + only + quoteIdentifier(view.Get(table.Namespace()).Name()) + "." + quoteIdentifier(table.Name()) + " ADD CONSTRAINT " + quoteIdentifier(index.Name()) + " " + text + ";\n", nil
+		return "ALTER TABLE " + only + catalog.QuoteIdentifier(view.Get(table.Namespace()).Name()) + "." + catalog.QuoteIdentifier(table.Name()) + " ADD CONSTRAINT " + catalog.QuoteIdentifier(index.Name()) + " " + text + ";\n", nil
 	}
 	for _, constraint := range table.Constraints.Unique {
 		if constraint.Index != index.Address() {
@@ -98,7 +98,7 @@ func partitionVirtualUniqueDefinitionSQL(view catalog.Read, index *catalog.Relat
 		if err != nil {
 			return "", err
 		}
-		return "ALTER TABLE " + quoteIdentifier(view.Get(table.Namespace()).Name()) + "." + quoteIdentifier(table.Name()) + " ADD CONSTRAINT " + quoteIdentifier(constraint.Name) + " " + text + ";\n", nil
+		return "ALTER TABLE " + catalog.QuoteIdentifier(view.Get(table.Namespace()).Name()) + "." + catalog.QuoteIdentifier(table.Name()) + " ADD CONSTRAINT " + catalog.QuoteIdentifier(constraint.Name) + " " + text + ";\n", nil
 	}
 	return "", fmt.Errorf("stuntgres: missing virtual unique replay definition")
 }
@@ -152,7 +152,7 @@ func (r *partitionConstraintReplay) virtualUniqueRenames(view catalog.Read, inde
 	var sql strings.Builder
 	for _, rename := range renames {
 		target := r.temporary[rename.index.Address()]
-		sql.WriteString("ALTER INDEX " + quoteIdentifier(view.Get(rename.index.Namespace()).Name()) + "." + quoteIdentifier(rename.generated) + " RENAME TO " + quoteIdentifier(target) + ";\n")
+		sql.WriteString("ALTER INDEX " + catalog.QuoteIdentifier(view.Get(rename.index.Namespace()).Name()) + "." + catalog.QuoteIdentifier(rename.generated) + " RENAME TO " + catalog.QuoteIdentifier(target) + ";\n")
 		used := r.occupied[rename.index.Namespace()]
 		delete(used, rename.generated)
 		used[target] = true

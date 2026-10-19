@@ -16,7 +16,7 @@ func collationSeedDumpStatements(ctx context.Context, view catalog.Read, roles a
 	if catalogNamespace == nil {
 		return nil, fmt.Errorf("stuntgres: missing bootstrap collation namespace")
 	}
-	initialSchema := quoteIdentifier(catalogNamespace.Name())
+	initialSchema := catalog.QuoteIdentifier(catalogNamespace.Name())
 	type delta struct {
 		d                       *catalog.Collation
 		fixed, temporary, owner string
@@ -63,7 +63,7 @@ func collationSeedDumpStatements(ctx context.Context, view catalog.Read, roles a
 	var statements []string
 	for _, change := range changes {
 		if change.temporary != "" {
-			statements = append(statements, "ALTER COLLATION "+initialSchema+"."+quoteIdentifier(change.fixed)+" RENAME TO "+quoteIdentifier(change.temporary)+";\n")
+			statements = append(statements, "ALTER COLLATION "+initialSchema+"."+catalog.QuoteIdentifier(change.fixed)+" RENAME TO "+catalog.QuoteIdentifier(change.temporary)+";\n")
 		}
 	}
 	for _, change := range changes {
@@ -71,16 +71,16 @@ func collationSeedDumpStatements(ctx context.Context, view catalog.Read, roles a
 			continue
 		}
 		ns := view.Get(change.d.Namespace())
-		from := initialSchema + "." + quoteIdentifier(change.temporary)
+		from := initialSchema + "." + catalog.QuoteIdentifier(change.temporary)
 		if change.d.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
-			statements = append(statements, "ALTER COLLATION "+from+" SET SCHEMA "+quoteIdentifier(ns.Name())+";\n")
-			from = quoteIdentifier(ns.Name()) + "." + quoteIdentifier(change.temporary)
+			statements = append(statements, "ALTER COLLATION "+from+" SET SCHEMA "+catalog.QuoteIdentifier(ns.Name())+";\n")
+			from = catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(change.temporary)
 		}
-		statements = append(statements, "ALTER COLLATION "+from+" RENAME TO "+quoteIdentifier(change.d.Name())+";\n")
+		statements = append(statements, "ALTER COLLATION "+from+" RENAME TO "+catalog.QuoteIdentifier(change.d.Name())+";\n")
 	}
 	for _, change := range changes {
 		if change.owner != "postgres" || change.d.Owner.ID() != authorization.BootstrapPrincipalID {
-			statements = append(statements, "ALTER COLLATION "+collationSQLName(view, uint32(change.d.OID))+" OWNER TO "+quoteIdentifier(change.owner)+";\n")
+			statements = append(statements, "ALTER COLLATION "+collationSQLName(view, uint32(change.d.OID))+" OWNER TO "+catalog.QuoteIdentifier(change.owner)+";\n")
 		}
 	}
 	return statements, nil

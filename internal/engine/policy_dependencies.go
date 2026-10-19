@@ -36,7 +36,7 @@ func policyDependentLabelsFrom(view catalog.Read, targets []ids.ObjectAddress, p
 		for _, p := range d.Security.Policies {
 			for _, target := range targets {
 				if policyDepends(p, target) {
-					dependents = append(dependents, supportedDependent{oid: p.OID, target: target, label: "policy " + dependencyIdentifier(p.Name) + " on table " + dependencyRelationName(view, d, path)})
+					dependents = append(dependents, supportedDependent{oid: p.OID, target: target, label: "policy " + catalog.DependencyIdentifier(p.Name) + " on table " + dependencyRelationName(view, d, path)})
 					break
 				}
 			}
@@ -121,7 +121,7 @@ func policyTypeChangeError(view catalog.Read, target ids.ObjectAddress) error {
 					break
 				}
 			}
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot alter type of a column used in a policy definition", Detail: fmt.Sprintf(`policy %s on table %s depends on column "%s"`, dependencyIdentifier(p.Name), dependencyIdentifier(owner.Name()), column)}
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot alter type of a column used in a policy definition", Detail: fmt.Sprintf(`policy %s on table %s depends on column "%s"`, catalog.DependencyIdentifier(p.Name), catalog.DependencyIdentifier(owner.Name()), column)}
 		}
 	}
 	return nil

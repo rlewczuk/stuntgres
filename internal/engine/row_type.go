@@ -117,7 +117,7 @@ func (e *Engine) stageRowTypeLocked(stage *CatalogStage, relation *catalog.Relat
 	if ns == nil {
 		ns = stage.Base.Get(relation.Namespace())
 	}
-	declaration := dependencyIdentifier(ns.Name()) + "." + dependencyIdentifier(relation.Name())
+	declaration := catalog.DependencyIdentifier(ns.Name()) + "." + catalog.DependencyIdentifier(relation.Name())
 	typ, err := sqltype.Composite(sqltype.ID(id), relation.Name(), declaration, sqltype.ID(arrayID), compositeMembers(relation))
 	if err != nil {
 		return err
@@ -189,7 +189,7 @@ func synchronizeRowTypeMetadata(relation *catalog.Relation, row *catalog.Type, d
 	} else if row.SQLType.IsComposite() {
 		ns := descriptor(relation.Namespace())
 		var err error
-		next.SQLType, err = sqltype.Composite(row.SQLType.ID(), relation.Name(), dependencyIdentifier(ns.Name())+"."+dependencyIdentifier(relation.Name()), row.Array, compositeMembers(relation))
+		next.SQLType, err = sqltype.Composite(row.SQLType.ID(), relation.Name(), catalog.DependencyIdentifier(ns.Name())+"."+catalog.DependencyIdentifier(relation.Name()), row.Array, compositeMembers(relation))
 		if err != nil {
 			return err
 		}

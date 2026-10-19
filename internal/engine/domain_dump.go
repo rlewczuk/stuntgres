@@ -131,7 +131,7 @@ func catalogTypeDeclarationAt(view catalog.Read, reader definitionReader, u sqlt
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing domain namespace")
 	}
-	return quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(descriptor.Name()), nil
+	return catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(descriptor.Name()), nil
 }
 
 // Column declarations retain syntactic rank separately from array type identity.
@@ -152,7 +152,7 @@ func catalogColumnDeclaration(view catalog.Read, column catalog.Column) (string,
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing array declaration namespace")
 	}
-	alias := quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(descriptor.Name())
+	alias := catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(descriptor.Name())
 	if column.Usage.Typmod >= 0 {
 		if column.Usage.Type.Element().ID() == sqltype.Interval {
 			rangeMask, precision := column.Usage.Typmod>>16, column.Usage.Typmod&0xffff
@@ -209,7 +209,7 @@ func domainDumpStatement(ctx context.Context, view catalog.Read, roles authoriza
 			if !exists {
 				return dumpDomain{}, fmt.Errorf("stuntgres: missing domain replay array namespace")
 			}
-			declaration = quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(key.Name)
+			declaration = catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(key.Name)
 		} else {
 			declaration = strings.TrimSuffix(declaration, "[]") + strings.Repeat("[]", int(d.Dimensions))
 		}

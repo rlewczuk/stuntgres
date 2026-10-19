@@ -238,7 +238,7 @@ func TestTemporaryTableIndexDefinitionOwnNamespace(t *testing.T) {
 	presentation.dump = true
 	actual, err = indexDefinitionSQL(context.Background(), view, own, presentation)
 	physicalNamespace := view.Get(own.Namespace()).Name()
-	expectedPrefix := "CREATE INDEX " + quoteIdentifier("deparse_owner_index") + " ON " + quoteIdentifier(physicalNamespace) + "." + quoteIdentifier("deparse_owner_table") + " USING "
+	expectedPrefix := "CREATE INDEX " + catalog.QuoteIdentifier("deparse_owner_index") + " ON " + catalog.QuoteIdentifier(physicalNamespace) + "." + catalog.QuoteIdentifier("deparse_owner_table") + " USING "
 	if err != nil || !strings.HasPrefix(actual, expectedPrefix) {
 		t.Fatal("context-free dump acquired alias", actual, expectedPrefix, err)
 	}

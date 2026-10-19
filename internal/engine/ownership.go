@@ -306,13 +306,13 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 		return fail(sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(s.Name))))
 	}
 	diagnosticPath, _ := e.referencePath(auth)
-	display := typeDiagnosticNameAt(auth.Catalog, old, diagnosticPath)
+	display := catalog.TypeDiagnosticNameAt(auth.Catalog, old, diagnosticPath)
 	if s.Kind == "domain" && !old.SQLType.IsDomain() {
 		return fail(sqlError("42809", display+" is not a domain"))
 	}
 	if old.SQLType.IsArray() {
 		element := auth.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.SQLType.Element().ID())})
-		elementName := typeDiagnosticNameAt(auth.Catalog, element, diagnosticPath)
+		elementName := catalog.TypeDiagnosticNameAt(auth.Catalog, element, diagnosticPath)
 		return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: "cannot alter array type " + display, Hint: "You can alter type " + elementName + ", which will alter the array type as well."})
 	}
 	if old.OwningRelation != (ids.ObjectAddress{}) {
