@@ -19,9 +19,25 @@ independently expected fresh nonnull values in both directions, NULL/reuse and
 all available input formats. Canonical projected/roundtrip values are asserted,
 not merely nonnullness. Eighty-five source identities have distinct alternates;
 VOID has its unique empty nonnull value and no fabricated alternate.
+Every denied cell asserts its complete typed diagnostic.
 Compatible effective-path changes use named extended SET traffic, preserving
-even unnamed comparison handles; denied cells retain original typed diagnostics
-under both paths. SimpleQuery SET would destroy the unnamed PostgreSQL statement.
+even unnamed comparison handles. SimpleQuery SET would destroy the unnamed
+PostgreSQL statement.
+
+Statement-lifecycle checks do not depend on the operator spelling, so they run
+once per ordered source pair rather than for all seven spellings. The pair's
+first denied spelling proves that a failed named Parse leaves no handle and
+that the diagnostics survive the path change. Its first admitted spelling
+repeats the full value flow under a named statement; the other spellings use
+the unnamed statement. Every admitted cell still checks re-analysis after the
+path change.
+
+One server fixture serves the whole matrix, with a fresh session for each left
+source. Each pair's denied cells, and each admitted cell, are sent as one
+pipeline of Sync-terminated groups. Each response is checked in order, so the
+server sees the same message sequence as with one round trip per group.
+On 2026-10-19 this cut the matrix from 72 s to 14 s in quick mode. Before that
+it used 86 fixtures, about 725,000 round trips and 59,000 subtests.
 
 ```sh
 make check RUN='^TestReferenceServerComparisonWireMatrix$' REFERENCE=1
@@ -765,8 +781,18 @@ AbortedDescribe, FailedPortalIdentity, UnnamedCreationFastPaths, CopyCancelInput
 CopyCancelTerminal and the existing cancellation/persistence/restored-grants/daemon/
 output/pipeline/fatal selectors. Race-enabled fixtures also
 build the actual subprocess server with `-race`; instrumenting only the parent test process
-would not prove server goroutine safety. Required psql, Docker or pinned-image
-failures fail visibly, never skip or fall back. Mechanical CLI/verifier/framing/
+would not prove server goroutine safety. The fixture also builds that server with
+the test-only `stuntgres_reduced_kdf` tag and writes matching `i=4096` verifiers,
+once per test process. Every native login otherwise spends a 600000-iteration
+PBKDF2 (~70 ms), which dominated this package's CPU time. To exercise the
+production cost, add the `productionkdf` tag to the test build:
+
+```sh
+go test -count=1 -tags productionkdf -run '^TestReferenceServer' ./reference/sessions/
+```
+
+Required psql, Docker or pinned-image failures fail visibly, never skip or fall
+back. Mechanical CLI/verifier/framing/
 PID/terminal/file-permission tests stay in `cmd/stuntgres`, without public SQL.
 Non-Linux foreground builds and Windows DACL tests require their platform runners
 for runtime proof; a cross-build alone establishes compilation, not ACL behavior.

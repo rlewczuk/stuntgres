@@ -64,6 +64,13 @@ socket-free PID-conflict subprocess; it must fail if acquisition unexpectedly
 succeeds. Process launches retain their10-second context and5-second readiness
 bound with owned cancellation/kill/join cleanup.
 
+The userfile's PBKDF2-SHA256 cost is set by build tag. Production builds and
+this package's tests always use 600000 iterations (`password_cost.go`).
+`stuntgres_reduced_kdf` (`password_cost_reduced.go`) lowers it to 4096. Such a
+binary writes and accepts only `i=4096` verifiers. Only the reference server
+fixture sets this test-only tag, so that each login stays cheap; never set it
+for a distributed binary.
+
 `TestServerProtocolFraming` exercises per-tag bounds, tiny fulfilled prefixes
 under large length announcements, unknown tags before body parsing and bounded
 receive primitives. `TestServerProtocolCancellation` checks full-key matching,

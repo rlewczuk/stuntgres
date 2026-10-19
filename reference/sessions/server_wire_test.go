@@ -3,6 +3,7 @@
 package reference_test
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/hmac"
 	"crypto/md5"
@@ -27,11 +28,25 @@ type serverFrame struct {
 }
 type serverWire struct {
 	net.Conn
+	in       *bufio.Reader
 	pid      uint32
 	key      []byte
 	protocol uint32
 	statuses map[string]string
 }
+
+// Read buffers frames instead of issuing two socket reads per frame. The
+// buffer always pulls from the current Conn, so tests may wrap or replace it.
+func (w *serverWire) Read(p []byte) (int, error) {
+	if w.in == nil {
+		w.in = bufio.NewReader(serverWireSource{w})
+	}
+	return w.in.Read(p)
+}
+
+type serverWireSource struct{ w *serverWire }
+
+func (s serverWireSource) Read(p []byte) (int, error) { return s.w.Conn.Read(p) }
 
 func serverPut32(b []byte, n uint32) []byte { return binary.BigEndian.AppendUint32(b, n) }
 func serverPacket(tag byte, body []byte) []byte {
