@@ -213,7 +213,8 @@ func newEngine(providers []catalog.Provider, definitions []SettingDefinition, da
 			return nil, err
 		}
 	}
-	e.catalog.state = catalog.NewState(1)
+	types := sqltype.Builtins()
+	e.catalog.state = catalog.NewStateSized(1, builtinCatalogCapacity(len(types)))
 	for _, ns := range []struct {
 		oid  ids.OID
 		name string
@@ -233,7 +234,7 @@ func newEngine(providers []catalog.Provider, definitions []SettingDefinition, da
 		e.catalog.state.SetDescriptor(d.Address(), d)
 		e.catalog.state.BindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.Name()}, d.Address())
 	}
-	for _, typ := range sqltype.Builtins() {
+	for _, typ := range types {
 		d := &catalog.Type{SQLType: typ, Comment: builtinTypeComment(typ.ID()), Array: typ.AssociatedArray(), Owner: e.roles.domain.Principal(authorization.BootstrapPrincipalID)}
 		if typ.IsDomain() && typ.Concrete() {
 			d.ObjectRevision = 1
@@ -264,7 +265,7 @@ func newEngine(providers []catalog.Provider, definitions []SettingDefinition, da
 		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
 	e.initializeOperators()
-	e.catalog.state.SetProcedureNames(catalog.RebuildProcedureNames(e.catalog.state.Descriptors()))
+	e.seedProcedureNames()
 	e.initializeDatabase(database)
 	if err := e.initializeBuiltinDomainChecks(); err != nil {
 		return nil, err
@@ -272,15 +273,8 @@ func newEngine(providers []catalog.Provider, definitions []SettingDefinition, da
 	if err := e.initializeCatalogSources(); err != nil {
 		return nil, err
 	}
-	view := e.catalog.read(e.catalog.state)
-	for _, d := range e.catalog.state.Descriptors() {
-		p := e.catalog.Provider(d.Address().ClassID)
-		if p == nil {
-			return nil, fmt.Errorf("stuntgres: missing catalog provider for built-in %q (class %d)", d.Name(), d.Address().ClassID)
-		}
-		if err := p.Validate(view, d); err != nil {
-			return nil, fmt.Errorf("stuntgres: invalid built-in catalog descriptor %q (class %d): %w", d.Name(), d.Address().ClassID, err)
-		}
+	if err := e.validateSeed(); err != nil {
+		return nil, err
 	}
 	return e, nil
 }
