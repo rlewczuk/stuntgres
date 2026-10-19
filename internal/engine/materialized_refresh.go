@@ -14,7 +14,7 @@ import (
 
 func materializedRefreshAccess(auth AuthorizationView, ref ids.ObjectRef) error {
 	d, ok := auth.catalog.Relation(ref.Address)
-	if !ok || ref.Domain() != auth.engine.catalog.Domain || ref.Epoch != auth.catalog.Epoch() {
+	if !ok || ref.Domain() != auth.owner.Domain || ref.Epoch != auth.catalog.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	if d.RelationKind != catalog.TableRelation && d.RelationKind != catalog.PartitionedRelation && d.RelationKind != catalog.MaterializedViewRelation {

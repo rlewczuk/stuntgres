@@ -55,7 +55,7 @@ func TestDataTypePrivilegesCapture(t *testing.T) {
 		}
 	}
 	for _, change := range []func(*AuthorizationView){
-		func(a *AuthorizationView) { a.engine = New() },
+		func(a *AuthorizationView) { a.owner = New().catalog.owner() },
 		func(a *AuthorizationView) { a.roleRecord = nil },
 		func(a *AuthorizationView) { a.pairedCatalog = catalog.Read{} },
 		func(a *AuthorizationView) { a.roles = New().roles.published.root.Read(authorization.PrincipalRef{}) },

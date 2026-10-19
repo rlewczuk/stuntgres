@@ -134,7 +134,7 @@ func bindForeignKeyComparison(view catalog.Read, child, parent, index *catalog.R
 }
 
 func foreignKeyReferencesAllowed(auth AuthorizationView, parent *catalog.Relation, attributes []int32) error {
-	ref := auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), parent.Address())
+	ref := auth.Ref(parent.Address())
 	rights, err := auth.Effective(ref, false)
 	if err != nil {
 		return err
@@ -408,7 +408,7 @@ func foreignKeyDiagnostic(ctx context.Context, auth AuthorizationView, child, pa
 	for i, a := range attributes {
 		keys[i].Attribute = a
 	}
-	allowed, err := uniqueKeyDetailAllowed(auth, auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), violating.Address()), keys)
+	allowed, err := uniqueKeyDetailAllowed(auth, auth.Ref(violating.Address()), keys)
 	if err != nil {
 		return err
 	}

@@ -22,7 +22,7 @@ func parameterSetAllowed(op *Operation, name string) (bool, error) {
 	if address == (ids.ObjectAddress{}) {
 		return false, nil
 	}
-	ref := view.engine.catalog.Domain.Ref(view.catalog.Epoch(), address)
+	ref := view.Ref(address)
 	rights, err := view.Effective(ref, false)
 	return rights&authorization.SetPrivilege != 0, err
 }

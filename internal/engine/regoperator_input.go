@@ -113,7 +113,7 @@ func (r capturedOperatorInput) candidates(text string) ([]*catalog.Operator, err
 		if ns == (ids.ObjectAddress{}) {
 			return nil, nil
 		}
-		if err := r.types.auth.CanUse(r.types.auth.engine.catalog.Domain.Ref(r.types.auth.catalog.Epoch(), ns)); err != nil {
+		if err := r.types.auth.CanUse(r.types.auth.Ref(ns)); err != nil {
 			return nil, err
 		}
 		if r.qualified != nil && !slices.Contains(*r.qualified, ns) {

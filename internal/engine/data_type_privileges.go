@@ -44,7 +44,7 @@ func captureDataTypePrivileges(ctx context.Context, view catalog.Read, auth Auth
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if view.Owner() == nil || view.State() == nil || auth.engine.catalog.owner() != view.Owner() || auth.catalog != view || auth.roleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != dataTypePrivilegesOID || view.Get(ref.Address) != source {
+	if view.Owner() == nil || view.State() == nil || auth.owner != view.Owner() || auth.catalog != view || auth.roleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != dataTypePrivilegesOID || view.Get(ref.Address) != source {
 		return nil, fmt.Errorf("stuntgres: invalid data_type_privileges capture")
 	}
 	// Validate paired roles/catalog/ref even if the inventory contains only

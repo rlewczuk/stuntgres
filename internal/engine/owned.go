@@ -37,7 +37,7 @@ func ownedSources(auth AuthorizationView, specs []parser.RoleSpec, reassign bool
 			}
 			return nil, authorization.PrincipalRef{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: message, Detail: detail}
 		}
-		if (role.Predefined() || ref == auth.engine.roles.domain.Principal(authorization.BootstrapPrincipalID)) && protected == (authorization.PrincipalRef{}) {
+		if (role.Predefined() || ref == auth.owner.Principals.Principal(authorization.BootstrapPrincipalID)) && protected == (authorization.PrincipalRef{}) {
 			protected = ref
 		}
 		refs[ref] = true

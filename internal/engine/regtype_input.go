@@ -149,7 +149,7 @@ func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw par
 		if namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != r.token {
 			return 0, sqlError("42501", "permission denied for schema "+namespace.Name())
 		}
-		if err := r.auth.CanUse(r.auth.engine.catalog.Domain.Ref(r.auth.catalog.Epoch(), ns)); err != nil {
+		if err := r.auth.CanUse(r.auth.Ref(ns)); err != nil {
 			return 0, err
 		}
 		if r.qualified != nil && !slices.Contains(*r.qualified, ns) {
@@ -230,7 +230,7 @@ func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw par
 	if r.resolved != nil {
 		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())}
 		d, _ := r.auth.definitionDescriptor(address)
-		ref := r.auth.engine.catalog.Domain.Ref(r.auth.catalog.Epoch(), address)
+		ref := r.auth.Ref(address)
 		*r.resolved = append(*r.resolved, catalog.ExpressionDependency{Ref: ref, Revision: d.Revision()})
 	}
 	return uint32(typ.ID()), nil

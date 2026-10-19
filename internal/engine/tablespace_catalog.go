@@ -22,5 +22,5 @@ func resolveGrantTablespace(v AuthorizationView, name string) (ids.ObjectRef, er
 	if address == (ids.ObjectAddress{}) {
 		return ids.ObjectRef{}, sqlError("42704", fmt.Sprintf(`tablespace "%s" does not exist`, name))
 	}
-	return v.engine.catalog.Domain.Ref(v.catalog.Epoch(), address), nil
+	return v.Ref(address), nil
 }

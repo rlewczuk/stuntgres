@@ -381,7 +381,7 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 			if namespace.Temporary != (ids.SessionToken{}) && namespace.Temporary != r.token {
 				return 0, sqlError("42501", fmt.Sprintf("permission denied for schema %s", namespace.Name()))
 			}
-			if err := r.auth.CanUse(r.auth.engine.catalog.Domain.Ref(r.auth.catalog.Epoch(), ns)); err != nil {
+			if err := r.auth.CanUse(r.auth.Ref(ns)); err != nil {
 				return 0, err
 			}
 			path = []ids.ObjectAddress{ns}

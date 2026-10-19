@@ -12,7 +12,7 @@ import (
 
 func (g *indexMaintenanceGrant) collectPartitionIndexes(auth AuthorizationView, stmt parser.Statement) error {
 	add := func(index *catalog.Relation) {
-		ref := auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), index.Address())
+		ref := auth.Ref(index.Address())
 		if !slices.Contains(g.indexes, ref) {
 			g.indexes = append(g.indexes, ref)
 		}

@@ -22,7 +22,7 @@ func ownershipSuccessor(auth AuthorizationView, target authorization.PrincipalRe
 	return nil
 }
 func ownershipDatabaseCreate(auth AuthorizationView) error {
-	return auth.CheckCreate(auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), catalog.CurrentDatabaseAddress))
+	return auth.CheckCreate(auth.Ref(catalog.CurrentDatabaseAddress))
 }
 func ownershipEligibility(auth AuthorizationView, target authorization.PrincipalRef, namespace ids.ObjectAddress) error {
 	actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
@@ -40,7 +40,7 @@ func ownershipEligibility(auth AuthorizationView, target authorization.Principal
 	if namespace == (ids.ObjectAddress{}) {
 		return nil
 	}
-	return targetAuth.CheckCreate(auth.engine.catalog.Domain.Ref(auth.catalog.Epoch(), namespace))
+	return targetAuth.CheckCreate(auth.Ref(namespace))
 }
 func ownershipRoleOperand(spec parser.RoleSpec) (string, bool) {
 	switch spec.Identity {
