@@ -55,7 +55,10 @@ standard library, and never the engine or its sibling `functions`. The lower
 - **Write API** (`state_write.go`, setters in `state_access.go`). Only for a
   state that is still being built: the bootstrap seed, a clone
   (`CloneState`), a candidate's merged state or a replacement before
-  publication. `NewState` and `NewRead` construct.
+  publication. `NewState`, `NewStateSized` (a seed of known size) and
+  `NewRead` construct. `CloneState`, `Candidate.State` and the name-index
+  edits copy whole maps with `maps.Clone`, never by re-inserting entries:
+  every publication copies the full catalog, built-ins included.
 - **Owner and providers** (`owner.go`). `Owner` is the identity every `Read`
   of one engine carries: the provenance `ids.Domain`, the principal domain
   and ACL authority that stored values must belong to, the `Provider`
@@ -81,7 +84,8 @@ standard library, and never the engine or its sibling `functions`. The lower
   count for the negative-call fast path. It is not callable or ACL authority.
   `ProcedureIndexEdit` follows the existing operator COW precedent: detach the
   membership map and touched buckets once; metadata-only replacements share
-  unchanged membership. Writers apply edits on publication/private overlays;
+  unchanged membership. Both seeded indexes are shared read-only by every
+  engine in the process, so an index is never written in place. Writers apply edits on publication/private overlays;
   `Candidate.State` includes direct replacements and removals. Reset clears the
   index, and wholesale import/remapping rebuilds it before expression binders run.
   Binder definition readers enumerate the indexed base bucket plus only real

@@ -112,7 +112,18 @@ Five fresh-engine Ping/Close startup samples measured 318313–473804 ns/op,
 Tests used `-count=1`; compiler/module/image caches were not forced cold.
 The startup benchmark briefly overlapped the ordinary gate; subsequent suite
 gates were serialized. These single gate measurements and contended startup
-samples are not isolated performance attribution. Current whole-project commands
+samples are not isolated performance attribution.
+
+Startup measurement (2026-10-19, same machine, quiet): by then startup had
+grown to 1.82–1.96 ms/op, 9,175 allocs/op and 2.44 MB/op, because every engine
+seeds 2,942 built-in descriptors (777 on 2026-10-11) and startup plus every
+catalog publication did work proportional to that seed. After seeding and
+copying the catalog without per-entry rehashing and validating the seed once
+per process, five samples measured 845578–1016245 ns/op (four below 0.9 ms),
+5,152–5,159 allocs/op and about 1.66 MB/op. Startup timings on this shared
+machine inflate two to three times while other sessions run test suites, with
+unchanged allocation counts; check `uptime` and compare allocations before
+attributing a timing change to code. Current whole-project commands
 from the repository root (agents apply the external deadlines above) are:
 
 ```sh
