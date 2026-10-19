@@ -36,7 +36,7 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 					case "default":
 						p.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{3: {OID: 29003, Dependencies: []ids.ObjectRef{ref}}}
 					case "check":
-						p.CheckConstraints = []catalog.CheckConstraint{{OID: 29003, Name: "authority_check", Dependencies: []catalog.ExpressionDependency{{Ref: ref}}}}
+						p.Constraints.Check = []catalog.CheckConstraint{{OID: 29003, Name: "authority_check", Dependencies: []catalog.ExpressionDependency{{Ref: ref}}}}
 					}
 					c := inheritanceLifecycleTable(e, 29002, "authority_c", p.Address())
 					inheritanceLifecycleInstall(e, p, c)
@@ -72,7 +72,7 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 					if authority == "consumed" {
 						next := *p
 						next.Columns, next.Attributes, next.Index = p.Columns[1:], []int32{7}, map[string]int{"keep": 0}
-						next.ColumnMeta.Defaults, next.CheckConstraints = nil, nil
+						next.ColumnMeta.Defaults, next.Constraints.Check = nil, nil
 						if err := stage.Replace(&next); err != nil {
 							t.Fatal(err)
 						}
@@ -140,7 +140,7 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 						if !ok {
 							t.Fatal("standalone mutation not staged")
 						}
-						if definition == "column" && projected != 1 || definition == "default" && len(next.ColumnMeta.Defaults) != 0 || definition == "check" && len(next.CheckConstraints) != 0 {
+						if definition == "column" && projected != 1 || definition == "default" && len(next.ColumnMeta.Defaults) != 0 || definition == "check" && len(next.Constraints.Check) != 0 {
 							t.Fatal("dependent definition was not consumed")
 						}
 					}
@@ -170,8 +170,8 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 				p.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 29103, Dependencies: []ids.ObjectRef{ref}}}
 				c.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 29104, Dependencies: []ids.ObjectRef{ref}}}
 			} else {
-				p.CheckConstraints = []catalog.CheckConstraint{{OID: 29103, Name: "provider_check", Dependencies: []catalog.ExpressionDependency{{Ref: ref}}}}
-				c.CheckConstraints = []catalog.CheckConstraint{{OID: 29104, Name: "provider_check", Dependencies: []catalog.ExpressionDependency{{Ref: ref}}}}
+				p.Constraints.Check = []catalog.CheckConstraint{{OID: 29103, Name: "provider_check", Dependencies: []catalog.ExpressionDependency{{Ref: ref}}}}
+				c.Constraints.Check = []catalog.CheckConstraint{{OID: 29104, Name: "provider_check", Dependencies: []catalog.ExpressionDependency{{Ref: ref}}}}
 			}
 			inheritanceLifecycleInstall(e, q, p, c)
 			op, done := roleOperation(t, e, "postgres")
@@ -206,7 +206,7 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 			if !ok || next == p || len(next.Columns) != len(p.Columns) {
 				t.Fatal("retained parent definition mutation not staged")
 			}
-			if len(next.ColumnMeta.Defaults) != 0 || len(next.CheckConstraints) != 0 || inheritanceStageAlterGuard(stage, next) != nil {
+			if len(next.ColumnMeta.Defaults) != 0 || len(next.Constraints.Check) != 0 || inheritanceStageAlterGuard(stage, next) != nil {
 				t.Fatal("retained parent did not become standalone with consumed definition")
 			}
 			if e.catalog.state != base.State() || e.catalog.state.Get(q.Address()) != q || e.catalog.state.Get(p.Address()) != p || e.catalog.state.Get(c.Address()) != c || len(c.Inheritance.Parents) != 2 || c.Inheritance.Parents[0] != q.Address() || c.Inheritance.Parents[1] != p.Address() {
@@ -216,7 +216,7 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 				if p.ColumnMeta.Defaults[1].OID != 29103 || c.ColumnMeta.Defaults[1].OID != 29104 || p.ColumnMeta.Defaults[1].Dependencies[0] != ref {
 					t.Fatal("captured default authority changed")
 				}
-			} else if p.CheckConstraints[0].OID != 29103 || c.CheckConstraints[0].OID != 29104 || p.CheckConstraints[0].Dependencies[0].Ref != ref {
+			} else if p.Constraints.Check[0].OID != 29103 || c.Constraints.Check[0].OID != 29104 || p.Constraints.Check[0].Dependencies[0].Ref != ref {
 				t.Fatal("captured CHECK authority changed")
 			}
 		})

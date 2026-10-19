@@ -156,7 +156,7 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 	base := e.catalog.state
 	stage, indexes := extensionTemporaryStage(t, e, ext)
 	replacement := stage.Descriptors[survivor.Address()].(*catalog.Relation)
-	if len(replacement.ColumnMeta.Defaults) != 0 || len(replacement.CheckConstraints) != 0 || len(survivor.ColumnMeta.Defaults) != 1 || len(survivor.CheckConstraints) != 1 {
+	if len(replacement.ColumnMeta.Defaults) != 0 || len(replacement.Constraints.Check) != 0 || len(survivor.ColumnMeta.Defaults) != 1 || len(survivor.Constraints.Check) != 1 {
 		t.Fatal("candidate changed predecessor or failed expression closure")
 	}
 	roleExecute(t, e, installer, "CREATE VIEW public.ext_late AS SELECT v FROM public.ext_chain")
@@ -174,7 +174,7 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 	}
 	extensionTemporaryGoneUnit(t, e, ext)
 	current := e.catalog.state.MustRelation(survivor.Address())
-	if current == survivor || len(current.ColumnMeta.Defaults) != 0 || len(current.CheckConstraints) != 0 || e.storage.relations[survivor.Address()] != store || e.storage.indexRoots[index] != oldIndex || !sameVersionRoot(oldRows, store.versions) || oldEnds != store.ends || e.catalog.state.Epoch() != base.Epoch() {
+	if current == survivor || len(current.ColumnMeta.Defaults) != 0 || len(current.Constraints.Check) != 0 || e.storage.relations[survivor.Address()] != store || e.storage.indexRoots[index] != oldIndex || !sameVersionRoot(oldRows, store.versions) || oldEnds != store.ends || e.catalog.state.Epoch() != base.Epoch() {
 		t.Fatal("surviving row/index/provenance changed")
 	}
 	for _, name := range []string{"ext_view", "ext_chain", "ext_late"} {
@@ -261,7 +261,7 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 			t.Fatal("physical retirement touched peer namespace or retained owner authority")
 		}
 		current := e.catalog.state.MustRelation(survivor.Address())
-		if current.Revision() != maximum.Revision() || current == &maximum || len(current.ColumnMeta.Defaults) != 0 || len(current.CheckConstraints) != 0 {
+		if current.Revision() != maximum.Revision() || current == &maximum || len(current.ColumnMeta.Defaults) != 0 || len(current.Constraints.Check) != 0 {
 			t.Fatal("terminal revision exhaustion bypassed identity replacement")
 		}
 		values := make([]sqltype.Value, 1)

@@ -40,13 +40,13 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog
 			action := a
 			action.Column = parser.Identifier{Text: before.Columns[slot].Name}
 			event := inheritanceAlterEvent{action: action, attribute: attribute}
-			for _, c := range before.NotNullConstraints {
-				if c.Attribute == attribute && !slices.ContainsFunc(after.NotNullConstraints, func(next catalog.NotNullConstraint) bool { return next.OID == c.OID }) {
+			for _, c := range before.Constraints.NotNull {
+				if c.Attribute == attribute && !slices.ContainsFunc(after.Constraints.NotNull, func(next catalog.NotNullConstraint) bool { return next.OID == c.OID }) {
 					event.retiredNotNull = append(event.retiredNotNull, c)
 				}
 			}
-			for _, c := range before.CheckConstraints {
-				if !slices.ContainsFunc(after.CheckConstraints, func(next catalog.CheckConstraint) bool { return next.OID == c.OID }) && slices.ContainsFunc(c.Dependencies, func(dependency catalog.ExpressionDependency) bool {
+			for _, c := range before.Constraints.Check {
+				if !slices.ContainsFunc(after.Constraints.Check, func(next catalog.CheckConstraint) bool { return next.OID == c.OID }) && slices.ContainsFunc(c.Dependencies, func(dependency catalog.ExpressionDependency) bool {
 					return dependency.Ref.Address == ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: before.Address().ObjectID, SubID: attribute}
 				}) {
 					event.retiredChecks = append(event.retiredChecks, c)
@@ -55,16 +55,16 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog
 			events = append(events, event)
 		}
 	case parser.DropConstraint, parser.DropNotNull:
-		for _, old := range before.NotNullConstraints {
-			if !old.NoInherit && !slices.ContainsFunc(after.NotNullConstraints, func(c catalog.NotNullConstraint) bool { return c.Attribute == old.Attribute }) {
+		for _, old := range before.Constraints.NotNull {
+			if !old.NoInherit && !slices.ContainsFunc(after.Constraints.NotNull, func(c catalog.NotNullConstraint) bool { return c.Attribute == old.Attribute }) {
 				action := a
 				action.Action = parser.DropNotNull
 				action.Column = parser.Identifier{Text: before.Columns[before.IndexForAttribute(old.Attribute)].Name}
 				events = append(events, inheritanceAlterEvent{action: action, attribute: old.Attribute, constraint: old.OID})
 			}
 		}
-		for _, old := range before.CheckConstraints {
-			if !old.NoInherit && !slices.ContainsFunc(after.CheckConstraints, func(c catalog.CheckConstraint) bool { return c.OID == old.OID }) {
+		for _, old := range before.Constraints.Check {
+			if !old.NoInherit && !slices.ContainsFunc(after.Constraints.Check, func(c catalog.CheckConstraint) bool { return c.OID == old.OID }) {
 				action := a
 				action.Action = parser.DropConstraint
 				action.Constraint = parser.Identifier{Text: old.Name}
@@ -77,12 +77,12 @@ func (scope *StatementScope) recordInheritanceAlterAction(before, after *catalog
 		}
 	}
 	if !state.only {
-		for _, next := range after.NotNullConstraints {
+		for _, next := range after.Constraints.NotNull {
 			if next.NoInherit {
 				continue
 			}
-			index := slices.IndexFunc(before.NotNullConstraints, func(old catalog.NotNullConstraint) bool { return old.Attribute == next.Attribute })
-			validation := index >= 0 && before.NotNullConstraints[index].NotValid && !next.NotValid
+			index := slices.IndexFunc(before.Constraints.NotNull, func(old catalog.NotNullConstraint) bool { return old.Attribute == next.Attribute })
+			validation := index >= 0 && before.Constraints.NotNull[index].NotValid && !next.NotValid
 			if index >= 0 && !validation {
 				continue
 			}
@@ -101,8 +101,8 @@ func (scope *StatementScope) recordInheritanceChecks(before, after *catalog.Rela
 	if state == nil || state.only {
 		return
 	}
-	for _, c := range after.CheckConstraints {
-		if c.NoInherit || c.Ordinal < start || slices.ContainsFunc(before.CheckConstraints, func(old catalog.CheckConstraint) bool { return old.OID == c.OID }) {
+	for _, c := range after.Constraints.Check {
+		if c.NoInherit || c.Ordinal < start || slices.ContainsFunc(before.Constraints.Check, func(old catalog.CheckConstraint) bool { return old.OID == c.OID }) {
 			continue
 		}
 		index := c.Ordinal - start
@@ -250,13 +250,13 @@ func (scope *StatementScope) inheritanceOnlyCreatedConstraint(before, after *cat
 	if state == nil || !state.only || state.descendant || len(state.targets) < 2 {
 		return nil
 	}
-	for _, fact := range after.NotNullConstraints {
-		if !fact.NoInherit && !slices.ContainsFunc(before.NotNullConstraints, func(old catalog.NotNullConstraint) bool { return old.Attribute == fact.Attribute }) {
+	for _, fact := range after.Constraints.NotNull {
+		if !fact.NoInherit && !slices.ContainsFunc(before.Constraints.NotNull, func(old catalog.NotNullConstraint) bool { return old.Attribute == fact.Attribute }) {
 			return sqlError("42P16", "constraint must be added to child tables too")
 		}
 	}
-	for _, fact := range after.CheckConstraints {
-		if !fact.NoInherit && !slices.ContainsFunc(before.CheckConstraints, func(old catalog.CheckConstraint) bool { return old.Name == fact.Name }) {
+	for _, fact := range after.Constraints.Check {
+		if !fact.NoInherit && !slices.ContainsFunc(before.Constraints.Check, func(old catalog.CheckConstraint) bool { return old.Name == fact.Name }) {
 			return sqlError("42P16", "constraint must be added to child tables too")
 		}
 	}

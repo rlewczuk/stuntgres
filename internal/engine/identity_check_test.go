@@ -33,7 +33,7 @@ func TestIdentityOwnCheckAtomicConstruction(t *testing.T) {
 	identity := table.ColumnMeta.Identities[table.Attributes[0]]
 	provider := e.catalog.state.MustRelation(identity.Sequence)
 	found := false
-	for _, dependency := range table.CheckConstraints[0].Dependencies {
+	for _, dependency := range table.Constraints.Check[0].Dependencies {
 		if dependency.Ref.Address == identity.Sequence {
 			found = true
 			if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != e.catalog.state.Epoch() || dependency.Revision != provider.Revision() {

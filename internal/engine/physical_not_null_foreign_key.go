@@ -8,11 +8,11 @@ import (
 )
 
 func physicalSelfForeignKeyDeferred(table *catalog.Relation, foreign catalog.ForeignKeyConstraint) bool {
-	if len(table.PhysicalNotNull) == 0 || foreign.NotValid || foreign.Target != table.Address() {
+	if len(table.Constraints.PhysicalNotNull) == 0 || foreign.NotValid || foreign.Target != table.Address() {
 		return false
 	}
-	for i := range table.UniqueConstraints {
-		primary := &table.UniqueConstraints[i]
+	for i := range table.Constraints.Unique {
+		primary := &table.Constraints.Unique[i]
 		if primary.Primary && foreign.Index == primary.Index && physicalSameAttributes(foreign.Referenced, primary.Attributes) {
 			return true
 		}
@@ -21,11 +21,11 @@ func physicalSelfForeignKeyDeferred(table *catalog.Relation, foreign catalog.For
 }
 
 func emitPhysicalSelfForeignKeys(view catalog.Read, table *catalog.Relation, owner string, separate bool, emit func(string) error, setOwner func(string) error) error {
-	if len(table.PhysicalNotNull) == 0 || len(table.ForeignKeys) == 0 {
+	if len(table.Constraints.PhysicalNotNull) == 0 || len(table.Constraints.ForeignKeys) == 0 {
 		return nil
 	}
 	qualified := quoteIdentifier(view.Get(table.Namespace()).Name()) + "." + quoteIdentifier(table.Name())
-	for _, foreign := range table.ForeignKeys {
+	for _, foreign := range table.Constraints.ForeignKeys {
 		if !physicalSelfForeignKeyDeferred(table, foreign) {
 			continue
 		}
@@ -75,16 +75,16 @@ func (e *Engine) capturePhysicalForeignKeyProvider(op *Operation, name parser.Ob
 		return nil, err
 	}
 	old, ok := auth.catalog.Relation(ref.Address)
-	if !ok || created[ref.Address] != ref || len(old.PhysicalNotNull) == 0 || old.Partition != nil || old.Membership != nil {
+	if !ok || created[ref.Address] != ref || len(old.Constraints.PhysicalNotNull) == 0 || old.Partition != nil || old.Membership != nil {
 		return nil, nil
 	}
-	for attribute, proof := range old.PhysicalNotNull {
+	for attribute, proof := range old.Constraints.PhysicalNotNull {
 		if !physicalNotNullOriginValid(auth.catalog, old, attribute, proof) || proof.Cause.Origin != ref || proof.Cause.Kind != catalog.PhysicalNotNullImportCleanup && proof.Cause.Kind != catalog.PhysicalNotNullImportFlag {
 			return nil, sqlError("0A000", restorePhysicalNotNullBoundary)
 		}
 	}
-	for i := range old.UniqueConstraints {
-		primary := &old.UniqueConstraints[i]
+	for i := range old.Constraints.Unique {
+		primary := &old.Constraints.Unique[i]
 		if !primary.Primary {
 			continue
 		}

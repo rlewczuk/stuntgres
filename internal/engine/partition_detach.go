@@ -175,25 +175,25 @@ func (e *Engine) stagePartitionDetach(stage *CatalogStage, parent, child *catalo
 	nextChild := *child
 	nextChild.Membership = nil
 	nextChild.ObjectRevision++
-	if len(child.NotNullConstraints) != 0 {
-		nextChild.NotNullConstraints = slices.Clone(child.NotNullConstraints)
-		for i := range nextChild.NotNullConstraints {
-			nextChild.NotNullConstraints[i].PartitionLocal = true
+	if len(child.Constraints.NotNull) != 0 {
+		nextChild.Constraints.NotNull = slices.Clone(child.Constraints.NotNull)
+		for i := range nextChild.Constraints.NotNull {
+			nextChild.Constraints.NotNull[i].PartitionLocal = true
 		}
 	}
-	if len(child.UniqueConstraints) != 0 {
-		nextChild.UniqueConstraints = slices.Clone(child.UniqueConstraints)
-		for i := range nextChild.UniqueConstraints {
-			c := &nextChild.UniqueConstraints[i]
+	if len(child.Constraints.Unique) != 0 {
+		nextChild.Constraints.Unique = slices.Clone(child.Constraints.Unique)
+		for i := range nextChild.Constraints.Unique {
+			c := &nextChild.Constraints.Unique[i]
 			c.Parent = 0
 			c.IsLocal = true
 		}
 	}
-	if len(child.ExclusionConstraints) != 0 {
-		nextChild.ExclusionConstraints = slices.Clone(child.ExclusionConstraints)
-		for i := range nextChild.ExclusionConstraints {
-			nextChild.ExclusionConstraints[i].Parent = 0
-			nextChild.ExclusionConstraints[i].IsLocal = true
+	if len(child.Constraints.Exclusion) != 0 {
+		nextChild.Constraints.Exclusion = slices.Clone(child.Constraints.Exclusion)
+		for i := range nextChild.Constraints.Exclusion {
+			nextChild.Constraints.Exclusion[i].Parent = 0
+			nextChild.Constraints.Exclusion[i].IsLocal = true
 		}
 	}
 	if err := stage.Replace(&nextParent); err != nil {

@@ -52,7 +52,7 @@ func TestForeignActionsDefinition(t *testing.T) {
 	view := e.CatalogRead()
 	ref := catalogRef(t, e, view, "c")
 	child := view.MustRelation(ref.Address)
-	original := child.ForeignKeys[0]
+	original := child.Constraints.ForeignKeys[0]
 	if original.UpdateAction != parser.ForeignKeyCascade || original.DeleteAction != parser.ForeignKeySetNull || len(original.DeleteAttributes) != 1 || original.DeleteAttributes[0] != child.Attributes[3] {
 		t.Fatal(original)
 	}
@@ -62,23 +62,23 @@ func TestForeignActionsDefinition(t *testing.T) {
 		},
 	} {
 		candidate := *child
-		candidate.ForeignKeys = slices.Clone(child.ForeignKeys)
-		change(&candidate.ForeignKeys[0])
+		candidate.Constraints.ForeignKeys = slices.Clone(child.Constraints.ForeignKeys)
+		change(&candidate.Constraints.ForeignKeys[0])
 		if err := validateForeignKeys(view, &candidate, map[string]bool{}); err == nil {
-			t.Fatal("invalid action attachment admitted", candidate.ForeignKeys[0])
+			t.Fatal("invalid action attachment admitted", candidate.Constraints.ForeignKeys[0])
 		}
 	}
-	if !reflect.DeepEqual(original, child.ForeignKeys[0]) {
+	if !reflect.DeepEqual(original, child.Constraints.ForeignKeys[0]) {
 		t.Fatal("validation changed retained definition")
 	}
 	sessionSQL(t, s, "ALTER TABLE c DROP COLUMN dead")
 	sessionSQL(t, s, "ALTER TABLE c RENAME b TO author")
 	next := e.CatalogRead()
 	current := next.MustRelation(ref.Address)
-	if !slices.Equal(current.ForeignKeys[0].DeleteAttributes, original.DeleteAttributes) || !sameForeignKeyDefinition(original, current.ForeignKeys[0]) {
-		t.Fatal("slot/name rewrite retargeted action", original, current.ForeignKeys[0])
+	if !slices.Equal(current.Constraints.ForeignKeys[0].DeleteAttributes, original.DeleteAttributes) || !sameForeignKeyDefinition(original, current.Constraints.ForeignKeys[0]) {
+		t.Fatal("slot/name rewrite retargeted action", original, current.Constraints.ForeignKeys[0])
 	}
-	text, err := (pgRenderer{view: next, relation: current, path: []ids.ObjectAddress{current.Namespace()}}).foreignKeyConstraintSQL(current, current.ForeignKeys[0])
+	text, err := (pgRenderer{view: next, relation: current, path: []ids.ObjectAddress{current.Namespace()}}).foreignKeyConstraintSQL(current, current.Constraints.ForeignKeys[0])
 	if err != nil || text != "FOREIGN KEY (a, author) REFERENCES p(a, b) ON UPDATE CASCADE ON DELETE SET NULL (author)" {
 		t.Fatal(text, err)
 	}
@@ -97,7 +97,7 @@ func TestForeignActionsEquality(t *testing.T) {
 			sessionSQL(t, s, "CREATE TABLE c(pid "+tc.typ+" REFERENCES p ON UPDATE CASCADE)")
 			view := e.CatalogRead()
 			child := view.MustRelation(catalogRef(t, e, view, "c").Address)
-			f := child.ForeignKeys[0]
+			f := child.Constraints.ForeignKeys[0]
 			parent := view.MustRelation(f.Target)
 			index := view.MustRelation(f.Index)
 			comparisons, err := bindForeignKeyComparison(view, child, parent, index, f)

@@ -116,7 +116,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 					if !ok || parent.Namespace() != namespace || parent.RelationKind != catalog.TableRelation && parent.RelationKind != catalog.PartitionedRelation {
 						continue
 					}
-					for _, c := range parent.ExclusionConstraints {
+					for _, c := range parent.Constraints.Exclusion {
 						if c.Name != label {
 							continue
 						}
@@ -129,17 +129,17 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 						}
 					}
 					nondeferrable := false
-					for _, c := range parent.UniqueConstraints {
+					for _, c := range parent.Constraints.Unique {
 						if c.Name == label {
 							nondeferrable = true
 						}
 					}
-					for _, c := range parent.CheckConstraints {
+					for _, c := range parent.Constraints.Check {
 						if c.Name == label {
 							nondeferrable = true
 						}
 					}
-					for _, c := range parent.NotNullConstraints {
+					for _, c := range parent.Constraints.NotNull {
 						if c.Name == label {
 							nondeferrable = true
 						}
@@ -169,7 +169,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 				if !ok {
 					continue
 				}
-				for _, c := range parent.ExclusionConstraints {
+				for _, c := range parent.Constraints.Exclusion {
 					if c.Parent != 0 && selected[c.Parent] && !selected[c.OID] {
 						selected[c.OID] = true
 						changed = true

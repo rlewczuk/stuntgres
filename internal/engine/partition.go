@@ -24,7 +24,7 @@ func validatePartitionDescriptor(view catalog.Read, d *catalog.Relation) error {
 		if len(p.Keys) == 0 || len(p.Keys) > 32 || len(d.ColumnMeta.Generations) != 0 || len(d.ColumnMeta.Identities) != 0 {
 			return invalid()
 		}
-		for _, check := range d.CheckConstraints {
+		for _, check := range d.Constraints.Check {
 			if check.NoInherit {
 				return invalid()
 			}

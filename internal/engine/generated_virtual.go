@@ -101,8 +101,8 @@ func (e columnExpression) admitVirtualGeneration(c *EvalContext, view catalog.Re
 
 // CHECK recipes belong to the completed destination, not a copied source.
 func refreshGenerationChecks(d *catalog.Relation, catalog catalog.Read) error {
-	for i := range d.CheckConstraints {
-		next, changed, err := mapBoundExpression(catalog, d.CheckConstraints[i].Expression, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, func(node expr.Expr) (expr.Expr, bool, error) {
+	for i := range d.Constraints.Check {
+		next, changed, err := mapBoundExpression(catalog, d.Constraints.Check[i].Expression, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, func(node expr.Expr) (expr.Expr, bool, error) {
 			column, ok := node.(columnExpression)
 			if !ok || column.origin.Address.ClassID != d.Address().ClassID || column.origin.Address.ObjectID != d.Address().ObjectID {
 				return node, false, nil
@@ -128,7 +128,7 @@ func refreshGenerationChecks(d *catalog.Relation, catalog catalog.Read) error {
 			return err
 		}
 		if changed {
-			d.CheckConstraints[i].Expression = next
+			d.Constraints.Check[i].Expression = next
 		}
 	}
 	return nil

@@ -19,7 +19,7 @@ func TestAlterAddConstraintBackingRetirement(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO t VALUES(1,1)")
 	old := alterConstraintDescriptor(t, e, "t")
 	before, store := e.catalog.state, e.storage.relations[old.Address()]
-	backing := old.UniqueConstraints[0].Index
+	backing := old.Constraints.Unique[0].Index
 	root := e.storage.indexRoots[backing]
 	op := alterConstraintOperation(t, s)
 	auth, err := op.Authorization()
@@ -53,11 +53,11 @@ func TestAlterAddConstraintBackingRetirement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	added := next.UniqueConstraints[0]
+	added := next.Constraints.Unique[0]
 	if err := stage.Replace(next); err != nil {
 		t.Fatal(err)
 	}
-	if added.Name != "t_a_key" || added.Index == backing || added.OID == old.UniqueConstraints[0].OID || stage.LookupName(key) != added.Index || stage.Touched[key] != backing {
+	if added.Name != "t_a_key" || added.Index == backing || added.OID == old.Constraints.Unique[0].OID || stage.LookupName(key) != added.Index || stage.Touched[key] != backing {
 		t.Fatal("effective generated name or replacement identity/fences lost", added)
 	}
 	e.mu.Lock()
@@ -72,7 +72,7 @@ func TestAlterAddConstraintBackingRetirement(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(context.Background(), stage); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.state != before || e.storage.relations[old.Address()] != store || e.storage.indexRoots[backing] != root || before.NameAddress(key) != backing || len(old.UniqueConstraints) != 1 {
+	if e.catalog.state != before || e.storage.relations[old.Address()] != store || e.storage.indexRoots[backing] != root || before.NameAddress(key) != backing || len(old.Constraints.Unique) != 1 {
 		t.Fatal("private retirement/replacement changed live catalog or physical root")
 	}
 }
@@ -108,7 +108,7 @@ func TestAlterAddConstraintPrimaryPrerequisite(t *testing.T) {
 	if err := verifyAlterPrimaryPrerequisites(old, raw[0].(*parser.AlterTable).Actions); err != nil {
 		t.Fatal("new key was prematurely bound against original shape", err)
 	}
-	if e.catalog.state != before || e.storage.relations[old.Address()] != store || alterConstraintDescriptor(t, e, "t") != old || !old.NotNullConstraints[0].NotValid || len(old.UniqueConstraints) != 0 {
+	if e.catalog.state != before || e.storage.relations[old.Address()] != store || alterConstraintDescriptor(t, e, "t") != old || !old.Constraints.NotNull[0].NotValid || len(old.Constraints.Unique) != 0 {
 		t.Fatal("preliminary admission changed immutable original catalog/storage")
 	}
 }
@@ -128,7 +128,7 @@ func TestAlterAddConstraintDropModeIsolation(t *testing.T) {
 			sessionSQL(t, s, "INSERT INTO c VALUES(1)")
 			old, child := alterConstraintDescriptor(t, e, "t"), alterConstraintDescriptor(t, e, "c")
 			before, parentStore, childStore := e.catalog.state, e.storage.relations[old.Address()], e.storage.relations[child.Address()]
-			ua, ub := old.UniqueConstraints[0].Index, old.UniqueConstraints[1].Index
+			ua, ub := old.Constraints.Unique[0].Index, old.Constraints.Unique[1].Index
 			uaRoot, ubRoot := e.storage.indexRoots[ua], e.storage.indexRoots[ub]
 			op := alterConstraintOperation(t, s)
 			auth, err := op.Authorization()
@@ -170,7 +170,7 @@ func TestAlterAddConstraintDropModeIsolation(t *testing.T) {
 					t.Fatal("later authorized CASCADE leaked into earlier RESTRICT", err)
 				}
 				candidate := stage.Descriptors[child.Address()].(*catalog.Relation)
-				if len(candidate.ForeignKeys) != 0 {
+				if len(candidate.Constraints.ForeignKeys) != 0 {
 					t.Fatal("authorized child dependency retained")
 				}
 			} else {
@@ -183,14 +183,14 @@ func TestAlterAddConstraintDropModeIsolation(t *testing.T) {
 				if d, present := stage.Descriptors[child.Address()]; present {
 					candidate = d.(*catalog.Relation)
 				}
-				if !reflect.DeepEqual(candidate.ForeignKeys, child.ForeignKeys) {
+				if !reflect.DeepEqual(candidate.Constraints.ForeignKeys, child.Constraints.ForeignKeys) {
 					t.Fatal("earlier CASCADE removed later RESTRICT dependency")
 				}
 			}
 			if stage.Removals[ua].Ref.Address != ua || stage.Removals[ub].Ref.Address != ub {
 				t.Fatal("actual selected backing retirement missing")
 			}
-			if e.catalog.state != before || e.storage.relations[old.Address()] != parentStore || e.storage.relations[child.Address()] != childStore || e.storage.indexRoots[ua] != uaRoot || e.storage.indexRoots[ub] != ubRoot || len(child.ForeignKeys) != 1 {
+			if e.catalog.state != before || e.storage.relations[old.Address()] != parentStore || e.storage.relations[child.Address()] != childStore || e.storage.indexRoots[ua] != uaRoot || e.storage.indexRoots[ub] != ubRoot || len(child.Constraints.ForeignKeys) != 1 {
 				t.Fatal("private mixed-mode traversal changed live catalog/storage/roots")
 			}
 		})

@@ -42,7 +42,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 					sinkRef := catalogRef(t, e, before, "sink")
 					inputRef := catalogRef(t, e, before, "input")
 					parentBefore := before.MustRelation(sinkRef.Address)
-					intended, other := parentBefore.UniqueConstraints[0], parentBefore.UniqueConstraints[1]
+					intended, other := parentBefore.Constraints.Unique[0], parentBefore.Constraints.Unique[1]
 					if intended.OID == 0 || other.OID == 0 || intended.OID == other.OID || intended.Index == other.Index {
 						t.Fatal("fixture lacks two distinct real named constraint providers")
 					}
@@ -105,10 +105,10 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 					}
 					current := e.CatalogRead()
 					parent := current.MustRelation(sinkRef.Address)
-					if parent.UniqueConstraints[0].OID != intended.OID || parent.UniqueConstraints[0].Index != intended.Index || parent.UniqueConstraints[0].Name != "renamed_key" {
+					if parent.Constraints.Unique[0].OID != intended.OID || parent.Constraints.Unique[0].Index != intended.Index || parent.Constraints.Unique[0].Name != "renamed_key" {
 						t.Fatal("rename changed provider identity or failed to publish current metadata")
 					}
-					if parentBefore.UniqueConstraints[0].Name != "sink_key" {
+					if parentBefore.Constraints.Unique[0].Name != "sink_key" {
 						t.Fatal("rename mutated the borrowed parent snapshot")
 					}
 					e.mu.Lock()
@@ -151,7 +151,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 					// Match actual current parent metadata by provider identity, not
 					// creation spelling or a source-text assertion on the export.
 					var oid ids.OID
-					for _, constraint := range parent.UniqueConstraints {
+					for _, constraint := range parent.Constraints.Unique {
 						if constraint.Index == provider {
 							oid = constraint.OID
 						}
@@ -178,7 +178,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 					importedRule := rulesOf(imported.MustRelation(importedSrc.Address))[0]
 					importedConflict := conflict(importedRule)
 					var importedProvider catalog.UniqueConstraint
-					for _, definition := range importedParent.UniqueConstraints {
+					for _, definition := range importedParent.Constraints.Unique {
 						if definition.Name == "renamed_key" {
 							importedProvider = definition
 						}
@@ -189,7 +189,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 						len(importedProvider.Attributes) != 1 || importedProvider.Attributes[0] != importedParent.Attributes[0] {
 						t.Fatal("actual native import lost the named id constraint/backing relationship")
 					}
-					for _, definition := range importedParent.UniqueConstraints {
+					for _, definition := range importedParent.Constraints.Unique {
 						if definition.Name == "sink_key" && (definition.OID == importedConflict.constraint.ObjectID || definition.Index == importedConflict.namedIndex) {
 							t.Fatal("actual native import retargeted the reused other-column provider")
 						}

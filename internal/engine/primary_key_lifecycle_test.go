@@ -24,8 +24,8 @@ func TestPrimaryKeyTypeCandidateIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	old, rebuilt := parent.UniqueConstraints[0], next.UniqueConstraints[0]
-	if next.Address() != parent.Address() || !rebuilt.Primary || rebuilt.Name != old.Name || rebuilt.OID == old.OID || rebuilt.Index == old.Index || next.NotNullConstraints[0].OID == parent.NotNullConstraints[0].OID || rebuilt.OID >= next.NotNullConstraints[0].OID || next.NotNullConstraints[1] != parent.NotNullConstraints[1] {
+	old, rebuilt := parent.Constraints.Unique[0], next.Constraints.Unique[0]
+	if next.Address() != parent.Address() || !rebuilt.Primary || rebuilt.Name != old.Name || rebuilt.OID == old.OID || rebuilt.Index == old.Index || next.Constraints.NotNull[0].OID == parent.Constraints.NotNull[0].OID || rebuilt.OID >= next.Constraints.NotNull[0].OID || next.Constraints.NotNull[1] != parent.Constraints.NotNull[1] {
 		t.Fatal("affected p/index/n remint and order", parent, next)
 	}
 	private := e.stageRead(stage)
@@ -36,7 +36,7 @@ func TestPrimaryKeyTypeCandidateIdentity(t *testing.T) {
 	if _, exists := private.Find(index.Address()); exists {
 		t.Fatal("old backing retained in candidate")
 	}
-	if e.CatalogRead().State() != base.State() || !reflect.DeepEqual(parent.UniqueConstraints[0], old) || index.SQLIndex.Constraint.OID != old.OID || parent.NotNullConstraints[0].OID == next.NotNullConstraints[0].OID || parent.Columns[0].Usage.Type.ID() != sqltype.Int4 {
+	if e.CatalogRead().State() != base.State() || !reflect.DeepEqual(parent.Constraints.Unique[0], old) || index.SQLIndex.Constraint.OID != old.OID || parent.Constraints.NotNull[0].OID == next.Constraints.NotNull[0].OID || parent.Columns[0].Usage.Type.ID() != sqltype.Int4 {
 		t.Fatal("candidate changed retained source/savepoint state")
 	}
 	for _, transformations := range [][]columnTransformation{nil, {{attribute: parent.Attributes[2]}}} {
@@ -85,12 +85,12 @@ func TestPrimaryKeyLikeActualProviderAndComment(t *testing.T) {
 		}
 	})
 	clone := primaryKeyUnitRelation(t, e, "clone")
-	if len(clone.UniqueConstraints) != 2 || !clone.UniqueConstraints[0].Primary || clone.UniqueConstraints[0].Name != "clone_pkey" || clone.UniqueConstraints[1].Primary || clone.UniqueConstraints[1].Name != "chosen" || !reflect.DeepEqual(clone.UniqueConstraints[0].Attributes, []int32{2, 3}) {
-		t.Fatal("copied PK is not an explicit UNIQUE dedup candidate", clone.UniqueConstraints)
+	if len(clone.Constraints.Unique) != 2 || !clone.Constraints.Unique[0].Primary || clone.Constraints.Unique[0].Name != "clone_pkey" || clone.Constraints.Unique[1].Primary || clone.Constraints.Unique[1].Name != "chosen" || !reflect.DeepEqual(clone.Constraints.Unique[0].Attributes, []int32{2, 3}) {
+		t.Fatal("copied PK is not an explicit UNIQUE dedup candidate", clone.Constraints.Unique)
 	}
-	c := clone.UniqueConstraints[0]
+	c := clone.Constraints.Unique[0]
 	copied := e.catalog.state.MustRelation(c.Index)
-	if c.OID == parent.UniqueConstraints[0].OID || c.Index == source.Address() || copied.Comment != "native descriptor comment" || copied.SQLIndex.Keys[1].Class != class || !copied.SQLIndex.Keys[1].ExplicitClass || copied.SQLIndex.Keys[0].Attribute != 2 || copied.SQLIndex.Keys[1].Attribute != 3 || copied.SQLIndex.Parent != clone.Address() || !copied.SQLIndex.Constraint.Primary {
+	if c.OID == parent.Constraints.Unique[0].OID || c.Index == source.Address() || copied.Comment != "native descriptor comment" || copied.SQLIndex.Keys[1].Class != class || !copied.SQLIndex.Keys[1].ExplicitClass || copied.SQLIndex.Keys[0].Attribute != 2 || copied.SQLIndex.Keys[1].Attribute != 3 || copied.SQLIndex.Parent != clone.Address() || !copied.SQLIndex.Constraint.Primary {
 		t.Fatal("LIKE lost real provider/comment/attachment", copied)
 	}
 	if e.storage.indexRoots[c.Index] == sourceRoot || len(e.storage.indexRoots[c.Index].entries) != 0 || len(sourceRoot.entries) != 2 || index.Comment != "" || index.SQLIndex.Keys[1].ExplicitClass {

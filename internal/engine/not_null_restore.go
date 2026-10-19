@@ -62,7 +62,7 @@ func (e *Engine) captureRestoredNotNulls(created ids.ObjectRef, raw *parser.Crea
 			return
 		}
 		attribute := relation.Attributes[slot]
-		for _, constraint := range relation.NotNullConstraints {
+		for _, constraint := range relation.Constraints.NotNull {
 			if constraint.Name == name && constraint.Attribute == attribute && !constraint.NotValid {
 				if graph := relation.Inheritance; graph != nil {
 					fact := graph.NotNull[attribute]
@@ -109,7 +109,7 @@ func (e *Engine) pairRestoredNotNull(op *Operation, raw *parser.AlterTable, orig
 	if !ok {
 		return restoredNotNull{}, sqlError("0A000", restoreNoInheritBoundary)
 	}
-	for _, constraint := range relation.NotNullConstraints {
+	for _, constraint := range relation.Constraints.NotNull {
 		if constraint.Attribute != relation.Attributes[slot] || constraint.NotValid {
 			continue
 		}
@@ -162,14 +162,14 @@ func (e *Engine) restoreNoInheritNotNull(op *Operation, raw *parser.Update, orig
 		e.mu.Unlock()
 		return sqlError("0A000", restoreNoInheritBoundary)
 	}
-	index := slices.IndexFunc(old.NotNullConstraints, func(c catalog.NotNullConstraint) bool {
+	index := slices.IndexFunc(old.Constraints.NotNull, func(c catalog.NotNullConstraint) bool {
 		return c.OID == origin.constraint && c.Name == label && c.Attribute == origin.attribute && !c.NotValid
 	})
 	if index < 0 {
 		e.mu.Unlock()
 		return sqlError("0A000", restoreNoInheritBoundary)
 	}
-	for _, constraint := range old.UniqueConstraints {
+	for _, constraint := range old.Constraints.Unique {
 		if constraint.Primary && slices.Contains(constraint.Attributes, origin.attribute) {
 			e.mu.Unlock()
 			return sqlError("0A000", restoreNoInheritBoundary)
@@ -182,7 +182,7 @@ func (e *Engine) restoreNoInheritNotNull(op *Operation, raw *parser.Update, orig
 			return sqlError("0A000", restoreNoInheritBoundary)
 		}
 	}
-	if old.NotNullConstraints[index].NoInherit {
+	if old.Constraints.NotNull[index].NoInherit {
 		e.mu.Unlock()
 		return nil
 	}
@@ -192,8 +192,8 @@ func (e *Engine) restoreNoInheritNotNull(op *Operation, raw *parser.Update, orig
 	}
 	next := *old
 	next.ObjectRevision++
-	next.NotNullConstraints = slices.Clone(old.NotNullConstraints)
-	next.NotNullConstraints[index].NoInherit = true
+	next.Constraints.NotNull = slices.Clone(old.Constraints.NotNull)
+	next.Constraints.NotNull[index].NoInherit = true
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authorizeLocked(auth, op.session)
 	e.mu.Unlock()

@@ -255,7 +255,7 @@ func TestPartitionConstraintsDumpIndexDeclarationOrder(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
 	f.parent.SQLIndex.Include = nil
 	rootKey := catalog.UniqueConstraint{OID: 30000, Name: f.parent.Name(), Attributes: []int32{10, 20}, Index: f.parent.Address(), IsLocal: true}
-	f.root.UniqueConstraints = []catalog.UniqueConstraint{rootKey}
+	f.root.Constraints.Unique = []catalog.UniqueConstraint{rootKey}
 	f.parent.SQLIndex.Constraint = uniqueBacking(&rootKey)
 	local := catalog.UniqueConstraint{OID: 30001, Name: f.child.Name(), Attributes: []int32{22, 11}, Index: f.child.Address(), IsLocal: true, NullsNotDistinct: true}
 	f.child.SQLIndex.Include = nil
@@ -272,7 +272,7 @@ func TestPartitionConstraintsDumpIndexDeclarationOrder(t *testing.T) {
 	f.view.State().SetDescriptor(inheritedIndex.Address(), &inheritedIndex)
 	// Native binding retains local declarations first. Replay creates the
 	// inherited backing first regardless of that slice or destination OIDs.
-	f.leaf.UniqueConstraints = []catalog.UniqueConstraint{local, inherited}
+	f.leaf.Constraints.Unique = []catalog.UniqueConstraint{local, inherited}
 	delayedIndex, delayedDefinition := *f.child, *f.child.SQLIndex
 	delayedIndex.ObjectAddress.ObjectID = 20006
 	delayedIndex.ObjectName = "unit_delayed"
@@ -280,7 +280,7 @@ func TestPartitionConstraintsDumpIndexDeclarationOrder(t *testing.T) {
 	delayedDefinition.Include = []int32{33}
 	delayed := catalog.UniqueConstraint{OID: 30003, Name: delayedIndex.Name(), Attributes: local.Attributes, Index: delayedIndex.Address(), IsLocal: true}
 	delayedDefinition.Constraint = uniqueBacking(&delayed)
-	f.leaf.UniqueConstraints = append(f.leaf.UniqueConstraints, delayed)
+	f.leaf.Constraints.Unique = append(f.leaf.Constraints.Unique, delayed)
 	f.view.State().SetDescriptor(delayedIndex.Address(), &delayedIndex)
 	remapped, remappedDefinition := *f.child, *f.child.SQLIndex
 	remapped.ObjectAddress.ObjectID = 60000
@@ -294,10 +294,10 @@ func TestPartitionConstraintsDumpIndexDeclarationOrder(t *testing.T) {
 	f.view.State().SetDescriptor(remapped.Address(), &remapped)
 	f.view.State().SetDescriptor(retained.Address(), &retained)
 	f.view.State().SetDumpPriorities(map[ids.ObjectAddress]ids.OID{remapped.Address(): 20005})
-	before := slices.Clone(f.leaf.UniqueConstraints)
+	before := slices.Clone(f.leaf.Constraints.Unique)
 	order := partitionIndexDeclarationOrder(f.view, f.leaf)
 	want := []*catalog.Relation{&inheritedIndex, f.child, &remapped, &delayedIndex, &retained}
-	if !slices.Equal(order, want) || !reflect.DeepEqual(f.leaf.UniqueConstraints, before) {
+	if !slices.Equal(order, want) || !reflect.DeepEqual(f.leaf.Constraints.Unique, before) {
 		t.Fatal("inherited/local/prebuilt/source priority order changed", order, want)
 	}
 	f.view.State().SetDumpPriorities(nil)
@@ -404,8 +404,8 @@ func TestPartitionConstraintsDumpCollisionProvenance(t *testing.T) {
 func partitionConstraintBackings(f partitionConstraintUnit) {
 	root := catalog.UniqueConstraint{OID: f.child.Address().ObjectID, Name: f.parent.Name(), Attributes: []int32{10, 20}, Index: f.parent.Address(), IsLocal: true}
 	child := catalog.UniqueConstraint{OID: f.parent.Address().ObjectID, Name: f.child.Name(), Attributes: []int32{22, 11}, Index: f.child.Address(), Parent: root.OID}
-	f.root.UniqueConstraints = []catalog.UniqueConstraint{root}
-	f.leaf.UniqueConstraints = []catalog.UniqueConstraint{child}
+	f.root.Constraints.Unique = []catalog.UniqueConstraint{root}
+	f.leaf.Constraints.Unique = []catalog.UniqueConstraint{child}
 	f.parent.SQLIndex.Constraint = uniqueBacking(&root)
 	f.child.SQLIndex.Constraint = uniqueBacking(&child)
 	f.child.SQLIndex.PartitionParent = f.parent.Address()
@@ -416,7 +416,7 @@ func TestPartitionConstraintsDropClosure(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
 	partitionConstraintBackings(f)
 	local := catalog.UniqueConstraint{OID: 30004, Name: "independent_leaf", Index: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 30005}, IsLocal: true}
-	f.leaf.UniqueConstraints = append(f.leaf.UniqueConstraints, local)
+	f.leaf.Constraints.Unique = append(f.leaf.Constraints.Unique, local)
 	independent := *f.child
 	definition := *f.child.SQLIndex
 	definition.PartitionParent = ids.ObjectAddress{}
@@ -427,7 +427,7 @@ func TestPartitionConstraintsDropClosure(t *testing.T) {
 	f.view.State().SetDescriptor(independent.Address(), &independent)
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
-	if err := f.e.stagePartitionConstraintDrop(stage, f.root.UniqueConstraints[0].OID); err != nil {
+	if err := f.e.stagePartitionConstraintDrop(stage, f.root.Constraints.Unique[0].OID); err != nil {
 		t.Fatal(err)
 	}
 	if err := f.e.stagePartitionIndexDrop(stage, f.parent); err != nil {
@@ -438,7 +438,7 @@ func TestPartitionConstraintsDropClosure(t *testing.T) {
 		t.Fatal("drop closure changed independent identity")
 	}
 	leaf := candidate.MustRelation(f.leaf.Address())
-	if !reflect.DeepEqual(leaf.UniqueConstraints, []catalog.UniqueConstraint{local}) || len(f.leaf.UniqueConstraints) != 2 || f.e.catalog.state != f.view.State() {
+	if !reflect.DeepEqual(leaf.Constraints.Unique, []catalog.UniqueConstraint{local}) || len(f.leaf.Constraints.Unique) != 2 || f.e.catalog.state != f.view.State() {
 		t.Fatal("drop closure published early or removed independent key")
 	}
 }
@@ -446,14 +446,14 @@ func TestPartitionConstraintsDropClosure(t *testing.T) {
 func TestPartitionConstraintsDefinitionRemapping(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
 	partitionConstraintBackings(f)
-	f.root.NotNullConstraints = []catalog.NotNullConstraint{{OID: f.root.Address().ObjectID, Name: "nn", Attribute: 10}}
-	f.leaf.NotNullConstraints = []catalog.NotNullConstraint{{OID: 30008, Name: "nn", Attribute: 22, PartitionLocal: true}}
+	f.root.Constraints.NotNull = []catalog.NotNullConstraint{{OID: f.root.Address().ObjectID, Name: "nn", Attribute: 10}}
+	f.leaf.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 30008, Name: "nn", Attribute: 22, PartitionLocal: true}}
 	next := *f.view.State()
 	next.ResetDescriptors(f.view.DescriptorCount())
 	for a, d := range f.view.Descriptors() {
 		next.SetDescriptor(a, d)
 	}
-	oldRoot, oldChild := f.root.UniqueConstraints[0].OID, f.leaf.UniqueConstraints[0].OID
+	oldRoot, oldChild := f.root.Constraints.Unique[0].OID, f.leaf.Constraints.Unique[0].OID
 	f.e.mu.Lock()
 	err := f.e.remapDefinitionOIDsLocked(&next)
 	f.e.mu.Unlock()
@@ -464,16 +464,16 @@ func TestPartitionConstraintsDefinitionRemapping(t *testing.T) {
 	leaf := next.MustRelation(f.leaf.Address())
 	parent := next.MustRelation(f.parent.Address())
 	child := next.MustRelation(f.child.Address())
-	if root.UniqueConstraints[0].OID == oldRoot || leaf.UniqueConstraints[0].OID == oldChild || leaf.UniqueConstraints[0].Parent != root.UniqueConstraints[0].OID {
+	if root.Constraints.Unique[0].OID == oldRoot || leaf.Constraints.Unique[0].OID == oldChild || leaf.Constraints.Unique[0].Parent != root.Constraints.Unique[0].OID {
 		t.Fatal("constraint identity collision/ancestry not remapped")
 	}
-	if parent.SQLIndex.Constraint.OID != root.UniqueConstraints[0].OID || child.SQLIndex.Constraint.OID != leaf.UniqueConstraints[0].OID || child.SQLIndex.PartitionParent != parent.Address() {
+	if parent.SQLIndex.Constraint.OID != root.Constraints.Unique[0].OID || child.SQLIndex.Constraint.OID != leaf.Constraints.Unique[0].OID || child.SQLIndex.PartitionParent != parent.Address() {
 		t.Fatal("backing/edge remapping disagrees")
 	}
-	if !root.UniqueConstraints[0].IsLocal || leaf.UniqueConstraints[0].IsLocal || f.root.UniqueConstraints[0].OID != oldRoot || f.leaf.UniqueConstraints[0].OID != oldChild {
+	if !root.Constraints.Unique[0].IsLocal || leaf.Constraints.Unique[0].IsLocal || f.root.Constraints.Unique[0].OID != oldRoot || f.leaf.Constraints.Unique[0].OID != oldChild {
 		t.Fatal("remapping changed provenance or live predecessor")
 	}
-	if root.NotNullConstraints[0].OID == f.root.Address().ObjectID || root.NotNullConstraints[0].PartitionLocal || !leaf.NotNullConstraints[0].PartitionLocal || !f.leaf.NotNullConstraints[0].PartitionLocal {
+	if root.Constraints.NotNull[0].OID == f.root.Address().ObjectID || root.Constraints.NotNull[0].PartitionLocal || !leaf.Constraints.NotNull[0].PartitionLocal || !f.leaf.Constraints.NotNull[0].PartitionLocal {
 		t.Fatal("NN remapping lost explicit merged provenance")
 	}
 }
@@ -482,8 +482,8 @@ func TestPartitionConstraintsDumpCollisionDefinitionReservation(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
 	rootKey := catalog.UniqueConstraint{OID: 30000, Name: f.parent.Name(), Attributes: []int32{10, 20}, Index: f.parent.Address(), IsLocal: true}
 	childKey := catalog.UniqueConstraint{OID: 30001, Name: f.child.Name(), Attributes: []int32{22, 11}, Index: f.child.Address(), Parent: rootKey.OID}
-	f.root.UniqueConstraints = []catalog.UniqueConstraint{rootKey}
-	f.leaf.UniqueConstraints = []catalog.UniqueConstraint{childKey}
+	f.root.Constraints.Unique = []catalog.UniqueConstraint{rootKey}
+	f.leaf.Constraints.Unique = []catalog.UniqueConstraint{childKey}
 	f.parent.SQLIndex.Constraint = uniqueBacking(&rootKey)
 	f.child.SQLIndex.Constraint = uniqueBacking(&childKey)
 	f.child.SQLIndex.PartitionParent = f.parent.Address()
@@ -503,18 +503,18 @@ func TestPartitionConstraintsDumpCollisionDefinitionReservation(t *testing.T) {
 	}
 	root := next.MustRelation(f.root.Address())
 	leaf := next.MustRelation(f.leaf.Address())
-	parent := next.MustRelation(root.UniqueConstraints[0].Index)
+	parent := next.MustRelation(root.Constraints.Unique[0].Index)
 	child := next.MustRelation(f.child.Address())
 	if parent.Address() == f.parent.Address() || parent.Address().ObjectID == rootKey.OID || parent.Address().ObjectID == childKey.OID {
 		t.Fatal("replacement backing stole a noncolliding owned definition identity", parent.Address())
 	}
-	if root.UniqueConstraints[0].OID != rootKey.OID || leaf.UniqueConstraints[0].OID != childKey.OID || leaf.UniqueConstraints[0].Parent != rootKey.OID {
-		t.Fatal("noncolliding constraint identities or immediate ancestry changed", root.UniqueConstraints, leaf.UniqueConstraints)
+	if root.Constraints.Unique[0].OID != rootKey.OID || leaf.Constraints.Unique[0].OID != childKey.OID || leaf.Constraints.Unique[0].Parent != rootKey.OID {
+		t.Fatal("noncolliding constraint identities or immediate ancestry changed", root.Constraints.Unique, leaf.Constraints.Unique)
 	}
 	if parent.SQLIndex.Constraint.OID != rootKey.OID || child.SQLIndex.Constraint.OID != childKey.OID || child.SQLIndex.PartitionParent != parent.Address() {
 		t.Fatal("reminted backing and constraint identities disagree")
 	}
-	if next.Get(retained.Address()) != retained || destination.catalog.state != old || f.view.Get(f.parent.Address()) != f.parent || !reflect.DeepEqual(f.root.UniqueConstraints[0], rootKey) {
+	if next.Get(retained.Address()) != retained || destination.catalog.state != old || f.view.Get(f.parent.Address()) != f.parent || !reflect.DeepEqual(f.root.Constraints.Unique[0], rootKey) {
 		t.Fatal("candidate allocation changed retained TEMP or immutable source")
 	}
 }
@@ -690,9 +690,9 @@ func TestPartitionConstraintsConstraintAncestryValidation(t *testing.T) {
 			case "missing_backing":
 				f.child.SQLIndex.Constraint = nil
 			case "wrong_parent":
-				f.leaf.UniqueConstraints[0].Parent++
+				f.leaf.Constraints.Unique[0].Parent++
 			case "local_clone":
-				f.leaf.UniqueConstraints[0].IsLocal = true
+				f.leaf.Constraints.Unique[0].IsLocal = true
 			case "bare_parent":
 				f.parent.SQLIndex.Constraint = nil
 			case "ancestor_cycle":
@@ -736,7 +736,7 @@ func TestPartitionConstraintsSyntaxOnlyDescribe(t *testing.T) {
 func TestPartitionConstraintsBareIndexNonreuse(t *testing.T) {
 	f := partitionConstraintDescriptors(t)
 	root := catalog.UniqueConstraint{OID: 30000, Name: f.parent.Name(), Attributes: []int32{10, 20}, Index: f.parent.Address(), IsLocal: true}
-	f.root.UniqueConstraints = []catalog.UniqueConstraint{root}
+	f.root.Constraints.Unique = []catalog.UniqueConstraint{root}
 	f.parent.SQLIndex.Constraint = uniqueBacking(&root)
 	op, done := roleOperation(t, f.e, "postgres")
 	defer done()
@@ -750,14 +750,14 @@ func TestPartitionConstraintsBareIndexNonreuse(t *testing.T) {
 	}
 	candidate := f.e.stageRead(stage)
 	leaf := candidate.MustRelation(f.leaf.Address())
-	if clone.Address() == f.child.Address() || clone.SQLIndex.Constraint == nil || clone.SQLIndex.PartitionParent != f.parent.Address() || len(leaf.UniqueConstraints) != 1 {
+	if clone.Address() == f.child.Address() || clone.SQLIndex.Constraint == nil || clone.SQLIndex.PartitionParent != f.parent.Address() || len(leaf.Constraints.Unique) != 1 {
 		t.Fatal("bare child reused as a constraint backing")
 	}
-	constraint := leaf.UniqueConstraints[0]
+	constraint := leaf.Constraints.Unique[0]
 	if constraint.Parent != root.OID || constraint.IsLocal || constraint.Index != clone.Address() || !slices.Equal(constraint.Attributes, []int32{22, 11}) {
 		t.Fatal("new constraint lost mapped immediate ancestry")
 	}
-	if candidate.Get(f.child.Address()) != f.child || f.child.SQLIndex.PartitionParent != (ids.ObjectAddress{}) || f.child.SQLIndex.Constraint != nil || len(f.leaf.UniqueConstraints) != 0 {
+	if candidate.Get(f.child.Address()) != f.child || f.child.SQLIndex.PartitionParent != (ids.ObjectAddress{}) || f.child.SQLIndex.Constraint != nil || len(f.leaf.Constraints.Unique) != 0 {
 		t.Fatal("independent bare child or predecessor mutated")
 	}
 }
@@ -1103,11 +1103,11 @@ func TestPartitionConstraintsOwnedProviderReplay(t *testing.T) {
 	if !exists || root.Owner != actor.Ref {
 		t.Fatal("replay lost declared actor ownership")
 	}
-	if root.Owner != mid.Owner || root.Owner != leaf.Owner || len(root.UniqueConstraints) != 1 || len(mid.UniqueConstraints) != 1 || len(leaf.UniqueConstraints) != 1 || mid.UniqueConstraints[0].Parent != root.UniqueConstraints[0].OID || leaf.UniqueConstraints[0].Parent != mid.UniqueConstraints[0].OID {
+	if root.Owner != mid.Owner || root.Owner != leaf.Owner || len(root.Constraints.Unique) != 1 || len(mid.Constraints.Unique) != 1 || len(leaf.Constraints.Unique) != 1 || mid.Constraints.Unique[0].Parent != root.Constraints.Unique[0].OID || leaf.Constraints.Unique[0].Parent != mid.Constraints.Unique[0].OID {
 		t.Fatal("owner/key ancestry not restored")
 	}
 	for _, table := range []*catalog.Relation{root, mid, leaf} {
-		index := e.catalog.state.MustRelation(table.UniqueConstraints[0].Index)
+		index := e.catalog.state.MustRelation(table.Constraints.Unique[0].Index)
 		if index.Owner != table.Owner {
 			t.Fatal("index owner detached from actual table owner")
 		}
@@ -1135,7 +1135,7 @@ func TestPartitionConstraintsOwnedProviderReplay(t *testing.T) {
 	roleExecute(t, e, op, "DROP TABLE owned.leaf")
 	roleExecute(t, e, op, "CREATE TABLE owned.future PARTITION OF owned.mid DEFAULT")
 	future := e.catalog.state.MustRelation(roleTableRef(t, e, "owned.future").Address)
-	if len(future.UniqueConstraints) != 1 || future.UniqueConstraints[0].Parent != mid.UniqueConstraints[0].OID {
+	if len(future.Constraints.Unique) != 1 || future.Constraints.Unique[0].Parent != mid.Constraints.Unique[0].OID {
 		t.Fatal("future clone lost reminted immediate provider")
 	}
 	roleExecute(t, e, op, "INSERT INTO owned.root(k,payload) VALUES('a',1)")

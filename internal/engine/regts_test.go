@@ -341,8 +341,10 @@ func TestRegTSStoredDependencyProviders(t *testing.T) {
 	ref := e.catalog.Domain.Ref(view.Epoch(), dictionary.Address())
 	consumer := func(ref ids.ObjectRef) *catalog.Relation {
 		return &catalog.Relation{
-			ObjectAddress:    ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 95000},
-			CheckConstraints: []catalog.CheckConstraint{{Dependencies: []catalog.ExpressionDependency{{Ref: ref, Revision: dictionary.Revision()}}}},
+			ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 95000},
+			Constraints: catalog.RelationConstraints{
+				Check: []catalog.CheckConstraint{{Dependencies: []catalog.ExpressionDependency{{Ref: ref, Revision: dictionary.Revision()}}}},
+			},
 			ColumnMeta: catalog.ColumnMetadata{
 				Defaults:    map[int32]catalog.ColumnDefault{1: {Dependencies: []ids.ObjectRef{ref}}},
 				Generations: map[int32]catalog.ColumnGeneration{1: {Dependencies: []ids.ObjectRef{ref}}},

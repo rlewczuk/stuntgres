@@ -51,7 +51,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 		}
 		check.Dependencies = append(check.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: descriptor.Revision()})
 	}
-	relation.CheckConstraints = []catalog.CheckConstraint{check}
+	relation.Constraints.Check = []catalog.CheckConstraint{check}
 	if err := validateChecks(view, relation, make(map[string]bool)); err != nil {
 		t.Fatal("live CHECK provider validation", err)
 	}

@@ -21,10 +21,10 @@ func TestAlterTypeMetadataAndAtomicity(t *testing.T) {
 	held := run(t, e, "SELECT * FROM t")
 	run(t, e, "ALTER TABLE t ALTER a TYPE BIGINT USING a+1")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if next == old || next.Address() != old.Address() || next.Owner != old.Owner || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.ColumnMeta.Comments, old.ColumnMeta.Comments) || len(next.NotNullConstraints) != len(old.NotNullConstraints) {
+	if next == old || next.Address() != old.Address() || next.Owner != old.Owner || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.ColumnMeta.Comments, old.ColumnMeta.Comments) || len(next.Constraints.NotNull) != len(old.Constraints.NotNull) {
 		t.Fatal(old, next)
 	}
-	beforeNN, afterNN := old.NotNullConstraints[0], next.NotNullConstraints[0]
+	beforeNN, afterNN := old.Constraints.NotNull[0], next.Constraints.NotNull[0]
 	if afterNN.OID == 0 || afterNN.OID == beforeNN.OID || afterNN.Name != beforeNN.Name || afterNN.Attribute != beforeNN.Attribute || afterNN.NotValid != beforeNN.NotValid || beforeNN.Name != "nn" || beforeNN.NotValid {
 		t.Fatal("TYPE failed to rebuild the same valid logical NN definition", beforeNN, afterNN)
 	}

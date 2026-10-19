@@ -45,21 +45,21 @@ func TestAlterAddColumnSparseCheckOrdinalsAndOwnership(t *testing.T) {
 	if err := e.bindColumnChecks(scope.op, auth, []*parser.CheckConstraint{raw("CREATE TABLE t(CONSTRAINT original CHECK(a>0))")}, old, scope.input, true, nil); err != nil {
 		t.Fatal(err)
 	}
-	old.CheckConstraints[0].Ordinal = 7
+	old.Constraints.Check[0].Ordinal = 7
 	next := *old
-	next.CheckConstraints = slices.Clone(old.CheckConstraints)
+	next.Constraints.Check = slices.Clone(old.Constraints.Check)
 	checks := []*parser.CheckConstraint{raw("CREATE TABLE t(CONSTRAINT z_first CHECK(a>1))"), raw("CREATE TABLE t(CONSTRAINT a_second CHECK(a<9))")}
 	if err := e.bindColumnChecks(scope.op, auth, checks, &next, scope.input, true, nil); err != nil {
 		t.Fatal(err)
 	}
 	ordered := orderedChecks(&next)
-	if len(ordered) != 3 || ordered[0].Ordinal != 7 || ordered[1].Ordinal != 8 || ordered[2].Ordinal != 9 || ordered[1].Name != "z_first" || ordered[2].Name != "a_second" || next.CheckConstraints[0].Name != "a_second" || len(old.CheckConstraints) != 1 || old.CheckConstraints[0].Name != "original" {
-		t.Fatal("CHECK ordering/source invariant", ordered, next.CheckConstraints, old.CheckConstraints)
+	if len(ordered) != 3 || ordered[0].Ordinal != 7 || ordered[1].Ordinal != 8 || ordered[2].Ordinal != 9 || ordered[1].Name != "z_first" || ordered[2].Name != "a_second" || next.Constraints.Check[0].Name != "a_second" || len(old.Constraints.Check) != 1 || old.Constraints.Check[0].Name != "original" {
+		t.Fatal("CHECK ordering/source invariant", ordered, next.Constraints.Check, old.Constraints.Check)
 	}
 	e.mu.Lock()
 	err := e.assignDefinitionOIDsLocked(&next)
 	e.mu.Unlock()
-	if err != nil || old.CheckConstraints[0].OID != 0 || next.CheckConstraints[0].OID == 0 {
+	if err != nil || old.Constraints.Check[0].OID != 0 || next.Constraints.Check[0].OID == 0 {
 		t.Fatal("OID mutation reached source", err)
 	}
 	stage := e.BeginCatalogStage(auth.catalog)

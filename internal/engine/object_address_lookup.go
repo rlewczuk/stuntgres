@@ -495,27 +495,27 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 func ownedAddressByName(d *catalog.Relation, class ids.OID, name string) ids.OID {
 	switch class {
 	case 2606:
-		for _, x := range d.NotNullConstraints {
+		for _, x := range d.Constraints.NotNull {
 			if x.Name == name {
 				return x.OID
 			}
 		}
-		for _, x := range d.CheckConstraints {
+		for _, x := range d.Constraints.Check {
 			if x.Name == name {
 				return x.OID
 			}
 		}
-		for _, x := range d.UniqueConstraints {
+		for _, x := range d.Constraints.Unique {
 			if x.Name == name {
 				return x.OID
 			}
 		}
-		for _, x := range d.ExclusionConstraints {
+		for _, x := range d.Constraints.Exclusion {
 			if x.Name == name {
 				return x.OID
 			}
 		}
-		for _, x := range d.ForeignKeys {
+		for _, x := range d.Constraints.ForeignKeys {
 			if x.Name == name {
 				return x.OID
 			}

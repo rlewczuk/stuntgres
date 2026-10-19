@@ -21,18 +21,18 @@ func stageBackingIndexRename(stage *CatalogStage, index *catalog.Relation) error
 		}
 		return nil
 	}
-	for _, c := range parent.NotNullConstraints {
+	for _, c := range parent.Constraints.NotNull {
 		if err := collision(c.Name); err != nil {
 			return err
 		}
 	}
-	for _, c := range parent.CheckConstraints {
+	for _, c := range parent.Constraints.Check {
 		if err := collision(c.Name); err != nil {
 			return err
 		}
 	}
 	slot := -1
-	for i, c := range parent.UniqueConstraints {
+	for i, c := range parent.Constraints.Unique {
 		if err := collision(c.Name); err != nil {
 			return err
 		}
@@ -40,7 +40,7 @@ func stageBackingIndexRename(stage *CatalogStage, index *catalog.Relation) error
 			slot = i
 		}
 	}
-	for i, c := range parent.ExclusionConstraints {
+	for i, c := range parent.Constraints.Exclusion {
 		if err := collision(c.Name); err != nil {
 			return err
 		}
@@ -57,11 +57,11 @@ func stageBackingIndexRename(stage *CatalogStage, index *catalog.Relation) error
 	next := *parent
 	next.ObjectRevision++
 	if index.SQLIndex.IsExclusion() {
-		next.ExclusionConstraints = append([]catalog.ExclusionConstraint(nil), parent.ExclusionConstraints...)
-		next.ExclusionConstraints[slot].Name = index.Name()
+		next.Constraints.Exclusion = append([]catalog.ExclusionConstraint(nil), parent.Constraints.Exclusion...)
+		next.Constraints.Exclusion[slot].Name = index.Name()
 	} else {
-		next.UniqueConstraints = append([]catalog.UniqueConstraint(nil), parent.UniqueConstraints...)
-		next.UniqueConstraints[slot].Name = index.Name()
+		next.Constraints.Unique = append([]catalog.UniqueConstraint(nil), parent.Constraints.Unique...)
+		next.Constraints.Unique[slot].Name = index.Name()
 	}
 	definition := *index.SQLIndex
 	constraint := *definition.Constraint

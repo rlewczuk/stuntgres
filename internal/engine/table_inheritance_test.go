@@ -58,8 +58,8 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 	defer done()
 	p := inheritanceUnitRelation(e, "p", 22000, "a", "x")
 	q := inheritanceUnitRelation(e, "q", 22001, "x", "a")
-	p.NotNullConstraints = []catalog.NotNullConstraint{{OID: 23000, Name: "first", Attribute: 1}}
-	q.NotNullConstraints = []catalog.NotNullConstraint{{OID: 23001, Name: "second", Attribute: 2}}
+	p.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 23000, Name: "first", Attribute: 1}}
+	q.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 23001, Name: "second", Attribute: 2}}
 	usage := testUsage(e, sqltype.Int4)
 	value, err := sqltype.Integer(usage.Type, 7)
 	if err != nil {
@@ -81,7 +81,7 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 	if err := e.stageInheritance(op, auth, stage, child, b); err != nil {
 		t.Fatal(err)
 	}
-	if len(child.NotNullConstraints) != 1 || child.NotNullConstraints[0].Name != "first" || child.Columns[0].Nullable || len(child.Inheritance.NotNull[1].Origins) != 2 || child.Inheritance.NotNull[1].Local || child.Inheritance.Columns[1].Local || !child.Inheritance.Columns[3].Local {
+	if len(child.Constraints.NotNull) != 1 || child.Constraints.NotNull[0].Name != "first" || child.Columns[0].Nullable || len(child.Inheritance.NotNull[1].Origins) != 2 || child.Inheritance.NotNull[1].Local || child.Inheritance.Columns[1].Local || !child.Inheritance.Columns[3].Local {
 		t.Fatal(child)
 	}
 	if !reflect.DeepEqual(child.Inheritance.Parents, []ids.ObjectAddress{p.Address(), q.Address()}) || !sameGroupExpression(child.ColumnMeta.Defaults[1].Expression, literal) || child.ColumnMeta.Defaults[1].OID != 0 || p.ColumnMeta.Defaults[1].OID != 23002 {
@@ -90,7 +90,7 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 	if err := e.assignDefinitionOIDsLocked(child); err != nil {
 		t.Fatal(err)
 	}
-	if child.NotNullConstraints[0].OID == p.NotNullConstraints[0].OID || child.ColumnMeta.Defaults[1].OID == p.ColumnMeta.Defaults[1].OID {
+	if child.Constraints.NotNull[0].OID == p.Constraints.NotNull[0].OID || child.ColumnMeta.Defaults[1].OID == p.ColumnMeta.Defaults[1].OID {
 		t.Fatal("inherited identity copied")
 	}
 	combined := inheritanceUnitView(e, p, q, child)

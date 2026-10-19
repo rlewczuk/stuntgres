@@ -194,7 +194,7 @@ func TestTableLikePartialUniqueClone(t *testing.T) {
 			copied = index
 		}
 	}
-	if copied == nil || copied.Address() == source.Address() || !copied.SQLIndex.Unique || !copied.SQLIndex.NullsNotDistinct || copied.SQLIndex.Constraint != nil || len(destination.UniqueConstraints) != 0 || copied.SQLIndex.Keys[0].Attribute != 3 || copied.SQLIndex.Predicate == nil || copied.SQLIndex.Predicate == source.SQLIndex.Predicate {
+	if copied == nil || copied.Address() == source.Address() || !copied.SQLIndex.Unique || !copied.SQLIndex.NullsNotDistinct || copied.SQLIndex.Constraint != nil || len(destination.Constraints.Unique) != 0 || copied.SQLIndex.Keys[0].Attribute != 3 || copied.SQLIndex.Predicate == nil || copied.SQLIndex.Predicate == source.SQLIndex.Predicate {
 		t.Fatal("standalone partial unique/backing authority lost", copied)
 	}
 	predicate := copied.SQLIndex.Predicate

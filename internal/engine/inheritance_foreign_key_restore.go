@@ -53,8 +53,8 @@ func inheritedForeignKeyEvents(view catalog.Read, graph map[dumpEventKey][]dumpE
 	for i := range tables {
 		source := tables[i].descriptor
 		event := dumpEventKey{oid: source.Address().ObjectID, phase: dumpInheritedForeignKeys}
-		for i := range source.ForeignKeys {
-			foreign := &source.ForeignKeys[i]
+		for i := range source.Constraints.ForeignKeys {
+			foreign := &source.Constraints.ForeignKeys[i]
 			if !inheritedForeignKeyDeferred(view, source, foreign) {
 				continue
 			}
@@ -76,7 +76,7 @@ func inheritedForeignKeyEvents(view catalog.Read, graph map[dumpEventKey][]dumpE
 }
 
 func inheritedForeignKeyPrimary(target *catalog.Relation, foreign *catalog.ForeignKeyConstraint) bool {
-	for _, key := range target.UniqueConstraints {
+	for _, key := range target.Constraints.Unique {
 		if key.Primary && key.Index == foreign.Index && slices.Equal(key.Attributes, foreign.Referenced) {
 			return true
 		}
@@ -86,8 +86,8 @@ func inheritedForeignKeyPrimary(target *catalog.Relation, foreign *catalog.Forei
 
 func (table *dumpRelation) emitInheritedForeignKeys(view catalog.Read, emit func(string) error) error {
 	qualified := quoteIdentifier(table.schema) + "." + quoteIdentifier(table.name)
-	for i := range table.descriptor.ForeignKeys {
-		foreign := &table.descriptor.ForeignKeys[i]
+	for i := range table.descriptor.Constraints.ForeignKeys {
+		foreign := &table.descriptor.Constraints.ForeignKeys[i]
 		if !inheritedForeignKeyDeferred(view, table.descriptor, foreign) {
 			continue
 		}
@@ -201,7 +201,7 @@ func (e *Engine) captureInheritedForeignKey(op *Operation, raw *parser.AlterTabl
 	}
 	referenced := foreign.Referenced
 	if len(referenced) == 0 {
-		for _, key := range target.UniqueConstraints {
+		for _, key := range target.Constraints.Unique {
 			if key.Primary {
 				pending.definitions[0].supporting = key.Index
 				referenced = make([]parser.Identifier, len(key.Attributes))

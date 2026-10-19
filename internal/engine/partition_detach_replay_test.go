@@ -103,7 +103,7 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	constraint := catalog.UniqueConstraint{OID: 46900, Name: local.Name(), Index: local.Address(), Attributes: []int32{22, 11}, IsLocal: true}
 	definition.Constraint = uniqueBacking(&constraint)
 	local.SQLIndex = &definition
-	f.leaf.UniqueConstraints = []catalog.UniqueConstraint{constraint}
+	f.leaf.Constraints.Unique = []catalog.UniqueConstraint{constraint}
 	f.view.State().SetDescriptor(local.Address(), &local)
 	f.view.State().BindName(catalog.DescriptorNameKey(&local), local.Address())
 	if !partitionReplayUsingIndex(f.view, &local) || usingIndexDump(&local) {
@@ -160,7 +160,7 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	if position(dumpEventKey{oid: li}) >= position(rename) || position(rename) >= position(rows) {
 		t.Fatal("consumer replay precedes its own local index identity", order)
 	}
-	if f.leaf.UniqueConstraints[0].OID != constraint.OID || local.SQLIndex.PartitionParent != (ids.ObjectAddress{}) || f.child.SQLIndex.PartitionParent != f.parent.Address() {
+	if f.leaf.Constraints.Unique[0].OID != constraint.OID || local.SQLIndex.PartitionParent != (ids.ObjectAddress{}) || f.child.SQLIndex.PartitionParent != f.parent.Address() {
 		t.Fatal("scheduler changed source ownership")
 	}
 }

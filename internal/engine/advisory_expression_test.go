@@ -329,7 +329,7 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 	if err := appendBoundTree(ctx, &before, stored); err != nil {
 		t.Fatal(err)
 	}
-	d := &catalog.Relation{CheckConstraints: []catalog.CheckConstraint{{Name: "a_row", Expression: column}, {Name: "b_null", Expression: stored}}}
+	d := &catalog.Relation{Constraints: catalog.RelationConstraints{Check: []catalog.CheckConstraint{{Name: "a_row", Expression: column}, {Name: "b_null", Expression: stored}}}}
 	oldRow := []sqltype.Value{falseValue}
 	eval := &EvalContext{Context: ctx, Scope: 9, Frame: 7, Row: oldRow}
 	for i := 0; i < 2; i++ {
@@ -347,14 +347,14 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 	}
 	first := &cached[0]
 	failed, err := validateCheckRow(d, []sqltype.Value{falseValue}, eval)
-	if err != nil || failed != &d.CheckConstraints[0] || &eval.preparedChecks[d][0] != first {
+	if err != nil || failed != &d.Constraints.Check[0] || &eval.preparedChecks[d][0] != first {
 		t.Fatal("row changes must reuse preparation and return original constraint", failed, err)
 	}
 	if eval.Scope != 9 || eval.Frame != 7 || &eval.Row[0] != &oldRow[0] {
 		t.Fatal("CHECK evaluator leaked its row frame")
 	}
 	var after strings.Builder
-	if err := appendBoundTree(ctx, &after, d.CheckConstraints[1].Expression); err != nil || after.String() != before.String() {
+	if err := appendBoundTree(ctx, &after, d.Constraints.Check[1].Expression); err != nil || after.String() != before.String() {
 		t.Fatal("execution preparation changed stored analyzed syntax", err, before.String(), after.String())
 	}
 	// Descriptor identity, not a relation name/address, bounds cache reuse;
@@ -367,7 +367,7 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 	if failed, err := validateCheckRow(d, []sqltype.Value{trueValue}, fresh); err != nil || failed != nil || &fresh.preparedChecks[d][0] == first {
 		t.Fatal("new command inherited executable CHECK cache", failed, err)
 	}
-	plain := &catalog.Relation{CheckConstraints: []catalog.CheckConstraint{{Name: "plain", Expression: trueNode}}}
+	plain := &catalog.Relation{Constraints: catalog.RelationConstraints{Check: []catalog.CheckConstraint{{Name: "plain", Expression: trueNode}}}}
 	if failed, err := validateCheckRow(plain, nil, eval); err != nil || failed != nil {
 		t.Fatal(failed, err)
 	}
@@ -392,7 +392,7 @@ func TestAdvisorySessionCheckPrepareAllBeforeEvaluation(t *testing.T) {
 			t.Fatal("immutable CHECK child must remain analyzed until execution preparation", err)
 		}
 	}
-	d := &catalog.Relation{CheckConstraints: []catalog.CheckConstraint{{Name: "a_effect", Expression: nodes[0]}, {Name: "z_error", Expression: nodes[1]}}}
+	d := &catalog.Relation{Constraints: catalog.RelationConstraints{Check: []catalog.CheckConstraint{{Name: "a_effect", Expression: nodes[0]}, {Name: "z_error", Expression: nodes[1]}}}}
 	eval := &EvalContext{Context: ctx, Scope: 9, Frame: 7}
 	failed, err := validateCheckRow(d, nil, eval)
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "22012", Message: "division by zero"})
@@ -401,7 +401,7 @@ func TestAdvisorySessionCheckPrepareAllBeforeEvaluation(t *testing.T) {
 	}
 	// If volatile evaluation had started, the first producer would require an
 	// admitted session instead of reporting the later immutable child error.
-	if !reflect.DeepEqual(d.CheckConstraints[0].Expression, nodes[0]) || !reflect.DeepEqual(d.CheckConstraints[1].Expression, nodes[1]) {
+	if !reflect.DeepEqual(d.Constraints.Check[0].Expression, nodes[0]) || !reflect.DeepEqual(d.Constraints.Check[1].Expression, nodes[1]) {
 		t.Fatal("failed CHECK preparation mutated analyzed expressions")
 	}
 }

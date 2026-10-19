@@ -43,7 +43,7 @@ func capturePGConstraint(ctx context.Context, view catalog.Read, ref ids.ObjectR
 			return nil, err
 		}
 		if table, ok := descriptor.(*catalog.Relation); ok {
-			count += len(table.NotNullConstraints) + len(table.CheckConstraints) + len(table.UniqueConstraints) + len(table.ForeignKeys) + len(table.ExclusionConstraints)
+			count += len(table.Constraints.NotNull) + len(table.Constraints.Check) + len(table.Constraints.Unique) + len(table.Constraints.ForeignKeys) + len(table.Constraints.Exclusion)
 		}
 		if domain, ok := descriptor.(*catalog.Type); ok {
 			count += len(domain.DomainChecks)
@@ -93,7 +93,7 @@ func capturePGConstraint(ctx context.Context, view catalog.Read, ref ids.ObjectR
 			builder.initialize(row, table.Namespace().ObjectID, table.Address().ObjectID, id, name, kind)
 			return row, builder.err
 		}
-		for _, c := range table.NotNullConstraints {
+		for _, c := range table.Constraints.NotNull {
 			row, err := next(c.OID, c.Name, "n")
 			if err != nil {
 				return nil, err
@@ -105,7 +105,7 @@ func capturePGConstraint(ctx context.Context, view catalog.Read, ref ids.ObjectR
 			builder.boolean(row, 18, c.NoInherit)
 			builder.keys(row, 20, []int32{c.Attribute})
 		}
-		for _, c := range table.CheckConstraints {
+		for _, c := range table.Constraints.Check {
 			row, err := next(c.OID, c.Name, "c")
 			if err != nil {
 				return nil, err
@@ -121,7 +121,7 @@ func capturePGConstraint(ctx context.Context, view catalog.Read, ref ids.ObjectR
 				return nil, err
 			}
 		}
-		for _, c := range table.UniqueConstraints {
+		for _, c := range table.Constraints.Unique {
 			kind := "u"
 			if c.Primary {
 				kind = "p"
@@ -139,7 +139,7 @@ func capturePGConstraint(ctx context.Context, view catalog.Read, ref ids.ObjectR
 			}
 			builder.keys(row, 20, c.Attributes)
 		}
-		for _, c := range table.ForeignKeys {
+		for _, c := range table.Constraints.ForeignKeys {
 			row, err := next(c.OID, c.Name, "f")
 			if err != nil {
 				return nil, err
@@ -168,7 +168,7 @@ func capturePGConstraint(ctx context.Context, view catalog.Read, ref ids.ObjectR
 				return nil, err
 			}
 		}
-		for _, c := range table.ExclusionConstraints {
+		for _, c := range table.Constraints.Exclusion {
 			row, err := next(c.OID, c.Name, "x")
 			if err != nil {
 				return nil, err

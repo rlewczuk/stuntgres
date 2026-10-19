@@ -159,7 +159,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 	if b.relation != nil {
 		switch statement.(type) {
 		case *parser.Insert, *parser.Update, *parser.Merge:
-			if err := binder.captureRetainedWriteInput(nil, b.relation.ColumnMeta.Generations, b.relation.CheckConstraints); err != nil {
+			if err := binder.captureRetainedWriteInput(nil, b.relation.ColumnMeta.Generations, b.relation.Constraints.Check); err != nil {
 				return b, err
 			}
 		}
@@ -172,7 +172,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 	}
 	binder.querySources = b.querySources
 	if b.viewWrite != nil {
-		if err := binder.captureRetainedWriteInput(b.defaults, b.viewWrite.base.ColumnMeta.Generations, b.viewWrite.base.CheckConstraints); err != nil {
+		if err := binder.captureRetainedWriteInput(b.defaults, b.viewWrite.base.ColumnMeta.Generations, b.viewWrite.base.Constraints.Check); err != nil {
 			return b, err
 		}
 	}

@@ -21,7 +21,7 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 			view = view.WithState(&state)
 			next := *parent
 			next.Columns = slices.Clone(parent.Columns)
-			next.UniqueConstraints = slices.Clone(parent.UniqueConstraints)
+			next.Constraints.Unique = slices.Clone(parent.Constraints.Unique)
 			backing := *index
 			definition := *index.SQLIndex
 			constraint := *definition.Constraint
@@ -34,14 +34,14 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 			case "unknown":
 				next.Columns[0].NullabilityKnown = false
 			case "missing_nn":
-				next.NotNullConstraints = next.NotNullConstraints[1:]
+				next.Constraints.NotNull = next.Constraints.NotNull[1:]
 			case "mismatched_kind":
 				constraint.Primary = false
 			case "null_policy":
-				next.UniqueConstraints[0].NullsNotDistinct = true
+				next.Constraints.Unique[0].NullsNotDistinct = true
 				definition.NullsNotDistinct = true
 			case "second_primary":
-				second := next.UniqueConstraints[0]
+				second := next.Constraints.Unique[0]
 				second.OID, second.Name = second.OID+1000, "second"
 				other := backing
 				other.ObjectAddress.ObjectID += 1000
@@ -51,7 +51,7 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 				otherDefinition.Constraint = uniqueBacking(&second)
 				other.SQLIndex = &otherDefinition
 				state.SetDescriptor(other.Address(), &other)
-				next.UniqueConstraints = append(next.UniqueConstraints, second)
+				next.Constraints.Unique = append(next.Constraints.Unique, second)
 			}
 			err := validateUniques(view, &next, map[string]bool{})
 			if (err == nil) != (mode == "valid") {
@@ -64,7 +64,7 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 			} else if mode == "mismatched_kind" && validateIndexDefinition(view, &backing) == nil {
 				t.Fatal("reciprocal index validation lost Primary")
 			}
-			if parent.Columns[0].Nullable || !index.SQLIndex.Constraint.Primary || !parent.UniqueConstraints[0].Primary {
+			if parent.Columns[0].Nullable || !index.SQLIndex.Constraint.Primary || !parent.Constraints.Unique[0].Primary {
 				t.Fatal("validation candidate mutated retained descriptors")
 			}
 		})
@@ -82,14 +82,14 @@ func TestPrimaryKeyRealMetadataAndDependencies(t *testing.T) {
 	if names.SchemaName != "public" || names.TableName != "t" || names.IndexName != "pk" || names.IndexDef != "CREATE UNIQUE INDEX pk ON public.t USING btree (a, b)" {
 		t.Fatal(names)
 	}
-	if rendered, err := (pgRenderer{view: view}).uniqueConstraintSQL(parent, &parent.UniqueConstraints[0]); err != nil || rendered != "PRIMARY KEY (a, b)" {
+	if rendered, err := (pgRenderer{view: view}).uniqueConstraintSQL(parent, &parent.Constraints.Unique[0]); err != nil || rendered != "PRIMARY KEY (a, b)" {
 		t.Fatal(rendered, err)
 	}
 	edges, err := collectPGDepend(context.Background(), view)
 	if err != nil {
 		t.Fatal(err)
 	}
-	constraint := ids.ObjectAddress{ClassID: 2606, ObjectID: parent.UniqueConstraints[0].OID}
+	constraint := ids.ObjectAddress{ClassID: 2606, ObjectID: parent.Constraints.Unique[0].OID}
 	want := []pgDependEdge{{dependent: index.Address(), referenced: constraint, deptype: 'i'}}
 	for _, attribute := range []int32{1, 2} {
 		column := parent.Address()
@@ -122,7 +122,7 @@ func TestPrimaryKeyNotNullDropCandidate(t *testing.T) {
 	view := e.CatalogRead()
 	for _, action := range []parser.AlterTableAction{
 		{Action: parser.DropNotNull, Column: parser.Identifier{Text: "a"}},
-		{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: parent.NotNullConstraints[0].Name}},
+		{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: parent.Constraints.NotNull[0].Name}},
 	} {
 		next, err := notNullCandidate(nil, view, parent, action, notNullDirect)
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42P16", Message: `column "a" is in a primary key`})
@@ -131,11 +131,11 @@ func TestPrimaryKeyNotNullDropCandidate(t *testing.T) {
 		}
 	}
 	withoutPK, err := notNullCandidate(nil, view, parent, parser.AlterTableAction{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: "pk"}}, notNullDirect)
-	if err != nil || len(withoutPK.UniqueConstraints) != 0 || !reflect.DeepEqual(withoutPK.NotNullConstraints, parent.NotNullConstraints) {
+	if err != nil || len(withoutPK.Constraints.Unique) != 0 || !reflect.DeepEqual(withoutPK.Constraints.NotNull, parent.Constraints.NotNull) {
 		t.Fatal(withoutPK, err)
 	}
 	withoutNN, err := notNullCandidate(nil, view, withoutPK, parser.AlterTableAction{Action: parser.DropNotNull, Column: parser.Identifier{Text: "a"}}, notNullDirect)
-	if err != nil || !withoutNN.Columns[0].Nullable || len(withoutNN.NotNullConstraints) != 1 || len(parent.UniqueConstraints) != 1 || parent.Columns[0].Nullable {
+	if err != nil || !withoutNN.Columns[0].Nullable || len(withoutNN.Constraints.NotNull) != 1 || len(parent.Constraints.Unique) != 1 || parent.Columns[0].Nullable {
 		t.Fatal("ordered candidate or retained descriptor contract", withoutNN, err)
 	}
 }
@@ -163,7 +163,7 @@ func TestPrimaryKeyIdentityGuardPrecedence(t *testing.T) {
 	} {
 		next, err := notNullCandidate(nil, view, parent, tc.action, notNullDirect)
 		nullCountUnitDiagnostic(t, err, tc.diagnostic)
-		if next != nil || e.CatalogRead().State() != view.State() || parent.Columns[0].Nullable || !parent.UniqueConstraints[0].Primary {
+		if next != nil || e.CatalogRead().State() != view.State() || parent.Columns[0].Nullable || !parent.Constraints.Unique[0].Primary {
 			t.Fatal("identity/PK route guard changed state", next)
 		}
 	}

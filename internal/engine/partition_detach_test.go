@@ -112,11 +112,11 @@ func TestPartitionDetachDependencies(t *testing.T) {
 			}
 			rootKey := catalog.UniqueConstraint{OID: 46600, Name: f.parent.Name(), Index: f.parent.Address(), Attributes: []int32{10, 20}, IsLocal: true}
 			childKey := catalog.UniqueConstraint{OID: 46601, Name: f.child.Name(), Index: f.child.Address(), Attributes: []int32{22, 11}, Parent: rootKey.OID}
-			f.root.UniqueConstraints = []catalog.UniqueConstraint{rootKey}
-			f.leaf.UniqueConstraints = []catalog.UniqueConstraint{childKey}
+			f.root.Constraints.Unique = []catalog.UniqueConstraint{rootKey}
+			f.leaf.Constraints.Unique = []catalog.UniqueConstraint{childKey}
 			f.parent.SQLIndex.Constraint = uniqueBacking(&rootKey)
 			f.child.SQLIndex.Constraint = uniqueBacking(&childKey)
-			f.leaf.NotNullConstraints = []catalog.NotNullConstraint{{OID: 46602, Name: "own_nn", Attribute: 22}}
+			f.leaf.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 46602, Name: "own_nn", Attribute: 22}}
 			stage := f.e.BeginCatalogStage(f.view)
 			defer f.e.DiscardCatalogStage(stage)
 			if err := f.e.stagePartitionDetach(stage, f.root, f.leaf); err != nil {
@@ -125,10 +125,10 @@ func TestPartitionDetachDependencies(t *testing.T) {
 			view := f.e.stageRead(stage)
 			index := view.MustRelation(f.child.Address())
 			table := view.MustRelation(f.leaf.Address())
-			if index.SQLIndex.PartitionParent != (ids.ObjectAddress{}) || index.SQLIndex.Constraint != f.child.SQLIndex.Constraint || index.SQLIndex.Valid != f.child.SQLIndex.Valid || table.UniqueConstraints[0].Parent != 0 || !table.UniqueConstraints[0].IsLocal || !table.NotNullConstraints[0].PartitionLocal {
+			if index.SQLIndex.PartitionParent != (ids.ObjectAddress{}) || index.SQLIndex.Constraint != f.child.SQLIndex.Constraint || index.SQLIndex.Valid != f.child.SQLIndex.Valid || table.Constraints.Unique[0].Parent != 0 || !table.Constraints.Unique[0].IsLocal || !table.Constraints.NotNull[0].PartitionLocal {
 				t.Fatal("top edge/provenance/backing identity wrong")
 			}
-			if table.UniqueConstraints[0].OID != childKey.OID || table.NotNullConstraints[0].OID != 46602 || f.leaf.UniqueConstraints[0].Parent != rootKey.OID || f.child.SQLIndex.PartitionParent != f.parent.Address() {
+			if table.Constraints.Unique[0].OID != childKey.OID || table.Constraints.NotNull[0].OID != 46602 || f.leaf.Constraints.Unique[0].Parent != rootKey.OID || f.child.SQLIndex.PartitionParent != f.parent.Address() {
 				t.Fatal("own identity or predecessor changed")
 			}
 			if view.Get(f.parent.Address()) != f.parent || f.parent.SQLIndex.Valid != valid {

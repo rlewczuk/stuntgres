@@ -143,14 +143,14 @@ func dropColumnMetadata(ctx context.Context, view catalog.Read, descriptor func(
 		next.Columns = append(next.Columns, column)
 		next.Attributes = append(next.Attributes, old.Attributes[i])
 	}
-	next.NotNullConstraints = nil
-	for _, constraint := range old.NotNullConstraints {
+	next.Constraints.NotNull = nil
+	for _, constraint := range old.Constraints.NotNull {
 		if constraint.Attribute != old.Attributes[slot] {
-			next.NotNullConstraints = append(next.NotNullConstraints, constraint)
+			next.Constraints.NotNull = append(next.Constraints.NotNull, constraint)
 		}
 	}
-	next.UniqueConstraints = nil
-	for _, constraint := range old.UniqueConstraints {
+	next.Constraints.Unique = nil
+	for _, constraint := range old.Constraints.Unique {
 		dependent := false
 		for _, attribute := range constraint.Attributes {
 			if attribute == old.Attributes[slot] {
@@ -164,32 +164,32 @@ func dropColumnMetadata(ctx context.Context, view catalog.Read, descriptor func(
 		}
 		dependent = dependent || slices.Contains(index.SQLIndex.Include, old.Attributes[slot])
 		if !dependent {
-			next.UniqueConstraints = append(next.UniqueConstraints, constraint)
+			next.Constraints.Unique = append(next.Constraints.Unique, constraint)
 		}
 	}
-	next.ExclusionConstraints = nil
-	for _, constraint := range old.ExclusionConstraints {
+	next.Constraints.Exclusion = nil
+	for _, constraint := range old.Constraints.Exclusion {
 		index, ok := descriptor(constraint.Index).(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
 			return nil, fmt.Errorf("stuntgres: missing dropped-column exclusion index")
 		}
 		if !uniqueIndexTypeAffected(index.SQLIndex, []columnTransformation{{attribute: old.Attributes[slot]}}) {
-			next.ExclusionConstraints = append(next.ExclusionConstraints, constraint)
+			next.Constraints.Exclusion = append(next.Constraints.Exclusion, constraint)
 		}
 	}
-	next.ForeignKeys = nil
-	for _, f := range old.ForeignKeys {
+	next.Constraints.ForeignKeys = nil
+	for _, f := range old.Constraints.ForeignKeys {
 		if !slices.Contains(f.Attributes, old.Attributes[slot]) {
-			next.ForeignKeys = append(next.ForeignKeys, f)
+			next.Constraints.ForeignKeys = append(next.Constraints.ForeignKeys, f)
 		}
 	}
-	next.CheckConstraints = nil
-	if len(old.CheckConstraints) != 0 {
+	next.Constraints.Check = nil
+	if len(old.Constraints.Check) != 0 {
 		slots := make(map[int32]int, len(next.Attributes))
 		for i, attr := range next.Attributes {
 			slots[attr] = i
 		}
-		for _, c := range old.CheckConstraints {
+		for _, c := range old.Constraints.Check {
 			dependent := false
 			for _, dep := range c.Dependencies {
 				if dep.Ref.Address == target {
@@ -205,7 +205,7 @@ func dropColumnMetadata(ctx context.Context, view catalog.Read, descriptor func(
 				return nil, err
 			}
 			c.Expression = expression
-			next.CheckConstraints = append(next.CheckConstraints, c)
+			next.Constraints.Check = append(next.Constraints.Check, c)
 		}
 	}
 	if _, exists := old.ColumnMeta.Defaults[old.Attributes[slot]]; exists {

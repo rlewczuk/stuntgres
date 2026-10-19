@@ -146,7 +146,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 						return err
 					}
 				}
-				destination.UniqueConstraints = append(destination.UniqueConstraints, c)
+				destination.Constraints.Unique = append(destination.Constraints.Unique, c)
 				definition.Constraint = uniqueBacking(&c)
 			}
 			if old.IsExclusion() {
@@ -166,7 +166,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 				if err != nil {
 					return err
 				}
-				destination.ExclusionConstraints = append(destination.ExclusionConstraints, c)
+				destination.Constraints.Exclusion = append(destination.Constraints.Exclusion, c)
 				definition.Constraint = exclusionBacking(&c)
 			}
 			columns := slices.Clone(source.Columns)

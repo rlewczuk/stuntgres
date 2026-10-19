@@ -139,7 +139,7 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 	}
 	for _, original := range []*catalog.Relation{left, right, child} {
 		pruned := stage.Descriptors[original.Address()].(*catalog.Relation)
-		if len(pruned.CheckConstraints) != 1 || pruned.CheckConstraints[0].Name != "keep_check" || len(original.CheckConstraints) != 2 {
+		if len(pruned.Constraints.Check) != 1 || pruned.Constraints.Check[0].Name != "keep_check" || len(original.Constraints.Check) != 2 {
 			t.Fatal("diamond owner pruning lost", original.Name())
 		}
 		if _, exists := pruned.Inheritance.Checks["field_check"]; exists {
@@ -148,7 +148,7 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 	}
 	view := e.stageRead(stage)
 	current := view.MustRelation(child.Address())
-	if len(current.CheckConstraints) != 1 || current.CheckConstraints[0].Name != "keep_check" || len(child.CheckConstraints) != 2 {
+	if len(current.Constraints.Check) != 1 || current.Constraints.Check[0].Name != "keep_check" || len(child.Constraints.Check) != 2 {
 		t.Fatal("pruning authority lost")
 	}
 	actions, renames, graph, err := typedInheritedActions(view, current, nil)
@@ -165,7 +165,7 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 	}
 	next := *mutation.next
 	finishTypedInheritance(view, &next, graph)
-	if len(next.CheckConstraints) != 1 || next.CheckConstraints[0].Name != "keep_check" {
+	if len(next.Constraints.Check) != 1 || next.Constraints.Check[0].Name != "keep_check" {
 		t.Fatal("propagation resurrected removed check")
 	}
 	if _, exists := next.Inheritance.Checks["field_check"]; exists {
@@ -179,7 +179,7 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(ctx, stage); !errors.Is(err, context.Canceled) {
 		t.Fatal("pruned inheritance candidate escaped cancellation", err)
 	}
-	if len(child.CheckConstraints) != 2 || e.CatalogRead().State() != before.State() {
+	if len(child.Constraints.Check) != 2 || e.CatalogRead().State() != before.State() {
 		t.Fatal("staged pruning mutated published roots")
 	}
 }

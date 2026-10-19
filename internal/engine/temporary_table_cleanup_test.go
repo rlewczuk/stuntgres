@@ -81,7 +81,7 @@ func temporaryCleanupConsumer(t *testing.T) (*Engine, *Operation, *catalog.Relat
 	roleExecute(t, e, op, "CREATE TABLE public.cleanup_survivor(v INT CHECK(nextval('cleanup_owned')>0))")
 	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "cleanup_survivor"})
 	survivor := e.catalog.state.MustRelation(address)
-	if len(survivor.CheckConstraints) != 1 || len(survivor.CheckConstraints[0].Dependencies) == 0 {
+	if len(survivor.Constraints.Check) != 1 || len(survivor.Constraints.Check[0].Dependencies) == 0 {
 		t.Fatal("missing real CHECK manifest")
 	}
 	return e, op, owner, sequence, survivor
@@ -123,7 +123,7 @@ func TestTemporaryTableCleanupPublication(t *testing.T) {
 		}
 		for _, original := range []*catalog.Relation{survivor, late} {
 			replacement := e.catalog.state.MustRelation(original.Address())
-			if replacement == original || len(replacement.CheckConstraints) != 0 || len(original.CheckConstraints) != 1 || replacement.Revision() != original.Revision()+1 || e.catalog.state.NameAddress(catalog.DescriptorNameKey(original)) != original.Address() {
+			if replacement == original || len(replacement.Constraints.Check) != 0 || len(original.Constraints.Check) != 1 || replacement.Revision() != original.Revision()+1 || e.catalog.state.NameAddress(catalog.DescriptorNameKey(original)) != original.Address() {
 				t.Fatal("reprepare missed consumer or changed captured definition")
 			}
 		}
@@ -153,7 +153,7 @@ func TestTemporaryTableCleanupPublication(t *testing.T) {
 			t.Fatal("current DML or unrelated roots lost", installed, err)
 		}
 		assertTemporaryNamespacePair(t, e, op.session.token, owner.Namespace())
-		if len(survivor.CheckConstraints) != 1 || len(e.catalog.state.MustRelation(survivor.Address()).CheckConstraints) != 0 || e.storage.relations[owner.Address()] != nil || e.storage.sequences[sequence.Address()] != nil {
+		if len(survivor.Constraints.Check) != 1 || len(e.catalog.state.MustRelation(survivor.Address()).Constraints.Check) != 0 || e.storage.relations[owner.Address()] != nil || e.storage.sequences[sequence.Address()] != nil {
 			t.Fatal("incomplete terminal stage")
 		}
 		e.DiscardCatalogStage(stage)
@@ -176,7 +176,7 @@ func TestTemporaryTableTerminalRevisionPreparation(t *testing.T) {
 		t.Fatal("terminal CHECK preparation must preserve saturated revision with fresh identity:", err)
 	}
 	replacement, ok := stage.Descriptors[survivor.Address()].(*catalog.Relation)
-	if !ok || replacement == &maximum || replacement.Revision() != maximum.Revision() || len(replacement.CheckConstraints) != 0 || len(maximum.CheckConstraints) != 1 {
+	if !ok || replacement == &maximum || replacement.Revision() != maximum.Revision() || len(replacement.Constraints.Check) != 0 || len(maximum.Constraints.Check) != 1 {
 		t.Fatal("terminal saturation changed original or omitted replacement")
 	}
 	e.DiscardCatalogStage(stage)
@@ -216,7 +216,7 @@ func TestTemporaryTableTerminalMaximumPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	replacement := e.catalog.state.MustRelation(survivor.Address())
-	if replacement == &maximum || replacement.Revision() != maximum.Revision() || len(replacement.CheckConstraints) != 0 || len(maximum.CheckConstraints) != 1 || e.catalog.nextRevision != maximum.Revision() {
+	if replacement == &maximum || replacement.Revision() != maximum.Revision() || len(replacement.Constraints.Check) != 0 || len(maximum.Constraints.Check) != 1 || e.catalog.nextRevision != maximum.Revision() {
 		t.Fatal("saturated replacement identity/frontier")
 	}
 	assertTemporaryNamespacePair(t, e, op.session.token, owner.Namespace())
@@ -277,7 +277,7 @@ func TestTemporaryTableCascadeRevisionBounds(t *testing.T) {
 					if err != nil || !ok || replacement == &maximum || replacement.Revision() != maximum.Revision() {
 						t.Fatal("terminal maximum cascade omitted fresh metadata", err)
 					}
-					if kind == "CHECK" && (len(replacement.CheckConstraints) != 0 || len(maximum.CheckConstraints) != 1) || kind == "DEFAULT" && (len(replacement.ColumnMeta.Defaults) != 0 || len(maximum.ColumnMeta.Defaults) != 1) {
+					if kind == "CHECK" && (len(replacement.Constraints.Check) != 0 || len(maximum.Constraints.Check) != 1) || kind == "DEFAULT" && (len(replacement.ColumnMeta.Defaults) != 0 || len(maximum.ColumnMeta.Defaults) != 1) {
 						t.Fatal("replacement changed captured definition")
 					}
 				}

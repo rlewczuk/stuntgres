@@ -41,21 +41,21 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 						next.Attributes = nil
 						next.Index = map[string]int{}
 					case "notnull":
-						p.NotNullConstraints = []catalog.NotNullConstraint{{OID: 23000, Name: "fact", Attribute: 1}}
-						q.NotNullConstraints = []catalog.NotNullConstraint{{OID: 23001, Name: "fact", Attribute: 1}}
-						c.NotNullConstraints = []catalog.NotNullConstraint{{OID: 23002, Name: "fact", Attribute: 7}}
+						p.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 23000, Name: "fact", Attribute: 1}}
+						q.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 23001, Name: "fact", Attribute: 1}}
+						c.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 23002, Name: "fact", Attribute: 7}}
 						nn := append([]catalog.InheritanceOrigin(nil), origins...)
 						for i := range nn {
 							nn[i].Constraint = 23000 + ids.OID(i)
 						}
 						c.Inheritance.NotNull[7] = catalog.InheritedConstraint{Local: local, Origins: nn}
 						original = cloneInheritance(c.Inheritance)
-						next.NotNullConstraints = nil
+						next.Constraints.NotNull = nil
 						action = parser.AlterTableAction{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: "fact"}}
 					case "check":
-						p.CheckConstraints = []catalog.CheckConstraint{{OID: 23000, Name: "fact"}}
-						q.CheckConstraints = []catalog.CheckConstraint{{OID: 23001, Name: "fact"}}
-						c.CheckConstraints = []catalog.CheckConstraint{{OID: 23002, Name: "fact"}}
+						p.Constraints.Check = []catalog.CheckConstraint{{OID: 23000, Name: "fact"}}
+						q.Constraints.Check = []catalog.CheckConstraint{{OID: 23001, Name: "fact"}}
+						c.Constraints.Check = []catalog.CheckConstraint{{OID: 23002, Name: "fact"}}
 						checks := append([]catalog.InheritanceOrigin(nil), origins...)
 						for i := range checks {
 							checks[i].Attribute = 0
@@ -63,7 +63,7 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 						}
 						c.Inheritance.Checks["fact"] = catalog.InheritedConstraint{Local: local, Origins: checks}
 						original = cloneInheritance(c.Inheritance)
-						next.CheckConstraints = nil
+						next.Constraints.Check = nil
 						action = parser.AlterTableAction{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: "fact"}}
 					}
 					view := inheritanceUnitView(e, p, q, c)
@@ -272,7 +272,7 @@ func TestInheritanceAlterOnlyMixedActions(t *testing.T) {
 		ownershipUnitExec(t, e, "ALTER TABLE ONLY p DROP COLUMN b,ADD CONSTRAINT uq UNIQUE(a)")
 		parent := retiredUnitTable(t, e, "p")
 		child := retiredUnitTable(t, e, "c")
-		if len(parent.UniqueConstraints) != 1 || parent.UniqueConstraints[0].Name != "uq" || len(child.UniqueConstraints) != 0 {
+		if len(parent.Constraints.Unique) != 1 || parent.Constraints.Unique[0].Name != "uq" || len(child.Constraints.Unique) != 0 {
 			t.Fatal("physical key propagated or was skipped")
 		}
 		expectError(t, e, "INSERT INTO p VALUES(1)", "23505")
@@ -340,7 +340,7 @@ func TestInheritanceAlterCheckProvenanceAtomicity(t *testing.T) {
 	ownershipUnitExec(t, e, "ALTER TABLE p DROP CONSTRAINT ck,ADD CONSTRAINT ck CHECK(a>1)")
 	for name, original := range originals {
 		table := retiredUnitTable(t, e, name)
-		if len(table.CheckConstraints) != 1 || table.CheckConstraints[0].OID == original.CheckConstraints[0].OID {
+		if len(table.Constraints.Check) != 1 || table.Constraints.Check[0].OID == original.Constraints.Check[0].OID {
 			t.Fatal("genuine DROP/ADD did not replace physical CHECK", name)
 		}
 		if name != "p" {

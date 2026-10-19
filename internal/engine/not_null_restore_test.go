@@ -121,7 +121,7 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 	e := New().restoreStage()
 	old := inheritanceUnitRelation(e, "p", 22000, "a")
 	old.Columns[0].Nullable = false
-	old.NotNullConstraints = []catalog.NotNullConstraint{{OID: 23000, Name: "captured", Attribute: 1}}
+	old.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 23000, Name: "captured", Attribute: 1}}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Create(old); err != nil {
 		t.Fatal(err)
@@ -130,7 +130,7 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 	old = e.CatalogRead().MustRelation(old.Address())
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	origin := restoredNotNull{ref: e.catalog.Domain.Ref(e.CatalogRead().Epoch(), old.Address()), attribute: 1, constraint: old.NotNullConstraints[0].OID}
+	origin := restoredNotNull{ref: e.catalog.Domain.Ref(e.CatalogRead().Epoch(), old.Address()), attribute: 1, constraint: old.Constraints.NotNull[0].OID}
 	raw := restoreNNRaw("public.p", "a", "captured")
 	for name, mutate := range map[string]func(*restoredNotNull){"epoch": func(r *restoredNotNull) { r.ref.Epoch++ }, "attribute": func(r *restoredNotNull) { r.attribute++ }, "constraint": func(r *restoredNotNull) { r.constraint++ }, "missing_pair": func(r *restoredNotNull) { *r = restoredNotNull{} }} {
 		t.Run(name, func(t *testing.T) {
@@ -146,16 +146,16 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 		before := e.catalog.state
 		altered := *old
 		altered.Columns = append([]catalog.Column(nil), old.Columns...)
-		altered.NotNullConstraints = append([]catalog.NotNullConstraint(nil), old.NotNullConstraints...)
+		altered.Constraints.NotNull = append([]catalog.NotNullConstraint(nil), old.Constraints.NotNull...)
 		switch kind {
 		case "invalid":
-			altered.NotNullConstraints[0].NotValid = true
+			altered.Constraints.NotNull[0].NotValid = true
 		case "nullable":
 			altered.Columns[0].Nullable = true
 		case "inherited":
 			altered.Inheritance = &catalog.TableInheritance{NotNull: map[int32]catalog.InheritedConstraint{1: {Origins: []catalog.InheritanceOrigin{{Parent: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 22001}, Attribute: 1, Constraint: 23001}}}}}
 		case "primary":
-			altered.UniqueConstraints = []catalog.UniqueConstraint{{OID: 23002, Name: "key", Primary: true, Attributes: []int32{1}}}
+			altered.Constraints.Unique = []catalog.UniqueConstraint{{OID: 23002, Name: "key", Primary: true, Attributes: []int32{1}}}
 		}
 		candidate := catalog.CloneState(before)
 		candidate.SetDescriptor(old.Address(), &altered)
@@ -193,7 +193,7 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	current := e.CatalogRead().MustRelation(old.Address())
-	if !current.NotNullConstraints[0].NoInherit || old.NotNullConstraints[0].NoInherit || current.NotNullConstraints[0].OID != origin.constraint || current.Columns[0].Nullable || current.Revision() != old.Revision()+1 {
+	if !current.Constraints.NotNull[0].NoInherit || old.Constraints.NotNull[0].NoInherit || current.Constraints.NotNull[0].OID != origin.constraint || current.Columns[0].Nullable || current.Revision() != old.Revision()+1 {
 		t.Fatal("repair changed identity/local nullability or old capture", current)
 	}
 }

@@ -9,12 +9,12 @@ import (
 )
 
 func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relation, view catalog.Read, writes []rowVersion, deletes *privateDeletionRoot) error {
-	if len(original.ExclusionConstraints)+len(parent.ExclusionConstraints) == 0 {
+	if len(original.Constraints.Exclusion)+len(parent.Constraints.Exclusion) == 0 {
 		return nil
 	}
-	entries := make(map[ids.ObjectAddress][]exclusionEntry, len(parent.ExclusionConstraints))
+	entries := make(map[ids.ObjectAddress][]exclusionEntry, len(parent.Constraints.Exclusion))
 	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1, Input: s.input, Output: s.output, statementScope: s, catalog: view}
-	for _, c := range parent.ExclusionConstraints {
+	for _, c := range parent.Constraints.Exclusion {
 		index, ok := view.Relation(c.Index)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing private exclusion index")
@@ -75,7 +75,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relatio
 	}
 	s.beginExclusionProjectionLocked(e)
 	p := cloneExclusionProjection(e.exclusionPending[s.ticket])
-	for _, c := range original.ExclusionConstraints {
+	for _, c := range original.Constraints.Exclusion {
 		delete(p.entries, c.Index)
 	}
 	for index, rows := range entries {

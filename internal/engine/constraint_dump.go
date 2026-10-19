@@ -13,12 +13,12 @@ func (t *dumpRelation) hasInvalidConstraints() bool {
 			return true
 		}
 	}
-	for _, c := range t.descriptor.CheckConstraints {
+	for _, c := range t.descriptor.Constraints.Check {
 		if c.NotValid {
 			return true
 		}
 	}
-	for _, f := range t.descriptor.ForeignKeys {
+	for _, f := range t.descriptor.Constraints.ForeignKeys {
 		if f.NotValid {
 			return true
 		}
@@ -55,7 +55,7 @@ func (t *dumpRelation) emitInvalidConstraints(ctx context.Context, catalog catal
 			return err
 		}
 	}
-	for _, f := range t.descriptor.ForeignKeys {
+	for _, f := range t.descriptor.Constraints.ForeignKeys {
 		if !f.NotValid {
 			continue
 		}

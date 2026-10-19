@@ -88,7 +88,7 @@ func TestPGDescriptionShape(t *testing.T) {
 		{"identity", func(r *catalog.Relation) { r.ObjectAddress.ObjectID = 0 }},
 		{"type", func(r *catalog.Relation) { r.Columns[0].Usage.Type = foreignType }},
 		{"live attribute", func(r *catalog.Relation) { r.Attributes[0] = 0 }},
-		{"constraint record", func(r *catalog.Relation) { r.NotNullConstraints = []catalog.NotNullConstraint{{Attribute: 1}} }},
+		{"constraint record", func(r *catalog.Relation) { r.Constraints.NotNull = []catalog.NotNullConstraint{{Attribute: 1}} }},
 		{"column comment", func(r *catalog.Relation) { r.ColumnMeta.Comments = map[int32]string{99: "dead attribute"} }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -15,13 +15,13 @@ func backingConstraintPresent(parent *catalog.Relation, index *catalog.Relation)
 		return true
 	}
 	if c.Kind == catalog.UniqueBackingKind {
-		for _, definition := range parent.UniqueConstraints {
+		for _, definition := range parent.Constraints.Unique {
 			if definition.OID == c.OID && definition.Index == index.Address() && definition.Name == c.Name && definition.Primary == c.Primary {
 				return true
 			}
 		}
 	} else if c.Kind == catalog.ExclusionBackingKind {
-		for _, definition := range parent.ExclusionConstraints {
+		for _, definition := range parent.Constraints.Exclusion {
 			if definition.OID == c.OID && definition.Index == index.Address() && definition.Name == c.Name && !c.Primary {
 				return true
 			}

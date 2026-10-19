@@ -80,7 +80,7 @@ func bindCreateUniques(s *parser.CreateTable, index map[string]int, likes []crea
 		if in.options&likeIndexes == 0 {
 			continue
 		}
-		for _, old := range in.source.UniqueConstraints {
+		for _, old := range in.source.Constraints.Unique {
 			if !old.Primary {
 				continue
 			}

@@ -280,14 +280,14 @@ func finishTypedInheritance(view catalog.Read, next *catalog.Relation, graph *ca
 		graph.Columns[attribute] = provenance
 	}
 	for name, provenance := range graph.Checks {
-		if !slices.ContainsFunc(next.CheckConstraints, func(c catalog.CheckConstraint) bool { return c.Name == name }) {
+		if !slices.ContainsFunc(next.Constraints.Check, func(c catalog.CheckConstraint) bool { return c.Name == name }) {
 			delete(graph.Checks, name)
 			continue
 		}
 		var origins []catalog.InheritanceOrigin
 		for _, origin := range provenance.Origins {
 			parent := view.MustRelation(origin.Parent)
-			for _, constraint := range parent.CheckConstraints {
+			for _, constraint := range parent.Constraints.Check {
 				if constraint.Name == name && !constraint.NoInherit {
 					origin.Constraint = constraint.OID
 					origins = append(origins, origin)
@@ -312,7 +312,7 @@ func finishTypedInheritance(view catalog.Read, next *catalog.Relation, graph *ca
 		var origins []catalog.InheritanceOrigin
 		for _, origin := range provenance.Origins {
 			parent := view.MustRelation(origin.Parent)
-			for _, constraint := range parent.NotNullConstraints {
+			for _, constraint := range parent.Constraints.NotNull {
 				if constraint.Attribute == origin.Attribute {
 					origin.Constraint = constraint.OID
 					origins = append(origins, origin)

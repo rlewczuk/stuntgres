@@ -33,19 +33,19 @@ func constraintNames(read catalog.Read, namespace ids.ObjectAddress, candidate *
 			}
 		}
 		if relation, ok := descriptor.(*catalog.Relation); ok && relation.Namespace() == namespace {
-			for _, constraint := range relation.NotNullConstraints {
+			for _, constraint := range relation.Constraints.NotNull {
 				names[constraint.Name] = true
 			}
-			for _, constraint := range relation.CheckConstraints {
+			for _, constraint := range relation.Constraints.Check {
 				names[constraint.Name] = true
 			}
-			for _, constraint := range relation.UniqueConstraints {
+			for _, constraint := range relation.Constraints.Unique {
 				names[constraint.Name] = true
 			}
-			for _, constraint := range relation.ExclusionConstraints {
+			for _, constraint := range relation.Constraints.Exclusion {
 				names[constraint.Name] = true
 			}
-			for _, constraint := range relation.ForeignKeys {
+			for _, constraint := range relation.Constraints.ForeignKeys {
 				names[constraint.Name] = true
 			}
 		}
@@ -56,27 +56,27 @@ func constraintNames(read catalog.Read, namespace ids.ObjectAddress, candidate *
 // Explicit names are relation-local and span every admitted constraint kind.
 // Keep this allocation-free lookup shared by NN additions and FK attachment.
 func relationConstraintNameExists(d *catalog.Relation, name string) bool {
-	for _, c := range d.NotNullConstraints {
+	for _, c := range d.Constraints.NotNull {
 		if c.Name == name {
 			return true
 		}
 	}
-	for _, c := range d.CheckConstraints {
+	for _, c := range d.Constraints.Check {
 		if c.Name == name {
 			return true
 		}
 	}
-	for _, c := range d.UniqueConstraints {
+	for _, c := range d.Constraints.Unique {
 		if c.Name == name {
 			return true
 		}
 	}
-	for _, c := range d.ExclusionConstraints {
+	for _, c := range d.Constraints.Exclusion {
 		if c.Name == name {
 			return true
 		}
 	}
-	for _, c := range d.ForeignKeys {
+	for _, c := range d.Constraints.ForeignKeys {
 		if c.Name == name {
 			return true
 		}
@@ -312,14 +312,14 @@ func bindCreateNotNull(s *parser.CreateTable, columns []catalog.Column, declarat
 }
 
 func nameCreateNotNull(d *catalog.Relation, read catalog.Read) error {
-	if len(d.NotNullConstraints) == 0 {
+	if len(d.Constraints.NotNull) == 0 {
 		return nil
 	}
 	used := constraintNames(read, d.Namespace(), nil)
 	// A local false entry was generated; true entries were explicitly named.
-	local := make(map[string]bool, len(d.NotNullConstraints))
-	for i := range d.NotNullConstraints {
-		constraint := &d.NotNullConstraints[i]
+	local := make(map[string]bool, len(d.Constraints.NotNull))
+	for i := range d.Constraints.NotNull {
+		constraint := &d.Constraints.NotNull[i]
 		if constraint.Name == "" {
 			constraint.Name = generatedConstraintName(d.Name(), d.Columns[constraint.Attribute-1].Name, "not_null", used)
 			local[constraint.Name] = false

@@ -111,7 +111,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 		return err
 	}
 	d.OnCommit = s.OnCommit
-	d.NotNullConstraints = b.createNotNull
+	d.Constraints.NotNull = b.createNotNull
 	if err := e.stageInheritance(op, auth, stage, d, b); err != nil {
 		return err
 	}

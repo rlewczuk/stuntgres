@@ -51,7 +51,7 @@ func TestUniqueTypeBuildOwnerDisclosure(t *testing.T) {
 				}
 				before := e.catalog.state
 				parent := before.MustRelation(ref.Address)
-				constraint := parent.UniqueConstraints[0]
+				constraint := parent.Constraints.Unique[0]
 				root := e.storage.indexRoots[constraint.Index]
 				store := e.storage.relations[ref.Address]
 				execute := func(query string) (Result, error) {
@@ -86,7 +86,7 @@ func TestUniqueTypeBuildOwnerDisclosure(t *testing.T) {
 					t.Fatal("failed TYPE changed catalog/storage/root identity")
 				}
 				current := e.catalog.state.MustRelation(ref.Address)
-				if current.UniqueConstraints[0].OID != constraint.OID || current.UniqueConstraints[0].Index != constraint.Index {
+				if current.Constraints.Unique[0].OID != constraint.OID || current.Constraints.Unique[0].Index != constraint.Index {
 					t.Fatal("failed TYPE reminted identities")
 				}
 				wantRows := [][]driver.Value{{int64(1), "protected"}, {int64(2), "protected"}}

@@ -24,12 +24,12 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *Operation, auth A
 		return prepared, nil
 	}
 	next := *parent
-	next.CheckConstraints = slices.Clone(parent.CheckConstraints)
+	next.Constraints.Check = slices.Clone(parent.Constraints.Check)
 	// The ordinary binder writes locality into this graph. A candidate must not
 	// mutate captured descriptors, including when a later descendant vetoes it.
 	next.Inheritance = cloneInheritance(parent.Inheritance)
 	ordinal := 0
-	for _, c := range parent.CheckConstraints {
+	for _, c := range parent.Constraints.Check {
 		if c.Ordinal >= ordinal {
 			ordinal = c.Ordinal + 1
 		}
@@ -37,7 +37,7 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *Operation, auth A
 	var inherited map[string]catalog.CheckConstraint
 	if scope.inheritanceAlter != nil {
 		for _, a := range raw {
-			for _, c := range parent.CheckConstraints {
+			for _, c := range parent.Constraints.Check {
 				if c.Name != a.Name.Text {
 					continue
 				}
@@ -66,13 +66,13 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *Operation, auth A
 		return prepared, err
 	}
 	if scope.inheritanceAlter != nil && scope.inheritanceAlter.descendant && next.Inheritance != nil {
-		for _, check := range next.CheckConstraints {
+		for _, check := range next.Constraints.Check {
 			if !slices.ContainsFunc(raw, func(declaration *parser.CheckConstraint) bool { return declaration.Name.Text == check.Name }) {
 				continue
 			}
 			provenance := next.Inheritance.Checks[check.Name]
 			before := parent.Inheritance.Checks[check.Name]
-			retained := slices.ContainsFunc(parent.CheckConstraints, func(old catalog.CheckConstraint) bool { return old.Name == check.Name })
+			retained := slices.ContainsFunc(parent.Constraints.Check, func(old catalog.CheckConstraint) bool { return old.Name == check.Name })
 			provenance.Local = retained && before.Local
 			next.Inheritance.Checks[check.Name] = provenance
 		}
@@ -144,7 +144,7 @@ func verifyAlterPrimaryPrerequisites(parent *catalog.Relation, actions []parser.
 }
 
 func verifyNotNullPKCompatible(parent *catalog.Relation, attributes []int32) error {
-	for _, n := range parent.NotNullConstraints {
+	for _, n := range parent.Constraints.NotNull {
 		if (!n.NotValid && !n.NoInherit) || !slices.Contains(attributes, n.Attribute) {
 			continue
 		}
@@ -164,7 +164,7 @@ func verifyNotNullPKCompatible(parent *catalog.Relation, attributes []int32) err
 
 func (e *Engine) stageAddedUnique(op *Operation, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.UniqueConstraint) (*catalog.Relation, error) {
 	if raw.Primary {
-		for _, c := range parent.UniqueConstraints {
+		for _, c := range parent.Constraints.Unique {
 			if c.Primary {
 				return nil, sqlError("42P16", fmt.Sprintf(`multiple primary keys for table "%s" are not allowed`, parent.Name()))
 			}
@@ -181,7 +181,7 @@ func (e *Engine) stageAddedUnique(op *Operation, auth AuthorizationView, stage *
 		for _, attribute := range definition.Attributes {
 			// Raw PRIMARY reuses an existing NN tuple without direct-ADD locality
 			// changes. USING INDEX's separate implied ADD NN remains unconditional.
-			if slices.ContainsFunc(parent.NotNullConstraints, func(constraint catalog.NotNullConstraint) bool { return constraint.Attribute == attribute }) {
+			if slices.ContainsFunc(parent.Constraints.NotNull, func(constraint catalog.NotNullConstraint) bool { return constraint.Attribute == attribute }) {
 				continue
 			}
 			column := parent.Columns[slices.Index(parent.Attributes, attribute)].Name
@@ -203,7 +203,7 @@ func (e *Engine) stageAddedUnique(op *Operation, auth AuthorizationView, stage *
 
 func (e *Engine) stageAddedForeignKey(auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.ForeignKeyConstraint, target, supporting ids.ObjectAddress) (*catalog.Relation, error) {
 	next := *parent
-	next.ForeignKeys = slices.Clone(parent.ForeignKeys)
+	next.Constraints.ForeignKeys = slices.Clone(parent.Constraints.ForeignKeys)
 	if err := stage.Replace(&next); err != nil {
 		return nil, err
 	}

@@ -15,7 +15,7 @@ func TestInheritanceGuards(t *testing.T) {
 	base := e.CatalogRead()
 	catalogView := e.catalog.read(catalog.CloneState(base.State()))
 	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90001}, ObjectName: "p", RelationKind: catalog.TableRelation, Index: map[string]int{"a": 0}, Attributes: []int32{3}}
-	child := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, ObjectName: "c", RelationKind: catalog.TableRelation, Index: map[string]int{"a": 0, "local": 1}, Attributes: []int32{5, 8}, NotNullConstraints: []catalog.NotNullConstraint{{Name: "p_a_not_null", Attribute: 5}}, Inheritance: &catalog.TableInheritance{
+	child := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, ObjectName: "c", RelationKind: catalog.TableRelation, Index: map[string]int{"a": 0, "local": 1}, Attributes: []int32{5, 8}, Constraints: catalog.RelationConstraints{NotNull: []catalog.NotNullConstraint{{Name: "p_a_not_null", Attribute: 5}}}, Inheritance: &catalog.TableInheritance{
 		Parents: []ids.ObjectAddress{parent.Address()},
 		Columns: map[int32]catalog.InheritedColumn{5: {Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: 3}}}, 8: {Local: true}},
 		NotNull: map[int32]catalog.InheritedConstraint{5: {Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: 3, Constraint: 90003}}}},
@@ -68,7 +68,7 @@ func TestInheritanceGuards(t *testing.T) {
 	if err := inheritanceAlterActionsGuard(catalogView, child, []parser.AlterTableAction{{Action: parser.DropColumn, Column: parser.Identifier{Text: "local"}}}); err != nil {
 		t.Fatal(err)
 	}
-	if child.Inheritance.Columns[5].Local || len(child.Inheritance.Columns[5].Origins) != 1 || child.NotNullConstraints[0].Name != "p_a_not_null" {
+	if child.Inheritance.Columns[5].Local || len(child.Inheritance.Columns[5].Origins) != 1 || child.Constraints.NotNull[0].Name != "p_a_not_null" {
 		t.Fatal("admission changed immutable provenance")
 	}
 }

@@ -142,7 +142,7 @@ func TestConcurrentIndexU4ReadinessAdmissionAndNoHealing(t *testing.T) {
 		t.Fatal("not-ready root present")
 	}
 	parent := e.CatalogRead().MustRelation(initial.SQLIndex.Parent)
-	if len(parent.UniqueConstraints) != 0 || initial.SQLIndex.Constraint != nil || !initial.SQLIndex.Unique {
+	if len(parent.Constraints.Unique) != 0 || initial.SQLIndex.Constraint != nil || !initial.SQLIndex.Unique {
 		t.Fatal("standalone index fabricated a parent constraint")
 	}
 	sessionSQL(t, d, "BEGIN ISOLATION LEVEL READ COMMITTED")

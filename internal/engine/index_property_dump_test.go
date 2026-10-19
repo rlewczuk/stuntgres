@@ -25,7 +25,7 @@ func TestIndexPropertyDumpPredecessors(t *testing.T) {
 	}
 	constraint := catalog.UniqueConstraint{OID: 100020, Index: indexAddress}
 	index.SQLIndex.Unique, index.SQLIndex.Constraint = true, uniqueBacking(&constraint)
-	parent.UniqueConstraints = []catalog.UniqueConstraint{constraint}
+	parent.Constraints.Unique = []catalog.UniqueConstraint{constraint}
 	got, err = dumpPredecessor(view, indexAddress, consumer)
 	if err != nil || got != parentAddress.ObjectID {
 		t.Fatal("inline unique predecessor", got, err)
@@ -34,7 +34,7 @@ func TestIndexPropertyDumpPredecessors(t *testing.T) {
 	if err != nil || got != 0 {
 		t.Fatal("inline self predecessor", got, err)
 	}
-	parent.UniqueConstraints = nil
+	parent.Constraints.Unique = nil
 	if _, err := dumpPredecessor(view, indexAddress, consumer); err == nil {
 		t.Fatal("orphan unique dependency accepted")
 	}

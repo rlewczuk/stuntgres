@@ -33,7 +33,7 @@ func (e *Engine) generationCandidate(scope *StatementScope, op *Operation, auth 
 		message := ""
 		if action.Action == parser.DropExpression {
 			message = "ALTER TABLE / DROP EXPRESSION is not supported for virtual generated columns"
-		} else if len(old.CheckConstraints) != 0 {
+		} else if len(old.Constraints.Check) != 0 {
 			// PostgreSQL18.0 rejects even an unrelated CHECK; newer releases differ.
 			message = "ALTER TABLE / SET EXPRESSION is not supported for virtual generated columns in tables with check constraints"
 		}

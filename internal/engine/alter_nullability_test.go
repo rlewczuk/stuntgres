@@ -27,8 +27,8 @@ func TestAlterNullabilityMetadataAndStorage(t *testing.T) {
 	if next.Address() != old.Address() || next.Revision() != old.Revision()+1 || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.ColumnMeta.Comments, old.ColumnMeta.Comments) || e.storage.relations[ref.Address] != store || store.generation != generation || store.ends != ends || !sameVersionRoot(root, store.versions) || &root[0].values[0] != &store.versions[0].values[0] {
 		t.Fatal("pure NN rewrote identity, metadata or values")
 	}
-	if len(next.NotNullConstraints) != 1 || next.NotNullConstraints[0].Name != "t_a_not_null" {
-		t.Fatal(next.NotNullConstraints)
+	if len(next.Constraints.NotNull) != 1 || next.Constraints.NotNull[0].Name != "t_a_not_null" {
+		t.Fatal(next.Constraints.NotNull)
 	}
 	run(t, e, "ALTER TABLE t ALTER a SET NOT NULL, ADD NOT NULL a")
 	if e.catalog.state.Get(ref.Address) != next || e.storage.relations[ref.Address] != store {

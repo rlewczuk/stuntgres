@@ -78,7 +78,7 @@ func (e *Engine) prepareDeferredPhysicalPrimary(op *Operation, raw *parser.Alter
 		return nil, err
 	}
 	old := pair.current
-	if ref != pair.ref || old.RelationKind != catalog.TableRelation || old.Partition != nil || old.Membership != nil || inheritanceHasChildren(auth.catalog, old.Address()) || slices.ContainsFunc(old.UniqueConstraints, func(c catalog.UniqueConstraint) bool { return c.Primary }) {
+	if ref != pair.ref || old.RelationKind != catalog.TableRelation || old.Partition != nil || old.Membership != nil || inheritanceHasChildren(auth.catalog, old.Address()) || slices.ContainsFunc(old.Constraints.Unique, func(c catalog.UniqueConstraint) bool { return c.Primary }) {
 		return reject()
 	}
 	for _, column := range definition.Columns {
@@ -86,7 +86,7 @@ func (e *Engine) prepareDeferredPhysicalPrimary(op *Operation, raw *parser.Alter
 		if !exists {
 			return reject()
 		}
-		if _, physical := old.PhysicalNotNull[old.Attributes[slot]]; physical {
+		if _, physical := old.Constraints.PhysicalNotNull[old.Attributes[slot]]; physical {
 			return reject()
 		}
 	}
@@ -97,9 +97,9 @@ func validateDeferredPhysicalPrimary(constructor *physicalNotNullConstructor, cu
 	reject := func() error { return sqlError("0A000", restorePhysicalNotNullBoundary) }
 	definition := constructor.deferred
 	var primary *catalog.UniqueConstraint
-	for i := range current.UniqueConstraints {
-		if current.UniqueConstraints[i].Primary == definition.Primary && current.UniqueConstraints[i].Name == definition.Name.Text {
-			primary = &current.UniqueConstraints[i]
+	for i := range current.Constraints.Unique {
+		if current.Constraints.Unique[i].Primary == definition.Primary && current.Constraints.Unique[i].Name == definition.Name.Text {
+			primary = &current.Constraints.Unique[i]
 			break
 		}
 	}
@@ -112,8 +112,8 @@ func validateDeferredPhysicalPrimary(constructor *physicalNotNullConstructor, cu
 			return reject()
 		}
 	}
-	for attribute, proof := range constructor.before.PhysicalNotNull {
-		retained, exists := current.PhysicalNotNull[attribute]
+	for attribute, proof := range constructor.before.Constraints.PhysicalNotNull {
+		retained, exists := current.Constraints.PhysicalNotNull[attribute]
 		if !exists || retained.Cause != proof.Cause || retained.Usage != proof.Usage {
 			return reject()
 		}

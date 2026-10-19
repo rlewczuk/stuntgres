@@ -247,10 +247,10 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 func (e *Engine) stageLikeChecks(op *Operation, auth AuthorizationView, destination *catalog.Relation, inputs []createLikeInput) error {
 	names := make(map[string]bool)
 	ordinal := 0
-	for _, constraint := range destination.NotNullConstraints {
+	for _, constraint := range destination.Constraints.NotNull {
 		names[constraint.Name] = true
 	}
-	for _, constraint := range destination.CheckConstraints {
+	for _, constraint := range destination.Constraints.Check {
 		names[constraint.Name] = true
 		if constraint.Ordinal >= ordinal {
 			ordinal = constraint.Ordinal + 1
@@ -286,7 +286,7 @@ func (e *Engine) stageLikeChecks(op *Operation, auth AuthorizationView, destinat
 				}
 				definition.Dependencies = append(definition.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: revision})
 			}
-			destination.CheckConstraints = append(destination.CheckConstraints, definition)
+			destination.Constraints.Check = append(destination.Constraints.Check, definition)
 			if destination.Inheritance != nil {
 				destination.Inheritance.Checks[definition.Name] = catalog.InheritedConstraint{Local: true}
 			}
@@ -294,6 +294,6 @@ func (e *Engine) stageLikeChecks(op *Operation, auth AuthorizationView, destinat
 			ordinal++
 		}
 	}
-	slices.SortFunc(destination.CheckConstraints, func(a, b catalog.CheckConstraint) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortFunc(destination.Constraints.Check, func(a, b catalog.CheckConstraint) int { return strings.Compare(a.Name, b.Name) })
 	return nil
 }

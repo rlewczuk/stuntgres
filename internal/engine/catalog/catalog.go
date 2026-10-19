@@ -50,14 +50,9 @@ type Relation struct {
 	ColumnMeta                     ColumnMetadata
 	Owner                          authorization.PrincipalRef
 	Comment                        string
+	Constraints                    RelationConstraints
 	Security                       RelationSecurity
-	NotNullConstraints             []NotNullConstraint
-	PhysicalNotNull                map[int32]PhysicalNotNullProof
-	CheckConstraints               []CheckConstraint
 	Rules                          RulesPayload
-	UniqueConstraints              []UniqueConstraint
-	ExclusionConstraints           []ExclusionConstraint
-	ForeignKeys                    []ForeignKeyConstraint
 	Inheritance                    *TableInheritance
 	RelationKind                   RelationKind
 	History                        PublicationHistory
@@ -85,6 +80,18 @@ type ColumnMetadata struct {
 	Defaults          map[int32]ColumnDefault
 	Generations       map[int32]ColumnGeneration
 	Identities        map[int32]ColumnIdentity
+}
+
+// RelationConstraints holds a relation's table constraints. PhysicalNotNull
+// records attributes that stay physically NOT NULL without a NOT NULL
+// constraint row (after TYPE cleanup or its import counterpart).
+type RelationConstraints struct {
+	NotNull         []NotNullConstraint
+	PhysicalNotNull map[int32]PhysicalNotNullProof
+	Check           []CheckConstraint
+	Unique          []UniqueConstraint
+	Exclusion       []ExclusionConstraint
+	ForeignKeys     []ForeignKeyConstraint
 }
 
 // RelationSecurity holds a relation's access control: its ACL, column ACLs

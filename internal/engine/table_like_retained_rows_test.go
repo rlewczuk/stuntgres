@@ -30,7 +30,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 				generation.Dependencies = slices.Clone(generation.Dependencies)
 				generations[attribute] = generation
 			}
-			check := source.CheckConstraints[0]
+			check := source.Constraints.Check[0]
 			originalChecks := slices.Clone(check.Dependencies)
 			indexes := []*catalog.Relation{tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "source_expression"), tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "source_partial")}
 			sourceTrees := []expr.Expr{generations[3].Expression, generations[3].Planned, generations[4].Expression, generations[4].Planned, check.Expression, indexes[0].SQLIndex.Keys[0].Derived.Definition, indexes[0].SQLIndex.Keys[0].Derived.Execution, indexes[1].SQLIndex.Keys[0].Derived.Definition, indexes[1].SQLIndex.Keys[0].Derived.Execution, indexes[1].SQLIndex.Predicate.Definition, indexes[1].SQLIndex.Predicate.Execution}
@@ -107,7 +107,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 					t.Fatal("generation manifest lacks current local authority", copied.Dependencies, expected)
 				}
 			}
-			copiedCheck := destination.CheckConstraints[0]
+			copiedCheck := destination.Constraints.Check[0]
 			if copiedCheck.OID == check.OID {
 				t.Fatal("CHECK identity retained")
 			}
@@ -196,7 +196,7 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 	anchor := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "anchor")
 	oldRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), anchor.Address())
 	oldGeneration := source.ColumnMeta.Generations[2]
-	oldCheck := source.CheckConstraints[0]
+	oldCheck := source.Constraints.Check[0]
 	oldIndex := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "source_partial")
 	oldManifest := slices.Clone(oldIndex.SQLIndex.Predicate.Dependencies)
 	if !slices.Contains(oldGeneration.Dependencies, oldRef) || !slices.Contains(oldManifest, oldRef) {
@@ -237,13 +237,13 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 	assertNode(generation.Expression)
 	assertNode(generation.Planned)
 	found := false
-	for _, dependency := range destination.CheckConstraints[0].Dependencies {
+	for _, dependency := range destination.Constraints.Check[0].Dependencies {
 		found = found || dependency.Ref == oldRef
 	}
 	if !found {
 		t.Fatal("CHECK external manifest reminted")
 	}
-	assertNode(destination.CheckConstraints[0].Expression)
+	assertNode(destination.Constraints.Check[0].Expression)
 	for _, descriptor := range stage.Descriptors {
 		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
@@ -255,7 +255,7 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 		assertNode(index.SQLIndex.Predicate.Definition)
 		assertNode(index.SQLIndex.Predicate.Execution)
 	}
-	if !reflect.DeepEqual(source.ColumnMeta.Generations[2], oldGeneration) || !reflect.DeepEqual(source.CheckConstraints[0], oldCheck) || !slices.Equal(oldIndex.SQLIndex.Predicate.Dependencies, oldManifest) {
+	if !reflect.DeepEqual(source.ColumnMeta.Generations[2], oldGeneration) || !reflect.DeepEqual(source.Constraints.Check[0], oldCheck) || !slices.Equal(oldIndex.SQLIndex.Predicate.Dependencies, oldManifest) {
 		t.Fatal("retained source definitions changed")
 	}
 	// An old external TEMP constant never borrows the mapper's fresh local-row

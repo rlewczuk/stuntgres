@@ -13,7 +13,7 @@ import (
 )
 
 func validateExclusions(view catalog.Read, parent *catalog.Relation, names map[string]bool) error {
-	for _, c := range parent.ExclusionConstraints {
+	for _, c := range parent.Constraints.Exclusion {
 		index, ok := view.Relation(c.Index)
 		if !ok || parent.RelationKind != catalog.TableRelation && parent.Partition == nil || c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || index.SQLIndex == nil || !index.SQLIndex.IsExclusion() || index.Name() != c.Name || index.SQLIndex.Constraint.OID != c.OID || index.SQLIndex.Parent != parent.Address() || len(c.Operators) != len(index.SQLIndex.Keys) || c.InitiallyDeferred && !c.Deferrable {
 			return fmt.Errorf("stuntgres: invalid exclusion constraint identity")
@@ -110,27 +110,27 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 				return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 			}
 		}
-		for _, c := range parent.ForeignKeys {
+		for _, c := range parent.Constraints.ForeignKeys {
 			if c.Name == name {
 				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.Name()))
 			}
 		}
-		for _, c := range parent.UniqueConstraints {
+		for _, c := range parent.Constraints.Unique {
 			if c.Name == name {
 				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.Name()))
 			}
 		}
-		for _, c := range parent.ExclusionConstraints {
+		for _, c := range parent.Constraints.Exclusion {
 			if c.Name == name {
 				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.Name()))
 			}
 		}
-		for _, c := range parent.CheckConstraints {
+		for _, c := range parent.Constraints.Check {
 			if c.Name == name {
 				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.Name()))
 			}
 		}
-		for _, c := range parent.NotNullConstraints {
+		for _, c := range parent.Constraints.NotNull {
 			if c.Name == name {
 				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, parent.Name()))
 			}
@@ -164,7 +164,7 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 		index.Columns[i].OriginTable = uint32(indexOID)
 		index.Columns[i].OriginAttribute = int16(i + 1)
 	}
-	parent.ExclusionConstraints = append(parent.ExclusionConstraints, c)
+	parent.Constraints.Exclusion = append(parent.Constraints.Exclusion, c)
 	if _, existing := stage.Base.Find(parent.Address()); existing {
 		if err := stage.Replace(parent); err != nil {
 			return err

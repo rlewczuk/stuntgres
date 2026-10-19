@@ -186,7 +186,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 			for _, definition := range relation.ColumnMeta.Defaults {
 				retainExpression(definition.Expression)
 			}
-			for _, definition := range relation.CheckConstraints {
+			for _, definition := range relation.Constraints.Check {
 				retainExpression(definition.Expression)
 			}
 			for _, policy := range relation.Security.Policies {
@@ -422,33 +422,33 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 				if dest, ok := mapping[n.Namespace()]; ok {
 					n.ObjectNamespace = dest
 				}
-				if len(r.UniqueConstraints) != 0 {
-					n.UniqueConstraints = append([]catalog.UniqueConstraint(nil), r.UniqueConstraints...)
-					for i := range n.UniqueConstraints {
-						if dest, ok := mapping[n.UniqueConstraints[i].Index]; ok {
-							n.UniqueConstraints[i].Index = dest
+				if len(r.Constraints.Unique) != 0 {
+					n.Constraints.Unique = append([]catalog.UniqueConstraint(nil), r.Constraints.Unique...)
+					for i := range n.Constraints.Unique {
+						if dest, ok := mapping[n.Constraints.Unique[i].Index]; ok {
+							n.Constraints.Unique[i].Index = dest
 						}
 					}
 				}
 				if err := remapPhysicalNotNullReferences(r, &n, mapping); err != nil {
 					return err
 				}
-				if len(r.ExclusionConstraints) != 0 {
-					n.ExclusionConstraints = append([]catalog.ExclusionConstraint(nil), r.ExclusionConstraints...)
-					for i := range n.ExclusionConstraints {
-						if dest, ok := mapping[n.ExclusionConstraints[i].Index]; ok {
-							n.ExclusionConstraints[i].Index = dest
+				if len(r.Constraints.Exclusion) != 0 {
+					n.Constraints.Exclusion = append([]catalog.ExclusionConstraint(nil), r.Constraints.Exclusion...)
+					for i := range n.Constraints.Exclusion {
+						if dest, ok := mapping[n.Constraints.Exclusion[i].Index]; ok {
+							n.Constraints.Exclusion[i].Index = dest
 						}
 					}
 				}
-				if len(r.ForeignKeys) != 0 {
-					n.ForeignKeys = append([]catalog.ForeignKeyConstraint(nil), r.ForeignKeys...)
-					for i := range n.ForeignKeys {
-						if dest, ok := mapping[n.ForeignKeys[i].Target]; ok {
-							n.ForeignKeys[i].Target = dest
+				if len(r.Constraints.ForeignKeys) != 0 {
+					n.Constraints.ForeignKeys = append([]catalog.ForeignKeyConstraint(nil), r.Constraints.ForeignKeys...)
+					for i := range n.Constraints.ForeignKeys {
+						if dest, ok := mapping[n.Constraints.ForeignKeys[i].Target]; ok {
+							n.Constraints.ForeignKeys[i].Target = dest
 						}
-						if dest, ok := mapping[n.ForeignKeys[i].Index]; ok {
-							n.ForeignKeys[i].Index = dest
+						if dest, ok := mapping[n.Constraints.ForeignKeys[i].Index]; ok {
+							n.Constraints.ForeignKeys[i].Index = dest
 						}
 					}
 				}

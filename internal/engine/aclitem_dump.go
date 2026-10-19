@@ -95,7 +95,7 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, view catalog.Read, ou
 		for _, definition := range relation.ColumnMeta.Generations {
 			expression(definition.Expression)
 		}
-		for _, constraint := range relation.CheckConstraints {
+		for _, constraint := range relation.Constraints.Check {
 			expression(constraint.Expression)
 		}
 		if relation.View != nil {

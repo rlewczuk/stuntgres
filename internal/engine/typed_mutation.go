@@ -105,8 +105,8 @@ func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth Author
 	next := *mutation.next
 	next.ObjectRevision = old.Revision() + 1
 	next.ColumnMeta.Defaults = maps.Clone(next.ColumnMeta.Defaults)
-	next.CheckConstraints = slices.Clone(next.CheckConstraints)
-	next.NotNullConstraints = slices.Clone(next.NotNullConstraints)
+	next.Constraints.Check = slices.Clone(next.Constraints.Check)
+	next.Constraints.NotNull = slices.Clone(next.Constraints.NotNull)
 	e.mu.Lock()
 	err := e.assignDefinitionOIDsLocked(&next)
 	e.mu.Unlock()
@@ -171,7 +171,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 	validator := newAlterRowValidator(next, schema)
 	if len(mutation.checks) != 0 {
 		checks := *next
-		checks.CheckConstraints = mutation.checks
+		checks.Constraints.Check = mutation.checks
 		validator.checks = validCheckTraversal(&checks)
 		e.mu.Lock()
 		err = e.captureCheckCommentSnapshotLocked(scope, &checks)

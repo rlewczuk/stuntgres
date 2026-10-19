@@ -114,10 +114,10 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	if e.catalog.state != before.State() || destination.Address() == source.Address() || destination.RowType == source.RowType || destination.ColumnMeta.Defaults[3].OID == source.ColumnMeta.Defaults[2].OID || destination.ColumnMeta.Generations[5].OID == source.ColumnMeta.Generations[4].OID || destination.CheckConstraints[0].OID == source.CheckConstraints[0].OID {
+	if e.catalog.state != before.State() || destination.Address() == source.Address() || destination.RowType == source.RowType || destination.ColumnMeta.Defaults[3].OID == source.ColumnMeta.Defaults[2].OID || destination.ColumnMeta.Generations[5].OID == source.ColumnMeta.Generations[4].OID || destination.Constraints.Check[0].OID == source.Constraints.Check[0].OID {
 		t.Fatal("copied provider identities or published early")
 	}
-	if !destination.CheckConstraints[0].NoInherit || destination.CheckConstraints[0].Name != "positive" || destination.ColumnMeta.Comments[3] != "exact" || len(source.Columns) != 3 || len(destination.Columns) != 5 {
+	if !destination.Constraints.Check[0].NoInherit || destination.Constraints.Check[0].Name != "positive" || destination.ColumnMeta.Comments[3] != "exact" || len(source.Columns) != 3 || len(destination.Columns) != 5 {
 		t.Fatal(destination, source)
 	}
 	identity := destination.ColumnMeta.Identities[4]
@@ -130,7 +130,7 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 			t.Fatal("generation retained source row", ref)
 		}
 	}
-	for _, dep := range destination.CheckConstraints[0].Dependencies {
+	for _, dep := range destination.Constraints.Check[0].Dependencies {
 		if dep.Ref.Address.ObjectID == source.Address().ObjectID {
 			t.Fatal("CHECK retained source row", dep)
 		}

@@ -35,7 +35,7 @@ func (provider *dropProvider) compositeFieldChecks(source *catalog.Relation, att
 	var relations []*catalog.Relation
 	var domains []*catalog.Type
 	for _, descriptor := range provider.descriptors() {
-		if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.CheckConstraints) != 0 {
+		if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Constraints.Check) != 0 {
 			relations = append(relations, relation)
 		}
 		if domain, ok := descriptor.(*catalog.Type); ok && len(domain.DomainChecks) != 0 {
@@ -54,7 +54,7 @@ func (provider *dropProvider) compositeFieldChecks(source *catalog.Relation, att
 	var details []string
 	for _, relation := range relations {
 		var kept []catalog.CheckConstraint
-		for _, check := range relation.CheckConstraints {
+		for _, check := range relation.Constraints.Check {
 			if !expressionUsesCompositeField(check.Expression, source.RowType, attribute) {
 				kept = append(kept, check)
 				continue
@@ -65,7 +65,7 @@ func (provider *dropProvider) compositeFieldChecks(source *catalog.Relation, att
 				provider.compositeFieldNotice("drop cascades to " + label)
 			}
 		}
-		if len(kept) == len(relation.CheckConstraints) || mode != parser.DropCascade {
+		if len(kept) == len(relation.Constraints.Check) || mode != parser.DropCascade {
 			continue
 		}
 		if provider.stage == nil || !typedFieldCheckOwner(provider.stage, relation) {
@@ -78,7 +78,7 @@ func (provider *dropProvider) compositeFieldChecks(source *catalog.Relation, att
 		if err != nil {
 			return err
 		}
-		next.ObjectRevision, next.CheckConstraints = revision, kept
+		next.ObjectRevision, next.Constraints.Check = revision, kept
 		if next.Inheritance != nil {
 			graph := *next.Inheritance
 			graph.Checks = maps.Clone(graph.Checks)

@@ -355,7 +355,7 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *binding, auth Authori
 	binder.queryAuth = &auth
 	binder.insertTarget = b.relation
 	e.bindInsertDefaults(b, auth, parser.OverrideSystem)
-	if err := binder.captureRetainedWriteInput(b.defaults, b.relation.ColumnMeta.Generations, b.relation.CheckConstraints); err != nil {
+	if err := binder.captureRetainedWriteInput(b.defaults, b.relation.ColumnMeta.Generations, b.relation.Constraints.Check); err != nil {
 		return err
 	}
 	s.input = binder.input

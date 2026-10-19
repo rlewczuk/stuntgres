@@ -325,7 +325,7 @@ func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStag
 
 func detachPreparedInheritanceDefinition(next *catalog.Relation) *catalog.Relation {
 	copy := *next
-	copy.NotNullConstraints = slices.Clone(next.NotNullConstraints)
-	copy.CheckConstraints = slices.Clone(next.CheckConstraints)
+	copy.Constraints.NotNull = slices.Clone(next.Constraints.NotNull)
+	copy.Constraints.Check = slices.Clone(next.Constraints.Check)
 	return &copy
 }

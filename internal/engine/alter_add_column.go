@@ -99,8 +99,8 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 	next.Attributes = slices.Clone(old.Attributes)
 	next.Index = maps.Clone(old.Index)
 	next.ColumnMeta.Defaults = maps.Clone(old.ColumnMeta.Defaults)
-	next.NotNullConstraints = slices.Clone(old.NotNullConstraints)
-	next.CheckConstraints = slices.Clone(old.CheckConstraints)
+	next.Constraints.NotNull = slices.Clone(old.Constraints.NotNull)
+	next.Constraints.Check = slices.Clone(old.Constraints.Check)
 	next.Index[column.Name] = len(next.Columns)
 	definition := catalog.Column{Name: column.Name, Usage: usage, DeclaredDimensions: int16(len(column.TypeName.ArrayBounds)), Nullable: true, NullabilityKnown: true, OriginTable: uint32(old.Address().ObjectID), OriginAttribute: int16(attribute)}
 	next.Columns = append(next.Columns, definition)

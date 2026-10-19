@@ -963,7 +963,7 @@ func catalogExpressionTypesChanged(d *catalog.Relation, typ func(*sqltype.Descri
 		expression(definition.Expression)
 		expression(definition.Planned)
 	}
-	for _, constraint := range d.CheckConstraints {
+	for _, constraint := range d.Constraints.Check {
 		expression(constraint.Expression)
 	}
 	for _, policy := range d.Security.Policies {

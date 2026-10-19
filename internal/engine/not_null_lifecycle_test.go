@@ -148,7 +148,7 @@ func TestNotNullAXGrantTimeDescriptorAndRetargetFence(t *testing.T) {
 				if kind == "revision" {
 					lockAwait(t, done, nil)
 					d := e.catalog.state.MustRelation(ref.Address)
-					if len(d.NotNullConstraints) != 1 || d.NotNullConstraints[0].Name != "t_a_not_null" {
+					if len(d.Constraints.NotNull) != 1 || d.Constraints.NotNull[0].Name != "t_a_not_null" {
 						t.Fatal(d)
 					}
 				} else {

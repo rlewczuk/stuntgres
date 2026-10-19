@@ -220,7 +220,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	}
 	var referenced []int32
 	if len(raw.Referenced) == 0 {
-		for _, key := range parent.UniqueConstraints {
+		for _, key := range parent.Constraints.Unique {
 			if key.Primary {
 				referenced = slices.Clone(key.Attributes)
 				break
@@ -284,7 +284,7 @@ func (e *Engine) stageForeignKey(auth AuthorizationView, stage *CatalogStage, ch
 	if err != nil {
 		return err
 	}
-	child.ForeignKeys = append(child.ForeignKeys, f)
+	child.Constraints.ForeignKeys = append(child.Constraints.ForeignKeys, f)
 	stage.Descriptors[child.Address()] = child
 	return nil
 }
@@ -321,7 +321,7 @@ func (e *Engine) stageCreateForeignKeys(auth AuthorizationView, stage *CatalogSt
 }
 
 func validateForeignKeys(view catalog.Read, child *catalog.Relation, names map[string]bool) error {
-	for _, f := range child.ForeignKeys {
+	for _, f := range child.Constraints.ForeignKeys {
 		if child.RelationKind != catalog.TableRelation || f.OID == 0 || f.Name == "" || len(f.Name) > 63 || !utf8.ValidString(f.Name) || strings.IndexByte(f.Name, 0) >= 0 || names[f.Name] || len(f.Attributes) == 0 || len(f.Attributes) != len(f.Referenced) {
 			return fmt.Errorf("stuntgres: invalid foreign-key definition")
 		}

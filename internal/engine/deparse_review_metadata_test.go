@@ -314,7 +314,7 @@ func TestDeparseConstraintsReviewNumericComparisonUsage(t *testing.T) {
 						run(t, e, "CREATE TABLE t(n "+declaration+",CONSTRAINT c CHECK("+left+" "+op+" "+right+"))")
 						view := e.CatalogRead()
 						d := view.MustRelation(roleTableRef(t, e, "t").Address)
-						node := d.CheckConstraints[0].Expression
+						node := d.Constraints.Check[0].Expression
 						for _, pretty := range []bool{false, true} {
 							a, b := "n", constant.compact
 							if pretty {
@@ -354,7 +354,7 @@ func TestDeparseConstraintsReviewNumericComparisonUsage(t *testing.T) {
 				if pretty {
 					want = tc.pretty
 				}
-				got, err := (pgRenderer{view: view, relation: d, pretty: pretty}).sql(context.Background(), d.CheckConstraints[0].Expression, pgRenderParent{})
+				got, err := (pgRenderer{view: view, relation: d, pretty: pretty}).sql(context.Background(), d.Constraints.Check[0].Expression, pgRenderParent{})
 				if err != nil || got != want {
 					t.Fatalf("got %q, %v; want %q", got, err, want)
 				}
@@ -384,7 +384,7 @@ func TestDeparseConstraintsReviewConditionalPresentation(t *testing.T) {
 				if pretty {
 					want = tc.pretty
 				}
-				got, err := (pgRenderer{view: view, relation: d, pretty: pretty}).sql(context.Background(), d.CheckConstraints[0].Expression, pgRenderParent{})
+				got, err := (pgRenderer{view: view, relation: d, pretty: pretty}).sql(context.Background(), d.Constraints.Check[0].Expression, pgRenderParent{})
 				if err != nil || got != want {
 					t.Fatalf("got %q, %v; want %q", got, err, want)
 				}
@@ -415,7 +415,7 @@ func TestDeparseConstraintsReviewPrinterContexts(t *testing.T) {
 			run(t, e, "CREATE TABLE t(a INT,b INT,c INT,CONSTRAINT ck CHECK(("+tc.input+")>0))")
 			view := e.CatalogRead()
 			d := view.MustRelation(roleTableRef(t, e, "t").Address)
-			node := d.CheckConstraints[0].Expression.(comparisonExpression).left
+			node := d.Constraints.Check[0].Expression.(comparisonExpression).left
 			for _, pretty := range []bool{false, true} {
 				want := tc.compact
 				if pretty {

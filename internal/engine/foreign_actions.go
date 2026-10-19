@@ -35,7 +35,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 		if !ok {
 			continue
 		}
-		for _, f := range child.ForeignKeys {
+		for _, f := range child.Constraints.ForeignKeys {
 			if len(s.stage.rows[child.Address()]) != 0 || s.stage.deletes[child.Address()] != nil || len(s.stage.rows[f.Target]) != 0 || s.stage.deletes[f.Target] != nil {
 				relevant = true
 				break
@@ -73,7 +73,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 			if !ok {
 				continue
 			}
-			for _, f := range child.ForeignKeys {
+			for _, f := range child.Constraints.ForeignKeys {
 				parentDirections := directions[f.Target]
 				next := directions[child.Address()]
 				if parentDirections&1 != 0 && f.DeleteAction >= parser.ForeignKeyCascade {
@@ -101,7 +101,7 @@ func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, Authorization
 		if !ok {
 			continue
 		}
-		for _, f := range child.ForeignKeys {
+		for _, f := range child.Constraints.ForeignKeys {
 			if !changed[child.Address()] && !changed[f.Target] {
 				continue
 			}
@@ -162,7 +162,7 @@ func refreshForeignActionJob(view catalog.Read, job *foreignKeyJob) error {
 		return ids.ErrCatalogReplaced
 	}
 	found := false
-	for _, current := range child.ForeignKeys {
+	for _, current := range child.Constraints.ForeignKeys {
 		if current.OID == job.definition.OID {
 			if !sameForeignKeyDefinition(current, job.definition) {
 				return ids.ErrCatalogReplaced

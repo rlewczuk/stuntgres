@@ -146,11 +146,11 @@ func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.Ob
 			d = &copy
 			next.SetDescriptor(address, d)
 		}
-		if len(d.CheckConstraints) != 0 {
+		if len(d.Constraints.Check) != 0 {
 			copy := *d
-			copy.CheckConstraints = append([]catalog.CheckConstraint(nil), d.CheckConstraints...)
-			for i := range copy.CheckConstraints {
-				c := &copy.CheckConstraints[i]
+			copy.Constraints.Check = append([]catalog.CheckConstraint(nil), d.Constraints.Check...)
+			for i := range copy.Constraints.Check {
+				c := &copy.Constraints.Check[i]
 				node, err := remapBoundExpression(c.Expression, ref, nil)
 				if err != nil {
 					return err

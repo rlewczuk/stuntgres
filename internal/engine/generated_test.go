@@ -239,7 +239,7 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	boolean, _ := view.LookupType(sqltype.Bool)
-	d.CheckConstraints = []catalog.CheckConstraint{{Name: "blocked", Expression: literalExpression{expr.Info{Usage: boolean.Usage()}, sqltype.Boolean(boolean, false)}}}
+	d.Constraints.Check = []catalog.CheckConstraint{{Name: "blocked", Expression: literalExpression{expr.Info{Usage: boolean.Usage()}, sqltype.Boolean(boolean, false)}}}
 	if err := recomputeRemappedGenerations(context.Background(), candidate, storage, mapping, EvalContext{Context: context.Background()}, nil); err == nil {
 		t.Fatal("replacement ignored completed-row CHECK")
 	}

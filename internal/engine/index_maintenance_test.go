@@ -113,14 +113,14 @@ func TestIndexMaintenanceBackingRenameAndRoots(t *testing.T) {
 	sibling, siblingRoot := btreeRoot(t, e, "sibling")
 	derived, derivedRoot := btreeRoot(t, e, "derived")
 	parent := e.catalog.state.MustRelation(old.SQLIndex.Parent)
-	constraint := parent.UniqueConstraints[0]
+	constraint := parent.Constraints.Unique[0]
 	run(t, e, "ALTER INDEX u RENAME TO u_new")
 	next, same := btreeRoot(t, e, "u_new")
 	nextParent := e.catalog.state.MustRelation(old.SQLIndex.Parent)
-	if same != root || next.Address() != old.Address() || next.SQLIndex.Constraint.OID != constraint.OID || next.SQLIndex.Constraint.Index != constraint.Index || next.SQLIndex.Constraint.Name != "u_new" || nextParent.UniqueConstraints[0].Name != "u_new" || nextParent.UniqueConstraints[0].OID != constraint.OID || e.storage.indexRoots[sibling.Address()] != siblingRoot || e.storage.indexRoots[derived.Address()] != derivedRoot {
+	if same != root || next.Address() != old.Address() || next.SQLIndex.Constraint.OID != constraint.OID || next.SQLIndex.Constraint.Index != constraint.Index || next.SQLIndex.Constraint.Name != "u_new" || nextParent.Constraints.Unique[0].Name != "u_new" || nextParent.Constraints.Unique[0].OID != constraint.OID || e.storage.indexRoots[sibling.Address()] != siblingRoot || e.storage.indexRoots[derived.Address()] != derivedRoot {
 		t.Fatal("backing rename did not preserve real identities/roots")
 	}
-	if parent.UniqueConstraints[0].Name != "u" || old.SQLIndex.Constraint.Name != "u" {
+	if parent.Constraints.Unique[0].Name != "u" || old.SQLIndex.Constraint.Name != "u" {
 		t.Fatal("rename mutated captured descriptors")
 	}
 	before := indexMaintenanceCapture(e)

@@ -387,27 +387,27 @@ func identifyOwnedAddress(view catalog.Read, path []ids.ObjectAddress, a ids.Obj
 func ownedAddressName(d *catalog.Relation, a ids.ObjectAddress) (string, int32) {
 	switch a.ClassID {
 	case 2606:
-		for _, x := range d.NotNullConstraints {
+		for _, x := range d.Constraints.NotNull {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}
 		}
-		for _, x := range d.CheckConstraints {
+		for _, x := range d.Constraints.Check {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}
 		}
-		for _, x := range d.UniqueConstraints {
+		for _, x := range d.Constraints.Unique {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}
 		}
-		for _, x := range d.ExclusionConstraints {
+		for _, x := range d.Constraints.Exclusion {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}
 		}
-		for _, x := range d.ForeignKeys {
+		for _, x := range d.Constraints.ForeignKeys {
 			if x.OID == a.ObjectID {
 				return x.Name, 0
 			}

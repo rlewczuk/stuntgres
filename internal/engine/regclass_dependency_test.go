@@ -40,20 +40,20 @@ func TestRegclassDropColumnStagedOwnerDefinitions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(old.Columns) != 3 || len(old.ColumnMeta.Defaults) != 3 || len(old.CheckConstraints) != 2 {
+	if len(old.Columns) != 3 || len(old.ColumnMeta.Defaults) != 3 || len(old.Constraints.Check) != 2 {
 		t.Fatal("original descriptor mutated")
 	}
 	if len(next.Columns) != 2 || next.Index["kept"] != 0 || next.Index["r"] != 1 || !reflect.DeepEqual(next.Attributes, old.Attributes[1:]) || len(next.ColumnMeta.Defaults) != 1 || next.ColumnMeta.Defaults[kept].OID != remaining.OID || remaining.OID == 0 {
 		t.Fatal("staged definitions or stable shape lost", next.Columns, next.Attributes, next.ColumnMeta.Defaults)
 	}
-	if len(next.CheckConstraints) != 1 || next.CheckConstraints[0].Name != "rr_kept_positive" || stage.Descriptors[ref.Address] != next {
-		t.Fatal("surviving CHECK or latest staged descriptor lost", next.CheckConstraints)
+	if len(next.Constraints.Check) != 1 || next.Constraints.Check[0].Name != "rr_kept_positive" || stage.Descriptors[ref.Address] != next {
+		t.Fatal("surviving CHECK or latest staged descriptor lost", next.Constraints.Check)
 	}
 	integer, err := sqltype.Integer(next.Columns[0].Usage.Type, 11)
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := next.CheckConstraints[0].Expression.Eval(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{integer, sqltype.String(next.Columns[1].Usage.Type, "0")}})
+	result, err := next.Constraints.Check[0].Expression.Eval(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{integer, sqltype.String(next.Columns[1].Usage.Type, "0")}})
 	if err != nil {
 		t.Fatal("surviving CHECK slot migration", err)
 	}

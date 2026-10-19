@@ -80,11 +80,11 @@ func TestObjectAddressIdentity(t *testing.T) {
 			t.Fatal(tc, identity, err)
 		}
 	}
-	d.NotNullConstraints = []catalog.NotNullConstraint{{OID: 48010, Name: "nn"}}
-	d.CheckConstraints = []catalog.CheckConstraint{{OID: 48011, Name: "ck"}}
-	d.UniqueConstraints = []catalog.UniqueConstraint{{OID: 48012, Name: "uk"}, {OID: 48013, Name: "pk"}}
-	d.ForeignKeys = []catalog.ForeignKeyConstraint{{OID: 48014, Name: "fk"}}
-	d.ExclusionConstraints = []catalog.ExclusionConstraint{{OID: 48015, Name: "ex"}}
+	d.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 48010, Name: "nn"}}
+	d.Constraints.Check = []catalog.CheckConstraint{{OID: 48011, Name: "ck"}}
+	d.Constraints.Unique = []catalog.UniqueConstraint{{OID: 48012, Name: "uk"}, {OID: 48013, Name: "pk"}}
+	d.Constraints.ForeignKeys = []catalog.ForeignKeyConstraint{{OID: 48014, Name: "fk"}}
+	d.Constraints.Exclusion = []catalog.ExclusionConstraint{{OID: 48015, Name: "ex"}}
 	d.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 48016}}
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{3: {OID: 48017}}
 	d.Rules = rulesPayloadOf([]ruleDefinition{{OID: 48018, Name: "rule_unit"}})

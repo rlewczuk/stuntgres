@@ -21,7 +21,7 @@ func partitionNeedsRowHistory(catalog catalog.Read, d *catalog.Relation) bool {
 	if d.Membership == nil || d.Partition != nil {
 		return false
 	}
-	for _, check := range d.CheckConstraints {
+	for _, check := range d.Constraints.Check {
 		if check.NotValid {
 			return partitionHashReplayTarget(catalog, d) != d
 		}
@@ -92,9 +92,9 @@ func partitionRetainedAttributeChanged(ctx context.Context, h partitionRowHistor
 // relevant. Descriptor ownership alone does not change its old-row authority.
 func partitionRetainedCheckAffected(ctx context.Context, h partitionRowHistory, d *catalog.Relation, check catalog.CheckConstraint, before, after []sqltype.Value) (bool, error) {
 	var original *catalog.CheckConstraint
-	for i := range h.relation.CheckConstraints {
-		if h.relation.CheckConstraints[i].Name == check.Name {
-			original = &h.relation.CheckConstraints[i]
+	for i := range h.relation.Constraints.Check {
+		if h.relation.Constraints.Check[i].Name == check.Name {
+			original = &h.relation.Constraints.Check[i]
 			break
 		}
 	}
@@ -186,17 +186,17 @@ type partitionRetainedChecks struct {
 func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHistory, d *catalog.Relation, before, after []sqltype.Value, snapshot *indexSnapshot, evaluation *EvalContext) (*catalog.Relation, error) {
 	if !p.initialized {
 		p.descriptor = *d
-		p.descriptor.CheckConstraints = slices.Clone(d.CheckConstraints)
+		p.descriptor.Constraints.Check = slices.Clone(d.Constraints.Check)
 		p.initialized = true
 		ownerChanged := snapshot.destination(h.relation.Address()) != h.relation.Address()
-		for i, check := range d.CheckConstraints {
+		for i, check := range d.Constraints.Check {
 			if !check.NotValid {
 				continue
 			}
 			var original *catalog.CheckConstraint
-			for j := range h.relation.CheckConstraints {
-				if h.relation.CheckConstraints[j].Name == check.Name {
-					original = &h.relation.CheckConstraints[j]
+			for j := range h.relation.Constraints.Check {
+				if h.relation.Constraints.Check[j].Name == check.Name {
+					original = &h.relation.Constraints.Check[j]
 					break
 				}
 			}
@@ -233,16 +233,16 @@ func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHist
 			}
 			if affected {
 				if p.recipeAffected == nil {
-					p.recipeAffected = make([]bool, len(d.CheckConstraints))
+					p.recipeAffected = make([]bool, len(d.Constraints.Check))
 				}
 				p.recipeAffected[i] = true
 			}
 		}
 	}
-	oldCount := len(p.descriptor.CheckConstraints)
-	checks := p.descriptor.CheckConstraints[:cap(p.descriptor.CheckConstraints)]
+	oldCount := len(p.descriptor.Constraints.Check)
+	checks := p.descriptor.Constraints.Check[:cap(p.descriptor.Constraints.Check)]
 	count, changed := 0, false
-	for i, check := range d.CheckConstraints {
+	for i, check := range d.Constraints.Check {
 		if check.NotValid {
 			affected := p.recipeAffected != nil && p.recipeAffected[i]
 			if !affected {
@@ -262,7 +262,7 @@ func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHist
 		checks[count] = check
 		count++
 	}
-	p.descriptor.CheckConstraints = checks[:count]
+	p.descriptor.Constraints.Check = checks[:count]
 	if changed || count != oldCount {
 		delete(evaluation.preparedChecks, &p.descriptor)
 	}

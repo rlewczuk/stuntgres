@@ -592,7 +592,7 @@ func validatePhysicalRowConstraints(relation *catalog.Relation, schema string, r
 			return notNullDetailError(schema, relation.Name(), column.Name, detail)
 		}
 	}
-	if len(relation.CheckConstraints) != 0 {
+	if len(relation.Constraints.Check) != 0 {
 		constraint, err := validateCheckRow(relation, row, evaluation)
 		if err != nil {
 			return err

@@ -389,7 +389,7 @@ func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, pa
 	// Bind uniqueness before opening the producer: opening can itself evaluate
 	// rows. A target without unique indexes needs no per-row catalog recapture;
 	// its epoch is still checked when the completed batch reaches Apply.
-	unique := len(b.relation.UniqueConstraints) != 0
+	unique := len(b.relation.Constraints.Unique) != 0
 	if scope != nil && scope.partitionInsert == nil {
 		bound, err := scope.bindUniqueWrite(b.ref)
 		if err != nil {
@@ -534,7 +534,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 				return indexWriteBatch{}, scope.op.session.Engine().rowConstraintError(scope, b, schema, c.Name, "", row)
 			}
 		}
-		if len(b.relation.CheckConstraints) != 0 {
+		if len(b.relation.Constraints.Check) != 0 {
 			constraint, checkErr := validateCheckRow(b.relation, row, &evaluation)
 			if checkErr != nil {
 				return indexWriteBatch{}, checkErr

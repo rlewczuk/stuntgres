@@ -102,7 +102,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 				return ids.ErrCatalogReplaced
 			}
 			copy := *old
-			copy.ForeignKeys = slices.Clone(old.ForeignKeys)
+			copy.Constraints.ForeignKeys = slices.Clone(old.Constraints.ForeignKeys)
 			child = &copy
 			stage.Descriptors[child.Address()] = child
 		}
@@ -135,8 +135,8 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 				e.mu.Unlock()
 				return err
 			}
-			definition.boundSlot = len(child.ForeignKeys) - 1
-			bound := &child.ForeignKeys[definition.boundSlot]
+			definition.boundSlot = len(child.Constraints.ForeignKeys) - 1
+			bound := &child.Constraints.ForeignKeys[definition.boundSlot]
 			definition.boundOID = bound.OID
 			if definition.inherited != nil && !definition.inherited.accepts(bound) {
 				e.mu.Unlock()
@@ -152,10 +152,10 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 		auth.catalog = view
 		auth.recaptureCatalog(auth.catalog)
 		for _, definition := range declaration.definitions {
-			if definition.boundSlot < 0 || definition.boundSlot >= len(child.ForeignKeys) || definition.boundOID == 0 || child.ForeignKeys[definition.boundSlot].OID != definition.boundOID {
+			if definition.boundSlot < 0 || definition.boundSlot >= len(child.Constraints.ForeignKeys) || definition.boundOID == 0 || child.Constraints.ForeignKeys[definition.boundSlot].OID != definition.boundOID {
 				return ids.ErrCatalogReplaced
 			}
-			f := child.ForeignKeys[definition.boundSlot]
+			f := child.Constraints.ForeignKeys[definition.boundSlot]
 			if f.NotValid {
 				continue
 			}

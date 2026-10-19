@@ -8,22 +8,22 @@ import (
 
 func droppedConstraint(parent *catalog.Relation, action parser.AlterTableAction) (ids.ObjectAddress, ids.ObjectAddress) {
 	if action.Action == parser.DropConstraint {
-		for _, c := range parent.UniqueConstraints {
+		for _, c := range parent.Constraints.Unique {
 			if c.Name == action.Constraint.Text {
 				return ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, c.Index
 			}
 		}
-		for _, c := range parent.ExclusionConstraints {
+		for _, c := range parent.Constraints.Exclusion {
 			if c.Name == action.Constraint.Text {
 				return ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, c.Index
 			}
 		}
-		for _, c := range parent.CheckConstraints {
+		for _, c := range parent.Constraints.Check {
 			if c.Name == action.Constraint.Text {
 				return ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, ids.ObjectAddress{}
 			}
 		}
-		for _, c := range parent.NotNullConstraints {
+		for _, c := range parent.Constraints.NotNull {
 			if c.Name == action.Constraint.Text {
 				return ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, ids.ObjectAddress{}
 			}

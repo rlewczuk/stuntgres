@@ -106,7 +106,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view catalog.Read, rea
 		return prepared, nil
 	}
 	if captured.syntax.Primary {
-		for _, constraint := range parent.UniqueConstraints {
+		for _, constraint := range parent.Constraints.Unique {
 			if constraint.Primary {
 				prepared.err = sqlError("42P16", fmt.Sprintf(`multiple primary keys for table "%s" are not allowed`, parent.Name()))
 				return prepared, nil
@@ -116,7 +116,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view catalog.Read, rea
 			prepared.err = sqlError("42P16", "primary keys cannot use NULLS NOT DISTINCT indexes")
 			return prepared, nil
 		}
-		for _, constraint := range parent.NotNullConstraints {
+		for _, constraint := range parent.Constraints.NotNull {
 			if constraint.NotValid && slices.Contains(captured.attributes, constraint.Attribute) {
 				prepared.err = incompatibleNotValid(constraint.Name, parent.Name())
 				return prepared, nil
@@ -136,9 +136,9 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view catalog.Read, rea
 	}
 	constraint := catalog.UniqueConstraint{OID: oid, Name: name, IsLocal: true, Attributes: captured.attributes, Primary: captured.syntax.Primary, NullsNotDistinct: index.SQLIndex.NullsNotDistinct, Index: index.Address()}
 	next := *parent
-	next.UniqueConstraints = make([]catalog.UniqueConstraint, len(parent.UniqueConstraints)+1)
-	copy(next.UniqueConstraints, parent.UniqueConstraints)
-	next.UniqueConstraints[len(parent.UniqueConstraints)] = constraint
+	next.Constraints.Unique = make([]catalog.UniqueConstraint, len(parent.Constraints.Unique)+1)
+	copy(next.Constraints.Unique, parent.Constraints.Unique)
+	next.Constraints.Unique[len(parent.Constraints.Unique)] = constraint
 	if index.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		prepared.err = fmt.Errorf("stuntgres: definition revision exhausted")
 		return prepared, nil

@@ -90,7 +90,7 @@ func partitionVirtualUniqueDefinitionSQL(view catalog.Read, index *catalog.Relat
 		}
 		return "ALTER TABLE " + only + quoteIdentifier(view.Get(table.Namespace()).Name()) + "." + quoteIdentifier(table.Name()) + " ADD CONSTRAINT " + quoteIdentifier(index.Name()) + " " + text + ";\n", nil
 	}
-	for _, constraint := range table.UniqueConstraints {
+	for _, constraint := range table.Constraints.Unique {
 		if constraint.Index != index.Address() {
 			continue
 		}

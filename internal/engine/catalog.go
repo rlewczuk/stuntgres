@@ -146,7 +146,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		return err
 	}
 	if r.RelationKind == catalog.CompositeRelation {
-		if r.RowType == 0 || r.Sequence != nil || r.View != nil || r.SQLIndex != nil || len(r.ColumnMeta.Defaults) != 0 || len(r.ColumnMeta.Identities) != 0 || len(r.NotNullConstraints) != 0 || len(r.CheckConstraints) != 0 || len(r.ColumnMeta.Generations) != 0 || len(r.UniqueConstraints) != 0 || len(r.ExclusionConstraints) != 0 || len(r.ForeignKeys) != 0 {
+		if r.RowType == 0 || r.Sequence != nil || r.View != nil || r.SQLIndex != nil || len(r.ColumnMeta.Defaults) != 0 || len(r.ColumnMeta.Identities) != 0 || len(r.Constraints.NotNull) != 0 || len(r.Constraints.Check) != 0 || len(r.ColumnMeta.Generations) != 0 || len(r.Constraints.Unique) != 0 || len(r.Constraints.Exclusion) != 0 || len(r.Constraints.ForeignKeys) != 0 {
 			return fmt.Errorf("stuntgres: composite backing relation has storage behavior")
 		}
 		for _, c := range r.Columns {
@@ -162,7 +162,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	if r.RelationKind == catalog.IndexRelation {
 		return validateIndexDefinition(v, r)
 	}
-	if r.RelationKind != catalog.TableRelation && r.RelationKind != catalog.PartitionedRelation && r.RelationKind != catalog.ForeignRelation && len(r.CheckConstraints) != 0 {
+	if r.RelationKind != catalog.TableRelation && r.RelationKind != catalog.PartitionedRelation && r.RelationKind != catalog.ForeignRelation && len(r.Constraints.Check) != 0 {
 		return fmt.Errorf("stuntgres: CHECK requires a table descriptor")
 	}
 	if err := validatePartitionDescriptor(v, r); err != nil {
@@ -197,9 +197,9 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	if r.RelationKind == catalog.ViewRelation || r.RelationKind == catalog.MaterializedViewRelation {
 		return validateViewDefinition(v, r)
 	}
-	names := make(map[string]bool, len(r.NotNullConstraints))
-	attrs := make(map[int32]bool, len(r.NotNullConstraints))
-	for _, c := range r.NotNullConstraints {
+	names := make(map[string]bool, len(r.Constraints.NotNull))
+	attrs := make(map[int32]bool, len(r.Constraints.NotNull))
+	for _, c := range r.Constraints.NotNull {
 		if c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || attrs[c.Attribute] || !r.HasAttribute(c.Attribute) {
 			return fmt.Errorf("stuntgres: invalid not-null constraint identity")
 		}
@@ -211,7 +211,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	for i, c := range r.Columns {
 		// Virtual sources declare result nullability without physical table
 		// constraint identities. Existing constraint records still validate above.
-		_, physical := r.PhysicalNotNull[r.Attributes[i]]
+		_, physical := r.Constraints.PhysicalNotNull[r.Attributes[i]]
 		if r.RelationKind != catalog.CatalogRelation && (attrs[r.Attributes[i]] || physical) != (c.NullabilityKnown && !c.Nullable) {
 			return fmt.Errorf("stuntgres: inconsistent not-null projection")
 		}
@@ -1094,7 +1094,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 					return ChangeSet{}, err
 				}
 			}
-			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.CheckConstraints) != 0 {
+			if relation, ok := descriptor.(*catalog.Relation); ok && len(relation.Constraints.Check) != 0 {
 				if err := validateCheckProviders(e.catalog.read(next), relation); err != nil {
 					return ChangeSet{}, err
 				}

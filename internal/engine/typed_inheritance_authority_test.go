@@ -28,8 +28,8 @@ func TestTypedInheritanceRetainedConstraintAndDefaultAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			defaultExpression := literalExpression{Info: expr.Info{Usage: integer}, value: value}
-			child.NotNullConstraints = []catalog.NotNullConstraint{{OID: 23001, Name: "c_id_not_null", Attribute: 7}}
-			child.CheckConstraints = []catalog.CheckConstraint{{OID: 23003, Name: "positive", Expression: predicate}}
+			child.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 23001, Name: "c_id_not_null", Attribute: 7}}
+			child.Constraints.Check = []catalog.CheckConstraint{{OID: 23003, Name: "positive", Expression: predicate}}
 			child.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{7: {OID: 23005, Expression: defaultExpression}}
 			column := catalog.InheritedColumn{Local: kind != "other_parent", Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: 1}}}
 			nn := catalog.InheritedConstraint{Local: kind == "local", Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: 1, Constraint: 23000}}}
@@ -39,8 +39,8 @@ func TestTypedInheritanceRetainedConstraintAndDefaultAuthority(t *testing.T) {
 			if kind == "other_parent" {
 				other = inheritanceUnitRelation(e, "q", 22002, "id")
 				other.Columns[0].Nullable = false
-				other.NotNullConstraints = []catalog.NotNullConstraint{{OID: 23010, Name: "q_id_not_null", Attribute: 1}}
-				other.CheckConstraints = []catalog.CheckConstraint{{OID: 23011, Name: "positive", Expression: predicate}}
+				other.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 23010, Name: "q_id_not_null", Attribute: 1}}
+				other.Constraints.Check = []catalog.CheckConstraint{{OID: 23011, Name: "positive", Expression: predicate}}
 				other.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 23012, Expression: defaultExpression}}
 				parents = append(parents, other.Address())
 				column.Origins = append(column.Origins, catalog.InheritanceOrigin{Parent: other.Address(), Attribute: 1})
@@ -65,7 +65,7 @@ func TestTypedInheritanceRetainedConstraintAndDefaultAuthority(t *testing.T) {
 			if err := validateInheritance(view, &next); err != nil {
 				t.Fatal(err)
 			}
-			if !reflect.DeepEqual(next.NotNullConstraints, child.NotNullConstraints) || !reflect.DeepEqual(next.CheckConstraints, child.CheckConstraints) || !reflect.DeepEqual(next.ColumnMeta.Defaults, child.ColumnMeta.Defaults) || next.Columns[0].Nullable {
+			if !reflect.DeepEqual(next.Constraints.NotNull, child.Constraints.NotNull) || !reflect.DeepEqual(next.Constraints.Check, child.Constraints.Check) || !reflect.DeepEqual(next.ColumnMeta.Defaults, child.ColumnMeta.Defaults) || next.Columns[0].Nullable {
 				t.Fatal("retained physical definition changed", next)
 			}
 			if other == nil {

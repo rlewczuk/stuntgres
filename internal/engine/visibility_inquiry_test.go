@@ -82,10 +82,10 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(id OID CHECK(pg_type_is_visible(id) IS NOT NULL))")
 	view = e.CatalogRead()
 	relation := view.MustRelation(catalogRef(t, e, view, "t").Address)
-	if !relation.CheckConstraints[0].VisibilitySnapshot {
+	if !relation.Constraints.Check[0].VisibilitySnapshot {
 		t.Fatal("missing CHECK capture manifest")
 	}
-	inquiry := relation.CheckConstraints[0].Expression.(nullTestExpression).child.(visibilityInquiryExpression)
+	inquiry := relation.Constraints.Check[0].Expression.(nullTestExpression).child.(visibilityInquiryExpression)
 	renderer := scalarRenderer{owner: relation}
 	intType, _ := view.LookupType(sqltype.Int4)
 	for _, tc := range []struct {
@@ -122,8 +122,8 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 		})
 	}
 	broken := *relation
-	broken.CheckConstraints = append([]catalog.CheckConstraint(nil), relation.CheckConstraints...)
-	broken.CheckConstraints[0].VisibilitySnapshot = false
+	broken.Constraints.Check = append([]catalog.CheckConstraint(nil), relation.Constraints.Check...)
+	broken.Constraints.Check[0].VisibilitySnapshot = false
 	if err := validateChecks(view, &broken, map[string]bool{}); err == nil {
 		t.Fatal("invalid capture manifest accepted")
 	}

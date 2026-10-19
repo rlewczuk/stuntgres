@@ -650,7 +650,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 				offset := len(columns)
 				b.createLikes = append(b.createLikes, createLikeInput{ref: ref, source: source, sourceType: sourceType, offset: offset, options: tableLikeOptions(like.Options)})
 				start := len(inherited)
-				for _, constraint := range source.NotNullConstraints {
+				for _, constraint := range source.Constraints.NotNull {
 					for i, attribute := range source.Attributes {
 						if constraint.Attribute == attribute {
 							inherited = append(inherited, createLikeConstraint{Element: elementIndex, NotNullConstraint: catalog.NotNullConstraint{Name: constraint.Name, Attribute: int32(offset + i + 1)}})

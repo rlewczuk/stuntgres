@@ -27,7 +27,7 @@ func TestNotNullStableMetadataAndNoops(t *testing.T) {
 	held := run(t, e, "SELECT * FROM t")
 	run(t, e, "ALTER TABLE t ALTER a SET NOT NULL")
 	next := e.catalog.state.MustRelation(ref.Address)
-	if next == old || next.Revision() != old.Revision()+1 || next.Address() != old.Address() || next.Owner != old.Owner || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.ColumnMeta.Comments, old.ColumnMeta.Comments) || e.storage.relations[ref.Address] != storage || &storage.versions[0].values[0] != values || next.Columns[0].Nullable || !old.Columns[0].Nullable || len(next.NotNullConstraints) != 1 || next.NotNullConstraints[0].OID == 0 || next.NotNullConstraints[0].Name != "t_a_not_null" || next.NotNullConstraints[0].Attribute != 1 {
+	if next == old || next.Revision() != old.Revision()+1 || next.Address() != old.Address() || next.Owner != old.Owner || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.ColumnMeta.Comments, old.ColumnMeta.Comments) || e.storage.relations[ref.Address] != storage || &storage.versions[0].values[0] != values || next.Columns[0].Nullable || !old.Columns[0].Nullable || len(next.Constraints.NotNull) != 1 || next.Constraints.NotNull[0].OID == 0 || next.Constraints.NotNull[0].Name != "t_a_not_null" || next.Constraints.NotNull[0].Attribute != 1 {
 		t.Fatal(old, next)
 	}
 	if !held.Rows.Schema()[0].Nullable || !reflect.DeepEqual(tuples(held), [][]driver.Value{{int64(7), "keep", int64(9)}}) {
@@ -42,7 +42,7 @@ func TestNotNullStableMetadataAndNoops(t *testing.T) {
 	run(t, e, "ALTER TABLE t ALTER c SET NOT NULL")
 	run(t, e, "ALTER TABLE t DROP a")
 	after := e.catalog.state.MustRelation(ref.Address)
-	if len(after.NotNullConstraints) != 1 || after.NotNullConstraints[0].OID == 0 || after.NotNullConstraints[0].Name != "t_c_not_null" || after.NotNullConstraints[0].Attribute != 3 || after.Columns[1].OriginAttribute != 3 || after.ColumnMeta.Comments[3] != "survivor" {
+	if len(after.Constraints.NotNull) != 1 || after.Constraints.NotNull[0].OID == 0 || after.Constraints.NotNull[0].Name != "t_c_not_null" || after.Constraints.NotNull[0].Attribute != 3 || after.Columns[1].OriginAttribute != 3 || after.ColumnMeta.Comments[3] != "survivor" {
 		t.Fatal(after)
 	}
 	run(t, e, "ALTER TABLE t DROP CONSTRAINT t_c_not_null")
@@ -86,8 +86,8 @@ func TestNotNullSequentialCollisionUsesAllocatedIdentity(t *testing.T) {
 	if d.Address().ObjectID < failedFrontier {
 		t.Fatal("successful CREATE reused failed allocation", failedFrontier, d.Address())
 	}
-	if len(d.NotNullConstraints) != 2 || d.NotNullConstraints[0].OID == 0 || d.NotNullConstraints[1].OID == 0 || d.NotNullConstraints[0].OID == d.NotNullConstraints[1].OID || d.NotNullConstraints[0].Name != "t_a_not_null" || d.NotNullConstraints[0].Attribute != 1 || d.NotNullConstraints[1].Name != "t_a_not_null1" || d.NotNullConstraints[1].Attribute != 2 {
-		t.Fatal(d.NotNullConstraints)
+	if len(d.Constraints.NotNull) != 2 || d.Constraints.NotNull[0].OID == 0 || d.Constraints.NotNull[1].OID == 0 || d.Constraints.NotNull[0].OID == d.Constraints.NotNull[1].OID || d.Constraints.NotNull[0].Name != "t_a_not_null" || d.Constraints.NotNull[0].Attribute != 1 || d.Constraints.NotNull[1].Name != "t_a_not_null1" || d.Constraints.NotNull[1].Attribute != 2 {
+		t.Fatal(d.Constraints.NotNull)
 	}
 }
 
@@ -100,8 +100,8 @@ func TestNotNullGeneratedNames(t *testing.T) {
 		run(t, e, `CREATE TABLE "`+tc.table+`"("`+tc.column+`" INT NOT NULL)`)
 		ref := roleTableRef(t, e, `"`+tc.table+`"`)
 		d := e.catalog.state.MustRelation(ref.Address)
-		if len(d.NotNullConstraints) != 1 || d.NotNullConstraints[0].Name != tc.want || !utf8.ValidString(d.NotNullConstraints[0].Name) {
-			t.Fatal(d.NotNullConstraints, tc.want)
+		if len(d.Constraints.NotNull) != 1 || d.Constraints.NotNull[0].Name != tc.want || !utf8.ValidString(d.Constraints.NotNull[0].Name) {
+			t.Fatal(d.Constraints.NotNull, tc.want)
 		}
 	}
 	e := New()
@@ -111,12 +111,12 @@ func TestNotNullGeneratedNames(t *testing.T) {
 	run(t, e, `CREATE TABLE "`+table+`"("`+column+`" INT NOT NULL)`)
 	ref := roleTableRef(t, e, `"`+table+`"`)
 	d := e.catalog.state.MustRelation(ref.Address)
-	if d.NotNullConstraints[0].Name != strings.Repeat("t", 26)+"_"+strings.Repeat("a", 26)+"_not_null1" {
-		t.Fatal(d.NotNullConstraints)
+	if d.Constraints.NotNull[0].Name != strings.Repeat("t", 26)+"_"+strings.Repeat("a", 26)+"_not_null1" {
+		t.Fatal(d.Constraints.NotNull)
 	}
 	run(t, e, "CREATE SCHEMA s CREATE TABLE occupied(x INT CONSTRAINT t_a_not_null NOT NULL) CREATE TABLE t(a INT NOT NULL)")
 	d = e.catalog.state.MustRelation(roleTableRef(t, e, "s.t").Address)
-	if d.NotNullConstraints[0].Name != "t_a_not_null1" {
+	if d.Constraints.NotNull[0].Name != "t_a_not_null1" {
 		t.Fatal(d)
 	}
 	run(t, e, "CREATE TABLE t(a INT NOT NULL)")
@@ -129,12 +129,12 @@ func TestNotNullGeneratedNames(t *testing.T) {
 
 func TestNotNullProviderInvariants(t *testing.T) {
 	for _, mutate := range []func(*catalog.Relation){
-		func(d *catalog.Relation) { d.NotNullConstraints = nil },
-		func(d *catalog.Relation) { d.NotNullConstraints[0].Attribute = 2 },
-		func(d *catalog.Relation) { d.NotNullConstraints[0].Name = "" },
+		func(d *catalog.Relation) { d.Constraints.NotNull = nil },
+		func(d *catalog.Relation) { d.Constraints.NotNull[0].Attribute = 2 },
+		func(d *catalog.Relation) { d.Constraints.NotNull[0].Name = "" },
 		func(d *catalog.Relation) { d.Columns[0].Nullable = true },
 		func(d *catalog.Relation) {
-			d.NotNullConstraints = append(d.NotNullConstraints, d.NotNullConstraints[0])
+			d.Constraints.NotNull = append(d.Constraints.NotNull, d.Constraints.NotNull[0])
 		},
 	} {
 		e := New()
@@ -144,7 +144,7 @@ func TestNotNullProviderInvariants(t *testing.T) {
 		next := *old
 		next.ObjectRevision++
 		next.Columns = append([]catalog.Column(nil), old.Columns...)
-		next.NotNullConstraints = append([]catalog.NotNullConstraint(nil), old.NotNullConstraints...)
+		next.Constraints.NotNull = append([]catalog.NotNullConstraint(nil), old.Constraints.NotNull...)
 		mutate(&next)
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		if err := stage.Replace(&next); err != nil {
@@ -194,7 +194,7 @@ func notNullMetadataStage(t *testing.T, e *Engine) (*CatalogStage, ids.ObjectRef
 	next.ObjectRevision++
 	next.Columns = append([]catalog.Column(nil), old.Columns...)
 	next.Columns[0].Nullable = false
-	next.NotNullConstraints = []catalog.NotNullConstraint{{Name: "t_a_not_null", Attribute: 1}}
+	next.Constraints.NotNull = []catalog.NotNullConstraint{{Name: "t_a_not_null", Attribute: 1}}
 	e.mu.Lock()
 	err := e.assignDefinitionOIDsLocked(&next)
 	e.mu.Unlock()
@@ -324,7 +324,7 @@ func notNullProviderPublicationFences(t *testing.T, q string) {
 				}
 				if dropping {
 					current := e.catalog.state.MustRelation(ref.Address)
-					if !reflect.DeepEqual(current.NotNullConstraints, old.(*catalog.Relation).NotNullConstraints) || current.Columns[0].Nullable || current.Columns[1].Nullable {
+					if !reflect.DeepEqual(current.Constraints.NotNull, old.(*catalog.Relation).Constraints.NotNull) || current.Columns[0].Nullable || current.Columns[1].Nullable {
 						t.Fatal("failed drop removed enforcement", current)
 					}
 					notNullDropEnforcement(t, e)

@@ -272,7 +272,7 @@ func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relati
 			return e.captureCommentSnapshotLocked(scope)
 		}
 	}
-	for _, check := range relation.CheckConstraints {
+	for _, check := range relation.Constraints.Check {
 		if check.CommentSnapshot {
 			return e.captureCommentSnapshotLocked(scope)
 		}
@@ -281,7 +281,7 @@ func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relati
 }
 
 func (e *Engine) captureCheckVisibilitySnapshotLocked(scope *StatementScope, relation *catalog.Relation) error {
-	for _, check := range relation.CheckConstraints {
+	for _, check := range relation.Constraints.Check {
 		if check.VisibilitySnapshot {
 			return e.captureVisibilitySnapshotLocked(scope)
 		}

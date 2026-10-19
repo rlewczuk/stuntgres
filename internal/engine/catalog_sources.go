@@ -555,7 +555,7 @@ func nonuniqueConstraintProvenance(catalog catalog.Read, table *catalog.Relation
 	if table.Membership != nil {
 		parent := catalog.MustRelation(table.Membership.Parent)
 		if check {
-			for _, constraint := range parent.CheckConstraints {
+			for _, constraint := range parent.Constraints.Check {
 				if constraint.Name == name {
 					return false, 1
 				}
@@ -566,7 +566,7 @@ func nonuniqueConstraintProvenance(catalog catalog.Read, table *catalog.Relation
 				parentSlot, exists := parent.Index[table.Columns[slot].Name]
 				if exists {
 					parentAttribute := parent.Attributes[parentSlot]
-					for _, constraint := range parent.NotNullConstraints {
+					for _, constraint := range parent.Constraints.NotNull {
 						if constraint.Attribute == parentAttribute {
 							return false, 1
 						}

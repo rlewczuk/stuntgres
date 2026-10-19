@@ -99,7 +99,7 @@ func captureHistoricalRelation(view catalog.Read, ref ids.ObjectRef, facts map[i
 	if !ok || namespace.Temporary != (ids.SessionToken{}) {
 		return
 	}
-	for _, c := range table.NotNullConstraints {
+	for _, c := range table.Constraints.NotNull {
 		p := table.Inheritance.NotNull[c.Attribute]
 		if len(p.Retired) != 0 {
 			continue
@@ -109,7 +109,7 @@ func captureHistoricalRelation(view catalog.Read, ref ids.ObjectRef, facts map[i
 		}
 		facts[c.OID] = restoredHistoricalFact{ref: ref, oid: c.OID, name: c.Name, attributes: []int32{c.Attribute}, notValid: c.NotValid, noInherit: c.NoInherit, local: p.Local, count: len(p.Origins)}
 	}
-	for _, c := range table.CheckConstraints {
+	for _, c := range table.Constraints.Check {
 		p := table.Inheritance.Checks[c.Name]
 		if len(p.Retired) != 0 {
 			continue
@@ -146,13 +146,13 @@ func retiredDeclarationNeeded(view catalog.Read, table *catalog.Relation, p cata
 			continue
 		}
 		if check {
-			for _, c := range parent.CheckConstraints {
+			for _, c := range parent.Constraints.Check {
 				if c.OID == origin.Constraint && !c.NotValid {
 					return false
 				}
 			}
 		} else {
-			for _, c := range parent.NotNullConstraints {
+			for _, c := range parent.Constraints.NotNull {
 				if c.OID == origin.Constraint && !c.NotValid {
 					return false
 				}
@@ -166,7 +166,7 @@ func dumpNotNullDeclaration(view catalog.Read, table *catalog.Relation, attribut
 	if table.Inheritance == nil {
 		return true
 	}
-	for _, c := range table.NotNullConstraints {
+	for _, c := range table.Constraints.NotNull {
 		if c.Attribute == attribute {
 			return retiredDeclarationNeeded(view, table, table.Inheritance.NotNull[attribute], false, c.NotValid)
 		}
@@ -222,7 +222,7 @@ func (t *dumpRelation) emitRetiredConstraints(view catalog.Read, checks bool, em
 		return emit(sql + ";\n")
 	}
 	if checks {
-		for _, c := range t.descriptor.CheckConstraints {
+		for _, c := range t.descriptor.Constraints.Check {
 			if err := emitFact(c.Name, constraintAttributeKeys(t.descriptor, c.Expression), graph.Checks[c.Name], true, c.NotValid); err != nil {
 				return err
 			}
@@ -282,7 +282,7 @@ func (e *Engine) restoreRetiredConstraint(op *Operation, raw *parser.Update, aut
 	var fact restoredHistoricalFact
 	var provenance catalog.InheritedConstraint
 	if repair.check {
-		for _, c := range old.CheckConstraints {
+		for _, c := range old.Constraints.Check {
 			if c.Name == repair.name {
 				fact = restoredHistoricalFact{ref: ref, oid: c.OID, name: c.Name, check: true, attributes: constraintAttributeKeys(old, c.Expression), expression: c.Expression, notValid: c.NotValid, noInherit: c.NoInherit}
 				provenance = old.Inheritance.Checks[c.Name]
@@ -290,7 +290,7 @@ func (e *Engine) restoreRetiredConstraint(op *Operation, raw *parser.Update, aut
 			}
 		}
 	} else {
-		for _, c := range old.NotNullConstraints {
+		for _, c := range old.Constraints.NotNull {
 			if c.Name == repair.name {
 				fact = restoredHistoricalFact{ref: ref, oid: c.OID, name: c.Name, attributes: []int32{c.Attribute}, notValid: c.NotValid, noInherit: c.NoInherit}
 				provenance = old.Inheritance.NotNull[c.Attribute]

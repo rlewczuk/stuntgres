@@ -65,7 +65,7 @@ func prepareGenerationPlaceholders(view catalog.Read, tables []dumpRelation) {
 	}
 	for i := range tables {
 		if tables[i].recipePlaceholders {
-			for _, check := range tables[i].descriptor.CheckConstraints {
+			for _, check := range tables[i].descriptor.Constraints.Check {
 				if !check.NotValid {
 					if tables[i].deferredChecks == nil {
 						tables[i].deferredChecks = make(map[string]bool)
@@ -143,7 +143,7 @@ func inheritanceRecipeEvents(ctx context.Context, view catalog.Read, graph map[d
 		for _, declaration := range prerequisites {
 			table := byOID[declaration.oid]
 			local := false
-			for _, check := range table.descriptor.CheckConstraints {
+			for _, check := range table.descriptor.Constraints.Check {
 				if table.deferredChecks[check.Name] && dumpCheckDeclaration(view, table.descriptor, check) {
 					local = true
 					break
@@ -155,7 +155,7 @@ func inheritanceRecipeEvents(ctx context.Context, view catalog.Read, graph map[d
 			event := dumpEventKey{oid: declaration.oid, phase: dumpInheritanceChecks}
 			graph[event] = append([]dumpEventKey(nil), prerequisites...)
 			add := addProvider(event)
-			for _, check := range table.descriptor.CheckConstraints {
+			for _, check := range table.descriptor.Constraints.Check {
 				if table.deferredChecks[check.Name] && dumpCheckDeclaration(view, table.descriptor, check) {
 					if err := regclassReplayReferences(view, check.Expression, add); err != nil {
 						return err

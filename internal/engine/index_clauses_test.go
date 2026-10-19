@@ -145,7 +145,7 @@ func TestIndexClausesUniquePayload(t *testing.T) {
 	parent, index, catalogSnapshot, types := indexClausesFixture(t)
 	ctx := context.Background()
 	c := catalog.UniqueConstraint{OID: 22000, Name: "cover", Attributes: []int32{10}, Index: index.Address()}
-	parent.UniqueConstraints = []catalog.UniqueConstraint{c}
+	parent.Constraints.Unique = []catalog.UniqueConstraint{c}
 	class, _ := sqltype.DefaultIndexClass(types[sqltype.Int4])
 	index.SQLIndex = &catalog.IndexDefinition{Parent: parent.Address(), Keys: []catalog.IndexKey{{Attribute: 10, Class: class}}, Include: []int32{30}, Unique: true, NullsNotDistinct: c.NullsNotDistinct, Constraint: uniqueBacking(&c), Ready: true, Valid: true, Live: true}
 	index.Columns = []catalog.Column{parent.Columns[0], parent.Columns[2]}

@@ -73,27 +73,27 @@ func constraintName(parent *catalog.Relation, address ids.ObjectAddress) string 
 	if parent == nil || address.ClassID != 2606 || address.ObjectID == 0 || address.SubID != 0 {
 		return ""
 	}
-	for _, c := range parent.UniqueConstraints {
+	for _, c := range parent.Constraints.Unique {
 		if c.OID == address.ObjectID {
 			return c.Name
 		}
 	}
-	for _, c := range parent.ExclusionConstraints {
+	for _, c := range parent.Constraints.Exclusion {
 		if c.OID == address.ObjectID {
 			return c.Name
 		}
 	}
-	for _, c := range parent.CheckConstraints {
+	for _, c := range parent.Constraints.Check {
 		if c.OID == address.ObjectID {
 			return c.Name
 		}
 	}
-	for _, c := range parent.NotNullConstraints {
+	for _, c := range parent.Constraints.NotNull {
 		if c.OID == address.ObjectID {
 			return c.Name
 		}
 	}
-	for _, c := range parent.ForeignKeys {
+	for _, c := range parent.Constraints.ForeignKeys {
 		if c.OID == address.ObjectID {
 			return c.Name
 		}

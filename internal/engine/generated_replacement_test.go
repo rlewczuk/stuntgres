@@ -83,7 +83,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	repairedCell := columnExpression{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, origin: columnRef, scope: 1, frame: 1, slot: 1}
 	equal := comparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, left: repairedCell, right: literalExpression{expr.Info{Usage: oid.Usage()}, expectedOID}, predicate: predicate, operator: "="}
 	scoped := nullTestExpression{Info: expr.Info{Usage: boolean.Usage()}, child: probe, not: true}
-	d.CheckConstraints = []catalog.CheckConstraint{{Name: "scoped_gate", Expression: logicalExpression{Info: expr.Info{Usage: boolean.Usage()}, op: parser.LogicalAnd, left: equal, right: scoped}}}
+	d.Constraints.Check = []catalog.CheckConstraint{{Name: "scoped_gate", Expression: logicalExpression{Info: expr.Info{Usage: boolean.Usage()}, op: parser.LogicalAnd, left: equal, right: scoped}}}
 	base, err := sqltype.Integer(d.Columns[0].Usage.Type, 2)
 	if err != nil {
 		t.Fatal(err)
@@ -102,7 +102,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	tempAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 27001}
 	temp := *d
 	temp.ObjectAddress, temp.ObjectNamespace, temp.ObjectName = tempAddress, tempNamespace, "retained"
-	temp.ColumnMeta.Generations, temp.CheckConstraints = nil, nil
+	temp.ColumnMeta.Generations, temp.Constraints.Check = nil, nil
 	tempValues := append([]sqltype.Value(nil), source...)
 	e.catalog.state = catalog.CloneState(e.catalog.state)
 	e.catalog.state.SetDescriptor(tempNamespace, &catalog.Namespace{ObjectAddress: tempNamespace, ObjectName: "pg_temp_1", Owner: d.Owner, ObjectRevision: 1, Temporary: e.catalog.Domain.Session(99)})

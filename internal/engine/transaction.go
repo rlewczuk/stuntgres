@@ -668,7 +668,7 @@ retry:
 	}
 	var versions []rowVersion
 	var err error
-	if len(relation.ExclusionConstraints) != 0 {
+	if len(relation.Constraints.Exclusion) != 0 {
 		versions = make([]rowVersion, len(rows))
 		for i := range rows {
 			reserved := batch.candidate(i).exclusion

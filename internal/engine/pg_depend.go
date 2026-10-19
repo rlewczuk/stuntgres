@@ -283,13 +283,13 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 				}
 				add(d.Address(), d.Sequence.Owned, flavor)
 			}
-			for _, c := range d.NotNullConstraints {
+			for _, c := range d.Constraints.NotNull {
 				if err := ctx.Err(); err != nil {
 					return nil, err
 				}
 				add(ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, attribute(d.Address(), c.Attribute), 'a')
 			}
-			for _, c := range d.UniqueConstraints {
+			for _, c := range d.Constraints.Unique {
 				if c.Parent != 0 {
 					add(ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, ids.ObjectAddress{ClassID: 2606, ObjectID: c.Parent}, 'P')
 					add(ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, d.Address(), 'S')
@@ -311,7 +311,7 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 					add(ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}, attribute(d.Address(), sub), 'a')
 				}
 			}
-			for _, f := range d.ForeignKeys {
+			for _, f := range d.Constraints.ForeignKeys {
 				owner := ids.ObjectAddress{ClassID: 2606, ObjectID: f.OID}
 				for _, sub := range f.Attributes {
 					add(owner, attribute(d.Address(), sub), 'a')
@@ -321,7 +321,7 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 				}
 				add(owner, f.Index, 'n')
 			}
-			for _, c := range d.ExclusionConstraints {
+			for _, c := range d.Constraints.Exclusion {
 				index, ok := view.Relation(c.Index)
 				if !ok || index.SQLIndex == nil {
 					return nil, fmt.Errorf("stuntgres: missing exclusion dependency index")
@@ -359,7 +359,7 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 					}
 				}
 			}
-			for _, c := range d.CheckConstraints {
+			for _, c := range d.Constraints.Check {
 				owner := ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}
 				refs, err := pgDependExpressionRefs(ctx, view, c.Expression)
 				if err != nil {
