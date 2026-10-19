@@ -104,3 +104,13 @@ func (e JSONStripNulls) SameGroup(other expr.Expr, same func(a, b expr.Expr) boo
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e JSONStripNulls) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e JSONStripNulls) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONStripNulls", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}

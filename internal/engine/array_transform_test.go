@@ -110,7 +110,7 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 		if render(old, source.CatalogRead()) != originalSQL || render(next, target.CatalogRead()) != originalSQL {
 			t.Fatal("remap changed symbolic recipe")
 		}
-		unchanged, did, err := expr.MapEvaluated(old, func(child expr.Expr) (expr.Expr, bool, error) { return child, false, nil })
+		unchanged, did, err := expr.MapSubstituted(old, func(child expr.Expr) (expr.Expr, bool, error) { return child, false, nil })
 		if err != nil || did || &unchanged.(functions.ArrayTransform).Args[0] != &old.Args[0] {
 			t.Fatal("no-op copied children")
 		}
@@ -145,7 +145,7 @@ func TestArrayTransformNamedAndConcatSelection(t *testing.T) {
 		t.Fatal(s, err)
 	}
 	var order []sqltype.ID
-	_, changed, err := expr.MapEvaluated(call, func(child expr.Expr) (expr.Expr, bool, error) {
+	_, changed, err := expr.MapSubstituted(call, func(child expr.Expr) (expr.Expr, bool, error) {
 		order = append(order, child.ResultUsage().Type.ID())
 		return child, false, nil
 	})

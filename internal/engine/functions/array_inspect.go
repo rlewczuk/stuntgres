@@ -204,3 +204,12 @@ func (e ArrayInspect) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool,
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e ArrayInspect) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e ArrayInspect) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("ArrayInspect", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}

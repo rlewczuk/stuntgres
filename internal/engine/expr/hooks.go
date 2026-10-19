@@ -164,8 +164,8 @@ type ConstantTemplate interface {
 
 // EvaluationOrdered nodes list their children in written order although they
 // evaluate them in another (named arguments bound to formal slots).
-// EvaluationOrder returns the child indices in evaluation order; MapEvaluated
-// follows it.
+// EvaluationOrder returns the child indices in evaluation order;
+// MapSubstituted follows it.
 type EvaluationOrdered interface {
 	EvaluationOrder() []int
 }
@@ -176,4 +176,12 @@ type EvaluationOrdered interface {
 // parenthesized.
 type FunctionSyntax interface {
 	LooksLikeFunction() bool
+}
+
+// Substitutable nodes replace their metadata and children while keeping their
+// provider and every input derived at binding. Passes that substitute
+// equivalent children (statement preflight, grouping rewrite) use it instead of
+// Rebuild, which rebinds the provider against the new children.
+type Substitutable interface {
+	Substitute(info Info, children []Expr) (Expr, error)
 }

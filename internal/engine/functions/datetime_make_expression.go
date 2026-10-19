@@ -217,3 +217,13 @@ func (e DatetimeMake) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool,
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e DatetimeMake) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e DatetimeMake) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeMake", children, e.Count); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}

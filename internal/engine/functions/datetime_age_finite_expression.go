@@ -255,3 +255,13 @@ func (e DatetimeAgeFinite) SameGroup(other expr.Expr, same func(a, b expr.Expr) 
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e DatetimeAgeFinite) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e DatetimeAgeFinite) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeAgeFinite", children, len(e.Arguments())); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}

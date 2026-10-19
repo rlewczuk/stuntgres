@@ -110,3 +110,12 @@ func (e JSONRecord) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, d
 
 // PreflightFold implements expr.Preflighting.
 func (e JSONRecord) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// Substitute implements expr.Substitutable.
+func (e JSONRecord) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONRecord", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}

@@ -33,22 +33,33 @@ func Walk(node Expr, children func(Expr, func(Expr)), visit func(Expr)) {
 // RegclassRef, which InfoOf does not copy. Unchanged nodes are returned as
 // they are.
 func Map(node Composite, child func(Expr) (Expr, bool, error)) (Expr, bool, error) {
-	return mapChildren(node, nil, child)
+	return mapChildren(node, nil, child, node.Rebuild)
 }
 
-// MapEvaluated is Map visiting the children in evaluation order: a node that
-// lists them in written order names that order through EvaluationOrdered. The
-// rebuilt children keep their positions, so only error precedence and side
-// effects of child follow the evaluation order.
-func MapEvaluated(node Composite, child func(Expr) (Expr, bool, error)) (Expr, bool, error) {
+// MapSubstituted is Map for passes that replace children by equivalent ones
+// without rebinding the node's provider (statement preflight). It visits the
+// children in evaluation order (EvaluationOrdered) and substitutes them
+// (Substitute); the children keep their written positions.
+func MapSubstituted(node Composite, child func(Expr) (Expr, bool, error)) (Expr, bool, error) {
 	var order []int
 	if hook, ok := node.(EvaluationOrdered); ok {
 		order = hook.EvaluationOrder()
 	}
-	return mapChildren(node, order, child)
+	return mapChildren(node, order, child, func(info Info, children []Expr) (Expr, error) {
+		return Substitute(node, info, children)
+	})
 }
 
-func mapChildren(node Composite, order []int, child func(Expr) (Expr, bool, error)) (Expr, bool, error) {
+// Substitute replaces a node's metadata and children through Substitutable,
+// keeping its provider and derived inputs; other nodes Rebuild.
+func Substitute(node Composite, info Info, children []Expr) (Expr, error) {
+	if hook, ok := node.(Substitutable); ok {
+		return hook.Substitute(info, children)
+	}
+	return node.Rebuild(info, children)
+}
+
+func mapChildren(node Composite, order []int, child func(Expr) (Expr, bool, error), rebuild func(Info, []Expr) (Expr, error)) (Expr, bool, error) {
 	children := node.Children()
 	if order == nil {
 		order = make([]int, len(children))
@@ -77,7 +88,7 @@ func mapChildren(node Composite, order []int, child func(Expr) (Expr, bool, erro
 	if mapped == nil {
 		return node, false, nil
 	}
-	rebuilt, err := node.Rebuild(InfoOf(node), mapped)
+	rebuilt, err := rebuild(InfoOf(node), mapped)
 	if err != nil {
 		return nil, false, err
 	}

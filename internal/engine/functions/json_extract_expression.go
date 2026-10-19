@@ -122,3 +122,12 @@ func (e JSONExtract) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, 
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e JSONExtract) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e JSONExtract) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONExtract", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}

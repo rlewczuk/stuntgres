@@ -292,3 +292,12 @@ func (e StringVariadic) SameGroup(other expr.Expr, same func(a, b expr.Expr) boo
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e StringVariadic) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e StringVariadic) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("StringVariadic", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}

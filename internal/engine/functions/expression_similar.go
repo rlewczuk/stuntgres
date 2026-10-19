@@ -412,3 +412,40 @@ func (e Similar) PreflightFold() expr.Preflight { return expr.PreflightNullOrEva
 
 // PreflightFold implements expr.Preflighting.
 func (e SimilarSubstring) PreflightFold() expr.Preflight { return expr.PreflightNullOrEvaluate }
+
+// Substitute implements expr.Substitutable.
+func (e SimilarSubstring) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("SimilarSubstring", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}
+
+// Substitute implements expr.Substitutable.
+func (e Similar) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Similar", children, 2); err != nil {
+		return nil, err
+	}
+	e.Info, e.Left, e.Right = info, children[0], children[1]
+	return e, nil
+}
+
+// Substitute implements expr.Substitutable.
+func (e LikeEscape) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("LikeEscape", children, 2); err != nil {
+		return nil, err
+	}
+	e.Info, e.Pattern, e.Escape = info, children[0], children[1]
+	return e, nil
+}
+
+// Substitute implements expr.Substitutable.
+func (e SimilarEscape) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("SimilarEscape", children, 2); err != nil {
+		return nil, err
+	}
+	e.Info, e.Pattern, e.Escape = info, children[0], children[1]
+	return e, nil
+}

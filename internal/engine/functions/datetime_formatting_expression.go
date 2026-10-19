@@ -163,3 +163,13 @@ func (e DatetimeFormatting) SpecializeTemplate(ctx context.Context, literal func
 	e.Plan = plan
 	return e, true, nil
 }
+
+// Substitute implements expr.Substitutable.
+func (e DatetimeFormatting) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeFormatting", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}

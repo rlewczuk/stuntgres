@@ -245,3 +245,12 @@ func (e ArrayRandom) PreflightFold() expr.Preflight { return expr.PreflightChild
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e ArrayRandom) LooksLikeFunction() bool { return false }
+
+// Substitute implements expr.Substitutable.
+func (e ArrayRandom) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("ArrayRandom", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}

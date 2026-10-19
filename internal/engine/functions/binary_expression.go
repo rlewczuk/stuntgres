@@ -613,3 +613,12 @@ func (e Binary) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, defin
 func (e Binary) LooksLikeFunction() bool {
 	return !JSONBExistenceName(e.Plan.Name()) && !JSONBContainmentName(e.Plan.Name())
 }
+
+// Substitute implements expr.Substitutable.
+func (e Binary) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Binary", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}

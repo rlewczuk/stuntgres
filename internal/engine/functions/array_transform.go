@@ -416,3 +416,12 @@ func (e ArrayTransform) EvaluationOrder() []int {
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e ArrayTransform) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e ArrayTransform) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("ArrayTransform", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}

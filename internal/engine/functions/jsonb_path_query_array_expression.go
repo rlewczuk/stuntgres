@@ -111,3 +111,13 @@ func (e JSONBPathQueryArray) SameGroup(other expr.Expr, same func(a, b expr.Expr
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e JSONBPathQueryArray) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e JSONBPathQueryArray) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONBPathQueryArray", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}

@@ -290,3 +290,21 @@ func (e Regexp) PreflightFold() expr.Preflight { return expr.PreflightEvaluate }
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e Regexp) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e Regexp) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Regexp", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}
+
+// Substitute implements expr.Substitutable.
+func (e RegexpSet) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Regexp", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}

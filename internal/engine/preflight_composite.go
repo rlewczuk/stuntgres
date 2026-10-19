@@ -20,7 +20,7 @@ func preflightComposite(c *EvalContext, node expr.Composite, decisiveDefaults bo
 			return literalExpression{foldedExpressionInfo(node), sqltype.Null(node.ResultUsage().Type)}, true, nil
 		}
 	}
-	mapped, changed, err := expr.MapEvaluated(node, func(child expr.Expr) (expr.Expr, bool, error) {
+	mapped, changed, err := expr.MapSubstituted(node, func(child expr.Expr) (expr.Expr, bool, error) {
 		return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
 	})
 	if err != nil {

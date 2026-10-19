@@ -180,3 +180,13 @@ func (e DatetimeBin) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, 
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e DatetimeBin) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e DatetimeBin) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeBin", children, len(e.Arguments())); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}

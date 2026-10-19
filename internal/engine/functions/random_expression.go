@@ -300,3 +300,12 @@ func (e Random) PreflightFold() expr.Preflight { return expr.PreflightChildren }
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e Random) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e Random) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Random", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}

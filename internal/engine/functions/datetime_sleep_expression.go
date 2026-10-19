@@ -286,3 +286,12 @@ func (x DatetimeSleep) PreflightFold() expr.Preflight { return expr.PreflightNul
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (x DatetimeSleep) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (x DatetimeSleep) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeSleep", children, 1); err != nil {
+		return nil, err
+	}
+	x.Info, x.Arg = info, children[0]
+	return x, nil
+}

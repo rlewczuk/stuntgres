@@ -165,3 +165,12 @@ func (e Format) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, defin
 
 // PreflightFold implements expr.Preflighting.
 func (e Format) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// Substitute implements expr.Substitutable.
+func (e Format) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Format", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}

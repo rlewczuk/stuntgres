@@ -117,3 +117,8 @@ func (e Timezone) PreflightFold() expr.Preflight { return expr.PreflightNullFirs
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e Timezone) LooksLikeFunction() bool { return e.Function }
+
+// Substitute implements expr.Substitutable.
+func (e Timezone) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	return e.Rebuild(info, children)
+}

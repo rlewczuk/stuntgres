@@ -187,3 +187,12 @@ func (e NullCount) PreflightFold() expr.Preflight { return expr.PreflightChildre
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e NullCount) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e NullCount) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("NullCount", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}

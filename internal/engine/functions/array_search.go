@@ -190,3 +190,12 @@ func (e ArraySearch) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, 
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e ArraySearch) LooksLikeFunction() bool { return !e.Plan.Membership() }
+
+// Substitute implements expr.Substitutable.
+func (e ArraySearch) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("ArraySearch", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}

@@ -857,7 +857,7 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 	case expr.GroupLeaf:
 		// Childless leaf calls keep their metadata.
 	case expr.Composite:
-		// Function nodes rebuild over their rewritten children as stage
+		// Function nodes take their rewritten children and become stage
 		// dependent; installed-routine wrappers keep their cases above.
 		children := append([]expr.Expr(nil), e.Children()...)
 		for i := range children {
@@ -868,7 +868,7 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		}
 		info := expr.InfoOf(e)
 		stage(&info)
-		next, failure := e.Rebuild(info, children)
+		next, failure := expr.Substitute(e, info, children)
 		if failure != nil {
 			return nil, failure
 		}

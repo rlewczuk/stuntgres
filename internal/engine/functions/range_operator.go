@@ -89,3 +89,13 @@ func (e RangeOperator) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e RangeOperator) LooksLikeFunction() bool { return false }
+
+// Substitute implements expr.Substitutable.
+func (e RangeOperator) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("RangeOperator", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}

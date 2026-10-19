@@ -528,3 +528,12 @@ func (e String) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, defin
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e String) LooksLikeFunction() bool { return e.Plan.Name() != "||" }
+
+// Substitute implements expr.Substitutable.
+func (e String) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("String", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}

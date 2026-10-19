@@ -94,3 +94,12 @@ func (e DatetimeJustify) SameGroup(other expr.Expr, same func(a, b expr.Expr) bo
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e DatetimeJustify) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e DatetimeJustify) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeJustify", children, 1); err != nil {
+		return nil, err
+	}
+	e.Info, e.Arg = info, children[0]
+	return e, nil
+}

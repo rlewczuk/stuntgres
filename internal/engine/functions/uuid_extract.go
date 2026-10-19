@@ -144,3 +144,12 @@ func (e UUIDExtract) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, 
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e UUIDExtract) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e UUIDExtract) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("UUIDExtract", children, 1); err != nil {
+		return nil, err
+	}
+	e.Info, e.Arg = info, children[0]
+	return e, nil
+}

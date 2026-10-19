@@ -355,3 +355,43 @@ func (e JSONBPathMatch) LooksLikeFunction() bool { return true }
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e JSONBPathQueryFirst) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e JSONBPathExists) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONBPathExists", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}
+
+// Substitute implements expr.Substitutable.
+func (e JSONBPathMatch) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONBPathMatch", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}
+
+// Substitute implements expr.Substitutable.
+func (e JSONBPathQueryFirst) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONBPathQueryFirst", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}
+
+// Substitute implements expr.Substitutable.
+func (e JSONBPathQuery) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONBPathQuery", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}

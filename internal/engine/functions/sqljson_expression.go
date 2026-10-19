@@ -202,3 +202,18 @@ func (e SQLJSON) LooksLikeFunction() bool { return true }
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e JSONPredicate) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e JSONPredicate) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONPredicate", children, 1); err != nil {
+		return nil, err
+	}
+	e.Info, e.Child = info, children[0]
+	return e, nil
+}
+
+// Substitute implements expr.Substitutable.
+// Its provider re-derives from the child usages, as preflight always did.
+func (e SQLJSON) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	return e.Rebuild(info, children)
+}

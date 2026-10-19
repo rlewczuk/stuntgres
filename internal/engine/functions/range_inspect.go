@@ -152,3 +152,12 @@ func (e RangeInspect) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool,
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e RangeInspect) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e RangeInspect) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("RangeInspect", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info, e.Args = info, children
+	return e, nil
+}

@@ -387,3 +387,13 @@ func (e DatetimeOverlaps) SameGroup(other expr.Expr, same func(a, b expr.Expr) b
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e DatetimeOverlaps) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e DatetimeOverlaps) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeOverlaps", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}

@@ -237,3 +237,9 @@ func (e JSONCreate) PreflightFold() expr.Preflight { return expr.PreflightChildr
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e JSONCreate) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+// Its provider re-derives from the child usages, as preflight always did.
+func (e JSONCreate) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	return e.Rebuild(info, children)
+}

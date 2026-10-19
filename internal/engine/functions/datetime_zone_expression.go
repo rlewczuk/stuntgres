@@ -281,3 +281,13 @@ func (e DatetimeZoneCalendar) PreflightFold() expr.Preflight { return expr.Prefl
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e DatetimeZoneCalendar) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e DatetimeZoneCalendar) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeZoneCalendar", children, e.Count); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}

@@ -211,3 +211,22 @@ func (e PosixSubstring) PreflightFold() expr.Preflight { return expr.PreflightRe
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e PosixSubstring) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e PosixSubstring) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("PosixSubstring", children, len(e.Args)); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}
+
+// Substitute implements expr.Substitutable.
+func (e Posix) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("Posix", children, 2); err != nil {
+		return nil, err
+	}
+	e.Info, e.Left, e.Right = info, children[0], children[1]
+	return e, nil
+}

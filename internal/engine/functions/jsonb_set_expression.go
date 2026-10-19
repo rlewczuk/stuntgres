@@ -111,3 +111,13 @@ func (e JSONBSet) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, def
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e JSONBSet) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e JSONBSet) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("JSONBSet", children, e.Count); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}

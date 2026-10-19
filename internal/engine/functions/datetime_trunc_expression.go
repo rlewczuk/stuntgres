@@ -210,3 +210,13 @@ func (e DatetimeTrunc) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e DatetimeTrunc) LooksLikeFunction() bool { return true }
+
+// Substitute implements expr.Substitutable.
+func (e DatetimeTrunc) Substitute(info expr.Info, children []expr.Expr) (expr.Expr, error) {
+	if err := checkChildren("DatetimeTrunc", children, len(e.Arguments())); err != nil {
+		return nil, err
+	}
+	e.Info = info
+	copy(e.Args[:], children)
+	return e, nil
+}
