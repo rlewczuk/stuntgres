@@ -196,3 +196,9 @@ func (e SQLJSON) PreflightFold() expr.Preflight { return expr.PreflightChildren 
 
 // PreflightFold implements expr.Preflighting.
 func (e JSONPredicate) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e SQLJSON) LooksLikeFunction() bool { return true }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e JSONPredicate) LooksLikeFunction() bool { return true }

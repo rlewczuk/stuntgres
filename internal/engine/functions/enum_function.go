@@ -160,3 +160,6 @@ func (e Enum) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definit
 	}
 	return true
 }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e Enum) LooksLikeFunction() bool { return true }

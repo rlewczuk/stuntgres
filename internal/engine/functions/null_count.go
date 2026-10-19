@@ -184,3 +184,6 @@ func (e NullCount) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, de
 
 // PreflightFold implements expr.Preflighting.
 func (e NullCount) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e NullCount) LooksLikeFunction() bool { return true }

@@ -176,3 +176,6 @@ func (e TransactionTime) GroupLeaf() {}
 
 // PreflightFold implements expr.Preflighting.
 func (e TransactionTime) PreflightFold() expr.Preflight { return expr.PreflightKeep }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e TransactionTime) LooksLikeFunction() bool { return true }

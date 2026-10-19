@@ -208,3 +208,6 @@ func (e Posix) PreflightFold() expr.Preflight { return expr.PreflightRegexNullOr
 
 // PreflightFold implements expr.Preflighting.
 func (e PosixSubstring) PreflightFold() expr.Preflight { return expr.PreflightRegexNullOrEvaluate }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e PosixSubstring) LooksLikeFunction() bool { return true }

@@ -114,3 +114,6 @@ func (e Timezone) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, def
 
 // PreflightFold implements expr.Preflighting.
 func (e Timezone) PreflightFold() expr.Preflight { return expr.PreflightNullFirst }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e Timezone) LooksLikeFunction() bool { return e.Function }

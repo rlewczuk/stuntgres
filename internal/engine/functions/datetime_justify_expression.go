@@ -91,3 +91,6 @@ func (e DatetimeJustify) SameGroup(other expr.Expr, same func(a, b expr.Expr) bo
 	o, ok := other.(DatetimeJustify)
 	return ok && e.Plan.Name() == o.Plan.Name() && same(e.Arg, o.Arg)
 }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e DatetimeJustify) LooksLikeFunction() bool { return true }

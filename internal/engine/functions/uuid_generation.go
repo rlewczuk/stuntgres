@@ -255,3 +255,6 @@ func (e UUIDGeneration) SameGroup(other expr.Expr, same func(a, b expr.Expr) boo
 	}
 	return true
 }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e UUIDGeneration) LooksLikeFunction() bool { return true }

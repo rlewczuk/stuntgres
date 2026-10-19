@@ -86,3 +86,6 @@ func (e RangeOperator) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool
 	o, ok := other.(RangeOperator)
 	return ok && e.Plan == o.Plan && e.Namespace == o.Namespace && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1])
 }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e RangeOperator) LooksLikeFunction() bool { return false }

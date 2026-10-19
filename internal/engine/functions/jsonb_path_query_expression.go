@@ -346,3 +346,12 @@ func (e JSONBPathQuery) SameGroup(other expr.Expr, same func(a, b expr.Expr) boo
 	}
 	return true
 }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e JSONBPathExists) LooksLikeFunction() bool { return true }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e JSONBPathMatch) LooksLikeFunction() bool { return true }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e JSONBPathQueryFirst) LooksLikeFunction() bool { return true }

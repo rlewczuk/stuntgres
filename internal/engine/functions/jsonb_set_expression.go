@@ -108,3 +108,6 @@ func (e JSONBSet) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, def
 	}
 	return true
 }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e JSONBSet) LooksLikeFunction() bool { return true }

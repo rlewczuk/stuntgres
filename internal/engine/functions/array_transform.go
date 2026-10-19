@@ -413,3 +413,6 @@ func (e ArrayTransform) EvaluationOrder() []int {
 	}
 	return order
 }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e ArrayTransform) LooksLikeFunction() bool { return true }

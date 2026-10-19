@@ -116,3 +116,6 @@ func (e NetworkFormat) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool
 	}
 	return true
 }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e NetworkFormat) LooksLikeFunction() bool { return true }

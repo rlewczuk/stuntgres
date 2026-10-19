@@ -289,3 +289,6 @@ func (e StringVariadic) SameGroup(other expr.Expr, same func(a, b expr.Expr) boo
 	}
 	return true
 }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e StringVariadic) LooksLikeFunction() bool { return true }

@@ -201,3 +201,6 @@ func (e ArrayInspect) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool,
 	}
 	return true
 }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e ArrayInspect) LooksLikeFunction() bool { return true }

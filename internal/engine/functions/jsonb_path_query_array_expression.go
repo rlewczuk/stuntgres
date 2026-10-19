@@ -108,3 +108,6 @@ func (e JSONBPathQueryArray) SameGroup(other expr.Expr, same func(a, b expr.Expr
 	}
 	return true
 }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e JSONBPathQueryArray) LooksLikeFunction() bool { return true }

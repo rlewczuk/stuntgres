@@ -216,3 +216,6 @@ func (e DatetimeExtract) SameGroup(other expr.Expr, same func(a, b expr.Expr) bo
 	o, ok := other.(DatetimeExtract)
 	return ok && e.Plan.Name() == o.Plan.Name() && e.Plan.InputID() == o.Plan.InputID() && same(e.Args[0], o.Args[0]) && same(e.Args[1], o.Args[1])
 }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e DatetimeExtract) LooksLikeFunction() bool { return true }

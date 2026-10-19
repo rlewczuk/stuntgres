@@ -123,3 +123,6 @@ func (e VersionInformation) GroupLeaf() {}
 
 // PreflightFold implements expr.Preflighting.
 func (e VersionInformation) PreflightFold() expr.Preflight { return expr.PreflightKeep }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e VersionInformation) LooksLikeFunction() bool { return true }

@@ -287,3 +287,6 @@ func (e RegexpSet) PreflightFold() expr.Preflight { return expr.PreflightChildre
 
 // PreflightFold implements expr.Preflighting.
 func (e Regexp) PreflightFold() expr.Preflight { return expr.PreflightEvaluate }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e Regexp) LooksLikeFunction() bool { return true }

@@ -283,3 +283,6 @@ func (e DatetimeSleep) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool
 
 // PreflightFold implements expr.Preflighting.
 func (x DatetimeSleep) PreflightFold() expr.Preflight { return expr.PreflightNullBare }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (x DatetimeSleep) LooksLikeFunction() bool { return true }

@@ -525,3 +525,6 @@ func (e String) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, defin
 	}
 	return true
 }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e String) LooksLikeFunction() bool { return e.Plan.Name() != "||" }

@@ -101,3 +101,6 @@ func (e JSONStripNulls) SameGroup(other expr.Expr, same func(a, b expr.Expr) boo
 	}
 	return true
 }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e JSONStripNulls) LooksLikeFunction() bool { return true }

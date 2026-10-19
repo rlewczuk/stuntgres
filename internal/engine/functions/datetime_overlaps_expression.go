@@ -384,3 +384,6 @@ func (e DatetimeOverlaps) SameGroup(other expr.Expr, same func(a, b expr.Expr) b
 	}
 	return true
 }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e DatetimeOverlaps) LooksLikeFunction() bool { return true }

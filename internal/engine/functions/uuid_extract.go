@@ -141,3 +141,6 @@ func (e UUIDExtract) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, 
 	o, ok := other.(UUIDExtract)
 	return ok && e.Kind == o.Kind && same(e.Arg, o.Arg)
 }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e UUIDExtract) LooksLikeFunction() bool { return true }

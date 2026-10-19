@@ -187,3 +187,6 @@ func (e ArraySearch) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, 
 	}
 	return true
 }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e ArraySearch) LooksLikeFunction() bool { return !e.Plan.Membership() }

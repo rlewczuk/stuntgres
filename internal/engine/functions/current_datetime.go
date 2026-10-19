@@ -123,3 +123,6 @@ func (e CurrentDateTime) GroupLeaf() {}
 
 // PreflightFold implements expr.Preflighting.
 func (e CurrentDateTime) PreflightFold() expr.Preflight { return expr.PreflightKeep }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e CurrentDateTime) LooksLikeFunction() bool { return true }

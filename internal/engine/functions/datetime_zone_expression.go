@@ -278,3 +278,6 @@ func (e DatetimeZoneCalendar) SameGroup(other expr.Expr, same func(a, b expr.Exp
 
 // PreflightFold implements expr.Preflighting.
 func (e DatetimeZoneCalendar) PreflightFold() expr.Preflight { return expr.PreflightNullFirst }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e DatetimeZoneCalendar) LooksLikeFunction() bool { return true }

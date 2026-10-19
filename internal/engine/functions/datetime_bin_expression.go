@@ -177,3 +177,6 @@ func (e DatetimeBin) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, 
 	}
 	return true
 }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e DatetimeBin) LooksLikeFunction() bool { return true }

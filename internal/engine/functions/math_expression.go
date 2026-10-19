@@ -409,3 +409,6 @@ func (e Math) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definit
 	}
 	return true
 }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e Math) LooksLikeFunction() bool { return true }

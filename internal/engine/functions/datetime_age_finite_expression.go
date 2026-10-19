@@ -252,3 +252,6 @@ func (e DatetimeAgeFinite) SameGroup(other expr.Expr, same func(a, b expr.Expr) 
 	}
 	return true
 }
+
+// LooksLikeFunction implements expr.FunctionSyntax.
+func (e DatetimeAgeFinite) LooksLikeFunction() bool { return true }

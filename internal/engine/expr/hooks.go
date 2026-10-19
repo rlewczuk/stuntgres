@@ -169,3 +169,11 @@ type ConstantTemplate interface {
 type EvaluationOrdered interface {
 	EvaluationOrder() []int
 }
+
+// FunctionSyntax answers PostgreSQL's looks_like_function for index
+// definitions: pg_get_indexdef prints a key that looks like a function call
+// bare and parenthesizes every other expression. Nodes without the hook are
+// parenthesized.
+type FunctionSyntax interface {
+	LooksLikeFunction() bool
+}
