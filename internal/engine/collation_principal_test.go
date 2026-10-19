@@ -32,7 +32,7 @@ func collationRenameBootstrapFixture(e *Engine, op *Operation, name string) erro
 	if !actor.Superuser {
 		return fmt.Errorf("bootstrap rename fixture requires actual superuser authority")
 	}
-	ref := e.authorizationDomain.Principal(10)
+	ref := e.roles.domain.Principal(10)
 	d, err := auth.roles.Descriptor(ref)
 	if err != nil {
 		return err
@@ -43,10 +43,10 @@ func collationRenameBootstrapFixture(e *Engine, op *Operation, name string) erro
 	if _, exists := auth.roles.Lookup(name); exists {
 		return fmt.Errorf("fixture role name already exists")
 	}
-	if e.roles.revision == ^uint64(0) {
+	if e.roles.published.revision == ^uint64(0) {
 		return fmt.Errorf("authorization revision exhausted")
 	}
-	n := cloneRoleFixture(e.roles)
+	n := cloneRoleFixture(e.roles.published)
 	d.Name = name
 	putFixtureRole(n, d)
 
@@ -55,7 +55,7 @@ func collationRenameBootstrapFixture(e *Engine, op *Operation, name string) erro
 	if err = publicationOperationLocked(e, op); err != nil {
 		return err
 	}
-	e.roles = n
+	e.roles.published = n
 	return nil
 }
 
@@ -63,8 +63,8 @@ func TestCollationBootstrapPrincipalNameReuse(t *testing.T) {
 	e := New()
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
-	bootstrap := e.authorizationDomain.Principal(10)
-	beforeRolesPublication := e.roles
+	bootstrap := e.roles.domain.Principal(10)
+	beforeRolesPublication := e.roles.published
 	beforeRoles := e.Roles()
 	beforeDescriptor, err := beforeRoles.Descriptor(bootstrap)
 	if err != nil {
@@ -81,7 +81,7 @@ func TestCollationBootstrapPrincipalNameReuse(t *testing.T) {
 	}
 	want := beforeDescriptor
 	want.Name = "original_bootstrap"
-	if actual != want || e.roles.revision != beforeRolesPublication.revision+1 || !reflect.DeepEqual(fixtureEdges(e.roles), fixtureEdges(beforeRolesPublication)) {
+	if actual != want || e.roles.published.revision != beforeRolesPublication.revision+1 || !reflect.DeepEqual(fixtureEdges(e.roles.published), fixtureEdges(beforeRolesPublication)) {
 		t.Fatal("rename changed genuine role identity", actual, want)
 	}
 	old, err := beforeRoles.Descriptor(bootstrap)

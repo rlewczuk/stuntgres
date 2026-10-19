@@ -98,7 +98,7 @@ func TestDefaultPrivilegesCreatorSelection(t *testing.T) {
 	if f.e.catalog.state.DefaultACL(catalog.DefaultACLKey{Creator: f.member, Class: authorization.DefaultSequences}) == nil || f.e.catalog.state.DefaultACL(catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultSequences}) != nil {
 		t.Fatal("omitted creator not current")
 	}
-	roles := cloneRoleFixture(f.e.roles)
+	roles := cloneRoleFixture(f.e.roles.published)
 	edges := fixtureEdges(roles)
 	for i := range edges {
 		if edges[i].Member == f.member && edges[i].Role == f.owner {
@@ -107,7 +107,7 @@ func TestDefaultPrivilegesCreatorSelection(t *testing.T) {
 		}
 	}
 	setFixtureEdges(roles, edges)
-	f.e.roles = roles
+	f.e.roles.published = roles
 	err := f.apply(defaultUnitStatement("types", "usage", []string{"default_owner"}, nil, []string{"default_reader"}))
 	defaultUnitDiagnostic(t, err, "42501", "permission denied to change default privileges")
 	f.actor(f.owner)

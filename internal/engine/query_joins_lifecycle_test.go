@@ -350,7 +350,7 @@ func TestQueryJoinsEarlierLeafMetadataDuringWait(t *testing.T) {
 					sessionSQL(t, holder, q)
 				}
 				role, _ := e.Roles().Lookup("waiting_join_reader")
-				grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+				grantor := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 				left := roleTableRef(t, e, "a")
 				grant := func(name string, rights authorization.Privileges) {
 					t.Helper()

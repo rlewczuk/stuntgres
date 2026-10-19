@@ -25,7 +25,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 					before := e.CatalogRead()
 					oldType := before.MustType(observed)
 					oldBacking := before.Get(source.OwningRelation)
-					roles, sessionRevision := e.roles.revision, reader.session.authorization.revision
+					roles, sessionRevision := e.roles.published.revision, reader.session.authorization.revision
 					explicit := mode == "explicit_temporary"
 					if explicit {
 						roleExecute(t, e, reader, "BEGIN")
@@ -76,7 +76,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 					}
 					current := e.CatalogRead()
 					changed := current.MustType(observed)
-					if current.State() != winner || current.Epoch() != before.Epoch() || changed.SQLType != oldType.SQLType || current.Get(source.OwningRelation) != oldBacking || e.roles.revision != roles || reader.session.authorization.revision != sessionRevision || reflect.DeepEqual(changed.ACL, oldType.ACL) {
+					if current.State() != winner || current.Epoch() != before.Epoch() || changed.SQLType != oldType.SQLType || current.Get(source.OwningRelation) != oldBacking || e.roles.published.revision != roles || reader.session.authorization.revision != sessionRevision || reflect.DeepEqual(changed.ACL, oldType.ACL) {
 						t.Error("rejected CREATE did not retain descriptor-only ACL winner atomically")
 					}
 					for _, d := range current.Descriptors() {

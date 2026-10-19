@@ -63,7 +63,7 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			if err := e.captureCatalogStageLocked(stage, newCatalogChanges(), auth.catalog.State(), nil); !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("Finish accepted changed committed predecessor", err)
 			}
-			if auth.catalog.Get(catalog.CurrentDatabaseAddress) != stage.databaseAuthority || auth.roleRecord.revision != e.roles.revision {
+			if auth.catalog.Get(catalog.CurrentDatabaseAddress) != stage.databaseAuthority || auth.roleRecord.revision != e.roles.published.revision {
 				t.Fatal("retained authority mutated or artificial role revision")
 			}
 		})
@@ -102,7 +102,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 			defer cancel()
 			message := batchUnitStart(t, session, ctx)
 			defer message.end(context.Canceled)
-			oldCatalog, oldRoles := f.e.catalog.state, f.e.roles
+			oldCatalog, oldRoles := f.e.catalog.state, f.e.roles.published
 			storage := make(map[ids.ObjectAddress]*relationStorage, len(f.e.storage.Relations))
 			for address, root := range f.e.storage.Relations {
 				storage[address] = root
@@ -131,7 +131,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 			if policy == nil || pendingRoles == oldRoles || retained.catalog.State() == oldCatalog || retained.pairedCatalog.State() != retained.catalog.State() || retained.catalog.Get(catalog.CurrentDatabaseAddress) != &database {
 				t.Fatal("missing paired private default/role/DB authority")
 			}
-			if f.e.catalog.state != oldCatalog || f.e.roles != oldRoles || oldCatalog.DefaultACLCount() != 0 {
+			if f.e.catalog.state != oldCatalog || f.e.roles.published != oldRoles || oldCatalog.DefaultACLCount() != 0 {
 				t.Fatal("utility published a prefix before message completion")
 			}
 			if veto == "database" {
@@ -150,7 +150,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 				cancel()
 			}
 			current := f.e.catalog.state
-			if f.e.roles != oldRoles || current.Epoch() != oldCatalog.Epoch() || session.authorization.revision != sessionRevision {
+			if f.e.roles.published != oldRoles || current.Epoch() != oldCatalog.Epoch() || session.authorization.revision != sessionRevision {
 				t.Fatal("intervening DB change altered unrelated authority")
 			}
 			finishErr := message.scope.Finish(nil)
@@ -165,7 +165,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 					t.Fatal("missing final DB predecessor veto", err)
 				}
 			}
-			if f.e.catalog.state != current || f.e.roles != oldRoles || current.DefaultACLCount() != 0 || len(f.e.storage.Relations) != len(storage) {
+			if f.e.catalog.state != current || f.e.roles.published != oldRoles || current.DefaultACLCount() != 0 || len(f.e.storage.Relations) != len(storage) {
 				t.Fatal("veto published catalog, role or default-policy prefix")
 			}
 			for address, root := range storage {

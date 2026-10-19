@@ -87,7 +87,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 	if count != 2 {
 		t.Fatal("membership edges", count)
 	}
-	metadata, err := extensionOwnerMetadata(view, e.roleRead(view, e.roles), ext)
+	metadata, err := extensionOwnerMetadata(view, e.roles.read(e.catalog.owner(), view, e.roles.published), ext)
 	if err != nil || metadata == "" {
 		t.Fatal("owner manifest", metadata, err)
 	}

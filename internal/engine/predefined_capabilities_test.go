@@ -21,7 +21,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	for _, role := range []string{"pg_read_all_data", "pg_write_all_data", "pg_maintain"} {
 		roleAttributeApply(t, e, op, predefinedMembership(role, reader.Name))
 	}
-	owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	// Private immutable descriptors isolate class masks from public SQL syntax.
 	descriptors := []struct {
 		d    catalog.Descriptor
@@ -40,7 +40,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 	for _, tc := range descriptors {
 		state.SetDescriptor(tc.d.Address(), tc.d)
 	}
-	v := AuthorizationView{engine: e, pairedCatalog: e.catalog.read(state), roleRecord: e.roles, catalog: e.catalog.read(state), roles: e.roleRead(e.catalog.read(state), e.roles), state: authorization.RoleState{CurrentUser: reader.Ref}}
+	v := AuthorizationView{engine: e, pairedCatalog: e.catalog.read(state), roleRecord: e.roles.published, catalog: e.catalog.read(state), roles: e.roles.read(e.catalog.owner(), e.catalog.read(state), e.roles.published), state: authorization.RoleState{CurrentUser: reader.Ref}}
 	for _, tc := range descriptors {
 		ref := e.catalog.Domain.Ref(state.Epoch(), tc.d.Address())
 		got, err := v.Effective(ref, false)
@@ -56,7 +56,7 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 		}
 	}
 	typ := state.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 25})
-	if predefinedPrivileges(typ, []authorization.PrincipalRef{e.authorizationDomain.Principal(6181), e.authorizationDomain.Principal(6182), e.authorizationDomain.Principal(6337)}) != 0 {
+	if predefinedPrivileges(typ, []authorization.PrincipalRef{e.roles.domain.Principal(6181), e.roles.domain.Principal(6182), e.roles.domain.Principal(6337)}) != 0 {
 		t.Fatal("data capability leaked onto type")
 	}
 	column := e.catalog.Domain.Ref(state.Epoch(), descriptors[1].d.Address())
@@ -85,8 +85,8 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 		roleAttributeApply(t, e, op, revoke)
 	}
 	fresh := v
-	fresh.roleRecord = e.roles
-	fresh.roles = e.roleRead(fresh.catalog, e.roles)
+	fresh.roleRecord = e.roles.published
+	fresh.roles = e.roles.read(e.catalog.owner(), fresh.catalog, e.roles.published)
 	if got, err := fresh.Effective(e.catalog.Domain.Ref(state.Epoch(), table.Address()), false); err != nil || got != 0 {
 		t.Fatal("fresh authority retained capability", got, err)
 	}
@@ -98,13 +98,13 @@ func TestPredefinedCapabilityMasks(t *testing.T) {
 			t.Fatal("capability accepted invalid object", ref)
 		}
 	}
-	fresh.state.CurrentUser = New().authorizationDomain.Principal(reader.Ref.ID())
+	fresh.state.CurrentUser = New().roles.domain.Principal(reader.Ref.ID())
 	if _, err := fresh.Effective(e.catalog.Domain.Ref(state.Epoch(), table.Address()), false); err == nil {
 		t.Fatal("capability accepted foreign actor")
 	}
 	roleAttributeApply(t, e, op, &parser.DropRole{Names: []string{reader.Name}})
 	fresh.roles = e.Roles()
-	fresh.roleRecord = e.roles
+	fresh.roleRecord = e.roles.published
 	fresh.state.CurrentUser = reader.Ref
 	if _, err := fresh.Effective(e.catalog.Domain.Ref(state.Epoch(), table.Address()), false); err == nil {
 		t.Fatal("capability accepted retired actor")
@@ -160,23 +160,23 @@ func TestPredefinedRoleControls(t *testing.T) {
 	revoke := predefinedMembership("pg_read_all_settings", "pg_monitor")
 	revoke.Revoke = true
 	roleAttributeApply(t, e, op, revoke)
-	roles := e.roles
+	roles := e.roles.published
 	sourceEdges := append([]authorization.Membership(nil), fixtureEdges(roles)...)
 	stage := e.restoreStage()
 	expectedEdges := append([]authorization.Membership(nil), sourceEdges...)
 	for i := range expectedEdges {
-		expectedEdges[i].Role = stage.authorizationDomain.Principal(expectedEdges[i].Role.ID())
-		expectedEdges[i].Member = stage.authorizationDomain.Principal(expectedEdges[i].Member.ID())
-		expectedEdges[i].Grantor = stage.authorizationDomain.Principal(expectedEdges[i].Grantor.ID())
+		expectedEdges[i].Role = stage.roles.domain.Principal(expectedEdges[i].Role.ID())
+		expectedEdges[i].Member = stage.roles.domain.Principal(expectedEdges[i].Member.ID())
+		expectedEdges[i].Grantor = stage.roles.domain.Principal(expectedEdges[i].Grantor.ID())
 	}
 	if !reflect.DeepEqual(stage.Roles().Memberships(), expectedEdges) {
 		t.Fatal("import lost captured target graph/options/provenance")
 	}
-	if e.roles != roles || !reflect.DeepEqual(sourceEdges, fixtureEdges(roles)) {
+	if e.roles.published != roles || !reflect.DeepEqual(sourceEdges, fixtureEdges(roles)) {
 		t.Fatal("import mutated retained target graph")
 	}
-	closure, err := stage.Roles().RoleClosure(context.Background(), stage.authorizationDomain.Principal(10), true)
-	if err != nil || !reflect.DeepEqual(closure, []authorization.PrincipalRef{stage.authorizationDomain.Principal(10), stage.authorizationDomain.Principal(6171)}) {
+	closure, err := stage.Roles().RoleClosure(context.Background(), stage.roles.domain.Principal(10), true)
+	if err != nil || !reflect.DeepEqual(closure, []authorization.PrincipalRef{stage.roles.domain.Principal(10), stage.roles.domain.Principal(6171)}) {
 		t.Fatal("stage implicit owner", closure, err)
 	}
 	var dump bytes.Buffer
@@ -193,11 +193,11 @@ func TestPredefinedRoleControls(t *testing.T) {
 		if err := control(); err != nil {
 			t.Fatal(err)
 		}
-		if e.roles != roles || len(e.Roles().Memberships()) != 2 {
+		if e.roles.published != roles || len(e.Roles().Memberships()) != 2 {
 			t.Fatal("control reseeded shared graph")
 		}
 		public := e.catalog.state.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
-		if public.Owner != (e.authorizationDomain.Principal(6171)) || !bootstrapNamespaceDumpable(public) {
+		if public.Owner != (e.roles.domain.Principal(6171)) || !bootstrapNamespaceDumpable(public) {
 			t.Fatal("public owner or ACL baseline", public)
 		}
 		for _, entry := range public.ACL.Entries {
@@ -211,7 +211,7 @@ func TestPredefinedRoleControls(t *testing.T) {
 		t.Fatal(err)
 	}
 	public := target.catalog.state.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
-	if public.Owner != (target.authorizationDomain.Principal(6171)) {
+	if public.Owner != (target.roles.domain.Principal(6171)) {
 		t.Fatal("foreign public owner escaped remapping", public.Owner)
 	}
 	if len(target.Roles().Memberships()) != 3 {
@@ -230,7 +230,7 @@ func TestPredefinedCapabilityGrantSource(t *testing.T) {
 	roleAttributeApply(t, e, op, &parser.SessionAuthorization{Name: actor.Name})
 	op.DetachNotices()
 	for _, columns := range [][]parser.Identifier{nil, {{Text: "n"}}} {
-		beforeCatalog, beforeRoles := e.catalog.state, e.roles
+		beforeCatalog, beforeRoles := e.catalog.state, e.roles.published
 		roleAttributeApply(t, e, op, &parser.ObjectGrant{
 			Relations:   []parser.ObjectName{predefinedObjectName("grant_target")},
 			Privileges:  []parser.GrantPrivilege{{Name: "select", Columns: columns}},
@@ -245,7 +245,7 @@ func TestPredefinedCapabilityGrantSource(t *testing.T) {
 		if notices := op.DetachNotices(); !reflect.DeepEqual(notices, want) {
 			t.Fatal("use-only grant warning", notices, want)
 		}
-		if e.catalog.state != beforeCatalog || e.roles != beforeRoles {
+		if e.catalog.state != beforeCatalog || e.roles.published != beforeRoles {
 			t.Fatal("use-only capability published a grant")
 		}
 	}

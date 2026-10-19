@@ -92,14 +92,14 @@ func TestAccessInquiryRoleOIDs(t *testing.T) {
 		{actor.Ref.ID(), 4294967295, authorization.RoleMember, false},
 		{auth.state.CurrentUser.ID(), 4294967295, authorization.RoleAdmin, true},
 	} {
-		got, err := authorization.HasRole(context.Background(), auth.roles, &e.authorizationDomain, tc.a, tc.b, tc.mask)
+		got, err := authorization.HasRole(context.Background(), auth.roles, &e.roles.domain, tc.a, tc.b, tc.mask)
 		if err != nil || got != tc.want {
 			t.Fatalf("raw boundary %+v: %v %v", tc, got, err)
 		}
 	}
 	// SQL shortcuts do not weaken any trusted authority entry point.
 	foreign := authorization.Domain{}
-	for _, ref := range []authorization.PrincipalRef{e.authorizationDomain.Principal(0), foreign.Principal(actor.Ref.ID()), e.authorizationDomain.Principal(4294967295)} {
+	for _, ref := range []authorization.PrincipalRef{e.roles.domain.Principal(0), foreign.Principal(actor.Ref.ID()), e.roles.domain.Principal(4294967295)} {
 		if _, err := auth.roles.InheritsRole(ref, ref); err == nil {
 			t.Fatal("trusted inheritance accepted invalid self")
 		}
@@ -149,7 +149,7 @@ func TestAccessInquiryRLSDecision(t *testing.T) {
 				if err != nil || (disposition != rlsUnrestricted) != active {
 					t.Fatal("enforcement eligibility diverged", disposition, active, err)
 				}
-				next.Security.Policies[0].Roles = []catalog.PolicyRole{{Ref: e.authorizationDomain.Principal(4294967295)}}
+				next.Security.Policies[0].Roles = []catalog.PolicyRole{{Ref: e.roles.domain.Principal(4294967295)}}
 				active, err = rowSecurityApplies(auth, &next, actor)
 				if err != nil || active != want {
 					t.Fatal("inquiry inspected policy", active, err)

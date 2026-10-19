@@ -11,7 +11,7 @@ func cloneRoleFixture(r *roleCatalog) *roleCatalog {
 	return &roleCatalog{root: r.root, revision: r.revision + 1}
 }
 func emptyRoleFixture(e *Engine) *roleCatalog {
-	root := authorization.Seed(&e.authorizationDomain)
+	root := authorization.Seed(&e.roles.domain)
 	targets := make(map[authorization.PrincipalRef]authorization.RoleDescriptor)
 	for ref, d := range root.Read(authorization.PrincipalRef{}).RoleEntries() {
 		targets[ref] = d

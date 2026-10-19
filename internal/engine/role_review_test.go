@@ -28,7 +28,7 @@ func TestAuthorizationNamespaceLookupCheckpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
-	catalog, roles := e.catalog.state, e.roles
+	catalog, roles := e.catalog.state, e.roles.published
 	for _, tc := range []struct{ query, code, message, position string }{
 		{"SELECT id FROM public.secret", "42501", "permission denied for schema public", "16"},
 		{"SELECT missing FROM public.secret", "42501", "permission denied for schema public", "21"},
@@ -56,14 +56,14 @@ func TestAuthorizationNamespaceLookupCheckpoint(t *testing.T) {
 			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 				t.Fatalf("prepare=%v %s: %#v", prepare, tc.query, err)
 			}
-			if e.catalog.state != catalog || e.roles != roles {
+			if e.catalog.state != catalog || e.roles.published != roles {
 				t.Fatal("failed lookup published state")
 			}
 		}
 	}
 	// Lookup privileges and table ACLs are different checkpoints. A fresh
 	// view sees USAGE restored, Prepare succeeds, and Execute still denies.
-	bootstrap := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	bootstrap := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: bootstrap, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestRoleColumnDependencyConsumerBoundary(t *testing.T) {
 			ref := roleTableRef(t, e, `"odd table"`)
 			ref.Address.SubID = 1
 			reader, _ := e.Roles().Lookup("reader")
-			acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
+			acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
 			if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 				t.Fatal(err)
 			}
@@ -158,14 +158,14 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TABLE sentinel(id INT)")
 	roleExecute(t, e, op, "INSERT INTO sentinel VALUES(7)")
 	ref := roleTableRef(t, e, "sentinel")
-	beforeCatalog, beforeRoles := e.catalog.state, e.roles
+	beforeCatalog, beforeRoles := e.catalog.state, e.roles.published
 	beforeOID, beforeRevision := e.catalog.nextOID, e.catalog.nextRevision
 	original := e.catalog.state.MustRelation(ref.Address)
 	dependencies := descriptorReferences(original)
-	invalid := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege, GrantOptions: authorization.SelectPrivilege}}}
+	invalid := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege, GrantOptions: authorization.SelectPrivilege}}}
 	unchanged := func() {
 		t.Helper()
-		if e.catalog.state != beforeCatalog || e.roles != beforeRoles || e.catalog.nextOID != beforeOID || e.catalog.nextRevision != beforeRevision || !reflect.DeepEqual(descriptorReferences(e.catalog.state.Get(ref.Address)), dependencies) {
+		if e.catalog.state != beforeCatalog || e.roles.published != beforeRoles || e.catalog.nextOID != beforeOID || e.catalog.nextRevision != beforeRevision || !reflect.DeepEqual(descriptorReferences(e.catalog.state.Get(ref.Address)), dependencies) {
 			t.Fatal("invalid PUBLIC authority changed catalog/revisions/dependencies")
 		}
 		if got := tuples(roleExecute(t, e, op, "SELECT id FROM sentinel")); !reflect.DeepEqual(got, [][]driver.Value{{int64(7)}}) {
@@ -229,7 +229,7 @@ func TestAuthorizationPublicGrantOptionsRejectAtomically(t *testing.T) {
 		foreign := *source.catalog.state.MustRelation(foreignRef.Address)
 		foreignACL := invalid
 		foreignACL.Entries = append([]authorization.ACLEntry(nil), invalid.Entries...)
-		foreignACL.Entries[0].Grantor = source.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		foreignACL.Entries[0].Grantor = source.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 		if column {
 			foreign.Security.ColumnACL = map[int32]authorization.ACLValue{1: foreignACL}
 		} else {
@@ -267,24 +267,24 @@ func TestRoleLaterDependentBatchPreservesEndpoints(t *testing.T) {
 			})
 			roleExecute(t, e, op, "INSERT INTO sentinel VALUES(7)")
 			roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
-			roles, catalog := e.roles, e.catalog.state
+			roles, catalog := e.roles.published, e.catalog.state
 			beforeAuth, err := op.Authorization()
 			if err != nil {
 				t.Fatal(err)
 			}
-			beforeOID, beforeRevision, beforePrincipal := e.catalog.nextOID, e.catalog.nextRevision, e.nextPrincipal
+			beforeOID, beforeRevision, beforePrincipal := e.catalog.nextOID, e.catalog.nextRevision, e.roles.nextPrincipal
 			if prepared {
 				if _, err := e.Describe(op, statement(t, "DROP ROLE endpoint,owner")); err != nil {
 					t.Fatal(err)
 				}
 			}
 			roleError(t, e, op, "DROP ROLE endpoint,owner", "2BP01", `role "owner" cannot be dropped because some objects depend on it`, "owner of table sentinel")
-			if e.roles != roles || e.catalog.state != catalog || !reflect.DeepEqual(e.Roles().Memberships(), expectedEdges) {
+			if e.roles.published != roles || e.catalog.state != catalog || !reflect.DeepEqual(e.Roles().Memberships(), expectedEdges) {
 				t.Fatal("later dependency changed state")
 			}
 			afterAuth, err := op.Authorization()
 			if err != nil || afterAuth.Stamp() != beforeAuth.Stamp() || afterAuth.state != beforeAuth.state ||
-				e.catalog.nextOID != beforeOID || e.catalog.nextRevision != beforeRevision || e.nextPrincipal != beforePrincipal {
+				e.catalog.nextOID != beforeOID || e.catalog.nextRevision != beforeRevision || e.roles.nextPrincipal != beforePrincipal {
 				t.Fatal("later dependency changed authority/counters", err)
 			}
 			for _, name := range []string{"endpoint", "member", "owner"} {
@@ -371,7 +371,7 @@ func TestAuthorizationPublicOrdinaryAndRoleGrantOptions(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TABLE secret(id INT)")
 	roleExecute(t, e, op, "INSERT INTO secret VALUES(7)")
 	ref := roleTableRef(t, e, "secret")
-	grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grantor := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}
 	if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 		t.Fatal(err)
@@ -513,7 +513,7 @@ func TestRoleCatalogPublicationAuthorityFenceAndRecovery(t *testing.T) {
 			publishWinner: func(catalog.Descriptor) {
 				close(entered)
 				<-release
-				if err := grantMembership(t, e, authorization.Membership{Role: publisher.Ref, Member: member.Ref, Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}); err != nil {
+				if err := grantMembership(t, e, authorization.Membership{Role: publisher.Ref, Member: member.Ref, Grantor: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}); err != nil {
 					t.Error(err)
 				}
 			},

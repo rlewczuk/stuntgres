@@ -29,7 +29,7 @@ func TestUserOperatorDumpFinalGraph(t *testing.T) {
 			op.ObjectRevision = 1
 			op.Left = 23
 			op.Right = 23
-			op.Owner = e.authorizationDomain.Principal(10)
+			op.Owner = e.roles.domain.Principal(10)
 			if err := stage.Create(op); err != nil {
 				t.Fatal(err)
 			}
@@ -100,7 +100,7 @@ func TestUserOperatorDumpPartitionInterleaving(t *testing.T) {
 		op.ObjectRevision = 1
 		op.Left = 23
 		op.Right = 23
-		op.Owner = e.authorizationDomain.Principal(10)
+		op.Owner = e.roles.domain.Principal(10)
 		op.Function = 65
 		op.Result = 16
 		if err := stage.Create(op); err != nil {

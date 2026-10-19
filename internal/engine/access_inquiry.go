@@ -222,7 +222,7 @@ func (n accessInquiryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		if failure != nil {
 			return sqltype.Value{}, failure
 		}
-		result, err = authorization.HasRole(c.Context, auth.roles, &e.authorizationDomain, actor, target, mask)
+		result, err = authorization.HasRole(c.Context, auth.roles, &e.roles.domain, actor, target, mask)
 	}
 	if err != nil {
 		return sqltype.Value{}, err

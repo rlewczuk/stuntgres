@@ -42,7 +42,7 @@ func TestObjectGrantParameterPublication(t *testing.T) {
 	for _, name := range []string{"lc_messages", "og_custom.value"} {
 		t.Run(name, func(t *testing.T) {
 			e, op, reader, _ := objectGrantUnitFixture(t)
-			before, roles := e.catalog.state, e.roles
+			before, roles := e.catalog.state, e.roles.published
 			request := parameterSpaceRequest("parameter", name)
 			if err := applyObjectGrantUnit(e, op, request); err != nil {
 				t.Fatal(err)
@@ -50,10 +50,10 @@ func TestObjectGrantParameterPublication(t *testing.T) {
 			address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: name})
 			d, ok := e.catalog.state.Parameter(address)
 			mask := authorization.SetPrivilege | authorization.AlterSystemPrivilege
-			if !ok || d == nil || address.ClassID != ids.ParameterClassID || d.Revision() == 0 || d.Owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) {
+			if !ok || d == nil || address.ClassID != ids.ParameterClassID || d.Revision() == 0 || d.Owner != e.roles.domain.Principal(authorization.BootstrapPrincipalID) {
 				t.Fatal("parameter did not acquire real catalog authority")
 			}
-			if before.NameAddress(catalog.DescriptorNameKey(d)) != (ids.ObjectAddress{}) || e.roles.revision != roles.revision+1 || !d.ACL.Explicit || len(d.ACL.Entries) != 2 {
+			if before.NameAddress(catalog.DescriptorNameKey(d)) != (ids.ObjectAddress{}) || e.roles.published.revision != roles.revision+1 || !d.ACL.Explicit || len(d.ACL.Entries) != 2 {
 				t.Fatal("wrong sparse immutable parameter publication", d.ACL)
 			}
 			if authorization.ACLRights(d.ACL, d.Owner, []authorization.PrincipalRef{reader}, mask, true) != mask || !slices.Contains(descriptorReferences(d), reader) {
@@ -67,15 +67,15 @@ func TestObjectGrantParameterPublication(t *testing.T) {
 				t.Fatal("copied parameter descriptor accepted as authority")
 			}
 			copy.Owner = authorization.PrincipalRef{}
-			if err := validateACL(e.roleRead(e.catalog.read(e.catalog.state), e.roles), &copy); err == nil {
+			if err := validateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), &copy); err == nil {
 				t.Fatal("parameter zero owner accepted")
 			}
-			stable, stableRoles := e.catalog.state, e.roles
-			if err := applyObjectGrantUnit(e, op, request); err != nil || e.catalog.state != stable || e.roles != stableRoles {
+			stable, stableRoles := e.catalog.state, e.roles.published
+			if err := applyObjectGrantUnit(e, op, request); err != nil || e.catalog.state != stable || e.roles.published != stableRoles {
 				t.Fatal("repeated parameter grant was not a no-op", err)
 			}
 			late := parameterSpaceRequest("parameter", name, "work_mem")
-			if err := applyObjectGrantUnit(e, op, late); err == nil || e.catalog.state != stable || e.roles != stableRoles {
+			if err := applyObjectGrantUnit(e, op, late); err == nil || e.catalog.state != stable || e.roles.published != stableRoles {
 				t.Fatal("late unsupported parameter published prefix", err)
 			}
 			request.Revoke, request.GrantOption = true, false
@@ -85,8 +85,8 @@ func TestObjectGrantParameterPublication(t *testing.T) {
 			if _, exists := e.catalog.state.Find(address); exists || e.catalog.state.NameAddress(catalog.DescriptorNameKey(d)) != (ids.ObjectAddress{}) || len(d.ACL.Entries) != 2 {
 				t.Fatal("baseline-equivalent parameter row/name not deleted or old ACL mutated")
 			}
-			stable, stableRoles = e.catalog.state, e.roles
-			if err := applyObjectGrantUnit(e, op, request); err != nil || e.catalog.state != stable || e.roles != stableRoles {
+			stable, stableRoles = e.catalog.state, e.roles.published
+			if err := applyObjectGrantUnit(e, op, request); err != nil || e.catalog.state != stable || e.roles.published != stableRoles {
 				t.Fatal("fresh baseline revoke published a parameter row", err)
 			}
 		})
@@ -95,7 +95,7 @@ func TestObjectGrantParameterPublication(t *testing.T) {
 
 func TestObjectGrantParameterExplicitEmpty(t *testing.T) {
 	e := New()
-	owner := e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)
+	owner := e.roles.domain.Principal(authorization.BootstrapPrincipalID)
 	d := &catalog.Parameter{ObjectAddress: ids.ObjectAddress{ClassID: ids.ParameterClassID, ObjectID: 900003}, ObjectRevision: 2, ObjectName: "lc_messages", Owner: owner, ACL: authorization.ACLValue{Explicit: true}}
 	candidate := catalog.CloneState(e.catalog.state)
 	installParameterGrant(candidate, d)
@@ -116,7 +116,7 @@ func TestObjectGrantTablespacePublication(t *testing.T) {
 			e, op, reader, _ := objectGrantUnitFixture(t)
 			address := ids.ObjectAddress{ClassID: ids.TablespaceClassID, ObjectID: builtin.OID}
 			original, ok := e.catalog.state.Tablespace(address)
-			if !ok || original == nil || original.ACL.Explicit || original.Name() != builtin.Name || original.Owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) {
+			if !ok || original == nil || original.ACL.Explicit || original.Name() != builtin.Name || original.Owner != e.roles.domain.Principal(authorization.BootstrapPrincipalID) {
 				t.Fatal("missing real builtin tablespace baseline")
 			}
 			request := parameterSpaceRequest("tablespace", builtin.Name)
@@ -135,11 +135,11 @@ func TestObjectGrantTablespacePublication(t *testing.T) {
 				t.Fatal("copied tablespace descriptor accepted as authority")
 			}
 			copy.Owner = authorization.PrincipalRef{}
-			if err := validateACL(e.roleRead(e.catalog.read(e.catalog.state), e.roles), &copy); err == nil {
+			if err := validateACL(e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), &copy); err == nil {
 				t.Fatal("tablespace zero owner accepted")
 			}
-			stable, roles := e.catalog.state, e.roles
-			if err := applyObjectGrantUnit(e, op, parameterSpaceRequest("tablespace", builtin.Name, "missing")); err == nil || e.catalog.state != stable || e.roles != roles {
+			stable, roles := e.catalog.state, e.roles.published
+			if err := applyObjectGrantUnit(e, op, parameterSpaceRequest("tablespace", builtin.Name, "missing")); err == nil || e.catalog.state != stable || e.roles.published != roles {
 				t.Fatal("late missing tablespace published prefix", err)
 			}
 			request.Revoke, request.GrantOption = true, false
@@ -170,7 +170,7 @@ func TestObjectGrantTablespaceCapturedACL(t *testing.T) {
 		}
 		ref := e.catalog.Domain.Ref(catalog.Epoch(), address)
 		e.mu.Lock()
-		rows, err := e.capturePGTablespace(context.Background(), catalog, e.roleRead(catalog, e.roles), ref, source)
+		rows, err := e.capturePGTablespace(context.Background(), catalog, e.roles.read(e.catalog.owner(), catalog, e.roles.published), ref, source)
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

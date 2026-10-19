@@ -89,7 +89,7 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	descriptors, names := maps.Collect(e.catalog.state.Descriptors()), maps.Collect(e.catalog.state.Names())
-	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roleRead(view, e.roles), ref, d)
+	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.read(e.catalog.owner(), view, e.roles.published), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}

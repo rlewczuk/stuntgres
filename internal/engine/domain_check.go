@@ -43,8 +43,8 @@ func (e *Engine) initializeBuiltinDomainChecks() error {
 		return err
 	}
 	auth := AuthorizationView{
-		engine: e, pairedCatalog: view, roleRecord: e.roles, catalog: view,
-		roles: e.roleRead(view, e.roles), state: authorization.RoleState{CurrentUser: d.Owner},
+		engine: e, pairedCatalog: view, roleRecord: e.roles.published, catalog: view,
+		roles: e.roles.read(e.catalog.owner(), view, e.roles.published), state: authorization.RoleState{CurrentUser: d.Owner},
 	}
 	return e.bindDomainCheckRecipes(context.Background(), nil, auth, nil, d, raw[0].(*parser.CreateDomain).Constraints, sqltype.InputEnvironment{})
 }

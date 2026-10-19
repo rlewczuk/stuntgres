@@ -136,7 +136,7 @@ func (s *StatementScope) discardAllPreflight() (authorization.RoleState, error) 
 	if reset.ResetRole != (authorization.PrincipalRef{}) {
 		reset.CurrentUser = reset.ResetRole
 	}
-	roles := e.roleRead(e.catalog.read(e.catalog.state), e.roles)
+	roles := e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)
 	for _, principal := range []authorization.PrincipalRef{reset.Authenticated, reset.CurrentUser} {
 		if _, err := roles.Descriptor(principal); err != nil {
 			return authorization.RoleState{}, err
@@ -154,7 +154,7 @@ func (e *Engine) discardResetPreflightLocked(op *Operation) error {
 	if err := roleRevisionHeadroom(op.session.authorization, 3); err != nil {
 		return err
 	}
-	roles := e.roleRead(e.catalog.read(e.catalog.state), e.roles)
+	roles := e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)
 	for _, principal := range []authorization.PrincipalRef{op.discardRoleReset.Authenticated, op.discardRoleReset.CurrentUser} {
 		if _, err := roles.Descriptor(principal); err != nil {
 			return err

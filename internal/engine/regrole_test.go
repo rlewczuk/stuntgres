@@ -59,10 +59,10 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	}
 	role, _ := old.Lookup("unit_role")
 	e.mu.Lock()
-	next := cloneRoleFixture(e.roles)
+	next := cloneRoleFixture(e.roles.published)
 	retireFixtureRole(next, role.Ref)
-	putFixtureRole(next, authorization.RoleDescriptor{Ref: e.authorizationDomain.Principal(30000), Name: "unit_role", Inherit: true, ConnectionLimit: -1})
-	e.roles = next
+	putFixtureRole(next, authorization.RoleDescriptor{Ref: e.roles.domain.Principal(30000), Name: "unit_role", Inherit: true, ConnectionLimit: -1})
+	e.roles.published = next
 	e.mu.Unlock()
 	if id, err := input.ResolveRegrole(context.Background(), "unit_role"); err != nil || id != 20000 {
 		t.Fatal("old immutable input", id, err)

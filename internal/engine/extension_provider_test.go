@@ -307,7 +307,7 @@ func TestExtensionProviderPublication(t *testing.T) {
 				e.catalog.state = catalog.CloneState(e.catalog.state)
 				e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
 			case "roles":
-				e.roles = advanceRoleRevision(e.roles)
+				e.roles.published = e.roles.published.advance()
 			case "database":
 				next := *e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
 				next.ObjectRevision++

@@ -86,7 +86,7 @@ func TestRoleSwitchJournalTransitions(t *testing.T) {
 			t.Run(strings.Join(tc.commands, ";")+map[bool]string{false: "/rollback", true: "/commit"}[commit], func(t *testing.T) {
 				e, s := roleSwitchUnitSession(t)
 				before := s.authorization.state
-				graph, catalog := e.roles, e.catalog.state
+				graph, catalog := e.roles.published, e.catalog.state
 				sessionSQL(t, s, "BEGIN")
 				for _, q := range tc.commands {
 					sessionSQL(t, s, q)
@@ -101,7 +101,7 @@ func TestRoleSwitchJournalTransitions(t *testing.T) {
 				}
 				sessionSQL(t, s, end)
 				roleSwitchAssert(t, s, before, want)
-				if s.settings.roleAction.present || e.roles != graph || e.catalog.state != catalog {
+				if s.settings.roleAction.present || e.roles.published != graph || e.catalog.state != catalog {
 					t.Fatal("journal/catalog changed")
 				}
 				if want != tc.inside && s.authorization.revision != revision+1 {

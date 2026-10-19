@@ -12,7 +12,7 @@ func (e *Engine) operationRolesLocked(op *Operation) *roleCatalog {
 	if op != nil {
 		return e.sessionRolesLocked(op.session)
 	}
-	return e.roles
+	return e.roles.published
 }
 func (e *Engine) sessionRolesLocked(session *Session) *roleCatalog {
 	if session != nil && session.transactions != nil {
@@ -20,19 +20,19 @@ func (e *Engine) sessionRolesLocked(session *Session) *roleCatalog {
 			return c.roles
 		}
 	}
-	return e.roles
+	return e.roles.published
 }
 
 // The operation/session publication preflight has passed before this call.
 func (e *Engine) installOperationRolesLocked(op *Operation, next *roleCatalog) {
 	t := op.session.transactions
 	if !t.retainsTransaction() {
-		e.roles = next
+		e.roles.published = next
 		return
 	}
 	c := cloneCatalogChanges(t.catalog)
 	if c.rolesBase == nil {
-		c.rolesBase = e.roles
+		c.rolesBase = e.roles.published
 	}
 	c.roles = next
 	t.catalog = c
@@ -52,7 +52,7 @@ func (e *Engine) touchOperationIdentityLocked(op *Operation) {
 // must not forbid a later supported removal of an owner's own dependencies.
 func (e *Engine) roleRetirementPreflightLocked(c *catalogChanges, catalog *catalog.State) error {
 	for ref := range c.retiredRoles {
-		if defaultRoleDependencies(e.catalog.read(catalog), e.roleRead(e.catalog.read(catalog), c.roles), ref, nil) {
+		if defaultRoleDependencies(e.catalog.read(catalog), e.roles.read(e.catalog.owner(), e.catalog.read(catalog), c.roles), ref, nil) {
 			return ids.ErrCatalogReplaced
 		}
 		for _, descriptor := range catalog.Descriptors() {
@@ -65,12 +65,8 @@ func (e *Engine) roleRetirementPreflightLocked(c *catalogChanges, catalog *catal
 				return ids.ErrCatalogReplaced
 			}
 		}
-		for _, refs := range e.roleReferences {
-			for _, dependency := range refs {
-				if dependency == ref {
-					return ids.ErrCatalogReplaced
-				}
-			}
+		if len(e.roles.referencingFeatures(ref)) > 0 {
+			return ids.ErrCatalogReplaced
 		}
 	}
 	return nil

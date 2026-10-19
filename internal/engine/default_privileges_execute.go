@@ -133,14 +133,14 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 	candidate := *v.catalog.State()
 	candidate.OverlayDefaultACLs(v.catalog.State(), updates)
 	candidateCatalog := e.catalog.read(&candidate)
-	candidateRoles := e.roleRead(candidateCatalog, v.roleRecord)
+	candidateRoles := e.roles.read(e.catalog.owner(), candidateCatalog, v.roleRecord)
 	if err := catalog.ValidateDefaultACLs(candidateRoles, candidateCatalog); err != nil {
 		return Result{}, err
 	}
 	if v.roleRecord.revision == ^uint64(0) {
 		return Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
-	nextRoles := advanceRoleRevision(v.roleRecord)
+	nextRoles := v.roleRecord.advance()
 	op.session.mu.Lock()
 	defer op.session.mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {

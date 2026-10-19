@@ -200,7 +200,7 @@ func (n aclValueExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if scope == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: ACL constructor lacks statement authority")
 	}
-	authority := &scope.op.session.Engine().aclAuthority
+	authority := &scope.op.session.Engine().roles.aclAuthority
 	if n.kind == aclMake {
 		grantee, err := values[0].OID()
 		if err != nil {
@@ -352,7 +352,7 @@ func checkACLValue(c *EvalContext, array sqltype.Value) error {
 	if scope == nil {
 		return fmt.Errorf("stuntgres: ACL operation lacks statement authority")
 	}
-	authority := &scope.op.session.Engine().aclAuthority
+	authority := &scope.op.session.Engine().roles.aclAuthority
 	for i := range array.ArrayLen() {
 		if i&aclScanCheckMask == 0 {
 			if err := c.Context.Err(); err != nil {
@@ -377,7 +377,7 @@ func aclValueContains(c *EvalContext, array, item sqltype.Value) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if a != &c.liveScope().op.session.Engine().aclAuthority {
+	if a != &c.liveScope().op.session.Engine().roles.aclAuthority {
 		return false, fmt.Errorf("stuntgres: foreign ACL identity")
 	}
 	for i := range array.ArrayLen() {

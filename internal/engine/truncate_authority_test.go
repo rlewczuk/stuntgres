@@ -353,7 +353,7 @@ func TestTruncateAuthority(t *testing.T) {
 	e, holder, p, _ := truncateUnitFixture(t)
 	sessionSQL(t, holder, "CREATE USER reader")
 	reader, _ := e.Roles().Lookup("reader")
-	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.TruncatePrivilege}}}
+	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.TruncatePrivilege}}}
 	if err := e.SetObjectACL(context.Background(), p, acl); err != nil {
 		t.Fatal(err)
 	}

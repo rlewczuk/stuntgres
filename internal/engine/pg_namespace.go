@@ -30,7 +30,7 @@ func (e *Engine) capturePGNamespace(ctx context.Context, view catalog.Read, role
 		}
 	}
 	database, ok := view.Database(catalog.CurrentDatabaseAddress)
-	if !ok || database == nil || !roles.BelongsTo(&e.authorizationDomain) || roles.DatabaseOwner() != database.Owner {
+	if !ok || database == nil || !roles.BelongsTo(&e.roles.domain) || roles.DatabaseOwner() != database.Owner {
 		return nil, fmt.Errorf("stuntgres: foreign namespace owner authority")
 	}
 	count := 0

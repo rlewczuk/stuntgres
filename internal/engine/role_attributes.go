@@ -19,7 +19,7 @@ func (e *Engine) validateRoleAttributesLocked(op *Operation, stmt parser.Stateme
 		return v, actor, target, o, err
 	}
 	if _, creating := stmt.(*parser.CreateRole); creating {
-		if _, err := e.nextRolePrincipalLocked(); err != nil {
+		if _, err := e.roles.principalCandidateLocked(); err != nil {
 			return v, actor, target, o, err
 		}
 	}
@@ -79,7 +79,7 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 	var create *parser.CreateRole
 	if c, creating := stmt.(*parser.CreateRole); creating {
 		create = c
-		d.Ref, err = e.nextRolePrincipalLocked()
+		d.Ref, err = e.roles.principalCandidateLocked()
 		if err != nil {
 			return Result{}, err
 		}
@@ -95,7 +95,7 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 		return Result{}, err
 	}
 	if _, creating := stmt.(*parser.CreateRole); creating {
-		e.nextPrincipal = d.Ref.ID() + 1
+		e.roles.nextPrincipal = d.Ref.ID() + 1
 	}
 	e.installOperationRolesLocked(op, &roleCatalog{root: n, revision: v.roleRecord.revision + 1})
 	emitPasswordNotice(op, notice)

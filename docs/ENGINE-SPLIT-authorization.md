@@ -250,12 +250,14 @@ run it in parallel with 6c or with another broad rewrite (§8).
   docs in the following commit)
 - [x] B0 — `access` refined and approved (docs only, the commit that records
   this status)
-- [ ] B1 — `roleStore` role state ownership
+- [x] B1 — `roleStore` role state ownership (`e4174a713`, `e91c6d175`,
+  then the commit that records this status) *(racecheck skipped at user
+  request; targeted RACE=1 runs passed)*
 - [ ] B2 — `accessView` and `accessEnvironment`; checks ported in place
 - [ ] B3 — `access` created and code moved
 - [ ] B4 — Aliases removed
 
-Outstanding aliases: none (Part A added none).
+Outstanding aliases: none (Part A and B1 added none).
 
 A1 outcome. The re-measure (`go/types`, free declarations) found that most
 listed candidates are not authorization algorithms, and found others that are:
@@ -367,3 +369,65 @@ Notes for later steps (B0):
   `access`.
 - **B2:** `descriptorReferences` has no production callers, only tests.
   Delete it, or move it with its test.
+
+B1 results:
+
+- **Store.** `roleStore` (`internal/engine/role_store.go`) holds `domain`
+  (was `Engine.authorizationDomain`), `aclAuthority`, `published` (was
+  `Engine.roles`, the committed `*roleCatalog`), `nextPrincipal` and
+  `references` (was `roleReferences`). `Engine` holds it by value as
+  `roles`; `newEngine` points `catalog.Owner.Principals` and
+  `ACLAuthority` into it. `importTargets` stays on `Engine`.
+- **Rewrite.** A go/types selector rewriter (the 6a tool, re-parametrized)
+  changed all 1,028 field uses (755 `roles`, 176 `authorizationDomain`,
+  65 `nextPrincipal`, 26 `aclAuthority`, 6 `roleReferences`) in 269
+  production and in-package test files; the per-field census matched
+  before and after, with no composite-literal keys. A second pass rewrote
+  all 144 `Engine.roleRead` calls to `X.roles.read(X.catalog.owner(), ...)`
+  (census 144 before and after).
+- **Methods moved.** `initializeRoles` → `initialize`;
+  `nextRolePrincipalLocked` → `principalCandidateLocked`; `roleRead` →
+  `read`, which takes the catalog owner it checks against; the
+  `SetRoleReferences` registry update → `setReferencesLocked` (descriptor
+  validation of the payload stays in `SetRoleReferences`); the feature scan
+  shared by `dropRolesLocked` and `roleRetirementPreflightLocked` →
+  `referencingFeatures` (DROP ROLE sorts its dependencies afterward, so
+  detail order is unchanged).
+- **Deviation.** `advanceRoleRevision` became the `roleCatalog.advance`
+  method, not a store method: `role_grant.go` and
+  `default_privileges_execute.go` advance transaction-overlay records
+  (`v.roleRecord`), not the store's. It moves with `roleCatalog` in B3.
+- **Kept on `Engine`.** `Roles`, `ResolveLogin`, `operationRolesLocked`,
+  `sessionRolesLocked`, `installOperationRolesLocked`,
+  `touchOperationIdentityLocked`, `restoreStage`, `SetObjectACL`, the
+  publication paths in `catalog.go` and `transaction_publication.go`, and
+  the principal advance after CREATE ROLE publication in
+  `role_attributes.go` (inline, like 6a's counters).
+  `CatalogStage.roleRead` stays as a thin wrapper choosing the candidate.
+- **Tests.** Adapted mechanically by the rewrite (seven call sites of
+  `nextRolePrincipalLocked` and `advanceRoleRevision` by hand); none moved
+  or deleted. New seam tests in `role_store_test.go`:
+  `TestRoleStoreReadRequiresOwnCatalogAndRoot` and
+  `TestRoleStoreSetReferencesFailuresLeaveStateUnchanged` (both fail
+  under mutation of the owner check and the cancellation check).
+- **Verification.** `make build` and targeted `make check` selections
+  (role DDL, membership, predefined roles, ownership, Restore, Dump, driver
+  batch retirement, `pg_roles`/`pg_user`/`pg_group`/`pg_shdescription`,
+  access inquiry, object grants, default privileges and the new seam tests)
+  passed after each commit, and a `RACE=1` run of the authorization README
+  concurrency set, the driver batch role tests and the seam tests passed.
+  `quickcheck` passed. `REFERENCE=1` passed for the README role membership,
+  role switch, predefined role, default privilege and
+  `TestReferenceAccessRole.*` selections. The full `racecheck` was skipped
+  at the user's request. `make bench`: 7,768 allocations before and after;
+  2.41–4.01 ms/op before and 1.51–1.98 ms/op after on a machine shared with
+  parallel sessions (noise, not a change; the <1 ms target is already
+  missed on `master`). `make deps` lists only module paths; imports are
+  unchanged.
+
+Notes for later steps (B1):
+
+- **B2/B3:** `roleStore.read` needs only the owner, the domain pointer and
+  the record, so B3 can turn it into an `access` function over
+  `(*catalog.Owner, *authorization.Domain, catalog.Read, *RoleRecord)`;
+  the store keeps a one-line method.

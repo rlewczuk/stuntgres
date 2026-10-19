@@ -46,7 +46,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					e.catalog.state = next
 					auth.catalog = e.catalog.read(next)
 					auth.pairedCatalog = auth.catalog
-					auth.roles = e.roleRead(auth.catalog, auth.roleRecord)
+					auth.roles = e.roles.read(e.catalog.owner(), auth.catalog, auth.roleRecord)
 					inputRef, lookupRef := ruleUnitRef(e, &input), ruleUnitRef(e, sink)
 					original := ruleUnitInsert(e, src, 1, 10).binding
 					original.querySources = []queryLeaf{{ref: inputRef, relation: &input, uses: []int{0}}}

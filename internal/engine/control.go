@@ -116,7 +116,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	tables := make([]dumpRelation, 0)
 	catalogView := e.catalog.read(e.catalog.state)
 	originalCatalog := catalogView
-	originalRoles := e.roleRead(originalCatalog, e.roles)
+	originalRoles := e.roles.read(e.catalog.owner(), originalCatalog, e.roles.published)
 	recipePlan, err := capturedGenerationReplayPlan(originalCatalog)
 	if err != nil {
 		e.mu.Unlock()
@@ -131,7 +131,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	// Declarations bind private key names until the terminal renames. Later
 	// definitions and values must render against the original captured names.
 	catalogView, constraintReplay := partitionConstraintDumpCatalog(catalogView)
-	domainRoles := e.roleRead(catalogView, e.roles)
+	domainRoles := e.roles.read(e.catalog.owner(), catalogView, e.roles.published)
 	if err := e.validateTemporaryCollationDump(ctx, catalogView); err != nil {
 		e.mu.Unlock()
 		return err
@@ -272,7 +272,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					e.mu.Unlock()
 					return err
 				}
-				if t.Owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) || t.ACL.Explicit {
+				if t.Owner != e.roles.domain.Principal(authorization.BootstrapPrincipalID) || t.ACL.Explicit {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: dump cannot serialize altered tablespace authority")
 				}
@@ -292,7 +292,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 						e.mu.Unlock()
 						return err
 					}
-					if t.ACL.Explicit || t.Owner != e.authorizationDomain.Principal(10) {
+					if t.ACL.Explicit || t.Owner != e.roles.domain.Principal(10) {
 						e.mu.Unlock()
 						return fmt.Errorf("stuntgres: dump cannot serialize altered native foreign capability authority")
 					}
@@ -303,7 +303,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 						e.mu.Unlock()
 						return err
 					}
-					if t.Owner != e.authorizationDomain.Principal(authorization.BootstrapPrincipalID) || t.ACL.Explicit {
+					if t.Owner != e.roles.domain.Principal(authorization.BootstrapPrincipalID) || t.ACL.Explicit {
 						e.mu.Unlock()
 						return fmt.Errorf("stuntgres: dump cannot serialize altered builtin routine authority")
 					}
@@ -314,7 +314,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 						e.mu.Unlock()
 						return err
 					}
-					if t.Owner != e.authorizationDomain.Principal(10) || t.ACL.Explicit {
+					if t.Owner != e.roles.domain.Principal(10) || t.ACL.Explicit {
 						e.mu.Unlock()
 						return fmt.Errorf("stuntgres: dump cannot serialize altered builtin conversion routine authority")
 					}
@@ -1673,7 +1673,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		return err
 	}
 	// The isolated role snapshot retains exact target identities for final remapping.
-	session, err := stage.StartSession(ctx, SessionStart{ID: 1, Authenticated: stage.authorizationDomain.Principal(10)})
+	session, err := stage.StartSession(ctx, SessionStart{ID: 1, Authenticated: stage.roles.domain.Principal(10)})
 	if err != nil {
 		return err
 	}

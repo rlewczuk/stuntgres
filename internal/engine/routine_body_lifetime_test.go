@@ -156,12 +156,12 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 	targetAuth := authority(target)
 	imported := capture(target)
 	for i, item := range imported {
-		if item.consumer == original[i].consumer || item.consumer.Owner != target.authorizationDomain.Principal(item.consumer.Owner.ID()) {
+		if item.consumer == original[i].consumer || item.consumer.Owner != target.roles.domain.Principal(item.consumer.Owner.ID()) {
 			t.Fatal("stored consumer retained source ownership", i)
 		}
 		call, err := expressionRoutineDescriptor(item.node)
 		if err != nil || call == nil || call.Address() != sourceCall.Address() || call == sourceCall ||
-			call.Owner != target.authorizationDomain.Principal(call.Owner.ID()) || call.Revision() == 0 {
+			call.Owner != target.roles.domain.Principal(call.Owner.ID()) || call.Revision() == 0 {
 			t.Fatal("stored call lost destination declaration provenance", i, err)
 		}
 		evaluation := EvalContext{Context: ctx, routineAuthority: &targetAuth, routineRecipe: true,

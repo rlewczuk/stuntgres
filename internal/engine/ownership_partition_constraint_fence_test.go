@@ -18,11 +18,11 @@ func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *
 	t.Helper()
 	e, unused := partitionConstraintDropPublicationStage(t, true)
 	e.DiscardCatalogStage(unused)
-	roles := cloneRoleFixture(e.roles)
-	actor := e.authorizationDomain.Principal(50000)
+	roles := cloneRoleFixture(e.roles.published)
+	actor := e.roles.domain.Principal(50000)
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: actor, Name: "partition_db_actor", Login: true, Inherit: true, ConnectionLimit: -1})
 
-	e.roles = roles
+	e.roles.published = roles
 	root, leaf := roleTableRef(t, e, "root"), roleTableRef(t, e, "leaf")
 	setup := e.BeginCatalogStage(e.CatalogRead())
 	dbOwner := roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
@@ -92,7 +92,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 				if err := auth.Check(AccessRequirement{Object: root, OwnerOnly: true}); err != nil {
 					t.Fatal("selected DB owner did not authorize actual partition", err)
 				}
-				oldRoles, sessionRevision, epoch := e.roles, session.authorization.revision, e.catalog.state.Epoch()
+				oldRoles, sessionRevision, epoch := e.roles.published, session.authorization.revision, e.catalog.state.Epoch()
 				before := indexMaintenanceCapture(e)
 				leaf := roleTableRef(t, e, "leaf").Address
 				rows := append([]rowVersion(nil), e.storage.Relations[leaf].Versions...)
@@ -126,7 +126,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					}
 					ownershipUnitPublish(t, e, stage)
 					e.DiscardCatalogStage(stage)
-					if e.roles != oldRoles || session.authorization.revision != sessionRevision || e.catalog.state.Epoch() != epoch {
+					if e.roles.published != oldRoles || session.authorization.revision != sessionRevision || e.catalog.state.Epoch() != epoch {
 						t.Fatal("DB-only replacement changed unrelated authority")
 					}
 					for address, descriptor := range before.catalog.Descriptors() {
@@ -195,7 +195,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					t.Fatal("missing partition constraint DB predecessor veto", err)
 				}
 				indexMaintenanceUnchanged(t, e, before)
-				if e.roles != oldRoles || !reflect.DeepEqual(e.storage.Relations[leaf].Versions, rows) || len(table.Constraints.Unique) != 1 || auth.databasePredecessor != committed || auth.catalog.Get(root.Address) != table || len(auth.catalog.MustRelation(leaf).Constraints.Unique) != 2 {
+				if e.roles.published != oldRoles || !reflect.DeepEqual(e.storage.Relations[leaf].Versions, rows) || len(table.Constraints.Unique) != 1 || auth.databasePredecessor != committed || auth.catalog.Get(root.Address) != table || len(auth.catalog.MustRelation(leaf).Constraints.Unique) != 2 {
 					t.Fatal("veto mutated retained roles, constraints or storage")
 				}
 			})

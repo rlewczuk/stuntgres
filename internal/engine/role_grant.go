@@ -435,7 +435,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 	if v.roleRecord.revision == ^uint64(0) {
 		return Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
-	roles := advanceRoleRevision(v.roleRecord)
+	roles := v.roleRecord.advance()
 	op.session.mu.Lock()
 	defer op.session.mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {

@@ -21,10 +21,10 @@ func (e *Engine) aclItemImporter(sourceEngine *Engine, source, target authorizat
 			return sqltype.Value{}, err
 		}
 		// Retained destination-owned temporary objects must not be reimported.
-		if authority == &e.aclAuthority {
+		if authority == &e.roles.aclAuthority {
 			return value, nil
 		}
-		if sourceEngine == nil || authority != &sourceEngine.aclAuthority || !source.BelongsTo(&sourceEngine.authorizationDomain) {
+		if sourceEngine == nil || authority != &sourceEngine.roles.aclAuthority || !source.BelongsTo(&sourceEngine.roles.domain) {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: foreign ACL import identity")
 		}
 		if principal == nil {
@@ -34,7 +34,7 @@ func (e *Engine) aclItemImporter(sourceEngine *Engine, source, target authorizat
 			if id == 0 {
 				return 0, nil
 			}
-			ref, err := principal(sourceEngine.authorizationDomain.Principal(uint64(id)))
+			ref, err := principal(sourceEngine.roles.domain.Principal(uint64(id)))
 			if err != nil {
 				return 0, err
 			}
@@ -58,7 +58,7 @@ func (e *Engine) aclItemImporter(sourceEngine *Engine, source, target authorizat
 				return sqltype.Value{}, err
 			}
 		}
-		physical, err = sqltype.ACLItemValue(physical.Type(), &e.aclAuthority, grantee, grantor, privileges, options)
+		physical, err = sqltype.ACLItemValue(physical.Type(), &e.roles.aclAuthority, grantee, grantor, privileges, options)
 		if err != nil {
 			return sqltype.Value{}, err
 		}

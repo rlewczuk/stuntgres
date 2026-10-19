@@ -157,10 +157,10 @@ func (n catalogUserNameExpression) Eval(ctx expr.Context) (sqltype.Value, error)
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing catalog role-name snapshot")
 	}
 	engine := scope.op.session.Engine()
-	if !scope.commentRoles.BelongsTo(&engine.authorizationDomain) {
+	if !scope.commentRoles.BelongsTo(&engine.roles.domain) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: foreign catalog role-name snapshot")
 	}
-	role, found := scope.commentRoles.Find(engine.authorizationDomain.Principal(uint64(oid)))
+	role, found := scope.commentRoles.Find(engine.roles.domain.Principal(uint64(oid)))
 	if found {
 		return sqltype.String(n.Usage.Type, role.Name), nil
 	}

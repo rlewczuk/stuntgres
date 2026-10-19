@@ -68,7 +68,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 					}
 				}
 				checkReader(auth, false)
-				oldRoles, oldCatalog := e.roles, e.catalog.state
+				oldRoles, oldCatalog := e.roles.published, e.catalog.state
 				sessionRevision, epoch := session.authorization.revision, oldCatalog.Epoch()
 				oldACL := authorization.ACLValue{Explicit: table.Security.ACL.Explicit, Entries: append([]authorization.ACLEntry(nil), table.Security.ACL.Entries...)}
 				oldKeys := append([]catalog.UniqueConstraint(nil), table.Constraints.Unique...)
@@ -103,7 +103,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 						found = true
 					}
 				}
-				if !found || e.catalog.state != oldCatalog || e.roles != oldRoles || !reflect.DeepEqual(table.Security.ACL, oldACL) {
+				if !found || e.catalog.state != oldCatalog || e.roles.published != oldRoles || !reflect.DeepEqual(table.Security.ACL, oldACL) {
 					t.Fatal("staging lost the grant or published/mutated a prefix")
 				}
 				checkReader(retained, true)
@@ -131,7 +131,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				} else if outcome == "cancel" {
 					cancel()
 				}
-				if e.roles != oldRoles || e.catalog.state.Epoch() != epoch || session.authorization.revision != sessionRevision {
+				if e.roles.published != oldRoles || e.catalog.state.Epoch() != epoch || session.authorization.revision != sessionRevision {
 					t.Fatal("replacement changed role/session/epoch authority")
 				}
 				err = message.end(nil)
@@ -141,7 +141,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 					}
 					current := catalogAuthorization(e, e.CatalogRead())
 					checkReader(current, true)
-					if e.catalog.state.Get(root.Address) != pending || e.roles != pendingRoles || !reflect.DeepEqual(e.storage.Relations[leaf].Versions, rows) || !reflect.DeepEqual(pending.Constraints.Unique, oldKeys) {
+					if e.catalog.state.Get(root.Address) != pending || e.roles.published != pendingRoles || !reflect.DeepEqual(e.storage.Relations[leaf].Versions, rows) || !reflect.DeepEqual(pending.Constraints.Unique, oldKeys) {
 						t.Fatal("healthy grant lost candidate or changed data/constraints")
 					}
 					for address, index := range before.roots {
@@ -164,7 +164,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				indexMaintenanceUnchanged(t, e, before)
 				checkReader(catalogAuthorization(e, e.CatalogRead()), false)
 				checkReader(retained, true)
-				if e.roles != oldRoles || !reflect.DeepEqual(e.storage.Relations[leaf].Versions, rows) || !reflect.DeepEqual(table.Security.ACL, oldACL) || !reflect.DeepEqual(table.Constraints.Unique, oldKeys) || retained.roleRecord != pendingRoles || retained.catalog.Get(catalog.CurrentDatabaseAddress) != pendingDB || auth.databasePredecessor != committed {
+				if e.roles.published != oldRoles || !reflect.DeepEqual(e.storage.Relations[leaf].Versions, rows) || !reflect.DeepEqual(table.Security.ACL, oldACL) || !reflect.DeepEqual(table.Constraints.Unique, oldKeys) || retained.roleRecord != pendingRoles || retained.catalog.Get(catalog.CurrentDatabaseAddress) != pendingDB || auth.databasePredecessor != committed {
 					t.Fatal("veto mutated old ACL/keys/storage or retained authority roots")
 				}
 			})

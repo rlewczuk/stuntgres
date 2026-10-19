@@ -50,14 +50,14 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 		domainUnitPublish(t, e, domainUnitStage(t, e, op, q))
 	}
 	e.mu.Lock()
-	reader := e.authorizationDomain.Principal(e.nextPrincipal)
-	e.nextPrincipal++
-	roles := cloneRoleFixture(e.roles)
+	reader := e.roles.domain.Principal(e.roles.nextPrincipal)
+	e.roles.nextPrincipal++
+	roles := cloneRoleFixture(e.roles.published)
 
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "reader", Login: true, Inherit: true, ConnectionLimit: -1})
-	e.roles = roles
+	e.roles.published = roles
 	e.mu.Unlock()
-	if err := e.SetObjectACL(context.Background(), schemaRef(t, e, "visible"), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.UsagePrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), schemaRef(t, e, "visible"), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.bounded(id pg_catalog._name)")

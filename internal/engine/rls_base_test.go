@@ -24,7 +24,7 @@ func TestRLSBaseDecision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	owner, reader, bypass, member := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_owner"), e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_reader"), e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_bypass"), e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_member")
+	owner, reader, bypass, member := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_owner"), e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_reader"), e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_bypass"), e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_member")
 	using, err := policyUnitBind(t, e, op, d, "TRUE")
 	if err != nil {
 		t.Fatal(err)
@@ -216,7 +216,7 @@ func TestRLSBaseControls(t *testing.T) {
 		next.Security.RLSEnabled, next.Security.RLSForced = state.enabled, state.forced
 		catalog := catalog.CloneState(base.State())
 		catalog.SetDescriptor(d.Address(), &next)
-		groups, err := rowSecurityDumpGroups(context.Background(), e.catalog.read(catalog), e.roleRead(e.catalog.read(catalog), e.roles))
+		groups, err := rowSecurityDumpGroups(context.Background(), e.catalog.read(catalog), e.roles.read(e.catalog.owner(), e.catalog.read(catalog), e.roles.published))
 		if err != nil {
 			t.Fatal(err)
 		}

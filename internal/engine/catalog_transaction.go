@@ -234,18 +234,18 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, e
 	return view.State(), ctx.Err()
 }
 func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
-	if c.rolesBase != nil && e.roles != c.rolesBase {
+	if c.rolesBase != nil && e.roles.published != c.rolesBase {
 		return catalog.Conflict{}
 	}
 	if !catalog.DefaultRecordsUnchanged(e.catalog.state, c.defaultOriginals) || !catalog.DefaultRecordsUnchanged(e.catalog.state, c.defaultReads) {
 		return catalog.Conflict{}
 	}
-	roles := e.roles
+	roles := e.roles.published
 	if c.roles != nil {
 		roles = c.roles
 	}
 	view := e.privateCatalogLocked(c)
-	read := e.roleRead(view, roles)
+	read := e.roles.read(e.catalog.owner(), view, roles)
 	if err := catalog.ValidateDefaultACLs(read, view); err != nil {
 		return err
 	}
@@ -264,7 +264,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 		}
 	}
 	for _, observation := range c.extensionAuthority {
-		if e.roles.revision != observation.roles || observation.namespace == nil || observation.database == nil ||
+		if e.roles.published.revision != observation.roles || observation.namespace == nil || observation.database == nil ||
 			e.catalog.state.Get(observation.namespace.Address()) != observation.namespace ||
 			e.catalog.state.Get(observation.database.Address()) != observation.database {
 			return catalog.Conflict{}

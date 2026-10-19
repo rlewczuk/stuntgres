@@ -84,13 +84,13 @@ func TestAlterTablespacePreparation(t *testing.T) {
 
 func TestAlterTablespaceNoop(t *testing.T) {
 	e, candidateScope, auth, old := alterAddUnitScope(t)
-	before, roles, store, revision, epoch := e.catalog.state, e.roles, e.storage.Relations[old.Address()], old.Revision(), e.catalog.state.Epoch()
+	before, roles, store, revision, epoch := e.catalog.state, e.roles.published, e.storage.Relations[old.Address()], old.Revision(), e.catalog.state.Epoch()
 	actions := []parser.AlterTableAction{{Action: parser.SetTablespace, Tablespace: parser.Identifier{Text: "pg_default"}}}
 	e.mu.Lock()
 	prepared, err := e.prepareAlterTableActions(candidateScope, candidateScope.op, auth, old, e.catalog.Domain.Ref(auth.catalog.Epoch(), old.Address()), actions)
 	e.mu.Unlock()
 	work, destination := prepared.actions, prepared.destination
-	if err != nil || len(work) != 0 || e.catalog.state != before || e.roles != roles || e.storage.Relations[old.Address()] != store || old.Revision() != revision || e.catalog.state.Epoch() != epoch {
+	if err != nil || len(work) != 0 || e.catalog.state != before || e.roles.published != roles || e.storage.Relations[old.Address()] != store || old.Revision() != revision || e.catalog.state.Epoch() != epoch {
 		t.Fatal("default preparation changed authority/storage", work, err)
 	}
 	if err := validateAlterTablespaceMove(destination); err != nil {
@@ -121,7 +121,7 @@ func TestAlterTablespaceNoop(t *testing.T) {
 func TestAlterTablespaceTypeCapture(t *testing.T) {
 	e, scope, auth, old := alterAddUnitScope(t)
 	ref := e.catalog.Domain.Ref(auth.catalog.Epoch(), old.Address())
-	before, roles, revision := e.catalog.state, e.roles, old.Revision()
+	before, roles, revision := e.catalog.state, e.roles.published, old.Revision()
 	prepare := func(query string) (alterTablePreparation, error) {
 		statements, err := parser.Parse(query)
 		if err != nil {
@@ -153,7 +153,7 @@ func TestAlterTablespaceTypeCapture(t *testing.T) {
 			if first && diagnostic.Code != tc.code || !first && (diagnostic.Code != "42704" || diagnostic.Message != `tablespace "ats_missing" does not exist`) {
 				t.Fatal(query, diagnostic)
 			}
-			if e.catalog.state != before || e.roles != roles || old.Revision() != revision || old.Columns[0].Usage.Type.ID() != sqltype.Int4 {
+			if e.catalog.state != before || e.roles.published != roles || old.Revision() != revision || old.Columns[0].Usage.Type.ID() != sqltype.Int4 {
 				t.Fatal("preparation published state", query)
 			}
 		}

@@ -20,7 +20,7 @@ func TestRowLockViewAuthorization(t *testing.T) {
 	}
 	owner, _ := e.Roles().Lookup("view_owner")
 	reader, _ := e.Roles().Lookup("view_reader")
-	grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grantor := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	grant := func(ref ids.ObjectRef, entries ...authorization.ACLEntry) {
 		t.Helper()
 		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: entries}); err != nil {

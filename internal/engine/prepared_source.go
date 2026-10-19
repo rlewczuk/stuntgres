@@ -25,7 +25,7 @@ func (e *Engine) capturePreparedSourceLocked(ctx context.Context, ref ids.Object
 			return nil, err
 		}
 		owner := sqltype.Null(source.Columns[3].Usage.Type)
-		if role, ok := e.roles.root.Read(authorization.PrincipalRef{}).Find(entry.owner); ok {
+		if role, ok := e.roles.published.root.Read(authorization.PrincipalRef{}).Find(entry.owner); ok {
 			owner = sqltype.String(source.Columns[3].Usage.Type, role.Name)
 		}
 		rows = append(rows, []sqltype.Value{xid, sqltype.String(source.Columns[1].Usage.Type, entry.gid), prepared, owner, sqltype.String(source.Columns[4].Usage.Type, entry.database)})

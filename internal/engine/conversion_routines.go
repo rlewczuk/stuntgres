@@ -114,7 +114,7 @@ func (e *Engine) initializeConversionRoutines() {
 		if !ok {
 			panic("stuntgres: missing released encoding conversion provider")
 		}
-		d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: routine.oid}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, ObjectRevision: 1, ObjectName: routine.name, Signature: catalog.ConversionSignature, RoutineKind: catalog.FunctionRoutine, Owner: e.authorizationDomain.Principal(10), Result: 23, Volatility: expr.Immutable, Strict: true, Conversion: provider}
+		d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: routine.oid}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, ObjectRevision: 1, ObjectName: routine.name, Signature: catalog.ConversionSignature, RoutineKind: catalog.FunctionRoutine, Owner: e.roles.domain.Principal(10), Result: 23, Volatility: expr.Immutable, Strict: true, Conversion: provider}
 		e.catalog.state.SetDescriptor(d.Address(), d)
 		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}

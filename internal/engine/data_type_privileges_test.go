@@ -58,7 +58,7 @@ func TestDataTypePrivilegesCapture(t *testing.T) {
 		func(a *AuthorizationView) { a.engine = New() },
 		func(a *AuthorizationView) { a.roleRecord = nil },
 		func(a *AuthorizationView) { a.pairedCatalog = catalog.Read{} },
-		func(a *AuthorizationView) { a.roles = New().roles.root.Read(authorization.PrincipalRef{}) },
+		func(a *AuthorizationView) { a.roles = New().roles.published.root.Read(authorization.PrincipalRef{}) },
 		func(a *AuthorizationView) { a.state.CurrentUser = authorization.PrincipalRef{} },
 	} {
 		bad := auth

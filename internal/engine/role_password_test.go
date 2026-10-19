@@ -141,10 +141,10 @@ func TestRoleAttributesPasswordStorage(t *testing.T) {
 			op.session.mu.Unlock()
 			return 0, failure
 		})
-		beforePublication := e.roles
-		next := e.nextPrincipal
+		beforePublication := e.roles.published
+		next := e.roles.nextPrincipal
 		_, err := e.Execute(op, &parser.CreateRole{Name: parser.Identifier{Text: "random_failure"}, Options: parser.RoleOptions{Present: parser.RolePassword, Password: "secret"}}, 0, nil)
-		if !errors.Is(err, failure) || e.roles != beforePublication || e.nextPrincipal != next {
+		if !errors.Is(err, failure) || e.roles.published != beforePublication || e.roles.nextPrincipal != next {
 			t.Fatal("random failure published role or allocator", err)
 		}
 	})
@@ -169,10 +169,10 @@ func TestRoleAttributesPasswordStorage(t *testing.T) {
 			}
 			return len(p), nil
 		})
-		next := e.nextPrincipal
+		next := e.roles.nextPrincipal
 		_, err := e.Execute(actor, &parser.CreateRole{Name: parser.Identifier{Text: "stale_authority"}, Options: parser.RoleOptions{Present: parser.RolePassword, Password: "secret"}}, 0, nil)
 		state(t, err, "42501")
-		if _, ok := e.Roles().Lookup("stale_authority"); ok || e.nextPrincipal != next {
+		if _, ok := e.Roles().Lookup("stale_authority"); ok || e.roles.nextPrincipal != next {
 			t.Fatal("stale creator published role/edge/allocator")
 		}
 		if len(e.Roles().Memberships()) != 3 {
@@ -203,10 +203,10 @@ func TestRoleAttributesValidityInput(t *testing.T) {
 		}
 	}
 	for _, tc := range []struct{ text, code string }{{"bad", "22007"}, {"2025-02-30", "22008"}, {"2025-01-01 00:00:00+16", "22009"}} {
-		before := e.roles
+		before := e.roles.published
 		_, err := e.Execute(op, roleAttributeAlter("expiry", parser.RoleOptions{Present: parser.RoleValidUntil, ValidUntil: tc.text}), 0, nil)
 		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code || diagnostic.Hint != "" || diagnostic.Position != "" || e.roles != before {
+		if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code || diagnostic.Hint != "" || diagnostic.Position != "" || e.roles.published != before {
 			t.Fatal(tc, err)
 		}
 	}

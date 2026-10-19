@@ -332,7 +332,7 @@ func TestInheritanceMetadataAdmissionFences(t *testing.T) {
 					result, joined := inheritanceMetadataWorker(t, command, holder, child)
 					owner := child.Owner
 					if fence == "new_descendant_owner" {
-						owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("metadata_other")
+						owner = e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("metadata_other")
 					}
 					inheritanceMetadataChild(t, e, child, "late_grandchild", 40, owner)
 					if fence == "subsequent_replacement" {

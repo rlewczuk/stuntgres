@@ -21,7 +21,7 @@ import (
 // Host catalog fixtures resolve as the real bootstrap principal, not as a
 // zero/default-allow authorization view. Caller holds e.mu.
 func catalogAuthorization(e *Engine, view catalog.Read) AuthorizationView {
-	return AuthorizationView{engine: e, pairedCatalog: view, roleRecord: e.roles, catalog: view, roles: e.roleRead(view, e.roles), state: authorization.RoleState{CurrentUser: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}}
+	return AuthorizationView{engine: e, pairedCatalog: view, roleRecord: e.roles.published, catalog: view, roles: e.roles.read(e.catalog.owner(), view, e.roles.published), state: authorization.RoleState{CurrentUser: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}}
 }
 
 func roleTableRef(t *testing.T, e *Engine, name string) ids.ObjectRef {
@@ -118,7 +118,7 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 	}
 	namespace := e.catalog.Domain.Ref(e.catalog.state.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	entry.Privileges = authorization.UsagePrivilege
-	entry.Grantor = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	entry.Grantor = e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
 		t.Fatal(err)
 	}
@@ -255,15 +255,15 @@ func TestAuthorizationExhaustionAndCancellationDoNotPublish(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	before := e.roles
-	e.nextPrincipal = ^uint64(0)
+	before := e.roles.published
+	e.roles.nextPrincipal = ^uint64(0)
 	if _, err := e.Execute(op, statement(t, "CREATE ROLE exhausted"), 0, nil); err == nil {
 		t.Fatal("principal exhaustion")
 	}
-	if e.roles != before {
+	if e.roles.published != before {
 		t.Fatal("exhaustion publication")
 	}
-	e.nextPrincipal = authorization.LastPredefinedRoleID + 1
+	e.roles.nextPrincipal = authorization.LastPredefinedRoleID + 1
 	ctx, cancel := context.WithCancel(context.Background())
 	s, err := e.StartSession(ctx, SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
 	if err != nil {
@@ -282,19 +282,19 @@ func TestAuthorizationExhaustionAndCancellationDoNotPublish(t *testing.T) {
 	canceled.Done()
 	s.RequestEnd(CleanClose)
 	_ = s.WaitEnd(context.Background())
-	if e.roles != before {
+	if e.roles.published != before {
 		t.Fatal("canceled role publication")
 	}
 	roleExecute(t, e, op, "CREATE ROLE retained")
-	before = e.roles
-	saturated := *e.roles
+	before = e.roles.published
+	saturated := *e.roles.published
 	saturated.revision = ^uint64(0)
-	e.roles = &saturated
-	before = e.roles
+	e.roles.published = &saturated
+	before = e.roles.published
 	if _, err := e.Execute(op, statement(t, "DROP ROLE retained"), 0, nil); err == nil {
 		t.Fatal("role revision exhaustion")
 	}
-	if e.roles != before {
+	if e.roles.published != before {
 		t.Fatal("drop exhaustion publication")
 	}
 	op.session.authorization.revision = ^uint64(0)
@@ -326,7 +326,7 @@ func TestAuthorizationCancellationAtRoleInstall(t *testing.T) {
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			roleExecute(t, e, op, "CREATE ROLE retained")
-			beforeRoles, beforeCatalog, beforePrincipal := e.roles, e.catalog.state, e.nextPrincipal
+			beforeRoles, beforeCatalog, beforePrincipal := e.roles.published, e.catalog.state, e.roles.nextPrincipal
 			beforeIdentity := op.RoleState()
 			beforeRevision := op.session.authorization.revision
 			original := op.ctx
@@ -337,7 +337,7 @@ func TestAuthorizationCancellationAtRoleInstall(t *testing.T) {
 			if !errors.Is(err, context.Canceled) || ctx.checks < 3 {
 				t.Fatal("final cancellation checkpoint", ctx.checks, err)
 			}
-			if e.roles != beforeRoles || e.catalog.state != beforeCatalog || e.nextPrincipal != beforePrincipal ||
+			if e.roles.published != beforeRoles || e.catalog.state != beforeCatalog || e.roles.nextPrincipal != beforePrincipal ||
 				op.RoleState() != beforeIdentity || op.session.authorization.revision != beforeRevision {
 				t.Fatal("canceled install published a partial change")
 			}
@@ -443,7 +443,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	roleExecute(t, e, op, "CREATE TABLE sentinel(id INT)")
-	namespaceOwner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
+	namespaceOwner := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 	namespace := e.catalog.Domain.Ref(e.catalog.state.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	original := e.catalog.state.MustNamespace(namespace.Address).ACL
 	// Same grantors/grantees/effective rights, split and reordered entries.
@@ -470,7 +470,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 		t.Fatal("restored sentinel behavior", got)
 	}
 	ref := roleTableRef(t, restored, "sentinel")
-	if restored.catalog.state.MustRelation(ref.Address).Owner != restored.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
+	if restored.catalog.state.MustRelation(ref.Address).Owner != restored.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 		t.Fatal("dump did not preserve sentinel owner")
 	}
 	changed := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
@@ -537,7 +537,7 @@ func TestAuthorizationOwnerDiagnosticAndInvalidACLs(t *testing.T) {
 	for _, invalid := range []authorization.ACLEntry{
 		{Grantor: authorization.PrincipalRef{}, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege},
 		{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true, Role: owner}, Privileges: authorization.SelectPrivilege},
-		{Grantor: owner, Grantee: authorization.ACLGrantee{Role: New().authorizationDomain.Principal(10)}, Privileges: authorization.SelectPrivilege},
+		{Grantor: owner, Grantee: authorization.ACLGrantee{Role: New().roles.domain.Principal(10)}, Privileges: authorization.SelectPrivilege},
 		{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
 		{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege, GrantOptions: authorization.InsertPrivilege},
 	} {
@@ -557,11 +557,11 @@ func TestAuthorizationOwnerDiagnosticAndInvalidACLs(t *testing.T) {
 		t.Fatal("absent ACL changed catalog")
 	}
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
-	beforeRoles := e.roles
+	beforeRoles := e.roles.published
 	for _, name := range []string{"public", "none"} {
 		_, err := e.Execute(op, &parser.CreateRole{Name: parser.Identifier{Text: name}}, 0, nil)
 		state(t, err, "42939")
-		if e.roles != beforeRoles {
+		if e.roles.published != beforeRoles {
 			t.Fatal("reserved implicit role became principal")
 		}
 	}
@@ -585,7 +585,7 @@ func TestAuthorizationLargeColumnManifestAndRepeatedUses(t *testing.T) {
 	column := ref
 	column.Address.SubID = 65
 	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
-		{Grantor: e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege},
+		{Grantor: e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege},
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -634,7 +634,7 @@ func TestAuthorizationStampRetainsRolePublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	stamp := held.Stamp()
-	oldPublication := e.roles
+	oldPublication := e.roles.published
 	oldEdges := held.Roles().Memberships()
 	if err := e.SetRoleReferences(context.Background(), "stamp fixture", []authorization.PrincipalRef{op.RoleState().CurrentUser}); err != nil {
 		t.Fatal(err)

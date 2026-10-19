@@ -14,10 +14,10 @@ import (
 // revision cache can supply the expected authority.
 func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 	e := New()
-	roles := cloneRoleFixture(e.roles)
+	roles := cloneRoleFixture(e.roles.published)
 	previous := roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	next := e.authorizationDomain.Principal(100001)
-	member := e.authorizationDomain.Principal(100002)
+	next := e.roles.domain.Principal(100001)
+	member := e.roles.domain.Principal(100002)
 	bootstrap := fixtureRole(roles, previous)
 	bootstrap.Superuser = false
 	putFixtureRole(roles, bootstrap)
@@ -30,7 +30,7 @@ func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 	database.Owner = next
 	candidate.SetDescriptor(catalog.CurrentDatabaseAddress, &database)
 	after := e.catalog.read(candidate)
-	oldRead, newRead := e.roleRead(before, roles), e.roleRead(after, roles)
+	oldRead, newRead := e.roles.read(e.catalog.owner(), before, roles), e.roles.read(e.catalog.owner(), after, roles)
 	oldView, newView := catalogAuthorization(e, before), catalogAuthorization(e, after)
 	oldView.roleRecord, oldView.roles = roles, oldRead
 	newView.roleRecord, newView.roles = roles, newRead
@@ -58,7 +58,7 @@ func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 	for _, flags := range [][2]bool{{false, false}, {true, false}, {false, true}, {true, true}} {
 		graph := cloneRoleFixture(roles)
 		setFixtureEdges(graph, []authorization.Membership{{Role: next, Member: member, Grantor: previous, Inherit: flags[0], Set: flags[1]}})
-		read := e.roleRead(after, graph)
+		read := e.roles.read(e.catalog.owner(), after, graph)
 		closure, err := read.RoleClosure(context.Background(), member, false)
 		if err != nil || !reflect.DeepEqual(closure, []authorization.PrincipalRef{member, next, implicit}) {
 			t.Fatal("MEMBER owner hop", flags, closure, err)
@@ -73,7 +73,7 @@ func TestRoleOwnershipDatabaseImmutableRolePair(t *testing.T) {
 			t.Fatal("member ADMIN invented", flags, ok, err)
 		}
 	}
-	if before.Epoch() != after.Epoch() || oldView.Stamp().Roles != newView.Stamp().Roles || before.MustDatabase(catalog.CurrentDatabaseAddress).Owner != previous || len(fixtureEdges(roles)) != len(fixtureEdges(e.roles)) {
+	if before.Epoch() != after.Epoch() || oldView.Stamp().Roles != newView.Stamp().Roles || before.MustDatabase(catalog.CurrentDatabaseAddress).Owner != previous || len(fixtureEdges(roles)) != len(fixtureEdges(e.roles.published)) {
 		t.Fatal("source pair mutated")
 	}
 }

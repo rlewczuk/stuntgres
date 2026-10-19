@@ -48,17 +48,13 @@ type Engine struct {
 	exclusionGeneration  uint64
 	serializable         serializableTracker
 	prepared             map[string]*preparedTransaction
-	authorizationDomain  authorization.Domain
-	aclAuthority         sqltype.ACLAuthority
-	roles                *roleCatalog
-	nextPrincipal        uint64
+	roles                roleStore
 	importTargets        map[authorization.PrincipalRef]authorization.PrincipalRef
 	foreignWrappers      []ForeignDataWrapperDefinition
 	foreignValidators    []ForeignValidatorDefinition
 	foreignNamespaces    map[ids.ObjectAddress]string // Immutable auto-installed namespace identities.
 	foreignValueImporter ForeignValueImporter
 	foreignValueExporter ForeignValueExporter
-	roleReferences       map[string][]authorization.PrincipalRef
 	settingsOrder        []string
 }
 type ParameterInfo struct {
@@ -169,12 +165,12 @@ func NewWithSettings(definitions []SettingDefinition, database string, trackComm
 func newEngine(providers []catalog.Provider, definitions []SettingDefinition, database string, trackCommitTimestamp bool) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
 	e := &Engine{catalog: catalogStore{Owner: catalog.Owner{Domain: &ids.Domain{}, Providers: map[ids.OID]catalog.Provider{}}, nextOID: 16384, nextRevision: 2}, storage: storageStore{Relations: map[ids.ObjectAddress]*relationStorage{}}}
-	e.catalog.Principals, e.catalog.ACLAuthority = &e.authorizationDomain, &e.aclAuthority
+	e.catalog.Principals, e.catalog.ACLAuthority = &e.roles.domain, &e.roles.aclAuthority
 	e.trackCommitTimestamp = trackCommitTimestamp
 	e.assignedXID, e.commitTimestampBase = 2, 3
 	e.locks = lock.New(e.catalog.Domain)
 	e.storage.Sequences = make(map[ids.ObjectAddress]*sequenceGenerator)
-	e.initializeRoles()
+	e.roles.initialize()
 	e.initializeSettings(definitions)
 	for _, p := range providers {
 		if err := e.RegisterCatalogProvider(p); err != nil {
@@ -231,9 +227,9 @@ func newEngine(providers []catalog.Provider, definitions []SettingDefinition, da
 		oid  ids.OID
 		name string
 	}{{ids.PGCatalogNamespaceOID, "pg_catalog"}, {ids.PGToastNamespaceOID, "pg_toast"}, {ids.PublicNamespaceOID, "public"}, {13229, "information_schema"}} {
-		owner := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		owner := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 		if ns.oid == ids.PublicNamespaceOID {
-			owner = e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
+			owner = e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 		}
 		d := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ns.oid}, ObjectName: ns.name, ObjectRevision: 1, Owner: owner}
 		if ns.oid != ids.PGToastNamespaceOID {
@@ -247,7 +243,7 @@ func newEngine(providers []catalog.Provider, definitions []SettingDefinition, da
 		e.catalog.state.BindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: d.Name()}, d.Address())
 	}
 	for _, typ := range sqltype.Builtins() {
-		d := &catalog.Type{SQLType: typ, Comment: builtinTypeComment(typ.ID()), Array: typ.AssociatedArray(), Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
+		d := &catalog.Type{SQLType: typ, Comment: builtinTypeComment(typ.ID()), Array: typ.AssociatedArray(), Owner: e.roles.domain.Principal(authorization.BootstrapPrincipalID)}
 		if typ.IsDomain() && typ.Concrete() {
 			d.ObjectRevision = 1
 		}
@@ -260,7 +256,7 @@ func newEngine(providers []catalog.Provider, definitions []SettingDefinition, da
 	for i := range catalog.BuiltinCollations {
 		d := new(catalog.Collation)
 		*d = catalog.BuiltinCollations[i]
-		d.Owner = e.authorizationDomain.Principal(10)
+		d.Owner = e.roles.domain.Principal(10)
 		e.catalog.state.SetDescriptor(d.Address(), d)
 		e.catalog.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
@@ -270,7 +266,7 @@ func newEngine(providers []catalog.Provider, definitions []SettingDefinition, da
 	for i := range catalog.BuiltinConversions {
 		d := new(catalog.Conversion)
 		*d = catalog.BuiltinConversions[i]
-		d.Owner = e.authorizationDomain.Principal(10)
+		d.Owner = e.roles.domain.Principal(10)
 		d.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 		d.ObjectRevision = 1
 		e.catalog.state.SetDescriptor(d.Address(), d)

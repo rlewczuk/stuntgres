@@ -11,7 +11,7 @@ import (
 
 func pgClassHistoryCatalog(e *Engine) (catalog.Read, *catalog.Relation) {
 	state := catalog.CloneState(e.CatalogRead().State())
-	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200100}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "history_parent", ObjectRevision: 1, Owner: e.authorizationDomain.Principal(10)}
+	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200100}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "history_parent", ObjectRevision: 1, Owner: e.roles.domain.Principal(10)}
 	state.SetDescriptor(parent.Address(), parent)
 	state.BindName(catalog.DescriptorNameKey(parent), parent.Address())
 	return e.catalog.read(state), parent
@@ -74,7 +74,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200110}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "same_stage", ObjectRevision: 7, RowType: 200112, Owner: e.authorizationDomain.Principal(10)}
+	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200110}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "same_stage", ObjectRevision: 7, RowType: 200112, Owner: e.roles.domain.Principal(10)}
 	child := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200111}, ObjectNamespace: parent.Namespace(), ObjectName: "same_child", ObjectRevision: 8, Owner: parent.Owner, Inheritance: &catalog.TableInheritance{Parents: []ids.ObjectAddress{parent.Address()}}}
 	if err := stage.Create(parent); err != nil {
 		t.Fatal(err)
@@ -99,7 +99,7 @@ func TestPgClassSubclassReplacement(t *testing.T) {
 	view, parent := pgClassHistoryCatalog(e)
 	child := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200101}, Inheritance: &catalog.TableInheritance{Parents: []ids.ObjectAddress{parent.Address()}}}
 	view.State().SetDescriptor(child.Address(), child)
-	history := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200102}, History: catalog.PublicationHistory{HasSubclasses: true}, Owner: e.authorizationDomain.Principal(authorization.BootstrapPrincipalID)}
+	history := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200102}, History: catalog.PublicationHistory{HasSubclasses: true}, Owner: e.roles.domain.Principal(authorization.BootstrapPrincipalID)}
 	view.State().SetDescriptor(history.Address(), history)
 	if err := normalizeReplacementSubclassHistory(context.Background(), view); err != nil {
 		t.Fatal(err)

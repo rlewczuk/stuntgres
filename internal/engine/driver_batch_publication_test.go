@@ -185,11 +185,11 @@ func TestDriverBatchRoleACLConflictKeepsPeerRoot(t *testing.T) {
 				t.Fatal("missing pending role/ACL revision authority")
 			}
 			sessionSQL(t, peer, "CREATE ROLE peer LOGIN")
-			roles, frontier := e.roles, e.commitSeq
+			roles, frontier := e.roles.published, e.commitSeq
 			if err := m.end(nil); err == nil {
 				t.Fatal("role authority conflict committed")
 			}
-			if e.catalog.state != state || e.roles != roles || e.commitSeq != frontier {
+			if e.catalog.state != state || e.roles.published != roles || e.commitSeq != frontier {
 				t.Fatal("private ACL or stale role root overwrote peer")
 			}
 			if _, ok := e.Roles().Lookup("peer"); !ok {

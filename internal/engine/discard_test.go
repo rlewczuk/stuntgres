@@ -58,12 +58,12 @@ func TestDiscardOwnerPrecision(t *testing.T) {
 			cursor := &sqlCursor{root: &projectNode{}, authority: &queryAuthority{}}
 			cursor.tx = tx
 			a.cursors.entries["c"] = cursor
-			resources, serial, ticket, catalog, roles := a.resources, a.serial, a.advisory.ticket, e.catalog.state, e.roles
+			resources, serial, ticket, catalog, roles := a.resources, a.serial, a.advisory.ticket, e.catalog.state, e.roles.published
 			discardUnitApply(t, a, category)
 			if a.resources != resources || a.serial != serial || a.advisory.ticket != ticket || !a.IsLive() {
 				t.Fatal("DISCARD detached or retired physical owners")
 			}
-			if e.catalog.state != catalog || e.roles != roles || b.preparedSQL.entries["p"] != entry || b.sequences[address].value != 8 || b.lastSequence != address || b.discardPlansGeneration != 0 {
+			if e.catalog.state != catalog || e.roles.published != roles || b.preparedSQL.entries["p"] != entry || b.sequences[address].value != 8 || b.lastSequence != address || b.discardPlansGeneration != 0 {
 				t.Fatal("DISCARD changed shared/peer state")
 			}
 			if category == parser.DiscardAll {

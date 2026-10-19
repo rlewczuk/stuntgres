@@ -56,7 +56,7 @@ func (e *Engine) preparedPublicationPreflightLocked(op *Operation, p *preparedPu
 
 // Engine.mu and the finishing Session.mu are held at final installation.
 func (e *Engine) preparedActorLocked(op *Operation, entry *preparedTransaction) error {
-	roles := e.roleRead(e.catalog.read(e.catalog.state), e.roles)
+	roles := e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)
 	current := op.session.authorization.state.CurrentUser
 	if err := roles.ValidatePrincipal(current); err != nil {
 		return err

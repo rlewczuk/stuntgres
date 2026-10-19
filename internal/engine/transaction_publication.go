@@ -455,7 +455,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			e.catalog.state = nextCatalog
 			e.catalog.nextRevision = nextRevision
 			if c.roles != nil {
-				e.roles = c.roles
+				e.roles.published = c.roles
 			}
 			for a, d := range c.descriptors {
 				if ns, ok := d.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == session.token {

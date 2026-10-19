@@ -168,9 +168,9 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 				next.SetDescriptor(target.Address, &copy)
 				e.catalog.state = next
 			case "roles":
-				copy := *e.roles
+				copy := *e.roles.published
 				copy.revision++
-				e.roles = &copy
+				e.roles.published = &copy
 			case "source_index_generation":
 				e.storage.Relations[source.Address].Generation++
 			}

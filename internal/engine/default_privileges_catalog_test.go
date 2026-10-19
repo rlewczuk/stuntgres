@@ -56,7 +56,7 @@ func TestDefaultPrivilegesCloneStage(t *testing.T) {
 
 func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	committedCatalog, committedRoles := f.e.catalog.state, f.e.roles
+	committedCatalog, committedRoles := f.e.catalog.state, f.e.roles.published
 	f.op.session.transactions.retainedMessage = true
 	f.grant(t, "tables", "select", nil)
 	changes := f.op.session.transactions.catalog
@@ -64,7 +64,7 @@ func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	private := f.e.privateCatalogLocked(changes)
 	f.e.mu.Unlock()
 	key := catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
-	if f.e.catalog.state != committedCatalog || f.e.roles != committedRoles || private.State().DefaultACL(key) == nil || changes.roles == nil || changes.rolesBase != committedRoles {
+	if f.e.catalog.state != committedCatalog || f.e.roles.published != committedRoles || private.State().DefaultACL(key) == nil || changes.roles == nil || changes.rolesBase != committedRoles {
 		t.Fatal("retained utility leaked or lost private state")
 	}
 	stage := f.e.BeginCatalogStage(private)
@@ -91,7 +91,7 @@ func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	// retain the earlier private result after the owning overlay is discarded.
 	f.op.session.transactions.catalog = nil
 	f.op.session.transactions.retainedMessage = false
-	if f.e.catalog.state != committedCatalog || f.e.roles != committedRoles || combined.Get(table.Address()) != table || private.State().DefaultACL(key) == nil {
+	if f.e.catalog.state != committedCatalog || f.e.roles.published != committedRoles || combined.Get(table.Address()) != table || private.State().DefaultACL(key) == nil {
 		t.Fatal("retained failure changed committed or retained snapshots")
 	}
 }
@@ -126,7 +126,7 @@ func TestDefaultPrivilegesDependencies(t *testing.T) {
 			t.Fatal("creator not owner dependency", dep)
 		}
 	}
-	removed := cloneRoleFixture(f.e.roles)
+	removed := cloneRoleFixture(f.e.roles.published)
 	retireFixtureRole(removed, f.reader)
 	changes := newCatalogChanges()
 	changes.roles = removed

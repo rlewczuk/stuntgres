@@ -32,7 +32,7 @@ func TestViewReplaceIdentityAndACL(t *testing.T) {
 	ref := roleTableRef(t, e, "v")
 	reader, _ := e.Roles().Lookup("reader")
 	successor, _ := e.Roles().Lookup("successor")
-	grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grantor := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
 	if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 		t.Fatal(err)
@@ -103,7 +103,7 @@ func TestViewReplaceOwnerMembership(t *testing.T) {
 			owner, _ := e.Roles().Lookup("owner")
 			middle, _ := e.Roles().Lookup("middle")
 			member, _ := e.Roles().Lookup("member")
-			grantor := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+			grantor := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 			for _, m := range []authorization.Membership{{Role: owner.Ref, Member: middle.Ref, Grantor: grantor, Inherit: tc.inherit, Set: tc.set}, {Role: middle.Ref, Member: member.Ref, Grantor: grantor, Inherit: tc.inherit, Set: tc.set}, {Role: owner.Ref, Member: member.Ref, Grantor: grantor, Inherit: tc.inherit, Set: tc.set}} {
 				if err := grantMembership(t, e, m); err != nil {
 					t.Fatal(err)

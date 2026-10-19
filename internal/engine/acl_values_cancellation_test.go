@@ -35,7 +35,7 @@ func TestACLValuesScanCancellation(t *testing.T) {
 	e, c := aclValuesUnitContext(t)
 	view := e.CatalogRead()
 	d, _ := view.LookupType(sqltype.ACLItem)
-	zero, err := sqltype.ACLItemValue(d, &e.aclAuthority, 0, 0, 0, 0)
+	zero, err := sqltype.ACLItemValue(d, &e.roles.aclAuthority, 0, 0, 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestACLValuesScanCancellation(t *testing.T) {
 		items[i] = zero
 	}
 	array := mustACLValuesArray(t, view, items...)
-	candidate, err := sqltype.ACLItemValue(d, &e.aclAuthority, 10, 10, 2, 0)
+	candidate, err := sqltype.ACLItemValue(d, &e.roles.aclAuthority, 10, 10, 2, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

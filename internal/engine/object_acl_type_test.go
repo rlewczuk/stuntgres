@@ -100,7 +100,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	})
 	d := domainUnitType(t, view, "acl_provenance_domain")
 	ownerStage := e.BeginCatalogStage(view)
-	target := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
+	target := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 	if err := stageOwnership(ownerStage, d, target); err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 		t.Fatal("owner remap lost raw absence", d)
 	}
 	other := New()
-	remapped, err := other.remapPreparedCatalog(catalog.CloneState(view.State()), e.roles.root.Read(authorization.PrincipalRef{}), other.roles.root.Read(authorization.PrincipalRef{}), nil)
+	remapped, err := other.remapPreparedCatalog(catalog.CloneState(view.State()), e.roles.published.root.Read(authorization.PrincipalRef{}), other.roles.published.root.Read(authorization.PrincipalRef{}), nil)
 	if err != nil {
 		t.Fatal("principal remap", err)
 	}

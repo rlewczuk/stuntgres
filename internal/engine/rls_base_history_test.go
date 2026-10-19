@@ -53,7 +53,7 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 	}
 	leaf := b.querySources[0]
 	view, err := scope.acquireDataViewLocked(e, leaf.ref)
-	reader := e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("rls_history_reader")
+	reader := e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("rls_history_reader")
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

@@ -50,12 +50,12 @@ func pgRolesUnitRows(t *testing.T, source *querySource) map[uint32][]sqltype.Val
 }
 
 func pgRolesUnitRole(e *Engine, state *roleCatalog, id uint64, name string) authorization.PrincipalRef {
-	e.nextPrincipal = id
-	ref, err := e.nextRolePrincipalLocked()
+	e.roles.nextPrincipal = id
+	ref, err := e.roles.principalCandidateLocked()
 	if err != nil {
 		panic(err)
 	}
-	e.nextPrincipal = ref.ID() + 1
+	e.roles.nextPrincipal = ref.ID() + 1
 	putFixtureRole(state, authorization.RoleDescriptor{Ref: ref, Name: name, Login: true, Inherit: true, ConnectionLimit: -1, Password: "unit-private-verifier"})
 
 	return ref
@@ -90,7 +90,7 @@ func TestPGRolesDescriptor(t *testing.T) {
 		t.Fatal("row/array ownership links")
 	}
 	views := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12000})
-	if views.Name() != "pg_views" || views.RowType != 12030 || d.Owner != e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") || row.Owner != d.Owner || array.Owner != d.Owner {
+	if views.Name() != "pg_views" || views.RowType != 12030 || d.Owner != e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres") || row.Owner != d.Owner || array.Owner != d.Owner {
 		t.Fatal("adjacent identity or role ownership changed")
 	}
 	if representedSummaryTable(12007) || representedSummaryViewDefinition(12007) == "" {
@@ -101,9 +101,9 @@ func TestPGRolesDescriptor(t *testing.T) {
 func TestPGRolesRoleRoot(t *testing.T) {
 	e := New()
 	d, ref := pgRolesUnitSource(t, e)
-	old := cloneRoleFixture(e.roles)
+	old := cloneRoleFixture(e.roles.published)
 	role := pgRolesUnitRole(e, old, 20000, "snapshot")
-	e.roles = old
+	e.roles.published = old
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	scope := &StatementScope{op: op, owner: op.session.transactions}
@@ -116,7 +116,7 @@ func TestPGRolesRoleRoot(t *testing.T) {
 	open := func(r ids.ObjectRef) *querySource {
 		t.Helper()
 		e.mu.Lock()
-		source, err := e.openRelationSourceLocked(scope, r, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
+		source, err := e.openRelationSourceLocked(scope, r, e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -127,7 +127,7 @@ func TestPGRolesRoleRoot(t *testing.T) {
 	replacement := fixtureRole(updated, role)
 	replacement.CreateDB = true
 	putFixtureRole(updated, replacement)
-	e.roles = updated
+	e.roles.published = updated
 	second := open(ref)
 	for _, source := range []*querySource{first, second} {
 		flag, _ := pgRolesUnitRows(t, source)[20000][4].Boolean()
@@ -167,7 +167,7 @@ func TestPGRolesRoleRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	current, err := e.openRelationSourceLocked(fresh, ref, e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
+	current, err := e.openRelationSourceLocked(fresh, ref, e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,12 +180,12 @@ func TestPGRolesRoleRoot(t *testing.T) {
 func TestPGRolesCancellation(t *testing.T) {
 	e := New()
 	d, ref := pgRolesUnitSource(t, e)
-	state := cloneRoleFixture(e.roles)
+	state := cloneRoleFixture(e.roles.published)
 	pgRolesUnitRole(e, state, 20000, "first")
 	pgRolesUnitRole(e, state, 20001, "second")
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, roles := range []authorization.Read{e.roleRead(e.catalog.read(e.catalog.state), emptyRoleFixture(e)), e.roleRead(e.catalog.read(e.catalog.state), state)} {
+	for _, roles := range []authorization.Read{e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), emptyRoleFixture(e)), e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state)} {
 		source, err := capturePGRoles(canceled, roles, ref, d)
 		if source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("canceled admission published rows", err)
@@ -193,7 +193,7 @@ func TestPGRolesCancellation(t *testing.T) {
 	}
 	for _, at := range []int{2, 3, state.root.Read(authorization.PrincipalRef{}).RoleCount() + 2} {
 		ctx := &pgShDescriptionCancelContext{Context: context.Background(), cancelAt: at}
-		source, err := capturePGRoles(ctx, e.roleRead(e.catalog.read(e.catalog.state), state), ref, d)
+		source, err := capturePGRoles(ctx, e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state), ref, d)
 		if source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("iteration/final cancellation published partial rows", at, err)
 		}
@@ -201,7 +201,7 @@ func TestPGRolesCancellation(t *testing.T) {
 	invalid := *d
 	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[12].Usage.Type = testUsage(e, sqltype.Int4).Type
-	if source, err := capturePGRoles(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), state), ref, &invalid); err == nil || source != nil {
+	if source, err := capturePGRoles(context.Background(), e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state), ref, &invalid); err == nil || source != nil {
 		t.Fatal("invalid OID construction published rows")
 	}
 	unknown := *d
@@ -211,7 +211,7 @@ func TestPGRolesCancellation(t *testing.T) {
 	defer done()
 	scope := &StatementScope{op: op, owner: op.session.transactions}
 	e.mu.Lock()
-	source, err := e.openRelationSourceLocked(scope, e.catalog.Domain.Ref(e.catalog.state.Epoch(), unknown.Address()), e.roles.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
+	source, err := e.openRelationSourceLocked(scope, e.catalog.Domain.Ref(e.catalog.state.Epoch(), unknown.Address()), e.roles.published.root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
 	if err == nil || source != nil {
 		t.Fatal("unknown view routed to timezone")
 	}
@@ -242,7 +242,7 @@ func TestPGRolesProjection(t *testing.T) {
 			role.ConnectionLimit = 9
 			role.HasValidUntil, role.ValidUntil, role.Password = expiry.has, expiry.stamp, password
 			putFixtureRole(state, role)
-			source, err := capturePGRoles(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), state), ref, d)
+			source, err := capturePGRoles(context.Background(), e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), state), ref, d)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -295,12 +295,12 @@ func TestPGRolesProjection(t *testing.T) {
 			changed := fixtureRole(updated, low)
 			changed.Name, changed.Login, changed.ValidUntil = "replacement", false, 987
 			putFixtureRole(updated, changed)
-			e.roles = updated
+			e.roles.published = updated
 			if name, _ := bag[20000][0].Text(); name != "low" {
 				t.Fatal("retained role changed")
 			}
 			retireFixtureRole(updated, low)
-			fresh, err := capturePGRoles(context.Background(), e.roleRead(e.catalog.read(e.catalog.state), updated), ref, d)
+			fresh, err := capturePGRoles(context.Background(), e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), updated), ref, d)
 			if err != nil || pgRolesUnitRows(t, fresh)[20000] != nil {
 				t.Fatal("high identity aliased removed role", err)
 			}
