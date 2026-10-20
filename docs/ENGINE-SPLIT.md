@@ -1155,7 +1155,9 @@ option validation, operator dump formatting and routine body edges. Builtin
 seeding becomes pure constructors that the engine installs.
 
 **Part B (14c, 14d)** after step 13: CREATE/ALTER/DROP OPERATOR staging and
-the SQL routine DDL that `PG18-ROUTINE-CORE` adds (`sql_routine_ddl.go`).
+the SQL routine DDL that `PG18-ROUTINE-CORE` adds (`sql_routine_ddl.go`),
+behind `routine.DDLHost` (14c refine). The operator and SQL routine dumps
+stay in the root until the dump graph has a seam (postponed `control`).
 
 **Stays elsewhere.** Call resolution belongs to `analyze` (step 12), routine
 call admission (`routine_admission.go`, `routine_body_admission.go`,
@@ -1301,7 +1303,12 @@ These packages get prompt files after the steps above. Each needs `session`
    engine, operation, captured `AuthorizationView` and `CatalogStage`
    (staging runs under `Engine.mu`), with per-consumer interfaces as above;
    never a defined type over `CatalogStage`, which would promote
-   `catalog.Candidate`'s unchecked `Create`/`Replace`.
+   `catalog.Candidate`'s unchecked `Create`/`Replace`. 14c follows that
+   shape with `schemaHost` (engine, operation, `CatalogStage`) for
+   `routine.DDLHost`, but passes authority as an opaque `routine.Authority`
+   value instead of capturing one view: the operator and CREATE FUNCTION
+   helpers copy and recapture the view per helper, as `analyze.Host` takes
+   an `analyze.Authority` per call.
 9. **Where `Eval` lives.** Step 10 keeps node types and `Eval` in `plan`,
    with engine state behind a node runtime capability; the alternative is to
    keep `Eval` for frame-reading nodes in `exec`. Settled in 10b: `Eval`
@@ -1355,7 +1362,7 @@ package-specific scope. This section holds the rules every session follows.
 | 11 | [`ENGINE-SPLIT-exec.md`](ENGINE-SPLIT-exec.md) | 10c, 13a | done (11a–11d): refined (decisions 8 and 11), host seam, `exec` created and executor moved, aliases removed (racecheck/finalcheck skipped at user request) |
 | 12 | [`ENGINE-SPLIT-analyze.md`](ENGINE-SPLIT-analyze.md) | 12a–12b: —; 12c: 10c; 12d: 12c, 11c | done (12a–12e): `binding` split per statement kind, binder fields grouped, host seam, `analyze` created, areas prepared in place and the binder moved (12d.1–12d.6), aliases removed; the driver imports `analyze` for `ParameterInfo` (racecheck/finalcheck skipped at user request) |
 | 13 | [`ENGINE-SPLIT-session.md`](ENGINE-SPLIT-session.md) | 13a–13b: —; 13c: 11c, 12d, 8b | 13a and 13b done (statement scope slots; operation, journal, stage and owner slots; racecheck/finalcheck skipped at user request); 13c refined (state moves, the scope and orchestration stay; decisions 7, 10 and 11 settled); 13d.1 done (`session` created, journal moved with aliases), 13d.2 done (statement lease), 13d.3 done (engine edges: `session.Host`, `engineOf`, owner root functions) 13d.4 done (root payloads: session payload, owner extension, savepoint and operation slots; notification polling on `Engine`) 13d.5 done (file splits: 15 moving-only files; 192 members the root reads exported) and 13d.6 done (session state moved into `session` with type and constant aliases; `Host.NewOperation`); 13e done (aliases removed; the driver and `cmd/stuntgres` import `session`, decision 11 applied) (racecheck/finalcheck skipped at user request) |
-| 14 | [`ENGINE-SPLIT-routine.md`](ENGINE-SPLIT-routine.md) | A: `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item of step 3; B: 13d | 14a done in place, 14b `routine` created and clean set moved (racecheck skipped at user request); 14c–14d planned |
+| 14 | [`ENGINE-SPLIT-routine.md`](ENGINE-SPLIT-routine.md) | A: `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item of step 3; B: 13d | 14a done in place, 14b `routine` created and clean set moved (racecheck skipped at user request); 14c refined (`DDLHost` on a scope-free root `schemaHost`, authority as an opaque value, dumps wait for a dump seam); 14d planned |
 | 15 | [`ENGINE-SPLIT-typedef.md`](ENGINE-SPLIT-typedef.md) | A: 14b; B: 13d | 15a done in place, 15b `typedef` created and clean set moved (racecheck/finalcheck skipped at user request); 15c–15d planned |
 | 16 | [`ENGINE-SPLIT-extension.md`](ENGINE-SPLIT-extension.md) | A: 15b; B: 13d | 16a done in place, 16b `extension` created and clean set moved (racecheck/finalcheck skipped at user request); 16c refined (providers own staging behind `extension.Stage`, handler decisions behind `extension.Host`, one root adapter); 16d.1–16d.2 planned |
 | 17 | [`ENGINE-SPLIT-sequence.md`](ENGINE-SPLIT-sequence.md) | A: step 3 Tier C sequence calls; B: 13d | 17a done in place, 17b `sequence` created and clean set moved (racecheck/finalcheck skipped at user request); 17c–17d planned |

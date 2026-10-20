@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `1f606f52d`. The later-wave plans
+Last verified against `master` at `bbafa4c5e`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,7 +15,7 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 14 `routine`** — 14c, refine (item 46; docs only).
+- **Step 14 `routine`** — 14d, DDL handlers moved (item 47).
 - **Step 15 `typedef`** — 15c, refine (item 48; docs only).
 - **Step 16 `extension`** — 16d.1, staging (item 51a).
 - **Step 17 `sequence`** — 17c, refine (item 52; docs only).
@@ -25,6 +25,7 @@ Steps 1, 2 and 4–13 and `access` (A1–B5) are done. Step 13 ended with 13e
 (item 45): the session aliases are gone. Part A of steps 14–17 is done;
 with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
 16c (item 50) is done: 16d runs as 16d.1 and 16d.2 (items 51a, 51b).
+14c (item 46) is done: 14d (item 47) runs as one session.
 
 ## Task tree
 
@@ -340,7 +341,7 @@ with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
     commit) *(racecheck skipped at user request)*
   - [x] 14b — `routine` created and clean set moved (`aaf6759a4`,
     `d6becc9d6`, then the docs commit) *(racecheck skipped at user request)*
-  - [ ] 14c — Host refined (docs only)
+  - [x] 14c — Host refined (docs only; the commit that records this status)
   - [ ] 14d — DDL handlers moved
 - [ ] **Step 15 — `typedef`** ([prompt](ENGINE-SPLIT-typedef.md); Part A
   needs 14b; Part B needs 13d)
@@ -634,8 +635,11 @@ in the prompt file's Status section.
 
 ### Group F — feature packages, Part B
 
-46. [ ] Routine 14c (refine, docs only) — [routine](ENGINE-SPLIT-routine.md)
-    14c · needs 44, 25
+46. [x] Routine 14c (refine, docs only) — [routine](ENGINE-SPLIT-routine.md)
+    14c · needs 44, 25 · (the commit that records this status) ·
+    `routine.DDLHost` on a scope-free root `schemaHost`, authority as an
+    opaque value, dumps wait for a dump seam; 14d is one session ·
+    quickcheck passed; racecheck/finalcheck skipped at user request
 47. [ ] Routine 14d — [routine](ENGINE-SPLIT-routine.md) 14d · needs 46
 48. [ ] Typedef 15c (refine, docs only) — [typedef](ENGINE-SPLIT-typedef.md)
     15c · needs 44, 27

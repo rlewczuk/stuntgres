@@ -151,9 +151,143 @@ Measure the staging methods' reach (`CatalogStage`, `Operation`, the
 statement scope), write the host interface and the move set (operator DDL
 staging, `sql_routine_ddl.go` and its dump), and wait for approval.
 
+**14c refine (approved; measured at `1f606f52d`).** The `frontier` tool
+(`.cswd/tmp/PG18-ENGINE-SPLIT-EXEC-REFINE/`; outputs in
+`.cswd/tmp/PG18-ENGINE-SPLIT-ROUTINE-REFINE/`), with `operator_ddl.go` and
+`sql_routine_ddl.go` as the set, then the two dump files:
+
+- **The staging is small and reaches no scope.** `operator_ddl.go` (672
+  lines) is all staging: CREATE/ALTER/DROP OPERATOR, link resolution,
+  argument, utility-operator, implementation and estimator lookup, and
+  `operatorOptionsSyntax`. `sql_routine_ddl.go` (160) holds
+  `stageCreateFunctionLocked` (about 100 lines), the dispatch wrapper
+  `executeCreateFunction`, `bindSQLRoutineLocked` and
+  `validateSQLRoutineResult`. Outside uses: the `schema.go` dispatch (four
+  calls), `execute.go` (`executeCreateFunction`, `validateSQLRoutineResult`)
+  and the engine tests (`operator_option_test.go` 13,
+  `operator_user_test.go` 7, `operator_estimator_test.go` 1).
+- **What it reaches.** `AuthorizationView` (`Check`, `CanUse`,
+  `CheckCreate`, `Recapture`, `definitionType`, `definitionLookup`, the
+  embedded `access.View`); `CatalogStage` (`Create` and `Replace` with their
+  lifecycle checks, `creationACL`, `domainTargets`, `dependencyPath`, and the
+  promoted `catalog.Candidate` `Base`, `Get`, `UpdateDescriptor`,
+  `LookupName`); `stageRead`; `allocateOIDLocked` and `revisionLocked`;
+  `collationCreationNamespaceLocked` and `conversionCheckCreate`;
+  `lookupNamespaces` (which returns `analyze.NamespaceSelection`),
+  `selectRoutine` and `analyze.ProcedureInNamespaces`;
+  `captureRegtypeInput` with `resolveParsedTypeName`; `referencePath` with
+  `dependencyObject`; notices; `operationReplayOrZero(op).sqlBodies`;
+  `stageDefinitionReader`; and `bindSQLRoutineLocked`, which calls
+  `analyze.Describe`. No `StatementScope` outside the dispatch wrapper and
+  the binding; of the operation only notices, the replay flag and the
+  definition reader.
+- **Layering.** `analyze` imports `routine`, so `routine` never imports
+  `analyze` (§3 rule 6). Namespace selection, routine selection, type-name
+  resolution and SQL body binding stay in the root behind the host.
+- **Authority is a value.** The handlers take `AuthorizationView` by value,
+  and `collationCreationNamespaceLocked(&auth, …)` recaptures only the
+  caller's copy: inside `resolveOperatorLink` the recapture never reaches
+  the caller, and the peer check uses its own `peerAuth.Recapture(view)`
+  copy. A host that held one mutable view would change these diagnostics.
+- **Object refs need no host.** `auth.View.Owner` is the engine's catalog
+  owner, so `e.catalog.Domain.Ref(auth.Catalog.Epoch(), a)` is
+  `view.Owner.Domain.Ref(view.Catalog.Epoch(), a)`.
+- **Dumps.** `operator_dump.go`, `sqlRoutineDumpEvents` and
+  `sqlRoutineDumpStatement` use the root dump graph (`dumpEventKey`,
+  `dumpDomain`, `dumpPredecessor`, `catalogColumnDeclaration`,
+  `commentLiteral`); `validateRestoredSQLRoutines` is Restore orchestration
+  under `Engine.mu`. Clean: `rebindSQLRoutineDefinitions` (a pure
+  `catalog.State` transform, used by `temporary_preservation.go`) and
+  `sqlRoutineReplayDirective` with `sqlRoutineRestoreDirective` (a pure
+  parser check, used by `control.go`).
+
+Decisions:
+
+1. **One scope-free root adapter.** `routine` declares `Authority`,
+   `DDLHost` and `Stage`. The root implements `DDLHost` on a new adapter
+   `schemaHost` (`schema_host.go`: engine, operation and catalog stage, one
+   compile-time assertion), built once per statement in `stageSchemaLocked`.
+   Schema staging runs under `Engine.mu` without a `StatementScope`, so it
+   is a scope-free receiver like 12c's `bindingHost`, in the shape of 16c's
+   `extensionHost` (§7 decision 8). Unlike `extensionHost` it captures no
+   authorization view (decision 2). It is not a defined type over
+   `CatalogStage`.
+2. **`Authority`** is `access.Environment` plus the marker
+   `RoutineAuthority()`; `AuthorizationView` implements it with value
+   receivers, and one checked helper recovers it. Handlers keep it by
+   value. Host methods that change an authority return a new value and
+   never change their argument, which keeps the copy semantics above.
+3. **`DDLHost`** (draft; 14d may rename). Every method runs with
+   `Engine.mu` held and never takes or releases it.
+   - Authority: `AccessView(auth) access.View` (catalog, roles, state and
+     owner, so handlers build refs and call `access.SchemaOwner` and
+     `access.OwnershipEligibility` themselves); `Check(auth,
+     access.Requirement)`, which also covers `CanUse` and `CheckCreate`;
+     `Recapture(auth, catalog.Read) Authority`; `DefinitionType(auth,
+     sqltype.ID)`; `DefinitionLookup(auth, ids.NameKey)`.
+   - Names and types: `CreationNamespace(auth, name) (ids.ObjectRef,
+     Authority, error)`, which may stage implicit namespaces;
+     `CheckCreateIn(auth, namespace)` (CREATE with the trusted Restore
+     exception); `OperatorNamespaces(auth, name) ([]ids.ObjectAddress,
+     error)`; `LookupFunction(auth, name, signature) (*catalog.Procedure,
+     error)` (function path, exact signature); `SelectFunction(auth, name,
+     signature) (catalog.RoutineIdentity, int, error)` (`selectRoutine`);
+     `ResolveType(auth, parser.TypeName) (ids.OID, error)`;
+     `DependencyObject(auth, address) string`.
+   - Stage: `Stage() Stage`, where `Stage` is `Create`, `Replace`,
+     `UpdateDescriptor`, `Get` and `LookupName` (`*CatalogStage` satisfies
+     it, so `Create` and `Replace` keep their lifecycle checks);
+     `StageBase()` and `StageRead()` (`catalog.Read`); `CreationACL(owner,
+     schema, class)`; `DropTarget(address)`; `RecordDependencyPath(auth)`;
+     `AllocateOID()`; `Revision()`.
+   - Operation: `EmitNotice(session.NoticeLevel, sqlstate.Error)`;
+     `BindSQLRoutine(auth, d, input) error`, which returns nil during
+     Restore SQL body replay and otherwise binds the body with the stage's
+     definition reader in place. The 42P02 position mapping stays in the
+     handler.
+4. **Move set (14d).** The operator staging, split by responsibility into
+   `routine/operator_ddl.go` (create, alter, drop), `operator_links.go`
+   (link resolution and staging) and `operator_lookup.go` (arguments,
+   utility operator, implementation, estimator); `operatorOptionsSyntax`
+   joins `operator_options.go`. `stageCreateFunctionLocked` goes to
+   `routine/function_ddl.go`; `rebindSQLRoutineDefinitions` and the restore
+   directive go to `routine/function_restore.go`. `routine` adds the
+   imports `access`, `proc` and `session`, all below L10; never `analyze`,
+   another feature package or the root.
+5. **Stays in the root.** `executeCreateFunction`, `bindSQLRoutineLocked`
+   and `validateSQLRoutineResult` (`sql_routine_ddl.go` becomes
+   `sql_routine_binding.go`, so the name matches the owner); `schemaHost`;
+   `operator_dump.go` and `sql_routine_dump.go`, which wait for a dump seam
+   (postponed `control`); `sql_routine.go` and `sql_routine_scope.go`
+   (invocation).
+6. **Aliases.** None exist and none are needed: only functions move.
+
 ### 14d — Move the DDL handlers
 
-Follow 14c. Remove the remaining aliases.
+Follow 14c. One session, not broad. Commits:
+
+1. **Host, port in place.** Add `routine.Authority`, `DDLHost` and `Stage`,
+   and the root `schemaHost` with its assertion. Turn the staging methods
+   into engine-package functions over `(h DDLHost, auth Authority, ...)`
+   that name no `Engine`, `AuthorizationView`, `CatalogStage` or
+   `Operation`; adapt the engine tests mechanically. Re-run `frontier`: the
+   set's OUT is only the host.
+2. **Move.** Move the set with `movex`; `schema.go` calls
+   `routine.StageCreateOperator` and its siblings. Move
+   `TestUserOperatorOptionExtraction` into `routine` if it no longer needs
+   an engine.
+3. **Unexport.** Unexport the 14b exports that only `routine` now uses:
+   `CheckOperatorLinkReplacement`, `OperatorEstimatorVariant`,
+   `OperatorOptionError`, `ValidateOperatorEstimatorMetadata`,
+   `ValidateOperatorOptions`, and the option parsers
+   (`OperatorAlterOption`, `OperatorBoolean`, `OperatorOptionName`,
+   `OperatorOptionType`) if no engine test still needs them.
+4. **Docs.**
+
+Check with `go list` that `routine` imports neither `analyze` nor a feature
+package. Verify with build, the targeted units, the 14a reference selection
+in quick mode and with `REFERENCE=1`, quickcheck and deps. The change is off
+the startup path; run `make bench` only if seeding code changes.
 
 ## Invariants
 
@@ -162,6 +296,11 @@ Follow 14c. Remove the remaining aliases.
   regression.
 - Operator DDL validation messages and SQLSTATEs stay identical.
 - Operator dump output stays byte-identical.
+- Part B: operator and CREATE FUNCTION checks run in the same order with the
+  same diagnostics, positions and notices; OIDs and revisions are allocated
+  in the same order; an authority changed inside a helper (implicit
+  namespace, peer recapture) stays local to that helper, as today. The host
+  adds no lock.
 
 ## Targeted tests
 
@@ -184,7 +323,8 @@ Follow 14c. Remove the remaining aliases.
 
 Part A: the clean set lives in `routine`, builtin seeding is a pure
 constructor, and file names match their owners. Part B: operator and routine
-DDL handlers live in `routine`. The checks in §8.3 pass.
+DDL handlers live in `routine` behind `DDLHost`; the dumps wait for a dump
+seam (14c). The checks in §8.3 pass.
 
 ## Status
 
@@ -267,7 +407,12 @@ DDL handlers live in `routine`. The checks in §8.3 pass.
     10–15): median 979 µs/op before, 982 µs/op after; 5,106–5,109 allocs/op
     and about 1.64 MB/op on both. Racecheck and finalcheck skipped at user
     request.
-- [ ] 14c — Host refined (docs only; after 13d)
+- [x] 14c — Host refined (docs only; the commit that records this text)
+  *(measured at `1f606f52d`; quickcheck passed; racecheck/finalcheck
+  skipped at user request)*
+  - Decisions: `routine.DDLHost` on a scope-free root `schemaHost`,
+    authority as an opaque `routine.Authority` value, dumps wait for a dump
+    seam, 14d is one session with no aliases.
 - [ ] 14d — DDL handlers moved
 
 Outstanding aliases: none (14b qualified every reference; no type aliases).
@@ -293,11 +438,20 @@ Notes for later steps:
   reverse. Type-declaration rendering (`catalogTypeDeclaration`) is type
   code; operator dump rendering stays in the engine with it until a dump
   seam exists.
-- 14c/14d: the exported option helpers (`OperatorOptionName`,
+- 14d: the exported option helpers (`OperatorOptionName`,
   `ValidateOperatorOptions`, ...) exist for `operator_ddl.go`; when the
-  staging moves into `routine`, unexport the ones nothing else uses.
-  `operator_dump.go` and `routineIdentityByOID` are candidates for the same
-  move once a dump seam exists.
+  staging moves into `routine`, unexport the ones nothing else uses (list
+  in 14d step 3). `OperatorSeeded` and `OperatorInputName` stay exported
+  (`analyze` and the engine use them).
+- Dump seam (postponed `control`): `operator_dump.go`,
+  `sqlRoutineDumpEvents`, `sqlRoutineDumpStatement` and
+  `routineIdentityByOID` move once the dump graph (`dumpEventKey`,
+  `dumpDomain`, `dumpPredecessor`, type-declaration rendering) has a seam.
+- Steps 15c and 17c: schema DDL handlers run without a scope. 16c's
+  staging-host shape (one root adapter over engine, operation and stage)
+  applies; where handlers copy or recapture the authorization view per
+  helper, as routine's do, pass authority as an opaque per-package value
+  (14c decision 2) instead of capturing one view.
 - The F3 provider aliases are removed from `routine_declaration.go` in the
   verified functions Item6 cutover. Its alias-removal prerequisite for 14b is
   satisfied: latest-base semantic and public smoke proof passed in tests-12.
