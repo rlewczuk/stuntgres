@@ -10,13 +10,13 @@ import (
 )
 
 func (c *EvalContext) DeparseInquiry(signature functions.DeparseSignature, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
-	if c.liveScope() == nil || c.liveScope().commentCatalog.State() == nil {
+	if c.liveScope() == nil || c.liveScope().inquiry.commentCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing deparse catalog snapshot")
 	}
 	if signature == functions.DeparseSerialSequence {
 		return c.evalSerialSequence(values, result)
 	}
-	view := c.liveScope().commentCatalog
+	view := c.liveScope().inquiry.commentCatalog
 	pretty := false
 	if prettyIndex := signature.PrettyIndex(); prettyIndex >= 0 {
 		var err error
@@ -25,7 +25,7 @@ func (c *EvalContext) DeparseInquiry(signature functions.DeparseSignature, value
 			return sqltype.Value{}, err
 		}
 	}
-	renderer := pgRenderer{view: view, pretty: pretty, path: c.liveScope().deparsePath,
+	renderer := pgRenderer{view: view, pretty: pretty, path: c.liveScope().inquiry.deparsePath,
 		output: c.liveScope().output, nonstandardStrings: c.liveScope().op.nonstandardStrings}
 	index := 1
 	if signature != functions.DeparseExpr && signature != functions.DeparseExprPretty {
@@ -127,7 +127,7 @@ func (c *EvalContext) DeparseInquiry(signature functions.DeparseSignature, value
 				if !ok {
 					return sqltype.Value{}, fmt.Errorf("stuntgres: missing exclusion backing index")
 				}
-				text, err = indexDefinitionSQL(c.Context, view, index, indexPresentation{exclusion: true, pretty: pretty, path: c.liveScope().deparsePath, output: c.liveScope().output})
+				text, err = indexDefinitionSQL(c.Context, view, index, indexPresentation{exclusion: true, pretty: pretty, path: c.liveScope().inquiry.deparsePath, output: c.liveScope().output})
 				if err != nil {
 					return sqltype.Value{}, err
 				}
@@ -173,7 +173,7 @@ func deparseAttribute(relation *catalog.Relation, attr int32) (string, error) {
 }
 func (c *EvalContext) deparseRelation(signature functions.DeparseSignature, values [3]sqltype.Value, result *sqltype.Descriptor, pretty bool) (sqltype.Value, error) {
 	scope := c.liveScope()
-	catalog := scope.commentCatalog
+	catalog := scope.inquiry.commentCatalog
 	var address ids.ObjectAddress
 	if signature == functions.DeparseViewText || signature == functions.DeparseViewTextPretty {
 		text, err := values[0].Text()
@@ -190,7 +190,7 @@ func (c *EvalContext) deparseRelation(signature functions.DeparseSignature, valu
 			}
 			name.Parts[i].Pos = parser.Position{}
 		}
-		ref, err := scope.deparseAuth.engine.resolveRelationSnapshot(scope.deparseAuth, name, true)
+		ref, err := scope.inquiry.deparseAuth.engine.resolveRelationSnapshot(scope.inquiry.deparseAuth, name, true)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -219,7 +219,7 @@ func (c *EvalContext) deparseRelation(signature functions.DeparseSignature, valu
 				return sqltype.Value{}, err
 			}
 		}
-		text, err = indexDefinitionSQL(c.Context, catalog, relation, indexPresentation{column: column, pretty: pretty, path: scope.deparsePath, temporary: temporaryNamespace(scope.deparseAuth), output: scope.output})
+		text, err = indexDefinitionSQL(c.Context, catalog, relation, indexPresentation{column: column, pretty: pretty, path: scope.inquiry.deparsePath, temporary: temporaryNamespace(scope.inquiry.deparseAuth), output: scope.output})
 	} else {
 		if relation.View == nil {
 			return sqltype.Null(result), nil
@@ -232,7 +232,7 @@ func (c *EvalContext) deparseRelation(signature functions.DeparseSignature, valu
 				return sqltype.Value{}, err
 			}
 		}
-		text, err = viewOf(relation).selectSQL(c.Context, catalog, viewPresentation{deparse: true, pretty: pretty, wrap: wrap, path: scope.deparsePath, columns: relation.Columns, output: scope.output, nonstandardStrings: scope.op.nonstandardStrings})
+		text, err = viewOf(relation).selectSQL(c.Context, catalog, viewPresentation{deparse: true, pretty: pretty, wrap: wrap, path: scope.inquiry.deparsePath, columns: relation.Columns, output: scope.output, nonstandardStrings: scope.op.nonstandardStrings})
 		text += ";"
 	}
 	if err != nil {

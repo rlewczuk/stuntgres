@@ -71,7 +71,7 @@ func (n extensionPathsExpression) open(c *EvalContext) ([]sqltype.Value, error) 
 		return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid extension name: "%s"`, name), Detail: detail}
 	}
 	scope := c.liveScope()
-	if scope == nil || scope.commentCatalog.State() == nil {
+	if scope == nil || scope.inquiry.commentCatalog.State() == nil {
 		return nil, fmt.Errorf("stuntgres: missing extension paths snapshot")
 	}
 	implementation := scope.op.session.Engine().catalog.Extensions[name]

@@ -34,12 +34,12 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	view = e.CatalogRead()
-	scope := &StatementScope{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{earlier.Address(), low.Namespace()}}
+	scope := &StatementScope{inquiry: inquirySnapshot{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{earlier.Address(), low.Namespace()}}}
 	procedure, err := scope.conversionProcedure(6, 8)
 	if err != nil || procedure == nil || procedure.Address() != low.Handler || scope.conversionDefaults[[2]int{6, 8}].conversion != first {
 		t.Fatal("namespace priority", procedure, err)
 	}
-	reversed := &StatementScope{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{low.Namespace(), earlier.Address()}}
+	reversed := &StatementScope{inquiry: inquirySnapshot{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{low.Namespace(), earlier.Address()}}}
 	if _, err = reversed.conversionProcedure(6, 8); err != nil || reversed.conversionDefaults[[2]int{6, 8}].conversion != low {
 		t.Fatal("default index OID order, not name order", err)
 	}
@@ -50,7 +50,7 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
-	fresh := &StatementScope{visibilityCatalog: e.CatalogRead(), visibilityOtherPath: scope.visibilityOtherPath}
+	fresh := &StatementScope{inquiry: inquirySnapshot{visibilityCatalog: e.CatalogRead(), visibilityOtherPath: scope.inquiry.visibilityOtherPath}}
 	if _, err = fresh.conversionProcedure(6, 8); err != nil || fresh.conversionDefaults[[2]int{6, 8}].conversion != low {
 		t.Fatal("nondefault repaired lookup", err)
 	}
@@ -76,7 +76,7 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	if err != nil || raw != "\xe9" {
 		t.Fatal("actual selected handler output", raw, err)
 	}
-	missing := &StatementScope{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{}}
+	missing := &StatementScope{inquiry: inquirySnapshot{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{}}}
 	if _, err = node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: missing}}); err == nil {
 		t.Fatal("hardwired provider fallback repaired missing default")
 	}

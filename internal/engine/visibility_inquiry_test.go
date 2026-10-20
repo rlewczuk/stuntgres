@@ -155,7 +155,7 @@ func TestVisibilityInquiryCapturedFrontier(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	catalog := scope.visibilityCatalog
+	catalog := scope.inquiry.visibilityCatalog
 	sessionSQL(t, peer, "DROP TABLE anchor")
 	e.mu.Lock()
 	source, err := e.captureQuerySourcesLocked(scope, nil, true)
@@ -164,7 +164,7 @@ func TestVisibilityInquiryCapturedFrontier(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer source.close()
-	if scope.visibilityCatalog != catalog {
+	if scope.inquiry.visibilityCatalog != catalog {
 		t.Fatal("later provider replaced captured catalog")
 	}
 	oid, _ := catalog.LookupType(sqltype.Oid)

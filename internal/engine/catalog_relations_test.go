@@ -179,7 +179,7 @@ func TestCatalogRelationsCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	original := scope.commentRoles
+	original := scope.inquiry.commentRoles
 	e.mu.Lock()
 	next := cloneRoleFixture(e.roles.published)
 	retireFixtureRole(next, ref)
@@ -210,7 +210,7 @@ func TestCatalogRelationsCapture(t *testing.T) {
 	e.mu.Lock()
 	err = e.captureCommentSnapshotLocked(scope)
 	e.mu.Unlock()
-	if err != nil || scope.commentRoles != original {
+	if err != nil || scope.inquiry.commentRoles != original {
 		t.Fatal("statement snapshot recaptured", err)
 	}
 	newer, newDone := roleOperation(t, e, "postgres")
@@ -230,12 +230,12 @@ func TestCatalogRelationsCapture(t *testing.T) {
 	lookup(current, 50001, "captured é\"role")
 	lookup(current, 0, "unknown (OID=0)")
 	foreign := New()
-	saved := current.commentRoles
-	current.commentRoles = foreign.roles.published.Root.Read(authorization.PrincipalRef{})
+	saved := current.inquiry.commentRoles
+	current.inquiry.commentRoles = foreign.roles.published.Root.Read(authorization.PrincipalRef{})
 	input, _ := sqltype.OIDValue(oidType, 50001)
 	node := functions.CatalogUserName{Info: expr.Info{Usage: nameType.Usage()}, Arg: literalExpression{Info: expr.Info{Usage: oidType.Usage()}, value: input}}
 	if _, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: current}}); err == nil {
 		t.Fatal("foreign authorization snapshot trusted")
 	}
-	current.commentRoles = saved
+	current.inquiry.commentRoles = saved
 }

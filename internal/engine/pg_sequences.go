@@ -47,7 +47,7 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 		if ns.Temporary != (ids.SessionToken{}) && ns.Temporary != scope.op.session.token {
 			return nil
 		}
-		owner, err := scope.commentRoles.Descriptor(relation.Owner)
+		owner, err := scope.inquiry.commentRoles.Descriptor(relation.Owner)
 		if err != nil {
 			return err
 		}

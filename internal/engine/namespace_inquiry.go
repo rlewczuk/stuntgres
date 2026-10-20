@@ -50,8 +50,8 @@ func (s *StatementScope) schemaInquiryPathLocked(e *Engine) (AuthorizationView, 
 	s.catalog = changes
 	auth.Recapture(e.privateCatalogLocked(changes))
 	auth.stagedTemporary = ref.Address
-	s.currentSchemaResult = sqltype.Value{}
-	s.searchPathResults = [2]sqltype.Value{}
+	s.inquiry.currentSchemaResult = sqltype.Value{}
+	s.inquiry.searchPathResults = [2]sqltype.Value{}
 	path, _, err = e.explicitPath(auth)
 	return auth, path, err
 }

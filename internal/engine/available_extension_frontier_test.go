@@ -52,7 +52,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 				return source
 			}
 			old := capture()
-			before := old.commentCatalog.State()
+			before := old.inquiry.commentCatalog.State()
 			sources := map[ids.OID]*querySource{first: open(old, first)}
 			retained := make([][]sqltype.Value, len(sources[first].anonymous))
 			for i, row := range sources[first].anonymous {
@@ -62,7 +62,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 			// Complete an authentic peer publication in this exact gap, no sleeps.
 			extensionUnitPublish(t, e, publisher, stage)
 			fresh := capture()
-			if fresh.commentCatalog.State() == before || old.commentCatalog.State() != before {
+			if fresh.inquiry.commentCatalog.State() == before || old.inquiry.commentCatalog.State() != before {
 				t.Fatal("publication did not advance only the fresh statement frontier")
 			}
 			for _, oid := range []ids.OID{12081, 12085, ids.ExtensionClassID} {

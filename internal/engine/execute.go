@@ -296,8 +296,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if scope.sqlRoutineScalar {
-		scope.sqlRoutineResultPlan, err = validateSQLRoutineResult(b.query.Root.Schema(), scope.sqlRoutineResult)
+	if scope.sqlRoutine.scalar {
+		scope.sqlRoutine.resultPlan, err = validateSQLRoutineResult(b.query.Root.Schema(), scope.sqlRoutine.result)
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -388,7 +388,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if b.returning != nil {
 			results = b.returning.schema
 		}
-		if scope.sqlRoutineScalar {
+		if scope.sqlRoutine.scalar {
 			// The caller freezes the declared scalar output. A SQL body's raw
 			// output may change through a valid assignment conversion on reanalysis.
 			results = scope.Expected.Results

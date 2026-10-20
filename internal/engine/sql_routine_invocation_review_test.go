@@ -118,18 +118,18 @@ func TestSQLRoutineDepthUnwind(t *testing.T) {
 
 func TestSQLRoutineResultScratchUnwind(t *testing.T) {
 	e := New()
-	s := &StatementScope{sqlRoutineResult: testUsage(e, sqltype.Int8), activeSQLRoutineDepth: 7}
-	outer := s.sqlRoutineResult
+	s := &StatementScope{sqlRoutine: sqlRoutineDemand{result: testUsage(e, sqltype.Int8)}, activeSQLRoutineDepth: 7}
+	outer := s.sqlRoutine.result
 	for _, primary := range []error{nil, errors.New("body failure"), context.Canceled} {
 		restore := s.activateSQLRoutine(nil)
-		if s.activeSQLRoutineDepth != 7 || !s.sqlRoutineScalar || s.sqlRoutineResult.Type != nil {
+		if s.activeSQLRoutineDepth != 7 || !s.sqlRoutine.scalar || s.sqlRoutine.result.Type != nil {
 			t.Fatal("activation leaked owner or result")
 		}
-		s.sqlRoutineResult = testUsage(e, sqltype.Int4)
+		s.sqlRoutine.result = testUsage(e, sqltype.Int4)
 		if err := restore(primary); !errors.Is(err, primary) {
 			t.Fatal(err)
 		}
-		if s.sqlRoutineResult != outer || s.activeSQLRoutineDepth != 7 || s.sqlRoutineScalar {
+		if s.sqlRoutine.result != outer || s.activeSQLRoutineDepth != 7 || s.sqlRoutine.scalar {
 			t.Fatal("result/depth scratch unwind failed")
 		}
 	}

@@ -61,7 +61,7 @@ func TestRegclassDiagnosticSnapshotACL(t *testing.T) {
 				e.mu.Lock()
 				err = e.captureCheckCommentSnapshotLocked(scope, relation)
 				e.mu.Unlock()
-				if err != nil || scope.output.Regclass != scope || scope.commentCatalog.State() == nil {
+				if err != nil || scope.output.Regclass != scope || scope.inquiry.commentCatalog.State() == nil {
 					t.Fatal("missing captured output demand", err)
 				}
 				target := roleTableRef(t, e, `rr_diag_scope."Moved.Target"`)
@@ -119,7 +119,7 @@ func TestRegclassPrimitiveDiagnosticAvoidsSnapshot(t *testing.T) {
 	e.mu.Lock()
 	err = e.captureCheckCommentSnapshotLocked(scope, descriptor.(*catalog.Relation))
 	e.mu.Unlock()
-	if err != nil || scope.commentCatalog.State() != nil || scope.output.Regclass != nil {
+	if err != nil || scope.inquiry.commentCatalog.State() != nil || scope.output.Regclass != nil {
 		t.Fatal("primitive row allocated output snapshot", err)
 	}
 }

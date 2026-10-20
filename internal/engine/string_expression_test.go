@@ -151,7 +151,7 @@ func TestStringCoreRegclassSnapshotManifest(t *testing.T) {
 	}
 	sourceRef := catalogRef(t, engine, view, "regclass_source")
 	source := view.MustRelation(sourceRef.Address)
-	scope := &StatementScope{commentCatalog: view, deparsePath: []ids.ObjectAddress{source.Namespace()}}
+	scope := &StatementScope{inquiry: inquirySnapshot{commentCatalog: view, deparsePath: []ids.ObjectAddress{source.Namespace()}}}
 	got, err := scope.FormatRegclass(uint32(sourceRef.Address.ObjectID))
 	if err != nil || got != "regclass_source" {
 		t.Fatal(got, err)

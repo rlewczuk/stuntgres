@@ -125,7 +125,7 @@ func objectListLength(list string, n int, exact bool) error {
 }
 func objectLookupPath(scope *StatementScope, names []string) (namespaceSelection, error) {
 	if len(names) == 1 {
-		return namespaceSelection{path: scope.deparsePath}, nil
+		return namespaceSelection{path: scope.inquiry.deparsePath}, nil
 	}
 	if len(names) > 3 {
 		return namespaceSelection{}, sqlError("42601", "improper qualified name (too many dotted names): "+strings.Join(names, "."))
@@ -136,7 +136,7 @@ func objectLookupPath(scope *StatementScope, names []string) (namespaceSelection
 		}
 		names = names[1:]
 	}
-	auth := scope.deparseAuth
+	auth := scope.inquiry.deparseAuth
 	if auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: names[0]}) == (ids.ObjectAddress{}) && names[0] != "pg_temp" {
 		return namespaceSelection{}, sqlError("3F000", fmt.Sprintf("schema %q does not exist", names[0]))
 	}
@@ -149,8 +149,8 @@ func objectLookupDescriptor(scope *StatementScope, class ids.OID, names []string
 		return nil, err
 	}
 	for i := range path.count() {
-		a := scope.commentCatalog.NameAddress(ids.NameKey{ClassID: class, Namespace: path.at(i), Name: names[len(names)-1]})
-		if d := scope.commentCatalog.Get(a); d != nil {
+		a := scope.inquiry.commentCatalog.NameAddress(ids.NameKey{ClassID: class, Namespace: path.at(i), Name: names[len(names)-1]})
+		if d := scope.inquiry.commentCatalog.Get(a); d != nil {
 			return d, nil
 		}
 	}
@@ -179,8 +179,8 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 	if len(names) == 0 {
 		return ids.ObjectAddress{}, objectListLength("name", 1, false)
 	}
-	view := scope.commentCatalog
-	types := capturedRegtypeInput{auth: scope.deparseAuth, path: scope.deparsePath, database: scope.op.session.databaseName, temporary: temporaryNamespace(scope.deparseAuth), token: scope.op.session.token, op: scope.op}
+	view := scope.inquiry.commentCatalog
+	types := capturedRegtypeInput{auth: scope.inquiry.deparseAuth, path: scope.inquiry.deparsePath, database: scope.op.session.databaseName, temporary: temporaryNamespace(scope.inquiry.deparseAuth), token: scope.op.session.token, op: scope.op}
 	parseSyntax := func(input string) (parser.TypeName, error) {
 		return parser.ParseTypeName(ctx, input, func(notice sqlstate.Error) { scope.op.emitNotice(levelNotice, notice) })
 	}
@@ -271,7 +271,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		case 2615:
 			a = view.NameAddress(ids.NameKey{ClassID: 2615, Name: name})
 		case 1260:
-			if role, ok := scope.commentRoles.Lookup(name); ok {
+			if role, ok := scope.inquiry.commentRoles.Lookup(name); ok {
 				a.ObjectID = ids.OID(role.Ref.ID())
 			}
 		case 1213:
@@ -307,7 +307,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 				signature.WriteByte(',')
 			}
 			signature.WriteString(strconv.FormatUint(uint64(id), 10))
-			human[i] = regtypeSpelling(view, scope.deparsePath, id)
+			human[i] = regtypeSpelling(view, scope.inquiry.deparsePath, id)
 		}
 		p, count := selectExactRoutine(view, path, names[len(names)-1], catalog.ProcedureSignature(signature.String()))
 		spelling := make([]string, len(names))
@@ -354,7 +354,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 				return a, nil
 			}
 		}
-		return missing("42704", fmt.Sprintf("cast from type %s to type %s does not exist", regtypeSpelling(view, scope.deparsePath, ids.OID(typeID)), regtypeSpelling(view, scope.deparsePath, argIDs[0])))
+		return missing("42704", fmt.Sprintf("cast from type %s to type %s does not exist", regtypeSpelling(view, scope.inquiry.deparsePath, ids.OID(typeID)), regtypeSpelling(view, scope.inquiry.deparsePath, argIDs[0])))
 	case 2616, 2753:
 		method := uint32(0)
 		switch names[0] {
@@ -400,7 +400,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 					}
 				}
 			}
-			return missing("42704", fmt.Sprintf("constraint %q for domain %s does not exist", args[0], regtypeSpelling(view, scope.deparsePath, ids.OID(typeID))))
+			return missing("42704", fmt.Sprintf("constraint %q for domain %s does not exist", args[0], regtypeSpelling(view, scope.inquiry.deparsePath, ids.OID(typeID))))
 		}
 	}
 	if class == 1259 || class == 2606 || class == 2604 || class == 2618 || class == 3256 || class == 2620 {

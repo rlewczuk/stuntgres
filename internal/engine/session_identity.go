@@ -47,8 +47,8 @@ func (c *EvalContext) IdentityValue(kind functions.IdentityKind, result *sqltype
 	case functions.IdentitySystemUser:
 		return identity.system, nil
 	case functions.IdentityCurrentSchema:
-		if s.foreignActionAuth == nil && s.ruleActionAuth == nil && s.currentSchemaResult.Type() != nil {
-			return s.currentSchemaResult, nil
+		if s.foreignActionAuth == nil && s.ruleActionAuth == nil && s.inquiry.currentSchemaResult.Type() != nil {
+			return s.inquiry.currentSchemaResult, nil
 		}
 		engine := s.op.session.Engine()
 		engine.mu.Lock()
@@ -62,7 +62,7 @@ func (c *EvalContext) IdentityValue(kind functions.IdentityKind, result *sqltype
 			resultValue = sqltype.String(result, auth.Catalog.Get(path[0]).Name())
 		}
 		if s.foreignActionAuth == nil && s.ruleActionAuth == nil {
-			s.currentSchemaResult = resultValue
+			s.inquiry.currentSchemaResult = resultValue
 		}
 		return resultValue, nil
 	}

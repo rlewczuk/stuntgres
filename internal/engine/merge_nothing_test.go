@@ -55,8 +55,8 @@ func TestMergeNothingPreflight(t *testing.T) {
 			if !b.merge.hasNothing || len(b.merge.arms[0].input.expressions) != 0 || len(b.merge.arms[0].input.insert.defaults) != 0 {
 				t.Fatal("no-op mutation schedule", b.merge)
 			}
-			c := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, catalog: scope.commentCatalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
-			if err := preflightMerge(&c, b.merge, scope.commentCatalog); err != nil {
+			c := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, catalog: scope.inquiry.commentCatalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+			if err := preflightMerge(&c, b.merge, scope.inquiry.commentCatalog); err != nil {
 				t.Fatal("no-op preflight indexed mutation input", err)
 			}
 			if condition != "TRUE" {

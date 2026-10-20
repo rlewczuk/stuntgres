@@ -124,7 +124,7 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 	e := parent.op.session.Engine()
 	restore := parent.activateSQLRoutine(d.SQL.Inputs)
 	defer func() { err = restore(err) }()
-	parent.sqlRoutineResult = resultUsage
+	parent.sqlRoutine.result = resultUsage
 	child := parent
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(parent.op)
@@ -180,7 +180,7 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 	if !present {
 		value = sqltype.Null(resultUsage.Type)
 	} else {
-		value, err = child.sqlRoutineResultPlan.Apply(parent.op.Context(), row[0], child.input, child.output)
+		value, err = child.sqlRoutine.resultPlan.Apply(parent.op.Context(), row[0], child.input, child.output)
 		if err != nil {
 			return value, err
 		}

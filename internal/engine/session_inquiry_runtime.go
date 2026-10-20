@@ -14,8 +14,8 @@ func (c *EvalContext) CurrentSchemas(implicit bool, result *sqltype.Descriptor) 
 	if scope == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: current_schemas lacks statement authority")
 	}
-	results := scope.searchPathResults
-	if scope.searchPathResults[0].Type() == nil || scope.foreignActionAuth != nil || scope.ruleActionAuth != nil {
+	results := scope.inquiry.searchPathResults
+	if scope.inquiry.searchPathResults[0].Type() == nil || scope.foreignActionAuth != nil || scope.ruleActionAuth != nil {
 		engine := scope.op.session.Engine()
 		engine.mu.Lock()
 		defer engine.mu.Unlock()
@@ -35,7 +35,7 @@ func (c *EvalContext) CurrentSchemas(implicit bool, result *sqltype.Descriptor) 
 			}
 		}
 		if scope.foreignActionAuth == nil && scope.ruleActionAuth == nil {
-			scope.searchPathResults = results
+			scope.inquiry.searchPathResults = results
 		}
 	}
 	if implicit {

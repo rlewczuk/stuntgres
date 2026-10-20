@@ -69,13 +69,13 @@ func regprocSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID) st
 }
 
 func (s *StatementScope) FormatRegproc(id uint32) (string, error) {
-	if s == nil || s.commentCatalog.State() == nil {
+	if s == nil || s.inquiry.commentCatalog.State() == nil {
 		return "", fmt.Errorf("stuntgres: missing regproc output snapshot")
 	}
 	if text, ok := s.regprocOutput[id]; ok {
 		return text, nil
 	}
-	text := regprocSpelling(s.commentCatalog, s.deparsePath, ids.OID(id))
+	text := regprocSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, ids.OID(id))
 	if s.regprocOutput == nil {
 		s.regprocOutput = make(map[uint32]string)
 	}
@@ -83,13 +83,13 @@ func (s *StatementScope) FormatRegproc(id uint32) (string, error) {
 	return text, nil
 }
 func (s *StatementScope) FormatRegprocedure(id uint32) (string, error) {
-	if s == nil || s.commentCatalog.State() == nil {
+	if s == nil || s.inquiry.commentCatalog.State() == nil {
 		return "", fmt.Errorf("stuntgres: missing regprocedure output snapshot")
 	}
 	if text, ok := s.regprocedureOutput[id]; ok {
 		return text, nil
 	}
-	text := routineSpelling(s.commentCatalog, s.deparsePath, ids.OID(id), true, false)
+	text := routineSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, ids.OID(id), true, false)
 	if s.regprocedureOutput == nil {
 		s.regprocedureOutput = make(map[uint32]string)
 	}

@@ -168,7 +168,7 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 			}
 		}
 		if binder.consumer.visibilitySnapshot {
-			s.visibilityDemand = true
+			s.inquiry.visibilityDemand = true
 			if err := e.captureVisibilitySnapshotLocked(s); err != nil {
 				return err
 			}

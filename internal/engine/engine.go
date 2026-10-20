@@ -464,7 +464,7 @@ func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, au
 }
 
 func (e *Engine) describeScoped(scope *StatementScope, stmt parser.Statement, auth AuthorizationView, expected *StatementDescription) (binding, error) {
-	return e.describeWithFormals(scope.op.Context(), stmt, auth, scope.lockedRef, scope.input, scope.op, expected, &scope.queryLockAdmission, nil, scope.sqlRoutineScalar, scope.initialParameters)
+	return e.describeWithFormals(scope.op.Context(), stmt, auth, scope.lockedRef, scope.input, scope.op, expected, &scope.queryLockAdmission, nil, scope.sqlRoutine.scalar, scope.initialParameters)
 }
 
 func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription, admission *queryLockAdmission, rule *ruleNamespace, closed bool, initial ...[]sqltype.Usage) (binding, error) {

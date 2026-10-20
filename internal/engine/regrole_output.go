@@ -46,7 +46,7 @@ func (s *StatementScope) FormatRegrole(id uint32) (string, error) {
 	if s == nil {
 		return "", fmt.Errorf("stuntgres: missing regrole output snapshot")
 	}
-	return (capturedRegroleOutput{owner: s.commentCatalog.Owner(), roles: s.commentRoles, quoteAll: s.output.QuoteAllIdentifiers}).FormatRegrole(id)
+	return (capturedRegroleOutput{owner: s.inquiry.commentCatalog.Owner(), roles: s.inquiry.commentRoles, quoteAll: s.output.QuoteAllIdentifiers}).FormatRegrole(id)
 }
 
 func (r *finalRows) FormatRegrole(id uint32) (string, error) {

@@ -361,9 +361,6 @@ type StatementScope struct {
 	timeoutRef                     ids.TxRef // admission projection for preparse ERROR timer retirement
 	output                         sqltype.OutputEnvironment
 	initialParameters              []sqltype.Usage
-	sqlRoutineScalar               bool // Internal single-row SELECT demand, never public finalization.
-	sqlRoutineResult               sqltype.Usage
-	sqlRoutineResultPlan           sqltype.CoercionPlan
 	activeSQLRoutineDepth          int // Root invocation owner; never saved/reset as lexical scratch.
 	protocolBind                   *protocolPortal
 	protocolResume                 bool
@@ -387,24 +384,15 @@ type StatementScope struct {
 	foreignActionExclusionAdded bool // a new event admitted while settling actions
 	foreignActionAuth           *AuthorizationView
 	foreignActionJobs           []foreignKeyJob
-	searchPathResults           [2]sqltype.Value
-	commentCatalog              catalog.Read
-	commentRoles                authorization.Read
-	deparseAuth                 AuthorizationView
-	visibilityCatalog           catalog.Read
-	visibilityDemand            bool
-	visibilityRelationPath      []ids.ObjectAddress
-	visibilityOtherPath         []ids.ObjectAddress
 	conversionDefaults          map[[2]int]conversionDefault
 	regprocOutput               map[uint32]string
 	regprocedureOutput          map[uint32]string
 	identity                    identitySnapshot
-	currentSchemaResult         sqltype.Value
-	deparsePath                 []ids.ObjectAddress
 	operatorOutput              map[operatorOutputKey]string
 	operatorGroups              operatorGroups
-	collationPath               []ids.ObjectAddress
 	regTSOutput                 map[regTSOutputKey]string
+	inquiry                     inquirySnapshot
+	sqlRoutine                  sqlRoutineDemand
 }
 
 type WriteStage struct {

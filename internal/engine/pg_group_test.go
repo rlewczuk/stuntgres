@@ -257,7 +257,7 @@ func TestPGGroupRoleRoot(t *testing.T) {
 	fresh := &StatementScope{op: op, owner: op.session.transactions}
 	capture(fresh)
 	pgGroupUnitMembers(t, pgGroupUnitRows(t, open(fresh, ref), d)[20000])
-	if scope.commentRoles != e.roles.read(e.catalog.owner(), scope.commentCatalog, old) || fresh.commentRoles != e.roles.read(e.catalog.owner(), fresh.commentCatalog, updated) {
+	if scope.inquiry.commentRoles != e.roles.read(e.catalog.owner(), scope.inquiry.commentCatalog, old) || fresh.inquiry.commentRoles != e.roles.read(e.catalog.owner(), fresh.inquiry.commentCatalog, updated) {
 		t.Fatal("role capture owner changed")
 	}
 	pgGroupUnitMembers(t, pgGroupUnitRows(t, first, d)[20000], 20001)

@@ -2,7 +2,6 @@ package engine
 
 import (
 	"maps"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
@@ -51,10 +50,9 @@ type sqlRoutineScratch struct {
 	preparedPrivate                                                                                 *catalogChanges
 	preparedEpoch                                                                                   ids.CatalogEpoch
 	preparedChangedDuringAdmission, admissionWaited                                                 bool
+	sqlRoutine                                                                                      sqlRoutineDemand
+	inquiry                                                                                         inquirySnapshot
 	initialParameters                                                                               []sqltype.Usage
-	scalar                                                                                          bool
-	result                                                                                          sqltype.Usage
-	resultPlan                                                                                      sqltype.CoercionPlan
 	protocolBind                                                                                    *protocolPortal
 	protocolResume, protocolSimple, protocolSimpleCreated, protocolSimpleStreaming, protocolCommand bool
 	protocolSimplePortal                                                                            *protocolPortal
@@ -68,21 +66,11 @@ type sqlRoutineScratch struct {
 	foreignOwner                                                                                    *foreignScanOwner
 	foreignCursor                                                                                   *sqlCursor
 	pgRegex                                                                                         sqltype.PGRegexExecution
-	searchPathResults                                                                               [2]sqltype.Value
-	commentCatalog                                                                                  catalog.Read
-	commentRoles                                                                                    authorization.Read
-	deparseAuth                                                                                     AuthorizationView
-	visibilityCatalog                                                                               catalog.Read
-	visibilityDemand                                                                                bool
-	visibilityRelationPath, visibilityOtherPath                                                     []ids.ObjectAddress
 	conversionDefaults                                                                              map[[2]int]conversionDefault
 	regprocOutput, regprocedureOutput                                                               map[uint32]string
 	identity                                                                                        identitySnapshot
-	currentSchemaResult                                                                             sqltype.Value
-	deparsePath                                                                                     []ids.ObjectAddress
 	operatorOutput                                                                                  map[operatorOutputKey]string
 	operatorGroups                                                                                  operatorGroups
-	collationPath                                                                                   []ids.ObjectAddress
 	regTSOutput                                                                                     map[regTSOutputKey]string
 }
 
@@ -93,15 +81,13 @@ func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 		authority: s.authority, routineAuth: s.routineAuth, expected: s.Expected,
 		preparedReuse: s.preparedReuse, preparedInvalid: s.preparedInvalid, preparedPath: s.preparedPath, preparedNamespace: s.preparedNamespace,
 		preparedPrivate: s.preparedPrivate, preparedEpoch: s.preparedEpoch, preparedChangedDuringAdmission: s.preparedChangedDuringAdmission, admissionWaited: s.admissionWaited,
-		initialParameters: s.initialParameters, scalar: s.sqlRoutineScalar, input: s.input, output: s.output,
-		result: s.sqlRoutineResult, resultPlan: s.sqlRoutineResultPlan,
+		initialParameters: s.initialParameters, input: s.input, output: s.output,
+		sqlRoutine: s.sqlRoutine, inquiry: s.inquiry,
 		protocolBind: s.protocolBind, protocolResume: s.protocolResume, protocolSimple: s.protocolSimple, protocolSimpleCreated: s.protocolSimpleCreated, protocolSimpleStreaming: s.protocolSimpleStreaming, protocolCommand: s.protocolCommand, protocolSimplePortal: s.protocolSimplePortal,
 		view: s.view, partitionView: s.partitionValidationView, ownWrites: s.ownWrites, ownDeletes: s.ownDeletes,
 		domainEvaluation: s.domainEvaluation, domainInputCatalog: s.domainInputCatalog, foreignOwner: s.foreignOwner, foreignCursor: s.foreignCursor, pgRegex: s.pgRegex,
-		searchPathResults: s.searchPathResults, commentCatalog: s.commentCatalog, commentRoles: s.commentRoles, deparseAuth: s.deparseAuth,
-		visibilityCatalog: s.visibilityCatalog, visibilityDemand: s.visibilityDemand, visibilityRelationPath: s.visibilityRelationPath, visibilityOtherPath: s.visibilityOtherPath,
 		conversionDefaults: s.conversionDefaults, regprocOutput: s.regprocOutput, regprocedureOutput: s.regprocedureOutput, identity: s.identity,
-		currentSchemaResult: s.currentSchemaResult, deparsePath: s.deparsePath, operatorOutput: s.operatorOutput, operatorGroups: s.operatorGroups, collationPath: s.collationPath, regTSOutput: s.regTSOutput,
+		operatorOutput: s.operatorOutput, operatorGroups: s.operatorGroups, regTSOutput: s.regTSOutput,
 	}
 }
 func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
@@ -112,8 +98,7 @@ func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
 	s.preparedReuse, s.preparedInvalid, s.preparedPath = c.preparedReuse, c.preparedInvalid, c.preparedPath
 	s.preparedNamespace, s.preparedPrivate, s.preparedEpoch = c.preparedNamespace, c.preparedPrivate, c.preparedEpoch
 	s.preparedChangedDuringAdmission, s.admissionWaited = c.preparedChangedDuringAdmission, c.admissionWaited
-	s.initialParameters, s.sqlRoutineScalar = c.initialParameters, c.scalar
-	s.sqlRoutineResult, s.sqlRoutineResultPlan = c.result, c.resultPlan
+	s.initialParameters, s.sqlRoutine, s.inquiry = c.initialParameters, c.sqlRoutine, c.inquiry
 	s.protocolBind, s.protocolResume, s.protocolSimple, s.protocolSimpleCreated = c.protocolBind, c.protocolResume, c.protocolSimple, c.protocolSimpleCreated
 	s.protocolSimpleStreaming, s.protocolCommand, s.protocolSimplePortal = c.protocolSimpleStreaming, c.protocolCommand, c.protocolSimplePortal
 	s.input, s.output = c.input, c.output
@@ -122,12 +107,9 @@ func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
 	s.domainEvaluation, s.domainInputCatalog = c.domainEvaluation, c.domainInputCatalog
 	s.foreignOwner, s.foreignCursor = c.foreignOwner, c.foreignCursor
 	s.pgRegex = c.pgRegex
-	s.searchPathResults, s.commentCatalog, s.commentRoles, s.deparseAuth = c.searchPathResults, c.commentCatalog, c.commentRoles, c.deparseAuth
-	s.visibilityCatalog, s.visibilityDemand = c.visibilityCatalog, c.visibilityDemand
-	s.visibilityRelationPath, s.visibilityOtherPath = c.visibilityRelationPath, c.visibilityOtherPath
 	s.conversionDefaults, s.regprocOutput, s.regprocedureOutput = c.conversionDefaults, c.regprocOutput, c.regprocedureOutput
-	s.identity, s.currentSchemaResult, s.deparsePath = c.identity, c.currentSchemaResult, c.deparsePath
-	s.operatorOutput, s.operatorGroups, s.collationPath, s.regTSOutput = c.operatorOutput, c.operatorGroups, c.collationPath, c.regTSOutput
+	s.identity = c.identity
+	s.operatorOutput, s.operatorGroups, s.regTSOutput = c.operatorOutput, c.operatorGroups, c.regTSOutput
 }
 
 func (s *StatementScope) activateSQLRoutine(inputs []sqltype.Usage) func(error) error {
@@ -145,7 +127,7 @@ func (s *StatementScope) activateSQLRoutine(inputs []sqltype.Usage) func(error) 
 		}
 	}
 	ownDeletes := mergeDeletions(saved.ownDeletes, s.stage.deletes)
-	s.installSQLRoutineScratch(sqlRoutineScratch{input: saved.input, output: saved.output, initialParameters: inputs, scalar: true, ownWrites: ownWrites, ownDeletes: ownDeletes})
+	s.installSQLRoutineScratch(sqlRoutineScratch{input: saved.input, output: saved.output, initialParameters: inputs, sqlRoutine: sqlRoutineDemand{scalar: true}, ownWrites: ownWrites, ownDeletes: ownDeletes})
 	s.input.LockedDomainInput, s.input.DomainChecks = s, s
 	return func(primary error) error {
 		if s.foreignOwner != nil {
@@ -163,4 +145,11 @@ func (s *StatementScope) activateSQLRoutine(inputs []sqltype.Usage) func(error) 
 		s.installSQLRoutineScratch(saved)
 		return primary
 	}
+}
+
+// sqlRoutineDemand is the internal SQL routine result demand of a statement.
+type sqlRoutineDemand struct {
+	scalar     bool // Internal single-row SELECT demand, never public finalization.
+	result     sqltype.Usage
+	resultPlan sqltype.CoercionPlan
 }

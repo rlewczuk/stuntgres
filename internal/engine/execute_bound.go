@@ -347,14 +347,14 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			return Result{}, err
 		}
 	}
-	scope.visibilityDemand = scope.visibilityDemand || b.visibilitySnapshot
+	scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || b.visibilitySnapshot
 	if b.query != nil {
-		scope.visibilityDemand = scope.visibilityDemand || b.query.visibilitySnapshot
+		scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || b.query.visibilitySnapshot
 	}
 	if b.returning != nil {
-		scope.visibilityDemand = scope.visibilityDemand || b.returning.visibilitySnapshot
+		scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || b.returning.visibilitySnapshot
 	}
-	if scope.visibilityDemand {
+	if scope.inquiry.visibilityDemand {
 		err = e.captureVisibilitySnapshotLocked(scope)
 	}
 	if err == nil && b.relation != nil {
@@ -748,7 +748,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		if scope.protocolBind != nil {
 			return scope.installProtocolProducer(queryRoot, source, canonical)
 		}
-		if scope.sqlRoutineScalar {
+		if scope.sqlRoutine.scalar {
 			rows, count, err := finalizeSQLRoutineQuery(ctx, queryRoot, source, canonical)
 			return Result{Count: int64(count), Rows: rows}, err
 		}

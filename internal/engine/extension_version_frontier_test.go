@@ -50,7 +50,7 @@ func extensionVersionAvailableFrontier(t *testing.T) {
 					sources[oid] = open(old, oid)
 				}
 			}
-			if !reflect.DeepEqual(retained, sources[first].anonymous) || old.commentCatalog.MustExtension(ext.Address()) != ext || fresh.commentCatalog.MustExtension(ext.Address()).Version != "1.2" {
+			if !reflect.DeepEqual(retained, sources[first].anonymous) || old.inquiry.commentCatalog.MustExtension(ext.Address()) != ext || fresh.inquiry.commentCatalog.MustExtension(ext.Address()).Version != "1.2" {
 				t.Fatal("old frontier mutated during update")
 			}
 			assert := func(source *querySource, oid ids.OID, version string) {

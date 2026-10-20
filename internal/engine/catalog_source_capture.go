@@ -39,18 +39,18 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		runtime.cursors = scope.op.session.cursors
 		unlockBefore = true
 	case 12081, 12085:
-		in.Catalog = scope.commentCatalog
+		in.Catalog = scope.inquiry.commentCatalog
 		unlockBefore = true
 	case 12004, 12005:
 		runtime.input = scope.input
 		unlockBefore = true
 	case 12014, 12007, 12008:
-		in.Roles = scope.commentRoles
+		in.Roles = scope.inquiry.commentRoles
 		unlockBefore = true
 	case pgcatalog.TablePrivilegesOID, pgcatalog.DataTypePrivilegesOID:
-		in.Catalog, in.Roles = scope.commentCatalog, scope.deparseAuth.Roles
-		runtime.auth, runtime.database = scope.deparseAuth, scope.op.session.databaseName
-		runtime.temporary = catalogSourceTemporaryOwner(scope.deparseAuth)
+		in.Catalog, in.Roles = scope.inquiry.commentCatalog, scope.inquiry.deparseAuth.Roles
+		runtime.auth, runtime.database = scope.inquiry.deparseAuth, scope.op.session.databaseName
+		runtime.temporary = catalogSourceTemporaryOwner(scope.inquiry.deparseAuth)
 	case ids.ForeignWrapperClassID, ids.ForeignServerClassID, ids.ForeignMappingClassID, ids.ForeignTableClassID, pgcatalog.UserMappingsOID:
 		auth, err := e.authorizationLocked(scope.op)
 		if err != nil {
@@ -60,7 +60,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		runtime.auth = auth
 		in.Catalog, in.Roles = auth.Catalog, auth.Roles
 	case 2396:
-		in.Roles = scope.commentRoles
+		in.Roles = scope.inquiry.commentRoles
 	case 2224:
 		runtime.sequenceBase = e.catalog.state
 		if scope.owner.sequenceCatalog != nil {
@@ -70,14 +70,14 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	default:
 		switch oid {
 		case 2609, 3079, ids.ParameterClassID:
-			in.Catalog = scope.commentCatalog
+			in.Catalog = scope.inquiry.commentCatalog
 		default:
 			in.Catalog = e.privateCatalogLocked(scope.owner.catalog)
 		}
 		if oid == ids.ParameterClassID {
-			in.Roles = scope.commentRoles
+			in.Roles = scope.inquiry.commentRoles
 		} else {
-			in.Roles = e.roles.read(e.catalog.owner(), in.Catalog, scope.deparseAuth.RoleRecord)
+			in.Roles = e.roles.read(e.catalog.owner(), in.Catalog, scope.inquiry.deparseAuth.RoleRecord)
 		}
 		if oid == 12002 {
 			auth, err := e.authorizationLocked(scope.op)
@@ -90,7 +90,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 			runtime.auth, in.Roles = auth, auth.Roles
 		}
 		if oid == 12006 {
-			runtime.presentation = viewPresentation{deparse: true, path: scope.deparsePath, output: scope.output, nonstandardStrings: scope.op.nonstandardStrings}
+			runtime.presentation = viewPresentation{deparse: true, path: scope.inquiry.deparsePath, output: scope.output, nonstandardStrings: scope.op.nonstandardStrings}
 		}
 	}
 	in.Runtime = runtime

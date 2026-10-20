@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // Each manifest entry is an SQL occurrence, even when physical identity repeats.
@@ -213,7 +214,7 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []query
 // commentEngine returns the engine whose catalog the comment snapshot was
 // captured from, or nil before capture.
 func (s *StatementScope) commentEngine() *Engine {
-	if s.commentCatalog.Owner() == nil {
+	if s.inquiry.commentCatalog.Owner() == nil {
 		return nil
 	}
 	return s.op.session.Engine()
@@ -222,34 +223,34 @@ func (s *StatementScope) commentEngine() *Engine {
 // captureCommentSnapshotLocked shares one immutable catalog/role pair across
 // query providers and completed-row CHECK evaluation. The caller holds e.mu.
 func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
-	if scope.commentCatalog.State() == nil {
-		scope.commentCatalog = e.privateCatalogLocked(scope.owner.catalog)
-		scope.commentRoles = e.roles.read(e.catalog.owner(), scope.commentCatalog, e.operationRolesLocked(scope.op))
+	if scope.inquiry.commentCatalog.State() == nil {
+		scope.inquiry.commentCatalog = e.privateCatalogLocked(scope.owner.catalog)
+		scope.inquiry.commentRoles = e.roles.read(e.catalog.owner(), scope.inquiry.commentCatalog, e.operationRolesLocked(scope.op))
 	}
 	scope.output.ACLItem = scope
 	scope.output.Regrole = scope
 	scope.output.Operator = scope
 	scope.output.Regcollation, scope.output.Regnamespace = scope, scope
 	scope.output.RegTS = scope
-	if scope.deparsePath == nil {
+	if scope.inquiry.deparsePath == nil {
 		auth, err := e.authorizationLocked(scope.op)
 		if err != nil {
 			return err
 		}
-		auth.Recapture(scope.commentCatalog)
-		scope.commentRoles = auth.Roles
-		scope.deparseAuth = auth
-		scope.deparsePath, err = e.referencePath(auth)
+		auth.Recapture(scope.inquiry.commentCatalog)
+		scope.inquiry.commentRoles = auth.Roles
+		scope.inquiry.deparseAuth = auth
+		scope.inquiry.deparsePath, err = e.referencePath(auth)
 		if err != nil {
 			return err
 		}
-		scope.collationPath, err = e.lookupPath(auth, collationLookup)
+		scope.inquiry.collationPath, err = e.lookupPath(auth, collationLookup)
 		if err != nil {
 			return err
 		}
 	}
-	scope.input.Regrole = capturedRegroleInput{roles: scope.commentRoles}
-	input := captureRegObjectsOnPath(scope.deparseAuth, scope.collationPath)
+	scope.input.Regrole = capturedRegroleInput{roles: scope.inquiry.commentRoles}
+	input := captureRegObjectsOnPath(scope.inquiry.deparseAuth, scope.inquiry.collationPath)
 	scope.input.Regcollation, scope.input.Regnamespace = input, input
 	return nil
 }
@@ -302,7 +303,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 	if err := e.captureCommentSnapshotLocked(scope); err != nil {
 		return nil, err
 	}
-	if scope.visibilityDemand {
+	if scope.inquiry.visibilityDemand {
 		if err := e.captureVisibilitySnapshotLocked(scope); err != nil {
 			return nil, err
 		}
@@ -318,8 +319,8 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 		refs = make([]ids.ObjectRef, 0, len(leaves))
 	}
 	var collectErr error
-	collectAuth := scope.deparseAuth
-	collectAuth.Recapture(scope.partitionCaptureCatalog(scope.inheritanceRead(scope.commentCatalog)))
+	collectAuth := scope.inquiry.deparseAuth
+	collectAuth.Recapture(scope.partitionCaptureCatalog(scope.inheritanceRead(scope.inquiry.commentCatalog)))
 	refs, collectErr = e.queryTableRefsLocked(collectAuth, invoker, leaves, refs, scope.op.session.token, inherited)
 	if collectErr != nil {
 		return nil, collectErr
@@ -399,10 +400,10 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 						source = &querySource{ref: leaf.ref, view: pin, inheritance: []inheritanceQuerySegment{}}
 					}
 				} else {
-					source, err = capturePartitionQueryPrefix(scope.partitionCaptureCatalog(scope.commentCatalog), view, leaf.ref, leaf.relation)
+					source, err = capturePartitionQueryPrefix(scope.partitionCaptureCatalog(scope.inquiry.commentCatalog), view, leaf.ref, leaf.relation)
 				}
 			case catalog.TableRelation:
-				source, err = captureInheritanceQueryPrefix(scope.inheritanceRead(scope.commentCatalog), view, leaf, scope.op.session.token)
+				source, err = captureInheritanceQueryPrefix(scope.inheritanceRead(scope.inquiry.commentCatalog), view, leaf, scope.op.session.token)
 				if err == nil {
 					err = e.captureHashIndexesLocked(scope, leaf, source, mark)
 					if err != nil {
@@ -498,4 +499,21 @@ func (e *Engine) closeQuerySourceSetLocked(ctx context.Context, first *querySour
 		}
 	}
 	e.mu.Lock()
+}
+
+// inquirySnapshot is the statement's catalog-inquiry snapshot: comment, deparse,
+// visibility and namespace reads captured once per statement. It is a value
+// group, not a pointer slot, so capturing it allocates nothing.
+type inquirySnapshot struct {
+	commentCatalog         catalog.Read
+	commentRoles           authorization.Read
+	deparseAuth            AuthorizationView
+	deparsePath            []ids.ObjectAddress
+	collationPath          []ids.ObjectAddress
+	visibilityCatalog      catalog.Read
+	visibilityRelationPath []ids.ObjectAddress
+	visibilityOtherPath    []ids.ObjectAddress
+	visibilityDemand       bool
+	currentSchemaResult    sqltype.Value
+	searchPathResults      [2]sqltype.Value
 }

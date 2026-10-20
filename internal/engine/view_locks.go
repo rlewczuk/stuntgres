@@ -116,7 +116,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		}
 		var physical []ids.ObjectRef
 		if err = e.captureCommentSnapshotLocked(s); err == nil {
-			collectAuth := s.deparseAuth
+			collectAuth := s.inquiry.deparseAuth
 			collectAuth.Recapture(catalogView)
 			physical, err = e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, leaves, nil, s.op.session.token, queryRowMark{})
 		}

@@ -189,7 +189,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 	if r.ordinal == ^uint64(0) {
 		return Result{}, fmt.Errorf("stuntgres: cursor declaration counter exhausted")
 	}
-	timestampType, ok := s.commentCatalog.LookupType(sqltype.Timestamptz)
+	timestampType, ok := s.inquiry.commentCatalog.LookupType(sqltype.Timestamptz)
 	if !ok {
 		return Result{}, fmt.Errorf("stuntgres: missing cursor creation timestamp type")
 	}
@@ -198,10 +198,10 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 		return Result{}, err
 	}
 	c := &sqlCursor{tx: s.txRef, epoch: s.txRef.Epoch(), hold: declaration.Hold, ordinal: r.ordinal + 1, root: project, schema: project.Schema(), source: source, authority: s.authority,
-		leaves: s.querySources, locks: s.queryLocks, catalog: s.commentCatalog, roles: s.commentRoles,
+		leaves: s.querySources, locks: s.queryLocks, catalog: s.inquiry.commentCatalog, roles: s.inquiry.commentRoles,
 		routineDependencies: s.routineDependencies, routineAuth: s.routineAuth,
-		deparseAuth: s.deparseAuth, deparsePath: s.deparsePath, collationPath: s.collationPath, visibilityCatalog: s.visibilityCatalog,
-		visibilityRelationPath: s.visibilityRelationPath, visibilityOtherPath: s.visibilityOtherPath}
+		deparseAuth: s.inquiry.deparseAuth, deparsePath: s.inquiry.deparsePath, collationPath: s.inquiry.collationPath, visibilityCatalog: s.inquiry.visibilityCatalog,
+		visibilityRelationPath: s.inquiry.visibilityRelationPath, visibilityOtherPath: s.inquiry.visibilityOtherPath}
 	c.statement, c.created = declaration.Source, created
 	c.scroll = declaration.Scroll == parser.CursorScrollEnabled
 	c.state = queryState{source: source, parameters: parameters, input: s.input, output: s.output, locking: source.locks.rowMarked(), hashFilter: hashQueryFilter(root)}
@@ -249,14 +249,14 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 // admitted FETCH; the initialized producer retains DECLARE's routine authority.
 func (c *sqlCursor) admit(s *StatementScope) {
 	s.querySources, s.queryLocks = c.leaves, c.locks
-	s.commentCatalog, s.commentRoles = c.catalog, c.roles
+	s.inquiry.commentCatalog, s.inquiry.commentRoles = c.catalog, c.roles
 	s.routineDependencies = c.routineDependencies
 	s.routineAuth = c.routineAuth
-	s.deparseAuth, s.deparsePath = c.deparseAuth, c.deparsePath
-	s.collationPath = c.collationPath
-	s.deparseAuth.session, s.deparseAuth.settings = s.op.session, s.op.session.settings
-	s.visibilityCatalog = c.visibilityCatalog
-	s.visibilityRelationPath, s.visibilityOtherPath = c.visibilityRelationPath, c.visibilityOtherPath
+	s.inquiry.deparseAuth, s.inquiry.deparsePath = c.deparseAuth, c.deparsePath
+	s.inquiry.collationPath = c.collationPath
+	s.inquiry.deparseAuth.session, s.inquiry.deparseAuth.settings = s.op.session, s.op.session.settings
+	s.inquiry.visibilityCatalog = c.visibilityCatalog
+	s.inquiry.visibilityRelationPath, s.inquiry.visibilityOtherPath = c.visibilityRelationPath, c.visibilityOtherPath
 	c.authority.scope = s
 	s.foreignCursor = c
 }

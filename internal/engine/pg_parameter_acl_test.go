@@ -264,7 +264,7 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	before, roles := scope.commentCatalog, scope.commentRoles
+	before, roles := scope.inquiry.commentCatalog, scope.inquiry.commentRoles
 	_, ref := pgParameterACLUnitSource(t, e, before)
 	address := before.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: "pacl_unit.snapshot"})
 	old := before.MustParameter(address)
@@ -273,7 +273,7 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 	if err := applyObjectGrantUnit(e, op, request); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.state == before.State() || e.roles.published == scope.deparseAuth.RoleRecord {
+	if e.catalog.state == before.State() || e.roles.published == scope.inquiry.deparseAuth.RoleRecord {
 		t.Fatal("distinguishing live publication missing")
 	}
 	e.mu.Lock()

@@ -58,10 +58,10 @@ func (c *EvalContext) VisibilityInquiry(kind functions.VisibilityInquiryKind, va
 		}
 		return sqltype.Value{}, sqlError("0A000", "system collation import is unsupported in embedded mode")
 	}
-	if scope.visibilityCatalog.State() == nil {
+	if scope.inquiry.visibilityCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing visibility snapshot")
 	}
-	d, exists := scope.visibilityCatalog.Descriptor(ids.ObjectAddress{ClassID: kind.Class(), ObjectID: ids.OID(oid)})
+	d, exists := scope.inquiry.visibilityCatalog.Descriptor(ids.ObjectAddress{ClassID: kind.Class(), ObjectID: ids.OID(oid)})
 	if !exists {
 		if kind == functions.CollationVersionInquiry || kind == functions.DatabaseCollationVersionInquiry {
 			objectKind := "collation"
@@ -87,15 +87,15 @@ func (c *EvalContext) VisibilityInquiry(kind functions.VisibilityInquiryKind, va
 		}
 		return sqltype.String(result, *version), nil
 	}
-	path := scope.visibilityRelationPath
+	path := scope.inquiry.visibilityRelationPath
 	if kind == functions.CollationVisibility || kind == functions.ConversionVisibility {
-		path = scope.visibilityOtherPath
+		path = scope.inquiry.visibilityOtherPath
 	}
 	visible := false
 	if kind == functions.CollationVisibility {
-		visible = visibleCollation(scope.visibilityCatalog, path, d)
+		visible = visibleCollation(scope.inquiry.visibilityCatalog, path, d)
 	} else {
-		visible = namedObjectVisible(scope.visibilityCatalog, path, d)
+		visible = namedObjectVisible(scope.inquiry.visibilityCatalog, path, d)
 	}
 	return sqltype.Boolean(result, visible), nil
 }
@@ -103,7 +103,7 @@ func (c *EvalContext) VisibilityInquiry(kind functions.VisibilityInquiryKind, va
 // Engine.mu is held. The execution frontier owns catalog and path, never mutable
 // session settings or an authorization view subsequently consulted by Eval.
 func (e *Engine) captureVisibilitySnapshotLocked(scope *StatementScope) error {
-	if scope.visibilityCatalog.State() != nil {
+	if scope.inquiry.visibilityCatalog.State() != nil {
 		return nil
 	}
 	auth, err := e.authorizationLocked(scope.op)
@@ -120,7 +120,7 @@ func (e *Engine) captureVisibilitySnapshotLocked(scope *StatementScope) error {
 	otherExplicit := make([]ids.ObjectAddress, len(explicit))
 	copy(otherExplicit, explicit)
 	others := e.effectivePath(auth, otherExplicit, conversionLookup)
-	scope.visibilityCatalog = auth.Catalog
-	scope.visibilityRelationPath, scope.visibilityOtherPath = relations, others
+	scope.inquiry.visibilityCatalog = auth.Catalog
+	scope.inquiry.visibilityRelationPath, scope.inquiry.visibilityOtherPath = relations, others
 	return nil
 }

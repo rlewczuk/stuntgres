@@ -70,7 +70,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 			e.mu.Unlock()
 			return nil, nil, err
 		}
-		scope.visibilityDemand = scope.visibilityDemand || definition.query.visibilitySnapshot
+		scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || definition.query.visibilitySnapshot
 		locks = scope.queryLocks
 	}
 	source, err := e.captureQuerySourcesForInvokerLocked(scope, leaves, len(leaves) == 0, invoker, queryRowMark{}, locks)

@@ -21,7 +21,7 @@ func objectAddressTextArray(d *sqltype.Descriptor, names []string) (sqltype.Valu
 
 func (c *EvalContext) LookupObjectAddress(values [3]sqltype.Value) (ids.ObjectAddress, error) {
 	scope := c.liveScope()
-	if scope == nil || scope.commentCatalog.State() == nil {
+	if scope == nil || scope.inquiry.commentCatalog.State() == nil {
 		return ids.ObjectAddress{}, fmt.Errorf("stuntgres: missing object address snapshot")
 	}
 	return lookupObjectAddress(c.Context, scope, values)
@@ -37,7 +37,7 @@ func (c *EvalContext) DescribeObject(values [3]sqltype.Value, result *sqltype.De
 }
 func (c *EvalContext) identifyObjectValues(values [3]sqltype.Value, result *sqltype.Descriptor, operation functions.ObjectAddressOperation) (sqltype.Value, error) {
 	scope := c.liveScope()
-	if scope == nil || scope.commentCatalog.State() == nil {
+	if scope == nil || scope.inquiry.commentCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing object address snapshot")
 	}
 	class, err := values[0].OID()
@@ -56,7 +56,7 @@ func (c *EvalContext) identifyObjectValues(values [3]sqltype.Value, result *sqlt
 	if operation == functions.DescribeObject && class == 0 && object == 0 {
 		return sqltype.Null(result), nil
 	}
-	identity, err := identifyAddress(scope.commentCatalog, scope.commentRoles, scope.deparsePath, address)
+	identity, err := identifyAddress(scope.inquiry.commentCatalog, scope.inquiry.commentRoles, scope.inquiry.deparsePath, address)
 	if err != nil {
 		return sqltype.Value{}, err
 	}

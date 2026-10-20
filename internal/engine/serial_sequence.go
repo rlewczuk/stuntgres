@@ -12,7 +12,7 @@ import (
 // state. AUTO (serial/manual) and INTERNAL (identity) share the same owned address.
 func (c *EvalContext) evalSerialSequence(values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	scope := c.liveScope()
-	view := scope.commentCatalog
+	view := scope.inquiry.commentCatalog
 	table, err := values[0].Text()
 	if err != nil {
 		return sqltype.Value{}, err
@@ -26,8 +26,8 @@ func (c *EvalContext) evalSerialSequence(values [3]sqltype.Value, result *sqltyp
 		return sqltype.Value{}, sqlError("42602", "invalid name syntax")
 	}
 	database := ""
-	if scope.deparseAuth.session != nil {
-		database = scope.deparseAuth.session.databaseName
+	if scope.inquiry.deparseAuth.session != nil {
+		database = scope.inquiry.deparseAuth.session.databaseName
 	}
 	name, err = regclassQualifiedName(name, table, database)
 	if err != nil {
@@ -37,7 +37,7 @@ func (c *EvalContext) evalSerialSequence(values [3]sqltype.Value, result *sqltyp
 		// These offsets belong to TEXT input, not the outer SQL statement.
 		name.Parts[i].Pos = parser.Position{}
 	}
-	ref, err := scope.deparseAuth.engine.resolveRelationSnapshot(scope.deparseAuth, name, true)
+	ref, err := scope.inquiry.deparseAuth.engine.resolveRelationSnapshot(scope.inquiry.deparseAuth, name, true)
 	if err != nil {
 		return sqltype.Value{}, err
 	}

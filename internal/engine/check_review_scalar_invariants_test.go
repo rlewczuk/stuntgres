@@ -146,7 +146,7 @@ func TestCheckReviewScalarInquiryStatementSnapshot(t *testing.T) {
 	}
 	scope.routineAuth = auth
 	e.captureCheckCommentSnapshotLocked(scope, relation)
-	catalog, roles := scope.commentCatalog, scope.commentRoles
+	catalog, roles := scope.inquiry.commentCatalog, scope.inquiry.commentRoles
 	e.mu.Unlock()
 	sessionSQL(t, peer, "COMMENT ON TABLE anchor IS 'new'")
 	e.mu.Lock()
@@ -157,7 +157,7 @@ func TestCheckReviewScalarInquiryStatementSnapshot(t *testing.T) {
 		t.Fatal(captureErr)
 	}
 	defer source.close()
-	if scope.commentCatalog != catalog || scope.commentRoles != roles {
+	if scope.inquiry.commentCatalog != catalog || scope.inquiry.commentRoles != roles {
 		t.Fatal("query opening replaced the statement comment snapshot")
 	}
 	query := queryState{source: source, input: scope.input, output: scope.output}
@@ -189,7 +189,7 @@ func TestCheckReviewScalarNoInquirySnapshotDemand(t *testing.T) {
 	e.mu.Lock()
 	e.captureCheckCommentSnapshotLocked(scope, relation)
 	e.mu.Unlock()
-	if scope.commentCatalog.State() != nil || scope.deparseAuth.RoleRecord != nil {
+	if scope.inquiry.commentCatalog.State() != nil || scope.inquiry.deparseAuth.RoleRecord != nil {
 		t.Fatal("unrelated CHECK captured comment metadata")
 	}
 }

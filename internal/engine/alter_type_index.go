@@ -89,7 +89,7 @@ func captureAlterTypeIndexes(scope *StatementScope, view catalog.Read, original,
 			pending.keys = append(pending.keys, i)
 		}
 		if len(pending.keys) > 0 || pending.predicate {
-			text, err := indexDefinitionSQL(op.Context(), view, index, indexPresentation{reconstruct: true, path: scope.deparsePath, output: scope.output})
+			text, err := indexDefinitionSQL(op.Context(), view, index, indexPresentation{reconstruct: true, path: scope.inquiry.deparsePath, output: scope.output})
 			if err != nil {
 				return nil, err
 			}

@@ -409,7 +409,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 		for i, column := range b.relation.Columns {
 			row[i] = sqltype.Null(column.Usage.Type)
 		}
-		if err := evaluateInsertValuesRow(scope.commentCatalog, &arm.input, arm.input.expressions[0], arm.syntax, row, false, evaluation); err != nil {
+		if err := evaluateInsertValuesRow(scope.inquiry.commentCatalog, &arm.input, arm.input.expressions[0], arm.syntax, row, false, evaluation); err != nil {
 			return err
 		}
 	}

@@ -143,10 +143,10 @@ func captureRegclassOutputValue(rows *finalRows, catalog catalog.Read, path []id
 // String output uses the same captured namespace presentation as finalRows,
 // without changing the canonical OID datum or consulting a later live catalog.
 func (s *StatementScope) FormatRegclass(id uint32) (string, error) {
-	if s == nil || s.commentCatalog.State() == nil {
+	if s == nil || s.inquiry.commentCatalog.State() == nil {
 		return "", fmt.Errorf("stuntgres: missing regclass output snapshot")
 	}
-	return regclassSpelling(s.commentCatalog, s.deparsePath, ids.OID(id)), nil
+	return regclassSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, ids.OID(id)), nil
 }
 
 // regclassSpelling uses only the statement's captured catalog and relation path.

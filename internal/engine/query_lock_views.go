@@ -282,7 +282,7 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 	if err != nil {
 		return err
 	}
-	scope.visibilityDemand = scope.visibilityDemand || visibilityDemand
+	scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || visibilityDemand
 	var visit func(*catalog.Relation, queryRowMark, bool) error
 	visit = func(d *catalog.Relation, inherited queryRowMark, referenceMarked bool) error {
 		if d.RelationKind == catalog.ViewRelation {

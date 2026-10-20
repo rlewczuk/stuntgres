@@ -93,8 +93,8 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 		}
 		beforeIdentity, beforeRole := scope.identity, op.RoleState()
 		name, _ := e.CatalogRead().LookupType(sqltype.Name)
-		scope.currentSchemaResult = sqltype.String(name, "sentinel")
-		beforeSchema := scope.currentSchemaResult
+		scope.inquiry.currentSchemaResult = sqltype.String(name, "sentinel")
+		beforeSchema := scope.inquiry.currentSchemaResult
 		scope.input.TypeDiagnosticName = func(sqltype.ID) string { return "caller-naming" }
 		scope.input.ExactSnapshot = true
 		beforeInput := scope.input
@@ -169,7 +169,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 			scope.input.ExactSnapshot != beforeInput.ExactSnapshot {
 			t.Fatal("population leaked input context")
 		}
-		if op.materializedPopulation || op.materializedOwner != (authorization.PrincipalRef{}) || op.RoleState() != beforeRole || scope.identity != beforeIdentity || !sqltype.SameDatum(scope.currentSchemaResult, beforeSchema) {
+		if op.materializedPopulation || op.materializedOwner != (authorization.PrincipalRef{}) || op.RoleState() != beforeRole || scope.identity != beforeIdentity || !sqltype.SameDatum(scope.inquiry.currentSchemaResult, beforeSchema) {
 			t.Fatal("population leaked owner context")
 		}
 		if err := scope.Finish(err); !fail && err != nil {

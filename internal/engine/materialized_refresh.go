@@ -225,13 +225,13 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 func (e *Engine) materializedRefreshRowsLocked(scope *StatementScope, ref ids.ObjectRef, d *catalog.Relation) ([][]sqltype.Value, error) {
 	op := scope.op
 	population, owner := op.materializedPopulation, op.materializedOwner
-	identity, schema := scope.identity, scope.currentSchemaResult
+	identity, schema := scope.identity, scope.inquiry.currentSchemaResult
 	input := scope.input
 	op.materializedPopulation, op.materializedOwner = true, d.Owner
-	scope.currentSchemaResult = sqltype.Value{}
+	scope.inquiry.currentSchemaResult = sqltype.Value{}
 	defer func() {
 		op.materializedPopulation, op.materializedOwner = population, owner
-		scope.identity, scope.currentSchemaResult = identity, schema
+		scope.identity, scope.inquiry.currentSchemaResult = identity, schema
 		scope.input = input
 	}()
 	auth, err := e.authorizationLocked(op)
