@@ -298,9 +298,8 @@ func openForeignStage(ctx context.Context, state *queryState, source *querySourc
 	out := indexedStage{source: source, schema: node.Schema(), selection: []int{}}
 	started := false
 	start := func(ctx context.Context) error {
-		if scope := source.liveScope(); scope != nil && scope.replacementRead {
-			scope.op.session.Engine().replacementMu.RUnlock()
-			scope.replacementRead = false
+		if host := source.liveHost(); host != nil {
+			host.ReleaseReplacementRead()
 		}
 		parameters, err := foreignParameters(ctx, state, f)
 		if err != nil {
@@ -313,8 +312,8 @@ func openForeignStage(ctx context.Context, state *queryState, source *querySourc
 				return err
 			}
 		}
-		if scope := source.liveScope(); scope != nil {
-			request.Transaction, err = scope.enlistForeign(ctx, f.wrapper, request, false)
+		if host := source.liveHost(); host != nil {
+			request.Transaction, err = host.EnlistForeign(ctx, f.wrapper, request, false)
 			if err != nil {
 				return err
 			}
@@ -337,17 +336,16 @@ func openForeignStage(ctx context.Context, state *queryState, source *querySourc
 		return nil
 	}
 	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
-		if scope := source.liveScope(); scope != nil && scope.replacementRead {
-			scope.op.session.Engine().replacementMu.RUnlock()
-			scope.replacementRead = false
+		if host := source.liveHost(); host != nil {
+			host.ReleaseReplacementRead()
 		}
 		if !started {
 			if err := start(ctx); err != nil {
 				return false, err
 			}
 		}
-		if scope := source.liveScope(); scope != nil {
-			if err := scope.touchForeignScan(ctx, f); err != nil {
+		if host := source.liveHost(); host != nil {
+			if err := host.TouchForeignScan(ctx, f); err != nil {
 				return false, err
 			}
 		}
@@ -373,13 +371,12 @@ func openForeignStage(ctx context.Context, state *queryState, source *querySourc
 	}
 	out.finish = func() error { execution.active = false; return nil }
 	out.reset = func(ctx context.Context, out *indexedStage) (bool, error) {
-		if scope := source.liveScope(); scope != nil && scope.replacementRead {
-			scope.op.session.Engine().replacementMu.RUnlock()
-			scope.replacementRead = false
+		if host := source.liveHost(); host != nil {
+			host.ReleaseReplacementRead()
 		}
 		if started {
-			if scope := source.liveScope(); scope != nil {
-				if err := scope.touchForeignScan(ctx, f); err != nil {
+			if host := source.liveHost(); host != nil {
+				if err := host.TouchForeignScan(ctx, f); err != nil {
 					return false, err
 				}
 			}
@@ -406,9 +403,8 @@ func finishForeignSources(ctx context.Context, source *querySource) error {
 	}
 	var failure error
 	if source.foreign != nil {
-		if scope := source.liveScope(); scope != nil && scope.replacementRead {
-			scope.op.session.Engine().replacementMu.RUnlock()
-			scope.replacementRead = false
+		if host := source.liveHost(); host != nil {
+			host.ReleaseReplacementRead()
 		}
 		if err := source.foreign.lifetimeOwner.finishSource(ctx, source.foreign); failure == nil {
 			failure = err

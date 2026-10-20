@@ -14,7 +14,7 @@ import (
 
 // Definitions are snapshot-owned; completion uses the exact current incarnation.
 type pgSequencesSource struct {
-	scope      *StatementScope
+	host       execHost
 	refs       []ids.ObjectRef
 	predicates []expr.Expr
 }
@@ -26,7 +26,7 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 	}
 	own := scope.owner.catalog
 	rows := make([][]sqltype.Value, 0)
-	provider := &pgSequencesSource{scope: scope}
+	provider := &pgSequencesSource{host: hostOf(scope)}
 	appendDefinition := func(descriptor catalog.Descriptor) error {
 		if err := scope.op.Context().Err(); err != nil {
 			return err
@@ -96,14 +96,17 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 	return &querySource{ref: ref, anonymous: rows, pgSequences: provider}, nil
 }
 
-func (p *pgSequencesSource) complete(ctx context.Context, ref ids.ObjectRef, row []sqltype.Value) error {
+// CompletePGSequence fills a pg_sequences row's last_value: it acquires the
+// sequence lock, then reads the generator under Engine.mu.
+func (h *statementHost) CompletePGSequence(ctx context.Context, ref ids.ObjectRef, row []sqltype.Value) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := p.scope.acquireSequence(ref, lock.RowExclusive, true); err != nil {
+	s := h.scope()
+	if err := s.acquireSequence(ref, lock.RowExclusive, true); err != nil {
 		return err
 	}
-	e := p.scope.op.session.Engine()
+	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := ctx.Err(); err != nil {
@@ -112,11 +115,11 @@ func (p *pgSequencesSource) complete(ctx context.Context, ref ids.ObjectRef, row
 	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	auth, err := e.authorizationLocked(p.scope.op)
+	auth, err := e.authorizationLocked(s.op)
 	if err != nil {
 		return err
 	}
-	auth.Catalog = e.privateCatalogLocked(p.scope.owner.catalog)
+	auth.Catalog = e.privateCatalogLocked(s.owner.catalog)
 	auth.Recapture(auth.Catalog)
 	relation, ok := auth.Catalog.Relation(ref.Address)
 	if !ok || relation.RelationKind != catalog.SequenceRelation {
@@ -126,7 +129,7 @@ func (p *pgSequencesSource) complete(ctx context.Context, ref ids.ObjectRef, row
 	if err != nil {
 		return err
 	}
-	generator := e.sequenceGeneratorLocked(p.scope, ref.Address)
+	generator := e.sequenceGeneratorLocked(s, ref.Address)
 	if generator == nil {
 		return fmt.Errorf("stuntgres: sequence state missing")
 	}
@@ -165,7 +168,7 @@ func openPGSequencesStage(state *queryState, source *querySource, schema []catal
 			if !admitted {
 				continue
 			}
-			if err := p.complete(ctx, p.refs[i], source.anonymous[i]); err != nil {
+			if err := p.host.CompletePGSequence(ctx, p.refs[i], source.anonymous[i]); err != nil {
 				return false, err
 			}
 			out.selection = append(out.selection, i)

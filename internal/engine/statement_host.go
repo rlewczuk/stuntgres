@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
@@ -33,6 +34,16 @@ type execHost interface {
 	AcquireQueryRow(leaf queryLeaf, row ids.RowID, mark plan.RowMark) (bool, error)
 	LatestQueryRow(leaf queryLeaf, candidate storage.RowVersion, hint int, mode lock.Mode) (storage.RowVersion, bool, error)
 	QueryLocks() *queryLockContext
+
+	// Foreign owner: release the replacement read lock before external I/O;
+	// enlist the statement's foreign transaction participant.
+	ReleaseReplacementRead()
+	TouchForeignScan(ctx context.Context, source *foreignQuerySource) error
+	EnlistForeign(ctx context.Context, wrapper catalog.ForeignDataWrapper, request catalog.ForeignRequest, writing bool) (catalog.ForeignTransaction, error)
+
+	// Sequences: acquires the sequence lock, then reads the generator under
+	// Engine.mu.
+	CompletePGSequence(ctx context.Context, ref ids.ObjectRef, row []sqltype.Value) error
 
 	presentationFormatters
 }
@@ -79,6 +90,11 @@ func (h *statementHost) StatementStart() time.Time { return h.statementStart }
 
 // QueryLocks is the statement's row-lock context, read at recheck time.
 func (h *statementHost) QueryLocks() *queryLockContext { return h.queryLocks }
+
+func (h *statementHost) ReleaseReplacementRead() { h.scope().foreignUnlocked() }
+func (h *statementHost) EnlistForeign(ctx context.Context, wrapper catalog.ForeignDataWrapper, request catalog.ForeignRequest, writing bool) (catalog.ForeignTransaction, error) {
+	return h.scope().enlistForeign(ctx, wrapper, request, writing)
+}
 
 func (h *statementHost) FormatRegclass(id uint32) (string, error) {
 	return h.scope().FormatRegclass(id)
