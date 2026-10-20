@@ -15,14 +15,14 @@ import (
 // members hold the bare provider, never the installer.
 type uuidOsspInstaller struct{ *extension.UUIDOsspProvider }
 
-func (p uuidOsspInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
+func (p uuidOsspInstaller) Stage(stage extension.Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
 	ext.Members = make([]ids.ObjectAddress, 0, len(functions.UUIDOsspMembers))
 	for _, member := range functions.UUIDOsspMembers {
-		oid, err := e.catalog.allocateOIDLocked()
+		oid, err := stage.AllocateOID()
 		if err != nil {
 			return err
 		}
-		revision, err := e.catalog.revisionLocked()
+		revision, err := stage.Revision()
 		if err != nil {
 			return err
 		}

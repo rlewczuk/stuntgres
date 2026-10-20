@@ -15,14 +15,14 @@ import (
 // members hold the bare provider, never the installer.
 type intaggInstaller struct{ *extension.IntaggProvider }
 
-func (p intaggInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
+func (p intaggInstaller) Stage(stage extension.Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
 	ext.Members = make([]ids.ObjectAddress, len(extension.IntaggMembers))
 	for i, member := range extension.IntaggMembers {
-		oid, err := e.catalog.allocateOIDLocked()
+		oid, err := stage.AllocateOID()
 		if err != nil {
 			return err
 		}
-		revision, err := e.catalog.revisionLocked()
+		revision, err := stage.Revision()
 		if err != nil {
 			return err
 		}
@@ -30,11 +30,11 @@ func (p intaggInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Exte
 		ext.Members[i] = address
 		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.Name, Signature: member.Signature, RoutineKind: member.Kind, Owner: owner, Result: member.Result, Volatility: expr.Immutable, Strict: member.Strict, Implementation: p.IntaggProvider}
 		if i == 0 {
-			state, err := e.catalog.allocateOIDLocked()
+			state, err := stage.AllocateOID()
 			if err != nil {
 				return err
 			}
-			final, err := e.catalog.allocateOIDLocked()
+			final, err := stage.AllocateOID()
 			if err != nil {
 				return err
 			}

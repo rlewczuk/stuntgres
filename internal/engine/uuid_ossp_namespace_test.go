@@ -141,7 +141,7 @@ func TestUUIDOsspNamespaceCollision(t *testing.T) {
 			stage := e.BeginCatalogStage(e.CatalogRead())
 			parent := *ext
 			e.mu.Lock()
-			err := uuidOsspInstaller{extension.StockUUIDOssp}.stage(e, stage, &parent, ext.Owner, AuthorizationView{})
+			err := uuidOsspInstaller{extension.StockUUIDOssp}.Stage(&extensionHost{engine: e, stage: stage}, &parent, ext.Owner)
 			e.mu.Unlock()
 			state, ok := err.(interface{ SQLState() string })
 			if !ok || state.SQLState() != "42723" || e.catalog.state != before || before.DescriptorCount() != descriptors || before.NameCount() != names || before.Get(address) != proc || before.NameAddress(key) != address {

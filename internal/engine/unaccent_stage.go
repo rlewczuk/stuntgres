@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -12,14 +11,21 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
+// unaccentScriptFunctions are the template helpers the unaccent script names,
+// with their argument lists as the 42883 message spells them.
+var (
+	unaccentScriptFunctions = [2]extension.ScriptFunction{{Name: "unaccent_init", Signature: catalog.UnaccentInitSignature}, {Name: "unaccent_lexize", Signature: catalog.UnaccentLexizeSignature}}
+	unaccentScriptArguments = [2]string{"internal", "internal, internal, internal, internal"}
+)
+
 // unaccentInstaller stages the unaccent provider for the engine. Installed
 // members hold the bare provider, never the installer.
 type unaccentInstaller struct{ *extension.UnaccentProvider }
 
-func (p unaccentInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
+func (p unaccentInstaller) Stage(stage extension.Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
 	ext.Members = make([]ids.ObjectAddress, 6)
 	for i, class := range [6]ids.OID{ids.ProcedureClassID, ids.ProcedureClassID, ids.ProcedureClassID, ids.ProcedureClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID} {
-		oid, err := e.catalog.allocateOIDLocked()
+		oid, err := stage.AllocateOID()
 		if err != nil {
 			return err
 		}
@@ -27,7 +33,7 @@ func (p unaccentInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 	}
 	signatures := [4]catalog.ProcedureSignature{catalog.UnaccentDictionarySignature, catalog.UnaccentTextSignature, catalog.UnaccentInitSignature, catalog.UnaccentLexizeSignature}
 	for i, signature := range signatures {
-		rev, err := e.catalog.revisionLocked()
+		rev, err := stage.Revision()
 		if err != nil {
 			return err
 		}
@@ -58,32 +64,21 @@ func (p unaccentInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 			return err
 		}
 	}
-	// The script resolves supplied helper names against its coherent staged
-	// search path, under the actual script execution principal. In particular,
-	// unqualified function lookup excludes the installer's own TEMP namespace.
-	auth.Catalog = e.stageRead(stage)
-	auth.Recapture(auth.Catalog)
-	auth.State.CurrentUser = owner
-	if err := auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), ext.TargetNamespace)); err != nil {
+	// The script resolves its helpers as the member owner, against the staged
+	// catalog, with the target schema as its whole search path.
+	found, err := stage.ScriptFunctions(owner, ext.TargetNamespace, unaccentScriptFunctions[:])
+	if err != nil {
 		return err
 	}
-	// Extension scripts replace, rather than prefix, the caller's path. The
-	// stock script has no prerequisite schemas; implicit pg_catalog remains,
-	// and the script's explicit pg_temp entry is excluded from function lookup.
-	path := e.effectivePath(auth, []ids.ObjectAddress{ext.TargetNamespace}, analyze.InstalledFunctionLookup)
 	var helpers [2]ids.ObjectAddress
-	for i, helper := range [...]struct {
-		name      string
-		signature catalog.ProcedureSignature
-		arguments string
-	}{{"unaccent_init", catalog.UnaccentInitSignature, "internal"}, {"unaccent_lexize", catalog.UnaccentLexizeSignature, "internal, internal, internal, internal"}} {
-		procedure := analyze.ProcedureInNamespaces(auth.Catalog, analyze.NamespaceSelection{Path: path}, helper.name, helper.signature)
+	for i, procedure := range found {
 		if procedure == nil {
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: fmt.Sprintf("function %s(%s) does not exist", helper.name, helper.arguments), Context: extension.UnaccentTemplateContext}
+			helper := unaccentScriptFunctions[i]
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: fmt.Sprintf("function %s(%s) does not exist", helper.Name, unaccentScriptArguments[i]), Context: extension.UnaccentTemplateContext}
 		}
 		helpers[i] = procedure.Address()
 	}
-	rev, err := e.catalog.revisionLocked()
+	rev, err := stage.Revision()
 	if err != nil {
 		return err
 	}
@@ -94,7 +89,7 @@ func (p unaccentInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 	if err := stage.Create(tmpl); err != nil {
 		return err
 	}
-	rev, err = e.catalog.revisionLocked()
+	rev, err = stage.Revision()
 	if err != nil {
 		return err
 	}

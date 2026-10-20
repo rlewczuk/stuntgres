@@ -16,23 +16,23 @@ type fuzzystrmatchInstaller struct {
 	*extension.FuzzystrmatchProvider
 }
 
-func (p fuzzystrmatchInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
+func (p fuzzystrmatchInstaller) Stage(stage extension.Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
 	if ext.Version != "1.1" {
 		return fmt.Errorf("stuntgres: invalid fuzzystrmatch base")
 	}
 	ext.Members = make([]ids.ObjectAddress, 0, len(extension.FuzzystrmatchMembers))
-	return p.stageMembers(e, stage, ext, owner, 1, len(extension.FuzzystrmatchMembers))
+	return p.stageMembers(stage, ext, owner, 1, len(extension.FuzzystrmatchMembers))
 }
 
-func (p fuzzystrmatchInstaller) updates() []extensionUpdateAction {
-	return []extensionUpdateAction{{edge: catalog.ExtensionVersionEdge{From: "1.1", To: "1.2"}, stage: p.stageUpdate}}
+func (p fuzzystrmatchInstaller) Updates() []extension.UpdateAction {
+	return []extension.UpdateAction{{Edge: catalog.ExtensionVersionEdge{From: "1.1", To: "1.2"}, Stage: p.stageUpdate}}
 }
 
-func (p fuzzystrmatchInstaller) stageUpdate(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
+func (p fuzzystrmatchInstaller) stageUpdate(stage extension.Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
 	if ext.Version != "1.1" {
 		return fmt.Errorf("stuntgres: invalid fuzzystrmatch update predecessor")
 	}
-	if err := p.stageMembers(e, stage, ext, owner, 0, 1); err != nil {
+	if err := p.stageMembers(stage, ext, owner, 0, 1); err != nil {
 		return err
 	}
 	// Retain the established selected 1.2 manifest order without changing
@@ -44,13 +44,13 @@ func (p fuzzystrmatchInstaller) stageUpdate(e *Engine, stage *CatalogStage, ext 
 	return nil
 }
 
-func (p fuzzystrmatchInstaller) stageMembers(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, start, end int) error {
+func (p fuzzystrmatchInstaller) stageMembers(stage extension.Stage, ext *catalog.Extension, owner authorization.PrincipalRef, start, end int) error {
 	for _, member := range extension.FuzzystrmatchMembers[start:end] {
-		oid, err := e.catalog.allocateOIDLocked()
+		oid, err := stage.AllocateOID()
 		if err != nil {
 			return err
 		}
-		revision, err := e.catalog.revisionLocked()
+		revision, err := stage.Revision()
 		if err != nil {
 			return err
 		}

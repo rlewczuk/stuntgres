@@ -15,17 +15,9 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-type extensionUpdateAction struct {
-	edge  catalog.ExtensionVersionEdge
-	stage func(*Engine, *CatalogStage, *catalog.Extension, authorization.PrincipalRef, AuthorizationView) error
-}
-type extensionUpdater interface {
-	updates() []extensionUpdateAction
-}
-
-func extensionActions(implementation catalog.ExtensionImplementation) []extensionUpdateAction {
-	if updater, ok := implementation.(extensionUpdater); ok {
-		return updater.updates()
+func extensionActions(implementation catalog.ExtensionImplementation) []extension.UpdateAction {
+	if updater, ok := implementation.(extension.Updater); ok {
+		return updater.Updates()
 	}
 	return nil
 }
@@ -36,10 +28,10 @@ func validateExtensionActions(implementation catalog.ExtensionImplementation) er
 	}
 	seen := map[catalog.ExtensionVersionEdge]bool{}
 	for _, action := range extensionActions(implementation) {
-		if action.stage == nil || seen[action.edge] || !slices.Contains(versions.Edges, action.edge) {
+		if action.Stage == nil || seen[action.Edge] || !slices.Contains(versions.Edges, action.Edge) {
 			return fmt.Errorf("stuntgres: invalid extension update action")
 		}
-		seen[action.edge] = true
+		seen[action.Edge] = true
 	}
 	for _, edge := range versions.Edges {
 		if versions.InstallPath(edge.From) != nil && !seen[edge] {
@@ -49,7 +41,7 @@ func validateExtensionActions(implementation catalog.ExtensionImplementation) er
 	return nil
 }
 
-func stageExtensionPath(ctx context.Context, e *Engine, stage *CatalogStage, implementation catalog.ExtensionImplementation, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView, path []string) error {
+func stageExtensionPath(ctx context.Context, stage extension.Stage, implementation catalog.ExtensionImplementation, ext *catalog.Extension, owner authorization.PrincipalRef, path []string) error {
 	for i := 1; i < len(path); i++ {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -57,8 +49,8 @@ func stageExtensionPath(ctx context.Context, e *Engine, stage *CatalogStage, imp
 		edge := catalog.ExtensionVersionEdge{From: path[i-1], To: path[i]}
 		found := false
 		for _, action := range extensionActions(implementation) {
-			if action.edge == edge {
-				if err := action.stage(e, stage, ext, owner, auth); err != nil {
+			if action.Edge == edge {
+				if err := action.Stage(stage, ext, owner); err != nil {
 					return err
 				}
 				found = true
@@ -159,7 +151,7 @@ func (e *Engine) stageExtensionUpdateLocked(scope *StatementScope, s *parser.Alt
 	if err := stage.Replace(&ext); err != nil {
 		return nil, err
 	}
-	if err := stageExtensionPath(scope.op.Context(), e, stage, implementation, &ext, owner, auth, path); err != nil {
+	if err := stageExtensionPath(scope.op.Context(), &extensionHost{engine: e, auth: auth, stage: stage}, implementation, &ext, owner, path); err != nil {
 		return nil, err
 	}
 	return stage, nil

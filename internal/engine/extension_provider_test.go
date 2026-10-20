@@ -381,7 +381,7 @@ func TestExtensionMembersHoldBareProviders(t *testing.T) {
 		name  string
 		stock catalog.ExtensionImplementation
 	}{{"cube", extension.StockCube}, {"unaccent", extension.StockUnaccent}, {"intarray", extension.StockIntarray}, {"fuzzystrmatch", extension.StockFuzzystrmatch}, {"intagg", extension.StockIntagg}, {"pgcrypto", extension.StockPgcrypto}, {"uuid-ossp", extension.StockUUIDOssp}} {
-		if _, ok := e.catalog.Extensions[tc.name].(extensionInstaller); !ok {
+		if _, ok := e.catalog.Extensions[tc.name].(extension.Installer); !ok {
 			t.Fatal("registered implementation is not an installer", tc.name)
 		}
 		e.mu.Lock()
@@ -407,7 +407,7 @@ func TestExtensionMembersHoldBareProviders(t *testing.T) {
 				continue
 			}
 			members++
-			if _, installer := implementation.(extensionInstaller); installer || implementation != tc.stock {
+			if _, installer := implementation.(extension.Installer); installer || implementation != tc.stock {
 				t.Fatal("member does not hold the bare stock provider", tc.name, a)
 			}
 		}

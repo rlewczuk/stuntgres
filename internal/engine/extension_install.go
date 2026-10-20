@@ -12,18 +12,9 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// extensionInstaller is the engine side of an implementation: staging needs
-// the engine and its catalog stage, which catalog code never names. Each
-// installer wraps one stock provider; the registry holds the installer and
-// the installed members hold the provider.
-type extensionInstaller interface {
-	catalog.ExtensionImplementation
-	stage(*Engine, *CatalogStage, *catalog.Extension, authorization.PrincipalRef, AuthorizationView) error
-}
-
 // Registration is initialization-only and duplicate checked, like catalog
 // provider registration. It does not execute scripts or load external packages.
-func (e *Engine) registerExtension(name string, implementation extensionInstaller) error {
+func (e *Engine) registerExtension(name string, implementation extension.Installer) error {
 	if e.catalog.state != nil {
 		return fmt.Errorf("stuntgres: extension registry is closed")
 	}
@@ -110,7 +101,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 		return nil, sqlError("42710", fmt.Sprintf(`extension "%s" already exists`, s.Name.Text))
 	}
 	implementation, ok := e.catalog.Extensions[s.Name.Text]
-	installer, installable := implementation.(extensionInstaller)
+	installer, installable := implementation.(extension.Installer)
 	if !ok || !installable {
 		return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`extension "%s" is not available`, s.Name.Text)}
 	}
@@ -191,10 +182,11 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	if err := stage.Create(ext); err != nil {
 		return nil, err
 	}
-	if err := installer.stage(e, stage, ext, memberOwner, auth); err != nil {
+	host := &extensionHost{engine: e, auth: auth, stage: stage}
+	if err := installer.Stage(host, ext, memberOwner); err != nil {
 		return nil, err
 	}
-	if err := stageExtensionPath(op.Context(), e, stage, implementation, ext, memberOwner, auth, path); err != nil {
+	if err := stageExtensionPath(op.Context(), host, implementation, ext, memberOwner, path); err != nil {
 		return nil, err
 	}
 	return stage, nil

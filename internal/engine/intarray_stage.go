@@ -17,37 +17,37 @@ import (
 // members hold the bare provider, never the installer.
 type intarrayInstaller struct{ *extension.IntarrayProvider }
 
-func (p intarrayInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
-	available, err := e.displaceAssociatedArrayLocked(stage, ext.TargetNamespace, "query_int")
+func (p intarrayInstaller) Stage(stage extension.Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
+	available, err := stage.DisplaceAssociatedArray(ext.TargetNamespace, "query_int")
 	if err != nil {
 		return err
 	}
-	if !available || typedef.RelationTypeNameOccupied(auth.Catalog, ext.TargetNamespace, "query_int") {
+	if !available || typedef.RelationTypeNameOccupied(stage.Read(), ext.TargetNamespace, "query_int") {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "query_int" already exists`, Context: extension.IntarrayTypeContext}
 	}
 	ext.Members = make([]ids.ObjectAddress, 3)
 	for i, class := range [3]ids.OID{ids.TypeClassID, ids.ProcedureClassID, ids.ProcedureClassID} {
-		oid, err := e.catalog.allocateOIDLocked()
+		oid, err := stage.AllocateOID()
 		if err != nil {
 			return err
 		}
 		ext.Members[i] = ids.ObjectAddress{ClassID: class, ObjectID: oid}
 	}
-	ns := auth.Catalog.Get(ext.TargetNamespace).Name()
+	ns := stage.Read().Get(ext.TargetNamespace).Name()
 	typ, err := sqltype.QueryInt(sqltype.ID(ext.Members[0].ObjectID), "query_int", catalog.DependencyIdentifier(ns)+".query_int")
 	if err != nil {
 		return err
 	}
-	arrayOID, err := e.catalog.allocateOIDLocked()
+	arrayOID, err := stage.AllocateOID()
 	if err != nil {
 		return err
 	}
-	array := sqltype.LookupArray(sqltype.ID(arrayOID), associatedArrayName(stage, ext.TargetNamespace, typ.Name()), typ)
-	revision, err := e.catalog.revisionLocked()
+	array := sqltype.LookupArray(sqltype.ID(arrayOID), stage.AssociatedArrayName(ext.TargetNamespace, typ.Name()), typ)
+	revision, err := stage.Revision()
 	if err != nil {
 		return err
 	}
-	acl, synthetic := stage.creationTypeACL(owner, ext.TargetNamespace)
+	acl, synthetic := stage.CreationTypeACL(owner, ext.TargetNamespace)
 	if err := stage.Create(&catalog.Type{SQLType: typ, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, Owner: owner, ACL: acl, ACLSyntheticDefault: synthetic, Array: array.ID()}); err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func (p intarrayInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 		return err
 	}
 	for i := range 2 {
-		revision, err := e.catalog.revisionLocked()
+		revision, err := stage.Revision()
 		if err != nil {
 			return err
 		}

@@ -17,37 +17,37 @@ import (
 // members hold the bare provider, never the installer.
 type cubeInstaller struct{ *extension.CubeProvider }
 
-func (p cubeInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
-	available, err := e.displaceAssociatedArrayLocked(stage, ext.TargetNamespace, "cube")
+func (p cubeInstaller) Stage(stage extension.Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
+	available, err := stage.DisplaceAssociatedArray(ext.TargetNamespace, "cube")
 	if err != nil {
 		return err
 	}
-	if !available || typedef.RelationTypeNameOccupied(auth.Catalog, ext.TargetNamespace, "cube") {
+	if !available || typedef.RelationTypeNameOccupied(stage.Read(), ext.TargetNamespace, "cube") {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "cube" already exists`, Context: extension.CubeTypeContext}
 	}
 	ext.Members = make([]ids.ObjectAddress, 3)
 	for i, class := range [3]ids.OID{ids.TypeClassID, ids.ProcedureClassID, ids.ProcedureClassID} {
-		oid, err := e.catalog.allocateOIDLocked()
+		oid, err := stage.AllocateOID()
 		if err != nil {
 			return err
 		}
 		ext.Members[i] = ids.ObjectAddress{ClassID: class, ObjectID: oid}
 	}
-	ns := auth.Catalog.Get(ext.TargetNamespace).Name()
+	ns := stage.Read().Get(ext.TargetNamespace).Name()
 	typ, err := sqltype.Cube(sqltype.ID(ext.Members[0].ObjectID), "cube", catalog.DependencyIdentifier(ns)+".cube")
 	if err != nil {
 		return err
 	}
-	arrayOID, err := e.catalog.allocateOIDLocked()
+	arrayOID, err := stage.AllocateOID()
 	if err != nil {
 		return err
 	}
-	array := sqltype.LookupArray(sqltype.ID(arrayOID), associatedArrayName(stage, ext.TargetNamespace, typ.Name()), typ)
-	revision, err := e.catalog.revisionLocked()
+	array := sqltype.LookupArray(sqltype.ID(arrayOID), stage.AssociatedArrayName(ext.TargetNamespace, typ.Name()), typ)
+	revision, err := stage.Revision()
 	if err != nil {
 		return err
 	}
-	acl, synthetic := stage.creationTypeACL(owner, ext.TargetNamespace)
+	acl, synthetic := stage.CreationTypeACL(owner, ext.TargetNamespace)
 	if err := stage.Create(&catalog.Type{SQLType: typ, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, Owner: owner, ACL: acl, ACLSyntheticDefault: synthetic, Array: array.ID()}); err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func (p cubeInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Extens
 		return err
 	}
 	for i := range 2 {
-		revision, err := e.catalog.revisionLocked()
+		revision, err := stage.Revision()
 		if err != nil {
 			return err
 		}

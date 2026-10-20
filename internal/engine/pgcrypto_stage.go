@@ -14,14 +14,14 @@ import (
 // members hold the bare provider, never the installer.
 type pgcryptoInstaller struct{ *extension.PgcryptoProvider }
 
-func (p pgcryptoInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
+func (p pgcryptoInstaller) Stage(stage extension.Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
 	ext.Members = make([]ids.ObjectAddress, len(functions.PgcryptoMembers))
 	for i, member := range functions.PgcryptoMembers {
-		oid, err := e.catalog.allocateOIDLocked()
+		oid, err := stage.AllocateOID()
 		if err != nil {
 			return err
 		}
-		revision, err := e.catalog.revisionLocked()
+		revision, err := stage.Revision()
 		if err != nil {
 			return err
 		}
