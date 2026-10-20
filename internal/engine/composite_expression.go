@@ -140,7 +140,7 @@ func (b *expressionBinder) assignCompositeMember(node expr.Expr, target sqltype.
 	if err != nil {
 		return node, err
 	}
-	return plan.CoercionExpr{Info: b.info(target, node.SourcePosition(), coercionProperties(node, coercionPlan)), Child: node, Plan: coercionPlan, Mode: mode, SyntheticConstructorElement: true}, nil
+	return plan.CoercionExpr{Info: b.info(target, node.SourcePosition(), analyze.CoercionProperties(node, coercionPlan)), Child: node, Plan: coercionPlan, Mode: mode, SyntheticConstructorElement: true}, nil
 }
 func (b *expressionBinder) selectCompositeField(base expr.Expr, name string, pos parser.Position) (expr.Expr, error) {
 	typ := base.ResultUsage().Type

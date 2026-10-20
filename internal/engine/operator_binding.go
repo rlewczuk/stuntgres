@@ -56,7 +56,7 @@ func (b *expressionBinder) bindBuiltinOperator(r parser.OperatorExpr, policy exp
 	}
 }
 func builtinOperatorSpelling(name string) bool {
-	_, comparison := comparisonOperator(name)
+	_, comparison := analyze.ComparisonOperator(name)
 	return comparison || arithmeticName(name) || bitwiseName(name) || name == "||" || name == "^@" || likeName(name) || functions.PosixName(name) || arrayMembershipName(name) || functions.JSONExtractionName(name) || functions.JSONBExistenceName(name) || name == "#-" || name == "@>" || name == "<@" || name == "&&" || name == "<<" || name == ">>" || name == "&<" || name == "&>" || name == "-|-"
 }
 
@@ -79,7 +79,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 	}
 	view := auth.ReadCatalog()
 	spelling := name.Parts[len(name.Parts)-1].Text
-	if _, comparison := comparisonOperator(spelling); !unary && comparison {
+	if _, comparison := analyze.ComparisonOperator(spelling); !unary && comparison {
 		available, custom := false, false
 		for i := 0; i < path.Count() && !custom; i++ {
 			for _, address := range view.State().OperatorNames().Buckets[catalog.OperatorNameKey{path.At(i), spelling}] {
@@ -165,7 +165,7 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 		return b.bindSubquery(subquery)
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	if operator, ok := comparisonOperator(name); ok && len(raw.Args) == 2 {
+	if operator, ok := analyze.ComparisonOperator(name); ok && len(raw.Args) == 2 {
 		if left, ok := raw.Args[0].(parser.RowExpr); ok {
 			if right, ok := raw.Args[1].(parser.RowExpr); ok {
 				return b.bindRowComparison(raw, operator, left, right)
@@ -177,7 +177,7 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 		return nil, err
 	}
 	if !set.hasCustom && builtinOperatorSpelling(name) {
-		if _, comparison := comparisonOperator(name); comparison {
+		if _, comparison := analyze.ComparisonOperator(name); comparison {
 			return b.bindComparisonCandidates(raw, &set)
 		}
 		return b.bindBuiltinOperator(raw, policy)

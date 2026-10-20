@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -266,7 +267,7 @@ func domainNullInputExpression(target sqltype.Usage) expr.Expr {
 		panic(err)
 	}
 	child := plan.LiteralExpr{Info: expr.Info{Usage: base}, Value: sqltype.Null(base.Type)}
-	return plan.CoercionExpr{Info: expr.Info{Usage: target, Property: coercionProperties(child, coercionPlan)}, Child: child, Plan: coercionPlan, Mode: sqltype.Assignment}
+	return plan.CoercionExpr{Info: expr.Info{Usage: target, Property: analyze.CoercionProperties(child, coercionPlan)}, Child: child, Plan: coercionPlan, Mode: sqltype.Assignment}
 }
 
 func validateDomainCheckDefinitions(view catalog.Read, domain *catalog.Type) error {

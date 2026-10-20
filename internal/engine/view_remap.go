@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
@@ -393,7 +394,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 }
 
 func remapViewQuery(view catalog.Read, node plan.Node, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...typedef.CollationRemapper) (plan.Node, error) {
-	typ = recordTypeMapper(typ, collations...)
+	typ = analyze.RecordTypeMapper(typ, collations...)
 	return remapViewQueryMapped(view, node, ref, typ, collations...)
 }
 
@@ -896,7 +897,7 @@ func (m *viewQueryRemapper) query(node plan.Node) (plan.Node, error) {
 // Ordinary descriptor renaming reowns only consumers of changed type
 // generations; replacement additionally remaps every imported object reference.
 func catalogExpressionTypesChanged(d *catalog.Relation, typ func(*sqltype.Descriptor) *sqltype.Descriptor) bool {
-	typ = recordTypeMapper(typ)
+	typ = analyze.RecordTypeMapper(typ)
 	changed := false
 	expression := func(node expr.Expr) {
 		walkQueryArgumentExpression(node, func(child expr.Expr) {

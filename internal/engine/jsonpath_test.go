@@ -2,12 +2,14 @@ package engine
 
 import (
 	"context"
+	"testing"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestJSONPathDestinationParameterInference(t *testing.T) {
@@ -71,7 +73,7 @@ func TestJSONPathSharedSourceErrorAndPersistenceLiteral(t *testing.T) {
 	if !ok {
 		t.Fatal(err)
 	}
-	enriched := inputErrorAt(err, parser.Position{Character: 14}).(*sqlstate.Error)
+	enriched := analyze.InputErrorAt(err, parser.Position{Character: 14}).(*sqlstate.Error)
 	if enriched.Code != "2201B" || enriched.Position != "14" || original.Position != "" || enriched.Context != "" {
 		t.Fatal(enriched, original)
 	}

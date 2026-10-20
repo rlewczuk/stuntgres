@@ -2,6 +2,8 @@ package engine
 
 import (
 	"fmt"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -52,7 +54,7 @@ func (b *expressionBinder) bindCycleMarks(raw *parser.CycleClause) (*plan.CycleR
 			}
 			coercionInfo := info
 			coercionInfo.Pos = node.SourcePosition()
-			coercionInfo.Property = coercionProperties(node, coercionPlan)
+			coercionInfo.Property = analyze.CoercionProperties(node, coercionPlan)
 			nodes[i] = plan.CoercionExpr{Info: coercionInfo, Child: node, Plan: coercionPlan, Mode: sqltype.Implicit}
 		}
 	}

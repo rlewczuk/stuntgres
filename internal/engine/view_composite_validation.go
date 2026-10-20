@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 )
 
@@ -38,6 +40,26 @@ func (v *viewDefinition) validateCompositeSource(captured compositeOccurrence) e
 		}
 		if shape.ID() != 2249 && column.Leaf >= 0 && member.Attribute != column.Attribute {
 			return fmt.Errorf("stuntgres: incompatible frozen whole-row attribute")
+		}
+	}
+	return nil
+}
+
+func validateCompositeOccurrence(captured compositeOccurrence, catalog catalog.Read) error {
+	if captured.Kind != analyze.CompositeSelection && captured.Kind != analyze.CompositeExpansion && captured.Kind != analyze.CompositeDotBuiltin && captured.Kind != analyze.CompositeWholeRow && captured.Kind != analyze.CompositeSourceExpansion && captured.Kind != analyze.CompositeRecordArgument || captured.Kind == analyze.CompositeSelection && len(captured.Attributes) != 1 || captured.Kind == analyze.CompositeRecordArgument && len(captured.Attributes) != 0 || captured.Kind == analyze.CompositeWholeRow && (len(captured.Attributes) != 0 || captured.Source.Namespace == 0) || captured.Kind == analyze.CompositeDotBuiltin && (len(captured.Attributes) != 0 || captured.Function != functions.CountNulls && captured.Function != functions.CountNonnulls) || captured.Kind != analyze.CompositeDotBuiltin && captured.Function != 0 || !validExpressionUsage(catalog, captured.Base) || captured.Kind != analyze.CompositeDotBuiltin && !captured.Base.Type.BaseType().IsComposite() {
+		return fmt.Errorf("stuntgres: invalid frozen composite authority")
+	}
+	if captured.Kind == analyze.CompositeSourceExpansion && len(captured.Names) != len(captured.Attributes) || captured.Kind != analyze.CompositeSourceExpansion && len(captured.Names) != 0 {
+		return fmt.Errorf("stuntgres: invalid frozen source labels")
+	}
+	for i, attribute := range captured.Attributes {
+		if _, ok := captured.Base.Type.BaseType().CompositeAttributeIndex(attribute); !ok {
+			return fmt.Errorf("stuntgres: retired frozen composite attribute")
+		}
+		for _, previous := range captured.Attributes[:i] {
+			if previous == attribute {
+				return fmt.Errorf("stuntgres: repeated frozen composite attribute")
+			}
 		}
 	}
 	return nil

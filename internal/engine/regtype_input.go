@@ -239,15 +239,6 @@ func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw par
 	return uint32(typ.ID()), nil
 }
 
-func regtypeInputError(err error, pos parser.Position) error {
-	if d, ok := err.(*sqlstate.Error); ok && pos.Character > 0 {
-		copied := *d
-		copied.Position = strconv.Itoa(pos.Character)
-		return &copied
-	}
-	return err
-}
-
 func (r capturedRegtypeInput) RegtypeParameter(slot int, empty bool) sqltype.RegtypeResolver {
 	text := "..."
 	if empty {

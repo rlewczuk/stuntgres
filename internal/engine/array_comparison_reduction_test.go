@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -49,7 +50,7 @@ func TestArrayCompareReduction(t *testing.T) {
 		}
 		right := plan.LiteralExpr{Info: b.info(arrayType.Usage(), parser.Position{}, expr.Properties{}), Value: array}
 		for i, name := range []string{"=", "=", "<>", "<>"} {
-			op, _ := comparisonOperator(name)
+			op, _ := analyze.ComparisonOperator(name)
 			predicate, err := sqltype.BindComparisonPredicate(op, integer, integer, boolean, sqltype.CollationRef{}, false)
 			if err != nil {
 				t.Fatal(err)

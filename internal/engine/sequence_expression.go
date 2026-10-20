@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -82,7 +84,7 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectR
 	if err != nil {
 		return nil, ids.ObjectRef{}, err
 	}
-	info, err := b.collatedInfo(b.info(typ.Usage(), raw.SourcePosition(), coercionProperties(node, coercionPlan)), node)
+	info, err := b.collatedInfo(b.info(typ.Usage(), raw.SourcePosition(), analyze.CoercionProperties(node, coercionPlan)), node)
 	if err != nil {
 		return nil, ids.ObjectRef{}, err
 	}
@@ -115,7 +117,7 @@ func (b *expressionBinder) bindRegclassCast(raw parser.Expr, pos parser.Position
 	if child.ResultUsage() == target {
 		return child, nil
 	}
-	return plan.CoercionExpr{Info: b.info(target, raw.SourcePosition(), coercionProperties(child, coercionPlan)), Child: child, Plan: coercionPlan, Mode: sqltype.Explicit}, nil
+	return plan.CoercionExpr{Info: b.info(target, raw.SourcePosition(), analyze.CoercionProperties(child, coercionPlan)), Child: child, Plan: coercionPlan, Mode: sqltype.Explicit}, nil
 }
 func sequenceInputError(err error, pos parser.Position, context string, parameter int) error {
 	if d, ok := err.(*sqlstate.Error); ok {

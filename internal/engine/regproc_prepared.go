@@ -37,7 +37,7 @@ func (b *expressionBinder) routineConstant(text string, usage sqltype.Usage, pos
 	}
 	value, err := usage.Type.InputWithEnvironment(b.ctx, text, -1, input.LiteralInput(pos.Character))
 	if err != nil {
-		return sqltype.Value{}, regtypeInputError(err, pos)
+		return sqltype.Value{}, analyze.RegtypeInputError(err, pos)
 	}
 	constant.Value = value
 	for _, operand := range constant.Operands {

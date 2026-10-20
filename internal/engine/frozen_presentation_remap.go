@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -9,7 +10,7 @@ import (
 )
 
 func remapFrozenPresentation(view catalog.Read, original *viewDefinition, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (*viewDefinition, error) {
-	typ = recordTypeMapper(typ, collation)
+	typ = analyze.RecordTypeMapper(typ, collation)
 	definition := *original
 	if len(original.columns) != 0 {
 		definition.columns = make(map[viewLiteralPath]viewColumn, len(original.columns))

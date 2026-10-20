@@ -6,6 +6,9 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"testing"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
@@ -14,7 +17,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestRoutineReleaseInventory(t *testing.T) {
@@ -207,7 +209,7 @@ func TestRoutineDiagnosticOwnership(t *testing.T) {
 		t.Fatalf("decoded argument source: %#v", err)
 	}
 	saved := *original
-	literal := regtypeInputError(err, parser.Position{Character: 17})
+	literal := analyze.RegtypeInputError(err, parser.Position{Character: 17})
 	var translated *sqlstate.Error
 	if !errors.As(literal, &translated) || translated.Position != "17" || translated.Context != saved.Context || *original != saved {
 		t.Fatal("literal translation mutated argument diagnostic", literal, err)

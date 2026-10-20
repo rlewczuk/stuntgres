@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -91,7 +92,7 @@ func defaultDestination(node expr.Expr, target sqltype.Usage) expr.Expr {
 	if err != nil {
 		panic(err)
 	} // Catalog validation guarantees assignment-compatible recipes.
-	return plan.CoercionExpr{Info: expr.Info{Usage: target, Property: coercionProperties(node, coercionPlan)}, Child: node, Plan: coercionPlan, Mode: sqltype.Assignment}
+	return plan.CoercionExpr{Info: expr.Info{Usage: target, Property: analyze.CoercionProperties(node, coercionPlan)}, Child: node, Plan: coercionPlan, Mode: sqltype.Assignment}
 }
 
 func columnDefault(view catalog.Read, d *catalog.Relation, slot int) (expr.Expr, defaultOrigin) {

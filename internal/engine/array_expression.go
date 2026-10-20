@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -80,15 +81,15 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 		if explicit {
 			node, err = b.finalizeOperand(o, childUsage.Type)
 			if err == nil && node.ResultUsage() != childUsage {
-				input, annotations := domainCoercionInput(node, childUsage)
+				input, annotations := analyze.DomainCoercionInput(node, childUsage)
 				var info expr.Info
 				info, err = b.coercionInfo(b.info(childUsage, node.SourcePosition(), input.Properties()), input)
 				if err == nil {
 					var coercionPlan sqltype.CoercionPlan
 					coercionPlan, err = sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Explicit)
 					if err == nil {
-						info.Property = coercionProperties(input, coercionPlan)
-						node = restoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Explicit, SyntheticConstructorElement: true})
+						info.Property = analyze.CoercionProperties(input, coercionPlan)
+						node = analyze.RestoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Explicit, SyntheticConstructorElement: true})
 					}
 				}
 			}
@@ -153,7 +154,7 @@ func (b *expressionBinder) bindArrayBounds(raw []parser.ArraySubscript) ([]plan.
 		if err != nil {
 			return nil, expr.ErrorAt("42804", "array subscript must have type integer", parser.ExpressionStart(raw))
 		}
-		return plan.CoercionExpr{Info: b.info(b.typ(sqltype.Int4).Usage(), node.SourcePosition(), coercionProperties(node, coercionPlan)), Child: node, Plan: coercionPlan, Mode: sqltype.Assignment}, nil
+		return plan.CoercionExpr{Info: b.info(b.typ(sqltype.Int4).Usage(), node.SourcePosition(), analyze.CoercionProperties(node, coercionPlan)), Child: node, Plan: coercionPlan, Mode: sqltype.Assignment}, nil
 	}
 	for i, s := range raw {
 		lower, err := bind(s.Lower)

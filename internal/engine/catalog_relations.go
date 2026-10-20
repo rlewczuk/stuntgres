@@ -65,7 +65,7 @@ func (b *expressionBinder) bindExtensionUpdatePaths(raw parser.FunctionExpr) (ex
 			}
 			return nil, failure
 		}
-		arg = plan.CoercionExpr{Info: b.info(target, raw.Args[0].SourcePosition(), coercionProperties(arg, coercionPlan)), Child: arg, Plan: coercionPlan, Mode: sqltype.Implicit}
+		arg = plan.CoercionExpr{Info: b.info(target, raw.Args[0].SourcePosition(), analyze.CoercionProperties(arg, coercionPlan)), Child: arg, Plan: coercionPlan, Mode: sqltype.Implicit}
 	}
 	if raw.Star {
 		return nil, expr.ErrorAt("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)

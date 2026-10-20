@@ -29,7 +29,7 @@ func (b *expressionBinder) regTSConstant(text string, usage sqltype.Usage, pos p
 	input.RegTS = input.RegTS.(analyze.RegTSRetarget).RetargetRegTS(analyze.IdentifierTarget{Qualified: &constant.Qualified, Resolved: &constant.Operands})
 	value, err := usage.Type.InputWithEnvironment(b.ctx, text, -1, input.LiteralInput(pos.Character))
 	if err != nil {
-		return sqltype.Value{}, regtypeInputError(err, pos)
+		return sqltype.Value{}, analyze.RegtypeInputError(err, pos)
 	}
 	constant.Value = value
 	for _, dependency := range constant.Operands {

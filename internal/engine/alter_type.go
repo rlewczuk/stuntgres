@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strings"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -174,8 +175,8 @@ func (e *Engine) completeAlterTypeLocked(scope *StatementScope, auth Authorizati
 	}
 	usage := prepared.usage
 	node := prepared.transformation.expression
-	input, annotations := domainCoercionInput(node, usage)
-	info, err := storageCoercionInfo(auth.Catalog, expr.Info{Usage: usage, Property: input.Properties()}, input)
+	input, annotations := analyze.DomainCoercionInput(node, usage)
+	info, err := analyze.StorageCoercionInfo(auth.Catalog, expr.Info{Usage: usage, Property: input.Properties()}, input)
 	if err != nil {
 		return fail(err)
 	}
@@ -205,9 +206,9 @@ func (e *Engine) completeAlterTypeLocked(scope *StatementScope, auth Authorizati
 			return fail(err)
 		}
 	}
-	info.Property = coercionProperties(input, coercionPlan)
-	node = restoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
-	node, err = storageDestination(node, usage, info.Pos)
+	info.Property = analyze.CoercionProperties(input, coercionPlan)
+	node = analyze.RestoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
+	node, err = analyze.StorageDestination(node, usage, info.Pos)
 	if err != nil {
 		return fail(err)
 	}
@@ -325,8 +326,8 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 			}
 			expression = wrapper.Child
 		}
-		input, annotations := domainCoercionInput(expression, usage)
-		info, err := storageCoercionInfo(auth.Catalog, expr.Info{Usage: usage, Property: input.Properties()}, input)
+		input, annotations := analyze.DomainCoercionInput(expression, usage)
+		info, err := analyze.StorageCoercionInfo(auth.Catalog, expr.Info{Usage: usage, Property: input.Properties()}, input)
 		if err != nil {
 			return fail(err)
 		}
@@ -334,9 +335,9 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		if err != nil {
 			return fail(sqlError("42804", fmt.Sprintf(`default for column "%s" cannot be cast automatically to type %s`, a.Column.Text, usage.Type.DiagnosticName())))
 		}
-		info.Property = coercionProperties(input, defaultPlan)
-		expression = restoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: defaultPlan, Mode: sqltype.Assignment})
-		expression, err = storageDestination(expression, usage, info.Pos)
+		info.Property = analyze.CoercionProperties(input, defaultPlan)
+		expression = analyze.RestoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: defaultPlan, Mode: sqltype.Assignment})
+		expression, err = analyze.StorageDestination(expression, usage, info.Pos)
 		if err != nil {
 			return fail(err)
 		}

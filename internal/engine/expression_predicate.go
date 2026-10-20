@@ -2,6 +2,8 @@ package engine
 
 import (
 	"fmt"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -64,7 +66,7 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 			if err != nil {
 				return nil, expr.ErrorAt("42804", fmt.Sprintf("argument of %s must be type boolean, not type %s", names[index], b.diagnosticTypeName(child.ResultUsage().Type)), parser.ExpressionStart(raw.Left))
 			}
-			info, err := b.coercionInfo(b.info(boolUsage, child.SourcePosition(), coercionProperties(child, coercionPlan)), child)
+			info, err := b.coercionInfo(b.info(boolUsage, child.SourcePosition(), analyze.CoercionProperties(child, coercionPlan)), child)
 			if err != nil {
 				return nil, err
 			}

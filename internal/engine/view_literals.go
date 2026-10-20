@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -408,7 +409,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if coercion, ok := bound.(plan.CoercionExpr); ok && coercion.Mode == sqltype.Explicit {
 			bound = coercion.Child
 		}
-		bound = restoreDomainCastCollations(annotations, bound)
+		bound = analyze.RestoreDomainCastCollations(annotations, bound)
 		return child(r.Child, bound)
 	case parser.RegclassExpr:
 		if coercion, ok := bound.(plan.CoercionExpr); ok && coercion.Mode == sqltype.Explicit {

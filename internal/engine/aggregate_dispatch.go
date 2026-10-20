@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -37,7 +38,7 @@ func (b *expressionBinder) aggregateReturning(raw parser.AggregateExpr, node exp
 	if err != nil {
 		return nil, err
 	}
-	info.Property = coercionProperties(node, coercionPlan)
+	info.Property = analyze.CoercionProperties(node, coercionPlan)
 	return plan.CoercionExpr{Info: info, Child: node, Plan: coercionPlan, Mode: sqltype.Assignment}, nil
 }
 

@@ -3,13 +3,15 @@ package engine
 import (
 	"context"
 	"errors"
+	"testing"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func searchUnitDefinition(t *testing.T, breadth bool, usage sqltype.Usage, distinct bool) (*expressionBinder, *plan.CTEDefinition) {
@@ -176,7 +178,7 @@ func TestQuerySearchRemap(t *testing.T) {
 	}
 	for _, breadth := range []bool{true, false} {
 		_, d := searchUnitDefinition(t, breadth, small.Usage(), true)
-		mapper := recordTypeMapper(func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		mapper := analyze.RecordTypeMapper(func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			typ, ok := destination.CatalogRead().LookupType(old.ID())
 			if !ok {
 				t.Fatal(old.ID())

@@ -154,7 +154,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 				// aliases and lowered declarations retain the descriptor's name.
 				return sqltype.Usage{}, typedef.TypeDiagnostic(raw, diagnostic.Code, fmt.Sprintf(`type modifier is not allowed for type "%s"`, objectNameText(object)))
 			}
-			return sqltype.Usage{}, inputErrorAt(err, raw.Pos)
+			return sqltype.Usage{}, analyze.InputErrorAt(err, raw.Pos)
 		}
 	}
 	modifiers := make([]int32, len(raw.Modifiers))
@@ -173,7 +173,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 		}
 		value, err := integer.Input(ctx, modifier.Raw, -1)
 		if err != nil {
-			return sqltype.Usage{}, inputErrorAt(err, raw.Pos)
+			return sqltype.Usage{}, analyze.InputErrorAt(err, raw.Pos)
 		}
 		n, err := value.Integer()
 		if err != nil {
@@ -186,7 +186,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 		var err error
 		u, warning, err = d.ResolveModifiers(modifiers...)
 		if err != nil {
-			return sqltype.Usage{}, inputErrorAt(err, raw.Pos)
+			return sqltype.Usage{}, analyze.InputErrorAt(err, raw.Pos)
 		}
 		if warning != nil && op != nil {
 			if raw.Pos.Character > 0 {

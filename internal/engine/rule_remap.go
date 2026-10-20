@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -15,7 +16,7 @@ import (
 )
 
 func remapRuleBinding(view catalog.Read, b binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (binding, error) {
-	typ = recordTypeMapper(typ, collation)
+	typ = analyze.RecordTypeMapper(typ, collation)
 	mapper := &viewQueryRemapper{catalog: view, ref: ref, typ: typ, collation: collation}
 	mapper.mutation = func(definition *plan.CTEDefinition) (binding, error) {
 		mutation, _ := mutationBinding(definition)

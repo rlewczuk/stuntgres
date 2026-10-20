@@ -3,12 +3,14 @@ package engine
 import (
 	"context"
 	"errors"
+	"testing"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func cycleUnitRecipe(t *testing.T, usages ...sqltype.Usage) *plan.CycleRecipe {
@@ -172,7 +174,7 @@ func TestQueryCycleOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mapper := recordTypeMapper(func(old *sqltype.Descriptor) *sqltype.Descriptor {
+	mapper := analyze.RecordTypeMapper(func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if old == array {
 			return foreign
 		}

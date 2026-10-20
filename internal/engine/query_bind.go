@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -667,8 +668,8 @@ func (b *expressionBinder) assignOutput(bound expr.Expr, target catalog.Column) 
 	if bound.ResultUsage() == target.Usage {
 		return bound, nil
 	}
-	input, annotations := domainCoercionInput(bound, target.Usage)
-	info, err := storageCoercionInfo(b.bindingCatalog(), b.info(target.Usage, bound.SourcePosition(), input.Properties()), input)
+	input, annotations := analyze.DomainCoercionInput(bound, target.Usage)
+	info, err := analyze.StorageCoercionInfo(b.bindingCatalog(), b.info(target.Usage, bound.SourcePosition(), input.Properties()), input)
 	if err != nil {
 		return nil, err
 	}
@@ -681,9 +682,9 @@ func (b *expressionBinder) assignOutput(bound expr.Expr, target catalog.Column) 
 	if coercionPlan.RequiresCatalogOutput() {
 		b.prepared.RegclassConcat = true
 	}
-	info.Property = coercionProperties(input, coercionPlan)
-	bound = restoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
-	return storageDestination(bound, target.Usage, info.Pos)
+	info.Property = analyze.CoercionProperties(input, coercionPlan)
+	bound = analyze.RestoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
+	return analyze.StorageDestination(bound, target.Usage, info.Pos)
 }
 
 // rewriteOrderedSetDirect rewrites an ordered-set aggregate's direct

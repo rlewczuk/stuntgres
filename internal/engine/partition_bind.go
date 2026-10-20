@@ -2,6 +2,8 @@ package engine
 
 import (
 	"fmt"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -188,8 +190,8 @@ func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, d
 		return nil, err
 	}
 	if node.ResultUsage() != key.Usage {
-		input, annotations := domainCoercionInput(node, key.Usage)
-		info, err := storageCoercionInfo(binder.bindingCatalog(), binder.info(key.Usage, datum.Pos, input.Properties()), input)
+		input, annotations := analyze.DomainCoercionInput(node, key.Usage)
+		info, err := analyze.StorageCoercionInfo(binder.bindingCatalog(), binder.info(key.Usage, datum.Pos, input.Properties()), input)
 		if err != nil {
 			return nil, err
 		}
@@ -197,10 +199,10 @@ func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, d
 		if err != nil {
 			return nil, expr.ErrorAt("42804", fmt.Sprintf(`specified value cannot be cast to type %s for column "%s"`, key.Usage.Type.DiagnosticName(), key.Label), datum.Pos)
 		}
-		info.Property = coercionProperties(input, coercionPlan)
-		node = restoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
+		info.Property = analyze.CoercionProperties(input, coercionPlan)
+		node = analyze.RestoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
 	}
-	return storageDestination(node, key.Usage, node.SourcePosition())
+	return analyze.StorageDestination(node, key.Usage, node.SourcePosition())
 }
 
 func (p *pendingPartitionDefinition) evaluateBounds(scope *StatementScope, evaluation *exec.Context) error {

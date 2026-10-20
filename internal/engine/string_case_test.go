@@ -3,6 +3,9 @@ package engine
 import (
 	"context"
 	"errors"
+	"testing"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -10,7 +13,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 // These units exercise retained package plans, not public SQL execution.
@@ -89,7 +91,7 @@ func TestStringCaseOnceOnlyChildAndMetadata(t *testing.T) {
 		Plan: stringPlan, Textual: [4]bool{true}, Syntax: parser.OrdinaryStringSyntax,
 		Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: sqltype.String(text, "İ")}},
 	}
-	info, err := collatedInfo(New().CatalogRead(), expr.Info{Usage: usage}, node)
+	info, err := analyze.CollatedInfo(New().CatalogRead(), expr.Info{Usage: usage}, node)
 	if err != nil || info.Usage.Collation.ID != 811 || info.CollationConflict {
 		t.Fatal("nested authority", info, err)
 	}

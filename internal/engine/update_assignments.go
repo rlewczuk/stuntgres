@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -96,8 +98,8 @@ func bindUpdateAssignments(b *binding, binder *expressionBinder, assignments []p
 				u.Assignments[i] = source
 				continue
 			}
-			input, annotations := domainCoercionInput(source, dest.Usage)
-			info, err := storageCoercionInfo(binder.bindingCatalog(), binder.info(dest.Usage, sourcePos, input.Properties()), input)
+			input, annotations := analyze.DomainCoercionInput(source, dest.Usage)
+			info, err := analyze.StorageCoercionInfo(binder.bindingCatalog(), binder.info(dest.Usage, sourcePos, input.Properties()), input)
 			if err != nil {
 				return err
 			}
@@ -119,9 +121,9 @@ func bindUpdateAssignments(b *binding, binder *expressionBinder, assignments []p
 			if coercionPlan.RequiresCatalogOutput() {
 				binder.prepared.RegclassConcat = true
 			}
-			info.Property = coercionProperties(input, coercionPlan)
-			source = restoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
-			source, err = storageDestination(source, dest.Usage, info.Pos)
+			info.Property = analyze.CoercionProperties(input, coercionPlan)
+			source = analyze.RestoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
+			source, err = analyze.StorageDestination(source, dest.Usage, info.Pos)
 			if err != nil {
 				return err
 			}

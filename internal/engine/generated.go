@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"slices"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -90,8 +92,8 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 		return catalog.ColumnGeneration{}, sqlError("42P17", "generation expression is not immutable")
 	}
 	if node.ResultUsage() != column.Usage {
-		input, annotations := domainCoercionInput(node, column.Usage)
-		info, failure := storageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, input.Properties()), input)
+		input, annotations := analyze.DomainCoercionInput(node, column.Usage)
+		info, failure := analyze.StorageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, input.Properties()), input)
 		if failure != nil {
 			return catalog.ColumnGeneration{}, failure
 		}
@@ -101,10 +103,10 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 			diagnostic.Hint = "You will need to rewrite or cast the expression."
 			return catalog.ColumnGeneration{}, diagnostic
 		}
-		info.Property = coercionProperties(input, coercionPlan)
-		node = restoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
-		analyzedInput, analyzedAnnotations := domainCoercionInput(analyzed, column.Usage)
-		analyzedInfo, failure := storageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, analyzedInput.Properties()), analyzedInput)
+		info.Property = analyze.CoercionProperties(input, coercionPlan)
+		node = analyze.RestoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
+		analyzedInput, analyzedAnnotations := analyze.DomainCoercionInput(analyzed, column.Usage)
+		analyzedInfo, failure := analyze.StorageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, analyzedInput.Properties()), analyzedInput)
 		if failure != nil {
 			return catalog.ColumnGeneration{}, failure
 		}
@@ -112,14 +114,14 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 		if failure != nil {
 			return catalog.ColumnGeneration{}, failure
 		}
-		analyzedInfo.Property = coercionProperties(analyzedInput, analyzedPlan)
-		analyzed = restoreDomainCastCollations(analyzedAnnotations, plan.CoercionExpr{Info: analyzedInfo, Child: analyzedInput, Plan: analyzedPlan, Mode: sqltype.Assignment})
+		analyzedInfo.Property = analyze.CoercionProperties(analyzedInput, analyzedPlan)
+		analyzed = analyze.RestoreDomainCastCollations(analyzedAnnotations, plan.CoercionExpr{Info: analyzedInfo, Child: analyzedInput, Plan: analyzedPlan, Mode: sqltype.Assignment})
 	}
-	node, err = storageDestination(node, column.Usage, parser.Position{})
+	node, err = analyze.StorageDestination(node, column.Usage, parser.Position{})
 	if err != nil {
 		return catalog.ColumnGeneration{}, err
 	}
-	analyzed, err = storageDestination(analyzed, column.Usage, parser.Position{})
+	analyzed, err = analyze.StorageDestination(analyzed, column.Usage, parser.Position{})
 	if err != nil {
 		return catalog.ColumnGeneration{}, err
 	}

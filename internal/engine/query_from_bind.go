@@ -663,7 +663,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 					if value.ResultUsage() != usage {
 						// A same-type common key can still lose its typmod.
 						// Publish that relabel in the recipe as well as the slot.
-						input, annotations := domainCoercionInput(value, usage)
+						input, annotations := analyze.DomainCoercionInput(value, usage)
 						info, err := b.coercionInfo(b.info(usage, pos, input.Properties()), input)
 						if err != nil {
 							return nil, queryNamespace{}, err
@@ -672,8 +672,8 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 						if err != nil {
 							return nil, queryNamespace{}, err
 						}
-						info.Property = coercionProperties(input, coercionPlan)
-						value = restoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Implicit})
+						info.Property = analyze.CoercionProperties(input, coercionPlan)
+						value = analyze.RestoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Implicit})
 					}
 					column = queryColumn{descriptor: catalog.Column{Name: key.Text, Usage: usage}, slot: len(ns.frame), leaf: -1, physical: -1, hideStar: column.hideStar}
 					join.Merges = append(join.Merges, value)

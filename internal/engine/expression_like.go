@@ -3,12 +3,12 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
-	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -28,54 +28,12 @@ func likeProperties(a, b expr.Expr) expr.Properties {
 	return p
 }
 
-// Implicit default yields to nondefault identities; differing nondefault
-// identities remain indeterminate until an explicit annotation supplies authority.
-func likeCollation(a, b sqltype.Usage) (sqltype.CollationRef, bool) {
-	x, y := a.Collation, b.Collation
-	if x.ID == 0 {
-		return y, false
-	}
-	if y.ID == 0 || x.ID == y.ID {
-		return x, false
-	}
-	if x.ID == 100 {
-		return y, false
-	}
-	if y.ID == 100 {
-		return x, false
-	}
-	return sqltype.CollationRef{ID: 100, Derivation: sqltype.Default}, true
-}
-
 func (b *expressionBinder) collatedInfo(info expr.Info, inputs ...expr.Expr) (expr.Info, error) {
-	return collatedInfo(b.bindingCatalog(), info, inputs...)
-}
-
-// Coercion inherits its child's authority except CoerceToDomain to a declared
-// nondefault collation. Targeting coercions move top-level COLLATE wrappers
-// outside their domain boundary; nested explicit authority is replaced here.
-func coercionInfo(view catalog.Read, info expr.Info, child expr.Expr) (expr.Info, error) {
-	info.CollationExplicit = parser.Position{}
-	info.CollationConflict = false
-	info.CollationLeft, info.CollationRight, info.CollationConflictPos = sqltype.CollationRef{}, sqltype.CollationRef{}, parser.Position{}
-	if info.Usage.Collation.ID == 0 {
-		return info, nil
-	}
-	if info.Usage.Type.IsDomain() && child.ResultUsage().Type != info.Usage.Type {
-		declared := info.Usage.Type.Usage().Collation
-		if declared.ID != 0 && declared.ID != 100 {
-			info.Usage.Collation = declared
-			return info, nil
-		}
-	}
-	if source := child.ResultUsage().Collation; source.ID != 0 {
-		info.Usage.Collation = source
-	}
-	return collatedInfo(view, info, child)
+	return analyze.CollatedInfo(b.bindingCatalog(), info, inputs...)
 }
 
 func (b *expressionBinder) coercionInfo(info expr.Info, child expr.Expr) (expr.Info, error) {
-	info, err := coercionInfo(b.bindingCatalog(), info, child)
+	info, err := analyze.CoercionInfo(b.bindingCatalog(), info, child)
 	if err != nil {
 		return expr.Info{}, err
 	}
@@ -96,7 +54,7 @@ func comparisonInfo(view catalog.Read, left, right expr.Expr) (expr.Info, error)
 	if usage.Collation.ID == 0 {
 		usage = right.ResultUsage()
 	}
-	return collatedInfo(view, expr.Info{Usage: usage}, left, right)
+	return analyze.CollatedInfo(view, expr.Info{Usage: usage}, left, right)
 }
 
 func (b *expressionBinder) comparisonInfo(left, right expr.Expr) (expr.Info, error) {
@@ -107,45 +65,6 @@ func (b *expressionBinder) comparisonInfo(left, right expr.Expr) (expr.Info, err
 		return expr.Info{}, err
 	}
 	return comparisonInfo(b.bindingCatalog(), left, right)
-}
-
-// Collation identity is valid Usage metadata; indeterminacy is expression
-// state. Preserve both across collatable wrappers without inventing an invalid
-// stored collation or evaluating branches merely to choose their collation.
-func collatedInfo(view catalog.Read, info expr.Info, inputs ...expr.Expr) (expr.Info, error) {
-	if info.Usage.Collation.ID == 0 {
-		return info, nil
-	}
-	for _, input := range inputs {
-		u, explicit := input.ResultUsage(), input.ExplicitCollation()
-		if u.Collation.ID == 0 {
-			continue
-		}
-		if explicit.Character > 0 {
-			if info.CollationExplicit.Character > 0 && info.Usage.Collation.ID != u.Collation.ID {
-				return info, expr.ErrorAt("42P21", fmt.Sprintf(`collation mismatch between explicit collations "%s" and "%s"`, typedef.CollationName(view, info.Usage.Collation.ID), typedef.CollationName(view, u.Collation.ID)), explicit)
-			}
-			info.Usage.Collation = u.Collation
-			if info.CollationExplicit.Character == 0 {
-				info.CollationExplicit = explicit
-			}
-			info.CollationConflict = false
-			info.CollationLeft, info.CollationRight, info.CollationConflictPos = sqltype.CollationRef{}, sqltype.CollationRef{}, parser.Position{}
-		} else if info.CollationExplicit.Character == 0 {
-			selected, conflict := likeCollation(info.Usage, u)
-			indeterminate := input.CollationIndeterminate()
-			if !info.CollationConflict {
-				if indeterminate {
-					info.CollationLeft, info.CollationRight, info.CollationConflictPos = input.ImplicitCollationConflict()
-				} else if conflict {
-					info.CollationLeft, info.CollationRight, info.CollationConflictPos = info.Usage.Collation, u.Collation, input.SourcePosition()
-				}
-			}
-			info.Usage.Collation = selected
-			info.CollationConflict = info.CollationConflict || conflict || indeterminate
-		}
-	}
-	return info, nil
 }
 
 func (b *expressionBinder) likeOperand(o comparisonOperand, target *sqltype.Descriptor) (expr.Expr, error) {
@@ -164,7 +83,7 @@ func (b *expressionBinder) likeOperand(o comparisonOperand, target *sqltype.Desc
 	if err != nil {
 		return nil, err
 	}
-	info, err := b.coercionInfo(b.Info(u, node.SourcePosition(), coercionProperties(node, coercionPlan)), node)
+	info, err := b.coercionInfo(b.Info(u, node.SourcePosition(), analyze.CoercionProperties(node, coercionPlan)), node)
 	if err != nil {
 		return nil, err
 	}

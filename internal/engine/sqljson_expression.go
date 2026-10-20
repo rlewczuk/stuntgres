@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -34,7 +35,7 @@ func (b *expressionBinder) bindSQLJSON(raw parser.SQLJSONExpr) (expr.Expr, error
 	if err != nil {
 		return nil, err
 	}
-	info, err := b.coercionInfo(b.info(returning, raw.Pos, coercionProperties(node, coercionPlan)), node)
+	info, err := b.coercionInfo(b.info(returning, raw.Pos, analyze.CoercionProperties(node, coercionPlan)), node)
 	if err != nil {
 		return nil, err
 	}

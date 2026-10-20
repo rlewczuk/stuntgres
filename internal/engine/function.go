@@ -82,7 +82,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 		}
 		// Inline safety walks engine nodes; the node protocol replaces it (F2).
 		e := node.(functions.DatetimeOverlaps)
-		e.WrapperContext = !overlapsInlineSafe(e)
+		e.WrapperContext = !analyze.OverlapsInlineSafe(e)
 		return e, nil
 	case "pg_size_bytes", "pg_size_pretty":
 		return b.bindSize(raw, visible)

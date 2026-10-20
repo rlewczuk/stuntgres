@@ -54,7 +54,7 @@ func (b *expressionBinder) regtypeArrayConstant(text string, u sqltype.Usage, po
 	}
 	value, err := b.decodeLiteralInput(text, u.Type, -1, input.LiteralInput(pos.Character))
 	if err != nil {
-		return sqltype.Value{}, regtypeInputError(err, pos)
+		return sqltype.Value{}, analyze.RegtypeInputError(err, pos)
 	}
 	constant.Value = value
 	b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, constant)
@@ -171,7 +171,7 @@ func (b *expressionBinder) regObjectConstant(text string, u sqltype.Usage, pos p
 	}
 	value, err := u.Type.InputWithEnvironment(b.ctx, text, u.Typmod, input.LiteralInput(pos.Character))
 	if err != nil {
-		return sqltype.Value{}, regtypeInputError(err, pos)
+		return sqltype.Value{}, analyze.RegtypeInputError(err, pos)
 	}
 	constant.Value = value
 	if err := b.captureRegObjectReferences(&constant); err != nil {

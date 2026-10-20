@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -99,7 +100,7 @@ func (b *expressionBinder) coerceConditional(o comparisonOperand, target sqltype
 	if row, ok := node.(plan.RowExpr); ok && row.Usage.Type.ID() == 2249 && target.Type.BaseType().IsComposite() {
 		return b.assignCompositeMember(row, target.Type.Usage(), sqltype.Implicit, commonOperandStart(o))
 	}
-	input, annotations := domainCoercionInput(node, target.Type.Usage())
+	input, annotations := analyze.DomainCoercionInput(node, target.Type.Usage())
 	info, err := b.coercionInfo(b.info(target.Type.Usage(), node.SourcePosition(), expr.Properties{}), input)
 	if err != nil {
 		return nil, err
@@ -108,8 +109,8 @@ func (b *expressionBinder) coerceConditional(o comparisonOperand, target sqltype
 	if err != nil {
 		return nil, expr.ErrorAt("42846", fmt.Sprintf("%s could not convert type %s to %s", label, b.diagnosticTypeName(node.ResultUsage().Type), b.diagnosticTypeName(target.Type)), commonOperandStart(o))
 	}
-	info.Property = coercionProperties(input, coercionPlan)
-	return restoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Implicit}), nil
+	info.Property = analyze.CoercionProperties(input, coercionPlan)
+	return analyze.RestoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Implicit}), nil
 }
 func (b *expressionBinder) conditionalEquality(left, right comparisonOperand, pos parser.Position) (expr.Expr, expr.Expr, sqltype.Comparison, *catalog.Procedure, error) {
 	raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "="}}}, Pos: pos}

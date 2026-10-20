@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 
@@ -19,7 +20,7 @@ import (
 // scalar trees to those types without evaluating them or changing captured
 // values, positions or expression properties.
 func retagBoundTypes(view catalog.Read, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...typedef.CollationRemapper) (expr.Expr, bool, error) {
-	retainedType = recordTypeMapper(retainedType, collations...)
+	retainedType = analyze.RecordTypeMapper(retainedType, collations...)
 	return retagBoundTypesWithQuery(view, node, retainedType, func(root plan.Node) (plan.Node, error) {
 		if (view.State() == nil || view.State().ACLItemImport() == nil) && (len(collations) == 0 || collations[0] == nil) && !queryDescriptorsChanged(root, retainedType) && !queryRoutineCarriersChanged(view, root) {
 			return root, nil
@@ -753,7 +754,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 		}
 		if err == nil {
 			var collation expr.Info
-			collation, err = collatedInfo(view, expr.Info{Usage: n.Left.ResultUsage(), Pos: info.Pos}, n.Left, n.Right)
+			collation, err = analyze.CollatedInfo(view, expr.Info{Usage: n.Left.ResultUsage(), Pos: info.Pos}, n.Left, n.Right)
 			if err == nil {
 				n.Provider, err = sqltype.BindLike(n.Operator, n.Left.ResultUsage(), n.Right.ResultUsage(), info.Usage, collation.CollationConflict)
 			}
@@ -810,7 +811,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 			return node, false, err
 		}
 		if err == nil {
-			operator, ok := comparisonOperator(n.Operator)
+			operator, ok := analyze.ComparisonOperator(n.Operator)
 			if !ok {
 				return nil, false, fmt.Errorf("stuntgres: invalid array comparison operator")
 			}
@@ -942,7 +943,7 @@ func retagEnvironment(view catalog.Read, retainedType func(*sqltype.Descriptor) 
 		Type:      retainedType,
 		Collation: remap,
 		Collated: func(info expr.Info, inputs ...expr.Expr) (expr.Info, error) {
-			return collatedInfo(view, info, inputs...)
+			return analyze.CollatedInfo(view, info, inputs...)
 		},
 	}
 }

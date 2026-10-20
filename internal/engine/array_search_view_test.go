@@ -42,7 +42,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return plan.CoercionExpr{Info: b.info(target.Usage(), parser.Position{}, coercionProperties(child, coercionPlan)), Child: child, Plan: coercionPlan, Mode: mode}
+		return plan.CoercionExpr{Info: b.info(target.Usage(), parser.Position{}, analyze.CoercionProperties(child, coercionPlan)), Child: child, Plan: coercionPlan, Mode: mode}
 	}
 	one, err := sqltype.Integer(integer, 1)
 	if err != nil {

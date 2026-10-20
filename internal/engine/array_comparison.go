@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -10,24 +11,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
-
-func comparisonOperator(name string) (sqltype.ComparisonOperator, bool) {
-	switch name {
-	case "=":
-		return sqltype.CompareEqual, true
-	case "<>", "!=":
-		return sqltype.CompareNotEqual, true
-	case "<":
-		return sqltype.CompareLess, true
-	case "<=":
-		return sqltype.CompareLessEqual, true
-	case ">":
-		return sqltype.CompareGreater, true
-	case ">=":
-		return sqltype.CompareGreaterEqual, true
-	}
-	return 0, false
-}
 
 // Resolve the operator before finalizing unknown occurrences. The returned
 // targets are the selected operation's actual inputs, not the source pair.
@@ -44,7 +27,7 @@ func (b *expressionBinder) resolveComparisonCandidates(raw parser.OperatorExpr, 
 			return lt, rt, nil
 		}
 	}
-	operator, ok := comparisonOperator(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
+	operator, ok := analyze.ComparisonOperator(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
 	if !ok {
 		return nil, nil, fmt.Errorf("stuntgres: invalid comparison operator")
 	}
@@ -119,7 +102,7 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 	}
 	operatorRaw := parser.OperatorExpr{Name: raw.Name, Pos: raw.Pos}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	operator, ok := comparisonOperator(name)
+	operator, ok := analyze.ComparisonOperator(name)
 	set, err := b.operatorCandidates(raw.Name, false)
 	if err != nil {
 		return nil, err
@@ -278,7 +261,7 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 	if raw.Negate {
 		name, logical = "<>", parser.LogicalAnd
 	}
-	operator, _ := comparisonOperator(name)
+	operator, _ := analyze.ComparisonOperator(name)
 	op := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name, Pos: raw.Pos}}}, Pos: raw.Pos}
 	var result expr.Expr
 	capture := b.params.noParameters || b.consumer.materializedDefinition

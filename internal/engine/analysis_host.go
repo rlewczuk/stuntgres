@@ -240,7 +240,7 @@ func (h *bindingHost) ResolveOperatorText(ctx context.Context, auth analyze.Auth
 		id, err = input.ResolveRegoperator(ctx, text)
 	}
 	if err != nil {
-		return 0, nil, nil, regtypeInputError(err, pos)
+		return 0, nil, nil, analyze.RegtypeInputError(err, pos)
 	}
 	return id, qualified, operands, nil
 }
@@ -258,7 +258,7 @@ func (h *bindingHost) ResolveRegtypeText(ctx context.Context, auth analyze.Autho
 	input.qualified = &qualified
 	id, err := input.ResolveRegtype(ctx, text)
 	if err != nil {
-		return 0, nil, regtypeInputError(err, pos)
+		return 0, nil, analyze.RegtypeInputError(err, pos)
 	}
 	return id, qualified, nil
 }

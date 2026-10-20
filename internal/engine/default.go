@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -58,8 +59,8 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column catalog.Column) (
 		return nil, expr.ErrorAt("0A000", "unsupported volatile DEFAULT expression", parser.ExpressionStart(raw))
 	}
 	if node.ResultUsage() != column.Usage {
-		input, annotations := domainCoercionInput(node, column.Usage)
-		info, err := storageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, input.Properties()), input)
+		input, annotations := analyze.DomainCoercionInput(node, column.Usage)
+		info, err := analyze.StorageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, input.Properties()), input)
 		if err != nil {
 			return nil, err
 		}
@@ -72,10 +73,10 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column catalog.Column) (
 			}
 			return nil, err
 		}
-		info.Property = coercionProperties(input, coercionPlan)
-		node = restoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
+		info.Property = analyze.CoercionProperties(input, coercionPlan)
+		node = analyze.RestoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
 	}
-	return storageDestination(node, column.Usage, parser.Position{})
+	return analyze.StorageDestination(node, column.Usage, parser.Position{})
 }
 
 func bindCreateDefaults(b *expressionBinder, columns []catalog.Column, declarations []createColumnDeclaration) (map[int32]catalog.ColumnDefault, error) {
@@ -628,7 +629,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		if u.Type.ID() != sqltype.Bool || n.Left == nil || (n.Array == nil) == (len(n.Items) == 0) {
 			return "", fmt.Errorf("stuntgres: invalid scalar-array predicate")
 		}
-		operator, ok := comparisonOperator(n.Operator)
+		operator, ok := analyze.ComparisonOperator(n.Operator)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: invalid scalar-array operator")
 		}
