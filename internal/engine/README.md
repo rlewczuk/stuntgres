@@ -56,9 +56,8 @@ Principals and ACLAuthority are the engine's exact paired authorities.
 Publication/index history lives in `catalog_relation_history.go`, sequence
 predicate admission in `query_pg_sequences_admission.go`, and shared
 expression/plan reference walking in `expression_references.go`; those are not
-producer ownership. `pgcatalog_aliases.go` holds the temporary step 9b type
-aliases (`catalogSourceInput`, `catalogSourceRuntime`, the fact types,
-`pgDependEdge`, ...), removed in 9c.
+producer ownership. Engine code names the moved types directly
+(`pgcatalog.Input`, `pgcatalog.Runtime`, `pgcatalog.DependEdge`, ...).
 
 ## Testing
 

@@ -271,14 +271,46 @@ catalog relations through one registry lookup, and no producer builds a
 - [x] 9b — `pgcatalog` created and producers moved (`1642db564`,
   `195e9a584`, `a4a5c66af`, `18da282df`, then the docs commit)
   *(racecheck/finalcheck skipped at user request)*
-- [ ] 9c — Aliases removed
+- [x] 9c — Aliases removed (`62a29d11d`, `7ea3c95e9`, then the docs commit)
+  *(racecheck/finalcheck skipped at user request)*
 
-Outstanding aliases (`internal/engine/pgcatalog_aliases.go`):
-`catalogSourceInput`, `catalogSourceProducer`, `catalogSourceRuntime`,
-`catalogCursorFact`, `catalogSettingsFact`, `catalogPreparedFact`,
-`catalogRuleFact`, `catalogForeignKeyComparison`,
-`catalogSourceRegistration` and `pgDependEdge`. Functions and constants are
-already called as `pgcatalog.X`.
+Outstanding aliases: none. 9c deleted `internal/engine/pgcatalog_aliases.go`;
+its `var _ pgcatalog.Runtime = engineCatalogRuntime{}` assertion now sits next
+to the adapter in `catalog_source_runtime.go`.
+
+9c results:
+
+- **Census** (at `3745e9011`, `go/types` over the engine package with its
+  tests): 221 references in 48 engine files, 3 production
+  (`catalog_source_runtime.go`, `catalog_source_capture.go`,
+  `catalog_sources.go`) and 45 test files. `catalogSourceInput` 188,
+  `pgDependEdge` 19, `catalogForeignKeyComparison` 3, the four fact types and
+  `catalogSourceRegistration` 2 each, `catalogSourceProducer` 1,
+  `catalogSourceRuntime` 0. No comment named an alias; no package outside the
+  engine used them.
+- **Rewrite** (`62a29d11d`). The 8c `unalias` tool rewrote every reference
+  to `pgcatalog.X` and added 16 imports. Its shadow audit found no local named
+  `pgcatalog` at any rewrite site. After `7ea3c95e9`, zero Go references to
+  any alias name remain.
+- **Tests.** None moved, deleted or rewritten; only type names changed. The
+  `capturePGX` fixtures in `catalog_source_producers_test.go` keep their
+  names: they are test-only, documented as former engine identifiers, and
+  match the producer test names, so renaming would add churn without clarity.
+- **Verification.** `make build` after each commit; `go vet` reports only
+  existing findings in untouched files. Targeted `make check` over all 166
+  tests in the 45 changed engine test files plus the `pgcatalog` units and
+  the `TestCatalogSource*` contract units passed after each commit; `RACE=1`
+  for the `pg_cursors`, `pg_locks` and `pg_sequence` units passed. The
+  reference catalog selection (`PG*`, `PgClass*`, `DataTypePrivileges*`,
+  `TablePrivileges*`, `ViewLocks*`) passed in quick mode and with `REFERENCE=1`, except
+  `TestReferencePGNamespaceViewStoragePrecedence/postgres` ("cannot access
+  temporary tables of other sessions"), which fails the same way on `master`
+  `3745e9011`; its stuntgres subtest passed.
+  The 9b public `database/sql` smoke (55 system-relation dumps after varied
+  DDL) was byte-identical against `3745e9011` and the branch. `make deps`
+  lists module paths only; `pgcatalog` imports are unchanged. Full quickcheck passed on `3745e9011`.
+  No `make bench`: type aliases are compile-time identities and no startup
+  code changed.
 
 Observed 9b evidence (rebased on `d27607c9c`): build, `make deps` (module
 paths only), the `pgcatalog` import check and full quickcheck passed. Selected
@@ -327,9 +359,6 @@ speedup or consistently sub-millisecond startup is claimed.
 
 Notes for later steps:
 
-- 9c: replace the ten type aliases with `pgcatalog.` names and delete
-  `pgcatalog_aliases.go`; consider whether the registry-backed producer
-  fixtures should be renamed.
 - Producer unit tests stay in the engine because they need an engine-seeded
   catalog. Moving them needs a catalog seeding fixture below the engine; until
   then pgcatalog exports a few row helpers (`ClassRow`, `AttributeRow`,

@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `35fa4bd9436cecbd4e8a53d77f6632a80471447b`. The later-wave plans
+Last verified against `master` at `3745e901101059944ed14f65bccccdebcf923e2c`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -17,13 +17,12 @@ as another broad item (§8).
 
 - **Step 17 `sequence`** — 17a (item 30); the Tier C sequence calls have
   moved to `functions`.
-- **Step 9 `pgcatalog`** — 9c alias removal (item 18).
 - **Step 10 `plan`** — 10b node runtime (item 32).
 - **In-place untangling** — 13a scope slots (item 22; broad). 12b is done;
   12c (item 39) still needs 10c (item 33).
 - **Step 15 `typedef`** — 15a (item 26); `routine` 14b is done.
 
-Steps 1, 2 and 4–8 and `access` are done.
+Steps 1, 2 and 4–9 and `access` are done.
 
 ## Task tree
 
@@ -236,13 +235,14 @@ Steps 1, 2 and 4–8 and `access` are done.
     user request)*
   - [x] 8c — Aliases removed (`4a5e2dd43`, `ac1cfe10c`, then the docs
     commit) *(racecheck skipped at user request)*
-- [ ] **Step 9 — `pgcatalog`** ([prompt](ENGINE-SPLIT-pgcatalog.md); needs
+- [x] **Step 9 — `pgcatalog`** ([prompt](ENGINE-SPLIT-pgcatalog.md); needs
   5, B4; 9b also 8b)
   - [x] 9a — One producer contract and one registry, in place
   - [x] 9b — `pgcatalog` created and producers moved (`1642db564`,
     `195e9a584`, `a4a5c66af`, `18da282df`, then the docs commit)
     *(racecheck skipped at user request)*
-  - [ ] 9c — Aliases removed
+  - [x] 9c — Aliases removed (`62a29d11d`, `7ea3c95e9`, then the docs
+    commit) *(racecheck skipped at user request)*
 - [ ] **Step 10 — `plan`** ([prompt](ENGINE-SPLIT-plan.md); needs 2, 3 F1, 5)
   - [x] 10a — `EvalContext` split in place *(broad)* (the commit that
     records this status) *(racecheck/finalcheck skipped at user request)*
@@ -384,7 +384,9 @@ in the prompt file's Status section.
 17. [x] pgcatalog 9b — [pgcatalog](ENGINE-SPLIT-pgcatalog.md) 9b · needs
     16, 14 · (`1642db564`, `195e9a584`, `a4a5c66af`, `18da282df`, then the
     docs commit) · racecheck skipped at user request
-18. [ ] pgcatalog 9c — [pgcatalog](ENGINE-SPLIT-pgcatalog.md) 9c · needs 17
+18. [x] pgcatalog 9c — [pgcatalog](ENGINE-SPLIT-pgcatalog.md) 9c · needs 17 ·
+    (`62a29d11d`, `7ea3c95e9`, then the docs commit) · racecheck skipped at
+    user request
 
 ### Group C — untangle the shared structs in place
 

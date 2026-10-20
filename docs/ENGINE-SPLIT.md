@@ -916,8 +916,8 @@ name `settings.` directly. Prompt file:
 (`pgLockRows`, `pgConstraintBuilder`, `pgTypeFacts`, ...). `pgDependPinned`
 stays in the engine (9b): it reads unpublished definition state.
 
-**In-place port (9a) and package move (9b): implemented and verified; 9c
-(alias removal) remains.** The current layout is described in the
+**In-place port (9a), package move (9b) and alias removal (9c):
+implemented and verified.** The current layout is described in the
 [`pgcatalog` README](../internal/engine/pgcatalog/README.md); the 9a bullets
 below use the engine-local names of that time.
 
@@ -1262,7 +1262,7 @@ package-specific scope. This section holds the rules every session follows.
 | 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | done (7a–7c) |
 | A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | done (A1, B0–B4, names cleanup); B5 after 12d |
 | 8 | [`ENGINE-SPLIT-settings.md`](ENGINE-SPLIT-settings.md) | — | done (8a–8c; racecheck skipped at user request) |
-| 9 | [`ENGINE-SPLIT-pgcatalog.md`](ENGINE-SPLIT-pgcatalog.md) | 5, B4; 8b for 9b | 9a done in place; 9b done (package created, producers moved; racecheck skipped at user request); 9c planned |
+| 9 | [`ENGINE-SPLIT-pgcatalog.md`](ENGINE-SPLIT-pgcatalog.md) | 5, B4; 8b for 9b | done (9a in place, 9b package created and producers moved, 9c aliases removed; racecheck skipped at user request) |
 | 10 | [`ENGINE-SPLIT-plan.md`](ENGINE-SPLIT-plan.md) | 2, 3 F1, 5 | 10a done (racecheck/finalcheck skipped by user); 10b–10d planned |
 | 11 | [`ENGINE-SPLIT-exec.md`](ENGINE-SPLIT-exec.md) | 10c, 13a | planned (11a–11d) |
 | 12 | [`ENGINE-SPLIT-analyze.md`](ENGINE-SPLIT-analyze.md) | 12a–12b: —; 12c: 10c | 12a–12b done (racecheck/finalcheck skipped at user request); 12c–12e planned |
