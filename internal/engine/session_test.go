@@ -250,7 +250,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 			t.Fatal("invalid owner")
 		}
 	}
-	if _, err = op.Attach(resourceKinds, &sessionOwner{fn: func(ids.SessionToken, EndReason) error { return nil }}); err == nil {
+	if _, err = op.Attach(AdvisorySession+1, &sessionOwner{fn: func(ids.SessionToken, EndReason) error { return nil }}); err == nil {
 		t.Fatal("unknown kind")
 	}
 	copyOp := *op
