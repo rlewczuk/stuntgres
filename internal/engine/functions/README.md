@@ -846,9 +846,9 @@ retag/remap and stored SQL presentation. The capabilities supply existing
 authority without copying rows or the full evaluation context. Installed
 extension routines keep their engine wrapper nodes (for example
 `installedUUIDOsspFunctionExpression`, `installedCryptoFunctionExpression` and
-`installedFunctionExpression` for unaccent and `daitch_mokotoff`), manifest
-validation and stored identity; registered bind code reaches them only through
-`InstalledRoutine`. UUID, pgcrypto and genuine SQL routine DEFAULT admission
+`installedFunctionExpression` for unaccent and `daitch_mokotoff`) and stored
+identity; manifest validation lives in `extension`. Registered bind code
+reaches them only through `InstalledRoutine`. UUID, pgcrypto and genuine SQL routine DEFAULT admission
 (`closedUUIDDefault`, `closedPgcryptoDefault`, `closedSQLRoutineDefault`) stay
 with the engine's DEFAULT binder and stored-expression validator. Registered
 function nodes replay through `expr.Rendering` (`Replay` in the `expr` README);
@@ -995,8 +995,8 @@ with incremental cancellation during scans/lookahead/expansion.
 node: the engine wrapper that embeds it keeps its own switch cases. Installed
 fuzzystrmatch identity, strictness, generated consumers and control remapping
 remain engine responsibilities. `unaccent.rules` (PostgreSQL REL_18_0) is
-embedded here and compiled once into `StockUnaccent`, which the engine's
-installed unaccent provider uses.
+embedded here and compiled once into `StockUnaccent`, which
+`extension.UnaccentProvider` uses.
 
 `bindInstalledText` keeps the order of the old engine binder:
 - unaccent rejects decorations as a missing signature; `daitch_mokotoff`
@@ -1006,7 +1006,7 @@ installed unaccent provider uses.
 
 Installed pgcrypto calls reuse this package's SQL-usage overload selection,
 formal coercion hooks and reconstructible `Pgcrypto` carrier. `PgcryptoMembers`
-is the 1.4 manifest as plain data. The engine stages and validates
+is the 1.4 manifest as plain data. The engine stages and `extension` validates
 installations from it, and `bindPgcrypto` reads the selected member's result
 and volatility from it, which installed procedures never change. The engine separately
 owns installed procedure address, namespace/ACL, intrinsic volatility, dependency,

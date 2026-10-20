@@ -499,10 +499,12 @@ outside the mutex, then perform real competing updates, ACL/role mutations,
 Reset/replacement or cancellation, retaining exact winner consumers/data.
 Public SQL/control proof stays in `reference/catalogs/extension_version_*`.
 
-Extension validation seams (step 16a): installed codec types validate their
-array through the registered type provider, and `procedureProvider` owns the
-procedure class while the extension validator accepts only installed members.
-Run `make check RUN='^(TestInstalledCodecArrayUsesRegisteredTypeProvider|TestExtensionProviderValidatesOnlyInstalledProcedures)$'`.
+Provider records, member validation, owner metadata and remap live in
+[`extension`](extension/README.md); `procedureProvider` owns the procedure
+class and delegates installed members to `extension.CatalogProvider`. Each
+`*_stage.go` declares an installer that embeds its stock provider and stages
+it; the registry holds the installers and installed members hold the bare
+provider. Run `make check RUN='^(TestExtensionMembersHoldBareProviders|TestInstalledCodecArrayUsesRegisteredTypeProvider|TestExtensionProviderValidatesOnlyInstalledProcedures)$'`.
 
 ### Expression node runtime
 

@@ -37,8 +37,8 @@ standard library, and never the engine or its sibling `functions`. The lower
   that expose only what catalog code needs: `ViewPayload`, `RulesPayload`,
   `PolicyPayload` and `ExtensionImplementation`. Expression payloads hold
   `expr.Expr`. The engine's checked accessors (`viewOf`, `rulesOf`,
-  `policyExpressionOf`, `pgcryptoProviderOf`, ...) recover the concrete
-  types.
+  `policyExpressionOf`, `extension.PgcryptoProviderOf`, ...) recover the
+  concrete types.
 - **State and Read.** `State` is one catalog snapshot: the epoch, namespace
   generation, descriptor and name maps, operator/procedure name indexes, default ACL
   records, dump priorities and the replacement-only translations. `Read` is

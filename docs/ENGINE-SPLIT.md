@@ -1156,7 +1156,8 @@ cut). Prompt file: [ENGINE-SPLIT-typedef.md](ENGINE-SPLIT-typedef.md).
 validation, membership and owner metadata decoding, extension remap.
 
 **Part B (16c, 16d)** after step 13: CREATE/DROP EXTENSION, provider staging,
-owner import.
+owner import. Until then the staging lives on engine installers that embed
+the stock providers (16b): Go cannot keep engine methods on moved types.
 
 **Stays elsewhere.** The installed-function expression wrappers and the
 `pg_extension_update_paths` node stay with the engine's node code and move
@@ -1282,7 +1283,7 @@ package-specific scope. This section holds the rules every session follows.
 | 13 | [`ENGINE-SPLIT-session.md`](ENGINE-SPLIT-session.md) | 13a–13b: —; 13c: 11c, 12d, 8b | 13a done (statement scope slots; racecheck/finalcheck skipped at user request); 13b–13e planned |
 | 14 | [`ENGINE-SPLIT-routine.md`](ENGINE-SPLIT-routine.md) | A: `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item of step 3; B: 13d | 14a done in place, 14b `routine` created and clean set moved (racecheck skipped at user request); 14c–14d planned |
 | 15 | [`ENGINE-SPLIT-typedef.md`](ENGINE-SPLIT-typedef.md) | A: 14b; B: 13d | 15a done in place, 15b `typedef` created and clean set moved (racecheck/finalcheck skipped at user request); 15c–15d planned |
-| 16 | [`ENGINE-SPLIT-extension.md`](ENGINE-SPLIT-extension.md) | A: 15b; B: 13d | 16a done in place (racecheck/finalcheck skipped at user request); 16b–16d planned |
+| 16 | [`ENGINE-SPLIT-extension.md`](ENGINE-SPLIT-extension.md) | A: 15b; B: 13d | 16a done in place, 16b `extension` created and clean set moved (racecheck/finalcheck skipped at user request); 16c–16d planned |
 | 17 | [`ENGINE-SPLIT-sequence.md`](ENGINE-SPLIT-sequence.md) | A: step 3 Tier C sequence calls; B: 13d | 17a done in place, 17b `sequence` created and clean set moved (racecheck/finalcheck skipped at user request); 17c–17d planned |
 
 Tracks may run in parallel only on separate branches. Do not run two broad

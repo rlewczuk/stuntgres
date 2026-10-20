@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `01c1a9ec4fc1f095fb77c48921659ed6aec63060`. The later-wave plans
+Last verified against `master` at `28a0934f1`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -23,10 +23,9 @@ as another broad item (§8).
 - **In-place untangling** — 13b operation, journal, stage and owner slots
   (item 23; broad); 13a is done. 10d and 13b are both broad: run them one
   after the other.
-- **Step 16 `extension`** — 16b `extension` created and clean set moved
-  (item 29); 16a is done.
 
-Steps 1, 2 and 4–9 and `access` are done. Step 17 Part A (17a, 17b) is
+Steps 1, 2 and 4–9 and `access` are done. Step 16 Part A (16a, 16b) is
+done; 16c (item 50) waits for 13d (item 44). Step 17 Part A (17a, 17b) is
 done; 17c (item 52) waits for 13d (item 44).
 
 ## Task tree
@@ -306,7 +305,9 @@ done; 17c (item 52) waits for 13d (item 44).
 - [ ] **Step 16 — `extension`** ([prompt](ENGINE-SPLIT-extension.md); Part A
   needs 15b; Part B needs 13d)
   - [x] 16a — In place (`d0a013406`, `bc0e3d81b`, `54d886952`, `46da1763e`, then the docs commit)
-  - [ ] 16b — `extension` created and clean set moved
+  - [x] 16b — `extension` created and clean set moved (`e6ff96286`,
+    `a8f3f5a8e`, `d55a47824`, then the docs commit) *(racecheck/finalcheck
+    skipped at user request)*
   - [ ] 16c — Host refined (docs only)
   - [ ] 16d — Installation handlers moved
 - [ ] **Step 17 — `sequence`** ([prompt](ENGINE-SPLIT-sequence.md); Part A
@@ -443,8 +444,10 @@ in the prompt file's Status section.
 28. [x] Extension 16a — [extension](ENGINE-SPLIT-extension.md) 16a · needs
     27 · (`d0a013406`, `bc0e3d81b`, `54d886952`, `46da1763e`, then the docs commit) · selected dual-mode proof and
     quickcheck passed; racecheck/finalcheck skipped at user request
-29. [ ] Extension 16b — [extension](ENGINE-SPLIT-extension.md) 16b · needs
-    28
+29. [x] Extension 16b — [extension](ENGINE-SPLIT-extension.md) 16b · needs
+    28 · (`e6ff96286`, `a8f3f5a8e`, `d55a47824`, then the docs commit) ·
+    selected dual-mode proof and quickcheck passed; racecheck/finalcheck
+    skipped at user request
 30. [x] Sequence 17a — [sequence](ENGINE-SPLIT-sequence.md) 17a · needs 10 ·
     selected dual-mode proof and quickcheck passed; racecheck/finalcheck
     skipped at user request

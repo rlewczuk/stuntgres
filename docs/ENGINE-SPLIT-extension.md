@@ -35,7 +35,7 @@ directly and so reached the binder through domain default validation. 16a
 made them clean (Status below).
 
 **16b move set** (17 whole files, about 1.3k lines; the frontier tool finds
-no engine declaration they use):
+no engine declaration they use; moved in 16b, see Status):
 
 - providers: `cube_provider.go`, `fuzzystrmatch_provider.go`,
   `intagg_provider.go`, `intarray_provider.go`, `pgcrypto_provider.go`,
@@ -58,7 +58,8 @@ Imports of the move set: `authorization`, `catalog`, `expr`, `functions`,
 `ids`, `parser`, `sqlstate`, `sqltype` and the standard library. No
 `routine`, no `typedef`.
 
-**Part B** (stay in the engine until 16d): the provider `*_stage.go` files,
+**Part B** (stay in the engine until 16d): the provider `*_stage.go` files
+(since 16b each declares the installer that embeds its stock provider),
 `extension_install.go` (`extensionInstaller`, `registerExtension`,
 `executeExtension`, `publishExtensionStage`, `stageExtensionLocked`),
 `extension_update.go`, `extension_drop.go`, `extension_owner_import.go`.
@@ -130,8 +131,8 @@ Follow 16c. Remove the remaining aliases.
 
 ## Targeted tests
 
-- Engine units: grep `*_test.go` for each provider type, `extensionOwners`,
-  `remapExtensionDescriptor`.
+- Engine units: grep `*_test.go` for each provider type, `extension.`,
+  `DecodeOwners`, `RemapDescriptor` and the installers.
 - Reference selections (quick mode and `REFERENCE=1`; grep `reference/`):
   CREATE/DROP EXTENSION, each extension's functions (fuzzystrmatch, intagg,
   intarray, pgcrypto, unaccent, uuid-ossp), `pg_extension`,
@@ -228,23 +229,83 @@ checks in §8.3 pass.
     build, the targeted units, the quick-mode reference selection, the
     frontier check and `make quickcheck` passed again. Racecheck and
     finalcheck skipped at user request.
-- [ ] 16b — `extension` created and clean set moved
+- [x] 16b — `extension` created and clean set moved (`e6ff96286`,
+  `a8f3f5a8e`, `d55a47824`, then the docs commit) *(racecheck/finalcheck
+  skipped at user request)*
+  - Re-measured at `01c1a9ec4` and again at `28a0934f1` (after 10c) with the
+    16a frontier tool: the 17 files use no engine declaration. 10c had
+    already moved `sameIntaggIdentity` to `plan.SameIntaggIdentity`, so it
+    is not part of the move.
+  - `e6ff96286` (seam, deviation approved at planning): the plan kept each
+    provider's `stage` in the engine, but Go cannot declare engine methods
+    on a type of another package. Each `*_stage.go` now declares an
+    installer (`cubeInstaller struct{ *extension.CubeProvider }`, …) that
+    owns `stage` (fuzzystrmatch also `updates`, `stageUpdate`,
+    `stageMembers`). `extensionInstaller` is unchanged; the registry
+    (`catalog.Owner.Extensions`) holds the installers, registered in the
+    same order; installed members keep the bare stock provider in
+    `Implementation`, so every `*ProviderOf(d) != Stock*` check and the
+    validators are unchanged. Rejected: a type switch from provider to
+    stage or a second installer map (a parallel registry).
+  - `a8f3f5a8e` (export in place): the `movex` member mode renamed 66
+    names, fields and methods, dropping the `extension` prefix the package
+    carries (`CatalogProvider{Class}`, `Membership`, `OwnerRecord`,
+    `MemberOwner`, `OwnersMarker`, `OwnerMetadata`, `DecodeOwners`,
+    `RemapDescriptor`, `MemberConflict`, `NameConflict`, `VersionError`,
+    `AuthorityObservation`, `RemovalRoots`) and capitalizing the rest
+    (`CubeProvider` … `UUIDOsspProvider`, `StockCube` …, `*ProviderOf`,
+    `ValidateProcedure`, `UnaccentProvider.Matcher`, script contexts,
+    signatures, `FuzzystrmatchMembers`/`IntaggMembers` and their fields,
+    `IntaggDefinition`, `ValidateIntaggIdentity`, `IntaggRecipeFunction`,
+    `ValidateProviderHeader`, `InvalidProviderDescriptor`). Names used only
+    inside the set stay unexported, including the providers' `control`.
+  - `d55a47824` (move): 17 files moved into `internal/engine/extension`;
+    `movex` qualified the engine references in 72 files. Locals named
+    `extension` that would shadow the package were renamed (`catalog.go`,
+    `engine.go`, `installed_routine.go`, `namespace_children.go`).
+    `extension` imports `authorization`, `catalog`, `expr`, `functions`,
+    `ids`, `parser`, `sqlstate`, `sqltype` and the standard library; no
+    `routine`, `typedef` or `plan`.
+  - The first pass was made on `01c1a9ec4`; 10c landed meanwhile, so the
+    export and move were regenerated on `28a0934f1` with the same rename
+    table instead of merging conflicts. The resulting package is identical
+    to the first pass except for the function 10c had already moved.
+  - Tests: new seam test `TestExtensionMembersHoldBareProviders`
+    (`extension_provider_test.go`), written first and observed failing.
+    Adapted: the registry identity assertions in
+    `TestExtensionProviderIdentity` and `available_extension_sources_test.go`
+    compare the installer's provider; the `extensionVersionRegistration`
+    fixture embeds `fuzzystrmatchInstaller`; direct `stage`/`updates` calls
+    and registrations use installers; ten tests that built a foreign
+    provider through the private `control` field copy the stock provider
+    (`new(*extension.StockIntagg)`, same version). No test moved or was
+    deleted: every witness needs an engine that installs the extension.
+  - Verification on `28a0934f1`: build, vet (only the existing
+    `composites`, `copylocks` and `lostcancel` findings), the 118 targeted
+    engine units after every commit, the 356-test 16a reference selection
+    in quick mode and with `REFERENCE=1`, `make quickcheck` and `make deps`
+    passed. With `REFERENCE=1` only `TestReferenceObjectACLDatabase/postgres`
+    fails, the known order-dependent PostgreSQL-side state from 16a; it
+    passes alone. Layering: no engine subpackage imports the engine. The
+    16a public smoke printed identical output on base and branch. Startup
+    bench, interleaved 8 runs each (load 5–12): median 934 µs/op before,
+    919 µs/op after, samples 844–1,842 µs/op on both sides; 5,020–5,027
+    allocs/op and about 1.64 MB/op on both. Racecheck and finalcheck
+    skipped at user request.
 - [ ] 16c — Host refined (docs only; after 13d)
 - [ ] 16d — Installation handlers moved
 
-Outstanding aliases: none yet.
+Outstanding aliases: none (16b moved without aliases).
 
 Notes for later steps:
 
-- 16b: move the 17 files of the move set whole; export with `movex`. The
-  engine keeps calling `stockIntarray`/`stockCube` from `typeProvider` and
-  registers `extensionCatalogProvider` for three classes plus the
-  `procedureProvider` delegation, so the concrete providers and the
-  validator must be exported (`extension.CatalogProvider`,
-  `extension.ValidateProviderHeader` or a procedure-validation entry point).
-- 10c/10d: the installed wrappers check provider identity with
-  `pgcryptoProviderOf(proc) != stockPgcrypto` and call
-  `stock*.validateProcedure`. `plan` sits below `extension`, so those checks
+- 16c/16d: the engine installers (`*_stage.go`) are the staging seam to
+  measure; when the handlers move, the installers become `extension`
+  types again (or staging takes the provider as an argument) and the
+  registry may hold the providers directly.
+- 10d: the installed wrappers check provider identity with
+  `extension.PgcryptoProviderOf(proc) != extension.StockPgcrypto` and call
+  `extension.Stock*.ValidateProcedure`. `plan` sits below `extension`, so those checks
   must go through `catalog.Owner().Extensions[name]` and the procedure
   provider registry instead of naming extension types.
 - 14c/14d: `procedureProvider` (builtin, SQL, foreign and conversion
@@ -257,3 +318,7 @@ Notes for later steps:
   (PostgreSQL drops only column `t.q`). Without the view, or with a view
   that reads `q`, it succeeds. Needs a reference test and a fix (not split
   work).
+- Stale citation, not fixed because `reference/` is read-only for split
+  work: `reference/type_resolution/comparison-ledger.md` cites
+  `internal/engine/intarray_provider.go:47`, now
+  `internal/engine/extension/intarray_provider.go`.
