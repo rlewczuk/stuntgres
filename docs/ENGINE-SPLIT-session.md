@@ -546,6 +546,59 @@ root `session_adapter_mechanics_test.go` and `transaction_terminal_test.go`
    allocation per operation (the root allocates operations through the
    host).
 
+**13d.4 result** (measured at `ae961f3ac` with `frontier` over the decision 1
+types). Five slot interfaces in `session/root_slots.go`, each with only an
+exported marker method (no `Clone`: nothing copies them copy-on-write):
+
+| Struct | Slot | Root type, file | Holds |
+|---|---|---|---|
+| `Session` | `payload session.PayloadSlot` | `sessionPayload`, `session_payload.go` | `cursors`, `preparedSQL`, `sqlRoutines`, `sequences`, `notifications` |
+| `transactionOwner` | `extension session.OwnerSlot` | `ownerExtension`, `transaction_extension.go` | `foreign` (participants, cleanup), `exclusionModes`, `cursorCleanup` |
+| `savepointMark` | `exclusion session.ExclusionMarkSlot` | `exclusionMark`, `savepoints.go` | exclusion modes and pending projection; nil when both are exactly zero (`exclusionModes.zero`) |
+| `Operation` | `replaySlot session.ReplaySlot` | `restoreReplay`, `restore_replay.go` | unchanged fields |
+| `Operation` | `analysis session.AnalysisSlot` | `*bindingHost`, `analysis_host.go` | the operation's binding host |
+
+`startSession` allocates the session, its payload and the owner extension in
+one `sessionAllocation`; `newSessionOperation` (`session_host.go`) allocates an
+operation with its binding host in one `operationAllocation`. Session start,
+`Acquire` (3 allocations, as on master) and the bench are unchanged. Accessors
+are root functions: `payloadOf` (nil for a payload-less test literal),
+`ownerExtensionOf` (write; allocates only for test literal owners) and
+`ownerExtensionOrZero`, `exclusionMarkSlotOf`/`exclusionMarkOrZero`,
+`operationReplay`/`operationReplayOrZero` (were the `replay()` and
+`replayOrZero()` methods, rewritten with `meth2fn`, 135 call sites), and
+`Engine.analysisHost` (checked assertion, copies still get a fresh host).
+`ownerExtension.retireForeign` and `detachCursors` replace the repeated
+append pairs. `foreignTransaction.markNext` became the owner's generic
+`savepointSerial` (never reset; the exhaustion check is unchanged) and
+`savepointMark.foreignID` became `serial`. Selectors were rewritten with a
+new `pathrw` tool (`x.f` → `accessor(x).f`, write/read split; 349 payload and
+70 owner sites).
+
+Notification polling left `Session`: `Engine.WaitForNotification(op)`,
+`Engine.PollProtocolNotification(s)` and `Engine.pollNotification(s,
+check)` keep the lock sequence and errors and reject a session or operation
+of another engine. The driver (`notification.go`) and the wire server
+(`cmd/stuntgres/dispatch.go`) call them through the engine they hold.
+
+Deviations: none in scope. `newSessionOperation` is a root function, not a
+`Host` method yet: `session.Host` cannot name the root `Operation` until it
+moves (13d.6).
+
+Tests: new `session_payload_test.go`
+(`TestSessionPayloadHoldsRootResources`, `TestSessionPayloadOfLiteralIsNil`),
+`transaction_extension_test.go` (`TestOwnerExtensionAllocatedWithSession`,
+`TestOwnerExtensionOfLiteralOwner`), `savepoint_exclusion_test.go`
+(`TestExclusionMarkNilWhenZero`, `TestExclusionMarkRestoresCapturedState`)
+and `operation_slots_test.go` (`TestOperationAnalysisSlotHoldsItsHost`,
+`TestOperationReplaySlot`). Adapted in place by the tools, none moved or
+deleted: payload and owner selectors across engine tests (for example
+`update_current_of_test.go`, `exclusion_lifecycle_test.go`,
+`fdw_transaction_test.go`), the `operationReplay` call sites (for example
+`partition_unique_replay_test.go`), and the notification polling call sites
+(`notification_lifecycle_test.go`, `notification_publication_test.go`,
+`protocol_mechanism_test.go`, root `notification_mechanics_test.go`).
+
 #### 13d.5 — File splits and exports (broad)
 
 Split the mixed files (`transaction.go`, `session.go`, `session_timeout.go`,
@@ -661,7 +714,12 @@ facade, the statement scope, dispatch and the root payloads of 13c decision
     proof (60 `REFERENCE=1` tests: timeouts, COPY, savepoints, 2PC,
     LISTEN/NOTIFY, FDW transactions, TEMP collation teardown) and quickcheck
     passed; bench unchanged; racecheck/finalcheck skipped at user request)*
-  - [ ] 13d.4 — Root payloads
+  - [x] 13d.4 — Root payloads (`de6299e91`, `40085169a`, `b29e65cda`,
+    `902eec726`, `405e83b53`, then the docs commit) *(selected unit/`RACE=1`
+    and dual-mode proof (37 `REFERENCE=1` tests: LISTEN/NOTIFY, cursors,
+    savepoints, 2PC, FDW transactions, deferred exclusion, DISCARD, Restore
+    atomicity) and quickcheck passed; bench unchanged, 5014 allocs;
+    racecheck/finalcheck skipped at user request)*
   - [ ] 13d.5 — File splits and exports
   - [ ] 13d.6 — Move
 - [ ] 13e — Aliases removed
@@ -684,6 +742,19 @@ Notes for later steps:
   `PollProtocolNotification`) must leave `Session` with the listener payload
   (13d.4), so the driver and `cmd/stuntgres` call sites change then.
   `validateSessionOperation` moves with `Session`.
+- 13d.4, for 13d.5–13d.6: after 13d.4, `frontier` over the decision 1 types
+  reports these root edges besides the moving types themselves:
+  `newSessionOperation` (from `Session.operation`; becomes
+  `Host.NewOperation(*Session) *Operation` when `Operation` moves),
+  `syncCharacteristics` (from `transactionOwner.assignModes`, so
+  `assignModes` becomes a root function or the sync moves),
+  `RegistrationError` (from `sessionSettings.initialize`), `sqlError` and
+  `statementTimeoutCause` (from `Operation.CommandError`,
+  `refreshStatementBudget`, `Session.AcquireCommand`, timeouts), `txOwnerOf`
+  and `validateSessionOperation` (owner validation), and `randomState` and
+  `uuidClock` (value types with their own mutexes; they move with
+  `Session`). The root slot types stay in the root; `session` keeps
+  importing no feature package.
 
 - Part B of the feature steps (14c–17d) and the postponed packages need 13d.
   After the 13c refine their handlers do not name `StatementScope` (it

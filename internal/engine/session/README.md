@@ -5,9 +5,11 @@ Session-layer state of the engine, at layer L9 of
 Step 13d moves it here in several sessions
 ([ENGINE-SPLIT-session.md](../../../docs/ENGINE-SPLIT-session.md)); so far
 (13d.1) it holds the transaction catalog journal and the interfaces that let
-the journal carry feature state, and (13d.3) the `Host` interface through
-which session code calls back into the engine. Sessions, operations, the
-transaction owner, timeouts and the settings store follow in 13d.4–13d.6.
+the journal carry feature state, (13d.3) the `Host` interface through
+which session code calls back into the engine, and (13d.4) the root slot
+interfaces through which sessions, operations, transaction owners and
+savepoint marks hold root state. Sessions, operations, the transaction owner,
+timeouts and the settings store follow in 13d.5–13d.6.
 
 The package imports only `ids`, `authorization`, `catalog`, `storage`,
 `access` and `sqltype` (later also `exec` and `settings`). It never imports
@@ -30,6 +32,16 @@ slot interfaces, so either import would form a cycle.
   (implemented by `typedef.EnumJournal` and `typedef.DomainJournal`) and
   `IndexSlot` (the root's index journal). Each has an exported marker method
   and `Clone`.
+- **Root slots** (`root_slots.go`): `PayloadSlot` (a session's SQL cursors,
+  prepared SQL registry, retained SQL routine analyses, sequence session
+  memory and notification listener), `OwnerSlot` (a transaction owner's
+  foreign participants and cleanup, exclusion modes and detached cursors),
+  `ExclusionMarkSlot` (a savepoint's exclusion modes and pending projection,
+  nil when both are zero), `ReplaySlot` (an operation's Restore and
+  materialized population state) and `AnalysisSlot` (an operation's binding
+  host). Each has only an exported marker method; the root implements them
+  with `sessionPayload`, `ownerExtension`, `exclusionMark`, `restoreReplay`
+  and `bindingHost`.
 - **The engine host** (`host.go`): `Host`, what session code needs from the
   engine that owns a session: `EndMaintenance` (TEMP collation teardown,
   called after the Transaction resource callback returns, without
@@ -54,6 +66,15 @@ slot interfaces, so either import would form a cycle.
   root) and never store a typed nil. A slot owner that writes in place (the
   index journal) deep-copies in `Clone`; the typedef slots are replaced
   before a write (`domainWritable`, `enumWritable`).
+- **Root slot allocation.** The root allocates a session, its payload and its
+  owner extension in one allocation (`sessionAllocation`), and an operation
+  with its binding host in another (`newSessionOperation`); both slots are
+  set before the value is shared and never change, so neither adds an
+  allocation. The replay slot is allocated on first write; the exclusion
+  mark only for nonzero state. Root helpers: `payloadOf`,
+  `ownerExtensionOf`/`ownerExtensionOrZero`, `exclusionMarkSlotOf`/
+  `exclusionMarkOrZero`, `operationReplay`/`operationReplayOrZero` and
+  `Engine.analysisHost`.
 - **Fence order.** Publication checks fences by kind at fixed points, each
   kind in recording order, so the first error does not depend on storage.
 
@@ -63,13 +84,17 @@ Everything that reads the journal against engine state: the private catalog
 read (`privateCatalogLocked`), descriptor recording (`catalogChangeLocked`),
 preflight and publication (`catalogPreflightLocked`,
 `transaction_publication.go`), private storage projection, the fence types and
-their `currentLocked` checks, the index journal type, and the temporary type
-aliases in `session_aliases.go` (removed in 13e).
+their `currentLocked` checks, the index journal type, the root slot types
+(SQL cursors, protocol portals, the prepared SQL registry, the notification
+listener and its polling on `Engine`, FDW participants, exclusion state,
+Restore replay, the binding host), and the temporary type aliases in
+`session_aliases.go` (removed in 13e).
 
 ## Testing
 
 ```sh
 make check RUN='^TestJournal'
 make check RACE=1 RUN='^TestSessionHost'
+make check RACE=1 RUN='^(TestSessionPayload|TestOwnerExtension|TestExclusionMark|TestOperation(AnalysisSlot|ReplaySlot))'
 make check RUN='^(TestCatalogFences|TestCatalogTypeJournalSlotsCopyOnWrite|TestEnumProvenanceSavepoints)'
 ```
