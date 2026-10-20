@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/engine/storage"
@@ -768,11 +769,11 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 	if b.relation != nil && b.relation.VirtualView {
 		switch stmt.(type) {
 		case *parser.Insert:
-			return b, VirtualViewWriteError(b.relation, "insert", b.targets)
+			return b, pgcatalog.VirtualViewWriteError(b.relation, "insert", b.targets)
 		case *parser.Update:
-			return b, VirtualViewWriteError(b.relation, "update", b.targets)
+			return b, pgcatalog.VirtualViewWriteError(b.relation, "update", b.targets)
 		case *parser.Delete:
-			return b, VirtualViewWriteError(b.relation, "delete", nil)
+			return b, pgcatalog.VirtualViewWriteError(b.relation, "delete", nil)
 		}
 	}
 	b.usedColumns, b.dependencies = binder.uses, binder.dependencies
@@ -817,11 +818,11 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 		if mutation.relation.VirtualView {
 			switch definition.statement.(type) {
 			case *parser.Insert:
-				return b, VirtualViewWriteError(mutation.relation, "insert", mutation.targets)
+				return b, pgcatalog.VirtualViewWriteError(mutation.relation, "insert", mutation.targets)
 			case *parser.Update:
-				return b, VirtualViewWriteError(mutation.relation, "update", mutation.targets)
+				return b, pgcatalog.VirtualViewWriteError(mutation.relation, "update", mutation.targets)
 			case *parser.Delete:
-				return b, VirtualViewWriteError(mutation.relation, "delete", nil)
+				return b, pgcatalog.VirtualViewWriteError(mutation.relation, "delete", nil)
 			}
 		}
 	}

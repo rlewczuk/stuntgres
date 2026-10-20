@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -65,7 +66,7 @@ func TestPGTablespaceDescriptorCapture(t *testing.T) {
 	e := New()
 	d, source := pgTablespaceUnitCapture(t, e)
 	pgTablespaceUnitRows(t, source)
-	if d.Owner != e.roles.domain.Principal(authorization.BootstrapPrincipalID) || d.RowType == 0 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || !SummaryTable(1213) {
+	if d.Owner != e.roles.domain.Principal(authorization.BootstrapPrincipalID) || d.RowType == 0 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || !pgcatalog.SummaryTable(1213) {
 		t.Fatal("catalog identity", d)
 	}
 	if !reflect.DeepEqual(d.Attributes, []int32{1, 2, 3, 4, 5}) || d.ColumnMeta.HighWater != 5 {
@@ -98,7 +99,7 @@ func TestPGTablespaceDescriptorCapture(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	state, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
-	if got, err := captureCatalogSourceRows(Input{Context: ctx, Catalog: e.CatalogRead(), Roles: e.Roles(), Ref: source.ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGTablespace); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := captureCatalogSourceRows(catalogSourceInput{Context: ctx, Catalog: e.CatalogRead(), Roles: e.Roles(), Ref: source.ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGTablespace); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture", got, err)
 	}
 	if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision {

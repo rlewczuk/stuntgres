@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -85,18 +86,18 @@ func TestPrimaryKeyRealMetadataAndDependencies(t *testing.T) {
 	if rendered, err := (pgRenderer{view: view}).uniqueConstraintSQL(parent, &parent.Constraints.Unique[0]); err != nil || rendered != "PRIMARY KEY (a, b)" {
 		t.Fatal(rendered, err)
 	}
-	edges, err := CollectDepend(context.Background(), view, engineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	constraint := ids.ObjectAddress{ClassID: 2606, ObjectID: parent.Constraints.Unique[0].OID}
-	want := []DependEdge{{Dependent: index.Address(), Referenced: constraint, DepType: 'i'}}
+	want := []pgDependEdge{{Dependent: index.Address(), Referenced: constraint, DepType: 'i'}}
 	for _, attribute := range []int32{1, 2} {
 		column := parent.Address()
 		column.SubID = attribute
-		want = append(want, DependEdge{Dependent: constraint, Referenced: column, DepType: 'a'})
+		want = append(want, pgDependEdge{Dependent: constraint, Referenced: column, DepType: 'a'})
 	}
-	var got []DependEdge
+	var got []pgDependEdge
 	for _, edge := range edges {
 		if edge.Dependent == index.Address() || edge.Dependent == constraint {
 			got = append(got, edge)

@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"testing"
 )
 
@@ -71,7 +72,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			t.Fatal("corrupt member inventory", members)
 		}
 	}
-	edges, err := CollectDepend(context.Background(), view, engineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -41,7 +42,7 @@ func (c *EvalContext) ObjectACL(address ids.ObjectAddress, result *sqltype.Descr
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return ClassACL(e.catalog.owner(), auth.Roles, result, acl)
+	return pgcatalog.ClassACL(e.catalog.owner(), auth.Roles, result, acl)
 }
 
 func (c *EvalContext) RoleMembership(actor *functions.AccessRole, target functions.AccessRole, privilege string) (bool, error) {

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -136,7 +137,7 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	oldState.SetDescriptor(namespace, &catalog.Namespace{ObjectAddress: namespace, Comment: "namespace"})
 	oldState.SetDescriptor(relation, d)
 	old := e.catalog.read(&oldState)
-	captured, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: old, Ref: ref, Source: source, Owner: (old).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDescription)
+	captured, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: old, Ref: ref, Source: source, Owner: (old).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDescription)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,12 +163,12 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	updated.Comment = "replacement"
 	updated.ColumnMeta.Comments = map[int32]string{3: "replacement third"}
 	newState.SetDescriptor(relation, &updated)
-	newRows, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: e.catalog.read(&newState), Ref: ref, Source: source, Owner: (e.catalog.read(&newState)).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDescription)
+	newRows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.catalog.read(&newState), Ref: ref, Source: source, Owner: (e.catalog.read(&newState)).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDescription)
 	if err != nil || pgDescriptionUnitBag(t, newRows)[relation] != "replacement" {
 		t.Fatal(err)
 	}
 	newState.RemoveDescriptor(relation)
-	if pgDescriptionUnitBag(t, captured)[relation] != "whole" || DescriptorComment(oldState.Get(relation), 3) != "third" {
+	if pgDescriptionUnitBag(t, captured)[relation] != "whole" || pgcatalog.DescriptorComment(oldState.Get(relation), 3) != "third" {
 		t.Fatal("retained snapshot changed")
 	}
 	// Simulate a nested provider relocking after publication: opening the virtual
@@ -189,7 +190,7 @@ func TestPGDescriptionCanceledCapture(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, state := range []*catalog.State{e.catalog.state, catalog.NewState(0)} {
-		captured, err := captureCatalogSourceRows(Input{Context: ctx, Catalog: e.catalog.read(state), Ref: ref, Source: source, Owner: (e.catalog.read(state)).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDescription)
+		captured, err := captureCatalogSourceRows(catalogSourceInput{Context: ctx, Catalog: e.catalog.read(state), Ref: ref, Source: source, Owner: (e.catalog.read(state)).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDescription)
 		if captured != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled source", captured, err)
 		}
@@ -199,7 +200,7 @@ func TestPGDescriptionCanceledCapture(t *testing.T) {
 func TestPGDescriptionBuiltinSeeds(t *testing.T) {
 	e := New()
 	source, ref := pgDescriptionUnitSource(t, e)
-	captured, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: source, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDescription)
+	captured, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: source, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDescription)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,14 +226,14 @@ func TestPGDescriptionBuiltinSeeds(t *testing.T) {
 		t.Fatal("complete independent baseline", bag, expected)
 	}
 	for _, oid := range []ids.OID{4401, 4450, 4451, 4532} {
-		if ConversionDescription(oid) != "" {
+		if pgcatalog.ConversionDescription(oid) != "" {
 			t.Fatal("conversion hole or boundary", oid)
 		}
 	}
 	for _, descriptor := range e.catalog.state.Descriptors() {
 		switch descriptor.(type) {
 		case *catalog.Collation, *catalog.Conversion:
-			if DescriptorComment(descriptor, 0) != "" || Description(descriptor, 1) != "" {
+			if pgcatalog.DescriptorComment(descriptor, 0) != "" || pgcatalog.Description(descriptor, 1) != "" {
 				t.Fatal("projection widened inquiry/subobject boundary", descriptor)
 			}
 		}

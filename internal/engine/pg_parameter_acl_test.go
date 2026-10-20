@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -84,7 +85,7 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 		if c.Name != name || c.Usage.Type != typ || c.Usage.Typmod != -1 || uint32(c.Usage.Collation.ID) != collation || c.Nullable != (i == 2) || !c.NullabilityKnown || c.OriginTable != 6243 || c.OriginAttribute != int16(i+1) || d.Attributes[i] != int32(i+1) || d.Index[name] != i {
 			t.Fatal("column", i, c)
 		}
-		fact := AttributeMetadata(d, i)
+		fact := pgcatalog.AttributeMetadata(d, i)
 		dimensions := int16(0)
 		if i == 2 {
 			dimensions = 1
@@ -105,11 +106,11 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 	if !ok || d.RowType != 10097 || row.Array != 10096 || ownedArray != array.SQLType || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != owner || array.Owner != owner {
 		t.Fatal("row/array ownership", row, array)
 	}
-	if !SummaryTable(6243) || !CatalogHasIndexes(6243) || ClassKind(view, d) != "r" || ClassPersistence(view, d) != "p" {
+	if !pgcatalog.SummaryTable(6243) || !pgcatalog.CatalogHasIndexes(6243) || pgcatalog.ClassKind(view, d) != "r" || pgcatalog.ClassPersistence(view, d) != "p" {
 		t.Fatal("discovery")
 	}
 	class := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
-	facts, err := ClassRow(Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Source: class, Runtime: engineCatalogRuntime{}}, d)
+	facts, err := pgcatalog.ClassRow(catalogSourceInput{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Source: class, Runtime: engineCatalogRuntime{}}, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +174,7 @@ func TestPGParameterACLCapture(t *testing.T) {
 		t.Fatal("capture mutated owner roots/frontiers")
 	}
 	d, ref := pgParameterACLUnitSource(t, e, view)
-	if rows, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: view, Roles: New().Roles(), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGParameterACL); err == nil || rows != nil {
+	if rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Roles: New().Roles(), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGParameterACL); err == nil || rows != nil {
 		t.Fatal("foreign roles accepted", err)
 	}
 	address := view.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: "lc_messages"})
@@ -181,13 +182,13 @@ func TestPGParameterACLCapture(t *testing.T) {
 	corrupt.Owner = authorization.PrincipalRef{}
 	broken := catalog.CloneState(view.State())
 	broken.SetDescriptor(address, &corrupt)
-	if rows, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: e.catalog.read(broken), Roles: roles, Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGParameterACL); err == nil || rows != nil {
+	if rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.catalog.read(broken), Roles: roles, Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGParameterACL); err == nil || rows != nil {
 		t.Fatal("invalid owner accepted", err)
 	}
 	corrupt.Owner = e.roles.domain.Principal(10)
 	corrupt.ACL.Entries = append([]authorization.ACLEntry(nil), corrupt.ACL.Entries...)
 	corrupt.ACL.Entries[0].Grantor = New().roles.domain.Principal(10)
-	if rows, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: e.catalog.read(broken), Roles: roles, Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGParameterACL); err == nil || rows != nil {
+	if rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.catalog.read(broken), Roles: roles, Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGParameterACL); err == nil || rows != nil {
 		t.Fatal("foreign grantor accepted", err)
 	}
 	// Real owner operations, not synthetic parameter rows, produce explicit {}.
@@ -232,7 +233,7 @@ func TestPGParameterACLCapture(t *testing.T) {
 	if _, exists := e.catalog.state.Find(emptyAddress); exists {
 		t.Fatal("baseline not removed")
 	}
-	implicit, err := ClassACL(e.catalog.owner(), roles, d.Columns[2].Usage.Type, authorization.ACLValue{})
+	implicit, err := pgcatalog.ClassACL(e.catalog.owner(), roles, d.Columns[2].Usage.Type, authorization.ACLValue{})
 	if err != nil || !implicit.IsNull() {
 		t.Fatal("implicit carrier", implicit, err)
 	}
@@ -355,7 +356,7 @@ func TestPGParameterACLCancellation(t *testing.T) {
 			cancel()
 		}
 		during := &aclValuesScanContext{Context: ctx, cancel: cancel, after: after}
-		rows, err := captureCatalogSourceRows(Input{Context: during, Catalog: catalog, Roles: roles, Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGParameterACL)
+		rows, err := captureCatalogSourceRows(catalogSourceInput{Context: during, Catalog: catalog, Roles: roles, Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGParameterACL)
 		cancel()
 		if rows != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial/canceled capture", after, rows, err)

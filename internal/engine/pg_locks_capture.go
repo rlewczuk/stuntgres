@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/pgcatalog"
 )
 
 // Engine.mu is held. The retained node's exact ref supplies original backend
@@ -51,7 +52,7 @@ func (e *Engine) capturePGLocksLocked(ctx context.Context, ref ids.ObjectRef, d 
 	if !current {
 		return nil, ids.ErrCatalogReplaced
 	}
-	rows, err := LockRows(ctx, d, databaseOID, records, predicates)
+	rows, err := pgcatalog.LockRows(ctx, d, databaseOID, records, predicates)
 	if err != nil {
 		return nil, err
 	}

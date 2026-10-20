@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -26,7 +27,7 @@ func namespaceUnitCapture(t *testing.T, e *Engine, c catalog.Read) *querySource 
 	t.Helper()
 	d, ref := namespaceUnitSource(t, e, c)
 	e.mu.Lock()
-	rows, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: c, Roles: e.roles.read(e.catalog.owner(), c, e.roles.published), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGNamespace)
+	rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: c, Roles: e.roles.read(e.catalog.owner(), c, e.roles.published), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGNamespace)
 	e.mu.Unlock()
 	if err != nil || rows == nil || rows.ref != ref {
 		t.Fatal(rows, err)
@@ -148,7 +149,7 @@ func TestPGNamespaceACL(t *testing.T) {
 	owner := roles.LookupRef("postgres")
 	reader := roles.LookupRef("pg_read_all_data")
 	for _, acl := range []authorization.ACLValue{{}, {Explicit: true}} {
-		value, err := ClassACL(e.catalog.owner(), roles, array, acl)
+		value, err := pgcatalog.ClassACL(e.catalog.owner(), roles, array, acl)
 		if err != nil || value.IsNull() == acl.Explicit || acl.Explicit && value.ArrayLen() != 0 {
 			t.Fatal("NULL versus empty", value, err)
 		}
@@ -177,7 +178,7 @@ func TestPGNamespaceACL(t *testing.T) {
 				if public {
 					acl.Entries[0].Grantee.Role = authorization.PrincipalRef{}
 				}
-				value, err := ClassACL(e.catalog.owner(), roles, array, acl)
+				value, err := pgcatalog.ClassACL(e.catalog.owner(), roles, array, acl)
 				if err != nil || value.ArrayLen() != 1 {
 					t.Fatal(value, err)
 				}
@@ -197,7 +198,7 @@ func TestPGNamespaceACL(t *testing.T) {
 		{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.CreatePrivilege, GrantOptions: authorization.CreatePrivilege},
 	}}
 	merged := authorization.SchemaACLOwner(acl, owner, reader)
-	value, err := ClassACL(e.catalog.owner(), roles, array, merged)
+	value, err := pgcatalog.ClassACL(e.catalog.owner(), roles, array, merged)
 	if err != nil || value.ArrayLen() != 1 {
 		t.Fatal("owner merge", value, err)
 	}
@@ -214,7 +215,7 @@ func TestPGNamespaceACL(t *testing.T) {
 			} else {
 				broken.Entries[0].Grantee.Role = bad
 			}
-			if _, err := ClassACL(e.catalog.owner(), roles, array, broken); err == nil {
+			if _, err := pgcatalog.ClassACL(e.catalog.owner(), roles, array, broken); err == nil {
 				t.Fatal("foreign/stale ACL principal admitted")
 			}
 		}
@@ -229,7 +230,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	reject := func(catalog catalog.Read, roles authorization.Read, r ids.ObjectRef, source *catalog.Relation) {
 		t.Helper()
 		e.mu.Lock()
-		rows, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: catalog, Roles: roles, Ref: r, Source: source, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGNamespace)
+		rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: catalog, Roles: roles, Ref: r, Source: source, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGNamespace)
 		e.mu.Unlock()
 		if err == nil || rows != nil {
 			t.Fatal("invalid capture authority admitted", rows, err)
@@ -324,7 +325,7 @@ func TestPGNamespaceCancellation(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		controlled := &namespaceCancelContext{Context: ctx, cancel: cancel, at: at}
 		e.mu.Lock()
-		rows, err := captureCatalogSourceRows(Input{Context: controlled, Catalog: c, Roles: roles, Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGNamespace)
+		rows, err := captureCatalogSourceRows(catalogSourceInput{Context: controlled, Catalog: c, Roles: roles, Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGNamespace)
 		e.mu.Unlock()
 		cancel()
 		if !errors.Is(err, context.Canceled) || rows != nil || e.catalog.state != c.State() || e.catalog.nextOID != oid || e.catalog.nextRevision != revision {

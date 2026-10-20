@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -524,14 +525,14 @@ func TestUsingIndexIncludeLifecycle(t *testing.T) {
 			t.Fatal("INCLUDE entered equality root")
 		}
 	}
-	edges, err := CollectDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, attribute := range parent.Attributes {
 		target := parent.Address()
 		target.SubID = attribute
-		if !slices.Contains(edges, DependEdge{Dependent: ids.ObjectAddress{ClassID: 2606, ObjectID: constraint.OID}, Referenced: target, DepType: 'a'}) {
+		if !slices.Contains(edges, pgDependEdge{Dependent: ids.ObjectAddress{ClassID: 2606, ObjectID: constraint.OID}, Referenced: target, DepType: 'a'}) {
 			t.Fatal("missing key/include auto dependency", target)
 		}
 	}

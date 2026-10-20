@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -79,7 +80,7 @@ func TestCubeProviderIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	edges, err := CollectDepend(context.Background(), view, engineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

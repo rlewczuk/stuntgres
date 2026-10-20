@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -61,7 +62,7 @@ func TestPGConstraintExclusionMetadata(t *testing.T) {
 			if err != nil || inputs != ([2]sqltype.ID{tc.canonical, tc.canonical}) {
 				t.Fatal("canonical operator inputs", inputs, tc.canonical, err)
 			}
-			identity, err := ConstraintOperator(view, bound.Name, inputs[0], inputs[1])
+			identity, err := pgcatalog.ConstraintOperator(view, bound.Name, inputs[0], inputs[1])
 			if err != nil || identity != tc.operator {
 				t.Fatal("released equality identity", identity, tc.operator, err)
 			}

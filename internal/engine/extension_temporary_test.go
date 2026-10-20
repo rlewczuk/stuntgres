@@ -9,6 +9,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -120,7 +121,7 @@ func extensionTemporaryGoneUnit(t *testing.T, e *Engine, ext *catalog.Extension)
 			t.Fatal("retired signature/name retained", key)
 		}
 	}
-	edges, err := CollectDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

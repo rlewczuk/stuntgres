@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
@@ -117,7 +118,7 @@ func objectNamespace(view catalog.Read, namespace ids.ObjectAddress) (actual, ca
 	return
 }
 func objectRelationKind(view catalog.Read, d *catalog.Relation) string {
-	switch ClassKind(view, d) {
+	switch pgcatalog.ClassKind(view, d) {
 	case "S":
 		return "sequence"
 	case "v":
@@ -141,7 +142,7 @@ func objectAttributeName(view catalog.Read, d *catalog.Relation, sub int32) stri
 	if old, ok := d.ColumnMeta.Dropped[sub]; ok {
 		return old.Name
 	}
-	if sub < 0 && sub >= -6 && HasSystemAttributes(view, d) {
+	if sub < 0 && sub >= -6 && pgcatalog.HasSystemAttributes(view, d) {
 		return [...]string{"ctid", "xmin", "cmin", "xmax", "cmax", "tableoid"}[-sub-1]
 	}
 	return ""

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -50,7 +51,7 @@ func pgLocksUnitAssign(t *testing.T, e *Engine, ticket *lock.Ticket) uint32 {
 func TestPGLocksProjectionModes(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: LocksOID})
+	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.LocksOID})
 	if !d.VirtualView || d.RelationKind != catalog.CatalogRelation || d.RowType != 12075 {
 		t.Fatal("view identity", d)
 	}
@@ -89,7 +90,7 @@ func TestPGLocksProjectionModes(t *testing.T) {
 	}
 	for _, tc := range cases {
 		r := lock.Record{Kind: tc.kind, Owner: owner, Target: owner, Object: 42, Class: 1247, Subobject: 0, XID: 81, Mode: tc.mode}
-		rows, err := LockRows(context.Background(), d, 17, []lock.Record{r}, nil)
+		rows, err := pgcatalog.LockRows(context.Background(), d, 17, []lock.Record{r}, nil)
 		if err != nil || len(rows) != 1 {
 			t.Fatal("projection", tc, rows, err)
 		}
@@ -111,7 +112,7 @@ func TestPGLocksProjectionModes(t *testing.T) {
 	// lock manager's own tests pin the capture record for each key space.
 	for _, subobject := range []int16{1, 2} {
 		r := lock.Record{Kind: lock.AdvisoryRecord, Owner: owner, Mode: lock.AdvisoryShare | lock.AdvisoryExclusive, Class: math.MaxUint32, Object: 1 << 31, Subobject: subobject}
-		rows, err := LockRows(context.Background(), d, 17, []lock.Record{r}, nil)
+		rows, err := pgcatalog.LockRows(context.Background(), d, 17, []lock.Record{r}, nil)
 		if err != nil || len(rows) != 2 {
 			t.Fatal("held mode expansion", rows, err)
 		}
@@ -123,12 +124,12 @@ func TestPGLocksProjectionModes(t *testing.T) {
 			}
 		}
 	}
-	if rows, err := LockRows(context.Background(), d, 17, []lock.Record{{Kind: lock.RelationRecord, Owner: owner}}, nil); err != nil || len(rows) != 0 {
+	if rows, err := pgcatalog.LockRows(context.Background(), d, 17, []lock.Record{{Kind: lock.RelationRecord, Owner: owner}}, nil); err != nil || len(rows) != 0 {
 		t.Fatal("zero-mode phantom", rows, err)
 	}
 	stamp := time.Now().UTC().Truncate(time.Microsecond)
 	pending := lock.Record{Kind: lock.TransactionRecord, Owner: owner, XID: 81, Waiting: true, WaitStart: stamp}
-	rows, err := LockRows(context.Background(), d, 17, []lock.Record{pending}, nil)
+	rows, err := pgcatalog.LockRows(context.Background(), d, 17, []lock.Record{pending}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -66,7 +67,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	edges, err := CollectDepend(context.Background(), view, engineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

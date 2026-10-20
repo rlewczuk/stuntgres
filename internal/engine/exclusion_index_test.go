@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/pgcatalog"
 	"testing"
 	"time"
 )
@@ -103,7 +104,7 @@ func TestExclusionCatalogLifecycle(t *testing.T) {
 	if !renamed.Deferrable || !renamed.InitiallyDeferred {
 		t.Fatal("rename dropped definition properties")
 	}
-	if _, err := CollectDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{}); err != nil {
+	if _, err := pgcatalog.CollectDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{}); err != nil {
 		t.Fatal(err)
 	}
 	sessionSQL(t, s, "ALTER TABLE t DROP CONSTRAINT renamed")

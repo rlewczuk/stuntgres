@@ -10,15 +10,16 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
 func defaultUnitProjection(t *testing.T, catalog catalog.Read, auth AuthorizationView) (*querySource, [][]string) {
 	t.Helper()
-	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: TablePrivilegesOID})
+	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.TablePrivilegesOID})
 	ref := catalog.Owner().Domain.Ref(catalog.Epoch(), source.Address())
-	rows, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: catalog, Ref: ref, Source: source, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: engineCatalogRuntime{auth: auth, temporary: catalogSourceTemporaryOwner(auth), database: "unit_database"}}, captureTablePrivileges)
+	rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: catalog, Ref: ref, Source: source, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: engineCatalogRuntime{auth: auth, temporary: catalogSourceTemporaryOwner(auth), database: "unit_database"}}, captureTablePrivileges)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +167,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	if !reflect.DeepEqual(fresh, freshWant) || !reflect.DeepEqual(held.anonymous, before) {
 		t.Fatal("fresh capture/returned row lifetime", fresh)
 	}
-	source := state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: TablePrivilegesOID})
+	source := state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.TablePrivilegesOID})
 	names := []string{"grantor", "grantee", "table_catalog", "table_schema", "table_name", "privilege_type", "is_grantable", "with_hierarchy"}
 	for i, column := range source.Columns {
 		typ := sqltype.Name
@@ -186,7 +187,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	ref := f.e.catalog.Domain.Ref(view.Epoch(), source.Address())
-	rows, err := captureCatalogSourceRows(Input{Context: canceled, Catalog: view, Ref: ref, Source: source, Roles: (AuthorizationView{}).Roles, Owner: (AuthorizationView{}).Owner, Runtime: engineCatalogRuntime{auth: AuthorizationView{}, temporary: catalogSourceTemporaryOwner(AuthorizationView{}), database: "unit_database"}}, captureTablePrivileges)
+	rows, err := captureCatalogSourceRows(catalogSourceInput{Context: canceled, Catalog: view, Ref: ref, Source: source, Roles: (AuthorizationView{}).Roles, Owner: (AuthorizationView{}).Owner, Runtime: engineCatalogRuntime{auth: AuthorizationView{}, temporary: catalogSourceTemporaryOwner(AuthorizationView{}), database: "unit_database"}}, captureTablePrivileges)
 	if rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled source exposed partial rows", rows, err)
 	}

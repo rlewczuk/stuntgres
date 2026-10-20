@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 )
@@ -19,7 +20,7 @@ func TestUUIDOsspZeroArity(t *testing.T) {
 		want      int64
 	}{{"", 0}, {"25", 1}, {"25,23", 2}, {"25,23,2950,16", 4}} {
 		t.Run(string(tc.signature), func(t *testing.T) {
-			if got := ProcedureArity(&catalog.Procedure{Signature: tc.signature}); got != tc.want {
+			if got := pgcatalog.ProcedureArity(&catalog.Procedure{Signature: tc.signature}); got != tc.want {
 				t.Fatalf("procedureArity(%q)=%d want=%d", tc.signature, got, tc.want)
 			}
 		})
@@ -50,13 +51,13 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	}
 	address := ext.Members[0]
 	proc := view.MustProcedure(address)
-	if proc.Name() != "uuid_generate_v4" || proc.Signature != "" || ProcedureArity(proc) != 0 || proc.RoutineKind != catalog.FunctionRoutine || proc.Builtin != nil || proc.Result != 2950 || proc.Volatility != expr.Volatile || !proc.Strict || proc.Owner != ext.Owner || proc.Namespace() != ext.TargetNamespace {
+	if proc.Name() != "uuid_generate_v4" || proc.Signature != "" || pgcatalog.ProcedureArity(proc) != 0 || proc.RoutineKind != catalog.FunctionRoutine || proc.Builtin != nil || proc.Result != 2950 || proc.Volatility != expr.Volatile || !proc.Strict || proc.Owner != ext.Owner || proc.Namespace() != ext.TargetNamespace {
 		t.Fatal(proc)
 	}
 	if err := e.catalog.Providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
 		t.Fatal(err)
 	}
-	edges, err := CollectDepend(context.Background(), view, engineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

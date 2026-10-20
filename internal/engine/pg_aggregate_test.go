@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -24,7 +25,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 		t.Fatal("aggregate row/array ownership")
 	}
 	nextOID, nextRevision := e.catalog.nextOID, e.catalog.nextRevision
-	captured, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate)
+	captured, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +51,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 			t.Fatal("aggregate attribute facts", i, c)
 		}
 	}
-	second, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate)
+	second, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +65,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if got, err := captureCatalogSourceRows(Input{Context: ctx, Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := captureCatalogSourceRows(catalogSourceInput{Context: ctx, Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled source publication", got, err)
 	}
 	foreign := New().CatalogRead()
@@ -77,7 +78,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	}{
 		{catalog.Read{}, ref, source}, {foreign, ref, source}, {view, badRef, source}, {view, ref, nil},
 	} {
-		if got, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: tc.catalog, Ref: tc.ref, Source: tc.source, Owner: (tc.catalog).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate); got != nil || err == nil {
+		if got, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: tc.catalog, Ref: tc.ref, Source: tc.source, Owner: (tc.catalog).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate); got != nil || err == nil {
 			t.Fatal("foreign/stale source admitted", got, err)
 		}
 	}
@@ -87,7 +88,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 		bad.Columns = append([]catalog.Column(nil), source.Columns...)
 		bad.Columns[i].Usage.Type, _ = foreign.LookupType(source.Columns[i].Usage.Type.ID())
 		state.SetDescriptor(address, &bad)
-		if got, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: e.catalog.read(state), Ref: ref, Source: &bad, Owner: (e.catalog.read(state)).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate); got != nil || err == nil {
+		if got, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.catalog.read(state), Ref: ref, Source: &bad, Owner: (e.catalog.read(state)).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate); got != nil || err == nil {
 			t.Fatal("foreign column generation admitted", i, err)
 		}
 	}
@@ -96,11 +97,11 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	}
 	fresh := e.CatalogRead()
 	newSource := fresh.MustRelation(address)
-	if got, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: fresh, Ref: ref, Source: source, Owner: (fresh).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate); got != nil || err == nil {
+	if got, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: fresh, Ref: ref, Source: source, Owner: (fresh).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate); got != nil || err == nil {
 		t.Fatal("retired source admitted", err)
 	}
 	newRef := e.catalog.Domain.Ref(fresh.Epoch(), address)
-	if got, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: fresh, Ref: newRef, Source: newSource, Owner: (fresh).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate); err != nil || len(got.anonymous) != 144 {
+	if got, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: fresh, Ref: newRef, Source: newSource, Owner: (fresh).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate); err != nil || len(got.anonymous) != 144 {
 		t.Fatal("Reset lost builtin definitions", err)
 	}
 	for i, v := range captured.anonymous[0] {
@@ -111,11 +112,11 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 }
 
 func TestPGAggregateReleasedOwnership(t *testing.T) {
-	if len(AggregateDefinitions) != 144 {
-		t.Fatal("owned aggregate signatures", len(AggregateDefinitions))
+	if len(pgcatalog.AggregateDefinitions) != 144 {
+		t.Fatal("owned aggregate signatures", len(pgcatalog.AggregateDefinitions))
 	}
 	seen := make(map[ids.OID]bool)
-	for _, d := range AggregateDefinitions {
+	for _, d := range pgcatalog.AggregateDefinitions {
 		identity, ok := routineByOID[d.Function]
 		if !ok || seen[d.Function] || identity.Namespace != ids.PGCatalogNamespaceOID {
 			t.Fatal("unowned/duplicate aggregate signature", d.Function)
@@ -139,7 +140,7 @@ func TestPGAggregateReleasedOwnership(t *testing.T) {
 	catalog := e.CatalogRead()
 	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600})
 	ref := e.catalog.Domain.Ref(catalog.Epoch(), source.Address())
-	got, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: catalog, Ref: ref, Source: source, Owner: (catalog).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate)
+	got, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: catalog, Ref: ref, Source: source, Owner: (catalog).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate)
 	if err != nil {
 		t.Fatal(err)
 	}

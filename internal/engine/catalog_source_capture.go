@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 )
 
 // Consumes Engine.mu. These cases select capture policy, never producers: all
@@ -11,7 +12,7 @@ import (
 func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
 	oid := source.Address().ObjectID
 	// These two sources own multi-stage capture/completion, not row producers.
-	if oid == LocksOID {
+	if oid == pgcatalog.LocksOID {
 		return e.capturePGLocksLocked(scope.op.Context(), ref, source)
 	}
 	if oid == 12048 {
@@ -19,7 +20,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		e.mu.Unlock()
 		return result, err
 	}
-	produce, ok := ProducerFor(oid)
+	produce, ok := pgcatalog.ProducerFor(oid)
 	if !ok {
 		e.mu.Unlock()
 		if source.VirtualView {
@@ -27,14 +28,14 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 		return nil, fmt.Errorf("stuntgres: unknown catalog source")
 	}
-	in := Input{Context: scope.op.Context(), Owner: e.catalog.owner(), Ref: ref, Source: source}
+	in := catalogSourceInput{Context: scope.op.Context(), Owner: e.catalog.owner(), Ref: ref, Source: source}
 	runtime := engineCatalogRuntime{engine: e}
 	unlockBefore := false
 	switch oid {
-	case SettingsOID:
+	case pgcatalog.SettingsOID:
 		runtime.settings = scope.op.session.settings
 		unlockBefore = true
-	case CursorsOID:
+	case pgcatalog.CursorsOID:
 		runtime.cursors = scope.op.session.cursors
 		unlockBefore = true
 	case 12081, 12085:
@@ -46,11 +47,11 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	case 12014, 12007, 12008:
 		in.Roles = scope.commentRoles
 		unlockBefore = true
-	case TablePrivilegesOID, DataTypePrivilegesOID:
+	case pgcatalog.TablePrivilegesOID, pgcatalog.DataTypePrivilegesOID:
 		in.Catalog, in.Roles = scope.commentCatalog, scope.deparseAuth.Roles
 		runtime.auth, runtime.database = scope.deparseAuth, scope.op.session.databaseName
 		runtime.temporary = catalogSourceTemporaryOwner(scope.deparseAuth)
-	case ids.ForeignWrapperClassID, ids.ForeignServerClassID, ids.ForeignMappingClassID, ids.ForeignTableClassID, UserMappingsOID:
+	case ids.ForeignWrapperClassID, ids.ForeignServerClassID, ids.ForeignMappingClassID, ids.ForeignTableClassID, pgcatalog.UserMappingsOID:
 		auth, err := e.authorizationLocked(scope.op)
 		if err != nil {
 			e.mu.Unlock()
@@ -102,10 +103,10 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	return result, err
 }
 
-func explicitCatalogSource(oid ids.OID) bool { return oid == LocksOID || oid == 12048 }
+func explicitCatalogSource(oid ids.OID) bool { return oid == pgcatalog.LocksOID || oid == 12048 }
 
 // Engine is the sole owner of querySource construction, including error paths.
-func captureCatalogSourceRows(in Input, produce Producer) (*querySource, error) {
+func captureCatalogSourceRows(in catalogSourceInput, produce catalogSourceProducer) (*querySource, error) {
 	rows, err := produce(in)
 	if err != nil {
 		return nil, err

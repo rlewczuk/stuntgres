@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -28,7 +29,7 @@ func pgAttributeUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) *quer
 	t.Helper()
 	d, ref := pgAttributeUnitSource(t, e, catalog)
 	e.mu.Lock()
-	rows, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: catalog, Roles: e.roles.read(e.catalog.owner(), catalog, e.roles.published), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGAttribute)
+	rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: catalog, Roles: e.roles.read(e.catalog.owner(), catalog, e.roles.published), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGAttribute)
 	e.mu.Unlock()
 	if err != nil || rows == nil || rows.ref != ref {
 		t.Fatal(rows, err)
@@ -115,19 +116,19 @@ func TestPGAttributeCapture(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if got, err := captureCatalogSourceRows(Input{Context: ctx, Catalog: view, Roles: e.Roles(), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGAttribute); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := captureCatalogSourceRows(catalogSourceInput{Context: ctx, Catalog: view, Roles: e.Roles(), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGAttribute); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled publication", got, err)
 	}
-	if got, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: view, Roles: New().Roles(), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGAttribute); got != nil || err == nil {
+	if got, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Roles: New().Roles(), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGAttribute); got != nil || err == nil {
 		t.Fatal("foreign roles", got, err)
 	}
 	wrong := ref
 	wrong.Epoch++
-	if got, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Ref: wrong, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGAttribute); got != nil || err == nil {
+	if got, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Roles: e.Roles(), Ref: wrong, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGAttribute); got != nil || err == nil {
 		t.Fatal("stale source", got, err)
 	}
 	privateColumn := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, Columns: []catalog.Column{{Name: "a", Usage: testUsage(e, sqltype.Int4), Nullable: true}}, Attributes: []int32{1}, Security: catalog.RelationSecurity{ColumnACL: map[int32]authorization.ACLValue{1: {Explicit: true}}}}
-	explicit, err := AttributeRow(e.catalog.owner(), e.Roles(), d, privateColumn, AttributeMetadata(privateColumn, 0))
+	explicit, err := pgcatalog.AttributeRow(e.catalog.owner(), e.Roles(), d, privateColumn, pgcatalog.AttributeMetadata(privateColumn, 0))
 	if err != nil || explicit[21].IsNull() || explicit[21].ArrayLen() != 0 {
 		t.Fatal("private explicit empty column ACL lost", explicit, err)
 	}
@@ -136,14 +137,14 @@ func TestPGAttributeCapture(t *testing.T) {
 	modified.Columns[24].Usage.Typmod = 0
 	privateState := catalog.CloneState(view.State())
 	privateState.SetDescriptor(d.Address(), &modified)
-	if got, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: e.catalog.read(privateState), Roles: e.Roles(), Ref: ref, Source: &modified, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGAttribute); got != nil || err == nil {
+	if got, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.catalog.read(privateState), Roles: e.Roles(), Ref: ref, Source: &modified, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGAttribute); got != nil || err == nil {
 		t.Fatal("modified pseudo usage admitted", got, err)
 	}
 	if e.catalog.state != before || !maps.Equal(descriptors, maps.Collect(e.catalog.state.Descriptors())) {
 		t.Fatal("capture mutated catalog")
 	}
 	for _, n := range []int{32768, -32769} {
-		if _, err := AttributeRow(e.catalog.owner(), e.Roles(), d, d, catalog.AttributeMetadata{Number: int32(n), Facts: sqltype.PostgreSQLAttributeFacts{Alignment: "i", Storage: "p"}}); err == nil {
+		if _, err := pgcatalog.AttributeRow(e.catalog.owner(), e.Roles(), d, d, catalog.AttributeMetadata{Number: int32(n), Facts: sqltype.PostgreSQLAttributeFacts{Alignment: "i", Storage: "p"}}); err == nil {
 			t.Fatal("unchecked int2 narrowing", n)
 		}
 	}
@@ -263,7 +264,7 @@ func TestPGAttributeDroppedHistory(t *testing.T) {
 	}
 	identityColumn := *old
 	identityColumn.ColumnMeta.Identities = map[int32]catalog.ColumnIdentity{1: {Mode: parser.IdentityAlways}}
-	metadata := AttributeMetadata(&identityColumn, 0)
+	metadata := pgcatalog.AttributeMetadata(&identityColumn, 0)
 	if metadata.Identity != "a" {
 		t.Fatal("identity before dependency removal", metadata)
 	}
@@ -304,7 +305,7 @@ func TestPGAttributeCarrier(t *testing.T) {
 	if err := (relationProvider{}).Validate(view, ordinary); err == nil {
 		t.Fatal("ANYARRAY stored column admitted")
 	}
-	_, err = ClassACL(e.catalog.owner(), New().Roles(), d.Columns[21].Usage.Type, authorization.ACLValue{Explicit: true})
+	_, err = pgcatalog.ClassACL(e.catalog.owner(), New().Roles(), d.Columns[21].Usage.Type, authorization.ACLValue{Explicit: true})
 	if err == nil {
 		t.Fatal("foreign empty ACL authority admitted")
 	}

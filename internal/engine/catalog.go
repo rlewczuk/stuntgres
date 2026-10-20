@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -102,7 +103,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		offset, exists := r.Index[c.Name]
 		ordered := i == 0 || r.Attributes[i] > r.Attributes[i-1]
 		if r.RelationKind == catalog.CatalogRelation {
-			ordered = r.Attributes[i] == AttributeNumber(r.Address().ObjectID, c.Name, int32(i+1))
+			ordered = r.Attributes[i] == pgcatalog.AttributeNumber(r.Address().ObjectID, c.Name, int32(i+1))
 		}
 		if r.Attributes[i] <= 0 || r.Attributes[i] > r.ColumnMeta.HighWater || !ordered || !exists || offset != i {
 			return fmt.Errorf("stuntgres: invalid relation column identity")
@@ -111,7 +112,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 			return fmt.Errorf("stuntgres: invalid relation column type")
 		}
 		typ, exists := v.LookupType(c.Usage.Type.ID())
-		catalogNull := r.RelationKind == catalog.CatalogRelation && r.Address().ObjectID == AttributeOID && r.Attributes[i] == 25 && c.Name == "attmissingval" && c.Usage.CatalogNullUsage()
+		catalogNull := r.RelationKind == catalog.CatalogRelation && r.Address().ObjectID == pgcatalog.AttributeOID && r.Attributes[i] == 25 && c.Name == "attmissingval" && c.Usage.CatalogNullUsage()
 		if !exists || typ != c.Usage.Type || !catalogNull && (!typ.Concrete() || !c.Usage.Valid()) {
 			return fmt.Errorf("stuntgres: invalid relation column type")
 		}

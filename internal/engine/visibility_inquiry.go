@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
 )
 
@@ -74,9 +75,9 @@ func (c *EvalContext) VisibilityInquiry(kind functions.VisibilityInquiryKind, va
 	if kind == functions.CollationVersionInquiry || kind == functions.DatabaseCollationVersionInquiry {
 		var version *string
 		if kind == functions.DatabaseCollationVersionInquiry {
-			version, err = DatabaseCollationActualVersion()
+			version, err = pgcatalog.DatabaseCollationActualVersion()
 		} else {
-			version, err = CollationActualVersion(d.(*catalog.Collation))
+			version, err = pgcatalog.CollationActualVersion(d.(*catalog.Collation))
 		}
 		if err != nil {
 			return sqltype.Value{}, err

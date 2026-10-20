@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -139,7 +140,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: dependencyObject(provider.base, a, provider.path)})
 				}
 			case *catalog.ForeignObject:
-				for _, dependency := range ForeignDependencies(d) {
+				for _, dependency := range pgcatalog.ForeignDependencies(d) {
 					if dependency == (ids.ObjectAddress{}) {
 						continue
 					}

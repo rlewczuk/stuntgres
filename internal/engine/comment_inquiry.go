@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
 )
 
@@ -26,7 +27,7 @@ func (c *EvalContext) CommentInquiry(kind functions.CommentInquiryKind, values [
 		var class ids.OID
 		for a, d := range scope.commentCatalog.Descriptors() {
 			if a.ObjectID == ids.OID(oid) && a.SubID == 0 && (text == "" || a.ClassID < class) {
-				if candidate := DescriptorComment(d, 0); candidate != "" {
+				if candidate := pgcatalog.DescriptorComment(d, 0); candidate != "" {
 					// Immutable address ordering keeps equal calls STABLE; it
 					// does not establish portable catalog precedence.
 					text, class = candidate, a.ClassID
@@ -38,7 +39,7 @@ func (c *EvalContext) CommentInquiry(kind functions.CommentInquiryKind, values [
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		text = DescriptorComment(scope.commentCatalog.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}), int32(sub))
+		text = pgcatalog.DescriptorComment(scope.commentCatalog.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}), int32(sub))
 	case functions.ObjectDescription, functions.SharedDescription:
 		name, err := values[1].Text()
 		if err != nil {
@@ -61,7 +62,7 @@ func (c *EvalContext) CommentInquiry(kind functions.CommentInquiryKind, values [
 				class = ids.TypeClassID
 			}
 			if class != 0 {
-				text = DescriptorComment(scope.commentCatalog.Get(ids.ObjectAddress{ClassID: class, ObjectID: ids.OID(oid)}), 0)
+				text = pgcatalog.DescriptorComment(scope.commentCatalog.Get(ids.ObjectAddress{ClassID: class, ObjectID: ids.OID(oid)}), 0)
 			}
 		}
 	}

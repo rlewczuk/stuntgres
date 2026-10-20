@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -121,17 +122,17 @@ func TestInheritanceGraphDirectDependEdges(t *testing.T) {
 	c := inheritanceLifecycleTable(e, 20001, "c", p.Address())
 	leaf := inheritanceLifecycleTable(e, 20002, "leaf", c.Address())
 	inheritanceLifecycleInstall(e, p, c, leaf)
-	edges, err := CollectDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got []DependEdge
+	var got []pgDependEdge
 	for _, edge := range edges {
 		if edge.Dependent == leaf.Address() && edge.Referenced.ClassID == ids.RelationClassID {
 			got = append(got, edge)
 		}
 	}
-	if !reflect.DeepEqual(got, []DependEdge{{Dependent: leaf.Address(), Referenced: c.Address(), DepType: 'n'}}) {
+	if !reflect.DeepEqual(got, []pgDependEdge{{Dependent: leaf.Address(), Referenced: c.Address(), DepType: 'n'}}) {
 		t.Fatal(got)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -39,7 +40,7 @@ func ordinaryColumnDrop(provider *dropProvider, old *catalog.Relation, ref ids.O
 		}
 		return old, nil
 	}
-	history := AttributeMetadata(old, slot)
+	history := pgcatalog.AttributeMetadata(old, slot)
 	history.Name = fmt.Sprintf("........pg.dropped.%d........", history.Number)
 	history.TypeID, history.NotNull, history.HasDefault, history.Generated, history.Dropped = 0, false, false, "", true
 	target := ref.Address

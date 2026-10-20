@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -81,7 +82,7 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 		if source.Provider == "d" {
 			return sqlError("42P17", `collation "default" cannot be copied`)
 		}
-		d.Version, err = CollationActualVersion(source)
+		d.Version, err = pgcatalog.CollationActualVersion(source)
 		if err != nil {
 			return err
 		}
@@ -180,7 +181,7 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 	if err != nil {
 		return err
 	}
-	actual, err := CollationActualVersion(&d)
+	actual, err := pgcatalog.CollationActualVersion(&d)
 	if err != nil {
 		return err
 	}
@@ -226,7 +227,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 	next := *d
 	switch s.Action {
 	case "refresh":
-		actual, err := CollationActualVersion(d)
+		actual, err := pgcatalog.CollationActualVersion(d)
 		if err != nil {
 			return err
 		}

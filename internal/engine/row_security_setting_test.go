@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 )
 
 func TestRowSecuritySettingsCapture(t *testing.T) {
@@ -41,11 +42,11 @@ func TestRowSecuritySettingProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	view := e.CatalogRead()
-	d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: SettingsOID})
+	d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.SettingsOID})
 	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 	capture := func(value, source string) *querySource {
 		t.Helper()
-		rows, err := captureCatalogSourceRows(Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: settings}}, capturePGSettings)
+		rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: settings}}, capturePGSettings)
 		if err != nil || len(rows.anonymous) != 1 {
 			t.Fatal(rows, err)
 		}
@@ -77,7 +78,7 @@ func TestRowSecuritySettingProvenance(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if source, err := captureCatalogSourceRows(Input{Context: ctx, Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: settings}}, capturePGSettings); source != nil || err != context.Canceled {
+	if source, err := captureCatalogSourceRows(catalogSourceInput{Context: ctx, Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: settings}}, capturePGSettings); source != nil || err != context.Canceled {
 		t.Fatal(source, err)
 	}
 }

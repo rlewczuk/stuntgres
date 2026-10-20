@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/parser"
 	"testing"
 	"time"
@@ -112,7 +113,7 @@ func TestMaterializedAlterExtensionAuthority(t *testing.T) {
 			t.Fatal("malformed authority accepted", addresses)
 		}
 	}
-	edges, err := CollectDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

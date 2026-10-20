@@ -6,10 +6,11 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 )
 
 func (e *Engine) initializeCatalogSources() error {
-	for _, spec := range Specs {
+	for _, spec := range pgcatalog.Specs {
 		d := e.catalogSourceDescriptor(spec.OID, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: spec.Namespace}, spec.Name, len(spec.Columns))
 		d.History.HasIndexes, d.VirtualView = spec.Indexes, spec.Virtual
 		if spec.BootstrapOwner {
@@ -22,7 +23,7 @@ func (e *Engine) initializeCatalogSources() error {
 		for i, column := range spec.Columns {
 			typ, ok := e.catalog.read(e.catalog.state).LookupType(column.Type)
 			if !ok {
-				if spec.Namespace == ids.PGCatalogNamespaceOID && (spec.OID == ids.ForeignWrapperClassID || spec.OID == ids.ForeignServerClassID || spec.OID == ids.ForeignMappingClassID || spec.OID == ids.ForeignTableClassID || spec.OID == UserMappingsOID) {
+				if spec.Namespace == ids.PGCatalogNamespaceOID && (spec.OID == ids.ForeignWrapperClassID || spec.OID == ids.ForeignServerClassID || spec.OID == ids.ForeignMappingClassID || spec.OID == ids.ForeignTableClassID || spec.OID == pgcatalog.UserMappingsOID) {
 					return fmt.Errorf(spec.MissingType, column.Type)
 				}
 				return fmt.Errorf("%s", spec.MissingType)
@@ -48,7 +49,7 @@ func (e *Engine) catalogSourceDescriptor(oid ids.OID, namespace ids.ObjectAddres
 }
 
 func (e *Engine) registerCatalogSource(d *catalog.Relation) {
-	InitializeAttributes(d)
+	pgcatalog.InitializeAttributes(d)
 	if address, ok := e.catalog.state.LookupName(ids.NameKey{ClassID: ids.TypeClassID, Namespace: d.Namespace(), Name: d.Name()}); ok {
 		row := e.catalog.state.MustType(address)
 		row.OwningRelation, row.Owner = d.Address(), d.Owner
@@ -63,10 +64,10 @@ func (e *Engine) registerCatalogSource(d *catalog.Relation) {
 }
 
 func (e *Engine) captureCatalogSourceLocked(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
-	produce, ok := ProducerFor(source.Address().ObjectID)
+	produce, ok := pgcatalog.ProducerFor(source.Address().ObjectID)
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: unknown catalog source")
 	}
-	in := Input{Context: ctx, Catalog: view, Roles: roles, Owner: e.catalog.owner(), Ref: ref, Source: source, Runtime: engineCatalogRuntime{engine: e, sequenceBase: view.State()}}
+	in := catalogSourceInput{Context: ctx, Catalog: view, Roles: roles, Owner: e.catalog.owner(), Ref: ref, Source: source, Runtime: engineCatalogRuntime{engine: e, sequenceBase: view.State()}}
 	return captureCatalogSourceRows(in, produce)
 }

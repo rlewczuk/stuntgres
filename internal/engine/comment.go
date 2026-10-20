@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/parser"
 )
 
@@ -28,7 +29,7 @@ func (e *Engine) Comment(r catalog.Read, ref ids.ObjectRef) (string, bool, error
 	default:
 		return "", false, fmt.Errorf("stuntgres: object class has no comment metadata")
 	}
-	text := DescriptorComment(r.Get(a), sub)
+	text := pgcatalog.DescriptorComment(r.Get(a), sub)
 	return text, text != "", nil
 }
 

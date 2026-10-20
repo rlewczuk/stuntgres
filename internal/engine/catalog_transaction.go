@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/storage"
 )
 
@@ -345,7 +346,7 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 						return catalog.Conflict{}
 					}
 				case *catalog.ForeignObject:
-					for _, dependency := range ForeignDependencies(owner) {
+					for _, dependency := range pgcatalog.ForeignDependencies(owner) {
 						if dependency != (ids.ObjectAddress{}) && dependency == target {
 							return catalog.Conflict{}
 						}

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -44,7 +45,7 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 			invalid := *d
 			invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 			invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(spec.ids[i])
-			if source, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{}}, captureAvailableExtensions); err == nil || source != nil {
+			if source, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{}}, captureAvailableExtensions); err == nil || source != nil {
 				t.Fatal("foreign generation accepted", i, source, err)
 			}
 		}
@@ -60,7 +61,7 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 		for _, width := range []int{0, len(d.Columns) - 1, len(d.Columns) + 1} {
 			invalid := *d
 			invalid.Columns = make([]catalog.Column, width)
-			if source, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{}}, captureAvailableExtensions); err == nil || source != nil {
+			if source, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{}}, captureAvailableExtensions); err == nil || source != nil {
 				t.Fatal("malformed width accepted", width, source, err)
 			}
 		}
@@ -72,7 +73,7 @@ func availableUnitExpected(t *testing.T, e *Engine, catalog catalog.Read, versio
 	comment := "text search dictionary that removes accents"
 	for _, oid := range []ids.OID{12081, 12085} {
 		d, ref := availableUnitSource(e, oid)
-		source, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: catalog, Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{}}, captureAvailableExtensions)
+		source, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: catalog, Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{}}, captureAvailableExtensions)
 		wantCount := 7
 		if oid == 12085 {
 			wantCount = 8
@@ -177,7 +178,7 @@ func TestAvailableExtensionsMetadataValues(t *testing.T) {
 	empty, schema := "", "fixed_control_schema"
 	metadata := catalog.ExtensionControl{Version: "1.1", Trusted: true, Superuser: true, Relocatable: true, Comment: &empty, Schema: &schema, Requires: []string{"first", "quote\"name", "comma,name"}}
 	// Metadata-only projection input, not a new registry entry or provider.
-	row, err := ProjectAvailableExtension("unaccent", metadata, &catalog.Extension{Version: "1.1", TargetNamespace: ids.ObjectAddress{ObjectID: 999}}, d)
+	row, err := pgcatalog.ProjectAvailableExtension("unaccent", metadata, &catalog.Extension{Version: "1.1", TargetNamespace: ids.ObjectAddress{ObjectID: 999}}, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,12 +194,12 @@ func TestAvailableExtensionsMetadataValues(t *testing.T) {
 		}
 	}
 	metadata.Comment, metadata.Schema, metadata.Requires = nil, nil, nil
-	row, err = ProjectAvailableExtension("unaccent", metadata, nil, d)
+	row, err = pgcatalog.ProjectAvailableExtension("unaccent", metadata, nil, d)
 	if err != nil || !row[6].IsNull() || !row[7].IsNull() || !row[8].IsNull() || row[7].Type() != d.Columns[7].Usage.Type {
 		t.Fatal("typed absence", row, err)
 	}
 	metadata.Requires = []string{strings.Repeat("x", 64)}
-	if row, err := ProjectAvailableExtension("unaccent", metadata, nil, d); err == nil || row != nil {
+	if row, err := pgcatalog.ProjectAvailableExtension("unaccent", metadata, nil, d); err == nil || row != nil {
 		t.Fatal("unchecked NAME dependency", row, err)
 	}
 	// The registry holds the implementation itself; its control metadata is
@@ -242,19 +243,19 @@ func TestAvailableExtensionsCapture(t *testing.T) {
 	d, ref := availableUnitSource(e, 12081)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if source, err := captureCatalogSourceRows(Input{Context: ctx, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{}}, captureAvailableExtensions); source != nil || !errors.Is(err, context.Canceled) {
+	if source, err := captureCatalogSourceRows(catalogSourceInput{Context: ctx, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{}}, captureAvailableExtensions); source != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("pre-cancellation", source, err)
 	}
 	ctx, cancel = context.WithCancel(context.Background())
 	defer cancel()
 	during := &availableCancelContext{Context: ctx, cancel: cancel}
-	if source, err := captureCatalogSourceRows(Input{Context: during, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{}}, captureAvailableExtensions); source != nil || !errors.Is(err, context.Canceled) || during.checks != 2 {
+	if source, err := captureCatalogSourceRows(catalogSourceInput{Context: during, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{}}, captureAvailableExtensions); source != nil || !errors.Is(err, context.Canceled) || during.checks != 2 {
 		t.Fatal("iteration cancellation", source, err)
 	}
 	op, done := roleOperation(t, e, "postgres")
 	extensionUnitPublish(t, e, op, extensionUnitStage(t, e, op))
 	done()
-	old, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{}}, captureAvailableExtensions)
+	old, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{}}, captureAvailableExtensions)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,7 +281,7 @@ func TestAvailableExtensionsCapture(t *testing.T) {
 	if version, err := installedRow[2].Text(); err != nil || version != "1.1" {
 		t.Fatal("retained installed state", version, err)
 	}
-	if source, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{}}, captureAvailableExtensions); source != nil || err == nil {
+	if source, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{}}, captureAvailableExtensions); source != nil || err == nil {
 		t.Fatal("old generation admitted", source, err)
 	}
 }

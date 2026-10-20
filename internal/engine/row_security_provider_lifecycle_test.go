@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
 )
@@ -44,7 +45,7 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 				source = "client"
 			}
 			view := e.CatalogRead()
-			d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: SettingsOID})
+			d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.SettingsOID})
 			ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 			roles := e.Roles()
 			protected := &catalog.Relation{ObjectName: "provider_target", Owner: reader, Security: catalog.RelationSecurity{RLSEnabled: true, RLSForced: true}}
@@ -53,7 +54,7 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 				if got, ok := session.Setting("row_security"); !ok || got != value {
 					t.Fatal("effective setting", got, ok, value)
 				}
-				rows, err := captureCatalogSourceRows(Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: session.settings}}, capturePGSettings)
+				rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: session.settings}}, capturePGSettings)
 				if err != nil || len(rows.anonymous) != 1 {
 					t.Fatal(rows, err)
 				}

@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 )
 
 // These sources admit semantic planning before checking execution-time authority.
@@ -13,7 +14,7 @@ func guardedCatalogRelation(d *catalog.Relation) bool {
 	if d == nil || d.RelationKind != catalog.CatalogRelation || d.Address().ClassID != ids.RelationClassID {
 		return false
 	}
-	return d.Address().ObjectID == AggregateOID || d.Address().ObjectID == AMOID || d.Address().ObjectID == TypeOID
+	return d.Address().ObjectID == pgcatalog.AggregateOID || d.Address().ObjectID == pgcatalog.AMOID || d.Address().ObjectID == pgcatalog.TypeOID
 }
 
 // Binding and frame import have completed before mutation admission. Recheck

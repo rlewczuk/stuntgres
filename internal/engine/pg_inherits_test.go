@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -26,7 +27,7 @@ func TestPGInheritsShapeAndOwnership(t *testing.T) {
 	e := New()
 	source, ref := pgInheritsUnitSource(t, e)
 	view := e.CatalogRead()
-	if source.Address().ObjectID != 2611 || source.Namespace().ObjectID != 11 || source.RowType != 10005 || source.ColumnMeta.HighWater != 4 || len(source.Columns) != 4 || source.VirtualView || !source.History.HasIndexes || !CatalogHasIndexes(2611) || ClassKind(view, source) != "r" {
+	if source.Address().ObjectID != 2611 || source.Namespace().ObjectID != 11 || source.RowType != 10005 || source.ColumnMeta.HighWater != 4 || len(source.Columns) != 4 || source.VirtualView || !source.History.HasIndexes || !pgcatalog.CatalogHasIndexes(2611) || pgcatalog.ClassKind(view, source) != "r" {
 		t.Fatal("source shape", source)
 	}
 	names := []string{"inhrelid", "inhparent", "inhseqno", "inhdetachpending"}
@@ -49,7 +50,7 @@ func TestPGInheritsShapeAndOwnership(t *testing.T) {
 	if !acl.Explicit || len(acl.Entries) != 1 || !acl.Entries[0].Grantee.Public || acl.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", acl)
 	}
-	captured, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGInherits)
+	captured, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGInherits)
 	if err != nil || captured == nil || captured.ref != ref || len(captured.anonymous) != 0 {
 		t.Fatal("fresh projection", captured, err)
 	}
@@ -58,7 +59,7 @@ func TestPGInheritsShapeAndOwnership(t *testing.T) {
 	foreign := New()
 	foreignSource, _ := pgInheritsUnitSource(t, foreign)
 	for _, wrong := range []*catalog.Relation{&invalid, foreignSource} {
-		got, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: view, Ref: ref, Source: wrong, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGInherits)
+		got, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: ref, Source: wrong, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGInherits)
 		var sqlError interface{ SQLState() string }
 		if got != nil || err == nil || errors.As(err, &sqlError) {
 			t.Fatal("invalid source must return ordinary internal error", got, err)
@@ -129,7 +130,7 @@ func TestPGInheritsDescriptorEdges(t *testing.T) {
 	e := New()
 	source, ref := pgInheritsUnitSource(t, e)
 	view := pgInheritsUnitGraph(t, e)
-	captured, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGInherits)
+	captured, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGInherits)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +146,7 @@ func TestPGInheritsDescriptorEdges(t *testing.T) {
 	child.Inheritance = nil
 	next.SetDescriptor(child.Address(), &child)
 	e.catalog.state = &next
-	current, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: source, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, capturePGInherits)
+	current, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: source, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, capturePGInherits)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +154,7 @@ func TestPGInheritsDescriptorEdges(t *testing.T) {
 	if got := pgInheritsUnitEdges(t, current, e.CatalogRead()); !reflect.DeepEqual(got, remaining) {
 		t.Fatal("new generation", got, remaining)
 	}
-	again, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGInherits)
+	again, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGInherits)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +176,7 @@ func TestPGInheritsCancellation(t *testing.T) {
 		&pgEnumCancelDuringCapture{Context: context.Background(), after: 2},
 		&pgEnumCancelDuringCapture{Context: context.Background(), after: view.DescriptorCount() + 2},
 	} {
-		if got, err := captureCatalogSourceRows(Input{Context: ctx, Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGInherits); got != nil || !errors.Is(err, context.Canceled) {
+		if got, err := captureCatalogSourceRows(catalogSourceInput{Context: ctx, Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGInherits); got != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial capture published", got, err)
 		}
 	}

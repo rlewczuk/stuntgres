@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -477,12 +478,12 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 	}
 	r.references = refs
 	src.Rules = rulesPayloadOf([]ruleDefinition{r})
-	edges, err := CollectDepend(context.Background(), auth.Catalog, engineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), auth.Catalog, engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	owner := ids.ObjectAddress{ClassID: 2618, ObjectID: r.OID}
-	if !slices.Contains(edges, DependEdge{owner, src.Address(), 'a'}) {
+	if !slices.Contains(edges, pgDependEdge{owner, src.Address(), 'a'}) {
 		t.Fatal("rule lacks AUTO event edge")
 	}
 	t.Run("mixed_drop_closure", func(t *testing.T) {

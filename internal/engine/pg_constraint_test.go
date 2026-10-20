@@ -7,6 +7,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -26,7 +27,7 @@ func pgConstraintUnitCapture(t *testing.T, e *Engine, view catalog.Read) map[str
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2606}
 	source := view.MustRelation(address)
 	ref := e.catalog.Domain.Ref(view.Epoch(), address)
-	got, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGConstraint)
+	got, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGConstraint)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +60,7 @@ func pgConstraintUnitBootstrap(t *testing.T, view catalog.Read, row []sqltype.Va
 		t.Fatal("bootstrap CHECK identity detached from recipe", id, err)
 	}
 	for i, value := range row {
-		if value.Type().ID() != ConstraintTypeIDs[i] || i < 20 && value.IsNull() {
+		if value.Type().ID() != pgcatalog.ConstraintTypeIDs[i] || i < 20 && value.IsNull() {
 			t.Fatal("bootstrap typed scalar", i, value)
 		}
 	}
@@ -139,12 +140,12 @@ func TestPGConstraintShapeAndOwnership(t *testing.T) {
 	pgConstraintUnitCapture(t, e, view)
 	invalid := *source
 	invalid.Columns = slices.Clone(source.Columns[:9])
-	if got, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: view, Ref: ref, Source: &invalid, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGConstraint); got != nil || err == nil {
+	if got, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: ref, Source: &invalid, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGConstraint); got != nil || err == nil {
 		t.Fatal("old shape admitted", got, err)
 	}
 	foreign := New()
 	foreignSource, _ := pgConstraintUnitSource(t, foreign)
-	if got, err := captureCatalogSourceRows(Input{Context: context.Background(), Catalog: view, Ref: ref, Source: foreignSource, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGConstraint); got != nil || err == nil {
+	if got, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: ref, Source: foreignSource, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGConstraint); got != nil || err == nil {
 		t.Fatal("foreign generation admitted", got, err)
 	}
 }
@@ -179,7 +180,7 @@ func TestPGConstraintProjection(t *testing.T) {
 			t.Fatal("missing projection", tc.name, row)
 		}
 		for i, value := range row {
-			if value.Type().ID() != ConstraintTypeIDs[i] || i < 20 && value.IsNull() {
+			if value.Type().ID() != pgcatalog.ConstraintTypeIDs[i] || i < 20 && value.IsNull() {
 				t.Fatal("typed scalar", tc.name, i, value)
 			}
 			if !value.IsNull() && value.Type().IsArray() {
@@ -264,7 +265,7 @@ func TestPGConstraintCapture(t *testing.T) {
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, ctx := range []context.Context{canceled, &pgEnumCancelDuringCapture{Context: context.Background(), after: view.DescriptorCount() + 2}} {
-		if got, err := captureCatalogSourceRows(Input{Context: ctx, Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGConstraint); got != nil || !errors.Is(err, context.Canceled) {
+		if got, err := captureCatalogSourceRows(catalogSourceInput{Context: ctx, Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGConstraint); got != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("cancellation published partial capture", got, err)
 		}
 	}
@@ -285,10 +286,10 @@ func TestPGConstraintCapture(t *testing.T) {
 	if before["pc_unit_ck"][27].IsNull() {
 		t.Fatal("retained tree")
 	}
-	if id, err := ConstraintOperator(view, "=", sqltype.Int4, sqltype.Int8); err != nil || id != 15 {
+	if id, err := pgcatalog.ConstraintOperator(view, "=", sqltype.Int4, sqltype.Int8); err != nil || id != 15 {
 		t.Fatal(id, err)
 	}
-	if id, err := ConstraintOperator(view, "missing", sqltype.Int4, sqltype.Int4); err == nil || id != 0 {
+	if id, err := pgcatalog.ConstraintOperator(view, "missing", sqltype.Int4, sqltype.Int4); err == nil || id != 0 {
 		t.Fatal("missing operator fabricated", id, err)
 	}
 }
@@ -357,7 +358,7 @@ func TestPGConstraintOperatorMetadata(t *testing.T) {
 			t.Fatal(err)
 		}
 		for i, pair := range inputs {
-			id, err := ConstraintOperator(view, "=", pair[0], pair[1])
+			id, err := pgcatalog.ConstraintOperator(view, "=", pair[0], pair[1])
 			if err != nil || id != tc.want[i] {
 				t.Fatal("selected operator", tc, i, id, err)
 			}
@@ -381,7 +382,7 @@ func TestPGConstraintOperatorMetadata(t *testing.T) {
 		t.Fatal("enum normalized signature", inputs, err)
 	}
 	for _, pair := range inputs {
-		id, err := ConstraintOperator(view, "=", pair[0], pair[1])
+		id, err := pgcatalog.ConstraintOperator(view, "=", pair[0], pair[1])
 		if err != nil || id != 3516 {
 			t.Fatal("enum operator", id, err)
 		}

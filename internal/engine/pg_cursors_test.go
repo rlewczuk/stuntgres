@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -14,9 +15,9 @@ import (
 func TestPGCursorsSource(t *testing.T) {
 	s := cursorUnitSetup(t)
 	e := s.Engine()
-	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: CursorsOID})
+	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.CursorsOID})
 	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
-	empty, err := captureCatalogSourceRows(Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{cursors: s.cursors}}, capturePGCursors)
+	empty, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{cursors: s.cursors}}, capturePGCursors)
 	if err != nil || len(empty.anonymous) != 0 || empty.ref != ref {
 		t.Fatal(empty, err)
 	}
@@ -28,7 +29,7 @@ func TestPGCursorsSource(t *testing.T) {
 		calls++
 		return sqltype.Value{}, errors.New("metadata opened cursor producer")
 	})
-	source, err := captureCatalogSourceRows(Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{cursors: s.cursors}}, capturePGCursors)
+	source, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{cursors: s.cursors}}, capturePGCursors)
 	if err != nil || len(source.anonymous) != 1 || calls != 0 || cursor.position != cursorBefore || cursor.stage != nil {
 		t.Fatal("metadata demanded producer", source, err, calls)
 	}
@@ -50,10 +51,10 @@ func TestPGCursorsSource(t *testing.T) {
 	// A new catalog's consumer must receive its own timestamp descriptor,
 	// while the registry and earlier detached facts retain their original one.
 	current := New()
-	currentDescriptor := current.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: CursorsOID})
+	currentDescriptor := current.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.CursorsOID})
 	currentRef := current.catalog.Domain.Ref(current.catalog.state.Epoch(), currentDescriptor.Address())
 	stored, epoch := cursor.created, cursor.epoch
-	reowned, err := captureCatalogSourceRows(Input{Context: context.Background(), Ref: currentRef, Source: currentDescriptor, Runtime: engineCatalogRuntime{cursors: s.cursors}}, capturePGCursors)
+	reowned, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Ref: currentRef, Source: currentDescriptor, Runtime: engineCatalogRuntime{cursors: s.cursors}}, capturePGCursors)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,12 +67,12 @@ func TestPGCursorsSource(t *testing.T) {
 	invalid := *currentDescriptor
 	invalid.Columns = append([]catalog.Column(nil), currentDescriptor.Columns...)
 	invalid.Columns[5].Usage.Type = currentDescriptor.Columns[0].Usage.Type
-	if got, err := captureCatalogSourceRows(Input{Context: context.Background(), Ref: currentRef, Source: &invalid, Runtime: engineCatalogRuntime{cursors: s.cursors}}, capturePGCursors); got != nil || err == nil {
+	if got, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Ref: currentRef, Source: &invalid, Runtime: engineCatalogRuntime{cursors: s.cursors}}, capturePGCursors); got != nil || err == nil {
 		t.Fatal("incompatible timestamp ownership published facts", got, err)
 	}
 	peer := sessionStart(t, e, nil)
 	sessionSQL(t, peer, "DECLARE peer NO SCROLL CURSOR WITH HOLD FOR SELECT 99")
-	peerSource, err := captureCatalogSourceRows(Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{cursors: peer.cursors}}, capturePGCursors)
+	peerSource, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{cursors: peer.cursors}}, capturePGCursors)
 	if err != nil || len(peerSource.anonymous) != 1 {
 		t.Fatal(peerSource, err)
 	}
@@ -92,7 +93,7 @@ func TestPGCursorsSource(t *testing.T) {
 		t.Fatal("producer unexpectedly succeeded")
 	}
 	sessionSQL(t, s, "ROLLBACK TO recover")
-	failed, err := captureCatalogSourceRows(Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{cursors: s.cursors}}, capturePGCursors)
+	failed, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{cursors: s.cursors}}, capturePGCursors)
 	if err != nil || !reflect.DeepEqual(failed.anonymous, source.anonymous) || cursor.position != cursorFailed || calls != 1 {
 		t.Fatal("failed cursor metadata changed/demanded", failed, err, calls)
 	}
@@ -103,7 +104,7 @@ func TestPGCursorsSource(t *testing.T) {
 	for _, at := range []int32{1, 2, 3, 4} {
 		ctx, cancel := context.WithCancel(context.Background())
 		probe := &cancelAtErrCheck{Context: ctx, cancel: cancel, at: at}
-		got, err := captureCatalogSourceRows(Input{Context: probe, Ref: ref, Source: d, Runtime: engineCatalogRuntime{cursors: s.cursors}}, capturePGCursors)
+		got, err := captureCatalogSourceRows(catalogSourceInput{Context: probe, Ref: ref, Source: d, Runtime: engineCatalogRuntime{cursors: s.cursors}}, capturePGCursors)
 		cancel()
 		if got != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial metadata publication", at, got, err)
@@ -116,7 +117,7 @@ func TestPGCursorsSource(t *testing.T) {
 	if !reflect.DeepEqual(source.anonymous[0], snapshot) || len(s.cursors.entries) != 0 {
 		t.Fatal("registry clear mutates captured facts")
 	}
-	cleared, err := captureCatalogSourceRows(Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{cursors: s.cursors}}, capturePGCursors)
+	cleared, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{cursors: s.cursors}}, capturePGCursors)
 	if err != nil || len(cleared.anonymous) != 0 {
 		t.Fatal(cleared, err)
 	}
@@ -125,7 +126,7 @@ func TestPGCursorsSource(t *testing.T) {
 func TestPGCursorsCatalog(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: CursorsOID})
+	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.CursorsOID})
 	if err := (relationProvider{}).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +140,7 @@ func TestPGCursorsCatalog(t *testing.T) {
 	}
 	for i, column := range d.Columns {
 		owner, ok := view.LookupType(wantTypes[i])
-		if !ok || column.Name != wantNames[i] || column.Usage.Type != owner || column.Usage.Typmod != -1 || !column.Nullable || !column.NullabilityKnown || column.OriginTable != uint32(CursorsOID) || column.OriginAttribute != int16(i+1) {
+		if !ok || column.Name != wantNames[i] || column.Usage.Type != owner || column.Usage.Typmod != -1 || !column.Nullable || !column.NullabilityKnown || column.OriginTable != uint32(pgcatalog.CursorsOID) || column.OriginAttribute != int16(i+1) {
 			t.Fatal("invalid logical consumer descriptor", i, column)
 		}
 	}

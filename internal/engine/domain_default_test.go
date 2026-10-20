@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -83,7 +84,7 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 			t.Fatal("NULL leaf pre-applied inherited typmod")
 		}
 	})
-	facts, err := TypeFacts(context.Background(), view, numericMask, sqltype.OutputEnvironment{})
+	facts, err := pgcatalog.TypeFacts(context.Background(), view, numericMask, sqltype.OutputEnvironment{})
 	if err != nil || facts.Default != "NULL::numeric" || !facts.HasDefaultTree {
 		t.Fatal("NULL mask recipe metadata", facts, err)
 	}
@@ -291,7 +292,7 @@ func TestDomainDefaultBareNullInternal(t *testing.T) {
 		if err := validateDomainDefault(view, d); err != nil {
 			t.Fatal(name, err)
 		}
-		facts, err := TypeFacts(op.Context(), view, d, sqltype.OutputEnvironment{})
+		facts, err := pgcatalog.TypeFacts(op.Context(), view, d, sqltype.OutputEnvironment{})
 		if err != nil || facts.HasDefault || facts.HasDefaultTree || facts.Default != "" {
 			t.Fatal("elided NULL catalog presence", name, facts, err)
 		}

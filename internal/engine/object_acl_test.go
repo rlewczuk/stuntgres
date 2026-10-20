@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
@@ -71,14 +72,14 @@ func TestObjectACLAddressLookup(t *testing.T) {
 	roles := e.roles.published.Root.Read(authorization.PrincipalRef{})
 	array, _ := view.LookupType(sqltype.ACLItemArray)
 	for _, acl := range []authorization.ACLValue{{}, {Explicit: true}, column} {
-		value, err := ClassACL(e.catalog.owner(), roles, array, acl)
+		value, err := pgcatalog.ClassACL(e.catalog.owner(), roles, array, acl)
 		if err != nil || value.Type() != array || value.IsNull() == acl.Explicit || value.ArrayLen() != len(acl.Entries) {
 			t.Fatal("typed raw ACL conversion", value, err)
 		}
 	}
 	var foreign authorization.Domain
 	bad := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(foreign.Principal(10), owner, authorization.SelectPrivilege, 0)}}
-	if _, err := ClassACL(e.catalog.owner(), roles, array, bad); err == nil {
+	if _, err := pgcatalog.ClassACL(e.catalog.owner(), roles, array, bad); err == nil {
 		t.Fatal("foreign principal escaped checked ACLITEM constructor")
 	}
 	t.Run("explicit_sequence_acl", func(t *testing.T) {
