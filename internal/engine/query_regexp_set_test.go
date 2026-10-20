@@ -415,7 +415,7 @@ func TestRegexpSetWalks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rewritten, err := rewriteQueryExpressions(root, func(bound expr.Expr) (expr.Expr, bool, error) {
+	rewritten, err := plan.RewriteQueryExpressions(root, func(bound expr.Expr) (expr.Expr, bool, error) {
 		return mapBoundExpression(view, bound, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil, nil, func(node expr.Expr) (expr.Expr, bool, error) {
 			literal, ok := node.(plan.LiteralExpr)
 			if !ok || literal.Value.IsNull() {

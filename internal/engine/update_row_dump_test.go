@@ -97,7 +97,7 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 					}
 					var executable *plan.ProjectNode
 					find := func(recipe expr.Expr) {
-						walkBoundExpression(recipe, func(node expr.Expr) {
+						plan.WalkExpression(recipe, func(node expr.Expr) {
 							if query, ok := node.(plan.SubqueryExpr); ok && executable == nil {
 								executable = query.QueryPlan.Root.(*plan.ProjectNode)
 							}

@@ -65,7 +65,7 @@ func TestQueryWindowRangeNamedFrameCloneIdentity(t *testing.T) {
 	if a.Slot != b.Slot || a.Slot == c.Slot {
 		t.Fatal("same-name/distinct-name call slots", a, b, c)
 	}
-	copied, err := rewriteQueryExpressions(query.Root, func(expr expr.Expr) (expr.Expr, bool, error) {
+	copied, err := plan.RewriteQueryExpressions(query.Root, func(expr expr.Expr) (expr.Expr, bool, error) {
 		literal, ok := expr.(plan.LiteralExpr)
 		if !ok {
 			return expr, false, nil

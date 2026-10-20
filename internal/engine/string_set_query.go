@@ -36,7 +36,7 @@ func strictScalarFunctionSource(call expr.Expr) bool {
 func preflightFunctionFrom(c *EvalContext, n *plan.FunctionFromNode) (plan.Node, error) {
 	// Plan every child before simplifying a source call. Keep the analyzed
 	// call carrier: it owns aliases, record expansion and the fixed stage width.
-	planned, err := rewriteQueryExpressions(n, func(expr expr.Expr) (expr.Expr, bool, error) {
+	planned, err := plan.RewriteQueryExpressions(n, func(expr expr.Expr) (expr.Expr, bool, error) {
 		return preflightCoercions(c, expr)
 	})
 	if err != nil {

@@ -75,7 +75,7 @@ func TestJSONElementsPredecessorConjunctDemand(t *testing.T) {
 		return sqltype.Boolean(usage.Type, true), nil
 	}}
 	predicate := plan.LogicalExpr{Info: expr.Info{Usage: usage, Property: expr.MergeProperties(column.Properties(), volatile.Properties())}, Op: parser.LogicalAnd, Left: column, Right: volatile}
-	root, ok := functionFromConjuncts(join, predicate).(*plan.FilterNode)
+	root, ok := plan.FunctionFromConjuncts(join, predicate).(*plan.FilterNode)
 	if !ok || root.Predicate != volatile {
 		t.Fatal("volatile residual lost", root)
 	}
@@ -146,34 +146,34 @@ func TestJSONElementsPredecessorConjunctBarriers(t *testing.T) {
 	}}
 	unsafe = append(unsafe, foreign, rhs, virtual, or, not, query, unsupported)
 	for _, barrier := range unsafe {
-		before, after := partitionFunctionConjuncts(join, and(column, barrier))
+		before, after := plan.PartitionFunctionConjuncts(join, and(column, barrier))
 		if before != column || after != barrier {
 			t.Fatalf("unsafe conjunct moved: %T", barrier)
 		}
-		if functionFromConjuncts(join, and(barrier, barrier)) != nil {
+		if plan.FunctionFromConjuncts(join, and(barrier, barrier)) != nil {
 			t.Fatalf("no-safe-conjunct expression moved: %T", barrier)
 		}
 	}
 	for _, kind := range []parser.JoinKind{parser.JoinLeft, parser.JoinRight, parser.JoinFull} {
 		copy := *join
 		copy.Kind = kind
-		if functionFromConjuncts(&copy, and(column, column)) != nil {
+		if plan.FunctionFromConjuncts(&copy, and(column, column)) != nil {
 			t.Fatal("outer join boundary crossed")
 		}
 	}
 	copy := *join
 	copy.Merges = []expr.Expr{column}
-	if functionFromConjuncts(&copy, and(column, column)) != nil {
+	if plan.FunctionFromConjuncts(&copy, and(column, column)) != nil {
 		t.Fatal("merged join boundary crossed")
 	}
 	copy = *join
 	copy.Right = &plan.DerivedNode{}
-	if functionFromConjuncts(&copy, and(column, column)) != nil || functionFromConjuncts(left, and(column, column)) != nil {
+	if plan.FunctionFromConjuncts(&copy, and(column, column)) != nil || plan.FunctionFromConjuncts(left, and(column, column)) != nil {
 		t.Fatal("non-function boundary crossed")
 	}
 	// A fully eligible conjunction moves as a whole, without a residual or
 	// mutation of the original expression and join.
-	if moved, ok := functionFromConjuncts(join, and(column, column)).(*plan.JoinNode); !ok || moved == join || moved.Right != right || join.Left != left {
+	if moved, ok := plan.FunctionFromConjuncts(join, and(column, column)).(*plan.JoinNode); !ok || moved == join || moved.Right != right || join.Left != left {
 		t.Fatal("safe conjunction not moved immutably")
 	}
 }

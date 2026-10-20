@@ -90,7 +90,7 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 				t.Fatal("qualification altered builtin identity")
 			}
 			visited := 0
-			boundExpressionChildren(call, func(expr.Expr) { visited++ })
+			plan.ExpressionChildren(call, func(expr.Expr) { visited++ })
 			if visited != len(call.Args) || !closedTransactionTimeDefault(call) || !closedUUIDDefault(call) {
 				t.Fatal("lost children", visited)
 			}

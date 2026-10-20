@@ -299,7 +299,7 @@ func TestQueryRecursiveCTEBindingUsageAndIdentity(t *testing.T) {
 	}
 	var union *plan.RecursiveUnionNode
 	var self *plan.WorktableScanNode
-	visitCTEQuery(query.Root, func(n plan.Node) {
+	plan.VisitCTEQuery(query.Root, func(n plan.Node) {
 		switch n := n.(type) {
 		case *plan.RecursiveUnionNode:
 			union = n
@@ -310,7 +310,7 @@ func TestQueryRecursiveCTEBindingUsageAndIdentity(t *testing.T) {
 	if union == nil || self == nil || self.Query != nil || self.CTE != union.Definition || self.CTE.Folded() {
 		t.Fatal("self edge/folding contract", union, self)
 	}
-	if left, right := queryInputs(self); left != nil || right != nil {
+	if left, right := plan.QueryInputs(self); left != nil || right != nil {
 		t.Fatal("self edge became structural cycle")
 	}
 	if len(union.Schema()) != 1 || union.Schema()[0].Usage.Type.ID() != sqltype.Int4 {
@@ -324,7 +324,7 @@ func TestQueryRecursiveCTERewriteAndForeignRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	var n *plan.RecursiveUnionNode
-	visitCTEQuery(bound.Root, func(node plan.Node) {
+	plan.VisitCTEQuery(bound.Root, func(node plan.Node) {
 		if recursive, ok := node.(*plan.RecursiveUnionNode); ok {
 			n = recursive
 		}
@@ -335,7 +335,7 @@ func TestQueryRecursiveCTERewriteAndForeignRemap(t *testing.T) {
 	project := n.Definition.Query.Root.(*plan.ProjectNode)
 	original := n.LeftExpressions[0]
 	replacement := queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { return original.Eval(c) })
-	rewritten, err := rewriteQueryExpressions(project, func(e expr.Expr) (expr.Expr, bool, error) {
+	rewritten, err := plan.RewriteQueryExpressions(project, func(e expr.Expr) (expr.Expr, bool, error) {
 		if e == original {
 			return replacement, true, nil
 		}
@@ -357,7 +357,7 @@ func TestQueryRecursiveCTERewriteAndForeignRemap(t *testing.T) {
 	}
 	copy := mapped.(*plan.ProjectNode).Child.(*plan.RecursiveUnionNode)
 	var self *plan.WorktableScanNode
-	visitCTEQuery(copy.Right, func(node plan.Node) {
+	plan.VisitCTEQuery(copy.Right, func(node plan.Node) {
 		if scan, ok := node.(*plan.WorktableScanNode); ok {
 			self = scan
 		}

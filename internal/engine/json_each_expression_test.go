@@ -66,7 +66,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 			t.Fatal("remapped provider", row, present, err)
 		}
 		walked := 0
-		walkBoundExpression(original, func(n expr.Expr) {
+		plan.WalkExpression(original, func(n expr.Expr) {
 			if n == original.Args[0] {
 				walked++
 			}
@@ -92,7 +92,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 		}
 		other := jsonEachUnitMarker(t, b, name, `{"x":2}`)
 		root := &plan.FunctionFromNode{Calls: []expr.Expr{original}, QuerySchema: plan.QuerySchema{{Name: "key", Usage: b.typ(sqltype.Text).Usage()}, {Name: "value", Usage: b.typ(valueID).Usage()}}, Frame: 1}
-		rewritten, err := rewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
+		rewritten, err := plan.RewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
 			if n == original.Args[0] {
 				return other.Args[0], true, nil
 			}

@@ -313,7 +313,7 @@ func TestCommitTimeExpression(t *testing.T) {
 			t.Fatal("volatile expression lifecycle")
 		}
 		count := 0
-		boundExpressionChildren(n, func(expr.Expr) { count++ })
+		plan.ExpressionChildren(n, func(expr.Expr) { count++ })
 		if count != len(raw.Args) {
 			t.Fatal("child traversal", count)
 		}

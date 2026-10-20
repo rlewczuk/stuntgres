@@ -14,7 +14,7 @@ func validatePolicyExpression(view catalog.Read, owner *catalog.Relation, expres
 		return fmt.Errorf("stuntgres: invalid policy condition")
 	}
 	var invalid bool
-	walkBoundExpression(expression.expression, func(node expr.Expr) {
+	plan.WalkExpression(expression.expression, func(node expr.Expr) {
 		switch node.(type) {
 		case plan.ParameterExpr, plan.AggregateExpr, *plan.WindowExpr:
 			invalid = true

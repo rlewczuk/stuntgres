@@ -37,7 +37,7 @@ func validateRuleActionCTEs(action parser.Statement, b binding) error {
 		if bound == nil {
 			return
 		}
-		walkBoundExpression(bound, func(node expr.Expr) {
+		plan.WalkExpression(bound, func(node expr.Expr) {
 			switch node := node.(type) {
 			case plan.ColumnExpr:
 				if node.Scope == rulePseudoScope {
@@ -50,13 +50,13 @@ func validateRuleActionCTEs(action parser.Statement, b binding) error {
 			}
 		})
 	}
-	inspectQuery = func(root plan.Node) { visitCTEQuery(root, func(plan.Node) {}, sides, true) }
+	inspectQuery = func(root plan.Node) { plan.VisitCTEQuery(root, func(plan.Node) {}, sides, true) }
 	inspectExpression := func(bound expr.Expr) {
 		if bound == nil {
 			return
 		}
 		sides(bound)
-		walkBoundExpression(bound, func(node expr.Expr) {
+		plan.WalkExpression(bound, func(node expr.Expr) {
 			if query, ok := node.(plan.SubqueryExpr); ok {
 				inspectQuery(query.QueryPlan.Root)
 			}
@@ -128,8 +128,8 @@ func validateRuleActionCTEs(action parser.Statement, b binding) error {
 		}
 	}
 	if b.query != nil {
-		visitCTEQuery(b.query.Root, func(plan.Node) {}, func(bound expr.Expr) {
-			walkBoundExpression(bound, func(node expr.Expr) {
+		plan.VisitCTEQuery(b.query.Root, func(plan.Node) {}, func(bound expr.Expr) {
+			plan.WalkExpression(bound, func(node expr.Expr) {
 				if query, ok := node.(plan.SubqueryExpr); ok && query.CTEEdge && owned(query.Pos) {
 					for _, definition := range b.ctes {
 						if definition.Query == query.QueryPlan && owned(definition.Position) {

@@ -368,7 +368,7 @@ func initializeJoinEquality(ctx context.Context, bound expr.Expr, leftWidth int)
 	}
 	side := func(bound expr.Expr) int {
 		result := 0
-		walkBoundExpression(bound, func(node expr.Expr) {
+		plan.WalkExpression(bound, func(node expr.Expr) {
 			column, ok := node.(plan.ColumnExpr)
 			if !ok || column.Scope != 1 {
 				return

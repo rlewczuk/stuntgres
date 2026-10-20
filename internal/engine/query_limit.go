@@ -77,7 +77,7 @@ func firstQueryBoundFrameVariable(bound expr.Expr, frame uint32) parser.Position
 	var query func(plan.Node)
 	var expression func(expr.Expr)
 	expression = func(bound expr.Expr) {
-		walkBoundExpression(bound, func(expr expr.Expr) {
+		plan.WalkExpression(bound, func(expr expr.Expr) {
 			matched := false
 			switch e := expr.(type) {
 			case plan.ColumnExpr:
@@ -110,8 +110,8 @@ func firstQueryBoundFrameVariable(bound expr.Expr, frame uint32) parser.Position
 		if node == nil {
 			return
 		}
-		queryExpressions(node, expression)
-		left, right := queryInputs(node)
+		plan.QueryExpressions(node, expression)
+		left, right := plan.QueryInputs(node)
 		query(left)
 		query(right)
 	}

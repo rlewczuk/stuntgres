@@ -106,7 +106,7 @@ func TestArrayInspectStoredRemap(t *testing.T) {
 			t.Fatal("lost scalar traversal")
 		}
 		visited := 0
-		boundExpressionChildren(call, func(expr.Expr) { visited++ })
+		plan.ExpressionChildren(call, func(expr.Expr) { visited++ })
 		if visited != 2 {
 			t.Fatal("lost children", visited)
 		}

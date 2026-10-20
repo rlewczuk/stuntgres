@@ -81,7 +81,7 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 		t.Fatal("NULL mask recipe lost structural null")
 	}
 	numericMask := domainUnitType(t, view, "numeric_mask")
-	walkBoundExpression(numericMask.DomainDefault.Expression, func(node expr.Expr) {
+	plan.WalkExpression(numericMask.DomainDefault.Expression, func(node expr.Expr) {
 		if leaf, ok := node.(plan.LiteralExpr); ok && leaf.Value.IsNull() && leaf.Usage.Typmod != -1 {
 			t.Fatal("NULL leaf pre-applied inherited typmod")
 		}

@@ -6,132 +6,6 @@ import (
 	"stuntgres/internal/engine/plan"
 )
 
-// Query boundaries are explicit: lexical argument walking visits predicate
-// left operands but never confuses a child query's local columns with ours.
-func walkBoundExpression(node expr.Expr, visit func(expr.Expr)) {
-	expr.Walk(node, boundExpressionChildren, visit)
-}
-
-// Enumerate lexical children only; a subquery's query graph is a separate frame.
-func boundExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
-	args := func(children []expr.Expr) {
-		for _, child := range children {
-			walk(child)
-		}
-	}
-	switch e := node.(type) {
-	case plan.SelectedOperatorExpr:
-		walk(e.Provider)
-	case plan.UpdateOutputExpr:
-		// The first assignment owns the query; later tuple outputs are leaves.
-	case plan.DomainValueExpr:
-		// Conversion-local VALUE is a lexical leaf, never a query column.
-	case plan.AssignmentValueExpr:
-		walk(e.Base)
-		walk(e.Value)
-		for target := e.Target; target != nil; target = target.Next {
-			for _, sub := range target.Node.Subscripts {
-				walk(sub.Lower)
-				walk(sub.Upper)
-			}
-		}
-	case plan.ViewQualificationExpr:
-		args(e.Predicates)
-		walk(e.User)
-	case plan.GroupingExpr:
-		args(e.Args)
-	case plan.RowExpr:
-		args(e.Fields)
-	case plan.FieldExpr:
-		walk(e.Base)
-	case plan.ArrayExpr:
-		args(e.Elements)
-	case plan.SubscriptExpr:
-		walk(e.Base)
-		for _, s := range e.Subscripts {
-			walk(s.Lower)
-			walk(s.Upper)
-		}
-	case plan.ReturningColumnExpr:
-		if e.Value != nil {
-			walk(e.Value)
-		} else {
-			walk(e.ColumnExpr)
-		}
-	case plan.ReturningWholeRowExpr:
-		args(e.Members)
-	case plan.MergeActionExpr:
-		// A lexical owner leaf has no expression children.
-	case plan.CoercionExpr:
-		walk(e.Child)
-	case plan.CollationExpr:
-		walk(e.Child)
-	case plan.ArithmeticExpr:
-		walk(e.Left)
-		walk(e.Right)
-	case plan.BitwiseExpr:
-		walk(e.Left)
-		walk(e.Right)
-	case plan.RowComparisonExpr:
-		for _, pair := range e.Comparisons {
-			walk(pair.Left)
-			walk(pair.Right)
-		}
-	case plan.ScalarArrayComparisonExpr:
-		walk(e.Left)
-		if e.Array != nil {
-			walk(e.Array)
-		}
-		args(e.Items)
-	case plan.ComparisonExpr:
-		walk(e.Left)
-		walk(e.Right)
-	case plan.LikeExpr:
-		walk(e.Left)
-		walk(e.Right)
-	case plan.LogicalExpr:
-		walk(e.Left)
-		walk(e.Right)
-	case plan.DistinctExpr:
-		walk(e.Left)
-		walk(e.Right)
-	case plan.NullTestExpr:
-		walk(e.Child)
-	case plan.TruthTestExpr:
-		walk(e.Child)
-	case plan.ConditionalExpr:
-		args(e.Args)
-	case plan.InstalledUUIDOsspExpr:
-		// No argument children.
-	case plan.InstalledTextExpr:
-		walk(e.Arg)
-	case plan.ExtensionPathsExpr:
-		walk(e.Arg)
-	case plan.CaseExpr:
-		walk(e.Test)
-		for _, arm := range e.Arms {
-			walk(arm.Condition)
-			walk(arm.Result)
-		}
-		walk(e.Otherwise)
-	case plan.SubqueryExpr:
-		for _, comparison := range e.Comparisons {
-			walk(comparison.Left)
-		}
-	case functions.Timezone:
-		// Known divergence kept from before the node protocol: PostgreSQL walks
-		// timezone(zone, value) zone first, which decides the reported column in
-		// GROUP BY and nested-aggregate errors. Children follow PostgreSQL.
-		walk(e.Value)
-		if !e.Local {
-			walk(e.Zone)
-		}
-	case expr.Composite:
-		// Last, so the explicit cases above keep precedence over embedded nodes.
-		args(e.Children())
-	}
-}
-
 func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 	e := node.(plan.AggregateExpr)
 	call := b.grouping.aggregates[e.Slot]
@@ -315,7 +189,7 @@ func (b *expressionBinder) aggregateCallAt(e plan.AggregateExpr) (plan.Aggregate
 // visible ancestor frame participate. Child-local frames are ignored by the
 // owner selection above; nesting is checked against that selected owner.
 func walkQueryArgumentExpression(bound expr.Expr, visit func(expr.Expr)) {
-	walkBoundExpression(bound, func(node expr.Expr) {
+	plan.WalkExpression(bound, func(node expr.Expr) {
 		visit(node)
 		if child, ok := node.(plan.SubqueryExpr); ok {
 			walkQueryArgumentNode(child.QueryPlan.Root, visit)
@@ -324,8 +198,8 @@ func walkQueryArgumentExpression(bound expr.Expr, visit func(expr.Expr)) {
 }
 
 func walkQueryArgumentNode(node plan.Node, visit func(expr.Expr)) {
-	queryExpressions(node, func(expr expr.Expr) { walkQueryArgumentExpression(expr, visit) })
-	left, right := queryInputs(node)
+	plan.QueryExpressions(node, func(expr expr.Expr) { walkQueryArgumentExpression(expr, visit) })
+	left, right := plan.QueryInputs(node)
 	if left != nil {
 		walkQueryArgumentNode(left, visit)
 	}

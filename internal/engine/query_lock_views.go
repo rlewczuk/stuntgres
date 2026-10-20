@@ -785,7 +785,7 @@ func queryRowMarkReachesSource(node plan.Node, occurrence int) bool {
 	if source, ok := node.(*plan.SourceNode); ok {
 		return source.Occurrence == occurrence
 	}
-	left, right := queryInputs(node)
+	left, right := plan.QueryInputs(node)
 	return queryRowMarkReachesSource(left, occurrence) || queryRowMarkReachesSource(right, occurrence)
 }
 
@@ -804,6 +804,6 @@ func queryHasPhysicalInput(node plan.Node) bool {
 	if _, ok := node.(*plan.SourceNode); ok {
 		return true
 	}
-	left, right := queryInputs(node)
+	left, right := plan.QueryInputs(node)
 	return queryHasPhysicalInput(left) || queryHasPhysicalInput(right)
 }

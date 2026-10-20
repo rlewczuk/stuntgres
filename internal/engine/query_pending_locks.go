@@ -34,7 +34,7 @@ func queryHasPhysicalFrontier(node plan.Node, inputs *querySource, consuming boo
 	case *plan.SortNode, *plan.AggregateNode, *plan.DistinctNode, *plan.DistinctOnNode, *plan.SetNode, *plan.RecursiveUnionNode, *plan.LimitNode, *plan.WindowNode:
 		consuming = true
 	}
-	left, right := queryInputs(node)
+	left, right := plan.QueryInputs(node)
 	return left != nil && queryHasPhysicalFrontier(left, inputs, consuming) ||
 		right != nil && queryHasPhysicalFrontier(right, inputs, consuming)
 }

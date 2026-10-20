@@ -56,7 +56,7 @@ func TestQueryWindowOffsetGraph(t *testing.T) {
 		t.Fatal("different defaults matched")
 	}
 	var found [3]bool
-	queryExpressions(node, func(e expr.Expr) {
+	plan.QueryExpressions(node, func(e expr.Expr) {
 		for i, child := range [3]expr.Expr{first.Argument, first.Ordinal, first.DefaultValue} {
 			found[i] = found[i] || e == child
 		}
@@ -64,7 +64,7 @@ func TestQueryWindowOffsetGraph(t *testing.T) {
 	if found != [3]bool{true, true, true} {
 		t.Fatal("missing window child", found)
 	}
-	next, err := rewriteQueryExpressions(node, func(e expr.Expr) (expr.Expr, bool, error) {
+	next, err := plan.RewriteQueryExpressions(node, func(e expr.Expr) (expr.Expr, bool, error) {
 		if e == first.DefaultValue {
 			return second.DefaultValue, true, nil
 		}
@@ -92,7 +92,7 @@ func TestQueryWindowOffsetGraph(t *testing.T) {
 		project := matched.Root.(*plan.ProjectNode)
 		found := false
 		for _, bound := range project.AnalysisExpressions {
-			walkBoundExpression(bound, func(child expr.Expr) {
+			plan.WalkExpression(bound, func(child expr.Expr) {
 				if _, ok := child.(plan.SubqueryExpr); ok {
 					found = true
 				}

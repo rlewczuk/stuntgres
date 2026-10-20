@@ -38,7 +38,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 			rowRefs := func(nodes []expr.Expr) []ids.ObjectRef {
 				var refs []ids.ObjectRef
 				for _, node := range nodes {
-					walkBoundExpression(node, func(node expr.Expr) {
+					plan.WalkExpression(node, func(node expr.Expr) {
 						switch n := node.(type) {
 						case plan.ColumnExpr:
 							refs = append(refs, n.Origin)
@@ -222,7 +222,7 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 	}
 	assertNode := func(node expr.Expr) {
 		t.Helper()
-		walkBoundExpression(node, func(node expr.Expr) {
+		plan.WalkExpression(node, func(node expr.Expr) {
 			switch n := node.(type) {
 			case plan.ColumnExpr:
 				if n.Origin.Domain() != e.catalog.Domain || n.Origin.Epoch != stage.Base.Epoch() || n.Origin.Address.ObjectID != destination.Address().ObjectID {

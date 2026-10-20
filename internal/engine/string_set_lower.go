@@ -10,7 +10,7 @@ import (
 
 func querySetDepth(bound expr.Expr) int {
 	depth := 0
-	boundExpressionChildren(bound, func(child expr.Expr) {
+	plan.ExpressionChildren(bound, func(child expr.Expr) {
 		if d := querySetDepth(child); d > depth {
 			depth = d
 		}
@@ -44,7 +44,7 @@ func (b *expressionBinder) lowerQuerySets(root plan.Node, requests []expr.Expr, 
 	}
 	for level := range maxDepth {
 		for _, bound := range requests {
-			walkBoundExpression(bound, func(e expr.Expr) {
+			plan.WalkExpression(bound, func(e expr.Expr) {
 				if !sourceReturnsSet(e) || querySetDepth(e) != level+1 {
 					return
 				}
@@ -71,7 +71,7 @@ func (b *expressionBinder) lowerQuerySets(root plan.Node, requests []expr.Expr, 
 				template.Steps = append(template.Steps, plan.SetStep{Kind: querySetScalarStep, Index: i})
 			}
 		}
-		walkBoundExpression(expression, func(marker expr.Expr) {
+		plan.WalkExpression(expression, func(marker expr.Expr) {
 			for i, original := range template.Origins {
 				if !sameQuerySetOccurrence(marker, original) {
 					continue
@@ -208,7 +208,7 @@ func preflightQuerySet(c *EvalContext, n *plan.SetProjectNode) (plan.Node, error
 	}
 	live := make([]expr.Expr, len(template.Origins))
 	for _, root := range roots {
-		walkBoundExpression(root, func(marker expr.Expr) {
+		plan.WalkExpression(root, func(marker expr.Expr) {
 			for i, original := range template.Origins {
 				if sameQuerySetOccurrence(marker, original) {
 					live[i] = marker
@@ -436,7 +436,7 @@ func queryScalarOwner(child plan.Node, expression expr.Expr) (expr.Expr, bool) {
 		case *plan.ProjectNode, *plan.DerivedNode, *plan.SourceNode, *plan.JoinNode, *plan.DistinctNode, *plan.DistinctOnNode, *plan.AggregateNode, *plan.SetNode:
 			return expression, false
 		}
-		next, right := queryInputs(child)
+		next, right := plan.QueryInputs(child)
 		if right != nil {
 			return expression, false
 		}
@@ -460,7 +460,7 @@ func querySetPeerClosure(requests []expr.Expr, companions [][]expr.Expr) ([]expr
 	for _, expressions := range companions {
 		templates = append(templates, expressions...)
 		for _, expression := range expressions {
-			walkBoundExpression(expression, func(marker expr.Expr) {
+			plan.WalkExpression(expression, func(marker expr.Expr) {
 				if sourceReturnsSet(marker) && querySetDepth(marker) <= depth {
 					requests = append(requests, marker)
 				}

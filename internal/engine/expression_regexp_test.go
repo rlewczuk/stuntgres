@@ -154,7 +154,7 @@ func TestRegexpScalarOuterFromFrame(t *testing.T) {
 			}
 			for _, call := range n.Calls {
 				for _, arg := range expr.Expr(call).(expr.Composite).Children() {
-					walkBoundExpression(arg, func(child expr.Expr) {
+					plan.WalkExpression(arg, func(child expr.Expr) {
 						if column, ok := child.(plan.ColumnExpr); ok {
 							captured++
 							if column.Frame != 1 {
@@ -165,14 +165,14 @@ func TestRegexpScalarOuterFromFrame(t *testing.T) {
 				}
 			}
 		}
-		queryExpressions(node, func(bound expr.Expr) {
-			walkBoundExpression(bound, func(child expr.Expr) {
+		plan.QueryExpressions(node, func(bound expr.Expr) {
+			plan.WalkExpression(bound, func(child expr.Expr) {
 				if subquery, ok := child.(plan.SubqueryExpr); ok {
 					inspect(subquery.QueryPlan.Root)
 				}
 			})
 		})
-		left, right := queryInputs(node)
+		left, right := plan.QueryInputs(node)
 		inspect(left)
 		inspect(right)
 	}

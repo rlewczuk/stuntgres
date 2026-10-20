@@ -293,7 +293,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 							t.Fatal("constraint remint forked modifier definition/consumer spool")
 						}
 					}
-					left, right := queryInputs(node)
+					left, right := plan.QueryInputs(node)
 					scan(left)
 					scan(right)
 				}

@@ -164,7 +164,7 @@ func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses 
 		}
 		if from != nil {
 			var err error
-			from, err = rewriteQueryExpressions(from, mapper, func(node plan.Node) (plan.Node, error) {
+			from, err = plan.RewriteQueryExpressions(from, mapper, func(node plan.Node) (plan.Node, error) {
 				if source, ok := node.(*plan.SourceNode); ok {
 					copy := *source
 					copy.Occurrence++
@@ -238,7 +238,7 @@ func loanRuleDefaultDependencies(view catalog.Read, parent *catalog.Relation, sl
 		}
 		failure = fmt.Errorf("stuntgres: missing rule DEFAULT routine manifest")
 	}
-	walkBoundExpression(definition.Expression, func(node expr.Expr) {
+	plan.WalkExpression(definition.Expression, func(node expr.Expr) {
 		if failure != nil {
 			return
 		}
@@ -1101,7 +1101,7 @@ func refreshRuleBinding(catalog catalog.Read, b binding, current *catalog.Relati
 	}
 	if b.query != nil {
 		next := *b.query
-		next.Root, err = rewriteQueryExpressions(next.Root, func(expr expr.Expr) (expr.Expr, bool, error) { return rewriteViewExpression(catalog, expr, nil, leaf) })
+		next.Root, err = plan.RewriteQueryExpressions(next.Root, func(expr expr.Expr) (expr.Expr, bool, error) { return rewriteViewExpression(catalog, expr, nil, leaf) })
 		if err != nil {
 			return b, err
 		}
@@ -1241,7 +1241,7 @@ func refreshRuleConflict(catalog catalog.Read, b binding, current *catalog.Relat
 func ruleBindingHasPseudo(b binding) bool {
 	found := false
 	inspect := func(bound expr.Expr) {
-		walkBoundExpression(bound, func(node expr.Expr) {
+		plan.WalkExpression(bound, func(node expr.Expr) {
 			if column, ok := node.(plan.ColumnExpr); ok && column.Scope == rulePseudoScope {
 				found = true
 			}
@@ -1249,7 +1249,7 @@ func ruleBindingHasPseudo(b binding) bool {
 	}
 	query := func(root plan.Node) {
 		if root != nil && !found {
-			visitCTEQuery(root, func(plan.Node) {}, inspect, true)
+			plan.VisitCTEQuery(root, func(plan.Node) {}, inspect, true)
 		}
 	}
 	expression := func(bound expr.Expr) {

@@ -196,7 +196,7 @@ func TestQueryCycleOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	var original *plan.RecursiveUnionNode
-	visitCTEQuery(bound.Root, func(node plan.Node) {
+	plan.VisitCTEQuery(bound.Root, func(node plan.Node) {
 		if n, ok := node.(*plan.RecursiveUnionNode); ok {
 			original = n
 		}

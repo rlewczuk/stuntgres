@@ -288,7 +288,7 @@ func TestSRFFromStoredEligibility(t *testing.T) {
 		}
 	}
 	original := srfFromUnitNode(t, calls[0])
-	rewritten, err := rewriteQueryExpressions(original, func(expr expr.Expr) (expr.Expr, bool, error) {
+	rewritten, err := plan.RewriteQueryExpressions(original, func(expr expr.Expr) (expr.Expr, bool, error) {
 		literal, ok := expr.(plan.LiteralExpr)
 		if !ok {
 			return expr, false, nil

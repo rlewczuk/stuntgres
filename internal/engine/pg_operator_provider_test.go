@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -150,7 +151,7 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 				}
 				if executable {
 					var operands []expr.Expr
-					boundExpressionChildren(bound, func(child expr.Expr) {
+					plan.ExpressionChildren(bound, func(child expr.Expr) {
 						if child != nil {
 							operands = append(operands, child)
 						}

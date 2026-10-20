@@ -146,7 +146,7 @@ func TestQueryWindowRowsIdentity(t *testing.T) {
 			return expr, false, nil
 		}
 	}
-	copied, err := rewriteQueryExpressions(query.Root, replaceLiteral)
+	copied, err := plan.RewriteQueryExpressions(query.Root, replaceLiteral)
 	if err != nil || copied == query.Root {
 		t.Fatal(copied, err)
 	}
@@ -332,7 +332,7 @@ func TestQueryWindowRowsDomainRemap(t *testing.T) {
 	}
 	key := original.Specs[0].Order[0].Expression.ResultUsage().Type
 	var offsetDomain *sqltype.Descriptor
-	walkBoundExpression(original.Specs[0].Frame.Start.Offset, func(expr expr.Expr) {
+	plan.WalkExpression(original.Specs[0].Frame.Start.Offset, func(expr expr.Expr) {
 		if expr.ResultUsage().Type.IsDomain() {
 			offsetDomain = expr.ResultUsage().Type
 		}
@@ -357,7 +357,7 @@ func TestQueryWindowRowsDomainRemap(t *testing.T) {
 		t.Fatal("domain/unit ownership", next)
 	}
 	var mappedDomain *sqltype.Descriptor
-	walkBoundExpression(next.Specs[0].Frame.Start.Offset, func(expr expr.Expr) {
+	plan.WalkExpression(next.Specs[0].Frame.Start.Offset, func(expr expr.Expr) {
 		if expr.ResultUsage().Type.IsDomain() {
 			mappedDomain = expr.ResultUsage().Type
 		}

@@ -24,7 +24,7 @@ func foldCTERestrictions(view catalog.Read, root plan.Node) (plan.Node, error) {
 			return bound, false, nil
 		}
 		hasQuery := false
-		walkBoundExpression(bound, func(n expr.Expr) {
+		plan.WalkExpression(bound, func(n expr.Expr) {
 			if _, ok := n.(plan.SubqueryExpr); ok {
 				hasQuery = true
 			}
@@ -34,7 +34,7 @@ func foldCTERestrictions(view catalog.Read, root plan.Node) (plan.Node, error) {
 		}
 		return mapBoundExpression(view, bound, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(child plan.Node) (plan.Node, error) { return foldCTERestrictions(view, child) }, nil, nil)
 	}
-	return rewriteQueryExpressions(root, rewrite, func(node plan.Node) (plan.Node, error) {
+	return plan.RewriteQueryExpressions(root, rewrite, func(node plan.Node) (plan.Node, error) {
 		if join, ok := node.(*plan.JoinNode); ok && join.Kind == parser.JoinInner && join.Predicate != nil {
 			child, predicate, moves, err := moveCTEPredicates(view, join, join.Predicate)
 			if err != nil {
@@ -127,7 +127,7 @@ func pushCTEOccurrence(view catalog.Read, node plan.Node, predicate expr.Expr, o
 		}
 		project := n.Query.Root.(*plan.ProjectNode)
 		found, safe := false, true
-		walkBoundExpression(predicate, func(expr expr.Expr) {
+		plan.WalkExpression(predicate, func(expr expr.Expr) {
 			switch e := expr.(type) {
 			case plan.ColumnExpr:
 				if e.Frame != n.ScanFrame || e.Slot < offset || e.Slot >= offset+len(n.Schema()) {
@@ -193,7 +193,7 @@ func pushCTEOccurrence(view catalog.Read, node plan.Node, predicate expr.Expr, o
 
 func pushCTEInput(view catalog.Read, node plan.Node, predicate expr.Expr, frame uint32) (plan.Node, bool, error) {
 	unsafe := false
-	walkBoundExpression(predicate, func(expr expr.Expr) {
+	plan.WalkExpression(predicate, func(expr expr.Expr) {
 		switch n := expr.(type) {
 		case plan.SubqueryExpr, plan.CachedOrderExpr, plan.AggregateExpr, plan.GroupingExpr, *plan.WindowExpr:
 			unsafe = true

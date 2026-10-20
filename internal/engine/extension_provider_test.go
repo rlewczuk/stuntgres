@@ -191,7 +191,7 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 		t.Fatal("stored renderer", rendered, err)
 	}
 	children := 0
-	boundExpressionChildren(node, func(expr.Expr) { children++ })
+	plan.ExpressionChildren(node, func(expr.Expr) { children++ })
 	if children != 1 {
 		t.Fatal("child traversal", children)
 	}

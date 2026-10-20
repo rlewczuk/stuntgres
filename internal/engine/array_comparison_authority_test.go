@@ -81,7 +81,7 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 			t.Fatal("late RHS owner-dependent generation lost", node)
 		}
 		seen := false
-		walkBoundExpression(node, func(child expr.Expr) {
+		plan.WalkExpression(node, func(child expr.Expr) {
 			if _, ok := child.(plan.TableOIDExpr); ok {
 				seen = true
 			}

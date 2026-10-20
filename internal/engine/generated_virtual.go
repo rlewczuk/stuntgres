@@ -41,7 +41,7 @@ func virtualDestination(column catalog.Column) error {
 
 func virtualGenerationSecurity(node expr.Expr) error {
 	var failure error
-	walkBoundExpression(node, func(n expr.Expr) {
+	plan.WalkExpression(node, func(n expr.Expr) {
 		if failure != nil {
 			return
 		}

@@ -72,7 +72,7 @@ func TestCatalogRelationsConsumers(t *testing.T) {
 		children int
 	}{{scalar, "pg_get_userbyid", 1}, {set, "pg_get_catalog_foreign_keys", 0}} {
 		count := 0
-		boundExpressionChildren(sample.node, func(expr.Expr) { count++ })
+		plan.ExpressionChildren(sample.node, func(expr.Expr) { count++ })
 		if count != sample.children {
 			t.Fatal("typed child traversal", sample.name, count)
 		}

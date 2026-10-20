@@ -28,7 +28,7 @@ func (b *expressionBinder) sameQueryTarget(a, c expr.Expr) bool {
 
 func (b *expressionBinder) sameSubqueryTarget(a, c expr.Expr) bool {
 	found := false
-	walkBoundExpression(a, func(e expr.Expr) {
+	plan.WalkExpression(a, func(e expr.Expr) {
 		if _, ok := e.(plan.SubqueryExpr); ok {
 			found = true
 		}
@@ -129,8 +129,8 @@ func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d plan.Node) b
 		defer func() { c.leftFrame, c.rightFrame = left, right }()
 	}
 	// Inputs register every local arm/derived frame before expression comparison.
-	left, right := queryInputs(a)
-	otherLeft, otherRight := queryInputs(d)
+	left, right := plan.QueryInputs(a)
+	otherLeft, otherRight := plan.QueryInputs(d)
 	if !c.sameQuery(b, left, otherLeft) || !c.sameQuery(b, right, otherRight) {
 		return false
 	}

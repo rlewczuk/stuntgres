@@ -244,7 +244,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 		t.Fatal("corrupt installed generation manifest admitted")
 	}
 	children := 0
-	boundExpressionChildren(n, func(expr.Expr) { children++ })
+	plan.ExpressionChildren(n, func(expr.Expr) { children++ })
 	if children != 1 || !sameGroupExpression(n, n) {
 		t.Fatal("walker/group identity", children)
 	}

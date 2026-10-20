@@ -199,12 +199,12 @@ func TestQueryWindowNtileGraphAndMetadata(t *testing.T) {
 	}
 	call := node.Calls[0]
 	found := false
-	queryExpressions(node, func(expr expr.Expr) { found = found || expr == call.Argument })
+	plan.QueryExpressions(node, func(expr expr.Expr) { found = found || expr == call.Argument })
 	if !found {
 		t.Fatal("bucket missing from graph")
 	}
 	replacement := node.Calls[1].Argument
-	next, err := rewriteQueryExpressions(node, func(expr expr.Expr) (expr.Expr, bool, error) {
+	next, err := plan.RewriteQueryExpressions(node, func(expr expr.Expr) (expr.Expr, bool, error) {
 		if expr == call.Argument {
 			return replacement, true, nil
 		}

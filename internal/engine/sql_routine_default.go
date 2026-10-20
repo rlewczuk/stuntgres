@@ -44,7 +44,7 @@ func sqlRoutineDefaultClosure(node expr.Expr) (valid, containsSQL bool) {
 		return closedSequenceDefault(node) || closedUUIDDefault(node) || closedTransactionTimeDefault(node) || closedPgcryptoDefault(node), false
 	}
 	valid = true
-	boundExpressionChildren(node, func(child expr.Expr) {
+	plan.ExpressionChildren(node, func(child expr.Expr) {
 		if valid {
 			childValid, childSQL := sqlRoutineDefaultClosure(child)
 			valid = childValid

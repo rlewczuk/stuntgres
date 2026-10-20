@@ -16,7 +16,7 @@ func recursiveParentSlot(node plan.Node, d *plan.CTEDefinition, offset int) (*pl
 		}
 		return recursiveParentSlot(n.Right, d, offset+n.LeftWidth)
 	default:
-		left, _ := queryInputs(node)
+		left, _ := plan.QueryInputs(node)
 		if left != nil {
 			return recursiveParentSlot(left, d, offset)
 		}

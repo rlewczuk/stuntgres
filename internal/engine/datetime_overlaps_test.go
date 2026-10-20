@@ -57,7 +57,7 @@ func TestDatetimeOverlapsBindingAndRetag(t *testing.T) {
 				t.Fatal("structural equality")
 			}
 			count := 0
-			boundExpressionChildren(e, func(expr.Expr) { count++ })
+			plan.ExpressionChildren(e, func(expr.Expr) { count++ })
 			if count != 4 {
 				t.Fatal("lexical walker", count)
 			}

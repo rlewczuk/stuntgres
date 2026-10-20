@@ -48,7 +48,7 @@ func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view catalog.Read) *catalog
 		}
 	}
 	valueLeaves := 0
-	walkBoundExpression(check.Expression, func(node expr.Expr) {
+	plan.WalkExpression(check.Expression, func(node expr.Expr) {
 		if _, ok := node.(plan.DomainValueExpr); ok {
 			valueLeaves++
 			if node.ResultUsage() != d.SQLType.DomainBase() {

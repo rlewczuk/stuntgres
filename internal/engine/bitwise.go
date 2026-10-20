@@ -278,7 +278,7 @@ func networkOperatorExecutionConstant(node expr.Expr, c *EvalContext) bool {
 		return false
 	}
 	found, constant := false, true
-	boundExpressionChildren(node, func(child expr.Expr) {
+	plan.ExpressionChildren(node, func(child expr.Expr) {
 		// Lexical enumeration includes absent optional operands (for example
 		// unary operators); they contribute neither demand nor readiness.
 		if child == nil {

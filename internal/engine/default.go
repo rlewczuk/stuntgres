@@ -29,7 +29,7 @@ func validateDefaultTemporaryProvider(provider, consumer ids.SessionToken, posit
 
 func validateCookedDefaultTemporary(node expr.Expr, consumer ids.SessionToken) error {
 	var err error
-	walkBoundExpression(node, func(node expr.Expr) {
+	plan.WalkExpression(node, func(node expr.Expr) {
 		if err != nil {
 			return
 		}
@@ -523,7 +523,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		namespace := view.Get(d.Namespace()).Name()
 		op := "OPERATOR(" + catalog.QuoteIdentifier(namespace) + "." + d.Name() + ")"
 		var operands []expr.Expr
-		boundExpressionChildren(n.Provider, func(arg expr.Expr) {
+		plan.ExpressionChildren(n.Provider, func(arg expr.Expr) {
 			if arg != nil {
 				operands = append(operands, arg)
 			}

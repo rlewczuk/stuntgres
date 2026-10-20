@@ -58,7 +58,7 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 				t.Fatal("declaration is not engine-owned", captured)
 			}
 			var args []expr.Expr
-			boundExpressionChildren(call, func(arg expr.Expr) { args = append(args, arg) })
+			plan.ExpressionChildren(call, func(arg expr.Expr) { args = append(args, arg) })
 			if len(args) != 4 {
 				t.Fatal("missing declared formals", args)
 			}

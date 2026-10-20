@@ -112,7 +112,7 @@ func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection [
 			}
 		}
 		var operation *plan.GroupingExpr
-		walkBoundExpression(key, func(node expr.Expr) {
+		plan.WalkExpression(key, func(node expr.Expr) {
 			if n, ok := node.(plan.GroupingExpr); ok && n.Frame == b.frameID() && operation == nil {
 				operation = &n
 			}

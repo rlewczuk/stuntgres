@@ -151,7 +151,7 @@ func TestJSONFunctionKeysRetagWalkRewriteAndDeparse(t *testing.T) {
 		t.Fatal(value, present, err)
 	}
 	walked := 0
-	walkBoundExpression(original, func(n expr.Expr) {
+	plan.WalkExpression(original, func(n expr.Expr) {
 		if n == original.Args[0] {
 			walked++
 		}
@@ -177,7 +177,7 @@ func TestJSONFunctionKeysRetagWalkRewriteAndDeparse(t *testing.T) {
 	}
 	root := &plan.FunctionFromNode{Calls: []expr.Expr{original}, QuerySchema: plan.QuerySchema{{Usage: original.ResultUsage()}}, Frame: 1}
 	other := jsonFunctionUnitMarker(t, b.typ(sqltype.JSON), b.typ(sqltype.Text), `{"x":1}`, 21)
-	rewritten, err := rewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
+	rewritten, err := plan.RewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
 		if n == original.Args[0] {
 			return other.Args[0], true, nil
 		}

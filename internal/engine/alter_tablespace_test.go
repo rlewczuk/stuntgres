@@ -198,7 +198,7 @@ func TestAlterTablespaceInheritanceTypeCapture(t *testing.T) {
 	assertRootOrigin := func(captured alterTypePreparation) {
 		t.Helper()
 		columns := 0
-		walkBoundExpression(captured.transformation.expression, func(expression expr.Expr) {
+		plan.WalkExpression(captured.transformation.expression, func(expression expr.Expr) {
 			if column, ok := expression.(plan.ColumnExpr); ok {
 				columns++
 				if column.Origin != rootColumn || column.Slot != 0 || column.ResultUsage().Type.ID() != sqltype.Int4 {

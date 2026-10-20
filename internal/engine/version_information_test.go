@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -56,7 +57,7 @@ func TestVersionInformationBinding(t *testing.T) {
 		if plannedVolatility(leaf) != tc.volatility || generationImmutable(leaf) != (tc.volatility == expr.Immutable) {
 			t.Error("lost immutable/stable boundary")
 		}
-		if sides, err := joinExpressionSides(leaf, 0, 0); err != nil || sides != 0 {
+		if sides, err := plan.JoinExpressionSides(leaf, 0, 0); err != nil || sides != 0 {
 			t.Fatal("invented row source", sides, err)
 		}
 		if !b.sameGroupExpression(leaf, leaf) || !closedTransactionTimeDefault(leaf) {
@@ -68,7 +69,7 @@ func TestVersionInformationBinding(t *testing.T) {
 			t.Error("distinct inquiries merged")
 		}
 		children := 0
-		boundExpressionChildren(leaf, func(expr.Expr) { children++ })
+		plan.ExpressionChildren(leaf, func(expr.Expr) { children++ })
 		if children != 0 {
 			t.Error("zero-argument leaf has children")
 		}

@@ -104,7 +104,7 @@ func TestGeneratedCompositeAttributeProviders(t *testing.T) {
 	}
 	var ownColumn plan.ColumnExpr
 	foundColumn := false
-	walkBoundExpression(definition.Planned, func(node expr.Expr) {
+	plan.WalkExpression(definition.Planned, func(node expr.Expr) {
 		if column, ok := node.(plan.ColumnExpr); ok {
 			ownColumn = column
 			foundColumn = true

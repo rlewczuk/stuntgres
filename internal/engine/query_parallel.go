@@ -118,7 +118,7 @@ func parallelQueryExpression(bound expr.Expr, frame uint32, width int) bool {
 		return false
 	}
 	safe := true
-	boundExpressionChildren(bound, func(child expr.Expr) { safe = safe && parallelQueryExpression(child, frame, width) })
+	plan.ExpressionChildren(bound, func(child expr.Expr) { safe = safe && parallelQueryExpression(child, frame, width) })
 	return safe
 }
 

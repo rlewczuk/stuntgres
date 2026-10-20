@@ -34,7 +34,7 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 		t.Fatal("zero-child grouping identity")
 	}
 	visits := 0
-	walkBoundExpression(node, func(expr.Expr) { visits++ })
+	plan.WalkExpression(node, func(expr.Expr) { visits++ })
 	if visits != 1 {
 		t.Fatal("zero-child traversal", visits)
 	}

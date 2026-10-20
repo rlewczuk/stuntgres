@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -81,7 +82,7 @@ func pgOperatorPolymorphicRelationships(t *testing.T) {
 				t.Fatalf("wrong actual dispatch %T, want array=%t", bound, tc.array)
 			}
 			var operands []expr.Expr
-			boundExpressionChildren(bound, func(child expr.Expr) {
+			plan.ExpressionChildren(bound, func(child expr.Expr) {
 				if child != nil {
 					operands = append(operands, child)
 				}

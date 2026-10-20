@@ -1776,7 +1776,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 	// every prefix again when binding a long AND/OR chain.
 	if _, logical := node.(plan.LogicalExpr); policy.booleanConstruct != "" && !logical {
 		returnsSet := false
-		walkBoundExpression(node, func(child expr.Expr) {
+		plan.WalkExpression(node, func(child expr.Expr) {
 			returnsSet = returnsSet || sourceReturnsSet(child)
 		})
 		if returnsSet {

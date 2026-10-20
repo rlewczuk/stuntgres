@@ -107,6 +107,6 @@ func closedPgcryptoDefault(node expr.Expr) bool {
 		return p.Volatility <= expr.Stable
 	}
 	valid := true
-	boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedPgcryptoDefault(child) })
+	plan.ExpressionChildren(node, func(child expr.Expr) { valid = valid && closedPgcryptoDefault(child) })
 	return valid
 }

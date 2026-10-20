@@ -329,7 +329,7 @@ func canSimplifyExists(query *plan.Query) bool {
 				}
 			}
 		}
-		left, right := queryInputs(node)
+		left, right := plan.QueryInputs(node)
 		if right != nil {
 			break
 		} // FROM inputs are not the root's clause fences.

@@ -133,7 +133,7 @@ func (r engineCatalogRuntime) VisitPolicyExpressions(policy catalog.PolicyDefini
 }
 func (r engineCatalogRuntime) VisitCheckAttributes(ctx context.Context, table *catalog.Relation, expression expr.Expr, visit func(int32) error) error {
 	var failure error
-	walkBoundExpression(expression, func(node expr.Expr) {
+	plan.WalkExpression(expression, func(node expr.Expr) {
 		if failure != nil {
 			return
 		}

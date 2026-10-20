@@ -50,7 +50,7 @@ func TestJSONStripNullsJoinDependencies(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				sides, err := joinExpressionSides(next, 2, 2)
+				sides, err := plan.JoinExpressionSides(next, 2, 2)
 				if err != nil || sides != tc.want {
 					t.Fatalf("dependency mask=%d error=%v want=%d", sides, err, tc.want)
 				}

@@ -40,7 +40,7 @@ func TestDomainCheckBindingIdentityInternal(t *testing.T) {
 		if check.Expression.Properties().RowDependent || !check.Expression.Properties().DomainDependent {
 			t.Fatal("VALUE is not conversion-dependent", check.Expression.Properties())
 		}
-		walkBoundExpression(check.Expression, func(node expr.Expr) {
+		plan.WalkExpression(check.Expression, func(node expr.Expr) {
 			if _, value := node.(plan.DomainValueExpr); value && node.ResultUsage() != d.SQLType.DomainBase() {
 				t.Fatal("VALUE lost immediate base usage")
 			}
@@ -223,7 +223,7 @@ func TestDomainCheckRetirementAndRemapInternal(t *testing.T) {
 	if err := validateDomainCheckDefinitions(view, child); err != nil {
 		t.Fatal(err)
 	}
-	walkBoundExpression(child.DomainChecks[0].Expression, func(node expr.Expr) {
+	plan.WalkExpression(child.DomainChecks[0].Expression, func(node expr.Expr) {
 		if _, value := node.(plan.DomainValueExpr); value && node.ResultUsage().Type != d.SQLType {
 			t.Fatal("VALUE retained old base generation")
 		}

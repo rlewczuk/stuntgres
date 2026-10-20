@@ -40,7 +40,7 @@ func TestDatetimeTruncBindingOwnership(t *testing.T) {
 			t.Fatal("selected TIME conversion lost")
 		}
 		var children []expr.Expr
-		boundExpressionChildren(e, func(child expr.Expr) { children = append(children, child) })
+		plan.ExpressionChildren(e, func(child expr.Expr) { children = append(children, child) })
 		if len(children) != 2 {
 			t.Fatal(children)
 		}

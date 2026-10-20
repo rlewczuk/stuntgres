@@ -23,7 +23,7 @@ func overlapsExecutionConstant(node expr.Expr, c *EvalContext) bool {
 		return false
 	}
 	found, constant := false, true
-	boundExpressionChildren(node, func(child expr.Expr) { found = true; constant = constant && overlapsExecutionConstant(child, c) })
+	plan.ExpressionChildren(node, func(child expr.Expr) { found = true; constant = constant && overlapsExecutionConstant(child, c) })
 	return found && constant
 }
 
@@ -39,7 +39,7 @@ func overlapsInlineSafe(e functions.DatetimeOverlaps) bool {
 			return false
 		}
 		safe, cost := true, 0
-		walkBoundExpression(start, func(node expr.Expr) {
+		plan.WalkExpression(start, func(node expr.Expr) {
 			if _, ok := node.(plan.SubqueryExpr); ok {
 				safe = false
 			}
@@ -103,7 +103,7 @@ func overlapsNodeCost(node expr.Expr) int {
 
 func overlapsTreeCost(node expr.Expr) int {
 	cost := 0
-	walkBoundExpression(node, func(n expr.Expr) { cost = min(11, cost+overlapsNodeCost(n)) })
+	plan.WalkExpression(node, func(n expr.Expr) { cost = min(11, cost+overlapsNodeCost(n)) })
 	return cost
 }
 

@@ -22,7 +22,7 @@ func expressionUsesCompositeField(node expr.Expr, id sqltype.ID, attribute int32
 		return true
 	}
 	found := false
-	boundExpressionChildren(node, func(child expr.Expr) {
+	plan.ExpressionChildren(node, func(child expr.Expr) {
 		if !found {
 			found = expressionUsesCompositeField(child, id, attribute)
 		}

@@ -259,7 +259,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 					t.Fatal("modifier scan forked its provider or owner")
 				}
 			}
-			left, right := queryInputs(node)
+			left, right := plan.QueryInputs(node)
 			visit(left)
 			visit(right)
 		}

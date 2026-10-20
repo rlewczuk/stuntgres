@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -135,7 +136,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 	}
 	validInputs := true
 	for _, expression := range bound {
-		walkBoundExpression(expression, func(node expr.Expr) {
+		plan.WalkExpression(expression, func(node expr.Expr) {
 			address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(node.ResultUsage().Type.ID())}
 			if provider, exists := view.Descriptor(address); exists {
 				validInputs = validInputs && current.Catalog.Get(address) == provider

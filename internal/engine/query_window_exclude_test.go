@@ -146,11 +146,11 @@ func TestQueryWindowExcludeGraphRemap(t *testing.T) {
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	argument := node.Calls[0].Argument
 	found := false
-	queryExpressions(node, func(expr expr.Expr) { found = found || expr == argument })
+	plan.QueryExpressions(node, func(expr expr.Expr) { found = found || expr == argument })
 	if !found {
 		t.Fatal("argument absent from graph")
 	}
-	next, err := rewriteQueryExpressions(node, func(expr expr.Expr) (expr.Expr, bool, error) {
+	next, err := plan.RewriteQueryExpressions(node, func(expr expr.Expr) (expr.Expr, bool, error) {
 		if expr == argument {
 			return node.Specs[0].Order[0].Expression, true, nil
 		}
@@ -397,7 +397,7 @@ func TestQueryWindowExcludeDomainRemap(t *testing.T) {
 	root := description.query.Root
 	original := root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	var domain *sqltype.Descriptor
-	walkBoundExpression(original.Calls[0].Argument, func(expr expr.Expr) {
+	plan.WalkExpression(original.Calls[0].Argument, func(expr expr.Expr) {
 		if expr.ResultUsage().Type.IsDomain() {
 			domain = expr.ResultUsage().Type
 		}
@@ -420,7 +420,7 @@ func TestQueryWindowExcludeDomainRemap(t *testing.T) {
 	}
 	next := mapped.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	var mappedDomain *sqltype.Descriptor
-	walkBoundExpression(next.Calls[0].Argument, func(expr expr.Expr) {
+	plan.WalkExpression(next.Calls[0].Argument, func(expr expr.Expr) {
 		if expr.ResultUsage().Type.IsDomain() {
 			mappedDomain = expr.ResultUsage().Type
 		}

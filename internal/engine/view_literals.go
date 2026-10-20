@@ -482,7 +482,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 			b.capture.operatorRefs[path] = n.Ref
 			var operands []expr.Expr
-			boundExpressionChildren(n.Provider, func(arg expr.Expr) {
+			plan.ExpressionChildren(n.Provider, func(arg expr.Expr) {
 				if arg != nil {
 					operands = append(operands, arg)
 				}

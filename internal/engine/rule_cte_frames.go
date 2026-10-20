@@ -13,7 +13,7 @@ func isolateRuleCTEFrames(view catalog.Read, original, action binding, syntax pa
 	}
 	local := len(action.ctes) != 0
 	visit := func(root plan.Node) {
-		visitCTEQuery(root, func(node plan.Node) {
+		plan.VisitCTEQuery(root, func(node plan.Node) {
 			if project, ok := node.(*plan.ProjectNode); ok && project.CTEOwner {
 				local = true
 			}

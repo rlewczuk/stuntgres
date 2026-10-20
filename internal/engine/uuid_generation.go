@@ -68,26 +68,26 @@ func closedUUIDDefault(node expr.Expr) bool {
 		return true
 	case plan.RowExpr, plan.FieldExpr:
 		valid := true
-		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
+		plan.ExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid
 	case functions.DatetimeTrunc, functions.DatetimeBin, functions.DatetimeZoneCalendar:
 		// Looked through here only; the transaction-time check closes them by
 		// volatility.
 		valid := true
-		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
+		plan.ExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid
 	case plan.ScalarArrayComparisonExpr:
 		valid := true
-		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
+		plan.ExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid
 	case plan.CoercionExpr, plan.CollationExpr, plan.ComparisonExpr, plan.ArithmeticExpr, plan.BitwiseExpr, plan.LikeExpr, plan.NullTestExpr, plan.TruthTestExpr, plan.LogicalExpr, plan.DistinctExpr, plan.ConditionalExpr, plan.CaseExpr:
 		valid := true
-		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
+		plan.ExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid
 	case expr.ClosureTransparent:
 		// Function nodes the closure looks through.
 		valid := true
-		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
+		plan.ExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid
 	default:
 		return p.Volatility <= expr.Stable

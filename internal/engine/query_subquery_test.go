@@ -52,7 +52,7 @@ func subqueryTestTarget(t *testing.T, project *plan.ProjectNode, replacement exp
 				return
 			}
 		}
-		left, right := queryInputs(node)
+		left, right := plan.QueryInputs(node)
 		if right != nil {
 			t.Fatal("target scheduler crossed a join")
 		}
@@ -96,7 +96,7 @@ func TestQuerySubqueryDemand(t *testing.T) {
 						}
 					}
 				}
-				node, _ = queryInputs(node)
+				node, _ = plan.QueryInputs(node)
 			}
 			if !ordered {
 				subqueryTestTarget(t, project, probe)
@@ -540,15 +540,15 @@ func TestQuerySubqueryViewRemap(t *testing.T) {
 				}
 			}
 		}
-		left, right := queryInputs(node)
+		left, right := plan.QueryInputs(node)
 		if left != nil {
 			walk(left)
 		}
 		if right != nil {
 			walk(right)
 		}
-		queryExpressions(node, func(bound expr.Expr) {
-			walkBoundExpression(bound, func(expr expr.Expr) {
+		plan.QueryExpressions(node, func(bound expr.Expr) {
+			plan.WalkExpression(bound, func(expr expr.Expr) {
 				if child, ok := expr.(plan.SubqueryExpr); ok {
 					walk(child.QueryPlan.Root)
 				}

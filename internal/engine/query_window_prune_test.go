@@ -113,7 +113,7 @@ func TestQueryWindowGraftedDemand(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			grafted, err = rewriteQueryExpressions(grafted, func(bound expr.Expr) (expr.Expr, bool, error) {
+			grafted, err = plan.RewriteQueryExpressions(grafted, func(bound expr.Expr) (expr.Expr, bool, error) {
 				return rewriteViewExpression(e.CatalogRead(), bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 					if occurrence, ok := expr.(*plan.WindowExpr); ok && occurrence.Frame == project.Frame {
 						copy := *occurrence
@@ -151,7 +151,7 @@ func pruningTestWindow(t *testing.T, root plan.Node) *plan.WindowNode {
 		if window, ok := root.(*plan.WindowNode); ok {
 			return window
 		}
-		root, _ = queryInputs(root)
+		root, _ = plan.QueryInputs(root)
 	}
 	t.Fatal("missing window stage")
 	return nil

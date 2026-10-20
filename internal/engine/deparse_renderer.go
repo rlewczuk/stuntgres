@@ -585,7 +585,7 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		op := "OPERATOR(" + catalog.QuoteIdentifier(namespace.Name()) + "." + d.Name() + ")"
 		var operands [2]expr.Expr
 		count := 0
-		boundExpressionChildren(n.Provider, func(arg expr.Expr) {
+		plan.ExpressionChildren(n.Provider, func(arg expr.Expr) {
 			if arg != nil && count < len(operands) {
 				operands[count] = arg
 				count++

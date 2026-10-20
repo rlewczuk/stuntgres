@@ -151,7 +151,7 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 	e.Args[1] = column
 	e.Property.RowDependent = true
 	var children []expr.Expr
-	boundExpressionChildren(e, func(arg expr.Expr) { children = append(children, arg) })
+	plan.ExpressionChildren(e, func(arg expr.Expr) { children = append(children, arg) })
 	if len(children) != 3 || children[1] != column || !b.sameGroupExpression(e, e) {
 		t.Fatal(children)
 	}

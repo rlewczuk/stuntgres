@@ -749,7 +749,7 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 			if expressionError != nil {
 				return
 			}
-			walkBoundExpression(bound, func(expr expr.Expr) {
+			plan.WalkExpression(bound, func(expr expr.Expr) {
 				if expressionError != nil {
 					return
 				}
@@ -810,12 +810,12 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 				}
 			}
 		} else {
-			queryExpressions(node, func(expr expr.Expr) { validateExpression(expr, false) })
+			plan.QueryExpressions(node, func(expr expr.Expr) { validateExpression(expr, false) })
 		}
 		if expressionError != nil {
 			return expressionError
 		}
-		left, right := queryInputs(node)
+		left, right := plan.QueryInputs(node)
 		if left != nil {
 			if err := visit(left, frame); err != nil {
 				return err

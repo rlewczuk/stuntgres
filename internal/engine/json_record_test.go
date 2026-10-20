@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -71,7 +72,7 @@ func TestJSONRecordRemap(t *testing.T) {
 		t.Fatal(v, err)
 	}
 	walked := 0
-	walkBoundExpression(original, func(n expr.Expr) {
+	plan.WalkExpression(original, func(n expr.Expr) {
 		if n == original.Args[0] {
 			walked++
 		}

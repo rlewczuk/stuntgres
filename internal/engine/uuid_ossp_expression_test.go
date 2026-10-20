@@ -53,7 +53,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 		t.Fatal("missing genuine procedure dependency")
 	}
 	visits := 0
-	boundExpressionChildren(n, func(expr.Expr) { visits++ })
+	plan.ExpressionChildren(n, func(expr.Expr) { visits++ })
 	if visits != 0 || !sameGroupExpression(n, n) {
 		t.Fatal("not a zero-child identity leaf")
 	}

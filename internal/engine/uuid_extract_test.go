@@ -43,7 +43,7 @@ func TestUUIDExtractIdentity(t *testing.T) {
 		t.Fatal("child identity lost")
 	}
 	children := 0
-	boundExpressionChildren(version, func(child expr.Expr) {
+	plan.ExpressionChildren(version, func(child expr.Expr) {
 		children++
 		if !sameGroupExpression(child, version.Arg) {
 			t.Fatal("wrong child")

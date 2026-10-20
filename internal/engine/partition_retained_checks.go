@@ -139,7 +139,7 @@ func partitionCheckRecipeAffected(ctx context.Context, before, after expr.Expr, 
 	var local [16]sqltype.Value
 	literals := local[:0]
 	var err error
-	walkBoundExpression(before, func(node expr.Expr) {
+	plan.WalkExpression(before, func(node expr.Expr) {
 		if err != nil {
 			return
 		}
@@ -155,7 +155,7 @@ func partitionCheckRecipeAffected(ctx context.Context, before, after expr.Expr, 
 		return false, err
 	}
 	position, affected := 0, false
-	walkBoundExpression(after, func(node expr.Expr) {
+	plan.WalkExpression(after, func(node expr.Expr) {
 		if err != nil {
 			return
 		}

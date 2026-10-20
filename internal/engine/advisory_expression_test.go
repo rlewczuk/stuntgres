@@ -175,7 +175,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		node.Args = []expr.Expr{node.Args[0], column}
 		node.Property.RowDependent = true
 		visits := 0
-		walkBoundExpression(node, func(expr.Expr) { visits++ })
+		plan.WalkExpression(node, func(expr.Expr) { visits++ })
 		if visits != 3 || firstQueryBoundFrameVariable(node, b.frameID()).Character != 99 {
 			t.Fatal("lexical child/frame walk", visits)
 		}

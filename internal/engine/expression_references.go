@@ -126,7 +126,7 @@ func (r *pgDependRefs) expression(expr expr.Expr) {
 	// Fixed builtin providers are pinned; installed providers above record their
 	// genuine procedure identity. Arguments include every analyzed CASE arm,
 	// independently of execution demand.
-	boundExpressionChildren(expr, r.expression)
+	plan.ExpressionChildren(expr, r.expression)
 }
 
 func (r *pgDependRefs) query(node plan.Node) {
@@ -147,7 +147,7 @@ func (r *pgDependRefs) query(node plan.Node) {
 		}
 	}
 	if _, set := node.(*plan.SetNode); set {
-		queryExpressions(node, func(expr expr.Expr) {
+		plan.QueryExpressions(node, func(expr expr.Expr) {
 			// The set binder always installs an outer adaptation wrapper.
 			// An unchanged usage is not an analyzed cast dependency; genuine
 			// casts remain in its child and still take the ordinary path.
@@ -158,9 +158,9 @@ func (r *pgDependRefs) query(node plan.Node) {
 			}
 		})
 	} else {
-		queryExpressions(node, r.expression)
+		plan.QueryExpressions(node, r.expression)
 	}
-	left, right := queryInputs(node)
+	left, right := plan.QueryInputs(node)
 	r.query(left)
 	r.query(right)
 }

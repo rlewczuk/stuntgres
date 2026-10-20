@@ -19,7 +19,7 @@ func TestPosixDependencyAndPresentationIdentity(t *testing.T) {
 	extraction := functions.PosixSubstring{Info: expr.Info{Usage: text.Usage()}, Args: [2]expr.Expr{source, pattern}}
 	for _, node := range []expr.Expr{predicate, extraction} {
 		var slots []int
-		walkBoundExpression(node, func(n expr.Expr) {
+		plan.WalkExpression(node, func(n expr.Expr) {
 			if c, ok := n.(plan.ColumnExpr); ok {
 				slots = append(slots, c.Slot)
 			}

@@ -82,7 +82,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 		n.Arg = column
 		n.Property.RowDependent = true
 		visited := 0
-		walkBoundExpression(n, func(child expr.Expr) {
+		plan.WalkExpression(n, func(child expr.Expr) {
 			if _, ok := child.(plan.ColumnExpr); ok {
 				visited++
 			}

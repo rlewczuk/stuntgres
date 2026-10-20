@@ -269,7 +269,7 @@ func storedScheduledPayloadDemand(root plan.Node, retained func(func(expr.Expr))
 		case *plan.ProjectNode, *plan.DerivedNode, *plan.WorktableScanNode, *plan.JoinNode, *plan.SetNode, *plan.RecursiveUnionNode:
 			return nil
 		}
-		left, right := queryInputs(node)
+		left, right := plan.QueryInputs(node)
 		if right != nil {
 			return nil
 		}
@@ -310,7 +310,7 @@ func storedScheduledPayloadDemand(root plan.Node, retained func(func(expr.Expr))
 		if len(producers) == 0 {
 			return
 		}
-		walkBoundExpression(expression, func(node expr.Expr) {
+		plan.WalkExpression(expression, func(node expr.Expr) {
 			cache, ok := node.(plan.CachedOrderExpr)
 			if !ok || live[cache.Slot] {
 				return
@@ -342,7 +342,7 @@ func storedScheduledPayloadDemand(root plan.Node, retained func(func(expr.Expr))
 					boundary(node)
 				}
 			default:
-				queryExpressions(node, visit)
+				plan.QueryExpressions(node, visit)
 			}
 		}
 	}
@@ -386,7 +386,7 @@ func storedScheduledPayloadDemand(root plan.Node, retained func(func(expr.Expr))
 		if replacement == nil {
 			return node, nil
 		}
-		next, err := rewriteQueryExpressions(child, identity, rewrite)
+		next, err := plan.RewriteQueryExpressions(child, identity, rewrite)
 		if err != nil {
 			return nil, err
 		}
@@ -402,5 +402,5 @@ func storedScheduledPayloadDemand(root plan.Node, retained func(func(expr.Expr))
 		}
 		return node, nil
 	}
-	return rewriteQueryExpressions(root, identity, rewrite)
+	return plan.RewriteQueryExpressions(root, identity, rewrite)
 }

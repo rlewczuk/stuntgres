@@ -30,7 +30,7 @@ func TestSourceProtocolSubstitution(t *testing.T) {
 	}
 	replacement := queryProbe(fresh.Usage(), func(*EvalContext) (sqltype.Value, error) { return value, nil })
 	node := &plan.FunctionFromNode{Calls: []expr.Expr{original}}
-	mapped, err := rewriteQueryExpressions(node, func(child expr.Expr) (expr.Expr, bool, error) {
+	mapped, err := plan.RewriteQueryExpressions(node, func(child expr.Expr) (expr.Expr, bool, error) {
 		if child == original.Args[0] {
 			return replacement, true, nil
 		}

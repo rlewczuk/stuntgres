@@ -117,7 +117,7 @@ func TestJSONBObjectExpressionGroupTraversal(t *testing.T) {
 		t.Fatal("mutated original arguments")
 	}
 	var count int
-	boundExpressionChildren(bound, func(child expr.Expr) {
+	plan.ExpressionChildren(bound, func(child expr.Expr) {
 		if !sameGroupExpression(child, column) {
 			t.Fatal(child)
 		}

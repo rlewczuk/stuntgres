@@ -80,7 +80,7 @@ func TestDatetimeZoneAllSignaturesAndRetag(t *testing.T) {
 			t.Fatal("remapped provider", signature, value, err)
 		}
 		seen := 0
-		boundExpressionChildren(rebound, func(expr.Expr) { seen++ })
+		plan.ExpressionChildren(rebound, func(expr.Expr) { seen++ })
 		if seen != signature.count {
 			t.Fatal("closed children", signature, seen)
 		}

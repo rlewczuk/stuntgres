@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -36,7 +37,7 @@ func TestJSONBExtractInferenceAndLifecycle(t *testing.T) {
 			t.Fatal(node.Properties())
 		}
 		count := 0
-		boundExpressionChildren(node, func(expr.Expr) { count++ })
+		plan.ExpressionChildren(node, func(expr.Expr) { count++ })
 		if count != len(tc.ids) {
 			t.Fatal("lost children", tc.q, count)
 		}

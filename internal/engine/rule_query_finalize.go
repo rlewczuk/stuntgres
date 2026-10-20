@@ -42,7 +42,7 @@ func finalizeRuleQuery(view catalog.Read, root plan.Node, alreadyFinalized ...ma
 			providers[root] = true
 		}
 	}
-	visitCTEQuery(root, func(node plan.Node) {
+	plan.VisitCTEQuery(root, func(node plan.Node) {
 		if scan, ok := node.(*plan.DerivedNode); ok && scan.CTE != nil && scan.CTE.Query != nil {
 			retain(scan.CTE.Query.Root)
 		}
@@ -60,7 +60,7 @@ func finalizeRuleQuery(view catalog.Read, root plan.Node, alreadyFinalized ...ma
 		if providers[root] || finalized[root] {
 			return root, nil
 		}
-		return rewriteQueryExpressions(root, expression, func(node plan.Node) (plan.Node, error) {
+		return plan.RewriteQueryExpressions(root, expression, func(node plan.Node) (plan.Node, error) {
 			if finalized[node] {
 				if project, ok := node.(*plan.ProjectNode); ok {
 					copy := *project
@@ -110,7 +110,7 @@ func finalizeRuleQuery(view catalog.Read, root plan.Node, alreadyFinalized ...ma
 			if ordered == nil && evaluation == nil && !bounded {
 				copy := *project
 				copy.Child = child
-				return rewriteQueryExpressions(&copy, expression)
+				return plan.RewriteQueryExpressions(&copy, expression)
 			}
 			recipe := func(slot int) (expr.Expr, error) {
 				if evaluation != nil && slot >= evaluation.Base && slot < evaluation.Base+len(evaluation.Expressions) {

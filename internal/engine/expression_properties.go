@@ -10,7 +10,7 @@ import (
 // branches and runtime domain barriers, but do not retain replaced child demand.
 func rewrittenIntrinsicProperties(node expr.Expr) expr.Properties {
 	var children expr.Properties
-	boundExpressionChildren(node, func(child expr.Expr) {
+	plan.ExpressionChildren(node, func(child expr.Expr) {
 		if child != nil {
 			children = expr.MergeProperties(children, child.Properties())
 		}

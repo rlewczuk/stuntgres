@@ -81,7 +81,7 @@ func TestQueryWindowValueGraphAndMetadata(t *testing.T) {
 	}
 	call := node.Calls[1]
 	foundValue, foundOrdinal := false, false
-	queryExpressions(node, func(expr expr.Expr) {
+	plan.QueryExpressions(node, func(expr expr.Expr) {
 		foundValue = foundValue || expr == call.Argument
 		foundOrdinal = foundOrdinal || expr == call.Ordinal
 	})
@@ -89,7 +89,7 @@ func TestQueryWindowValueGraphAndMetadata(t *testing.T) {
 		t.Fatal("child missing from graph", foundValue, foundOrdinal)
 	}
 	replacement := node.Calls[2].Ordinal
-	next, err := rewriteQueryExpressions(node, func(expr expr.Expr) (expr.Expr, bool, error) {
+	next, err := plan.RewriteQueryExpressions(node, func(expr expr.Expr) (expr.Expr, bool, error) {
 		if expr == call.Ordinal {
 			return replacement, true, nil
 		}
@@ -218,7 +218,7 @@ func TestQueryWindowValueDomainRemap(t *testing.T) {
 	node := mapped.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	next := node.Calls[0]
 	var ordinalDomain *sqltype.Descriptor
-	walkBoundExpression(next.Ordinal, func(expr expr.Expr) {
+	plan.WalkExpression(next.Ordinal, func(expr expr.Expr) {
 		if expr.ResultUsage().Type.IsDomain() {
 			ordinalDomain = expr.ResultUsage().Type
 		}

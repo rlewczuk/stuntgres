@@ -87,7 +87,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 		t.Fatal("provider equality")
 	}
 	var children int
-	boundExpressionChildren(bound, func(expr.Expr) { children++ })
+	plan.ExpressionChildren(bound, func(expr.Expr) { children++ })
 	if children != 2 {
 		t.Fatal("lost children", children)
 	}

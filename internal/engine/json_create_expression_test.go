@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -37,7 +38,7 @@ func TestJSONCreateBindingAndVisitors(t *testing.T) {
 		t.Fatal("STABLE creation treated as immutable")
 	}
 	visited := 0
-	boundExpressionChildren(node, func(expr.Expr) { visited++ })
+	plan.ExpressionChildren(node, func(expr.Expr) { visited++ })
 	if visited != 1 {
 		t.Fatal("creation children hidden", visited)
 	}

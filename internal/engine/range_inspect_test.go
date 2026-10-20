@@ -49,7 +49,7 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 		t.Fatal("incorrect provider equivalence")
 	}
 	children := 0
-	boundExpressionChildren(next, func(expr.Expr) { children++ })
+	plan.ExpressionChildren(next, func(expr.Expr) { children++ })
 	if children != 1 {
 		t.Fatal("lost traversal", children)
 	}

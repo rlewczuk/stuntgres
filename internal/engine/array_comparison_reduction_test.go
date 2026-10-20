@@ -116,7 +116,7 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 			t.Fatal(err)
 		}
 		var numbers []int
-		walkBoundExpression(original, func(child expr.Expr) {
+		plan.WalkExpression(original, func(child expr.Expr) {
 			if p, ok := child.(plan.ParameterExpr); ok {
 				numbers = append(numbers, p.Number)
 			}

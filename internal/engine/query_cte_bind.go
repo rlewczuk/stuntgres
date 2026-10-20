@@ -151,39 +151,9 @@ func (b *expressionBinder) bindCTEScan(table *parser.TableReference, binding cte
 	return root, queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: schema}, nil
 }
 
-// Runtime demand omits unused definitions, while PostgreSQL's static folding
-// eligibility inspects even nested WITH bodies that will never execute.
-func visitExecutableQuery(node plan.Node, visit func(plan.Node), expression func(expr.Expr)) {
-	visitCTEQuery(node, visit, expression, false)
-}
-
-func visitCTEQuery(node plan.Node, visit func(plan.Node), expression func(expr.Expr), includeDefinitions bool) {
-	if node == nil {
-		return
-	}
-	visit(node)
-	queryExpressions(node, func(bound expr.Expr) {
-		if bound == nil {
-			return
-		}
-		if edge, ok := bound.(plan.SubqueryExpr); ok && edge.CTEEdge && !includeDefinitions {
-			return
-		}
-		expression(bound)
-		walkBoundExpression(bound, func(n expr.Expr) {
-			if s, ok := n.(plan.SubqueryExpr); ok {
-				visitCTEQuery(s.QueryPlan.Root, visit, expression, includeDefinitions)
-			}
-		})
-	})
-	left, right := queryInputs(node)
-	visitCTEQuery(left, visit, expression, includeDefinitions)
-	visitCTEQuery(right, visit, expression, includeDefinitions)
-}
-
 func cteVolatile(root plan.Node) bool {
 	volatile := false
-	visitCTEQuery(root, func(n plan.Node) {
+	plan.VisitCTEQuery(root, func(n plan.Node) {
 		if source, ok := n.(*plan.SourceNode); ok && source.Ref.Address.ClassID == ids.RelationClassID && source.Ref.Address.ObjectID == 12048 {
 			volatile = true
 		}
@@ -206,7 +176,7 @@ func cteVolatile(root plan.Node) bool {
 func cteStoredViewVolatile(view catalog.Read, root plan.Node) (bool, error) {
 	var leaves []queryLeaf
 	var sourceErr error
-	visitCTEQuery(root, func(node plan.Node) {
+	plan.VisitCTEQuery(root, func(node plan.Node) {
 		if source, ok := node.(*plan.SourceNode); ok {
 			relation, _ := view.Relation(source.Ref.Address)
 			if relation == nil {
@@ -256,7 +226,7 @@ func cteStoredViewVolatile(view catalog.Read, root plan.Node) (bool, error) {
 }
 
 func activateCTESources(root plan.Node, leaves []queryLeaf) {
-	visitExecutableQuery(root, func(n plan.Node) {
+	plan.VisitExecutableQuery(root, func(n plan.Node) {
 		if source, ok := n.(*plan.SourceNode); ok && source.Occurrence >= 0 && source.Occurrence < len(leaves) {
 			leaves[source.Occurrence].analysisOnly = false
 		}

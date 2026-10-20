@@ -118,7 +118,7 @@ func TestRegclassConstructorShapeOwnershipAndWalkers(t *testing.T) {
 		t.Fatal("dimension accessor mutates owned datum")
 	}
 	count := 0
-	boundExpressionChildren(node, func(expr.Expr) { count++ })
+	plan.ExpressionChildren(node, func(expr.Expr) { count++ })
 	if count != 2 {
 		t.Fatal(count)
 	}

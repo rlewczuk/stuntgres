@@ -48,7 +48,7 @@ func validateStoredCollationDependency(view catalog.Read, ref ids.ObjectRef, nod
 		return err
 	}
 	identity, comparison := false, false
-	walkBoundExpression(node, func(child expr.Expr) {
+	plan.WalkExpression(node, func(child expr.Expr) {
 		usage := child.ResultUsage()
 		if ids.OID(usage.Collation.ID) == ref.Address.ObjectID {
 			comparison = true

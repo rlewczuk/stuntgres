@@ -167,7 +167,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 				retainBuiltin(column.Usage.Type)
 			}
 			retainExpression := func(node expr.Expr) {
-				walkBoundExpression(node, func(node expr.Expr) { retainBuiltin(node.ResultUsage().Type) })
+				plan.WalkExpression(node, func(node expr.Expr) { retainBuiltin(node.ResultUsage().Type) })
 			}
 			for _, definition := range relation.ColumnMeta.Defaults {
 				retainExpression(definition.Expression)
@@ -207,15 +207,15 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 					for _, column := range node.Schema() {
 						retainBuiltin(column.Usage.Type)
 					}
-					queryExpressions(node, func(expression expr.Expr) {
-						walkBoundExpression(expression, func(expression expr.Expr) {
+					plan.QueryExpressions(node, func(expression expr.Expr) {
+						plan.WalkExpression(expression, func(expression expr.Expr) {
 							retainBuiltin(expression.ResultUsage().Type)
 							if child, ok := expression.(plan.SubqueryExpr); ok {
 								retainQuery(child.QueryPlan.Root)
 							}
 						})
 					})
-					left, right := queryInputs(node)
+					left, right := plan.QueryInputs(node)
 					retainQuery(left)
 					retainQuery(right)
 				}

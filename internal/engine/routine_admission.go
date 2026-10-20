@@ -241,7 +241,7 @@ func admitRoutineReference(c *EvalContext, ref ids.ObjectRef, noun string) error
 // invoke them. No permission lookup is added to row evaluation.
 func evaluatePlanningExpression(c *EvalContext, node expr.Expr) (sqltype.Value, error) {
 	var failure error
-	walkBoundExpression(node, func(call expr.Expr) {
+	plan.WalkExpression(node, func(call expr.Expr) {
 		if failure == nil {
 			failure = admitRoutineCall(c, call, true, true)
 		}

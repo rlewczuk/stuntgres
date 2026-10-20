@@ -66,7 +66,7 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 			t.Fatal("retagged provider", value, present, err)
 		}
 		var dependencies []expr.Expr
-		walkBoundExpression(original, func(n expr.Expr) {
+		plan.WalkExpression(original, func(n expr.Expr) {
 			if n == original.Args[0] {
 				dependencies = append(dependencies, n)
 			}
@@ -92,7 +92,7 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 		}
 		other := jsonElementsUnitMarker(t, b, name, `[2]`)
 		root := &plan.FunctionFromNode{Calls: []expr.Expr{original}, QuerySchema: plan.QuerySchema{{Name: "value", Usage: b.typ(id).Usage()}}, Frame: 1}
-		rewritten, err := rewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
+		rewritten, err := plan.RewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
 			if n == original.Args[0] {
 				return other.Args[0], true, nil
 			}

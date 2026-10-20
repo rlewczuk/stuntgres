@@ -126,7 +126,7 @@ func TestJSONBInsertAllSlotPropertiesAndTraversal(t *testing.T) {
 			t.Fatal("rewrite mutated source", slot)
 		}
 		seen := false
-		boundExpressionChildren(e, func(child expr.Expr) {
+		plan.ExpressionChildren(e, func(child expr.Expr) {
 			if sameGroupExpression(child, column) {
 				seen = true
 			}

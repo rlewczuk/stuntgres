@@ -106,7 +106,7 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 	}
 	var selected plan.FieldExpr
 	found := false
-	walkBoundExpression(mapped.DomainDefault.Expression, func(node expr.Expr) {
+	plan.WalkExpression(mapped.DomainDefault.Expression, func(node expr.Expr) {
 		if field, ok := node.(plan.FieldExpr); ok && field.Attribute == source.Attributes[1] {
 			selected = field
 			found = true

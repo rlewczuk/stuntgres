@@ -47,7 +47,7 @@ func preflightQuery(c *EvalContext, node plan.Node) (plan.Node, error) {
 	case *plan.SetProjectNode:
 		return preflightQuerySet(c, n)
 	case *plan.WindowNode:
-		return rewriteQueryExpressions(n, func(expr expr.Expr) (expr.Expr, bool, error) { return preflightCoercions(c, expr) }, func(child plan.Node) (plan.Node, error) {
+		return plan.RewriteQueryExpressions(n, func(expr expr.Expr) (expr.Expr, bool, error) { return preflightCoercions(c, expr) }, func(child plan.Node) (plan.Node, error) {
 			if child == n {
 				return child, nil
 			}
@@ -1013,7 +1013,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node plan.Nod
 			return indexedStage{source: source, schema: n.Schema()}, nil
 		}
 		if join, ok := n.Child.(*plan.JoinNode); ok && !queryHasMandatoryPhysicalFrontier(n.Child, state.source) {
-			if partitioned := functionFromConjuncts(join, n.Predicate); partitioned != nil {
+			if partitioned := plan.FunctionFromConjuncts(join, n.Predicate); partitioned != nil {
 				return openQueryNode(ctx, state, partitioned)
 			}
 			if join := functionFromWhere(n.Child, n.Predicate); join != nil {

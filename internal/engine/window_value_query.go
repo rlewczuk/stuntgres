@@ -148,7 +148,7 @@ func (b *expressionBinder) windowValueAliases(calls []plan.WindowCall, projectio
 		if demanded(i) || expression.Properties().Volatility != expr.Volatile {
 			continue
 		}
-		walkBoundExpression(expression, func(child expr.Expr) {
+		plan.WalkExpression(expression, func(child expr.Expr) {
 			leaf, ok := child.(*plan.WindowExpr)
 			if !ok || leaf.Frame != b.frameID() || leaf.Call < 0 || leaf.Call >= len(calls) || !calls[leaf.Call].Operation.EvaluatesArgument() {
 				return

@@ -8,67 +8,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Searched CASE has a physical-literal decision requiring no expression,
-// conversion, provider or domain evaluation. Demand and simplification share it.
-func literalSearchedCaseMatch(condition expr.Expr) (known, match bool, err error) {
-	literal, ok := condition.(plan.LiteralExpr)
-	if !ok {
-		return false, false, nil
-	}
-	if literal.Value.IsNull() {
-		return true, false, nil
-	}
-	match, err = literal.Value.Boolean()
-	return err == nil, match, err
-}
-
-// This walk discovers payload reads without advancing any scalar preflight
-// frontier. Unknown branches retain conservative demand; only the canonical
-// physical literal policies exclude children.
-func walkDemandedBoundExpression(node expr.Expr, visit func(expr.Expr)) {
-	if node == nil {
-		return
-	}
-	visit(node)
-	walk := func(child expr.Expr) { walkDemandedBoundExpression(child, visit) }
-	switch e := node.(type) {
-	case plan.CaseExpr:
-		if e.Test != nil {
-			boundExpressionChildren(node, walk)
-			return
-		}
-		for _, arm := range e.Arms {
-			walk(arm.Condition)
-			known, match, err := literalSearchedCaseMatch(arm.Condition)
-			if err != nil || !known {
-				walk(arm.Result)
-			} else if match {
-				walk(arm.Result)
-				return
-			}
-		}
-		walk(e.Otherwise)
-	case plan.ConditionalExpr:
-		if e.Kind != parser.Coalesce {
-			boundExpressionChildren(node, walk)
-			return
-		}
-		for _, arg := range e.Args {
-			walk(arg)
-			if literal, ok := arg.(plan.LiteralExpr); ok && !literal.Value.IsNull() {
-				return
-			}
-		}
-	case plan.LogicalExpr:
-		walk(e.Left)
-		if _, decisive, err := plan.DecisiveLogicalValue(&e); err != nil || !decisive {
-			walk(e.Right)
-		}
-	default:
-		boundExpressionChildren(node, walk)
-	}
-}
-
 // Conditional planning folds immutable SQL constants; the common post-child
 // strict-NULL rule can additionally eliminate a call using an execution-known
 // parameter. It neither substitutes parameters generally nor runs domain truth.
@@ -180,7 +119,7 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 			known, match := false, false
 			if condition, ok := arm.Condition.(plan.LiteralExpr); ok {
 				if e.Test == nil {
-					known, match, err = literalSearchedCaseMatch(arm.Condition)
+					known, match, err = plan.LiteralSearchedCaseMatch(arm.Condition)
 				} else if test, ok := e.Test.(plan.LiteralExpr); ok {
 					known = true
 					var view sqltype.Value

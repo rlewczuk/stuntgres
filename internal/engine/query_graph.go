@@ -10,131 +10,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Logical inputs exclude expression-owned queries. Consumers visit those at
-// explicit subquery boundaries, preserving lexical frames and leaf occurrences.
-func queryInputs(node plan.Node) (plan.Node, plan.Node) {
-	switch n := node.(type) {
-	case *plan.SetProjectNode:
-		return n.Child, nil
-	case *plan.SetNode:
-		return n.Left, n.Right
-	case *plan.RecursiveUnionNode:
-		return n.Left, n.Right
-	case *plan.ProjectNode:
-		return n.Child, nil
-	case *plan.FilterNode:
-		return n.Child, nil
-	case *plan.SortNode:
-		return n.Child, nil
-	case *plan.WindowNode:
-		return n.Child, nil
-	case *plan.AggregateNode:
-		return n.Child, nil
-	case *plan.DistinctNode:
-		return n.Child, nil
-	case *plan.DistinctOnNode:
-		return n.Child, nil
-	case *plan.LimitNode:
-		return n.Child, nil
-	case *plan.RowLockNode:
-		return n.Child, nil
-	case *plan.EvaluationNode:
-		return n.Child, nil
-	case *plan.JoinNode:
-		return n.Left, n.Right
-	case *plan.DerivedNode:
-		if n.Query != nil {
-			return n.Query.Root, nil
-		}
-	}
-	return nil, nil
-}
-
-func queryExpressions(node plan.Node, visit func(expr.Expr)) {
-	args := func(items []expr.Expr) {
-		for _, expr := range items {
-			visit(expr)
-		}
-	}
-	switch n := node.(type) {
-	case *plan.FunctionFromNode:
-		for _, call := range n.Calls {
-			visit(call)
-		}
-	case *plan.SetProjectNode:
-		for _, call := range n.Calls {
-			visit(call)
-		}
-		args(n.Scalars)
-		if n.Template != nil {
-			args(n.Template.Expressions)
-			args(n.Template.Origins)
-			args(n.Template.Scalars)
-		}
-	case *plan.SetNode:
-		args(n.LeftExpressions)
-		args(n.RightExpressions)
-	case *plan.RecursiveUnionNode:
-		args(n.LeftExpressions)
-		args(n.RightExpressions)
-		if c := n.Cycle; c != nil {
-			visit(c.Mark)
-			visit(c.Fallback)
-		}
-	case *plan.ProjectNode:
-		args(n.Expressions)
-		args(n.AnalysisExpressions)
-	case *plan.FilterNode:
-		visit(n.Predicate)
-	case *plan.SortNode:
-		for _, key := range n.Keys {
-			visit(key.Expression)
-		}
-		args(n.Outputs)
-	case *plan.WindowNode:
-		for _, call := range n.Calls {
-			if call.AnalysisOnly {
-				continue
-			}
-			visit(call.Argument)
-			visit(call.Ordinal)
-			visit(call.DefaultValue)
-		}
-		for i, spec := range n.Specs {
-			if !n.SpecActive(i) {
-				continue
-			}
-			args(spec.Partition)
-			for _, key := range spec.Order {
-				visit(key.Expression)
-			}
-			visit(spec.Frame.Start.Offset)
-			visit(spec.Frame.End.Offset)
-		}
-	case *plan.AggregateNode:
-		args(n.Keys)
-		for _, call := range n.Calls {
-			call.Expressions(visit)
-		}
-	case *plan.DistinctNode:
-		args(n.Expressions)
-	case *plan.DistinctOnNode:
-		args(n.Expressions)
-	case *plan.LimitNode:
-		visit(n.Offset)
-		visit(n.Count)
-	case *plan.EvaluationNode:
-		args(n.Expressions)
-	case *plan.JoinNode:
-		visit(n.Predicate)
-		args(n.Merges)
-	case *plan.ValuesNode:
-		for _, row := range n.Rows {
-			args(row)
-		}
-	}
-}
-
 // A stored view freezes every query's original input frame as well as the
 // executable output tree. The maps are analyzed metadata, never row caches.
 func collectQueryFrames(root plan.Node) (map[uint32]*plan.ProjectNode, map[*parser.Select]*plan.ProjectNode) {
@@ -151,11 +26,11 @@ func collectQueryFrames(root plan.Node) (map[uint32]*plan.ProjectNode, map[*pars
 			}
 			frames[n.Frame], queries[n.Syntax] = n, n
 		}
-		left, right := queryInputs(node)
+		left, right := plan.QueryInputs(node)
 		walk(left)
 		walk(right)
-		queryExpressions(node, func(bound expr.Expr) {
-			walkBoundExpression(bound, func(expr expr.Expr) {
+		plan.QueryExpressions(node, func(bound expr.Expr) {
+			plan.WalkExpression(bound, func(expr expr.Expr) {
 				if e, ok := expr.(plan.SubqueryExpr); ok {
 					walk(e.QueryPlan.Root)
 				}
@@ -176,8 +51,8 @@ func queryDescriptorsChanged(node plan.Node, typ func(*sqltype.Descriptor) *sqlt
 		}
 	}
 	changed := false
-	queryExpressions(node, func(bound expr.Expr) {
-		walkBoundExpression(bound, func(expr expr.Expr) {
+	plan.QueryExpressions(node, func(bound expr.Expr) {
+		plan.WalkExpression(bound, func(expr expr.Expr) {
 			if typ(expr.ResultUsage().Type) != expr.ResultUsage().Type {
 				changed = true
 			}
@@ -189,7 +64,7 @@ func queryDescriptorsChanged(node plan.Node, typ func(*sqltype.Descriptor) *sqlt
 	if changed {
 		return true
 	}
-	left, right := queryInputs(node)
+	left, right := plan.QueryInputs(node)
 	return queryDescriptorsChanged(left, typ) || queryDescriptorsChanged(right, typ)
 }
 
@@ -201,8 +76,8 @@ func queryRoutineCarriersChanged(view catalog.Read, node plan.Node) bool {
 		return false
 	}
 	changed := false
-	queryExpressions(node, func(expression expr.Expr) {
-		walkBoundExpression(expression, func(expression expr.Expr) {
+	plan.QueryExpressions(node, func(expression expr.Expr) {
+		plan.WalkExpression(expression, func(expression expr.Expr) {
 			captured, err := routine.ExpressionRoutineDescriptor(expression)
 			if err != nil || captured != nil && view.Get(captured.Address()) != captured {
 				changed = true
@@ -215,7 +90,7 @@ func queryRoutineCarriersChanged(view catalog.Read, node plan.Node) bool {
 	if changed {
 		return true
 	}
-	left, right := queryInputs(node)
+	left, right := plan.QueryInputs(node)
 	return queryRoutineCarriersChanged(view, left) || queryRoutineCarriersChanged(view, right)
 }
 
@@ -241,7 +116,7 @@ func queryDemandProperties(project *plan.ProjectNode, presence bool) expr.Proper
 			return
 		}
 		if node != ignoredProject && !queryIgnoresOwnExpressions(node) {
-			queryExpressions(node, func(bound expr.Expr) {
+			plan.QueryExpressions(node, func(bound expr.Expr) {
 				if edge, ok := bound.(plan.SubqueryExpr); ok && edge.CTEEdge {
 					return
 				}
@@ -251,7 +126,7 @@ func queryDemandProperties(project *plan.ProjectNode, presence bool) expr.Proper
 				p := bound.Properties()
 				p.RowDependent = false
 				properties = expr.MergeProperties(properties, p)
-				walkBoundExpression(bound, func(expr expr.Expr) {
+				plan.WalkExpression(bound, func(expr expr.Expr) {
 					var frame uint32
 					switch n := expr.(type) {
 					case plan.ColumnExpr:
@@ -281,7 +156,7 @@ func queryDemandProperties(project *plan.ProjectNode, presence bool) expr.Proper
 				})
 			})
 		}
-		left, right := queryInputs(node)
+		left, right := plan.QueryInputs(node)
 		walk(left, ignoredProject)
 		walk(right, ignoredProject)
 	}
@@ -321,7 +196,7 @@ func queryExecutionSourceReads(root plan.Node, ignoredProject *plan.ProjectNode)
 			frames[frame] = append(frames[frame], span{source, offset})
 			reads[source.Occurrence] = []int32{}
 		}
-		left, right := queryInputs(node)
+		left, right := plan.QueryInputs(node)
 		walk(left, frame, offset, ignored, collect)
 		rightOffset := offset
 		if join, ok := node.(*plan.JoinNode); ok {
@@ -332,7 +207,7 @@ func queryExecutionSourceReads(root plan.Node, ignoredProject *plan.ProjectNode)
 			return
 		}
 		visit := func(expression expr.Expr) {
-			walkBoundExpression(expression, func(expression expr.Expr) {
+			plan.WalkExpression(expression, func(expression expr.Expr) {
 				switch e := expression.(type) {
 				case plan.SubqueryExpr:
 					if e.CTEEdge {
@@ -368,7 +243,7 @@ func queryExecutionSourceReads(root plan.Node, ignoredProject *plan.ProjectNode)
 				visit(expression)
 			}
 		} else {
-			queryExpressions(node, visit)
+			plan.QueryExpressions(node, visit)
 		}
 	}
 	// Register all spans first, including outer frames referenced by correlated

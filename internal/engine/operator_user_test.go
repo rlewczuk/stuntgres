@@ -406,7 +406,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 		t.Fatal("operator reference remap lost provenance")
 	}
 	children := 0
-	boundExpressionChildren(got, func(expr.Expr) { children++ })
+	plan.ExpressionChildren(got, func(expr.Expr) { children++ })
 	if children != 1 {
 		t.Fatal("provider walked twice", children)
 	}

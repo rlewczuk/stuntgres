@@ -405,7 +405,7 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 				n.QueryPlan = &copy
 				changed = true
 				if leaf != nil {
-					visitCTEQuery(root, func(plan.Node) {}, func(expr expr.Expr) {
+					plan.VisitCTEQuery(root, func(plan.Node) {}, func(expr expr.Expr) {
 						properties := expr.Properties()
 						info.Property.Volatility = max(info.Property.Volatility, properties.Volatility)
 						info.Property.ParameterDependent = info.Property.ParameterDependent || properties.ParameterDependent

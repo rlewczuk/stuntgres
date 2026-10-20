@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -124,7 +125,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 		if copy.Kind != kind || copy.Usage.Type == leaf.Usage.Type || copy.Pos != leaf.Pos || copy.Validate(expr.PropertiesMatch(copy.Property, copy.Kind.IntrinsicRule())) != nil {
 			t.Fatal(leaf, copy)
 		}
-		if sides, err := joinExpressionSides(copy, 0, 0); err != nil || sides != 0 {
+		if sides, err := plan.JoinExpressionSides(copy, 0, 0); err != nil || sides != 0 {
 			t.Fatal(sides, err)
 		}
 		if !binder.sameGroupExpression(leaf, leaf) {

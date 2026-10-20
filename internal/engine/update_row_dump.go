@@ -43,7 +43,7 @@ func ruleUpdateAssignmentsSQL(ctx context.Context, view catalog.Read, b *binding
 			}
 			sql.WriteString(") = ")
 			var source expr.Expr
-			walkBoundExpression(b.update.assignments[i], func(node expr.Expr) {
+			plan.WalkExpression(b.update.assignments[i], func(node expr.Expr) {
 				if n, ok := node.(plan.SubqueryExpr); ok && n.UpdateWidth != 0 {
 					source = n
 				}

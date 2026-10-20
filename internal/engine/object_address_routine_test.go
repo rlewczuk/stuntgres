@@ -181,7 +181,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 					source = found
 					return
 				}
-				left, right := queryInputs(node)
+				left, right := plan.QueryInputs(node)
 				findSource(left)
 				findSource(right)
 			}
@@ -211,7 +211,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 			// Dependency/render walkers must still see the original callable,
 			// even though this execution has no invocation/argument demand.
 			seen := 0
-			queryExpressions(execution, func(call expr.Expr) {
+			plan.QueryExpressions(execution, func(call expr.Expr) {
 				seen++
 				if ref, err := routine.ExpressionRoutineDescriptor(call); err != nil || ref == nil {
 					t.Fatal("lost original callable", ref, err)

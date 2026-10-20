@@ -190,7 +190,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		t.Fatal("invalid installed generation epoch accepted")
 	}
 	var children []expr.Expr
-	boundExpressionChildren(n, func(child expr.Expr) { children = append(children, child) })
+	plan.ExpressionChildren(n, func(child expr.Expr) { children = append(children, child) })
 	if !reflect.DeepEqual(children, n.Args) {
 		t.Fatal(children)
 	}
@@ -226,7 +226,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		t.Fatal("four-child installed identity", aesCall)
 	}
 	children = nil
-	boundExpressionChildren(aesCall, func(child expr.Expr) { children = append(children, child) })
+	plan.ExpressionChildren(aesCall, func(child expr.Expr) { children = append(children, child) })
 	if !reflect.DeepEqual(children, aesCall.Args) {
 		t.Fatal("lost four-child traversal", children)
 	}
@@ -265,7 +265,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 		var children []expr.Expr
-		boundExpressionChildren(call, func(child expr.Expr) { children = append(children, child) })
+		plan.ExpressionChildren(call, func(child expr.Expr) { children = append(children, child) })
 		if len(children) != len(call.Args) {
 			t.Fatal("random/FIPS walk", children)
 		}

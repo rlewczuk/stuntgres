@@ -76,7 +76,7 @@ func TestUpdateRowVisitors(t *testing.T) {
 	u := b.update
 	queries, outputs := 0, 0
 	for _, recipe := range u.assignments {
-		walkBoundExpression(recipe, func(node expr.Expr) {
+		plan.WalkExpression(recipe, func(node expr.Expr) {
 			switch node.(type) {
 			case plan.SubqueryExpr:
 				queries++

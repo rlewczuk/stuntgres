@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -516,7 +517,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				for index, names := range [][]string{{"a"}, {"a", "z"}} {
 					expression := prepared.steps[index+1].added.expression
 					composite, array := false, false
-					walkBoundExpression(expression, func(node expr.Expr) {
+					plan.WalkExpression(expression, func(node expr.Expr) {
 						typ := node.ResultUsage().Type
 						if typ == nil {
 							return
@@ -548,7 +549,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				return
 			}
 			finalComposite, finalArray := false, false
-			walkBoundExpression(prepared.checks.next.Constraints.Check[0].Expression, func(node expr.Expr) {
+			plan.WalkExpression(prepared.checks.next.Constraints.Check[0].Expression, func(node expr.Expr) {
 				typ := node.ResultUsage().Type
 				if typ == nil {
 					return

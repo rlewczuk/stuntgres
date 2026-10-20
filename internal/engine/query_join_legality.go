@@ -175,7 +175,7 @@ func validateExpressionJoinExecution(c *EvalContext, expression expr.Expr, catal
 		return validateExpressionJoinExecution(c, logical.Right, catalog)
 	}
 	var failure error
-	boundExpressionChildren(expression, func(child expr.Expr) {
+	plan.ExpressionChildren(expression, func(child expr.Expr) {
 		if failure == nil {
 			failure = validateExpressionJoinExecution(c, child, catalog)
 		}
@@ -211,7 +211,7 @@ func validateMarkedQueryJoin(c *EvalContext, node plan.Node, view catalog.Read, 
 				}
 			}
 		} else {
-			queryExpressions(node, validate)
+			plan.QueryExpressions(node, validate)
 		}
 		if failure != nil {
 			return failure
@@ -412,7 +412,7 @@ func validateMarkedQueryJoin(c *EvalContext, node plan.Node, view catalog.Read, 
 			}
 		}
 	}
-	left, right := queryInputs(node)
+	left, right := plan.QueryInputs(node)
 	if err := validateMarkedQueryJoin(c, left, view, marks, inherited, emptyInput, ignoredProject, reads); err != nil {
 		return err
 	}
@@ -593,11 +593,11 @@ func fullJoinCondition(c *EvalContext, join *plan.JoinNode, bound expr.Expr, neg
 		}
 	}
 	if e, ok := bound.(plan.ComparisonExpr); ok && fullJoinComparisonOperator(e.Operator, negate) == "=" {
-		left, err := joinExpressionSides(e.Left, join.LeftWidth, join.RightWidth)
+		left, err := plan.JoinExpressionSides(e.Left, join.LeftWidth, join.RightWidth)
 		if err != nil {
 			return fullJoinFacts{}, err
 		}
-		right, err := joinExpressionSides(e.Right, join.LeftWidth, join.RightWidth)
+		right, err := plan.JoinExpressionSides(e.Right, join.LeftWidth, join.RightWidth)
 		if err != nil {
 			return fullJoinFacts{}, err
 		}
@@ -629,155 +629,4 @@ func fullJoinComparisonOperator(operator string, negate bool) string {
 		return "<"
 	}
 	return ""
-}
-
-// Slots, including descendant synthetic merged slots, belong to child frames.
-// Physical origins are deliberately irrelevant to FULL path capability.
-func joinExpressionSides(node expr.Expr, leftWidth, rightWidth int) (uint8, error) {
-	if node == nil {
-		return 0, nil
-	}
-	if e, ok := node.(plan.ColumnExpr); ok {
-		if e.Slot < 0 || e.Slot >= leftWidth+rightWidth {
-			return 0, fmt.Errorf("stuntgres: invalid join expression slot")
-		}
-		if e.Slot < leftWidth {
-			return 1, nil
-		}
-		return 2, nil
-	}
-	var result uint8
-	child := func(e expr.Expr) error {
-		side, err := joinExpressionSides(e, leftWidth, rightWidth)
-		result |= side
-		return err
-	}
-	var children []expr.Expr
-	switch e := node.(type) {
-	case plan.LiteralExpr, plan.ParameterExpr:
-		return 0, nil
-	case plan.RowExpr:
-		children = e.Fields
-	case plan.FieldExpr:
-		return joinExpressionSides(e.Base, leftWidth, rightWidth)
-	case plan.ArrayExpr:
-		children = e.Elements
-	case plan.SubscriptExpr:
-		sides, err := joinExpressionSides(e.Base, leftWidth, rightWidth)
-		if err != nil {
-			return 0, err
-		}
-		for _, s := range e.Subscripts {
-			for _, child := range [2]expr.Expr{s.Lower, s.Upper} {
-				if child == nil {
-					continue
-				}
-				side, err := joinExpressionSides(child, leftWidth, rightWidth)
-				if err != nil {
-					return 0, err
-				}
-				sides |= side
-			}
-		}
-		return sides, nil
-	case plan.CoercionExpr:
-		return joinExpressionSides(e.Child, leftWidth, rightWidth)
-	case plan.CollationExpr:
-		return joinExpressionSides(e.Child, leftWidth, rightWidth)
-	case plan.SelectedOperatorExpr:
-		return joinExpressionSides(e.Provider, leftWidth, rightWidth)
-	case plan.ArithmeticExpr:
-		children = []expr.Expr{e.Left, e.Right}
-	case plan.BitwiseExpr:
-		children = []expr.Expr{e.Left, e.Right}
-	case plan.RowComparisonExpr:
-		var sides uint8
-		for _, pair := range e.Comparisons {
-			left, err := joinExpressionSides(pair.Left, leftWidth, rightWidth)
-			if err != nil {
-				return 0, err
-			}
-			right, err := joinExpressionSides(pair.Right, leftWidth, rightWidth)
-			if err != nil {
-				return 0, err
-			}
-			sides |= left | right
-		}
-		return sides, nil
-	case plan.ScalarArrayComparisonExpr:
-		sides, err := joinExpressionSides(e.Left, leftWidth, rightWidth)
-		if err != nil {
-			return 0, err
-		}
-		if e.Array != nil {
-			side, err := joinExpressionSides(e.Array, leftWidth, rightWidth)
-			if err != nil {
-				return 0, err
-			}
-			sides |= side
-		}
-		for _, item := range e.Items {
-			side, err := joinExpressionSides(item, leftWidth, rightWidth)
-			if err != nil {
-				return 0, err
-			}
-			sides |= side
-		}
-		return sides, nil
-	case plan.ComparisonExpr:
-		children = []expr.Expr{e.Left, e.Right}
-	case plan.LogicalExpr:
-		children = []expr.Expr{e.Left, e.Right}
-	case plan.DistinctExpr:
-		children = []expr.Expr{e.Left, e.Right}
-	case plan.LikeExpr:
-		children = []expr.Expr{e.Left, e.Right}
-	case plan.NullTestExpr:
-		children = []expr.Expr{e.Child}
-	case plan.TruthTestExpr:
-		children = []expr.Expr{e.Child}
-	case plan.ConditionalExpr:
-		children = e.Args
-	case plan.ExtensionPathsExpr:
-		return joinExpressionSides(e.Arg, leftWidth, rightWidth)
-	case plan.InstalledSoundexExpr:
-		children = e.Args
-	case plan.InstalledMetaphoneExpr:
-		children = e.Args
-	case plan.InstalledLevenshteinExpr:
-		children = e.Args
-	case plan.InstalledUUIDOsspExpr:
-		// No argument children.
-	case plan.InstalledCryptoExpr:
-		children = e.Args
-	case plan.InstalledTextExpr:
-		children = []expr.Expr{e.Arg}
-	case plan.CaseExpr:
-		if err := child(e.Test); err != nil {
-			return 0, err
-		}
-		if err := child(e.Otherwise); err != nil {
-			return 0, err
-		}
-		for _, arm := range e.Arms {
-			if err := child(arm.Condition); err != nil {
-				return 0, err
-			}
-			if err := child(arm.Result); err != nil {
-				return 0, err
-			}
-		}
-		return result, nil
-	case expr.Composite:
-		// Last, so the explicit cases above keep precedence over embedded nodes.
-		children = e.Children()
-	default:
-		return 0, fmt.Errorf("stuntgres: unsupported join dependency expression %T", node)
-	}
-	for _, e := range children {
-		if err := child(e); err != nil {
-			return 0, err
-		}
-	}
-	return result, nil
 }

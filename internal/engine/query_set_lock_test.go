@@ -32,7 +32,7 @@ func TestQuerySetStoredInheritedMarks(t *testing.T) {
 	}
 	// General input/dependency traversal must retain both children; only the
 	// mark-specific traversal has a boundary. Admission still sees all sources.
-	l, r := queryInputs(set)
+	l, r := plan.QueryInputs(set)
 	if l != set.Left || r != set.Right || !queryHasPhysicalInput(wrapped) {
 		t.Fatal("set barrier pruned general source traversal")
 	}

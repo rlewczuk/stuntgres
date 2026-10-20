@@ -38,8 +38,8 @@ func (b *expressionBinder) normalizeQuantifiedConstructor(raw parser.Expr, const
 // still needs that identity. The ordinary pg_depend expression owner decides.
 func frozenQueryDependencies(view catalog.Read, b binding) ([]catalog.ExpressionDependency, error) {
 	var erased map[sqltype.ID]bool
-	visitCTEQuery(b.query.Root, func(plan.Node) {}, func(bound expr.Expr) {
-		walkBoundExpression(bound, func(node expr.Expr) {
+	plan.VisitCTEQuery(b.query.Root, func(plan.Node) {}, func(bound expr.Expr) {
+		plan.WalkExpression(bound, func(node expr.Expr) {
 			if n, ok := node.(plan.SubqueryExpr); ok && n.ErasedLeftType != 0 {
 				if erased == nil {
 					erased = make(map[sqltype.ID]bool)

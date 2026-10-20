@@ -18,7 +18,7 @@ type viewWriteOccurrence struct {
 func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root plan.Node, rewrite func(expr.Expr) (expr.Expr, bool, error)) (plan.Node, error) {
 	project, ok := root.(*plan.ProjectNode)
 	if !ok {
-		return rewriteQueryExpressions(root, rewrite)
+		return plan.RewriteQueryExpressions(root, rewrite)
 	}
 	var definition *viewDefinition
 	var consumer *catalog.Relation
@@ -31,7 +31,7 @@ func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root plan.Node, re
 	}
 	b.subqueryDemand = true
 	if definition == nil {
-		return rewriteQueryExpressions(root, rewrite)
+		return plan.RewriteQueryExpressions(root, rewrite)
 	}
 	mapOccurrence := func(occurrence int) (int, error) {
 		if occurrence < 0 || occurrence >= len(definition.sources) {
@@ -70,7 +70,7 @@ func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root plan.Node, re
 		if project, ok := node.(*plan.ProjectNode); ok {
 			frames[project.Frame] = true
 		}
-		left, right := queryInputs(node)
+		left, right := plan.QueryInputs(node)
 		ownFrames(left)
 		ownFrames(right)
 	}
@@ -97,7 +97,7 @@ func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root plan.Node, re
 		column.Origin = use
 		return column, changed, nil
 	}
-	return rewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
+	return plan.RewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
 		next, translated, err := mapBoundExpression(view, n, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, translate)
 		if err != nil {
 			return nil, false, err

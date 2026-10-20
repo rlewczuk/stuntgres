@@ -19,7 +19,7 @@ func pruneProjectWindows(project *plan.ProjectNode) (*plan.ProjectNode, error) {
 		case *plan.ProjectNode, *plan.DerivedNode:
 			return project, nil
 		}
-		left, right := queryInputs(node)
+		left, right := plan.QueryInputs(node)
 		if right != nil {
 			return project, nil
 		}
@@ -44,8 +44,8 @@ func pruneProjectWindows(project *plan.ProjectNode) (*plan.ProjectNode, error) {
 		if node == nil {
 			return
 		}
-		queryExpressions(node, expression)
-		left, right := queryInputs(node)
+		plan.QueryExpressions(node, expression)
+		left, right := plan.QueryInputs(node)
 		query(left)
 		query(right)
 	}
@@ -54,7 +54,7 @@ func pruneProjectWindows(project *plan.ProjectNode) (*plan.ProjectNode, error) {
 		// evaluation slot while projection only reads its cached result.
 		// Use the existing physical-literal demand policy before those
 		// owners preflight; a lexical walk would revive their dead arms.
-		walkDemandedBoundExpression(bound, func(expr expr.Expr) {
+		plan.WalkDemandedExpression(bound, func(expr expr.Expr) {
 			if occurrence, ok := expr.(*plan.WindowExpr); ok {
 				// Physical window results occupy consecutive slots after input.
 				i := occurrence.Slot - firstSlot
@@ -72,9 +72,9 @@ func pruneProjectWindows(project *plan.ProjectNode) (*plan.ProjectNode, error) {
 	}
 	for node := project.Child; node != window; {
 		if !queryIgnoresOwnExpressions(node) {
-			queryExpressions(node, expression)
+			plan.QueryExpressions(node, expression)
 		}
-		node, _ = queryInputs(node)
+		node, _ = plan.QueryInputs(node)
 	}
 	var calls []plan.WindowCall
 	for i, call := range window.Calls {
@@ -90,7 +90,7 @@ func pruneProjectWindows(project *plan.ProjectNode) (*plan.ProjectNode, error) {
 	}
 	copy := *window
 	copy.Calls = calls
-	child, err := rewriteQueryExpressions(project.Child, func(expr expr.Expr) (expr.Expr, bool, error) {
+	child, err := plan.RewriteQueryExpressions(project.Child, func(expr expr.Expr) (expr.Expr, bool, error) {
 		return expr, false, nil
 	}, func(node plan.Node) (plan.Node, error) {
 		if node == window {

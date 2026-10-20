@@ -20,7 +20,7 @@ func viewFunctionFromAt(root plan.Node, ordinal int, selected bool) *plan.Functi
 	if node, ok := root.(*plan.FunctionFromNode); ok && node.ViewOrdinal == ordinal && node.RegexpNamespace == selected {
 		return node
 	}
-	left, right := queryInputs(root)
+	left, right := plan.QueryInputs(root)
 	if found := viewFunctionFromAt(left, ordinal, selected); found != nil {
 		return found
 	}

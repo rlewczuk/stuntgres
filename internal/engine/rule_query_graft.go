@@ -14,8 +14,8 @@ func ruleQueryHasPseudo(root plan.Node) bool {
 		if node == nil || found {
 			return
 		}
-		queryExpressions(node, func(bound expr.Expr) {
-			walkBoundExpression(bound, func(expr expr.Expr) {
+		plan.QueryExpressions(node, func(bound expr.Expr) {
+			plan.WalkExpression(bound, func(expr expr.Expr) {
 				if column, ok := expr.(plan.ColumnExpr); ok && column.Scope == rulePseudoScope {
 					found = true
 				}
@@ -24,7 +24,7 @@ func ruleQueryHasPseudo(root plan.Node) bool {
 				}
 			})
 		})
-		left, right := queryInputs(node)
+		left, right := plan.QueryInputs(node)
 		visit(left)
 		visit(right)
 	}

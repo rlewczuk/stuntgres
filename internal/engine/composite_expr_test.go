@@ -201,7 +201,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 		t.Fatal(err)
 	}
 	count := 0
-	walkBoundExpression(selected, func(expr.Expr) { count++ })
+	plan.WalkExpression(selected, func(expr.Expr) { count++ })
 	if count != 5 {
 		t.Fatal("lexical children omitted or analysis-only duplicate visited", count)
 	}

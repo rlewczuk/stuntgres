@@ -239,7 +239,7 @@ func TestQuerySetImmutableRewriteRemap(t *testing.T) {
 	defer source.close()
 	original := n.LeftExpressions[0]
 	replacement := &queryProbeExpression{Info: expr.InfoOf(original), eval: func(c *EvalContext) (sqltype.Value, error) { return original.Eval(c) }}
-	rewritten, err := rewriteQueryExpressions(project, func(e expr.Expr) (expr.Expr, bool, error) {
+	rewritten, err := plan.RewriteQueryExpressions(project, func(e expr.Expr) (expr.Expr, bool, error) {
 		if e == original {
 			return replacement, true, nil
 		}
@@ -415,7 +415,7 @@ func TestQuerySetAssignmentSchemaOwnership(t *testing.T) {
 				if _, ok := node.(*plan.SetNode); ok {
 					break
 				}
-				child, sibling := queryInputs(node)
+				child, sibling := plan.QueryInputs(node)
 				if child == nil || sibling != nil {
 					t.Fatal("unexpected set tail", node)
 				}

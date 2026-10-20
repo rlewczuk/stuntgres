@@ -64,7 +64,7 @@ func strictRoutineArguments(node expr.Expr, visit func(expr.Expr)) {
 		visit(expression.Args[0])
 		return
 	}
-	boundExpressionChildren(node, visit)
+	plan.ExpressionChildren(node, visit)
 }
 
 func executionKnownNullArgument(c *EvalContext, node expr.Expr) (bool, error) {

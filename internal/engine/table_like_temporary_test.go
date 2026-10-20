@@ -39,7 +39,7 @@ func TestTableLikeTemporaryDefaultAuthority(t *testing.T) {
 			generator := *e.storage.Sequences[seed.Address()]
 			var call functions.SequenceCall
 			calls := 0
-			walkBoundExpression(old.Expression, func(node expr.Expr) {
+			plan.WalkExpression(old.Expression, func(node expr.Expr) {
 				if n, ok := node.(functions.SequenceCall); ok {
 					call = n
 					calls++
@@ -168,7 +168,7 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 	seed := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "seed")
 	generator := *e.storage.Sequences[seed.Address()]
 	var call functions.SequenceCall
-	walkBoundExpression(old.Expression, func(node expr.Expr) {
+	plan.WalkExpression(old.Expression, func(node expr.Expr) {
 		if n, ok := node.(functions.SequenceCall); ok {
 			call = n
 		}

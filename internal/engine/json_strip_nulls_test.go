@@ -105,7 +105,7 @@ func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
 		t.Fatal("group identity ignored Boolean formal")
 	}
 	var children []expr.Expr
-	boundExpressionChildren(e, func(child expr.Expr) { children = append(children, child) })
+	plan.ExpressionChildren(e, func(child expr.Expr) { children = append(children, child) })
 	if len(children) != 2 || !sameGroupExpression(children[0], e.Args[0]) || !sameGroupExpression(children[1], e.Args[1]) {
 		t.Fatal("formal traversal", children)
 	}

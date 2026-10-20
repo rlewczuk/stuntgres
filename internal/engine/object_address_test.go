@@ -162,7 +162,7 @@ func TestObjectAddressStoredRecipes(t *testing.T) {
 			t.Fatal("typed stable carrier", name, n)
 		}
 		children := 0
-		boundExpressionChildren(n, func(expr.Expr) { children++ })
+		plan.ExpressionChildren(n, func(expr.Expr) { children++ })
 		if children != 3 {
 			t.Fatal("carrier children", children)
 		}

@@ -276,7 +276,7 @@ func TestTemporaryTablePredicateOnlyRetainedTypes(t *testing.T) {
 	}{
 		{predicate.Definition, definitionTypes}, {predicate.Execution, executionTypes},
 	} {
-		walkBoundExpression(tree.node, func(node expr.Expr) { typ := node.ResultUsage().Type; tree.types[typ.ID()] = typ })
+		plan.WalkExpression(tree.node, func(node expr.Expr) { typ := node.ResultUsage().Type; tree.types[typ.ID()] = typ })
 		if tree.types[sqltype.Bool] == nil || tree.types[sqltype.Int4] == nil {
 			t.Fatal("missing actual predicate BOOL/INT4", tree.types)
 		}
@@ -318,7 +318,7 @@ func TestTemporaryTablePredicateOnlyRetainedTypes(t *testing.T) {
 				t.Fatal("predicate concrete type generation not retained", tree.name, id, actual, typ)
 			}
 		}
-		walkBoundExpression(tree.node, func(node expr.Expr) {
+		plan.WalkExpression(tree.node, func(node expr.Expr) {
 			typ := node.ResultUsage().Type
 			if tree.types[typ.ID()] != typ {
 				t.Fatal("immutable predicate type rebound", tree.name, typ)

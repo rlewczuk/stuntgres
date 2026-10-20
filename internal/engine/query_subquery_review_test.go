@@ -136,7 +136,7 @@ func TestQuerySubqueryPresenceGraphRetention(t *testing.T) {
 		}
 		calls := 0
 		var owner plan.Node
-		for node := project.Child; node != nil; node, _ = queryInputs(node) {
+		for node := project.Child; node != nil; node, _ = plan.QueryInputs(node) {
 			switch n := node.(type) {
 			case *plan.AggregateNode:
 				owner = n
@@ -157,7 +157,7 @@ func TestQuerySubqueryPresenceGraphRetention(t *testing.T) {
 			t.Fatal(err)
 		}
 		seen := false
-		for node := queryPlan.Root; node != nil; node, _ = queryInputs(node) {
+		for node := queryPlan.Root; node != nil; node, _ = plan.QueryInputs(node) {
 			switch n := node.(type) {
 			case *plan.AggregateNode:
 				seen = n.PresenceOnly && len(n.Keys) != 0 && !owner.(*plan.AggregateNode).PresenceOnly

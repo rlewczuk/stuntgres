@@ -66,7 +66,7 @@ func TestArrayExpressionParameterManifestAndTraversal(t *testing.T) {
 		t.Fatal(manifest, err)
 	}
 	var numbers []int
-	walkBoundExpression(node, func(child expr.Expr) {
+	plan.WalkExpression(node, func(child expr.Expr) {
 		if p, ok := child.(plan.ParameterExpr); ok {
 			numbers = append(numbers, p.Number)
 		}

@@ -211,7 +211,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 		t.Fatal(got)
 	}
 	walked := 0
-	walkBoundExpression(original, func(n expr.Expr) {
+	plan.WalkExpression(original, func(n expr.Expr) {
 		if _, ok := n.(plan.LiteralExpr); ok {
 			walked++
 		}
@@ -256,7 +256,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 		t.Fatal("erased volatile child")
 	}
 	root := &plan.SetProjectNode{QuerySchema: plan.QuerySchema{{Usage: d.Usage()}}, Child: &plan.SingletonNode{}, Calls: []expr.Expr{original}}
-	rewritten, err := rewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
+	rewritten, err := plan.RewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
 		return mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(n expr.Expr) (expr.Expr, bool, error) {
 			if n == original.Args[0] {
 				return seriesUnit(t, d, 2, 3).Args[0], true, nil

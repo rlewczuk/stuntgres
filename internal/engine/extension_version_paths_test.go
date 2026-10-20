@@ -23,7 +23,7 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 		t.Fatal("typed SRF contract")
 	}
 	count := 0
-	boundExpressionChildren(call, func(expr.Expr) { count++ })
+	plan.ExpressionChildren(call, func(expr.Expr) { count++ })
 	if count != 1 {
 		t.Fatal("path argument traversal", count)
 	}

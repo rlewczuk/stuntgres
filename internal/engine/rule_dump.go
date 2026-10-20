@@ -160,8 +160,8 @@ func seedRuleMutationSlots(renderer *viewRenderer, action ruleAction, query plan
 	root := viewFromRoot(owner)
 	slots := renderer.slots[root]
 	var failure error
-	visitCTEQuery(query, func(plan.Node) {}, func(bound expr.Expr) {
-		walkBoundExpression(bound, func(node expr.Expr) {
+	plan.VisitCTEQuery(query, func(plan.Node) {}, func(bound expr.Expr) {
+		plan.WalkExpression(bound, func(node expr.Expr) {
 			column, ok := node.(plan.ColumnExpr)
 			if failure != nil || !ok || column.Scope != 1 || column.Frame != 1 {
 				return

@@ -744,7 +744,7 @@ func viewDerivedAt(node plan.Node, syntax *parser.Select) *plan.DerivedNode {
 			return derived
 		}
 	}
-	left, right := queryInputs(node)
+	left, right := plan.QueryInputs(node)
 	if found := viewDerivedAt(left, syntax); found != nil {
 		return found
 	}

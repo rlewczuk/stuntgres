@@ -34,7 +34,7 @@ func TestUpdateRowCorrelatedCTEFrames(t *testing.T) {
 	}
 	var target plan.ColumnExpr
 	found := false
-	visitCTEQuery(producer, func(plan.Node) {}, func(node expr.Expr) {
+	plan.VisitCTEQuery(producer, func(plan.Node) {}, func(node expr.Expr) {
 		if column, ok := node.(plan.ColumnExpr); ok && column.Origin.Address.ObjectID == b.ref.Address.ObjectID {
 			if column.Frame != 1 {
 				t.Fatal("CTE correlation impersonated an empty intermediate SELECT frame", column.Frame)

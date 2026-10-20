@@ -34,7 +34,7 @@ func TestBooleanCallPredicateBinding(t *testing.T) {
 				t.Fatal(name, info, err)
 			}
 			found := false
-			walkBoundExpression(node, func(child expr.Expr) {
+			plan.WalkExpression(node, func(child expr.Expr) {
 				if _, ok := child.(functions.VisibilityInquiry); ok {
 					found = true
 				}

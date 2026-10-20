@@ -13,7 +13,7 @@ import (
 // Numeric coercion inputs are integer/OID literals and therefore untouched.
 func regclassReplayReferences(view catalog.Read, node expr.Expr, visit func(ids.ObjectAddress) error) error {
 	var failure error
-	walkBoundExpression(node, func(child expr.Expr) {
+	plan.WalkExpression(node, func(child expr.Expr) {
 		if failure != nil {
 			return
 		}

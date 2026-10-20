@@ -259,7 +259,7 @@ func TestConditionalDefaultClosureInspection(t *testing.T) {
 		var visit func(expr.Expr)
 		visit = func(node expr.Expr) {
 			entry := snapshot{info: expr.InfoOf(node)}
-			boundExpressionChildren(node, func(child expr.Expr) { entry.children = append(entry.children, child) })
+			plan.ExpressionChildren(node, func(child expr.Expr) { entry.children = append(entry.children, child) })
 			saved = append(saved, entry)
 			for _, child := range entry.children {
 				visit(child)

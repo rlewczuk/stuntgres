@@ -9,7 +9,7 @@ import (
 // A scalar SubLink is a graph boundary, not a reason to inspect its query here.
 func validateRuleNewUpdateOutput(recipe expr.Expr) error {
 	found := false
-	walkBoundExpression(recipe, func(node expr.Expr) {
+	plan.WalkExpression(recipe, func(node expr.Expr) {
 		switch n := node.(type) {
 		case plan.UpdateOutputExpr:
 			found = true

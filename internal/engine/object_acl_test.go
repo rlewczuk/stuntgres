@@ -138,7 +138,7 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 			}
 		}
 		children := 0
-		boundExpressionChildren(n, func(expr.Expr) { children++ })
+		plan.ExpressionChildren(n, func(expr.Expr) { children++ })
 		if children != 3 {
 			t.Fatal("lexical children", children)
 		}

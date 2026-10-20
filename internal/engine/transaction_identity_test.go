@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -260,7 +261,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 			t.Fatal("unsafe constant/volatility admission", tc.name)
 		}
 		count := 0
-		boundExpressionChildren(n, func(expr.Expr) { count++ })
+		plan.ExpressionChildren(n, func(expr.Expr) { count++ })
 		if count != len(raw.Args) {
 			t.Fatal("closed traversal", tc.name, count)
 		}

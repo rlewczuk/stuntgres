@@ -406,7 +406,7 @@ func rewriteViewExpression(view catalog.Read, bound expr.Expr, recipe *catalog.R
 			if len(queries) != 0 {
 				return queries[0](root, mapper)
 			}
-			return rewriteQueryExpressions(root, mapper)
+			return plan.RewriteQueryExpressions(root, mapper)
 		}, recipe, leaf)
 	}
 	return mapper(bound)

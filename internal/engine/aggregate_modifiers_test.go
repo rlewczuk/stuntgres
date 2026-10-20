@@ -286,7 +286,7 @@ func TestAggregateModifiersImmutableConsumers(t *testing.T) {
 	defer source.close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	original := node.Calls[0]
-	rewritten, err := rewriteQueryExpressions(node, func(bound expr.Expr) (expr.Expr, bool, error) {
+	rewritten, err := plan.RewriteQueryExpressions(node, func(bound expr.Expr) (expr.Expr, bool, error) {
 		column, ok := bound.(plan.ColumnExpr)
 		if !ok || column.Slot != 2 {
 			return bound, false, nil

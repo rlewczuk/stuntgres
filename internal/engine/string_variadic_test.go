@@ -239,7 +239,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 				t.Fatal(reason)
 			}
 			for _, predicate := range predicates {
-				walkBoundExpression(predicate, func(expression expr.Expr) {
+				plan.WalkExpression(predicate, func(expression expr.Expr) {
 					if quote, ok := expression.(functions.StringVariadic); ok && quoteOriginOf(quote) != (quoteOrigin{}) {
 						t.Fatal("execution lowering stamped the stored source tree")
 					}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -9,7 +10,7 @@ import (
 // Nested subqueries own their own placement checks and are not entered here.
 func rejectRegexpSets(bound expr.Expr, context string, lateralHint bool) error {
 	var first expr.Expr
-	walkBoundExpression(bound, func(node expr.Expr) {
+	plan.WalkExpression(bound, func(node expr.Expr) {
 		if sourceReturnsSet(node) && (first == nil || node.SourcePosition().Offset < first.SourcePosition().Offset) {
 			first = node
 		}

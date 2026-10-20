@@ -100,7 +100,7 @@ func TestStringSliceDependencyChildren(t *testing.T) {
 			t.Fatal(err)
 		}
 		var slots []int
-		walkBoundExpression(node, func(child expr.Expr) {
+		plan.WalkExpression(node, func(child expr.Expr) {
 			if col, ok := child.(plan.ColumnExpr); ok {
 				slots = append(slots, col.Slot)
 			}

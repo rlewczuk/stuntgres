@@ -270,7 +270,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 				}
 			}
 			pseudoRetained := false
-			walkBoundExpression(childTemplate.Expressions[0], func(node expr.Expr) {
+			plan.WalkExpression(childTemplate.Expressions[0], func(node expr.Expr) {
 				if column, ok := node.(plan.ColumnExpr); ok && column.Scope == rulePseudoScope {
 					pseudoRetained = true
 				}

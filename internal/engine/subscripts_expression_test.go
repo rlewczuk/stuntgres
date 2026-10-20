@@ -224,7 +224,7 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 		t.Fatal(got)
 	}
 	walked := 0
-	walkBoundExpression(original, func(n expr.Expr) {
+	plan.WalkExpression(original, func(n expr.Expr) {
 		if _, ok := n.(plan.LiteralExpr); ok {
 			walked++
 		}

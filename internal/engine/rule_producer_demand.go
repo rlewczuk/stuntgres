@@ -12,7 +12,7 @@ import (
 func ruleProducerOutputUses(original binding, rule ruleDefinition, action binding) []int {
 	uses := []int{}
 	inspect := func(bound expr.Expr) {
-		walkBoundExpression(bound, func(node expr.Expr) {
+		plan.WalkExpression(bound, func(node expr.Expr) {
 			column, ok := node.(plan.ColumnExpr)
 			if !ok || column.Scope != rulePseudoScope || column.Frame != 2 {
 				return
@@ -25,7 +25,7 @@ func ruleProducerOutputUses(original binding, rule ruleDefinition, action bindin
 			}
 		})
 	}
-	query := func(root plan.Node) { visitCTEQuery(root, func(plan.Node) {}, inspect, true) }
+	query := func(root plan.Node) { plan.VisitCTEQuery(root, func(plan.Node) {}, inspect, true) }
 	expression := func(bound expr.Expr) {
 		if bound != nil {
 			query(&plan.ProjectNode{Expressions: []expr.Expr{bound}})
@@ -143,7 +143,7 @@ func ruleQueryProducerDemand(root plan.Node, external func(func(expr.Expr)), tar
 				inputFrame = project.Frame
 			}
 		}
-		left, right := queryInputs(node)
+		left, right := plan.QueryInputs(node)
 		if join, joined := node.(*plan.JoinNode); joined {
 			frame := inputFrame
 			if join.Frame != 0 {
@@ -155,8 +155,8 @@ func ruleQueryProducerDemand(root plan.Node, external func(func(expr.Expr)), tar
 			collect(left, offset, 0, inputFrame)
 			collect(right, offset, 0, inputFrame)
 		}
-		queryExpressions(node, func(expression expr.Expr) {
-			walkDemandedBoundExpression(expression, func(node expr.Expr) {
+		plan.QueryExpressions(node, func(expression expr.Expr) {
+			plan.WalkDemandedExpression(expression, func(node expr.Expr) {
 				if subquery, ok := node.(plan.SubqueryExpr); ok && !subquery.CTEEdge && subquery.QueryPlan != nil {
 					collect(subquery.QueryPlan.Root, 0, 0, 1)
 				}
@@ -190,7 +190,7 @@ func ruleQueryProducerDemand(root plan.Node, external func(func(expr.Expr)), tar
 	var observe func(plan.Node)
 	var inspect func(expr.Expr, int)
 	inspect = func(expression expr.Expr, prefix int) {
-		walkDemandedBoundExpression(expression, func(node expr.Expr) {
+		plan.WalkDemandedExpression(expression, func(node expr.Expr) {
 			if column, ok := node.(plan.ColumnExpr); ok {
 				for _, item := range producers {
 					slot := column.Slot - prefix - item.offset
@@ -226,8 +226,8 @@ func ruleQueryProducerDemand(root plan.Node, external func(func(expr.Expr)), tar
 				inspect(expression, 0)
 			}, observe)
 		default:
-			queryExpressions(node, func(expression expr.Expr) { inspect(expression, 0) })
-			left, right := queryInputs(node)
+			plan.QueryExpressions(node, func(expression expr.Expr) { inspect(expression, 0) })
+			left, right := plan.QueryInputs(node)
 			observe(left)
 			observe(right)
 		}
@@ -286,14 +286,14 @@ func ruleQueryProducerDemand(root plan.Node, external func(func(expr.Expr)), tar
 			return node, nil
 		}
 		copy := *pruned[project]
-		child, err := rewriteQueryExpressions(copy.Child, identity, rewrite)
+		child, err := plan.RewriteQueryExpressions(copy.Child, identity, rewrite)
 		if err != nil {
 			return nil, err
 		}
 		copy.Child = child
 		return &copy, nil
 	}
-	return rewriteQueryExpressions(root, identity, rewrite)
+	return plan.RewriteQueryExpressions(root, identity, rewrite)
 }
 
 // Mutation consumers live outside their FROM/USING query root. Pass those real

@@ -216,7 +216,7 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 				t.Fatal("later direct identity omitted")
 			}
 			// Copy-on-change must not alter the original direct slice.
-			rewritten, err := rewriteQueryExpressions(aggregate, func(expr expr.Expr) (expr.Expr, bool, error) {
+			rewritten, err := plan.RewriteQueryExpressions(aggregate, func(expr expr.Expr) (expr.Expr, bool, error) {
 				if b.sameGroupExpression(expr, call.Direct[48]) {
 					return call.Direct[0], true, nil
 				}

@@ -23,7 +23,7 @@ func defaultReplayDeferrable(definition catalog.ColumnDefault) bool {
 	}
 	if closedSequenceDefault(node) {
 		eligible, captured := true, false
-		walkBoundExpression(node, func(child expr.Expr) {
+		plan.WalkExpression(node, func(child expr.Expr) {
 			if call, ok := child.(functions.SequenceCall); ok {
 				captured = true
 				if !slices.Contains(definition.Dependencies, call.Ref) {
@@ -44,7 +44,7 @@ func defaultReplayDeferrable(definition catalog.ColumnDefault) bool {
 		return true
 	}
 	captured := false
-	walkBoundExpression(node, func(child expr.Expr) {
+	plan.WalkExpression(node, func(child expr.Expr) {
 		literal, ok := child.(plan.LiteralExpr)
 		if ok && literal.RegclassRef != (ids.ObjectRef{}) &&
 			literal.RegclassRef.Address.ClassID == ids.RelationClassID && literal.RegclassRef.Address.SubID == 0 &&

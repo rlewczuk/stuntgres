@@ -281,7 +281,7 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 		if mapped == original {
 			return original, nil
 		}
-		result, err := rewriteQueryExpressions(mapped, mapper.expression, func(child plan.Node) (plan.Node, error) {
+		result, err := plan.RewriteQueryExpressions(mapped, mapper.expression, func(child plan.Node) (plan.Node, error) {
 			if child == mapped {
 				return child, nil
 			}
@@ -303,7 +303,7 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 		if mapped := nodes[root]; mapped != nil {
 			return mapped, nil
 		}
-		mapped, err := rewriteQueryExpressions(root, mapper.expression, rewriteNode)
+		mapped, err := plan.RewriteQueryExpressions(root, mapper.expression, rewriteNode)
 		if err != nil {
 			return nil, err
 		}

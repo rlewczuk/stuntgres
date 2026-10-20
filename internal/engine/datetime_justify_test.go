@@ -29,7 +29,7 @@ func TestDatetimeJustifyBindingPropertiesRemap(t *testing.T) {
 		}
 		previous = e
 		var walked []expr.Expr
-		boundExpressionChildren(e, func(child expr.Expr) { walked = append(walked, child) })
+		plan.ExpressionChildren(e, func(child expr.Expr) { walked = append(walked, child) })
 		if len(walked) != 1 || walked[0] != e.Arg {
 			t.Fatal("unary traversal", walked)
 		}

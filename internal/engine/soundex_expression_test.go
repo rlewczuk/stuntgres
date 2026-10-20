@@ -56,7 +56,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 				t.Fatal(refs, err)
 			}
 			var children []expr.Expr
-			boundExpressionChildren(n, func(child expr.Expr) { children = append(children, child) })
+			plan.ExpressionChildren(n, func(child expr.Expr) { children = append(children, child) })
 			if !reflect.DeepEqual(children, n.Args) || !sameGroupExpression(n, n) {
 				t.Fatal(children)
 			}

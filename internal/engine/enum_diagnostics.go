@@ -270,19 +270,19 @@ func (b *expressionBinder) captureRetainedWriteInput(defaults []expr.Expr, gener
 		failure = captureRetainedExpressionInput(node, b.captureElementInput, b.captureTypeDiagnosticInput)
 	}
 	for _, node := range defaults {
-		walkBoundExpression(node, visit)
+		plan.WalkExpression(node, visit)
 		if failure != nil {
 			return failure
 		}
 	}
 	for _, definition := range generations {
-		walkBoundExpression(definition.Planned, visit)
+		plan.WalkExpression(definition.Planned, visit)
 		if failure != nil {
 			return failure
 		}
 	}
 	for _, definition := range checks {
-		walkBoundExpression(definition.Expression, visit)
+		plan.WalkExpression(definition.Expression, visit)
 		if failure != nil {
 			return failure
 		}

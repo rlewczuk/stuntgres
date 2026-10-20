@@ -117,7 +117,7 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 						return n.Expressions[slot-n.Base]
 					}
 				}
-				root, _ = queryInputs(root)
+				root, _ = plan.QueryInputs(root)
 			}
 			t.Fatal("missing actual cache-slot producer", tc.name, slot)
 			return nil
@@ -166,7 +166,7 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 		// consume an earlier slot. This exercises transitive cache authority,
 		// not only directly referenced final projection slots.
 		identity := func(expression expr.Expr) (expr.Expr, bool, error) { return expression, false, nil }
-		chained, err := rewriteQueryExpressions(project.Child, identity, func(node plan.Node) (plan.Node, error) {
+		chained, err := plan.RewriteQueryExpressions(project.Child, identity, func(node plan.Node) (plan.Node, error) {
 			switch n := node.(type) {
 			case *plan.SortNode:
 				base := n.CacheWidth - len(n.Outputs)

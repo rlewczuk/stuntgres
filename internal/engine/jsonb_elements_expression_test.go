@@ -67,7 +67,7 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 			t.Fatal(err)
 		}
 		replacement := queryProbe(arg.ResultUsage(), func(*EvalContext) (sqltype.Value, error) { return replacementValue, nil })
-		rewritten, err := rewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
+		rewritten, err := plan.RewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
 			if n == original.Args[0] {
 				return replacement, true, nil
 			}

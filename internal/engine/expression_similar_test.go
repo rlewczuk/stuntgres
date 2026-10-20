@@ -63,7 +63,7 @@ func TestSimilarDependencyChildren(t *testing.T) {
 	extraction := functions.SimilarSubstring{Info: expr.Info{Usage: text.Usage()}, Args: [3]expr.Expr{source, pattern, escape}}
 	for _, node := range []expr.Expr{predicate, extraction} {
 		var slots []int
-		walkBoundExpression(node, func(n expr.Expr) {
+		plan.WalkExpression(node, func(n expr.Expr) {
 			if column, ok := n.(plan.ColumnExpr); ok {
 				slots = append(slots, column.Slot)
 			}

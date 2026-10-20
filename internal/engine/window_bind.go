@@ -677,7 +677,7 @@ func (b *expressionBinder) finishWindows(root plan.Node, keys []expr.Expr, group
 
 func windowOccurrence(bound expr.Expr) *plan.WindowExpr {
 	var found *plan.WindowExpr
-	walkBoundExpression(bound, func(child expr.Expr) {
+	plan.WalkExpression(bound, func(child expr.Expr) {
 		if e, ok := child.(*plan.WindowExpr); ok && found == nil {
 			found = e
 		}
