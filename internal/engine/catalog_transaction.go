@@ -29,8 +29,7 @@ type catalogChanges struct {
 	extensionAuthority  []extensionAuthorityObservation
 	cachedBase          *catalog.State
 	cached              catalog.Read
-	enumCreated         map[ids.ObjectAddress]bool // CREATE at top transaction level only.
-	enumUnsafe          map[int64]bool             // Globally nonreused member identities.
+	enum                *enumJournal
 	rolesBase           *access.RoleRecord
 	roles               *access.RoleRecord
 	retiredRoles        map[authorization.PrincipalRef]struct{}
@@ -40,8 +39,7 @@ type catalogChanges struct {
 	readFences          []partitionReadFence
 	truncateFences      []truncateGraphFence
 	materializedSources []materializedSourceFence
-	domainValidations   []*domainValidationFence
-	domainIndexRoots    map[ids.ObjectAddress]*storage.IndexRoot
+	domain              *domainJournal
 	domainChanged       bool
 }
 
@@ -54,18 +52,7 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 		return n
 	}
 	cloneDefaultChanges(c, n)
-	if c.enumCreated != nil {
-		n.enumCreated = make(map[ids.ObjectAddress]bool, len(c.enumCreated))
-		for a, v := range c.enumCreated {
-			n.enumCreated[a] = v
-		}
-	}
-	if c.enumUnsafe != nil {
-		n.enumUnsafe = make(map[int64]bool, len(c.enumUnsafe))
-		for id, v := range c.enumUnsafe {
-			n.enumUnsafe[id] = v
-		}
-	}
+	n.enum = c.enum.clone()
 	for a, d := range c.originals {
 		n.originals[a] = d
 	}
@@ -114,13 +101,7 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	n.readFences = append(n.readFences, c.readFences...)
 	n.truncateFences = append(n.truncateFences, c.truncateFences...)
 	n.extensionAuthority = append(n.extensionAuthority, c.extensionAuthority...)
-	n.domainValidations = append(n.domainValidations, c.domainValidations...)
-	if c.domainIndexRoots != nil {
-		n.domainIndexRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(c.domainIndexRoots))
-		for address, root := range c.domainIndexRoots {
-			n.domainIndexRoots[address] = root
-		}
-	}
+	n.domain = c.domain.clone()
 	return n
 }
 

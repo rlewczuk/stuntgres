@@ -36,18 +36,20 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 			use.versions = use.storage.Versions[:len(use.storage.Versions):len(use.storage.Versions)]
 			use.ends, use.generation = use.storage.Ends, use.storage.Generation
 		}
-		changes.domainValidations = append(changes.domainValidations, committed)
+		journal := changes.domainWritable()
+		journal.validations = append(journal.validations, committed)
 	}
 	if len(stage.domainAlter.alteredIndexRoots()) != 0 {
-		changes.domainIndexRoots = maps.Clone(changes.domainIndexRoots)
-		if changes.domainIndexRoots == nil {
-			changes.domainIndexRoots = make(map[ids.ObjectAddress]*storage.IndexRoot)
+		journal := changes.domainWritable()
+		journal.indexRoots = maps.Clone(journal.indexRoots)
+		if journal.indexRoots == nil {
+			journal.indexRoots = make(map[ids.ObjectAddress]*storage.IndexRoot)
 		}
 		for address, root := range stage.domainAlter.alteredIndexRoots() {
 			if e.domainStageIndexRootLocked(stage, address) != root {
 				return catalog.Conflict{}
 			}
-			changes.domainIndexRoots[address] = e.storage.IndexRoots[address]
+			journal.indexRoots[address] = e.storage.IndexRoots[address]
 		}
 	}
 	return nil

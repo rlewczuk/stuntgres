@@ -30,13 +30,14 @@ func domainAlterMessagePromotion(t *testing.T) {
 					t.Fatal(q, err)
 				}
 			}
-			if s.transactions.ref != ref || s.transactions.ticket != ticket || s.transactions.start != start || s.transactions.state != TxActive || len(s.transactions.catalog.domainValidations) != 1 {
+			if s.transactions.ref != ref || s.transactions.ticket != ticket || s.transactions.start != start || s.transactions.state != TxActive || len(s.transactions.catalog.domain.validationFences()) != 1 {
 				t.Fatal("promotion lost original ownership/observation")
 			}
-			observation := s.transactions.catalog.domainValidations[0]
+			observation := s.transactions.catalog.domain.validationFences()[0]
 			clone := cloneCatalogChanges(s.transactions.catalog)
-			clone.domainValidations = append(clone.domainValidations, observation)
-			if len(s.transactions.catalog.domainValidations) != 1 {
+			journal := clone.domainWritable()
+			journal.validations = append(journal.validations, observation)
+			if len(s.transactions.catalog.domain.validationFences()) != 1 {
 				t.Fatal("clone mutated sibling observation slice")
 			}
 			_, failure := message.step(statement(t, "SELECT missing"))
@@ -44,7 +45,7 @@ func domainAlterMessagePromotion(t *testing.T) {
 				t.Fatal("promoted primary/recovery disposition", failure)
 			}
 			sessionSQL(t, s, "ROLLBACK TO keep_prefix")
-			if len(s.transactions.catalog.domainValidations) != 1 || s.transactions.catalog.domainValidations[0] != observation {
+			if len(s.transactions.catalog.domain.validationFences()) != 1 || s.transactions.catalog.domain.validationFences()[0] != observation {
 				t.Fatal("savepoint recovery lost passive observation")
 			}
 			sessionSQL(t, s, "INSERT INTO public.stored VALUES(3)")

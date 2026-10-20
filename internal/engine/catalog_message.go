@@ -30,12 +30,12 @@ func (e *Engine) stageStorageLocked(s *CatalogStage, a ids.ObjectAddress) *stora
 	return e.storage.Relations[a]
 }
 func (e *Engine) catalogReadPreflightLocked(c *catalogChanges) error {
-	for _, fence := range c.domainValidations {
+	for _, fence := range c.domain.validationFences() {
 		if !fence.current(e.catalog.read(e.catalog.state), e.storage.Relations) {
 			return catalog.Conflict{}
 		}
 	}
-	for address, root := range c.domainIndexRoots {
+	for address, root := range c.domain.committedIndexRoots() {
 		if e.storage.IndexRoots[address] != root {
 			return catalog.Conflict{}
 		}

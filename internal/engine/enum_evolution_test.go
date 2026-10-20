@@ -16,23 +16,22 @@ import (
 func TestEnumProvenanceSavepoints(t *testing.T) {
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 45000}
 	outer := newCatalogChanges()
-	outer.enumCreated = map[ids.ObjectAddress]bool{address: true}
-	outer.enumUnsafe = map[int64]bool{9: true}
+	outer.enum = &enumJournal{created: map[ids.ObjectAddress]bool{address: true}, unsafe: map[int64]bool{9: true}}
 	child := cloneCatalogChanges(outer)
-	child.enumUnsafe[10] = true
-	delete(child.enumCreated, address)
-	if outer.enumUnsafe[10] || !outer.enumCreated[address] {
+	child.enum.unsafeMembers()[10] = true
+	delete(child.enum.createdTypes(), address)
+	if outer.enum.unsafeMembers()[10] || !outer.enum.createdTypes()[address] {
 		t.Fatal("provenance clone mutated mark")
 	}
 	owner := &transactionOwner{catalog: outer}
 	mark := savepointMark{catalog: owner.catalog}
 	owner.catalog = child
 	// RELEASE retains child roots; ROLLBACK restores the exact marked root.
-	if enumSafety(owner.catalog.enumUnsafe)(45000, 10) {
+	if enumSafety(owner.catalog.enum.unsafeMembers())(45000, 10) {
 		t.Fatal("child unsafe member upgraded")
 	}
 	owner.catalog = mark.catalog
-	if !enumSafety(owner.catalog.enumUnsafe)(45000, 10) || enumSafety(owner.catalog.enumUnsafe)(45000, 9) {
+	if !enumSafety(owner.catalog.enum.unsafeMembers())(45000, 10) || enumSafety(owner.catalog.enum.unsafeMembers())(45000, 9) {
 		t.Fatal("rollback provenance")
 	}
 }
