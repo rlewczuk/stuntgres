@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `9a68139e7`. The later-wave plans
+Last verified against `master` at `fe9498916`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -16,7 +16,9 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 as another broad item (§8).
 
 - **Step 14 `routine`** — 14d, DDL handlers moved (item 47).
-- **Step 15 `typedef`** — 15c, refine (item 48; docs only).
+- **Step 15 `typedef`** — 15d, DDL handlers moved (item 49). Shares
+  `schemaHost` and `schema.go` with 14d (item 47): run them one after the
+  other, or rebase the second onto the first.
 - **Step 16 `extension`** — 16d.1, staging (item 51a).
 - **Step 17 `sequence`** — 17d, handler decisions (item 53).
 - **Postponed packages** — planning round (item 54; docs only).
@@ -27,6 +29,8 @@ with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
 16c (item 50) is done: 16d runs as 16d.1 and 16d.2 (items 51a, 51b).
 14c (item 46) is done: 14d (item 47) runs as one session.
 17c (item 52) is done: 17d moves the decisions in one session (item 53).
+15c (item 48) is done: 15d (item 49) runs as one session on 14c's
+`schemaHost`.
 
 ## Task tree
 
@@ -352,7 +356,8 @@ with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
   - [x] 15b — `typedef` created and clean set moved (`d4d99a162`,
     `5d3f4af95`, `b67b62d22`, then the docs commit) *(racecheck/finalcheck
     skipped at user request)*
-  - [ ] 15c — Host refined (docs only)
+  - [x] 15c — Host refined (docs: the commit that records this status)
+    *(racecheck/finalcheck skipped at user request)*
   - [ ] 15d — DDL handlers moved
 - [ ] **Step 16 — `extension`** ([prompt](ENGINE-SPLIT-extension.md); Part A
   needs 15b; Part B needs 13d)
@@ -642,8 +647,11 @@ in the prompt file's Status section.
     opaque value, dumps wait for a dump seam; 14d is one session ·
     quickcheck passed; racecheck/finalcheck skipped at user request
 47. [ ] Routine 14d — [routine](ENGINE-SPLIT-routine.md) 14d · needs 46
-48. [ ] Typedef 15c (refine, docs only) — [typedef](ENGINE-SPLIT-typedef.md)
-    15c · needs 44, 27
+48. [x] Typedef 15c (refine, docs only) — [typedef](ENGINE-SPLIT-typedef.md)
+    15c · needs 44, 27 · (docs: the commit that records this status) ·
+    `typedef.StageHost` on 14c's `schemaHost`, authority as a value; stage
+    handlers and two staging cores move, executors stay · quickcheck passed;
+    racecheck/finalcheck skipped at user request
 49. [ ] Typedef 15d — [typedef](ENGINE-SPLIT-typedef.md) 15d · needs 48
 50. [x] Extension 16c (refine, docs only) —
     [extension](ENGINE-SPLIT-extension.md) 16c · needs 44, 29 · (the docs

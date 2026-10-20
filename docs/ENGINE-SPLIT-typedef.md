@@ -181,9 +181,161 @@ enums and composites; `executeAlterDomain`, `executeEnumDDL`,
 `acquireTypedSources`; `collation_temporary.go`; `type_generation.go`;
 domain index generations. Wait for approval.
 
+**15c refine (approved; measured at `1f606f52d`).** The `frontier` tool
+(`.cswd/tmp/PG18-ENGINE-SPLIT-EXEC-REFINE/frontier`; outputs in
+`.cswd/tmp/PG18-ENGINE-SPLIT-TYPEDEF-REFINE/`) over the 17 files named above
+(`collation_ddl.go`, `collation_temporary.go`, `conversion_ddl.go`,
+`domain.go`, `domain_alter.go`, `domain_alter_indexes.go`,
+`domain_alter_message.go`, `enum.go`, `enum_ddl.go`, `enum_generation.go`,
+`composite.go`, `typed_type_alter.go`, `typed_type_drop.go`,
+`typed_table.go`, `typed_mutation.go`, `typed_control.go`,
+`type_generation.go`) reports 185 engine declarations used by the set and
+31 set declarations used from outside it. The code falls into three groups:
+
+- **Stage handlers** run under `Engine.mu` on `(op, AuthorizationView,
+  *CatalogStage)` with no scope (`schema.go` dispatch, CREATE SCHEMA
+  elements): CREATE/ALTER/DROP COLLATION and CONVERSION, CREATE/DROP
+  DOMAIN, CREATE TYPE AS ENUM, CREATE/DROP TYPE (composite). Their whole
+  reach is a small set of facilities: authority checks, OID, revision and
+  enum-member allocation, stage create/replace/lookup and its dependency
+  fields (`domainTargets`, `domainBases`, `dependencyPath`), name
+  resolution (`lookupNamespaces` returns `analyze` types), type and
+  collation resolution, domain default and check binding, the row-type
+  helpers of `row_type.go` (shared with tables), the trusted-restore guard
+  and notices.
+- **Self-orchestrating executors**: `executeEnumDDL`, `executeAlterDomain`,
+  `executeAlterComposite`, `alterTableOfLocked`. Each takes `Engine.mu` in
+  several windows, waits on the lock manager (`scope.acquireSequence`),
+  validates rows (`exec.Context`) and publishes (`ValidateCatalogStage`,
+  `publishCatalogOperation`). ALTER TYPE (composite) and ALTER TABLE OF also
+  use the ALTER TABLE machinery (`alterTypeCandidate`, `addColumnCandidate`,
+  `rewriteTypeRows`, `rebuildAlterUniquesLocked`/`ExclusionsLocked`,
+  `addedColumn`, `columnTransformation`).
+- **Publication and lifecycle code**: `reownStagedTypeGenerationsLocked`
+  (5 production callers: `catalog.go`, `view.go`, `query_table_create.go`,
+  `row_type.go`, `enum_ddl.go`); `stageDomainIndexGenerationsLocked` (index
+  snapshots and root candidates); `captureDomainStageLocked` and
+  `reownDomainOverlayRows` (journal capture and overlay);
+  `adoptEnumGenerationsLocked` (row shapes, projections);
+  `acquireTypedSources` (a lock-manager wait on the scope);
+  `endTemporaryCollations` and `removeTemporaryNamespaceCandidate` (session
+  end of a TEMP namespace: a maintenance session, a full statement,
+  publication); `collationCreationNamespaceLocked` (a general staged
+  creation-namespace helper, also used by operators, SQL routines and
+  conversions).
+
+Decisions:
+
+1. **Stage handlers move behind a host on 14c's `schemaHost`.** The stage
+   handlers are dispatched by the same `stageSchemaLocked` switch as the
+   operator and CREATE FUNCTION staging, so `typedef` uses the routine 14c
+   shape rather than a second adapter: `typedef` declares `Authority`,
+   `StageHost` and `Stage`, and the root `schemaHost` (engine, operation,
+   catalog stage; scope-free, §7 decision 8) implements `StageHost` with one
+   more compile-time assertion. Whichever of 14d and 15d lands first creates
+   `schemaHost`; the other adds its interface. `executeEnumDDL` and
+   `executeAlterDomain` build one for their staging calls. Every method runs
+   with `Engine.mu` held, and none waits on the lock manager or takes or
+   releases a lock.
+2. **Authority is a value, as in 14c.** `typedef.Authority` is
+   `access.Environment` plus the marker `TypedefAuthority()`;
+   `AuthorizationView` implements it with value receivers and one checked
+   helper recovers it. Handlers keep it by value, and host methods that
+   change an authority return a new value: `schema.go` passes
+   `AuthorizationView` by value and `collationCreationNamespaceLocked`
+   recaptures only the caller's copy. **Host methods** (about 30; 15d
+   settles the final names, reusing the 14d names for the same root
+   function):
+
+   | Group | Methods |
+   |---|---|
+   | Authority | `AccessView(auth) access.View`; `Check(auth, access.Requirement)` (covers `CanUse` and `CheckCreate`); `CheckCreateIn(auth, namespace)` (today's `conversionCheckCreate`, CREATE with the trusted Restore exception; shared with 14d); `TrustedRestoreDestination(auth, what) (bool, error)` (replay `tableDestination` plus the bootstrap/import-targets guard) |
+   | Operation | `Context()`, `EmitNotice(session.NoticeLevel, sqlstate.Error)` |
+   | Identity | `AllocateOID`, `Revision`, `AllocateEnumMember` |
+   | Stage | `Stage() Stage` (`Create`, `Replace`, `Get`, `LookupName`; `*CatalogStage` satisfies it, so lifecycle checks stay); `StageRead()`; `ReplaceUnsynchronized`; `CreationTypeACL(owner, schema)`; `AddDomainBase`; `DropTarget(address)`; `RecordDependencyPath(auth)`; `RemoveDomainCheck` |
+   | Resolution | `CreationNamespace(auth, name) (ids.ObjectRef, error)` (`creationNamespace`); `StagedCreationNamespace(auth, name) (ids.ObjectRef, Authority, error)` (`collationCreationNamespaceLocked`, may stage implicit namespaces; 14d's `CreationNamespace`); `SearchNamespaces(auth, name, ids.ClassID)` (the root maps the class to `analyze.LookupKind`); `NamedType`, `FindCollation`; `ResolveType`, `ResolveDomainBase`, `ResolveColumnCollation` |
+   | Binding | `BindDomainDefault(auth, d, raw, input, output)`, `BindDomainChecks(auth, d, raw, input)` |
+   | Row types | `DisplaceAssociatedArray`, `AssociatedArrayName`, `NewCompositeRelation`, `StageRowType` |
+   | Diagnostics | `DependencyObject(auth, address)` |
+
+   Resolution and binding stay binder-owned, so `typedef` never names
+   `analyze`. Object refs need no host: `view.Owner.Domain` is the engine's
+   `e.catalog.Domain` (`authorizationLocked` sets `Owner`). `Authority`,
+   `Stage` and the shared host methods repeat routine's shape because
+   feature packages do not import each other (§3 rule 6); if a third
+   consumer appears, move them into a lower package instead of copying.
+3. **Move set (about 1.06k lines):** the stage-handler files
+   `collation_ddl.go` (with `collationVersionWarning` and
+   `findUtilityCollation`), `conversion_ddl.go` (without
+   `conversionCheckCreate`), `domain.go`, `enum.go`, `composite.go` and
+   `typed_type_drop.go` (946 lines); and two staging cores, extracted in
+   place first:
+   - ALTER ENUM label editing from `executeEnumDDL` (about 65 lines). It
+     returns the new member identity or "skipped"; the enum journal's
+     `Unsafe`/`Created` updates stay in the root.
+   - ALTER DOMAIN constraint staging from `executeAlterDomain` (the action
+     switch through `ReplaceUnsynchronized`, about 50 lines). It returns
+     `next`, `selected`, `validating` or "skipped".
+4. **Stays in the root:**
+   - executor orchestration (`executeEnumDDL`, `executeAlterDomain`) and the
+     resolvers `resolveAlterEnumLocked`/`resolveAlterDomainLocked`: lock
+     windows, lock-manager waits, row validation and publication are root
+     work (§3 rule 4);
+   - `executeAlterComposite`, `typed_mutation.go`, `alterTableOfLocked`,
+     `acquireTypedSources` and `typed_control.go`: ALTER TABLE and
+     inheritance records (postponed `table`/`inheritance`);
+   - `type_generation.go`, `enum_generation.go`: shared publication-time
+     reownership;
+   - `domain_alter_indexes.go`: domain index generations (postponed `index`);
+   - `domain_alter_message.go`: journal capture;
+   - `collation_temporary.go`: session-end TEMP lifecycle and the shared
+     creation-namespace helper;
+   - unchanged from 15b: the dump seam (collation, conversion and composite
+     dump statements, `domainDumpStatement`, type-declaration rendering,
+     `operator_dump.go`) and `typeProvider.Validate` (the stored-SQL
+     rendering seam). Both go to the item 54 planning round; no new item.
+5. **Layering.** `typedef` adds `access` (L4) and `pgcatalog` (L5, for
+   `CollationActualVersion`) to its imports. It never imports `analyze`,
+   `exec`, `routine` or the engine. 15d adds no aliases.
+6. **One 15d session (item 49).** See 15d below.
+7. **Risks.** The authority stays a per-call value; a host that held one
+   mutable view would change diagnostics. Diagnostics stay byte-identical,
+   including the cleared positions in the utility lookups. No host method
+   waits or locks. 14d and 15d share `schemaHost` and its root functions;
+   rebase whichever runs second onto the other.
+
 ### 15d — Move the DDL handlers
 
-Follow 15c. Remove the remaining aliases.
+Follow the 15c refine. One session, these commits:
+
+1. **Seam.** `typedef/stage_host.go` (`Authority`, `StageHost`, `Stage`
+   and the lock contract), the `TypedefAuthority` marker on
+   `AuthorizationView`, and `schemaHost`'s `typedef.StageHost` methods (or
+   `schemaHost` itself if 14d has not landed). Seam unit tests first,
+   observed failing: `StagedCreationNamespace` returns a recaptured
+   authority and leaves its argument unchanged; `Stage().Create` on a closed
+   stage fails; `SearchNamespaces` maps classes to lookup kinds and rejects
+   an unknown class.
+2. **Port in place.** The stage handlers become
+   `func stage...Locked(h typedef.StageHost, auth typedef.Authority, s
+   *parser....) error` in the engine, naming no `Engine`,
+   `AuthorizationView`, `CatalogStage` or `Operation`. `stageSchemaLocked`
+   passes its `schemaHost`; `executeEnumDDL` builds one.
+   The 18 engine test call sites (8 files: `collation_catalog_test.go`,
+   `conversion_*_test.go`, `domain_test.go`, `enum_test.go`, `array_test.go`,
+   `default_privileges_authority_test.go`) are adapted mechanically.
+3. **Cores.** Extract the ALTER ENUM and ALTER DOMAIN staging cores in place.
+4. **Move.** Move the files with `movex`, export the entry points
+   (`StageCreateCollationLocked`, ...) and qualify the call sites.
+5. **Unexport** the `typedef` names that nothing outside the package uses
+   any more.
+6. **Docs.** typedef README (host and lock contract, what stays), this
+   Status section, the status page, ENGINE-SPLIT §6/§8.
+
+Checks: `make build` after every commit; targeted engine and `typedef`
+units; the 625-test 15a reference selection in quick mode and with
+`REFERENCE=1`; `make quickcheck`; `make deps`; the `go list` layering check.
+No bench: startup is not touched.
 
 ## Invariants
 
@@ -336,7 +488,18 @@ Part B: the type DDL handlers live in `typedef`. The checks in §8.3 pass.
     sides from 852 to 1,476 µs/op; 5,025 allocs/op and about 1.64 MB/op on
     both. The move does not change allocations; the time difference is host
     noise. Racecheck and finalcheck skipped at user request.
-- [ ] 15c — Host refined (docs only; after 13d)
+- [x] 15c — Host refined (docs only; the commit that records this status)
+  *(racecheck/finalcheck skipped at user request)*
+  - Measured at `1f606f52d` with the `frontier` tool; the "15c refine"
+    under Part B is the approved plan: `typedef.StageHost` on 14c's
+    scope-free root `schemaHost`, authority as a value; the stage handlers
+    and two staging cores move (about 1.06k lines), executors and
+    publication code stay.
+  - Deviation: the approved draft named a new adapter `catalogStageHost`
+    holding one authority copy. Routine 14c, merged first, settled
+    `schemaHost` with authority as a per-call value for the same
+    `stageSchemaLocked` dispatch, so 15c reuses it instead of forking it.
+  - Verification: `make quickcheck` passed; docs only, so no reference run.
 - [ ] 15d — DDL handlers moved
 
 Outstanding aliases: none (15b qualified every reference; no type aliases).
@@ -352,12 +515,22 @@ Notes for later steps:
   accessors on `CatalogStage` and `catalogChanges` (`domainAlterState`,
   `typedState`, `domainWritable`, `enumWritable`) stay in the engine until
   13d, or become typedef functions taking the slot.
-- 15c/15d: the collation, conversion and composite dump statements,
+- The collation, conversion and composite dump statements,
   `domainDumpStatement` and type-declaration rendering need a dump seam (a
   dump record below the engine, and the definition reader and reg*
   formatters behind an interface); `operator_dump.go` waits for the same
   seam (routine prompt file). `typeProvider` waits for the stored-SQL
-  rendering seam.
+  rendering seam. 15c leaves both out of 15d: plan them in the item 54
+  round (`control` owns Dump/Restore).
+- 14d/15d both build on `schemaHost` and share root functions
+  (`collationCreationNamespaceLocked`, `conversionCheckCreate`,
+  `dependencyObject`). 16c's `extensionHost` stays separate (installers
+  capture one view). If a third package needs `Authority`/`Stage`, move
+  them down instead of copying.
+- `collation_temporary.go` holds session-end TEMP cleanup and
+  `collationCreationNamespaceLocked`, a general staged creation-namespace
+  helper (operators, routines, conversions). Rename both when a later step
+  touches them.
 - 13a/13b: `conversionDefault` stayed in the engine as the
   `StatementScope` presentation cache record; move it with that slot.
 - When the DDL handlers move, unexport the `typedef` names that nothing
