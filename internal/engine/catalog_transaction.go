@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"maps"
-	"stuntgres/internal/engine/extension"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
@@ -18,32 +17,27 @@ import (
 // Transactional descriptors, row shapes and generators share one private overlay.
 // Original descriptors/name bindings are commit preconditions, not undo data.
 type catalogChanges struct {
-	originals           map[ids.ObjectAddress]catalog.Descriptor
-	descriptors         map[ids.ObjectAddress]catalog.Descriptor
-	names               map[ids.NameKey]ids.ObjectAddress
-	defaultACLs         map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
-	defaultOriginals    map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
-	defaultReads        map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
-	generators          map[ids.ObjectAddress]*storage.SequenceGenerator
-	storage             map[ids.ObjectAddress]catalogStorageChange
-	uniqueRoots         map[ids.ObjectAddress]*storage.IndexRoot
-	indexCandidates     map[ids.ObjectAddress]indexRootCandidate // Private produced DDL roots and their exact baseline pins.
-	dependencies        []catalogDependencyObservation
-	extensionAuthority  []extension.AuthorityObservation
-	cachedBase          *catalog.State
-	cached              catalog.Read
-	enum                *typedef.EnumJournal
-	rolesBase           *access.RoleRecord
-	roles               *access.RoleRecord
-	retiredRoles        map[authorization.PrincipalRef]struct{}
-	indexRebuilds       map[ids.ObjectAddress]*catalog.Relation
-	indexFences         []catalogIndexFence
-	namespaceFences     []catalogNamespaceFence
-	readFences          []partitionReadFence
-	truncateFences      []truncateGraphFence
-	materializedSources []materializedSourceFence
-	domain              *typedef.DomainJournal
-	domainChanged       bool
+	originals        map[ids.ObjectAddress]catalog.Descriptor
+	descriptors      map[ids.ObjectAddress]catalog.Descriptor
+	names            map[ids.NameKey]ids.ObjectAddress
+	defaultACLs      map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
+	defaultOriginals map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
+	defaultReads     map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
+	generators       map[ids.ObjectAddress]*storage.SequenceGenerator
+	storage          map[ids.ObjectAddress]catalogStorageChange
+	uniqueRoots      map[ids.ObjectAddress]*storage.IndexRoot
+	indexCandidates  map[ids.ObjectAddress]indexRootCandidate // Private produced DDL roots and their exact baseline pins.
+	dependencies     []catalogDependencyObservation
+	cachedBase       *catalog.State
+	cached           catalog.Read
+	enum             *typedef.EnumJournal
+	rolesBase        *access.RoleRecord
+	roles            *access.RoleRecord
+	retiredRoles     map[authorization.PrincipalRef]struct{}
+	indexRebuilds    map[ids.ObjectAddress]*catalog.Relation
+	fences           []catalogFence // Feature commit preconditions, in recording order.
+	domain           *typedef.DomainJournal
+	domainChanged    bool
 }
 
 func newCatalogChanges() *catalogChanges {
@@ -84,7 +78,6 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 		}
 	}
 	n.dependencies = append(n.dependencies, c.dependencies...)
-	n.materializedSources = append(n.materializedSources, c.materializedSources...)
 	n.rolesBase, n.roles = c.rolesBase, c.roles
 	if len(c.retiredRoles) != 0 {
 		n.retiredRoles = make(map[authorization.PrincipalRef]struct{}, len(c.retiredRoles))
@@ -99,11 +92,7 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 			n.indexRebuilds[a] = d
 		}
 	}
-	n.indexFences = append(n.indexFences, c.indexFences...)
-	n.namespaceFences = append(n.namespaceFences, c.namespaceFences...)
-	n.readFences = append(n.readFences, c.readFences...)
-	n.truncateFences = append(n.truncateFences, c.truncateFences...)
-	n.extensionAuthority = append(n.extensionAuthority, c.extensionAuthority...)
+	n.fences = append(n.fences, c.fences...)
 	n.domain = c.domain.Clone()
 	return n
 }
@@ -242,28 +231,13 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	if err := e.catalogReadPreflightLocked(c); err != nil {
 		return err
 	}
-	// Extension scripts insert the database-wide row before their members.
-	// Preserve that public uniqueness diagnostic when a competing installation
-	// wins after this script's private snapshot; unrelated catalog fences retain
-	// the central publication-conflict contract.
-	if len(c.extensionAuthority) != 0 {
-		for key, original := range c.names {
-			if key.ClassID == ids.ExtensionClassID && original == (ids.ObjectAddress{}) && e.catalog.state.NameAddress(key) != original {
-				return extension.NameConflict(key.Name)
-			}
-		}
-	}
-	for _, observation := range c.extensionAuthority {
-		if e.roles.published.Revision != observation.Roles || observation.Namespace == nil || observation.Database == nil ||
-			e.catalog.state.Get(observation.Namespace.Address()) != observation.Namespace ||
-			e.catalog.state.Get(observation.Database.Address()) != observation.Database {
-			return catalog.Conflict{}
-		}
+	if err := e.catalogFencesCurrentLocked(c, fenceExtensionAuthority); err != nil {
+		return err
 	}
 	if err := catalogDependencyPreflight(e.catalog.state, view.State(), c.dependencies, c.originals); err != nil {
 		return err
 	}
-	if err := e.truncateGraphPreflightLocked(c); err != nil {
+	if err := e.catalogFencesCurrentLocked(c, fenceTruncateGraph); err != nil {
 		return err
 	}
 	for a, shape := range c.storage {
@@ -272,10 +246,8 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 			return catalog.Conflict{}
 		}
 	}
-	for _, fence := range c.materializedSources {
-		if !e.materializedSourceFenceCurrent(fence) {
-			return catalog.Conflict{}
-		}
+	if err := e.catalogFencesCurrentLocked(c, fenceMaterializedSource); err != nil {
+		return err
 	}
 	for a, original := range c.originals {
 		if e.catalog.state.Get(a) != original {

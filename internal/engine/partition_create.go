@@ -279,6 +279,16 @@ type partitionReadFence struct {
 	generation uint64
 }
 
+func (partitionReadFence) fenceKind() catalogFenceKind { return fenceStorageRead }
+
+func (f partitionReadFence) currentLocked(e *Engine, _ *catalogChanges) error {
+	s := e.storage.Relations[f.address]
+	if s != f.storage || s != nil && (len(s.Versions) != f.length || s.Ends != f.ends || s.Generation != f.generation) {
+		return catalog.Conflict{}
+	}
+	return nil
+}
+
 func (e *Engine) partitionReadsValidLocked(stage *CatalogStage) bool {
 	for _, read := range stage.partitionReads {
 		current := e.stageStorageLocked(stage, read.address)

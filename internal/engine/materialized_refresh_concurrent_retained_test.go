@@ -65,7 +65,7 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 		t.Fatal("compatible publication rejected captured source")
 	}
 	changes := newCatalogChanges()
-	changes.materializedSources = []materializedSourceFence{fence}
+	changes.fences = []catalogFence{fence}
 	clone := cloneCatalogChanges(changes)
 	if err := e.catalogPreflightLocked(clone); err != nil {
 		t.Fatal("source-only retained fence rejected", err)

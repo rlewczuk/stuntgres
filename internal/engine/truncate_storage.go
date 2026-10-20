@@ -23,68 +23,65 @@ type truncateGraphFence struct {
 	sequences map[ids.ObjectAddress]*storage.SequenceGenerator // Immutable committed bindings; not counter undo.
 }
 
+func (truncateGraphFence) fenceKind() catalogFenceKind { return fenceTruncateGraph }
+
 // Catalog replacements do not have to honor SQL AX locks. Fence new inbound
 // FK/hierarchy edges as well as the exact selected descriptors and stores.
-func (e *Engine) truncateGraphPreflightLocked(c *catalogChanges) error {
-	if len(c.truncateFences) == 0 {
-		return nil
-	}
+func (fence truncateGraphFence) currentLocked(e *Engine, c *catalogChanges) error {
 	current := e.privateCatalogLocked(c)
-	for _, fence := range c.truncateFences {
-		if fence.restart {
-			for address, generator := range fence.sequences {
-				if e.storage.Sequences[address] != generator {
-					return catalog.Conflict{}
-				}
+	if fence.restart {
+		for address, generator := range fence.sequences {
+			if e.storage.Sequences[address] != generator {
+				return catalog.Conflict{}
 			}
-			for address, descriptor := range current.Descriptors() {
-				d, ok := descriptor.(*catalog.Relation)
-				if !ok || !truncateOwnsSequence(d, fence.targets) {
-					continue
-				}
-				if _, observed := fence.sequences[address]; observed {
-					continue
-				}
-				// Legitimate own subsequent CREATE/OWNED BY is not an incoming
-				// host edge. Its first committed predecessor is fenced by the
-				// ordinary originals check, including changes hidden by overlays.
-				if _, own := c.descriptors[address]; !own {
+		}
+		for address, descriptor := range current.Descriptors() {
+			d, ok := descriptor.(*catalog.Relation)
+			if !ok || !truncateOwnsSequence(d, fence.targets) {
+				continue
+			}
+			if _, observed := fence.sequences[address]; observed {
+				continue
+			}
+			// Legitimate own subsequent CREATE/OWNED BY is not an incoming
+			// host edge. Its first committed predecessor is fenced by the
+			// ordinary originals check, including changes hidden by overlays.
+			if _, own := c.descriptors[address]; !own {
+				return catalog.Conflict{}
+			}
+		}
+	}
+	for address, descriptor := range current.Descriptors() {
+		if descriptor == fence.base.Get(address) || fence.targets[address] != 0 {
+			continue
+		}
+		d, ok := descriptor.(*catalog.Relation)
+		if !ok {
+			continue
+		}
+		for _, fk := range d.Constraints.ForeignKeys {
+			if fence.targets[fk.Target] != 0 {
+				return catalog.Conflict{}
+			}
+		}
+		if d.Inheritance != nil || d.Membership != nil {
+			otherTemporary, err := truncateOtherTemporary(current, d, fence.token)
+			if err != nil {
+				return catalog.Conflict{}
+			}
+			if otherTemporary {
+				continue
+			}
+		}
+		if d.Inheritance != nil {
+			for _, parent := range d.Inheritance.Parents {
+				if fence.targets[parent] != 0 {
 					return catalog.Conflict{}
 				}
 			}
 		}
-		for address, descriptor := range current.Descriptors() {
-			if descriptor == fence.base.Get(address) || fence.targets[address] != 0 {
-				continue
-			}
-			d, ok := descriptor.(*catalog.Relation)
-			if !ok {
-				continue
-			}
-			for _, fk := range d.Constraints.ForeignKeys {
-				if fence.targets[fk.Target] != 0 {
-					return catalog.Conflict{}
-				}
-			}
-			if d.Inheritance != nil || d.Membership != nil {
-				otherTemporary, err := truncateOtherTemporary(current, d, fence.token)
-				if err != nil {
-					return catalog.Conflict{}
-				}
-				if otherTemporary {
-					continue
-				}
-			}
-			if d.Inheritance != nil {
-				for _, parent := range d.Inheritance.Parents {
-					if fence.targets[parent] != 0 {
-						return catalog.Conflict{}
-					}
-				}
-			}
-			if d.Membership != nil && fence.targets[d.Membership.Parent] != 0 {
-				return catalog.Conflict{}
-			}
+		if d.Membership != nil && fence.targets[d.Membership.Parent] != 0 {
+			return catalog.Conflict{}
 		}
 	}
 	return nil
@@ -182,7 +179,7 @@ func (s *StatementScope) stageTruncate() error {
 		sequences, err = s.stageTruncateSequences(auth, stage)
 	}
 	if err == nil {
-		changes.truncateFences = append(changes.truncateFences, truncateGraphFence{base: auth.Catalog.State(), targets: s.truncateOrZero().selected, token: s.op.session.token, restart: s.truncateOrZero().restart, sequences: sequences})
+		changes.addFence(truncateGraphFence{base: auth.Catalog.State(), targets: s.truncateOrZero().selected, token: s.op.session.token, restart: s.truncateOrZero().restart, sequences: sequences})
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)

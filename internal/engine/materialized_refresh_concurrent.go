@@ -295,6 +295,15 @@ type materializedSourceFence struct {
 	storage  *storage.Relation
 }
 
+func (materializedSourceFence) fenceKind() catalogFenceKind { return fenceMaterializedSource }
+
+func (f materializedSourceFence) currentLocked(e *Engine, _ *catalogChanges) error {
+	if !e.materializedSourceFenceCurrent(f) {
+		return catalog.Conflict{}
+	}
+	return nil
+}
+
 func (e *Engine) materializedSourceFenceCurrent(f materializedSourceFence) bool {
 	if f.ref.Domain() != e.catalog.Domain || f.ref.Epoch != e.catalog.state.Epoch() || f.relation == nil || f.storage == nil || f.ref.Address != f.relation.Address() || f.relation.RelationKind != catalog.MaterializedViewRelation {
 		return false

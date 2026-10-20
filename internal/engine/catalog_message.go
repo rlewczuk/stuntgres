@@ -12,9 +12,47 @@ type catalogIndexFence struct {
 	parent  ids.ObjectAddress
 	indexes map[ids.ObjectAddress]bool
 }
+
+func (catalogIndexFence) fenceKind() catalogFenceKind { return fenceIndexSet }
+
+func (f catalogIndexFence) currentLocked(e *Engine, _ *catalogChanges) error {
+	count := 0
+	for a, d := range e.catalog.state.Descriptors() {
+		r, ok := d.(*catalog.Relation)
+		if ok && r.SQLIndex != nil && r.SQLIndex.Parent == f.parent {
+			if !f.indexes[a] {
+				return catalog.Conflict{}
+			}
+			count++
+		}
+	}
+	if count != len(f.indexes) {
+		return catalog.Conflict{}
+	}
+	return nil
+}
+
 type catalogNamespaceFence struct {
 	namespace ids.ObjectAddress
 	members   map[ids.ObjectAddress]catalog.Descriptor
+}
+
+func (catalogNamespaceFence) fenceKind() catalogFenceKind { return fenceNamespace }
+
+func (f catalogNamespaceFence) currentLocked(e *Engine, _ *catalogChanges) error {
+	count := 0
+	for a, d := range e.catalog.state.Descriptors() {
+		if d.Namespace() == f.namespace {
+			if f.members[a] != d {
+				return catalog.Conflict{}
+			}
+			count++
+		}
+	}
+	if count != len(f.members) {
+		return catalog.Conflict{}
+	}
+	return nil
 }
 
 func (e *Engine) stageCatalogBaseLocked(s *CatalogStage) *catalog.State {
@@ -40,42 +78,7 @@ func (e *Engine) catalogReadPreflightLocked(c *catalogChanges) error {
 			return catalog.Conflict{}
 		}
 	}
-	for _, f := range c.readFences {
-		s := e.storage.Relations[f.address]
-		if s != f.storage || s != nil && (len(s.Versions) != f.length || s.Ends != f.ends || s.Generation != f.generation) {
-			return catalog.Conflict{}
-		}
-	}
-	for _, f := range c.indexFences {
-		count := 0
-		for a, d := range e.catalog.state.Descriptors() {
-			r, ok := d.(*catalog.Relation)
-			if ok && r.SQLIndex != nil && r.SQLIndex.Parent == f.parent {
-				if !f.indexes[a] {
-					return catalog.Conflict{}
-				}
-				count++
-			}
-		}
-		if count != len(f.indexes) {
-			return catalog.Conflict{}
-		}
-	}
-	for _, f := range c.namespaceFences {
-		count := 0
-		for a, d := range e.catalog.state.Descriptors() {
-			if d.Namespace() == f.namespace {
-				if f.members[a] != d {
-					return catalog.Conflict{}
-				}
-				count++
-			}
-		}
-		if count != len(f.members) {
-			return catalog.Conflict{}
-		}
-	}
-	return nil
+	return e.catalogFencesCurrentLocked(c, fenceStorageRead, fenceIndexSet, fenceNamespace)
 }
 
 // Capture committed predecessor fences while checking the exact private roots
@@ -167,7 +170,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 			if relation, ok := source.(*catalog.Relation); ok && relation.RelationKind == catalog.MaterializedViewRelation {
 				fence := materializedSourceFence{ref: e.catalog.Domain.Ref(snapshot.Catalog.Epoch(), relation.Address()), relation: relation, storage: snapshot.GenerationAt(relation.Address())}
 				if fence.storage != nil && e.materializedSourceFenceCurrent(fence) && c.descriptors[relation.Address()] == nil {
-					c.materializedSources = append(c.materializedSources, fence)
+					c.addFence(fence)
 					continue
 				}
 			}
@@ -226,7 +229,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 				f.indexes[a] = true
 			}
 		}
-		c.indexFences = append(c.indexFences, f)
+		c.addFence(f)
 	}
 	for a := range s.Removals() {
 		if a.ClassID == ids.NamespaceClassID {
@@ -236,7 +239,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 					f.members[address] = d
 				}
 			}
-			c.namespaceFences = append(c.namespaceFences, f)
+			c.addFence(f)
 		}
 	}
 	captureStorage := func(a ids.ObjectAddress) {
@@ -247,7 +250,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 			f.ends = store.Ends
 			f.generation = store.Generation
 		}
-		c.readFences = append(c.readFences, f)
+		c.addFence(f)
 	}
 	for _, f := range s.partitionReads {
 		captureStorage(f.address)

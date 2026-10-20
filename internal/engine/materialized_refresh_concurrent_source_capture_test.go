@@ -183,10 +183,11 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	if err := e.captureCatalogStageLocked(stage, changes, e.catalog.state, nil); err != nil {
 		t.Fatal("actual retained capture", err)
 	}
-	if len(changes.materializedSources) != 1 {
-		t.Fatal("dedicated source fence not generated", changes.materializedSources)
+	sources := catalogFencesOf[materializedSourceFence](changes)
+	if len(sources) != 1 {
+		t.Fatal("dedicated source fence not generated", sources)
 	}
-	fence := changes.materializedSources[0]
+	fence := sources[0]
 	if fence.ref.Address != inner.Address() || fence.relation != snapshot.Catalog.Get(inner.Address()) || fence.storage != innerStorage {
 		t.Fatal("generated source fence retargeted", fence)
 	}

@@ -73,7 +73,7 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 			// CREATE of one index on a private parent captures committed storage
 			// absence, not REINDEX TABLE's committed membership-set authority.
 			absence := false
-			for _, f := range c.readFences {
+			for _, f := range catalogFencesOf[partitionReadFence](c) {
 				if f.address == ct && f.storage == nil {
 					absence = true
 				}

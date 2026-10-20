@@ -91,7 +91,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			fence.ends = committed.Ends
 			fence.generation = committed.Generation
 		}
-		c.readFences = append(c.readFences, fence)
+		c.addFence(fence)
 	}
 	e.mu.Unlock()
 	for i := range captures {
