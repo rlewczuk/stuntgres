@@ -2,23 +2,17 @@
 
 ## Settings ownership
 
-`Engine.settings` is one engine-local `settingsRegistry`, constructed before
-provider registration and publication. Its definitions, sorted order, enum
-metadata and typed boot paths are immutable. `Lookup`, `Definitions`, `Order`
-and `SettingDefinition.BootValue` borrow stored values without per-read copies,
-normalization or provider callbacks; callers must not mutate shared collections.
-Custom defaults retain their validated exact typed payload, not a reparse of
-potentially rounded display text. Parameter descriptor validation and grant-name
-canonicalization use this same registry. Parameter providers borrow a pointer to
-the Engine-owned value, which is never replaced or mutated; ACL catalogs remain
-sparse.
-
-`settings_search_path.go` owns pure search-path parsing; namespace/ACL resolution
-stays in `schema_path.go`. `settings_notices.go` owns the client-min-messages
-definition and text normalization; runtime levels, threshold captures and notice
-emission stay in `notices.go`. Physical-session values, journals, timeout
-publication and their existing locks remain engine-owned. This is only settings
-8a: no settings subpackage, type migration or alias cleanup.
+Setting definitions, the builtin table, parsing, validation and the immutable
+registry live in [`settings`](settings/README.md). `Engine.settings` holds one
+`settings.Registry` by value, constructed before provider registration and
+publication with the visibility tracking flag; parameter providers borrow a
+pointer to it, and descriptor validation and grant-name canonicalization use
+the same registry. ACL catalogs remain sparse. Search-path resolution stays in
+`schema_path.go`; runtime notice levels, threshold captures and emission stay
+in `notices.go`. Physical-session values, journals, timeout publication and
+their existing locks remain engine-owned. `settings_aliases.go` holds the
+temporary 8b aliases (`SettingDefinition`, `settingValue`, the constants,
+`ValidateSetting`) until 8c.
 
 ## System catalog producers
 
@@ -91,7 +85,7 @@ public/private test placement. Run these commands from the repository root.
 Focused ownership/default and publication checks:
 
 ```sh
-make check RUN='^Test(Setting(TypedInput|CapturedDefaults|ProviderDefaultsAndDescriptorOwnership|ExactDecimalDefaultCapture|UtilitySnapshotOwnership)|SettingsTimezoneAbbreviationsCapturedProvider)$'
+make check RUN='^Test(Setting(CapturedDefaults|ProviderDefaultsAndDescriptorOwnership|ExactDecimalDefaultCapture|UtilitySnapshotOwnership)|SettingsTimezoneAbbreviationsCapturedProvider)$'
 make check RUN='^TestSettingsLocal(NormalizerPublication|ExactTypedUndo)$' RACE=1
 make check RUN='^TestSettingsConcurrentFreeze$' RACE=1
 make check RUN='^TestReferenceSettings(BuiltinRegistry|PublicTypedSQL|ErrorsAndAtomicity|RegistryPublication|ShowAllPlaceholdersAndLifecycle|PreparedBindingAndStages|ControlsDefaultOnParser)$'
@@ -101,8 +95,9 @@ make check RUN='^TestReferenceSettings(BuiltinRegistry|PublicTypedSQL|ErrorsAndA
 The normalizer publication witness installs a validated custom definition before
 construction. Its staged callback still performs actual cancellation, native
 replacement and acquisition of all three publication locks; no registry mutation
-hook is exposed. Existing public reference scenarios are unchanged. Complete
-8a proof requirements and evidence status live in
+hook is exposed. Existing public reference scenarios are unchanged. Pure
+definition tests live in the [`settings` README](settings/README.md#testing);
+split evidence lives in
 [the split prompt](../../docs/ENGINE-SPLIT-settings.md#status).
 
 ### Catalog inquiry and session identity

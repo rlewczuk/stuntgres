@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `4d3568a9d377b92016053fa8f6571a69caddd8b3`. The later-wave plans
+Last verified against `master` at `bfc0dbc071229cd649864bc4719a717213965d1f`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,12 +15,13 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 3 remainder** — Tier C item 10 (sequence calls). It touches shared
+- **Step 3 remainder** — Tier C sequence calls (item 10). It touches shared
   switches; rebase early.
-- **Step 8 `settings`** — 8b (item 14).
+- **Step 8 `settings`** — 8c alias removal (item 15, **broad**).
+- **Step 9 `pgcatalog`** — 9b (item 17).
 - **Step 10 `plan`** — 10b node runtime (item 32).
 - **In-place untangling** — 12a `binding` split (item 20) and 13a scope
-  slots (item 22). Both are broad: one at a time.
+  slots (item 22). Both are broad: one at a time, and not together with 8c.
 - **Step 14 `routine`** — 14a (item 24); `PG18-ROUTINE-CORE` has merged.
 
 Steps 1, 2 and 4–7 and `access` are done.
@@ -229,8 +230,10 @@ Steps 1, 2 and 4–7 and `access` are done.
       at user request)*
     - [ ] B5 — Binding walkers moved next to `binding` (needs 12d)
 - [ ] **Step 8 — `settings`** ([prompt](ENGINE-SPLIT-settings.md); needs —)
-  - [x] 8a — Registry in place *(implementation/proof complete; review/integration pending)*
-  - [ ] 8b — `settings` created and definitions moved
+  - [x] 8a — Registry in place (`3c1e1115a`)
+  - [x] 8b — `settings` created and definitions moved (`8057bb8d0`,
+    `dbf23631c`, `cc31fb6f6`, then the docs commit) *(racecheck skipped at
+    user request)*
   - [ ] 8c — Aliases removed
 - [ ] **Step 9 — `pgcatalog`** ([prompt](ENGINE-SPLIT-pgcatalog.md); needs
   5, B4; 9b also 8b)
@@ -363,8 +366,9 @@ in the prompt file's Status section.
 
 ### Group B — independent leaves
 
-13. [x] Settings 8a — [settings](ENGINE-SPLIT-settings.md) 8a · needs — *(implementation/proof complete; review/integration pending)*
-14. [ ] Settings 8b — [settings](ENGINE-SPLIT-settings.md) 8b · needs 13
+13. [x] Settings 8a — [settings](ENGINE-SPLIT-settings.md) 8a · needs — (`3c1e1115a`)
+14. [x] Settings 8b — [settings](ENGINE-SPLIT-settings.md) 8b · needs 13 ·
+    racecheck skipped at user request
 15. [ ] Settings 8c — [settings](ENGINE-SPLIT-settings.md) 8c · needs 14
 16. [x] pgcatalog 9a — [pgcatalog](ENGINE-SPLIT-pgcatalog.md) 9a · needs —
 17. [ ] pgcatalog 9b — [pgcatalog](ENGINE-SPLIT-pgcatalog.md) 9b · needs

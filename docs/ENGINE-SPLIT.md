@@ -866,9 +866,10 @@ and locale normalizers (`settings_format_encoding.go`), `parseSearchPath`
 (`settings_search_path.go`) and the client-min-messages definition/normalizer
 (`settings_notices.go`). The latter two were relocated in place in 8a.
 Names lose their stutter in the move (`settings.Definition`, `settings.Type`,
-`settings.Value`).
+`settings.Value`). **Moved in 8b**; see the
+[package README](../internal/engine/settings/README.md).
 
-**In-place port (8a), implementation/proof complete; review/integration pending.** `Engine.settings`
+**In-place port (8a), done.** `Engine.settings`
 holds one immutable `settingsRegistry`, built once by a pure constructor taking
 `trackCommitTimestamps` instead of reading `e.visibility`. `Lookup`,
 `Definitions` and `Order` replace the former fields/methods. Exact typed defaults
@@ -877,9 +878,15 @@ in schema-path, prepared-sequence and session initialization consumers use
 `parameterProvider` borrows a pointer to the same Engine-owned registry value.
 Root proof includes selected native/pinned checks, full quickcheck and a full
 racecheck pass with `GOMAXPROCS=8`; prior failures and measured startup-target
-misses remain recorded. `make finalcheck` is pending postintegration. See the
-[8a evidence/status](ENGINE-SPLIT-settings.md#status); package creation and
-alias removal remain 8b/8c work.
+misses remain recorded. See the
+[8a evidence/status](ENGINE-SPLIT-settings.md#status).
+
+**Package (8b), done.** `settings` holds the definitions, registry,
+normalizers and search-path parser and imports only `sqlstate`, `sqltype` and
+the standard library. `Engine.settings` is a `settings.Registry`;
+`RegistrationError` stays in the engine. Temporary engine aliases
+(`settings_aliases.go`) keep the root driver and `cmd/stuntgres` unchanged
+until 8c.
 
 **Stays in the engine** until step 13: per-session storage
 (`sessionSettings`, the SET LOCAL action stack, savepoint `settingsMark`),
@@ -1198,7 +1205,10 @@ These packages get prompt files after the steps above. Each needs `session`
    `exec`, `analyze`, `session`, `routine` (not `proc`, which the routine
    feature work already uses for SQL routine definitions), `typedef` (not
    `types`, which reads like `go/types` and `sqltype`), `extension`,
-   `sequence`. Each step confirms its name in its first sub-step.
+   `sequence`. Each step confirms its name in its first sub-step. Settled
+   for step 8 (8b): `settings`, with `Definition`, `Type`, `Access`, `Unit`,
+   `Value` (exported fields), `Registry`/`NewRegistry`, `Validate` and
+   `SessionDefaultProvider`; constants drop the `Setting` prefix.
 7. **Slot typing.** Before `session` moves, scope and journal slots name
    engine types; after it moves they must be lower-layer interfaces (§3 rule
    7). Settle in 13c whether that is one interface per slot or a typed key
@@ -1235,7 +1245,7 @@ package-specific scope. This section holds the rules every session follows.
 | 6 | [`ENGINE-SPLIT-storage.md`](ENGINE-SPLIT-storage.md) | 5 | done (6a–6c); optional 6d open |
 | 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | done (7a–7c) |
 | A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | done (A1, B0–B4, names cleanup); B5 after 12d |
-| 8 | [`ENGINE-SPLIT-settings.md`](ENGINE-SPLIT-settings.md) | — | 8a implementation/proof complete, review/integration pending; 8b–8c planned |
+| 8 | [`ENGINE-SPLIT-settings.md`](ENGINE-SPLIT-settings.md) | — | 8a and 8b done (racecheck skipped at user request); 8c planned |
 | 9 | [`ENGINE-SPLIT-pgcatalog.md`](ENGINE-SPLIT-pgcatalog.md) | 5, B4; 8b for 9b | 9a done in place; 9b–9c planned |
 | 10 | [`ENGINE-SPLIT-plan.md`](ENGINE-SPLIT-plan.md) | 2, 3 F1, 5 | 10a done (racecheck/finalcheck skipped by user); 10b–10d planned |
 | 11 | [`ENGINE-SPLIT-exec.md`](ENGINE-SPLIT-exec.md) | 10c, 13a | planned (11a–11d) |

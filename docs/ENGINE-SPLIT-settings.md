@@ -22,7 +22,9 @@ per-session store and SET/SHOW execution stay in the engine for step 13.
 
 ## Inventory (measured at `75fe0d710`)
 
-This table is historical. Settings8a now keeps definitions, values and helpers
+This table is historical. 8b moved the definition code into
+[`internal/engine/settings`](../internal/engine/settings/README.md); see
+[Status](#status). Before that, Settings8a kept definitions, values and helpers
 in the engine: `settings_registry.go` owns construction/lookup/borrowed metadata,
 `settings_search_path.go` owns the pure parser, and `settings_notices.go` owns
 the notice setting definition and text normalizer. Runtime path resolution and
@@ -111,7 +113,8 @@ No behavior change. One commit per numbered group is fine.
 
 ### 8b — Create `settings` and move
 
-1. Decide the names with the user (§7 decision 6) and record them here. The
+1. Decide the names with the user (§7 decision 6) and record them here
+   (decided in 8b: the proposal, as below; `Value` has exported fields). The
    proposal: `Definition`, `Type`, `Access`, `Unit`, `Value`, `Registry`,
    `Validate` (today `ValidateSetting`), `Builtins` (today `builtinSettings`)
    and `SessionDefaultProvider`. The constants lose their `Setting` prefix
@@ -198,11 +201,95 @@ startup regression.
 
 ## Status
 
-- [x] 8a — Registry in place: implementation and proof complete; review/integration pending
-- [ ] 8b — `settings` created and definitions moved
+- [x] 8a — Registry in place (`3c1e1115a`)
+- [x] 8b — `settings` created and definitions moved (`8057bb8d0`,
+  `dbf23631c`, `cc31fb6f6`, then the docs commit) *(racecheck skipped at user
+  request)*
 - [ ] 8c — Aliases removed
 
-Outstanding aliases: none yet.
+Outstanding aliases (`internal/engine/settings_aliases.go`, removed in 8c):
+types `SettingType`, `SettingAccess`, `SettingUnit`, `SettingDefinition`,
+`SessionDefaultProvider`, `settingValue`, `settingsRegistry`; constants
+`SettingBoolean`, `SettingString`, `SettingInteger`, `SettingFloating`,
+`SettingEnum`, `SettingSession`, `SettingReadOnly`, `SettingPrivileged`,
+`settingStartupOnly`, `SettingUnitNone`, `SettingBytes`, `SettingKilobytes`,
+`SettingMegabytes`, `SettingMilliseconds`, `SettingSeconds`, `SettingMinutes`;
+and the wrapper function `ValidateSetting`. `RegistrationError` is not an
+alias: it stays in the engine (`foreign_registry.go`).
+
+8b results:
+
+- **Decisions (user).** The proposed names: `Definition`, `Type`, `Access`,
+  `Unit`, `Value`, `Registry`/`NewRegistry`, `Validate`,
+  `SessionDefaultProvider`; constants without the `Setting` prefix
+  (`StartupOnly` is now exported). `Value` exposes exported fields (`Text`,
+  `Number`, `Boolean`, `Path`, `Zone`, `DateStyle`, `Locale`,
+  `TimezoneAbbreviations`), as 5d/6b did. `settings` owns the client message
+  level names (`MessageLevelRank`); `noticeLevel` and its constants stay in
+  the engine (about 60 files emit notices), and `messageLevel` converts the
+  rank.
+- **Re-measure** (at `4d3568a9d`, `go/types` census over the five definition
+  files). Only two references led back into the engine: `sqlError` in
+  `Lookup` and `messageLevel` in the `icu_validation_level` normalizer.
+  Outside uses: 74 `.Name`, 60 `SettingDefinition`, 35 `.number`, 26
+  `Definitions`, 18 `settingValue`, 15 `.parse`, and smaller counts.
+- **Self-contained in place** (`8057bb8d0`). `Lookup` builds its 42704 error
+  directly, validation uses a private `registrationError` with the same
+  prefix, and `messageLevelRank` replaces the `messageLevel` call.
+  `RegistrationError` moved to `foreign_registry.go`.
+- **Export in place** (`dbf23631c`). A type-checked rename: `parse`/`format`
+  became `Parse`/`Format` and the eight `settingValue` fields were
+  capitalized (121 references in 26 files).
+- **Move** (`cc31fb6f6`). The same tool renamed the move set to the final
+  names and rewrote engine call sites of moved functions to `settings.X`
+  (`FoldName` 14, `ClientMinMessages` 6, `DisplayName` 5, `CustomName` 4,
+  `IsLocaleSetting` 4, `MessageLevelRank` 3, `ParseNumber` 3, `NewRegistry`
+  2; counts include move-set declarations). Locals named `settings` in
+  those scopes became `store` or `registry`. `settings.go` was split into
+  `definition.go`, `builtins.go`, `value.go`, `number.go` and `units.go`;
+  the other files are `format_encoding.go`, `messages.go`,
+  `search_path.go` and `registry.go`. `builtinSettings` became the private
+  `builtins` rather than the proposed exported `Builtins`: no engine code
+  reads it, and an exported slice could be mutated. `Invalid` also stays
+  private for the same reason. `settings` imports only `sqlstate`,
+  `sqltype` and the standard library.
+- **Tests.** Moved to `settings`: `TestSettingTypedInput` →
+  `TestParseAndFormatTypedInput`, `TestFormatEncodingNormalizers` →
+  `TestEncodingLocaleAndLevelNormalizers`, `TestNoticesApplicationName` →
+  `TestApplicationNameNormalizer`, and the `parseSearchPath` table of
+  `TestSchemaSearchPathSessionDefaultsAndSpecials` → `TestParseSearchPath`.
+  Adapted in the engine: `TestSettingCapturedDefaults` (expected value via
+  `Lookup`/`Parse`), `TestSettingExactDecimalDefaultCapture` (`BootValue()`),
+  `TestNoticesFilter` (`ClientMinMessages.Normalize`),
+  `TestTransactionUtilityCompletionBoundary` (literal `application_name`),
+  `TestFormatEncodingCapturedDefaults` (local renamed). None deleted.
+- **Verification.** `make build`, `go vet` and targeted `make check`
+  selections (settings, notices, format encoding, schema/search path,
+  savepoints, discard, timeouts, transactions, foreign registration,
+  parameter ACL, row security and the new `settings` tests) passed after each
+  commit. `make quickcheck` passed (exit 0, 1m50s). Reference selections
+  `^TestReferenceSettings` (36 definitions) and a 30-family selection
+  (format/encoding, notices, search path, bytea output, parameter ACL, role
+  settings, time zone/DateStyle/IntervalStyle, timeouts, transaction
+  settings, parallel and numeric settings, savepoints, DISCARD, monitoring,
+  encoding, setting-call authority) passed in quick mode and with
+  `REFERENCE=1` against the pinned PostgreSQL 18.6 image. A public driver
+  smoke (registration errors, typed custom units and enums, SET/SHOW of
+  search_path, client_min_messages, TimeZone, DateStyle,
+  icu_validation_level, rejected values, `current_setting`, `set_config`,
+  `SHOW ALL` order and descriptions) printed byte-identical output on
+  `4d3568a9d` and the branch. `make deps` lists only module paths; no
+  subpackage imports the engine. `make bench` (`BenchmarkOpenDatabase`, five
+  runs, load average about 30): `4d3568a9d` 1.30–1.53 ms/op, 5,100 steady
+  allocations (one cold 5,110); branch 1.25–1.42 ms/op, 5,100 (one cold
+  5,108). No allocation change; the <1 ms target is missed on master too.
+  `make racecheck` and `finalcheck` were skipped at the user's request.
+  `AGENTS.md` stays at 100 lines.
+
+Notes for 8c: engine files that now import `settings` and also use locals
+named `settings` were renamed (`store`, `registry`); the alias rewrite must
+audit the remaining `settings :=` locals in `session_settings.go` and tests
+(`Session.settings` and `Engine.settings` are fields and do not collide).
 
 8a implementation/proof evidence (root observations; review/integration pending):
 

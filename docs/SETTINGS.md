@@ -32,7 +32,8 @@ mode and timeout state. Its bounded listing is not a projection of all PostgreSQ
 parameters. Registered custom entries use their registered descriptions; built-in
 descriptions follow the pinned PostgreSQL English metadata.
 
-Internally, each Engine constructs one immutable `settingsRegistry` before
+Internally, each Engine constructs one immutable `settings.Registry`
+([internal/engine/settings](../internal/engine/settings/README.md)) before
 publication. Its definitions and sorted names are borrowed read-only; typed
 `BootValue` access preserves exact defaults and shared immutable decoded paths
 without reparsing display text. This metadata is separate from physical-session
@@ -344,7 +345,9 @@ authorization and cancellation proofs use
 
 Immutable registry ownership and the preconstruction normalizer/publication
 witness have focused private selectors in
-[internal/engine Testing](../internal/engine/README.md#immutable-settings-registry).
+[internal/engine Testing](../internal/engine/README.md#immutable-settings-registry);
+pure definition behavior has its own in
+[internal/engine/settings Testing](../internal/engine/settings/README.md#testing).
 The [settings split status](ENGINE-SPLIT-settings.md#status) distinguishes source
 ownership changes from verification and startup-performance evidence.
 
