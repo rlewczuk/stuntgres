@@ -190,9 +190,12 @@ argument demand; `parser.CallExpr` dispatch calls the binder directly. The
 engine keeps the authority behind `SequenceRuntime` (`sequence_runtime.go`): the
 evaluation prelude and live statement scope, OID-to-reference construction and
 `lastval`'s session provider, the catalog epoch fence (including TEMP epoch
-revalidation) before and after the RowExclusive `acquireSequence`, ACL and
-read-only checks, `sequenceGeneratorLocked` and the physical-session `currval`/`lastval`
-memories ([`sequence`](sequence/README.md)), all in the original order. The
+revalidation) before and after the RowExclusive `acquireSequence`, the ACL and
+read-only checks and `sequenceGeneratorLocked`, all in the original order; the
+privilege masks, the read-only rejection and the currval/lastval/nextval/setval
+semantics over the physical-session memories are
+[`sequence`](sequence/README.md)'s `CallPrivileges`, `ReadOnlyCallError` and
+`CallLocked`. The
 binder's `SequenceArgument`/`SequenceTemporary` keep regclass input,
 prepared sequence-literal capture and DEFAULT TEMP validation here; the node
 caches no session, scope or owner. Catalog-identity consumers keep explicit

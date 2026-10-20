@@ -106,7 +106,8 @@ tables (`typedSource` 5/3, `typedObserved` 4/3), identity
 (`identityOriginals` 15/4, `identityDependencies` 10/5), `likeSources` 7/3,
 cascade names (`schemaCascadeNames` 11/4, `viewCascadeNames` 28/10),
 `partitionReads` 6/3, `generators` 20/8. *(17a moved `generators` and both
-identity fields into the `sequenceStage` slot.)*
+identity fields into the `sequenceStage` slot, which 17d moved as
+`sequence.Stage`.)*
 
 **`transactionOwner`** (`transaction.go:49`, 39 fields). FDW participants:
 `foreignCleanup` 8/2, `foreignMarkNext` 3/1, `foreignParticipants` 19/5.

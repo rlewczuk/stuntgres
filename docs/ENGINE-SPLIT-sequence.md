@@ -348,7 +348,9 @@ orchestration stays in the root (17c). The checks in §8.3 pass.
   *(measured at `1f606f52d`; decisions move, orchestration stays, no
   `sequence.Host`; quickcheck passed; racecheck/finalcheck skipped at user
   request)*
-- [ ] 17d — Handler decisions moved
+- [x] 17d — Handler decisions moved (`10d8611a9`, `f5f7d1354`, `4be715db5`,
+  `f66434ed1`, `468bb3ade`, then the docs commit) *(racecheck/finalcheck
+  skipped at user request)*
 
 Outstanding aliases: none (17b qualified every reference; no type aliases).
 
@@ -393,6 +395,79 @@ after).
   13b skips this slot.
 - **Tests.** Engine tests were adapted mechanically to the helpers and the
   slot; none moved or were deleted.
+
+### 17d record
+
+Re-measured at `204022e05`; rebased onto `909cd38fc` (routine 14d, extension
+16d.1) before verification. The 17c move set still matched the code.
+
+- **Method.** The decisions reference no engine code, so each one was written
+  directly into `sequence` with its final name, seam tests first (observed
+  failing), and its root callers adapted in the same commit; no root staging
+  files or `movex` pass were needed. Five commits, each built and passed its
+  selected tests: relations, generators and calls (`10d8611a9`); prepared
+  literals (`f5f7d1354`); DDL, identity, serial and Restore checks
+  (`4be715db5`); Control (`f66434ed1`); the stage slot (`468bb3ade`).
+- **Moved** (new files `relation.go`, `call.go`, `owned.go`, `alter.go`,
+  `identity.go`, `control.go`, `stage.go`; `prepared.go` extended):
+  `Columns` (was `Engine.sequenceColumnsLocked`), `NewRelation`,
+  `InitialGenerator`, `ReplacementGenerator`; `CallPrivileges`,
+  `ReadOnlyCallError`, `CallLocked`; `ParseOwnedBy`, `CheckOwnedBy`,
+  `IdentityOwnershipError`, `TemporaryLoggedError`, `CheckSchemaMove`,
+  `NotSequenceError`, `AlterEffects`/`Effects`; `IdentityTypeOption`,
+  `SplitIdentityOptions`/`IdentityOptions.CheckTemporary`,
+  `CheckIdentitySetOptions`, `SerialOptions`, `SerialDefault`,
+  `CheckRestoreIdentityConfiguration`; `Observation`, `NewAnalysis`,
+  `Analysis.Valid`, `PinReplacement`, `TemporaryEpochValid`,
+  `DefinitionStamp`; `CopyGenerators` (was `copySequenceState`),
+  `OwnTemporary`; `Stage` (was `sequenceStage`) with exported methods.
+  `sequence` now imports `functions` and `session` as planned (decision 3).
+- **Deviations from the 17c text.**
+  - `Observation` is a value record: the root computes the effective path
+    and passes the session memory, instead of a definition-stamp function.
+    `TestSequencePreparedAuthority` requires that validating an unchanged
+    cell allocates nothing, and a closure over the authorization view would
+    allocate. The plan-stamp rule therefore moved as `DefinitionStamp`
+    (decision 1 lists it); `preparedDefinitionStamp` stays as the shared
+    entry point of ordinary prepared SQL and calls it.
+  - `PinReplacement` takes the catalog epoch and the session token, not an
+    `Observation`: it needs no path, and building an observation computes
+    one.
+  - `sequenceAnalysisLocked` and `sequenceAnalysisValidLocked` stay as thin
+    root wrappers: they build the observation (`sequenceObservationLocked`)
+    only for statements with literals, so the path computation, its cache
+    fill and its errors happen exactly where they did.
+  - CREATE SEQUENCE now assigns `d.Sequence.Owned`: the old code relied on
+    the descriptor's options aliasing a local; `NewRelation` copies them.
+- **Stays in the root**, as 17c planned: the handler orchestration,
+  `acquireSequence`, `checkSequenceAny`, `relationDropOwner`,
+  `sequenceEnvironmentLocked`, `journalOf`, `preparedDefinitionStamp`,
+  identity and serial staging, the identity DROP flow,
+  `storedSequenceEpochValid` (now calling `sequence.TemporaryEpochValid`) and
+  `closedRegclassDefault`.
+- **Tests.** New in `sequence`: `relation_test.go`, `call_test.go`,
+  `prepared_test.go`, `alter_test.go`, `control_test.go`, `stage_test.go`
+  (selectors in the README). Adapted mechanically: `object_acl_test.go`,
+  `temporary_table_{cleanup,catalog}_test.go` (`sequence.Columns`,
+  `sequence.TemporaryEpochValid`), `delete_replacement_test.go`,
+  `advisory_lifecycle_test.go`, `control_transactions_test.go`
+  (`sequence.CopyGenerators`), the stage-slot call sites in eight tests, and
+  `truncate_restart_publication_test.go` and
+  `table_like_retained_admission_test.go`, which assigned the private
+  generator map and now use `ResetGenerators` and `SetGenerator`. None moved
+  or deleted.
+- **Verification.** Build, vet (only the existing findings), layering
+  (`go list`), the README's seam and engine selections, `RACE=1` on
+  `^Test(Sequence|Serial|Identity|TruncateRestart|Discard|TemporaryTable)`,
+  the README's reference selection in quick mode, `make quickcheck` and
+  `make deps` passed. `REFERENCE=1` on
+  `^TestReference(Sequence|Serial|Identity|SmokeSequence|SmokeIdentity|AlterIdentity|AlterTypeIdentity|TruncateRestart|CheckAlterOwnedSequence|DiscardSequences)`:
+  everything passed except the PG-only
+  `TestReferenceSerialDefaultProvider(PublicationHold|DropFirst)` (the
+  oracle drift recorded at 17b). Startup bench, interleaved 5 runs each on a
+  loaded host (load ~17–19): median 960 µs/op on master, 975 µs/op on the
+  branch; 5,020–5,024 allocs/op and about 1.64 MB/op on both. `AGENTS.md`
+  100 → 99 lines (the prepared-literal bullet moved into the README).
 
 ### 17b record
 
@@ -456,14 +531,11 @@ set referenced only `sqlError` and `commentLiteral` in the engine.
 
 ### Notes for later steps
 
-- 17d: `sequenceStage` (`sequence_stage.go`) now refers to
-  `session.DependencyObservation`, so it moves as `sequence.Stage` (17c).
-  `identityDropCapture` does not move: it belongs to the identity DROP flow,
-  which stays with the drop provider (17c correction).
-- 17d: the prepared-literal decisions move as pure functions over an
-  `Observation`; `sequenceEnvironmentLocked`, `journalOf` and
-  `preparedDefinitionStamp` stay, because ordinary prepared SQL and regtype
-  analysis share them (17c correction).
+- Done in 17d: `sequence.Stage` and the prepared-literal decisions;
+  `identityDropCapture` stays with the identity DROP flow.
+- Later: `statementHost.Sequence` builds the same `lastval`/XX000 "could not
+  open relation" error before and after the lock wait; a small
+  `sequence.OpenError` could name it once (not in the 17c move set).
 - Later: `StatementScope.acquireSequence` is the scope's object lock
   acquisition (24 callers, most not sequences); rename it when its owner is
   next touched. `sequenceEnvironmentLocked` misleads the same way.

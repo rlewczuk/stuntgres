@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `25b589df5`. The later-wave plans
+Last verified against `master` at `909cd38fc`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -19,7 +19,6 @@ as another broad item (§8).
   `schemaHost` that 14d (item 47) added; see the routine prompt file's notes
   for the method-name clash between the two hosts.
 - **Step 16 `extension`** — 16d.2, handler decisions (item 51b).
-- **Step 17 `sequence`** — 17d, handler decisions (item 53).
 - **Postponed packages** — planning round (item 54; docs only).
 
 Steps 1, 2 and 4–13 and `access` (A1–B5) are done. Step 13 ended with 13e
@@ -28,7 +27,7 @@ with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
 16c (item 50) is done: 16d runs as 16d.1 and 16d.2 (items 51a, 51b);
 16d.1 (item 51a) is done: the providers stage themselves.
 14d (item 47) is done: step 14 is complete.
-17c (item 52) is done: 17d moves the decisions in one session (item 53).
+17d (item 53) is done: step 17 is complete.
 15c (item 48) is done: 15d (item 49) runs as one session on 14c's
 `schemaHost`.
 
@@ -372,7 +371,7 @@ with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
       (`9b88e37b1`, `6ee7b321c`, then the docs commit) *(racecheck/finalcheck
       skipped at user request)*
     - [ ] 16d.2 — Handler decisions behind `extension.Host`
-- [ ] **Step 17 — `sequence`** ([prompt](ENGINE-SPLIT-sequence.md); Part A
+- [x] **Step 17 — `sequence`** ([prompt](ENGINE-SPLIT-sequence.md); Part A
   needs Tier C sequence calls; Part B needs 13d)
   - [x] 17a — In place (`6ab03f25b`, `68d49b5a8`, `88c3aac0f`, `d43c3b1fb`,
     `48fe404db`, then the docs commit) *(racecheck skipped at user request)*
@@ -380,7 +379,9 @@ with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
     `6a7aaae6a`, then the docs commit) *(racecheck/finalcheck skipped at user
     request)*
   - [x] 17c — Host refined (docs only; the docs commit)
-  - [ ] 17d — Handler decisions moved
+  - [x] 17d — Handler decisions moved (`10d8611a9`, `f5f7d1354`,
+    `4be715db5`, `f66434ed1`, `468bb3ade`, then the docs commit)
+    *(racecheck/finalcheck skipped at user request)*
 - [ ] **Postponed packages** ([ENGINE-SPLIT.md §6](ENGINE-SPLIT.md#postponed-packages);
   no prompt files yet): `index`, `partition`, `inheritance`, `table`,
   `view`, `fdw`, `dml`, `control`
@@ -680,7 +681,12 @@ in the prompt file's Status section.
     [sequence](ENGINE-SPLIT-sequence.md) 17c · needs 44, 31 · (the docs
     commit) · measured at `1f606f52d`: decisions move as pure functions,
     orchestration stays in the root; no `sequence.Host`; no aliases
-53. [ ] Sequence 17d — [sequence](ENGINE-SPLIT-sequence.md) 17d · needs 52
+53. [x] Sequence 17d — [sequence](ENGINE-SPLIT-sequence.md) 17d · needs 52
+    (`10d8611a9`, `f5f7d1354`, `4be715db5`, `f66434ed1`, `468bb3ade`, then
+    the docs commit) · decisions moved as pure functions, `sequence.Stage`;
+    orchestration stays in the root; no aliases · selected unit/`RACE=1` and
+    dual-mode proof and quickcheck passed; bench unchanged;
+    racecheck/finalcheck skipped at user request
 
 ### Group G — next planning round
 
