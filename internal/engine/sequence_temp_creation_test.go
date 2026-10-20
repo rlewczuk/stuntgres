@@ -99,8 +99,8 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 				for address, g := range e.storage.Sequences {
 					generators[address] = *g
 				}
-				memories := make(map[ids.ObjectAddress]sequenceMemory, len(a.sequences.memories))
-				for address, m := range a.sequences.memories {
+				memories := make(map[ids.ObjectAddress]sequenceMemory, a.sequences.Len())
+				for address, m := range a.sequences.All() {
 					memories[address] = *m
 				}
 				peerAddress := NameAddressForTempMove(t, e, peerNamespace, "seed")
@@ -109,7 +109,7 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 				err = sequenceTempMoveCommand(t, e, a, query, prepared)
 				if !success {
 					sequenceOwnerDiagnostic(t, err, code, message, "")
-					if e.catalog.state != catalogSnapshot || !reflect.DeepEqual(catalogSnapshot, retained) || a.temporaryNamespace != namespace || b.temporaryNamespace != peerNamespace || a.sequences.last() != last || b.sequences.last() != peerLast || held.sequences != cell || len(e.storage.Sequences) != len(generators) || len(a.sequences.memories) != len(memories) {
+					if e.catalog.state != catalogSnapshot || !reflect.DeepEqual(catalogSnapshot, retained) || a.temporaryNamespace != namespace || b.temporaryNamespace != peerNamespace || a.sequences.last() != last || b.sequences.last() != peerLast || held.sequences != cell || len(e.storage.Sequences) != len(generators) || a.sequences.Len() != len(memories) {
 						t.Fatal("creation rejection published catalog, namespace event, generator, memory or held analysis")
 					}
 					for address, want := range generators {
@@ -168,7 +168,7 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 				if ownedNamespace != (ids.ObjectAddress{}) {
 					assertTemporaryNamespacePair(t, e, a.token, ownedNamespace)
 				}
-				if a.temporaryNamespace != (ids.ObjectAddress{}) || len(a.sequences.memories) != 0 || a.sequences.last() != (ids.ObjectAddress{}) || e.catalog.state.Get(peerAddress) != peerDescriptor || b.temporaryNamespace != peerNamespace || *b.sequences.memory(peerAddress) != peerMemory {
+				if a.temporaryNamespace != (ids.ObjectAddress{}) || a.sequences.Len() != 0 || a.sequences.last() != (ids.ObjectAddress{}) || e.catalog.state.Get(peerAddress) != peerDescriptor || b.temporaryNamespace != peerNamespace || *b.sequences.memory(peerAddress) != peerMemory {
 					t.Fatal("cleanup retained own state or changed peer identity/cache")
 				}
 				sequenceScalar(t, b, "SELECT nextval('seed')", 41)

@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"iter"
+	"maps"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
@@ -21,6 +23,16 @@ type sessionSequences struct {
 // memory returns the session's memory of one sequence, or nil.
 func (s *sessionSequences) memory(address ids.ObjectAddress) *sequenceMemory {
 	return s.memories[address]
+}
+
+// Len is the number of sequences the session remembers.
+func (s *sessionSequences) Len() int {
+	return len(s.memories)
+}
+
+// All yields every remembered sequence and its memory, for inspection.
+func (s *sessionSequences) All() iter.Seq2[ids.ObjectAddress, *sequenceMemory] {
+	return maps.All(s.memories)
 }
 
 // demandLocked returns the session's memory of one sequence, creating it.
@@ -89,6 +101,11 @@ func (s *sessionSequences) cachedPath(key sequencePathKey) (sequenceEnvironment,
 	return sequenceEnvironment{}, false
 }
 
+// CachedPathKey returns the key of the cached effective path, if any.
+func (s *sessionSequences) CachedPathKey() (sequencePathKey, bool) {
+	return s.path.key, s.path.valid
+}
+
 func (s *sessionSequences) storePathLocked(key sequencePathKey, environment sequenceEnvironment) {
 	s.path = sequencePathCache{valid: true, key: key, environment: environment}
 }
@@ -118,6 +135,16 @@ func (m *sequenceMemory) observeLocked(generation ids.DefinitionRevision) {
 // current is the currval value, valid after a nextval or a called setval.
 func (m *sequenceMemory) current() (int64, bool) {
 	return m.value, m.valid
+}
+
+// CachedTail is the number of reserved values not yet returned.
+func (m *sequenceMemory) CachedTail() uint64 {
+	return m.remaining
+}
+
+// Generation is the generator generation the cached tail belongs to.
+func (m *sequenceMemory) Generation() ids.DefinitionRevision {
+	return m.generation
 }
 
 // nextLocked returns the next value, reserving a new cache tail from the

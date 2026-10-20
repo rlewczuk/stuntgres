@@ -30,7 +30,6 @@ type sequenceDeletePublicationSnapshot struct {
 	endValues               map[ids.RowID]storage.RowEnd
 	frontier                ids.CommitSeq
 	temporary, last         ids.ObjectAddress
-	memoryID                uintptr
 	memory                  map[ids.ObjectAddress]*sequenceMemory
 	memoryValues            map[ids.ObjectAddress]sequenceMemory
 }
@@ -46,8 +45,7 @@ func captureSequenceDeletePublication(e *Engine, s *Session, table ids.ObjectAdd
 		generatorValues: make(map[ids.ObjectAddress]storage.SequenceGenerator),
 		store:           e.storage.Relations[table], frontier: e.visibility.CommitSeq(),
 		temporary: s.temporaryNamespace, last: s.sequences.last(),
-		memoryID: uintptr(reflect.ValueOf(s.sequences.memories).UnsafePointer()),
-		memory:   make(map[ids.ObjectAddress]*sequenceMemory), memoryValues: make(map[ids.ObjectAddress]sequenceMemory),
+		memory: make(map[ids.ObjectAddress]*sequenceMemory), memoryValues: make(map[ids.ObjectAddress]sequenceMemory),
 	}
 	for a, d := range e.catalog.state.Descriptors() {
 		p.descriptors[a] = d
@@ -61,7 +59,7 @@ func captureSequenceDeletePublication(e *Engine, s *Session, table ids.ObjectAdd
 	for a, g := range e.storage.Sequences {
 		p.generators[a], p.generatorValues[a] = g, *g
 	}
-	for a, m := range s.sequences.memories {
+	for a, m := range s.sequences.All() {
 		p.memory[a], p.memoryValues[a] = m, *m
 	}
 	p.root, p.ends = p.store.Versions, p.store.Ends
@@ -102,7 +100,7 @@ func (p sequenceDeletePublicationSnapshot) assertUnchanged(t *testing.T, e *Engi
 	if p.ends != nil && !reflect.DeepEqual(p.ends.Rows, p.endValues) {
 		t.Fatal("changed committed deletion entries")
 	}
-	if s.temporaryNamespace != p.temporary || s.sequences.last() != p.last || uintptr(reflect.ValueOf(s.sequences.memories).UnsafePointer()) != p.memoryID || len(s.sequences.memories) != len(p.memory) {
+	if s.temporaryNamespace != p.temporary || s.sequences.last() != p.last || s.sequences.Len() != len(p.memory) {
 		t.Fatal("failed combined publication changed session temporary handle or sequence memory container")
 	}
 	for a, m := range p.memory {

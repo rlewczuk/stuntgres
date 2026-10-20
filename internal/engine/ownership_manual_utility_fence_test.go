@@ -108,7 +108,7 @@ func ownershipManualStart(t *testing.T, e *Engine, session *Session, sequence id
 	}
 	values := tuples(result)
 	result.Rows.Close()
-	if !reflect.DeepEqual(values, [][]driver.Value{{int64(40)}}) || e.storage.Sequences[sequence.Address].Last != 42 || session.sequences.memory(sequence.Address).remaining != 2 {
+	if !reflect.DeepEqual(values, [][]driver.Value{{int64(40)}}) || e.storage.Sequences[sequence.Address].Last != 42 || session.sequences.memory(sequence.Address).CachedTail() != 2 {
 		t.Fatal("fixture did not consume actual nontransactional CACHE3 sequence", values)
 	}
 	if _, err := message.step(statement(t, "INSERT INTO ownership_fence_sentinel VALUES(9)")); err != nil {

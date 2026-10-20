@@ -111,7 +111,7 @@ func TestSequenceTemporaryMoveAuthority(t *testing.T) {
 						}
 					}
 				}
-				if a.temporaryNamespace != (ids.ObjectAddress{}) || len(a.sequences.memories) != 0 || a.sequences.last() != (ids.ObjectAddress{}) {
+				if a.temporaryNamespace != (ids.ObjectAddress{}) || a.sequences.Len() != 0 || a.sequences.last() != (ids.ObjectAddress{}) {
 					t.Fatal("physical end retained session namespace or memory")
 				}
 				if e.catalog.state.Get(peerNamespace) != peerDescriptor {

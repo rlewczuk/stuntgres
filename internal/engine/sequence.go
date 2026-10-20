@@ -27,18 +27,6 @@ func (v AuthorizationView) checkSequenceAny(ref ids.ObjectRef, mask authorizatio
 	}
 	return sqlError("42501", fmt.Sprintf("permission denied for sequence %s", d.Name()))
 }
-func sequenceKind(d *catalog.Relation) error {
-	if d == nil {
-		return fmt.Errorf("stuntgres: missing sequence descriptor")
-	}
-	if d.RelationKind != catalog.SequenceRelation {
-		if d.RelationKind == catalog.IndexRelation {
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot open relation "%s"`, d.Name()), Detail: "This operation is not supported for indexes."}
-		}
-		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot open relation "%s"`, d.Name()), Detail: "This operation is not supported for tables."}
-	}
-	return nil
-}
 func tableKind(d *catalog.Relation, operation string) error {
 	if d.RelationKind == catalog.TableRelation || d.RelationKind == catalog.PartitionedRelation {
 		return nil
@@ -181,13 +169,6 @@ func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationV
 	a := r.Address()
 	a.SubID = r.Attributes[slot]
 	return a, nil
-}
-func sequenceLinkedError(d *catalog.Relation, table *catalog.Relation, move bool) error {
-	msg := fmt.Sprintf(`cannot change owner of sequence "%s"`, d.Name())
-	if move {
-		msg = "cannot move an owned sequence into another schema"
-	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: msg, Detail: fmt.Sprintf(`Sequence "%s" is linked to table "%s".`, d.Name(), table.Name())}
 }
 func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
 	if count != 0 {

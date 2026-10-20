@@ -12,22 +12,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// SERIAL is declaration syntax, never a catalog type or identity column.
-func serialTypeName(name parser.TypeName) string {
-	if name.Schema != nil {
-		return ""
-	}
-	switch name.Name {
-	case "smallserial", "serial2":
-		return "int2"
-	case "serial", "serial4":
-		return "int4"
-	case "bigserial", "serial8":
-		return "int8"
-	}
-	return ""
-}
-
 func (e *Engine) stageCreateSerials(stage *CatalogStage, table *catalog.Relation, declarations []createColumnDeclaration) error {
 	for slot, declaration := range declarations {
 		if !declaration.serial {

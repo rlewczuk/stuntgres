@@ -80,7 +80,7 @@ func TestAlterTablespaceAdmittedTypePrefix(t *testing.T) {
 	valueA, valueB := *generatorA, *generatorB
 	memoryA, memoryB := c.op.session.sequences.memory(a), c.op.session.sequences.memory(b)
 	cacheB := *memoryB
-	if memoryA.remaining != 4 || memoryB.remaining != 4 {
+	if memoryA.CachedTail() != 4 || memoryB.CachedTail() != 4 {
 		t.Fatal("fixture did not reserve actual cache tails", memoryA, memoryB)
 	}
 	prepared, completionErr := tablespacePrefixPrepare(c, old, c.raw.Actions)
@@ -101,10 +101,10 @@ func TestAlterTablespaceAdmittedTypePrefix(t *testing.T) {
 		t.Fatal("AS occurrence order/failing occurrence was lost", sequence.Sequence, stage.sequence.generator(a))
 	}
 	prior := stage.Get(third).(*catalog.Relation)
-	if prior.Sequence.SQLType != sqltype.Int8 || prior.Revision() >= sequence.Revision() || stage.sequence.generator(third) == nil || stage.sequence.generator(third).Generation != prior.Revision() || cacheC.remaining != 4 || c.op.session.sequences.memory(third).remaining != 0 {
+	if prior.Sequence.SQLType != sqltype.Int8 || prior.Revision() >= sequence.Revision() || stage.sequence.generator(third) == nil || stage.sequence.generator(third).Generation != prior.Revision() || cacheC.CachedTail() != 4 || c.op.session.sequences.memory(third).CachedTail() != 0 {
 		t.Fatal("distinct identity AS order/cache effects were lost", prior, sequence, stage.sequence.generator(third))
 	}
-	if stage.Get(b) != nil || stage.sequence.generator(b) != nil || memoryA.remaining != 0 || !reflect.DeepEqual(*memoryB, cacheB) {
+	if stage.Get(b) != nil || stage.sequence.generator(b) != nil || memoryA.CachedTail() != 0 || !reflect.DeepEqual(*memoryB, cacheB) {
 		t.Fatal("later unadmitted identity had effects", memoryA, memoryB, stage.sequence.stagedGenerators())
 	}
 	if e.catalog.state != before || e.storage.Relations[old.Address()] != storage || e.storage.Sequences[a] != generatorA || e.storage.Sequences[b] != generatorB || *generatorA != valueA || *generatorB != valueB || e.storage.Sequences[third] != generatorC || *generatorC != valueC {
@@ -209,7 +209,7 @@ func TestAlterTablespacePrefixErrorOwnership(t *testing.T) {
 					}
 				} else {
 					diagnostic := tablespacePrefixCode(t, err, "42804")
-					if diagnostic.Message != saved.(*sqlstate.Error).Message || memoryA.remaining != 0 {
+					if diagnostic.Message != saved.(*sqlstate.Error).Message || memoryA.CachedTail() != 0 {
 						t.Fatal("saved completion error/cache disposal lost", diagnostic, memoryA)
 					}
 				}

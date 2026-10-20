@@ -12,14 +12,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type sequenceConstant struct {
-	offset      int
-	ref         ids.ObjectRef
-	temporary   ids.SessionToken
-	stamp       ids.DefinitionRevision
-	represented bool
-}
-
 func (b *expressionBinder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectRef, error) {
 	if err := qualifiedCastChild(raw); err != nil {
 		return nil, ids.ObjectRef{}, err

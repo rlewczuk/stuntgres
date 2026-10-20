@@ -152,7 +152,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				generatorValue := *generator
 				memory := session.sequences.memory(ref.Address)
 				memoryValue, lastSequence := *memory, session.sequences.last()
-				if !generator.Called || generator.Last != 42 || !memory.valid || memory.value != 40 || memory.remaining != 2 {
+				if !generator.Called || generator.Last != 42 || !currvalIs(memory, 40) || memory.CachedTail() != 2 {
 					t.Fatal("fixture lacks actual reserved counter/currval/cache state")
 				}
 				// A substantive retained prefix proves whole-message veto, not just

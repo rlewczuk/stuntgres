@@ -262,3 +262,27 @@ func TestSequenceRestartBlocksEveryOperation(t *testing.T) {
 		})
 	}
 }
+
+// currvalIs reports whether a session memory holds currval want.
+func currvalIs(m *sequenceMemory, want int64) bool {
+	v, ok := m.current()
+	return ok && v == want
+}
+
+// currvalValid reports whether a session memory holds a currval.
+func currvalValid(m *sequenceMemory) bool {
+	_, ok := m.current()
+	return ok
+}
+
+// currvalValue is the remembered currval value, valid or not.
+func currvalValue(m *sequenceMemory) int64 {
+	v, _ := m.current()
+	return v
+}
+
+// cachedSequencePathIs reports whether the session caches exactly key.
+func cachedSequencePathIs(s *Session, key sequencePathKey) bool {
+	cached, ok := s.sequences.CachedPathKey()
+	return ok && cached == key
+}

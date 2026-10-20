@@ -27,16 +27,6 @@ type identityDropCapture struct {
 	original catalog.Descriptor
 }
 
-func identitySequenceDefinition(descriptor catalog.Descriptor, table *catalog.Relation, attribute int32) (*catalog.Relation, error) {
-	sequence, ok := descriptor.(*catalog.Relation)
-	owned := table.Address()
-	owned.SubID = attribute
-	if !ok || sequence == nil || sequence.Sequence == nil || !sequence.Sequence.Identity || sequence.Sequence.Owned != owned {
-		return nil, ids.ErrCatalogReplaced
-	}
-	return sequence, nil
-}
-
 // dropIdentityDefinition is the incumbent provider algorithm shared by ordinary
 // execution and immutable preparation. Only the execution sink owns a stage.
 func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *catalog.Relation, action parser.AlterTableAction) (*catalog.Relation, identityDropCapture, error) {

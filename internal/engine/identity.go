@@ -9,27 +9,9 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"unicode/utf8"
 )
-
-func identityInsertError(column string) error {
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "428C9", Message: fmt.Sprintf(`cannot insert a non-DEFAULT value into column "%s"`, column), Detail: fmt.Sprintf(`Column "%s" is an identity column defined as GENERATED ALWAYS.`, column), Hint: "Use OVERRIDING SYSTEM VALUE to override."}
-}
-func identitySequenceDropError(read catalog.Read, sequence *catalog.Relation) error {
-	address := sequence.Sequence.Owned
-	address.SubID = 0
-	table := read.MustRelation(address)
-	column := ""
-	for slot, attribute := range table.Attributes {
-		if attribute == sequence.Sequence.Owned.SubID {
-			column = table.Columns[slot].Name
-			break
-		}
-	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop sequence %s because column %s of table %s requires it", sequence.Name(), column, table.Name()), Hint: fmt.Sprintf("You can drop column %s of table %s instead.", column, table.Name())}
-}
 
 func ownedSequenceName(table, column string, used func(string) bool) string {
 	return generatedRelationName(table, column, "seq", used)
