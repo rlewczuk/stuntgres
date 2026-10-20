@@ -63,7 +63,7 @@ func bindMutationCommand(binder *expressionBinder, auth analyze.Authority, requi
 		if err := bindMerge(&b, binder, auth, requiredRef, s); err != nil {
 			return b, err
 		}
-		if len(rulesOf(b.Relation)) != 0 {
+		if binder.host.RelationHasRules(b.Relation) {
 			return b, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`cannot execute MERGE on relation "%s"`, b.Relation.Name()), Detail: "MERGE is not supported for relations with rules."}
 		}
 	case *parser.Delete:
@@ -174,7 +174,7 @@ func bindMutationCommand(binder *expressionBinder, auth analyze.Authority, requi
 	}
 	binder.query.sources = b.QuerySources
 	if b.ViewWrite != nil {
-		if err := binder.captureRetainedWriteInput(b.Insert.Defaults, viewWriteOf(b.ViewWrite).base.ColumnMeta.Generations, viewWriteOf(b.ViewWrite).base.Constraints.Check); err != nil {
+		if err := binder.captureRetainedWriteInput(b.Insert.Defaults, b.ViewWrite.Base().ColumnMeta.Generations, b.ViewWrite.Base().Constraints.Check); err != nil {
 			return b, err
 		}
 	}

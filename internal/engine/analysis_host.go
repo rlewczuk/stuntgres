@@ -40,6 +40,7 @@ type analyzeHost interface {
 	// Catalog.
 	CatalogOwner() *catalog.Owner
 	CurrentCatalog() catalog.Read
+	RelationHasRules(relation *catalog.Relation) bool
 
 	// Names.
 	LookupNamespaces(auth analyze.Authority, name parser.ObjectName, kind analyze.LookupKind) (analyze.NamespaceSelection, error)
@@ -140,6 +141,12 @@ func (h *bindingHost) AuthorizationStorage(auth analyze.Authority, address ids.O
 
 func (h *bindingHost) AdmittedReference(auth analyze.Authority, name parser.ObjectName, ref ids.ObjectRef) (ids.ObjectRef, error) {
 	return h.engine.admittedReference(h.view(auth), name, ref)
+}
+
+// RelationHasRules reports whether relation carries rewrite rules, which
+// only the engine's rule payload can tell.
+func (h *bindingHost) RelationHasRules(relation *catalog.Relation) bool {
+	return len(rulesOf(relation)) != 0
 }
 
 func (h *bindingHost) ResolveReference(auth analyze.Authority, name parser.ObjectName) (ids.ObjectRef, error) {

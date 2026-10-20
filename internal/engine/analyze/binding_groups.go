@@ -128,4 +128,8 @@ type RuleBinding struct {
 type RuleCTEsSlot interface{ RuleCTEsSlot() }
 
 // ViewWriteSlot holds the lowering of a write through an updatable view.
-type ViewWriteSlot interface{ ViewWriteSlot() }
+// Base is the base relation the write lands on.
+type ViewWriteSlot interface {
+	ViewWriteSlot()
+	Base() *catalog.Relation
+}

@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/engine/plan"
+import (
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/plan"
+)
 
 // ruleCTECommands maps a rule action's CTE definitions to their commands.
 type ruleCTECommands map[*plan.CTEDefinition]*ruleCTECommand
@@ -12,6 +15,9 @@ var (
 
 func (ruleCTECommands) RuleCTEsSlot() {}
 func (*viewWrite) ViewWriteSlot()     {}
+
+// Base is the base relation the view write lands on.
+func (w *viewWrite) Base() *catalog.Relation { return w.base }
 
 // ruleCTEsOf returns the rule CTE commands in s, or nil.
 func ruleCTEsOf(s ruleCTEsSlot) ruleCTECommands {
