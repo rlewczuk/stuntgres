@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -56,11 +57,11 @@ func walkRoutineReferencesAt(view catalog.Read, reader catalog.DefinitionReader,
 		return err
 	}
 	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(id)}
-	if _, exists := definitionDescriptorAt(view, reader, address); exists {
+	if _, exists := catalog.DescriptorAt(view, reader, address); exists {
 		return record(address)
 	}
 	if owner := routineDescriptorOwner(view, ids.OID(id)); owner != nil {
-		if _, exists := definitionDescriptorAt(view, reader, owner.Address()); exists {
+		if _, exists := catalog.DescriptorAt(view, reader, owner.Address()); exists {
 			return record(owner.Address())
 		}
 	}

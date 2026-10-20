@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -223,7 +224,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			e.mu.Unlock()
 			if s.IfExists {
 				if d, ok := err.(*sqlstate.Error); ok && d.Code == "42P01" {
-					op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, objectNameText(s.Name))})
+					op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, catalog.ObjectNameText(s.Name))})
 					return Result{}, nil
 				}
 			}
@@ -415,12 +416,12 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		ref, er := e.resolveRelationReference(auth, name, false)
 		if er != nil {
 			if d, ok := er.(*sqlstate.Error); s.IfExists && ok && d.Code == "42P01" {
-				scope.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`sequence "%s" does not exist, skipping`, objectNameText(name))})
+				scope.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`sequence "%s" does not exist, skipping`, catalog.ObjectNameText(name))})
 				continue
 			}
 			e.mu.Unlock()
 			if d, ok := er.(*sqlstate.Error); ok && d.Code == "42P01" {
-				return Result{}, sqlError("42P01", fmt.Sprintf(`sequence "%s" does not exist`, objectNameText(name)))
+				return Result{}, sqlError("42P01", fmt.Sprintf(`sequence "%s" does not exist`, catalog.ObjectNameText(name)))
 			}
 			return Result{}, er
 		}

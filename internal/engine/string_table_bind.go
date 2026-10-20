@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -43,7 +44,7 @@ func (b *expressionBinder) bindFunctionSource(raw parser.FunctionExpr) (expr.Exp
 		return nil, err
 	}
 	if inquiry, ok := node.(expr.SnapshotDemander); ok {
-		demand, _, _ := inquiry.SnapshotDemand(bareInquiryLiteralNull)
+		demand, _, _ := inquiry.SnapshotDemand(plan.NullLiteral)
 		b.consumer.catalogSnapshot = b.consumer.catalogSnapshot || demand
 	}
 	if !exec.SourceReturnsSet(node) && b.clause.fromSetObservation != before {

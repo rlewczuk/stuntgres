@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/typedef"
@@ -116,7 +117,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 		if raw.Schema == nil && typedef.UnsupportedColumnType(raw) {
 			return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "0A000", "unsupported column type")
 		}
-		return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(object)))
+		return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "42704", fmt.Sprintf(`type "%s" does not exist`, catalog.ObjectNameText(object)))
 	}
 	d, validType := auth.definitionType(sqltype.ID(found.ObjectID))
 	if !validType {
@@ -146,13 +147,13 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 	}
 	if len(raw.Modifiers) > 0 {
 		if d.IsUserDefined() || d.IsDomain() {
-			return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "42601", fmt.Sprintf(`type modifier is not allowed for type "%s"`, objectNameText(object)))
+			return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "42601", fmt.Sprintf(`type modifier is not allowed for type "%s"`, catalog.ObjectNameText(object)))
 		}
 		if err := d.CheckModifierSupport(); err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42601" && raw.Schema != nil {
 				// Explicit qualification owns its diagnostic spelling. Unqualified
 				// aliases and lowered declarations retain the descriptor's name.
-				return sqltype.Usage{}, typedef.TypeDiagnostic(raw, diagnostic.Code, fmt.Sprintf(`type modifier is not allowed for type "%s"`, objectNameText(object)))
+				return sqltype.Usage{}, typedef.TypeDiagnostic(raw, diagnostic.Code, fmt.Sprintf(`type modifier is not allowed for type "%s"`, catalog.ObjectNameText(object)))
 			}
 			return sqltype.Usage{}, analyze.InputErrorAt(err, raw.Pos)
 		}

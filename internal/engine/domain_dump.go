@@ -40,11 +40,11 @@ func catalogTypeDeclarationAt(view catalog.Read, reader catalog.DefinitionReader
 	if !u.Type.IsUserDefined() && !(u.Type.IsDomain() && u.Type.Concrete()) {
 		return u.Declaration()
 	}
-	descriptor, ok := definitionDescriptorAt(view, reader, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())})
+	descriptor, ok := catalog.DescriptorAt(view, reader, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())})
 	if !ok || descriptor.(*catalog.Type).SQLType != u.Type || !u.Valid() {
 		return "", fmt.Errorf("stuntgres: invalid domain declaration authority")
 	}
-	namespace, ok := definitionDescriptorAt(view, reader, descriptor.Namespace())
+	namespace, ok := catalog.DescriptorAt(view, reader, descriptor.Namespace())
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing domain namespace")
 	}

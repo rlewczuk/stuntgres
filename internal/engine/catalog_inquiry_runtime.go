@@ -3,8 +3,7 @@ package engine
 import (
 	"fmt"
 	"strconv"
-	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/plan"
+
 	"stuntgres/internal/sqltype"
 )
 
@@ -22,9 +21,4 @@ func (h *statementHost) CatalogUserName(oid uint32, result *sqltype.Descriptor) 
 		return sqltype.String(result, role.Name), nil
 	}
 	return sqltype.String(result, "unknown (OID="+strconv.FormatUint(uint64(oid), 10)+")"), nil
-}
-
-func bareInquiryLiteralNull(node expr.Expr) bool {
-	value, ok := node.(plan.LiteralExpr)
-	return ok && value.Value.IsNull()
 }

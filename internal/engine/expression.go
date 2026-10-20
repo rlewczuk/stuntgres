@@ -499,7 +499,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				if _, err := function.Signature(b, r, name); err != nil {
 					return nil, err
 				}
-				return nil, expr.ErrorAt("42809", "window function "+objectNameText(diagnosticName)+" requires an OVER clause", r.Pos)
+				return nil, expr.ErrorAt("42809", "window function "+catalog.ObjectNameText(diagnosticName)+" requires an OVER clause", r.Pos)
 			}
 			parentOwner := b.grouping.argumentOwner
 			b.grouping.argumentOwner = argumentWindowOwner{active: true}
@@ -579,11 +579,11 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			case plan.ExtensionPathsExpr:
 				b.consumer.catalogSnapshot = true
 			case expr.SnapshotDemander:
-				demand, _, _ := inquiry.SnapshotDemand(bareInquiryLiteralNull)
+				demand, _, _ := inquiry.SnapshotDemand(plan.NullLiteral)
 				b.consumer.catalogSnapshot = b.consumer.catalogSnapshot || demand
 			}
 			if r.Window != nil {
-				return nil, expr.ErrorAt("42809", "OVER specified, but "+objectNameText(r.Name)+" is not a window function nor an aggregate function", r.Pos)
+				return nil, expr.ErrorAt("42809", "OVER specified, but "+catalog.ObjectNameText(r.Name)+" is not a window function nor an aggregate function", r.Pos)
 			}
 		case parser.CallExpr:
 			var err error

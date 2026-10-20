@@ -105,7 +105,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 					address = installed.Ref.Address
 				}
 			}
-			descriptor, _ := definitionDescriptorAt(view, reader, address)
+			descriptor, _ := catalog.DescriptorAt(view, reader, address)
 			current, ok := descriptor.(*catalog.Procedure)
 			sameSignature := ok && current.Signature == captured.Signature
 			if ok && captured.SQL != nil {
@@ -202,7 +202,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 		n.Args = children(n.Args)
 		n.Info = info
 		if n.Procedure != nil {
-			descriptor, _ := definitionDescriptorAt(view, reader, n.Ref.Address)
+			descriptor, _ := catalog.DescriptorAt(view, reader, n.Ref.Address)
 			proc, ok := descriptor.(*catalog.Procedure)
 			if !ok || extension.IntaggProviderOf(proc) != extension.StockIntagg {
 				return nil, false, fmt.Errorf("stuntgres: missing remapped intagg enumerator")
@@ -219,7 +219,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 		if err != nil {
 			return node, false, err
 		}
-		descriptor, _ := definitionDescriptorAt(view, reader, n.Ref.Address)
+		descriptor, _ := catalog.DescriptorAt(view, reader, n.Ref.Address)
 		proc, ok := descriptor.(*catalog.Procedure)
 		if !ok || extension.FuzzystrmatchProviderOf(proc) != extension.StockFuzzystrmatch {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped Soundex function")
@@ -236,7 +236,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 		if err != nil {
 			return node, false, err
 		}
-		descriptor, _ := definitionDescriptorAt(view, reader, n.Ref.Address)
+		descriptor, _ := catalog.DescriptorAt(view, reader, n.Ref.Address)
 		proc, ok := descriptor.(*catalog.Procedure)
 		if !ok || extension.FuzzystrmatchProviderOf(proc) != extension.StockFuzzystrmatch {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped Metaphone function")
@@ -253,7 +253,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 		if err != nil {
 			return node, false, err
 		}
-		descriptor, _ := definitionDescriptorAt(view, reader, n.Ref.Address)
+		descriptor, _ := catalog.DescriptorAt(view, reader, n.Ref.Address)
 		proc, ok := descriptor.(*catalog.Procedure)
 		if !ok || extension.FuzzystrmatchProviderOf(proc) != extension.StockFuzzystrmatch {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped Levenshtein function")
@@ -266,7 +266,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 		}
 		rebound = n
 	case plan.InstalledUUIDOsspExpr:
-		descriptor, _ := definitionDescriptorAt(view, reader, n.Ref.Address)
+		descriptor, _ := catalog.DescriptorAt(view, reader, n.Ref.Address)
 		proc, ok := descriptor.(*catalog.Procedure)
 		if !ok || extension.UUIDOsspProviderOf(proc) != extension.StockUUIDOssp {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped uuid-ossp function")
@@ -281,7 +281,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 		if err != nil {
 			return node, false, err
 		}
-		descriptor, _ := definitionDescriptorAt(view, reader, n.Ref.Address)
+		descriptor, _ := catalog.DescriptorAt(view, reader, n.Ref.Address)
 		proc, ok := descriptor.(*catalog.Procedure)
 		if !ok || extension.PgcryptoProviderOf(proc) != extension.StockPgcrypto {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped crypto function")
@@ -295,7 +295,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 		rebound = n
 	case plan.InstalledTextExpr:
 		n.Arg = child(n.Arg)
-		descriptor, _ := definitionDescriptorAt(view, reader, n.Ref.Address)
+		descriptor, _ := catalog.DescriptorAt(view, reader, n.Ref.Address)
 		proc, ok := descriptor.(*catalog.Procedure)
 		if !ok {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped installed function")
@@ -303,12 +303,12 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 		var dict *catalog.TSDictionary
 		var tmpl *catalog.TSTemplate
 		if extension.UnaccentProviderOf(proc) != nil {
-			descriptor, _ = definitionDescriptorAt(view, reader, proc.Dictionary)
+			descriptor, _ = catalog.DescriptorAt(view, reader, proc.Dictionary)
 			dict, ok = descriptor.(*catalog.TSDictionary)
 			if !ok {
 				return nil, false, fmt.Errorf("stuntgres: missing remapped installed dictionary")
 			}
-			descriptor, _ = definitionDescriptorAt(view, reader, dict.Template)
+			descriptor, _ = catalog.DescriptorAt(view, reader, dict.Template)
 			tmpl, ok = descriptor.(*catalog.TSTemplate)
 			if !ok {
 				return nil, false, fmt.Errorf("stuntgres: missing remapped installed template")

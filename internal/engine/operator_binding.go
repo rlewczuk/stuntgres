@@ -100,7 +100,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 		// Even a masked custom descriptor requires ordered signature masking below.
 	}
 	var candidates []*catalog.Operator
-	seen := make(map[operatorSignature]bool)
+	seen := make(map[analyze.OperatorSignature]bool)
 	custom := false
 	for i := range path.Count() {
 		for _, address := range view.State().OperatorNames().Buckets[catalog.OperatorNameKey{path.At(i), spelling}] {
@@ -108,7 +108,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 			if (d.Left == 0) != unary {
 				continue
 			}
-			key := operatorSignature{d.Left, d.Right}
+			key := analyze.OperatorSignature{Left: d.Left, Right: d.Right}
 			if seen[key] {
 				continue
 			}

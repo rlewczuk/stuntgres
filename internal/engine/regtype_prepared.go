@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -121,7 +122,7 @@ func (b *expressionBinder) recordRegObjectConstant(value sqltype.Value, pos pars
 
 func (b *expressionBinder) captureRegObjectReferences(constant *regtypeConstant) error {
 	view := b.bindingCatalog()
-	return walkCatalogAliasDependencies(view, constant.Value, func(address ids.ObjectAddress) error {
+	return catalog.WalkAliasDependencies(view, constant.Value, func(address ids.ObjectAddress) error {
 		if address.ClassID == ids.TypeClassID {
 			return nil
 		}

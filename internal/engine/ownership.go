@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
@@ -306,7 +307,7 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 		}
 	}
 	if old == nil {
-		return fail(sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(s.Name))))
+		return fail(sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, catalog.ObjectNameText(s.Name))))
 	}
 	diagnosticPath, _ := e.referencePath(auth)
 	display := catalog.TypeDiagnosticNameAt(auth.Catalog, old, diagnosticPath)

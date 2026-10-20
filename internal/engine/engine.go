@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
+	"sync"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
-	"sync"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -404,13 +404,6 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	}
 	return StatementDescription{Parameters: b.Parameters, Results: results, catalogOwner: auth.Catalog.Owner(), catalogEpoch: auth.Catalog.Epoch(), temporals: b.Prepared.Temporals, composites: b.Prepared.Composites, sequences: cell, regtypes: regtypes, analysis: prepared, planOwner: op.session.token, planGeneration: op.session.discardPlansGeneration}, nil
 }
-func objectNameText(n parser.ObjectName) string {
-	parts := make([]string, len(n.Parts))
-	for i, p := range n.Parts {
-		parts[i] = p.Text
-	}
-	return strings.Join(parts, ".")
-}
 
 // requiredRef is the exact acquired DML/utility target; query source occurrences
 // have their own admission manifest. Binding validates namespace authority and
@@ -486,7 +479,7 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 		}
 	}
 	if !ok {
-		return ids.ObjectRef{}, sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, objectNameText(name)))
+		return ids.ObjectRef{}, sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, catalog.ObjectNameText(name)))
 	}
 	descriptor, exists := auth.definitionDescriptor(a)
 	d, valid := descriptor.(*catalog.Relation)

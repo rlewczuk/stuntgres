@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -57,7 +58,7 @@ func (e *Engine) lookupIndexClass(auth AuthorizationView, raw parser.ObjectName,
 			}
 		}
 	}
-	return sqltype.IndexClass{}, sqlError("42704", fmt.Sprintf(`operator class "%s" does not exist for access method "%s"`, objectNameText(raw), method))
+	return sqltype.IndexClass{}, sqlError("42704", fmt.Sprintf(`operator class "%s" does not exist for access method "%s"`, catalog.ObjectNameText(raw), method))
 }
 
 func (e *Engine) bindIndexKey(op *Operation, auth AuthorizationView, u sqltype.Usage, raw parser.IndexKey, method catalog.IndexMethod) (catalog.IndexKey, error) {
@@ -85,7 +86,7 @@ func (e *Engine) bindIndexKey(op *Operation, auth AuthorizationView, u sqltype.U
 			return key, err
 		}
 		if !c.Accepts(u.Type) {
-			return key, sqlError("42804", fmt.Sprintf(`operator class "%s" does not accept data type %s`, objectNameText(*raw.Opclass), u.Type.DiagnosticName()))
+			return key, sqlError("42804", fmt.Sprintf(`operator class "%s" does not accept data type %s`, catalog.ObjectNameText(*raw.Opclass), u.Type.DiagnosticName()))
 		}
 		key.ExplicitClass = true
 		exists = true
@@ -137,7 +138,7 @@ func (e *Engine) validateSystemIndexKey(op *Operation, auth AuthorizationView, r
 			return err
 		}
 		if !class.AcceptsID(id) {
-			return sqlError("42804", fmt.Sprintf(`operator class "%s" does not accept data type %s`, objectNameText(*raw.Opclass), name))
+			return sqlError("42804", fmt.Sprintf(`operator class "%s" does not accept data type %s`, catalog.ObjectNameText(*raw.Opclass), name))
 		}
 	} else if _, exists := method.DefaultClassID(id); !exists {
 		return indexDefaultClassError(name, method)

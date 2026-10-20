@@ -33,7 +33,7 @@ func (r *pgDependRefs) add(address ids.ObjectAddress) {
 	}
 	whole := address
 	whole.SubID = 0
-	d, ok := definitionDescriptorAt(r.catalog, r.definition, whole)
+	d, ok := catalog.DescriptorAt(r.catalog, r.definition, whole)
 	if !ok {
 		r.err = fmt.Errorf("stuntgres: missing dependency provider")
 		return
@@ -85,7 +85,7 @@ func (r *pgDependRefs) expression(expr expr.Expr) {
 		}
 		r.add(n.RegclassRef.Address)
 		if r.err == nil {
-			r.err = walkCatalogAliasDependenciesAt(r.catalog, r.definition, n.Value, func(address ids.ObjectAddress) error {
+			r.err = catalog.WalkAliasDependenciesAt(r.catalog, r.definition, n.Value, func(address ids.ObjectAddress) error {
 				r.add(address)
 				return r.err
 			})

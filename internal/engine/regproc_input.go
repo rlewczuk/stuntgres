@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -92,7 +93,7 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 	}
 	if len(parts) == 3 {
 		if parts[0].Text != r.types.database {
-			return 0, sqlError("0A000", fmt.Sprintf(`cross-database references are not implemented: "%s"`, objectNameText(name)))
+			return 0, sqlError("0A000", fmt.Sprintf(`cross-database references are not implemented: "%s"`, catalog.ObjectNameText(name)))
 		}
 		parts = parts[1:]
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/typedef"
@@ -18,10 +19,10 @@ func (e *Engine) stageDropCompositeLocked(op *Operation, auth AuthorizationView,
 		if err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42704" {
 				if s.IfExists {
-					schemaNotice(op, "00000", fmt.Sprintf(`type "%s" does not exist, skipping`, objectNameText(name)))
+					schemaNotice(op, "00000", fmt.Sprintf(`type "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
 					continue
 				}
-				return sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)))
+				return sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, catalog.ObjectNameText(name)))
 			}
 			return err
 		}

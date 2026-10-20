@@ -2,7 +2,9 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -118,7 +120,7 @@ func (b *expressionBinder) bindStringConcat(raw parser.OperatorExpr) (expr.Expr,
 			}
 			return t.DiagnosticName()
 		}
-		d := expr.ErrorAt("42725", fmt.Sprintf("operator is not unique: %s %s %s", typeName(types[0]), objectNameText(raw.Name), typeName(types[1])), raw.Pos).(*sqlstate.Error)
+		d := expr.ErrorAt("42725", fmt.Sprintf("operator is not unique: %s %s %s", typeName(types[0]), catalog.ObjectNameText(raw.Name), typeName(types[1])), raw.Pos).(*sqlstate.Error)
 		d.Hint = "Could not choose a best candidate operator. You might need to add explicit type casts."
 		return nil, d
 	}

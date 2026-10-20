@@ -51,7 +51,7 @@ func (e *Engine) resolveAlterDomainLocked(auth AuthorizationView, name parser.Ob
 		}
 		return d, ref, nil
 	}
-	return nil, ids.ObjectRef{}, sqlError("42704", fmt.Sprintf("type %q does not exist", objectNameText(name)))
+	return nil, ids.ObjectRef{}, sqlError("42704", fmt.Sprintf("type %q does not exist", catalog.ObjectNameText(name)))
 }
 
 func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDomain, count int) (Result, error) {
@@ -121,7 +121,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		}
 	case parser.DomainDropCheck, parser.DomainValidateCheck:
 		if selected < 0 {
-			message := fmt.Sprintf("constraint %q of domain %q does not exist", raw.Constraint.Text, objectNameText(raw.Name))
+			message := fmt.Sprintf("constraint %q of domain %q does not exist", raw.Constraint.Text, catalog.ObjectNameText(raw.Name))
 			if raw.Action == parser.DomainDropCheck && raw.IfExists {
 				schemaNotice(op, "00000", message+", skipping")
 				e.mu.Unlock()

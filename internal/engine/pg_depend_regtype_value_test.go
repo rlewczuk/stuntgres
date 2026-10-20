@@ -146,7 +146,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	// later identities. No transformed payload is allocated by the walk.
 	stop := errors.New("stop recording")
 	calls := 0
-	if err := walkCatalogAliasReferences(view, payload, func(ids.ObjectAddress) error {
+	if err := catalog.WalkAliasReferences(view, payload, func(ids.ObjectAddress) error {
 		calls++
 		return stop
 	}); !errors.Is(err, stop) || calls != 1 {

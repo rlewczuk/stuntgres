@@ -21,7 +21,7 @@ func validateUsageCollationAt(view catalog.Read, reader catalog.DefinitionReader
 	if u.Collation.ID == 0 {
 		return nil
 	}
-	descriptor, _ := definitionDescriptorAt(view, reader, ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(u.Collation.ID)})
+	descriptor, _ := catalog.DescriptorAt(view, reader, ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(u.Collation.ID)})
 	d, ok := descriptor.(*catalog.Collation)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing stored collation")

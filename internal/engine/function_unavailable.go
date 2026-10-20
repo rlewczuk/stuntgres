@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -14,7 +15,7 @@ import (
 // reports a native capability boundary, never an executable provider or pg_proc
 // row. Missing names and incompatible signatures retain ordinary resolution errors.
 func (b *expressionBinder) unavailableFunctionError(raw parser.FunctionExpr, visible bool) error {
-	identities := routinesByName[raw.Name.Parts[len(raw.Name.Parts)-1].Text]
+	identities := catalog.BuiltinRoutineIdentitiesNamed(raw.Name.Parts[len(raw.Name.Parts)-1].Text)
 	if !visible || len(identities) == 0 || len(raw.ArgNames) != 0 || raw.Variadic || len(raw.Args) > 100 {
 		return b.functionSignatureError(raw)
 	}
@@ -32,7 +33,7 @@ func (b *expressionBinder) unavailableFunctionError(raw parser.FunctionExpr, vis
 		}
 	}
 	for _, identity := range identities {
-		if unavailableSignatureMatches(identity.Signature, routineIdentityDefaults(identity.ID), operands, b.typ) {
+		if unavailableSignatureMatches(identity.Signature, routine.IdentityDefaults(identity.ID), operands, b.typ) {
 			return expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
 		}
 	}

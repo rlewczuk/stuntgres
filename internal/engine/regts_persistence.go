@@ -47,7 +47,7 @@ func walkRegTSReferencesAt(view catalog.Read, reader catalog.DefinitionReader, v
 		return err
 	}
 	address := ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(id)}
-	descriptor, _ := definitionDescriptorAt(view, reader, address)
+	descriptor, _ := catalog.DescriptorAt(view, reader, address)
 	if _, ok := descriptor.(*catalog.TSDictionary); ok {
 		return record(address)
 	}

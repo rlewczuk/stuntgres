@@ -58,7 +58,7 @@ func captureRegObjectOutputValue(rows *exec.FinalRows, view catalog.Read, path [
 		}
 		return nil
 	}
-	address, err := catalogAliasAddress(value)
+	address, err := catalog.AliasAddress(value)
 	if err != nil {
 		return err
 	}

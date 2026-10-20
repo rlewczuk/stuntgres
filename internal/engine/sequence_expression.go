@@ -182,7 +182,7 @@ func regclassQualifiedName(name parser.ObjectName, text, database string) (parse
 	}
 	if len(name.Parts) == 3 {
 		if name.Parts[0].Text != database {
-			return parser.ObjectName{}, sqlError("0A000", fmt.Sprintf(`cross-database references are not implemented: "%s"`, objectNameText(name)))
+			return parser.ObjectName{}, sqlError("0A000", fmt.Sprintf(`cross-database references are not implemented: "%s"`, catalog.ObjectNameText(name)))
 		}
 		name.Parts = name.Parts[1:]
 	}
@@ -257,5 +257,5 @@ func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string)
 			return uint32(address.ObjectID), nil
 		}
 	}
-	return 0, sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, objectNameText(name)))
+	return 0, sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, catalog.ObjectNameText(name)))
 }

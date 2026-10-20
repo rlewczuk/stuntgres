@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -44,7 +45,7 @@ func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parse
 			return nil, err
 		}
 		if s.Kind == "parameter" {
-			key, err := e.canonicalGrantParameter(objectNameText(name))
+			key, err := e.canonicalGrantParameter(catalog.ObjectNameText(name))
 			if err != nil {
 				return nil, err
 			}

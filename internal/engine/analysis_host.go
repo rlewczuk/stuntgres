@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -70,6 +71,10 @@ type analyzeHost interface {
 	CaptureEnumOperationSafety(input *sqltype.InputEnvironment)
 	FTSInput() sqltype.FTSInputNotices
 
+	// Expressions. The engine's copy-on-change retag walker, with identity
+	// type and query mappers; leaf runs before children.
+	MapBoundExpression(view catalog.Read, reader catalog.DefinitionReader, node expr.Expr, substituteSources bool, leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, error)
+
 	// Session.
 	PlanOwner() (owner ids.SessionToken, discardGeneration uint64, ok bool)
 
@@ -109,6 +114,13 @@ func (e *Engine) analysisHost(op *Operation) *bindingHost {
 		return &e.analysis
 	}
 	return &bindingHost{engine: e, op: op}
+}
+
+// MapBoundExpression rewrites node with leaf through the retag walker,
+// keeping every type and query node; it reads only its arguments.
+func (h *bindingHost) MapBoundExpression(view catalog.Read, reader catalog.DefinitionReader, node expr.Expr, substituteSources bool, leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, error) {
+	next, _, err := mapBoundExpressionReader(view, reader, node, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root plan.Node) (plan.Node, error) { return root, nil }, nil, substituteSources, leaf)
+	return next, err
 }
 
 func (h *bindingHost) CheckPrivilege(auth analyze.Authority, req access.Requirement) error {

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -26,7 +27,7 @@ func (e *Engine) findCollation(auth AuthorizationView, raw parser.ObjectName) (*
 			}
 		}
 	}
-	return nil, expr.ErrorAt("42704", fmt.Sprintf(`collation "%s" for encoding "UTF8" does not exist`, objectNameText(raw)), raw.Parts[0].Pos)
+	return nil, expr.ErrorAt("42704", fmt.Sprintf(`collation "%s" for encoding "UTF8" does not exist`, catalog.ObjectNameText(raw)), raw.Parts[0].Pos)
 }
 
 func (e *Engine) resolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName, op *Operation) (sqltype.Usage, error) {

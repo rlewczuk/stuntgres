@@ -518,7 +518,7 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (result expr.Ex
 		if _, err := b.bindFunction(combined); err != nil {
 			return nil, err
 		}
-		name := objectNameText(raw.Name)
+		name := catalog.ObjectNameText(raw.Name)
 		return nil, expr.ErrorAt("42809", "WITHIN GROUP specified, but "+name+" is not an aggregate function", raw.Pos)
 	}
 	eligible := len(raw.Name.Parts) == 1 && len(raw.Args) == 1 && len(raw.ArgNames) == 0 && !raw.Variadic && !raw.ResolutionOnly && raw.Syntax == parser.OrdinaryFunctionSyntax && raw.Filter == nil && raw.Window == nil && !raw.Star && !raw.Distinct && !raw.All && len(raw.Order) == 0
@@ -606,7 +606,7 @@ func (b *expressionBinder) bindCompositeBase(raw parser.Expr) (expr.Expr, error)
 	return node, err
 }
 func (b *expressionBinder) demandWholePresence(node expr.Expr) (expr.Expr, error) {
-	next, _, err := mapBoundExpressionReader(b.bindingCatalog(), b.definitionReader(), node, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root plan.Node) (plan.Node, error) { return root, nil }, nil, false, func(child expr.Expr) (expr.Expr, bool, error) {
+	next, err := b.host.MapBoundExpression(b.bindingCatalog(), b.definitionReader(), node, false, func(child expr.Expr) (expr.Expr, bool, error) {
 		row, ok := child.(plan.RowExpr)
 		if !ok || row.WholeNames == nil || row.PresenceSlot != 0 {
 			return child, false, nil

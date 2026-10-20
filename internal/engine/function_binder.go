@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -243,7 +244,7 @@ func (b *expressionBinder) SequenceTemporary(ref ids.ObjectRef, pos parser.Posit
 		}
 	}
 	if b.consumer.defaultConsumer {
-		if err := validateDefaultTemporaryProvider(temporary, b.consumer.defaultTemporary, pos); err != nil {
+		if err := sequence.ValidateDefaultTemporaryProvider(temporary, b.consumer.defaultTemporary, pos); err != nil {
 			return temporary, err
 		}
 		// Stored defaults do not enter call-site prepared literal reanalysis.

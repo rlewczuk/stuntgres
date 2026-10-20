@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -86,7 +87,7 @@ func (s *StatementScope) acquireExplicitLocks(stmt *parser.LockTable) error {
 		if err != nil {
 			return err
 		}
-		if err := s.acquireExplicitRelation(stmt, ref, objectNameText(target.Name), mode, policy, invoker, invoker, nil, target.Only); err != nil {
+		if err := s.acquireExplicitRelation(stmt, ref, catalog.ObjectNameText(target.Name), mode, policy, invoker, invoker, nil, target.Only); err != nil {
 			return err
 		}
 	}

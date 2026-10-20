@@ -3,7 +3,9 @@ package engine
 import (
 	"fmt"
 	"strconv"
+
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -89,9 +91,9 @@ func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right co
 			}
 			return t.DiagnosticName()
 		}
-		signature := objectNameText(raw.Name) + " " + typeName(lt)
+		signature := catalog.ObjectNameText(raw.Name) + " " + typeName(lt)
 		if len(raw.Args) == 2 {
-			signature = typeName(lt) + " " + objectNameText(raw.Name) + " " + typeName(rt)
+			signature = typeName(lt) + " " + catalog.ObjectNameText(raw.Name) + " " + typeName(rt)
 		}
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42725", Message: "operator is not unique: " + signature, Hint: "Could not choose a best candidate operator. You might need to add explicit type casts.", Position: strconv.Itoa(raw.Pos.Character)}
 	}

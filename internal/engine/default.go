@@ -13,20 +13,12 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
-
-// Raw and cooked DEFAULT consumers share the physical TEMP provider boundary.
-// Cooked copies supply no position: their original call token is not in LIKE SQL.
-func validateDefaultTemporaryProvider(provider, consumer ids.SessionToken, position parser.Position) error {
-	if provider != (ids.SessionToken{}) && provider != consumer {
-		return expr.ErrorAt("0A000", "temporary sequence DEFAULT is unsupported", position)
-	}
-	return nil
-}
 
 func validateCookedDefaultTemporary(node expr.Expr, consumer ids.SessionToken) error {
 	var err error
@@ -35,7 +27,7 @@ func validateCookedDefaultTemporary(node expr.Expr, consumer ids.SessionToken) e
 			return
 		}
 		if call, ok := node.(functions.SequenceCall); ok {
-			err = validateDefaultTemporaryProvider(call.Temporary, consumer, parser.Position{})
+			err = sequence.ValidateDefaultTemporaryProvider(call.Temporary, consumer, parser.Position{})
 		}
 	})
 	return err
@@ -226,12 +218,12 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 			return "", fmt.Errorf("stuntgres: retired field in stored expression")
 		}
 		if composite.ID() != 2249 {
-			descriptor, _ := definitionDescriptorAt(view, r.definition, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(composite.ID())})
+			descriptor, _ := catalog.DescriptorAt(view, r.definition, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(composite.ID())})
 			typ, valid := descriptor.(*catalog.Type)
 			if !valid || typ.SQLType != composite || typ.OwningRelation == (ids.ObjectAddress{}) {
 				return "", fmt.Errorf("stuntgres: invalid stored composite field type")
 			}
-			descriptor, _ = definitionDescriptorAt(view, r.definition, typ.OwningRelation)
+			descriptor, _ = catalog.DescriptorAt(view, r.definition, typ.OwningRelation)
 			relation, valid := descriptor.(*catalog.Relation)
 			if !valid || !compositeAttributeProvider(typ, relation, n.Attribute) {
 				return "", fmt.Errorf("stuntgres: invalid stored composite attribute")
@@ -339,7 +331,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		}
 		if n.RegclassRef != (ids.ObjectRef{}) {
 			ref := n.RegclassRef
-			target, ok := definitionDescriptorAt(view, r.definition, ref.Address)
+			target, ok := catalog.DescriptorAt(view, r.definition, ref.Address)
 			_, relationOK := target.(*catalog.Relation)
 			if !ok || !relationOK || !storedReferenceEpochValid(view, r.retainedConsumer(), ref) || ref.Address.SubID != 0 || u.Type.ID() != sqltype.Regclass || n.Value.IsNull() {
 				return "", fmt.Errorf("stuntgres: invalid stored regclass reference")
@@ -357,7 +349,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 				return "", err
 			}
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}
-			if _, exists := definitionDescriptorAt(view, r.definition, address); exists {
+			if _, exists := catalog.DescriptorAt(view, r.definition, address); exists {
 				r.record(view.Owner().Domain.Ref(view.Epoch(), address))
 			}
 		}

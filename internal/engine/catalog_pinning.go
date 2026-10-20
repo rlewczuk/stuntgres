@@ -13,14 +13,14 @@ func pgDependPinned(view catalog.Read, reader catalog.DefinitionReader, address 
 	}
 	whole := address
 	whole.SubID = 0
-	d, ok := definitionDescriptorAt(view, reader, whole)
+	d, ok := catalog.DescriptorAt(view, reader, whole)
 	if !ok {
 		return false
 	}
 	switch d := d.(type) {
 	case *catalog.Type:
 		if d.OwningRelation != (ids.ObjectAddress{}) {
-			descriptor, ok := definitionDescriptorAt(view, reader, d.OwningRelation)
+			descriptor, ok := catalog.DescriptorAt(view, reader, d.OwningRelation)
 			relation, relationOK := descriptor.(*catalog.Relation)
 			return !ok || !relationOK || relation.RelationKind == catalog.CatalogRelation
 		}

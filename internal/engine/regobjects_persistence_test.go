@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -66,14 +67,14 @@ func TestRegObjectAliasPersistence(t *testing.T) {
 			t.Fatal(err)
 		}
 		var references []ids.ObjectAddress
-		if err := walkCatalogAliasReferences(view, value, func(address ids.ObjectAddress) error { references = append(references, address); return nil }); err != nil {
+		if err := catalog.WalkAliasReferences(view, value, func(address ids.ObjectAddress) error { references = append(references, address); return nil }); err != nil {
 			t.Fatal(err)
 		}
 		if !reflect.DeepEqual(references, []ids.ObjectAddress{{ClassID: fact.class, ObjectID: ids.OID(fact.oid)}}) {
 			t.Fatal("class-aware references", references)
 		}
 		references = nil
-		if err := walkCatalogAliasDependencies(view, value, func(address ids.ObjectAddress) error { references = append(references, address); return nil }); err != nil {
+		if err := catalog.WalkAliasDependencies(view, value, func(address ids.ObjectAddress) error { references = append(references, address); return nil }); err != nil {
 			t.Fatal(err)
 		}
 		if !reflect.DeepEqual(references, []ids.ObjectAddress{{ClassID: fact.class, ObjectID: ids.OID(fact.oid)}}) {
@@ -94,7 +95,7 @@ func TestRegObjectAliasPersistence(t *testing.T) {
 		}
 		for _, opaque := range []sqltype.Value{array, wrapped} {
 			references = nil
-			if err := walkCatalogAliasDependencies(view, opaque, func(address ids.ObjectAddress) error { references = append(references, address); return nil }); err != nil || len(references) != 0 {
+			if err := catalog.WalkAliasDependencies(view, opaque, func(address ids.ObjectAddress) error { references = append(references, address); return nil }); err != nil || len(references) != 0 {
 				t.Fatal("opaque alias payload gained dependency", references, err)
 			}
 		}
@@ -107,7 +108,7 @@ func TestRegObjectAliasPersistence(t *testing.T) {
 			t.Fatal(err)
 		}
 		references = nil
-		if err := walkCatalogAliasDependencies(view, scalarWrapped, func(address ids.ObjectAddress) error { references = append(references, address); return nil }); err != nil || len(references) != 0 {
+		if err := catalog.WalkAliasDependencies(view, scalarWrapped, func(address ids.ObjectAddress) error { references = append(references, address); return nil }); err != nil || len(references) != 0 {
 			t.Fatal("domain Const mistaken for scalar alias Const", references, err)
 		}
 		remapped, err := remapCatalogAliasDatum(wrapped, func(address ids.ObjectAddress) ids.ObjectAddress {
@@ -125,7 +126,7 @@ func TestRegObjectAliasPersistence(t *testing.T) {
 		}
 		unknown, _ := sqltype.RegObjectValue(typ, 4294967295)
 		references = nil
-		if err := walkCatalogAliasReferences(view, unknown, func(address ids.ObjectAddress) error { references = append(references, address); return nil }); err != nil || len(references) != 0 {
+		if err := catalog.WalkAliasReferences(view, unknown, func(address ids.ObjectAddress) error { references = append(references, address); return nil }); err != nil || len(references) != 0 {
 			t.Fatal("unknown OID acquired dependency", references, err)
 		}
 		wrongClass := ids.TypeClassID

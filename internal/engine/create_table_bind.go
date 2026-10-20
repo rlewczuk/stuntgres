@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
@@ -91,7 +92,7 @@ func bindCreateTable(host analyzeHost, auth analyze.Authority, s *parser.CreateT
 				if diagnostic, ok := err.(*sqlstate.Error); ok {
 					copy := *diagnostic
 					if copy.Code == "42P01" {
-						copy.Message = fmt.Sprintf(`relation "%s" does not exist`, objectNameText(like.Name))
+						copy.Message = fmt.Sprintf(`relation "%s" does not exist`, catalog.ObjectNameText(like.Name))
 					}
 					copy.Position = ""
 					if pos := like.Name.Parts[0].Pos.Character; pos > 0 {

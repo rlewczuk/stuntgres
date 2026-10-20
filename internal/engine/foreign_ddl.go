@@ -70,7 +70,7 @@ func (e *Engine) foreignProcedureLocked(auth AuthorizationView, name *parser.Obj
 		if signature == catalog.ForeignValidatorSignature {
 			args = "text[], oid"
 		}
-		return nil, sqlError("42883", "function "+objectNameText(*name)+"("+args+") does not exist")
+		return nil, sqlError("42883", "function "+catalog.ObjectNameText(*name)+"("+args+") does not exist")
 	}
 	if err := auth.Check(access.Requirement{Object: foreignRef(auth, p), Privileges: authorization.ExecutePrivilege}); err != nil {
 		return nil, err

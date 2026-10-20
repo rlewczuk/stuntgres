@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -148,7 +149,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 				types[i] = arg.ResultUsage().Type.DiagnosticName()
 			}
 		}
-		d := expr.ErrorAt("42883", fmt.Sprintf("function %s(%s) does not exist", objectNameText(raw.Name), strings.Join(types, ", ")), raw.Pos).(*sqlstate.Error)
+		d := expr.ErrorAt("42883", fmt.Sprintf("function %s(%s) does not exist", catalog.ObjectNameText(raw.Name), strings.Join(types, ", ")), raw.Pos).(*sqlstate.Error)
 		d.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
 		return nil, d
 	}

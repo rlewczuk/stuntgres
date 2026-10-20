@@ -26,7 +26,7 @@ func (e *Engine) findUtilityConversion(auth AuthorizationView, name parser.Objec
 			return d, nil
 		}
 	}
-	return nil, sqlError("42704", fmt.Sprintf(`conversion "%s" does not exist`, objectNameText(name)))
+	return nil, sqlError("42704", fmt.Sprintf(`conversion "%s" does not exist`, catalog.ObjectNameText(name)))
 }
 
 // Rebuilding captured owners is the existing trusted native Restore boundary,
@@ -72,7 +72,7 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 	}
 	name := s.Function.Parts[len(s.Function.Parts)-1].Text
 	procedure := procedureInNamespaces(auth.Catalog, path, name, catalog.ConversionSignature)
-	functionName := objectNameText(s.Function)
+	functionName := catalog.ObjectNameText(s.Function)
 	if procedure == nil {
 		return sqlError("42883", "function "+functionName+"(integer, integer, cstring, internal, integer, boolean) does not exist")
 	}
@@ -193,7 +193,7 @@ func (e *Engine) stageDropConversionLocked(op *Operation, auth AuthorizationView
 				if diagnostic.Code == "3F000" {
 					schemaNotice(op, "00000", diagnostic.Message+", skipping")
 				} else {
-					schemaNotice(op, "00000", fmt.Sprintf(`conversion "%s" does not exist, skipping`, objectNameText(name)))
+					schemaNotice(op, "00000", fmt.Sprintf(`conversion "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
 				}
 				continue
 			}
@@ -201,7 +201,7 @@ func (e *Engine) stageDropConversionLocked(op *Operation, auth AuthorizationView
 		}
 		if err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), OwnerOnly: true}); err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
-				return sqlError("42501", "must be owner of conversion "+objectNameText(name))
+				return sqlError("42501", "must be owner of conversion "+catalog.ObjectNameText(name))
 			}
 			return err
 		}

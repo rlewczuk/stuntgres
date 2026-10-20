@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -350,10 +351,10 @@ func (b *expressionBinder) finishSQLCallable(raw parser.FunctionExpr, selected s
 			modifier = "FILTER"
 		}
 		if modifier != "" {
-			return nil, expr.ErrorAt("42809", modifier+" specified, but "+objectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
+			return nil, expr.ErrorAt("42809", modifier+" specified, but "+catalog.ObjectNameText(raw.Name)+" is not an aggregate function", raw.Pos)
 		}
 		if raw.Window != nil {
-			return nil, expr.ErrorAt("42809", "OVER specified, but "+objectNameText(raw.Name)+" is not a window function nor an aggregate function", raw.Pos)
+			return nil, expr.ErrorAt("42809", "OVER specified, but "+catalog.ObjectNameText(raw.Name)+" is not a window function nor an aggregate function", raw.Pos)
 		}
 		if raw.Star || len(raw.Order) != 0 {
 			return nil, expr.ErrorAt("0A000", "SQL scalar function call modifiers are unsupported", raw.Pos)

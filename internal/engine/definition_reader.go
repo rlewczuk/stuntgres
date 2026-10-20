@@ -2,6 +2,7 @@ package engine
 
 import (
 	"iter"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -43,7 +44,7 @@ func definitionProceduresNamedAt(view catalog.Read, reader catalog.DefinitionRea
 func indexedDefinitionProcedures(view catalog.Read, reader catalog.DefinitionReader, namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
 	return func(yield func(*catalog.Procedure) bool) {
 		for _, address := range view.State().ProceduresNamed(namespace, name) {
-			descriptor, present := definitionDescriptorAt(view, reader, address)
+			descriptor, present := catalog.DescriptorAt(view, reader, address)
 			if d, ok := descriptor.(*catalog.Procedure); present && ok && d.Namespace() == namespace && d.Name() == name {
 				if !yield(d) {
 					return
@@ -158,7 +159,7 @@ func (a AuthorizationView) definitionNamespace(address ids.ObjectAddress) (*cata
 }
 
 func definitionNamespaceAt(view catalog.Read, reader catalog.DefinitionReader, address ids.ObjectAddress) (*catalog.Namespace, bool) {
-	descriptor, exists := definitionDescriptorAt(view, reader, address)
+	descriptor, exists := catalog.DescriptorAt(view, reader, address)
 	namespace, ok := descriptor.(*catalog.Namespace)
 	return namespace, exists && ok
 }
@@ -189,7 +190,7 @@ func (b *expressionBinder) definitionArray(element *sqltype.Descriptor) (*sqltyp
 // The authority* reads go through auth's own catalog and definition reader,
 // which the host supplies (a binding authority reads through the operation's).
 func (b *expressionBinder) authorityDescriptor(auth analyze.Authority, address ids.ObjectAddress) (catalog.Descriptor, bool) {
-	return definitionDescriptorAt(auth.ReadCatalog(), b.host.DefinitionOf(auth), address)
+	return catalog.DescriptorAt(auth.ReadCatalog(), b.host.DefinitionOf(auth), address)
 }
 func (b *expressionBinder) authorityRelation(auth analyze.Authority, address ids.ObjectAddress) (*catalog.Relation, bool) {
 	return definitionRelationAt(auth.ReadCatalog(), b.host.DefinitionOf(auth), address)
@@ -206,7 +207,7 @@ func (a AuthorizationView) definitionRelation(address ids.ObjectAddress) (*catal
 }
 
 func definitionRelationAt(view catalog.Read, reader catalog.DefinitionReader, address ids.ObjectAddress) (*catalog.Relation, bool) {
-	descriptor, exists := definitionDescriptorAt(view, reader, address)
+	descriptor, exists := catalog.DescriptorAt(view, reader, address)
 	relation, ok := descriptor.(*catalog.Relation)
 	return relation, exists && ok
 }
@@ -214,13 +215,6 @@ func definitionRelationAt(view catalog.Read, reader catalog.DefinitionReader, ad
 func (r stageDefinitionReader) indexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
 	lineage, ok := r.stage.indexesOrZero().layouts[address]
 	return lineage, ok
-}
-
-func definitionDescriptorAt(view catalog.Read, reader catalog.DefinitionReader, address ids.ObjectAddress) (catalog.Descriptor, bool) {
-	if reader != nil {
-		return reader.Descriptor(address)
-	}
-	return view.Descriptor(address)
 }
 
 func (a AuthorizationView) definitionArray(element *sqltype.Descriptor) (*sqltype.Descriptor, bool) {
@@ -256,7 +250,7 @@ func definitionArrayAt(view catalog.Read, reader catalog.DefinitionReader, eleme
 }
 
 func (r scalarRenderer) descriptor(view catalog.Read, address ids.ObjectAddress) catalog.Descriptor {
-	descriptor, _ := definitionDescriptorAt(view, r.definition, address)
+	descriptor, _ := catalog.DescriptorAt(view, r.definition, address)
 	return descriptor
 }
 

@@ -53,7 +53,7 @@ func (e *Engine) resolveAlterEnumLocked(auth AuthorizationView, name parser.Obje
 		}
 		return d, ref, nil
 	}
-	return nil, ids.ObjectRef{}, sqlError("42704", fmt.Sprintf("type %q does not exist", objectNameText(name)))
+	return nil, ids.ObjectRef{}, sqlError("42704", fmt.Sprintf("type %q does not exist", catalog.ObjectNameText(name)))
 }
 
 func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, count int) (Result, error) {

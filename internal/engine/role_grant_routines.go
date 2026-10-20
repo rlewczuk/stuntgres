@@ -79,7 +79,7 @@ func (e *Engine) resolveGrantRoutine(op *Operation, v AuthorizationView, target 
 	if kind == "procedure" {
 		noun = "procedure"
 	}
-	display := objectNameText(target.Name)
+	display := catalog.ObjectNameText(target.Name)
 	if count == 0 {
 		if !target.SignatureSpecified {
 			return ids.ObjectRef{}, sqlError("42883", fmt.Sprintf(`could not find a %s named "%s"`, noun, display))

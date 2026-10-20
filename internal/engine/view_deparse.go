@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
@@ -1497,7 +1498,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 				}
 				parts[i] = text
 			}
-			functionName := objectNameText(e.Name)
+			functionName := catalog.ObjectNameText(e.Name)
 			if functions.JSONCreateKind(name) != 0 {
 				functionName = "pg_catalog." + name
 			}
@@ -1569,10 +1570,10 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 			}
 			return functionName + "(" + text + ")", err
 		}
-		return objectNameText(e.Name) + "(" + text + ")", err
+		return catalog.ObjectNameText(e.Name) + "(" + text + ")", err
 	case parser.CallExpr:
 		text, err := args(e.Args)
-		return objectNameText(e.Name) + "(" + text + ")", err
+		return catalog.ObjectNameText(e.Name) + "(" + text + ")", err
 	case parser.ArrayExpr:
 		text, err := args(e.Elements)
 		return "ARRAY[" + text + "]", err

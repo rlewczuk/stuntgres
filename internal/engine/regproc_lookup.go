@@ -3,39 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/routine"
 )
-
-type routineKey struct {
-	name      string
-	signature catalog.ProcedureSignature
-}
-
-var routinesByName, routineBySignature = indexBuiltinRoutines()
-
-// Default counts absent from the native provider declaration inventory remain
-// lookup-only metadata, never executable registrations. PostgreSQL REL_18_6:
-// src/backend/catalog/system_functions.sql, pg_terminate_backend(pid integer,
-// timeout int8 DEFAULT 0).
-var builtinRoutineIdentityDefaults = map[ids.OID]uint8{2096: 1}
-
-func routineIdentityDefaults(id ids.OID) uint8 {
-	if declaration := routine.BuiltinRoutine(id); declaration != nil {
-		return declaration.Defaults
-	}
-	return builtinRoutineIdentityDefaults[id]
-}
-
-func indexBuiltinRoutines() (map[string][]catalog.RoutineIdentity, map[routineKey]catalog.RoutineIdentity) {
-	identities := catalog.BuiltinRoutineIdentities()
-	byName := make(map[string][]catalog.RoutineIdentity)
-	bySignature := make(map[routineKey]catalog.RoutineIdentity, len(identities))
-	for _, p := range identities {
-		byName[p.Name] = append(byName[p.Name], p)
-		bySignature[routineKey{p.Name, p.Signature}] = p
-	}
-	return byName, bySignature
-}
 
 func routineIdentityByOID(view catalog.Read, id ids.OID) (catalog.RoutineIdentity, bool) {
 	if p, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}); ok {
@@ -80,7 +48,7 @@ func selectExactRoutine(view catalog.Read, path namespaceSelection, name string,
 			}
 		}
 		if namespace.ObjectID == ids.PGCatalogNamespaceOID {
-			if p, ok := routineBySignature[routineKey{name, signature}]; ok {
+			if p, ok := catalog.BuiltinRoutineIdentityBySignature(name, signature); ok {
 				return p, 1
 			}
 		}
@@ -126,7 +94,7 @@ func selectRoutine(view catalog.Read, path namespaceSelection, name string, sign
 			}
 		}
 		if namespace.ObjectID == ids.PGCatalogNamespaceOID {
-			for _, p := range routinesByName[name] {
+			for _, p := range catalog.BuiltinRoutineIdentitiesNamed(name) {
 				if accept(p) {
 					return selected, count
 				}

@@ -65,7 +65,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 			ref, err := e.resolveRelationReference(auth, name, true)
 			if err != nil {
 				if s.IfExists && renameMissing(err) {
-					schemaNotice(scope.op, "00000", fmt.Sprintf(`foreign table "%s" does not exist, skipping`, objectNameText(name)))
+					schemaNotice(scope.op, "00000", fmt.Sprintf(`foreign table "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
 					continue
 				}
 				return nil, nil, err
@@ -166,7 +166,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 	if err != nil {
 		e.mu.Unlock()
 		if s.IfExists && renameMissing(err) {
-			schemaNotice(scope.op, "00000", fmt.Sprintf(`relation "%s" does not exist, skipping`, objectNameText(s.Name)))
+			schemaNotice(scope.op, "00000", fmt.Sprintf(`relation "%s" does not exist, skipping`, catalog.ObjectNameText(s.Name)))
 			scope.completed = true
 			return Result{}, nil
 		}

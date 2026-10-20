@@ -3,6 +3,7 @@ package engine
 import (
 	"strconv"
 	"strings"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
@@ -47,7 +48,7 @@ func walkOperatorReferencesAt(view catalog.Read, reader catalog.DefinitionReader
 		return err
 	}
 	address := ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: ids.OID(id)}
-	if _, exists := definitionDescriptorAt(view, reader, address); exists {
+	if _, exists := catalog.DescriptorAt(view, reader, address); exists {
 		return record(address)
 	}
 	return nil

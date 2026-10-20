@@ -83,10 +83,10 @@ func (e *Engine) operatorRoutine(auth AuthorizationView, name parser.ObjectName,
 	}
 	d := procedureInNamespaces(auth.Catalog, path, name.Parts[len(name.Parts)-1].Text, catalog.ProcedureSignature(strings.Join(ids, ",")))
 	if d == nil {
-		return nil, sqlError("42883", "function "+objectNameText(name)+"("+strings.Join(types, ", ")+") does not exist")
+		return nil, sqlError("42883", "function "+catalog.ObjectNameText(name)+"("+strings.Join(types, ", ")+") does not exist")
 	}
 	if d.RoutineKind != 'f' {
-		return nil, sqlError("42809", objectNameText(name)+" is not a function")
+		return nil, sqlError("42809", catalog.ObjectNameText(name)+" is not a function")
 	}
 	if err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
 		return nil, err
@@ -128,7 +128,7 @@ func (e *Engine) operatorEstimator(auth AuthorizationView, name parser.ObjectNam
 	result := routine.ReleasedOperatorEstimatorResult(identity.ID)
 	if d, ok := auth.Catalog.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: identity.ID}); ok {
 		if d.RoutineKind != catalog.FunctionRoutine {
-			return 0, sqlError("42809", objectNameText(name)+" is not a function")
+			return 0, sqlError("42809", catalog.ObjectNameText(name)+" is not a function")
 		}
 		result = d.Result
 		if err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
@@ -641,7 +641,7 @@ func (e *Engine) stageDropOperatorLocked(op *Operation, auth AuthorizationView, 
 			if diag, ok := err.(*sqlstate.Error); ok && s.IfExists && (diag.Code == "42883" || diag.Code == "3F000") {
 				message := diag.Message + ", skipping"
 				if diag.Code == "42883" {
-					message = "operator " + objectNameText(sig.Name) + " does not exist, skipping"
+					message = "operator " + catalog.ObjectNameText(sig.Name) + " does not exist, skipping"
 				}
 				schemaNotice(op, "00000", message)
 				continue
@@ -652,7 +652,7 @@ func (e *Engine) stageDropOperatorLocked(op *Operation, auth AuthorizationView, 
 		if !namespaceOwner {
 			if err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), OwnerOnly: true}); err != nil {
 				if diag, ok := err.(*sqlstate.Error); ok && diag.Code == "42501" {
-					return sqlError("42501", "must be owner of operator "+objectNameText(sig.Name))
+					return sqlError("42501", "must be owner of operator "+catalog.ObjectNameText(sig.Name))
 				}
 				return err
 			}

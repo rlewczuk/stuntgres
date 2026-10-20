@@ -23,7 +23,7 @@ func (e *Engine) bindDomainDefault(ctx context.Context, op *Operation, auth Auth
 		reader = op.definition
 	}
 	if raw == nil {
-		if parent, ok := definitionDescriptorAt(auth.Catalog, reader, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())}); ok {
+		if parent, ok := catalog.DescriptorAt(auth.Catalog, reader, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())}); ok {
 			d.DomainDefault = parent.(*catalog.Type).DomainDefault
 			d.DomainDefaultText = parent.(*catalog.Type).DomainDefaultText
 		}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
@@ -36,7 +37,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 	ref, err := e.resolveRelationReference(auth, table, true)
 	if err != nil {
 		if s, ok := stmt.(*parser.DropRule); ok && s.IfExists && renameMissing(err) {
-			return e.finishPolicyNoticeLocked(scope, fmt.Sprintf(`relation "%s" does not exist, skipping`, objectNameText(table)))
+			return e.finishPolicyNoticeLocked(scope, fmt.Sprintf(`relation "%s" does not exist, skipping`, catalog.ObjectNameText(table)))
 		}
 		return fail(err)
 	}

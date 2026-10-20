@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -127,7 +128,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pen
 			}
 			if target == (ids.ObjectAddress{}) {
 				e.mu.Unlock()
-				return sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, objectNameText(definition.raw.Target)))
+				return sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, catalog.ObjectNameText(definition.raw.Target)))
 			}
 			if _, ok := base.Find(target); !ok {
 				e.mu.Unlock()

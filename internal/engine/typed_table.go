@@ -25,7 +25,7 @@ func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*cat
 			return auth.Catalog.MustType(found[0]), nil
 		}
 	}
-	return nil, expr.ErrorAt("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)), name.Parts[0].Pos)
+	return nil, expr.ErrorAt("42704", fmt.Sprintf(`type "%s" does not exist`, catalog.ObjectNameText(name)), name.Parts[0].Pos)
 }
 
 func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth AuthorizationView, s *parser.AlterTableOf, count int) (Result, error) {

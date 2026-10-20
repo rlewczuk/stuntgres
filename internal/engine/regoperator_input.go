@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -12,8 +13,6 @@ import (
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
-
-type operatorSignature struct{ left, right ids.OID }
 
 func collectOperatorGroups(view catalog.Read) exec.OperatorGroups {
 	groups := make(exec.OperatorGroups)
@@ -29,13 +28,13 @@ func collectOperatorGroups(view catalog.Read) exec.OperatorGroups {
 // Earlier namespaces mask only the same ordered operand signature.
 func visibleOperators(groups exec.OperatorGroups, path []ids.ObjectAddress, name string) []*catalog.Operator {
 	var result []*catalog.Operator
-	seen := make(map[operatorSignature]bool)
+	seen := make(map[analyze.OperatorSignature]bool)
 	for _, ns := range path {
 		for _, d := range groups[name] {
 			if d.Namespace() != ns {
 				continue
 			}
-			signature := operatorSignature{d.Left, d.Right}
+			signature := analyze.OperatorSignature{Left: d.Left, Right: d.Right}
 			if !seen[signature] {
 				seen[signature] = true
 				result = append(result, d)

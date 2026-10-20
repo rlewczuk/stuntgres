@@ -154,14 +154,14 @@ func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, st
 		}
 		if len(found) != 1 {
 			if s.IfExists {
-				schemaNotice(op, "00000", fmt.Sprintf(`type "%s" does not exist, skipping`, objectNameText(name)))
+				schemaNotice(op, "00000", fmt.Sprintf(`type "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
 				continue
 			}
-			return sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)))
+			return sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, catalog.ObjectNameText(name)))
 		}
 		target := auth.Catalog.MustType(found[0])
 		if !target.SQLType.IsDomain() {
-			return sqlError("42809", fmt.Sprintf(`"%s" is not a domain`, objectNameText(name)))
+			return sqlError("42809", fmt.Sprintf(`"%s" is not a domain`, catalog.ObjectNameText(name)))
 		}
 		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), target.Address())
 		if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {

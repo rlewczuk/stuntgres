@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -285,7 +286,7 @@ func (e *Engine) stageDropCollationLocked(op *Operation, auth AuthorizationView,
 		d, err := e.findUtilityCollation(auth, name)
 		if err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); s.IfExists && ok && (diagnostic.Code == "42704" || diagnostic.Code == "3F000") {
-				schemaNotice(op, "00000", fmt.Sprintf(`collation "%s" does not exist, skipping`, objectNameText(name)))
+				schemaNotice(op, "00000", fmt.Sprintf(`collation "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
 				continue
 			}
 			return err

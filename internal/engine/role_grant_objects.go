@@ -17,7 +17,7 @@ func (e *Engine) resolveGrantObject(v AuthorizationView, name parser.ObjectName,
 		return e.resolveRelationReference(v, name, true)
 	}
 	if kind == "tablespace" {
-		return resolveGrantTablespace(v, objectNameText(name))
+		return resolveGrantTablespace(v, catalog.ObjectNameText(name))
 	}
 	var address ids.ObjectAddress
 	if kind == "schema" {
@@ -28,7 +28,7 @@ func (e *Engine) resolveGrantObject(v AuthorizationView, name parser.ObjectName,
 			}
 		}
 		if address == (ids.ObjectAddress{}) {
-			return ids.ObjectRef{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, objectNameText(name)))
+			return ids.ObjectRef{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, catalog.ObjectNameText(name)))
 		}
 	} else {
 		path, err := e.lookupNamespaces(v, name, analyze.TypeLookup)
@@ -43,11 +43,11 @@ func (e *Engine) resolveGrantObject(v AuthorizationView, name parser.ObjectName,
 			}
 		}
 		if address == (ids.ObjectAddress{}) {
-			return ids.ObjectRef{}, sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)))
+			return ids.ObjectRef{}, sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, catalog.ObjectNameText(name)))
 		}
 		t := v.Catalog.MustType(address)
 		if kind == "domain" && !t.SQLType.IsDomain() {
-			return ids.ObjectRef{}, sqlError("42809", fmt.Sprintf(`"%s" is not a domain`, objectNameText(name)))
+			return ids.ObjectRef{}, sqlError("42809", fmt.Sprintf(`"%s" is not a domain`, catalog.ObjectNameText(name)))
 		}
 		if t.SQLType.IsArray() {
 			diagnostic := sqlError("0LP01", "cannot set privileges of array types").(*sqlstate.Error)
