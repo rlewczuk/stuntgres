@@ -65,7 +65,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 	binder := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	transaction := time.Date(2000, 1, 1, 12, 0, 0, 123456789, time.UTC)
 	statement := time.Date(2000, 1, 1, 12, 0, 1, 654321987, time.UTC)
-	c := &EvalContext{evalStatement: evalStatement{Context: ctx, Input: sqltype.InputEnvironment{TransactionStart: transaction}, statementScope: &StatementScope{statementStart: statement}}}
+	c := &EvalContext{evalStatement: evalStatement{Context: ctx, Input: sqltype.InputEnvironment{TransactionStart: transaction}, host: hostOf(&StatementScope{statementStart: statement})}}
 	for _, kind := range []functions.TransactionTimeKind{functions.TransactionTimeNow, functions.TransactionTimeTransaction, functions.TransactionTimeStatement, functions.TransactionTimeClock, functions.TransactionTimeOfDay} {
 		leaf := transactionTimeUnitLeaf(t, binder, kind)
 		if leaf.Usage.Type.ID() != kind.Type() || leaf.Usage.Typmod != -1 || leaf.Properties() != expr.IntrinsicProperties(kind.IntrinsicRule()) || plannedVolatility(leaf) != leaf.Property.Volatility || generationImmutable(leaf) {
@@ -188,7 +188,7 @@ func TestTransactionTimeWallDemand(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	stamp := time.Now().UTC().Truncate(time.Microsecond)
-	c := &EvalContext{evalStatement: evalStatement{Context: ctx, Input: sqltype.InputEnvironment{TransactionStart: stamp}, statementScope: &StatementScope{statementStart: stamp}}}
+	c := &EvalContext{evalStatement: evalStatement{Context: ctx, Input: sqltype.InputEnvironment{TransactionStart: stamp}, host: hostOf(&StatementScope{statementStart: stamp})}}
 	for _, kind := range []functions.TransactionTimeKind{functions.TransactionTimeNow, functions.TransactionTimeStatement, functions.TransactionTimeClock, functions.TransactionTimeOfDay} {
 		leaf := transactionTimeUnitLeaf(t, b, kind)
 		first, err := leaf.Eval(c)

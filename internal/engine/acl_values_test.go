@@ -16,7 +16,7 @@ func aclValuesUnitContext(t *testing.T) (*Engine, *EvalContext) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
-	return e, &EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: &StatementScope{op: op}}}
+	return e, &EvalContext{evalStatement: evalStatement{Context: context.Background(), host: hostOf(&StatementScope{op: op})}}
 }
 func TestACLValuesZeroIdentity(t *testing.T) {
 	e, c := aclValuesUnitContext(t)

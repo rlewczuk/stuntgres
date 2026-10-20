@@ -181,7 +181,7 @@ func deparseAttribute(relation *catalog.Relation, attr int32) (string, error) {
 	return "", sqlError("XX000", fmt.Sprintf("invalid attnum %d for relation %q", attr, relation.Name()))
 }
 func (c *EvalContext) deparseRelation(signature functions.DeparseSignature, values [3]sqltype.Value, result *sqltype.Descriptor, pretty bool) (sqltype.Value, error) {
-	scope := c.liveScope()
+	scope := scopeOf(c.liveHost())
 	catalog := scope.inquiry.commentCatalog
 	var address ids.ObjectAddress
 	if signature == functions.DeparseViewText || signature == functions.DeparseViewTextPretty {

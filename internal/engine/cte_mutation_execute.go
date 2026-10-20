@@ -207,7 +207,7 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 		// Completed modifiers need only a lifetime/authority header, not a
 		// second physical capture of every command's own input sources.
 		if scope.authority == nil {
-			scope.authority = &queryAuthority{scope: scope}
+			scope.authority = &queryAuthority{host: hostOf(scope)}
 		}
 		source = &querySource{materialized: true, flatCount: 1, authority: scope.authority, locks: scope.queryLocks}
 	}
@@ -303,7 +303,7 @@ func (o *cteInvocation) completeMutation(definition *plan.CTEDefinition, result 
 			}
 			return fmt.Errorf("stuntgres: CTE modifier lacks typed output")
 		}
-		producer.source = &querySource{flat: rows.values, flatWidth: len(rows.schema), flatCount: rows.count, materialized: true, authority: o.state.source.authority, scope: o.state.source.scope, locks: o.state.source.locks}
+		producer.source = &querySource{flat: rows.values, flatWidth: len(rows.schema), flatCount: rows.count, materialized: true, authority: o.state.source.authority, host: o.state.source.host, locks: o.state.source.locks}
 		rows.values = nil // Transfer the typed buffer, never Scan/reimport/copy.
 		if err := rows.Close(); err != nil {
 			return err
@@ -322,7 +322,7 @@ func (o *cteInvocation) completeMutation(definition *plan.CTEDefinition, result 
 
 func (s *queryState) inheritCTEs() {
 	if s.ctes == nil && s.source != nil {
-		if scope := s.source.liveScope(); scope != nil {
+		if scope := scopeOf(s.source.liveHost()); scope != nil {
 			s.ctes = scope.cteInvocation
 		}
 	}

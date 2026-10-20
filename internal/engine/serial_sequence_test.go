@@ -59,7 +59,7 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 		Signature: functions.DeparseSerialSequence, Args: []expr.Expr{literal(`"Mixed.Schema"."Owned"`), literal("ID")},
 	}
 	scope := &StatementScope{inquiry: inquirySnapshot{commentCatalog: view, deparseAuth: catalogAuthorization(e, view)}}
-	return serialSequenceUnit{e, view, &EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: scope}}, table, sequence, node}
+	return serialSequenceUnit{e, view, &EvalContext{evalStatement: evalStatement{Context: context.Background(), host: hostOf(scope)}}, table, sequence, node}
 }
 
 func TestSerialSequenceOwnership(t *testing.T) {
@@ -118,11 +118,11 @@ func TestSerialSequenceOwnership(t *testing.T) {
 	if text, err := value.Text(); err != nil || text != `"Mixed.Schema"."Owned.Seq"` {
 		t.Fatal(text, err)
 	}
-	fresh := *f.context.statementScope
+	fresh := *scopeOf(f.context.host)
 	fresh.inquiry.commentCatalog = f.engine.catalog.read(f.engine.catalog.state)
 	fresh.inquiry.deparseAuth.Catalog = fresh.inquiry.commentCatalog
 	fresh.inquiry.deparseAuth.PairedCatalog = fresh.inquiry.deparseAuth.Catalog
-	value, err = f.node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: &fresh}})
+	value, err = f.node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), host: hostOf(&fresh)}})
 	if err != nil || !value.IsNull() {
 		t.Fatal("fresh snapshot ignored NONE", value, err)
 	}

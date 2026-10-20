@@ -70,7 +70,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			}
 			e.mu.Unlock()
 			getter := functions.NamespaceInquiry{Info: expr.Info{Usage: oidType.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Kind: functions.MyTempNamespace}
-			value, err := getter.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: scope}})
+			value, err := getter.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), host: hostOf(scope)}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -83,7 +83,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 				t.Fatal("TOAST pair", err)
 			}
 			classifier := functions.NamespaceInquiry{Info: expr.Info{Usage: boolType.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Kind: functions.OtherTempNamespace, Arg: plan.LiteralExpr{Info: expr.Info{Usage: oidType.Usage()}, Value: input}}
-			value, err = classifier.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: scope}})
+			value, err = classifier.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), host: hostOf(scope)}})
 			if err != nil {
 				t.Fatal(err)
 			}

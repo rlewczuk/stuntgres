@@ -171,7 +171,7 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 	defer func() {
 		s.routineAuth = AuthorizationView{}
 		s.routineDependencies = nil
-		authority.scope = nil
+		authority.host = nil
 		if err != nil {
 			c.position = cursorFailed
 			_ = c.dispose(s.op.Context())

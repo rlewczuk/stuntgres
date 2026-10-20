@@ -146,7 +146,7 @@ func openCTEScan(ctx context.Context, state *queryState, n *plan.DerivedNode) (i
 		innerState := owner.state
 		innerState.ctes = owner
 		innerState.derived = nil
-		producer = &cteProducer{state: innerState, project: project, source: &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope, locks: state.source.locks}}
+		producer = &cteProducer{state: innerState, project: project, source: &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, host: state.source.host, locks: state.source.locks}}
 		owner.producers[n.CTE] = producer
 		owner.order = append(owner.order, producer)
 	}
@@ -154,7 +154,7 @@ func openCTEScan(ctx context.Context, state *queryState, n *plan.DerivedNode) (i
 	if n.PresenceSlot != 0 {
 		// Presence belongs to this reader occurrence, not the shared producer.
 		// Borrow immutable admitted tuples; no row values are copied.
-		source = &querySource{flat: producer.source.flat, flatWidth: producer.source.flatWidth, flatCount: producer.source.flatCount, materialized: true, authority: producer.source.authority, scope: producer.source.scope, locks: producer.source.locks}
+		source = &querySource{flat: producer.source.flat, flatWidth: producer.source.flatWidth, flatCount: producer.source.flatCount, materialized: true, authority: producer.source.authority, host: producer.source.host, locks: producer.source.locks}
 		establishSourcePresence(source, n.PresenceSlot)
 	}
 	out := indexedStage{source: source, schema: n.Schema(), selection: []int{}, onFailure: producer.fail}

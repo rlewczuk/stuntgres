@@ -448,7 +448,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want %d", count, b.parameters.Count)
 	}
 	canonical := make([]sqltype.Value, count)
-	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: canonical, statementScope: scope, catalog: auth.Catalog, Input: scope.input, Output: scope.output}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: canonical, host: hostOf(scope), catalog: auth.Catalog, Input: scope.input, Output: scope.output}}
 	scope.domains.inputCatalog = auth.Catalog
 	scope.routineAuth = auth
 	scope.routineDependencies = b.dependencies
@@ -531,7 +531,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement, b binding, auth AuthorizationView, canonical []sqltype.Value, candidate StatementDescription, quoteCapturesChanged bool) (Result, error) {
 	op := scope.op
 	ctx := op.Context()
-	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: canonical, statementScope: scope, catalog: auth.Catalog, Input: scope.input, Output: scope.output}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: canonical, host: hostOf(scope), catalog: auth.Catalog, Input: scope.input, Output: scope.output}}
 	var err error
 	var creationStage *CatalogStage
 	var creationDescriptor *catalog.Relation

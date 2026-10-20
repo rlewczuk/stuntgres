@@ -181,7 +181,7 @@ func (c *EvalContext) prepareDomainChecks(d *catalog.Type) error {
 // Historical validation initializes only the selected own programme; ordinary
 // conversions retain the ancestor traversal above.
 func (c *EvalContext) prepareOwnDomainChecks(d *catalog.Type) error {
-	scope := c.liveScope()
+	scope := scopeOf(c.liveHost())
 	if scope != nil {
 		c.preparedDomainChecks = scope.domains.preparedChecks
 		c.domainPhase = typedef.DomainCheckIdentity{Transaction: scope.txRef, Command: scope.command}
@@ -254,7 +254,7 @@ func (c *EvalContext) domainCatalog() catalog.Read {
 	if c.catalog.State() != nil {
 		return c.catalog
 	}
-	if scope := c.liveScope(); scope != nil {
+	if scope := scopeOf(c.liveHost()); scope != nil {
 		if scope.domains.inputCatalog.State() != nil {
 			return scope.domains.inputCatalog
 		}
@@ -335,7 +335,7 @@ func (s *StatementScope) CheckDomain(ctx context.Context, target *sqltype.Descri
 		if catalog.State() == nil {
 			catalog = s.ResolutionCatalog()
 		}
-		s.domains.evaluation = &EvalContext{evalStatement: evalStatement{Context: ctx, statementScope: s, catalog: catalog, Input: s.input, Output: s.output}}
+		s.domains.evaluation = &EvalContext{evalStatement: evalStatement{Context: ctx, host: hostOf(s), catalog: catalog, Input: s.input, Output: s.output}}
 	}
 	return s.domains.evaluation.CheckDomain(ctx, target, value)
 }

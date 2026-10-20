@@ -1033,7 +1033,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		if r := s.materializedOrZero().replacement; r != nil && r.concurrent {
 			runtimeOwners = map[ids.ObjectAddress]authorization.PrincipalRef{r.original.Address(): r.original.Owner}
 		}
-		evaluation := EvalContext{evalStatement: evalStatement{Context: p.ctx, statementScope: scope}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+		evaluation := EvalContext{evalStatement: evalStatement{Context: p.ctx, host: hostOf(scope)}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 		if scope != nil {
 			evaluation.Input, evaluation.Output = scope.input, scope.output
 		} else if op != nil {

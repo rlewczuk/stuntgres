@@ -27,7 +27,7 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 	}
 	frozen := []sqltype.Value{sqltype.String(text, "old"), sqltype.String(text, "original"), ordinal}
 	scope := &StatementScope{queryLocks: &queryLockContext{}}
-	inputs := &querySource{scope: scope}
+	inputs := &querySource{host: hostOf(scope)}
 	width := queryLockRecheckWidth(node, inputs)
 	if width != 3 {
 		t.Fatal("wrong refreshed function frame scratch", width)
@@ -37,7 +37,7 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 	}
 	// As in PostgreSQL 18.6, a recheck keeps the function-scan tuple the row was
 	// produced with and evaluates no call again.
-	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: scope}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), host: hostOf(scope)}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	scratch := make([]sqltype.Value, width)
 	offset := 0
 	got, present, err := recheckLockedQuery(node, inputs, nil, &evaluation, scratch, &offset, frozen)

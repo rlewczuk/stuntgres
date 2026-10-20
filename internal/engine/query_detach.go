@@ -32,7 +32,7 @@ func detachQuerySource(source *querySource) {
 		source.nestedInputs.close()
 		source.nestedInputs = nil
 	}
-	source.scope, source.locks = nil, nil
+	source.host, source.locks = nil, nil
 	source.pgSequences = nil
 	source.authority = nil
 	source.routineRecipe = nil

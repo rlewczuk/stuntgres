@@ -80,7 +80,7 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 	evaluation := execution.evaluation
 	evaluation.query = state
 	evaluation.Scope, evaluation.Frame = 1, 1
-	evaluation.statementScope = s
+	evaluation.host = hostOf(s)
 	evaluation.physicalTable = b.ref // Actual relation identity, never a fabricated row ID.
 	if op == catalog.ForeignInsert {
 		var rows [][]sqltype.Value

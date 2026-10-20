@@ -78,7 +78,7 @@ func hashFilterStage(t *testing.T, query *plan.Query, source *querySource, param
 		t.Fatal("fixture has no top-level filter")
 	}
 	state := &queryState{source: source, parameters: parameters, hashFilter: filter, frame: query.Root.(*plan.ProjectNode).Frame}
-	if scope := source.liveScope(); scope != nil {
+	if scope := scopeOf(source.liveHost()); scope != nil {
 		state.input, state.output = scope.input, scope.output
 	}
 	stage, err := openQueryNode(context.Background(), state, filter)

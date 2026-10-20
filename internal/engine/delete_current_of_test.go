@@ -18,7 +18,7 @@ func TestDeleteCurrentOfIdentity(t *testing.T) {
 	sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT 99 AS projected FROM unit_rows ORDER BY i FOR UPDATE")
 	c := s.cursors.entries["c"]
 	cursorUnitBatch(t, s, "FETCH FORWARD 2 FROM c", [][]driver.Value{{int64(99)}, {int64(99)}})
-	if c.authority.scope != nil || c.currentSource == nil || c.position != cursorOn {
+	if c.authority.host != nil || c.currentSource == nil || c.position != cursorOn {
 		t.Fatal("FETCH retained admission or lost physical occurrence", c)
 	}
 	ref := catalogRef(t, s.Engine(), s.Engine().CatalogRead(), "unit_rows")
@@ -133,7 +133,7 @@ func TestDeleteCurrentOfPublication(t *testing.T) {
 		t.Fatal("canceled Finish published private deletion", err)
 	}
 	sessionSQL(t, s, "ROLLBACK TO recover")
-	if s.cursors.entries["c"] != cursor || cursor.position != cursorOn || cursor.authority.scope != nil {
+	if s.cursors.entries["c"] != cursor || cursor.position != cursorOn || cursor.authority.host != nil {
 		t.Fatal("mutation cancellation failed healthy cursor")
 	}
 	transactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 1, 2, 3, 4)
@@ -199,7 +199,7 @@ func TestDeleteCurrentOfLifetime(t *testing.T) {
 		t.Fatal("rollback rewinds or discards older current identity")
 	}
 	sessionSQL(t, s, "CLOSE c")
-	if old.currentSource != nil || old.source != nil || old.authority.scope != nil {
+	if old.currentSource != nil || old.source != nil || old.authority.host != nil {
 		t.Fatal("dispose retains execution authority")
 	}
 	sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT i FROM unit_rows")
@@ -251,7 +251,7 @@ func TestDeleteCurrentOfJoinIdentityRetention(t *testing.T) {
 					break
 				}
 			}
-			if source == nil || c.authority.scope != nil || c.position != cursorOn {
+			if source == nil || c.authority.host != nil || c.position != cursorOn {
 				t.Fatal("FETCH lost retained lineage or retained admission")
 			}
 			if tc.join {

@@ -136,7 +136,7 @@ func pgShDescriptionUnitInquiry(t *testing.T, e *Engine, roles authorization.Rea
 		plan.LiteralExpr{Info: expr.Info{Usage: oidUsage}, Value: oid},
 		plan.LiteralExpr{Info: expr.Info{Usage: nameUsage}, Value: sqltype.String(nameUsage.Type, "pg_authid")},
 	}}
-	value, err := expr.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: &StatementScope{inquiry: inquirySnapshot{commentRoles: roles, commentCatalog: catalog}}}})
+	value, err := expr.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), host: hostOf(&StatementScope{inquiry: inquirySnapshot{commentRoles: roles, commentCatalog: catalog}})}})
 	if err != nil {
 		t.Fatal(err)
 	}

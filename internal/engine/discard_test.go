@@ -70,7 +70,7 @@ func TestDiscardOwnerPrecision(t *testing.T) {
 				t.Fatal("DISCARD changed shared/peer state")
 			}
 			if category == parser.DiscardAll {
-				if len(a.preparedSQL.entries) != 0 || len(a.cursors.entries) != 0 || cursor.root != nil || cursor.authority.scope != nil {
+				if len(a.preparedSQL.entries) != 0 || len(a.cursors.entries) != 0 || cursor.root != nil || cursor.authority.host != nil {
 					t.Fatal("ALL did not dispose actual registries")
 				}
 			} else if a.preparedSQL.entries["p"] != entry || a.cursors.entries["c"] != cursor || cursor.root == nil {

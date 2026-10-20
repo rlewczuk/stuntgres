@@ -438,7 +438,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 		copyInsert = newCopyInsertionState(producer, b)
 		unique = false // COPY admission belongs to its genuine flush, not decode.
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: parameters, Input: input, Output: output, statementScope: scope}, evalFrame: evalFrame{Scope: 1, Frame: 1, query: query}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: parameters, Input: input, Output: output, host: hostOf(scope)}, evalFrame: evalFrame{Scope: 1, Frame: 1, query: query}}
 	copyInput := scope != nil && scope.op.copyInput.active.Load()
 	for consumed := 0; count < 0 || consumed < count; consumed++ {
 		if copyInput {

@@ -209,7 +209,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		}
 	}
 	ctx := s.op.Context()
-	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: parameters, statementScope: s, Input: s.input, Output: s.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: parameters, host: hostOf(s), Input: s.input, Output: s.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	if inputs != nil {
 		if err := selectQuerySources(ctx, inputs); err != nil {
 			return Result{}, err
@@ -220,7 +220,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		defer inputs.close()
 		state := &queryState{source: inputs, parameters: parameters, input: s.input, output: s.output, locking: inputs.locks != nil}
 		defer state.releaseMemberships()
-		inputs.scope = s
+		inputs.host = hostOf(s)
 		evaluation.query = state
 	}
 	if b.delete.using != nil {

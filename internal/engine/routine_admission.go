@@ -174,7 +174,7 @@ func (c *EvalContext) routineAdmissionAuthority() (AuthorizationView, []catalog.
 	var dependencies []catalog.ExpressionDependency
 	if c.routineAuthority != nil {
 		auth = *c.routineAuthority
-	} else if scope := c.liveScope(); scope != nil {
+	} else if scope := scopeOf(c.liveHost()); scope != nil {
 		if scope.finished {
 			return auth, nil, fmt.Errorf("stuntgres: ended routine admission authority")
 		}

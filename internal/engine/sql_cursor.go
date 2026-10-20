@@ -78,10 +78,8 @@ func (c *sqlCursor) releaseProducer(ctx context.Context) error {
 		c.stage = nil
 	}
 	if c.foreignOwner != nil {
-		if c.authority != nil && c.authority.scope != nil && c.authority.scope.replacementRead {
-			scope := c.authority.scope
-			scope.op.session.Engine().replacementMu.RUnlock()
-			scope.replacementRead = false
+		if c.authority != nil && c.authority.host != nil {
+			c.authority.host.ReleaseReplacementRead()
 		}
 		if err := c.foreignOwner.finish(ctx); failure == nil {
 			failure = err
@@ -105,7 +103,7 @@ func (c *sqlCursor) releaseProducer(ctx context.Context) error {
 	c.routineDependencies = nil
 	c.routineAuth = AuthorizationView{}
 	if c.authority != nil {
-		c.authority.scope = nil
+		c.authority.host = nil
 		c.authority.expression = nil
 	}
 	if c.cleanupError == nil {
@@ -177,7 +175,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 	defer func() {
 		s.routineAuth = AuthorizationView{}
 		s.routineDependencies = nil
-		s.authority.scope = nil
+		s.authority.host = nil
 		if !keep {
 			source.close()
 		}
@@ -256,7 +254,7 @@ func (c *sqlCursor) admit(s *StatementScope) {
 	s.inquiry.deparseAuth.session, s.inquiry.deparseAuth.settings = s.op.session, s.op.session.settings
 	s.inquiry.visibilityCatalog = c.visibilityCatalog
 	s.inquiry.visibilityRelationPath, s.inquiry.visibilityOtherPath = c.visibilityRelationPath, c.visibilityOtherPath
-	c.authority.scope = s
+	c.authority.host = hostOf(s)
 	s.foreignTables().cursor = c
 }
 func (s *StatementScope) sessionPublicationPreflight() error {
@@ -315,7 +313,7 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 			c.position = cursorFailed
 			_ = c.dispose(s.op.Context())
 		}
-		c.authority.scope = nil
+		c.authority.host = nil
 	}()
 	if err := s.authorizeSQLCursor(c); err != nil {
 		return Result{}, err

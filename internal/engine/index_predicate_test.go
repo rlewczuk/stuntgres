@@ -386,7 +386,7 @@ func TestPartialIndexCandidateMask(t *testing.T) {
 	}
 	calls := 0
 	witness := partialEvaluationWitness{Info: f.predicate.Info, calls: &calls, value: sqltype.Boolean(f.predicate.Usage.Type, true)}
-	source := &querySource{view: view, ref: leaf.ref, committed: f.store.Versions, scope: scope, partialMask: mask}
+	source := &querySource{view: view, ref: leaf.ref, committed: f.store.Versions, host: hostOf(scope), partialMask: mask}
 	scan := &plan.SourceNode{QuerySchema: f.parent.Columns, Ref: leaf.ref}
 	filter := &plan.FilterNode{QuerySchema: f.parent.Columns, Child: scan, Predicate: witness}
 	stage, err := openQueryNode(context.Background(), &queryState{source: source}, filter)

@@ -266,7 +266,7 @@ func (e *Engine) latestUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate
 
 func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding, source, from *querySource, parameters []sqltype.Value, schema string) (Result, error) {
 	defer source.close()
-	source.scope = s
+	source.host = hostOf(s)
 	if b.storage == nil || b.storage != s.lockedStorage || b.storage != source.view.Data().GenerationAt(b.ref.Address) {
 		if from != nil {
 			from.close()

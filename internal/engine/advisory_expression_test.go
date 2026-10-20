@@ -272,7 +272,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			op.Done()
 			t.Fatal(err)
 		}
-		v, err := bound.Eval(&EvalContext{evalStatement: evalStatement{Context: op.Context(), statementScope: scope}})
+		v, err := bound.Eval(&EvalContext{evalStatement: evalStatement{Context: op.Context(), host: hostOf(scope)}})
 		finish := scope.Finish(err)
 		op.Done()
 		if err != nil || finish != nil || v.IsNull() || v.Type().ID() != sqltype.Void || advisoryUnitHold(s, lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 42}).Exclusive != 1 {

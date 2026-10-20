@@ -640,7 +640,7 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node plan.Node, 
 	joined := child.source.materialized
 	source := child.source
 	if !joined {
-		source = &querySource{anonymous: [][]sqltype.Value{}, materialized: true, occurrences: occurrences, authority: state.source.authority, scope: state.source.scope}
+		source = &querySource{anonymous: [][]sqltype.Value{}, materialized: true, occurrences: occurrences, authority: state.source.authority, host: state.source.host}
 		source.presenceSlots, source.presenceCount = child.source.presenceSlots, child.source.presenceCount
 		source.presenceConstant = child.source.presenceConstant
 	}

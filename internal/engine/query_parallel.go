@@ -143,7 +143,7 @@ func parallelQuerySource(source *querySource) (*querySource, error) {
 		return nil, fmt.Errorf("stuntgres: visibility view is released")
 	}
 	return &querySource{view: pin, ref: source.ref, committed: source.committed, own: source.own, visible: source.visible,
-		needsBirthFilter: source.needsBirthFilter, occurrence: source.occurrence, authority: source.authority, scope: source.scope}, nil
+		needsBirthFilter: source.needsBirthFilter, occurrence: source.occurrence, authority: source.authority, host: source.host}, nil
 }
 
 type queryParallelRun struct {

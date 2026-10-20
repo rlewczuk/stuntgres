@@ -20,7 +20,7 @@ func openDerivedNode(ctx context.Context, state *queryState, n *plan.DerivedNode
 	if err != nil {
 		return indexedStage{}, err
 	}
-	source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope, locks: state.source.locks}
+	source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, host: state.source.host, locks: state.source.locks}
 	establishSourcePresence(source, n.PresenceSlot)
 	if state.source.locks != nil {
 		source.lineage = &queryLockLineage{root: project, inputs: state.source, stage: inner.source, state: innerState}

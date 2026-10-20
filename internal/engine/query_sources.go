@@ -196,7 +196,7 @@ func (s *StatementScope) validateQuerySources(leaves []queryLeaf) error {
 // Called once with e.mu held: all table roots share this statement frontier.
 func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []queryLeaf, singleton bool) (*querySource, error) {
 	if scope.authority == nil {
-		scope.authority = &queryAuthority{scope: scope}
+		scope.authority = &queryAuthority{host: hostOf(scope)}
 	}
 	var invoker authorization.PrincipalRef
 	for _, leaf := range leaves {

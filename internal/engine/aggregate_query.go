@@ -358,7 +358,7 @@ func openAggregateNode(ctx context.Context, state *queryState, n *plan.Aggregate
 	}
 	// A nested aggregate borrows the captured input occurrence. Its grouped
 	// layout must not replace or close that shared source (or an outer frame).
-	source := &querySource{anonymous: rows, materialized: true, flatCount: len(rows), authority: child.source.authority, scope: child.source.scope, locks: child.source.locks}
+	source := &querySource{anonymous: rows, materialized: true, flatCount: len(rows), authority: child.source.authority, host: child.source.host, locks: child.source.locks}
 	if err := child.Close(); err != nil {
 		return indexedStage{}, err
 	}

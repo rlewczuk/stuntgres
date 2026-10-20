@@ -467,12 +467,12 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, rela
 		schema := next.Get(descriptor.Namespace()).Name()
 		historical := validCheckTraversal(descriptor)
 		requiredNotNull := newAlterRowValidator(descriptor, schema).notNull
-		if eval.statementScope != nil {
-			stage := eval.statementScope.op.session.Engine()
+		if scope := scopeOf(eval.host); scope != nil {
+			stage := scope.op.session.Engine()
 			stage.mu.Lock()
-			err := stage.captureCheckCommentSnapshotLocked(eval.statementScope, historical)
+			err := stage.captureCheckCommentSnapshotLocked(scope, historical)
 			if err == nil {
-				err = stage.captureCheckVisibilitySnapshotLocked(eval.statementScope, historical)
+				err = stage.captureCheckVisibilitySnapshotLocked(scope, historical)
 			}
 			stage.mu.Unlock()
 			if err != nil {

@@ -136,7 +136,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 		stage.indexes().parents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
 		namespace := auth.Catalog.Get(parent.Namespace()).Name()
 		e.mu.Unlock()
-		evaluation := EvalContext{evalStatement: evalStatement{Context: scope.op.Context(), statementScope: scope, Input: scope.input, Output: scope.output, catalog: auth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+		evaluation := EvalContext{evalStatement: evalStatement{Context: scope.op.Context(), host: hostOf(scope), Input: scope.input, Output: scope.output, catalog: auth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 		evaluation.routineAuthority = &auth
 		root, err := buildIndexRoot(&evaluation, parent, &definition, &snapshot, nil)
 		if err == nil {

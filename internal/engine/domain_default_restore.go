@@ -278,7 +278,7 @@ func (e *Engine) captureDomainReplay(scope *StatementScope, s *parser.Insert, re
 			}
 		}
 	}
-	c := EvalContext{evalStatement: evalStatement{Context: scope.op.Context(), statementScope: scope, catalog: auth.Catalog, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}, evalAdmission: evalAdmission{routineAuthority: &auth}}
+	c := EvalContext{evalStatement: evalStatement{Context: scope.op.Context(), host: hostOf(scope), catalog: auth.Catalog, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}, evalAdmission: evalAdmission{routineAuthority: &auth}}
 	c.Input.ExactSnapshot = true
 	c.Input.DomainChecks = &c
 	scope.routineAuth = auth

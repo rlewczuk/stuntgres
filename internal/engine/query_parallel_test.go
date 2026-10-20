@@ -454,7 +454,7 @@ func TestQueryParallelCancellation(t *testing.T) {
 	// The live admission authority must not overwrite sibling cancellation.
 	_, _, source := queryCoreFixture(t, "SELECT id FROM t")
 	scope := &StatementScope{}
-	source.authority = &queryAuthority{scope: scope}
+	source.authority = &queryAuthority{host: hostOf(scope)}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	state := &queryState{source: source, executionContext: ctx}
@@ -462,7 +462,7 @@ func TestQueryParallelCancellation(t *testing.T) {
 	if evaluation.Context != ctx || evaluation.Context.Err() != context.Canceled {
 		t.Fatal("worker cancellation replaced by authority")
 	}
-	if evaluation.liveScope() != scope {
+	if scopeOf(evaluation.liveHost()) != scope {
 		t.Fatal("worker context lost borrowed authority")
 	}
 }

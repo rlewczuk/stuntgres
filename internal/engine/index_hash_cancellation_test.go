@@ -45,7 +45,7 @@ func TestHashIndexLookupCancellation(t *testing.T) {
 		t.Fatal("missing real filter")
 	}
 	state := &queryState{source: source, hashFilter: filter, frame: query.Root.(*plan.ProjectNode).Frame}
-	if scope := source.liveScope(); scope != nil {
+	if scope := scopeOf(source.liveHost()); scope != nil {
 		state.input, state.output = scope.input, scope.output
 	}
 	view, data := source.view, source.view.Data()

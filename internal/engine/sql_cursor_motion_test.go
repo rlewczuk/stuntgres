@@ -18,7 +18,7 @@ func TestSQLCursorScrollRetainedEOFAndMotion(t *testing.T) {
 	cursorUnitBatch(t, s, "FETCH PRIOR FROM c", [][]driver.Value{{int64(3)}})
 	cursorUnitBatch(t, s, "FETCH ABSOLUTE 2 FROM c", [][]driver.Value{{int64(2)}})
 	result, err := cursorUnitExecute(t, s, context.Background(), "MOVE BACKWARD ALL FROM c")
-	if err != nil || result.Count != 1 || result.Rows != nil || c.position != cursorBefore || c.currentSource != nil || c.stage != stage || c.authority.scope != nil {
+	if err != nil || result.Count != 1 || result.Rows != nil || c.position != cursorBefore || c.currentSource != nil || c.stage != stage || c.authority.host != nil {
 		t.Fatal(result, err, c)
 	}
 	cursorUnitBatch(t, s, "FETCH NEXT FROM c", [][]driver.Value{{int64(1)}})

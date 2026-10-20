@@ -30,7 +30,7 @@ func (c *EvalContext) EvalSQLRoutine(n plan.SQLRoutineExpr) (value sqltype.Value
 		}
 	}
 	// The statement's own host wins over a query source's host here.
-	host := hostOf(c.statementScope)
+	host := c.host
 	if host == nil && c.query != nil && c.query.source != nil {
 		host = c.query.source.liveHost()
 	}
@@ -150,7 +150,7 @@ func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *queryS
 	}
 	state := queryState{source: source, parameters: parameters, locking: source.locks != nil, hashFilter: hashQueryFilter(root)}
 	defer state.releaseMemberships()
-	if scope := source.liveScope(); scope != nil {
+	if scope := scopeOf(source.liveHost()); scope != nil {
 		state.input, state.output = scope.input, scope.output
 	}
 	stage, err := openQueryProjectStage(ctx, &state, project)

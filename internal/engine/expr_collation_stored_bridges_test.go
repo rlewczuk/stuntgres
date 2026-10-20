@@ -69,7 +69,7 @@ func TestExprCollationStoredPreflightDemand(t *testing.T) {
 			if len(bound.querySources) != 1 || !reflect.DeepEqual(bound.querySources[0].uses, tc.uses) {
 				t.Fatal("ordinary source occurrence uses", bound.querySources, tc.uses)
 			}
-			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: scope, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: bound.query.Root.(*plan.ProjectNode).Frame}}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), host: hostOf(scope), Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: bound.query.Root.(*plan.ProjectNode).Frame}}
 			err := validateQueryJoinExecution(&evaluation, bound.query.Root, e.CatalogRead(), 0)
 			if tc.fail {
 				var diagnostic *sqlstate.Error

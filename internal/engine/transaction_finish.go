@@ -30,7 +30,7 @@ func (s *StatementScope) Finish(err error) error {
 			s.mutations[i].routineDependencies = nil
 		}
 		if s.authority != nil {
-			s.authority.scope = nil
+			s.authority.host = nil
 		}
 	}()
 	// ERROR recovery stops the budget before rollback/root cleanup. Restoring

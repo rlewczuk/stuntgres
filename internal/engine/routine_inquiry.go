@@ -23,7 +23,7 @@ type commandRoutineProgram struct {
 }
 
 func admitInquiryBody(c *EvalContext, node expr.Info) error {
-	scope := c.liveScope()
+	scope := scopeOf(c.liveHost())
 	if scope == nil {
 		return nil
 	} // Legitimate standalone internal provider fixtures.

@@ -247,7 +247,7 @@ func mergeHashIndexRoot(evaluation *EvalContext, parent, index *catalog.Relation
 			}
 			key = output.Key
 		} else {
-			if d.HasRuntimeDomainConversion() && evaluation.liveScope() == nil && row.Born == 0 {
+			if d.HasRuntimeDomainConversion() && scopeOf(evaluation.liveHost()) == nil && row.Born == 0 {
 				return nil, fmt.Errorf("stuntgres: missing produced hash index row")
 			}
 			matches, err := preparation.predicateMatches(evaluation, parent, d, row.Values, nil, &binding)

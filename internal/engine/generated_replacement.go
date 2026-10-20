@@ -93,7 +93,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		}
 		stage.mu.Unlock()
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, statementScope: scope, Input: scope.input, Output: scope.output, catalog: stage.catalog.read(candidate)}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, host: hostOf(scope), Input: scope.input, Output: scope.output, catalog: stage.catalog.read(candidate)}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	changed := indexes.trackedGenerations(candidate)
 	if err == nil {
 		err = recomputeRemappedGenerations(ctx, candidate, relations, mapping, evaluation, changed)

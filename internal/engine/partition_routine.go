@@ -23,7 +23,7 @@ func evaluatePartitionRecipe(evaluation *EvalContext, owner *catalog.Relation, k
 	key := owner.Partition.Keys[keyIndex].Derived
 	local := indexRecipeEvaluation(evaluation, key.Dependencies, owner)
 	local.Row, local.Scope, local.Frame = row, 1, 1
-	scope := local.liveScope()
+	scope := scopeOf(local.liveHost())
 	if scope != nil {
 		local.domainPhase = typedef.DomainCheckIdentity{Transaction: scope.txRef, Command: scope.command}
 		local.preparedDomainChecks = scope.domains.preparedChecks

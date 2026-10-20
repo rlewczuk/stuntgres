@@ -64,19 +64,19 @@ type evalFrame struct {
 }
 
 // evalStatement is the statement runtime: cancellation context, bound
-// parameters, input/output environments, statement scope and catalog
+// parameters, input/output environments, statement host and catalog
 // authority, plus per-command prepared CHECK/domain/generation programs and
 // preparation flags. Statement executors and preparation set it when they
 // build an evaluation; nested frames inherit it by copy. Every node reads
 // Context, Input and Output; functions read it through the expr.Context
 // capability methods.
 type evalStatement struct {
-	Context        context.Context
-	Parameters     []sqltype.Value
-	statementScope *StatementScope
-	Input          sqltype.InputEnvironment
-	Output         sqltype.OutputEnvironment
-	catalog        catalog.Read // Current imported request/view authority for local lowering.
+	Context    context.Context
+	Parameters []sqltype.Value
+	host       execHost
+	Input      sqltype.InputEnvironment
+	Output     sqltype.OutputEnvironment
+	catalog    catalog.Read // Current imported request/view authority for local lowering.
 	// Stored CHECK syntax stays immutable; detached executable expressions
 	// belong only to this command. A cached nil slice means no nodes changed.
 	preparedChecks       map[*catalog.Relation][]expr.Expr

@@ -147,7 +147,7 @@ func TestDomainDefaultReplayRoutineManifestInternal(t *testing.T) {
 	if !ok {
 		t.Fatal("missing timestamp")
 	}
-	c := EvalContext{evalStatement: evalStatement{Context: op.Context(), statementScope: scope, catalog: auth.Catalog, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}, evalAdmission: evalAdmission{routineAuthority: &auth}}
+	c := EvalContext{evalStatement: evalStatement{Context: op.Context(), host: hostOf(scope), catalog: auth.Catalog, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}, evalAdmission: evalAdmission{routineAuthority: &auth}}
 	c.Input.ExactSnapshot = true
 	c.Input.DomainChecks = &c
 	value, count, err := restoreDomainReplayNode(&c, e, op, auth, typ.Usage(), &typedef.DomainReplayNode{Kind: "scalar", Scalar: &text})

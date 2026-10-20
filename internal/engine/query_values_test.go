@@ -156,7 +156,7 @@ func TestQueryFromValuesLockRecheckKeepsSyntheticOccurrence(t *testing.T) {
 	scope := &StatementScope{queryLocks: &queryLockContext{leaves: []queryLockLeaf{{}}}}
 	scratch := make([]sqltype.Value, queryLockRecheckWidth(join, inputs))
 	offset := 0
-	row, present, err := recheckLockedQuery(join, inputs, current, &EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: scope}}, scratch, &offset, frozen)
+	row, present, err := recheckLockedQuery(join, inputs, current, &EvalContext{evalStatement: evalStatement{Context: context.Background(), host: hostOf(scope)}}, scratch, &offset, frozen)
 	if err != nil || !present || calls != 0 {
 		t.Fatal(row, present, err, calls)
 	}

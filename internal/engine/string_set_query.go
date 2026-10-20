@@ -109,7 +109,7 @@ func openFunctionFromNode(ctx context.Context, state *queryState, n *plan.Functi
 	if err := validateFunctionFromLayout(n); err != nil {
 		return indexedStage{}, err
 	}
-	source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope}
+	source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, host: state.source.host}
 	establishSourcePresence(source, n.PresenceSlot)
 	out := indexedStage{source: source, schema: n.Schema(), selection: []int{}}
 	var invocation functionSetInvocation
@@ -253,7 +253,7 @@ func openSetProjectNode(ctx context.Context, state *queryState, n *plan.SetProje
 			return indexedStage{}, err
 		}
 	}
-	source := &querySource{flatWidth: width, materialized: true, authority: child.source.authority, scope: child.source.scope, occurrences: child.source.occurrences}
+	source := &querySource{flatWidth: width, materialized: true, authority: child.source.authority, host: child.source.host, occurrences: child.source.occurrences}
 	out := indexedStage{source: source, schema: n.Schema(), selection: []int{}, pending: child.pending, cacheWidth: child.cacheWidth}
 	var invocation functionSetInvocation
 	input := -1

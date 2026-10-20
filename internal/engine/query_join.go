@@ -74,7 +74,7 @@ func openJoinNode(ctx context.Context, state *queryState, n *plan.JoinNode) (ind
 	if err != nil {
 		return indexedStage{}, err
 	}
-	right := indexedStage{source: &querySource{flatWidth: n.RightWidth, materialized: true, authority: state.source.authority, scope: state.source.scope}, schema: n.Right.Schema(), selection: []int{}}
+	right := indexedStage{source: &querySource{flatWidth: n.RightWidth, materialized: true, authority: state.source.authority, host: state.source.host}, schema: n.Right.Schema(), selection: []int{}}
 	if n.CorrelatedRight {
 		establishDeferredPresence(right.source, n.Right)
 	} else {
@@ -144,7 +144,7 @@ func openJoinNode(ctx context.Context, state *queryState, n *plan.JoinNode) (ind
 	}
 	rightIdentity := false
 	frame := make([]sqltype.Value, width)
-	source := &querySource{flatWidth: width, materialized: true, authority: state.source.authority, scope: state.source.scope}
+	source := &querySource{flatWidth: width, materialized: true, authority: state.source.authority, host: state.source.host}
 	presenceMoves, presence := joinPresence(source, left.source, right.source, n.PresenceSlot)
 	locking := state.locking || state.source.locks.rowMarked()
 	identity := locking || state.virtualReads

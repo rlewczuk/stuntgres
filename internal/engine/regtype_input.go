@@ -79,8 +79,8 @@ func (r capturedRegtypeInput) resolveTypeName(ctx context.Context, text string) 
 	op := r.op
 	if r.authority != nil {
 		op = nil
-		if r.authority.scope != nil {
-			op = r.authority.scope.op
+		if scope := scopeOf(r.authority.host); scope != nil {
+			op = scope.op
 		}
 	}
 	raw, err := parser.ParseTypeName(ctx, text, func(notice sqlstate.Error) {

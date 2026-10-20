@@ -312,7 +312,7 @@ func (s *StatementScope) installProtocolProducer(root plan.Node, source *querySo
 	bind := s.protocolOrZero().bind
 	bind.producer = c
 	bind.completionBase, bind.completionCounted = "SELECT", true
-	s.authority.scope = nil
+	s.authority.host = nil
 	s.routineAuth = AuthorizationView{}
 	s.routineDependencies = nil
 	return Result{}, nil
@@ -447,7 +447,7 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 			return out, err
 		}
 		if p.producer != nil {
-			p.producer.authority.scope = nil
+			p.producer.authority.host = nil
 		}
 		_, err = s.copyIO(func() (int, error) { return 0, sink(fields) })
 		s.releaseCopyReservation()
@@ -507,7 +507,7 @@ func (s *StatementScope) enterProtocolProducer(c *sqlCursor) {
 }
 
 func (s *StatementScope) leaveProtocolProducer(c *sqlCursor) {
-	c.authority.scope = nil
+	c.authority.host = nil
 	s.setForeignCursor(nil)
 	s.routineAuth = AuthorizationView{}
 	s.routineDependencies = nil

@@ -53,7 +53,7 @@ func insertReturningAnalyzedScope(t *testing.T, e *Engine, s *Session, query str
 	}
 	scope.insertConflict = b.insert.conflict
 	if b.insert.conflict != nil {
-		c := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, statementScope: scope}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+		c := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, host: hostOf(scope)}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 		if err := b.insert.conflict.selectArbiters(&c, b.relation, e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
@@ -210,7 +210,7 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 		one, _ := sqltype.Integer(b.relation.Columns[0].Usage.Type, 1)
 		ten, _ := sqltype.Integer(b.relation.Columns[1].Usage.Type, 10)
 		row := []sqltype.Value{one, ten}
-		evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, statementScope: scope}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+		evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, host: hostOf(scope)}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 		admitted, err := scope.admitInsertRow(b.ref, &indexWriteCandidate{values: row}, indexWriteBatch{}, &evaluation)
 		if err != nil || !admitted {
 			t.Fatal(admitted, err)

@@ -174,7 +174,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	if err != nil {
 		return 0, err
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, statementScope: s, catalog: auth.Catalog}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, host: hostOf(s), catalog: auth.Catalog}}
 	selected := make([]bool, len(b.relation.Columns))
 	for _, target := range b.targets {
 		selected[target] = true

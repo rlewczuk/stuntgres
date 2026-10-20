@@ -426,7 +426,7 @@ type querySource struct {
 	foreign          *foreignQuerySource
 	visible          []int
 	hashIndexes      []capturedHashIndex
-	scope            *StatementScope
+	host             execHost
 	authority        *queryAuthority
 	// Borrowed only by an opaque stored-source execution root after original
 	// view lifetime/provider validation. This immutable definition supplies its
@@ -650,7 +650,7 @@ func (s *querySource) close() {
 	}
 	s.view = nil
 	s.committed, s.own = nil, nil
-	s.authority, s.scope = nil, nil
+	s.authority, s.host = nil, nil
 	s.partialMask = nil
 	s.anonymous = nil
 	s.visible = nil
@@ -952,7 +952,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node plan.Nod
 		if state.source == nil {
 			return indexedStage{}, fmt.Errorf("stuntgres: missing singleton statement source")
 		}
-		source := &querySource{singleton: true, authority: state.source.authority, scope: state.source.scope, locks: state.source.locks}
+		source := &querySource{singleton: true, authority: state.source.authority, host: state.source.host, locks: state.source.locks}
 		return indexedStage{source: source, schema: n.Schema()}, nil
 	case *plan.SourceNode:
 		source := state.source
@@ -1007,7 +1007,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node plan.Nod
 			// Only child-reachable consumed physical marks require the eager
 			// input frontier. Unrelated semantic context, identity-only manifests
 			// and unopened opaque CTE bodies do not demand this child.
-			source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope, locks: state.source.locks}
+			source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, host: state.source.host, locks: state.source.locks}
 			return indexedStage{source: source, schema: n.Schema()}, nil
 		}
 		if join, ok := n.Child.(*plan.JoinNode); ok && !queryHasMandatoryPhysicalFrontier(n.Child, state.source) {

@@ -14,7 +14,7 @@ import (
 func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark plan.RowMark, locks *queryLockContext, outputUses []int) (plan.Node, *querySource, error) {
 	ctx := scope.op.Context()
 	if scope.authority == nil {
-		scope.authority = &queryAuthority{scope: scope}
+		scope.authority = &queryAuthority{host: hostOf(scope)}
 	}
 	auth, err := e.authorizeViewSourceLocked(scope, ref, definition, invoker, mark)
 	if err != nil {
@@ -23,7 +23,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	}
 	catalog := e.privateCatalogLocked(scope.owner.catalog)
 	e.mu.Unlock()
-	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, statementScope: scope, catalog: catalog, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, host: hostOf(scope), catalog: catalog, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	evaluation.quoteCaptures = scope.quoteCaptures
 	evaluation.quoteOrigin = quoteOrigin{owner: ref, definition: definition.rule, revision: definition.quoteRevision}
 	consumer, ok := catalog.Relation(ref.Address)

@@ -154,7 +154,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		chosen := next
 		chosen.DomainChecks = []catalog.DomainCheckConstraint{next.DomainChecks[selected]}
 		scope.routineDependencies = chosen.DomainChecks[0].Dependencies
-		evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), statementScope: scope, catalog: auth.Catalog, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+		evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), host: hostOf(scope), catalog: auth.Catalog, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 		evaluation.Input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
 		if err != nil {
 			return Result{}, err

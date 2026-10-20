@@ -499,7 +499,7 @@ func openWindowNode(ctx context.Context, state *queryState, n *plan.WindowNode) 
 		}
 	}
 	count, width := child.count(), len(n.Calls)
-	source := &querySource{input: child.source, authority: state.source.authority, scope: state.source.scope, window: true, windowCount: count, windowWidth: width, windowValues: make([]sqltype.Value, count*width), scratch: make([]sqltype.Value, len(n.Schema()))}
+	source := &querySource{input: child.source, authority: state.source.authority, host: state.source.host, window: true, windowCount: count, windowWidth: width, windowValues: make([]sqltype.Value, count*width), scratch: make([]sqltype.Value, len(n.Schema()))}
 	source.presenceSlots, source.presenceCount = child.source.presenceSlots, child.source.presenceCount
 	if state.source != child.source {
 		source.sources = []*querySource{state.source}
