@@ -42,27 +42,3 @@ func queryTiesPeer(ctx context.Context, child *indexedStage, occurrence int, key
 	}
 	return true, ctx.Err()
 }
-
-func (n *limitNode) finishTies(root LogicalNode) {
-	if !n.withTies {
-		return
-	}
-	for {
-		switch node := root.(type) {
-		case *sortNode:
-			for i := range node.keys {
-				node.keys[i].peerDemand = true
-			}
-			n.peerKeys = node.keys
-			return
-		case *evaluationNode:
-			root = node.child
-		case *distinctOnNode:
-			root = node.child
-		case *rowLockNode:
-			root = node.child
-		default:
-			panic("stuntgres: WITH TIES without finished ORDER")
-		}
-	}
-}

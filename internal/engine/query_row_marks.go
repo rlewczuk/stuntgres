@@ -8,16 +8,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// Strength and wait precedence are independent. A manifest belongs to a bound
-// query occurrence, never to its physical relation or column namespace.
-type queryRowMark struct {
-	mode           lock.Mode
-	wait           parser.RowLockWait
-	diagnosticMode lock.Mode
-	// One-based first insertion order, independent of FROM order and upgrades.
-	order int
-}
-
 func isPGSequencesRelation(relation *catalog.Relation) bool {
 	return relation.RelationKind == catalog.CatalogRelation && relation.Address().ObjectID == 12048
 }

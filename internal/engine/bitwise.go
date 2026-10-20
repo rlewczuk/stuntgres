@@ -10,43 +10,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type bitwiseExpression struct {
-	expr.Info
-	left, right expr.Expr
-	provider    sqltype.Bitwise
-	bits        sqltype.BitStringBitwise
-	network     sqltype.NetworkBitwise
-	operator    sqltype.BitwiseOperator
-	namespace   string
-}
-
-func (e bitwiseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	a, err := e.left.Eval(ctx)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	if e.right == nil {
-		if e.Usage.Type.ID() == sqltype.Inet {
-			return e.network.Unary(ctx.FunctionContext(), a)
-		}
-		if e.Usage.Type.ID() == sqltype.Bit {
-			return e.bits.Unary(ctx.FunctionContext(), a)
-		}
-		return e.provider.Unary(ctx.FunctionContext(), a)
-	}
-	b, err := e.right.Eval(ctx)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	if e.Usage.Type.ID() == sqltype.Inet {
-		return e.network.Binary(ctx.FunctionContext(), a, b)
-	}
-	if e.Usage.Type.ID() == sqltype.Bit {
-		return e.bits.Binary(ctx.FunctionContext(), a, b)
-	}
-	return e.provider.Binary(ctx.FunctionContext(), a, b)
-}
-
 // Only a physical SQL constant NULL is decisive after complete analysis and
 // child planning. Imported parameter values and row-owned NULLs are not planning
 // facts; conservative row/stage dependence on an already-pruned literal remains.

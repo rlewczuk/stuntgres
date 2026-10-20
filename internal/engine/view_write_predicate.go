@@ -2,57 +2,8 @@ package engine
 
 import (
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/sqltype"
 )
 
-// View qualification is a relational guard, not a change to ordinary Boolean
-// expression evaluation. Unsafe user work never sees a row hidden by any layer.
-type viewQualificationExpression struct {
-	expr.Info
-	predicates []expr.Expr // outer-to-inner storage; evaluated inner-to-outer
-	user       expr.Expr
-}
-
-func (e viewQualificationExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	if _, err := beginEvaluation(ctx); err != nil {
-		return sqltype.Value{}, err
-	}
-	value, known, err := queryPredicateProofValue(ctx, e.user)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	if known {
-		truth, err := TruthOf(value)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		if truth != True {
-			// A proven empty user input cannot expose a row or demand a
-			// retained qualification. Preserve its original FALSE/NULL value.
-			return value, ctx.FunctionContext().Err()
-		}
-	}
-	for i := len(e.predicates) - 1; i >= 0; i-- {
-		value, err := e.predicates[i].Eval(ctx)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		truth, err := TruthOf(value)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		if truth != True {
-			return sqltype.Boolean(e.Usage.Type, false), nil
-		}
-	}
-	if known {
-		return value, ctx.FunctionContext().Err()
-	}
-	if e.user == nil {
-		return sqltype.Boolean(e.Usage.Type, true), ctx.FunctionContext().Err()
-	}
-	return e.user.Eval(ctx)
-}
 func mapViewQualification(e viewQualificationExpression, mapper func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, bool, error) {
 	changed := false
 	var private []expr.Expr

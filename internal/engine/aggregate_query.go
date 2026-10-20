@@ -3,31 +3,9 @@ package engine
 import (
 	"context"
 	"fmt"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 )
-
-type aggregateNode struct {
-	querySchema
-	child          LogicalNode
-	keys           []expr.Expr
-	grouping       []queryGrouping
-	calls          []aggregateCall
-	sets           [][]int // Canonical key IDs; each occurrence has isolated state.
-	groupingActive bool
-	presenceOnly   bool // Retain analyzed grouping while discarding eligible EXISTS demand.
-}
-
-func (n *aggregateNode) discardableGrouping() bool {
-	if len(n.calls) != 0 || n.groupingActive {
-		return false
-	}
-	if n.sets == nil {
-		return len(n.keys) > 0
-	}
-	return len(n.sets) == 1 && len(n.sets[0]) > 0
-}
 
 type queryGroup struct {
 	keys     []sqltype.Value

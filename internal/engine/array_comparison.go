@@ -11,85 +11,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Scalar lists scan their typed children directly; array inputs scan the owner's
-// immutable flat payload. Neither route constructs an array per input row.
-type scalarArrayComparisonExpression struct {
-	expr.Info
-	left, array         expr.Expr
-	items               []expr.Expr
-	predicate           sqltype.ComparisonPredicate
-	operator, namespace string
-	all                 bool
-}
-
-func (n scalarArrayComparisonExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	if _, err := beginEvaluation(ctx); err != nil {
-		return sqltype.Value{}, err
-	}
-	left, err := n.left.Eval(ctx)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	var array sqltype.Value
-	count := len(n.items)
-	if n.array != nil {
-		array, err = n.array.Eval(ctx)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		if array.IsNull() {
-			return sqltype.Null(n.Usage.Type), nil
-		}
-		count = array.ArrayLen()
-	}
-	unknown := false
-	decisive := false
-	for i := range count {
-		if err := ctx.FunctionContext().Err(); err != nil {
-			return sqltype.Value{}, err
-		}
-		var right sqltype.Value
-		if n.array != nil {
-			right = array.ArrayElement(i)
-		} else {
-			right, err = n.items[i].Eval(ctx)
-			if err != nil {
-				return sqltype.Value{}, err
-			}
-		}
-		// A batch corresponds to ARRAY[...] input: every item is evaluated
-		// even after reduction becomes decisive, without allocating the array.
-		if decisive {
-			continue
-		}
-		value, err := n.predicate.Evaluate(ctx.FunctionContext(), left, right, ctx.FunctionInput())
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		truth, err := TruthOf(value)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		if truth == Unknown {
-			unknown = true
-			continue
-		}
-		if (!n.all && truth == True) || (n.all && truth == False) {
-			if n.array != nil {
-				return sqltype.Boolean(n.Usage.Type, !n.all), nil
-			}
-			decisive = true
-		}
-	}
-	if decisive {
-		return sqltype.Boolean(n.Usage.Type, !n.all), nil
-	}
-	if unknown {
-		return sqltype.Null(n.Usage.Type), nil
-	}
-	return sqltype.Boolean(n.Usage.Type, n.all), nil
-}
-
 func comparisonOperator(name string) (sqltype.ComparisonOperator, bool) {
 	switch name {
 	case "=":
@@ -554,13 +475,6 @@ func mapScalarArrayChildren(n scalarArrayComparisonExpression, child func(expr.E
 		n.items = items
 	}
 	return n, changed, nil
-}
-
-func (n scalarArrayComparisonExpression) elementType() *sqltype.Descriptor {
-	if n.array != nil {
-		return n.array.ResultUsage().Type.BaseType().Element()
-	}
-	return n.items[0].ResultUsage().Type
 }
 
 func renderScalarArrayComparison(n scalarArrayComparisonExpression, child func(expr.Expr) (string, error), identifier func(string) string) (string, error) {

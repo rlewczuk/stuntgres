@@ -7,16 +7,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Unlike DISTINCT, ON retains input occurrences and never demands payload
-// equality. The existing cache and source own retained rows and key datums.
-type distinctOnNode struct {
-	querySchema
-	child        LogicalNode
-	expressions  []expr.Expr
-	grouping     []queryGrouping
-	presenceOnly bool
-}
-
 func openDistinctOnNode(ctx context.Context, state *queryState, n *distinctOnNode) (out indexedStage, err error) {
 	if n.presenceOnly {
 		return openQueryNode(ctx, state, n.child)

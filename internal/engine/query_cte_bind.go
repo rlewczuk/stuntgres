@@ -10,41 +10,10 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// A definition is immutable after statement analysis. Only invocation owners
-// contain producer state; neither catalog objects nor prepared handles do.
-type cteDefinition struct {
-	query      *BoundQuery
-	statement  parser.Statement
-	mutation   cteMutation
-	schema     querySchema
-	owner      uint32
-	references int
-	hint       parser.CTEMaterialization
-	volatile   bool
-	recursive  bool
-	syntax     *parser.Select
-	name       string
-	columns    []parser.Identifier
-	position   parser.Position
-	userWidth  int
-	search     *searchRecipe
-	cycle      *cycleRecipe
-}
 type cteBinding struct {
 	name       string
 	definition *cteDefinition
 	contained  bool // This binding is inside its owning WITH's definition bodies.
-}
-
-func (d *cteDefinition) folded() bool {
-	return !d.recursive && d.mutation == nil && !d.volatile && d.hint != parser.CTEMaterialized && (d.hint == parser.CTENotMaterialized || d.references == 1)
-}
-
-func (d *cteDefinition) outputSchema() querySchema {
-	if d.query != nil {
-		return d.query.Root.Schema()
-	}
-	return d.schema
 }
 
 func futureCTEError(err error, name string) error {

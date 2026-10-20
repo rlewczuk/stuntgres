@@ -8,21 +8,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type joinNode struct {
-	viewOrdinal  int
-	presenceSlot int
-	querySchema
-	kind                  parser.JoinKind
-	left, right           LogicalNode
-	predicate             expr.Expr
-	leftWidth, rightWidth int
-	merges                []expr.Expr
-	correlatedRight       bool
-	frame                 uint32
-	correlationPrefix     int
-	captures              []functionCorrelation
-}
-
 func preflightJoin(c *EvalContext, n *joinNode) (LogicalNode, error) {
 	left, err := preflightQuery(c, n.left)
 	if err != nil {
@@ -404,16 +389,6 @@ func initializeJoinEquality(ctx context.Context, bound expr.Expr, leftWidth int)
 		return nil
 	}
 	return comparison.predicate.DemandCollation(ctx)
-}
-
-// Captures retain their binding namespace and written origin while an enclosing
-// join consumes locally satisfied references. Slots are relative to that join's
-// inherited correlation frame, not to its output row.
-type functionCorrelation struct {
-	frame uint32
-	slot  int
-	name  string
-	pos   parser.Position
 }
 
 // Each dependent invocation owns a different execution-private right source.

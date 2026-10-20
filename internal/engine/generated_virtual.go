@@ -53,23 +53,6 @@ func virtualGenerationSecurity(node expr.Expr) error {
 	return failure
 }
 
-// The retained plan reads a physical leaf window, preserving the named column's
-// ACL identity and the caller's context. Definitions themselves contain plain
-// current-row references; no query-specific window enters the catalog.
-func (e columnExpression) withGeneration(d *catalog.Relation, physical, start int) columnExpression {
-	if d == nil {
-		return e
-	}
-	if definition, ok := d.ColumnMeta.Generations[d.Attributes[physical]]; ok && definition.Kind == catalog.GenerationVirtual {
-		e.virtual = definition.Planned
-		e.virtualOwner = d
-		e.virtualAttribute = d.Attributes[physical]
-		e.rowStart = start
-		e.rowWidth = len(d.Columns)
-	}
-	return e
-}
-
 // Generation recipes own their original references, independently of an outer
 // query or definer view. Selecting that provenance never changes the invoker.
 func selectVirtualGenerationRecipe(c *EvalContext, owner *catalog.Relation, definition catalog.ColumnGeneration) {

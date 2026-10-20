@@ -1,27 +1,11 @@
 package engine
 
 import (
-	"fmt"
-
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
-
-// A series is a retained typed target marker, never an executable generator.
-// Invocation-private arithmetic lives in the owner's source cursor.
-type seriesExpression struct {
-	expr.Info
-	args []expr.Expr
-}
-
-func (e seriesExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	if _, err := beginEvaluation(ctx); err != nil {
-		return sqltype.Value{}, err
-	}
-	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted generate_series set call")
-}
 
 type seriesSignature struct {
 	args   [4]sqltype.ID

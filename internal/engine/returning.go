@@ -35,16 +35,6 @@ type boundReturning struct {
 	visibilitySnapshot bool
 }
 
-// Side-aware columns preserve dependencies even when their tuple is absent.
-type returningColumnExpression struct {
-	columnExpression
-	old, absent bool
-	merge       bool
-	side        mergeReturningSide
-	// A lowered logical view column can be an arbitrary physical expression.
-	value expr.Expr
-}
-
 func returningRowContext(c *EvalContext, scope, frame uint32) (*EvalContext, error) {
 	if err := evaluationContext(c); err != nil {
 		return nil, err
@@ -55,14 +45,6 @@ func returningRowContext(c *EvalContext, scope, frame uint32) (*EvalContext, err
 		}
 	}
 	return nil, fmt.Errorf("stuntgres: RETURNING row frame is missing")
-}
-
-func (e returningColumnExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	runtime, err := nodeRuntimeOf(ctx)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	return runtime.EvalReturningColumn(e)
 }
 
 func (c *EvalContext) EvalReturningColumn(e returningColumnExpression) (sqltype.Value, error) {

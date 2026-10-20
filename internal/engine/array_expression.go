@@ -12,32 +12,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Constructors retain scalar children and their stored dependencies rather than
-// replacing the expression with opaque array input text.
-type arrayExpression struct {
-	expr.Info
-	elements         []expr.Expr
-	multidimensional bool
-}
-
-func (n arrayExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	if _, err := beginEvaluation(ctx); err != nil {
-		return sqltype.Value{}, err
-	}
-	values := make([]sqltype.Value, len(n.elements))
-	for i, child := range n.elements {
-		if err := ctx.FunctionContext().Err(); err != nil {
-			return sqltype.Value{}, err
-		}
-		v, err := child.Eval(ctx)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		values[i] = v
-	}
-	return sqltype.ConstructArray(ctx.FunctionContext(), n.Usage.Type, values, n.multidimensional)
-}
-
 // target is supplied only by explicit array casts, never ordinary assignment.
 func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage) (expr.Expr, error) {
 	operands := make([]comparisonOperand, len(raw.Elements))
@@ -151,78 +125,6 @@ func (r scalarRenderer) arraySQL(ctx context.Context, view catalog.Read, n array
 		text += "::" + declaration
 	}
 	return text, nil
-}
-
-type boundArraySubscript struct {
-	lower, upper expr.Expr
-	slice        bool
-}
-type subscriptExpression struct {
-	expr.Info
-	base       expr.Expr
-	subscripts []boundArraySubscript
-	slice      bool
-}
-
-func (n subscriptExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	if _, err := beginEvaluation(ctx); err != nil {
-		return sqltype.Value{}, err
-	}
-	value, err := n.base.Eval(ctx)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	if value.IsNull() {
-		return sqltype.Null(n.Usage.Type), nil
-	}
-	var storage [6]sqltype.ArraySubscriptValue
-	bounds, err := evaluateArrayBounds(ctx, n.subscripts, n.slice, storage[:len(n.subscripts)])
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	if n.slice {
-		return sqltype.ArraySlice(ctx.FunctionContext(), value, bounds)
-	}
-	return sqltype.ArrayFetch(ctx.FunctionContext(), value, bounds)
-}
-
-// Executor ordering is upper bounds in dimension order, then lower bounds.
-// Analysis and diagnostic positions still follow lexical occurrences.
-func evaluateArrayBounds(ctx expr.Context, subs []boundArraySubscript, slice bool, bounds []sqltype.ArraySubscriptValue) ([]sqltype.ArraySubscriptValue, error) {
-	for i, s := range subs {
-		bounds[i] = sqltype.ArraySubscriptValue{}
-		if slice && !s.slice {
-			bounds[i].Lower, bounds[i].HasLower = 1, true
-		}
-	}
-	for _, lower := range [2]bool{false, true} {
-		for i, s := range subs {
-			node := s.upper
-			if lower {
-				node = s.lower
-			}
-			if node == nil {
-				continue
-			}
-			v, err := node.Eval(ctx)
-			if err != nil {
-				return nil, err
-			}
-			var number int64
-			if !v.IsNull() {
-				number, err = v.Integer()
-				if err != nil {
-					return nil, err
-				}
-			}
-			if lower {
-				bounds[i].Lower, bounds[i].HasLower, bounds[i].LowerNull = int32(number), true, v.IsNull()
-			} else {
-				bounds[i].Upper, bounds[i].HasUpper, bounds[i].UpperNull = int32(number), true, v.IsNull()
-			}
-		}
-	}
-	return bounds, nil
 }
 
 func (b *expressionBinder) bindArrayBounds(raw []parser.ArraySubscript) ([]boundArraySubscript, bool, error) {

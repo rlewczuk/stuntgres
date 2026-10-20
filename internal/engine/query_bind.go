@@ -10,17 +10,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// unknownOutput is an occurrence, not a SQL value. Assignment or ordinary
-// SELECT output finalization must eliminate it before the query can execute.
-type unknownOutput struct {
-	expr.Info
-	raw parser.Expr
-}
-
-func (unknownOutput) Eval(expr.Context) (sqltype.Value, error) {
-	return sqltype.Value{}, fmt.Errorf("stuntgres: unresolved query output")
-}
-
 func (b *expressionBinder) bindOutput(raw parser.Expr, contextual bool) (expr.Expr, error) {
 	if contextual {
 		if v, ok := raw.(parser.LiteralExpr); ok && (v.Value.Kind == parser.StringValue || v.Value.Kind == parser.NullValue) {

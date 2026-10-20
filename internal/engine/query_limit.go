@@ -8,15 +8,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type limitNode struct {
-	querySchema
-	child         LogicalNode
-	offset, count expr.Expr
-	withTies      bool
-	peerKeys      []sortKey
-	presenceOnly  bool // Eligible EXISTS retains analysis, not bounds/peer production.
-}
-
 func (b *expressionBinder) bindQueryBounds(raw *parser.QueryBounds, captureLiterals bool) (*limitNode, error) {
 	if raw == nil {
 		return nil, nil

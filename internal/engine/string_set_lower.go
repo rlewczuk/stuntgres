@@ -7,12 +7,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type querySetSlot struct {
-	original  expr.Expr
-	column    expr.Expr
-	scheduled bool // The owner reads its reserved slot only for an active scalar event.
-}
-
 func querySetDepth(bound expr.Expr) int {
 	depth := 0
 	boundExpressionChildren(bound, func(child expr.Expr) {
@@ -316,22 +310,6 @@ func preflightQuerySet(c *EvalContext, n *setProjectNode) (LogicalNode, error) {
 		root = node
 	}
 	return root, nil
-}
-
-func (n *setProjectNode) appendScalar(expression expr.Expr, candidate, candidates int) {
-	if n.scalars == nil {
-		n.scalars = make([]expr.Expr, 0, candidates)
-	}
-	if n.scalarSlots != nil {
-		n.scalarSlots = append(n.scalarSlots, candidate)
-	} else if candidate != len(n.scalars) {
-		n.scalarSlots = make([]int, len(n.scalars), candidates)
-		for i := range n.scalarSlots {
-			n.scalarSlots[i] = i
-		}
-		n.scalarSlots = append(n.scalarSlots, candidate)
-	}
-	n.scalars = append(n.scalars, expression)
 }
 
 func querySetScalarSlot(slots []int, index int) int {

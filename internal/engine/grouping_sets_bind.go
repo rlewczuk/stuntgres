@@ -305,25 +305,6 @@ func expandGroupingItem(ctx context.Context, item analyzedGroupItem) ([][]int, e
 	return nil, fmt.Errorf("stuntgres: invalid grouping item")
 }
 
-// Arguments remain analyzed dependencies but are never evaluated by GROUPING.
-// The immutable masks address the execution-local occurrence suffix in its owner.
-type groupingExpression struct {
-	expr.Info
-	args      []expr.Expr
-	positions []parser.Position
-	frame     uint32
-	slot      int
-	masks     []int32
-}
-
-func (e groupingExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	runtime, err := nodeRuntimeOf(ctx)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	return runtime.EvalGrouping(e)
-}
-
 func (c *EvalContext) EvalGrouping(e groupingExpression) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err

@@ -9,61 +9,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// These are closed query stages, not a general table-function provider surface.
-type functionFromNode struct {
-	querySchema
-	calls                  []expr.Expr
-	scalarNull             []bool // Execution-only strict scalar plans; analyzed calls retain the stage layout.
-	ordinality, correlated bool
-	frame                  uint32
-	viewOrdinal            int
-	regexpNamespace        bool
-	captures               []functionCorrelation
-	presenceSlot           int
-}
-
-func (*functionFromNode) logicalNode() {}
-
-type querySetStepKind uint8
-
 const (
 	querySetCallStep querySetStepKind = iota
 	querySetScalarStep
 )
-
-type querySetStep struct {
-	kind  querySetStepKind
-	index int
-}
-
-// Retained typed operands precede lowering. Canonical execution preflight owns
-// simplification and re-lowers surviving occurrences without rebinding syntax.
-type querySetTemplate struct {
-	group          *uint32 // Immutable local-group identity and analyzed frame, shared across copies.
-	expressions    []expr.Expr
-	origins        []expr.Expr
-	scalars        []expr.Expr // Typed non-call owner candidates, before lower-marker substitution.
-	scalarRequests []int       // Original owner request indices, not source-text identity.
-	attempts       bool
-	steps          []querySetStep // Original fixed marker/scalar identities in executable root order.
-}
-
-type setProjectNode struct {
-	querySchema
-	child                  LogicalNode
-	calls                  []expr.Expr
-	scalars                []expr.Expr
-	frame                  uint32
-	template               *querySetTemplate
-	callSlots              []int // Marker slots relative to the group's fixed base, retained and executable.
-	scalarSlots            []int // Sparse candidate slots; nil encodes the ordinary identity layout.
-	baseWidth, markerWidth int
-	scalarBindings         []querySetSlot // Execution-private owner roots and fixed scalar slots.
-	scalarUpper            bool
-	steps                  []querySetStep // This level's local call/scalar indices, not storage-slot order.
-}
-
-func (*setProjectNode) logicalNode() {}
 
 type functionSetInvocation struct{ cursors []expr.SourceCursor }
 
@@ -117,7 +66,9 @@ func preflightFunctionFrom(c *EvalContext, n *functionFromNode) (LogicalNode, er
 	return &copy, nil
 }
 
-func (n *functionFromNode) openCall(c *EvalContext, i int) (expr.SourceCursor, error) {
+// openFunctionCall opens call i of a ROWS FROM item; a strict call with a NULL
+// scalar argument yields its typed NULL after the node prologue.
+func openFunctionCall(c *EvalContext, n *functionFromNode, i int) (expr.SourceCursor, error) {
 	if n.scalarNull != nil && n.scalarNull[i] {
 		if err := evaluationContext(c); err != nil {
 			return expr.SourceCursor{}, err
@@ -130,7 +81,7 @@ func (n *functionFromNode) openCall(c *EvalContext, i int) (expr.SourceCursor, e
 func openFunctionInvocation(c *EvalContext, n *functionFromNode) (functionSetInvocation, error) {
 	s := functionSetInvocation{cursors: make([]expr.SourceCursor, len(n.calls))}
 	for i := range n.calls {
-		cursor, err := n.openCall(c, i)
+		cursor, err := openFunctionCall(c, n, i)
 		if err != nil {
 			s.close()
 			return functionSetInvocation{}, err

@@ -7,24 +7,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// A physical non-NULL BOOL left operand decides AND/OR without its right
-// operand. Coercion preflight and planning demand share this literal policy.
-func decisiveLogicalValue(e *logicalExpression) (sqltype.Value, bool, error) {
-	literal, ok := e.left.(literalExpression)
-	if !ok || literal.value.Type() == nil || !literal.value.Type().Concrete() ||
-		literal.value.Type().ID() != sqltype.Bool || literal.value.IsNull() {
-		return sqltype.Value{}, false, nil
-	}
-	truth, err := TruthOf(literal.value)
-	if err != nil {
-		return sqltype.Value{}, false, err
-	}
-	if (e.op == parser.LogicalOr && truth == True) || (e.op == parser.LogicalAnd && truth == False) {
-		return literal.value, true, nil
-	}
-	return sqltype.Value{}, false, nil
-}
-
 // Searched CASE has a physical-literal decision requiring no expression,
 // conversion, provider or domain evaluation. Demand and simplification share it.
 func literalSearchedCaseMatch(condition expr.Expr) (known, match bool, err error) {

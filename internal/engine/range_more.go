@@ -1,29 +1,12 @@
 package engine
 
 import (
-	"fmt"
-
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-type unnestExpression struct {
-	expr.Info
-	args      []expr.Expr
-	procedure *catalog.Procedure
-	ref       ids.ObjectRef
-}
-
-func (e unnestExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	if _, err := beginEvaluation(ctx); err != nil {
-		return sqltype.Value{}, err
-	}
-	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted unnest call")
-}
 func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (expr.Expr, error) {
 	var small [1]functions.Argument
 	var operands []functions.Argument
@@ -111,18 +94,4 @@ func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (expr.Expr, error
 		return nil, err
 	}
 	return unnestExpression{Info: info, args: []expr.Expr{arg}}, nil
-}
-
-// unnestInputTypes is shared by applicability and the selected provider.
-func unnestInputTypes(usage sqltype.Usage) (input, result *sqltype.Descriptor) {
-	if usage.Type == nil {
-		return nil, nil
-	}
-	input = usage.Type.BaseType()
-	if input.IsArray() {
-		result = input.Element()
-	} else {
-		result = sqltype.MultirangeUnnestResult(input)
-	}
-	return input, result
 }

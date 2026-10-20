@@ -102,12 +102,3 @@ func pruneProjectWindows(project *projectNode) (*projectNode, error) {
 	result.child = child
 	return &result, nil
 }
-
-func (n *windowNode) specActive(index int) bool {
-	for i, call := range n.calls {
-		if !call.analysisOnly && n.specIndices[i] == index {
-			return true
-		}
-	}
-	return false
-}

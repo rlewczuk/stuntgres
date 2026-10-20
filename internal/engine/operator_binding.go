@@ -14,19 +14,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// The provider is the sole executable child. Its lexical children retain the
-// selected call's ordered, already-coerced operands for SQL rendering.
-type selectedOperatorExpression struct {
-	expr.Info
-	operator *catalog.Operator
-	ref      ids.ObjectRef
-	provider expr.Expr
-}
-
-func (e selectedOperatorExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	return e.provider.Eval(ctx)
-}
-
 func (b *expressionBinder) bindBuiltinOperator(r parser.OperatorExpr, policy expressionPolicy) (expr.Expr, error) {
 	if r.SQLSimilar {
 		return functions.BindSimilar(b, r)

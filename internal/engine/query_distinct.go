@@ -8,16 +8,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// distinctNode owns source-typed projected tuples. Its parent projection reads
-// slots, so ordering and INSERT assignment never reevaluate key expressions.
-type distinctNode struct {
-	querySchema
-	child        LogicalNode
-	expressions  []expr.Expr
-	grouping     []queryGrouping
-	presenceOnly bool // Retain analyzed targets while discarding eligible EXISTS demand.
-}
-
 func openDistinctNode(ctx context.Context, state *queryState, n *distinctNode) (out indexedStage, err error) {
 	if n.presenceOnly {
 		return openQueryNode(ctx, state, n.child)

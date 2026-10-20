@@ -20,10 +20,6 @@ const (
 	compositeRecordArgument
 )
 
-type wholeRowSource struct {
-	namespace, qualifier int
-	frame                uint32
-}
 type compositeOccurrence struct {
 	kind       compositeOccurrenceKind
 	base       sqltype.Usage

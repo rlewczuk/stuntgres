@@ -3,22 +3,8 @@ package engine
 import (
 	"context"
 	"fmt"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
-
-// A derived source adapts projected child rows to the ordinary FROM frame.
-// Its output is execution-private; it never owns captured relation pins.
-type derivedNode struct {
-	querySchema
-	query        *BoundQuery
-	cte          *cteDefinition
-	table        *parser.TableReference
-	ordinal      int
-	scanFrame    uint32
-	demand       []bool
-	presenceSlot int
-}
 
 func openDerivedNode(ctx context.Context, state *queryState, n *derivedNode) (indexedStage, error) {
 	if n.cte != nil && !n.cte.folded() {

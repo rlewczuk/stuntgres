@@ -9,17 +9,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// setNode describes common-typed projected arms. No execution state or physical
-// lineage is retained here. UNION ALL intentionally has no equivalence provider.
-type setNode struct {
-	querySchema
-	left, right                       *projectNode
-	operation                         string
-	all                               bool
-	leftExpressions, rightExpressions []expr.Expr
-	grouping                          []queryGrouping
-}
-
 func setMultiplicity(operation string, all bool, left, right int) int {
 	switch operation {
 	case "union":

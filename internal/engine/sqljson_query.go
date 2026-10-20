@@ -7,12 +7,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type sqlJSONArrayQuery struct {
-	raw   parser.SQLJSONExpr
-	input expr.Expr
-	plan  sqltype.JSONArrayAggregatePlan
-}
-
 func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (expr.Expr, error) {
 	if raw.Kind != "json_array" {
 		return nil, expr.ErrorAt("42601", "syntax error at or near \"SELECT\"", raw.Pos)

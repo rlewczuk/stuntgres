@@ -8,13 +8,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func sameIntaggIdentity(a *catalog.Procedure, ar ids.ObjectRef, b *catalog.Procedure, br ids.ObjectRef) bool {
-	if ar != br || (a == nil) != (b == nil) {
-		return false
-	}
-	return a == nil || a.Address() == b.Address() && a.Revision() == b.Revision()
-}
-
 func validateIntaggIdentity(v catalog.Read, proc *catalog.Procedure, ref ids.ObjectRef, name string) error {
 	if proc == nil {
 		if ref != (ids.ObjectRef{}) {

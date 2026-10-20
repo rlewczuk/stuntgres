@@ -11,19 +11,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Array target plans retain only analysis state. Every bound and RHS is evaluated
-// against the original execution frame, while writes compose into a private row.
-type arrayAssignmentTarget struct {
-	node        subscriptExpression
-	container   sqltype.Usage
-	destination sqltype.Usage
-	reapply     sqltype.CoercionPlan
-	name        string
-	pos         parser.Position
-	attribute   int32
-	next        *arrayAssignmentTarget
-}
-
 func assignmentTargetHasVirtualReads(target *arrayAssignmentTarget) bool {
 	for ; target != nil; target = target.next {
 		if target.attribute == 0 && boundHasVirtualReads(target.node) {
@@ -65,10 +52,6 @@ func (b *expressionBinder) bindArrayTarget(column catalog.Column, raw []parser.A
 	return &arrayAssignmentTarget{node: subscriptExpression{subscripts: subs, slice: slice}, container: column.Usage, destination: arrayTargetUsage(column.Usage, raw), reapply: plan, name: column.Name, pos: pos}, nil
 }
 
-func (t *arrayAssignmentTarget) column(original catalog.Column) catalog.Column {
-	original.Usage = t.destination
-	return original
-}
 func (b *expressionBinder) arrayAssignmentDiagnostic(t *arrayAssignmentTarget, err error, source *sqltype.Descriptor) error {
 	if err == nil {
 		return nil
@@ -91,91 +74,6 @@ func (b *expressionBinder) arrayAssignmentDiagnostic(t *arrayAssignmentTarget, e
 	copy.Hint = "You will need to rewrite or cast the expression."
 	copy.Position = strconv.Itoa(t.pos.Character)
 	return &copy
-}
-
-func (t *arrayAssignmentTarget) apply(ctx expr.Context, current, rhs sqltype.Value) (sqltype.Value, error) {
-	return t.applyPath(ctx, current, nil, rhs)
-}
-
-func (t *arrayAssignmentTarget) applyExpression(ctx expr.Context, current sqltype.Value, rhs expr.Expr) (sqltype.Value, error) {
-	return t.applyPath(ctx, current, rhs, sqltype.Value{})
-}
-
-func (t *arrayAssignmentTarget) applyPath(ctx expr.Context, current sqltype.Value, expression expr.Expr, rhs sqltype.Value) (sqltype.Value, error) {
-	if _, err := beginEvaluation(ctx); err != nil {
-		return sqltype.Value{}, err
-	}
-	var storage [6]sqltype.ArraySubscriptValue
-	bounds, err := evaluateArrayBounds(ctx, t.node.subscripts, t.node.slice, storage[:len(t.node.subscripts)])
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	for _, bound := range bounds {
-		if bound.LowerNull || bound.UpperNull {
-			return sqltype.Value{}, sqlError("22004", "array subscript in assignment must not be null")
-		}
-	}
-	if t.next != nil {
-		var previous sqltype.Value
-		if t.attribute != 0 {
-			index, ok := current.Type().BaseType().CompositeAttributeIndex(t.attribute)
-			if !ok {
-				return sqltype.Value{}, fmt.Errorf("stuntgres: retired assignment attribute")
-			}
-			previous = sqltype.Null(current.Type().BaseType().CompositeMember(index).Usage.Type)
-			if !current.IsNull() {
-				previous = current.CompositeField(index)
-			}
-		} else if t.node.slice {
-			previous, err = sqltype.ArraySlice(ctx.FunctionContext(), current, bounds)
-		} else {
-			previous, err = sqltype.ArrayFetch(ctx.FunctionContext(), current, bounds)
-		}
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		rhs, err = t.next.applyPath(ctx, previous, expression, rhs)
-	} else if expression != nil {
-		rhs, err = expression.Eval(ctx)
-	}
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	return t.applyBounds(ctx, current, rhs, bounds)
-}
-
-func (t *arrayAssignmentTarget) applyBounds(ctx expr.Context, current, rhs sqltype.Value, bounds []sqltype.ArraySubscriptValue) (sqltype.Value, error) {
-	var result sqltype.Value
-	var err error
-	if t.attribute != 0 {
-		shape := current.Type().BaseType()
-		index, ok := shape.CompositeAttributeIndex(t.attribute)
-		if !ok {
-			return sqltype.Value{}, fmt.Errorf("stuntgres: retired assignment attribute")
-		}
-		fields := make([]sqltype.Value, shape.CompositeLen())
-		for i := range fields {
-			fields[i] = sqltype.Null(shape.CompositeMember(i).Usage.Type)
-			if !current.IsNull() {
-				fields[i] = current.CompositeField(i)
-			}
-		}
-		fields[index] = rhs
-		result, err = sqltype.OwnedCompositeValue(shape, fields)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		return t.reapply.Apply(ctx.FunctionContext(), result, ctx.FunctionInput(), ctx.FunctionOutput())
-	}
-	if t.node.slice {
-		result, err = sqltype.ArraySetSlice(ctx.FunctionContext(), current, bounds, rhs)
-	} else {
-		result, err = sqltype.ArraySetElement(ctx.FunctionContext(), current, bounds, rhs)
-	}
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	return t.reapply.Apply(ctx.FunctionContext(), result, ctx.FunctionInput(), ctx.FunctionOutput())
 }
 
 func preflightArrayTargets(c *EvalContext, targets []*arrayAssignmentTarget) ([]*arrayAssignmentTarget, error) {

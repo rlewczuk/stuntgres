@@ -6,14 +6,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Every execution owns its dense occurrences and result overlay; the plan has no caches.
-type windowNode struct {
-	querySchema
-	child                    LogicalNode
-	specs                    []boundWindowSpec
-	calls                    []windowCall
-	specIndices, sortIndices []int
-}
 type windowPartition struct {
 	keys           []sqltype.Value
 	rows, peerEnds []int

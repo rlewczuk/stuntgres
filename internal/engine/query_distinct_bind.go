@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -12,44 +11,6 @@ import (
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
-
-// A caller-checked query consumer owns its selected equality identity beside
-// the existing immutable provider, in the same key allocation. Internal hash
-// consumers and index support keep ordinary sqltype.Grouping.
-type queryGrouping struct {
-	sqltype.Grouping
-	routine     ids.ObjectRef
-	privateTree bool
-	conversion  sqltype.CoercionPlan
-	converted   sqltype.Grouping
-	convert     bool
-}
-
-func (g queryGrouping) Equal(ctx context.Context, a, b sqltype.Value) (bool, error) {
-	if !g.convert {
-		return g.Grouping.Equal(ctx, a, b)
-	}
-	left, err := g.conversion.Apply(ctx, a, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
-	if err != nil {
-		return false, err
-	}
-	right, err := g.conversion.Apply(ctx, b, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
-	if err != nil {
-		return false, err
-	}
-	return g.converted.Equal(ctx, left, right)
-}
-
-func (g queryGrouping) Hash(ctx context.Context, value sqltype.Value) (uint64, error) {
-	if !g.convert {
-		return g.Grouping.Hash(ctx, value)
-	}
-	converted, err := g.conversion.Apply(ctx, value, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
-	if err != nil {
-		return 0, err
-	}
-	return g.converted.Hash(ctx, converted)
-}
 
 func privateTreeGrouping(d *sqltype.Descriptor) bool {
 	d = d.BaseType()

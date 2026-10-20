@@ -6,15 +6,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// The self edge is an opaque identity, never a child pointing at its own query.
-type worktableScanNode struct{ derivedNode }
-type recursiveUnionNode struct {
-	setNode
-	definition *cteDefinition
-	search     *searchRecipe
-	cycle      *cycleRecipe
-}
-
 func querySetNode(node LogicalNode) *setNode {
 	switch n := node.(type) {
 	case *setNode:
@@ -288,13 +279,4 @@ func (s *recursiveUnionStage) findTuple(ctx context.Context, row []sqltype.Value
 		}
 	}
 	return -1, ctx.Err()
-}
-
-// Ordinary groupings cover original columns and then the optional CYCLE mark;
-// generated record/path slots retain their recipe-owned equality authority.
-func (n *recursiveUnionNode) groupingSlot(i int) int {
-	if n.cycle != nil && i == n.definition.userWidth {
-		return n.cycle.markSlot
-	}
-	return i
 }

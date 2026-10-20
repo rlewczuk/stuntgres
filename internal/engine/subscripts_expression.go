@@ -1,27 +1,11 @@
 package engine
 
 import (
-	"fmt"
-
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
-
-// A subscripts call retains only its analyzed arguments. Each execution opens
-// fresh bounds-only state in the shared arithmetic function cursor.
-type subscriptsExpression struct {
-	expr.Info
-	args []expr.Expr
-}
-
-func (e subscriptsExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	if _, err := beginEvaluation(ctx); err != nil {
-		return sqltype.Value{}, err
-	}
-	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted generate_subscripts set call")
-}
 
 func (b *expressionBinder) bindSubscripts(raw parser.FunctionExpr, visible bool) (expr.Expr, error) {
 	var storage [100]comparisonOperand

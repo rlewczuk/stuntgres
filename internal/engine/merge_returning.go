@@ -7,20 +7,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// The owner is lexical, not whichever query is currently evaluating a child.
-type mergeActionExpression struct {
-	expr.Info
-	scope, frame uint32
-}
-
-func (e mergeActionExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	runtime, err := nodeRuntimeOf(ctx)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	return runtime.EvalMergeAction(e)
-}
-
 func (c *EvalContext) EvalMergeAction(e mergeActionExpression) (sqltype.Value, error) {
 	owner, err := returningRowContext(c, e.scope, e.frame)
 	if err != nil {
@@ -72,8 +58,6 @@ func (b *expressionBinder) mergeReturningFrame(frame uint32) bool {
 	}
 	return false
 }
-
-type mergeReturningSide uint8
 
 const (
 	mergeDefaultSide mergeReturningSide = iota

@@ -7,26 +7,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Subquery expressions borrow captured sources and the existing execution owner.
-// Correlated scans reopen; uncorrelated hashed occurrences retain a built RHS.
-type subqueryExpression struct {
-	expr.Info
-	kind            parser.SubqueryKind
-	queryPlan       *BoundQuery
-	comparisons     []comparisonExpression
-	ordering        []sqltype.Comparison
-	membership      []sqltype.Grouping // Nonempty only for uncorrelated hashable =ANY/IN.
-	operator        string
-	negate          bool
-	presenceOnly    bool
-	cteDefinition   bool // Analysis-only graph edge, never expression demand.
-	jsonArray       *sqlJSONArrayQuery
-	leftExpansions  map[int]compositeExpansionBinding // Analysis-only source associations.
-	leftConstructor expr.Expr                         // Analysis-only normalized constructor; never evaluated or a dependency child.
-	erasedLeftType  sqltype.ID                        // Original outer identity, only for pruning frozen presentation dependencies.
-	updateWidth     int                               // Nonzero only for the first recipe of an UPDATE tuple source.
-}
-
 func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, error) {
 	if b.consumer.defaultConsumer {
 		return nil, expr.ErrorAt("0A000", "cannot use subquery in DEFAULT expression", raw.Pos)
@@ -170,14 +150,6 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, err
 		e.membership = families
 	}
 	return e, nil
-}
-
-func (e subqueryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	runtime, err := nodeRuntimeOf(ctx)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	return runtime.EvalSubquery(e)
 }
 
 func (c *EvalContext) EvalSubquery(e subqueryExpression) (value sqltype.Value, err error) {

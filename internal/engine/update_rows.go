@@ -15,19 +15,6 @@ type updateAssignmentGroup struct {
 	start, width int
 }
 
-type updateOutputExpression struct {
-	expr.Info
-	index, group int
-}
-
-func (e updateOutputExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	runtime, err := nodeRuntimeOf(ctx)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	return runtime.EvalUpdateOutput(e)
-}
-
 func (c *EvalContext) EvalUpdateOutput(e updateOutputExpression) (sqltype.Value, error) {
 	if e.index >= len(c.updateOutputs) || !c.updateOutputsReady {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: UPDATE output outside its assignment group")

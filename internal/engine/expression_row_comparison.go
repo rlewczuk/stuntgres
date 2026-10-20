@@ -9,26 +9,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Row predicates retain scalar pair providers, never a fabricated record datum.
-// The lexical evaluator is shared with existing row/subquery predicates.
-type rowComparisonExpression struct {
-	expr.Info
-	comparisons []comparisonExpression
-	ordering    []sqltype.Comparison
-	operator    string
-	// Analysis-only associations retain original expanded source occurrences.
-	expansions [2]map[int]compositeExpansionBinding
-	// Frozen erased constructor casts retain their analyzed member usages.
-	memberCasts [2]bool
-}
-
-func (e rowComparisonExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	if _, err := beginEvaluation(ctx); err != nil {
-		return sqltype.Value{}, err
-	}
-	return e.compare(ctx, nil)
-}
-
 func (b *expressionBinder) bindRowComparison(raw parser.OperatorExpr, operator sqltype.ComparisonOperator, left, right parser.RowExpr) (expr.Expr, error) {
 	return b.bindRowPredicate(raw, operator, left, right, raw.Name.Parts[len(raw.Name.Parts)-1].Text)
 }
@@ -128,10 +108,6 @@ func (b *expressionBinder) inScalarOperand(operand *inComparisonOperand) (compar
 	return operand.scalar, nil
 }
 
-func (e rowComparisonExpression) distinct() bool {
-	return e.operator == "IS DISTINCT FROM" || e.operator == "IS NOT DISTINCT FROM"
-}
-
 func (b *expressionBinder) bindRowPredicate(raw parser.OperatorExpr, operator sqltype.ComparisonOperator, left, right parser.RowExpr, mode string) (expr.Expr, error) {
 	lhs, le, err := b.rowComparisonOperands(left)
 	if err != nil {
@@ -184,11 +160,6 @@ func (b *expressionBinder) bindRowPredicateOperands(raw parser.OperatorExpr, ope
 	return e, nil
 }
 
-func (e subqueryExpression) compare(ctx expr.Context, left []sqltype.Value) (sqltype.Value, error) {
-	pairs := rowComparisonExpression{Info: e.Info, comparisons: e.comparisons, ordering: e.ordering, operator: e.operator}
-	return pairs.compare(ctx, left)
-}
-
 func renderRowComparison(e rowComparisonExpression, operand func(expr.Expr) (string, error), operator string) (string, error) {
 	if len(e.comparisons) == 0 && !e.distinct() {
 		return "", fmt.Errorf("stuntgres: invalid stored row comparison")
@@ -232,88 +203,4 @@ func rowSubqueryComparison(raw parser.OperatorExpr) (parser.SubqueryExpr, bool) 
 	}
 	right.Kind, right.Left, right.Operator, right.Pos = parser.SubqueryRow, left, raw.Name, raw.Pos
 	return right, true
-}
-
-// A saved subquery tuple supplies left values. Local rows pass nil so each
-// reached pair evaluates left then right before deciding whether to continue.
-func (e rowComparisonExpression) compare(ctx expr.Context, left []sqltype.Value) (sqltype.Value, error) {
-	unknown := false
-	for i, comparison := range e.comparisons {
-		var valueLeft sqltype.Value
-		if left == nil {
-			var err error
-			valueLeft, err = comparison.left.Eval(ctx)
-			if err != nil {
-				return sqltype.Value{}, err
-			}
-		} else {
-			valueLeft = left[i]
-		}
-		right, err := comparison.right.Eval(ctx)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		if e.distinct() {
-			distinct := valueLeft.IsNull() != right.IsNull()
-			if !valueLeft.IsNull() && !right.IsNull() {
-				value, err := comparison.predicate.Evaluate(ctx.FunctionContext(), valueLeft, right, ctx.FunctionInput())
-				if err != nil {
-					return sqltype.Value{}, err
-				}
-				equal, err := value.Boolean()
-				if err != nil {
-					return sqltype.Value{}, err
-				}
-				distinct = !equal
-			}
-			if distinct {
-				return sqltype.Boolean(e.Usage.Type, e.operator == "IS DISTINCT FROM"), nil
-			}
-			continue
-		}
-		if len(e.comparisons) == 1 {
-			return comparison.predicate.Evaluate(ctx.FunctionContext(), valueLeft, right, ctx.FunctionInput())
-		}
-		if len(e.ordering) != 0 {
-			if valueLeft.IsNull() || right.IsNull() {
-				return sqltype.Null(e.Usage.Type), nil
-			}
-			sign, err := e.ordering[i].Compare(ctx.FunctionContext(), valueLeft, right, ctx.FunctionInput())
-			if err != nil {
-				return sqltype.Value{}, err
-			}
-			if sign == 0 {
-				continue
-			}
-			truth := sign < 0
-			if e.operator == ">" || e.operator == ">=" {
-				truth = sign > 0
-			}
-			return sqltype.Boolean(e.Usage.Type, truth), nil
-		}
-		value, err := comparison.predicate.Evaluate(ctx.FunctionContext(), valueLeft, right, ctx.FunctionInput())
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		if value.IsNull() {
-			unknown = true
-			continue
-		}
-		truth, err := value.Boolean()
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-		if e.operator == "<>" {
-			if truth {
-				return sqltype.Boolean(e.Usage.Type, true), nil
-			}
-		} else if !truth {
-			return sqltype.Boolean(e.Usage.Type, false), nil
-		}
-	}
-	if unknown {
-		return sqltype.Null(e.Usage.Type), nil
-	}
-	truth := e.operator == "=" || e.operator == "<=" || e.operator == ">=" || e.operator == "IS NOT DISTINCT FROM"
-	return sqltype.Boolean(e.Usage.Type, truth), nil
 }

@@ -9,25 +9,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Named transition rows retain their lexical target owner and actual presence.
-// This does not introduce generic ROW or composite field syntax.
-type returningWholeRowExpression struct {
-	expr.Info
-	members      []expr.Expr
-	scope, frame uint32
-	old          bool
-	merge        bool
-	side         mergeReturningSide
-}
-
-func (e returningWholeRowExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	runtime, err := nodeRuntimeOf(ctx)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	return runtime.EvalReturningWholeRow(e)
-}
-
 func (c *EvalContext) EvalReturningWholeRow(e returningWholeRowExpression) (sqltype.Value, error) {
 	parent, err := returningRowContext(c, e.scope, e.frame)
 	if err != nil {

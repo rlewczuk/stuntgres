@@ -235,7 +235,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 				if err := validateMarkedQueryJoin(&probe, &unpruned, evaluation.catalog, nil, queryRowMark{}, false, nil, nil); err == nil {
 					t.Fatal("nonpruned original graph did not demand its manifest")
 				}
-				cursor, err := execution.openCall(&probe, 0)
+				cursor, err := openFunctionCall(&probe, execution, 0)
 				if err != nil || !cursor.Value.IsNull() || cursor.Type == nil {
 					t.Fatal("typed NULL source cursor", cursor, err)
 				}
@@ -382,7 +382,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		if execution.scalarNull == nil || !execution.scalarNull[0] {
 			t.Fatal("known NULL source was not pruned")
 		}
-		cursor, err := execution.openCall(&sourceEvaluation, 0)
+		cursor, err := openFunctionCall(&sourceEvaluation, execution, 0)
 		if err != nil || !cursor.Value.IsNull() || cursor.Value.Type() != source.calls[0].ResultUsage().Type {
 			t.Fatal("literal sibling source typed NULL", cursor, err)
 		}

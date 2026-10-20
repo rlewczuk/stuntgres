@@ -11,13 +11,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-type rowLockNode struct {
-	querySchema
-	child     LogicalNode
-	marks     []queryRowMark
-	firstMode lock.Mode
-}
-
 func queryRowMode(clause string) lock.Mode {
 	switch clause {
 	case "FOR KEY SHARE":

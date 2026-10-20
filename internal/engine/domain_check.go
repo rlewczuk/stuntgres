@@ -16,16 +16,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type domainValueExpression struct{ expr.Info }
-
-func (e domainValueExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	runtime, err := nodeRuntimeOf(ctx)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	return runtime.EvalDomainValue(e)
-}
-
 func (c *EvalContext) EvalDomainValue(e domainValueExpression) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err

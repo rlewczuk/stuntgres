@@ -96,15 +96,6 @@ func producingStage(child *indexedStage, schema []catalog.Column) indexedStage {
 		}}
 }
 
-// Evaluation keeps the input frame/provenance intact and shares the existing
-// ORDER cache authority. Final projection reads these slots, never reevaluates.
-type evaluationNode struct {
-	querySchema
-	child       LogicalNode
-	expressions []expr.Expr
-	base        int
-}
-
 func (b *expressionBinder) scheduleQueryProjection(root LogicalNode, projection []expr.Expr, bounded bool) LogicalNode {
 	base := 0
 	var lateSlots []int

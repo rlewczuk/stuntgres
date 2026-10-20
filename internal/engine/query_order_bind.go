@@ -217,19 +217,6 @@ func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, project
 	return &sortNode{querySchema: root.Schema(), child: root, keys: keys, cacheWidth: computed}, nil
 }
 
-type cachedOrderExpression struct {
-	expr.Info
-	slot int
-}
-
-func (e cachedOrderExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	runtime, err := nodeRuntimeOf(ctx)
-	if err != nil {
-		return sqltype.Value{}, err
-	}
-	return runtime.EvalCachedOrder(e)
-}
-
 func (c *EvalContext) EvalCachedOrder(e cachedOrderExpression) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
