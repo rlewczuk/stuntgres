@@ -518,7 +518,7 @@ func (s *StatementScope) leaveProtocolProducer(c *sqlCursor) {
 func (s *StatementScope) captureProtocolOutput(rows *exec.FinalRows, values []sqltype.Value, catalog catalog.Read) error {
 	// Readers borrow only this row. Reuse their maps without retaining old
 	// spellings or a query-sized history across demands/destinations. The ACL
-	// identity stays engine-owned, and operatorGroups belongs to the catalog.
+	// identity stays engine-owned, and OperatorGroups belongs to the catalog.
 	clear(rows.RegclassOutput)
 	clear(rows.RegtypeOutput)
 	clear(rows.RegprocOutput)

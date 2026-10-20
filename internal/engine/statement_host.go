@@ -10,7 +10,7 @@ import (
 )
 
 // statementHost is the root package's implementation of every consumer host
-// interface: execHost now, the analyze and feature hosts later (§7 decision
+// interface: exec.Host now, the analyze and feature hosts later (§7 decision
 // 8). It is a defined type over StatementScope, so (*statementHost)(scope) is
 // a free conversion and lock contracts stay with the scope. Host methods do
 // not widen the public StatementScope facade.

@@ -313,7 +313,7 @@ type StatementScope struct {
 	admissionWaited       bool
 	implicit              bool
 	input                 sqltype.InputEnvironment
-	routinePrograms       []commandRoutineProgram // Consumed command graphs; same admission lease as queryAuthority.
+	routinePrograms       []commandRoutineProgram // Consumed command graphs; same admission lease as exec.Authority.
 	statementStart        time.Time
 	transactionStart      time.Time
 	timeoutRef            ids.TxRef // admission projection for preparse ERROR timer retirement

@@ -262,7 +262,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		if scope != nil {
 			// This publication attempt captured a new coherent authority.
 			// Preserve each actually consumed original actor/recipe, including
-			// folded calls and RI-local domain calls whose EvalContext ended.
+			// folded calls and RI-local domain calls whose exec.Context ended.
 			if err := scope.readmitPreparedPrograms(disclosure); err != nil {
 				return err
 			}

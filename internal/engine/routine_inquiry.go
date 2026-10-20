@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/engine/routine"
 )
 
-// All SQL query/cursor evaluation borrowing queryAuthority is serialized by the
+// All SQL query/cursor evaluation borrowing exec.Authority is serialized by the
 // existing transactionOwner.admission lease through StatementScope.Finish (and
 // message End). Query pipelines do not dispatch parallel expression workers.
 // Thus first-body initialization has that existing single owner, including lazy

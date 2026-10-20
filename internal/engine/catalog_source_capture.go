@@ -106,7 +106,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 
 func explicitCatalogSource(oid ids.OID) bool { return oid == pgcatalog.LocksOID || oid == 12048 }
 
-// Engine is the sole owner of querySource construction, including error paths.
+// Engine is the sole owner of exec.Source construction, including error paths.
 func captureCatalogSourceRows(in pgcatalog.Input, produce pgcatalog.Producer) (*exec.Source, error) {
 	rows, err := produce(in)
 	if err != nil {

@@ -10,7 +10,7 @@ import (
 )
 
 // quoteOriginOf reads the opaque occurrence origin the engine stored on e. An
-// unset origin is the zero quoteOrigin.
+// unset origin is the zero exec.QuoteOrigin.
 func quoteOriginOf(e functions.StringVariadic) exec.QuoteOrigin {
 	origin, _ := e.Origin.(exec.QuoteOrigin)
 	return origin

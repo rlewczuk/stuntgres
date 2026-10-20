@@ -9,7 +9,7 @@ import (
 )
 
 // Context is the evaluation runtime visible to expression nodes outside the
-// engine's own node set. The engine's *EvalContext is the only
+// engine's own node set. The executor's *exec.Context is the only
 // implementation; engine nodes recover its node runtime capability and keep
 // engine-private state behind it.
 //

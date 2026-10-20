@@ -140,7 +140,7 @@ func captureRegclassOutputValue(rows *exec.FinalRows, catalog catalog.Read, path
 	return nil
 }
 
-// String output uses the same captured namespace presentation as finalRows,
+// String output uses the same captured namespace presentation as exec.FinalRows,
 // without changing the canonical OID datum or consulting a later live catalog.
 func (s *StatementScope) FormatRegclass(id uint32) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.State() == nil {
