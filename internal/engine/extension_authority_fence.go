@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 )
 
 // extensionAuthorityFence is the journal fence for one extension script's
@@ -12,7 +13,7 @@ type extensionAuthorityFence struct {
 	observation extension.AuthorityObservation
 }
 
-func (extensionAuthorityFence) fenceKind() catalogFenceKind { return fenceExtensionAuthority }
+func (extensionAuthorityFence) Kind() session.FenceKind { return fenceExtensionAuthority }
 
 // Extension scripts insert the database-wide row before their members.
 // Preserve that public uniqueness diagnostic when a competing installation

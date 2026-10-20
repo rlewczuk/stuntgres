@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 )
 
@@ -13,7 +14,7 @@ type catalogIndexFence struct {
 	indexes map[ids.ObjectAddress]bool
 }
 
-func (catalogIndexFence) fenceKind() catalogFenceKind { return fenceIndexSet }
+func (catalogIndexFence) Kind() session.FenceKind { return fenceIndexSet }
 
 func (f catalogIndexFence) currentLocked(e *Engine, _ *catalogChanges) error {
 	count := 0
@@ -37,7 +38,7 @@ type catalogNamespaceFence struct {
 	members   map[ids.ObjectAddress]catalog.Descriptor
 }
 
-func (catalogNamespaceFence) fenceKind() catalogFenceKind { return fenceNamespace }
+func (catalogNamespaceFence) Kind() session.FenceKind { return fenceNamespace }
 
 func (f catalogNamespaceFence) currentLocked(e *Engine, _ *catalogChanges) error {
 	count := 0

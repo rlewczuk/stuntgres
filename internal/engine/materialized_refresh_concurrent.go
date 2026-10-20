@@ -3,9 +3,11 @@ package engine
 import (
 	"context"
 	"fmt"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
@@ -296,7 +298,7 @@ type materializedSourceFence struct {
 	storage  *storage.Relation
 }
 
-func (materializedSourceFence) fenceKind() catalogFenceKind { return fenceMaterializedSource }
+func (materializedSourceFence) Kind() session.FenceKind { return fenceMaterializedSource }
 
 func (f materializedSourceFence) currentLocked(e *Engine, _ *catalogChanges) error {
 	if !e.materializedSourceFenceCurrent(f) {

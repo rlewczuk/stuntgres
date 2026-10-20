@@ -2,8 +2,10 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -23,7 +25,7 @@ type truncateGraphFence struct {
 	sequences map[ids.ObjectAddress]*storage.SequenceGenerator // Immutable committed bindings; not counter undo.
 }
 
-func (truncateGraphFence) fenceKind() catalogFenceKind { return fenceTruncateGraph }
+func (truncateGraphFence) Kind() session.FenceKind { return fenceTruncateGraph }
 
 // Catalog replacements do not have to honor SQL AX locks. Fence new inbound
 // FK/hierarchy edges as well as the exact selected descriptors and stores.

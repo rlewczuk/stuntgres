@@ -3,6 +3,8 @@ package engine
 import (
 	"errors"
 	"testing"
+
+	"stuntgres/internal/engine/session"
 )
 
 // catalogFencesOf returns the journal's fences of type F in recording order.
@@ -17,13 +19,13 @@ func catalogFencesOf[F catalogFence](c *catalogChanges) []F {
 }
 
 type orderProbeFence struct {
-	kind catalogFenceKind
+	kind session.FenceKind
 	name string
 	err  error
 	seen *[]string
 }
 
-func (f orderProbeFence) fenceKind() catalogFenceKind { return f.kind }
+func (f orderProbeFence) Kind() session.FenceKind { return f.kind }
 
 func (f orderProbeFence) currentLocked(*Engine, *catalogChanges) error {
 	*f.seen = append(*f.seen, f.name)

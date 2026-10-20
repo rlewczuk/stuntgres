@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -280,7 +282,7 @@ type partitionReadFence struct {
 	generation uint64
 }
 
-func (partitionReadFence) fenceKind() catalogFenceKind { return fenceStorageRead }
+func (partitionReadFence) Kind() session.FenceKind { return fenceStorageRead }
 
 func (f partitionReadFence) currentLocked(e *Engine, _ *catalogChanges) error {
 	s := e.storage.Relations[f.address]

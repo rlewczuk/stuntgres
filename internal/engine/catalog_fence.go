@@ -1,42 +1,51 @@
 package engine
 
+import (
+	"fmt"
+
+	"stuntgres/internal/engine/session"
+)
+
 // catalogFence is one feature's commit precondition in the transaction
-// journal. A fence is immutable once recorded; journal clones and savepoint
-// marks share it. Each feature declares its fence type next to its code.
+// journal, stored there as a session.Fence. A fence is immutable once
+// recorded; journal clones and savepoint marks share it. Each feature declares
+// its fence type next to its code.
 type catalogFence interface {
-	fenceKind() catalogFenceKind
+	session.Fence
 	// currentLocked reports whether the fence still holds. Caller holds
 	// Engine.mu.
 	currentLocked(e *Engine, c *catalogChanges) error
 }
 
-// catalogFenceKind fixes where catalogPreflightLocked checks a fence. The
-// kinds run at the positions and in the order listed there, so the first
-// error a commit reports does not depend on how fences are stored.
-type catalogFenceKind uint8
-
+// The fence kinds fix where catalogPreflightLocked checks a fence. The kinds
+// run at the positions and in the order listed there, so the first error a
+// commit reports does not depend on how fences are stored.
 const (
-	fenceStorageRead        catalogFenceKind = iota // partitionReadFence
-	fenceIndexSet                                   // catalogIndexFence
-	fenceNamespace                                  // catalogNamespaceFence
-	fenceExtensionAuthority                         // extensionAuthorityFence
-	fenceTruncateGraph                              // truncateGraphFence
-	fenceMaterializedSource                         // materializedSourceFence
+	fenceStorageRead        session.FenceKind = iota // partitionReadFence
+	fenceIndexSet                                    // catalogIndexFence
+	fenceNamespace                                   // catalogNamespaceFence
+	fenceExtensionAuthority                          // extensionAuthorityFence
+	fenceTruncateGraph                               // truncateGraphFence
+	fenceMaterializedSource                          // materializedSourceFence
 )
 
-func (c *catalogChanges) addFence(f catalogFence) {
+func (c *catalogChanges) addFence(f session.Fence) {
 	c.fences = append(c.fences, f)
 }
 
 // catalogFencesCurrentLocked checks the fences of each kind in turn, each kind
 // in recording order. Caller holds Engine.mu.
-func (e *Engine) catalogFencesCurrentLocked(c *catalogChanges, kinds ...catalogFenceKind) error {
+func (e *Engine) catalogFencesCurrentLocked(c *catalogChanges, kinds ...session.FenceKind) error {
 	for _, kind := range kinds {
 		for _, f := range c.fences {
-			if f.fenceKind() != kind {
+			if f.Kind() != kind {
 				continue
 			}
-			if err := f.currentLocked(e, c); err != nil {
+			fence, ok := f.(catalogFence)
+			if !ok {
+				return fmt.Errorf("stuntgres: foreign catalog fence %T", f)
+			}
+			if err := fence.currentLocked(e, c); err != nil {
 				return err
 			}
 		}

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 )
@@ -32,7 +33,7 @@ type catalogChanges struct {
 	rolesBase        *access.RoleRecord
 	roles            *access.RoleRecord
 	retiredRoles     map[authorization.PrincipalRef]struct{}
-	fences           []catalogFence // Feature commit preconditions, in recording order.
+	fences           []session.Fence // Feature commit preconditions, in recording order.
 	domain           *typedef.DomainJournal
 	domainChanged    bool
 	indexesSlot      *indexJournal

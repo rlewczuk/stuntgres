@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 )
@@ -65,7 +66,7 @@ func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
 		t.Fatal("compatible publication rejected captured source")
 	}
 	changes := newCatalogChanges()
-	changes.fences = []catalogFence{fence}
+	changes.fences = []session.Fence{fence}
 	clone := cloneCatalogChanges(changes)
 	if err := e.catalogPreflightLocked(clone); err != nil {
 		t.Fatal("source-only retained fence rejected", err)
