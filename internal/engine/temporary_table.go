@@ -319,7 +319,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 		delete(changes.indexCandidates, a)
 		delete(changes.indexRebuilds, a)
 	}
-	for a, g := range stage.generators {
+	for a, g := range stage.sequence.stagedGenerators() {
 		changes.generators[a] = g
 	}
 }

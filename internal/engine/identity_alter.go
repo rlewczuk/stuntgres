@@ -7,7 +7,6 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -104,7 +103,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
-	generator := stage.generators[address]
+	generator := stage.sequence.generator(address)
 	if generator == nil {
 		generator = e.sequenceGeneratorLocked(scope, address)
 	}
@@ -134,10 +133,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 		replacement.Last = *restart
 		replacement.Called = false
 	}
-	if stage.generators == nil {
-		stage.generators = make(map[ids.ObjectAddress]*storage.SequenceGenerator)
-	}
-	stage.generators[address] = &replacement
+	stage.sequenceState().setGenerator(address, &replacement)
 	return nil
 }
 
@@ -180,12 +176,7 @@ func (e *Engine) refreshIdentitySequenceLocked(scope *StatementScope, stage *Cat
 	if _, err := identitySequenceDefinition(descriptor, table, attribute); err != nil {
 		return err
 	}
-	if stage.identityOriginals == nil {
-		stage.identityOriginals = make(map[ids.ObjectAddress]catalog.Descriptor)
-	}
-	if _, captured := stage.identityOriginals[address]; !captured {
-		stage.identityOriginals[address] = e.catalog.state.Get(address)
-	}
+	stage.sequenceState().captureIdentityOriginal(address, e.catalog.state.Get(address))
 	stage.Base = fresh.Catalog
 	return nil
 }

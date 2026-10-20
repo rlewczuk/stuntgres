@@ -62,10 +62,7 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *catalog.Relation
 		if err := stage.Create(sequence); err != nil {
 			return err
 		}
-		if stage.generators == nil {
-			stage.generators = make(map[ids.ObjectAddress]*storage.SequenceGenerator)
-		}
-		stage.generators[address] = &storage.SequenceGenerator{Last: options.Start, Generation: revision}
+		stage.sequenceState().setGenerator(address, &storage.SequenceGenerator{Last: options.Start, Generation: revision})
 		// Route synthetic syntax through the same closed default binder as Restore.
 		namespace, _ := read.Descriptor(table.Namespace())
 		declarations[slot].defaultExpr = parser.CallExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_catalog"}, {Text: "nextval"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(name)}}}}

@@ -82,7 +82,7 @@ func TestTableLikeTemporaryDefaultAuthority(t *testing.T) {
 			bad, _, err := tableLikeBuild(t, e, op, "CREATE TABLE public.rejected(LIKE pg_temp.src INCLUDING ALL)")
 			defer e.DiscardCatalogStage(bad)
 			sequenceOwnerDiagnostic(t, err, "0A000", "temporary sequence DEFAULT is unsupported", "")
-			if len(bad.generators) == 0 {
+			if len(bad.sequence.stagedGenerators()) == 0 {
 				t.Fatal("fixture did not stage fresh identity before rejection")
 			}
 			if e.catalog.state != before || len(e.storage.Relations) != stores || len(e.storage.Sequences) != generators || *e.storage.Sequences[seed.Address()] != generator || !reflect.DeepEqual(source.ColumnMeta.Defaults[2].Expression, old.Expression) || !slices.Equal(source.ColumnMeta.Defaults[2].Dependencies, manifest) {
@@ -138,7 +138,7 @@ func TestTableLikeTemporaryIdentityStage(t *testing.T) {
 				}
 				identity := destination.ColumnMeta.Identities[1]
 				sequence := stage.Get(identity.Sequence).(*catalog.Relation)
-				fresh := stage.generators[identity.Sequence]
+				fresh := stage.sequence.generator(identity.Sequence)
 				want := *sourceSequence.Sequence
 				want.Persistence = persistence
 				want.Owned = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.Address().ObjectID, SubID: 1}

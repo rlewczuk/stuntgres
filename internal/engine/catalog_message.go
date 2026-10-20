@@ -280,7 +280,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		}
 		captureStorage(index.SQLIndex.Parent)
 	}
-	c.dependencies = append(c.dependencies, s.identityDependencies...)
+	c.dependencies = append(c.dependencies, s.sequence.identityDependencyList()...)
 	if s.authSession != nil && c.rolesBase == nil {
 		c.rolesBase = e.roles.published
 	}

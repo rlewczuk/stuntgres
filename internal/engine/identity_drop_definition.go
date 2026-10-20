@@ -76,7 +76,7 @@ func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *catalog.Rel
 		if err == nil {
 			provider.base = provider.stage.Base
 			capture = identityDropCapture{sequence: ref, original: e.catalog.state.Get(identity.Sequence)}
-			provider.stage.identityDependencies = append(provider.stage.identityDependencies, catalogDependencyObservation{e.catalog.state, []ids.ObjectAddress{identity.Sequence}})
+			provider.stage.sequenceState().observeIdentityDependencies(catalogDependencyObservation{e.catalog.state, []ids.ObjectAddress{identity.Sequence}})
 		}
 	} else {
 		capture, err = e.captureIdentityDropDefinitionLocked(provider, old, attribute, ref)
@@ -137,7 +137,7 @@ func applyIdentityDropTombstone(stage *CatalogStage, address ids.ObjectAddress) 
 	// A TYPE before-command may have staged AS. The real tombstone wins over
 	// that private descriptor/scalar without modifying any live generator.
 	stage.ForgetDescriptor(address)
-	delete(stage.generators, address)
+	stage.sequence.deleteGenerator(address)
 }
 
 func (e *Engine) prepareIdentityDropDefinition(scope *StatementScope, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction) (*preparedIdentityDrop, error) {
@@ -187,12 +187,7 @@ func (scope *StatementScope) consumeIdentityDropDefinition(stage *CatalogStage, 
 		return nil, err
 	}
 	if prepared.sequence.Address != (ids.ObjectAddress{}) {
-		if stage.identityOriginals == nil {
-			stage.identityOriginals = make(map[ids.ObjectAddress]catalog.Descriptor)
-		}
-		if _, captured := stage.identityOriginals[prepared.sequence.Address]; !captured {
-			stage.identityOriginals[prepared.sequence.Address] = prepared.original
-		}
+		stage.sequenceState().captureIdentityOriginal(prepared.sequence.Address, prepared.original)
 		applyIdentityDropTombstone(stage, prepared.sequence.Address)
 	}
 	return next, nil

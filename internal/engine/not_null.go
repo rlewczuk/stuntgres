@@ -453,7 +453,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if err != nil {
 		return Result{}, err
 	}
-	if !hasForeignKeys && len(transformations) == 0 && next == old && (stage == nil || stage.DescriptorCount() == 0 && stage.RemovalCount() == 0 && len(stage.generators) == 0) {
+	if !hasForeignKeys && len(transformations) == 0 && next == old && (stage == nil || stage.DescriptorCount() == 0 && stage.RemovalCount() == 0 && len(stage.sequence.stagedGenerators()) == 0) {
 		if err := validateAlterTablespaceMove(destination); err != nil {
 			return Result{}, err
 		}
@@ -480,7 +480,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				continue
 			}
 			original := grantCatalog.Get(address)
-			if captured, identity := stage.identityOriginals[address]; identity {
+			if captured, identity := stage.sequence.identityOriginal(address); identity {
 				original = captured
 			}
 			if e.catalog.state.Get(address) != original {
@@ -488,7 +488,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				return Result{}, catalog.Conflict{}
 			}
 			e.catalogChangeLocked(changes, address, descriptor)
-			changes.generators[address] = stage.generators[address]
+			changes.generators[address] = stage.sequence.generator(address)
 		}
 		for address, removal := range stage.Removals() {
 			sequence, ok := removal.Descriptor.(*catalog.Relation)
@@ -496,7 +496,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				continue
 			}
 			original := grantCatalog.Get(address)
-			if captured, identity := stage.identityOriginals[address]; identity {
+			if captured, identity := stage.sequence.identityOriginal(address); identity {
 				original = captured
 			}
 			if e.catalog.state.Get(address) != original {
@@ -795,7 +795,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		dependencyTargets = append(dependencyTargets, target)
 	}
 	for a := range stage.Removals() {
-		if _, identity := stage.identityOriginals[a]; identity {
+		if _, identity := stage.sequence.identityOriginal(a); identity {
 			continue
 		}
 		dependencyTargets = append(dependencyTargets, a)
@@ -803,7 +803,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if len(dependencyTargets) != 0 {
 		changes.dependencies = append(changes.dependencies, catalogDependencyObservation{grantCatalog, dependencyTargets})
 	}
-	changes.dependencies = append(changes.dependencies, stage.identityDependencies...)
+	changes.dependencies = append(changes.dependencies, stage.sequence.identityDependencyList()...)
 	if scope.inheritanceAlter == nil {
 		if _, err := e.ValidateCatalogStage(op.Context(), stage); err != nil {
 			return Result{}, err
@@ -831,7 +831,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	for a, d := range stage.Descriptors() {
 		original := grantCatalog.Get(a)
-		if captured, identity := stage.identityOriginals[a]; identity {
+		if captured, identity := stage.sequence.identityOriginal(a); identity {
 			original = captured
 		}
 		if e.catalog.state.Get(a) != original {
@@ -842,7 +842,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	for a := range stage.Removals() {
 		original := grantCatalog.Get(a)
-		if captured, identity := stage.identityOriginals[a]; identity {
+		if captured, identity := stage.sequence.identityOriginal(a); identity {
 			original = captured
 		}
 		if e.catalog.state.Get(a) != original {
@@ -852,7 +852,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		e.catalogChangeLocked(changes, a, nil)
 		delete(changes.generators, a)
 	}
-	for a, generator := range stage.generators {
+	for a, generator := range stage.sequence.stagedGenerators() {
 		if _, removed := stage.Removal(a); !removed {
 			changes.generators[a] = generator
 		}
@@ -897,9 +897,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			return Result{}, err
 		}
 	}
-	if len(stage.generators) != 0 {
+	if generators := stage.sequence.stagedGenerators(); len(generators) != 0 {
 		e.mu.Lock()
-		for address, generator := range stage.generators {
+		for address, generator := range generators {
 			if memory := op.session.sequences.memory(address); memory != nil {
 				memory.discardStaleTailLocked(generator.Generation)
 			}

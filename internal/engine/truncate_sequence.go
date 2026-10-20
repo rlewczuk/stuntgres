@@ -101,7 +101,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 		}
 	}
 	if len(s.truncateSequences) != 0 {
-		stage.generators = make(map[ids.ObjectAddress]*storage.SequenceGenerator, len(s.truncateSequences))
+		stage.sequenceState().resetGenerators(len(s.truncateSequences))
 	}
 	for _, sequence := range s.truncateSequences {
 		rev, err := e.catalog.revisionLocked()
@@ -113,7 +113,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 		if err = stage.Replace(&d); err != nil {
 			return nil, err
 		}
-		stage.generators[d.Address()] = &storage.SequenceGenerator{Last: d.Sequence.Start, Generation: rev}
+		stage.sequence.setGenerator(d.Address(), &storage.SequenceGenerator{Last: d.Sequence.Start, Generation: rev})
 	}
 	session := s.op.session
 	for _, sequence := range s.truncateSequences {

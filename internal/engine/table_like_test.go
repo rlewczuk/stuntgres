@@ -124,7 +124,7 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 	}
 	identity := destination.ColumnMeta.Identities[4]
 	sequence := stage.Get(identity.Sequence).(*catalog.Relation)
-	if identity.Sequence == source.ColumnMeta.Identities[3].Sequence || sequence.Sequence.Owned != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.Address().ObjectID, SubID: 4}) || sequence.Owner != destination.Owner || sequence.Sequence.Persistence != "logged" || stage.generators[identity.Sequence].Called {
+	if identity.Sequence == source.ColumnMeta.Identities[3].Sequence || sequence.Sequence.Owned != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.Address().ObjectID, SubID: 4}) || sequence.Owner != destination.Owner || sequence.Sequence.Persistence != "logged" || stage.sequence.generator(identity.Sequence).Called {
 		t.Fatal("identity copy authority/state", sequence)
 	}
 	for _, ref := range destination.ColumnMeta.Generations[5].Dependencies {

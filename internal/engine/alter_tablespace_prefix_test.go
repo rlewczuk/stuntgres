@@ -97,15 +97,15 @@ func TestAlterTablespaceAdmittedTypePrefix(t *testing.T) {
 	// AS descriptor must reflect the second occurrence, not the first; its
 	// generator must be the replacement belonging to that final descriptor.
 	sequence := stage.Get(a).(*catalog.Relation)
-	if sequence.Sequence.SQLType != sqltype.Int2 || stage.generators[a] == nil || stage.generators[a].Generation != sequence.Revision() || stage.generators[a].Last != valueA.Last || stage.generators[a].Called != valueA.Called {
-		t.Fatal("AS occurrence order/failing occurrence was lost", sequence.Sequence, stage.generators[a])
+	if sequence.Sequence.SQLType != sqltype.Int2 || stage.sequence.generator(a) == nil || stage.sequence.generator(a).Generation != sequence.Revision() || stage.sequence.generator(a).Last != valueA.Last || stage.sequence.generator(a).Called != valueA.Called {
+		t.Fatal("AS occurrence order/failing occurrence was lost", sequence.Sequence, stage.sequence.generator(a))
 	}
 	prior := stage.Get(third).(*catalog.Relation)
-	if prior.Sequence.SQLType != sqltype.Int8 || prior.Revision() >= sequence.Revision() || stage.generators[third] == nil || stage.generators[third].Generation != prior.Revision() || cacheC.remaining != 4 || c.op.session.sequences.memory(third).remaining != 0 {
-		t.Fatal("distinct identity AS order/cache effects were lost", prior, sequence, stage.generators[third])
+	if prior.Sequence.SQLType != sqltype.Int8 || prior.Revision() >= sequence.Revision() || stage.sequence.generator(third) == nil || stage.sequence.generator(third).Generation != prior.Revision() || cacheC.remaining != 4 || c.op.session.sequences.memory(third).remaining != 0 {
+		t.Fatal("distinct identity AS order/cache effects were lost", prior, sequence, stage.sequence.generator(third))
 	}
-	if stage.Get(b) != nil || stage.generators[b] != nil || memoryA.remaining != 0 || !reflect.DeepEqual(*memoryB, cacheB) {
-		t.Fatal("later unadmitted identity had effects", memoryA, memoryB, stage.generators)
+	if stage.Get(b) != nil || stage.sequence.generator(b) != nil || memoryA.remaining != 0 || !reflect.DeepEqual(*memoryB, cacheB) {
+		t.Fatal("later unadmitted identity had effects", memoryA, memoryB, stage.sequence.stagedGenerators())
 	}
 	if e.catalog.state != before || e.storage.Relations[old.Address()] != storage || e.storage.Sequences[a] != generatorA || e.storage.Sequences[b] != generatorB || *generatorA != valueA || *generatorB != valueB || e.storage.Sequences[third] != generatorC || *generatorC != valueC {
 		t.Fatal("private AS published catalog/storage/generator state")
@@ -220,7 +220,7 @@ func TestAlterTablespacePrefixErrorOwnership(t *testing.T) {
 					if stage.lifecycle == catalogDiscarded || stage.lifecycle == catalogPublished {
 						t.Fatal("inner failure took shared cleanup ownership", stage.lifecycle)
 					}
-					if !invalidAS && (stage.generators[a] == nil || stage.Get(a).(*catalog.Relation).Sequence.SQLType != sqltype.Int2) {
+					if !invalidAS && (stage.sequence.generator(a) == nil || stage.Get(a).(*catalog.Relation).Sequence.SQLType != sqltype.Int2) {
 						t.Fatal("shared owner lost actual staged AS")
 					}
 					// The existing outer-owner disposal API, not Finish or the

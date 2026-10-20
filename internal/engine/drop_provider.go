@@ -329,7 +329,7 @@ func (p *dropProvider) observeIdentityDependencies(roots []ids.ObjectAddress) {
 		}
 	}
 	if p.stage != nil {
-		p.stage.identityDependencies = append(p.stage.identityDependencies, catalogDependencyObservation{p.stage.Base.State(), targets})
+		p.stage.sequenceState().observeIdentityDependencies(catalogDependencyObservation{p.stage.Base.State(), targets})
 		return
 	}
 	p.prepared.recordEffect(dropEffect{identityRoots: targets})
@@ -616,7 +616,7 @@ func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *
 			if state == nil {
 				state = prepared.base.State()
 			}
-			stage.identityDependencies = append(stage.identityDependencies, catalogDependencyObservation{state, effect.identityRoots})
+			stage.sequenceState().observeIdentityDependencies(catalogDependencyObservation{state, effect.identityRoots})
 		case effect.layout != nil:
 			provider.recordIndexLayout(effect.index, *effect.layout)
 		}

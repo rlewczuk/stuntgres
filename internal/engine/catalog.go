@@ -342,27 +342,25 @@ type catalogRowShape struct {
 type CatalogStage struct {
 	owner *Engine
 	catalog.Candidate
-	rowShapes            map[ids.ObjectAddress]catalogRowShape
-	partitionReads       []partitionReadFence
-	indexRebuilds        map[ids.ObjectAddress]*catalog.Relation
-	indexCandidates      map[ids.ObjectAddress]indexRootCandidate
-	indexLayouts         map[ids.ObjectAddress]indexLayoutLineage
-	indexParents         map[ids.ObjectAddress]*catalog.Relation
-	indexSets            map[ids.ObjectAddress]int
-	indexOutput          sqltype.OutputEnvironment
-	generators           map[ids.ObjectAddress]*storage.SequenceGenerator
-	identityOriginals    map[ids.ObjectAddress]catalog.Descriptor
-	identityDependencies []catalogDependencyObservation
-	typedSource          ids.ObjectAddress
-	typedObserved        map[ids.ObjectAddress]catalog.Descriptor
-	lifecycle            catalogLifecycle
-	invalid              error
-	authSession          *Session
-	authRevision         uint64
-	roleRevision         uint64
-	extensionNamespace   ids.ObjectAddress
-	databasePredecessor  catalog.Descriptor
-	databaseAuthority    catalog.Descriptor
+	rowShapes           map[ids.ObjectAddress]catalogRowShape
+	partitionReads      []partitionReadFence
+	indexRebuilds       map[ids.ObjectAddress]*catalog.Relation
+	indexCandidates     map[ids.ObjectAddress]indexRootCandidate
+	indexLayouts        map[ids.ObjectAddress]indexLayoutLineage
+	indexParents        map[ids.ObjectAddress]*catalog.Relation
+	indexSets           map[ids.ObjectAddress]int
+	indexOutput         sqltype.OutputEnvironment
+	sequence            *sequenceStage
+	typedSource         ids.ObjectAddress
+	typedObserved       map[ids.ObjectAddress]catalog.Descriptor
+	lifecycle           catalogLifecycle
+	invalid             error
+	authSession         *Session
+	authRevision        uint64
+	roleRevision        uint64
+	extensionNamespace  ids.ObjectAddress
+	databasePredecessor catalog.Descriptor
+	databaseAuthority   catalog.Descriptor
 	// Optional DROP OWNED membership deletions join this publication, not a
 	// separate role installation. Every other catalog caller leaves it nil.
 	roleCandidate      *access.RoleRecord
@@ -983,7 +981,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		}
 		next.SetOperatorNames(operators.Index)
 		next.SetProcedureNames(procedures.Index)
-		if err := catalogDependencyPreflight(current, next, s.identityDependencies, s.identityOriginals); err != nil {
+		if err := catalogDependencyPreflight(current, next, s.sequence.identityDependencyList(), s.sequence.identityOriginalMap()); err != nil {
 			return ChangeSet{}, err
 		}
 		buildStores := indexStores
@@ -1158,7 +1156,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			err = ids.ErrCatalogReplaced
 		}
 		if err == nil {
-			err = catalogDependencyPreflight(e.catalog.state, next, s.identityDependencies, s.identityOriginals)
+			err = catalogDependencyPreflight(e.catalog.state, next, s.sequence.identityDependencyList(), s.sequence.identityOriginalMap())
 		}
 		if err == nil {
 			err = s.validateRoleCandidate(e.roles.published)
@@ -1268,7 +1266,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			for a := range s.Removals() {
 				e.storage.RemoveSequenceLocked(a)
 			}
-			for a, generator := range s.generators {
+			for a, generator := range s.sequence.stagedGenerators() {
 				e.storage.InstallSequenceLocked(a, generator)
 			}
 			e.catalog.nextRevision = nextRevision

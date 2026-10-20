@@ -168,7 +168,7 @@ func TestExtensionDropPublication(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				extensionDropUnitCaptured(t, stage.identityDependencies, target)
+				extensionDropUnitCaptured(t, stage.sequence.identityDependencyList(), target)
 				if consumer == "query_int_array_column_unsupported" {
 					extensionDropUnitArrayBoundary(t, e, peer, ext, target)
 					return
@@ -356,7 +356,7 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				extensionDropUnitCaptured(t, stage.identityDependencies, target)
+				extensionDropUnitCaptured(t, stage.sequence.identityDependencyList(), target)
 				if control == "unrelated" {
 					domainUnitTable(t, e, op, "CREATE TABLE ext_drop_unrelated(v integer)")
 					if _, err := e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
@@ -367,7 +367,7 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 				owner := extensionDropUnitConsumer(t, e, op, consumer, target)
 				current := e.CatalogRead()
 				candidate := catalog.CloneState(current.State())
-				for _, observation := range stage.identityDependencies {
+				for _, observation := range stage.sequence.identityDependencyList() {
 					for _, address := range observation.targets {
 						candidate.RemoveDescriptor(address)
 					}
@@ -437,7 +437,7 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 					extensionDropUnitRejected(t, e, before, ext, before.Get(owner.Address()), err)
 					return
 				}
-				err = catalogDependencyPreflight(current.State(), candidate, stage.identityDependencies, nil)
+				err = catalogDependencyPreflight(current.State(), candidate, stage.sequence.identityDependencyList(), nil)
 				var conflict catalog.Conflict
 				if control == "still_dependent" {
 					if !errors.As(err, &conflict) {
@@ -472,7 +472,7 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 		}
 		stage := extensionDropUnitRetirement(t, e, ext)
 		defer e.DiscardCatalogStage(stage)
-		extensionDropUnitCaptured(t, stage.identityDependencies, target)
+		extensionDropUnitCaptured(t, stage.sequence.identityDependencyList(), target)
 		if before.Get(target) != alias || before.MustType(target).SQLType != array {
 			t.Fatal("retirement mutated retained automatic alias")
 		}

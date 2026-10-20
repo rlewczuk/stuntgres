@@ -177,14 +177,11 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *catalog.Relat
 		table.ColumnMeta.Identities = make(map[int32]catalog.ColumnIdentity)
 	}
 	table.ColumnMeta.Identities[table.Attributes[slot]] = catalog.ColumnIdentity{Mode: mode, Sequence: address}
-	if stage.generators == nil {
-		stage.generators = make(map[ids.ObjectAddress]*storage.SequenceGenerator)
-	}
 	initial := options.Start
 	if restart != nil {
 		initial = *restart
 	}
-	stage.generators[address] = &storage.SequenceGenerator{Last: initial, Generation: rev}
+	stage.sequenceState().setGenerator(address, &storage.SequenceGenerator{Last: initial, Generation: rev})
 	return nil
 }
 
