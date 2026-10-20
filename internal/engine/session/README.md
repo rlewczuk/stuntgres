@@ -9,8 +9,10 @@ per-session settings store, timeouts, notices, the transaction catalog
 journal and the interfaces through which this state holds root and feature
 state and calls back into the engine. State moves, orchestration stays: the
 root engine still begins, publishes and ends transactions, applies settings
-and dispatches statements. Until 13e the root names the moved types through
-temporary aliases (`session_aliases.go`).
+and dispatches statements. The engine, the root driver and `cmd/stuntgres`
+name the session types directly (`session.Session`, `session.SessionStart`,
+`session.TxOptions`, the end-reason, transaction-state and isolation
+constants, `session.ProtocolCycle`); no aliases remain (13e).
 
 The package imports only lower layers (`ids`, `authorization`, `catalog`,
 `functions`, `lock`, `settings`, `storage`, `visibility`, `access`,
@@ -134,8 +136,7 @@ owner), the private catalog read and descriptor recording, the fence types
 and their `currentLocked` checks, the index journal type, the root slot
 types (SQL cursors, protocol portals, the prepared SQL registry, the
 notification listener, FDW participants, exclusion state, Restore replay,
-the binding host), and the temporary aliases in `session_aliases.go`
-(removed in 13e).
+the binding host).
 
 ## Testing
 

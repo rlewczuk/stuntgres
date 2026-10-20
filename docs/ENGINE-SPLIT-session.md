@@ -718,8 +718,62 @@ aliased names across engine tests (for example
 
 ### 13e — Remove the aliases (broad)
 
+Done; see the 13e result below. The plan is kept as the record.
+
 Use the alias tool. Apply decision 6: the driver and `cmd/stuntgres` import
 `session` directly; no permanent facade aliases.
+
+**13e result** (built at `ead015634`; scripts and outputs in
+`.cswd/tmp/PG18-ENGINE-SPLIT-SESSION-ALIASES/`, `c1.sh` … `c4.sh` replay the
+code commits). Tools: the 10d `unalias` and `shadowrn`, copied with a
+`-users` flag (also rewrite `engine.X` in the listed packages), an
+`unalias -skipself` mode (only those packages) and a `shadowrn` that names
+every renamed local `sess`, the 13d.6 convention. `unalias` already handled
+the constant aliases: it rewrites any package-level object declared in the
+alias file.
+
+- **Free the name** (`7893db6ce`): 32 engine locals and parameters named
+  `session` (50 sites that would capture `session.X`, in 28 files, four of
+  them production: `control.go`, `discard.go`, `generated_replacement.go`,
+  `transaction.go`) became `sess`.
+- **Driver and CLI** (`a858f66ba`, decision 6 in effect): `conn.go`,
+  `driver.go`, `transaction_terminal_test.go`,
+  `session_adapter_mechanics_test.go` and `cmd/stuntgres` (`database.go`,
+  `dispatch.go`, `server.go`, `startup.go`, `protocol_test.go`) import
+  `session` for `Session`, `SessionStart`, `ProtocolCycle`, `EndReason`,
+  `ResourceKind`, `TxOptions` and the end-reason, resource, transaction-state
+  and isolation constants (66 references in 9 files). Three locals or
+  parameters named `session` became `sess` (`Connector.Connect`,
+  `bootstrapExecute`, one protocol test). The struct fields named `session`
+  keep their names. The facade deviation of decision 6
+  (`Session.Engine()` is gone) was already in place.
+- **Engine rewrite** (`6079f8c03`): 1,536 references in 468 engine files
+  (production and tests; `Operation` 368, `Session` 239, `CleanClose` 138,
+  `catalogChanges` → `session.Journal` 102), 0 shadowed;
+  `session_aliases.go` deleted; `transactionSessionEnd` is a defined type
+  over `session.TransactionOwner`. Besides the renames the diff holds only
+  added imports and gofmt's reflow of three one-line function literals
+  (checked mechanically by `check-rename.py`). No file that is not
+  gofmt-clean on master was touched. `go vet` reports the same findings up to
+  line shifts and the new type spellings.
+- **Comments** (`99a56020a`): `routine_inquiry.go` and `role_store.go` named
+  `transactionOwner.admission` and `catalogChanges`.
+- **Tests.** None moved, deleted or rewritten; the only test edits are the
+  mechanical renames above.
+- **Verification.** `make build` and `go vet` after every commit; the
+  `RACE=1` selection of sessions, identity, payloads, timeouts, 2PC,
+  savepoints, SQL cursors WITH HOLD, notifications, COPY admission, protocol
+  termination and the root driver terminal and adapter tests (59 tests), and
+  the `cmd/stuntgres` server tests under `RACE=1`; `make quickcheck` passed.
+  Dual-mode reference selection (19 tests in `cursors`, `dml`,
+  `locking_transactions`, `session_state`, `sessions`: savepoints, prepared
+  transactions, held cursors, COPY TEXT transactions and statement timeout,
+  timeout settings, DISCARD, advisory cancel timeout, server notifications,
+  driver batch hold) passed in quick mode and with `REFERENCE=1` (real 18.6).
+  `make bench`: 831–955 µs/op, 5,014–5,021 allocs/op, as on master; under
+  the 1 ms target. `make deps`: module paths only; `session` imports no
+  `analyze`, feature package or root engine. `AGENTS.md`: 100 lines before
+  and after. racecheck/finalcheck skipped at user request.
 
 ## Stays in the engine
 
@@ -831,18 +885,14 @@ facade, the statement scope, dispatch and the root payloads of 13c decision
   - [x] 13d.6 — Move (`1770770a8`, `f4c4bd5de`, `71a7ad850`, then the docs
     commit) *(selected unit/`RACE=1` and dual-mode proof and quickcheck
     passed; bench unchanged; racecheck/finalcheck skipped at user request)*
-- [ ] 13e — Aliases removed
+- [x] 13e — Aliases removed (`7893db6ce`, `a858f66ba`, `6079f8c03`,
+  `99a56020a`, then the docs commit; see the 13e result) *(selected
+  unit/`RACE=1` and dual-mode proof and quickcheck passed; bench unchanged;
+  racecheck/finalcheck skipped at user request)*
 
-Outstanding aliases (`session_aliases.go`): `catalogChanges`,
-`catalogDependencyObservation` and `catalogStorageChange` (13d.1); 21 type
-aliases (`Session`, `Operation`, `EndReason`, `ResourceKind`,
-`ResourceHandle`, `SessionResource`, `SessionStart`, `TxState`, `TxOptions`,
-`Isolation`, `Notification`, `ProtocolCycle`, `StatementLease`,
-`transactionOwner`, `sessionSettings`, `savepointMark`, `settingsMark`,
-`notificationAction`, `sessionAuthorization`, `randomState`, `noticeLevel`)
-and 22 constant aliases (`CleanClose`…`Abandoned`, `Settings`…
-`AdvisorySession`, `TxIdle`…`TxAborted`, `DefaultIsolation`…`Serializable`)
-(13d.6).
+Outstanding aliases: none. 13e removed the 46 aliases of
+`session_aliases.go` (24 type, 22 constant); the driver and `cmd/stuntgres`
+import `session` directly.
 
 Notes for later steps:
 
@@ -898,6 +948,16 @@ Notes for later steps:
   `session` in root code: the 13d.6 rewrite met four. Six pre-existing
   positional `session.DependencyObservation` literals (13d.1) remain unkeyed
   (vet reports them); `keylit` keys them if wanted.
+
+- 13e (done): the aliases are gone and decision 6 is in effect. Root code
+  and the Part B handlers (14c–17d) name `session.Operation`,
+  `session.Journal`, `session.TransactionOwner` and the other session types
+  directly, so a later move needs only the import. A local named `session`
+  in root code now shadows the package: name it `sess`. The six positional
+  `session.DependencyObservation` literals (13d.1) remain unkeyed; `keylit`
+  keys them if wanted. Historical text in the ENGINE-SPLIT prompt files
+  still uses the old alias spellings (`transactionOwner`, `catalogChanges`)
+  and was left as written.
 
 - Part B of the feature steps (14c–17d) and the postponed packages need 13d.
   After the 13c refine their handlers do not name `StatementScope` (it

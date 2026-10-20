@@ -86,7 +86,7 @@ there is no second lock owner or fabricated RowID for key resources.
 After a wait, checks capture current committed roots and authority, exclude
 exact superseded row identities, overlay transaction/statement writes/deletes,
 and check accepted proposed rows. Rebuilt private backing indices use substantive
-immutable baseline roots owned by the existing catalogChanges overlay, built once
+immutable baseline roots owned by the existing session.Journal overlay, built once
 outside metadata locks at accepted DDL projection. Cloning copies the root map
 and shares immutable roots; savepoints restore the catalog pointer, and backing
 removal removes its private root. Own writes/ends remain separate live overlays.

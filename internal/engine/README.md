@@ -11,7 +11,8 @@ the same registry. ACL catalogs remain sparse. Search-path resolution stays in
 `schema_path.go`. Runtime notice levels, threshold captures and emission,
 physical-session values, the journal, timeout publication and their locks
 live in [`session`](session/README.md). The engine, the root driver and
-`cmd/stuntgres` name `settings.` types directly; no aliases remain.
+`cmd/stuntgres` name `settings.` and `session.` types directly; no aliases
+remain.
 
 ## System catalog producers
 

@@ -34,7 +34,7 @@ expressions, predicate, method, deferrability and descriptor comments survive.
 There is no row scan, index rebuild or storage/root copy for this metadata change.
 
 Existing CatalogStage providers validate the complete group outside Engine.mu.
-The validated descriptors transfer into a cloned catalogChanges overlay with
+The validated descriptors transfer into a cloned session.Journal overlay with
 original descriptor/name fences. Every stage-touched name is checked against
 the pre-validation committed catalog before transfer, so a provider callback
 cannot restamp a competing destination as the original name observation.

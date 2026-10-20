@@ -22,7 +22,7 @@ import this package directly.
   private builtin table in PostgreSQL 18.0 `short_desc` wording, the
   `application_name`, `client_min_messages` (`ClientMinMessages`),
   encoding, locale and `icu_validation_level` normalizers. `MessageLevelRank`
-  orders the client message levels; the engine's `noticeLevel` constants
+  orders the client message levels; the `session.NoticeLevel` constants
   follow that order.
 - **Values** (`value.go`, `number.go`, `units.go`): `Value` and
   `Definition.Parse`/`Format`, PostgreSQL-compatible number scanning

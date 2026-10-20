@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `1645714d8`. The later-wave plans
+Last verified against `master` at `ead015634`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,16 +15,14 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 13 `session`** — 13e, aliases removed (item 45; broad).
 - **Step 14 `routine`** — 14c, refine (item 46; docs only).
 - **Step 15 `typedef`** — 15c, refine (item 48; docs only).
 - **Step 16 `extension`** — 16c, refine (item 50; docs only).
 - **Step 17 `sequence`** — 17c, refine (item 52; docs only).
 - **Postponed packages** — planning round (item 54; docs only).
 
-Steps 1, 2 and 4–12 and `access` (A1–B5) are done. Step 13's in-place
-untangling (13a, 13b), its refine (13c) and the move (13d, in six sessions
-44a–44f) are done; 13e removes the aliases. Part A of steps 14–17 is done;
+Steps 1, 2 and 4–13 and `access` (A1–B5) are done. Step 13 ended with 13e
+(item 45): the session aliases are gone. Part A of steps 14–17 is done;
 with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
 
 ## Task tree
@@ -311,7 +309,7 @@ with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
   - [x] 12e — Aliases removed *(broad)* (`b899826fd`, `541d4b757`,
     `83c15f51d`, then the docs commit) *(racecheck/finalcheck skipped at user
     request)*
-- [ ] **Step 13 — `session`** ([prompt](ENGINE-SPLIT-session.md); 13a–13b
+- [x] **Step 13 — `session`** ([prompt](ENGINE-SPLIT-session.md); 13a–13b
   need —; 13c needs 11c, 12d, 8b)
   - [x] 13a — Statement scope slots *(broad)* (`21d5f3a49`, `a4219195b`,
     `dd7faf016`, `dd018885f`, `df6045183`, `a067c88db`, `40dc0f177`,
@@ -331,7 +329,9 @@ with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
     - [x] 13d.5 — File splits and exports *(broad)*
     - [x] 13d.6 — Move *(broad)* (`1770770a8`, `f4c4bd5de`, `71a7ad850`,
       then the docs commit) *(racecheck/finalcheck skipped at user request)*
-  - [ ] 13e — Aliases removed *(broad)*
+  - [x] 13e — Aliases removed *(broad)* (`7893db6ce`, `a858f66ba`,
+    `6079f8c03`, `99a56020a`, then the docs commit) *(racecheck/finalcheck
+    skipped at user request)*
 - [ ] **Step 14 — `routine`** ([prompt](ENGINE-SPLIT-routine.md); Part A
   needs `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item; Part B
   needs 13d)
@@ -622,8 +622,12 @@ in the prompt file's Status section.
       with 21 type and 22 constant aliases; `Host.NewOperation` · selected
       unit/`RACE=1` and dual-mode proof and quickcheck passed; bench
       unchanged; racecheck/finalcheck skipped at user request
-45. [ ] Session 13e — [session](ENGINE-SPLIT-session.md) 13e · needs 44 ·
-    **broad**
+45. [x] Session 13e — [session](ENGINE-SPLIT-session.md) 13e · needs 44 ·
+    **broad** (`7893db6ce`, `a858f66ba`, `6079f8c03`, `99a56020a`, then the
+    docs commit) · 46 aliases removed, 1,536 engine and 66 driver/CLI
+    references; the driver and `cmd/stuntgres` import `session` · selected
+    unit/`RACE=1` and dual-mode proof and quickcheck passed; bench unchanged;
+    racecheck/finalcheck skipped at user request
 
 ### Group F — feature packages, Part B
 
