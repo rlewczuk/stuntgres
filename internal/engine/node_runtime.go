@@ -41,6 +41,10 @@ type nodeRuntime interface {
 	EvalWindow(*windowExpression) (sqltype.Value, error)
 	EvalDomainValue(domainValueExpression) (sqltype.Value, error)
 	EvalUpdateOutput(updateOutputExpression) (sqltype.Value, error)
+
+	// Executor nodes: each runs a query or routine body for the current frame.
+	EvalSubquery(subqueryExpression) (sqltype.Value, error)
+	EvalSQLRoutine(sqlRoutineExpression) (sqltype.Value, error)
 }
 
 var _ nodeRuntime = (*EvalContext)(nil)

@@ -184,9 +184,9 @@ func (b *expressionBinder) bindRowPredicateOperands(raw parser.OperatorExpr, ope
 	return e, nil
 }
 
-func (e subqueryExpression) compare(c *EvalContext, left []sqltype.Value) (sqltype.Value, error) {
+func (e subqueryExpression) compare(ctx expr.Context, left []sqltype.Value) (sqltype.Value, error) {
 	pairs := rowComparisonExpression{Info: e.Info, comparisons: e.comparisons, ordering: e.ordering, operator: e.operator}
-	return pairs.compare(c, left)
+	return pairs.compare(ctx, left)
 }
 
 func renderRowComparison(e rowComparisonExpression, operand func(expr.Expr) (string, error), operator string) (string, error) {

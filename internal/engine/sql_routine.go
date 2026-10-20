@@ -72,8 +72,15 @@ func (n sqlRoutineExpression) ValidateStoredProvider() error {
 }
 func (sqlRoutineExpression) IntrinsicVolatility() expr.Volatility { return expr.Volatile }
 func (sqlRoutineExpression) PlanningFold() expr.Fold              { return expr.FoldNever }
-func (n sqlRoutineExpression) Eval(context expr.Context) (value sqltype.Value, err error) {
-	c := evalContext(context)
+func (n sqlRoutineExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+	runtime, err := nodeRuntimeOf(ctx)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	return runtime.EvalSQLRoutine(n)
+}
+
+func (c *EvalContext) EvalSQLRoutine(n sqlRoutineExpression) (value sqltype.Value, err error) {
 	if err = evaluationContext(c); err != nil {
 		return value, err
 	}

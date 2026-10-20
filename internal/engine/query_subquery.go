@@ -172,8 +172,15 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, err
 	return e, nil
 }
 
-func (e subqueryExpression) Eval(ctx expr.Context) (value sqltype.Value, err error) {
-	c := evalContext(ctx)
+func (e subqueryExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+	runtime, err := nodeRuntimeOf(ctx)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	return runtime.EvalSubquery(e)
+}
+
+func (c *EvalContext) EvalSubquery(e subqueryExpression) (value sqltype.Value, err error) {
 	if err = evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -181,10 +188,10 @@ func (e subqueryExpression) Eval(ctx expr.Context) (value sqltype.Value, err err
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing subquery statement capture")
 	}
 	if e.updateWidth != 0 {
-		return e.evalUpdateOutputs(c)
+		return c.subqueryUpdateOutputs(e)
 	}
 	if len(e.membership) != 0 {
-		return e.hashMembership(c)
+		return c.subqueryHashMembership(e)
 	}
 	var smallLeft [4]sqltype.Value
 	left := smallLeft[:min(len(e.comparisons), len(smallLeft))]
@@ -209,7 +216,7 @@ func (e subqueryExpression) Eval(ctx expr.Context) (value sqltype.Value, err err
 		}
 	}()
 	if e.jsonArray != nil {
-		return e.evalJSONArray(c, &state, &stage)
+		return c.subqueryJSONArray(e, &state, &stage)
 	}
 	if e.kind == parser.SubqueryExists && e.presenceOnly {
 		_, present, failure := stage.nextOccurrence(c.Context)
@@ -508,7 +515,7 @@ type subqueryMembership struct {
 	full     bool
 }
 
-func (e subqueryExpression) buildMembership(c *EvalContext) (membership *subqueryMembership, err error) {
+func (c *EvalContext) subqueryMembership(e subqueryExpression) (membership *subqueryMembership, err error) {
 	state := queryState{source: c.query.source, parameters: c.Parameters, input: c.Input, output: c.Output, locking: c.query.locking, outer: c, ctes: c.query.ctes, hashOwner: c.query.membershipOwner()}
 	stage, err := openQueryProjectStage(c.Context, &state, e.queryPlan.Root.(*projectNode))
 	if err != nil {
@@ -583,13 +590,13 @@ func (e subqueryExpression) buildMembership(c *EvalContext) (membership *subquer
 	}
 }
 
-func (e subqueryExpression) hashMembership(c *EvalContext) (sqltype.Value, error) {
+func (c *EvalContext) subqueryHashMembership(e subqueryExpression) (sqltype.Value, error) {
 	owner := c.query.membershipOwner()
 	key := subqueryMembershipKey{e.queryPlan, c.query.source}
 	membership := owner.memberships[key]
 	if membership == nil {
 		var err error
-		membership, err = e.buildMembership(c)
+		membership, err = c.subqueryMembership(e)
 		if err != nil {
 			return sqltype.Value{}, err
 		}

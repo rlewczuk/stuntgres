@@ -8,7 +8,7 @@ import (
 // This is the scalar-subquery zero/one/second-row protocol with a tuple output.
 // The statement's captured source, frames, CTEs, locks and hash owner are borrowed
 // exactly as for scalar subqueries; no output is admitted before cardinality.
-func (e subqueryExpression) evalUpdateOutputs(c *EvalContext) (value sqltype.Value, err error) {
+func (c *EvalContext) subqueryUpdateOutputs(e subqueryExpression) (value sqltype.Value, err error) {
 	if len(c.updateOutputs) != e.updateWidth {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing UPDATE tuple output owner")
 	}

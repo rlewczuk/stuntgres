@@ -73,7 +73,7 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (expr.E
 	}
 	return coercionExpression{info, query, coercion, sqltype.Assignment, false}, nil
 }
-func (e subqueryExpression) evalJSONArray(c *EvalContext, state *queryState, stage *indexedStage) (sqltype.Value, error) {
+func (c *EvalContext) subqueryJSONArray(e subqueryExpression, state *queryState, stage *indexedStage) (sqltype.Value, error) {
 	p := e.jsonArray
 	aggregate, err := p.plan.Init(c.Context, c.FunctionJSONOutput())
 	if err != nil {
