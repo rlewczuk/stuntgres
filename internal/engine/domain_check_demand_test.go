@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -86,7 +87,7 @@ func TestDomainCheckPreflightDemandInternal(t *testing.T) {
 		t.Fatal("stored checked conversion rejected as free VALUE", err)
 	}
 	required := domainUnitType(t, e.CatalogRead(), "preflight_required").SQLType
-	fresh := domainNullInputExpression(required.Usage())
+	fresh := analyze.DomainNullInputExpression(required.Usage())
 	prepared, _, err := preflightCoercions(&evaluation, fresh)
 	if err != nil || !prepared.Properties().RuntimeDomainConversion {
 		t.Fatal("fresh NULL consumed during initialization", err)

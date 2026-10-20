@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -53,7 +54,7 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 		want int64
 	}{{parent, 11}, {child, 11}, {own, 22}} {
 		relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 60000}, Columns: []catalog.Column{{Name: "v", Usage: tc.d.SQLType.Usage()}}, Attributes: []int32{1}}
-		node, origin := columnDefault(view, relation, 0)
+		node, origin := analyze.ColumnDefault(view, relation, 0)
 		if origin.Definition.OID != 0 || origin.Consumer != nil || origin.Quote.Owner.Address != tc.d.Address() || origin.Quote.Attribute != 0 || origin.Quote.Definition != 0 {
 			t.Fatal("domain recipe lost type origin or invented column identity")
 		}
@@ -143,7 +144,7 @@ func TestDomainDefaultLogicalSelectionInternal(t *testing.T) {
 	}{{"view_default", true, false}, {"view_absent", false, false}, {"view_mask", true, true}} {
 		typ := domainUnitType(t, view, tc.name).SQLType
 		relation := &catalog.Relation{Columns: []catalog.Column{{Usage: typ.Usage()}}, Attributes: []int32{1}}
-		node, origin := columnDefault(view, relation, 0)
+		node, origin := analyze.ColumnDefault(view, relation, 0)
 		if (origin.Definition.Expression != nil) != tc.recipe {
 			t.Fatal("logical absence conflated with domain recipe", tc.name)
 		}

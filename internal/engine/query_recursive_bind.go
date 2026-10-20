@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -153,7 +154,7 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *plan.CTEDefinit
 
 func (b *expressionBinder) recursiveUsageName(usage sqltype.Usage) string {
 	if !usage.Type.IsUserDefined() && !usage.Type.IsDomain() {
-		if name, err := pgType(usage); err == nil {
+		if name, err := analyze.PGType(usage); err == nil {
 			return name
 		}
 	}

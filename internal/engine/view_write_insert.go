@@ -24,7 +24,7 @@ func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.I
 		if !ok {
 			continue
 		}
-		node, origin := columnDefault(auth.Catalog, viewWriteOf(b.ViewWrite).logical.Relation, i)
+		node, origin := analyze.ColumnDefault(auth.Catalog, viewWriteOf(b.ViewWrite).logical.Relation, i)
 		if origin.Definition.Expression != nil {
 			if b.Insert.DefaultOrigins == nil {
 				b.Insert.DefaultOrigins = make([]defaultOrigin, len(d.Columns))
@@ -32,7 +32,7 @@ func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.I
 					b.Insert.DefaultOrigins[j] = bindingDefaultOrigin(&physical, j)
 				}
 			}
-			b.Insert.Defaults[direct.Slot] = defaultDestination(node, d.Columns[direct.Slot].Usage)
+			b.Insert.Defaults[direct.Slot] = analyze.DefaultDestination(node, d.Columns[direct.Slot].Usage)
 			b.Insert.DefaultOrigins[direct.Slot] = origin
 		}
 	}

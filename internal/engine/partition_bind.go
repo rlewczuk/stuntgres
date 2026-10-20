@@ -14,19 +14,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (c *consumerContext) partitionContextPlural() string {
-	if c.partitionConsumer == "partition key expression" {
-		return "partition key expressions"
-	}
-	return c.partitionConsumer
-}
-func (c *consumerContext) partitionExpressionError(code, message string, pos parser.Position) error {
-	if c.partitionConsumer == "partition key expression" {
-		return sqlError(code, message)
-	}
-	return expr.ErrorAt(code, message, pos)
-}
-
 func partitionGeneratedError(_ error, pos parser.Position, name string) error {
 	d := expr.ErrorAt("42P17", "cannot use generated column in partition key", pos).(*sqlstate.Error)
 	d.Detail = fmt.Sprintf(`Column "%s" is a generated column.`, name)

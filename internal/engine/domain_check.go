@@ -7,12 +7,10 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -258,16 +256,6 @@ func (s *StatementScope) CheckDomain(ctx context.Context, target *sqltype.Descri
 		s.domains.evaluation = &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(s), Catalog: catalog, Input: s.input, Output: s.output}}
 	}
 	return s.domains.evaluation.CheckDomain(ctx, target, value)
-}
-
-func domainNullInputExpression(target sqltype.Usage) expr.Expr {
-	base := target.BaseUsage()
-	coercionPlan, err := sqltype.PlanCoercion(base, target, sqltype.Assignment)
-	if err != nil {
-		panic(err)
-	}
-	child := plan.LiteralExpr{Info: expr.Info{Usage: base}, Value: sqltype.Null(base.Type)}
-	return plan.CoercionExpr{Info: expr.Info{Usage: target, Property: analyze.CoercionProperties(child, coercionPlan)}, Child: child, Plan: coercionPlan, Mode: sqltype.Assignment}
 }
 
 func validateDomainCheckDefinitions(view catalog.Read, domain *catalog.Type) error {

@@ -457,11 +457,11 @@ func checkViewPrefix(catalog catalog.Read, old, next []catalog.Column) error {
 		}
 		a, b := column.Usage, replacement.Usage
 		if a.Type.ID() != b.Type.ID() || a.Typmod != b.Typmod {
-			oldType, err := pgType(a)
+			oldType, err := analyze.PGType(a)
 			if err != nil {
 				return err
 			}
-			newType, err := pgType(b)
+			newType, err := analyze.PGType(b)
 			if err != nil {
 				return err
 			}

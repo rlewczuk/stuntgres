@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -109,7 +111,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 		plan.defaults = make([]expr.Expr, len(plan.targets))
 		for i, slot := range plan.targets {
 			if job.child.Columns[slot].Usage.Type.HasDomainConstraints() {
-				plan.defaults[i] = domainNullInputExpression(job.child.Columns[slot].Usage)
+				plan.defaults[i] = analyze.DomainNullInputExpression(job.child.Columns[slot].Usage)
 			}
 		}
 	}

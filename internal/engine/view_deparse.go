@@ -7,12 +7,11 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/extension"
-	"stuntgres/internal/engine/plan"
-
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -1688,4 +1687,30 @@ func windowSpecSQL(spec parser.WindowSpec, child func(parser.Expr) (string, erro
 		}
 	}
 	return strings.Join(parts, " "), nil
+}
+
+func (v *viewRenderer) quantifiedFieldsSQL(ctx context.Context, catalog catalog.Read, path viewLiteralPath, fields []string) (string, error) {
+	for i, text := range fields {
+		key := path
+		key.Argument = i + 1
+		usage, captured := v.castUsages[key]
+		if !captured {
+			continue
+		}
+		if v.presentation.deparse {
+			r := pgRenderer{view: catalog, path: v.presentation.path, pretty: v.presentation.pretty, output: v.presentation.output}
+			var err error
+			fields[i], err = r.cast(text, usage, false)
+			if err != nil {
+				return "", err
+			}
+		} else {
+			declaration, err := catalogTypeDeclaration(catalog, usage)
+			if err != nil {
+				return "", err
+			}
+			fields[i] = "CAST(" + text + " AS " + declaration + ")"
+		}
+	}
+	return strings.Join(fields, ", "), nil
 }

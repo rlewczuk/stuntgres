@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"slices"
 
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -82,33 +81,6 @@ func (e *Engine) bindDomainDefault(ctx context.Context, op *Operation, auth Auth
 // column-default elision. Plain builtin DEFAULT NULL retains its old absence.
 func omitColumnDefault(view catalog.Read, node expr.Expr, usage sqltype.Usage) bool {
 	return structuralNull(node) && typedef.TypeDefault(view, usage.Type) == nil && !node.Properties().RuntimeDomainConversion
-}
-
-func defaultDestination(node expr.Expr, target sqltype.Usage) expr.Expr {
-	if node.ResultUsage() == target {
-		return node
-	}
-	coercionPlan, err := sqltype.PlanCoercion(node.ResultUsage(), target, sqltype.Assignment)
-	if err != nil {
-		panic(err)
-	} // Catalog validation guarantees assignment-compatible recipes.
-	return plan.CoercionExpr{Info: expr.Info{Usage: target, Property: analyze.CoercionProperties(node, coercionPlan)}, Child: node, Plan: coercionPlan, Mode: sqltype.Assignment}
-}
-
-func columnDefault(view catalog.Read, d *catalog.Relation, slot int) (expr.Expr, defaultOrigin) {
-	attribute := d.Attributes[slot]
-	usage := d.Columns[slot].Usage
-	if definition, ok := d.ColumnMeta.Defaults[attribute]; ok {
-		return definition.Expression, defaultOrigin{Definition: definition, Consumer: d, Quote: exec.QuoteOrigin{Owner: view.Owner().Domain.Ref(view.Epoch(), d.Address()), Attribute: attribute, Definition: definition.OID}}
-	}
-	if definition := typedef.TypeDefault(view, usage.Type); definition != nil {
-		owner := view.Owner().Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
-		return defaultDestination(definition.Expression, usage), defaultOrigin{Definition: *definition, Quote: exec.QuoteOrigin{Owner: owner}}
-	}
-	if usage.Type.HasDomainConstraints() {
-		return domainNullInputExpression(usage), defaultOrigin{}
-	}
-	return nil, defaultOrigin{}
 }
 
 func applyDefaultOrigin(o defaultOrigin, c *exec.Context) {

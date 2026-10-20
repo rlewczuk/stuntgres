@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
@@ -50,33 +51,6 @@ func (r pgRenderer) attribute(relation *catalog.Relation, attr int32) (string, e
 	return text, err
 }
 
-func pgType(u sqltype.Usage) (string, error) {
-	declaration, err := u.Declaration()
-	if err != nil {
-		return "", err
-	}
-	if u.Type.IsUserDefined() || u.Type.IsDomain() {
-		return declaration, nil
-	}
-	switch u.Type.ID() {
-	case sqltype.Text:
-		return "text", nil
-	case sqltype.Bool:
-		return "boolean", nil
-	case sqltype.Time, sqltype.Timestamp:
-		return strings.ToLower(declaration) + " without time zone", nil
-	case sqltype.VarChar:
-		return strings.Replace(strings.ToLower(declaration), "varchar", "character varying", 1), nil
-	case sqltype.Char:
-		return `"char"`, nil
-	case sqltype.BPChar:
-		if u.Typmod < 0 {
-			return "bpchar", nil
-		}
-	}
-	return strings.ToLower(declaration), nil
-}
-
 func (r pgRenderer) typeSQL(u sqltype.Usage) (string, error) {
 	if !u.Type.IsDomain() && u.Type.IsArray() {
 		element := u
@@ -88,7 +62,7 @@ func (r pgRenderer) typeSQL(u sqltype.Usage) (string, error) {
 		return typ + "[]", nil
 	}
 	if !u.Type.IsUserDefined() && !u.Type.IsDomain() {
-		text, err := pgType(u)
+		text, err := analyze.PGType(u)
 		if err == nil && r.output.QuoteAllIdentifiers {
 			switch u.Type.ID() {
 			case sqltype.Text, sqltype.Name, sqltype.Bytea, sqltype.Oid, sqltype.Regclass, sqltype.Regtype, sqltype.UUID, sqltype.JSON, sqltype.JSONB:

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -109,7 +110,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 	next.Columns = append(next.Columns, definition)
 	next.Attributes = append(next.Attributes, attribute)
 	added := addedColumn{attribute: attribute, column: column, declaration: declaration, value: sqltype.Null(usage.Type)}
-	node, origin := columnDefault(auth.Catalog, &next, len(next.Columns)-1)
+	node, origin := analyze.ColumnDefault(auth.Catalog, &next, len(next.Columns)-1)
 	added.expression = node
 	added.dependencies, added.consumer = origin.Definition.Dependencies, origin.Consumer
 	if sqltype.ContainsDomainConstraints(usage.Type) && scope.input.TypeDiagnosticName == nil {

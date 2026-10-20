@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"testing"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -13,7 +16,6 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 // Expectations come from REL_18_0 ruleutils constant and expression printers;
@@ -175,7 +177,7 @@ func TestDeparseConstraintsLiteralTypes(t *testing.T) {
 				}
 				node.Value = sqltype.Null(typ)
 				got, err = (pgRenderer{view: view, pretty: pretty}).sql(context.Background(), node, pgRenderParent{})
-				declaration, err2 := pgType(typ.Usage())
+				declaration, err2 := analyze.PGType(typ.Usage())
 				if err != nil || err2 != nil || got != "NULL::"+declaration {
 					t.Fatal(got, err, err2)
 				}

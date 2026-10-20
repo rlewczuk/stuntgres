@@ -1,12 +1,9 @@
 package engine
 
 import (
-	"context"
 	"fmt"
-	"strings"
-	"stuntgres/internal/engine/catalog"
+
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -31,42 +28,6 @@ func (b *expressionBinder) normalizeQuantifiedConstructor(raw parser.Expr, const
 	}
 	b.stored.syntax[storedExpressionSyntaxKey{frame: b.FrameID(), position: raw.SourcePosition()}] = *constructor.Raw
 	return constructor, nil
-}
-
-// Preserve the prepared source manifest. Only frozen presentation loses a
-// constructor's erased outer identity, and only when no executable occurrence
-// still needs that identity. The ordinary pg_depend expression owner decides.
-func frozenQueryDependencies(view catalog.Read, b binding) ([]catalog.ExpressionDependency, error) {
-	var erased map[sqltype.ID]bool
-	plan.VisitCTEQuery(b.Query.Root, func(plan.Node) {}, func(bound expr.Expr) {
-		plan.WalkExpression(bound, func(node expr.Expr) {
-			if n, ok := node.(plan.SubqueryExpr); ok && n.ErasedLeftType != 0 {
-				if erased == nil {
-					erased = make(map[sqltype.ID]bool)
-				}
-				erased[n.ErasedLeftType] = true
-			}
-		})
-	}, true)
-	if len(erased) == 0 {
-		return b.Dependencies, nil
-	}
-	refs := pgDependRefs{ctx: context.Background(), catalog: view}
-	refs.query(b.Query.Root)
-	if refs.err != nil {
-		return nil, refs.err
-	}
-	dependencies := make([]catalog.ExpressionDependency, 0, len(b.Dependencies))
-	for _, dependency := range b.Dependencies {
-		address := dependency.Ref.Address
-		if address.ClassID == ids.TypeClassID && erased[sqltype.ID(address.ObjectID)] {
-			if _, retained := refs.addresses[address]; !retained {
-				continue
-			}
-		}
-		dependencies = append(dependencies, dependency)
-	}
-	return dependencies, nil
 }
 
 // Quantified and residual IN constructors share source slots, expansion
@@ -112,30 +73,4 @@ func (b *expressionBinder) captureConstructorFields(raw parser.RowExpr, count in
 		return fmt.Errorf("stuntgres: invalid row comparison source association")
 	}
 	return nil
-}
-
-func (v *viewRenderer) quantifiedFieldsSQL(ctx context.Context, catalog catalog.Read, path viewLiteralPath, fields []string) (string, error) {
-	for i, text := range fields {
-		key := path
-		key.Argument = i + 1
-		usage, captured := v.castUsages[key]
-		if !captured {
-			continue
-		}
-		if v.presentation.deparse {
-			r := pgRenderer{view: catalog, path: v.presentation.path, pretty: v.presentation.pretty, output: v.presentation.output}
-			var err error
-			fields[i], err = r.cast(text, usage, false)
-			if err != nil {
-				return "", err
-			}
-		} else {
-			declaration, err := catalogTypeDeclaration(catalog, usage)
-			if err != nil {
-				return "", err
-			}
-			fields[i] = "CAST(" + text + " AS " + declaration + ")"
-		}
-	}
-	return strings.Join(fields, ", "), nil
 }

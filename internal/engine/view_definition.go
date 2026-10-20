@@ -1,9 +1,14 @@
 package engine
 
 import (
+	"context"
+
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 // Engine.mu is held. Both ordinary and materialized views freeze the same bound
@@ -103,4 +108,40 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 		}
 	}
 	return definition, nil
+}
+
+// Preserve the prepared source manifest. Only frozen presentation loses a
+// constructor's erased outer identity, and only when no executable occurrence
+// still needs that identity. The ordinary pg_depend expression owner decides.
+func frozenQueryDependencies(view catalog.Read, b binding) ([]catalog.ExpressionDependency, error) {
+	var erased map[sqltype.ID]bool
+	plan.VisitCTEQuery(b.Query.Root, func(plan.Node) {}, func(bound expr.Expr) {
+		plan.WalkExpression(bound, func(node expr.Expr) {
+			if n, ok := node.(plan.SubqueryExpr); ok && n.ErasedLeftType != 0 {
+				if erased == nil {
+					erased = make(map[sqltype.ID]bool)
+				}
+				erased[n.ErasedLeftType] = true
+			}
+		})
+	}, true)
+	if len(erased) == 0 {
+		return b.Dependencies, nil
+	}
+	refs := pgDependRefs{ctx: context.Background(), catalog: view}
+	refs.query(b.Query.Root)
+	if refs.err != nil {
+		return nil, refs.err
+	}
+	dependencies := make([]catalog.ExpressionDependency, 0, len(b.Dependencies))
+	for _, dependency := range b.Dependencies {
+		address := dependency.Ref.Address
+		if address.ClassID == ids.TypeClassID && erased[sqltype.ID(address.ObjectID)] {
+			if _, retained := refs.addresses[address]; !retained {
+				continue
+			}
+		}
+		dependencies = append(dependencies, dependency)
+	}
+	return dependencies, nil
 }

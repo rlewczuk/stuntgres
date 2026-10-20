@@ -286,7 +286,7 @@ func BindInsertDefaults(owner *catalog.Owner, b *binding, view catalog.Read, ove
 		b.Insert.DefaultOrigins = make([]defaultOrigin, len(b.Relation.Columns))
 	}
 	for i, attribute := range b.Relation.Attributes {
-		node, origin := columnDefault(view, b.Relation, i)
+		node, origin := analyze.ColumnDefault(view, b.Relation, i)
 		b.Insert.Defaults[i] = node
 		if b.Insert.DefaultOrigins != nil {
 			b.Insert.DefaultOrigins[i] = origin

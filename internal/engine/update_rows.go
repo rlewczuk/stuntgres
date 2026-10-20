@@ -135,9 +135,9 @@ func bindUpdateAssignmentSource(b *binding, binder *expressionBinder, a parser.U
 	}
 	if _, requested := a.Value.(parser.DefaultExpr); requested {
 		if slot, ok := b.Relation.Index[a.Target.Text]; ok && b.Relation.Columns[slot].Usage.Type.IsDomain() {
-			node, origin := columnDefault(binder.bindingCatalog(), b.Relation, slot)
+			node, origin := analyze.ColumnDefault(binder.bindingCatalog(), b.Relation, slot)
 			if node == nil {
-				node = domainNullInputExpression(b.Relation.Columns[slot].Usage)
+				node = analyze.DomainNullInputExpression(b.Relation.Columns[slot].Usage)
 			}
 			if u.DefaultOrigins == nil {
 				u.DefaultOrigins = make([]defaultOrigin, width)

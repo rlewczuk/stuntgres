@@ -110,11 +110,11 @@ func ruleResultCheck(d *catalog.Relation, schema []catalog.Column, selectRule bo
 				prefix = "SELECT rule's target"
 				detail = "SELECT target entry"
 			}
-			actual, err := pgType(column.Usage)
+			actual, err := analyze.PGType(column.Usage)
 			if err != nil {
 				return err
 			}
-			expected, err := pgType(want.Usage)
+			expected, err := analyze.PGType(want.Usage)
 			if err != nil {
 				return err
 			}
