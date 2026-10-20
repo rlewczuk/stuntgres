@@ -43,7 +43,7 @@ func TestGeneratedVirtualExecutableNestedDemand(t *testing.T) {
 	if !boundHasVirtualReads(plan.CaseExpr{Info: expr.Info{Usage: typ.Usage()}, Otherwise: edge}) {
 		t.Fatal("executable scalar query demand was not found")
 	}
-	edge.CTEDefinition = true
+	edge.CTEEdge = true
 	if boundHasVirtualReads(edge) || queryHasVirtualReads(&plan.ProjectNode{AnalysisExpressions: []expr.Expr{edge}}) {
 		t.Fatal("unused WITH definition acquired runtime demand")
 	}

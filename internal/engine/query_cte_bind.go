@@ -166,7 +166,7 @@ func visitCTEQuery(node plan.Node, visit func(plan.Node), expression func(expr.E
 		if bound == nil {
 			return
 		}
-		if edge, ok := bound.(plan.SubqueryExpr); ok && edge.CTEDefinition && !includeDefinitions {
+		if edge, ok := bound.(plan.SubqueryExpr); ok && edge.CTEEdge && !includeDefinitions {
 			return
 		}
 		expression(bound)

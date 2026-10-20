@@ -21,7 +21,7 @@ type SubqueryExpr struct {
 	Operator        string
 	Negate          bool
 	PresenceOnly    bool
-	CTEDefinition   bool // Analysis-only graph edge, never expression demand.
+	CTEEdge         bool // Analysis-only graph edge, never expression demand.
 	JSONArray       *SQLJSONArrayQuery
 	LeftExpansions  map[int]CompositeExpansionBinding // Analysis-only source associations.
 	LeftConstructor expr.Expr                         // Analysis-only normalized constructor; never evaluated or a dependency child.

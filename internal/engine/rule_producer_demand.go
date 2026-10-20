@@ -157,7 +157,7 @@ func ruleQueryProducerDemand(root plan.Node, external func(func(expr.Expr)), tar
 		}
 		queryExpressions(node, func(expression expr.Expr) {
 			walkDemandedBoundExpression(expression, func(node expr.Expr) {
-				if subquery, ok := node.(plan.SubqueryExpr); ok && !subquery.CTEDefinition && subquery.QueryPlan != nil {
+				if subquery, ok := node.(plan.SubqueryExpr); ok && !subquery.CTEEdge && subquery.QueryPlan != nil {
 					collect(subquery.QueryPlan.Root, 0, 0, 1)
 				}
 			})
@@ -204,7 +204,7 @@ func ruleQueryProducerDemand(root plan.Node, external func(func(expr.Expr)), tar
 					}
 				}
 			}
-			if subquery, ok := node.(plan.SubqueryExpr); ok && !subquery.CTEDefinition && subquery.QueryPlan != nil {
+			if subquery, ok := node.(plan.SubqueryExpr); ok && !subquery.CTEEdge && subquery.QueryPlan != nil {
 				observe(subquery.QueryPlan.Root)
 			}
 		})

@@ -66,7 +66,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 		for _, definition := range definitions {
 			if definition.Query != nil {
-				project.AnalysisExpressions = append(project.AnalysisExpressions, plan.SubqueryExpr{Info: b.info(b.typ(sqltype.Bool).Usage(), definition.Position, expr.Properties{}), QueryPlan: definition.Query, CTEDefinition: true})
+				project.AnalysisExpressions = append(project.AnalysisExpressions, plan.SubqueryExpr{Info: b.info(b.typ(sqltype.Bool).Usage(), definition.Position, expr.Properties{}), QueryPlan: definition.Query, CTEEdge: true})
 			}
 		}
 	}()

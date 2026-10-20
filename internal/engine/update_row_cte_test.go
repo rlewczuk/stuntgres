@@ -24,7 +24,7 @@ func TestUpdateRowCorrelatedCTEFrames(t *testing.T) {
 	project := source.QueryPlan.Root.(*plan.ProjectNode)
 	var producer *plan.ProjectNode
 	for _, analysis := range project.AnalysisExpressions {
-		if edge, ok := analysis.(plan.SubqueryExpr); ok && edge.CTEDefinition {
+		if edge, ok := analysis.(plan.SubqueryExpr); ok && edge.CTEEdge {
 			producer = edge.QueryPlan.Root.(*plan.ProjectNode)
 			break
 		}

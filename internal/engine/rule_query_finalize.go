@@ -47,7 +47,7 @@ func finalizeRuleQuery(view catalog.Read, root plan.Node, alreadyFinalized ...ma
 			retain(scan.CTE.Query.Root)
 		}
 	}, func(expr expr.Expr) {
-		if subquery, ok := expr.(plan.SubqueryExpr); ok && subquery.CTEDefinition {
+		if subquery, ok := expr.(plan.SubqueryExpr); ok && subquery.CTEEdge {
 			retain(subquery.QueryPlan.Root)
 		}
 	}, true)

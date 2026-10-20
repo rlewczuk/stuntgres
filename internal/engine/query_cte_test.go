@@ -274,7 +274,7 @@ func TestQueryCTEWholeDefinitionVolatility(t *testing.T) {
 		return sqltype.Value{}, nil
 	}}
 	body := &plan.ProjectNode{Child: &plan.SingletonNode{}, Expressions: []expr.Expr{volatile}, Frame: 2}
-	wrapper := &plan.ProjectNode{Child: &plan.SingletonNode{}, Frame: 1, AnalysisExpressions: []expr.Expr{plan.SubqueryExpr{QueryPlan: &plan.Query{Root: body}, CTEDefinition: true}}}
+	wrapper := &plan.ProjectNode{Child: &plan.SingletonNode{}, Frame: 1, AnalysisExpressions: []expr.Expr{plan.SubqueryExpr{QueryPlan: &plan.Query{Root: body}, CTEEdge: true}}}
 	if !cteVolatile(wrapper) {
 		t.Fatal("static eligibility omitted unused nested definition")
 	}
@@ -620,7 +620,7 @@ func TestQueryCTEMandatoryPhysicalFrontier(t *testing.T) {
 		if !queryHasMandatoryPhysicalFrontier(&plan.JoinNode{Left: opaque, Right: aggregate}, inputs) {
 			t.Fatal("opaque CTE hid independently reachable physical owner", hint)
 		}
-		analysisOnly := &plan.ProjectNode{Child: &plan.SingletonNode{}, AnalysisExpressions: []expr.Expr{plan.SubqueryExpr{CTEDefinition: true, QueryPlan: &plan.Query{Root: &plan.ProjectNode{Child: aggregate}}}}}
+		analysisOnly := &plan.ProjectNode{Child: &plan.SingletonNode{}, AnalysisExpressions: []expr.Expr{plan.SubqueryExpr{CTEEdge: true, QueryPlan: &plan.Query{Root: &plan.ProjectNode{Child: aggregate}}}}}
 		if queryHasMandatoryPhysicalFrontier(analysisOnly, inputs) {
 			t.Fatal("unused analysis definition became executable demand")
 		}

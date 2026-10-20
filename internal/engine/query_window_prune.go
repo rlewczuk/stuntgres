@@ -62,7 +62,7 @@ func pruneProjectWindows(project *plan.ProjectNode) (*plan.ProjectNode, error) {
 					used[i] = true
 				}
 			}
-			if subquery, ok := expr.(plan.SubqueryExpr); ok && !subquery.CTEDefinition && subquery.QueryPlan != nil {
+			if subquery, ok := expr.(plan.SubqueryExpr); ok && !subquery.CTEEdge && subquery.QueryPlan != nil {
 				query(subquery.QueryPlan.Root)
 			}
 		})

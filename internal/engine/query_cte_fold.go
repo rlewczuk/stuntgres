@@ -20,7 +20,7 @@ func cteMapExpression(view catalog.Read, expr expr.Expr, leaf func(expr.Expr) (e
 func foldCTERestrictions(view catalog.Read, root plan.Node) (plan.Node, error) {
 	var rewrite func(expr.Expr) (expr.Expr, bool, error)
 	rewrite = func(bound expr.Expr) (expr.Expr, bool, error) {
-		if edge, ok := bound.(plan.SubqueryExpr); ok && edge.CTEDefinition {
+		if edge, ok := bound.(plan.SubqueryExpr); ok && edge.CTEEdge {
 			return bound, false, nil
 		}
 		hasQuery := false

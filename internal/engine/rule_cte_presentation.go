@@ -23,7 +23,7 @@ func retainRuleCTEPresentation(view catalog.Read, b binding) binding {
 		}
 		found := false
 		for _, expr := range project.AnalysisExpressions {
-			if query, ok := expr.(plan.SubqueryExpr); ok && query.CTEDefinition && query.QueryPlan == definition.Query {
+			if query, ok := expr.(plan.SubqueryExpr); ok && query.CTEEdge && query.QueryPlan == definition.Query {
 				found = true
 				break
 			}
@@ -35,7 +35,7 @@ func retainRuleCTEPresentation(view catalog.Read, b binding) binding {
 			analysis = slices.Clone(project.AnalysisExpressions)
 		}
 		typ, _ := view.LookupType(sqltype.Bool)
-		analysis = append(analysis, plan.SubqueryExpr{Info: expr.Info{Usage: typ.Usage(), Pos: definition.Position}, QueryPlan: definition.Query, CTEDefinition: true})
+		analysis = append(analysis, plan.SubqueryExpr{Info: expr.Info{Usage: typ.Usage(), Pos: definition.Position}, QueryPlan: definition.Query, CTEEdge: true})
 	}
 	if analysis == nil {
 		return b

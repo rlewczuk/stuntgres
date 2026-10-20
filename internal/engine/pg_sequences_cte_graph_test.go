@@ -43,7 +43,7 @@ func TestPGSequencesCTEStoredGraph(t *testing.T) {
 	// The query graph walk also reaches a previously bound CTE or an unused
 	// nested definition, whose stored source is not a newly bound query leaf.
 	root := &plan.ProjectNode{Child: &plan.SingletonNode{}, AnalysisExpressions: []expr.Expr{
-		plan.SubqueryExpr{QueryPlan: &plan.Query{Root: &plan.SourceNode{Ref: catalogRef(t, e, catalog, "nested")}}, CTEDefinition: true},
+		plan.SubqueryExpr{QueryPlan: &plan.Query{Root: &plan.SourceNode{Ref: catalogRef(t, e, catalog, "nested")}}, CTEEdge: true},
 	}}
 	if volatile, err := cteStoredViewVolatile(catalog, root); err != nil || !volatile {
 		t.Fatalf("nested static definition volatility=%v err=%v", volatile, err)

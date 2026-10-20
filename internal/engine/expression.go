@@ -350,7 +350,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 	}
 	switch e := expression.(type) {
 	case plan.SubqueryExpr:
-		if !c.planStaticOperators || e.CTEDefinition || e.QueryPlan == nil {
+		if !c.planStaticOperators || e.CTEEdge || e.QueryPlan == nil {
 			return e, false, nil
 		}
 		input := e.QueryPlan.Root
