@@ -59,49 +59,27 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 				continue
 			}
 			definition := constraint.Identity
-			id := table.Columns[slot].Usage.Type.ID()
-			if id != sqltype.Int2 && id != sqltype.Int4 && id != sqltype.Int8 {
-				return sequence.OptionError("identity column type must be smallint, integer, or bigint")
-			}
-			_, _, typeName := sequence.TypeLimits(id)
-			raw := []parser.SequenceOption{{Name: "as", Type: parser.TypeName{Name: typeName}}}
-			var explicit parser.ObjectName
-			persistence := "logged"
-			persistenceSet := false
-			for _, option := range definition.Options {
-				if option.Name == "logged" || option.Name == "unlogged" {
-					if persistenceSet {
-						return expr.ErrorAt("42601", "conflicting or redundant options", option.Pos)
-					}
-					persistence, persistenceSet = option.Name, true
-					continue
-				}
-				if option.Name == "name" {
-					if len(explicit.Parts) != 0 {
-						return expr.ErrorAt("42601", "conflicting or redundant options", option.Pos)
-					}
-					explicit = option.Owned
-					continue
-				}
-				raw = append(raw, option)
-			}
-			options, restart, err := sequence.BindOptions(nil, storage.SequenceGenerator{}, raw)
+			as, err := sequence.IdentityTypeOption(table.Columns[slot].Usage.Type.ID())
 			if err != nil {
 				return err
 			}
-			options.Persistence = persistence
+			split, err := sequence.SplitIdentityOptions(as, definition.Options)
+			if err != nil {
+				return err
+			}
+			options, restart, err := sequence.BindOptions(nil, storage.SequenceGenerator{}, split.Raw)
+			if err != nil {
+				return err
+			}
+			options.Persistence = split.Persistence
 			read := e.stageRead(stage)
 			tableNamespace := read.MustNamespace(table.Namespace())
 			if tableNamespace.Temporary != (ids.SessionToken{}) {
 				if !tableNamespace.TemporaryToast && auth.session != nil && tableNamespace.Temporary == auth.session.SessionToken {
 					auth.stagedTemporary = table.Namespace()
 				}
-				if persistenceSet {
-					for _, option := range definition.Options {
-						if option.Name == "logged" || option.Name == "unlogged" {
-							return expr.ErrorAt("42P16", "cannot set logged status of a temporary sequence", option.Pos)
-						}
-					}
+				if err := split.CheckTemporary(); err != nil {
+					return err
 				}
 				options.Persistence = "temporary"
 			}
@@ -110,7 +88,7 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 				return len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})) != 0 || name == table.Name()
 			}
 			name := ownedSequenceName(table.Name(), table.Columns[slot].Name, used)
-			if len(explicit.Parts) != 0 {
+			if explicit := split.Name; len(explicit.Parts) != 0 {
 				auth.Catalog = read
 				auth.Recapture(auth.Catalog)
 				ns, err := e.creationNamespace(auth, explicit)

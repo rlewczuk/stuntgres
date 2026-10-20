@@ -8,8 +8,6 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
-	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/parser"
 )
 
 func (e *Engine) stageCreateSerials(stage *CatalogStage, table *catalog.Relation, declarations []analyze.ColumnDeclaration) error {
@@ -17,8 +15,7 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *catalog.Relation
 		if !declaration.Serial {
 			continue
 		}
-		_, _, typeName := sequence.TypeLimits(table.Columns[slot].Usage.Type.ID())
-		options, _, err := sequence.BindOptions(nil, storage.SequenceGenerator{}, []parser.SequenceOption{{Name: "as", Type: parser.TypeName{Name: typeName}}})
+		options, err := sequence.SerialOptions(table.Columns[slot].Usage.Type.ID())
 		if err != nil {
 			return err
 		}
@@ -48,7 +45,7 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *catalog.Relation
 		stage.sequenceState().setGenerator(address, sequence.InitialGenerator(options, nil, revision))
 		// Route synthetic syntax through the same closed default binder as Restore.
 		namespace, _ := read.Descriptor(table.Namespace())
-		declarations[slot].DefaultExpr = parser.CallExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_catalog"}, {Text: "nextval"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(name)}}}}
+		declarations[slot].DefaultExpr = sequence.SerialDefault(namespace.Name(), name)
 	}
 	return nil
 }

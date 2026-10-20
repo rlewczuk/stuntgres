@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -18,22 +19,6 @@ func (e *Engine) validateRestoreIdentityConfiguration(op *session.Operation, syn
 	if err != nil {
 		return err
 	}
-	relation, ok := auth.Catalog.Relation(ref.Address)
-	if !ok || relation.Sequence == nil || !relation.Sequence.Identity {
-		return sqlError("0A000", "restore accepts only generated sequence ownership or identity configuration")
-	}
-	if syntax.Action == "logged" || syntax.Action == "unlogged" {
-		return nil
-	}
-	if syntax.Action != "" || len(syntax.Options) == 0 {
-		return sqlError("0A000", "restore accepts only generated identity configuration")
-	}
-	for _, option := range syntax.Options {
-		switch option.Name {
-		case "as", "increment", "min", "max", "start", "cache", "cycle", "restart":
-		default:
-			return sqlError("0A000", "restore accepts only generated identity configuration")
-		}
-	}
-	return nil
+	relation, _ := auth.Catalog.Relation(ref.Address)
+	return sequence.CheckRestoreIdentityConfiguration(relation, syntax)
 }

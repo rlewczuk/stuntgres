@@ -59,13 +59,10 @@ func (s *StatementScope) acquireSequence(ref ids.ObjectRef, mode lock.Mode, rese
 // Caller holds Engine.mu. Drop it for manager admission and restore it on every
 // return; the dependency lock belongs to the statement's transaction ticket.
 func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationView, changes *session.Journal, d *catalog.Relation, raw parser.ObjectName) (ids.ObjectAddress, error) {
-	if len(raw.Parts) == 1 && raw.Parts[0].Text == "none" {
-		return ids.ObjectAddress{}, nil
+	table, column, none, err := sequence.ParseOwnedBy(raw)
+	if err != nil || none {
+		return ids.ObjectAddress{}, err
 	}
-	if len(raw.Parts) < 2 || len(raw.Parts) > 3 {
-		return ids.ObjectAddress{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: "invalid OWNED BY option", Hint: "Specify OWNED BY table.column or OWNED BY NONE."}
-	}
-	table := parser.ObjectName{Parts: raw.Parts[:len(raw.Parts)-1]}
 	ref, err := e.resolveRelationReference(*auth, table, false)
 	if err != nil {
 		return ids.ObjectAddress{}, err
@@ -88,23 +85,7 @@ func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationV
 	if !ok {
 		return ids.ObjectAddress{}, ids.ErrCatalogReplaced
 	}
-	if r.RelationKind != catalog.TableRelation && r.RelationKind != catalog.PartitionedRelation {
-		return ids.ObjectAddress{}, sqlError("42809", fmt.Sprintf(`referenced relation "%s" is not a table`, r.Name()))
-	}
-	if r.Owner != d.Owner {
-		return ids.ObjectAddress{}, sqlError("55000", "sequence must have same owner as table it is linked to")
-	}
-	if r.Namespace() != d.Namespace() {
-		return ids.ObjectAddress{}, sqlError("55000", "sequence must be in same schema as table it is linked to")
-	}
-	name := raw.Parts[len(raw.Parts)-1].Text
-	slot, ok := r.Index[name]
-	if !ok {
-		return ids.ObjectAddress{}, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, name, r.Name()))
-	}
-	a := r.Address()
-	a.SubID = r.Attributes[slot]
-	return a, nil
+	return sequence.CheckOwnedBy(r, d, column)
 }
 func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
 	if count != 0 {
@@ -279,8 +260,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 				if old.Sequence.Identity {
 					a := old.Sequence.Owned
 					a.SubID = 0
-					table := auth.Catalog.MustRelation(a)
-					return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot change ownership of identity sequence", Detail: fmt.Sprintf(`Sequence "%s" is linked to table "%s".`, old.Name(), table.Name())}
+					return Result{}, sequence.IdentityOwnershipError(old, auth.Catalog.MustRelation(a))
 				}
 				options.Owned, err = e.ownedSequenceLocked(scope, &auth, changes, &d, option.Owned)
 				if err != nil {
@@ -296,10 +276,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			d.ObjectName = s.Target.Text
 		case "logged", "unlogged":
 			if old.Sequence.Persistence == "temporary" {
-				ns := auth.Catalog.MustNamespace(old.Namespace())
-				diagnostic := sqlError("42P16", fmt.Sprintf(`cannot change logged status of table "%s" because it is temporary`, old.Name())).(*sqlstate.Error)
-				diagnostic.Schema, diagnostic.Table = ns.Name(), old.Name()
-				return Result{}, diagnostic
+				return Result{}, sequence.TemporaryLoggedError(old, auth.Catalog.MustNamespace(old.Namespace()).Name())
 			}
 			options.Persistence = s.Action
 		case "owner":
@@ -351,19 +328,13 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			if _, err = adjustRelationCreationPersistence(auth, ns, destination.Persistence); err != nil {
 				return Result{}, err
 			}
-			oldNamespace := auth.Catalog.MustNamespace(d.Namespace())
-			newNamespace := auth.Catalog.MustNamespace(ns.Address)
-			if oldNamespace.Temporary != (ids.SessionToken{}) || newNamespace.Temporary != (ids.SessionToken{}) {
-				return Result{}, sqlError("0A000", "cannot move objects into or out of temporary schemas")
+			if err = sequence.CheckSchemaMove(auth.Catalog.MustNamespace(d.Namespace()), auth.Catalog.MustNamespace(ns.Address)); err != nil {
+				return Result{}, err
 			}
 			d.ObjectNamespace = ns.Address
 		}
-		rewrite := false
-		for _, option := range s.Options {
-			rewrite = rewrite || option.Name != "owned"
-		}
-		persistenceChanged := options.Persistence != old.Sequence.Persistence
-		if rewrite || d.Name() != old.Name() || d.Namespace() != old.Namespace() || d.Owner != old.Owner || persistenceChanged {
+		effects := sequence.AlterEffects(old, &d, s.Options, s.Action)
+		if effects.PlanStamp {
 			d.SequencePlanStamp = rev
 		}
 		key := catalog.DescriptorNameKey(&d)
@@ -371,10 +342,10 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, d.Name()))
 		}
 		e.catalogChangeLocked(changes, d.Address(), &d)
-		if rewrite || persistenceChanged {
+		if effects.ReplaceGenerator {
 			changes.Generators[d.Address()] = sequence.ReplacementGenerator(*state, rev, restart)
 		}
-		if s.Action == "" || persistenceChanged {
+		if effects.DiscardTail {
 			if m := payloadOf(op.Session).sequences.Memory(d.Address()); m != nil {
 				m.DiscardTailLocked()
 			}
@@ -410,12 +381,8 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		}
 		d := auth.Catalog.MustRelation(ref.Address)
 		if d.RelationKind != catalog.SequenceRelation {
-			if d.RelationKind == catalog.IndexRelation {
-				e.mu.Unlock()
-				return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a sequence`, d.Name()), Hint: "Use DROP INDEX to remove an index."}
-			}
 			e.mu.Unlock()
-			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a sequence`, d.Name()), Hint: "Use DROP TABLE to remove a table."}
+			return Result{}, sequence.NotSequenceError(d)
 		}
 		if er = relationDropOwner(auth, ref, d); er != nil {
 			e.mu.Unlock()

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"maps"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/sequence"
@@ -56,13 +55,8 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), identity.Sequence)
 	definition := action.Identity
 	if len(definition.Options) != 0 {
-		for _, option := range definition.Options {
-			if option.Name == "logged" || option.Name == "unlogged" {
-				return old, sqlError("XX000", fmt.Sprintf(`option "%s" not recognized`, option.Name))
-			}
-			if option.Name == "as" || option.Name == "owned" {
-				return old, expr.ErrorAt("42601", fmt.Sprintf(`sequence option "%s" not supported here`, option.Name), option.Pos)
-			}
+		if err := sequence.CheckIdentitySetOptions(definition.Options); err != nil {
+			return old, err
 		}
 		if err := scope.acquireSequence(ref, lock.ShareRowExclusive, false); err != nil {
 			return old, err
@@ -139,12 +133,11 @@ func (e *Engine) alterIdentityTypeSequence(scope *StatementScope, stage *Catalog
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	id := usage.Type.ID()
-	if id != sqltype.Int2 && id != sqltype.Int4 && id != sqltype.Int8 {
-		return sequence.OptionError("identity column type must be smallint, integer, or bigint")
+	as, err := sequence.IdentityTypeOption(usage.Type.ID())
+	if err != nil {
+		return err
 	}
-	_, _, name := sequence.TypeLimits(id)
-	if err := e.stageIdentitySequenceOptionsLocked(scope, stage, table, attribute, address, []parser.SequenceOption{{Name: "as", Type: parser.TypeName{Name: name}}}); err != nil {
+	if err := e.stageIdentitySequenceOptionsLocked(scope, stage, table, attribute, address, []parser.SequenceOption{as}); err != nil {
 		return err
 	}
 	// AS discards this backend's tail even if a later table pass rolls back.

@@ -145,10 +145,18 @@ func TestSequencePinReplacement(t *testing.T) {
 		t.Fatal("pinned", err, current[0].Ref.Epoch, current[1].Ref.Epoch)
 	}
 	cases := map[string]func() (ids.SessionToken, []Constant){
-		"peer session":   func() (ids.SessionToken, []Constant) { return f.peer, []Constant{f.constant(9, f.temporary, 2, f.caller)} },
-		"other address":  func() (ids.SessionToken, []Constant) { return f.caller, []Constant{f.constant(9, f.others, 2, f.caller)} },
-		"other owner":    func() (ids.SessionToken, []Constant) { return f.caller, []Constant{f.constant(9, f.temporary, 2, f.peer)} },
-		"offset missing": func() (ids.SessionToken, []Constant) { return f.caller, []Constant{f.constant(10, f.temporary, 2, f.caller)} },
+		"peer session": func() (ids.SessionToken, []Constant) {
+			return f.peer, []Constant{f.constant(9, f.temporary, 2, f.caller)}
+		},
+		"other address": func() (ids.SessionToken, []Constant) {
+			return f.caller, []Constant{f.constant(9, f.others, 2, f.caller)}
+		},
+		"other owner": func() (ids.SessionToken, []Constant) {
+			return f.caller, []Constant{f.constant(9, f.temporary, 2, f.peer)}
+		},
+		"offset missing": func() (ids.SessionToken, []Constant) {
+			return f.caller, []Constant{f.constant(10, f.temporary, 2, f.caller)}
+		},
 	}
 	for label, build := range cases {
 		session, constants := build()
