@@ -77,12 +77,13 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 	if err != nil {
 		return operatorCandidateSet{}, err
 	}
+	view := auth.ReadCatalog()
 	spelling := name.Parts[len(name.Parts)-1].Text
 	if _, comparison := comparisonOperator(spelling); !unary && comparison {
 		available, custom := false, false
 		for i := 0; i < path.Count() && !custom; i++ {
-			for _, address := range auth.Catalog.State().OperatorNames().Buckets[catalog.OperatorNameKey{path.At(i), spelling}] {
-				d := auth.Catalog.MustOperator(address)
+			for _, address := range view.State().OperatorNames().Buckets[catalog.OperatorNameKey{path.At(i), spelling}] {
+				d := view.MustOperator(address)
 				if d.Left == 0 {
 					continue
 				}
@@ -94,7 +95,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 			}
 		}
 		if !custom {
-			return operatorCandidateSet{catalog: auth.Catalog, available: available}, nil
+			return operatorCandidateSet{catalog: view, available: available}, nil
 		}
 		// Even a masked custom descriptor requires ordered signature masking below.
 	}
@@ -102,8 +103,8 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 	seen := make(map[operatorSignature]bool)
 	custom := false
 	for i := range path.Count() {
-		for _, address := range auth.Catalog.State().OperatorNames().Buckets[catalog.OperatorNameKey{path.At(i), spelling}] {
-			d := auth.Catalog.MustOperator(address)
+		for _, address := range view.State().OperatorNames().Buckets[catalog.OperatorNameKey{path.At(i), spelling}] {
+			d := view.MustOperator(address)
 			if (d.Left == 0) != unary {
 				continue
 			}
@@ -116,7 +117,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 			custom = custom || !routine.OperatorSeeded(d)
 		}
 	}
-	return operatorCandidateSet{catalog: auth.Catalog, descriptors: candidates, hasCustom: custom, available: len(candidates) != 0}, nil
+	return operatorCandidateSet{catalog: view, descriptors: candidates, hasCustom: custom, available: len(candidates) != 0}, nil
 }
 
 func (b *expressionBinder) selectCatalogOperator(set operatorCandidateSet, raw parser.OperatorExpr, left, right *sqltype.Descriptor, unary bool) (*catalog.Operator, error) {

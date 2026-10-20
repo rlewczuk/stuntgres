@@ -424,14 +424,14 @@ func describe(ctx context.Context, host analyzeHost, stmt parser.Statement, auth
 }
 
 func describeWithRule(ctx context.Context, host analyzeHost, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected *StatementDescription, admission *queryLockAdmission, rule *ruleNamespace, initial ...[]sqltype.Usage) (binding, error) {
-	return describeWithFormals(ctx, host, stmt, auth, requiredRef, input, expectedOf(expected), admission, rule, false, initial...)
+	return describeWithFormals(ctx, host, stmt, authorityOf(auth), requiredRef, input, expectedOf(expected), admission, rule, false, initial...)
 }
 
 func (e *Engine) describeScoped(scope *StatementScope, stmt parser.Statement, auth AuthorizationView, expected *StatementDescription) (binding, error) {
-	return describeWithFormals(scope.op.Context(), e.analysisHost(scope.op), stmt, auth, scope.lockedRef, scope.input, expectedOf(expected), &scope.queryLockAdmission, nil, scope.sqlRoutine.scalar, scope.initialParameters)
+	return describeWithFormals(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, expectedOf(expected), &scope.queryLockAdmission, nil, scope.sqlRoutine.scalar, scope.initialParameters)
 }
 
-func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected analyze.Expected, admission *queryLockAdmission, rule *ruleNamespace, closed bool, initial ...[]sqltype.Usage) (binding, error) {
+func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Statement, auth analyze.Authority, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected analyze.Expected, admission *queryLockAdmission, rule *ruleNamespace, closed bool, initial ...[]sqltype.Usage) (binding, error) {
 	b := binding{}
 	binder := newHostedBinder(ctx, host, input, expected)
 	binder.target.ruleNamespace = rule
@@ -441,7 +441,7 @@ func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Stat
 		binder.seedParameters(initial[0])
 	}
 	binder.query.lockAdmission = admission
-	binder.query.auth = &auth
+	binder.query.auth = auth
 	if err := host.CaptureEnumOperationInput(auth, &binder.input); err != nil {
 		return b, err
 	}
@@ -573,7 +573,7 @@ func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Stat
 					}
 					return b, err
 				}
-				source := auth.Catalog.MustRelation(ref.Address)
+				source := auth.ReadCatalog().MustRelation(ref.Address)
 				if source.RelationKind != catalog.TableRelation && source.RelationKind != catalog.ForeignRelation && source.RelationKind != catalog.ViewRelation && source.RelationKind != catalog.CompositeRelation {
 					kind := "relations of this kind"
 					if source.RelationKind == catalog.SequenceRelation {
@@ -591,16 +591,16 @@ func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Stat
 				}
 				var sourceType *catalog.Type
 				if source.RelationKind == catalog.CompositeRelation {
-					typeRef := host.CatalogOwner().Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
+					typeRef := host.CatalogOwner().Domain.Ref(auth.ReadCatalog().Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
 					var ok bool
-					sourceType, ok = auth.Catalog.Type(typeRef.Address)
+					sourceType, ok = auth.ReadCatalog().Type(typeRef.Address)
 					if !ok || sourceType.OwningRelation != source.Address() || sourceType.SQLType.ID() != source.RowType {
 						return b, fmt.Errorf("stuntgres: invalid LIKE composite type provider")
 					}
-					if err := auth.CanUse(typeRef); err != nil {
+					if err := host.CanUse(auth, typeRef); err != nil {
 						return b, err
 					}
-				} else if err := auth.Check(access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}); err != nil {
+				} else if err := host.CheckPrivilege(auth, access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}); err != nil {
 					return b, err
 				}
 				offset := len(columns)
@@ -638,7 +638,7 @@ func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Stat
 		if err != nil {
 			return b, err
 		}
-		b.Create.Uniques, err = bindCreateUniques(s, b.Create.ColumnIndex, b.Create.Likes, auth.Catalog)
+		b.Create.Uniques, err = bindCreateUniques(s, b.Create.ColumnIndex, b.Create.Likes, auth.ReadCatalog())
 		if err != nil {
 			return b, err
 		}
@@ -655,7 +655,7 @@ func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Stat
 		}
 	case *parser.DeclareCursor:
 		var err error
-		binder.query.auth = &auth
+		binder.query.auth = auth
 		b.Query, err = binder.bindSelect(s.Query, false)
 		if err != nil {
 			return b, err
@@ -675,7 +675,7 @@ func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Stat
 		b.CommandQuery = true
 	case *parser.Select:
 		var err error
-		binder.query.auth = &auth
+		binder.query.auth = auth
 		b.Query, err = binder.bindSelect(s, false)
 		if err != nil {
 			return b, err
@@ -707,7 +707,7 @@ func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Stat
 		}
 		for _, query := range queries {
 			activateCTESources(query.Root, b.QuerySources)
-			query.Root, err = foldCTERestrictions(auth.Catalog, query.Root)
+			query.Root, err = foldCTERestrictions(auth.ReadCatalog(), query.Root)
 			if err != nil {
 				return b, err
 			}
@@ -718,13 +718,13 @@ func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Stat
 			return b, sqlError("0A000", "materialized views may not be defined using bound parameters")
 		}
 		for _, source := range binder.query.sources {
-			if ns := auth.Catalog.MustNamespace(source.Relation.Namespace()); ns.Temporary != (ids.SessionToken{}) {
+			if ns := auth.ReadCatalog().MustNamespace(source.Relation.Namespace()); ns.Temporary != (ids.SessionToken{}) {
 				return b, sqlError("0A000", "materialized views must not use temporary tables or views")
 			}
 		}
 	}
 	if len(b.QuerySources) != 0 && view == nil {
-		if _, err := validateViewReadGraph(auth.Catalog, b.QuerySources); err != nil {
+		if _, err := validateViewReadGraph(auth.ReadCatalog(), b.QuerySources); err != nil {
 			return b, err
 		}
 	}

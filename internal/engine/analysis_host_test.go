@@ -18,8 +18,8 @@ func TestAnalysisHostWithoutOperation(t *testing.T) {
 	if host != e.analysisHost(nil) || host.engine != e || host.op != nil {
 		t.Fatal("binding without an operation does not reuse the engine's host")
 	}
-	if d := host.Definition(); d != nil {
-		t.Fatalf("Definition() = %#v, want nil", d)
+	if d := host.BindingDefinition(nil); d != nil {
+		t.Fatalf("BindingDefinition(nil) = %#v, want nil", d)
 	}
 	if owner, generation, ok := host.PlanOwner(); ok || owner != (ids.SessionToken{}) || generation != 0 {
 		t.Fatalf("PlanOwner() = %v, %d, %v; want zero, 0, false", owner, generation, ok)

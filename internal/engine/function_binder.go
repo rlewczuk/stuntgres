@@ -213,8 +213,8 @@ func (b *expressionBinder) domainTypeName(typ *sqltype.Descriptor) (string, erro
 	if err != nil {
 		return "", err
 	}
-	d := auth.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
-	return catalog.TypeDiagnosticNameAt(auth.Catalog, d, path), nil
+	d := auth.ReadCatalog().MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
+	return catalog.TypeDiagnosticNameAt(auth.ReadCatalog(), d, path), nil
 }
 
 func (b *expressionBinder) JSONReturningType(raw parser.TypeName) (sqltype.Usage, error) {

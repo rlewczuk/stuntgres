@@ -45,8 +45,8 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectR
 			if err != nil {
 				return nil, ref, sequenceInputError(err, literal.Value.Pos, "", 0)
 			}
-			if d, ok := auth.definitionRelation(ref.Address); ok {
-				if ns, ok := auth.definitionNamespace(d.Namespace()); ok && ns.Temporary == bindingSessionToken(b.host) {
+			if d, ok := b.authorityRelation(auth, ref.Address); ok {
+				if ns, ok := b.authorityNamespace(auth, d.Namespace()); ok && ns.Temporary == bindingSessionToken(b.host) {
 					temporary = ns.Temporary
 				}
 			}
@@ -54,14 +54,14 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectR
 		var stamp ids.DefinitionRevision
 		// Capture the provider stamp from the same authority as its name and
 		// temporary lifetime, never from a different published catalog.
-		d, represented := auth.definitionRelation(ref.Address)
+		d, represented := b.authorityRelation(auth, ref.Address)
 		if represented {
-			stamp = preparedDefinitionStamp(d, auth.session)
+			stamp = b.host.DefinitionStamp(auth, d)
 		}
 		b.prepared.SequenceConstants = append(b.prepared.SequenceConstants, sequence.Constant{Offset: literal.Value.Pos.Offset, Ref: ref, Temporary: temporary, Stamp: stamp, Represented: represented})
 		text := strconv.FormatUint(uint64(ref.Address.ObjectID), 10)
 		info := b.info(typ.Usage(), literal.Value.Pos, expr.Properties{})
-		if _, ok := auth.definitionRelation(ref.Address); ok {
+		if _, ok := b.authorityRelation(auth, ref.Address); ok {
 			info.RegclassRef = ref
 		}
 		return plan.LiteralExpr{Info: info, Value: sqltype.String(typ, text)}, ref, nil

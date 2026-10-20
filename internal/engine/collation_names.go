@@ -32,7 +32,7 @@ func collationDisplayName(view catalog.Read, id uint32, path []ids.ObjectAddress
 func (b *expressionBinder) collationName(id uint32) string {
 	view := b.host.CurrentCatalog()
 	if b.query.auth != nil {
-		view = b.query.auth.Catalog
+		view = b.query.auth.ReadCatalog()
 	}
 	return typedef.CollationName(view, id)
 }

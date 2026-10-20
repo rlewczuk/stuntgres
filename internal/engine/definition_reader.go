@@ -2,6 +2,7 @@ package engine
 
 import (
 	"iter"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -27,10 +28,14 @@ func (a AuthorizationView) definitionDescriptors() iter.Seq2[ids.ObjectAddress, 
 }
 
 func (a AuthorizationView) definitionProceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
-	if a.definition != nil {
-		return a.definition.ProceduresNamed(namespace, name)
+	return definitionProceduresNamedAt(a.Catalog, a.definition, namespace, name)
+}
+
+func definitionProceduresNamedAt(view catalog.Read, reader catalog.DefinitionReader, namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
+	if reader != nil {
+		return reader.ProceduresNamed(namespace, name)
 	}
-	return indexedDefinitionProcedures(a.Catalog, nil, namespace, name)
+	return indexedDefinitionProcedures(view, nil, namespace, name)
 }
 
 // Enumeration discovers candidates; the selected provider still supplies the
@@ -149,19 +154,17 @@ func (r stageDefinitionReader) HasSQLProcedureName(name string) bool {
 }
 
 func (a AuthorizationView) definitionNamespace(address ids.ObjectAddress) (*catalog.Namespace, bool) {
-	descriptor, exists := a.definitionDescriptor(address)
+	return definitionNamespaceAt(a.Catalog, a.definition, address)
+}
+
+func definitionNamespaceAt(view catalog.Read, reader catalog.DefinitionReader, address ids.ObjectAddress) (*catalog.Namespace, bool) {
+	descriptor, exists := definitionDescriptorAt(view, reader, address)
 	namespace, ok := descriptor.(*catalog.Namespace)
 	return namespace, exists && ok
 }
 
 func (b *expressionBinder) definitionReader() catalog.DefinitionReader {
-	if definition := b.host.Definition(); definition != nil {
-		return definition
-	}
-	if b.query.auth != nil {
-		return b.query.auth.definition
-	}
-	return nil
+	return b.host.BindingDefinition(b.query.auth)
 }
 
 func (b *expressionBinder) hasSQLProcedureName(name string) bool {
@@ -183,8 +186,27 @@ func (b *expressionBinder) definitionArray(element *sqltype.Descriptor) (*sqltyp
 	return definitionArrayAt(b.bindingCatalog(), b.definitionReader(), element)
 }
 
+// The authority* reads go through auth's own catalog and definition reader,
+// which the host supplies (a binding authority reads through the operation's).
+func (b *expressionBinder) authorityDescriptor(auth analyze.Authority, address ids.ObjectAddress) (catalog.Descriptor, bool) {
+	return definitionDescriptorAt(auth.ReadCatalog(), b.host.DefinitionOf(auth), address)
+}
+func (b *expressionBinder) authorityRelation(auth analyze.Authority, address ids.ObjectAddress) (*catalog.Relation, bool) {
+	return definitionRelationAt(auth.ReadCatalog(), b.host.DefinitionOf(auth), address)
+}
+func (b *expressionBinder) authorityNamespace(auth analyze.Authority, address ids.ObjectAddress) (*catalog.Namespace, bool) {
+	return definitionNamespaceAt(auth.ReadCatalog(), b.host.DefinitionOf(auth), address)
+}
+func (b *expressionBinder) authorityType(auth analyze.Authority, id sqltype.ID) (*sqltype.Descriptor, bool) {
+	return definitionTypeAt(auth.ReadCatalog(), b.host.DefinitionOf(auth), id)
+}
+
 func (a AuthorizationView) definitionRelation(address ids.ObjectAddress) (*catalog.Relation, bool) {
-	descriptor, exists := a.definitionDescriptor(address)
+	return definitionRelationAt(a.Catalog, a.definition, address)
+}
+
+func definitionRelationAt(view catalog.Read, reader catalog.DefinitionReader, address ids.ObjectAddress) (*catalog.Relation, bool) {
+	descriptor, exists := definitionDescriptorAt(view, reader, address)
 	relation, ok := descriptor.(*catalog.Relation)
 	return relation, exists && ok
 }

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -46,7 +47,7 @@ func validateMergeReachability(s *parser.Merge) error {
 	return nil
 }
 
-func bindMerge(out *binding, binder *expressionBinder, auth AuthorizationView, requiredRef ids.ObjectRef, s *parser.Merge) error {
+func bindMerge(out *binding, binder *expressionBinder, auth analyze.Authority, requiredRef ids.ObjectRef, s *parser.Merge) error {
 	ref, err := binder.host.AdmittedReference(auth, s.Name, requiredRef)
 	if err != nil {
 		return err
@@ -55,7 +56,7 @@ func bindMerge(out *binding, binder *expressionBinder, auth AuthorizationView, r
 		return ids.ErrCatalogReplaced
 	}
 	out.Ref = ref
-	out.Relation = auth.Catalog.MustRelation(ref.Address)
+	out.Relation = auth.ReadCatalog().MustRelation(ref.Address)
 	if !guardedCatalogRelation(out.Relation) {
 		if err := mergeRelationKind(out.Relation); err != nil {
 			return err

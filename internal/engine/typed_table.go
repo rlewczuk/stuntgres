@@ -28,7 +28,7 @@ func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*cat
 	return nil, expr.ErrorAt("42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(name)), name.Parts[0].Pos)
 }
 
-func bindTypedColumns(host analyzeHost, auth AuthorizationView, s *parser.CreateTable) ([]catalog.Column, []createColumnDeclaration, *catalog.Type, error) {
+func bindTypedColumns(host analyzeHost, auth analyze.Authority, s *parser.CreateTable) ([]catalog.Column, []createColumnDeclaration, *catalog.Type, error) {
 	typ, err := host.NamedType(auth, *s.OfType)
 	if err != nil {
 		return nil, nil, nil, err
@@ -37,9 +37,9 @@ func bindTypedColumns(host analyzeHost, auth AuthorizationView, s *parser.Create
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	source, err := typedef.StandaloneComposite(auth.Catalog, typ, path)
+	source, err := typedef.StandaloneComposite(auth.ReadCatalog(), typ, path)
 	if err == nil {
-		err = auth.CanUse(host.CatalogOwner().Domain.Ref(auth.Catalog.Epoch(), typ.Address()))
+		err = host.CanUse(auth, host.CatalogOwner().Domain.Ref(auth.ReadCatalog().Epoch(), typ.Address()))
 	}
 	if err != nil {
 		return nil, nil, nil, err

@@ -3,6 +3,7 @@ package engine
 import (
 	"strconv"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -17,7 +18,7 @@ import (
 // bindInsertInput owns destination mapping, admission and demanded-default
 // scheduling for ordinary INSERT and each MERGE insertion arm. Its binder is
 // shared with the containing statement, including parameter/source authority.
-func bindInsertInput(b *binding, binder *expressionBinder, auth AuthorizationView, s *parser.Insert) error {
+func bindInsertInput(b *binding, binder *expressionBinder, auth analyze.Authority, s *parser.Insert) error {
 	if s.Source == nil {
 		binder.clause.aggregateClause = "INSERT VALUES"
 	}
@@ -58,7 +59,7 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth AuthorizationVie
 		}
 		b.ArrayTargets[i] = partial
 	}
-	domainScheduling := bindInsertDefaults(binder.host.CatalogOwner(), b, auth, s.Override)
+	domainScheduling := bindInsertDefaults(binder.host.CatalogOwner(), b, auth.ReadCatalog(), s.Override)
 	if s.Source != nil {
 		if err := bindInsertSource(b, binder, auth, s); err != nil {
 			return err
@@ -208,7 +209,7 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth AuthorizationVie
 				if plan != nil {
 					source = plan.ResultUsage().Type
 				}
-				return insertValueError(auth.Catalog, err, c, v, source)
+				return insertValueError(auth.ReadCatalog(), err, c, v, source)
 			}
 			b.Expressions[rowIndex][j] = plan
 		}
@@ -270,11 +271,11 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth AuthorizationVie
 // INSERT, COPY and foreign actions share catalog-owned default/identity plans.
 // The result tells VALUES binding whether domain inputs/defaults require the
 // existing destination-attribute projection rather than default-first demand.
-func bindInsertDefaults(owner *catalog.Owner, b *binding, auth AuthorizationView, override parser.InsertOverride) bool {
+func bindInsertDefaults(owner *catalog.Owner, b *binding, view catalog.Read, override parser.InsertOverride) bool {
 	hasDomains, hasTypeDefaults, hasDomainInput := false, false, false
 	for _, column := range b.Relation.Columns {
 		hasDomains = hasDomains || column.Usage.Type.HasDomainConstraints()
-		hasTypeDefaults = hasTypeDefaults || typedef.TypeDefault(auth.Catalog, column.Usage.Type) != nil
+		hasTypeDefaults = hasTypeDefaults || typedef.TypeDefault(view, column.Usage.Type) != nil
 		hasDomainInput = hasDomainInput || sqltype.ContainsDomainConstraints(column.Usage.Type)
 	}
 	if len(b.Relation.ColumnMeta.Defaults) == 0 && len(b.Relation.ColumnMeta.Identities) == 0 && !hasDomains && !hasTypeDefaults {
@@ -285,13 +286,13 @@ func bindInsertDefaults(owner *catalog.Owner, b *binding, auth AuthorizationView
 		b.Insert.DefaultOrigins = make([]defaultOrigin, len(b.Relation.Columns))
 	}
 	for i, attribute := range b.Relation.Attributes {
-		node, origin := columnDefault(auth.Catalog, b.Relation, i)
+		node, origin := columnDefault(view, b.Relation, i)
 		b.Insert.Defaults[i] = node
 		if b.Insert.DefaultOrigins != nil {
 			b.Insert.DefaultOrigins[i] = origin
 		}
 		if identity, ok := b.Relation.ColumnMeta.Identities[attribute]; ok {
-			b.Insert.Defaults[i] = functions.SequenceCall{Info: expr.Info{Usage: b.Relation.Columns[i].Usage, Property: expr.Properties{Volatility: expr.Volatile}}, Name: "nextval", Ref: owner.Domain.Ref(auth.Catalog.Epoch(), identity.Sequence), Identity: true}
+			b.Insert.Defaults[i] = functions.SequenceCall{Info: expr.Info{Usage: b.Relation.Columns[i].Usage, Property: expr.Properties{Volatility: expr.Volatile}}, Name: "nextval", Ref: owner.Domain.Ref(view.Epoch(), identity.Sequence), Identity: true}
 		}
 	}
 	if override == parser.OverrideUser {

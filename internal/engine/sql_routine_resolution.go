@@ -22,7 +22,7 @@ type sqlCallable struct {
 }
 type sqlCallableSelection struct {
 	sqlCallable
-	auth       AuthorizationView
+	auth       analyze.Authority
 	args       []expr.Expr
 	properties expr.Properties
 }
@@ -65,7 +65,7 @@ func (b *expressionBinder) selectSQLCallable(raw parser.FunctionExpr, cast *pars
 	seen := map[catalog.ProcedureSignature]bool{}
 	hasSQL := false
 	for i := range path.Count() {
-		for d := range auth.definitionProceduresNamed(path.At(i), name) {
+		for d := range definitionProceduresNamedAt(auth.ReadCatalog(), b.host.DefinitionOf(auth), path.At(i), name) {
 			if d.RoutineKind != catalog.FunctionRoutine && d.RoutineKind != catalog.AggregateRoutine && d.RoutineKind != catalog.WindowRoutine || seen[d.Signature] {
 				continue
 			}
@@ -76,7 +76,7 @@ func (b *expressionBinder) selectSQLCallable(raw parser.FunctionExpr, cast *pars
 			if d.SQL == nil && d.Builtin == nil && d.Implementation == nil {
 				continue
 			}
-			candidate, valid := sqlCallableShape(auth, d, raw)
+			candidate, valid := sqlCallableShape(auth.ReadCatalog(), b.host.DefinitionOf(auth), d, raw)
 			if valid {
 				candidate.path = i
 				candidates = append(candidates, candidate)
@@ -358,13 +358,13 @@ func (b *expressionBinder) finishSQLCallable(raw parser.FunctionExpr, selected s
 		if raw.Star || len(raw.Order) != 0 {
 			return nil, expr.ErrorAt("0A000", "SQL scalar function call modifiers are unsupported", raw.Pos)
 		}
-		ref := b.host.CatalogOwner().Domain.Ref(selected.auth.Catalog.Epoch(), d.Address())
+		ref := b.host.CatalogOwner().Domain.Ref(selected.auth.ReadCatalog().Epoch(), d.Address())
 		b.dependency(ref, d.Revision())
-		result, _ := selected.auth.definitionType(sqltype.ID(d.Result))
+		result, _ := b.authorityType(selected.auth, sqltype.ID(d.Result))
 		info := b.info(result.Usage(), raw.Pos, selected.properties)
 		info.RoutineReference = d
 		if b.params.noParameters || b.consumer.materializedDefinition {
-			namespace, ok := selected.auth.definitionNamespace(d.Namespace())
+			namespace, ok := b.authorityNamespace(selected.auth, d.Namespace())
 			if !ok {
 				return nil, fmt.Errorf("missing SQL routine namespace")
 			}
@@ -406,26 +406,26 @@ func (b *expressionBinder) finishSQLCallable(raw parser.FunctionExpr, selected s
 		}
 		cast.Child = args[0]
 		if d != nil {
-			namespace, _ := selected.auth.definitionNamespace(d.Namespace())
+			namespace, _ := b.authorityNamespace(selected.auth, d.Namespace())
 			cast.TypeName.Schema = &parser.Identifier{Text: namespace.Name()}
 		}
 		return b.bind(cast, policy)
 	}
 	if aggregate, ok := original.(parser.AggregateExpr); ok {
-		namespace, _ := selected.auth.definitionNamespace(d.Namespace())
+		namespace, _ := b.authorityNamespace(selected.auth, d.Namespace())
 		aggregate.Schema = &parser.Identifier{Text: namespace.Name()}
 		aggregate.Args = args
 		return b.bind(aggregate, policy)
 	}
 	if d.RoutineKind == catalog.AggregateRoutine || d.RoutineKind == catalog.WindowRoutine {
-		namespace, _ := selected.auth.definitionNamespace(d.Namespace())
+		namespace, _ := b.authorityNamespace(selected.auth, d.Namespace())
 		return b.bind(parser.AggregateExpr{
 			Name: d.Name(), Schema: &parser.Identifier{Text: namespace.Name()}, Args: args, Pos: raw.Pos,
 			Star: raw.Star, Distinct: raw.Distinct, Variadic: raw.Variadic, Order: raw.Order,
 			Filter: raw.Filter, Window: raw.Window, Within: raw.Within, WithinPos: raw.WithinPos,
 		}, policy)
 	}
-	namespace, _ := selected.auth.definitionNamespace(d.Namespace())
+	namespace, _ := b.authorityNamespace(selected.auth, d.Namespace())
 	raw.Name = parser.ObjectName{Parts: []parser.Identifier{{Text: namespace.Name()}, {Text: d.Name()}}}
 	raw.Args = args
 	return b.bindFunctionProvider(raw)

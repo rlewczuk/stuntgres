@@ -35,13 +35,13 @@ func (b *expressionBinder) InstalledRoutine(name parser.ObjectName, family funct
 			if text == "gen_random_uuid" && namespace.ObjectID == ids.PGCatalogNamespaceOID {
 				return functions.CatalogBuiltin{}, nil
 			}
-			proc = procedureInNamespaces(auth.Catalog, namespaceSelection{Qualified: namespace}, text, catalog.ProcedureSignature(signature))
+			proc = procedureInNamespaces(auth.ReadCatalog(), analyze.NamespaceSelection{Qualified: namespace}, text, catalog.ProcedureSignature(signature))
 			if proc != nil {
 				break
 			}
 		}
 	} else {
-		proc = procedureInNamespaces(auth.Catalog, path, text, catalog.ProcedureSignature(signature))
+		proc = procedureInNamespaces(auth.ReadCatalog(), path, text, catalog.ProcedureSignature(signature))
 	}
 	if proc == nil {
 		return nil, nil
@@ -64,7 +64,7 @@ func (b *expressionBinder) InstalledRoutine(name parser.ObjectName, family funct
 	if !installed {
 		return nil, nil
 	}
-	return installedExtensionRoutine{binder: b, catalog: auth.Catalog, procedure: proc}, nil
+	return installedExtensionRoutine{binder: b, catalog: auth.ReadCatalog(), procedure: proc}, nil
 }
 
 // installedExtensionRoutine is the procedure identity handed to bind code

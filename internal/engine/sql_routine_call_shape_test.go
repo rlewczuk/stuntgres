@@ -79,7 +79,7 @@ func TestSQLRoutineProviderCallShapes(t *testing.T) {
 					continue
 				}
 				found = true
-				candidate, ok := sqlCallableShape(auth, d, raw)
+				candidate, ok := sqlCallableShape(auth.Catalog, auth.definition, d, raw)
 				if !ok {
 					t.Fatal("metadata expansion rejected existing callable shape")
 				}
@@ -198,7 +198,7 @@ func TestSQLRoutineWindowCallShapeTargets(t *testing.T) {
 	for d := range auth.definitionProceduresNamed(namespace, "lag") {
 		if d.Signature == "5077,23,5077" {
 			var ok bool
-			template, ok = sqlCallableShape(auth, d, raw)
+			template, ok = sqlCallableShape(auth.Catalog, auth.definition, d, raw)
 			if !ok {
 				t.Fatal("missing declared window call shape")
 			}

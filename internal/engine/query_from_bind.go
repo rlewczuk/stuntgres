@@ -231,7 +231,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 			if len(parts) > 1 && (q.name != parts[len(parts)-2].Text || len(parts) == 3 && q.schema != parts[0].Text) {
 				continue
 			}
-			if relation, ok := b.query.auth.definitionRelation(q.ref.Address); ok && relation.RelationKind == catalog.TableRelation {
+			if relation, ok := b.authorityRelation(b.query.auth, q.ref.Address); ok && relation.RelationKind == catalog.TableRelation {
 				return nil, expr.ErrorAt("42P10", fmt.Sprintf(`cannot use system column "%s" in MERGE WHEN condition`, name), raw.Pos)
 			}
 		}
@@ -399,11 +399,11 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 				}
 			}
 		}
-		ref, err := b.host.AdmittedReference(*b.query.auth, n.Name, b.query.lockAdmission.tableQueries[n].ref)
+		ref, err := b.host.AdmittedReference(b.query.auth, n.Name, b.query.lockAdmission.tableQueries[n].ref)
 		if err != nil {
 			return nil, queryNamespace{}, futureCTEError(err, b.query.lockAdmission.futureCTE[n])
 		}
-		relation, _ := b.query.auth.definitionRelation(ref.Address)
+		relation, _ := b.authorityRelation(b.query.auth, ref.Address)
 		if relation.RelationKind == catalog.CompositeRelation {
 			return nil, queryNamespace{}, typedef.CompositeOpenError(relation, n.Name.Parts[0].Pos)
 		}
@@ -421,12 +421,12 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			}
 		}
 		leaf := len(b.query.sources)
-		b.query.sources = append(b.query.sources, exec.Leaf{Ref: ref, Relation: relation, Only: n.Only, Storage: b.host.AuthorizationStorage(*b.query.auth, ref.Address), Mark: b.query.lockAdmission.tableMark(n), Table: n, Query: b.query.lockAdmission.tableQueries[n].query, DeleteReference: b.target.deleteUsingSources && len(b.query.scopes) == 0})
+		b.query.sources = append(b.query.sources, exec.Leaf{Ref: ref, Relation: relation, Only: n.Only, Storage: b.host.AuthorizationStorage(b.query.auth, ref.Address), Mark: b.query.lockAdmission.tableMark(n), Table: n, Query: b.query.lockAdmission.tableQueries[n].query, DeleteReference: b.target.deleteUsingSources && len(b.query.scopes) == 0})
 		columns := make([]queryColumn, len(relation.Columns))
 		for i, c := range relation.Columns {
 			columns[i] = queryColumn{descriptor: c, slot: i, leaf: leaf, physical: i}
 		}
-		namespace, _ := b.query.auth.definitionDescriptor(relation.Namespace())
+		namespace, _ := b.authorityDescriptor(b.query.auth, relation.Namespace())
 		q := queryQualifier{name: relation.Name(), original: relation.Name(), schema: namespace.Name(), ref: ref, columns: columns}
 		b.query.hidden = append(b.query.hidden, q)
 		return &plan.SourceNode{QuerySchema: relation.Columns, Ref: ref, Occurrence: leaf, RangeName: relation.Name()}, queryNamespace{columns: columns, qualifiers: []queryQualifier{q}, frame: relation.Columns}, nil

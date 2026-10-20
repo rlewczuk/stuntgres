@@ -11,13 +11,13 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func sqlCallableShape(auth AuthorizationView, d *catalog.Procedure, raw parser.FunctionExpr) (sqlCallable, bool) {
+func sqlCallableShape(view catalog.Read, reader catalog.DefinitionReader, d *catalog.Procedure, raw parser.FunctionExpr) (sqlCallable, bool) {
 	candidate := sqlCallable{procedure: d}
 	var declared []sqltype.Usage
 	if d.Signature != "" {
 		for part := range strings.SplitSeq(string(d.Signature), ",") {
 			id, err := strconv.ParseUint(part, 10, 32)
-			t, ok := auth.definitionType(sqltype.ID(id))
+			t, ok := definitionTypeAt(view, reader, sqltype.ID(id))
 			if err != nil || !ok {
 				return candidate, false
 			}
@@ -44,7 +44,7 @@ func sqlCallableShape(auth AuthorizationView, d *catalog.Procedure, raw parser.F
 		if n < fixed {
 			return candidate, false
 		}
-		element, ok := auth.definitionType(variadic)
+		element, ok := definitionTypeAt(view, reader, variadic)
 		if !ok {
 			return candidate, false
 		}

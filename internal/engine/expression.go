@@ -735,16 +735,10 @@ func (b *expressionBinder) seedParameters(types []sqltype.Usage) {
 }
 
 // Binding must retain the caller's catalog/path authority, including a private
-// CREATE candidate. Execution still opens providers through live authorization.
-func (b *expressionBinder) bindingAuthorization() (AuthorizationView, error) {
-	if b.query.auth != nil {
-		auth := *b.query.auth
-		if definition := b.host.Definition(); definition != nil {
-			auth.definition = definition
-		}
-		return auth, nil
-	}
-	return b.host.Authorization()
+// CREATE candidate, read through the operation's definition reader. Execution
+// still opens providers through live authorization.
+func (b *expressionBinder) bindingAuthorization() (analyze.Authority, error) {
+	return b.host.BindingAuthority(b.query.auth)
 }
 func (b *expressionBinder) typ(id sqltype.ID) *sqltype.Descriptor {
 	d, _ := b.definitionType(id)
@@ -760,7 +754,7 @@ func (b *expressionBinder) dependency(ref ids.ObjectRef, revision ids.Definition
 }
 func (b *expressionBinder) bindingCatalog() catalog.Read {
 	if b.query.auth != nil {
-		return b.query.auth.Catalog
+		return b.query.auth.ReadCatalog()
 	}
 	return b.host.CurrentCatalog()
 }
@@ -1398,8 +1392,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 					return nil, err
 				}
 				address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}
-				if descriptor, exists := auth.Catalog.Descriptor(address); exists {
-					b.dependency(b.host.CatalogOwner().Domain.Ref(auth.Catalog.Epoch(), address), descriptor.Revision())
+				if descriptor, exists := auth.ReadCatalog().Descriptor(address); exists {
+					b.dependency(b.host.CatalogOwner().Domain.Ref(auth.ReadCatalog().Epoch(), address), descriptor.Revision())
 				}
 			}
 		case parser.TypedLiteralExpr:

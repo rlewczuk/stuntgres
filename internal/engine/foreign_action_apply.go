@@ -67,7 +67,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 	if action == parser.ForeignKeySetDefault {
 		b := binding{Relation: job.child}
 		e := s.op.session.Engine()
-		bindInsertDefaults(e.catalog.owner(), &b, auth, parser.OverrideNone)
+		bindInsertDefaults(e.catalog.owner(), &b, auth.Catalog, parser.OverrideNone)
 		plan.defaults = make([]expr.Expr, len(plan.targets))
 		plan.defaultOrigins = make([]defaultOrigin, len(plan.targets))
 		for i, slot := range plan.targets {

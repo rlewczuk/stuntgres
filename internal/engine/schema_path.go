@@ -190,7 +190,7 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 	return namespaceSelection{Qualified: a}, nil
 }
 
-func (b *expressionBinder) builtinVisible(name parser.ObjectName, kind lookupKind) (bool, error) {
+func (b *expressionBinder) builtinVisible(name parser.ObjectName, kind analyze.LookupKind) (bool, error) {
 	auth, err := b.bindingAuthorization()
 	if err != nil {
 		return false, err

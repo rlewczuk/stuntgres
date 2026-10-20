@@ -24,7 +24,7 @@ func (b *expressionBinder) diagnosticTypeName(typ *sqltype.Descriptor) string {
 	if err != nil {
 		return typ.DiagnosticName()
 	}
-	definition, _ := auth.definitionDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
+	definition, _ := b.authorityDescriptor(auth, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
 	descriptor, ok := definition.(*catalog.Type)
 	if !ok {
 		return typ.DiagnosticName()
@@ -33,7 +33,7 @@ func (b *expressionBinder) diagnosticTypeName(typ *sqltype.Descriptor) string {
 	if err != nil {
 		return typ.DiagnosticName()
 	}
-	return catalog.TypeDiagnosticNameAt(auth.Catalog, descriptor, path)
+	return catalog.TypeDiagnosticNameAt(auth.ReadCatalog(), descriptor, path)
 }
 
 // captureTypeDiagnosticName freezes input and demanded-comparison naming against
@@ -225,7 +225,7 @@ func captureRetainedExpressionInput(node expr.Expr, element func() error, diagno
 // Stored sources are opaque to the outer expression binder, but their
 // planning-time conversions consume the same published input environment.
 func (b *expressionBinder) captureRetainedViewInput(definition *viewDefinition) error {
-	return captureRetainedDefinitionInput(b.query.auth.Catalog, definition, b.captureElementInput, b.captureTypeDiagnosticInput)
+	return captureRetainedDefinitionInput(b.query.auth.ReadCatalog(), definition, b.captureElementInput, b.captureTypeDiagnosticInput)
 }
 
 // Each frozen consumer supplies its own coherent catalog and input owners.

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/typedef"
@@ -12,7 +13,7 @@ import (
 
 // The existing command binders share a single statement expression binder.
 // Parameter finishing, dependencies and source occurrence ordinals stay outer.
-func bindMutationCommand(binder *expressionBinder, auth AuthorizationView, requiredRef ids.ObjectRef, statement parser.Statement) (binding, error) {
+func bindMutationCommand(binder *expressionBinder, auth analyze.Authority, requiredRef ids.ObjectRef, statement parser.Statement) (binding, error) {
 	b := binding{}
 	switch s := statement.(type) {
 	case *parser.Insert:
@@ -24,7 +25,7 @@ func bindMutationCommand(binder *expressionBinder, auth AuthorizationView, requi
 		if b.Ref != requiredRef {
 			return b, ids.ErrCatalogReplaced
 		}
-		b.Relation = auth.Catalog.MustRelation(b.Ref.Address)
+		b.Relation = auth.ReadCatalog().MustRelation(b.Ref.Address)
 		if b.Relation.RelationKind == catalog.CompositeRelation {
 			return b, typedef.CompositeOpenError(b.Relation, s.Name.Parts[0].Pos)
 		}
@@ -74,7 +75,7 @@ func bindMutationCommand(binder *expressionBinder, auth AuthorizationView, requi
 		if b.Ref != requiredRef {
 			return b, ids.ErrCatalogReplaced
 		}
-		b.Relation = auth.Catalog.MustRelation(b.Ref.Address)
+		b.Relation = auth.ReadCatalog().MustRelation(b.Ref.Address)
 		if b.Relation.RelationKind == catalog.CompositeRelation {
 			return b, typedef.CompositeOpenError(b.Relation, s.Name.Parts[0].Pos)
 		}
@@ -92,7 +93,7 @@ func bindMutationCommand(binder *expressionBinder, auth AuthorizationView, requi
 			b.CurrentOf = s.CurrentOf.Text
 		}
 		binder.target.deleteTarget, binder.target.name, binder.target.alias = true, b.Relation.Name(), s.Alias.Text
-		binder.query.auth = &auth
+		binder.query.auth = auth
 		if s.Using != nil {
 			target := binder.mutationTargetNamespace()
 			binder.query.hidden = append(binder.query.hidden, target.qualifiers[0])
@@ -132,7 +133,7 @@ func bindMutationCommand(binder *expressionBinder, auth AuthorizationView, requi
 		if b.Ref != requiredRef {
 			return b, ids.ErrCatalogReplaced
 		}
-		b.Relation = auth.Catalog.MustRelation(b.Ref.Address)
+		b.Relation = auth.ReadCatalog().MustRelation(b.Ref.Address)
 		if b.Relation.RelationKind == catalog.CompositeRelation {
 			return b, typedef.CompositeOpenError(b.Relation, s.Name.Parts[0].Pos)
 		}
@@ -148,7 +149,7 @@ func bindMutationCommand(binder *expressionBinder, auth AuthorizationView, requi
 				return b, fmt.Errorf("stuntgres: relation storage is missing")
 			}
 		}
-		binder.query.auth = &auth
+		binder.query.auth = auth
 		if err = bindUpdate(&b, binder, s); err != nil {
 			return b, err
 		}
@@ -245,10 +246,10 @@ func (b *expressionBinder) bindCTEMutation(statement parser.Statement) (binding,
 			name = s.Name
 		}
 		var err error
-		required, err = b.host.ResolveReference(*b.query.auth, name)
+		required, err = b.host.ResolveReference(b.query.auth, name)
 		if err != nil {
 			return binding{}, err
 		}
 	}
-	return bindMutationCommand(b, *b.query.auth, required, statement)
+	return bindMutationCommand(b, b.query.auth, required, statement)
 }

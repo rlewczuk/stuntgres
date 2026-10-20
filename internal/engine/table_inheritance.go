@@ -77,7 +77,7 @@ func inheritanceColumnConflict(view catalog.Read, old, next catalog.Column, loca
 }
 
 // Local duplicate detection precedes merging; LIKE remains a local copy, not an edge.
-func describeInheritance(host analyzeHost, auth AuthorizationView, syntax *parser.CreateTable, b *binding, columns []catalog.Column, declarations []createColumnDeclaration, likeConstraints []createLikeConstraint) ([]catalog.Column, []createColumnDeclaration, []createLikeConstraint, error) {
+func describeInheritance(host analyzeHost, auth analyze.Authority, syntax *parser.CreateTable, b *binding, columns []catalog.Column, declarations []createColumnDeclaration, likeConstraints []createLikeConstraint) ([]catalog.Column, []createColumnDeclaration, []createLikeConstraint, error) {
 	if len(syntax.Parents) == 0 {
 		return columns, declarations, likeConstraints, nil
 	}
@@ -104,7 +104,7 @@ func describeInheritance(host analyzeHost, auth AuthorizationView, syntax *parse
 			}
 			return nil, nil, nil, err
 		}
-		source := auth.Catalog.MustRelation(ref.Address)
+		source := auth.ReadCatalog().MustRelation(ref.Address)
 		if source.RelationKind == catalog.CompositeRelation {
 			d := sqlError("42809", fmt.Sprintf(`cannot open relation "%s"`, source.Name())).(*sqlstate.Error)
 			d.Detail = "This operation is not supported for composite types."
@@ -122,11 +122,11 @@ func describeInheritance(host analyzeHost, auth AuthorizationView, syntax *parse
 		if source.RelationKind != catalog.TableRelation {
 			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`inherited relation "%s" is not a table or foreign table`, source.Name()))
 		}
-		if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
+		if err := host.CheckPrivilege(auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			return nil, nil, nil, err
 		}
-		parentNS := auth.Catalog.MustNamespace(source.Namespace())
-		if parentNS.Temporary != (ids.SessionToken{}) && syntax.Persistence != "temporary" && auth.stagedTemporary == (ids.ObjectAddress{}) {
+		parentNS := auth.ReadCatalog().MustNamespace(source.Namespace())
+		if parentNS.Temporary != (ids.SessionToken{}) && syntax.Persistence != "temporary" && host.StagedTemporary(auth) == (ids.ObjectAddress{}) {
 			return nil, nil, nil, sqlError("42809", fmt.Sprintf(`cannot inherit from temporary relation "%s"`, source.Name()))
 		}
 		if seen[ref.Address] {
@@ -138,7 +138,7 @@ func describeInheritance(host analyzeHost, auth AuthorizationView, syntax *parse
 			definition, isGenerated := source.ColumnMeta.Generations[source.Attributes[sourceSlot]]
 			if slot, ok := index[c.Name]; ok {
 				host.EmitNotice(sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`merging multiple inherited definitions of column "%s"`, c.Name)})
-				if err := inheritanceColumnConflict(auth.Catalog, merged[slot], c, false); err != nil {
+				if err := inheritanceColumnConflict(auth.ReadCatalog(), merged[slot], c, false); err != nil {
 					return nil, nil, nil, err
 				}
 				if generated[c.Name] != isGenerated {
@@ -171,7 +171,7 @@ func describeInheritance(host analyzeHost, auth AuthorizationView, syntax *parse
 				detail = "User-specified column moved to the position of the inherited column."
 			}
 			host.EmitNotice(sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
-			if err := inheritanceColumnConflict(auth.Catalog, merged[slot], c, true); err != nil {
+			if err := inheritanceColumnConflict(auth.ReadCatalog(), merged[slot], c, true); err != nil {
 				return nil, nil, nil, err
 			}
 		} else {

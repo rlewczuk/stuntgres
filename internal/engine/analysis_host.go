@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -20,26 +23,33 @@ import (
 // Engine.mu held; every method is called with Engine.mu held and never takes
 // or releases it.
 type analyzeHost interface {
-	// Authority.
-	Authorization() (AuthorizationView, error)
-	Definition() catalog.DefinitionReader
-	AuthorizationStorage(auth AuthorizationView, address ids.ObjectAddress) *storage.Relation
-	AdmittedReference(auth AuthorizationView, name parser.ObjectName, ref ids.ObjectRef) (ids.ObjectRef, error)
-	ResolveReference(auth AuthorizationView, name parser.ObjectName) (ids.ObjectRef, error)
+	// Authority. Binding authorities read the stored authority through the
+	// operation's definition reader (analysis_authority.go).
+	BindingAuthority(base analyze.Authority) (analyze.Authority, error)
+	BindingDefinition(base analyze.Authority) catalog.DefinitionReader
+	DefinitionOf(auth analyze.Authority) catalog.DefinitionReader
+	CheckPrivilege(auth analyze.Authority, req access.Requirement) error
+	CanUse(auth analyze.Authority, ref ids.ObjectRef) error
+	StagedTemporary(auth analyze.Authority) ids.ObjectAddress
+	Roles(auth analyze.Authority) authorization.Read
+	DefinitionStamp(auth analyze.Authority, d catalog.Descriptor) ids.DefinitionRevision
+	AuthorizationStorage(auth analyze.Authority, address ids.ObjectAddress) *storage.Relation
+	AdmittedReference(auth analyze.Authority, name parser.ObjectName, ref ids.ObjectRef) (ids.ObjectRef, error)
+	ResolveReference(auth analyze.Authority, name parser.ObjectName) (ids.ObjectRef, error)
 
 	// Catalog.
 	CatalogOwner() *catalog.Owner
 	CurrentCatalog() catalog.Read
 
 	// Names.
-	LookupNamespaces(auth AuthorizationView, name parser.ObjectName, kind lookupKind) (namespaceSelection, error)
-	LookupNamespacesSnapshot(auth AuthorizationView, name parser.ObjectName, kind lookupKind) (namespaceSelection, error)
-	LookupPath(auth AuthorizationView, kind lookupKind) ([]ids.ObjectAddress, error)
-	ReferencePath(auth AuthorizationView) ([]ids.ObjectAddress, error)
-	Regclass(auth AuthorizationView, text string) (ids.ObjectRef, error)
+	LookupNamespaces(auth analyze.Authority, name parser.ObjectName, kind analyze.LookupKind) (analyze.NamespaceSelection, error)
+	LookupNamespacesSnapshot(auth analyze.Authority, name parser.ObjectName, kind analyze.LookupKind) (analyze.NamespaceSelection, error)
+	LookupPath(auth analyze.Authority, kind analyze.LookupKind) ([]ids.ObjectAddress, error)
+	ReferencePath(auth analyze.Authority) ([]ids.ObjectAddress, error)
+	Regclass(auth analyze.Authority, text string) (ids.ObjectRef, error)
 	LookupCollation(raw parser.ObjectName) (uint32, error)
-	LookupIndexClass(auth AuthorizationView, raw parser.ObjectName, method catalog.IndexMethod) (sqltype.IndexClass, error)
-	NamedType(auth AuthorizationView, name parser.ObjectName) (*catalog.Type, error)
+	LookupIndexClass(auth analyze.Authority, raw parser.ObjectName, method catalog.IndexMethod) (sqltype.IndexClass, error)
+	NamedType(auth analyze.Authority, name parser.ObjectName) (*catalog.Type, error)
 
 	// Types.
 	ResolveType(raw parser.TypeName) (sqltype.Usage, error)
@@ -50,12 +60,12 @@ type analyzeHost interface {
 	ResolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName) (sqltype.Usage, error)
 
 	// Captures.
-	CaptureElementInput(auth AuthorizationView, input *sqltype.InputEnvironment) error
-	ResolveOperatorText(ctx context.Context, auth AuthorizationView, pos parser.Position, regoper bool, text string) (uint32, []ids.ObjectAddress, []catalog.ExpressionDependency, error)
-	ResolveRegtypeText(ctx context.Context, auth AuthorizationView, pos parser.Position, text string) (uint32, []ids.ObjectAddress, error)
-	CaptureTypeDiagnosticInput(auth AuthorizationView, input *sqltype.InputEnvironment, typ *sqltype.Descriptor) error
-	CaptureTypeDiagnosticName(auth AuthorizationView) (func(sqltype.ID) string, error)
-	CaptureEnumOperationInput(auth AuthorizationView, input *sqltype.InputEnvironment) error
+	CaptureElementInput(auth analyze.Authority, input *sqltype.InputEnvironment) error
+	ResolveOperatorText(ctx context.Context, auth analyze.Authority, pos parser.Position, regoper bool, text string) (uint32, []ids.ObjectAddress, []catalog.ExpressionDependency, error)
+	ResolveRegtypeText(ctx context.Context, auth analyze.Authority, pos parser.Position, text string) (uint32, []ids.ObjectAddress, error)
+	CaptureTypeDiagnosticInput(auth analyze.Authority, input *sqltype.InputEnvironment, typ *sqltype.Descriptor) error
+	CaptureTypeDiagnosticName(auth analyze.Authority) (func(sqltype.ID) string, error)
+	CaptureEnumOperationInput(auth analyze.Authority, input *sqltype.InputEnvironment) error
 	CaptureEnumOperationSafety(input *sqltype.InputEnvironment)
 	FTSInput() sqltype.FTSInputNotices
 
@@ -69,9 +79,9 @@ type analyzeHost interface {
 	ReplayDomainCell(b *binding, s *parser.Insert, row, column int) (expr.Expr, bool, error)
 
 	// Upward.
-	DecodeDomainLiteral(ctx context.Context, auth *AuthorizationView, read catalog.Read, typ *sqltype.Descriptor, text string, typmod int32, input sqltype.InputEnvironment) (sqltype.Value, error)
-	IndexExpressionBinder(input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation) *expressionBinder
-	BindViewWrite(b *binding, auth AuthorizationView, stmt parser.Statement, consumed ...ids.ObjectRef) error
+	DecodeDomainLiteral(ctx context.Context, auth analyze.Authority, read catalog.Read, typ *sqltype.Descriptor, text string, typmod int32, input sqltype.InputEnvironment) (sqltype.Value, error)
+	IndexExpressionBinder(input sqltype.InputEnvironment, auth analyze.Authority, parent *catalog.Relation) *expressionBinder
+	BindViewWrite(b *binding, auth analyze.Authority, stmt parser.Statement, consumed ...ids.ObjectRef) error
 }
 
 // bindingHost is the root adapter behind analyzeHost. Binders also run
@@ -100,27 +110,40 @@ func (e *Engine) analysisHost(op *Operation) *bindingHost {
 	return &bindingHost{engine: e, op: op}
 }
 
-func (h *bindingHost) Authorization() (AuthorizationView, error) {
-	return h.engine.authorizationLocked(h.op)
+func (h *bindingHost) CheckPrivilege(auth analyze.Authority, req access.Requirement) error {
+	return h.view(auth).Check(req)
 }
 
-func (h *bindingHost) Definition() catalog.DefinitionReader {
-	if h.op == nil {
-		return nil
-	}
-	return h.op.definition
+func (h *bindingHost) CanUse(auth analyze.Authority, ref ids.ObjectRef) error {
+	return h.view(auth).CanUse(ref)
 }
 
-func (h *bindingHost) AuthorizationStorage(auth AuthorizationView, address ids.ObjectAddress) *storage.Relation {
-	return h.engine.authorizationStorageLocked(auth, address)
+func (h *bindingHost) StagedTemporary(auth analyze.Authority) ids.ObjectAddress {
+	base, _ := authorityBase(auth)
+	return base.stagedTemporary
 }
 
-func (h *bindingHost) AdmittedReference(auth AuthorizationView, name parser.ObjectName, ref ids.ObjectRef) (ids.ObjectRef, error) {
-	return h.engine.admittedReference(auth, name, ref)
+func (h *bindingHost) Roles(auth analyze.Authority) authorization.Read {
+	base, _ := authorityBase(auth)
+	return base.Roles
 }
 
-func (h *bindingHost) ResolveReference(auth AuthorizationView, name parser.ObjectName) (ids.ObjectRef, error) {
-	return h.engine.resolveReference(auth, name)
+// DefinitionStamp is the provider stamp of d as auth's session sees it.
+func (h *bindingHost) DefinitionStamp(auth analyze.Authority, d catalog.Descriptor) ids.DefinitionRevision {
+	base, _ := authorityBase(auth)
+	return preparedDefinitionStamp(d, base.session)
+}
+
+func (h *bindingHost) AuthorizationStorage(auth analyze.Authority, address ids.ObjectAddress) *storage.Relation {
+	return h.engine.authorizationStorageLocked(h.view(auth), address)
+}
+
+func (h *bindingHost) AdmittedReference(auth analyze.Authority, name parser.ObjectName, ref ids.ObjectRef) (ids.ObjectRef, error) {
+	return h.engine.admittedReference(h.view(auth), name, ref)
+}
+
+func (h *bindingHost) ResolveReference(auth analyze.Authority, name parser.ObjectName) (ids.ObjectRef, error) {
+	return h.engine.resolveReference(h.view(auth), name)
 }
 
 func (h *bindingHost) CatalogOwner() *catalog.Owner { return h.engine.catalog.owner() }
@@ -129,36 +152,36 @@ func (h *bindingHost) CurrentCatalog() catalog.Read {
 	return h.engine.catalog.read(h.engine.catalog.state)
 }
 
-func (h *bindingHost) LookupNamespaces(auth AuthorizationView, name parser.ObjectName, kind lookupKind) (namespaceSelection, error) {
-	return h.engine.lookupNamespaces(auth, name, kind)
+func (h *bindingHost) LookupNamespaces(auth analyze.Authority, name parser.ObjectName, kind analyze.LookupKind) (analyze.NamespaceSelection, error) {
+	return h.engine.lookupNamespaces(h.view(auth), name, kind)
 }
 
-func (h *bindingHost) LookupNamespacesSnapshot(auth AuthorizationView, name parser.ObjectName, kind lookupKind) (namespaceSelection, error) {
-	return h.engine.lookupNamespacesSnapshot(auth, name, kind)
+func (h *bindingHost) LookupNamespacesSnapshot(auth analyze.Authority, name parser.ObjectName, kind analyze.LookupKind) (analyze.NamespaceSelection, error) {
+	return h.engine.lookupNamespacesSnapshot(h.view(auth), name, kind)
 }
 
-func (h *bindingHost) LookupPath(auth AuthorizationView, kind lookupKind) ([]ids.ObjectAddress, error) {
-	return h.engine.lookupPath(auth, kind)
+func (h *bindingHost) LookupPath(auth analyze.Authority, kind analyze.LookupKind) ([]ids.ObjectAddress, error) {
+	return h.engine.lookupPath(h.view(auth), kind)
 }
 
-func (h *bindingHost) ReferencePath(auth AuthorizationView) ([]ids.ObjectAddress, error) {
-	return h.engine.referencePath(auth)
+func (h *bindingHost) ReferencePath(auth analyze.Authority) ([]ids.ObjectAddress, error) {
+	return h.engine.referencePath(h.view(auth))
 }
 
-func (h *bindingHost) Regclass(auth AuthorizationView, text string) (ids.ObjectRef, error) {
-	return h.engine.regclassLocked(auth, text)
+func (h *bindingHost) Regclass(auth analyze.Authority, text string) (ids.ObjectRef, error) {
+	return h.engine.regclassLocked(h.view(auth), text)
 }
 
 func (h *bindingHost) LookupCollation(raw parser.ObjectName) (uint32, error) {
 	return h.engine.lookupCollation(raw, h.op)
 }
 
-func (h *bindingHost) LookupIndexClass(auth AuthorizationView, raw parser.ObjectName, method catalog.IndexMethod) (sqltype.IndexClass, error) {
-	return h.engine.lookupIndexClass(auth, raw, method)
+func (h *bindingHost) LookupIndexClass(auth analyze.Authority, raw parser.ObjectName, method catalog.IndexMethod) (sqltype.IndexClass, error) {
+	return h.engine.lookupIndexClass(h.view(auth), raw, method)
 }
 
-func (h *bindingHost) NamedType(auth AuthorizationView, name parser.ObjectName) (*catalog.Type, error) {
-	return h.engine.namedType(auth, name)
+func (h *bindingHost) NamedType(auth analyze.Authority, name parser.ObjectName) (*catalog.Type, error) {
+	return h.engine.namedType(h.view(auth), name)
 }
 
 func (h *bindingHost) ResolveType(raw parser.TypeName) (sqltype.Usage, error) {
@@ -185,16 +208,16 @@ func (h *bindingHost) ResolveColumnCollation(u sqltype.Usage, raw *parser.Object
 	return h.engine.resolveColumnCollation(u, raw, h.op)
 }
 
-func (h *bindingHost) CaptureElementInput(auth AuthorizationView, input *sqltype.InputEnvironment) error {
-	return h.engine.captureElementInput(auth, h.op, input)
+func (h *bindingHost) CaptureElementInput(auth analyze.Authority, input *sqltype.InputEnvironment) error {
+	return h.engine.captureElementInput(h.view(auth), h.op, input)
 }
 
 // ResolveOperatorText resolves one uncaptured regoper or regoperator literal
 // under a fresh capture and returns the namespaces it qualified and the
 // providers it resolved. Capture errors come back as they are; resolution
 // errors carry the literal's position.
-func (h *bindingHost) ResolveOperatorText(ctx context.Context, auth AuthorizationView, pos parser.Position, regoper bool, text string) (uint32, []ids.ObjectAddress, []catalog.ExpressionDependency, error) {
-	input, err := h.engine.captureOperatorInput(auth, h.op)
+func (h *bindingHost) ResolveOperatorText(ctx context.Context, auth analyze.Authority, pos parser.Position, regoper bool, text string) (uint32, []ids.ObjectAddress, []catalog.ExpressionDependency, error) {
+	input, err := h.engine.captureOperatorInput(h.view(auth), h.op)
 	if err != nil {
 		return 0, nil, nil, err
 	}
@@ -218,8 +241,8 @@ func (h *bindingHost) ResolveOperatorText(ctx context.Context, auth Authorizatio
 // ResolveRegtypeText resolves one uncaptured regtype literal under a fresh
 // capture and returns the namespaces it qualified. Capture errors come back as
 // they are; resolution errors carry the literal's position.
-func (h *bindingHost) ResolveRegtypeText(ctx context.Context, auth AuthorizationView, pos parser.Position, text string) (uint32, []ids.ObjectAddress, error) {
-	input, err := h.engine.captureRegtypeInput(auth, h.op)
+func (h *bindingHost) ResolveRegtypeText(ctx context.Context, auth analyze.Authority, pos parser.Position, text string) (uint32, []ids.ObjectAddress, error) {
+	input, err := h.engine.captureRegtypeInput(h.view(auth), h.op)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -233,16 +256,16 @@ func (h *bindingHost) ResolveRegtypeText(ctx context.Context, auth Authorization
 	return id, qualified, nil
 }
 
-func (h *bindingHost) CaptureTypeDiagnosticInput(auth AuthorizationView, input *sqltype.InputEnvironment, typ *sqltype.Descriptor) error {
-	return h.engine.captureTypeDiagnosticInput(auth, h.op, input, typ)
+func (h *bindingHost) CaptureTypeDiagnosticInput(auth analyze.Authority, input *sqltype.InputEnvironment, typ *sqltype.Descriptor) error {
+	return h.engine.captureTypeDiagnosticInput(h.view(auth), h.op, input, typ)
 }
 
-func (h *bindingHost) CaptureTypeDiagnosticName(auth AuthorizationView) (func(sqltype.ID) string, error) {
-	return h.engine.captureTypeDiagnosticName(auth)
+func (h *bindingHost) CaptureTypeDiagnosticName(auth analyze.Authority) (func(sqltype.ID) string, error) {
+	return h.engine.captureTypeDiagnosticName(h.view(auth))
 }
 
-func (h *bindingHost) CaptureEnumOperationInput(auth AuthorizationView, input *sqltype.InputEnvironment) error {
-	return h.engine.captureEnumOperationInput(auth, input)
+func (h *bindingHost) CaptureEnumOperationInput(auth analyze.Authority, input *sqltype.InputEnvironment) error {
+	return h.engine.captureEnumOperationInput(h.view(auth), input)
 }
 
 func (h *bindingHost) CaptureEnumOperationSafety(input *sqltype.InputEnvironment) {
@@ -279,16 +302,16 @@ func (h *bindingHost) ReplayDomainCell(b *binding, s *parser.Insert, row, column
 }
 
 // DecodeDomainLiteral decodes a domain-constrained literal through the
-// statement scope's locked domain input. auth is the binder's authority, or
-// nil for the operation's current authority.
-func (h *bindingHost) DecodeDomainLiteral(ctx context.Context, auth *AuthorizationView, read catalog.Read, typ *sqltype.Descriptor, text string, typmod int32, input sqltype.InputEnvironment) (sqltype.Value, error) {
+// statement scope's locked domain input. auth is the binder's stored
+// authority, or nil for the operation's current authority.
+func (h *bindingHost) DecodeDomainLiteral(ctx context.Context, auth analyze.Authority, read catalog.Read, typ *sqltype.Descriptor, text string, typmod int32, input sqltype.InputEnvironment) (sqltype.Value, error) {
 	owner, ok := input.LockedDomainInput.(*StatementScope)
 	if !ok {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing locked domain literal input boundary")
 	}
 	var authority AuthorizationView
 	if auth != nil {
-		authority = *auth
+		authority = h.view(auth)
 	} else {
 		var err error
 		authority, err = h.engine.authorizationLocked(h.op)
@@ -311,12 +334,12 @@ func (h *bindingHost) DecodeDomainLiteral(ctx context.Context, auth *Authorizati
 
 // IndexExpressionBinder builds a nested binder over an index's parent
 // relation under the operation's current context.
-func (h *bindingHost) IndexExpressionBinder(input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation) *expressionBinder {
-	return h.engine.indexExpressionBinder(h.op, input, auth, parent)
+func (h *bindingHost) IndexExpressionBinder(input sqltype.InputEnvironment, auth analyze.Authority, parent *catalog.Relation) *expressionBinder {
+	return h.engine.indexExpressionBinder(h.op, input, h.view(auth), parent)
 }
 
-func (h *bindingHost) BindViewWrite(b *binding, auth AuthorizationView, stmt parser.Statement, consumed ...ids.ObjectRef) error {
-	return h.engine.bindViewWrite(b, auth, stmt, consumed...)
+func (h *bindingHost) BindViewWrite(b *binding, auth analyze.Authority, stmt parser.Statement, consumed ...ids.ObjectRef) error {
+	return h.engine.bindViewWrite(b, h.view(auth), stmt, consumed...)
 }
 
 // bindingSessionToken is the binding session's token, or the zero token without an

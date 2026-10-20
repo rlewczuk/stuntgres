@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -132,7 +133,7 @@ type groupingState struct {
 // frame numbering, and the scope stack of enclosing levels. Subquery and
 // FROM binders save it and restore it around nested levels.
 type queryScopeState struct {
-	auth                  *AuthorizationView
+	auth                  analyze.Authority
 	sources               []exec.Leaf
 	lockAdmission         *queryLockAdmission
 	namespace             *queryNamespace

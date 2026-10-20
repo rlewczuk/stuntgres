@@ -1,14 +1,17 @@
 package engine
 
-import "stuntgres/internal/parser"
+import (
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/parser"
+)
 
-func bindInsertReturning(b *binding, binder *expressionBinder, auth AuthorizationView, s *parser.Insert) error {
+func bindInsertReturning(b *binding, binder *expressionBinder, auth analyze.Authority, s *parser.Insert) error {
 	if s.Returning == nil {
 		return nil
 	}
 	binder.target.relation, binder.target.ref = b.Relation, b.Ref
 	binder.target.name, binder.target.alias = b.Relation.Name(), s.Alias.Text
-	binder.query.auth = &auth
+	binder.query.auth = auth
 	target := binder.mutationTargetNamespace()
 	binder.query.namespace = &target
 	binder.query.hidden = nil

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -59,7 +60,7 @@ func (c *boundInsertConflict) instantiate() *boundInsertConflict {
 
 // Analysis resolves names/types/read manifests; selecting installed providers
 // belongs to Execute, including commands with an empty source.
-func bindInsertConflict(b *binding, shared *expressionBinder, auth AuthorizationView, raw *parser.InsertConflict) error {
+func bindInsertConflict(b *binding, shared *expressionBinder, auth analyze.Authority, raw *parser.InsertConflict) error {
 	if raw == nil {
 		return nil
 	}
@@ -87,7 +88,7 @@ func bindInsertConflict(b *binding, shared *expressionBinder, auth Authorization
 			}
 			c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: definition.OID}
 			c.namedIndex = definition.Index
-			index, ok := auth.Catalog.Relation(definition.Index)
+			index, ok := auth.ReadCatalog().Relation(definition.Index)
 			if !ok {
 				return fmt.Errorf("stuntgres: missing named exclusion index")
 			}

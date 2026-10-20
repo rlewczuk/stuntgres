@@ -384,7 +384,7 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *binding, auth Authori
 	binder := newExpressionBinder(s.op.Context(), e, s.input, s.op, nil)
 	binder.query.auth = &auth
 	binder.target.insertTarget = b.Relation
-	bindInsertDefaults(e.catalog.owner(), b, auth, parser.OverrideSystem)
+	bindInsertDefaults(e.catalog.owner(), b, auth.Catalog, parser.OverrideSystem)
 	if err := binder.captureRetainedWriteInput(b.Insert.Defaults, b.Relation.ColumnMeta.Generations, b.Relation.Constraints.Check); err != nil {
 		return err
 	}
