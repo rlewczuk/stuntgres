@@ -22,7 +22,7 @@ import (
 type analyzeHost interface {
 	// Authority.
 	Authorization() (AuthorizationView, error)
-	Definition() definitionReader
+	Definition() catalog.DefinitionReader
 	AuthorizationStorage(auth AuthorizationView, address ids.ObjectAddress) *storage.Relation
 	AdmittedReference(auth AuthorizationView, name parser.ObjectName, ref ids.ObjectRef) (ids.ObjectRef, error)
 	ResolveReference(auth AuthorizationView, name parser.ObjectName) (ids.ObjectRef, error)
@@ -104,7 +104,7 @@ func (h *bindingHost) Authorization() (AuthorizationView, error) {
 	return h.engine.authorizationLocked(h.op)
 }
 
-func (h *bindingHost) Definition() definitionReader {
+func (h *bindingHost) Definition() catalog.DefinitionReader {
 	if h.op == nil {
 		return nil
 	}

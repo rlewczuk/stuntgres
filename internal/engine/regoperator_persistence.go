@@ -22,7 +22,7 @@ func walkOperatorReferences(view catalog.Read, value sqltype.Value, record func(
 	return walkOperatorReferencesAt(view, nil, value, record)
 }
 
-func walkOperatorReferencesAt(view catalog.Read, reader definitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
+func walkOperatorReferencesAt(view catalog.Read, reader catalog.DefinitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
 	if value.IsNull() || !value.Type().ContainsOperatorAlias() {
 		return nil
 	}

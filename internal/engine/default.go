@@ -117,7 +117,7 @@ func bindCreateDefaults(b *expressionBinder, columns []catalog.Column, declarati
 type scalarRenderer struct {
 	// A cooking-only reader preserves authentic catalog identity while resolving
 	// exact preceding metadata effects; ordinary serialization leaves it nil.
-	definition definitionReader
+	definition catalog.DefinitionReader
 	aclOutput  sqltype.ACLItemFormatter
 	// Only provider validation may discard identity-only text. Real SQL output
 	// and construction labels require explicit captured role presentation.

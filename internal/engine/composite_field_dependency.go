@@ -221,7 +221,7 @@ func (provider *dropProvider) passiveViewTypeDependency(relation *catalog.Relati
 	if !column {
 		return false, nil
 	}
-	var reader definitionReader
+	var reader catalog.DefinitionReader
 	if provider.prepared != nil {
 		reader = provider.prepared
 	} else if provider.stage != nil {

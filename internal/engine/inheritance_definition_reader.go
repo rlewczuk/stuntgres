@@ -36,7 +36,7 @@ func (r inheritanceDefinitionReader) observe(address ids.ObjectAddress) {
 		r.observations.descriptors[address] = r.base.Get(address)
 	}
 }
-func (r inheritanceDefinitionReader) descriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
+func (r inheritanceDefinitionReader) Descriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
 	r.observe(address)
 	for effect := r.effects; effect != nil; effect = effect.previous {
 		if effect.descriptor != nil && effect.descriptor.Address() == address {
@@ -62,7 +62,7 @@ func (r inheritanceDefinitionReader) descriptor(address ids.ObjectAddress) (cata
 	}
 	return r.base.Descriptor(address)
 }
-func (r inheritanceDefinitionReader) lookup(key ids.NameKey) ids.ObjectAddress {
+func (r inheritanceDefinitionReader) Lookup(key ids.NameKey) ids.ObjectAddress {
 	address := r.base.NameAddress(key)
 	if r.observations != nil {
 		if r.observations.names == nil {
@@ -74,37 +74,37 @@ func (r inheritanceDefinitionReader) lookup(key ids.NameKey) ids.ObjectAddress {
 	}
 	for effect := r.effects; effect != nil; effect = effect.previous {
 		if effect.descriptor != nil && catalog.DescriptorNameKey(effect.descriptor) == key {
-			descriptor, present := r.descriptor(effect.descriptor.Address())
+			descriptor, present := r.Descriptor(effect.descriptor.Address())
 			if present && catalog.DescriptorNameKey(descriptor) == key {
 				return descriptor.Address()
 			}
 		}
 	}
-	descriptor, present := r.descriptor(address)
+	descriptor, present := r.Descriptor(address)
 	if present && catalog.DescriptorNameKey(descriptor) == key {
 		return address
 	}
 	return ids.ObjectAddress{}
 }
-func (r inheritanceDefinitionReader) descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+func (r inheritanceDefinitionReader) Descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
 	// Enumeration alone does not authorize a new global invalidation fence. The
 	// selected provider's ordinary binding records its exact dependency identity.
 	r.observations = nil
 	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		for address := range r.base.Descriptors() {
-			if descriptor, present := r.descriptor(address); present && !yield(address, descriptor) {
+			if descriptor, present := r.Descriptor(address); present && !yield(address, descriptor) {
 				return
 			}
 		}
 	}
 }
 
-func (r inheritanceDefinitionReader) proceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
+func (r inheritanceDefinitionReader) ProceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
 	// As with full discovery, candidate enumeration does not create observations.
 	r.observations = nil
 	return indexedDefinitionProcedures(r.base, r, namespace, name)
 }
-func (r inheritanceDefinitionReader) hasSQLProcedureName(name string) bool {
+func (r inheritanceDefinitionReader) HasSQLProcedureName(name string) bool {
 	return r.base.State().HasSQLProcedureName(name)
 }
 func (r inheritanceDefinitionReader) indexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
@@ -152,7 +152,7 @@ func (r inheritanceDefinitionReader) validate(view catalog.Read) error {
 }
 func (state *inheritanceAlterState) definitionRelation(view catalog.Read, address ids.ObjectAddress) *catalog.Relation {
 	if state.preparing {
-		descriptor, _ := state.definition.descriptor(address)
+		descriptor, _ := state.definition.Descriptor(address)
 		relation, _ := descriptor.(*catalog.Relation)
 		return relation
 	}
@@ -163,7 +163,7 @@ func inheritanceMarkerPublication(old, current *catalog.Relation) bool {
 	return old == current || current != nil && old != nil && !old.History.HasSubclasses && current.History.HasSubclasses && current.History.SubclassPredecessor == old && current.Revision() == current.History.SubclassPublication
 }
 
-func (r inheritanceDefinitionReader) discoveryReader() definitionReader {
+func (r inheritanceDefinitionReader) discoveryReader() catalog.DefinitionReader {
 	r.observations = nil
 	return r
 }

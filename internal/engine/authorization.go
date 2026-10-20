@@ -81,7 +81,7 @@ func (op *Operation) RoleState() authorization.RoleState {
 type AuthorizationView struct {
 	access.View
 	engine     *Engine
-	definition definitionReader // Cooking-only sparse effects; never SQL execution authority.
+	definition catalog.DefinitionReader // Cooking-only sparse effects; never SQL execution authority.
 	settings   *sessionSettings
 	// Nested schema elements prepend their enclosing namespace without changing settings.
 	pathPrefix ids.ObjectAddress

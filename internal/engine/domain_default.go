@@ -17,7 +17,7 @@ import (
 
 func (e *Engine) bindDomainDefault(ctx context.Context, op *Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw parser.Expr, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
 	base := d.SQLType.DomainBase()
-	var reader definitionReader
+	var reader catalog.DefinitionReader
 	if op != nil {
 		reader = op.definition
 	}

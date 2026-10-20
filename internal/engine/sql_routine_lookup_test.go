@@ -18,16 +18,16 @@ type sqlRoutineLookupReader struct {
 	fullEnumerations int
 }
 
-func (r *sqlRoutineLookupReader) descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+func (r *sqlRoutineLookupReader) Descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
 	r.fullEnumerations++
-	return r.stageDefinitionReader.descriptors()
+	return r.stageDefinitionReader.Descriptors()
 }
 
 func TestSQLRoutineStagedLookup(t *testing.T) {
 	e := New()
 	emptyStage := e.BeginCatalogStage(e.CatalogRead())
 	emptyReader := stageDefinitionReader{stage: emptyStage}
-	if emptyReader.hasSQLProcedureName("abs") {
+	if emptyReader.HasSQLProcedureName("abs") {
 		t.Fatal("empty SQL index promoted builtin")
 	}
 	e.DiscardCatalogStage(emptyStage)
@@ -50,7 +50,7 @@ func TestSQLRoutineStagedLookup(t *testing.T) {
 	check := func(namespace ids.ObjectAddress, name string, want ...*catalog.Procedure) {
 		t.Helper()
 		found := make(map[ids.ObjectAddress]*catalog.Procedure)
-		for d := range reader.proceduresNamed(namespace, name) {
+		for d := range reader.ProceduresNamed(namespace, name) {
 			if found[d.Address()] != nil {
 				t.Fatal("duplicate staged candidate", d.Address())
 			}
@@ -66,7 +66,7 @@ func TestSQLRoutineStagedLookup(t *testing.T) {
 		}
 	}
 	check(namespace, "routine_unit_index", first, second)
-	if reader.hasSQLProcedureName("abs") || reader.hasSQLProcedureName("routine_unit_added") {
+	if reader.HasSQLProcedureName("abs") || reader.HasSQLProcedureName("routine_unit_added") {
 		t.Fatal("empty overlay promoted absent SQL name")
 	}
 	metadata := *first
@@ -79,19 +79,19 @@ func TestSQLRoutineStagedLookup(t *testing.T) {
 	stage.UpdateDescriptor(&moved)
 	check(namespace, "routine_unit_index", second)
 	check(moved.Namespace(), moved.Name(), &moved)
-	if !reader.hasSQLProcedureName(moved.Name()) {
+	if !reader.HasSQLProcedureName(moved.Name()) {
 		t.Fatal("staged rename lost SQL name")
 	}
 	stage.UpdateDescriptor(added)
 	check(namespace, "routine_unit_added", added)
-	if !reader.hasSQLProcedureName(added.Name()) {
+	if !reader.HasSQLProcedureName(added.Name()) {
 		t.Fatal("staged addition lost SQL name")
 	}
 	stage.RecordRemoval(e.catalog.Domain.Ref(base.Epoch(), first.Address()), first)
 	stage.RecordRemoval(e.catalog.Domain.Ref(base.Epoch(), second.Address()), second)
 	check(namespace, "routine_unit_index")
 	check(moved.Namespace(), moved.Name())
-	if reader.hasSQLProcedureName("routine_unit_index") || reader.hasSQLProcedureName(moved.Name()) {
+	if reader.HasSQLProcedureName("routine_unit_index") || reader.HasSQLProcedureName(moved.Name()) {
 		t.Fatal("removed/replaced SQL name retained")
 	}
 	if !base.State().HasSQLProcedureName("routine_unit_index") || base.State().HasSQLProcedureName(moved.Name()) || len(base.State().ProceduresNamed(namespace, "routine_unit_index")) != 2 || base.Get(first.Address()) != first {
@@ -122,12 +122,12 @@ func TestSQLRoutineStagedLookup(t *testing.T) {
 	}
 	prepared := &preparedDrop{base: base, discovery: base, input: reader}
 	identity := &preparedIdentityDrop{drop: prepared}
-	for _, projected := range []definitionReader{prepared, identity} {
-		if !projected.hasSQLProcedureName(added.Name()) {
+	for _, projected := range []catalog.DefinitionReader{prepared, identity} {
+		if !projected.HasSQLProcedureName(added.Name()) {
 			t.Fatal("projection lost staged SQL membership")
 		}
 		count := 0
-		for d := range projected.proceduresNamed(namespace, added.Name()) {
+		for d := range projected.ProceduresNamed(namespace, added.Name()) {
 			if d != added {
 				t.Fatal("projection lost current staged provider")
 			}

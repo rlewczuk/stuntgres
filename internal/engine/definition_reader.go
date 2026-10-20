@@ -7,47 +7,35 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Definition cooking alone can read the exact ordered, unpublished DROP effects.
-// This is not another catalog generation, SQL execution route or permission
-// cache. Bound definitions retain their normal identities/provider observations;
-// the reader is scoped to preparation/consumption and is never persisted.
-type definitionReader interface {
-	descriptor(ids.ObjectAddress) (catalog.Descriptor, bool)
-	lookup(ids.NameKey) ids.ObjectAddress
-	descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor]
-	proceduresNamed(ids.ObjectAddress, string) iter.Seq[*catalog.Procedure]
-	hasSQLProcedureName(string) bool
-}
-
 func (a AuthorizationView) definitionDescriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
 	if a.definition != nil {
-		return a.definition.descriptor(address)
+		return a.definition.Descriptor(address)
 	}
 	return a.Catalog.Descriptor(address)
 }
 func (a AuthorizationView) definitionLookup(key ids.NameKey) ids.ObjectAddress {
 	if a.definition != nil {
-		return a.definition.lookup(key)
+		return a.definition.Lookup(key)
 	}
 	return a.Catalog.NameAddress(key)
 }
 func (a AuthorizationView) definitionDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
 	if a.definition != nil {
-		return a.definition.descriptors()
+		return a.definition.Descriptors()
 	}
 	return a.Catalog.Descriptors()
 }
 
 func (a AuthorizationView) definitionProceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
 	if a.definition != nil {
-		return a.definition.proceduresNamed(namespace, name)
+		return a.definition.ProceduresNamed(namespace, name)
 	}
 	return indexedDefinitionProcedures(a.Catalog, nil, namespace, name)
 }
 
 // Enumeration discovers candidates; the selected provider still supplies the
 // ordinary exact dependency and permission proof.
-func indexedDefinitionProcedures(view catalog.Read, reader definitionReader, namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
+func indexedDefinitionProcedures(view catalog.Read, reader catalog.DefinitionReader, namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
 	return func(yield func(*catalog.Procedure) bool) {
 		for _, address := range view.State().ProceduresNamed(namespace, name) {
 			descriptor, present := definitionDescriptorAt(view, reader, address)
@@ -65,7 +53,7 @@ func (a AuthorizationView) definitionType(id sqltype.ID) (*sqltype.Descriptor, b
 
 type stageDefinitionReader struct{ stage *CatalogStage }
 
-func (r stageDefinitionReader) descriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
+func (r stageDefinitionReader) Descriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
 	if _, removed := r.stage.Removal(address); removed {
 		return nil, false
 	}
@@ -74,13 +62,13 @@ func (r stageDefinitionReader) descriptor(address ids.ObjectAddress) (catalog.De
 	}
 	return r.stage.Base.Descriptor(address)
 }
-func (r stageDefinitionReader) lookup(key ids.NameKey) ids.ObjectAddress {
+func (r stageDefinitionReader) Lookup(key ids.NameKey) ids.ObjectAddress {
 	return r.stage.LookupName(key)
 }
-func (r stageDefinitionReader) descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+func (r stageDefinitionReader) Descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
 	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		for address := range r.stage.Base.Descriptors() {
-			if descriptor, exists := r.descriptor(address); exists {
+			if descriptor, exists := r.Descriptor(address); exists {
 				if !yield(address, descriptor) {
 					return
 				}
@@ -100,13 +88,13 @@ func (r stageDefinitionReader) descriptors() iter.Seq2[ids.ObjectAddress, catalo
 	}
 }
 
-func (r stageDefinitionReader) proceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
+func (r stageDefinitionReader) ProceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
 	return func(yield func(*catalog.Procedure) bool) {
 		for _, address := range r.stage.Base.State().ProceduresNamed(namespace, name) {
 			if _, overridden := r.stage.Find(address); overridden {
 				continue
 			}
-			descriptor, present := r.descriptor(address)
+			descriptor, present := r.Descriptor(address)
 			if d, ok := descriptor.(*catalog.Procedure); present && ok && d.Namespace() == namespace && d.Name() == name {
 				if !yield(d) {
 					return
@@ -126,7 +114,7 @@ func (r stageDefinitionReader) proceduresNamed(namespace ids.ObjectAddress, name
 	}
 }
 
-func (r stageDefinitionReader) hasSQLProcedureName(name string) bool {
+func (r stageDefinitionReader) HasSQLProcedureName(name string) bool {
 	count := 0
 	if index := r.stage.Base.State().ProcedureNames(); index != nil {
 		count = index.SQLNames[name]
@@ -166,7 +154,7 @@ func (a AuthorizationView) definitionNamespace(address ids.ObjectAddress) (*cata
 	return namespace, exists && ok
 }
 
-func (b *expressionBinder) definitionReader() definitionReader {
+func (b *expressionBinder) definitionReader() catalog.DefinitionReader {
 	if definition := b.host.Definition(); definition != nil {
 		return definition
 	}
@@ -178,13 +166,13 @@ func (b *expressionBinder) definitionReader() definitionReader {
 
 func (b *expressionBinder) hasSQLProcedureName(name string) bool {
 	if reader := b.definitionReader(); reader != nil {
-		return reader.hasSQLProcedureName(name)
+		return reader.HasSQLProcedureName(name)
 	}
 	return b.bindingCatalog().State().HasSQLProcedureName(name)
 }
 func (b *expressionBinder) definitionDescriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
 	if reader := b.definitionReader(); reader != nil {
-		return reader.descriptor(address)
+		return reader.Descriptor(address)
 	}
 	return b.bindingCatalog().Descriptor(address)
 }
@@ -206,9 +194,9 @@ func (r stageDefinitionReader) indexLayout(address ids.ObjectAddress) (indexLayo
 	return lineage, ok
 }
 
-func definitionDescriptorAt(view catalog.Read, reader definitionReader, address ids.ObjectAddress) (catalog.Descriptor, bool) {
+func definitionDescriptorAt(view catalog.Read, reader catalog.DefinitionReader, address ids.ObjectAddress) (catalog.Descriptor, bool) {
 	if reader != nil {
-		return reader.descriptor(address)
+		return reader.Descriptor(address)
 	}
 	return view.Descriptor(address)
 }
@@ -217,11 +205,11 @@ func (a AuthorizationView) definitionArray(element *sqltype.Descriptor) (*sqltyp
 	return definitionArrayAt(a.Catalog, a.definition, element)
 }
 
-func definitionTypeAt(view catalog.Read, reader definitionReader, id sqltype.ID) (*sqltype.Descriptor, bool) {
+func definitionTypeAt(view catalog.Read, reader catalog.DefinitionReader, id sqltype.ID) (*sqltype.Descriptor, bool) {
 	if reader == nil {
 		return view.LookupType(id)
 	}
-	descriptor, exists := reader.descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
+	descriptor, exists := reader.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
 	typ, ok := descriptor.(*catalog.Type)
 	if !exists || !ok {
 		return nil, false
@@ -229,14 +217,14 @@ func definitionTypeAt(view catalog.Read, reader definitionReader, id sqltype.ID)
 	return typ.SQLType, true
 }
 
-func definitionArrayAt(view catalog.Read, reader definitionReader, element *sqltype.Descriptor) (*sqltype.Descriptor, bool) {
+func definitionArrayAt(view catalog.Read, reader catalog.DefinitionReader, element *sqltype.Descriptor) (*sqltype.Descriptor, bool) {
 	if element == nil {
 		return nil, false
 	}
 	if reader == nil {
 		return view.LookupArray(element)
 	}
-	descriptor, exists := reader.descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(element.ID())})
+	descriptor, exists := reader.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(element.ID())})
 	typ, ok := descriptor.(*catalog.Type)
 	if !exists || !ok || typ.SQLType != element {
 		return nil, false
@@ -250,9 +238,9 @@ func (r scalarRenderer) descriptor(view catalog.Read, address ids.ObjectAddress)
 	return descriptor
 }
 
-func definitionLookupAt(view catalog.Read, reader definitionReader, key ids.NameKey) ids.ObjectAddress {
+func definitionLookupAt(view catalog.Read, reader catalog.DefinitionReader, key ids.NameKey) ids.ObjectAddress {
 	if reader != nil {
-		return reader.lookup(key)
+		return reader.Lookup(key)
 	}
 	return view.NameAddress(key)
 }

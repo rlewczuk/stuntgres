@@ -90,7 +90,7 @@ func TestDomainDefaultDependencyPreparedProjectionInternal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, present := prepared.descriptor(target); present {
+	if _, present := prepared.Descriptor(target); present {
 		t.Fatal("real prepared CASCADE retained retired view rowtype")
 	}
 	liveRefs, err := pgDependQueryRefs(op.Context(), before, prepared, liveQuery)

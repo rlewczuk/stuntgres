@@ -203,29 +203,29 @@ func (prepared *preparedIdentityDrop) delta(address ids.ObjectAddress) (catalog.
 	return nil, false, false
 }
 
-func (prepared *preparedIdentityDrop) descriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
+func (prepared *preparedIdentityDrop) Descriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
 	if descriptor, present, handled := prepared.delta(address); handled {
 		return descriptor, present
 	}
-	return prepared.drop.descriptor(address)
+	return prepared.drop.Descriptor(address)
 }
-func (prepared *preparedIdentityDrop) lookup(key ids.NameKey) ids.ObjectAddress {
-	return prepared.drop.lookup(key)
+func (prepared *preparedIdentityDrop) Lookup(key ids.NameKey) ids.ObjectAddress {
+	return prepared.drop.Lookup(key)
 }
-func (prepared *preparedIdentityDrop) descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+func (prepared *preparedIdentityDrop) Descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
 	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
-		for address := range prepared.drop.descriptors() {
-			if descriptor, present := prepared.descriptor(address); present && !yield(address, descriptor) {
+		for address := range prepared.drop.Descriptors() {
+			if descriptor, present := prepared.Descriptor(address); present && !yield(address, descriptor) {
 				return
 			}
 		}
 	}
 }
 
-func (prepared *preparedIdentityDrop) proceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
+func (prepared *preparedIdentityDrop) ProceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
 	return func(yield func(*catalog.Procedure) bool) {
-		for candidate := range prepared.drop.proceduresNamed(namespace, name) {
-			descriptor, present := prepared.descriptor(candidate.Address())
+		for candidate := range prepared.drop.ProceduresNamed(namespace, name) {
+			descriptor, present := prepared.Descriptor(candidate.Address())
 			if d, ok := descriptor.(*catalog.Procedure); present && ok && d.Namespace() == namespace && d.Name() == name {
 				if !yield(d) {
 					return
@@ -234,8 +234,8 @@ func (prepared *preparedIdentityDrop) proceduresNamed(namespace ids.ObjectAddres
 		}
 	}
 }
-func (prepared *preparedIdentityDrop) hasSQLProcedureName(name string) bool {
-	return prepared.drop.hasSQLProcedureName(name)
+func (prepared *preparedIdentityDrop) HasSQLProcedureName(name string) bool {
+	return prepared.drop.HasSQLProcedureName(name)
 }
 func (prepared *preparedIdentityDrop) indexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
 	return prepared.drop.indexLayout(address)

@@ -54,7 +54,7 @@ func walkCatalogAliasReferences(view catalog.Read, value sqltype.Value, record f
 	return walkCatalogAliasReferencesAt(view, nil, value, record)
 }
 
-func walkCatalogAliasReferencesAt(view catalog.Read, reader definitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
+func walkCatalogAliasReferencesAt(view catalog.Read, reader catalog.DefinitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
 	if value.IsNull() || !value.Type().ContainsRegtype() && !value.Type().ContainsRegObject() {
 		return nil
 	}
@@ -91,7 +91,7 @@ func walkCatalogAliasDependencies(view catalog.Read, value sqltype.Value, record
 	return walkCatalogAliasDependenciesAt(view, nil, value, record)
 }
 
-func walkCatalogAliasDependenciesAt(view catalog.Read, reader definitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
+func walkCatalogAliasDependenciesAt(view catalog.Read, reader catalog.DefinitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
 	typ := value.Type()
 	// Structural dependency nodes may have declared Usage but no materialized
 	// datum. Their datatype edge is recorded by the expression visitor, not here.

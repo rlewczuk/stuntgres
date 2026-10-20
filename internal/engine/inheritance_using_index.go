@@ -12,9 +12,9 @@ import (
 
 // Eligibility is captured once from the actual ordered provider input. TYPE
 // reminting remains the existing stage owner's separate metadata effect.
-func captureUsingIndexDefinition(reader definitionReader, parent *catalog.Relation, raw *parser.UsingIndexConstraint) (usingIndexAttachment, error) {
-	address := reader.lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: raw.Index.Text})
-	descriptor, _ := reader.descriptor(address)
+func captureUsingIndexDefinition(reader catalog.DefinitionReader, parent *catalog.Relation, raw *parser.UsingIndexConstraint) (usingIndexAttachment, error) {
+	address := reader.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: raw.Index.Text})
+	descriptor, _ := reader.Descriptor(address)
 	if descriptor == nil {
 		return usingIndexAttachment{}, expr.ErrorAt("42704", fmt.Sprintf(`index "%s" does not exist`, raw.Index.Text), raw.Pos)
 	}
@@ -29,7 +29,7 @@ func captureUsingIndexDefinition(reader definitionReader, parent *catalog.Relati
 	return usingIndexAttachment{syntax: raw, index: index, attributes: attributes}, nil
 }
 
-func captureUsingIndexDefinitions(reader definitionReader, parent *catalog.Relation, actions []parser.AlterTableAction) ([]usingIndexAttachment, error) {
+func captureUsingIndexDefinitions(reader catalog.DefinitionReader, parent *catalog.Relation, actions []parser.AlterTableAction) ([]usingIndexAttachment, error) {
 	var captured []usingIndexAttachment
 	for _, action := range actions {
 		if action.Action == parser.AddUsingIndex {
@@ -46,7 +46,7 @@ func captureUsingIndexDefinitions(reader definitionReader, parent *catalog.Relat
 // This is the incumbent USING INDEX NN constructor, shared by admission and
 // ordinary staging. Only actual eligible KEY attributes participate; INCLUDE
 // attributes and the physical index/constraint are never propagated.
-func usingIndexNotNullCandidate(op *Operation, view catalog.Read, reader definitionReader, parent *catalog.Relation, captured usingIndexAttachment) (*catalog.Relation, error) {
+func usingIndexNotNullCandidate(op *Operation, view catalog.Read, reader catalog.DefinitionReader, parent *catalog.Relation, captured usingIndexAttachment) (*catalog.Relation, error) {
 	if !captured.syntax.Primary {
 		return parent, nil
 	}
@@ -78,7 +78,7 @@ type usingIndexPreparation struct {
 
 // Capture the actual physical attachment metadata once; only the stage adapter
 // installs its index name/backing link. No tuple/index build runs here.
-func (e *Engine) prepareUsingIndexMetadata(op *Operation, view catalog.Read, reader definitionReader, parent *catalog.Relation, captured usingIndexAttachment) (*usingIndexPreparation, error) {
+func (e *Engine) prepareUsingIndexMetadata(op *Operation, view catalog.Read, reader catalog.DefinitionReader, parent *catalog.Relation, captured usingIndexAttachment) (*usingIndexPreparation, error) {
 	prepared := &usingIndexPreparation{parent: parent}
 	if !captured.notNullPrepared {
 		candidate, err := usingIndexNotNullCandidate(op, view, reader, parent, captured)
@@ -87,7 +87,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view catalog.Read, rea
 		}
 		parent = candidate
 	}
-	descriptor, present := reader.descriptor(captured.index.Address())
+	descriptor, present := reader.Descriptor(captured.index.Address())
 	index, ok := descriptor.(*catalog.Relation)
 	if !present || !ok || index.SQLIndex == nil {
 		return nil, ids.ErrCatalogReplaced
@@ -100,7 +100,7 @@ func (e *Engine) prepareUsingIndexMetadata(op *Operation, view catalog.Read, rea
 	if name != index.Name() {
 		prepared.notice = sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`ALTER TABLE / ADD CONSTRAINT USING INDEX will rename index "%s" to "%s"`, index.Name(), name)}
 	}
-	destination := reader.lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name})
+	destination := reader.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name})
 	if destination != (ids.ObjectAddress{}) && destination != index.Address() {
 		prepared.err = sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 		return prepared, nil

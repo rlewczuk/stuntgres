@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/sequence"
@@ -128,8 +129,8 @@ type Operation struct {
 	sqlActivity        bool
 	sqlFinished        bool // Session.mu: ERROR/completion fence, not transaction state
 	timeoutScope       *StatementScope
-	definition         definitionReader // Scoped once-only DDL cooking, restored before evaluation.
-	lockWait           lock.TimeoutSlot // queued lock request's SQL-deadline projection
+	definition         catalog.DefinitionReader // Scoped once-only DDL cooking, restored before evaluation.
+	lockWait           lock.TimeoutSlot         // queued lock request's SQL-deadline projection
 	nonstandardStrings bool
 	discardRoleReset   authorization.RoleState // nonzero Authenticated only during DISCARD ALL publication
 	replaySlot         *restoreReplay          // Restore and materialized population only; see replay().

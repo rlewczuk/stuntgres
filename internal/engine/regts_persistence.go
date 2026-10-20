@@ -19,7 +19,7 @@ func walkRegTSReferences(view catalog.Read, value sqltype.Value, record func(ids
 	return walkRegTSReferencesAt(view, nil, value, record)
 }
 
-func walkRegTSReferencesAt(view catalog.Read, reader definitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
+func walkRegTSReferencesAt(view catalog.Read, reader catalog.DefinitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
 	if value.IsNull() || !value.Type().ContainsRegTS() {
 		return nil
 	}

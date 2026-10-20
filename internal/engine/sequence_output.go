@@ -154,7 +154,7 @@ func regclassSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID) s
 	return regclassSpellingAt(view, nil, path, id)
 }
 
-func regclassSpellingAt(view catalog.Read, reader definitionReader, path []ids.ObjectAddress, id ids.OID) string {
+func regclassSpellingAt(view catalog.Read, reader catalog.DefinitionReader, path []ids.ObjectAddress, id ids.OID) string {
 	if id == 0 {
 		return "-"
 	}

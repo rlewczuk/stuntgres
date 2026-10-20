@@ -617,7 +617,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 				t.Fatal("cached binder retained removed keys/identities or lost chosen names")
 			}
 			key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: p.Namespace(), Name: "old_b"}
-			if prepared.reader.lookup(key) != (ids.ObjectAddress{}) || prepared.reader.base.State() != before.State() || e.CatalogRead().State() != before.State() || e.CatalogRead().Get(view.Address()) != view {
+			if prepared.reader.Lookup(key) != (ids.ObjectAddress{}) || prepared.reader.base.State() != before.State() || e.CatalogRead().State() != before.State() || e.CatalogRead().Get(view.Address()) != view {
 				t.Fatal("actual ordered DROP effects were absent or prematurely published")
 			}
 			if cancelAtWait {

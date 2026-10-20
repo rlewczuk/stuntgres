@@ -23,7 +23,7 @@ func catalogTypeDeclaration(view catalog.Read, u sqltype.Usage) (string, error) 
 	return catalogTypeDeclarationAt(view, nil, u)
 }
 
-func catalogTypeDeclarationAt(view catalog.Read, reader definitionReader, u sqltype.Usage) (string, error) {
+func catalogTypeDeclarationAt(view catalog.Read, reader catalog.DefinitionReader, u sqltype.Usage) (string, error) {
 	if u.Type.IsArray() {
 		array, ok := definitionArrayAt(view, reader, u.Type.Element())
 		if !ok || array != u.Type || !u.Valid() {
@@ -171,7 +171,7 @@ func catalogLiteralWithACL(ctx context.Context, view catalog.Read, n plan.Litera
 	return catalogLiteralWithACLAt(ctx, view, nil, n, aclOutput)
 }
 
-func catalogLiteralWithACLAt(ctx context.Context, view catalog.Read, reader definitionReader, n plan.LiteralExpr, aclOutput sqltype.ACLItemFormatter) (string, error) {
+func catalogLiteralWithACLAt(ctx context.Context, view catalog.Read, reader catalog.DefinitionReader, n plan.LiteralExpr, aclOutput sqltype.ACLItemFormatter) (string, error) {
 	u := n.ResultUsage()
 	if n.Value.Type() != u.Type {
 		return "", fmt.Errorf("stuntgres: invalid stored literal")
@@ -307,7 +307,7 @@ func catalogLiteralWithACLAt(ctx context.Context, view catalog.Read, reader defi
 type catalogRegclassOutput struct {
 	view       catalog.Read
 	path       []ids.ObjectAddress
-	definition definitionReader
+	definition catalog.DefinitionReader
 }
 
 func (r catalogRegclassOutput) FormatRegclass(id uint32) (string, error) {

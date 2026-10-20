@@ -31,7 +31,7 @@ func walkRoutineReferences(view catalog.Read, value sqltype.Value, record func(i
 	return walkRoutineReferencesAt(view, nil, value, record)
 }
 
-func walkRoutineReferencesAt(view catalog.Read, reader definitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
+func walkRoutineReferencesAt(view catalog.Read, reader catalog.DefinitionReader, value sqltype.Value, record func(ids.ObjectAddress) error) error {
 	if value.IsNull() || !value.Type().ContainsRegproc() {
 		return nil
 	}
@@ -118,7 +118,7 @@ func routineContainerLiteral(ctx context.Context, view catalog.Read, value sqlty
 	return routineContainerLiteralAt(ctx, view, nil, value, usage, acl)
 }
 
-func routineContainerLiteralAt(ctx context.Context, view catalog.Read, reader definitionReader, value sqltype.Value, usage sqltype.Usage, acl sqltype.ACLItemFormatter) (string, error) {
+func routineContainerLiteralAt(ctx context.Context, view catalog.Read, reader catalog.DefinitionReader, value sqltype.Value, usage sqltype.Usage, acl sqltype.ACLItemFormatter) (string, error) {
 	fragments, err := routineContainerFragments(ctx, view, value, acl)
 	if err != nil {
 		return "", err

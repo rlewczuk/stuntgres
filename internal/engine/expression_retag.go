@@ -39,7 +39,7 @@ func mapBoundExpression(view catalog.Read, node expr.Expr, retainedType func(*sq
 
 // substituteSources is only for equivalent-child query-stage rewrites. Catalog
 // generation remapping keeps Rebuild/Retag and their provider validation.
-func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(plan.Node) (plan.Node, error), recipe *catalog.Relation, substituteSources bool, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...typedef.CollationRemapper) (expr.Expr, bool, error) {
+func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader, node expr.Expr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(plan.Node) (plan.Node, error), recipe *catalog.Relation, substituteSources bool, leaf func(expr.Expr) (expr.Expr, bool, error), collations ...typedef.CollationRemapper) (expr.Expr, bool, error) {
 	if node == nil {
 		return nil, false, nil
 	}

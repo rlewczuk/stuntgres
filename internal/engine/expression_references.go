@@ -16,7 +16,7 @@ import (
 type pgDependRefs struct {
 	ctx        context.Context
 	catalog    catalog.Read
-	definition definitionReader
+	definition catalog.DefinitionReader
 	addresses  map[ids.ObjectAddress]struct{}
 	err        error
 }
@@ -198,7 +198,7 @@ func pgDependExpressionRefs(ctx context.Context, catalog catalog.Read, expressio
 	return r.finish()
 }
 
-func pgDependQueryRefs(ctx context.Context, catalog catalog.Read, reader definitionReader, query *plan.Query) ([]ids.ObjectAddress, error) {
+func pgDependQueryRefs(ctx context.Context, catalog catalog.Read, reader catalog.DefinitionReader, query *plan.Query) ([]ids.ObjectAddress, error) {
 	r := pgDependRefs{ctx: ctx, catalog: catalog, definition: reader}
 	if query != nil {
 		r.query(query.Root)

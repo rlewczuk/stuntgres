@@ -12,7 +12,7 @@ func validExpressionUsage(view catalog.Read, usage sqltype.Usage) bool {
 	return validExpressionUsageAt(view, nil, usage)
 }
 
-func validExpressionUsageAt(view catalog.Read, reader definitionReader, usage sqltype.Usage) bool {
+func validExpressionUsageAt(view catalog.Read, reader catalog.DefinitionReader, usage sqltype.Usage) bool {
 	if !usage.Valid() || validateUsageCollationAt(view, reader, usage) != nil {
 		return false
 	}

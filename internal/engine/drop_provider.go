@@ -64,7 +64,7 @@ type preparedDrop struct {
 	base     catalog.Read
 	// Authentic read returned by admission; never replaces original base proofs.
 	discovery catalog.Read
-	input     definitionReader
+	input     catalog.DefinitionReader
 	grants    []ids.ObjectRef
 }
 
@@ -104,7 +104,7 @@ func (p *dropProvider) replacement(address ids.ObjectAddress) catalog.Descriptor
 		return p.identitySource
 	}
 	if p.prepared != nil && p.prepared.input != nil {
-		descriptor, present := p.prepared.input.descriptor(address)
+		descriptor, present := p.prepared.input.Descriptor(address)
 		if present && descriptor != p.prepared.base.Get(address) {
 			return descriptor
 		}
@@ -128,7 +128,7 @@ func (p *dropProvider) removed(address ids.ObjectAddress) bool {
 		}
 	}
 	if p.prepared != nil && p.prepared.input != nil && p.prepared.base.Get(address) != nil {
-		_, present := p.prepared.input.descriptor(address)
+		_, present := p.prepared.input.Descriptor(address)
 		return !present
 	}
 	return false
@@ -138,7 +138,7 @@ func (p *dropProvider) descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descri
 	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		for address, descriptor := range p.base.Descriptors() {
 			if p.prepared != nil && p.prepared.input != nil {
-				if projected, present := p.prepared.input.descriptor(address); present {
+				if projected, present := p.prepared.input.Descriptor(address); present {
 					descriptor = projected
 				}
 			}
@@ -154,7 +154,7 @@ func (p *dropProvider) descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descri
 			}
 		}
 		if p.prepared != nil && p.prepared.input != nil {
-			for address, descriptor := range p.prepared.input.descriptors() {
+			for address, descriptor := range p.prepared.input.Descriptors() {
 				if p.base.Get(address) == nil && !yield(address, descriptor) {
 					return
 				}
@@ -218,7 +218,7 @@ func (p *dropProvider) descriptorCount() int {
 		}
 	}
 	if p.prepared != nil && p.prepared.input != nil {
-		for address := range p.prepared.input.descriptors() {
+		for address := range p.prepared.input.Descriptors() {
 			if p.base.Get(address) == nil {
 				count++
 			}
@@ -512,7 +512,9 @@ func (scope *StatementScope) prepareDropDefinitionProvider(auth AuthorizationVie
 		return nil, err
 	}
 	prepared := &preparedDrop{old: old, ref: ref, prior: prior, scope: scope, txRef: scope.txRef, base: auth.Catalog, discovery: auth.Catalog, input: auth.definition}
-	if reader, present := prepared.input.(interface{ discoveryReader() definitionReader }); present {
+	if reader, present := prepared.input.(interface {
+		discoveryReader() catalog.DefinitionReader
+	}); present {
 		prepared.input = reader.discoveryReader()
 	}
 	provider := &dropProvider{base: auth.Catalog, owner: e, path: path, prepared: prepared, ctx: scope.op.Context(), scope: scope}
@@ -630,7 +632,7 @@ func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *
 // preparation's actual input and ordered effects. Consumers retain their normal
 // resolution/dependency observations; these methods do not recertify or mutate
 // them and do not construct a catalog generation.
-func (prepared *preparedDrop) descriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
+func (prepared *preparedDrop) Descriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
 	provider := &dropProvider{base: prepared.discovery, prepared: prepared}
 	if provider.removed(address) {
 		return nil, false
@@ -642,32 +644,32 @@ func (prepared *preparedDrop) descriptor(address ids.ObjectAddress) (catalog.Des
 	return descriptor, descriptor != nil
 }
 
-func (prepared *preparedDrop) lookup(key ids.NameKey) ids.ObjectAddress {
+func (prepared *preparedDrop) Lookup(key ids.NameKey) ids.ObjectAddress {
 	address := prepared.base.NameAddress(key)
 	if prepared.input != nil {
-		address = prepared.input.lookup(key)
+		address = prepared.input.Lookup(key)
 	}
 	if address == (ids.ObjectAddress{}) && prepared.base.NameAddress(key) == (ids.ObjectAddress{}) {
 		address = prepared.discovery.NameAddress(key)
 	}
-	if descriptor, present := prepared.descriptor(address); present && catalog.DescriptorNameKey(descriptor) == key {
+	if descriptor, present := prepared.Descriptor(address); present && catalog.DescriptorNameKey(descriptor) == key {
 		return address
 	}
 	return ids.ObjectAddress{}
 }
 
-func (prepared *preparedDrop) descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+func (prepared *preparedDrop) Descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
 	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		provider := &dropProvider{base: prepared.discovery, prepared: prepared}
 		for address := range provider.descriptors() {
-			if descriptor, present := prepared.descriptor(address); present && !yield(address, descriptor) {
+			if descriptor, present := prepared.Descriptor(address); present && !yield(address, descriptor) {
 				return
 			}
 		}
 	}
 }
 
-func (prepared *preparedDrop) proceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
+func (prepared *preparedDrop) ProceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
 	return func(yield func(*catalog.Procedure) bool) {
 		for d := range indexedDefinitionProcedures(prepared.discovery, prepared, namespace, name) {
 			if !yield(d) {
@@ -677,11 +679,11 @@ func (prepared *preparedDrop) proceduresNamed(namespace ids.ObjectAddress, name 
 		if prepared.input == nil {
 			return
 		}
-		for candidate := range prepared.input.proceduresNamed(namespace, name) {
+		for candidate := range prepared.input.ProceduresNamed(namespace, name) {
 			if original, exists := prepared.discovery.Procedure(candidate.Address()); exists && original.Namespace() == namespace && original.Name() == name {
 				continue
 			}
-			descriptor, present := prepared.descriptor(candidate.Address())
+			descriptor, present := prepared.Descriptor(candidate.Address())
 			if d, ok := descriptor.(*catalog.Procedure); present && ok && d.Namespace() == namespace && d.Name() == name {
 				if !yield(d) {
 					return
@@ -690,8 +692,8 @@ func (prepared *preparedDrop) proceduresNamed(namespace ids.ObjectAddress, name 
 		}
 	}
 }
-func (prepared *preparedDrop) hasSQLProcedureName(name string) bool {
-	return prepared.discovery.State().HasSQLProcedureName(name) || prepared.input != nil && prepared.input.hasSQLProcedureName(name)
+func (prepared *preparedDrop) HasSQLProcedureName(name string) bool {
+	return prepared.discovery.State().HasSQLProcedureName(name) || prepared.input != nil && prepared.input.HasSQLProcedureName(name)
 }
 
 func (p *dropProvider) associatedArrayName(namespace ids.ObjectAddress, name string) string {
@@ -699,7 +701,7 @@ func (p *dropProvider) associatedArrayName(namespace ids.ObjectAddress, name str
 		return associatedArrayName(p.stage, namespace, name)
 	}
 	return typedef.ChooseAssociatedArrayName(name, func(candidate string) bool {
-		return p.prepared.lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: candidate}) != (ids.ObjectAddress{})
+		return p.prepared.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: candidate}) != (ids.ObjectAddress{})
 	})
 }
 
@@ -802,7 +804,7 @@ func (p *dropProvider) readInputDescriptor(address ids.ObjectAddress) catalog.De
 		return p.identitySource
 	}
 	if p.prepared != nil && p.prepared.input != nil {
-		descriptor, present := p.prepared.input.descriptor(address)
+		descriptor, present := p.prepared.input.Descriptor(address)
 		if present || p.prepared.base.Get(address) != nil {
 			return descriptor
 		}

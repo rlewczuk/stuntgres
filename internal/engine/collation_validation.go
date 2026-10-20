@@ -17,7 +17,7 @@ func validateUsageCollation(view catalog.Read, u sqltype.Usage) error {
 	return validateUsageCollationAt(view, nil, u)
 }
 
-func validateUsageCollationAt(view catalog.Read, reader definitionReader, u sqltype.Usage) error {
+func validateUsageCollationAt(view catalog.Read, reader catalog.DefinitionReader, u sqltype.Usage) error {
 	if u.Collation.ID == 0 {
 		return nil
 	}

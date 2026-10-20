@@ -13,7 +13,7 @@ func namedObjectVisible(view catalog.Read, path []ids.ObjectAddress, d catalog.D
 	return namedObjectVisibleAt(view, nil, path, d)
 }
 
-func namedObjectVisibleAt(view catalog.Read, reader definitionReader, path []ids.ObjectAddress, d catalog.Descriptor) bool {
+func namedObjectVisibleAt(view catalog.Read, reader catalog.DefinitionReader, path []ids.ObjectAddress, d catalog.Descriptor) bool {
 	for _, namespace := range path {
 		key := catalog.DescriptorNameKey(d)
 		key.Namespace = namespace
