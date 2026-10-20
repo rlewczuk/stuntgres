@@ -63,11 +63,13 @@ type analyzeHost interface {
 
 	// Effects.
 	EmitWarning(diagnostic sqlstate.Error)
+	EmitNotice(diagnostic sqlstate.Error)
 	ReplayInsertAuthority() bool
 	ReplayDomainCell(b *binding, s *parser.Insert, row, column int) (expr.Expr, bool, error)
 
 	// Upward.
 	DecodeDomainLiteral(ctx context.Context, auth *AuthorizationView, read catalog.Read, typ *sqltype.Descriptor, text string, typmod int32, input sqltype.InputEnvironment) (sqltype.Value, error)
+	IndexExpressionBinder(input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation) *expressionBinder
 	BindViewWrite(b *binding, auth AuthorizationView, stmt parser.Statement, consumed ...ids.ObjectRef) error
 }
 
@@ -216,6 +218,12 @@ func (h *bindingHost) EmitWarning(diagnostic sqlstate.Error) {
 	}
 }
 
+func (h *bindingHost) EmitNotice(diagnostic sqlstate.Error) {
+	if h.op != nil {
+		h.op.emitNotice(levelNotice, diagnostic)
+	}
+}
+
 func (h *bindingHost) ReplayInsertAuthority() bool {
 	return h.op != nil && h.op.replayOrZero().insertAuthority
 }
@@ -253,6 +261,12 @@ func (h *bindingHost) DecodeDomainLiteral(ctx context.Context, auth *Authorizati
 	eval := EvalContext{evalStatement: evalStatement{Context: ctx, host: hostOf(owner), catalog: read, Input: input, Output: owner.output}, evalAdmission: evalAdmission{routineAuthority: &authority}}
 	input.DomainChecks = &eval
 	return owner.DecodeLockedDomainInput(ctx, typ, text, typmod, input)
+}
+
+// IndexExpressionBinder builds a nested binder over an index's parent
+// relation under the operation's current context.
+func (h *bindingHost) IndexExpressionBinder(input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation) *expressionBinder {
+	return h.engine.indexExpressionBinder(h.op, input, auth, parent)
 }
 
 func (h *bindingHost) BindViewWrite(b *binding, auth AuthorizationView, stmt parser.Statement, consumed ...ids.ObjectRef) error {

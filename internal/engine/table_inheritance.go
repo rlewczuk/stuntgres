@@ -81,7 +81,7 @@ func inheritanceColumnConflict(view catalog.Read, old, next catalog.Column, loca
 }
 
 // Local duplicate detection precedes merging; LIKE remains a local copy, not an edge.
-func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, syntax *parser.CreateTable, b *binding, columns []catalog.Column, declarations []createColumnDeclaration, likeConstraints []createLikeConstraint) ([]catalog.Column, []createColumnDeclaration, []createLikeConstraint, error) {
+func describeInheritance(host analyzeHost, auth AuthorizationView, syntax *parser.CreateTable, b *binding, columns []catalog.Column, declarations []createColumnDeclaration, likeConstraints []createLikeConstraint) ([]catalog.Column, []createColumnDeclaration, []createLikeConstraint, error) {
 	if len(syntax.Parents) == 0 {
 		return columns, declarations, likeConstraints, nil
 	}
@@ -99,7 +99,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 	generated := make(map[string]bool)
 	kinds := make(map[string]catalog.GenerationKind)
 	for _, name := range syntax.Parents {
-		ref, err := e.resolveReference(auth, name)
+		ref, err := host.ResolveReference(auth, name)
 		if err != nil {
 			if d, ok := err.(*sqlstate.Error); ok {
 				copy := *d
@@ -141,7 +141,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 		for sourceSlot, c := range source.Columns {
 			definition, isGenerated := source.ColumnMeta.Generations[source.Attributes[sourceSlot]]
 			if slot, ok := index[c.Name]; ok {
-				op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`merging multiple inherited definitions of column "%s"`, c.Name)})
+				host.EmitNotice(sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`merging multiple inherited definitions of column "%s"`, c.Name)})
 				if err := inheritanceColumnConflict(auth.Catalog, merged[slot], c, false); err != nil {
 					return nil, nil, nil, err
 				}
@@ -174,7 +174,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 				message = fmt.Sprintf(`moving and merging column "%s" with inherited definition`, c.Name)
 				detail = "User-specified column moved to the position of the inherited column."
 			}
-			op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
+			host.EmitNotice(sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
 			if err := inheritanceColumnConflict(auth.Catalog, merged[slot], c, true); err != nil {
 				return nil, nil, nil, err
 			}

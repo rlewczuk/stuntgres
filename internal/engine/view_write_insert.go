@@ -11,7 +11,7 @@ import (
 func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.Insert) error {
 	d := b.viewWrite.base
 	physical := binding{relation: d, ref: b.viewWrite.ref}
-	domainScheduling := e.bindInsertDefaults(&physical, auth, parser.OverrideNone)
+	domainScheduling := bindInsertDefaults(e.catalog.owner(), &physical, auth, parser.OverrideNone)
 	b.insert.defaults, b.insert.defaultOrigins = physical.insert.defaults, physical.insert.defaultOrigins
 	if b.insert.defaults == nil {
 		b.insert.defaults = make([]expr.Expr, len(d.Columns))

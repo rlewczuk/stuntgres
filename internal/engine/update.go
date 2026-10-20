@@ -121,7 +121,7 @@ func preflightUpdateExpression(c *EvalContext, expression expr.Expr, planConstan
 }
 
 // Transform FROM, WHERE, RETURNING (output fallback), then RHS/destinations.
-func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Update) error {
+func bindUpdate(b *binding, binder *expressionBinder, s *parser.Update) error {
 	if s.CurrentOf != nil {
 		b.currentOf = s.CurrentOf.Text
 	}
@@ -175,7 +175,7 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 			}
 		}
 	}
-	if err := e.bindUpdateAssignments(b, binder, s.Assignments, u); err != nil {
+	if err := bindUpdateAssignments(b, binder, s.Assignments, u); err != nil {
 		return err
 	}
 	if s.CurrentOf != nil && b.relation.View != nil {

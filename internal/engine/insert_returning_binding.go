@@ -2,7 +2,7 @@ package engine
 
 import "stuntgres/internal/parser"
 
-func (e *Engine) bindInsertReturning(b *binding, binder *expressionBinder, auth AuthorizationView, s *parser.Insert) error {
+func bindInsertReturning(b *binding, binder *expressionBinder, auth AuthorizationView, s *parser.Insert) error {
 	if s.Returning == nil {
 		return nil
 	}

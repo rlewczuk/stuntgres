@@ -68,8 +68,8 @@ func validateMergeReachability(s *parser.Merge) error {
 	return nil
 }
 
-func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth AuthorizationView, requiredRef ids.ObjectRef, s *parser.Merge) error {
-	ref, err := e.admittedReference(auth, s.Name, requiredRef)
+func bindMerge(out *binding, binder *expressionBinder, auth AuthorizationView, requiredRef ids.ObjectRef, s *parser.Merge) error {
+	ref, err := binder.host.AdmittedReference(auth, s.Name, requiredRef)
 	if err != nil {
 		return err
 	}
@@ -83,7 +83,7 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 			return err
 		}
 	}
-	out.storage = e.authorizationStorageLocked(auth, ref.Address)
+	out.storage = binder.host.AuthorizationStorage(auth, ref.Address)
 	if out.storage == nil && out.relation.RelationKind != catalog.PartitionedRelation && !guardedCatalogRelation(out.relation) {
 		return fmt.Errorf("stuntgres: relation storage is missing")
 	}
@@ -196,7 +196,7 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 		case parser.MergeUpdateAction:
 			binder.clause.aggregateClause = "UPDATE"
 			u := &boundUpdate{assignments: make([]expr.Expr, len(raw.Assignments))}
-			if err := e.bindUpdateAssignments(&arm.input, binder, raw.Assignments, u); err != nil {
+			if err := bindUpdateAssignments(&arm.input, binder, raw.Assignments, u); err != nil {
 				return err
 			}
 			merge.updateTargets = mergeTargetUnion(merge.updateTargets, arm.input.targets)
@@ -205,7 +205,7 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 			arm.syntax = raw.Values
 			insert := parser.Insert{Name: s.Name, Targets: raw.Targets, Rows: [][]parser.Expr{raw.Values}, DefaultValues: raw.DefaultValues, Override: raw.Override, Pos: raw.ActionPos}
 			binder.target.mergeInput = true
-			err = e.bindInsertInput(&arm.input, binder, auth, &insert)
+			err = bindInsertInput(&arm.input, binder, auth, &insert)
 			binder.target.mergeInput = false
 			if err != nil {
 				return err

@@ -535,7 +535,7 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 		var inherited []createLikeConstraint
 		if s.OfType != nil {
 			var err error
-			columns, declarations, b.create.ofType, err = e.bindTypedColumns(auth, s)
+			columns, declarations, b.create.ofType, err = bindTypedColumns(binder.host, auth, s)
 			if err != nil {
 				return b, err
 			}
@@ -663,7 +663,7 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 			}
 		}
 		var mergeErr error
-		columns, declarations, inherited, mergeErr = e.describeInheritance(op, auth, s, &b, columns, declarations, inherited)
+		columns, declarations, inherited, mergeErr = describeInheritance(binder.host, auth, s, &b, columns, declarations, inherited)
 		if mergeErr != nil {
 			return b, mergeErr
 		}
@@ -687,7 +687,7 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 		b.create.declarations = declarations
 	case *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 		var err error
-		b, err = e.bindMutationCommand(binder, auth, requiredRef, stmt)
+		b, err = bindMutationCommand(binder, auth, requiredRef, stmt)
 		if err != nil {
 			return b, err
 		}

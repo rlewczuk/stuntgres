@@ -58,7 +58,7 @@ func (c *boundInsertConflict) instantiate() *boundInsertConflict {
 
 // Analysis resolves names/types/read manifests; selecting installed providers
 // belongs to Execute, including commands with an empty source.
-func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth AuthorizationView, raw *parser.InsertConflict) error {
+func bindInsertConflict(b *binding, shared *expressionBinder, auth AuthorizationView, raw *parser.InsertConflict) error {
 	if raw == nil {
 		return nil
 	}
@@ -120,7 +120,7 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 		}
 		return sqlError("42704", fmt.Sprintf("constraint %q for table %q does not exist", raw.Constraint.Text, b.relation.Name()))
 	}
-	binder := e.indexExpressionBinder(shared.op, shared.input, auth, b.relation)
+	binder := shared.host.IndexExpressionBinder(shared.input, auth, b.relation)
 	binder.params.parameters = shared.params.parameters
 	binder.expected = shared.expected
 	binder.params.noParameters = false
@@ -168,7 +168,7 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 			c.keys[i].collation = id
 		}
 		if key.Opclass != nil {
-			class, err := e.lookupIndexClass(auth, *key.Opclass, catalog.BtreeMethod)
+			class, err := shared.host.LookupIndexClass(auth, *key.Opclass, catalog.BtreeMethod)
 			if err != nil {
 				return err
 			}

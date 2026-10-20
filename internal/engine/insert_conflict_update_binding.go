@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) bindInsertConflictUpdate(b *binding, binder *expressionBinder, s *parser.Insert) error {
+func bindInsertConflictUpdate(b *binding, binder *expressionBinder, s *parser.Insert) error {
 	if s.Conflict == nil || !s.Conflict.Update {
 		return nil
 	}
@@ -42,7 +42,7 @@ func (e *Engine) bindInsertConflictUpdate(b *binding, binder *expressionBinder, 
 	action := &boundUpdate{assignments: make([]expr.Expr, len(s.Conflict.Assignments))}
 	actionBinding := *b
 	actionBinding.targets = nil
-	if err := e.bindUpdateAssignments(&actionBinding, binder, s.Conflict.Assignments, action); err != nil {
+	if err := bindUpdateAssignments(&actionBinding, binder, s.Conflict.Assignments, action); err != nil {
 		return err
 	}
 	if s.Conflict.Where != nil {

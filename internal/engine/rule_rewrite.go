@@ -749,7 +749,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 	}
 	if insert, ok := stmt.(*parser.Insert); ok && b.rule.template {
 		b.insert.defaults = nil
-		e.bindInsertDefaults(&b, auth, insert.Override)
+		bindInsertDefaults(e.catalog.owner(), &b, auth, insert.Override)
 	}
 	if current.RelationKind != catalog.ViewRelation {
 		b.storage = e.authorizationStorageLocked(auth, b.ref.Address)

@@ -12,12 +12,12 @@ import (
 
 // The existing command binders share a single statement expression binder.
 // Parameter finishing, dependencies and source occurrence ordinals stay outer.
-func (e *Engine) bindMutationCommand(binder *expressionBinder, auth AuthorizationView, requiredRef ids.ObjectRef, statement parser.Statement) (binding, error) {
+func bindMutationCommand(binder *expressionBinder, auth AuthorizationView, requiredRef ids.ObjectRef, statement parser.Statement) (binding, error) {
 	b := binding{}
 	switch s := statement.(type) {
 	case *parser.Insert:
 		var err error
-		b.ref, err = e.admittedReference(auth, s.Name, requiredRef)
+		b.ref, err = binder.host.AdmittedReference(auth, s.Name, requiredRef)
 		if err != nil {
 			return b, err
 		}
@@ -41,25 +41,25 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 			return b, sqlError("0A000", "restore identity rows require OVERRIDING SYSTEM VALUE")
 		}
 		if !b.relation.VirtualView {
-			b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
+			b.storage = binder.host.AuthorizationStorage(auth, b.ref.Address)
 			if b.storage == nil && b.relation.RelationKind == catalog.TableRelation {
 				return b, fmt.Errorf("stuntgres: relation storage is missing")
 			}
 		}
-		if err := e.bindInsertInput(&b, binder, auth, s); err != nil {
+		if err := bindInsertInput(&b, binder, auth, s); err != nil {
 			return b, err
 		}
-		if err := e.bindInsertConflict(&b, binder, auth, s.Conflict); err != nil {
+		if err := bindInsertConflict(&b, binder, auth, s.Conflict); err != nil {
 			return b, err
 		}
-		if err := e.bindInsertConflictUpdate(&b, binder, s); err != nil {
+		if err := bindInsertConflictUpdate(&b, binder, s); err != nil {
 			return b, err
 		}
-		if err := e.bindInsertReturning(&b, binder, auth, s); err != nil {
+		if err := bindInsertReturning(&b, binder, auth, s); err != nil {
 			return b, err
 		}
 	case *parser.Merge:
-		if err := e.bindMerge(&b, binder, auth, requiredRef, s); err != nil {
+		if err := bindMerge(&b, binder, auth, requiredRef, s); err != nil {
 			return b, err
 		}
 		if len(rulesOf(b.relation)) != 0 {
@@ -67,7 +67,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 		}
 	case *parser.Delete:
 		var err error
-		b.ref, err = e.admittedReference(auth, s.Name, requiredRef)
+		b.ref, err = binder.host.AdmittedReference(auth, s.Name, requiredRef)
 		if err != nil {
 			return b, err
 		}
@@ -82,7 +82,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 			return b, tableKind(b.relation, "delete from")
 		}
 		if !b.relation.VirtualView {
-			b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
+			b.storage = binder.host.AuthorizationStorage(auth, b.ref.Address)
 			if b.storage == nil && b.relation.RelationKind == catalog.TableRelation {
 				return b, fmt.Errorf("stuntgres: relation storage is missing")
 			}
@@ -125,7 +125,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 		}
 	case *parser.Update:
 		var err error
-		b.ref, err = e.admittedReference(auth, s.Name, requiredRef)
+		b.ref, err = binder.host.AdmittedReference(auth, s.Name, requiredRef)
 		if err != nil {
 			return b, err
 		}
@@ -143,13 +143,13 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 			return b, tableKind(b.relation, "change")
 		}
 		if !b.relation.VirtualView {
-			b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
+			b.storage = binder.host.AuthorizationStorage(auth, b.ref.Address)
 			if b.storage == nil && b.relation.RelationKind == catalog.TableRelation {
 				return b, fmt.Errorf("stuntgres: relation storage is missing")
 			}
 		}
 		binder.query.auth = &auth
-		if err = e.bindUpdate(&b, binder, s); err != nil {
+		if err = bindUpdate(&b, binder, s); err != nil {
 			return b, err
 		}
 		b.querySources = binder.query.sources
@@ -167,7 +167,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 	}
 	b.querySources = binder.query.sources
 	if binder.target.ruleNamespace == nil {
-		if err := e.bindViewWrite(&b, auth, statement); err != nil {
+		if err := binder.host.BindViewWrite(&b, auth, statement); err != nil {
 			return b, err
 		}
 	}
@@ -250,5 +250,5 @@ func (b *expressionBinder) bindCTEMutation(statement parser.Statement) (binding,
 			return binding{}, err
 		}
 	}
-	return b.engine.bindMutationCommand(b, *b.query.auth, required, statement)
+	return bindMutationCommand(b, *b.query.auth, required, statement)
 }

@@ -15,7 +15,7 @@ import (
 
 // The caller owns namespace and clause ordering; UPDATE, MERGE and conflict
 // UPDATE share target, coercion and partial-assignment analysis.
-func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, assignments []parser.UpdateAssignment, u *boundUpdate) error {
+func bindUpdateAssignments(b *binding, binder *expressionBinder, assignments []parser.UpdateAssignment, u *boundUpdate) error {
 	wasUpdateParameters := binder.params.updateParameters
 	binder.params.updateParameters = true
 	defer func() {
@@ -23,7 +23,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 		binder.params.updateInputParameters = nil
 	}()
 	var err error
-	assignments, err = e.prepareUpdateAssignments(b, binder, assignments, u)
+	assignments, err = prepareUpdateAssignments(b, binder, assignments, u)
 	if err != nil {
 		return err
 	}

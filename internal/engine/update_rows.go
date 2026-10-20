@@ -26,7 +26,7 @@ func (c *EvalContext) EvalUpdateOutput(e plan.UpdateOutputExpr) (sqltype.Value, 
 // Analyze sources in original SET order, before the shared destination pass.
 // Constructors are expanded once, then their members use destination contexts;
 // SELECT outputs retain their independently analyzed types and origins.
-func (e *Engine) prepareUpdateAssignments(b *binding, binder *expressionBinder, raw []parser.UpdateAssignment, u *boundUpdate) ([]parser.UpdateAssignment, error) {
+func prepareUpdateAssignments(b *binding, binder *expressionBinder, raw []parser.UpdateAssignment, u *boundUpdate) ([]parser.UpdateAssignment, error) {
 	width := 0
 	grouped := false
 	for _, a := range raw {
@@ -47,7 +47,7 @@ func (e *Engine) prepareUpdateAssignments(b *binding, binder *expressionBinder, 
 		u.origins = make([]parser.Position, 0, width)
 	}
 	appendMember := func(a parser.UpdateAssignment, node expr.Expr, origin parser.Position) error {
-		bound, err := e.bindUpdateAssignmentSource(b, binder, a, node, u, len(assignments), width)
+		bound, err := bindUpdateAssignmentSource(b, binder, a, node, u, len(assignments), width)
 		if err != nil {
 			return err
 		}
@@ -65,7 +65,7 @@ func (e *Engine) prepareUpdateAssignments(b *binding, binder *expressionBinder, 
 					return nil, err
 				}
 			} else {
-				bound, err := e.bindUpdateAssignmentSource(b, binder, a, nil, u, i, width)
+				bound, err := bindUpdateAssignmentSource(b, binder, a, nil, u, i, width)
 				if err != nil {
 					return nil, err
 				}
@@ -133,7 +133,7 @@ func updateRowWidthError(pos parser.Position) error {
 	return expr.ErrorAt("42601", "number of columns does not match number of values", pos)
 }
 
-func (e *Engine) bindUpdateAssignmentSource(b *binding, binder *expressionBinder, a parser.UpdateAssignment, bound expr.Expr, u *boundUpdate, index, width int) (expr.Expr, error) {
+func bindUpdateAssignmentSource(b *binding, binder *expressionBinder, a parser.UpdateAssignment, bound expr.Expr, u *boundUpdate, index, width int) (expr.Expr, error) {
 	if len(a.Steps) != 0 {
 		if _, requested := a.Value.(parser.DefaultExpr); requested {
 			return nil, expr.ErrorAt("0A000", "cannot set an array element to DEFAULT", a.Target.Pos)

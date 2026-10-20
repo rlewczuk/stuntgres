@@ -3,6 +3,7 @@ package engine
 import (
 	"strconv"
 
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -16,7 +17,7 @@ import (
 // bindInsertInput owns destination mapping, admission and demanded-default
 // scheduling for ordinary INSERT and each MERGE insertion arm. Its binder is
 // shared with the containing statement, including parameter/source authority.
-func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth AuthorizationView, s *parser.Insert) error {
+func bindInsertInput(b *binding, binder *expressionBinder, auth AuthorizationView, s *parser.Insert) error {
 	if s.Source == nil {
 		binder.clause.aggregateClause = "INSERT VALUES"
 	}
@@ -57,9 +58,9 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 		}
 		b.arrayTargets[i] = partial
 	}
-	domainScheduling := e.bindInsertDefaults(b, auth, s.Override)
+	domainScheduling := bindInsertDefaults(binder.host.CatalogOwner(), b, auth, s.Override)
 	if s.Source != nil {
-		if err := e.bindInsertSource(b, binder, auth, s); err != nil {
+		if err := bindInsertSource(b, binder, auth, s); err != nil {
 			return err
 		}
 		return binder.captureRetainedWriteInput(b.insert.defaults, nil, nil)
@@ -269,7 +270,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 // INSERT, COPY and foreign actions share catalog-owned default/identity plans.
 // The result tells VALUES binding whether domain inputs/defaults require the
 // existing destination-attribute projection rather than default-first demand.
-func (e *Engine) bindInsertDefaults(b *binding, auth AuthorizationView, override parser.InsertOverride) bool {
+func bindInsertDefaults(owner *catalog.Owner, b *binding, auth AuthorizationView, override parser.InsertOverride) bool {
 	hasDomains, hasTypeDefaults, hasDomainInput := false, false, false
 	for _, column := range b.relation.Columns {
 		hasDomains = hasDomains || column.Usage.Type.HasDomainConstraints()
@@ -290,7 +291,7 @@ func (e *Engine) bindInsertDefaults(b *binding, auth AuthorizationView, override
 			b.insert.defaultOrigins[i] = origin
 		}
 		if identity, ok := b.relation.ColumnMeta.Identities[attribute]; ok {
-			b.insert.defaults[i] = functions.SequenceCall{Info: expr.Info{Usage: b.relation.Columns[i].Usage, Property: expr.Properties{Volatility: expr.Volatile}}, Name: "nextval", Ref: e.catalog.Domain.Ref(auth.Catalog.Epoch(), identity.Sequence), Identity: true}
+			b.insert.defaults[i] = functions.SequenceCall{Info: expr.Info{Usage: b.relation.Columns[i].Usage, Property: expr.Properties{Volatility: expr.Volatile}}, Name: "nextval", Ref: owner.Domain.Ref(auth.Catalog.Epoch(), identity.Sequence), Identity: true}
 		}
 	}
 	if override == parser.OverrideUser {

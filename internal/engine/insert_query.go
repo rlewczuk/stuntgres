@@ -35,7 +35,7 @@ func bindInsertTargets(relation *catalog.Relation, targets []parser.InsertTarget
 	return nil
 }
 
-func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth AuthorizationView, s *parser.Insert) error {
+func bindInsertSource(out *binding, binder *expressionBinder, auth AuthorizationView, s *parser.Insert) error {
 	var query *plan.Query
 	var err error
 	if sel := s.Source.Select; sel != nil {
