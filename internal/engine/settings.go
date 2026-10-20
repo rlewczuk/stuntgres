@@ -122,7 +122,8 @@ var builtinSettings = []SettingDefinition{
 	{Name: "idle_session_timeout", Type: SettingInteger, Unit: SettingMilliseconds, IntegerMax: math.MaxInt32, BootDefault: "0", Description: "Sets the maximum allowed idle time between queries, when not in a transaction."},
 }
 
-func RegistrationError(message string) error { return errors.New("stuntgres: " + message) }
+// registrationError matches the engine-wide RegistrationError message prefix.
+func registrationError(message string) error { return errors.New("stuntgres: " + message) }
 
 func settingFold(s string) string {
 	for i := range len(s) {
@@ -161,36 +162,36 @@ func customName(name string) bool {
 func ValidateSetting(d SettingDefinition) (SettingDefinition, error) {
 	d.Name = settingFold(d.Name)
 	if !customName(d.Name) || d.Type > SettingEnum || d.Access > SettingPrivileged || d.Unit > SettingMinutes || !utf8.ValidString(d.Description) || strings.IndexByte(d.Description, 0) >= 0 {
-		return d, RegistrationError("invalid setting definition")
+		return d, registrationError("invalid setting definition")
 	}
 	if d.Unit != SettingUnitNone && d.Type != SettingInteger && d.Type != SettingFloating {
-		return d, RegistrationError("units require a numeric setting")
+		return d, registrationError("units require a numeric setting")
 	}
 	if d.Type == SettingInteger && d.IntegerMin > d.IntegerMax || d.Type == SettingFloating && (math.IsNaN(d.FloatMin) || math.IsNaN(d.FloatMax) || math.IsInf(d.FloatMin, 0) || math.IsInf(d.FloatMax, 0) || d.FloatMin > d.FloatMax) {
-		return d, RegistrationError("invalid setting bounds")
+		return d, registrationError("invalid setting bounds")
 	}
 	if d.Type != SettingInteger && (d.IntegerMin != 0 || d.IntegerMax != 0) || d.Type != SettingFloating && (d.FloatMin != 0 || d.FloatMax != 0) {
-		return d, RegistrationError("bounds require the corresponding numeric setting type")
+		return d, registrationError("bounds require the corresponding numeric setting type")
 	}
 	d.EnumValues = append([]string(nil), d.EnumValues...)
 	if d.Type == SettingEnum {
 		if len(d.EnumValues) == 0 {
-			return d, RegistrationError("empty setting enum")
+			return d, registrationError("empty setting enum")
 		}
 		seen := make(map[string]bool, len(d.EnumValues))
 		for _, value := range d.EnumValues {
 			key := settingFold(value)
 			if value == "" || !utf8.ValidString(value) || strings.IndexByte(value, 0) >= 0 || seen[key] {
-				return d, RegistrationError("invalid setting enum")
+				return d, registrationError("invalid setting enum")
 			}
 			seen[key] = true
 		}
 	} else if len(d.EnumValues) != 0 {
-		return d, RegistrationError("enum values require an enum setting")
+		return d, registrationError("enum values require an enum setting")
 	}
 	v, err := d.parse(d.BootDefault)
 	if err != nil {
-		return d, RegistrationError("invalid setting default: " + err.Error())
+		return d, registrationError("invalid setting default: " + err.Error())
 	}
 	d.bootValue = v
 	d.BootDefault = d.format(v)

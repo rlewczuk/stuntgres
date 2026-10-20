@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
+// noticeLevel values are ranks in settings message-level order.
 type noticeLevel uint8
 
 const (
@@ -20,30 +21,11 @@ const (
 	levelError
 )
 
+// messageLevel maps a client message level name to its notice level. The
+// noticeLevel constants follow the settings rank order.
 func messageLevel(value string) (noticeLevel, bool) {
-	switch value {
-	case "debug5":
-		return levelDebug5, true
-	case "debug4":
-		return levelDebug4, true
-	case "debug3":
-		return levelDebug3, true
-	case "debug2", "debug":
-		return levelDebug2, true
-	case "debug1":
-		return levelDebug1, true
-	case "log":
-		return levelLog, true
-	case "info":
-		return levelInfo, true
-	case "notice":
-		return levelNotice, true
-	case "warning":
-		return levelWarning, true
-	case "error":
-		return levelError, true
-	}
-	return 0, false
+	rank, ok := messageLevelRank(value)
+	return noticeLevel(rank), ok
 }
 func (op *Operation) snapshotNoticeThreshold() {
 	s := op.session.settings

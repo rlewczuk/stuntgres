@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"errors"
 	"reflect"
 	"strings"
 	"unicode/utf8"
@@ -10,6 +11,10 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 )
+
+// RegistrationError reports an invalid adapter registration (foreign-data
+// wrappers, settings, default providers) with the engine-wide prefix.
+func RegistrationError(message string) error { return errors.New("stuntgres: " + message) }
 
 func foreignFunctionName(name catalog.ForeignFunctionName) (catalog.ForeignFunctionName, error) {
 	if name.Schema == "" {

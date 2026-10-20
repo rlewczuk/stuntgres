@@ -83,7 +83,7 @@ func normalizeICUValidationLevel(input string) (string, *sqlstate.Error, error) 
 	if value == "disabled" {
 		return value, nil, nil
 	}
-	if _, ok := messageLevel(value); ok {
+	if _, ok := messageLevelRank(value); ok {
 		return value, nil, nil
 	}
 	return "", nil, (SettingDefinition{Name: "icu_validation_level"}).invalid(input, "Available values: disabled, debug5, debug4, debug3, debug2, debug1, log, notice, warning, error.")

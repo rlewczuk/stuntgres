@@ -3,6 +3,8 @@ package engine
 import (
 	"fmt"
 	"sort"
+
+	"stuntgres/internal/sqlstate"
 )
 
 // settingsRegistry owns shared metadata, immutable after construction. Value
@@ -39,7 +41,7 @@ func (r settingsRegistry) Lookup(name string) (SettingDefinition, error) {
 	if d, ok := r.definitions[settingFold(name)]; ok {
 		return d, nil
 	}
-	return SettingDefinition{}, sqlError("42704", fmt.Sprintf(`unrecognized configuration parameter "%s"`, name))
+	return SettingDefinition{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42704", Message: fmt.Sprintf(`unrecognized configuration parameter "%s"`, name)}
 }
 
 // Definitions borrows immutable definitions, including their enum and boot paths.

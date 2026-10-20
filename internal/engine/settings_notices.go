@@ -25,3 +25,19 @@ func normalizeClientMinMessages(value string) (string, *sqlstate.Error, error) {
 		return "", nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid value for parameter "client_min_messages": "%s"`, value), Hint: "Available values: debug5, debug4, debug3, debug2, debug1, log, notice, warning, error."}
 	}
 }
+
+// messageLevels lists client message levels from least to most severe.
+var messageLevels = [...]string{"debug5", "debug4", "debug3", "debug2", "debug1", "log", "info", "notice", "warning", "error"}
+
+// messageLevelRank returns a level's index in messageLevels; "debug" means debug2.
+func messageLevelRank(name string) (int, bool) {
+	if name == "debug" {
+		name = "debug2"
+	}
+	for rank, level := range messageLevels {
+		if level == name {
+			return rank, true
+		}
+	}
+	return 0, false
+}
