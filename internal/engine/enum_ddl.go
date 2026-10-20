@@ -2,18 +2,14 @@ package engine
 
 import (
 	"fmt"
-	"slices"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 func (e *Engine) resolveAlterEnumLocked(auth AuthorizationView, name parser.ObjectName) (*catalog.Type, ids.ObjectRef, error) {
@@ -123,72 +119,19 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 			return Result{}, ids.ErrCatalogReplaced
 		}
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))
-		members := old.SQLType.EnumMembers()
-		oldIndex, newIndex := -1, -1
-		for i, m := range members {
-			if m.Label == alter.Old.Text {
-				oldIndex = i
-			}
-			if m.Label == alter.Label.Text {
-				newIndex = i
-			}
-		}
-		if alter.Rename && oldIndex < 0 {
-			return Result{}, sqlError("22023", fmt.Sprintf(`"%s" is not an existing enum label`, alter.Old.Text))
-		}
-		if newIndex >= 0 {
-			if !alter.Rename && alter.IfNotExists {
-				op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42710", Message: fmt.Sprintf(`enum label "%s" already exists, skipping`, alter.Label.Text)})
-				return Result{}, nil
-			}
-			return Result{}, sqlError("42710", fmt.Sprintf(`enum label "%s" already exists`, alter.Label.Text))
-		}
-		if alter.Rename {
-			members[oldIndex].Label = alter.Label.Text
-		} else {
-			at := len(members)
-			if alter.Neighbor.Pos.Character != 0 {
-				at = -1
-				for i, m := range members {
-					if m.Label == alter.Neighbor.Text {
-						at = i
-						break
-					}
-				}
-				if at < 0 {
-					return Result{}, sqlError("22023", fmt.Sprintf(`"%s" is not an existing enum label`, alter.Neighbor.Text))
-				}
-				if !alter.Before {
-					at++
-				}
-			}
-			member, err := e.catalog.allocateEnumMemberLocked()
-			if err != nil {
-				return Result{}, err
-			}
-			order := typedef.EnumInsertionOrder(members, at)
-			members = slices.Insert(members, at, sqltype.EnumMember{ID: member, Label: alter.Label.Text, SortOrder: order})
-			if !enumJournalOf(changes.Enum).CreatedTypes()[ref.Address] || len(scope.owner.Savepoints) != 0 {
-				journal := enumWritable(changes)
-				if journal.Unsafe == nil {
-					journal.Unsafe = make(map[int64]bool)
-				}
-				journal.Unsafe[member] = true
-			}
-		}
-		typ, err := sqltype.EnumWithMembers(old.SQLType.ID(), old.Name(), old.SQLType.SQLName(), members)
+		edit, err := stageAlterEnumLabelLocked(typedefHost{e: e, op: op, stage: stage}, old, alter)
 		if err != nil {
 			return Result{}, err
 		}
-		revision, err := e.catalog.revisionLocked()
-		if err != nil {
-			return Result{}, err
+		if edit.Skipped {
+			return Result{}, nil
 		}
-		next := *old
-		next.SQLType = typ
-		next.ObjectRevision = revision
-		if err := stage.Replace(&next); err != nil {
-			return Result{}, err
+		if edit.Added && (!enumJournalOf(changes.Enum).CreatedTypes()[ref.Address] || len(scope.owner.Savepoints) != 0) {
+			journal := enumWritable(changes)
+			if journal.Unsafe == nil {
+				journal.Unsafe = make(map[int64]bool)
+			}
+			journal.Unsafe[edit.Member] = true
 		}
 		// Existing private replacements must be the inputs to dependent reowning,
 		// rather than the committed stores they already superseded.

@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"slices"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
@@ -15,7 +14,6 @@ import (
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 func (e *Engine) resolveAlterDomainLocked(auth AuthorizationView, name parser.ObjectName) (*catalog.Type, ids.ObjectRef, error) {
@@ -93,56 +91,13 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 	scope.routineAuth = auth
 	scope.domains.inputCatalog = auth.Catalog
 	stage.domainBases = append(stage.domainBases, old)
-	next := *old
-	next.DomainChecks = slices.Clone(old.DomainChecks)
-	selected := -1
-	for i, check := range next.DomainChecks {
-		if check.Name == raw.Constraint.Text {
-			selected = i
-			break
-		}
+	edit, err := stageAlterDomainConstraintLocked(typedefHost{e: e, op: op, stage: stage}, auth, old, raw, scope.input)
+	if err == nil && edit.Skipped {
+		e.mu.Unlock()
+		e.DiscardCatalogStage(stage)
+		return Result{}, nil
 	}
-	validating := raw.Action == parser.DomainValidateCheck || raw.Action == parser.DomainAddCheck && !raw.Check.NotValid
-	switch raw.Action {
-	case parser.DomainAddCheck:
-		check := *raw.Check
-		// REL_18_0 ALTER accepts but ignores NO INHERIT. CREATE keeps its
-		// own cooking rejection; never relax the shared CREATE binder.
-		check.NoInherit = false
-		err = e.bindDomainChecks(op, auth, stage, &next, []parser.ColumnConstraint{{Check: &check, Pos: check.Pos}}, scope.input)
-		if err == nil {
-			for i, c := range next.DomainChecks {
-				if !slices.ContainsFunc(old.DomainChecks, func(prior catalog.DomainCheckConstraint) bool { return prior.OID == c.OID }) {
-					selected = i
-					break
-				}
-			}
-			next.SQLType, err = sqltype.Domain(old.SQLType.ID(), old.Name(), old.SQLType.SQLName(), old.SQLType.DomainBase(), true, old.SQLType.OwnDomainNotNull())
-		}
-	case parser.DomainDropCheck, parser.DomainValidateCheck:
-		if selected < 0 {
-			message := fmt.Sprintf("constraint %q of domain %q does not exist", raw.Constraint.Text, catalog.ObjectNameText(raw.Name))
-			if raw.Action == parser.DomainDropCheck && raw.IfExists {
-				schemaNotice(op, "00000", message+", skipping")
-				e.mu.Unlock()
-				e.DiscardCatalogStage(stage)
-				return Result{}, nil
-			}
-			err = sqlError("42704", message)
-		} else if raw.Action == parser.DomainDropCheck {
-			err = stage.removeDomainCheck(old, next.DomainChecks[selected].OID)
-		} else {
-			next.DomainChecks[selected].NotValid = false
-		}
-	default:
-		err = fmt.Errorf("stuntgres: invalid domain constraint action")
-	}
-	if err == nil && raw.Action != parser.DomainDropCheck {
-		next.ObjectRevision, err = e.catalog.revisionLocked()
-		if err == nil {
-			err = stage.replaceDescriptor(&next, false)
-		}
-	}
+	next, selected, validating := edit.Next, edit.Selected, edit.Validating
 	var diagnosticPath []ids.ObjectAddress
 	if err == nil && validating {
 		diagnosticPath, err = e.referencePath(auth)
