@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -45,12 +46,12 @@ func indexSemanticError(err error) error {
 }
 
 func (e *Engine) lookupIndexClass(auth AuthorizationView, raw parser.ObjectName, method catalog.IndexMethod) (sqltype.IndexClass, error) {
-	path, err := e.lookupNamespaces(auth, raw, operatorLookup)
+	path, err := e.lookupNamespaces(auth, raw, analyze.OperatorLookup)
 	if err != nil {
 		return sqltype.IndexClass{}, indexSemanticError(err)
 	}
-	for i := range path.count() {
-		if path.at(i) == (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) {
+	for i := range path.Count() {
+		if path.At(i) == (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) {
 			if c, ok := method.LookupClass(raw.Parts[len(raw.Parts)-1].Text); ok {
 				return c, nil
 			}

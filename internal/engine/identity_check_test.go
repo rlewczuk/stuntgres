@@ -5,6 +5,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -305,7 +306,7 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 		t.Fatal("regclass resolution/stamp mixed candidate and published authority", constant)
 	}
 	qualified := statement(t, `SELECT candidate_schema.nextval('candidate_only')`).(*parser.Select).Targets[0].(parser.CallExpr)
-	if visible, err := binder.builtinVisible(qualified.Name, functionLookup); err != nil || visible {
+	if visible, err := binder.builtinVisible(qualified.Name, analyze.FunctionLookup); err != nil || visible {
 		t.Fatal("builtin namespace lookup ignored candidate authority", visible, err)
 	}
 	if e.catalog.state != read.State() || e.catalog.state.Get(address) != original || e.storage.Sequences[address].Called {

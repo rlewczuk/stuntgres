@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -22,12 +23,12 @@ func (e *Engine) resolveAlterEnumLocked(auth AuthorizationView, name parser.Obje
 		parts[0].Pos = parser.Position{}
 		lookupName.Parts = parts[:]
 	}
-	path, err := e.lookupNamespaces(auth, lookupName, typeLookup)
+	path, err := e.lookupNamespaces(auth, lookupName, analyze.TypeLookup)
 	if err != nil {
 		return nil, ids.ObjectRef{}, err
 	}
-	for i := range path.count() {
-		found := auth.Catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
+	for i := range path.Count() {
+		found := auth.Catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.At(i), Name: name.Parts[len(name.Parts)-1].Text})
 		if len(found) == 0 {
 			continue
 		}

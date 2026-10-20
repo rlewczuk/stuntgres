@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -12,7 +13,7 @@ import (
 
 // explicitPath runs under the engine mutex and captures one immutable setting value.
 func (e *Engine) explicitPath(auth AuthorizationView) ([]ids.ObjectAddress, bool, error) {
-	return e.explicitPathFor(auth, relationLookup)
+	return e.explicitPathFor(auth, analyze.RelationLookup)
 }
 func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]ids.ObjectAddress, bool, error) {
 	entries := e.settings.Definitions()["search_path"].BootValue().Path
@@ -65,7 +66,7 @@ func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]ids
 		if !ok {
 			continue
 		}
-		if ns, ok := auth.definitionNamespace(a); ok && ns.Temporary != (ids.SessionToken{}) && !ownTemporaryNamespace(auth, ns) && kind != installedFunctionLookup {
+		if ns, ok := auth.definitionNamespace(a); ok && ns.Temporary != (ids.SessionToken{}) && !ownTemporaryNamespace(auth, ns) && kind != analyze.InstalledFunctionLookup {
 			continue
 		}
 		duplicate := false
@@ -90,20 +91,8 @@ func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]ids
 	return result, pendingTemp, nil
 }
 
-type lookupKind uint8
-
-const (
-	relationLookup lookupKind = iota
-	typeLookup
-	functionLookup
-	installedFunctionLookup // Registered procedures only; ordinary TEMP isolation stays unchanged.
-	operatorLookup
-	collationLookup
-	conversionLookup
-)
-
 func (e *Engine) referencePath(auth AuthorizationView) ([]ids.ObjectAddress, error) {
-	return e.lookupPath(auth, relationLookup)
+	return e.lookupPath(auth, analyze.RelationLookup)
 }
 func (e *Engine) lookupPath(auth AuthorizationView, kind lookupKind) ([]ids.ObjectAddress, error) {
 	path, _, err := e.explicitPathFor(auth, kind)
@@ -113,11 +102,11 @@ func (e *Engine) lookupPath(auth AuthorizationView, kind lookupKind) ([]ids.Obje
 	return e.effectivePath(auth, path, kind), nil
 }
 func (e *Engine) effectivePath(auth AuthorizationView, path []ids.ObjectAddress, kind lookupKind) []ids.ObjectAddress {
-	if kind == installedFunctionLookup || kind == functionLookup || kind == operatorLookup || kind == collationLookup || kind == conversionLookup {
+	if kind == analyze.InstalledFunctionLookup || kind == analyze.FunctionLookup || kind == analyze.OperatorLookup || kind == analyze.CollationLookup || kind == analyze.ConversionLookup {
 		filtered := path[:0]
 		for _, a := range path {
 			ns, _ := auth.definitionNamespace(a)
-			if ns.Temporary == (ids.SessionToken{}) || kind == installedFunctionLookup && !ownTemporaryNamespace(auth, ns) {
+			if ns.Temporary == (ids.SessionToken{}) || kind == analyze.InstalledFunctionLookup && !ownTemporaryNamespace(auth, ns) {
 				filtered = append(filtered, a)
 			}
 		}
@@ -134,7 +123,7 @@ func (e *Engine) effectivePath(auth AuthorizationView, path []ids.ObjectAddress,
 	if !foundCatalog {
 		path = append([]ids.ObjectAddress{catalog}, path...)
 	}
-	if temp := temporaryNamespace(auth); temp != (ids.ObjectAddress{}) && (kind == relationLookup || kind == typeLookup) {
+	if temp := temporaryNamespace(auth); temp != (ids.ObjectAddress{}) && (kind == analyze.RelationLookup || kind == analyze.TypeLookup) {
 		found := false
 		for _, a := range path {
 			if a == temp {
@@ -146,25 +135,6 @@ func (e *Engine) effectivePath(auth AuthorizationView, path []ids.ObjectAddress,
 		}
 	}
 	return path
-}
-
-// Qualified lookup carries its one address inline, without a singleton slice.
-type namespaceSelection struct {
-	path      []ids.ObjectAddress
-	qualified ids.ObjectAddress
-}
-
-func (p namespaceSelection) count() int {
-	if p.qualified != (ids.ObjectAddress{}) {
-		return 1
-	}
-	return len(p.path)
-}
-func (p namespaceSelection) at(i int) ids.ObjectAddress {
-	if p.qualified != (ids.ObjectAddress{}) {
-		return p.qualified
-	}
-	return p.path[i]
 }
 
 // lookupNamespaces is the shared qualified/unqualified namespace authority.
@@ -181,7 +151,7 @@ func (e *Engine) lookupNamespaces(auth AuthorizationView, name parser.ObjectName
 func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.ObjectName, kind lookupKind) (namespaceSelection, error) {
 	if len(name.Parts) == 1 {
 		path, err := e.lookupPath(auth, kind)
-		return namespaceSelection{path: path}, err
+		return namespaceSelection{Path: path}, err
 	}
 	if len(name.Parts) != 2 {
 		return namespaceSelection{}, fmt.Errorf("stuntgres: invalid object name")
@@ -192,7 +162,7 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 		a = temporaryNamespace(auth)
 	}
 	if a == (ids.ObjectAddress{}) {
-		if kind != relationLookup {
+		if kind != analyze.RelationLookup {
 			return namespaceSelection{}, expr.ErrorAt("3F000", fmt.Sprintf(`schema "%s" does not exist`, n.Text), n.Pos)
 		}
 		return namespaceSelection{}, nil
@@ -203,8 +173,8 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 		actor, exists := auth.Roles.Find(auth.State.CurrentUser)
 		foreignTemporary = !exists || !actor.Superuser
 	}
-	if foreignTemporary && kind != installedFunctionLookup {
-		if kind == relationLookup {
+	if foreignTemporary && kind != analyze.InstalledFunctionLookup {
+		if kind == analyze.RelationLookup {
 			return namespaceSelection{}, sqlError("42501", fmt.Sprintf("permission denied for schema %s", ns.Name()))
 		}
 		return namespaceSelection{}, expr.ErrorAt("42501", fmt.Sprintf("permission denied for schema %s", ns.Name()), n.Pos)
@@ -217,7 +187,7 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 		}
 		return namespaceSelection{}, err
 	}
-	return namespaceSelection{qualified: a}, nil
+	return namespaceSelection{Qualified: a}, nil
 }
 
 func (b *expressionBinder) builtinVisible(name parser.ObjectName, kind lookupKind) (bool, error) {
@@ -229,8 +199,8 @@ func (b *expressionBinder) builtinVisible(name parser.ObjectName, kind lookupKin
 	if err != nil {
 		return false, err
 	}
-	for i := range path.count() {
-		if path.at(i).ObjectID == ids.PGCatalogNamespaceOID {
+	for i := range path.Count() {
+		if path.At(i).ObjectID == ids.PGCatalogNamespaceOID {
 			return true, nil
 		}
 	}

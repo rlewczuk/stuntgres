@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -36,7 +37,7 @@ func TestSearchPathLookupKinds(t *testing.T) {
 	for _, tc := range []struct {
 		kind lookupKind
 		want []string
-	}{{relationLookup, []string{temp, "pg_catalog", "b", "a"}}, {typeLookup, []string{temp, "pg_catalog", "b", "a"}}, {functionLookup, []string{"pg_catalog", "b", "a"}}, {operatorLookup, []string{"pg_catalog", "b", "a"}}} {
+	}{{analyze.RelationLookup, []string{temp, "pg_catalog", "b", "a"}}, {analyze.TypeLookup, []string{temp, "pg_catalog", "b", "a"}}, {analyze.FunctionLookup, []string{"pg_catalog", "b", "a"}}, {analyze.OperatorLookup, []string{"pg_catalog", "b", "a"}}} {
 		path, err := e.lookupPath(auth, tc.kind)
 		if err != nil || !reflect.DeepEqual(names(path), tc.want) {
 			t.Fatal(tc.kind, names(path), tc.want, err)
@@ -130,7 +131,7 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 		t.Fatal("creation fell back from first usable namespace", target, err)
 	}
 	domainUnitDiagnostic(t, auth.CheckCreate(target), "42501", "permission denied for schema visible")
-	_, err = e.lookupNamespaces(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: "hidden"}, {Text: "int4"}}}, typeLookup)
+	_, err = e.lookupNamespaces(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: "hidden"}, {Text: "int4"}}}, analyze.TypeLookup)
 	state(t, err, "42501")
 }
 
@@ -145,12 +146,12 @@ func TestSearchPathMissingQualifiedNamespace(t *testing.T) {
 		t.Fatal(err)
 	}
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: "missing_path_ns", Pos: parser.Position{Character: 8}}, {Text: "int4"}}}
-	for _, kind := range []lookupKind{typeLookup, functionLookup, operatorLookup} {
+	for _, kind := range []lookupKind{analyze.TypeLookup, analyze.FunctionLookup, analyze.OperatorLookup} {
 		_, err := e.lookupNamespaces(auth, name, kind)
 		state(t, err, "3F000")
 	}
-	path, err := e.lookupNamespaces(auth, name, relationLookup)
-	if err != nil || path.count() != 0 {
+	path, err := e.lookupNamespaces(auth, name, analyze.RelationLookup)
+	if err != nil || path.Count() != 0 {
 		t.Fatal(path, err)
 	}
 }
@@ -198,10 +199,10 @@ func TestSearchPathExplicitTempPlacementAndForeignFiltering(t *testing.T) {
 		kind lookupKind
 		want []string
 	}{
-		{relationLookup, []string{"b", "pg_catalog", temp, "a"}},
-		{typeLookup, []string{"b", "pg_catalog", temp, "a"}},
-		{functionLookup, []string{"b", "pg_catalog", "a"}},
-		{operatorLookup, []string{"b", "pg_catalog", "a"}},
+		{analyze.RelationLookup, []string{"b", "pg_catalog", temp, "a"}},
+		{analyze.TypeLookup, []string{"b", "pg_catalog", temp, "a"}},
+		{analyze.FunctionLookup, []string{"b", "pg_catalog", "a"}},
+		{analyze.OperatorLookup, []string{"b", "pg_catalog", "a"}},
 	} {
 		path, err := e.lookupPath(auth, tc.kind)
 		if err != nil {

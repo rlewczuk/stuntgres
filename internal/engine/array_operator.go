@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -29,7 +30,7 @@ func (b *expressionBinder) bindArrayMembership(raw parser.OperatorExpr) (expr.Ex
 
 func (b *expressionBinder) finishArrayMembership(raw parser.OperatorExpr, operands [2]comparisonOperand) (expr.Expr, error) {
 	left, right := operands[0].descriptor(), operands[1].descriptor()
-	visible, err := b.builtinVisible(raw.Name, operatorLookup)
+	visible, err := b.builtinVisible(raw.Name, analyze.OperatorLookup)
 	if err != nil {
 		return nil, err
 	}

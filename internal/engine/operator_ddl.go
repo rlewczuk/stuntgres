@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -53,13 +54,13 @@ func (e *Engine) findUtilityOperator(op *Operation, auth AuthorizationView, s pa
 	if err != nil {
 		return nil, err
 	}
-	path, err := e.lookupNamespaces(auth, s.Name, operatorLookup)
+	path, err := e.lookupNamespaces(auth, s.Name, analyze.OperatorLookup)
 	if err != nil {
 		return nil, err
 	}
 	key := catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID}, Left: left, Right: right, ObjectName: s.Name.Parts[len(s.Name.Parts)-1].Text}
-	for i := range path.count() {
-		key.ObjectNamespace = path.at(i)
+	for i := range path.Count() {
+		key.ObjectNamespace = path.At(i)
 		a := auth.Catalog.NameAddress(catalog.DescriptorNameKey(&key))
 		if d, ok := auth.Catalog.Operator(a); ok {
 			return d, nil
@@ -68,7 +69,7 @@ func (e *Engine) findUtilityOperator(op *Operation, auth AuthorizationView, s pa
 	return nil, sqlError("42883", "operator does not exist: "+routine.OperatorInputName(auth.Catalog, left, right, s.Name))
 }
 func (e *Engine) operatorRoutine(auth AuthorizationView, name parser.ObjectName, inputs []ids.OID) (*catalog.Procedure, error) {
-	path, err := e.lookupNamespaces(auth, name, functionLookup)
+	path, err := e.lookupNamespaces(auth, name, analyze.FunctionLookup)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +98,7 @@ func (e *Engine) operatorEstimator(auth AuthorizationView, name parser.ObjectNam
 	if len(name.Parts) == 0 {
 		return 0, nil
 	}
-	path, err := e.lookupNamespaces(auth, name, functionLookup)
+	path, err := e.lookupNamespaces(auth, name, analyze.FunctionLookup)
 	if err != nil {
 		return 0, err
 	}
@@ -297,7 +298,7 @@ func (e *Engine) resolveOperatorLink(auth AuthorizationView, stage *CatalogStage
 	if negator {
 		left, right = d.Left, d.Right
 	}
-	path, err := e.lookupNamespaces(auth, name, operatorLookup)
+	path, err := e.lookupNamespaces(auth, name, analyze.OperatorLookup)
 	if err != nil {
 		// CREATE's catalog peer lookup has no expression error location.
 		// Keep ALTER's existing reference diagnostic context unchanged.
@@ -311,8 +312,8 @@ func (e *Engine) resolveOperatorLink(auth AuthorizationView, stage *CatalogStage
 	view := e.stageRead(stage)
 	var peer *catalog.Operator
 	key := catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID}, ObjectName: symbol, Left: left, Right: right}
-	for i := range path.count() {
-		key.ObjectNamespace = path.at(i)
+	for i := range path.Count() {
+		key.ObjectNamespace = path.At(i)
 		if found, ok := view.Operator(view.NameAddress(catalog.DescriptorNameKey(&key))); ok {
 			peer = found
 			break

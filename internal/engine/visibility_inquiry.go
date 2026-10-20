@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -114,10 +115,10 @@ func (e *Engine) captureVisibilitySnapshotLocked(scope *StatementScope) error {
 	}
 	// effectivePath filters TEMP in place for conversion lookup. Give that
 	// derived path its own backing store; the relation path remains immutable.
-	relations := e.effectivePath(auth, explicit, relationLookup)
+	relations := e.effectivePath(auth, explicit, analyze.RelationLookup)
 	otherExplicit := make([]ids.ObjectAddress, len(explicit))
 	copy(otherExplicit, explicit)
-	others := e.effectivePath(auth, otherExplicit, conversionLookup)
+	others := e.effectivePath(auth, otherExplicit, analyze.ConversionLookup)
 	scope.inquiry.visibilityCatalog = auth.Catalog
 	scope.inquiry.visibilityRelationPath, scope.inquiry.visibilityOtherPath = relations, others
 	return nil

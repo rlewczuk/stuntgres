@@ -3,7 +3,7 @@ package engine
 import "stuntgres/internal/engine/analyze"
 
 // Temporary aliases for the binding types that moved into analyze
-// (ENGINE-SPLIT step 12d.1). Step 12e removes them.
+// (ENGINE-SPLIT steps 12d.1 and 12d.2). Step 12e removes them.
 type (
 	binding                 = analyze.Binding
 	boundMerge              = analyze.MergeBinding
@@ -21,6 +21,8 @@ type (
 	deleteBinding           = analyze.DeleteBinding
 	insertBinding           = analyze.InsertBinding
 	insertConflictSlot      = analyze.InsertConflictSlot
+	lookupKind              = analyze.LookupKind
+	namespaceSelection      = analyze.NamespaceSelection
 	ParameterInfo           = analyze.ParameterInfo
 	preparedCaptures        = analyze.PreparedCaptures
 	preparedCompositeKey    = analyze.PreparedCompositeKey

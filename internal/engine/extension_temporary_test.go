@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
@@ -314,25 +315,25 @@ func TestExtensionTemporaryLookup(t *testing.T) {
 	if err != nil || foreignErr != nil {
 		t.Fatal(err, foreignErr)
 	}
-	ownPath, err := e.lookupPath(ownAuth, installedFunctionLookup)
+	ownPath, err := e.lookupPath(ownAuth, analyze.InstalledFunctionLookup)
 	if err != nil || slices.Contains(ownPath, namespace.Address()) {
 		t.Fatal("own TEMP helpers must be excluded", ownPath, err)
 	}
-	path, err := e.lookupPath(foreignAuth, installedFunctionLookup)
+	path, err := e.lookupPath(foreignAuth, analyze.InstalledFunctionLookup)
 	if err != nil || !slices.Contains(path, namespace.Address()) {
 		t.Fatal("authorized foreign installed path omitted", path, err)
 	}
-	selected, err := e.lookupNamespaces(foreignAuth, qualified, installedFunctionLookup)
+	selected, err := e.lookupNamespaces(foreignAuth, qualified, analyze.InstalledFunctionLookup)
 	if err != nil || procedureInNamespaces(foreignAuth.Catalog, selected, "unaccent", catalog.UnaccentTextSignature) == nil {
 		t.Fatal("real foreign member lookup", selected, err)
 	}
-	for _, kind := range []lookupKind{relationLookup, typeLookup, functionLookup, operatorLookup, collationLookup, conversionLookup} {
+	for _, kind := range []lookupKind{analyze.RelationLookup, analyze.TypeLookup, analyze.FunctionLookup, analyze.OperatorLookup, analyze.CollationLookup, analyze.ConversionLookup} {
 		selected, err := e.lookupNamespaces(foreignAuth, qualified, kind)
-		if err != nil || selected.qualified != namespace.Address() {
+		if err != nil || selected.Qualified != namespace.Address() {
 			t.Fatal("captured superuser namespace USAGE denied", kind, selected, err)
 		}
 	}
-	for _, kind := range []lookupKind{functionLookup, operatorLookup, collationLookup, conversionLookup} {
+	for _, kind := range []lookupKind{analyze.FunctionLookup, analyze.OperatorLookup, analyze.CollationLookup, analyze.ConversionLookup} {
 		path, err := e.lookupPath(foreignAuth, kind)
 		if err != nil || slices.Contains(path, namespace.Address()) {
 			t.Fatal("general TEMP path isolation", kind, path, err)
@@ -347,11 +348,11 @@ func TestExtensionTemporaryLookup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, kind := range []lookupKind{installedFunctionLookup, relationLookup, typeLookup, functionLookup, operatorLookup, collationLookup, conversionLookup} {
+	for _, kind := range []lookupKind{analyze.InstalledFunctionLookup, analyze.RelationLookup, analyze.TypeLookup, analyze.FunctionLookup, analyze.OperatorLookup, analyze.CollationLookup, analyze.ConversionLookup} {
 		_, err := e.lookupNamespaces(denied, qualified, kind)
 		extensionUnitError(t, err, "42501")
 	}
-	path, err = e.lookupPath(denied, installedFunctionLookup)
+	path, err = e.lookupPath(denied, analyze.InstalledFunctionLookup)
 	if err != nil || slices.Contains(path, namespace.Address()) {
 		t.Fatal("denied TEMP schema was not implicitly omitted", path, err)
 	}

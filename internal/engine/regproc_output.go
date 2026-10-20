@@ -21,7 +21,7 @@ func routineSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID, si
 	if signatureQualified {
 		signature = &procedure.Signature
 	}
-	selected, count := selectRoutine(view, namespaceSelection{path: path}, procedure.Name, signature)
+	selected, count := selectRoutine(view, namespaceSelection{Path: path}, procedure.Name, signature)
 	name := regclassIdentifier(procedure.Name)
 	if qualified || count != 1 || selected.ID != id {
 		namespace := view.Get(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: procedure.Namespace})

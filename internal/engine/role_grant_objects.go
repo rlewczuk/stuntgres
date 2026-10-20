@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -30,12 +31,12 @@ func (e *Engine) resolveGrantObject(v AuthorizationView, name parser.ObjectName,
 			return ids.ObjectRef{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, objectNameText(name)))
 		}
 	} else {
-		path, err := e.lookupNamespaces(v, name, typeLookup)
+		path, err := e.lookupNamespaces(v, name, analyze.TypeLookup)
 		if err != nil {
 			return ids.ObjectRef{}, err
 		}
-		for i := range path.count() {
-			found := v.Catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
+		for i := range path.Count() {
+			found := v.Catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.At(i), Name: name.Parts[len(name.Parts)-1].Text})
 			if len(found) == 1 {
 				address = found[0]
 				break

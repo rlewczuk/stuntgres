@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -58,13 +59,13 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 	definition.Predicate = predicate
 	operators := make([]sqltype.ExclusionOperator, len(s.Keys))
 	for i, name := range raw.Operators {
-		path, err := e.lookupNamespaces(auth, name, operatorLookup)
+		path, err := e.lookupNamespaces(auth, name, analyze.OperatorLookup)
 		if err != nil {
 			return indexSemanticError(err)
 		}
 		visible := false
-		for j := range path.count() {
-			if path.at(j) == (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) {
+		for j := range path.Count() {
+			if path.At(j) == (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) {
 				visible = true
 				break
 			}

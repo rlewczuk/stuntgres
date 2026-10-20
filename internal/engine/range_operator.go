@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -31,7 +32,7 @@ func (b *expressionBinder) bindRangeShared(raw parser.OperatorExpr) (expr.Expr, 
 	left, right := operands[0].descriptor(), operands[1].descriptor()
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	if len(raw.Args) == 1 {
-		if _, err := b.builtinVisible(raw.Name, operatorLookup); err != nil {
+		if _, err := b.builtinVisible(raw.Name, analyze.OperatorLookup); err != nil {
 			return nil, err
 		}
 		return nil, functions.OperatorError(sqlError("42883", "operator does not exist"), left, nil, raw)
@@ -44,14 +45,14 @@ func (b *expressionBinder) bindRangeShared(raw parser.OperatorExpr) (expr.Expr, 
 			return b.finishArithmetic(raw, operands[0], operands[1])
 		}
 		if name == "<<" || name == ">>" {
-			visible, err := b.builtinVisible(raw.Name, operatorLookup)
+			visible, err := b.builtinVisible(raw.Name, analyze.OperatorLookup)
 			if err != nil {
 				return nil, err
 			}
 			return b.finishBitwise(raw, operands[0], operands[1], visible)
 		}
 	}
-	visible, err := b.builtinVisible(raw.Name, operatorLookup)
+	visible, err := b.builtinVisible(raw.Name, analyze.OperatorLookup)
 	if err != nil {
 		return nil, err
 	}

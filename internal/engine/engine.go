@@ -819,7 +819,7 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 			return ids.ObjectRef{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, name.Parts[0].Text))
 		}
 	}
-	path, err := e.lookupNamespacesSnapshot(auth, name, relationLookup)
+	path, err := e.lookupNamespacesSnapshot(auth, name, analyze.RelationLookup)
 	if err != nil {
 		if d, yes := err.(*sqlstate.Error); yes && utility {
 			copy := *d
@@ -828,8 +828,8 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 		}
 		return ids.ObjectRef{}, err
 	}
-	for i := range path.count() {
-		a = auth.definitionLookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: path.at(i), Name: relname})
+	for i := range path.Count() {
+		a = auth.definitionLookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: path.At(i), Name: relname})
 		ok = a != (ids.ObjectAddress{})
 		if ok {
 			break

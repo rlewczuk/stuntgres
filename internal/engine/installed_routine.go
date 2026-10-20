@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 
@@ -20,21 +21,21 @@ func (b *expressionBinder) InstalledRoutine(name parser.ObjectName, family funct
 	if err != nil {
 		return nil, err
 	}
-	path, err := b.host.LookupNamespacesSnapshot(auth, name, installedFunctionLookup)
+	path, err := b.host.LookupNamespacesSnapshot(auth, name, analyze.InstalledFunctionLookup)
 	if err != nil {
 		return nil, err
 	}
 	text := name.Parts[len(name.Parts)-1].Text
 	var proc *catalog.Procedure
 	if family == functions.PgcryptoExtension {
-		for i := range path.count() {
-			namespace := path.at(i)
+		for i := range path.Count() {
+			namespace := path.At(i)
 			// The implicit catalog precedes ordinary paths; explicit ordering
 			// can instead select the installed wrapper and its dependency.
 			if text == "gen_random_uuid" && namespace.ObjectID == ids.PGCatalogNamespaceOID {
 				return functions.CatalogBuiltin{}, nil
 			}
-			proc = procedureInNamespaces(auth.Catalog, namespaceSelection{qualified: namespace}, text, catalog.ProcedureSignature(signature))
+			proc = procedureInNamespaces(auth.Catalog, namespaceSelection{Qualified: namespace}, text, catalog.ProcedureSignature(signature))
 			if proc != nil {
 				break
 			}

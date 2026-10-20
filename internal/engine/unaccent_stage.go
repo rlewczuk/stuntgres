@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -68,14 +69,14 @@ func (p unaccentInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 	// Extension scripts replace, rather than prefix, the caller's path. The
 	// stock script has no prerequisite schemas; implicit pg_catalog remains,
 	// and the script's explicit pg_temp entry is excluded from function lookup.
-	path := e.effectivePath(auth, []ids.ObjectAddress{ext.TargetNamespace}, installedFunctionLookup)
+	path := e.effectivePath(auth, []ids.ObjectAddress{ext.TargetNamespace}, analyze.InstalledFunctionLookup)
 	var helpers [2]ids.ObjectAddress
 	for i, helper := range [...]struct {
 		name      string
 		signature catalog.ProcedureSignature
 		arguments string
 	}{{"unaccent_init", catalog.UnaccentInitSignature, "internal"}, {"unaccent_lexize", catalog.UnaccentLexizeSignature, "internal, internal, internal, internal"}} {
-		procedure := procedureInNamespaces(auth.Catalog, namespaceSelection{path: path}, helper.name, helper.signature)
+		procedure := procedureInNamespaces(auth.Catalog, namespaceSelection{Path: path}, helper.name, helper.signature)
 		if procedure == nil {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: fmt.Sprintf("function %s(%s) does not exist", helper.name, helper.arguments), Context: extension.UnaccentTemplateContext}
 		}

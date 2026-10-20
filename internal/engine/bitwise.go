@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -47,7 +48,7 @@ func (b *expressionBinder) bindBitwise(raw parser.OperatorExpr) (expr.Expr, erro
 	if len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 || len(raw.Args) < 1 || len(raw.Args) > 2 {
 		return nil, fmt.Errorf("stuntgres: invalid bitwise expression")
 	}
-	visible, err := b.builtinVisible(raw.Name, operatorLookup)
+	visible, err := b.builtinVisible(raw.Name, analyze.OperatorLookup)
 	if err != nil {
 		return nil, err
 	}

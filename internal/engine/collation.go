@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -10,13 +11,13 @@ import (
 )
 
 func (e *Engine) findCollation(auth AuthorizationView, raw parser.ObjectName) (*catalog.Collation, error) {
-	path, err := e.lookupNamespaces(auth, raw, collationLookup)
+	path, err := e.lookupNamespaces(auth, raw, analyze.CollationLookup)
 	if err != nil {
 		return nil, err
 	}
 	name := raw.Parts[len(raw.Parts)-1].Text
-	for i := range path.count() {
-		a := auth.definitionLookup(ids.NameKey{ClassID: ids.CollationClassID, Namespace: path.at(i), Name: name})
+	for i := range path.Count() {
+		a := auth.definitionLookup(ids.NameKey{ClassID: ids.CollationClassID, Namespace: path.At(i), Name: name})
 		descriptor, _ := auth.definitionDescriptor(a)
 		if d, ok := descriptor.(*catalog.Collation); ok {
 			one := [1]collationCandidate{{a, d.Encoding}}

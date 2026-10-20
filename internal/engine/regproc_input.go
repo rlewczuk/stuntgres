@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -21,7 +22,7 @@ type capturedRoutineInput struct {
 }
 
 func (e *Engine) captureRoutineInput(auth AuthorizationView, types capturedRegtypeInput) (capturedRoutineInput, error) {
-	path, err := e.lookupPath(auth, functionLookup)
+	path, err := e.lookupPath(auth, analyze.FunctionLookup)
 	if err != nil {
 		return capturedRoutineInput{}, err
 	}
@@ -95,7 +96,7 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 		}
 		parts = parts[1:]
 	}
-	selection := namespaceSelection{path: r.path}
+	selection := namespaceSelection{Path: r.path}
 	missing := func() (uint32, error) { return 0, sqlError("42883", fmt.Sprintf(`function "%s" does not exist`, text)) }
 	if len(parts) == 2 {
 		namespace := r.types.auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text})
@@ -111,7 +112,7 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 		if r.types.qualified != nil && !slices.Contains(*r.types.qualified, namespace) {
 			*r.types.qualified = append(*r.types.qualified, namespace)
 		}
-		selection = namespaceSelection{qualified: namespace}
+		selection = namespaceSelection{Qualified: namespace}
 	}
 	selected, count := selectRoutine(r.types.auth.Catalog, selection, parts[len(parts)-1].Text, exact)
 	if count == 0 {

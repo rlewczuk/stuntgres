@@ -6,8 +6,8 @@ import (
 )
 
 func procedureInNamespaces(catalog catalog.Read, path namespaceSelection, name string, signature catalog.ProcedureSignature) *catalog.Procedure {
-	for i := range path.count() {
-		address := catalog.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: path.at(i), Name: name, Signature: string(signature)})
+	for i := range path.Count() {
+		address := catalog.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: path.At(i), Name: name, Signature: string(signature)})
 		if address != (ids.ObjectAddress{}) {
 			procedure, _ := catalog.Procedure(address)
 			return procedure

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -14,12 +15,12 @@ import (
 
 // OF names are catalog object names, not SQL declaration aliases.
 func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*catalog.Type, error) {
-	path, err := e.lookupNamespaces(auth, name, typeLookup)
+	path, err := e.lookupNamespaces(auth, name, analyze.TypeLookup)
 	if err != nil {
 		return nil, err
 	}
-	for i := range path.count() {
-		found := auth.Catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
+	for i := range path.Count() {
+		found := auth.Catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.At(i), Name: name.Parts[len(name.Parts)-1].Text})
 		if len(found) == 1 {
 			return auth.Catalog.MustType(found[0]), nil
 		}

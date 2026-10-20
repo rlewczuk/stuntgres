@@ -1627,7 +1627,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 			name.Parts = []parser.Identifier{*raw.TypeName.Schema, {Text: raw.Callee, Pos: raw.Pos}}
 		}
 		var err error
-		visible, err = b.builtinVisible(name, functionLookup)
+		visible, err = b.builtinVisible(name, analyze.FunctionLookup)
 		if err != nil {
 			return nil, err
 		}
@@ -2655,7 +2655,7 @@ func (b *expressionBinder) finishArithmetic(raw parser.OperatorExpr, left, right
 	if rt != nil {
 		rt = rt.BaseType()
 	}
-	visible, err := b.builtinVisible(raw.Name, operatorLookup)
+	visible, err := b.builtinVisible(raw.Name, analyze.OperatorLookup)
 	if err != nil {
 		return nil, err
 	}

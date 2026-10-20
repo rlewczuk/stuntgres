@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -55,7 +56,7 @@ func (b *expressionBinder) selectSQLCallable(raw parser.FunctionExpr, cast *pars
 	if err != nil {
 		return selection, true, err
 	}
-	path, err := b.host.LookupNamespaces(auth, raw.Name, functionLookup)
+	path, err := b.host.LookupNamespaces(auth, raw.Name, analyze.FunctionLookup)
 	if err != nil {
 		return selection, true, err
 	}
@@ -63,8 +64,8 @@ func (b *expressionBinder) selectSQLCallable(raw parser.FunctionExpr, cast *pars
 	var candidates []sqlCallable
 	seen := map[catalog.ProcedureSignature]bool{}
 	hasSQL := false
-	for i := range path.count() {
-		for d := range auth.definitionProceduresNamed(path.at(i), name) {
+	for i := range path.Count() {
+		for d := range auth.definitionProceduresNamed(path.At(i), name) {
 			if d.RoutineKind != catalog.FunctionRoutine && d.RoutineKind != catalog.AggregateRoutine && d.RoutineKind != catalog.WindowRoutine || seen[d.Signature] {
 				continue
 			}

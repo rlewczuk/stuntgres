@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -14,13 +15,13 @@ import (
 )
 
 func (e *Engine) findUtilityConversion(auth AuthorizationView, name parser.ObjectName) (*catalog.Conversion, error) {
-	path, err := e.lookupNamespaces(auth, name, conversionLookup)
+	path, err := e.lookupNamespaces(auth, name, analyze.ConversionLookup)
 	if err != nil {
 		return nil, err
 	}
 	object := name.Parts[len(name.Parts)-1].Text
-	for i := range path.count() {
-		address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.ConversionClassID, Namespace: path.at(i), Name: object})
+	for i := range path.Count() {
+		address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.ConversionClassID, Namespace: path.At(i), Name: object})
 		if d, ok := auth.Catalog.Conversion(address); ok {
 			return d, nil
 		}
@@ -65,7 +66,7 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 	if source == 0 || destination == 0 {
 		return sqlError("42P17", `encoding conversion to or from "SQL_ASCII" is not supported`)
 	}
-	path, err := e.lookupNamespaces(auth, s.Function, functionLookup)
+	path, err := e.lookupNamespaces(auth, s.Function, analyze.FunctionLookup)
 	if err != nil {
 		return err
 	}

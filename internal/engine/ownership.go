@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -292,13 +293,13 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 	if err != nil {
 		return fail(err)
 	}
-	path, err := e.lookupNamespaces(auth, s.Name, typeLookup)
+	path, err := e.lookupNamespaces(auth, s.Name, analyze.TypeLookup)
 	if err != nil {
 		return fail(err)
 	}
 	var old *catalog.Type
-	for i := range path.count() {
-		a := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: s.Name.Parts[len(s.Name.Parts)-1].Text})
+	for i := range path.Count() {
+		a := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.At(i), Name: s.Name.Parts[len(s.Name.Parts)-1].Text})
 		if a != (ids.ObjectAddress{}) {
 			old = auth.Catalog.MustType(a)
 			break

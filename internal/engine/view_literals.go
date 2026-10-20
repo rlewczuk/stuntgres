@@ -584,7 +584,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		if n, ok := bound.(plan.LiteralExpr); ok && n.Value.IsNull() && n.Value.Type().ID() == sqltype.Text {
 			switch r.Name.Parts[len(r.Name.Parts)-1].Text {
 			case "col_description", "obj_description", "shobj_description":
-				visible, err := b.builtinVisible(r.Name, functionLookup)
+				visible, err := b.builtinVisible(r.Name, analyze.FunctionLookup)
 				if err != nil {
 					return err
 				}

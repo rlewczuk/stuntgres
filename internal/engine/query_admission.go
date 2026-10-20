@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -226,7 +227,7 @@ func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
 		if err != nil {
 			return err
 		}
-		scope.inquiry.collationPath, err = e.lookupPath(auth, collationLookup)
+		scope.inquiry.collationPath, err = e.lookupPath(auth, analyze.CollationLookup)
 		if err != nil {
 			return err
 		}

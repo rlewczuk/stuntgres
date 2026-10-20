@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"maps"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -103,14 +104,14 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 		candidate.byConstraint = nil
 	} else {
 		for _, name := range raw.Names {
-			path, err := e.lookupNamespaces(auth, name, operatorLookup)
+			path, err := e.lookupNamespaces(auth, name, analyze.OperatorLookup)
 			if err != nil {
 				return Result{}, indexSemanticError(err)
 			}
 			label := name.Parts[len(name.Parts)-1].Text
 			found := false
-			for i := range path.count() {
-				namespace := path.at(i)
+			for i := range path.Count() {
+				namespace := path.At(i)
 				matched := false
 				for _, descriptor := range auth.Catalog.Descriptors() {
 					parent, ok := descriptor.(*catalog.Relation)

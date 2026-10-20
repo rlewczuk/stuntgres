@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -57,7 +58,7 @@ func (e *Engine) captureOperatorInput(auth AuthorizationView, op *Operation) (ca
 	if err != nil {
 		return capturedOperatorInput{}, err
 	}
-	path, err := e.lookupPath(auth, operatorLookup)
+	path, err := e.lookupPath(auth, analyze.OperatorLookup)
 	if err != nil {
 		return capturedOperatorInput{}, err
 	}

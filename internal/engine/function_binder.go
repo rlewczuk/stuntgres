@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -34,7 +35,7 @@ func (b *expressionBinder) Info(u sqltype.Usage, pos parser.Position, p expr.Pro
 }
 
 func (b *expressionBinder) BuiltinVisible(name parser.ObjectName) (bool, error) {
-	return b.builtinVisible(name, functionLookup)
+	return b.builtinVisible(name, analyze.FunctionLookup)
 }
 
 func (b *expressionBinder) BuiltinRoutineInfo(info expr.Info, provider functions.RoutineProvider, name string, inputs ...sqltype.ID) (expr.Info, error) {
@@ -135,7 +136,7 @@ func (b *expressionBinder) ConstantValue(node expr.Expr) (sqltype.Value, bool) {
 }
 
 func (b *expressionBinder) BuiltinOperatorVisible(name parser.ObjectName) (bool, error) {
-	return b.builtinVisible(name, operatorLookup)
+	return b.builtinVisible(name, analyze.OperatorLookup)
 }
 
 func (b *expressionBinder) CallSignatureError(raw parser.FunctionExpr) error {
@@ -208,7 +209,7 @@ func (b *expressionBinder) domainTypeName(typ *sqltype.Descriptor) (string, erro
 	if err != nil {
 		return "", err
 	}
-	path, err := b.host.LookupPath(auth, typeLookup)
+	path, err := b.host.LookupPath(auth, analyze.TypeLookup)
 	if err != nil {
 		return "", err
 	}

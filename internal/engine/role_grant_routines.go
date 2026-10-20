@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
@@ -13,7 +14,7 @@ import (
 )
 
 func (e *Engine) resolveGrantRoutine(op *Operation, v AuthorizationView, target parser.GrantRoutineTarget, kind string) (ids.ObjectRef, error) {
-	path, err := e.lookupNamespaces(v, target.Name, functionLookup)
+	path, err := e.lookupNamespaces(v, target.Name, analyze.FunctionLookup)
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}
@@ -62,10 +63,10 @@ func (e *Engine) resolveGrantRoutine(op *Operation, v AuthorizationView, target 
 	if !target.SignatureSpecified && kind == "procedure" {
 		// With no argument list PostgreSQL filters by SQL kind before deciding
 		// uniqueness. Native currently has no user-procedure creator/runtime.
-		for i := range path.count() {
+		for i := range path.Count() {
 			for _, descriptor := range v.Catalog.Descriptors() {
 				p, ok := descriptor.(*catalog.Procedure)
-				if ok && p.Namespace() == path.at(i) && p.Name() == name && p.RoutineKind == catalog.ProcedureRoutine {
+				if ok && p.Namespace() == path.At(i) && p.Name() == name && p.RoutineKind == catalog.ProcedureRoutine {
 					selected = catalog.RoutineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}
 					count++
 				}

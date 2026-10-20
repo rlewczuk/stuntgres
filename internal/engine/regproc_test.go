@@ -61,7 +61,7 @@ func TestRoutineReleaseInventory(t *testing.T) {
 			t.Fatal("release witness", got, witness)
 		}
 	}
-	path := namespaceSelection{path: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}
+	path := namespaceSelection{Path: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}
 	for _, name := range []string{"abs", "lower"} {
 		if _, count := selectRoutine(view, path, name, nil); count != 2 {
 			t.Fatal("released overload ambiguity", name, count)
@@ -87,7 +87,7 @@ func TestRoutinePathCandidateMasking(t *testing.T) {
 	collationUnitPublish(t, e, stage)
 	view = e.CatalogRead()
 	path := []ids.ObjectAddress{public, catalogAddress}
-	if _, count := selectRoutine(view, namespaceSelection{path: path}, "unaccent", nil); count != 2 {
+	if _, count := selectRoutine(view, namespaceSelection{Path: path}, "unaccent", nil); count != 2 {
 		t.Fatal("distinct later signature masked", count)
 	}
 	if got := regprocSpelling(view, path, first.Address().ObjectID); got != "public.unaccent" {
@@ -96,13 +96,13 @@ func TestRoutinePathCandidateMasking(t *testing.T) {
 	if got := routineSpelling(view, path, second.Address().ObjectID, true, false); got != "unaccent(regdictionary,text)" {
 		t.Fatal("visible later exact signature", got)
 	}
-	selected, count := selectRoutine(view, namespaceSelection{path: path}, "unaccent", &first.Signature)
+	selected, count := selectRoutine(view, namespaceSelection{Path: path}, "unaccent", &first.Signature)
 	if count != 1 || selected.ID != first.Address().ObjectID {
 		t.Fatal("exact signature selection", selected, count)
 	}
 	// Real conversion descriptors duplicate source-fixed identities by OID, not
 	// by adding overloads or changing lookup/execution authority.
-	if _, count := selectRoutine(view, namespaceSelection{path: path}, "utf8_to_iso8859_1", nil); count != 1 {
+	if _, count := selectRoutine(view, namespaceSelection{Path: path}, "utf8_to_iso8859_1", nil); count != 1 {
 		t.Fatal("conversion identity dedup", count)
 	}
 }

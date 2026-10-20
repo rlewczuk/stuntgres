@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -140,13 +141,13 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropDomain) error {
 	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
 	for _, name := range s.Names {
-		path, err := e.lookupNamespaces(auth, name, typeLookup)
+		path, err := e.lookupNamespaces(auth, name, analyze.TypeLookup)
 		if err != nil {
 			return err
 		}
 		var found []ids.ObjectAddress
-		for i := range path.count() {
-			found = auth.Catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
+		for i := range path.Count() {
+			found = auth.Catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.At(i), Name: name.Parts[len(name.Parts)-1].Text})
 			if len(found) != 0 {
 				break
 			}

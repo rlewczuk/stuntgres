@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -255,7 +256,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 	if err := policyTypeChangeError(auth.Catalog, target); err != nil {
 		return fail(err)
 	}
-	if path, pathErr := e.lookupPath(auth, relationLookup); pathErr != nil {
+	if path, pathErr := e.lookupPath(auth, analyze.RelationLookup); pathErr != nil {
 		return fail(pathErr)
 	} else if dependents := ruleDependentLabels(auth.Catalog, []ids.ObjectAddress{target}, path); len(dependents) != 0 {
 		d := sqlError("0A000", "cannot alter type of a column used by a view or rule").(*sqlstate.Error)
@@ -269,7 +270,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 			name = catalog.QuoteIdentifier(name)
 		}
 		namespace := auth.Catalog.Get(view.Namespace()).Name()
-		path, err := e.lookupPath(auth, relationLookup)
+		path, err := e.lookupPath(auth, analyze.RelationLookup)
 		if err != nil {
 			return fail(err)
 		}

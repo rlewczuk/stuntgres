@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
@@ -24,10 +25,10 @@ func TestPGNamespaceTemporarySuperuserAuthority(t *testing.T) {
 	}
 	check := func(auth AuthorizationView, allowed bool) {
 		t.Helper()
-		for _, kind := range []lookupKind{relationLookup, typeLookup, functionLookup, operatorLookup, collationLookup, conversionLookup} {
+		for _, kind := range []lookupKind{analyze.RelationLookup, analyze.TypeLookup, analyze.FunctionLookup, analyze.OperatorLookup, analyze.CollationLookup, analyze.ConversionLookup} {
 			selected, err := e.lookupNamespacesSnapshot(auth, qualified, kind)
 			if allowed {
-				if err != nil || selected.qualified != namespace {
+				if err != nil || selected.Qualified != namespace {
 					t.Fatal("captured superuser namespace usage", kind, selected, err)
 				}
 			} else {

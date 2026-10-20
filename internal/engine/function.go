@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -40,14 +41,14 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 		return b.bindVersionInformation(raw)
 	}
 	if strings.EqualFold(name, "generate_series") {
-		visible, err := b.builtinVisible(raw.Name, functionLookup)
+		visible, err := b.builtinVisible(raw.Name, analyze.FunctionLookup)
 		if err != nil {
 			return nil, err
 		}
 		return b.bindSeries(raw, visible)
 	}
 	if strings.EqualFold(name, "generate_subscripts") {
-		visible, err := b.builtinVisible(raw.Name, functionLookup)
+		visible, err := b.builtinVisible(raw.Name, analyze.FunctionLookup)
 		if err != nil {
 			return nil, err
 		}
@@ -66,7 +67,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 	if raw.ResolutionOnly {
 		return nil, b.formatDiagnosticSignatureError(raw)
 	}
-	visible, err := b.builtinVisible(raw.Name, functionLookup)
+	visible, err := b.builtinVisible(raw.Name, analyze.FunctionLookup)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +195,7 @@ func (b *expressionBinder) formatDiagnosticSignatureError(raw parser.FunctionExp
 	if err != nil {
 		return err
 	}
-	if _, err := b.builtinVisible(raw.Name, functionLookup); err != nil {
+	if _, err := b.builtinVisible(raw.Name, analyze.FunctionLookup); err != nil {
 		return err
 	}
 	return b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)

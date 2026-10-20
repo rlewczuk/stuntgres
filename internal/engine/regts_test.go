@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -70,7 +71,7 @@ func TestRegTSProviderResolution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	input.path = e.effectivePath(auth, []ids.ObjectAddress{namespaces[3], namespaces[1], namespaces[2]}, operatorLookup)
+	input.path = e.effectivePath(auth, []ids.ObjectAddress{namespaces[3], namespaces[1], namespaces[2]}, analyze.OperatorLookup)
 	if len(input.path) != 3 || input.path[1] != namespaces[1] {
 		t.Fatal("TEMP text-search path isolation", input.path)
 	}

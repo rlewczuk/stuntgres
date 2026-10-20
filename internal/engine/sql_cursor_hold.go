@@ -5,6 +5,7 @@ import (
 	"slices"
 	"time"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -245,7 +246,7 @@ func (s *StatementScope) captureSQLCursorOutput(rows *exec.FinalRows, catalog ca
 	if err == nil {
 		for _, value := range rows.Values {
 			if !value.IsNull() && value.Type().ContainsRegcollation() {
-				collationPath, err = e.lookupPath(auth, collationLookup)
+				collationPath, err = e.lookupPath(auth, analyze.CollationLookup)
 				break
 			}
 		}

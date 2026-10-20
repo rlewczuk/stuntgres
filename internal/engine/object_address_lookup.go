@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
@@ -125,7 +126,7 @@ func objectListLength(list string, n int, exact bool) error {
 }
 func objectLookupPath(scope *StatementScope, names []string) (namespaceSelection, error) {
 	if len(names) == 1 {
-		return namespaceSelection{path: scope.inquiry.deparsePath}, nil
+		return namespaceSelection{Path: scope.inquiry.deparsePath}, nil
 	}
 	if len(names) > 3 {
 		return namespaceSelection{}, sqlError("42601", "improper qualified name (too many dotted names): "+strings.Join(names, "."))
@@ -141,15 +142,15 @@ func objectLookupPath(scope *StatementScope, names []string) (namespaceSelection
 		return namespaceSelection{}, sqlError("3F000", fmt.Sprintf("schema %q does not exist", names[0]))
 	}
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: names[0]}, {Text: names[1]}}}
-	return auth.engine.lookupNamespacesSnapshot(auth, name, functionLookup)
+	return auth.engine.lookupNamespacesSnapshot(auth, name, analyze.FunctionLookup)
 }
 func objectLookupDescriptor(scope *StatementScope, class ids.OID, names []string) (catalog.Descriptor, error) {
 	path, err := objectLookupPath(scope, names)
 	if err != nil {
 		return nil, err
 	}
-	for i := range path.count() {
-		a := scope.inquiry.commentCatalog.NameAddress(ids.NameKey{ClassID: class, Namespace: path.at(i), Name: names[len(names)-1]})
+	for i := range path.Count() {
+		a := scope.inquiry.commentCatalog.NameAddress(ids.NameKey{ClassID: class, Namespace: path.At(i), Name: names[len(names)-1]})
 		if d := scope.inquiry.commentCatalog.Get(a); d != nil {
 			return d, nil
 		}
@@ -339,8 +340,8 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		if err != nil {
 			return ids.ObjectAddress{}, err
 		}
-		for i := range path.count() {
-			key := ids.NameKey{ClassID: 2617, Namespace: path.at(i), Name: names[len(names)-1], Signature: fmt.Sprintf("%d,%d", argIDs[0], argIDs[1])}
+		for i := range path.Count() {
+			key := ids.NameKey{ClassID: 2617, Namespace: path.At(i), Name: names[len(names)-1], Signature: fmt.Sprintf("%d,%d", argIDs[0], argIDs[1])}
 			if id := view.NameAddress(key); id.ObjectID != 0 {
 				return id, nil
 			}
@@ -369,8 +370,8 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		if err != nil {
 			return ids.ObjectAddress{}, err
 		}
-		for i := range path.count() {
-			if path.at(i).ObjectID != ids.PGCatalogNamespaceOID {
+		for i := range path.Count() {
+			if path.At(i).ObjectID != ids.PGCatalogNamespaceOID {
 				continue
 			}
 			for j := range sqltype.IndexClassMetadataCount() {

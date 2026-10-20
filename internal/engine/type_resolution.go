@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/typedef"
@@ -97,13 +98,13 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 	if raw.Schema != nil {
 		object.Parts = []parser.Identifier{*raw.Schema, {Text: name, Pos: raw.Pos}}
 	}
-	path, err := e.lookupNamespaces(auth, object, typeLookup)
+	path, err := e.lookupNamespaces(auth, object, analyze.TypeLookup)
 	if err != nil {
 		return sqltype.Usage{}, err
 	}
 	var found ids.ObjectAddress
-	for i := range path.count() {
-		found = auth.definitionLookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name})
+	for i := range path.Count() {
+		found = auth.definitionLookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.At(i), Name: name})
 		if found != (ids.ObjectAddress{}) {
 			break
 		}

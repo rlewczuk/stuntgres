@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -27,7 +28,7 @@ func (b *expressionBinder) bindNetworkFormat(raw parser.FunctionExpr) (expr.Expr
 	if err := functions.ValidateCallSyntax(b, raw); err != nil {
 		return nil, err
 	}
-	visible, err := b.builtinVisible(raw.Name, functionLookup)
+	visible, err := b.builtinVisible(raw.Name, analyze.FunctionLookup)
 	if err != nil {
 		return nil, err
 	}

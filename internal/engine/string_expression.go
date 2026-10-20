@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -62,7 +63,7 @@ func (b *expressionBinder) bindStringPrefix(raw parser.OperatorExpr) (expr.Expr,
 			operands[i], types[i] = o, o.Usage.Type
 		}
 	}
-	visible, err := b.builtinVisible(raw.Name, operatorLookup)
+	visible, err := b.builtinVisible(raw.Name, analyze.OperatorLookup)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +93,7 @@ func (b *expressionBinder) bindStringConcat(raw parser.OperatorExpr) (expr.Expr,
 		operands[i] = o
 		types[i] = o.Usage.Type
 	}
-	visible, err := b.builtinVisible(raw.Name, operatorLookup)
+	visible, err := b.builtinVisible(raw.Name, analyze.OperatorLookup)
 	if err != nil {
 		return nil, err
 	}

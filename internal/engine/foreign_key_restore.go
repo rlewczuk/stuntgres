@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
@@ -47,13 +48,13 @@ func (e *Engine) resolveRestoredForeignKeyTargets(pending *restoredForeignKeys) 
 	defer e.mu.Unlock()
 	for i := range pending.definitions {
 		definition := &pending.definitions[i]
-		path, err := e.lookupNamespacesSnapshot(pending.auth, definition.raw.Target, relationLookup)
+		path, err := e.lookupNamespacesSnapshot(pending.auth, definition.raw.Target, analyze.RelationLookup)
 		if err != nil {
 			return err
 		}
-		definition.path = make([]ids.ObjectAddress, path.count())
-		for at := range path.count() {
-			namespace := path.at(at)
+		definition.path = make([]ids.ObjectAddress, path.Count())
+		for at := range path.Count() {
+			namespace := path.At(at)
 			definition.path[at] = namespace
 			if definition.target == (ids.ObjectAddress{}) {
 				definition.target = pending.auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: definition.raw.Target.Parts[len(definition.raw.Target.Parts)-1].Text})

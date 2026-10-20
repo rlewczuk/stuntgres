@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -185,13 +186,13 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 			if temporary && (len(f.Target.Parts) == 1 || f.Target.Parts[0].Text == "pg_temp") {
 				self = true
 			} else {
-				path, pathErr := e.lookupNamespacesSnapshot(auth, f.Target, relationLookup)
+				path, pathErr := e.lookupNamespacesSnapshot(auth, f.Target, analyze.RelationLookup)
 				if pathErr != nil {
 					e.mu.Unlock()
 					return pathErr
 				}
-				for i := range path.count() {
-					namespace := path.at(i)
+				for i := range path.Count() {
+					namespace := path.At(i)
 					if namespace == destination {
 						self = true
 						break

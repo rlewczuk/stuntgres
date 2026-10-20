@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -24,12 +25,12 @@ func (e *Engine) resolveAlterDomainLocked(auth AuthorizationView, name parser.Ob
 		parts[0].Pos = parser.Position{}
 		lookup.Parts = parts[:]
 	}
-	path, err := e.lookupNamespaces(auth, lookup, typeLookup)
+	path, err := e.lookupNamespaces(auth, lookup, analyze.TypeLookup)
 	if err != nil {
 		return nil, ids.ObjectRef{}, err
 	}
-	for i := range path.count() {
-		found := auth.Catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.at(i), Name: name.Parts[len(name.Parts)-1].Text})
+	for i := range path.Count() {
+		found := auth.Catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.At(i), Name: name.Parts[len(name.Parts)-1].Text})
 		if len(found) == 0 {
 			continue
 		}

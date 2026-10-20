@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -227,7 +228,7 @@ func TestVisibilityInquiryAuthorizationAndPathKinds(t *testing.T) {
 		t.Fatal(err)
 	}
 	temp := temporaryNamespace(auth)
-	for _, kind := range []lookupKind{collationLookup, conversionLookup} {
+	for _, kind := range []lookupKind{analyze.CollationLookup, analyze.ConversionLookup} {
 		path, err := e.lookupPath(auth, kind)
 		if err != nil {
 			e.mu.Unlock()

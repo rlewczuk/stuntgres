@@ -3,6 +3,7 @@ package engine
 import (
 	"strconv"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -78,7 +79,7 @@ func (e *Engine) captureRegObjectRowsValueLocked(rows *exec.FinalRows, auth Auth
 	}
 	if value.Type().ContainsRegcollation() && *path == nil {
 		var err error
-		*path, err = e.lookupPath(auth, collationLookup)
+		*path, err = e.lookupPath(auth, analyze.CollationLookup)
 		if err != nil {
 			return err
 		}

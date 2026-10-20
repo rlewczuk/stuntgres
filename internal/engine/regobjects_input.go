@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -20,7 +21,7 @@ type capturedRegObjectInput struct {
 }
 
 func (e *Engine) captureRegObjectInput(auth AuthorizationView) (capturedRegObjectInput, error) {
-	path, err := e.lookupPath(auth, collationLookup)
+	path, err := e.lookupPath(auth, analyze.CollationLookup)
 	if err != nil {
 		return capturedRegObjectInput{}, err
 	}
@@ -86,7 +87,7 @@ func (r capturedRegObjectInput) ResolveRegcollation(ctx context.Context, input s
 	missing := func() (uint32, error) {
 		return 0, sqlError("42704", `collation "`+spelling()+`" for encoding "UTF8" does not exist`)
 	}
-	path := namespaceSelection{path: r.path}
+	path := namespaceSelection{Path: r.path}
 	if len(parts) == 2 {
 		namespace := r.auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text})
 		if parts[0].Text == "pg_temp" {
@@ -105,10 +106,10 @@ func (r capturedRegObjectInput) ResolveRegcollation(ctx context.Context, input s
 		if err := r.auth.CanUse(r.auth.Ref(namespace)); err != nil {
 			return 0, err
 		}
-		path = namespaceSelection{qualified: namespace}
+		path = namespaceSelection{Qualified: namespace}
 	}
-	for i := range path.count() {
-		address := r.auth.definitionLookup(ids.NameKey{ClassID: ids.CollationClassID, Namespace: path.at(i), Name: parts[len(parts)-1].Text})
+	for i := range path.Count() {
+		address := r.auth.definitionLookup(ids.NameKey{ClassID: ids.CollationClassID, Namespace: path.At(i), Name: parts[len(parts)-1].Text})
 		descriptor, _ := r.auth.definitionDescriptor(address)
 		if d, exists := descriptor.(*catalog.Collation); exists {
 			one := [1]collationCandidate{{address, d.Encoding}}

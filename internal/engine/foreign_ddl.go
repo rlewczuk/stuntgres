@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -59,7 +60,7 @@ func (e *Engine) foreignProcedureLocked(auth AuthorizationView, name *parser.Obj
 	if name == nil {
 		return nil, nil
 	}
-	path, err := e.lookupNamespaces(auth, *name, functionLookup)
+	path, err := e.lookupNamespaces(auth, *name, analyze.FunctionLookup)
 	if err != nil {
 		return nil, err
 	}

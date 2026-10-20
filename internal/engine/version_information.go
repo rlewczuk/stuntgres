@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -36,7 +37,7 @@ func (b *expressionBinder) bindVersionInformation(raw parser.FunctionExpr) (expr
 	case issue.Duplicate != "":
 		return nil, expr.ErrorAt("42601", fmt.Sprintf("argument name %q used more than once", issue.Duplicate), issue.Position)
 	}
-	visible, err := b.builtinVisible(raw.Name, functionLookup)
+	visible, err := b.builtinVisible(raw.Name, analyze.FunctionLookup)
 	if err != nil {
 		return nil, err
 	}

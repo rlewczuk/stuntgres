@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -41,7 +42,7 @@ func (e *Engine) regtypeAnalysisLocked(auth AuthorizationView, constants []regty
 		cell.path, err = e.sequenceEnvironmentLocked(auth)
 	}
 	if err == nil && cell.collations {
-		cell.collationPath, err = e.lookupPath(auth, collationLookup)
+		cell.collationPath, err = e.lookupPath(auth, analyze.CollationLookup)
 	}
 	return cell, err
 }
@@ -63,7 +64,7 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 		}
 	}
 	if cell.collations {
-		path, err := e.lookupPath(auth, collationLookup)
+		path, err := e.lookupPath(auth, analyze.CollationLookup)
 		if err != nil {
 			return false, err
 		}

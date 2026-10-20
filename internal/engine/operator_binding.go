@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -72,15 +73,15 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 	if err != nil {
 		return operatorCandidateSet{}, err
 	}
-	path, err := b.host.LookupNamespaces(auth, name, operatorLookup)
+	path, err := b.host.LookupNamespaces(auth, name, analyze.OperatorLookup)
 	if err != nil {
 		return operatorCandidateSet{}, err
 	}
 	spelling := name.Parts[len(name.Parts)-1].Text
 	if _, comparison := comparisonOperator(spelling); !unary && comparison {
 		available, custom := false, false
-		for i := 0; i < path.count() && !custom; i++ {
-			for _, address := range auth.Catalog.State().OperatorNames().Buckets[catalog.OperatorNameKey{path.at(i), spelling}] {
+		for i := 0; i < path.Count() && !custom; i++ {
+			for _, address := range auth.Catalog.State().OperatorNames().Buckets[catalog.OperatorNameKey{path.At(i), spelling}] {
 				d := auth.Catalog.MustOperator(address)
 				if d.Left == 0 {
 					continue
@@ -100,8 +101,8 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 	var candidates []*catalog.Operator
 	seen := make(map[operatorSignature]bool)
 	custom := false
-	for i := range path.count() {
-		for _, address := range auth.Catalog.State().OperatorNames().Buckets[catalog.OperatorNameKey{path.at(i), spelling}] {
+	for i := range path.Count() {
+		for _, address := range auth.Catalog.State().OperatorNames().Buckets[catalog.OperatorNameKey{path.At(i), spelling}] {
 			d := auth.Catalog.MustOperator(address)
 			if (d.Left == 0) != unary {
 				continue
